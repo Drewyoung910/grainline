@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, type EmailOutbox } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { mapWithConcurrency } from "@/lib/concurrency";
@@ -35,6 +35,11 @@ export type QueuedEmail = {
   dedupKey: string;
   userId?: string;
   preferenceKey?: string;
+};
+
+export type EnqueueEmailOutboxResult = {
+  job: EmailOutbox | null;
+  created: boolean;
 };
 
 function isUniqueError(error: unknown) {
@@ -106,21 +111,21 @@ async function skipEmailOutboxJob(id: string, lastError: string) {
   });
 }
 
-export async function enqueueEmailOutbox(email: QueuedEmail) {
+export async function enqueueEmailOutboxOnce(email: QueuedEmail): Promise<EnqueueEmailOutboxResult> {
   const recipient = normalizeEmailAddress(email.to);
-  if (!recipient) return null;
+  if (!recipient) return { job: null, created: false };
   if (email.preferenceKey && !isValidEmailPreferenceKey(email.preferenceKey)) {
     Sentry.captureMessage("Skipping email outbox enqueue with invalid preference key", {
       level: "warning",
       tags: { source: "email_outbox", reason: "invalid_preference_key" },
       extra: { preferenceKey: email.preferenceKey, userId: email.userId },
     });
-    return null;
+    return { job: null, created: false };
   }
   const dedupKey = emailOutboxDedupKey(email.dedupKey);
 
   try {
-    return await prisma.emailOutbox.create({
+    const job = await prisma.emailOutbox.create({
       data: {
         recipientEmail: recipient,
         userId: email.userId,
@@ -130,12 +135,19 @@ export async function enqueueEmailOutbox(email: QueuedEmail) {
         dedupKey,
       },
     });
+    return { job, created: true };
   } catch (error) {
     if (isUniqueError(error)) {
-      return prisma.emailOutbox.findUnique({ where: { dedupKey } });
+      const job = await prisma.emailOutbox.findUnique({ where: { dedupKey } });
+      return { job, created: false };
     }
     throw error;
   }
+}
+
+export async function enqueueEmailOutbox(email: QueuedEmail) {
+  const { job } = await enqueueEmailOutboxOnce(email);
+  return job;
 }
 
 export async function processEmailOutboxBatch({

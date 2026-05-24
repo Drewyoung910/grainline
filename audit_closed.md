@@ -2302,9 +2302,34 @@ Last updated: 2026-05-24
      `tests/review-report-observability.test.mjs`, and
      `tests/round8-fulfillment-privacy-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 191 findings;
-verified stale/false-positive: 73 findings; product/design decisions deferred:
-41 findings. Remaining major categories: checkout concurrency integration
+239. **Stripe webhook side-effect and refund-lock pass reduced** — code/test
+     fix for #765, the same-session duplicate side-effect gap adjacent to
+     #766, #767, #768, and #770. Stripe completed-checkout order emails now
+     reserve deterministic `EmailOutbox` rows before the direct-send fast path;
+     outbox reservation failures fail the webhook event instead of marking it
+     processed without durable retry state, and direct-send failures leave the
+     row retryable. Existing-order side-effect replay now skips orders that
+     already have blocking refund state or the blocked-checkout review marker,
+     so refunded/held checkouts do not receive normal order-confirmed side
+     effects on a later same-session Stripe completion event. Blocked-checkout
+     automatic refunds now acquire the shared `sellerRefundId = "pending"`
+     sentinel through an atomic `updateMany` that excludes blocking refund and
+     open-dispute ledgers before calling Stripe, then record the refund only
+     while the sentinel is still held. Terminal dispute events still mark the
+     order for review, but they preserve a fresh pending refund lock instead of
+     nulling `sellerRefundLockedAt` under an in-flight refund. #766 was
+     verified stale/false-positive for exact duplicate Stripe `event.id`
+     delivery because `beginStripeWebhookEvent()` already returns early for
+     processed duplicates; the real adjacent same-session duplicate path is
+     covered by the order-scoped outbox dedup/gates above. #769 remains a
+     product/design decision for broad `reviewNeeded` semantics; this pass
+     deliberately skips only refund/blocked-checkout markers rather than every
+     address/quote-review order. Guardrails:
+     `tests/payment-side-effect-observability.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 196 findings;
+verified stale/false-positive: 74 findings; product/design decisions deferred:
+42 findings. Remaining major categories: checkout concurrency integration
 evidence, Round 10 deferred system-audit and state-machine product designs,
 JSON shape/size and email uniqueness production-scan decisions, email outbox
 retention/quota/versioning design, refund accounting runtime proof and refund

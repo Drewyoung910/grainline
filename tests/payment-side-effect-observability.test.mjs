@@ -60,6 +60,55 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.doesNotMatch(route, /console\.error\("Stripe webhook handler error:", err\)/);
   });
 
+  it("persists Stripe order emails to the outbox before any direct send", () => {
+    const route = source("src/app/api/stripe/webhook/route.ts");
+
+    const enqueueIndex = route.indexOf("enqueued = await enqueueEmailOutboxOnce");
+    const directSendIndex = route.indexOf("await sendRenderedEmail(email, { throwOnFailure: true })");
+
+    assert.notEqual(enqueueIndex, -1);
+    assert.notEqual(directSendIndex, -1);
+    assert.ok(enqueueIndex < directSendIndex, "order emails must reserve the outbox dedup row before direct send");
+    assert.match(route, /throw outboxError/);
+    assert.match(route, /status: "SENT"/);
+    assert.match(route, /emailOutboxFailureState\(enqueued\.job\.attempts \+ 1\)/);
+  });
+
+  it("skips post-payment side effects for refunded or blocked checkout orders", () => {
+    const route = source("src/app/api/stripe/webhook/route.ts");
+
+    assert.match(route, /function orderPostPaymentSideEffectsBlocked/);
+    assert.match(route, /orderHasRefundLedger\(order\)/);
+    assert.match(route, /BLOCKED_CHECKOUT_REVIEW_MARKER/);
+    assert.match(route, /sellerRefundId: true/);
+    assert.match(route, /reviewNeeded: true/);
+    assert.match(route, /if \(orderPostPaymentSideEffectsBlocked\(order\)\) return/);
+  });
+
+  it("uses the refund sentinel lock before issuing automatic blocked-checkout refunds", () => {
+    const route = source("src/app/api/stripe/webhook/route.ts");
+
+    assert.match(route, /sellerRefundId: REFUND_LOCK_SENTINEL/);
+    assert.match(route, /paymentEvents: \{ none: blockingRefundOrDisputeLedgerWhere\(\) \}/);
+    assert.match(route, /stripe\.refunds\.create/);
+    assert.ok(
+      route.indexOf("sellerRefundId: REFUND_LOCK_SENTINEL") < route.indexOf("stripe.refunds.create"),
+      "blocked-checkout refunds must acquire the local lock before the Stripe refund call",
+    );
+    assert.match(route, /where: \{ id: input\.orderId, sellerRefundId: REFUND_LOCK_SENTINEL \}/);
+    assert.match(route, /Blocked checkout refund lock was no longer held while recording Stripe refund/);
+    assert.match(route, /stripe_webhook_blocked_checkout_refund_lock_release_failed/);
+  });
+
+  it("preserves fresh refund locks when terminal Stripe dispute events arrive", () => {
+    const route = source("src/app/api/stripe/webhook/route.ts");
+
+    assert.match(route, /sellerRefundLockedAt: true/);
+    assert.match(route, /order\.sellerRefundId === REFUND_LOCK_SENTINEL/);
+    assert.match(route, /!isStaleRefundLock\(/);
+    assert.match(route, /delete orderUpdate\.sellerRefundLockedAt/);
+  });
+
   it("keeps shipping-label orphan paths observable without full label URLs", () => {
     const route = source("src/app/api/orders/[id]/label/route.ts");
 

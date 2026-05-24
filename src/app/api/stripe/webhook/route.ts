@@ -13,7 +13,8 @@ import {
   renderOrderConfirmedSellerEmail,
   sendRenderedEmail,
 } from "@/lib/email";
-import { enqueueEmailOutbox, type QueuedEmail } from "@/lib/emailOutbox";
+import { enqueueEmailOutboxOnce, type QueuedEmail } from "@/lib/emailOutbox";
+import { emailOutboxFailureState } from "@/lib/emailOutboxState";
 import { releaseCheckoutLock } from "@/lib/checkoutSessionLock";
 import { expireOpenCheckoutSessionsForSeller } from "@/lib/checkoutSessionExpiry";
 import { checkoutCompletionNeedsReview } from "@/lib/checkoutCompletionState";
@@ -36,7 +37,8 @@ import {
   restoreUnorderedCheckoutStockOnce,
   type CheckoutStockRestoreLineItem,
 } from "@/lib/checkoutStockRestore";
-import { blockingRefundLedgerWhere, orderHasRefundLedger } from "@/lib/refundRouteState";
+import { blockingRefundLedgerWhere, blockingRefundOrDisputeLedgerWhere, orderHasRefundLedger } from "@/lib/refundRouteState";
+import { REFUND_LOCK_SENTINEL, isStaleRefundLock } from "@/lib/refundLockState";
 import { stripeWebhookCreatedSeconds } from "@/lib/stripeConnectV2";
 import { revalidateListingSearchCaches, revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
 import {
@@ -132,6 +134,19 @@ const STRIPE_DISPUTE_EVENT_TYPES = new Set([
   "charge.dispute.funds_withdrawn",
   "charge.dispute.funds_reinstated",
 ]);
+const BLOCKED_CHECKOUT_REVIEW_MARKER = "Order was held for staff review.";
+
+function orderPostPaymentSideEffectsBlocked(order: {
+  sellerRefundId?: string | null;
+  reviewNeeded?: boolean | null;
+  reviewNote?: string | null;
+  paymentEvents?: Array<{ eventType?: string | null; status?: string | null }> | null;
+}) {
+  return (
+    orderHasRefundLedger(order) ||
+    Boolean(order.reviewNeeded && order.reviewNote?.includes(BLOCKED_CHECKOUT_REVIEW_MARKER))
+  );
+}
 
 export async function POST(req: Request) {
   const signature = (await headers()).get("stripe-signature");
@@ -347,6 +362,9 @@ export async function POST(req: Request) {
       select: {
         id: true,
         buyerId: true,
+        sellerRefundId: true,
+        reviewNeeded: true,
+        reviewNote: true,
         itemsSubtotalCents: true,
         shippingAmountCents: true,
         taxAmountCents: true,
@@ -360,6 +378,11 @@ export async function POST(req: Request) {
         shipToState: true,
         shipToPostalCode: true,
         buyer: { select: { name: true, email: true } },
+        paymentEvents: {
+          where: blockingRefundLedgerWhere(),
+          take: 1,
+          select: { eventType: true, status: true },
+        },
         items: {
           select: {
             quantity: true,
@@ -384,6 +407,7 @@ export async function POST(req: Request) {
       },
     });
     if (!order) return;
+    if (orderPostPaymentSideEffectsBlocked(order)) return;
 
     const seller = order.items[0]?.listing.seller;
     const sellerUserId = seller?.userId;
@@ -525,26 +549,80 @@ export async function POST(req: Request) {
     source: string;
     extra: Record<string, unknown>;
   }) {
+    let enqueued: Awaited<ReturnType<typeof enqueueEmailOutboxOnce>>;
+    try {
+      enqueued = await enqueueEmailOutboxOnce({
+        ...email,
+        dedupKey,
+        userId: userId ?? undefined,
+        preferenceKey,
+      });
+    } catch (outboxError) {
+      Sentry.captureException(outboxError, {
+        tags: { source: "stripe_webhook_email_outbox", email: source },
+        extra,
+      });
+      throw outboxError;
+    }
+
+    if (!enqueued.job || !enqueued.created) return;
+
+    const claim = await prisma.emailOutbox.updateMany({
+      where: { id: enqueued.job.id, status: "PENDING", attempts: 0 },
+      data: {
+        status: "PROCESSING",
+        attempts: { increment: 1 },
+        nextAttemptAt: null,
+        lastError: null,
+      },
+    });
+    if (claim.count !== 1) return;
+
+    let directSendError: unknown;
     try {
       await sendRenderedEmail(email, { throwOnFailure: true });
-      return;
     } catch (error) {
+      directSendError = error;
       Sentry.captureException(error, {
         tags: { source: "stripe_webhook_email", email: source },
         extra,
       });
     }
 
+    if (!directSendError) {
+      try {
+        await prisma.emailOutbox.updateMany({
+          where: { id: enqueued.job.id, status: "PROCESSING" },
+          data: {
+            status: "SENT",
+            sentAt: new Date(),
+            nextAttemptAt: null,
+            lastError: null,
+          },
+        });
+      } catch (sentStateError) {
+        Sentry.captureException(sentStateError, {
+          tags: { source: "stripe_webhook_email_sent_state", email: source },
+          extra,
+        });
+        throw sentStateError;
+      }
+      return;
+    }
+
     try {
-      await enqueueEmailOutbox({
-        ...email,
-        dedupKey,
-        userId: userId ?? undefined,
-        preferenceKey,
+      const failureState = emailOutboxFailureState(enqueued.job.attempts + 1);
+      await prisma.emailOutbox.updateMany({
+        where: { id: enqueued.job.id, status: "PROCESSING" },
+        data: {
+          status: failureState.status,
+          nextAttemptAt: failureState.nextAttemptAt,
+          lastError: sanitizeEmailOutboxError(directSendError),
+        },
       });
     } catch (fallbackError) {
       Sentry.captureException(fallbackError, {
-        tags: { source: "stripe_webhook_email_fallback", email: source },
+        tags: { source: "stripe_webhook_email_outbox_failure_state", email: source },
         extra,
       });
     }
@@ -724,7 +802,7 @@ export async function POST(req: Request) {
         sellerUserIds: string[];
         buyerUserId: string | null;
       }) {
-        const reviewPrefix = `${input.reason} Order was held for staff review.`;
+        const reviewPrefix = `${input.reason} ${BLOCKED_CHECKOUT_REVIEW_MARKER}`;
         const { logSecurityEvent } = await import("@/lib/security");
         for (const sellerUserId of input.sellerUserIds) {
           logSecurityEvent("ownership_violation", {
@@ -809,40 +887,131 @@ export async function POST(req: Request) {
             return;
           }
 
-          const refund = await stripe.refunds.create(
-            {
-              payment_intent: paymentIntentId,
-              reverse_transfer: true,
+          const lockResult = await prisma.order.updateMany({
+            where: {
+              id: input.orderId,
+              sellerRefundId: null,
+              paymentEvents: { none: blockingRefundOrDisputeLedgerWhere() },
             },
-            { idempotencyKey: `blocked-checkout-refund:${sessionId}` },
-          );
-
-          const stockStatusRestoredCount = await prisma.$transaction(async (tx) => {
-            const restoredCount = await restoreReservedStockItems(tx, restorableStockItemsFromLineItems(input.lineItems));
-            await tx.order.update({
+            data: {
+              sellerRefundId: REFUND_LOCK_SENTINEL,
+              sellerRefundLockedAt: new Date(),
+              reviewNeeded: true,
+              reviewNote: `${reviewPrefix} Automatic refund is being processed because the maker account was not eligible to accept this order.`,
+            },
+          });
+          if (lockResult.count !== 1) {
+            const conflictingOrder = await prisma.order.findUnique({
               where: { id: input.orderId },
-              data: {
-                sellerRefundId: refund.id,
-                sellerRefundAmountCents: refund.amount ?? s.amount_total ?? null,
-                sellerRefundLockedAt: null,
-                reviewNeeded: true,
-                reviewNote: `${reviewPrefix} Automatic refund issued because the maker account was not eligible to accept this order.`,
+              select: {
+                sellerRefundId: true,
+                paymentEvents: {
+                  where: blockingRefundOrDisputeLedgerWhere(),
+                  take: 2,
+                  select: { eventType: true, status: true },
+                },
               },
             });
-            return restoredCount;
-          });
-          if (stockStatusRestoredCount > 0) {
-            revalidateListingSearchCaches();
+            const hasRefund = conflictingOrder ? orderHasRefundLedger(conflictingOrder) : false;
+            await prisma.order.updateMany({
+              where: { id: input.orderId },
+              data: {
+                reviewNeeded: true,
+                reviewNote: hasRefund
+                  ? `${reviewPrefix} Automatic refund was skipped because another refund is already being processed or recorded for this order.`
+                  : `${reviewPrefix} Automatic refund was skipped because refund or dispute state changed while processing; staff must reconcile this payment manually.`,
+              },
+            });
+            return;
           }
 
-          if (input.buyerUserId) {
-            await createNotification({
-              userId: input.buyerUserId,
-              type: "NEW_ORDER",
-              title: "Payment refunded",
-              body: "This payment was refunded because the checkout was no longer eligible to complete.",
-              link: `/dashboard/orders/${input.orderId}`,
-            }).catch(() => {});
+          let refund: Stripe.Refund | null = null;
+          try {
+            refund = await stripe.refunds.create(
+              {
+                payment_intent: paymentIntentId,
+                reverse_transfer: true,
+              },
+              { idempotencyKey: `blocked-checkout-refund:${sessionId}` },
+            );
+
+            const stockStatusRestoredCount = await prisma.$transaction(async (tx) => {
+              const restoredCount = await restoreReservedStockItems(tx, restorableStockItemsFromLineItems(input.lineItems));
+              const orderUpdate = await tx.order.updateMany({
+                where: { id: input.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
+                data: {
+                  sellerRefundId: refund!.id,
+                  sellerRefundAmountCents: refund!.amount ?? s.amount_total ?? null,
+                  sellerRefundLockedAt: null,
+                  reviewNeeded: true,
+                  reviewNote: `${reviewPrefix} Automatic refund issued because the maker account was not eligible to accept this order.`,
+                },
+              });
+              if (orderUpdate.count !== 1) {
+                throw new Error("Blocked checkout refund lock was no longer held while recording Stripe refund.");
+              }
+              return restoredCount;
+            });
+            if (stockStatusRestoredCount > 0) {
+              revalidateListingSearchCaches();
+            }
+
+            if (input.buyerUserId) {
+              await createNotification({
+                userId: input.buyerUserId,
+                type: "NEW_ORDER",
+                title: "Payment refunded",
+                body: "This payment was refunded because the checkout was no longer eligible to complete.",
+                link: `/dashboard/orders/${input.orderId}`,
+              });
+            }
+          } catch (refundError) {
+            if (refund?.id) {
+              Sentry.captureException(refundError, {
+                tags: { source: "stripe_webhook_blocked_checkout_orphaned_after_stripe" },
+                extra: {
+                  stripeSessionId: sessionId,
+                  orderId: input.orderId,
+                  reason: input.reason,
+                  refundId: refund.id,
+                  refundAmountCents: refund.amount ?? s.amount_total ?? null,
+                },
+              });
+              await prisma.order.updateMany({
+                where: { id: input.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
+                data: {
+                  sellerRefundId: refund.id,
+                  sellerRefundAmountCents: refund.amount ?? s.amount_total ?? null,
+                  sellerRefundLockedAt: null,
+                  reviewNeeded: true,
+                  reviewNote: `${reviewPrefix} ORPHANED REFUND: Stripe refund ${refund.id} was created, but follow-up DB work failed. Manual reconciliation required.`,
+                },
+              }).catch((dbError) => {
+                Sentry.captureException(dbError, {
+                  tags: { source: "stripe_webhook_blocked_checkout_orphan_record_failed" },
+                  extra: { stripeSessionId: sessionId, orderId: input.orderId, reason: input.reason, refundId: refund?.id },
+                });
+              });
+            } else {
+              await prisma.order.updateMany({
+                where: { id: input.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
+                data: {
+                  sellerRefundId: null,
+                  sellerRefundLockedAt: null,
+                  reviewNeeded: true,
+                  reviewNote: `${reviewPrefix} Automatic refund failed; staff must reconcile this payment manually.`,
+                },
+              }).catch((dbError) => {
+                Sentry.captureException(dbError, {
+                  tags: { source: "stripe_webhook_blocked_checkout_refund_lock_release_failed" },
+                  extra: { stripeSessionId: sessionId, orderId: input.orderId, reason: input.reason },
+                });
+              });
+              Sentry.captureException(refundError, {
+                tags: { source: "stripe_webhook_blocked_checkout_refund" },
+                extra: { stripeSessionId: sessionId, orderId: input.orderId, reason: input.reason },
+              });
+            }
           }
         } catch (refundError) {
           await prisma.order.update({
@@ -1628,6 +1797,8 @@ export async function POST(req: Request) {
                 id: true,
                 currency: true,
                 buyerId: true,
+                sellerRefundId: true,
+                sellerRefundLockedAt: true,
                 case: { select: { id: true, status: true } },
                 items: {
                   take: 1,
@@ -1664,9 +1835,20 @@ export async function POST(req: Request) {
               description: disputeLedger.ledger.description,
               metadata: disputeLedger.ledger.metadata,
             }, tx);
+            const orderUpdate = { ...disputeLedger.orderUpdate };
+            if (
+              "sellerRefundLockedAt" in orderUpdate &&
+              order.sellerRefundId === REFUND_LOCK_SENTINEL &&
+              !isStaleRefundLock({
+                sellerRefundId: order.sellerRefundId,
+                sellerRefundLockedAt: order.sellerRefundLockedAt,
+              })
+            ) {
+              delete orderUpdate.sellerRefundLockedAt;
+            }
             await tx.order.update({
               where: { id: order.id },
-              data: disputeLedger.orderUpdate,
+              data: orderUpdate,
             });
             if (event.type === "charge.dispute.created" && order.buyerId && sellerUserId) {
               const caseAction = disputeCaseAction({
