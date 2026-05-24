@@ -2136,12 +2136,23 @@ Last updated: 2026-05-24
      performance/bulk-endpoint decision rather than the durability fix in this
      pass. Guardrail: `tests/anonymous-cart-merge.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 159 findings;
+231. **AI review outer fail-closed coverage reduced** — code/test fix for
+     #887. `reviewListingWithAI()` now has injectable lookup/fetch/sleep
+     dependencies for tests while preserving production callers, and the outer
+     wrapper is directly covered for missing OpenAI config, malformed model
+     content, and transient provider retry exhaustion. Verified current/stale
+     from the same AI sweep: #811, #812, #813, #815, #816, #817, #818, and
+     #819 were already closed by previous AI hardening passes. #814 remains a
+     product-risk design decision because cross-seller fuzzy duplicate
+     detection needs thresholds and false-positive handling for generic listing
+     titles. Guardrail: `tests/ai-review-outer-failclosed.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 160 findings;
 verified stale/false-positive: 58 findings; product/design decisions deferred:
-41 findings. Remaining major categories: AI full-workflow integration evidence,
-checkout concurrency integration evidence, Round 10 deferred system-audit and
-state-machine product designs, JSON shape/size and email uniqueness
-production-scan decisions, conversation swapped-pair DB invariant design,
-email outbox retention/versioning design, account export/legal retention scope,
-remaining privacy/export retention decisions, and anonymous-cart merge
-bulk/performance design.
+42 findings. Remaining major categories: checkout concurrency integration
+evidence, Round 10 deferred system-audit and state-machine product designs,
+JSON shape/size and email uniqueness production-scan decisions, conversation
+swapped-pair DB invariant design, email outbox retention/versioning design,
+account export/legal retention scope, remaining privacy/export retention
+decisions, anonymous-cart merge bulk/performance design, and cross-seller AI
+duplicate-detection product design.

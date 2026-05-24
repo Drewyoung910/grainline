@@ -2,6 +2,13 @@
 
 Historical audit and fix-pass logs moved out of `CLAUDE.md` so project instructions stay focused on current architecture and behavior contracts. `audit_open_findings.md` remains the source of truth for individual findings.
 
+## AI Review Outer Fail-Closed Coverage Pass (2026-05-24)
+
+- `reviewListingWithAI()` now accepts optional test-only dependency injection for its duplicate-title lookup, OpenAI fetch, and retry sleep while preserving existing production callers.
+- Added direct outer-wrapper coverage for missing OpenAI config, malformed model output, and transient provider retry exhaustion.
+- Cross-seller duplicate detection remains a product-risk design decision because generic woodworking titles can create false positives without a broader threshold/appeal design.
+- Guardrail coverage: `tests/ai-review-outer-failclosed.test.mjs`.
+
 ## Anonymous Cart Merge Durability Pass (2026-05-24)
 
 - Extracted anonymous-cart sign-in merge outcome handling into `src/lib/anonymousCartMerge.ts`.

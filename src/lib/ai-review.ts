@@ -1,17 +1,33 @@
 import { randomUUID } from "crypto";
 import * as Sentry from "@sentry/nextjs";
-import { prisma } from '@/lib/db'
-import { fetchWithTimeout } from "./fetchWithTimeout";
+import { fetchWithTimeout as defaultFetchWithTimeout } from "./fetchWithTimeout.ts";
 import {
   filterAIReviewImageUrls,
   normalizeDuplicateListingTitle,
   redactPromptInjection,
   sanitizeAIAltText,
-} from "./aiReviewSafety";
-import { normalizeAIReviewResult, type AIReviewResult } from "./aiReviewResultState";
-import { isR2PublicUrl } from "./urlValidation";
+} from "./aiReviewSafety.ts";
+import { normalizeAIReviewResult, type AIReviewResult } from "./aiReviewResultState.ts";
+import { isR2PublicUrl } from "./urlValidation.ts";
 
 export type { AIReviewResult } from "./aiReviewResultState";
+
+type AIReviewDependencies = {
+  findRecentListingTitles?: (sellerId: string) => Promise<Array<{ title: string }>>;
+  fetchWithTimeout?: typeof defaultFetchWithTimeout;
+  sleep?: (ms: number) => Promise<void>;
+};
+
+async function defaultFindRecentListingTitles(sellerId: string) {
+  const { prisma } = await import("./db.ts");
+  return prisma.listing.findMany({
+    where: {
+      sellerId,
+      createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+    },
+    select: { title: true },
+  });
+}
 
 let missingOpenAIKeyReported = false;
 
@@ -86,11 +102,15 @@ export async function reviewListingWithAI(listing: {
   sellerName: string
   listingCount: number
   imageUrls?: string[]
-}): Promise<AIReviewResult> {
+}, deps: AIReviewDependencies = {}): Promise<AIReviewResult> {
+  const findRecentListingTitles = deps.findRecentListingTitles ?? defaultFindRecentListingTitles;
+  const requestWithTimeout = deps.fetchWithTimeout ?? defaultFetchWithTimeout;
+  const wait = deps.sleep ?? sleep;
+
   if (!process.env.OPENAI_API_KEY) {
     if (!missingOpenAIKeyReported) {
       missingOpenAIKeyReported = true;
-      Sentry.captureMessage("AI review unavailable: missing OPENAI_API_KEY", {
+      Sentry.captureMessage?.("AI review unavailable: missing OPENAI_API_KEY", {
         level: "error",
         tags: { source: "ai_review", reason: "missing_openai_api_key" },
       });
@@ -108,13 +128,7 @@ export async function reviewListingWithAI(listing: {
   // Normalize aggressively so punctuation, spacing, and emoji changes do not bypass the check.
   try {
     // Fetch recent titles from same seller for normalized comparison
-    const recentListings = await prisma.listing.findMany({
-      where: {
-        sellerId: listing.sellerId,
-        createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
-      },
-      select: { title: true },
-    });
+    const recentListings = await findRecentListingTitles(listing.sellerId);
     const normalizedNew = normalizeDuplicateListingTitle(listing.title);
     const duplicateCount = normalizedNew ? recentListings.filter(
       (l) => normalizeDuplicateListingTitle(l.title) === normalizedNew
@@ -265,7 +279,7 @@ USER_LISTING_DATA_${delimiterId}_END`
     }
 
     const requestReview = async () => {
-      const response = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
+      const response = await requestWithTimeout('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -294,11 +308,11 @@ USER_LISTING_DATA_${delimiterId}_END`
       response = await requestReview();
     } catch (error) {
       if (!isRetryableAIReviewError(error)) throw error;
-      Sentry.captureException(error, {
+      Sentry.captureException?.(error, {
         tags: { source: "ai_review", retrying: "true" },
         extra: { sellerId: listing.sellerId },
       });
-      await sleep(500);
+      await wait(500);
       response = await requestReview();
     }
 
@@ -334,7 +348,7 @@ export async function generateAltText(imageUrl: string): Promise<string | null> 
   if (filterAIReviewImageUrls([imageUrl], isR2PublicUrl).length === 0) return null;
 
   try {
-    const res = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
+    const res = await defaultFetchWithTimeout("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
