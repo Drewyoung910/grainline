@@ -1,4 +1,5 @@
 export const DEFAULT_CURRENCY = "usd";
+export const INVALID_CURRENCY_AMOUNT = "Invalid amount";
 const DEFAULT_LOCALE = "en-US";
 const ISO_CURRENCY_PATTERN = /^[A-Z]{3}$/;
 const MONEY_INPUT_PATTERN = /^([+-])?(?:(\d+)(?:\.(\d{0,2}))?|\.(\d{1,2}))$/;
@@ -13,6 +14,7 @@ export function formatCurrencyCents(
   currency: string | null | undefined = DEFAULT_CURRENCY,
   locale: string | undefined = DEFAULT_LOCALE,
 ): string {
+  if (!Number.isFinite(cents)) return INVALID_CURRENCY_AMOUNT;
   const normalizedCurrency = normalizeCurrencyCode(currency);
   try {
     const formatter = new Intl.NumberFormat(locale, {
@@ -20,14 +22,14 @@ export function formatCurrencyCents(
       currency: normalizedCurrency,
     });
     const fractionDigits = formatter.resolvedOptions().maximumFractionDigits ?? 2;
-    const amount = Number.isFinite(cents) ? cents / 10 ** fractionDigits : 0;
+    const amount = cents / 10 ** fractionDigits;
     return formatter.format(amount);
   } catch {
     const formatter = new Intl.NumberFormat(locale, {
       style: "currency",
       currency: DEFAULT_CURRENCY.toUpperCase(),
     });
-    return formatter.format(Number.isFinite(cents) ? cents / 100 : 0);
+    return formatter.format(cents / 100);
   }
 }
 
@@ -41,6 +43,8 @@ export function parseMoneyInputToCents(
       : typeof input === "string"
         ? input.trim()
         : "";
+  // Empty or non-string/non-number input is "missing", not zero. Callers that
+  // allow free items must explicitly accept the numeric 0 result.
   if (!raw) return null;
 
   const match = MONEY_INPUT_PATTERN.exec(raw);

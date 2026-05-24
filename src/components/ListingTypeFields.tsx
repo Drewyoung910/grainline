@@ -2,6 +2,7 @@
 "use client";
 import * as React from "react";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
+import { MAX_MANUAL_STOCK_QUANTITY } from "@/lib/stockMutationState";
 
 export default function ListingTypeFields({
   listingType = "MADE_TO_ORDER",
@@ -128,6 +129,7 @@ export default function ListingTypeFields({
                 inputMode="numeric"
                 step="1"
                 min="1"
+                max={MAX_MANUAL_STOCK_QUANTITY}
                 placeholder="1"
                 defaultValue={stockQuantity ?? 1}
                 className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"

@@ -25,8 +25,8 @@ Last updated: 2026-05-24
 - Verified hardening/doc commits since 2026-05-13: 215.
 - Verified code/feature fix commits since 2026-05-13: 191.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass tally: 154 verified fixed/reduced findings,
-  56 verified stale/false-positive findings, and 41 deferred/manual findings
+- Most recent reported pass tally: 175 verified fixed/reduced findings,
+  74 verified stale/false-positive findings, and 41 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
 ## 2026-05-14 Active Tracker
@@ -2195,13 +2195,39 @@ Last updated: 2026-05-24
      `tests/r56-r67-small-fixes.test.mjs`, and
      `tests/rendering-security.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 170 findings;
-verified stale/false-positive: 68 findings; product/design decisions deferred:
+235. **Refund, money, stock, and helper verification pass reduced** —
+     code/test fix for #218, #219, #220, #224, and #225. Refund idempotency
+     bases now go through `refundIdempotencyKeyBase()` and include scope,
+     target id, resolution, and amount before Stripe suffixes are appended.
+     `createMarketplaceRefund()` now separates `usedPlatformOnly` from
+     `requiresManualTransferReconciliation`, so tax-only platform-funded
+     refunds are not mistaken for disconnected-seller transfer-reconciliation
+     work. `formatCurrencyCents()` now returns an explicit invalid-amount
+     sentinel for non-finite cents instead of rendering `$0.00`; money input
+     parsing documents and tests empty/null versus `"0"` semantics. Manual
+     stock writes now share `MAX_MANUAL_STOCK_QUANTITY` and enforce it in the
+     stock PATCH API, listing form input, and create/edit/custom listing server
+     actions. Verified stale/current in the same agent-reviewed sweep: #283,
+     #284, #285, #287, #335, and #336 were already closed or false on current
+     `main` through existing Guild metrics, quality-score, reverse-geocode,
+     runtime-doc, and CI-audit guardrails. Guardrails:
+     `tests/marketplace-refunds.test.mjs`, `tests/money.test.mjs`,
+     `tests/stock-mutation-state.test.mjs`,
+     `tests/quality-score-state.test.mjs`,
+     `tests/guild-metrics-state.test.mjs`,
+     `tests/reverse-geocode-throttle.test.mjs`,
+     `tests/schema-numeric-index-guardrails.test.mjs`,
+     `tests/ban-side-effect-guardrails.test.mjs`,
+     `tests/email-delivery-guardrails.test.mjs`, and
+     `tests/round10-state-machine-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 175 findings;
+verified stale/false-positive: 74 findings; product/design decisions deferred:
 41 findings. Remaining major categories: checkout concurrency integration
 evidence, Round 10 deferred system-audit and state-machine product designs,
 JSON shape/size and email uniqueness production-scan decisions, email outbox
-retention/quota/versioning design, refund/idempotency and money-format
-semantics, metrics/founding-maker/geography/quality-score consistency,
+retention/quota/versioning design, refund accounting runtime proof and refund
+attempt persistence semantics, metrics/founding-maker/geography/quality-score consistency,
 case/message state-policy decisions, account export/legal retention scope,
 remaining privacy/export retention decisions, anonymous-cart merge
 bulk/performance design, and cross-seller AI duplicate-detection product

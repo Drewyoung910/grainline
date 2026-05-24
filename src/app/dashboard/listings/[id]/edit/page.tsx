@@ -24,6 +24,7 @@ import { revalidateListingSearchCaches } from "@/lib/searchCache";
 import { isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
 import { expireOpenCheckoutSessionsForListing } from "@/lib/checkoutSessionExpiry";
 import { listingMutationRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import { MAX_MANUAL_STOCK_QUANTITY } from "@/lib/stockMutationState";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -261,6 +262,9 @@ async function updateListing(
     return { ok: false, error: "In-stock listings need a stock quantity greater than zero." };
   }
   if (stockQuantity !== null && stockQuantity < 0) return { ok: false, error: "Stock quantity cannot be negative." };
+  if (stockQuantity !== null && stockQuantity > MAX_MANUAL_STOCK_QUANTITY) {
+    return { ok: false, error: `Stock quantity cannot exceed ${MAX_MANUAL_STOCK_QUANTITY}.` };
+  }
   if (processingTimeMaxDays !== null && processingTimeMaxDays > 365) return { ok: false, error: "Processing time cannot exceed 365 days." };
   if (
     listingType === "MADE_TO_ORDER" &&

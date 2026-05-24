@@ -20,6 +20,40 @@ type MarketplaceRefundOptions = {
   reason?: Stripe.RefundCreateParams.Reason;
 };
 
+type RefundIdempotencyScope = "seller-refund" | "case-resolve";
+
+const REFUND_IDEMPOTENCY_BASE_PATTERN =
+  /^(?:seller-refund|case-resolve):[A-Za-z0-9_-]+:(?:FULL|PARTIAL|REFUND_FULL|REFUND_PARTIAL):[1-9]\d*$/;
+
+export function refundIdempotencyKeyBase({
+  scope,
+  id,
+  resolution,
+  amountCents,
+}: {
+  scope: RefundIdempotencyScope;
+  id: string;
+  resolution: RefundResolution;
+  amountCents: number;
+}) {
+  if (!Number.isInteger(amountCents) || amountCents <= 0) {
+    throw new Error("Refund idempotency amount must be a positive integer.");
+  }
+  if (!/^[A-Za-z0-9_-]+$/.test(id)) {
+    throw new Error("Refund idempotency id contains unsupported characters.");
+  }
+  return `${scope}:${id}:${resolution}:${amountCents}`;
+}
+
+function assertRefundIdempotencyKeyBase(value: string, opts: Pick<MarketplaceRefundOptions, "resolution" | "amountCents">) {
+  if (!REFUND_IDEMPOTENCY_BASE_PATTERN.test(value)) {
+    throw new Error("Refund idempotency key base must include scope, id, resolution, and positive amount.");
+  }
+  if (!value.endsWith(`:${opts.resolution}:${opts.amountCents}`)) {
+    throw new Error("Refund idempotency key base must match the refund resolution and amount.");
+  }
+}
+
 function assertCreatedRefundUsable(refund: CreatedRefund) {
   if (refund.status === "failed" || refund.status === "canceled") {
     throw new Error(`Stripe refund ${refund.id} returned ${refund.status} status.`);
@@ -48,6 +82,7 @@ export async function createMarketplaceRefundWithCreator(
   if (opts.amountCents > maxRefundCents) {
     throw new Error("Refund amount exceeds order total.");
   }
+  assertRefundIdempotencyKeyBase(opts.idempotencyKeyBase, opts);
 
   const createRefund = async (params: Stripe.RefundCreateParams, suffix: string) => {
     const refund = await createStripeRefund(params, {
@@ -73,6 +108,7 @@ export async function createMarketplaceRefundWithCreator(
       requiresManualFollowUp: refundNeedsManualFollowUp(refund),
       sellerPortionCents: 0,
       taxAmountCents,
+      requiresManualTransferReconciliation: true,
       usedPlatformOnly: true,
     };
   }
@@ -94,7 +130,8 @@ export async function createMarketplaceRefundWithCreator(
       requiresManualFollowUp: refundNeedsManualFollowUp(refund),
       sellerPortionCents: 0,
       taxAmountCents,
-      usedPlatformOnly: false,
+      requiresManualTransferReconciliation: false,
+      usedPlatformOnly: true,
     };
   }
 
@@ -116,6 +153,7 @@ export async function createMarketplaceRefundWithCreator(
       requiresManualFollowUp: refundNeedsManualFollowUp(refund),
       sellerPortionCents,
       taxAmountCents,
+      requiresManualTransferReconciliation: false,
       usedPlatformOnly: false,
     };
   }
@@ -137,6 +175,7 @@ export async function createMarketplaceRefundWithCreator(
     requiresManualFollowUp: refundNeedsManualFollowUp(refund),
     sellerPortionCents: opts.amountCents,
     taxAmountCents: 0,
+    requiresManualTransferReconciliation: false,
     usedPlatformOnly: false,
   };
 }

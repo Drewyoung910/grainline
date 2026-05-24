@@ -23,10 +23,18 @@ describe("money formatting", () => {
     assert.doesNotMatch(formatCurrencyCents(12345, "jpy"), /123\.45/);
   });
 
+  it("does not hide non-finite money values as zero", () => {
+    assert.equal(formatCurrencyCents(Number.NaN, "usd"), "Invalid amount");
+    assert.equal(formatCurrencyCents(Number.POSITIVE_INFINITY, "usd"), "Invalid amount");
+  });
+
   it("parses decimal money input without accepting exponent notation", () => {
     assert.equal(parseMoneyInputToCents("12"), 1200);
     assert.equal(parseMoneyInputToCents("12.3"), 1230);
     assert.equal(parseMoneyInputToCents(".99"), 99);
+    assert.equal(parseMoneyInputToCents("0"), 0);
+    assert.equal(parseMoneyInputToCents(""), null);
+    assert.equal(parseMoneyInputToCents(null), null);
     assert.equal(parseMoneyInputToCents(" 001.20 "), 120);
     assert.equal(parseMoneyInputToCents("1e10"), null);
     assert.equal(parseMoneyInputToCents("1.234"), null);

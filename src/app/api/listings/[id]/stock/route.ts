@@ -14,7 +14,9 @@ import { chunkArray, mapWithConcurrency } from "@/lib/concurrency";
 import { publicListingPath } from "@/lib/publicPaths";
 import {
   LOW_STOCK_DEDUP_WINDOW_MS,
+  MAX_MANUAL_STOCK_QUANTITY,
   lowStockNotificationLink,
+  normalizeManualStockQuantity,
   stockAlertBody,
 } from "@/lib/stockMutationState";
 import { revalidateListingSearchCaches } from "@/lib/searchCache";
@@ -27,8 +29,8 @@ import {
 import { z } from "zod";
 
 const StockPatchSchema = z.object({
-  quantity: z.number().int().min(0),
-  expectedQuantity: z.number().int().min(0).optional().nullable(),
+  quantity: z.number().int().min(0).max(MAX_MANUAL_STOCK_QUANTITY),
+  expectedQuantity: z.number().int().min(0).max(MAX_MANUAL_STOCK_QUANTITY).optional().nullable(),
 });
 
 export const runtime = "nodejs";
@@ -63,10 +65,10 @@ export async function PATCH(
       }
       throw e;
     }
-    const quantity = Math.max(0, Math.floor(stockParsed.quantity));
+    const quantity = normalizeManualStockQuantity(stockParsed.quantity);
     const expectedQuantity = stockParsed.expectedQuantity == null
       ? null
-      : Math.max(0, Math.floor(stockParsed.expectedQuantity));
+      : normalizeManualStockQuantity(stockParsed.expectedQuantity);
 
     // Ownership check
     const listing = await prisma.listing.findFirst({

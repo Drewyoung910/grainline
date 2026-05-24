@@ -6,7 +6,7 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCaseResolved } from "@/lib/email";
-import { createMarketplaceRefund } from "@/lib/marketplaceRefunds";
+import { createMarketplaceRefund, refundIdempotencyKeyBase } from "@/lib/marketplaceRefunds";
 import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { REFUND_LOCK_SENTINEL, releaseStaleRefundLocks } from "@/lib/refundLocks";
 import { caseResolutionCopy } from "@/lib/caseResolutionCopy";
@@ -182,7 +182,12 @@ export async function POST(
           giftWrappingPriceCents: caseRecord.order.giftWrappingPriceCents,
           taxAmountCents: caseRecord.order.taxAmountCents,
           canReverseTransfer: Boolean(caseRecord.seller.sellerProfile?.stripeAccountId),
-          idempotencyKeyBase: `case-resolve:${id}:${resolution}:${refundAmountForOrder ?? 0}`,
+          idempotencyKeyBase: refundIdempotencyKeyBase({
+            scope: "case-resolve",
+            id,
+            resolution,
+            amountCents: refundAmountForOrder!,
+          }),
           reason: resolution === "REFUND_FULL" ? "fraudulent" : undefined,
         });
         stripeRefundId = refund.primaryRefundId;
@@ -191,7 +196,7 @@ export async function POST(
           stripeRefundIds.length > 1
             ? `Stripe refunds ${stripeRefundIds.join(", ")}`
             : `Stripe refund ${stripeRefundId}`,
-          refund.usedPlatformOnly ? "seller Stripe account disconnected; transfer reversal requires manual reconciliation" : null,
+          refund.requiresManualTransferReconciliation ? "seller Stripe account disconnected; transfer reversal requires manual reconciliation" : null,
           refund.requiresManualFollowUp
             ? `Stripe refund status requires manual follow-up: ${refund.refundStatuses.filter(Boolean).join(", ") || "provider pending"}`
             : null,

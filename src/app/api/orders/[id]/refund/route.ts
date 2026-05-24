@@ -8,7 +8,7 @@ import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { sendRefundIssued } from "@/lib/email";
-import { createMarketplaceRefund } from "@/lib/marketplaceRefunds";
+import { createMarketplaceRefund, refundIdempotencyKeyBase } from "@/lib/marketplaceRefunds";
 import { createNotification } from "@/lib/notifications";
 import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { REFUND_LOCK_SENTINEL, releaseStaleRefundLocks } from "@/lib/refundLocks";
@@ -236,7 +236,12 @@ export async function POST(
         giftWrappingPriceCents: order.giftWrappingPriceCents,
         taxAmountCents: order.taxAmountCents,
         canReverseTransfer: Boolean(seller.stripeAccountId),
-        idempotencyKeyBase: `seller-refund:${orderId}:${type}:${refundAmountCents}`,
+        idempotencyKeyBase: refundIdempotencyKeyBase({
+          scope: "seller-refund",
+          id: orderId,
+          resolution: type,
+          amountCents: refundAmountCents,
+        }),
       });
       refundId = refund.primaryRefundId;
       refundIds = refund.refundIds;
@@ -256,7 +261,7 @@ export async function POST(
       const refundSummary = refundIds.length > 1
         ? `Stripe refunds ${refundIds.join(", ")}`
         : `Stripe refund ${refundId}`;
-      const transferNote = refund.usedPlatformOnly
+      const transferNote = refund.requiresManualTransferReconciliation
         ? " Seller Stripe account is disconnected; transfer reversal must be reconciled manually."
         : "";
       const statusNote = refund.requiresManualFollowUp
@@ -279,7 +284,7 @@ export async function POST(
           throw new Error("Seller refund lock was no longer held while recording Stripe refund.");
         }
 
-        if (refund.usedPlatformOnly) {
+        if (refund.requiresManualTransferReconciliation) {
           await tx.sellerProfile.update({
             where: { id: seller.id },
             data: {

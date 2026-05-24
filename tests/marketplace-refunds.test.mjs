@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-const { createMarketplaceRefundWithCreator } = await import("../src/lib/marketplaceRefunds.ts");
+const {
+  createMarketplaceRefundWithCreator,
+  refundIdempotencyKeyBase,
+} = await import("../src/lib/marketplaceRefunds.ts");
 
 function baseOpts(overrides = {}) {
-  return {
+  const opts = {
     paymentIntentId: "pi_test",
     resolution: "FULL",
     amountCents: 11_325,
@@ -13,9 +16,17 @@ function baseOpts(overrides = {}) {
     giftWrappingPriceCents: 0,
     taxAmountCents: 825,
     canReverseTransfer: true,
-    idempotencyKeyBase: "refund:order_1",
     ...overrides,
   };
+  if (!Object.hasOwn(overrides, "idempotencyKeyBase")) {
+    opts.idempotencyKeyBase = refundIdempotencyKeyBase({
+      scope: "seller-refund",
+      id: "order_1",
+      resolution: opts.resolution,
+      amountCents: opts.amountCents,
+    });
+  }
+  return opts;
 }
 
 describe("marketplace refunds", () => {
@@ -33,6 +44,7 @@ describe("marketplace refunds", () => {
       requiresManualFollowUp: false,
       sellerPortionCents: 10_500,
       taxAmountCents: 825,
+      requiresManualTransferReconciliation: false,
       usedPlatformOnly: false,
     });
     assert.deepEqual(calls, [
@@ -42,7 +54,7 @@ describe("marketplace refunds", () => {
           amount: 11_325,
           reverse_transfer: true,
         },
-        requestOptions: { idempotencyKey: "refund:order_1:full" },
+        requestOptions: { idempotencyKey: "seller-refund:order_1:FULL:11325:full" },
       },
     ]);
   });
@@ -64,6 +76,7 @@ describe("marketplace refunds", () => {
       requiresManualFollowUp: false,
       sellerPortionCents: 11_000,
       taxAmountCents: 825,
+      requiresManualTransferReconciliation: false,
       usedPlatformOnly: false,
     });
     assert.deepEqual(calls, [
@@ -73,7 +86,7 @@ describe("marketplace refunds", () => {
           amount: 11_825,
           reverse_transfer: true,
         },
-        requestOptions: { idempotencyKey: "refund:order_1:full" },
+        requestOptions: { idempotencyKey: "seller-refund:order_1:FULL:11825:full" },
       },
     ]);
   });
@@ -95,6 +108,7 @@ describe("marketplace refunds", () => {
       requiresManualFollowUp: false,
       sellerPortionCents: 0,
       taxAmountCents: 825,
+      requiresManualTransferReconciliation: true,
       usedPlatformOnly: true,
     });
     assert.deepEqual(calls, [
@@ -104,7 +118,7 @@ describe("marketplace refunds", () => {
           amount: 11_325,
           reason: "requested_by_customer",
         },
-        requestOptions: { idempotencyKey: "refund:order_1:platform" },
+        requestOptions: { idempotencyKey: "seller-refund:order_1:FULL:11325:platform" },
       },
     ]);
   });
@@ -130,6 +144,7 @@ describe("marketplace refunds", () => {
       requiresManualFollowUp: false,
       sellerPortionCents: 1_200,
       taxAmountCents: 0,
+      requiresManualTransferReconciliation: false,
       usedPlatformOnly: false,
     });
     assert.deepEqual(calls, [
@@ -140,12 +155,12 @@ describe("marketplace refunds", () => {
           reverse_transfer: true,
           reason: "requested_by_customer",
         },
-        requestOptions: { idempotencyKey: "refund:order_1:seller" },
+        requestOptions: { idempotencyKey: "seller-refund:order_1:PARTIAL:1200:seller" },
       },
     ]);
   });
 
-  it("uses a single platform refund for full tax-only refunds", async () => {
+  it("uses a single platform-funded refund without manual seller reconciliation for full tax-only refunds", async () => {
     const calls = [];
     const result = await createMarketplaceRefundWithCreator(
       baseOpts({
@@ -166,7 +181,8 @@ describe("marketplace refunds", () => {
       requiresManualFollowUp: false,
       sellerPortionCents: 0,
       taxAmountCents: 825,
-      usedPlatformOnly: false,
+      requiresManualTransferReconciliation: false,
+      usedPlatformOnly: true,
     });
     assert.deepEqual(calls, [
       {
@@ -174,7 +190,7 @@ describe("marketplace refunds", () => {
           payment_intent: "pi_test",
           amount: 825,
         },
-        requestOptions: { idempotencyKey: "refund:order_1:tax-only" },
+        requestOptions: { idempotencyKey: "seller-refund:order_1:FULL:825:tax-only" },
       },
     ]);
   });
@@ -184,13 +200,60 @@ describe("marketplace refunds", () => {
 
     await assert.rejects(
       () =>
-        createMarketplaceRefundWithCreator(baseOpts({ amountCents: 0 }), async () => {
-          calls += 1;
-          return { id: "never" };
-        }),
+        createMarketplaceRefundWithCreator(
+          baseOpts({ amountCents: 0, idempotencyKeyBase: "seller-refund:order_1:FULL:1" }),
+          async () => {
+            calls += 1;
+            return { id: "never" };
+          },
+        ),
       /Refund amount must be positive/,
     );
     assert.equal(calls, 0);
+  });
+
+  it("requires scoped refund idempotency bases that include resolution and amount", async () => {
+    assert.equal(
+      refundIdempotencyKeyBase({
+        scope: "seller-refund",
+        id: "order_1",
+        resolution: "PARTIAL",
+        amountCents: 1200,
+      }),
+      "seller-refund:order_1:PARTIAL:1200",
+    );
+
+    await assert.rejects(
+      () =>
+        createMarketplaceRefundWithCreator(
+          baseOpts({ idempotencyKeyBase: "refund:order_1" }),
+          async () => ({ id: "never" }),
+        ),
+      /idempotency key base/,
+    );
+    await assert.rejects(
+      () =>
+        createMarketplaceRefundWithCreator(
+          baseOpts({
+            resolution: "PARTIAL",
+            amountCents: 1200,
+            idempotencyKeyBase: "seller-refund:order_1:FULL:1200",
+          }),
+          async () => ({ id: "never" }),
+        ),
+      /match the refund resolution and amount/,
+    );
+
+    assert.throws(
+      () =>
+        refundIdempotencyKeyBase({
+          scope: "case-resolve",
+          id: "case/unsafe",
+          resolution: "REFUND_FULL",
+          amountCents: 825,
+        }),
+      /unsupported characters/,
+    );
   });
 
   it("rejects refund amounts above the order total before calling Stripe", async () => {

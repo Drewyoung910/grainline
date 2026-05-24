@@ -1,4 +1,10 @@
 export const LOW_STOCK_DEDUP_WINDOW_MS = 72 * 60 * 60 * 1000;
+export const MAX_MANUAL_STOCK_QUANTITY = 1_000_000;
+
+export function normalizeManualStockQuantity(value: number | null | undefined) {
+  if (!Number.isFinite(value ?? 0)) return 0;
+  return Math.min(MAX_MANUAL_STOCK_QUANTITY, Math.max(0, Math.floor(value ?? 0)));
+}
 
 export function lowStockNotificationLink(listingId: string) {
   return `/dashboard/listings/${listingId}/edit`;
@@ -13,11 +19,11 @@ export function nextManualStockQuantity({
   requestedQuantity: number;
   expectedQuantity?: number | null | undefined;
 }) {
-  const requested = Math.max(0, Math.floor(requestedQuantity));
+  const requested = normalizeManualStockQuantity(requestedQuantity);
   if (expectedQuantity == null) return requested;
-  const expected = Math.max(0, Math.floor(expectedQuantity));
-  const current = Math.max(0, Math.floor(currentQuantity ?? 0));
-  return Math.max(0, current + (requested - expected));
+  const expected = normalizeManualStockQuantity(expectedQuantity);
+  const current = normalizeManualStockQuantity(currentQuantity);
+  return normalizeManualStockQuantity(current + (requested - expected));
 }
 
 export function stockStatusAfterManualUpdate({
@@ -35,7 +41,7 @@ export function stockStatusAfterManualUpdate({
 }
 
 export function stockAlertBody(stockQuantity: number | null | undefined) {
-  const count = Math.max(0, Math.floor(stockQuantity ?? 0));
+  const count = normalizeManualStockQuantity(stockQuantity);
   return count > 0
     ? `The piece you saved is available again. Current stock: ${count}.`
     : "The piece you saved may be available again. Check the listing for current stock.";

@@ -1,14 +1,21 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const {
   LOW_STOCK_DEDUP_WINDOW_MS,
+  MAX_MANUAL_STOCK_QUANTITY,
   cartItemExceedsLiveStock,
   lowStockNotificationLink,
   nextManualStockQuantity,
+  normalizeManualStockQuantity,
   stockAlertBody,
   stockStatusAfterManualUpdate,
 } = await import("../src/lib/stockMutationState.ts");
+
+function source(path) {
+  return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+}
 
 describe("stock mutation state", () => {
   it("applies manual stock changes as deltas when the client sends its expected baseline", () => {
@@ -24,6 +31,34 @@ describe("stock mutation state", () => {
 
   it("keeps legacy absolute stock semantics when no expected baseline is provided", () => {
     assert.equal(nextManualStockQuantity({ currentQuantity: 2, requestedQuantity: 10 }), 10);
+  });
+
+  it("caps manual stock values before they reach Prisma Int writes", () => {
+    assert.equal(normalizeManualStockQuantity(1_000_001), MAX_MANUAL_STOCK_QUANTITY);
+    assert.equal(normalizeManualStockQuantity(Number.POSITIVE_INFINITY), 0);
+    assert.equal(
+      nextManualStockQuantity({
+        currentQuantity: MAX_MANUAL_STOCK_QUANTITY,
+        expectedQuantity: 0,
+        requestedQuantity: 50,
+      }),
+      MAX_MANUAL_STOCK_QUANTITY,
+    );
+  });
+
+  it("keeps manual stock caps on API and listing form inputs", () => {
+    const stockRoute = source("src/app/api/listings/[id]/stock/route.ts");
+    const listingTypeFields = source("src/components/ListingTypeFields.tsx");
+    const createListing = source("src/app/dashboard/listings/new/page.tsx");
+    const editListing = source("src/app/dashboard/listings/[id]/edit/page.tsx");
+    const customListing = source("src/app/dashboard/listings/custom/page.tsx");
+
+    assert.match(stockRoute, /quantity: z\.number\(\)\.int\(\)\.min\(0\)\.max\(MAX_MANUAL_STOCK_QUANTITY\)/);
+    assert.match(stockRoute, /expectedQuantity: z\.number\(\)\.int\(\)\.min\(0\)\.max\(MAX_MANUAL_STOCK_QUANTITY\)/);
+    assert.match(listingTypeFields, /name="stockQuantity"[\s\S]*?max=\{MAX_MANUAL_STOCK_QUANTITY\}/);
+    for (const text of [createListing, editListing, customListing]) {
+      assert.match(text, /stockQuantity !== null && stockQuantity > MAX_MANUAL_STOCK_QUANTITY/);
+    }
   });
 
   it("derives listing status from actual post-update stock and prior visibility", () => {

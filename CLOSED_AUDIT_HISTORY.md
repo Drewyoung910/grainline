@@ -2,6 +2,15 @@
 
 Historical audit and fix-pass logs moved out of `CLAUDE.md` so project instructions stay focused on current architecture and behavior contracts. `audit_open_findings.md` remains the source of truth for individual findings.
 
+## Refund, Money, and Stock Helper Pass (2026-05-24)
+
+- Refund idempotency bases are now built through `refundIdempotencyKeyBase()` and must include the refund scope, target id, resolution, and positive amount before Stripe suffixes are appended.
+- `createMarketplaceRefund()` now separates platform-funded refunds from seller-transfer reconciliation: tax-only platform-funded refunds no longer imply manual seller reconciliation, while disconnected-seller platform refunds still do.
+- `formatCurrencyCents()` now returns an explicit invalid-amount sentinel for non-finite cents instead of rendering malformed values as zero; `parseMoneyInputToCents()` has documented/tested empty-versus-zero semantics.
+- Manual stock writes now share `MAX_MANUAL_STOCK_QUANTITY` / `normalizeManualStockQuantity()` and the stock PATCH API, listing forms, and create/edit/custom server actions enforce the cap before Prisma Int writes.
+- Verified stale/current from the same agent-assisted sweep: quality-score malformed flag handling and finite score caps were already covered, Guild active-case metrics count all unresolved cases across all time, reverse geocoding already fails closed on Redis throttle outages, and the Next.js/audit CI documentation drift claims were already closed on current main.
+- Guardrail coverage: `tests/marketplace-refunds.test.mjs`, `tests/money.test.mjs`, `tests/stock-mutation-state.test.mjs`, `tests/quality-score-state.test.mjs`, `tests/guild-metrics-state.test.mjs`, `tests/reverse-geocode-throttle.test.mjs`, `tests/schema-numeric-index-guardrails.test.mjs`, `tests/ban-side-effect-guardrails.test.mjs`, `tests/email-delivery-guardrails.test.mjs`, and `tests/round10-state-machine-guardrails.test.mjs`.
+
 ## Blog, Broadcast, and Rendering Follow-up Pass (2026-05-24)
 
 - Removed the dead legacy `src/actions/listings.ts` listing update action so future imports cannot bypass the active edit-page price, rate-limit, ownership, and AI re-review path.

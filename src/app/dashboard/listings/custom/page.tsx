@@ -21,6 +21,7 @@ import { parseJsonArrayField, parseJsonObjectField } from "@/lib/formJson";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { listingCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { backfillEmptyAltTexts } from "@/lib/photoAltTextBackfill";
+import { MAX_MANUAL_STOCK_QUANTITY } from "@/lib/stockMutationState";
 
 // unit converters
 const inToCm = (v: number) => Math.round((v * 2.54 + Number.EPSILON) * 100) / 100;
@@ -128,6 +129,9 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
       : null;
   if (listingType === "IN_STOCK" && stockQuantity === null) {
     return { ok: false, error: "In-stock custom listings need a stock quantity greater than zero." };
+  }
+  if (stockQuantity !== null && stockQuantity > MAX_MANUAL_STOCK_QUANTITY) {
+    return { ok: false, error: `Stock quantity cannot exceed ${MAX_MANUAL_STOCK_QUANTITY}.` };
   }
   const shipsWithinDaysRaw = parseInt(String(formData.get("shipsWithinDays") ?? ""), 10);
   const shipsWithinDays =
