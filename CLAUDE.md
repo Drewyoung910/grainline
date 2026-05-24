@@ -135,7 +135,7 @@ prisma/
 - **OrderItem** — line items in an order; `listingSnapshot Json?` — snapshot of listing data captured at checkout (title, description, priceCents, imageUrls, category, tags, sellerName, capturedAt)
 - **AdminAuditLog** — `id`, `adminId` → `User @relation("AdminActions")`, `action`, `targetType`, `targetId`, `reason?`, `metadata Json @default("{}")`, `undone Boolean @default(false)`, `undoneAt?`, `undoneBy?`, `undoneReason?`, `createdAt`; `@@index([adminId])`, `@@index([targetType, targetId])`, `@@index([createdAt])`, `@@index([undone])`; back-relation `adminActions AdminAuditLog[] @relation("AdminActions")` on `User`. Migration: `20260401011017_ban_audit_ai_review_snapshot`
 - **Cart / CartItem** — per-user shopping cart
-- **Conversation / Message** — buyer-seller messaging, optionally tied to a listing; `Message` has `kind String?` for structured message types (`custom_order_request`, `custom_order_link`, `file`)
+- **Conversation / Message** — buyer-seller messaging, optionally tied to a listing. Conversation participant pairs are stored in canonical sorted order for Prisma `userAId_userBId` upserts, and `20260524023000_conversation_unordered_pair_index` also enforces unordered pair uniqueness with a raw `LEAST/GREATEST` index; do not drop that raw-managed index in future Prisma migrations. `Message` has `kind String?` for structured message types (`custom_order_request`, `custom_order_link`, `file`)
 - **Review / ReviewPhoto / ReviewVote** — reviews with photos, seller replies, helpfulness voting
 - **Favorite** — saved/bookmarked listings
 - **SavedSearch** — per-user saved browse filters (query, category, minPrice, maxPrice, tags array); shown in dashboard; created via `POST /api/search/saved`

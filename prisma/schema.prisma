@@ -445,6 +445,10 @@ model Conversation {
   firstResponseAt  DateTime?
   lastMessageEmailSentAt DateTime?
 
+  // App code stores participant pairs in canonical order and Prisma needs this
+  // visible unique key for `userAId_userBId` upserts. A raw migration also
+  // enforces unordered uniqueness with LEAST/GREATEST so swapped pairs cannot
+  // be inserted by future code or manual SQL.
   @@unique([userAId, userBId])
   @@index([userAId])
   @@index([userBId])

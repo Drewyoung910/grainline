@@ -2147,12 +2147,23 @@ Last updated: 2026-05-24
      detection needs thresholds and false-positive handling for generic listing
      titles. Guardrail: `tests/ai-review-outer-failclosed.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 160 findings;
+232. **Conversation swapped-pair DB invariant reduced** — code/test fix for
+     #982. Normal conversation creation paths already canonicalized participant
+     order before create/upsert, but the database only had the ordered
+     `@@unique([userAId, userBId])` key. Migration
+     `20260524023000_conversation_unordered_pair_index` now adds a raw-managed
+     unique expression index on `LEAST(userAId,userBId)` and
+     `GREATEST(userAId,userBId)` so future code or manual SQL cannot create
+     swapped duplicate threads. The migration raises an explicit duplicate-pair
+     error instead of silently merging retained history if production data ever
+     contains swapped duplicates. Guardrail:
+     `tests/conversation-pair-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 161 findings;
 verified stale/false-positive: 58 findings; product/design decisions deferred:
-42 findings. Remaining major categories: checkout concurrency integration
+41 findings. Remaining major categories: checkout concurrency integration
 evidence, Round 10 deferred system-audit and state-machine product designs,
-JSON shape/size and email uniqueness production-scan decisions, conversation
-swapped-pair DB invariant design, email outbox retention/versioning design,
-account export/legal retention scope, remaining privacy/export retention
-decisions, anonymous-cart merge bulk/performance design, and cross-seller AI
-duplicate-detection product design.
+JSON shape/size and email uniqueness production-scan decisions, email outbox
+retention/versioning design, account export/legal retention scope, remaining
+privacy/export retention decisions, anonymous-cart merge bulk/performance
+design, and cross-seller AI duplicate-detection product design.

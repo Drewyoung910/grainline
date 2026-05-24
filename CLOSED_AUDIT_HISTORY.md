@@ -2,6 +2,13 @@
 
 Historical audit and fix-pass logs moved out of `CLAUDE.md` so project instructions stay focused on current architecture and behavior contracts. `audit_open_findings.md` remains the source of truth for individual findings.
 
+## Conversation Pair Invariant Pass (2026-05-24)
+
+- Added a raw-managed unique expression index on `Conversation` unordered participant pairs (`LEAST(userAId,userBId)`, `GREATEST(userAId,userBId)`) while keeping the Prisma-visible ordered unique key used by app upserts.
+- The migration fails with an explicit duplicate-pair error instead of silently merging retained conversation history if pre-existing swapped duplicates are found.
+- Added guardrail coverage for the raw migration and normal canonical conversation creation paths.
+- Guardrail coverage: `tests/conversation-pair-guardrails.test.mjs`.
+
 ## AI Review Outer Fail-Closed Coverage Pass (2026-05-24)
 
 - `reviewListingWithAI()` now accepts optional test-only dependency injection for its duplicate-title lookup, OpenAI fetch, and retry sleep while preserving existing production callers.
