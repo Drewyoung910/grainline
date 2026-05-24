@@ -182,7 +182,9 @@ describe("Stripe Connect v2 migration guardrails", () => {
     const accountDeletion = source("src/lib/accountDeletion.ts");
     assert.match(accountDeletion, /stripeAccountVersion: true/);
     assert.match(accountDeletion, /stripeControllerType: true/);
-    assert.match(accountDeletion, /rejectConnectedStripeAccount\(stripeAccountId, userId, stripeAccountVersion\)/);
+    assert.match(accountDeletion, /runAccountDeletionStripeRejectSideEffect\(\{/);
+    assert.match(accountDeletion, /stripeAccountVersion,/);
+    assert.match(accountDeletion, /stripeControllerType,/);
     assert.match(accountDeletion, /stripeAccountVersion: null/);
     assert.match(accountDeletion, /stripeControllerType: null/);
     assert.match(accountDeletion, /manualStripeReconciliationNote/);

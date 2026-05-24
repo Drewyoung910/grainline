@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-23
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 210.
-- Verified code/feature fix commits since 2026-05-13: 186.
+- Verified hardening/doc commits since 2026-05-13: 211.
+- Verified code/feature fix commits since 2026-05-13: 187.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass tally: 138 verified fixed/reduced findings,
+- Most recent reported pass tally: 141 verified fixed/reduced findings,
   53 verified stale/false-positive findings, and 41 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
@@ -2023,13 +2023,28 @@ Last updated: 2026-05-23
      `tests/ai-review-safety.test.mjs`, and
      `tests/post-launch-ui-followups.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 138 findings;
+224. **Round 9 account-deletion side-effect durability reduced** — code/test
+     fix for #820, #821, and #826. Account deletion now creates a durable
+     local-anonymization recovery row before Clerk deletion or Stripe rejection,
+     uses retryable `AccountDeletionSideEffect` rows for Stripe Connect
+     rejection, enqueues first-party media cleanup inside the anonymization
+     transaction, and stores already-redacted audit-log patches for retry rather
+     than raw redaction needles. `/api/cron/account-deletion-side-effects`
+     retries pending/failed rows every half hour, and completed rows clear their
+     payloads. The original #820 "user can log back in" impact remains stale on
+     the user-requested route because Clerk deletion is terminal, but the
+     partial-local-anonymization retry gap was reduced. Guardrails:
+     `tests/account-deletion-side-effects.test.mjs`,
+     `tests/account-deletion-timeout-fix.test.mjs`,
+     `tests/stripe-connect-v2.test.mjs`, and
+     `tests/round9-account-deletion-pii-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 141 findings;
 verified stale/false-positive: 53 findings; product/design decisions deferred:
-41 findings. Remaining major categories: durable account-deletion/Stripe and
-audit redaction retry design, admin undo/ban side-effect retryability, AI
-full-workflow integration evidence, anonymous-cart merge durability, checkout
-concurrency integration evidence, Round 10 deferred system-audit and
-state-machine product designs, JSON shape/size and email uniqueness
-production-scan decisions, conversation swapped-pair DB invariant design, email
-outbox retention/versioning design, and remaining privacy/export retention
-decisions.
+41 findings. Remaining major categories: admin undo/ban side-effect
+retryability, AI full-workflow integration evidence, anonymous-cart merge
+durability, checkout concurrency integration evidence, Round 10 deferred
+system-audit and state-machine product designs, JSON shape/size and email
+uniqueness production-scan decisions, conversation swapped-pair DB invariant
+design, email outbox retention/versioning design, account export/legal
+retention scope, and remaining privacy/export retention decisions.

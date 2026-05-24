@@ -45,7 +45,7 @@ describe("Round 9 account deletion PII guardrails", () => {
     const deletion = source("src/lib/accountDeletion.ts");
 
     assert.match(deletion, /tx\.block\.deleteMany\(\{\s*where: \{ OR: \[\{ blockerId: user\.id \}, \{ blockedId: user\.id \}\] \} \}\)/);
-    assert.match(deletion, /prisma\.message\.findMany\(\{\s*where: \{ senderId: userId \}/s);
+    assert.match(deletion, /db\.message\.findMany\(\{\s*where: \{ senderId: userId \}/s);
     assert.doesNotMatch(deletion, /where: \{ OR: \[\{ senderId: userId \}, \{ recipientId: userId \}\] \}/);
   });
 
@@ -91,6 +91,6 @@ describe("Round 9 account deletion PII guardrails", () => {
 
     assert.match(deletion, /COALESCE\(reason, ''\)/);
     assert.match(deletion, /redactAccountDeletionText\(candidate\.reason, sensitiveValues\)/);
-    assert.match(deletion, /reason\.changed \? \{ reason: reason\.text \} : \{\}/);
+    assert.match(deletion, /reason\.changed && reason\.text !== null \? \{ reason: reason\.text \} : \{\}/);
   });
 });

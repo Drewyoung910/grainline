@@ -1,7 +1,4 @@
 import { prisma } from "@/lib/db";
-import { stripe } from "@/lib/stripe";
-import { deleteR2ObjectByUrl } from "@/lib/r2";
-import { mapWithConcurrency } from "@/lib/concurrency";
 import { accountDeletionMediaUrlsForCleanup } from "@/lib/urlValidation";
 import { redis } from "@/lib/ratelimit";
 import { removeSellerCommissionInterests } from "@/lib/commissionInterestCleanup";
@@ -19,6 +16,16 @@ import {
   redactAccountDeletionText,
 } from "@/lib/accountDeletionAuditRedaction";
 import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
+import {
+  ACCOUNT_DELETION_SIDE_EFFECT_KIND,
+  type AccountDeletionAuditRedactionUpdate,
+  enqueueAccountDeletionAuditRedactionSideEffects,
+  enqueueAccountDeletionLocalAnonymizeSideEffect,
+  enqueueAccountDeletionMediaDeleteSideEffects,
+  markAccountDeletionLocalAnonymizeDone,
+  processAccountDeletionSideEffectsForUser,
+  runAccountDeletionStripeRejectSideEffect,
+} from "@/lib/accountDeletionSideEffects";
 
 const ACTIVE_FULFILLMENT_STATUSES = ["PENDING", "READY_FOR_PICKUP", "SHIPPED"] as const;
 export const ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = 30;
@@ -54,6 +61,10 @@ type BodyRedactionCandidate = {
 };
 
 type AuditLogRedactionDb = Pick<Prisma.TransactionClient, "$queryRaw" | "adminAuditLog">;
+type AccountDeletionMediaDb = Pick<
+  Prisma.TransactionClient,
+  "sellerProfile" | "reviewPhoto" | "commissionRequest" | "message" | "blogPost"
+>;
 
 function accountDeletionLockKey(userId: string) {
   return `account-delete:${userId}`;
@@ -235,7 +246,7 @@ async function collectAuditLogsByAccountReference(
   }
 }
 
-async function redactAdminAuditLogsForAccountDeletion({
+async function collectAdminAuditLogRedactionUpdates({
   db,
   adminId,
   targetIds,
@@ -245,11 +256,12 @@ async function redactAdminAuditLogsForAccountDeletion({
   adminId: string;
   targetIds: string[];
   sensitiveValues: string[];
-}) {
+}): Promise<AccountDeletionAuditRedactionUpdate[]> {
   const candidates = new Map<string, AuditLogRedactionCandidate>();
   await collectAuditLogsBySensitiveMetadata(db, candidates, sensitiveValues);
   await collectAuditLogsByAccountReference(db, candidates, adminId, targetIds);
 
+  const updates: AccountDeletionAuditRedactionUpdate[] = [];
   for (const [id, candidate] of candidates) {
     const redacted = redactAccountDeletionAuditMetadata(
       candidate.metadata as Parameters<typeof redactAccountDeletionAuditMetadata>[0],
@@ -263,14 +275,13 @@ async function redactAdminAuditLogsForAccountDeletion({
       : { text: null, changed: false };
 
     if (!redacted.changed && !marked.changed && !reason.changed) continue;
-    await db.adminAuditLog.update({
-      where: { id },
-      data: {
-        metadata: marked.metadata as Prisma.InputJsonValue,
-        ...(reason.changed ? { reason: reason.text } : {}),
-      },
+    updates.push({
+      logId: id,
+      metadata: marked.metadata,
+      ...(reason.changed && reason.text !== null ? { reason: reason.text } : {}),
     });
   }
+  return updates;
 }
 
 async function collectNotificationsBySensitiveText(
@@ -611,23 +622,6 @@ export async function getAccountDeletionBlockers(userId: string): Promise<Accoun
   return blockers;
 }
 
-async function rejectConnectedStripeAccount(
-  stripeAccountId: string,
-  userId: string,
-  stripeAccountVersion: string | null,
-) {
-  try {
-    await stripe.accounts.reject(stripeAccountId, { reason: "other" });
-    return true;
-  } catch (error) {
-    Sentry.captureException(error, {
-      tags: { source: "account_delete_stripe_reject" },
-      extra: { userId, stripeAccountId, stripeAccountVersion },
-    });
-    return false;
-  }
-}
-
 function messageAttachmentUrl(body: string): string | null {
   try {
     const parsed = JSON.parse(body) as unknown;
@@ -657,10 +651,14 @@ function markdownImageUrls(markdown: string) {
   return [...urls];
 }
 
-async function collectAccountDeletionMediaUrls(userId: string, clerkUserId: string): Promise<string[]> {
+async function collectAccountDeletionMediaUrls(
+  db: AccountDeletionMediaDb,
+  userId: string,
+  clerkUserId: string,
+): Promise<string[]> {
   const urls = new Set<string>();
   const [sellerProfile, reviewPhotos, commissionRequests, messages, blogPosts] = await Promise.all([
-    prisma.sellerProfile.findUnique({
+    db.sellerProfile.findUnique({
       where: { userId },
       select: {
         avatarImageUrl: true,
@@ -675,19 +673,19 @@ async function collectAccountDeletionMediaUrls(userId: string, clerkUserId: stri
         },
       },
     }),
-    prisma.reviewPhoto.findMany({
+    db.reviewPhoto.findMany({
       where: { review: { reviewerId: userId } },
       select: { url: true },
     }),
-    prisma.commissionRequest.findMany({
+    db.commissionRequest.findMany({
       where: { buyerId: userId },
       select: { referenceImageUrls: true },
     }),
-    prisma.message.findMany({
+    db.message.findMany({
       where: { senderId: userId },
       select: { body: true },
     }),
-    prisma.blogPost.findMany({
+    db.blogPost.findMany({
       where: { OR: [{ authorId: userId }, { sellerProfile: { userId } }] },
       select: { coverImageUrl: true, videoUrl: true, body: true },
     }),
@@ -721,14 +719,6 @@ async function collectAccountDeletionMediaUrls(userId: string, clerkUserId: stri
   });
 
   return accountDeletionMediaUrlsForCleanup(urls, clerkUserId);
-}
-
-function mediaUrlHost(url: string) {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return "invalid-url";
-  }
 }
 
 function revalidateDeletedAccountSearchCaches(userId: string) {
@@ -771,15 +761,19 @@ export async function anonymizeUserAccount(
 
   if (!account) return { ok: true, alreadyDeleted: true };
   if (account.deletedAt) return { ok: true, alreadyDeleted: true };
+  await enqueueAccountDeletionLocalAnonymizeSideEffect(prisma, userId);
 
   const stripeAccountId = account.sellerProfile?.stripeAccountId ?? null;
   const stripeAccountVersion = account.sellerProfile?.stripeAccountVersion ?? null;
   const stripeControllerType = account.sellerProfile?.stripeControllerType ?? null;
   const stripeRejectSucceeded = stripeAccountId
-    ? await rejectConnectedStripeAccount(stripeAccountId, userId, stripeAccountVersion)
+    ? await runAccountDeletionStripeRejectSideEffect({
+        userId,
+        stripeAccountId,
+        stripeAccountVersion,
+        stripeControllerType,
+      })
     : true;
-
-  const mediaUrls = await collectAccountDeletionMediaUrls(userId, account.clerkId);
 
   const result = await prisma.$transaction(async (tx) => {
     const user = await tx.user.findUnique({
@@ -809,6 +803,8 @@ export async function anonymizeUserAccount(
       user.sellerProfile?.id,
       user.sellerProfile?.displayName,
     ]);
+    const mediaUrls = await collectAccountDeletionMediaUrls(tx, user.id, user.clerkId);
+    await enqueueAccountDeletionMediaDeleteSideEffects(tx, user.id, mediaUrls);
 
     await tx.adminAuditLog.create({
       data: {
@@ -1135,42 +1131,48 @@ export async function anonymizeUserAccount(
     throw error;
   });
 
+  await markAccountDeletionLocalAnonymizeDone(prisma, userId);
+
   if (!result.alreadyDeleted) {
     await invalidateAccountStateCache(account.clerkId, "account_delete_account_state_cache_invalidate");
     revalidateDeletedAccountSearchCaches(userId);
 
     try {
-      await redactAdminAuditLogsForAccountDeletion({
+      const redactionUpdates = await collectAdminAuditLogRedactionUpdates({
         db: prisma,
         adminId: userId,
         targetIds: result.auditTargetIds,
         sensitiveValues: result.accountSensitiveValues,
       });
+      await enqueueAccountDeletionAuditRedactionSideEffects(prisma, userId, redactionUpdates);
+      const redactionResult = await processAccountDeletionSideEffectsForUser(userId, [
+        ACCOUNT_DELETION_SIDE_EFFECT_KIND.AUDIT_REDACT,
+      ]);
+      if (redactionResult.failed > 0) {
+        Sentry.captureMessage("Account deletion audit redaction side effects pending retry", {
+          level: "warning",
+          tags: { source: "account_delete_audit_redaction" },
+          extra: { userId, failed: redactionResult.failed },
+        });
+      }
     } catch (error) {
       Sentry.captureException(error, {
         tags: { source: "account_delete_audit_redaction" },
         extra: { userId },
       });
     }
-  }
 
-  const deletions = await mapWithConcurrency(mediaUrls, 5, (url) => deleteR2ObjectByUrl(url));
-  deletions.forEach((deletion, index) => {
-    if (deletion.status === "rejected") {
-      Sentry.captureException(deletion.reason, {
-        tags: { source: "account_delete_media_cleanup" },
-        extra: { userId, host: mediaUrlHost(mediaUrls[index]) },
-      });
-      return;
-    }
-    if (deletion.value === false) {
-      Sentry.captureMessage("Account deletion skipped non-R2 media cleanup", {
+    const mediaResult = await processAccountDeletionSideEffectsForUser(userId, [
+      ACCOUNT_DELETION_SIDE_EFFECT_KIND.MEDIA_DELETE,
+    ]);
+    if (mediaResult.failed > 0) {
+      Sentry.captureMessage("Account deletion media cleanup side effects pending retry", {
         level: "warning",
-        tags: { source: "account_delete_media_cleanup", host: mediaUrlHost(mediaUrls[index]) },
-        extra: { userId },
+        tags: { source: "account_delete_media_cleanup" },
+        extra: { userId, failed: mediaResult.failed },
       });
     }
-  });
+  }
 
   return { ok: result.ok, alreadyDeleted: result.alreadyDeleted };
   } finally {

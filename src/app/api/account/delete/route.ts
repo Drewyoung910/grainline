@@ -3,12 +3,14 @@ import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { ensureUser } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
+import { prisma } from "@/lib/db";
 import {
   acquireAccountDeletionLock,
   anonymizeUserAccount,
   getAccountDeletionBlockers,
   releaseAccountDeletionLock,
 } from "@/lib/accountDeletion";
+import { enqueueAccountDeletionLocalAnonymizeSideEffect } from "@/lib/accountDeletionSideEffects";
 import { accountDeletionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 
 export async function POST() {
@@ -44,6 +46,7 @@ export async function POST() {
   }
 
   try {
+    await enqueueAccountDeletionLocalAnonymizeSideEffect(prisma, me.id);
     await (await clerkClient()).users.deleteUser(clerkId);
   } catch (error) {
     await releaseAccountDeletionLock(deletionLock);

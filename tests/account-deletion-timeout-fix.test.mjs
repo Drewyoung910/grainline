@@ -24,8 +24,9 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     assert.notEqual(transactionEnd, -1);
 
     const transactionBody = accountDeletion.slice(transactionStart, transactionEnd);
-    assert.doesNotMatch(transactionBody, /redactAdminAuditLogsForAccountDeletion\(\{/);
-    assert.match(accountDeletion.slice(transactionEnd), /redactAdminAuditLogsForAccountDeletion\(\{\s*db: prisma/s);
+    assert.doesNotMatch(transactionBody, /collectAdminAuditLogRedactionUpdates\(\{/);
+    assert.match(accountDeletion.slice(transactionEnd), /collectAdminAuditLogRedactionUpdates\(\{\s*db: prisma/s);
+    assert.match(accountDeletion.slice(transactionEnd), /enqueueAccountDeletionAuditRedactionSideEffects\(prisma, userId, redactionUpdates\)/);
     assert.match(accountDeletion, /source: "account_delete_audit_redaction"/);
     assert.match(accountDeletion, /source: "account_delete_media_cleanup"/);
   });
@@ -70,7 +71,7 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     const anonymizeStart = accountDeletion.indexOf("export async function anonymizeUserAccount");
     assert.ok(
       accountDeletion.indexOf("await acquireAccountDeletionLock(userId)", anonymizeStart) <
-        accountDeletion.indexOf("rejectConnectedStripeAccount(", anonymizeStart),
+        accountDeletion.indexOf("runAccountDeletionStripeRejectSideEffect", anonymizeStart),
       "account deletion lock must be acquired before Stripe account rejection",
     );
     assert.match(accountDeletion, /source: "account_delete_lock_release"/);
@@ -81,6 +82,7 @@ describe("account deletion timeout and terminal UX guardrails", () => {
       "account deletion route must acquire the lock before deleting the Clerk user",
     );
     assert.match(route, /releaseAccountDeletionLock\(deletionLock\)/);
+    assert.match(route, /enqueueAccountDeletionLocalAnonymizeSideEffect\(prisma, me\.id\)/);
     assert.match(route, /anonymizeUserAccount\(me\.id, \{ lockAlreadyAcquired: true \}\)/);
     assert.match(route, /"inProgress" in anonymized && anonymized\.inProgress/);
     assert.match(route, /status: 409/);
@@ -109,7 +111,7 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     const claude = source("CLAUDE.md");
     assert.match(claude, /Account deletion transaction behavior/);
     assert.match(claude, /timeout: 30000/);
-    assert.match(claude, /Do not re-merge audit-log scans or R2 cleanup into the transaction/);
+    assert.match(claude, /Do not re-merge audit-log scans or R2 object deletion into the transaction/);
 
     const audit = source("audit_open_findings.md");
     assert.match(audit, /account deletion timeout\/terminal UX pass/);

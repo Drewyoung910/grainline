@@ -38,6 +38,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/cron/account-deletion-side-effects",
+      "schedule": "10,40 * * * *"
+    },
+    {
       "path": "/api/cron/label-clawback-retry",
       "schedule": "*/30 * * * *"
     },
