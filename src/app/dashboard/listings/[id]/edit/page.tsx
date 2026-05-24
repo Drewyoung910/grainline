@@ -2,6 +2,7 @@
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
@@ -447,6 +448,11 @@ async function updateListing(
         Array.from(submittedNewPhotoUrls).map((url) =>
           deleteR2ObjectByUrl(url).catch((cleanupError) => {
             console.error("[listing photo conflict] R2 cleanup failed:", cleanupError);
+            Sentry.captureException(cleanupError, {
+              level: "warning",
+              tags: { source: "listing_photo_conflict_cleanup" },
+              extra: { listingId, sellerId: listing.sellerId },
+            });
           }),
         ),
       );
@@ -589,6 +595,11 @@ async function updateListing(
     Array.from(r2CleanupUrls).map((url) =>
       deleteR2ObjectByUrl(url).catch((error) => {
         console.error("[listing photo save] R2 cleanup failed:", error);
+        Sentry.captureException(error, {
+          level: "warning",
+          tags: { source: "listing_photo_save_cleanup" },
+          extra: { listingId, sellerId: listing.sellerId },
+        });
       }),
     ),
   );

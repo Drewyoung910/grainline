@@ -909,6 +909,39 @@ export async function sendNewListingFromFollowedMakerEmail(opts: {
   await sendRenderedEmail(rendered);
 }
 
+export function sellerBroadcastEmailSubject(makerName: string) {
+  return `Update from ${safeSubject(makerName)} on Grainline`;
+}
+
+export function renderSellerBroadcastEmail(opts: {
+  to: string;
+  makerName: string;
+  message: string;
+  imageUrl?: string | null;
+}): RenderedEmail {
+  const { to, makerName, message, imageUrl } = opts;
+  const validImgUrl = safeImgUrl(imageUrl);
+  const imageSection = validImgUrl
+    ? `<p style="margin:0 0 16px;"><img src="${validImgUrl}" alt="Update from ${esc(makerName)}" style="max-width:100%;max-height:240px;display:block;" /></p>`
+    : "";
+  const feedUrl = `${APP_URL}/account/feed`;
+  const messageHtml = esc(truncateTextWithEllipsis(message, 500)).replace(/\n/g, "<br>");
+
+  const body = `
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">${esc(makerName)} shared an update with their followers on Grainline.</p>
+    <p style="font-size:12px;color:#9D9C97;margin:0 0 16px;">You're receiving this because you follow ${esc(makerName)} on Grainline and opted into maker broadcast emails.</p>
+    ${imageSection}
+    <p style="font-size:15px;line-height:1.6;color:#3D3D3A;margin:0 0 20px;">${messageHtml}</p>
+    ${btn("View your feed", feedUrl)}
+  `;
+
+  return {
+    to,
+    subject: sellerBroadcastEmailSubject(makerName),
+    html: baseTemplate("Maker Update", body),
+  };
+}
+
 export async function sendNewMessageEmail(opts: {
   recipientEmail: string;
   recipientName: string;

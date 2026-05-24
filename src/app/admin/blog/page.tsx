@@ -70,7 +70,7 @@ async function approveComment(commentId: string) {
             type: "BLOG_COMMENT_REPLY",
             title: `${commenterName} replied to your comment`,
             body: truncateText(comment.body, 60),
-            link: `/blog/${comment.post.slug}`,
+            link: `/blog/${comment.post.slug}#comment-${commentId}`,
             dedupScope: commentId,
           });
         }
@@ -82,7 +82,7 @@ async function approveComment(commentId: string) {
             type: "NEW_BLOG_COMMENT",
             title: `${commenterName} commented on your post`,
             body: truncateText(comment.body, 60),
-            link: `/blog/${comment.post.slug}`,
+            link: `/blog/${comment.post.slug}#comment-${commentId}`,
             dedupScope: commentId,
           });
         }
@@ -105,8 +105,34 @@ async function deleteComment(commentId: string) {
   await prisma.$transaction(async (tx) => {
     const deleted = await tx.blogComment.delete({
       where: { id: commentId },
-      select: { id: true, postId: true, authorId: true },
+      select: {
+        id: true,
+        postId: true,
+        authorId: true,
+        body: true,
+        parentId: true,
+        createdAt: true,
+        parent: { select: { authorId: true } },
+        post: { select: { slug: true, authorId: true } },
+      },
     });
+    const recipientId = deleted.parentId ? deleted.parent?.authorId : deleted.post.authorId;
+    if (recipientId && recipientId !== deleted.authorId) {
+      const type = deleted.parentId ? "BLOG_COMMENT_REPLY" : "NEW_BLOG_COMMENT";
+      const body = truncateText(deleted.body, 60);
+      await tx.notification.deleteMany({
+        where: {
+          userId: recipientId,
+          type,
+          body,
+          createdAt: { gte: deleted.createdAt },
+          OR: [
+            { link: `/blog/${deleted.post.slug}#comment-${deleted.id}` },
+            { link: `/blog/${deleted.post.slug}` },
+          ],
+        },
+      });
+    }
     await logAdminActionOrThrow({
       client: tx,
       adminId: me.id,

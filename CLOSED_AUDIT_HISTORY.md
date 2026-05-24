@@ -2,6 +2,15 @@
 
 Historical audit and fix-pass logs moved out of `CLAUDE.md` so project instructions stay focused on current architecture and behavior contracts. `audit_open_findings.md` remains the source of truth for individual findings.
 
+## Blog, Broadcast, and Rendering Follow-up Pass (2026-05-24)
+
+- Removed the dead legacy `src/actions/listings.ts` listing update action so future imports cannot bypass the active edit-page price, rate-limit, ownership, and AI re-review path.
+- Seller broadcasts now enqueue `EMAIL_SELLER_BROADCAST` only for explicit default-off email opt-ins, use source-specific notification links, and admin broadcast deletion is idempotent while cleaning source-specific notifications plus pending/failed broadcast email jobs.
+- Approved blog comment notifications now link to `#comment-{commentId}` and staff comment deletion removes matching source-specific notifications; public blog publish checks now include normalized tags in the profanity/moderation boundary.
+- Listing edit photo cleanup failures now leave Sentry evidence keyed by bounded listing/seller IDs, and `safeJsonLd()` now also escapes `&`.
+- Verified stale/current from the same agent-assisted sweep: the old direct photo mutation chain is retired, message/file URL rendering is trusted-origin gated, `sanitizeRichText()` stores plain text, and blog status/republish/comment-dedup/cache-invalidation guardrails were already current.
+- Guardrail coverage: `tests/pr-i-media-upload-unsubscribe-followups.test.mjs`, `tests/seller-ops-hardening.test.mjs`, `tests/blog-action-guardrails.test.mjs`, `tests/admin-action-guardrails.test.mjs`, `tests/email-delivery-guardrails.test.mjs`, `tests/r56-r67-small-fixes.test.mjs`, and `tests/rendering-security.test.mjs`.
+
 ## Notification Preference Runtime Shape Pass (2026-05-24)
 
 - Added `normalizeNotificationPreferences()` as the shared runtime boundary for `User.notificationPreferences` JSON. It preserves only known preference keys with boolean values.

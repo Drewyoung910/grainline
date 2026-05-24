@@ -49,6 +49,8 @@ describe("R56-R67 small audit follow-up guardrails", () => {
     assert.match(editPage, /const updatedPhoto = await tx\.photo\.updateMany/);
     assert.match(editPage, /if \(updatedPhoto\.count === 0\) \{\s*throw new ListingPhotoConflictError\(\);/s);
     assert.match(editPage, /deleteR2ObjectByUrl\(url\)\.catch/);
+    assert.match(editPage, /source: "listing_photo_conflict_cleanup"/);
+    assert.match(editPage, /source: "listing_photo_save_cleanup"/);
     assert.match(editPage, /return \{ ok: false, error: error\.message \}/);
   });
 

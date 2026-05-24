@@ -46,11 +46,23 @@ describe("blog dashboard action guardrails", () => {
 
   it("deduplicates approved blog comment notifications per comment", () => {
     const adminBlog = source("src/app/admin/blog/page.tsx");
+    const blogPost = source("src/app/blog/[slug]/page.tsx");
 
     assert.match(adminBlog, /blogComment\.updateMany\(\{\s*where: \{ id: commentId, approved: false \}/s);
     assert.match(adminBlog, /if \(approved\.count !== 1\) return/);
+    assert.match(adminBlog, /link: `\/blog\/\$\{comment\.post\.slug\}#comment-\$\{commentId\}`/);
     assert.match(adminBlog, /type: "BLOG_COMMENT_REPLY"[\s\S]*dedupScope: commentId/);
     assert.match(adminBlog, /type: "NEW_BLOG_COMMENT"[\s\S]*dedupScope: commentId/);
+    assert.match(blogPost, /id=\{`comment-\$\{c\.id\}`\}/);
+  });
+
+  it("removes source-specific blog comment notifications when staff delete a comment", () => {
+    const adminBlog = source("src/app/admin/blog/page.tsx");
+
+    assert.match(adminBlog, /tx\.notification\.deleteMany\(\{/);
+    assert.match(adminBlog, /type = deleted\.parentId \? "BLOG_COMMENT_REPLY" : "NEW_BLOG_COMMENT"/);
+    assert.match(adminBlog, /link: `\/blog\/\$\{deleted\.post\.slug\}#comment-\$\{deleted\.id\}`/);
+    assert.match(adminBlog, /link: `\/blog\/\$\{deleted\.post\.slug\}`/);
   });
 
   it("does not treat archive and republish as a brand-new blog post", () => {
@@ -75,6 +87,14 @@ describe("blog dashboard action guardrails", () => {
     assert.match(editPage, /parseUpdateBlogStatus\(formData\.get\("status"\)\)/);
     assert.doesNotMatch(newPage, /formData\.get\("status"\) as/);
     assert.doesNotMatch(editPage, /formData\.get\("status"\) as/);
+  });
+
+  it("includes public blog tags in publish-time profanity checks", () => {
+    const newPage = source("src/app/dashboard/blog/new/page.tsx");
+    const editPage = source("src/app/dashboard/blog/[id]/edit/page.tsx");
+
+    assert.match(newPage, /containsProfanity\(`\$\{title\} \$\{excerpt \?\? ""\} \$\{body\} \$\{tags\.join\(" "\)\}`\)/);
+    assert.match(editPage, /containsProfanity\(`\$\{title\} \$\{excerpt \?\? ""\} \$\{body\} \$\{tags\.join\(" "\)\}`\)/);
   });
 
   it("retries create-time blog slug collisions instead of surfacing P2002", () => {

@@ -101,4 +101,17 @@ describe("admin server action guardrails", () => {
     assert.match(usersPage, /support mailbox for external replies/);
     assert.doesNotMatch(usersPage, /<AdminEmailForm\s+defaultTo=\{emailParam\}/);
   });
+
+  it("handles stale broadcast deletes without throwing and cleans queued side effects", () => {
+    const broadcasts = source("src/app/admin/broadcasts/page.tsx");
+
+    assert.match(broadcasts, /tx\.sellerBroadcast\.findUnique/);
+    assert.match(broadcasts, /tx\.sellerBroadcast\.deleteMany\(\{ where: \{ id \} \}\)/);
+    assert.match(broadcasts, /if \(deleted\.count !== 1\) return/);
+    assert.doesNotMatch(broadcasts, /sellerBroadcast\.delete\(\{/);
+    assert.match(broadcasts, /tx\.notification\.deleteMany\(\{/);
+    assert.match(broadcasts, /link: `\/account\/feed\?broadcast=\$\{broadcast\.id\}`/);
+    assert.match(broadcasts, /tx\.emailOutbox\.deleteMany\(\{/);
+    assert.match(broadcasts, /preferenceKey: "EMAIL_SELLER_BROADCAST"/);
+  });
 });

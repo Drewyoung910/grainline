@@ -6,6 +6,9 @@ import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import { isInAppNotificationEnabled } from "@/lib/notificationDeliveryPreferences";
+import { isEmailNotificationEnabled } from "@/lib/notificationEmailPreferences";
+import { renderSellerBroadcastEmail } from "@/lib/email";
+import { enqueueEmailOutbox } from "@/lib/emailOutbox";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { broadcastRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText, truncateText, truncateTextWithEllipsis } from "@/lib/sanitize";
@@ -120,7 +123,7 @@ export async function POST(req: NextRequest) {
     },
     select: {
       followerId: true,
-      follower: { select: { notificationPreferences: true } },
+      follower: { select: { email: true, notificationPreferences: true } },
     },
     take: 10000,
   });
@@ -129,6 +132,10 @@ export async function POST(req: NextRequest) {
       f.follower.notificationPreferences,
       "SELLER_BROADCAST",
     ),
+  );
+  const emailFollowers = followers.filter((f) =>
+    !!f.follower.email &&
+    isEmailNotificationEnabled(f.follower.notificationPreferences, "EMAIL_SELLER_BROADCAST"),
   );
 
   // Create broadcast record
@@ -151,7 +158,7 @@ export async function POST(req: NextRequest) {
           type: "SELLER_BROADCAST",
           title: `Update from ${sellerName}`,
           body: truncateTextWithEllipsis(message, 100),
-          link: `/account/feed`,
+          link: `/account/feed?broadcast=${broadcast.id}`,
           dedupScope: broadcast.id,
         }),
       );
@@ -177,6 +184,32 @@ export async function POST(req: NextRequest) {
           data: { recipientCount: deliveredCount },
         });
       }
+      const emailResults = await mapWithConcurrency(emailFollowers, 5, async (f) => {
+        const email = renderSellerBroadcastEmail({
+          to: f.follower.email!,
+          makerName: sellerName,
+          message,
+          imageUrl,
+        });
+        return enqueueEmailOutbox({
+          ...email,
+          dedupKey: `seller-broadcast:${broadcast.id}:${f.followerId}`,
+          userId: f.followerId,
+          preferenceKey: "EMAIL_SELLER_BROADCAST",
+        });
+      });
+      emailResults.forEach((result, index) => {
+        if (result.status !== "rejected") return;
+        Sentry.captureException(result.reason, {
+          level: "warning",
+          tags: { source: "seller_broadcast_email" },
+          extra: {
+            broadcastId: broadcast.id,
+            sellerProfileId: seller.id,
+            followerId: emailFollowers[index]?.followerId ?? null,
+          },
+        });
+      });
     } catch (error) {
       Sentry.captureException(error, {
         level: "warning",

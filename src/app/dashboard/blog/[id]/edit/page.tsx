@@ -97,7 +97,7 @@ export default async function EditBlogPostPage({
     if (!title || !body) return { ok: false, error: "Title and body are required." };
 
     const { containsProfanity } = await import("@/lib/profanity");
-    const profCheck = containsProfanity(`${title} ${excerpt ?? ""} ${body}`);
+    const profCheck = containsProfanity(`${title} ${excerpt ?? ""} ${body} ${tags.join(" ")}`);
     if (profCheck.flagged) {
       captureProfanityFlag({
         source: "blog_update",

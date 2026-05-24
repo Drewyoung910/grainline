@@ -2172,11 +2172,37 @@ Last updated: 2026-05-24
      `tests/notification-delivery-preferences.test.mjs`, and
      `tests/notification-email-preferences.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 162 findings;
-verified stale/false-positive: 58 findings; product/design decisions deferred:
+234. **Blog, broadcast, listing-action, and rendering follow-ups reduced** —
+     code/test fix for #176, #178, #183, #191, #205, #206, #207, and #269.
+     The dead legacy `src/actions/listings.ts` update action was removed so it
+     cannot be re-imported without the active edit-page price/rate-limit/AI
+     review guardrails. Seller broadcasts now enqueue `EMAIL_SELLER_BROADCAST`
+     only for explicit opt-ins, use source-specific notification links, and
+     admin broadcast deletion is idempotent while cleaning source-specific
+     notifications plus pending/failed broadcast email jobs. Approved blog
+     comment notifications link to `#comment-{commentId}` and staff comment
+     deletion removes matching source-specific notifications. Blog publish
+     moderation now includes normalized tags, listing edit photo cleanup
+     failures leave Sentry evidence, and `safeJsonLd()` also escapes `&`.
+     Verified stale/current in the same agent-reviewed sweep: #179, #182,
+     #190, #192, #196, #228, #229, #301, #325, and #328 were already closed or
+     defended by current code. Guardrails:
+     `tests/pr-i-media-upload-unsubscribe-followups.test.mjs`,
+     `tests/seller-ops-hardening.test.mjs`,
+     `tests/blog-action-guardrails.test.mjs`,
+     `tests/admin-action-guardrails.test.mjs`,
+     `tests/email-delivery-guardrails.test.mjs`,
+     `tests/r56-r67-small-fixes.test.mjs`, and
+     `tests/rendering-security.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 170 findings;
+verified stale/false-positive: 68 findings; product/design decisions deferred:
 41 findings. Remaining major categories: checkout concurrency integration
 evidence, Round 10 deferred system-audit and state-machine product designs,
 JSON shape/size and email uniqueness production-scan decisions, email outbox
-retention/versioning design, account export/legal retention scope, remaining
-privacy/export retention decisions, anonymous-cart merge bulk/performance
-design, and cross-seller AI duplicate-detection product design.
+retention/quota/versioning design, refund/idempotency and money-format
+semantics, metrics/founding-maker/geography/quality-score consistency,
+case/message state-policy decisions, account export/legal retention scope,
+remaining privacy/export retention decisions, anonymous-cart merge
+bulk/performance design, and cross-seller AI duplicate-detection product
+design.

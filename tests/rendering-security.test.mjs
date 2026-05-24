@@ -20,11 +20,15 @@ describe("rendering security guardrails", () => {
       name: "</script><script>alert(1)</script>",
       commentStart: "<!--",
       cdataEnd: "]]>",
+      ampersand: "maker & buyer",
+      lineSeparator: "before\u2028after",
       bidi: "safe\u202Egpj.exe",
     });
     assert.doesNotMatch(serialized, /<\/script/i);
     assert.match(serialized, /\\u003c\/script/);
     assert.match(serialized, /\\u003c!--/);
+    assert.match(serialized, /maker \\u0026 buyer/);
+    assert.match(serialized, /before\\u2028after/i);
     assert.match(serialized, /]]>/);
     assert.match(serialized, /safe\\u202egpj\.exe/i);
   });

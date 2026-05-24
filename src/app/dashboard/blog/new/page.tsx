@@ -83,7 +83,7 @@ export default async function NewBlogPostPage() {
 
     // Profanity check. Drafts may be saved for editing, but public posts fail closed.
     const { containsProfanity } = await import("@/lib/profanity");
-    const profCheck = containsProfanity(`${title} ${excerpt ?? ""} ${body}`);
+    const profCheck = containsProfanity(`${title} ${excerpt ?? ""} ${body} ${tags.join(" ")}`);
     if (profCheck.flagged) {
       captureProfanityFlag({
         source: "blog_create",

@@ -19,7 +19,6 @@ describe("PR I media, upload, and unsubscribe follow-ups", () => {
       "src/app/dashboard/profile/page.tsx",
       "src/app/dashboard/onboarding/actions.ts",
       "src/lib/blogInput.ts",
-      "src/actions/listings.ts",
     ];
 
     for (const path of writePathFiles) {
@@ -45,7 +44,6 @@ describe("PR I media, upload, and unsubscribe follow-ups", () => {
       "src/app/api/commission/route.ts",
       "src/app/api/reviews/route.ts",
       "src/lib/blogInput.ts",
-      "src/actions/listings.ts",
     ];
 
     for (const path of currentUserWritePaths) {

@@ -56,6 +56,9 @@ describe("email delivery guardrails", () => {
     const email = source("src/lib/email.ts");
 
     assert.match(email, /You're receiving this because you follow \$\{esc\(makerName\)\} on Grainline/);
+    assert.match(email, /function sellerBroadcastEmailSubject\(makerName: string\)/);
+    assert.match(email, /You're receiving this because you follow \$\{esc\(makerName\)\} on Grainline and opted into maker broadcast emails/);
+    assert.match(email, /subject: sellerBroadcastEmailSubject\(makerName\)/);
     assert.match(email, /mailto:\$\{SUPPORT_EMAIL\}/);
     assert.match(email, /const year = new Date\(\)\.getFullYear\(\)/);
     assert.match(email, /truncateSubjectText\(listingTitle, 50\).* is back in stock!/);

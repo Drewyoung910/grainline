@@ -50,6 +50,7 @@ describe("seller operational route hardening", () => {
     const route = source("src/app/api/seller/broadcast/route.ts");
 
     assert.match(route, /source: "seller_broadcast_notification"/);
+    assert.match(route, /source: "seller_broadcast_email"/);
     assert.match(route, /source: "seller_broadcast_after"/);
     assert.match(route, /broadcastId: broadcast\.id/);
     assert.match(route, /sellerProfileId: seller\.id/);
@@ -73,6 +74,12 @@ describe("seller operational route hardening", () => {
     assert.match(route, /isFirstPartyMediaUrlForUser\(imageUrl, userId/);
     assert.match(route, /safeRateLimit\(broadcastRatelimit, seller\.id\)/);
     assert.match(route, /dedupScope: broadcast\.id/);
+    assert.match(route, /link: `\/account\/feed\?broadcast=\$\{broadcast\.id\}`/);
+    assert.match(route, /isEmailNotificationEnabled\(f\.follower\.notificationPreferences, "EMAIL_SELLER_BROADCAST"\)/);
+    assert.match(route, /renderSellerBroadcastEmail/);
+    assert.match(route, /enqueueEmailOutbox\(\{/);
+    assert.match(route, /preferenceKey: "EMAIL_SELLER_BROADCAST"/);
+    assert.match(route, /dedupKey: `seller-broadcast:\$\{broadcast\.id\}:\$\{f\.followerId\}`/);
     assert.match(route, /nextAvailableAt: nextAvailable\.toISOString\(\)/);
     assert.doesNotMatch(route, /nextAvailable\.toLocaleDateString/);
     assert.match(composer, /function broadcastErrorMessage/);
