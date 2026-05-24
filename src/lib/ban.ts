@@ -1,6 +1,6 @@
 import { prisma } from './db'
 import { stripe } from './stripe'
-import type { Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import { buildBanAuditMetadata } from './banAuditMetadata'
 import { banClerkUserAndRevokeSessions, unbanClerkUser } from './clerkUserLifecycle'
 import { expireOpenCheckoutSessionsForSeller } from './checkoutSessionExpiry'
@@ -18,6 +18,14 @@ import * as Sentry from '@sentry/nextjs'
 
 const OPEN_SELLER_ORDER_STATUSES = ['PENDING', 'READY_FOR_PICKUP', 'SHIPPED'] as const
 const BANNED_BUYER_COMMISSION_STATUSES = ['OPEN', 'IN_PROGRESS'] as const
+const BAN_ORDER_REVIEW_UPDATE_CHUNK_SIZE = 100
+
+type FlaggedOpenOrderForBan = {
+  id: string
+  previousReviewNeeded: boolean
+  previousReviewNote: string | null
+  reviewNote: string
+}
 
 export class BanUserPolicyError extends Error {
   status: number;
@@ -137,6 +145,36 @@ async function restoreBannedSellerOrderReviewState(
   return restored
 }
 
+async function flagBannedSellerOpenOrders(
+  tx: Pick<Prisma.TransactionClient, '$executeRaw'>,
+  flaggedOpenOrders: FlaggedOpenOrderForBan[],
+) {
+  let updatedCount = 0
+  for (let index = 0; index < flaggedOpenOrders.length; index += BAN_ORDER_REVIEW_UPDATE_CHUNK_SIZE) {
+    const chunk = flaggedOpenOrders.slice(index, index + BAN_ORDER_REVIEW_UPDATE_CHUNK_SIZE)
+    const rows = chunk.map((order) => Prisma.sql`(
+      ${order.id}::text,
+      ${order.reviewNote}::text,
+      ${order.previousReviewNote}::text,
+      ${order.previousReviewNeeded}::boolean
+    )`)
+    const updated = await tx.$executeRaw`
+      UPDATE "Order" AS o
+      SET "reviewNeeded" = true,
+          "reviewNote" = data."reviewNote"
+      FROM (VALUES ${Prisma.join(rows)}) AS data("id", "reviewNote", "previousReviewNote", "previousReviewNeeded")
+      WHERE o."id" = data."id"
+        AND o."reviewNeeded" = data."previousReviewNeeded"
+        AND o."reviewNote" IS NOT DISTINCT FROM data."previousReviewNote"
+    `
+    updatedCount += Number(updated)
+  }
+  if (updatedCount !== flaggedOpenOrders.length) {
+    throw new BanUserPolicyError("Open order review state changed while banning user. Refresh and try again.", 409)
+  }
+  return updatedCount
+}
+
 function revalidateAccountStateSearchCaches(source: string, userId: string) {
   try {
     revalidatePublicSellerVisibilityCaches()
@@ -219,15 +257,7 @@ export async function banUser({ userId, adminId, reason }: {
       where: { buyerId: userId, status: { in: [...BANNED_BUYER_COMMISSION_STATUSES] } },
       data: { status: 'CLOSED' }
     })
-    for (const order of flaggedOpenOrders) {
-      await tx.order.update({
-        where: { id: order.id },
-        data: {
-          reviewNeeded: true,
-          reviewNote: order.reviewNote,
-        },
-      })
-    }
+    await flagBannedSellerOpenOrders(tx, flaggedOpenOrders)
     const banAuditLog = await tx.adminAuditLog.create({
       data: {
         adminId,

@@ -9,6 +9,12 @@ Historical audit and fix-pass logs moved out of `CLAUDE.md` so project instructi
 - BAN undo now fails closed for legacy or malformed `BAN_USER` audit rows without `metadata.appliedBannedAt`; staff should use the explicit unban workflow for manual current-state unbans.
 - Guardrail coverage: `tests/admin-audit-durability.test.mjs`, `tests/admin-moderation-observability.test.mjs`, `tests/admin-action-guardrails.test.mjs`, `tests/admin-audit-undo-state.test.mjs`, `tests/ban-side-effect-guardrails.test.mjs`, and `tests/ban-audit-metadata.test.mjs`.
 
+## Ban Open-Order Review Update Pass (2026-05-24)
+
+- Replaced the per-order `tx.order.update()` loop in `banUser()` with a chunked `UPDATE ... FROM (VALUES ...)` that applies per-order review notes inside the ban transaction.
+- The bulk update guards on each order's captured `reviewNeeded` and `reviewNote`, using `IS NOT DISTINCT FROM` so concurrent staff note edits are not overwritten.
+- Guardrail coverage: `tests/ban-side-effect-guardrails.test.mjs`, `tests/ban-order-review-state.test.mjs`, `tests/ban-audit-metadata.test.mjs`, and `tests/ban-side-effect-repair.test.mjs`.
+
 ## Security + Financial Audit Fixes (2026-04-23)
 
 ### Review fulfillment gate

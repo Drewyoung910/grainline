@@ -24,6 +24,10 @@ describe("ban side-effect guardrails", () => {
     assert.match(ban, /const BANNED_BUYER_COMMISSION_STATUSES = \['OPEN', 'IN_PROGRESS'\] as const/);
     assert.match(ban, /status: \{ in: \[\.\.\.BANNED_BUYER_COMMISSION_STATUSES\] \}/);
     assert.match(ban, /addedReviewNote: reviewNoteState\.addedReviewNote/);
+    assert.match(ban, /flagBannedSellerOpenOrders\(tx, flaggedOpenOrders\)/);
+    assert.match(ban, /Prisma\.join\(rows\)/);
+    assert.match(ban, /o\."reviewNote" IS NOT DISTINCT FROM data\."previousReviewNote"/);
+    assert.doesNotMatch(ban, /for \(const order of flaggedOpenOrders\) \{\s*await tx\.order\.update/s);
     assert.match(ban, /restoreBannedSellerOrderReviewState\(\s*tx,\s*banMetadata\.flaggedOpenOrders/s);
     assert.match(audit, /restoreBannedSellerOrderReviewState\(tx, banMetadata\.flaggedOpenOrders\)/);
   });

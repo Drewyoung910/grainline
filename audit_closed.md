@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-24
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 214.
-- Verified code/feature fix commits since 2026-05-13: 190.
+- Verified hardening/doc commits since 2026-05-13: 215.
+- Verified code/feature fix commits since 2026-05-13: 191.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass tally: 153 verified fixed/reduced findings,
+- Most recent reported pass tally: 154 verified fixed/reduced findings,
   56 verified stale/false-positive findings, and 41 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
@@ -2094,12 +2094,25 @@ Last updated: 2026-05-24
      `tests/ban-side-effect-guardrails.test.mjs`, and
      `tests/ban-audit-metadata.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 153 findings;
+228. **Round 9 ban open-order review update batching reduced** — code/test
+     fix for #844. `banUser()` no longer performs one sequential
+     `tx.order.update()` per open seller order. It now computes the per-order
+     review-note values once, then applies them through a chunked
+     `UPDATE ... FROM (VALUES ...)` inside the existing ban transaction. The
+     update guards on each order's captured `reviewNeeded` and `reviewNote`
+     (`IS NOT DISTINCT FROM`) so concurrent staff note changes are not
+     overwritten; mismatches fail the ban transaction with a retryable admin
+     error. Guardrails: `tests/ban-side-effect-guardrails.test.mjs`,
+     `tests/ban-order-review-state.test.mjs`,
+     `tests/ban-audit-metadata.test.mjs`, and
+     `tests/ban-side-effect-repair.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 154 findings;
 verified stale/false-positive: 56 findings; product/design decisions deferred:
-41 findings. Remaining major categories: batched open-order ban review updates,
-AI full-workflow integration evidence, anonymous-cart merge durability,
-checkout concurrency integration evidence, Round 10 deferred system-audit and
-state-machine product designs, JSON shape/size and email uniqueness
-production-scan decisions, conversation swapped-pair DB invariant design, email
-outbox retention/versioning design, account export/legal retention scope, and
-remaining privacy/export retention decisions.
+41 findings. Remaining major categories: AI full-workflow integration evidence,
+anonymous-cart merge durability, checkout concurrency integration evidence,
+Round 10 deferred system-audit and state-machine product designs, JSON
+shape/size and email uniqueness production-scan decisions, conversation
+swapped-pair DB invariant design, email outbox retention/versioning design,
+account export/legal retention scope, and remaining privacy/export retention
+decisions.
