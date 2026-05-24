@@ -1,5 +1,6 @@
 // src/app/api/seller/analytics/route.ts
 import { auth } from "@clerk/nextjs/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
@@ -678,6 +679,7 @@ export async function GET(req: Request) {
     if (accountResponse) return accountResponse;
 
     console.error("GET /api/seller/analytics error:", err);
+    Sentry.captureException(err, { tags: { source: "seller_analytics" } });
     return privateJson({ error: "Server error" }, { status: 500 });
   }
 }

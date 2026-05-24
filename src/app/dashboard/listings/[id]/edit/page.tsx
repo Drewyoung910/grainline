@@ -492,6 +492,7 @@ async function updateListing(
           title,
           description,
           priceCents,
+          currency: listing.currency,
           category: category ?? null,
           tags,
           sellerName: seller.displayName,

@@ -10,11 +10,15 @@ describe("review/report/favorite observability hardening", () => {
   it("keeps review rating summaries in the review write transaction", () => {
     const createRoute = source("src/app/api/reviews/route.ts");
     const editRoute = source("src/app/api/reviews/[id]/route.ts");
+    const ratingSummary = source("src/lib/sellerRatingSummary.ts");
 
     assert.match(createRoute, /await prisma\.\$transaction\(async \(tx\) => \{/);
     assert.match(createRoute, /await refreshSellerRatingSummary\(orderItem\.listing\.sellerId, tx\)/);
     assert.match(editRoute, /await refreshSellerRatingSummary\(r\.listing\.sellerId, tx\)/);
     assert.match(editRoute, /await refreshSellerRatingSummary\(review\.listing\.sellerId, tx\)/);
+    assert.match(ratingSummary, /pg_advisory_xact_lock\(913343, hashtext\(\$\{sellerProfileId\}\)\)/);
+    assert.match(ratingSummary, /db: RatingDbClient = prisma/);
+    assert.match(ratingSummary, /if \(db === prisma\)[\s\S]*prisma\.\$transaction/);
     assert.doesNotMatch(createRoute, /source: "review_rating_summary_refresh"/);
     assert.doesNotMatch(editRoute, /source: "review_rating_summary_refresh"/);
   });
@@ -40,5 +44,18 @@ describe("review/report/favorite observability hardening", () => {
     assert.match(favoriteRoute, /source: "favorite_upsert"/);
     assert.match(favoriteRoute, /source: "favorite_notification"/);
     assert.match(blockRoute, /source: "block_follow_cleanup"/);
+  });
+
+  it("captures remaining AI and seller analytics failures with Sentry context", () => {
+    const aiReview = source("src/lib/ai-review.ts");
+    const altText = source("src/lib/photoAltTextBackfill.ts");
+    const analytics = source("src/app/api/seller/analytics/route.ts");
+    const recentSales = source("src/app/api/seller/analytics/recent-sales/route.ts");
+
+    assert.match(aiReview, /source: "ai_review_duplicate_check"/);
+    assert.match(aiReview, /source: "ai_review"/);
+    assert.match(altText, /source: "photo_alt_text_backfill"/);
+    assert.match(analytics, /source: "seller_analytics"/);
+    assert.match(recentSales, /source: "seller_analytics_recent_sales"/);
   });
 });

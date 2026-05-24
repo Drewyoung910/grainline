@@ -50,7 +50,41 @@ async function throttledFetch(url: string): Promise<Response | null> {
   }, 8_000);
 }
 
-export type GeoResult = { city: string; state: string; stateCode: string };
+function roundedPublicMetroCoordinate(value: number) {
+  return Number(value.toFixed(2));
+}
+
+export type GeoResult = {
+  city: string;
+  state: string;
+  stateCode: string;
+  latitude: number;
+  longitude: number;
+};
+
+async function lookupLocalityCentroid(city: string, state: string) {
+  const params = new URLSearchParams({
+    q: `${city}, ${state}, United States`,
+    format: "json",
+    limit: "1",
+    countrycodes: "us",
+  });
+  const res = await throttledFetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`);
+  if (!res?.ok) return null;
+
+  const data = await res.json();
+  const first = Array.isArray(data) ? data[0] : null;
+  const latitude = Number(first?.lat);
+  const longitude = Number(first?.lon);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) {
+    return null;
+  }
+
+  return {
+    latitude: roundedPublicMetroCoordinate(latitude),
+    longitude: roundedPublicMetroCoordinate(longitude),
+  };
+}
 
 export async function reverseGeocode(lat: number, lng: number): Promise<GeoResult | null> {
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
@@ -91,8 +125,16 @@ export async function reverseGeocode(lat: number, lng: number): Promise<GeoResul
 
     const stateCode = STATE_CODES[stateName];
     if (!stateCode) return null;
+    const centroid = await lookupLocalityCentroid(city, stateName);
+    if (!centroid) return null;
 
-    return { city, state: stateName, stateCode };
+    return {
+      city,
+      state: stateName,
+      stateCode,
+      latitude: centroid.latitude,
+      longitude: centroid.longitude,
+    };
   } catch {
     return null;
   }

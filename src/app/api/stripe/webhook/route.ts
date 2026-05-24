@@ -38,7 +38,7 @@ import {
 } from "@/lib/checkoutStockRestore";
 import { blockingRefundLedgerWhere, orderHasRefundLedger } from "@/lib/refundRouteState";
 import { stripeWebhookCreatedSeconds } from "@/lib/stripeConnectV2";
-import { revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
+import { revalidateListingSearchCaches, revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
 import {
   blockedCheckoutDisputeState,
   chargeDisputeLedgerState,
@@ -817,8 +817,8 @@ export async function POST(req: Request) {
             { idempotencyKey: `blocked-checkout-refund:${sessionId}` },
           );
 
-          await prisma.$transaction(async (tx) => {
-            await restoreReservedStockItems(tx, restorableStockItemsFromLineItems(input.lineItems));
+          const stockStatusRestoredCount = await prisma.$transaction(async (tx) => {
+            const restoredCount = await restoreReservedStockItems(tx, restorableStockItemsFromLineItems(input.lineItems));
             await tx.order.update({
               where: { id: input.orderId },
               data: {
@@ -829,7 +829,11 @@ export async function POST(req: Request) {
                 reviewNote: `${reviewPrefix} Automatic refund issued because the maker account was not eligible to accept this order.`,
               },
             });
+            return restoredCount;
           });
+          if (stockStatusRestoredCount > 0) {
+            revalidateListingSearchCaches();
+          }
 
           if (input.buyerUserId) {
             await createNotification({
@@ -1012,6 +1016,7 @@ export async function POST(req: Request) {
 
         const createdCartOrder = await prisma.$transaction(async (tx) => {
           await lockCheckoutSessionMutation(tx, sessionId);
+          let stockVisibilityChanged = false;
 
           const existingOrder = await tx.order.findFirst({
             where: { stripeSessionId: sessionId },
@@ -1184,15 +1189,18 @@ export async function POST(req: Request) {
 
             // Stock was already decremented at checkout time (reservation).
             // Just check if we need to mark SOLD_OUT.
+            let listingSearchCacheInvalidationNeeded = false;
             if (listing.listingType === "IN_STOCK") {
-              await tx.$executeRaw`
+              const soldOutCount = await tx.$executeRaw`
                 UPDATE "Listing"
                 SET status = 'SOLD_OUT'
                 WHERE id = ${paid.listingId}
                   AND "stockQuantity" <= 0
                   AND status = 'ACTIVE'
               `;
+              listingSearchCacheInvalidationNeeded = Number(soldOutCount) > 0;
             }
+            stockVisibilityChanged = stockVisibilityChanged || listingSearchCacheInvalidationNeeded;
           }
 
           await tx.cartItem.deleteMany({
@@ -1206,12 +1214,16 @@ export async function POST(req: Request) {
             invalidReason: cartInvalidState.reason,
             invalidSellerUserIds: cartInvalidState.sellerUserIds,
             buyerUserId: cartInvalidState.buyerUserId,
+            listingSearchCacheInvalidationNeeded: stockVisibilityChanged,
           };
         });
 
         await releaseCheckoutLock(checkoutLockKey, sessionId);
 
         if (!createdCartOrder) return NextResponse.json({ ok: true });
+        if (createdCartOrder.listingSearchCacheInvalidationNeeded) {
+          revalidateListingSearchCaches();
+        }
 
         if (createdCartOrder.invalidReason) {
           await refundBlockedCheckout({
@@ -1450,14 +1462,16 @@ export async function POST(req: Request) {
 
           // Stock was already decremented at checkout time (reservation).
           // Just check if we need to mark SOLD_OUT.
+          let listingSearchCacheInvalidationNeeded = false;
           if (isInStock) {
-            await tx.$executeRaw`
+            const soldOutCount = await tx.$executeRaw`
               UPDATE "Listing"
               SET status = 'SOLD_OUT'
               WHERE id = ${listingId}
                 AND "stockQuantity" <= 0
                 AND status = 'ACTIVE'
             `;
+            listingSearchCacheInvalidationNeeded = Number(soldOutCount) > 0;
           }
 
           return {
@@ -1465,12 +1479,16 @@ export async function POST(req: Request) {
             invalidReason: singleInvalidState.reason,
             invalidSellerUserIds: singleInvalidState.sellerUserIds,
             buyerUserId: singleInvalidState.buyerUserId,
+            listingSearchCacheInvalidationNeeded,
           };
         });
 
         await releaseCheckoutLock(checkoutLockKey, sessionId);
 
         if (!createdSingleOrder) return NextResponse.json({ ok: true });
+        if (createdSingleOrder.listingSearchCacheInvalidationNeeded) {
+          revalidateListingSearchCaches();
+        }
 
         if (createdSingleOrder.invalidReason) {
           await refundBlockedCheckout({

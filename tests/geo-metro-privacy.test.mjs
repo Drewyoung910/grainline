@@ -12,4 +12,11 @@ describe("geo metro privacy guardrails", () => {
     assert.doesNotMatch(source, /console\.log\([^)]*geo\.state/);
     assert.doesNotMatch(source, /console\.log\([^)]*slug/);
   });
+
+  it("stores reverse-geocoded locality coordinates instead of caller coordinates", () => {
+    assert.match(source, /latitude: geo\.latitude/);
+    assert.match(source, /longitude: geo\.longitude/);
+    assert.doesNotMatch(source, /latitude: lat/);
+    assert.doesNotMatch(source, /longitude: lng/);
+  });
 });

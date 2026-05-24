@@ -12,6 +12,7 @@ import { createMarketplaceRefund, refundIdempotencyKeyBase } from "@/lib/marketp
 import { createNotification } from "@/lib/notifications";
 import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { REFUND_LOCK_SENTINEL, releaseStaleRefundLocks } from "@/lib/refundLocks";
+import { revalidateListingSearchCaches } from "@/lib/searchCache";
 import {
   blockingRefundLedgerWhere,
   blockingRefundOrDisputeLedgerWhere,
@@ -269,7 +270,7 @@ export async function POST(
         : "";
       const reviewNote = `Seller-initiated ${type.toLowerCase()} refund of $${(refundAmountCents / 100).toFixed(2)} via ${refundSummary}.${transferNote}${statusNote}`;
 
-      await prisma.$transaction(async (tx) => {
+      const refundWrite = await prisma.$transaction(async (tx) => {
         const orderUpdate = await tx.order.updateMany({
           where: { id: orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
           data: {
@@ -315,8 +316,9 @@ export async function POST(
           });
         }
 
+        let restoredActiveListingCount = 0;
         if (stockRestoreIds.length) {
-          await tx.listing.updateMany({
+          const stockStatusUpdate = await tx.listing.updateMany({
             where: {
               id: { in: stockRestoreIds },
               listingType: "IN_STOCK",
@@ -326,8 +328,13 @@ export async function POST(
             },
             data: { status: "ACTIVE" },
           });
+          restoredActiveListingCount = stockStatusUpdate.count;
         }
+        return { stockStatusRestoredCount: restoredActiveListingCount };
       });
+      if (refundWrite.stockStatusRestoredCount > 0) {
+        revalidateListingSearchCaches();
+      }
     } catch (err) {
       if (refundId) {
         Sentry.captureException(err, {

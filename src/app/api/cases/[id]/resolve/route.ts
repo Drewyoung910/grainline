@@ -10,6 +10,7 @@ import { createMarketplaceRefund, refundIdempotencyKeyBase } from "@/lib/marketp
 import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { REFUND_LOCK_SENTINEL, releaseStaleRefundLocks } from "@/lib/refundLocks";
 import { caseResolutionCopy } from "@/lib/caseResolutionCopy";
+import { revalidateListingSearchCaches } from "@/lib/searchCache";
 import {
   blockingRefundLedgerWhere,
   blockingRefundOrDisputeLedgerWhere,
@@ -232,8 +233,9 @@ export async function POST(
     const stockRestoreIds = stockRestores.map((restore) => restore.listingId);
 
     let updatedCase;
+    let stockStatusRestoredCount = 0;
     try {
-      updatedCase = await prisma.$transaction(async (tx) => {
+      const caseWrite = await prisma.$transaction(async (tx) => {
         const caseUpdate = await tx.case.updateMany({
           where: {
             id,
@@ -268,8 +270,9 @@ export async function POST(
             data: { stockQuantity: { increment: restore.quantity } },
           });
         }
+        let restoredActiveListingCount = 0;
         if (stockRestoreIds.length) {
-          await tx.listing.updateMany({
+          const stockStatusUpdate = await tx.listing.updateMany({
             where: {
               id: { in: stockRestoreIds },
               listingType: "IN_STOCK",
@@ -279,12 +282,16 @@ export async function POST(
             },
             data: { status: "ACTIVE" },
           });
+          restoredActiveListingCount = stockStatusUpdate.count;
         }
-        return tx.case.findUniqueOrThrow({
+        const updatedCase = await tx.case.findUniqueOrThrow({
           where: { id },
           include: { messages: true, order: true },
         });
+        return { updatedCase, stockStatusRestoredCount: restoredActiveListingCount };
       });
+      updatedCase = caseWrite.updatedCase;
+      stockStatusRestoredCount = caseWrite.stockStatusRestoredCount;
     } catch (txErr) {
       if (stripeRefundId) {
         console.error(`ORPHANED REFUND: ${stripeRefundId} for case ${id}. Manual reconciliation required.`);
@@ -325,6 +332,9 @@ export async function POST(
         );
       }
       throw txErr;
+    }
+    if (stockStatusRestoredCount > 0) {
+      revalidateListingSearchCaches();
     }
 
     const resolutionCopy = caseResolutionCopy(

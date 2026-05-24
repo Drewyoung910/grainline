@@ -249,6 +249,7 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       title: listing.title,
       description: listing.description,
       priceCents: listing.priceCents,
+      currency: listing.currency,
       category: listing.category ?? null,
       tags: listing.tags,
       sellerName: sellerInfo?.displayName ?? "Unknown",

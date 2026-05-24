@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { planPhotoAltTextBackfill } from "@/lib/photoAltTextBackfillState";
+import * as Sentry from "@sentry/nextjs";
 
 export {
   planPhotoAltTextBackfill,
@@ -35,6 +36,11 @@ export async function backfillEmptyAltTexts(
     );
     await Promise.all(updates);
   } catch (e) {
+    Sentry.captureException(e, {
+      level: "warning",
+      tags: { source: "photo_alt_text_backfill" },
+      extra: { listingId },
+    });
     if (process.env.NODE_ENV !== "production") {
       console.error("[ai-alt-text] Backfill failed:", e instanceof Error ? e.message : e);
     }

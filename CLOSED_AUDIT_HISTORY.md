@@ -2,6 +2,16 @@
 
 Historical audit and fix-pass logs moved out of `CLAUDE.md` so project instructions stay focused on current architecture and behavior contracts. `audit_open_findings.md` remains the source of truth for individual findings.
 
+## Analytics, Cache, Geo, and Upload Guardrails Pass (2026-05-24)
+
+- Analytics bot filtering now treats missing/blank user agents and common non-browser clients as non-human traffic before incrementing listing click/view or seller profile view counters.
+- Stock-driven listing visibility flips now invalidate the public listing-tag cache after commit across Stripe checkout completion, blocked-checkout stock restore, checkout-expiry restore, seller refunds, and admin case-resolution refunds.
+- Seller rating summary refreshes now take a seller-scoped advisory transaction lock before aggregate/upsert work, reducing concurrent-review stale-summary races while keeping review mutations and summary refreshes in one transaction.
+- Auto-created metros now store bounded reverse-geocoded locality coordinates instead of the first caller's precise lat/lng, reducing off-center metro assignment and avoiding precise seller coordinates in generated metro rows.
+- Processed image uploads now accept the documented 15MB banner size plus multipart overhead, reject mismatched JPEG/PNG/WebP signatures before Sharp, and set a 50MP Sharp input-pixel limit.
+- AI review prompt prices now use `formatCurrencyCents()` with listing currency, and remaining AI/backfill/seller-analytics catch blocks leave bounded Sentry evidence instead of console-only failures.
+- Guardrail coverage: `tests/bot-user-agent.test.mjs`, `tests/cache-invalidation-guardrails.test.mjs`, `tests/review-report-observability.test.mjs`, `tests/reverse-geocode-throttle.test.mjs`, `tests/geo-metro-privacy.test.mjs`, `tests/form-data-body-bounds.test.mjs`, `tests/ai-review-outer-failclosed.test.mjs`, `tests/pr-h-deletion-analytics-email-followups.test.mjs`, and `tests/post-launch-ui-followups.test.mjs`.
+
 ## Refund, Money, and Stock Helper Pass (2026-05-24)
 
 - Refund idempotency bases are now built through `refundIdempotencyKeyBase()` and must include the refund scope, target id, resolution, and positive amount before Stripe suffixes are appended.

@@ -5,10 +5,12 @@ type RatingDbClient = typeof prisma | Prisma.TransactionClient;
 
 export type SellerRating = { avg: number; count: number };
 
-export async function refreshSellerRatingSummary(
+async function refreshSellerRatingSummaryInTransaction(
   sellerProfileId: string,
-  db: RatingDbClient = prisma,
+  db: Prisma.TransactionClient,
 ): Promise<SellerRating> {
+  await db.$executeRaw`SELECT pg_advisory_xact_lock(913343, hashtext(${sellerProfileId}))`;
+
   const rows = await db.$queryRaw<Array<{ averageRating: number | null; reviewCount: bigint }>>`
     SELECT
       AVG(r."ratingX2")::float / 2.0 AS "averageRating",
@@ -28,6 +30,16 @@ export async function refreshSellerRatingSummary(
   });
 
   return { avg: averageRating, count: reviewCount };
+}
+
+export async function refreshSellerRatingSummary(
+  sellerProfileId: string,
+  db: RatingDbClient = prisma,
+): Promise<SellerRating> {
+  if (db === prisma) {
+    return prisma.$transaction((tx) => refreshSellerRatingSummaryInTransaction(sellerProfileId, tx));
+  }
+  return refreshSellerRatingSummaryInTransaction(sellerProfileId, db as Prisma.TransactionClient);
 }
 
 export async function getSellerRatingMap(sellerIds: string[]) {

@@ -9,7 +9,7 @@ function source(path) {
 describe("form-data body bounds", () => {
   it("bounds multipart image uploads before parsing form data", () => {
     const route = source("src/app/api/upload/image/route.ts");
-    assert.match(route, /IMAGE_UPLOAD_MULTIPART_BODY_MAX_BYTES = 12 \* 1024 \* 1024/);
+    assert.match(route, /IMAGE_UPLOAD_MULTIPART_BODY_MAX_BYTES = 16 \* 1024 \* 1024/);
     assert.match(route, /assertContentLengthUnder\(req, IMAGE_UPLOAD_MULTIPART_BODY_MAX_BYTES\)/);
     assert.match(route, /await req\.formData\(\)/);
     assert.match(route, /isRequestBodyTooLargeError/);
@@ -18,6 +18,15 @@ describe("form-data body bounds", () => {
       route.indexOf("assertContentLengthUnder(req, IMAGE_UPLOAD_MULTIPART_BODY_MAX_BYTES)") <
         route.indexOf("await req.formData()"),
     );
+  });
+
+  it("keeps image processing bounded and rejects mismatched image signatures", () => {
+    const route = source("src/app/api/upload/image/route.ts");
+
+    assert.match(route, /IMAGE_UPLOAD_LIMIT_INPUT_PIXELS = 50_000_000/);
+    assert.match(route, /sharp\(input, \{ failOn: "error", limitInputPixels: IMAGE_UPLOAD_LIMIT_INPUT_PIXELS \}\)/);
+    assert.match(route, /uploadFileSignatureMatches\(input, file\.type\)/);
+    assert.match(route, /return NextResponse\.json\(\{ error: "Invalid image file" \}, \{ status: 400 \}\)/);
   });
 
   it("bounds order fulfillment and unsubscribe form fallbacks before formData parsing", () => {

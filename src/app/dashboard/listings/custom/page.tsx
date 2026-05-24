@@ -187,6 +187,7 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
     title: created.title,
     description: created.description,
     priceCents: created.priceCents,
+    currency: created.currency,
     category: created.category ?? null,
     tags: created.tags,
     sellerName: sellerInfo?.displayName ?? seller.displayName ?? "Unknown",

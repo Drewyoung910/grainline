@@ -8,6 +8,7 @@ import {
   sanitizeAIAltText,
 } from "./aiReviewSafety.ts";
 import { normalizeAIReviewResult, type AIReviewResult } from "./aiReviewResultState.ts";
+import { formatCurrencyCents } from "./money.ts";
 import { isR2PublicUrl } from "./urlValidation.ts";
 
 export type { AIReviewResult } from "./aiReviewResultState";
@@ -97,6 +98,7 @@ export async function reviewListingWithAI(listing: {
   title: string
   description: string | null
   priceCents: number
+  currency?: string | null
   category: string | null
   tags: string[]
   sellerName: string
@@ -145,6 +147,11 @@ export async function reviewListingWithAI(listing: {
     }
   } catch (error) {
     console.error('Duplicate check failed:', error instanceof Error ? error.message : error)
+    Sentry.captureException?.(error, {
+      level: "warning",
+      tags: { source: "ai_review_duplicate_check" },
+      extra: { sellerId: listing.sellerId },
+    });
     // Non-fatal — continue to AI review
   }
 
@@ -154,7 +161,7 @@ export async function reviewListingWithAI(listing: {
   const userListingData = {
     title: redactedField(listing.title, 200),
     description: redactedField(listing.description || "None provided", 4000),
-    price: `$${(listing.priceCents / 100).toFixed(2)}`,
+    price: formatCurrencyCents(listing.priceCents, listing.currency),
     category: redactedField(listing.category || "Uncategorized", 80),
     tags: listing.tags.map((tag) => redactedField(tag, 80)).slice(0, 20),
     sellerName: redactedField(listing.sellerName, 120),
@@ -326,6 +333,10 @@ USER_LISTING_DATA_${delimiterId}_END`
     return result
   } catch (error) {
     console.error('AI review failed:', error instanceof Error ? error.message : error)
+    Sentry.captureException?.(error, {
+      tags: { source: "ai_review" },
+      extra: { sellerId: listing.sellerId },
+    });
     return {
       approved: false,
       flags: ['AI review unavailable — manual spot check recommended'],

@@ -13,6 +13,7 @@ import { assertPublicMediaAvailable } from "@/lib/publicMediaAvailability";
 import { rateLimitResponse, safeRateLimit, uploadHourlyRatelimit, uploadRatelimit } from "@/lib/ratelimit";
 import { uploadServiceFailure } from "@/lib/uploadServiceFailure";
 import { uploadKeyUserSegment } from "@/lib/uploadKey";
+import { uploadFileSignatureMatches } from "@/lib/uploadVerificationToken";
 import { assertContentLengthUnder, isRequestBodyTooLargeError } from "@/lib/requestBody";
 import {
   IMAGE_UPLOAD_ENDPOINTS,
@@ -29,7 +30,8 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const SELLER_ONLY_ENDPOINTS = new Set(["listingImage", "bannerImage", "galleryImage"]);
-const IMAGE_UPLOAD_MULTIPART_BODY_MAX_BYTES = 12 * 1024 * 1024;
+const IMAGE_UPLOAD_MULTIPART_BODY_MAX_BYTES = 16 * 1024 * 1024;
+const IMAGE_UPLOAD_LIMIT_INPUT_PIXELS = 50_000_000;
 
 const FormSchema = z.object({
   endpoint: z.enum(IMAGE_UPLOAD_ENDPOINTS),
@@ -43,7 +45,7 @@ function outputFor(contentType: string) {
 }
 
 async function stripMetadata(input: Buffer, contentType: string) {
-  const image = sharp(input, { failOn: "error" }).rotate();
+  const image = sharp(input, { failOn: "error", limitInputPixels: IMAGE_UPLOAD_LIMIT_INPUT_PIXELS }).rotate();
   if (contentType === "image/png") return image.png({ compressionLevel: 9 }).toBuffer();
   if (contentType === "image/webp") return image.webp({ quality: 88 }).toBuffer();
   return image.jpeg({ quality: 90, mozjpeg: true }).toBuffer();
@@ -111,7 +113,11 @@ export async function POST(req: Request) {
 
   let processed: Buffer;
   try {
-    processed = await stripMetadata(Buffer.from(await file.arrayBuffer()), file.type);
+    const input = Buffer.from(await file.arrayBuffer());
+    if (!uploadFileSignatureMatches(input, file.type)) {
+      return NextResponse.json({ error: "Invalid image file" }, { status: 400 });
+    }
+    processed = await stripMetadata(input, file.type);
   } catch {
     return NextResponse.json({ error: "Image processing failed" }, { status: 400 });
   }

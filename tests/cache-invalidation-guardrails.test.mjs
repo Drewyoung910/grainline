@@ -74,4 +74,29 @@ describe("public cache invalidation guardrails", () => {
     assert.doesNotMatch(popularBlogTags, /export const revalidate/);
     assert.match(why, /export const revalidate = 300/);
   });
+
+  it("invalidates listing search caches when stock-driven visibility flips", () => {
+    const webhook = source("src/app/api/stripe/webhook/route.ts");
+    const refund = source("src/app/api/orders/[id]/refund/route.ts");
+    const caseResolve = source("src/app/api/cases/[id]/resolve/route.ts");
+    const stockRestore = source("src/lib/checkoutStockRestore.ts");
+
+    assert.match(webhook, /import \{ revalidateListingSearchCaches, revalidatePublicSellerVisibilityCaches \}/);
+    assert.match(webhook, /const soldOutCount = await tx\.\$executeRaw`[\s\S]*SET status = 'SOLD_OUT'/);
+    assert.match(webhook, /listingSearchCacheInvalidationNeeded = Number\(soldOutCount\) > 0/);
+    assert.match(webhook, /createdCartOrder\.listingSearchCacheInvalidationNeeded[\s\S]*revalidateListingSearchCaches\(\)/);
+    assert.match(webhook, /createdSingleOrder\.listingSearchCacheInvalidationNeeded[\s\S]*revalidateListingSearchCaches\(\)/);
+
+    assert.match(refund, /const refundWrite = await prisma\.\$transaction/);
+    assert.match(refund, /const stockStatusUpdate = await tx\.listing\.updateMany/);
+    assert.match(refund, /refundWrite\.stockStatusRestoredCount > 0[\s\S]*revalidateListingSearchCaches\(\)/);
+
+    assert.match(caseResolve, /const caseWrite = await prisma\.\$transaction/);
+    assert.match(caseResolve, /const stockStatusUpdate = await tx\.listing\.updateMany/);
+    assert.match(caseResolve, /stockStatusRestoredCount > 0[\s\S]*revalidateListingSearchCaches\(\)/);
+
+    assert.match(stockRestore, /import \{ revalidateListingSearchCaches \}/);
+    assert.match(stockRestore, /return restoreReservedStockItems\(tx, items\)/);
+    assert.match(stockRestore, /stockStatusRestoredCount > 0[\s\S]*revalidateListingSearchCaches\(\)/);
+  });
 });

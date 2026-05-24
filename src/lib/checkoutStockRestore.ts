@@ -2,6 +2,7 @@ import * as Sentry from "@sentry/nextjs";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { releaseCheckoutLock } from "@/lib/checkoutSessionLock";
+import { revalidateListingSearchCaches } from "@/lib/searchCache";
 import { parsePositiveInt } from "@/lib/stripeWebhookState";
 
 export type CheckoutStockRestoreLineItem = {
@@ -65,6 +66,7 @@ function restorableStockItemsFromMetadata(metadata: Record<string, string | unde
 }
 
 export async function restoreReservedStockItems(tx: Prisma.TransactionClient, items: RestorableStockItem[]) {
+  let stockStatusRestoredCount = 0;
   for (const item of mergeRestorableStockItems(items)) {
     await tx.$executeRaw`
       UPDATE "Listing"
@@ -72,11 +74,13 @@ export async function restoreReservedStockItems(tx: Prisma.TransactionClient, it
       WHERE id = ${item.listingId}
         AND "listingType" = 'IN_STOCK'
     `;
-    await tx.listing.updateMany({
+    const stockStatusUpdate = await tx.listing.updateMany({
       where: { id: item.listingId, status: "SOLD_OUT", stockQuantity: { gt: 0 } },
       data: { status: "ACTIVE" },
     });
+    stockStatusRestoredCount += stockStatusUpdate.count;
   }
+  return stockStatusRestoredCount;
 }
 
 async function claimCheckoutStockRestore(tx: Prisma.TransactionClient, sessionId: string) {
@@ -101,14 +105,14 @@ export async function restoreUnorderedCheckoutStockOnce(input: {
   metadata: Record<string, string | undefined>;
   lineItems?: CheckoutStockRestoreLineItem[];
 }) {
-  await prisma.$transaction(async (tx) => {
+  const stockStatusRestoredCount = await prisma.$transaction(async (tx) => {
     await lockCheckoutSessionMutation(tx, input.sessionId);
 
     const orderExists = await tx.order.findFirst({
       where: { stripeSessionId: input.sessionId },
       select: { id: true },
     });
-    if (orderExists) return;
+    if (orderExists) return 0;
 
     let items = restorableStockItemsFromLineItems(input.lineItems ?? []);
     if (items.length === 0) {
@@ -134,14 +138,18 @@ export async function restoreUnorderedCheckoutStockOnce(input: {
           listingId: input.metadata.listingId,
         },
       });
-      return;
+      return 0;
     }
 
     const claimed = await claimCheckoutStockRestore(tx, input.sessionId);
-    if (!claimed) return;
+    if (!claimed) return 0;
 
-    await restoreReservedStockItems(tx, items);
+    return restoreReservedStockItems(tx, items);
   });
 
   await releaseCheckoutLock(input.metadata.checkoutLockKey, input.sessionId);
+
+  if (stockStatusRestoredCount > 0) {
+    revalidateListingSearchCaches();
+  }
 }

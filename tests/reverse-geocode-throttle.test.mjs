@@ -17,4 +17,15 @@ describe("reverse geocode throttle guardrails", () => {
     assert.match(source, /"User-Agent": "Grainline\/1\.0 \(thegrainline\.com\)"/);
     assert.match(source, /if \(addr\.country_code !== "us"\) return null/);
   });
+
+  it("uses bounded Nominatim locality coordinates for auto-created metros", () => {
+    assert.match(source, /async function lookupLocalityCentroid\(city: string, state: string\)/);
+    assert.match(source, /q: `\$\{city\}, \$\{state\}, United States`/);
+    assert.match(source, /const first = Array\.isArray\(data\) \? data\[0\] : null/);
+    assert.match(source, /const latitude = Number\(first\?\.lat\)/);
+    assert.match(source, /const longitude = Number\(first\?\.lon\)/);
+    assert.match(source, /roundedPublicMetroCoordinate\(latitude\)/);
+    assert.match(source, /roundedPublicMetroCoordinate\(longitude\)/);
+    assert.match(source, /const centroid = await lookupLocalityCentroid\(city, stateName\)/);
+  });
 });

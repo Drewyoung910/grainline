@@ -2221,14 +2221,46 @@ Last updated: 2026-05-24
      `tests/email-delivery-guardrails.test.mjs`, and
      `tests/round10-state-machine-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 175 findings;
+236. **Analytics, cache, geo, upload, and AI observability pass reduced** —
+     code/test fix for #282, #288, #289, #290, and #1095-#1099.
+     Analytics user-agent filtering now treats blank/missing UAs and common
+     non-browser clients as non-human traffic before listing/seller counters
+     increment. Stock-driven visibility flips now call
+     `revalidateListingSearchCaches()` after commit from Stripe checkout
+     completion, blocked-checkout stock restoration, checkout-expiry stock
+     restoration, seller refunds, and case-resolution refunds. Seller rating
+     summary refreshes now take a seller-scoped advisory transaction lock
+     before aggregate/upsert work, while preserving the review-write
+     transaction boundary. Auto-created metros now store bounded reverse-
+     geocoded locality coordinates instead of the first caller's precise
+     coordinates. Processed image uploads now accept the documented 15MB
+     banner path plus multipart overhead, check JPEG/PNG/WebP signatures before
+     Sharp, and bound Sharp input pixels. AI review prompts now use
+     `formatCurrencyCents()` with listing currency, and the remaining verified
+     AI/backfill/seller-analytics console-only failures now leave bounded
+     Sentry evidence. Agent re-verification from the same sweep confirmed
+     #1075-#1079 were already fixed/stale/false-positive on current main, and
+     #1080 already has schema comments plus static guardrail coverage; those
+     were not double-counted. Guardrails:
+     `tests/bot-user-agent.test.mjs`,
+     `tests/cache-invalidation-guardrails.test.mjs`,
+     `tests/review-report-observability.test.mjs`,
+     `tests/reverse-geocode-throttle.test.mjs`,
+     `tests/geo-metro-privacy.test.mjs`,
+     `tests/form-data-body-bounds.test.mjs`,
+     `tests/ai-review-outer-failclosed.test.mjs`,
+     `tests/pr-h-deletion-analytics-email-followups.test.mjs`, and
+     `tests/post-launch-ui-followups.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 184 findings;
 verified stale/false-positive: 74 findings; product/design decisions deferred:
 41 findings. Remaining major categories: checkout concurrency integration
 evidence, Round 10 deferred system-audit and state-machine product designs,
 JSON shape/size and email uniqueness production-scan decisions, email outbox
 retention/quota/versioning design, refund accounting runtime proof and refund
-attempt persistence semantics, metrics/founding-maker/geography/quality-score consistency,
+attempt persistence semantics, founding-maker/quality-score consistency,
 case/message state-policy decisions, account export/legal retention scope,
 remaining privacy/export retention decisions, anonymous-cart merge
 bulk/performance design, and cross-seller AI duplicate-detection product
-design.
+design, plus CSP `unsafe-eval` rollout monitoring and dependency hygiene
+cleanup.

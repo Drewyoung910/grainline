@@ -85,4 +85,37 @@ describe("AI review outer fail-closed behavior", () => {
     assert.equal(calls, 2);
     assertFailClosed(result);
   });
+
+  it("formats prompt prices through the shared currency formatter", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+    let requestBody;
+
+    await reviewListingWithAI({ ...listing(), currency: "eur" }, {
+      findRecentListingTitles: async () => [],
+      fetchWithTimeout: async (_url, init) => {
+        requestBody = JSON.parse(init.body);
+        return new Response(JSON.stringify({
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                approved: false,
+                flags: ["low-quality-description"],
+                confidence: 0.6,
+                reason: "Manual review",
+                altTexts: [],
+              }),
+            },
+          }],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      },
+      sleep: async () => {},
+    });
+
+    const prompt = requestBody.messages[1].content[0].text;
+    assert.match(prompt, /€450\.00/);
+    assert.doesNotMatch(prompt, /\$450\.00/);
+  });
 });
