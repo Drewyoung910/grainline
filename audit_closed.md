@@ -2815,8 +2815,16 @@ Last updated: 2026-05-24
      `tests/public-url-validation.test.mjs` and
      `tests/guild-listing-edit-followups.test.mjs`.
 
+279. **UserReport reason PII allegation verified stale** — test/docs closure
+     for #828. `UserReport.reason` is a string column, but the only current
+     report creation path validates it through a fixed Zod enum
+     (`SPAM`, `HARASSMENT`, `FAKE_LISTING`, `INAPPROPRIATE`, `OTHER`), while
+     reporter-entered free text lives in `details` and account deletion clears
+     that field for reports involving the deleted account. Guardrail:
+     `tests/user-report-target-access.test.mjs`.
+
 **Running tally after this pass:** verified fixed/reduced: 264 findings;
-verified stale/false-positive: 100 findings; product/design decisions deferred:
+verified stale/false-positive: 101 findings; product/design decisions deferred:
 39 findings. Remaining major categories: Stripe webhook subscription narrowing
 evidence, Round 10 deferred state-machine product designs, JSON size historical
 validation and email uniqueness production-scan decisions, email outbox

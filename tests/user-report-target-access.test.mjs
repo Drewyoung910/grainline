@@ -5,6 +5,15 @@ import { describe, it } from "node:test";
 const source = readFileSync("src/app/api/users/[id]/report/route.ts", "utf8");
 
 describe("user report target access guardrails", () => {
+  it("keeps report reason categorical and free-text details separate", () => {
+    const deletion = readFileSync("src/lib/accountDeletion.ts", "utf8");
+
+    assert.match(source, /reason: z\.enum\(\["SPAM", "HARASSMENT", "FAKE_LISTING", "INAPPROPRIATE", "OTHER"\]\)/);
+    assert.match(source, /details: z\.string\(\)\.max\(500\)\.optional\(\)/);
+    assert.match(source, /const details = body\.details \? truncateText\(sanitizeText\(body\.details\), 500\) \|\| null : null/);
+    assert.match(deletion, /tx\.userReport\.updateMany\(\{\s*where: \{ OR: \[\{ reporterId: user\.id \}, \{ reportedId: user\.id \}\] \},\s*data: \{ details: null \},\s*\}\)/);
+  });
+
   it("requires reporter access before accepting private report targets", () => {
     assert.match(source, /let reporterCanAccess = false/);
     assert.match(source, /!exists \|\| !reporterCanAccess/);
