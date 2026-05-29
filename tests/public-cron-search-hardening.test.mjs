@@ -88,11 +88,10 @@ describe("cron and public route hardening", () => {
     assert.match(docs, /High-severity dependency advisories are blocking/);
   });
 
-  it("keeps fail-open rate limits limited to telemetry, diagnostics, and escalation routes", () => {
+  it("keeps fail-open rate limits limited to telemetry and diagnostics", () => {
     const allowedFailOpenRoutes = new Set([
       "src/app/api/csp-report/route.ts",
       "src/app/api/health/route.ts",
-      "src/app/api/legal/data-request/route.ts",
       "src/app/api/listings/[id]/click/route.ts",
       "src/app/api/listings/[id]/view/route.ts",
       "src/app/api/seller/[id]/view/route.ts",
@@ -103,7 +102,7 @@ describe("cron and public route hardening", () => {
       if (!route.includes("safeRateLimitOpen(")) continue;
       assert.ok(
         allowedFailOpenRoutes.has(path),
-        `${path} should not fail open unless it is telemetry, diagnostics, or support/legal escalation`,
+        `${path} should not fail open unless it is telemetry or diagnostics`,
       );
     }
   });

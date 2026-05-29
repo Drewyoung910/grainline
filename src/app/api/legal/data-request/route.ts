@@ -4,7 +4,7 @@ import { sendRenderedEmail } from "@/lib/email";
 import { prisma } from "@/lib/db";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
-import { dataRequestRatelimit, getIP, rateLimitResponse, safeRateLimitOpen } from "@/lib/ratelimit";
+import { dataRequestRatelimit, getIP, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -23,7 +23,7 @@ import { currentSupportRequestUserId } from "@/lib/supportRequestAccount";
 const DATA_REQUEST_BODY_MAX_BYTES = 24 * 1024;
 
 export async function POST(req: Request) {
-  const rate = await safeRateLimitOpen(dataRequestRatelimit, getIP(req));
+  const rate = await safeRateLimit(dataRequestRatelimit, getIP(req));
   if (!rate.success) return rateLimitResponse(rate.reset, "Too many data requests.");
 
   let body: unknown;

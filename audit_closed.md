@@ -2644,7 +2644,15 @@ Last updated: 2026-05-24
      `tests/admin-action-guardrails.test.mjs` and
      `tests/support-request-state.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 246 findings;
+262. **Legal data-request rate limiting made fail-closed** — code/test/docs fix
+     for the still-current legal/data-request subset of #156. `/api/support`
+     was already fail-closed, but `/api/legal/data-request` still used
+     `safeRateLimitOpen()` despite creating durable `SupportRequest` rows and
+     sending legal notification email. The legal route now uses
+     `safeRateLimit()`, and the fail-open allowlist is limited to telemetry and
+     diagnostics routes. Guardrail: `tests/public-cron-search-hardening.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 247 findings;
 verified stale/false-positive: 97 findings; product/design decisions deferred:
 41 findings. Remaining major categories: Stripe webhook subscription narrowing
 evidence, Stripe webhook system-audit coverage, Round 10 deferred
