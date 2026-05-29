@@ -20,6 +20,7 @@ import { verifyCronRequest } from "@/lib/cronAuth";
 import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
+import { logSystemAction, logSystemActionOrThrow } from "@/lib/systemAudit";
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // 5-minute limit for large seller sets
@@ -98,6 +99,22 @@ async function runGuildMetricsCron() {
     const viewCleanup = await deleteOldListingViewDaily(twoYearsAgo);
     deletedViewRows = viewCleanup.count;
     deletedViewRowsComplete = viewCleanup.complete;
+    if (deletedViewRows > 0) {
+      await logSystemAction({
+        actorType: "cron",
+        actorId: "guild-metrics",
+        action: "PRUNE_LISTING_VIEW_DAILY",
+        targetType: "LISTING_VIEW_DAILY",
+        targetId: twoYearsAgo.toISOString().slice(0, 10),
+        reason: "Listing view daily retention cleanup",
+        metadata: {
+          jobName: "guild-metrics",
+          cutoff: twoYearsAgo.toISOString(),
+          deletedRows: deletedViewRows,
+          complete: deletedViewRowsComplete,
+        },
+      });
+    }
   } catch (err) {
     const code = getErrorCode(err);
     errors.push({ sellerId: "listing-view-cleanup", code });
@@ -252,6 +269,22 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
         status: "GUILD_MASTER_REJECTED",
         reviewedAt: now,
         reviewNotes: "Metrics fell below requirements for two consecutive months.",
+      },
+    });
+    await logSystemActionOrThrow({
+      client: tx,
+      actorType: "cron",
+      actorId: "guild-metrics",
+      action: "AUTO_REVOKE_GUILD_MASTER",
+      targetType: "SELLER_PROFILE",
+      targetId: seller.id,
+      reason: "Metrics fell below requirements for two consecutive months.",
+      metadata: {
+        jobName: "guild-metrics",
+        sellerUserId: seller.userId,
+        warningSentAt: warningSentAt.toISOString(),
+        revocationCutoff: revocationCutoff.toISOString(),
+        failedCriteria: buildFailedLabels(revocationCriteria, revocationMetrics),
       },
     });
     return true;

@@ -2591,11 +2591,25 @@ Last updated: 2026-05-24
      behavior contract for seller analytics refund filters. Guardrail:
      `tests/seller-ops-hardening.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 237 findings;
+258. **System audit log added for automated trust/case transitions** —
+     code/schema/test/docs fix for #1049, #1050, #1051, and Round 9 #810.
+     `SystemAuditLog` now records non-human or staff/system actions without
+     overloading undoable `AdminAuditLog.adminId`. Guild Member auto-revokes,
+     Guild Master auto-downgrades, case auto-close/escalation cron transitions,
+     and staff/cron case bulk escalation now write bounded system audit rows;
+     the trust/case state mutations co-commit their audit row inside the same
+     transaction. Guild metrics retention cleanup now records a bounded cleanup
+     summary when old `ListingViewDaily` rows are pruned. Stripe webhook system
+     audit coverage (#1052) remains a separate remaining category because
+     payment ledgers exist but are not yet mirrored into `SystemAuditLog`.
+     Guardrails: `tests/system-audit-log.test.mjs` and
+     `tests/json-column-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 241 findings;
 verified stale/false-positive: 97 findings; product/design decisions deferred:
 41 findings. Remaining major categories: checkout concurrency integration
-evidence, Stripe webhook subscription narrowing evidence, Round 10 deferred
-system-audit and state-machine product designs, JSON size historical validation
+evidence, Stripe webhook subscription narrowing evidence, Stripe webhook
+system-audit coverage, Round 10 deferred state-machine product designs, JSON size historical validation
 and email uniqueness production-scan decisions, email outbox retention/quota policy
 decisions, refund accounting runtime proof and refund attempt persistence
 semantics, founding-maker/quality-score consistency, case/message state-policy

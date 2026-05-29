@@ -1057,6 +1057,25 @@ model CronRun {
   @@index([status, startedAt])
 }
 
+model SystemAuditLog {
+  id         String   @id @default(cuid())
+  actorType  String   @db.VarChar(40)
+  actorId    String?  @db.VarChar(255)
+  action     String   @db.VarChar(100)
+  targetType String   @db.VarChar(100)
+  targetId   String   @db.VarChar(255)
+  reason     String?  @db.VarChar(1000)
+  // Bounded system/cron/webhook action metadata; keep bulky evidence in
+  // purpose-built ledgers such as OrderPaymentEvent or CronRun.
+  metadata   Json     @default("{}")
+  createdAt  DateTime @default(now())
+
+  @@index([actorType, createdAt])
+  @@index([action, createdAt])
+  @@index([targetType, targetId])
+  @@index([createdAt])
+}
+
 model EmailFailureCount {
   email         String   @id @db.VarChar(254)
   count         Int      @default(0)

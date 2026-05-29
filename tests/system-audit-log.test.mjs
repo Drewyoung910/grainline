@@ -1,0 +1,55 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { describe, it } from "node:test";
+
+function source(path) {
+  return readFileSync(path, "utf8");
+}
+
+describe("system audit logging", () => {
+  it("keeps system audit rows separate from human admin undo logs", () => {
+    const schema = source("prisma/schema.prisma");
+    const migration = source("prisma/migrations/20260529173000_add_system_audit_log/migration.sql");
+    const helper = source("src/lib/systemAudit.ts");
+
+    assert.match(schema, /model SystemAuditLog/);
+    assert.match(schema, /actorType\s+String\s+@db\.VarChar\(40\)/);
+    assert.match(schema, /actorId\s+String\?\s+@db\.VarChar\(255\)/);
+    assert.match(schema, /@@index\(\[targetType, targetId\]\)/);
+    const systemModel = schema.match(/model SystemAuditLog \{[\s\S]*?\n\}/)?.[0] ?? "";
+    assert.doesNotMatch(systemModel, /@relation/);
+
+    assert.match(migration, /CREATE TABLE "SystemAuditLog"/);
+    assert.match(migration, /"SystemAuditLog_metadata_size_chk"/);
+    assert.match(migration, /<= 64000/);
+
+    assert.match(helper, /export async function logSystemAction\(/);
+    assert.match(helper, /export async function logSystemActionOrThrow/);
+    assert.match(helper, /throw new SystemAuditLogError\(\)/);
+    assert.match(helper, /truncateText\(sanitizeText\(reason\), 1000\)/);
+    assert.match(helper, /source: "system_audit_log"/);
+  });
+
+  it("audits automated Guild and case state transitions at the mutation point", () => {
+    const guildMember = source("src/app/api/cron/guild-member-check/route.ts");
+    const guildMetrics = source("src/app/api/cron/guild-metrics/route.ts");
+    const caseAutoClose = source("src/app/api/cron/case-auto-close/route.ts");
+    const caseEscalate = source("src/app/api/cases/[id]/escalate/route.ts");
+
+    assert.match(guildMember, /logSystemActionOrThrow/);
+    assert.match(guildMember, /action: "AUTO_REVOKE_GUILD_MEMBER"/);
+    assert.match(guildMember, /client: tx/);
+
+    assert.match(guildMetrics, /action: "AUTO_REVOKE_GUILD_MASTER"/);
+    assert.match(guildMetrics, /action: "PRUNE_LISTING_VIEW_DAILY"/);
+    assert.match(guildMetrics, /client: tx/);
+
+    assert.match(caseAutoClose, /action: "AUTO_CLOSE_CASE"/);
+    assert.match(caseAutoClose, /action: "AUTO_ESCALATE_CASE"/);
+    assert.match(caseAutoClose, /client: tx/);
+
+    assert.match(caseEscalate, /action: "BULK_ESCALATE_CASES"/);
+    assert.match(caseEscalate, /action: "ESCALATE_CASE"/);
+    assert.match(caseEscalate, /actorType: validCron \? "cron" : "staff"/);
+  });
+});

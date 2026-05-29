@@ -10,7 +10,10 @@ function source(path) {
   return readFileSync(path, "utf8");
 }
 
-const migration = source("prisma/migrations/20260529070500_json_shape_and_size_guardrails/migration.sql");
+const migration = [
+  source("prisma/migrations/20260529070500_json_shape_and_size_guardrails/migration.sql"),
+  source("prisma/migrations/20260529173000_add_system_audit_log/migration.sql"),
+].join("\n");
 const schema = source("prisma/schema.prisma");
 
 describe("json column guardrails", () => {
@@ -38,6 +41,7 @@ describe("json column guardrails", () => {
     for (const [constraint, bytes] of [
       ["User_notificationPreferences_size_chk", 8192],
       ["AdminAuditLog_metadata_size_chk", 1000000],
+      ["SystemAuditLog_metadata_size_chk", 64000],
       ["OrderItem_listingSnapshot_size_chk", 128000],
       ["OrderItem_selectedVariants_size_chk", 16000],
       ["OrderShippingRateQuote_rates_size_chk", 64000],
@@ -58,6 +62,7 @@ describe("json column guardrails", () => {
       "hashed/safe webhook context",
       "cron summary payload",
       "Bounded action metadata",
+      "Bounded system/cron/webhook action metadata",
     ]) {
       assert.match(schema, new RegExp(phrase));
     }

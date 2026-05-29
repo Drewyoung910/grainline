@@ -12,6 +12,7 @@ import { caseActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/rat
 import { verifyCronRequest } from "@/lib/cronAuth";
 import { isEscalatableCaseStatus } from "@/lib/caseActionState";
 import { unavailableCaseMessageRecipientReason } from "@/lib/caseMessagingState";
+import { logSystemActionOrThrow } from "@/lib/systemAudit";
 
 export const runtime = "nodejs";
 
@@ -47,14 +48,33 @@ export async function POST(
       }
 
       // Escalate cases whose response/discussion windows have expired.
-      const result = await prisma.case.updateMany({
-        where: {
-          OR: [
-            { status: "OPEN", sellerRespondBy: { lt: now } },
-            { status: "IN_DISCUSSION", escalateUnlocksAt: { lt: now } },
-          ],
-        },
-        data: { status: "UNDER_REVIEW" },
+      const result = await prisma.$transaction(async (tx) => {
+        const update = await tx.case.updateMany({
+          where: {
+            OR: [
+              { status: "OPEN", sellerRespondBy: { lt: now } },
+              { status: "IN_DISCUSSION", escalateUnlocksAt: { lt: now } },
+            ],
+          },
+          data: { status: "UNDER_REVIEW" },
+        });
+        if (update.count > 0) {
+          await logSystemActionOrThrow({
+            client: tx,
+            actorType: validCron ? "cron" : "staff",
+            actorId: validCron ? "case-escalate-bulk" : me!.id,
+            action: "BULK_ESCALATE_CASES",
+            targetType: "CASE",
+            targetId: "all",
+            reason: "Case response or discussion windows expired",
+            metadata: {
+              route: "/api/cases/all/escalate",
+              escalatedCount: update.count,
+              at: now.toISOString(),
+            },
+          });
+        }
+        return update;
       });
       escalated = result.count;
     } else {
@@ -102,10 +122,36 @@ export async function POST(
         }
       }
 
-      const result = await prisma.case.updateMany({
-        where: { id, status: { in: ["OPEN", "IN_DISCUSSION"] } },
-        data: { status: "UNDER_REVIEW" },
-      });
+      const result =
+        validCron || isStaff
+          ? await prisma.$transaction(async (tx) => {
+              const update = await tx.case.updateMany({
+                where: { id, status: { in: ["OPEN", "IN_DISCUSSION"] } },
+                data: { status: "UNDER_REVIEW" },
+              });
+              if (update.count > 0) {
+                await logSystemActionOrThrow({
+                  client: tx,
+                  actorType: validCron ? "cron" : "staff",
+                  actorId: validCron ? "case-escalate" : me!.id,
+                  action: "ESCALATE_CASE",
+                  targetType: "CASE",
+                  targetId: id,
+                  reason: "Case manually escalated for review",
+                  metadata: {
+                    route: "/api/cases/[id]/escalate",
+                    previousStatus: caseRecord.status,
+                    newStatus: "UNDER_REVIEW",
+                    at: now.toISOString(),
+                  },
+                });
+              }
+              return update;
+            })
+          : await prisma.case.updateMany({
+              where: { id, status: { in: ["OPEN", "IN_DISCUSSION"] } },
+              data: { status: "UNDER_REVIEW" },
+            });
       if (result.count === 0) {
         return NextResponse.json(
           { error: "Case status changed before escalation could be saved. Refresh and try again." },

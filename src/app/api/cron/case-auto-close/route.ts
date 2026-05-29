@@ -6,6 +6,7 @@ import { createNotification } from "@/lib/notifications";
 import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 import { mapWithConcurrency } from "@/lib/concurrency";
+import { logSystemActionOrThrow } from "@/lib/systemAudit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -55,11 +56,33 @@ export async function GET(req: Request) {
 
     async function closePendingCase(c: CaseAutoCloseRecord) {
       try {
-        const updated = await prisma.case.updateMany({
-          where: { id: c.id, status: "PENDING_CLOSE", updatedAt: { lt: cutoff } },
-          data: { status: "RESOLVED", resolution: "DISMISSED", resolvedAt: new Date() },
+        const updated = await prisma.$transaction(async (tx) => {
+          const resolvedAt = new Date();
+          const result = await tx.case.updateMany({
+            where: { id: c.id, status: "PENDING_CLOSE", updatedAt: { lt: cutoff } },
+            data: { status: "RESOLVED", resolution: "DISMISSED", resolvedAt },
+          });
+          if (result.count === 0) return false;
+          await logSystemActionOrThrow({
+            client: tx,
+            actorType: "cron",
+            actorId: "case-auto-close",
+            action: "AUTO_CLOSE_CASE",
+            targetType: "CASE",
+            targetId: c.id,
+            reason: "Resolution window expired",
+            metadata: {
+              jobName: "case-auto-close",
+              previousStatus: "PENDING_CLOSE",
+              newStatus: "RESOLVED",
+              orderId: c.orderId,
+              cutoff: cutoff.toISOString(),
+              resolvedAt: resolvedAt.toISOString(),
+            },
+          });
+          return true;
         });
-        if (updated.count === 0) return;
+        if (!updated) return;
 
         const notifications: Array<() => Promise<unknown>> = [];
         if (c.buyerId) {
@@ -119,11 +142,31 @@ export async function GET(req: Request) {
     const openCutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
     async function escalateOpenCase(c: CaseAutoCloseRecord) {
       try {
-        const updated = await prisma.case.updateMany({
-          where: { id: c.id, status: "OPEN", sellerRespondBy: { lt: openCutoff } },
-          data: { status: "UNDER_REVIEW" },
+        const updated = await prisma.$transaction(async (tx) => {
+          const result = await tx.case.updateMany({
+            where: { id: c.id, status: "OPEN", sellerRespondBy: { lt: openCutoff } },
+            data: { status: "UNDER_REVIEW" },
+          });
+          if (result.count === 0) return false;
+          await logSystemActionOrThrow({
+            client: tx,
+            actorType: "cron",
+            actorId: "case-auto-close",
+            action: "AUTO_ESCALATE_CASE",
+            targetType: "CASE",
+            targetId: c.id,
+            reason: "Seller response window expired",
+            metadata: {
+              jobName: "case-auto-close",
+              previousStatus: "OPEN",
+              newStatus: "UNDER_REVIEW",
+              orderId: c.orderId,
+              cutoff: openCutoff.toISOString(),
+            },
+          });
+          return true;
         });
-        if (updated.count === 0) return;
+        if (!updated) return;
 
         const notifications: Array<() => Promise<unknown>> = [];
         if (c.buyerId) {
@@ -185,11 +228,31 @@ export async function GET(req: Request) {
     const discussionCutoff = new Date(Date.now() - STALE_DISCUSSION_DAYS * 24 * 60 * 60 * 1000);
     async function escalateStaleDiscussionCase(c: CaseAutoCloseRecord) {
       try {
-        const updated = await prisma.case.updateMany({
-          where: { id: c.id, status: "IN_DISCUSSION", updatedAt: { lt: discussionCutoff } },
-          data: { status: "UNDER_REVIEW" },
+        const updated = await prisma.$transaction(async (tx) => {
+          const result = await tx.case.updateMany({
+            where: { id: c.id, status: "IN_DISCUSSION", updatedAt: { lt: discussionCutoff } },
+            data: { status: "UNDER_REVIEW" },
+          });
+          if (result.count === 0) return false;
+          await logSystemActionOrThrow({
+            client: tx,
+            actorType: "cron",
+            actorId: "case-auto-close",
+            action: "AUTO_ESCALATE_CASE",
+            targetType: "CASE",
+            targetId: c.id,
+            reason: "Discussion inactivity window expired",
+            metadata: {
+              jobName: "case-auto-close",
+              previousStatus: "IN_DISCUSSION",
+              newStatus: "UNDER_REVIEW",
+              orderId: c.orderId,
+              cutoff: discussionCutoff.toISOString(),
+            },
+          });
+          return true;
         });
-        if (updated.count === 0) return;
+        if (!updated) return;
 
         const notifications: Array<() => Promise<unknown>> = [];
         if (c.buyerId) {

@@ -18,6 +18,7 @@ import {
   type GuildMemberRevocationGuard,
 } from "@/lib/guildMemberRevocationState";
 import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
+import { logSystemActionOrThrow } from "@/lib/systemAudit";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -164,6 +165,24 @@ async function revokeMember(
     await tx.makerVerification.updateMany({
       where: { sellerProfileId: seller.id },
       data: { status: "REJECTED", reviewedAt: now, reviewNotes: reason },
+    });
+    await logSystemActionOrThrow({
+      client: tx,
+      actorType: "cron",
+      actorId: "guild-member-check",
+      action: "AUTO_REVOKE_GUILD_MEMBER",
+      targetType: "SELLER_PROFILE",
+      targetId: seller.id,
+      reason,
+      metadata: {
+        jobName: "guild-member-check",
+        sellerUserId: seller.userId,
+        guardKind: guard.kind,
+        caseCreatedBefore:
+          guard.kind === "unresolved_case" ? guard.caseCreatedBefore.toISOString() : null,
+        listingsBelowThresholdBefore:
+          guard.kind === "listing_threshold" ? guard.listingsBelowThresholdBefore.toISOString() : null,
+      },
     });
     return true;
   });
