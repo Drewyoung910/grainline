@@ -2797,7 +2797,14 @@ Last updated: 2026-05-24
      while preserving encoded slash text inside ordinary query values. Guardrail:
      `tests/internal-return-url.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 262 findings;
+277. **Account deletion blog archive slug collision reduced** — code/test/docs
+     fix for #827. `archiveBlogPostsForDeletedAccount()` now allocates deleted
+     blog slugs by probing `BlogPost.slug @unique` candidates and suffixing on
+     collision instead of writing `deleted-${post.id}` directly. This keeps
+     account anonymization from failing on a pre-existing colliding blog slug.
+     Guardrail: `tests/round9-account-deletion-pii-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 263 findings;
 verified stale/false-positive: 100 findings; product/design decisions deferred:
 39 findings. Remaining major categories: Stripe webhook subscription narrowing
 evidence, Round 10 deferred state-machine product designs, JSON size historical

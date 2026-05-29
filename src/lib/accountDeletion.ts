@@ -510,6 +510,22 @@ async function archiveBlogPostsForDeletedAccount(
     ],
   };
 
+  function deletedAccountBlogSlug(postId: string, collisionIndex = 0) {
+    return collisionIndex === 0 ? `deleted-${postId}` : `deleted-${postId}-${collisionIndex}`;
+  }
+
+  async function deletedAccountAvailableBlogSlug(postId: string) {
+    for (let collisionIndex = 0; collisionIndex < 100; collisionIndex += 1) {
+      const slug = deletedAccountBlogSlug(postId, collisionIndex);
+      const existing = await tx.blogPost.findUnique({
+        where: { slug },
+        select: { id: true },
+      });
+      if (!existing || existing.id === postId) return slug;
+    }
+    throw new Error("Could not allocate deleted-account blog archive slug.");
+  }
+
   for (;;) {
     const posts = await tx.blogPost.findMany({
       where,
@@ -520,10 +536,11 @@ async function archiveBlogPostsForDeletedAccount(
     });
 
     for (const post of posts) {
+      const archivedSlug = await deletedAccountAvailableBlogSlug(post.id);
       await tx.blogPost.update({
         where: { id: post.id },
         data: {
-          slug: `deleted-${post.id}`,
+          slug: archivedSlug,
           title: "Deleted blog post",
           excerpt: null,
           body: "[Post removed]",

@@ -93,4 +93,15 @@ describe("Round 9 account deletion PII guardrails", () => {
     assert.match(deletion, /redactAccountDeletionText\(candidate\.reason, sensitiveValues\)/);
     assert.match(deletion, /reason\.changed && reason\.text !== null \? \{ reason: reason\.text \} : \{\}/);
   });
+
+  it("allocates collision-safe deleted-account blog archive slugs", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+
+    assert.match(deletion, /function deletedAccountBlogSlug\(postId: string, collisionIndex = 0\)/);
+    assert.match(deletion, /`deleted-\$\{postId\}-\$\{collisionIndex\}`/);
+    assert.match(deletion, /async function deletedAccountAvailableBlogSlug\(postId: string\)/);
+    assert.match(deletion, /tx\.blogPost\.findUnique\(\{\s*where: \{ slug \}/s);
+    assert.match(deletion, /const archivedSlug = await deletedAccountAvailableBlogSlug\(post\.id\)/);
+    assert.doesNotMatch(deletion, /slug: `deleted-\$\{post\.id\}`/);
+  });
 });
