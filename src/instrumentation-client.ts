@@ -4,9 +4,12 @@
 
 import * as Sentry from "@sentry/nextjs";
 import { beforeBreadcrumb, beforeSend } from "@/lib/sentryFilter";
+import { resolveClientSentryDsn } from "@/lib/sentryDsn";
 
 Sentry.init({
-  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN ?? "",
+  dsn: resolveClientSentryDsn({
+    NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  }),
 
   // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
   tracesSampleRate: 0.1,

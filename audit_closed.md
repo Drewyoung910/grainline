@@ -2783,7 +2783,14 @@ Last updated: 2026-05-24
      existing 500-character cap. Guardrail:
      `tests/stripe-webhook-event-state.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 260 findings;
+275. **Production Sentry DSN configuration made fail-loud** — code/test/docs fix
+     for #318. Server and edge Sentry config now resolve through
+     `resolveServerSentryDsn()`, and the browser instrumentation resolves through
+     `resolveClientSentryDsn()`. Missing DSNs stay permissive in development/test
+     but throw in production instead of falling back to an empty string and
+     silently disabling telemetry. Guardrail: `tests/sentry-dsn.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 261 findings;
 verified stale/false-positive: 100 findings; product/design decisions deferred:
 39 findings. Remaining major categories: Stripe webhook subscription narrowing
 evidence, Round 10 deferred state-machine product designs, JSON size historical
