@@ -111,6 +111,9 @@ model User {
   savedBlogPosts     SavedBlogPost[]
   commissionRequests CommissionRequest[] @relation("CommissionRequests")
 
+  // Raw DB function grainline_notification_preferences_valid() enforces known
+  // boolean keys. Update that migration-managed function when adding keys in
+  // src/lib/notificationPreferenceKeys.ts.
   notificationPreferences Json @default("{}")
 
   banned       Boolean         @default(false)
@@ -637,6 +640,8 @@ model OrderShippingRateQuote {
   orderId    String
   order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   shipmentId String   @db.VarChar(255)
+  // Bounded Shippo quote snapshot: array of trimmed rate objects shown for
+  // seller label re-quotes; do not persist raw provider payloads here.
   rates      Json
   expiresAt  DateTime
   createdAt  DateTime @default(now())
@@ -659,6 +664,8 @@ model OrderPaymentEvent {
   status           String?  @db.VarChar(100)
   reason           String?  @db.VarChar(255)
   description      String?  @db.VarChar(5000)
+  // Bounded Stripe payment/refund/dispute event context. Store safe ids and
+  // small status details only, not full provider payloads.
   metadata         Json?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -694,6 +701,7 @@ model OrderItem {
   listing          Listing  @relation(fields: [listingId], references: [id], onDelete: Restrict)
   quantity         Int      @default(1)
   priceCents       Int
+  // Bounded checkout-time listing snapshot for retained order history.
   listingSnapshot  Json?
   selectedVariants Json? // [{ groupName, optionLabel, priceAdjustCents }]
   createdAt        DateTime @default(now())
@@ -998,6 +1006,7 @@ model EmailSuppression {
   reason    EmailSuppressionReason
   source    String?                @db.VarChar(100)
   eventId   String?                @db.VarChar(255)
+  // Bounded hashed/safe webhook context for suppression troubleshooting.
   details   Json                   @default("{}")
   createdAt DateTime               @default(now())
   updatedAt DateTime               @updatedAt
@@ -1037,6 +1046,7 @@ model CronRun {
   jobName     String    @db.VarChar(100)
   bucket      String    @db.VarChar(32)
   status      String    @default("RUNNING") @db.VarChar(32)
+  // Bounded cron summary payload for ops health/debugging.
   result      Json?
   startedAt   DateTime  @default(now())
   completedAt DateTime?
@@ -1382,6 +1392,7 @@ model AdminAuditLog {
   targetType   String    @db.VarChar(100)
   targetId     String    @db.VarChar(255)
   reason       String?   @db.VarChar(1000)
+  // Bounded action metadata; keep bulky evidence in purpose-built tables.
   metadata     Json      @default("{}")
   undone       Boolean   @default(false)
   undoneAt     DateTime?

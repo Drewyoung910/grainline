@@ -2547,12 +2547,27 @@ Last updated: 2026-05-24
      stale, or product/legal-deferred on current `main`; those were already
      closed in prior entries and were not double-counted.
 
-**Running tally after this pass:** verified fixed/reduced: 231 findings;
+254. **JSON shape and write-size guardrails reduced** — code/test/docs fix or
+     reduction for #979, #980, and #983. `User.notificationPreferences` now has
+     a raw-managed DB validator that accepts only known preference keys with
+     boolean values, and the migration normalizes malformed historical rows
+     before validating the shape/size constraints. New writes to bulky JSON
+     columns are now capped through raw DB CHECK constraints for notification
+     preferences, admin audit metadata, order-item snapshots/variants, label
+     rate quotes, order payment metadata, email suppression details, and cron
+     result payloads; `EmailOutbox.html` was already bounded by prior schema and
+     enqueue caps. `schema.prisma` and `CLAUDE.md` now document the compact
+     payload contracts and the future preference-key update requirement. The
+     remaining #980 work is a production data scan before globally validating
+     the non-preference historical size constraints. Guardrail:
+     `tests/json-column-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 234 findings;
 verified stale/false-positive: 97 findings; product/design decisions deferred:
-43 findings. Remaining major categories: checkout concurrency integration
+41 findings. Remaining major categories: checkout concurrency integration
 evidence, Stripe webhook subscription narrowing evidence, Round 10 deferred
-system-audit and state-machine product designs, JSON shape/size and email
-uniqueness production-scan decisions, email outbox retention/quota policy
+system-audit and state-machine product designs, JSON size historical validation
+and email uniqueness production-scan decisions, email outbox retention/quota policy
 decisions, refund accounting runtime proof and refund attempt persistence
 semantics, founding-maker/quality-score consistency, case/message state-policy
 decisions, account export/legal retention scope, remaining privacy/export
