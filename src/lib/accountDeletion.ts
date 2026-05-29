@@ -733,6 +733,32 @@ function revalidateDeletedAccountSearchCaches(userId: string) {
   }
 }
 
+async function disableSellerOrderabilityAfterStripeReject(input: {
+  userId: string;
+  stripeAccountId: string;
+  stripeAccountVersion: string | null;
+  stripeControllerType: string | null;
+}) {
+  try {
+    await prisma.sellerProfile.updateMany({
+      where: { userId: input.userId, stripeAccountId: input.stripeAccountId },
+      data: { chargesEnabled: false, vacationMode: true },
+    });
+    revalidateDeletedAccountSearchCaches(input.userId);
+  } catch (error) {
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "account_delete_stripe_reject_local_disable" },
+      extra: {
+        userId: input.userId,
+        stripeAccountId: input.stripeAccountId,
+        stripeAccountVersion: input.stripeAccountVersion,
+        stripeControllerType: input.stripeControllerType,
+      },
+    });
+  }
+}
+
 export async function anonymizeUserAccount(
   userId: string,
   options: { lockAlreadyAcquired?: boolean } = {},
@@ -774,6 +800,14 @@ export async function anonymizeUserAccount(
         stripeControllerType,
       })
     : true;
+  if (stripeRejectSucceeded && stripeAccountId) {
+    await disableSellerOrderabilityAfterStripeReject({
+      userId,
+      stripeAccountId,
+      stripeAccountVersion,
+      stripeControllerType,
+    });
+  }
 
   const result = await prisma.$transaction(async (tx) => {
     const user = await tx.user.findUnique({

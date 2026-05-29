@@ -2652,8 +2652,21 @@ Last updated: 2026-05-24
      `safeRateLimit()`, and the fail-open allowlist is limited to telemetry and
      diagnostics routes. Guardrail: `tests/public-cron-search-hardening.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 247 findings;
-verified stale/false-positive: 97 findings; product/design decisions deferred:
+263. **Account deletion post-Stripe local orderability window reduced** —
+     code/test/docs fix for #232. Stripe connected-account rejection already
+     used durable side-effect retries, but a successful Stripe reject followed
+     by a large anonymization transaction failure could leave local seller
+     orderability unchanged until the retry cron. Account deletion now performs
+     a small pre-transaction `chargesEnabled = false` / `vacationMode = true`
+     update and public-cache revalidation after confirmed Stripe rejection,
+     while preserving the full transaction cleanup and retry behavior.
+     Verification in the same pass marked #155 stale: current verification
+     applications already call fail-closed `safeRateLimit()` with
+     `verificationApplyRatelimit`. Guardrail:
+     `tests/account-deletion-timeout-fix.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 248 findings;
+verified stale/false-positive: 98 findings; product/design decisions deferred:
 41 findings. Remaining major categories: Stripe webhook subscription narrowing
 evidence, Stripe webhook system-audit coverage, Round 10 deferred
 state-machine product designs, JSON size historical validation

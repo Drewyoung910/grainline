@@ -41,6 +41,23 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     assert.match(accountDeletion, /vacationMode: true/);
   });
 
+  it("marks sellers non-orderable after Stripe reject before the large transaction", () => {
+    const accountDeletion = source("src/lib/accountDeletion.ts");
+    const stripeReject = accountDeletion.indexOf("const stripeRejectSucceeded =");
+    const preTransactionDisable = accountDeletion.indexOf("await disableSellerOrderabilityAfterStripeReject");
+    const transactionStart = accountDeletion.indexOf("const result = await prisma.$transaction");
+
+    assert.notEqual(stripeReject, -1);
+    assert.notEqual(preTransactionDisable, -1);
+    assert.notEqual(transactionStart, -1);
+    assert.ok(stripeReject < preTransactionDisable);
+    assert.ok(preTransactionDisable < transactionStart);
+    assert.match(accountDeletion, /async function disableSellerOrderabilityAfterStripeReject/);
+    assert.match(accountDeletion, /where: \{ userId: input\.userId, stripeAccountId: input\.stripeAccountId \}/);
+    assert.match(accountDeletion, /data: \{ chargesEnabled: false, vacationMode: true \}/);
+    assert.match(accountDeletion, /source: "account_delete_stripe_reject_local_disable"/);
+  });
+
   it("writes a user-requested account deletion audit row before anonymization", () => {
     const accountDeletion = source("src/lib/accountDeletion.ts");
     const auditCreate = accountDeletion.indexOf('action: "USER_ACCOUNT_DELETE"');
