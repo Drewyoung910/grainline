@@ -46,6 +46,23 @@ describe("account and privacy route observability guardrails", () => {
     }
   });
 
+  it("keeps support and privacy request email delivery state admin-visible on double failure", () => {
+    const support = source("src/app/api/support/route.ts");
+    const dataRequest = source("src/app/api/legal/data-request/route.ts");
+    const adminPage = source("src/app/admin/support/page.tsx");
+
+    for (const route of [support, dataRequest]) {
+      assert.match(route, /SUPPORT_REQUEST_EMAIL_PENDING_MARKER/);
+      assert.match(route, /emailLastError: SUPPORT_REQUEST_EMAIL_PENDING_MARKER/);
+      assert.match(route, /sendRenderedEmail\(/);
+      assert.match(route, /data: \{ emailSentAt: new Date\(\), emailLastError: null \}/);
+      assert.match(route, /email_error_update/);
+      assert.match(route, /email_sent_update/);
+    }
+    assert.match(adminPage, /supportRequestEmailNotificationState\(request\)/);
+    assert.doesNotMatch(adminPage, /request\.emailSentAt \? "Sent" : request\.emailLastError \? "Failed" : "Pending"/);
+  });
+
   it("links signed-in support and privacy requests to the local account without requiring auth", () => {
     const support = source("src/app/api/support/route.ts");
     const dataRequest = source("src/app/api/legal/data-request/route.ts");

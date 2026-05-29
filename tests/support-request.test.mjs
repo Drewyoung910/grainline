@@ -4,6 +4,8 @@ import { describe, it } from "node:test";
 
 const {
   normalizeSupportRequest,
+  SUPPORT_REQUEST_EMAIL_PENDING_MARKER,
+  supportRequestEmailNotificationState,
   supportRequestAccountExportWhere,
   supportRequestSlaDueAt,
 } = await import("../src/lib/supportRequest.ts");
@@ -59,5 +61,34 @@ describe("support request helpers", () => {
       OR: [{ userId: "user_123" }, { email: "buyer@example.com" }],
     });
     assert.deepEqual(supportRequestAccountExportWhere("user_123", null), { userId: "user_123" });
+  });
+
+  it("distinguishes ambiguous notification delivery state for admins", () => {
+    assert.deepEqual(
+      supportRequestEmailNotificationState({
+        emailSentAt: new Date("2026-05-29T00:00:00.000Z"),
+        emailLastError: SUPPORT_REQUEST_EMAIL_PENDING_MARKER,
+      }),
+      { label: "Sent", tone: "success", message: null },
+    );
+    assert.deepEqual(
+      supportRequestEmailNotificationState({
+        emailSentAt: null,
+        emailLastError: SUPPORT_REQUEST_EMAIL_PENDING_MARKER,
+      }),
+      {
+        label: "Needs review",
+        tone: "warning",
+        message: SUPPORT_REQUEST_EMAIL_PENDING_MARKER,
+      },
+    );
+    assert.deepEqual(
+      supportRequestEmailNotificationState({ emailSentAt: null, emailLastError: "provider rejected" }),
+      { label: "Failed", tone: "error", message: "Email error: provider rejected" },
+    );
+    assert.deepEqual(
+      supportRequestEmailNotificationState({ emailSentAt: null, emailLastError: null }),
+      { label: "Pending", tone: "neutral", message: null },
+    );
   });
 });

@@ -12,6 +12,7 @@ import {
 import { getIP, rateLimitResponse, safeRateLimit, supportRequestRatelimit } from "@/lib/ratelimit";
 import {
   normalizeSupportRequest,
+  SUPPORT_REQUEST_EMAIL_PENDING_MARKER,
   supportRequestHtml,
   supportRequestRecipient,
   supportRequestSlaDueAt,
@@ -55,6 +56,7 @@ export async function POST(req: Request) {
         orderId: normalized.request.orderId,
         message: normalized.request.message,
         slaDueAt,
+        emailLastError: SUPPORT_REQUEST_EMAIL_PENDING_MARKER,
       },
       select: { id: true, slaDueAt: true },
     });
@@ -72,10 +74,6 @@ export async function POST(req: Request) {
       subject: supportRequestSubject(normalized.request, record.id),
       html: supportRequestHtml(normalized.request, { requestId: record.id, slaDueAt: record.slaDueAt }),
     }, { throwOnFailure: true });
-    await prisma.supportRequest.update({
-      where: { id: record.id },
-      data: { emailSentAt: new Date(), emailLastError: null },
-    });
   } catch (error) {
     const emailLastError = sanitizeEmailOutboxError(error);
     await prisma.supportRequest.update({
@@ -89,6 +87,22 @@ export async function POST(req: Request) {
     });
     Sentry.captureException(error, {
       tags: { source: "support_request" },
+      extra: { supportRequestId: record.id, topic: normalized.request.topic, emailHash },
+    });
+    return NextResponse.json(
+      { ok: true, requestId: record.id, slaDueAt: record.slaDueAt.toISOString() },
+      { status: 202 },
+    );
+  }
+
+  try {
+    await prisma.supportRequest.update({
+      where: { id: record.id },
+      data: { emailSentAt: new Date(), emailLastError: null },
+    });
+  } catch (error) {
+    Sentry.captureException(error, {
+      tags: { source: "support_request_email_sent_update" },
       extra: { supportRequestId: record.id, topic: normalized.request.topic, emailHash },
     });
   }

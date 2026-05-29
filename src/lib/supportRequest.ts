@@ -15,6 +15,9 @@ type SupportRequestAccountExportWhere =
   | { userId: string }
   | { OR: Array<{ userId: string } | { email: string }> };
 
+export const SUPPORT_REQUEST_EMAIL_PENDING_MARKER =
+  "Notification email delivery is pending confirmation; check Sentry or email provider logs if this remains after intake.";
+
 const SUPPORT_TOPICS = new Set([
   "order",
   "account",
@@ -127,6 +130,26 @@ export function supportRequestAccountExportWhere(
 ): SupportRequestAccountExportWhere {
   if (!accountEmail) return { userId };
   return { OR: [{ userId }, { email: accountEmail }] };
+}
+
+export function supportRequestEmailNotificationState(input: {
+  emailSentAt: Date | null;
+  emailLastError: string | null;
+}) {
+  if (input.emailSentAt) {
+    return { label: "Sent", tone: "success" as const, message: null };
+  }
+  if (input.emailLastError === SUPPORT_REQUEST_EMAIL_PENDING_MARKER) {
+    return {
+      label: "Needs review",
+      tone: "warning" as const,
+      message: SUPPORT_REQUEST_EMAIL_PENDING_MARKER,
+    };
+  }
+  if (input.emailLastError) {
+    return { label: "Failed", tone: "error" as const, message: `Email error: ${input.emailLastError}` };
+  }
+  return { label: "Pending", tone: "neutral" as const, message: null };
 }
 
 export function supportRequestSubject(request: NormalizedSupportRequest, requestId?: string) {

@@ -2665,8 +2665,20 @@ Last updated: 2026-05-24
      `verificationApplyRatelimit`. Guardrail:
      `tests/account-deletion-timeout-fix.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 248 findings;
-verified stale/false-positive: 98 findings; product/design decisions deferred:
+264. **Support/legal notification ambiguity reduced** — code/test/docs fix for
+     #163. Public support and legal data-request rows now start with an
+     admin-visible pending-delivery marker before notification email is
+     attempted, clear that marker only after `emailSentAt` is persisted, and
+     render the marker as "Needs review" in `/admin/support`. If email send
+     fails and the follow-up `emailLastError` update also fails, the admin queue
+     no longer looks like a normal `null`/`null` pending send. Verification in
+     the same pass marked #166 stale: current support/legal Sentry telemetry
+     uses hashed email values, and the Sentry filter redacts raw `email` keys.
+     Guardrails: `tests/support-request.test.mjs` and
+     `tests/account-privacy-observability.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 249 findings;
+verified stale/false-positive: 99 findings; product/design decisions deferred:
 41 findings. Remaining major categories: Stripe webhook subscription narrowing
 evidence, Stripe webhook system-audit coverage, Round 10 deferred
 state-machine product designs, JSON size historical validation
