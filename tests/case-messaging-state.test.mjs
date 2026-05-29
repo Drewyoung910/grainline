@@ -61,12 +61,18 @@ describe("case messaging account-state guard", () => {
     assert.match(unavailableCaseRecipientMessage("missing"), /Escalate this case/);
   });
 
-  it("allows messages only while the case is still open", () => {
+  it("allows party messages only before staff review starts", () => {
     assert.equal(canCreateCaseMessageForStatus("OPEN"), true);
     assert.equal(canCreateCaseMessageForStatus("IN_DISCUSSION"), true);
     assert.equal(canCreateCaseMessageForStatus("PENDING_CLOSE"), true);
-    assert.equal(canCreateCaseMessageForStatus("UNDER_REVIEW"), true);
+    assert.equal(canCreateCaseMessageForStatus("UNDER_REVIEW"), false);
     assert.equal(canCreateCaseMessageForStatus("RESOLVED"), false);
     assert.equal(canCreateCaseMessageForStatus("CLOSED"), false);
+  });
+
+  it("lets staff message cases under review", () => {
+    assert.equal(canCreateCaseMessageForStatus("UNDER_REVIEW", { isStaff: true }), true);
+    assert.equal(canCreateCaseMessageForStatus("RESOLVED", { isStaff: true }), false);
+    assert.equal(canCreateCaseMessageForStatus("CLOSED", { isStaff: true }), false);
   });
 });

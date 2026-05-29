@@ -2385,7 +2385,16 @@ Last updated: 2026-05-24
      `tests/terms-acceptance-enforcement.test.mjs`, and
      `tests/verified-audit-followups.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 211 findings;
+243. **Case under-review party-message boundary reduced** — code/test fix for
+     #300. The case-message state helper now separates buyer/seller reply
+     statuses (`OPEN`, `IN_DISCUSSION`, `PENDING_CLOSE`) from staff reply
+     statuses, so direct API posts by parties cannot keep adding messages after
+     a case enters `UNDER_REVIEW`. Staff can still add review-thread messages
+     until the case reaches a terminal state. Guardrails:
+     `tests/case-messaging-state.test.mjs` and
+     `tests/case-observability-followups.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 212 findings;
 verified stale/false-positive: 78 findings; product/design decisions deferred:
 43 findings. Remaining major categories: checkout concurrency integration
 evidence, Round 10 deferred system-audit and state-machine product designs,

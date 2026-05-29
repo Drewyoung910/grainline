@@ -76,7 +76,7 @@ export async function POST(
     const isStaff = me.role === "EMPLOYEE" || me.role === "ADMIN";
     if (!isParty && !isStaff) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
 
-    if (!canCreateCaseMessageForStatus(caseRecord.status)) {
+    if (!canCreateCaseMessageForStatus(caseRecord.status, { isStaff })) {
       return NextResponse.json({ error: "This case is closed." }, { status: 400 });
     }
 

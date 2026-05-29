@@ -5,15 +5,23 @@ type CaseParticipantState = {
 } | null;
 
 export type UnavailableCaseRecipientReason = "suspended" | "deleted" | "missing";
-export const CASE_MESSAGE_OPEN_STATUSES = [
+export const CASE_PARTY_MESSAGE_STATUSES = [
   "OPEN",
   "IN_DISCUSSION",
   "PENDING_CLOSE",
+] as const;
+
+export const CASE_STAFF_MESSAGE_STATUSES = [
+  ...CASE_PARTY_MESSAGE_STATUSES,
   "UNDER_REVIEW",
 ] as const;
 
-export function canCreateCaseMessageForStatus(status: string | null | undefined): boolean {
-  return CASE_MESSAGE_OPEN_STATUSES.includes(status as (typeof CASE_MESSAGE_OPEN_STATUSES)[number]);
+export function canCreateCaseMessageForStatus(
+  status: string | null | undefined,
+  { isStaff = false }: { isStaff?: boolean } = {},
+): boolean {
+  const allowed: readonly string[] = isStaff ? CASE_STAFF_MESSAGE_STATUSES : CASE_PARTY_MESSAGE_STATUSES;
+  return allowed.includes(status ?? "");
 }
 
 export function unavailableCaseMessageRecipientReason({

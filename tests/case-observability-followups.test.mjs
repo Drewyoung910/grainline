@@ -27,6 +27,12 @@ describe("case route observability follow-ups", () => {
     assert.ok(transactionStart !== -1 && notificationStart !== -1 && transactionStart < notificationStart);
   });
 
+  it("keeps under-review case messages staff-only at the API boundary", () => {
+    const route = source("src/app/api/cases/[id]/messages/route.ts");
+
+    assert.match(route, /canCreateCaseMessageForStatus\(caseRecord\.status, \{ isStaff \}\)/);
+  });
+
   it("captures case resolve email, audit, and refund-remediation failures", () => {
     const route = source("src/app/api/cases/[id]/resolve/route.ts");
 
