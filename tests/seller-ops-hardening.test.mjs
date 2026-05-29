@@ -100,6 +100,8 @@ describe("seller operational route hardening", () => {
     assert.match(recentSales, /where: \{ userId: me\.id \}/);
     assert.match(recentSales, /some: \{ listing: \{ sellerId: sellerProfile\.id \} \}/);
     assert.match(recentSales, /every: \{ listing: \{ sellerId: sellerProfile\.id \} \}/);
+    assert.match(recentSales, /sellerRefundId: null/);
+    assert.match(recentSales, /paymentEvents: \{ none: blockingRefundLedgerWhere\(\) \}/);
     assert.match(recentSales, /accountAccessErrorResponse\(err\)/);
   });
 

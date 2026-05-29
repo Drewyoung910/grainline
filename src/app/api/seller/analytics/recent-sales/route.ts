@@ -6,6 +6,7 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { rateLimitResponse, safeRateLimit, sellerAnalyticsRatelimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
 
 export const runtime = "nodejs";
 
@@ -44,6 +45,8 @@ export async function GET() {
           every: { listing: { sellerId: sellerProfile.id } },
         },
         paidAt: { not: null },
+        sellerRefundId: null,
+        paymentEvents: { none: blockingRefundLedgerWhere() },
       },
       orderBy: { createdAt: "desc" },
       take: 10,

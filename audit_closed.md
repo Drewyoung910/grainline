@@ -2582,7 +2582,16 @@ Last updated: 2026-05-24
      verifier. Legacy user-only PIN cookie signatures fail closed and require a
      fresh PIN entry. Guardrail: `tests/admin-pin.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 236 findings;
+257. **Seller recent-sales refund filtering aligned** — code/test/docs fix for
+     #143. `/api/seller/analytics/recent-sales` now excludes refunded orders
+     through both local `Order.sellerRefundId` state and durable
+     `OrderPaymentEvent` refund ledger rows via `blockingRefundLedgerWhere()`,
+     matching the main seller analytics route and keeping refunded buyer/order
+     data out of the seller sales widget. `CLAUDE.md` now records the future
+     behavior contract for seller analytics refund filters. Guardrail:
+     `tests/seller-ops-hardening.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 237 findings;
 verified stale/false-positive: 97 findings; product/design decisions deferred:
 41 findings. Remaining major categories: checkout concurrency integration
 evidence, Stripe webhook subscription narrowing evidence, Round 10 deferred
