@@ -2731,6 +2731,19 @@ Last updated: 2026-05-24
      stay bounded free text or become structured `orderId` / `listingId`
      fields.
 
+270. **Connect and rate-limit observability residuals tightened** —
+     code/test/docs hardening adjacent to #1098, with no duplicate finding
+     tally increase because the broader Round 13 observability finding was
+     already closed. The Connect login-link route now captures tagged Sentry
+     evidence when Stripe cannot create the Express dashboard link, and the
+     sibling dashboard route now returns a JSON 500 with matching Sentry
+     evidence instead of throwing a raw route error. The shared rate-limit
+     failure-policy helper now captures Redis limiter outages with
+     fail-open/fail-closed policy context and raw-key-free telemetry, while
+     preserving the existing fail-open/fail-closed behavior. Guardrails:
+     `tests/stripe-connect-v2.test.mjs` and
+     `tests/ratelimit-policy.test.mjs`.
+
 **Running tally after this pass:** verified fixed/reduced: 253 findings;
 verified stale/false-positive: 100 findings; product/design decisions deferred:
 38 findings. Remaining major categories: Stripe webhook subscription narrowing

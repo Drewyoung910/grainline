@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 
 const { limitWithFailurePolicy } = await import("../src/lib/ratelimitPolicy.ts");
 const ratelimitSource = readFileSync(new URL("../src/lib/ratelimit.ts", import.meta.url), "utf8");
+const ratelimitPolicySource = readFileSync(new URL("../src/lib/ratelimitPolicy.ts", import.meta.url), "utf8");
 
 function throwingLimiter() {
   return {
@@ -17,6 +18,13 @@ describe("rate-limit failure policy", () => {
   it("wires public helpers through the shared failure-policy helper", () => {
     assert.match(ratelimitSource, /limitWithFailurePolicy\(limiter, key, false/);
     assert.match(ratelimitSource, /limitWithFailurePolicy\(limiter, key, true/);
+  });
+
+  it("captures Redis limiter failures to Sentry with policy context", () => {
+    assert.match(ratelimitPolicySource, /Sentry\.captureException\?\.\(error/);
+    assert.match(ratelimitPolicySource, /source: "ratelimit_failure_policy"/);
+    assert.match(ratelimitPolicySource, /failurePolicy: failOpen \? "fail_open" : "fail_closed"/);
+    assert.match(ratelimitPolicySource, /keyLength: key\.length/);
   });
 
   it("fails closed for protected writes and expensive reads when Redis is unavailable", async () => {

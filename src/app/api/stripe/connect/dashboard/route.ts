@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
@@ -34,6 +35,14 @@ export async function POST() {
     return NextResponse.json({ error: "Reconnect Stripe payouts before opening the dashboard." }, { status: 409 });
   }
 
-  const link = await stripe.accounts.createLoginLink(seller.stripeAccountId);
-  return NextResponse.json({ url: link.url });
+  try {
+    const link = await stripe.accounts.createLoginLink(seller.stripeAccountId);
+    return NextResponse.json({ url: link.url });
+  } catch (error) {
+    Sentry.captureException(error, {
+      tags: { source: "stripe_connect_dashboard_link" },
+      extra: { stripeAccountVersion: seller.stripeAccountVersion ?? "legacy" },
+    });
+    return NextResponse.json({ error: "Failed to generate Stripe dashboard link" }, { status: 500 });
+  }
 }

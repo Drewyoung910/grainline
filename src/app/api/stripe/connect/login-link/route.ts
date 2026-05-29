@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
@@ -40,6 +41,10 @@ export async function POST() {
     return NextResponse.json({ url: loginLink.url });
   } catch (e) {
     console.error("Failed to create Stripe login link:", e);
+    Sentry.captureException(e, {
+      tags: { source: "stripe_connect_login_link" },
+      extra: { stripeAccountVersion: seller.stripeAccountVersion ?? "legacy" },
+    });
     return NextResponse.json({ error: "Failed to generate Stripe link" }, { status: 500 });
   }
 }

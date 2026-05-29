@@ -114,10 +114,12 @@ describe("Stripe Connect v2 migration guardrails", () => {
   it("keeps Express dashboard login links and account.updated charges_enabled semantics", () => {
     assert.match(source("src/app/api/stripe/connect/login-link/route.ts"), /createLoginLink\(stripeAccountId\)/);
     assert.match(source("src/app/api/stripe/connect/login-link/route.ts"), /isSupportedStripeConnectAccountVersion\(seller\.stripeAccountVersion\)/);
+    assert.match(source("src/app/api/stripe/connect/login-link/route.ts"), /source: "stripe_connect_login_link"/);
     assert.match(source("src/app/api/stripe/connect/dashboard/route.ts"), /createLoginLink\(seller\.stripeAccountId\)/);
     assert.match(source("src/app/api/stripe/connect/dashboard/route.ts"), /isSupportedStripeConnectAccountVersion\(seller\.stripeAccountVersion\)/);
     assert.match(source("src/app/api/stripe/connect/dashboard/route.ts"), /ensureUserByClerkId\(userId\)/);
     assert.match(source("src/app/api/stripe/connect/dashboard/route.ts"), /accountAccessErrorResponse\(err\)/);
+    assert.match(source("src/app/api/stripe/connect/dashboard/route.ts"), /source: "stripe_connect_dashboard_link"/);
 
     const statusRoute = source("src/app/api/stripe/connect/status/route.ts");
     assert.match(statusRoute, /safeRateLimit\(stripeConnectRatelimit, userId\)/);
