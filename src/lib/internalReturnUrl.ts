@@ -7,6 +7,29 @@ function firstQueryValue(value: string | string[] | null | undefined): string | 
   return value ?? null;
 }
 
+const CONTROL_CHAR_PATTERN = /[\u0000-\u001F\u007F]/;
+
+function unsafeInternalPathPrefix(value: string) {
+  if (CONTROL_CHAR_PATTERN.test(value)) return true;
+
+  let pathPrefix = value.split(/[?#]/, 1)[0]?.slice(0, 64) ?? "";
+  for (let pass = 0; pass < 3; pass += 1) {
+    if (pathPrefix.startsWith("//") || pathPrefix.startsWith("/\\")) return true;
+    if (CONTROL_CHAR_PATTERN.test(pathPrefix)) return true;
+
+    let decoded;
+    try {
+      decoded = decodeURIComponent(pathPrefix);
+    } catch {
+      return true;
+    }
+    if (decoded === pathPrefix) return false;
+    pathPrefix = decoded;
+  }
+
+  return pathPrefix.startsWith("//") || pathPrefix.startsWith("/\\") || CONTROL_CHAR_PATTERN.test(pathPrefix);
+}
+
 export function safeInternalPath(
   returnUrl: string | string[] | null | undefined,
   fallback = "/",
@@ -15,8 +38,7 @@ export function safeInternalPath(
   if (
     !value ||
     !value.startsWith("/") ||
-    value.startsWith("//") ||
-    value.startsWith("/\\")
+    unsafeInternalPathPrefix(value)
   ) {
     return fallback;
   }
@@ -55,8 +77,7 @@ export function safeInternalReturnUrl(
   if (
     !returnUrl ||
     !returnUrl.startsWith("/") ||
-    returnUrl.startsWith("//") ||
-    returnUrl.startsWith("/\\")
+    unsafeInternalPathPrefix(returnUrl)
   ) {
     return null;
   }

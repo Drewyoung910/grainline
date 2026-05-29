@@ -2790,7 +2790,14 @@ Last updated: 2026-05-24
      but throw in production instead of falling back to an empty string and
      silently disabling telemetry. Guardrail: `tests/sentry-dsn.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 261 findings;
+276. **Internal redirect encoded-prefix guard tightened** — code/test/docs fix
+     for #233. `safeInternalPath()` and `safeInternalReturnUrl()` now share a
+     path-prefix guard that rejects raw, decoded, and double-decoded
+     protocol-relative/backslash prefixes plus path-prefix control characters,
+     while preserving encoded slash text inside ordinary query values. Guardrail:
+     `tests/internal-return-url.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 262 findings;
 verified stale/false-positive: 100 findings; product/design decisions deferred:
 39 findings. Remaining major categories: Stripe webhook subscription narrowing
 evidence, Round 10 deferred state-machine product designs, JSON size historical

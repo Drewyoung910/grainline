@@ -22,6 +22,11 @@ describe("safe internal return URLs", () => {
   it("rejects protocol-relative and backslash-prefixed redirects", () => {
     assert.equal(safeInternalReturnUrl("//evil.example/path", appUrl), null);
     assert.equal(safeInternalReturnUrl("/\\evil.example/path", appUrl), null);
+    assert.equal(safeInternalReturnUrl("/%2Fevil.example/path", appUrl), null);
+    assert.equal(safeInternalReturnUrl("/%2f%2fevil.example/path", appUrl), null);
+    assert.equal(safeInternalReturnUrl("/%5Cevil.example/path", appUrl), null);
+    assert.equal(safeInternalReturnUrl("/%255Cevil.example/path", appUrl), null);
+    assert.equal(safeInternalReturnUrl("/%0d%0a/dashboard", appUrl), null);
   });
 
   it("rejects absolute URLs and non-path values", () => {
@@ -47,7 +52,17 @@ describe("safe internal auth redirect paths", () => {
     assert.equal(safeInternalPath(["/cart", "/dashboard"]), "/cart");
     assert.equal(safeInternalPath("https://evil.example/cart", "/fallback"), "/fallback");
     assert.equal(safeInternalPath("//evil.example/cart", "/fallback"), "/fallback");
+    assert.equal(safeInternalPath("/%2Fevil.example/cart", "/fallback"), "/fallback");
+    assert.equal(safeInternalPath("/%5Cevil.example/cart", "/fallback"), "/fallback");
+    assert.equal(safeInternalPath("/%0a/cart", "/fallback"), "/fallback");
     assert.equal(safeInternalPath("cart", "/fallback"), "/fallback");
+  });
+
+  it("allows encoded slashes in query values without treating them as path prefixes", () => {
+    assert.equal(
+      safeInternalPath("/browse?q=walnut%2Fmaple#results", "/fallback"),
+      "/browse?q=walnut%2Fmaple#results",
+    );
   });
 
   it("builds sign-in and sign-up paths with sanitized redirect_url values", () => {
