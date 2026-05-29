@@ -16,6 +16,7 @@ import { filterFirstPartyMediaUrlsForUser, isFirstPartyMediaUrl } from "@/lib/ur
 import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 import { publicListingPath } from "@/lib/publicPaths";
 import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
+import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -180,6 +181,7 @@ export async function POST(req: NextRequest) {
     }
     throw error;
   }
+  revalidateFeaturedMakerCaches();
 
   // Notify the seller
   const listing = await prisma.listing.findUnique({

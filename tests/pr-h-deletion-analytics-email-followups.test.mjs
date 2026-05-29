@@ -40,6 +40,8 @@ describe("PR H account deletion, analytics, and email follow-ups", () => {
 
     assert.equal(emailPreferenceLookupFailureAllowsSend(), false);
     assert.match(notifications, /failClosed: true/);
+    assert.match(notifications, /Sentry\.captureException\(e, \{\s*tags: \{ source: "email_preference_check" \}/);
+    assert.match(notifications, /extra: \{ userId, prefKey, failClosed: true \}/);
     assert.match(notifications, /return emailPreferenceLookupFailureAllowsSend\(\)/);
     assert.doesNotMatch(notifications, /return fallbackEnabled/);
     assert.match(email, /inactive-account lookup failed; skipping send/);

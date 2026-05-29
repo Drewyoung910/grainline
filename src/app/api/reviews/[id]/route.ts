@@ -11,6 +11,7 @@ import { rateLimitResponse, reviewRatelimit, safeRateLimit } from "@/lib/ratelim
 import { deleteR2ObjectByUrl } from "@/lib/r2";
 import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 import { mapWithConcurrency } from "@/lib/concurrency";
+import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -168,6 +169,7 @@ export async function PATCH(
   });
 
   // revalidate listing page
+  revalidateFeaturedMakerCaches();
   revalidatePath(`/listing/${r.listingId}`);
   return NextResponse.json({ ok: true });
 }
@@ -220,6 +222,7 @@ export async function DELETE(
     source: "review_photo_cleanup_delete",
   });
 
+  revalidateFeaturedMakerCaches();
   revalidatePath(`/listing/${review.listingId}`);
   revalidatePath("/account/reviews");
   return NextResponse.json({ ok: true });

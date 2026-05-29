@@ -14,6 +14,8 @@ describe("admin audit durability", () => {
     assert.match(audit, /export async function logAdminAction\(input: AdminAuditLogInput\): Promise<string \| null>/);
     assert.match(audit, /export async function logAdminActionOrThrow/);
     assert.match(audit, /throw new AdminAuditLogError\(\)/);
+    assert.match(audit, /Sentry\.captureException\(error, \{\s*tags: \{ source: 'audit_log', action \}/);
+    assert.match(audit, /extra: \{ adminId, targetType, targetId \}/);
     assert.doesNotMatch(audit, /return ''/);
     assert.match(audit, /Cannot automatically undo this ban because its audit metadata is incomplete/);
     assert.match(audit, /source: 'admin_undo_stripe_account_verify'/);

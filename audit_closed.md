@@ -2687,9 +2687,28 @@ Last updated: 2026-05-24
      keeping non-human financial state changes separate from undoable human
      admin logs. Guardrail: `tests/system-audit-log.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 250 findings;
+266. **Round 13/14 duplicate allegation re-verification completed** — test/docs
+     follow-up with no tally increase. Read-only agent and parent verification
+     confirmed #1095, #1096, #1097, #1098, #1099, #1108, #1109, #1110, and
+     #1111 are already fixed/stale on current `main` and were previously
+     counted in entries 236, 237, 238, and 245. This pass added direct source
+     guardrails for two already-fixed #1098 observability paths so admin audit
+     logging and notification email-preference lookup failures cannot regress to
+     console-only evidence. Guardrails: `tests/admin-audit-durability.test.mjs`
+     and `tests/pr-h-deletion-analytics-email-followups.test.mjs`.
+
+267. **Featured-maker rating cache invalidation added** — code/test/docs fix for
+     #1026, moving it out of the earlier deferred cache bucket. Review create,
+     edit, and delete already refreshed the persisted `SellerRatingSummary`, but
+     cached homepage featured-maker data could keep old rating/order state until
+     the five-minute TTL. These rating-changing review paths now call
+     `revalidateFeaturedMakerCaches()` after a successful write, and `CLAUDE.md`
+     records the future-agent contract. Guardrail:
+     `tests/cache-invalidation-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 251 findings;
 verified stale/false-positive: 99 findings; product/design decisions deferred:
-41 findings. Remaining major categories: Stripe webhook subscription narrowing
+40 findings. Remaining major categories: Stripe webhook subscription narrowing
 evidence, Round 10 deferred state-machine product designs, JSON size historical
 validation and email uniqueness production-scan decisions, email outbox
 retention/quota policy decisions, refund accounting runtime proof and refund
