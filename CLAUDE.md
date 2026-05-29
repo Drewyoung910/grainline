@@ -551,8 +551,8 @@ Migration: `20260330201226_guild_phase3_revoke_tracking`
 **Schema additions** on `SellerProfile`: `consecutiveMetricFailures Int @default(0)`, `lastMetricCheckAt DateTime?`, `metricWarningSentAt DateTime?`, `listingsBelowThresholdSince DateTime?`
 
 **`vercel.json`** — two crons registered:
-- `GET /api/cron/guild-metrics` — `0 9 1 * *` (monthly, 1st at 9am UTC)
-- `GET /api/cron/guild-member-check` — `0 8 * * *` (daily, 8am UTC)
+- `GET /api/cron/guild-metrics` — `40 15 1 * *` (monthly, 1st at 15:40 UTC)
+- `GET /api/cron/guild-member-check` — `10 14 * * *` (daily, 14:10 UTC)
 
 Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 
@@ -4036,7 +4036,7 @@ Quality-score engagement inputs intentionally ignore unsafe or disputed signals:
 
 ### Cron job
 - `GET /api/cron/quality-score` — recalculates all scores daily
-- Schedule: `0 6 * * *` (6am UTC) in `vercel.json`
+- Schedule: `10 5 * * *` (05:10 UTC) in `vercel.json`
 - CRON_SECRET auth (same safe pattern as other crons)
 - Zeros out inactive/private listings
 
@@ -4275,7 +4275,7 @@ This section summarizes architecture-level changes from the reconciliation/audit
 - **Message/custom-order request behavior**: message list/read/stream routes must resolve the current local user, require conversation participation, and cap message reads. `ThreadMessages` renders image/PDF/download bubbles only for trusted Grainline/legacy media URLs via `isTrustedMediaUrl()`; arbitrary `https://...jpg/pdf` text remains plain message text. Custom-order requests validate seller eligibility, listing context, and budget before creating/upserting a conversation or message; notification/email side effects are non-blocking and emit Sentry evidence with bounded IDs only.
 - **Custom-order ready-link behavior**: `sendCustomOrderReadyLink()` owns buyer notification for custom listings that become active. It takes a transaction-scoped advisory lock keyed by `conversationId:listingId`, re-checks for an existing `custom_order_link` message inside that lock, and only then creates the message/bumps the conversation. Do not move the duplicate read back outside the transaction; immediate seller publish and admin approval can race.
 - **Operations runbook**: `docs/runbook.md` is the operational reference for incident triage, rollback, secret rotation, webhook recovery, database restore drills, cron/email-outbox triage, and support/legal queue handling.
-- **Cron/health/reporting route behavior**: every `/api/cron/*` route must verify `verifyCronRequest()` before doing work and must use `beginCronRun`/`completeCronRun`/`failCronRun` plus `withSentryCronMonitor` so duplicate/retried jobs are visible. `cronAuth.ts` intentionally supports `CRON_SECRET_PREVIOUS` for rotation and constant-time digest comparison. `/api/cron/ban-side-effects` is a half-hourly repair job for modern BAN_USER audit rows whose Clerk ban/session sync did not finish or last failed; do not remove the `originalActionId` metadata link from ban side-effect audit logs. `/api/csp-report` stays public but IP-rate-limited and sanitized before Sentry; `/api/health` stays IP-rate-limited and exposes backend check details only with `HEALTH_CHECK_TOKEN`.
+- **Cron/health/reporting route behavior**: every `/api/cron/*` route must verify `verifyCronRequest()` before doing work and must use `beginCronRun`/`completeCronRun`/`failCronRun` plus `withSentryCronMonitor` so duplicate/retried jobs are visible. `cronAuth.ts` intentionally supports `CRON_SECRET_PREVIOUS` for rotation and constant-time digest comparison. Low-frequency maintenance crons in `vercel.json` are intentionally spread across the UTC day to reduce database-pool contention; keep the `vercel.json` schedule, route `withSentryCronMonitor(... { value })`, and route comments in sync, and keep `tests/cron-schedule-guardrails.test.mjs` passing when changing schedules. `/api/cron/ban-side-effects` is a half-hourly repair job for modern BAN_USER audit rows whose Clerk ban/session sync did not finish or last failed; do not remove the `originalActionId` metadata link from ban side-effect audit logs. `/api/csp-report` stays public but IP-rate-limited and sanitized before Sentry; `/api/health` stays IP-rate-limited and exposes backend check details only with `HEALTH_CHECK_TOKEN`.
 - **Public URL behavior**: listing/seller stale slug variants redirect permanently to canonical `id--slug` paths after access checks. Metadata paths call `notFound()` for missing/non-public records instead of returning `{}` soft defaults.
 - **Anonymous cart behavior**: signed-out add-to-cart uses browser storage and `cartEvents.ts`; signed-in cart APIs remain server-authoritative. Header/cart count must account for both flows. Explicit sign-out, account deletion sign-out, signed-out auth transitions, and signed-in user switches must call `clearSignedOutLocalAccountState()` so anonymous cart rows, recently viewed state, and cart checkout session storage cannot carry into the next browser user. Sign-in merge must only remove successfully merged or terminally rejected anonymous-cart lines; retryable failures such as auth, rate-limit, network, or 5xx responses stay in local storage for a later retry.
 - **Cart browser-session behavior**: full checkout shipping addresses, selected rates, and Stripe Checkout `clientSecret` values must stay in React state only and must not be persisted to `sessionStorage`/`localStorage`. `clearCartSessionStorage()` defaults to clearing legacy address/rate/checkout-secret keys, and the cart page listens for `LOCAL_ACCOUNT_STATE_CLEARED_EVENT` so same-tab sign-out or user switches clear in-memory address/rate/payment state.

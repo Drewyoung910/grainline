@@ -1,7 +1,7 @@
 // src/app/api/cron/quality-score/route.ts
 //
 // Daily cron job to recalculate listing quality scores.
-// Schedule: 0 6 * * * (6am UTC daily)
+// Schedule: 10 5 * * * (05:10 UTC daily)
 
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  return withSentryCronMonitor("quality-score", { value: "0 6 * * *", maxRuntimeMinutes: 5 }, async () => {
+  return withSentryCronMonitor("quality-score", { value: "10 5 * * *", maxRuntimeMinutes: 5 }, async () => {
     const cronRun = await beginCronRun("quality-score");
     if (!cronRun.acquired) return NextResponse.json(skippedCronRunResponse(cronRun));
 

@@ -3,19 +3,19 @@
   "crons": [
     {
       "path": "/api/cron/guild-metrics",
-      "schedule": "0 9 1 * *"
+      "schedule": "40 15 1 * *"
     },
     {
       "path": "/api/cron/guild-member-check",
-      "schedule": "0 8 * * *"
+      "schedule": "10 14 * * *"
     },
     {
       "path": "/api/cron/quality-score",
-      "schedule": "0 6 * * *"
+      "schedule": "10 5 * * *"
     },
     {
       "path": "/api/cron/site-metrics-snapshot",
-      "schedule": "30 5 * * *"
+      "schedule": "40 6 * * *"
     },
     {
       "path": "/api/cron/ops-health",
@@ -23,15 +23,15 @@
     },
     {
       "path": "/api/cron/case-auto-close",
-      "schedule": "0 7 * * *"
+      "schedule": "10 8 * * *"
     },
     {
       "path": "/api/cron/commission-expire",
-      "schedule": "15 7 * * *"
+      "schedule": "40 9 * * *"
     },
     {
       "path": "/api/cron/notification-prune",
-      "schedule": "30 7 * * *"
+      "schedule": "10 11 * * *"
     },
     {
       "path": "/api/cron/email-outbox",
@@ -51,7 +51,7 @@
     },
     {
       "path": "/api/cron/order-pii-prune",
-      "schedule": "45 7 * * *"
+      "schedule": "40 12 * * *"
     }
   ]
 }

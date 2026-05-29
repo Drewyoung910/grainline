@@ -2425,17 +2425,42 @@ Last updated: 2026-05-24
      `tests/client-async-guardrails.test.mjs`, and
      `tests/public-cron-search-hardening.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 214 findings;
-verified stale/false-positive: 82 findings; product/design decisions deferred:
-43 findings. Remaining major categories: checkout concurrency integration
-evidence, Round 10 deferred system-audit and state-machine product designs,
-JSON shape/size and email uniqueness production-scan decisions, email outbox
-retention/quota/versioning design, refund accounting runtime proof and refund
-attempt persistence semantics, founding-maker/quality-score consistency,
-case/message state-policy decisions, account export/legal retention scope,
-remaining privacy/export retention decisions, anonymous-cart merge
-bulk/performance design, broader React `cache()` opportunities beyond the
-seller page, cross-seller AI duplicate-detection product design, CSP
-`unsafe-eval` rollout monitoring, partial multi-seller checkout continuation
-design, buy-now rollback recovery window documentation, and dependency hygiene
+246. **Round 14 cron schedule clustering reduced and verified-clean inventory
+     closed** — code/test/docs fix for #1103, verified clean closure for
+     #1100, #1102, #1104, #1105, #1106, #1107, and #1112-#1119, and manual
+     ops-evidence deferral for #1101. Low-frequency maintenance crons are now
+     spread across the UTC day in `vercel.json`, and each changed route's
+     `withSentryCronMonitor(... { value })` schedule was updated to match.
+     `CLAUDE.md` now documents the schedule-spreading contract so future
+     changes keep Vercel, Sentry monitors, and route comments aligned. #1100
+     was verified clean because all cron routes use shared auth, Sentry
+     monitors, cron-run idempotency, and bounded batches where applicable.
+     #1102, #1104, #1105, #1106, #1107, and #1112-#1119 were verified clean
+     on current `main` for the named money, upload, Stripe webhook, retry,
+     sitemap/robots, and accessibility guardrails. #1101 remains a manual
+     Stripe Dashboard subscription check rather than a code defect: the route
+     safely ignores unhandled valid events, but launch evidence should confirm
+     the live endpoint is subscribed only to intended Checkout, charge,
+     account, and payout event types. Guardrails:
+     `tests/cron-schedule-guardrails.test.mjs`,
+     `tests/public-cron-search-hardening.test.mjs`,
+     `tests/ban-side-effect-repair.test.mjs`,
+     `tests/account-deletion-side-effects.test.mjs`,
+     `tests/retention-and-ops-followups.test.mjs`,
+     `tests/cron-monitor-state.test.mjs`, `tests/cron-run.test.mjs`, and
+     `tests/cron-auth.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 215 findings;
+verified stale/false-positive: 96 findings; product/design decisions deferred:
+44 findings. Remaining major categories: checkout concurrency integration
+evidence, Stripe webhook subscription narrowing evidence, Round 10 deferred
+system-audit and state-machine product designs, JSON shape/size and email
+uniqueness production-scan decisions, email outbox retention/quota/versioning
+design, refund accounting runtime proof and refund attempt persistence
+semantics, founding-maker/quality-score consistency, case/message state-policy
+decisions, account export/legal retention scope, remaining privacy/export
+retention decisions, anonymous-cart merge bulk/performance design, broader
+React `cache()` opportunities beyond the seller page, cross-seller AI
+duplicate-detection product design, CSP `unsafe-eval` rollout monitoring,
+partial multi-seller checkout continuation design, and dependency hygiene
 cleanup.

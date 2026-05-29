@@ -13,7 +13,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  return withSentryCronMonitor("site-metrics-snapshot", { value: "30 5 * * *", maxRuntimeMinutes: 5 }, async () => {
+  return withSentryCronMonitor("site-metrics-snapshot", { value: "40 6 * * *", maxRuntimeMinutes: 5 }, async () => {
     const cronRun = await beginCronRun("site-metrics-snapshot");
     if (!cronRun.acquired) return NextResponse.json(skippedCronRunResponse(cronRun));
 

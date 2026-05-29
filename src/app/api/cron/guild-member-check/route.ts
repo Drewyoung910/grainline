@@ -1,5 +1,5 @@
 // src/app/api/cron/guild-member-check/route.ts
-// Daily cron — runs every day at 8am UTC.
+// Daily cron — runs every day at 14:10 UTC.
 // Checks all Guild Members for revocation triggers:
 //   1. Unresolved case older than 90 days
 //   2. Active listing count below 5 for 30+ consecutive days
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  return withSentryCronMonitor("guild-member-check", { value: "0 8 * * *", maxRuntimeMinutes: 5 }, async () => {
+  return withSentryCronMonitor("guild-member-check", { value: "10 14 * * *", maxRuntimeMinutes: 5 }, async () => {
     const cronRun = await beginCronRun("guild-member-check");
     if (!cronRun.acquired) return NextResponse.json(skippedCronRunResponse(cronRun));
 

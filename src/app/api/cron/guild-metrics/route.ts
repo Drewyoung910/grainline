@@ -1,5 +1,5 @@
 // src/app/api/cron/guild-metrics/route.ts
-// Monthly cron — runs 1st of every month at 9am UTC.
+// Monthly cron — runs 1st of every month at 15:40 UTC.
 // Recalculates metrics for all Guild Members and Guild Masters;
 // enforces a minimum 30-day warning window before Guild Master revocation.
 
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  return withSentryCronMonitor("guild-metrics", { value: "0 9 1 * *", maxRuntimeMinutes: 5 }, async () => {
+  return withSentryCronMonitor("guild-metrics", { value: "40 15 1 * *", maxRuntimeMinutes: 5 }, async () => {
     const cronRun = await beginCronRun("guild-metrics");
     if (!cronRun.acquired) return NextResponse.json(skippedCronRunResponse(cronRun));
 

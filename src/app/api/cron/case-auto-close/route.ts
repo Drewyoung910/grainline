@@ -31,7 +31,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  return withSentryCronMonitor("case-auto-close", { value: "0 7 * * *", maxRuntimeMinutes: 1 }, async () => {
+  return withSentryCronMonitor("case-auto-close", { value: "10 8 * * *", maxRuntimeMinutes: 1 }, async () => {
     const cronRun = await beginCronRun("case-auto-close");
     if (!cronRun.acquired) return NextResponse.json(skippedCronRunResponse(cronRun));
 

@@ -27,7 +27,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  return withSentryCronMonitor("commission-expire", { value: "15 7 * * *", maxRuntimeMinutes: 1 }, async () => {
+  return withSentryCronMonitor("commission-expire", { value: "40 9 * * *", maxRuntimeMinutes: 1 }, async () => {
     const cronRun = await beginCronRun("commission-expire");
     if (!cronRun.acquired) return NextResponse.json(skippedCronRunResponse(cronRun));
 
