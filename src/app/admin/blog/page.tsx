@@ -10,6 +10,7 @@ import { createNotification } from "@/lib/notifications";
 import { logAdminActionOrThrow } from "@/lib/audit";
 import { truncateText } from "@/lib/sanitize";
 import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 
 async function requireAdmin() {
   const { userId } = await auth();
@@ -146,6 +147,7 @@ async function deleteComment(commentId: string) {
 }
 
 export default async function AdminBlogPage() {
+  await requireAdminPageAccess();
   const posts = await prisma.blogPost.findMany({
     orderBy: { updatedAt: "desc" },
     take: 50,

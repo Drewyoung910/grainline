@@ -5,16 +5,12 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { logAdminActionOrThrow } from "@/lib/audit";
 import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import {
+  isSupportRequestStatus,
+  supportRequestStatusTransition,
+} from "@/lib/supportRequestState";
 
 export type SupportRequestActionState = { ok: boolean; error?: string };
-
-type SupportRequestStatusValue = "OPEN" | "IN_PROGRESS" | "CLOSED";
-
-const SUPPORT_REQUEST_STATUSES = new Set<SupportRequestStatusValue>(["OPEN", "IN_PROGRESS", "CLOSED"]);
-
-function isSupportRequestStatus(status: string): status is SupportRequestStatusValue {
-  return SUPPORT_REQUEST_STATUSES.has(status as SupportRequestStatusValue);
-}
 
 async function requireAdmin() {
   const { userId } = await auth();
@@ -49,27 +45,39 @@ export async function setSupportRequestStatus(
 
     const admin = await requireAdmin();
     const updated = await prisma.$transaction(async (tx) => {
-      const result = await tx.supportRequest.updateMany({
+      const current = await tx.supportRequest.findUnique({
         where: { id: requestId },
-        data: {
-          status,
-          closedAt: status === "CLOSED" ? new Date() : null,
-        },
+        select: { status: true, closedAt: true },
       });
-      if (result.count === 0) return result;
+      if (!current) return { status: "missing" as const };
+
+      const transition = supportRequestStatusTransition(current, status);
+      if (!transition.ok) return { status: "closed_terminal" as const };
+
+      const result = await tx.supportRequest.updateMany({
+        where: { id: requestId, status: current.status },
+        data: transition.data,
+      });
+      if (result.count === 0) return { status: "conflict" as const };
       await logAdminActionOrThrow({
         client: tx,
         adminId: admin.id,
         action: "UPDATE_SUPPORT_REQUEST",
         targetType: "SUPPORT_REQUEST",
         targetId: requestId,
-        metadata: { status },
+        metadata: transition.metadata,
       });
-      return result;
+      return { status: "updated" as const };
     });
 
-    if (updated.count === 0) {
+    if (updated.status === "missing") {
       return { ok: false, error: "Request no longer exists." };
+    }
+    if (updated.status === "closed_terminal") {
+      return { ok: false, error: "Closed requests cannot be reopened." };
+    }
+    if (updated.status === "conflict") {
+      return { ok: false, error: "Request changed before it could be updated. Try again." };
     }
 
     revalidatePath("/admin/support");

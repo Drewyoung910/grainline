@@ -21,6 +21,7 @@ import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { guildMemberRevocationCaseWhere } from "@/lib/guildMemberRevocationState";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
+import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 
 type ActionState = { ok: boolean; error?: string };
 
@@ -799,6 +800,7 @@ async function unfeatureMaker(sellerProfileId: string) {
 
 // ── Page ────────────────────────────────────────────────────────────────────
 export default async function AdminVerificationPage() {
+  await requireAdminPageAccess();
   const [memberPending, masterPending, memberActive, masterActive, revokedMembers] = await Promise.all([
     prisma.makerVerification.findMany({
       where: { status: "PENDING" },

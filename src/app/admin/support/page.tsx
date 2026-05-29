@@ -97,7 +97,7 @@ function RequestCard({ request }: { request: SupportRequestRow }) {
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-2 lg:w-40 lg:flex-col">
-          {request.status !== "IN_PROGRESS" && (
+          {request.status === "OPEN" && (
             <InlineActionButton
               action={setSupportRequestStatus.bind(null, request.id, "IN_PROGRESS")}
               className="rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
@@ -106,7 +106,7 @@ function RequestCard({ request }: { request: SupportRequestRow }) {
               In progress
             </InlineActionButton>
           )}
-          {request.status !== "OPEN" && (
+          {request.status === "IN_PROGRESS" && (
             <InlineActionButton
               action={setSupportRequestStatus.bind(null, request.id, "OPEN")}
               className="rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"

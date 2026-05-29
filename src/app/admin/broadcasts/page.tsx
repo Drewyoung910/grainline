@@ -10,6 +10,7 @@ import { publicSellerPath } from "@/lib/publicPaths";
 import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { truncateTextWithEllipsis } from "@/lib/sanitize";
 import { sellerBroadcastEmailSubject } from "@/lib/email";
+import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 
 async function deleteBroadcast(formData: FormData) {
   "use server";
@@ -83,6 +84,7 @@ export default async function AdminBroadcastsPage({
 }: {
   searchParams: Promise<{ page?: string; q?: string }>;
 }) {
+  await requireAdminPageAccess();
   const sp = await searchParams;
   const page = Math.max(1, parseInt(sp.page ?? "1", 10));
   const q = sp.q?.trim() ?? "";

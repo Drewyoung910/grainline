@@ -6,6 +6,7 @@ import { publicListingPath } from "@/lib/publicPaths";
 import { latestRefundLedgerEvent } from "@/lib/refundRouteState";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY } from "@/lib/money";
+import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 
 function fmtMoney(cents: number | null | undefined, currency = DEFAULT_CURRENCY) {
   if (cents == null) return "—";
@@ -48,6 +49,7 @@ export default async function AdminOrderDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireAdminPageAccess();
   const { id } = await params;
 
   const order = await prisma.order.findUnique({

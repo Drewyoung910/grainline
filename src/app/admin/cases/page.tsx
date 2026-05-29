@@ -2,6 +2,7 @@
 import { prisma } from "@/lib/db";
 import Link from "next/link";
 import type { CaseStatus } from "@prisma/client";
+import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 
 const PAGE_SIZE = 25;
 
@@ -47,6 +48,7 @@ export default async function AdminCasesPage({
 }: {
   searchParams: Promise<{ page?: string; status?: string }>;
 }) {
+  await requireAdminPageAccess();
   const { page: pageParam, status: statusParam } = await searchParams;
   const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
   const skip = (page - 1) * PAGE_SIZE;

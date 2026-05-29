@@ -6,6 +6,7 @@ import CaseResolutionPanel from "@/components/CaseResolutionPanel";
 import CaseReplyBox from "@/components/CaseReplyBox";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY } from "@/lib/money";
+import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 
 function fmtMoney(cents: number | null | undefined, currency = DEFAULT_CURRENCY) {
   if (cents == null) return "—";
@@ -81,6 +82,7 @@ export default async function AdminCaseDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireAdminPageAccess();
   const { id } = await params;
 
   const caseRecord = await prisma.case.findUnique({

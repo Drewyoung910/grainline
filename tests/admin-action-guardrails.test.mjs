@@ -70,6 +70,36 @@ describe("admin server action guardrails", () => {
     }
   });
 
+  it("keeps sensitive admin pages locally guarded before page data queries", () => {
+    const helper = source("src/lib/adminPageAccess.ts");
+    assert.match(helper, /auth\(\)/);
+    assert.match(helper, /banned:\s*true/);
+    assert.match(helper, /deletedAt:\s*true/);
+    assert.match(helper, /user\.banned\s*\|\|\s*user\.deletedAt/);
+    assert.match(helper, /user\.role !== "EMPLOYEE" && user\.role !== "ADMIN"/);
+
+    for (const [path, queryNeedle] of [
+      ["src/app/admin/orders/page.tsx", "prisma.order.findMany"],
+      ["src/app/admin/orders/[id]/page.tsx", "prisma.order.findUnique"],
+      ["src/app/admin/flagged/page.tsx", "prisma.order.findMany"],
+      ["src/app/admin/cases/page.tsx", "prisma.case.findMany"],
+      ["src/app/admin/cases/[id]/page.tsx", "prisma.case.findUnique"],
+      ["src/app/admin/broadcasts/page.tsx", "prisma.sellerBroadcast.findMany"],
+      ["src/app/admin/blog/page.tsx", "prisma.blogPost.findMany"],
+      ["src/app/admin/verification/page.tsx", "prisma.makerVerification.findMany"],
+    ]) {
+      const text = source(path);
+      const pageStart = text.indexOf("export default async function");
+      const pageText = text.slice(pageStart);
+      assert.match(text, /requireAdminPageAccess/, `${path} must import/call the admin page guard`);
+      assert.ok(
+        pageText.indexOf("await requireAdminPageAccess()") >= 0 &&
+          pageText.indexOf("await requireAdminPageAccess()") < pageText.indexOf(queryNeedle),
+        `${path} must guard admin page access before sensitive data queries`,
+      );
+    }
+  });
+
   it("rate-limits admin server actions before local admin DB lookups", () => {
     for (const path of [
       "src/app/admin/actions.ts",

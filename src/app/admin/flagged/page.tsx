@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import Link from "next/link";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY } from "@/lib/money";
+import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 
 const PAGE_SIZE = 25;
 
@@ -18,6 +19,7 @@ export default async function FlaggedOrdersPage({
 }: {
   searchParams: Promise<{ page?: string }>;
 }) {
+  await requireAdminPageAccess();
   const { page: pageParam } = await searchParams;
   const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
   const skip = (page - 1) * PAGE_SIZE;

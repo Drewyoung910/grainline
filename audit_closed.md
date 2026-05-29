@@ -2632,15 +2632,27 @@ Last updated: 2026-05-24
      `tests/account-export-privacy.test.mjs`, and
      `tests/account-privacy-observability.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 243 findings;
+261. **Admin page guards and support status history tightened** —
+     code/test/docs fix for #701, #726, and #195. Sensitive admin pages that
+     previously relied on the admin layout/middleware now call the shared
+     `requireAdminPageAccess()` local guard before page-level Prisma reads.
+     Support request status transitions now read current status/`closedAt`
+     inside the transaction, reject `CLOSED` -> non-closed reopen attempts,
+     preserve terminal close timestamps, and write previous/new status plus
+     previous/new `closedAt` into strict admin audit metadata. The support UI no
+     longer renders reopen/progress controls for closed requests. Guardrails:
+     `tests/admin-action-guardrails.test.mjs` and
+     `tests/support-request-state.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 246 findings;
 verified stale/false-positive: 97 findings; product/design decisions deferred:
 41 findings. Remaining major categories: Stripe webhook subscription narrowing
 evidence, Stripe webhook system-audit coverage, Round 10 deferred
 state-machine product designs, JSON size historical validation
 and email uniqueness production-scan decisions, email outbox retention/quota policy
 decisions, refund accounting runtime proof and refund attempt persistence
-semantics, founding-maker/quality-score consistency, case/message state-policy
-decisions, privacy/legal retention scope, remaining privacy/export
+semantics, founding-maker/quality-score consistency, remaining case/message
+state-policy decisions, privacy/legal retention scope, remaining privacy/export
 retention decisions, cross-seller AI duplicate-detection product design, CSP
 `unsafe-eval` rollout monitoring, partial multi-seller checkout continuation
 design, deliberate BigInt money-column modeling, and live-data reconciliation
