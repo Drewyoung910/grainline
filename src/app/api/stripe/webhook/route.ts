@@ -30,6 +30,7 @@ import { mirrorStripeChargesEnabled } from "@/lib/stripeWebhookMirror";
 import { parseSelectedVariantsMetadata } from "@/lib/stripeWebhookMetadata";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import { sanitizeText, sanitizeUserName, truncateText } from "@/lib/sanitize";
+import { logSystemActionOrThrow } from "@/lib/systemAudit";
 import {
   lockCheckoutSessionMutation,
   markCheckoutStockReservationCompleted,
@@ -1296,6 +1297,29 @@ export async function POST(req: Request) {
               giftWrappingPriceCents,
             },
           });
+          await logSystemActionOrThrow({
+            client: tx,
+            actorType: "webhook",
+            actorId: event.id,
+            action: "STRIPE_CHECKOUT_ORDER_CREATED",
+            targetType: "ORDER",
+            targetId: order.id,
+            reason: cartInvalidState.reason ?? null,
+            metadata: {
+              stripeEventType: event.type,
+              stripeSessionId: sessionId,
+              stripePaymentIntentId: paymentIntentId ?? null,
+              stripeChargeId: stripeChargeId ?? null,
+              checkoutMode: "cart",
+              reviewNeeded: reviewNeeded || Boolean(cartInvalidState.reason),
+              invalidReason: cartInvalidState.reason ?? null,
+              itemCount: checkoutItems.length,
+              currency,
+              itemsSubtotalCents,
+              shippingAmountCents,
+              taxAmountCents,
+            },
+          });
 
           for (const checkoutItem of checkoutItems) {
             const { paid, cartItem, listing } = checkoutItem;
@@ -1636,6 +1660,30 @@ export async function POST(req: Request) {
               giftWrappingPriceCents,
             },
           });
+          await logSystemActionOrThrow({
+            client: tx,
+            actorType: "webhook",
+            actorId: event.id,
+            action: "STRIPE_CHECKOUT_ORDER_CREATED",
+            targetType: "ORDER",
+            targetId: order.id,
+            reason: singleInvalidState.reason ?? null,
+            metadata: {
+              stripeEventType: event.type,
+              stripeSessionId: sessionId,
+              stripePaymentIntentId: paymentIntentId ?? null,
+              stripeChargeId: stripeChargeId ?? null,
+              checkoutMode: "single",
+              reviewNeeded: reviewNeeded || Boolean(singleInvalidState.reason),
+              invalidReason: singleInvalidState.reason ?? null,
+              listingId,
+              quantity,
+              currency,
+              itemsSubtotalCents,
+              shippingAmountCents,
+              taxAmountCents,
+            },
+          });
 
           // Stock was already decremented at checkout time (reservation).
           // Just check if we need to mark SOLD_OUT.
@@ -1783,6 +1831,24 @@ export async function POST(req: Request) {
                   data: refundLedger.orderUpdate,
                 });
               }
+              await logSystemActionOrThrow({
+                client: tx,
+                actorType: "webhook",
+                actorId: event.id,
+                action: "STRIPE_REFUND_RECORDED",
+                targetType: "ORDER",
+                targetId: existingOrder.id,
+                reason: refundLedger.ledger.reason ?? null,
+                metadata: {
+                  stripeEventType: event.type,
+                  stripeChargeId: charge.id!,
+                  stripeRefundId: refundLedger.ledger.stripeObjectId,
+                  amountCents: refundLedger.ledger.amountCents,
+                  currency: refundLedger.ledger.currency,
+                  status: refundLedger.ledger.status,
+                  hasOrderUpdate: Boolean(refundLedger.orderUpdate),
+                },
+              });
             }
           });
         }
@@ -1863,12 +1929,14 @@ export async function POST(req: Request) {
               where: { id: order.id },
               data: orderUpdate,
             });
+            let disputeCaseActionName = "none";
             if (event.type === "charge.dispute.created" && order.buyerId && sellerUserId) {
               const caseAction = disputeCaseAction({
                 eventType: event.type,
                 existingCase: order.case,
                 dispute,
               });
+              disputeCaseActionName = caseAction.action;
               if (caseAction.action === "update") {
                 await tx.case.updateMany({
                   where: { id: caseAction.caseId, status: { notIn: ["RESOLVED", "CLOSED"] } },
@@ -1888,6 +1956,25 @@ export async function POST(req: Request) {
                 });
               }
             }
+            await logSystemActionOrThrow({
+              client: tx,
+              actorType: "webhook",
+              actorId: event.id,
+              action: "STRIPE_DISPUTE_RECORDED",
+              targetType: "ORDER",
+              targetId: order.id,
+              reason: disputeLedger.ledger.reason ?? null,
+              metadata: {
+                stripeEventType: event.type,
+                stripeChargeId: chargeId,
+                stripeDisputeId: disputeLedger.ledger.stripeObjectId,
+                amountCents: disputeLedger.ledger.amountCents,
+                currency: disputeLedger.ledger.currency,
+                status: disputeLedger.ledger.status,
+                caseAction: disputeCaseActionName,
+                hasOrderUpdate: Object.keys(orderUpdate).length > 0,
+              },
+            });
             return event.type === "charge.dispute.created" && sellerUserId
               ? { sellerUserId, orderId: order.id }
               : null;

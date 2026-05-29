@@ -2677,16 +2677,25 @@ Last updated: 2026-05-24
      Guardrails: `tests/support-request.test.mjs` and
      `tests/account-privacy-observability.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 249 findings;
+265. **Stripe webhook system-audit coverage added** — code/test/docs fix for
+     #1052. The Stripe webhook already wrote durable payment ledgers for
+     refunds and disputes, but order creation/refund/dispute automated state
+     transitions were not mirrored into `SystemAuditLog`. Checkout order
+     creation, `charge.refunded` refund ledgers, and `charge.dispute.*`
+     dispute ledgers now co-commit `SystemAuditLog` rows inside the existing
+     webhook transactions with `actorType: "webhook"` and `actorId: event.id`,
+     keeping non-human financial state changes separate from undoable human
+     admin logs. Guardrail: `tests/system-audit-log.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 250 findings;
 verified stale/false-positive: 99 findings; product/design decisions deferred:
 41 findings. Remaining major categories: Stripe webhook subscription narrowing
-evidence, Stripe webhook system-audit coverage, Round 10 deferred
-state-machine product designs, JSON size historical validation
-and email uniqueness production-scan decisions, email outbox retention/quota policy
-decisions, refund accounting runtime proof and refund attempt persistence
-semantics, founding-maker/quality-score consistency, remaining case/message
-state-policy decisions, privacy/legal retention scope, remaining privacy/export
-retention decisions, cross-seller AI duplicate-detection product design, CSP
-`unsafe-eval` rollout monitoring, partial multi-seller checkout continuation
-design, deliberate BigInt money-column modeling, and live-data reconciliation
-for historical seller shipping-rate currency drift.
+evidence, Round 10 deferred state-machine product designs, JSON size historical
+validation and email uniqueness production-scan decisions, email outbox
+retention/quota policy decisions, refund accounting runtime proof and refund
+attempt persistence semantics, founding-maker/quality-score consistency,
+remaining case/message state-policy decisions, privacy/legal retention scope,
+remaining privacy/export retention decisions, cross-seller AI duplicate-detection
+product design, CSP `unsafe-eval` rollout monitoring, partial multi-seller
+checkout continuation design, deliberate BigInt money-column modeling, and
+live-data reconciliation for historical seller shipping-rate currency drift.

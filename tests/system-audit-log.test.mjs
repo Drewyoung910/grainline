@@ -52,4 +52,31 @@ describe("system audit logging", () => {
     assert.match(caseEscalate, /action: "ESCALATE_CASE"/);
     assert.match(caseEscalate, /actorType: validCron \? "cron" : "staff"/);
   });
+
+  it("audits Stripe webhook financial state transitions through SystemAuditLog", () => {
+    const webhook = source("src/app/api/stripe/webhook/route.ts");
+
+    assert.match(webhook, /import \{ logSystemActionOrThrow \} from "@\/lib\/systemAudit"/);
+    assert.match(webhook, /action: "STRIPE_CHECKOUT_ORDER_CREATED"/);
+    assert.match(webhook, /checkoutMode: "cart"/);
+    assert.match(webhook, /checkoutMode: "single"/);
+    assert.match(webhook, /action: "STRIPE_REFUND_RECORDED"/);
+    assert.match(webhook, /action: "STRIPE_DISPUTE_RECORDED"/);
+    assert.match(webhook, /actorType: "webhook"/);
+    assert.match(webhook, /actorId: event\.id/);
+
+    for (const action of [
+      "STRIPE_CHECKOUT_ORDER_CREATED",
+      "STRIPE_REFUND_RECORDED",
+      "STRIPE_DISPUTE_RECORDED",
+    ]) {
+      const index = webhook.indexOf(`action: "${action}"`);
+      assert.notEqual(index, -1, `${action} should be present`);
+      const block = webhook.slice(Math.max(0, index - 250), index + 600);
+      assert.match(block, /client: tx/);
+      assert.match(block, /targetType: "ORDER"/);
+      assert.match(block, /targetId:/);
+      assert.match(block, /metadata: \{/);
+    }
+  });
 });
