@@ -2756,7 +2756,16 @@ Last updated: 2026-05-24
      `tests/public-security-config.test.mjs` and
      `tests/dependency-hygiene.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 257 findings;
+272. **Moderation-record retention disclosure truth-matched** — docs/test fix
+     for #579. The Privacy Policy now explicitly discloses that user reports,
+     block records, report-resolution notes, and related moderation records may
+     be retained after resolution for safety, fraud-prevention, legal, and
+     marketplace-integrity purposes, while account deletion removes or
+     anonymizes personal data where legally permitted. This pass did not invent
+     a fixed three-year purge window because no matching purge job exists.
+     Guardrail: `tests/launch-readiness-followups.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 258 findings;
 verified stale/false-positive: 100 findings; product/design decisions deferred:
 39 findings. Remaining major categories: Stripe webhook subscription narrowing
 evidence, Round 10 deferred state-machine product designs, JSON size historical

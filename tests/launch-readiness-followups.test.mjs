@@ -26,6 +26,16 @@ describe("launch readiness follow-ups", () => {
     assert.match(privacy, /profile and contact metadata is anonymized or redacted/);
   });
 
+  it("discloses moderation and trust-and-safety record retention without promising a fixed purge job", () => {
+    const privacy = source("src/app/privacy/page.tsx");
+
+    assert.match(privacy, /Moderation and trust-and-safety records/);
+    assert.match(privacy, /User reports, block records,\s+report-resolution notes/);
+    assert.match(privacy, /safety, fraud-prevention, legal, and marketplace-integrity purposes/);
+    assert.match(privacy, /Account deletion\s+removes or anonymizes personal data/);
+    assert.doesNotMatch(privacy, /Moderation records: kept for 3 years/);
+  });
+
   it("documents the crawler-facing sitemap index and env-backed Search Console verification", () => {
     const layout = source("src/app/layout.tsx");
     const envExample = source(".env.example");

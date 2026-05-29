@@ -633,6 +633,13 @@ export default function PrivacyPage() {
               where appropriate.
             </li>
             <li>
+              <strong>Moderation and trust-and-safety records.</strong> User reports, block records,
+              report-resolution notes, and related moderation records may be retained after resolution
+              for safety, fraud-prevention, legal, and marketplace-integrity purposes. Account deletion
+              removes or anonymizes personal data from these records where legally permitted while
+              preserving records needed to understand abuse patterns, disputes, and safety decisions.
+            </li>
+            <li>
               <strong>Seller performance metrics.</strong> Calculated seller metrics are refreshed
               monthly and retained for the duration of the seller&apos;s account. Historical daily
               view and click data is retained for 2 years.
