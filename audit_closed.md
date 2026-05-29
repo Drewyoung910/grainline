@@ -2394,8 +2394,39 @@ Last updated: 2026-05-24
      `tests/case-messaging-state.test.mjs` and
      `tests/case-observability-followups.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 212 findings;
-verified stale/false-positive: 78 findings; product/design decisions deferred:
+244. **Address autocomplete privacy/proxy boundary reduced** — code/test fix
+     for #921. `AddressAutocomplete` now calls the first-party
+     `/api/address/autocomplete` route instead of sending partial address
+     queries directly from the browser to Nominatim. The proxy normalizes and
+     bounds query text, applies IP-keyed rate limiting, returns private
+     no-store JSON, reuses the shared Nominatim throttle, sets an app
+     User-Agent, and keeps US-only upstream parameters server-side. Agent
+     re-verification in the same pass confirmed #1095-#1099 are stale on
+     current `main` and were already reduced/verified in earlier passes, so
+     they were not double-counted. Guardrails:
+     `tests/address-autocomplete-state.test.mjs`,
+     `tests/public-api-auth-inventory.test.mjs`,
+     `tests/post-launch-ui-followups.test.mjs`, and
+     `tests/accessibility-followups.test.mjs`.
+
+245. **Round 14 stale/perf and buy-now rollback documentation closure** —
+     verified stale or documented closure for #1108, #1109, #1110, #1111,
+     and #1120. Env validation now goes through `requiredProductionEnv()` for
+     the named database, R2, Redis, Shippo, and email config reads. Seller
+     public profile rendering already shares a React `cache()` loader between
+     metadata and page rendering and batches the independent seller queries in
+     one `Promise.all`; broader React cache work remains profile-driven rather
+     than a blanket fix. Buy-now checkout rollback remains best-effort code by
+     design, and `CLAUDE.md` now documents that failed browser rollback falls
+     back to Stripe expiration/webhook stock restoration within the 31-minute
+     session window. Guardrails already covering the verified behavior:
+     `tests/env-validation.test.mjs`,
+     `tests/seller-page-performance.test.mjs`,
+     `tests/client-async-guardrails.test.mjs`, and
+     `tests/public-cron-search-hardening.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 214 findings;
+verified stale/false-positive: 82 findings; product/design decisions deferred:
 43 findings. Remaining major categories: checkout concurrency integration
 evidence, Round 10 deferred system-audit and state-machine product designs,
 JSON shape/size and email uniqueness production-scan decisions, email outbox
@@ -2406,5 +2437,5 @@ remaining privacy/export retention decisions, anonymous-cart merge
 bulk/performance design, broader React `cache()` opportunities beyond the
 seller page, cross-seller AI duplicate-detection product design, CSP
 `unsafe-eval` rollout monitoring, partial multi-seller checkout continuation
-design, address-autocomplete privacy/proxy design, buy-now rollback recovery
-window documentation, and dependency hygiene cleanup.
+design, buy-now rollback recovery window documentation, and dependency hygiene
+cleanup.

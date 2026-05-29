@@ -35,6 +35,10 @@ export type NominatimPlace = {
   };
 };
 
+export function normalizeAddressAutocompleteQuery(value: string | null | undefined) {
+  return (value ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
+}
+
 function firstNonEmpty(...values: Array<string | null | undefined>) {
   return values.find((value) => value?.trim())?.trim() ?? "";
 }

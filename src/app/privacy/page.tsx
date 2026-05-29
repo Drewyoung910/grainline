@@ -363,10 +363,12 @@ export default function PrivacyPage() {
               <a href="https://upstash.com/privacy" target="_blank" rel="noopener noreferrer" className="underline">upstash.com/privacy</a>
             </li>
             <li>
-              <strong>OpenStreetMap (Nominatim)</strong> — Reverse geocoding. When Makers set their
-              workshop location, coordinates may be sent to OpenStreetMap&apos;s Nominatim API to
-              determine city and state information for the Makers Map and city-level pages. No
-              personally identifiable information beyond coordinates is sent.{" "}
+              <strong>OpenStreetMap (Nominatim)</strong> — Address search and reverse geocoding.
+              When you use address autocomplete, address search text may be sent from Grainline
+              servers to OpenStreetMap&apos;s Nominatim API. When Makers set their workshop location,
+              coordinates may be sent to determine city and state information for the Makers Map and
+              city-level pages. Address autocomplete requests are proxied by Grainline rather than
+              sent directly from your browser to Nominatim.{" "}
               <a href="https://nominatim.org" target="_blank" rel="noopener noreferrer" className="underline">nominatim.org</a>
             </li>
             <li>

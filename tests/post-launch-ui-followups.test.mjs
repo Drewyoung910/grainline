@@ -42,9 +42,10 @@ describe("post-launch UI follow-ups", () => {
     assert.match(source("src/components/ShippingAddressForm.tsx"), /AddressAutocomplete/);
     assert.match(source("src/components/LocationPicker.tsx"), /AddressAutocomplete/);
     assert.match(source("src/components/SellerShipFromAddressFields.tsx"), /AddressAutocomplete/);
-    assert.match(source("src/components/AddressAutocomplete.tsx"), /countrycodes/);
-    assert.match(source("src/components/AddressAutocomplete.tsx"), /dedupe/);
-    assert.match(source("src/components/AddressAutocomplete.tsx"), /limit: "8"/);
+    assert.match(source("src/app/api/address/autocomplete/route.ts"), /countrycodes/);
+    assert.match(source("src/app/api/address/autocomplete/route.ts"), /dedupe/);
+    assert.match(source("src/app/api/address/autocomplete/route.ts"), /limit: "8"/);
+    assert.match(source("src/components/AddressAutocomplete.tsx"), /\/api\/address\/autocomplete/);
     assert.match(source("src/components/AddressAutocomplete.tsx"), /trimmed\.length < 2/);
     assert.match(source("src/components/AddressAutocomplete.tsx"), /}, 350\);/);
     assert.match(source("src/components/AddressAutocomplete.tsx"), /setQuery\(""\)/);

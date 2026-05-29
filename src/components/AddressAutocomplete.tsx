@@ -59,17 +59,8 @@ export default function AddressAutocomplete({
     setOpen(true);
     const timer = window.setTimeout(async () => {
       try {
-        const params = new URLSearchParams({
-          format: "jsonv2",
-          addressdetails: "1",
-          dedupe: "1",
-          "accept-language": "en-US",
-          countrycodes: "us",
-          limit: "8",
-          q: trimmed,
-        });
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
-          headers: { Accept: "application/json", "Accept-Language": "en-US" },
+        const res = await fetch(`/api/address/autocomplete?q=${encodeURIComponent(trimmed)}`, {
+          cache: "no-store",
           signal: controller.signal,
         });
         if (!res.ok) {
@@ -78,8 +69,12 @@ export default function AddressAutocomplete({
           setOpen(true);
           return;
         }
-        const data = (await res.json()) as NominatimPlace[];
-        const nextResults = Array.isArray(data) ? data.map(placeToAddress).filter((item) => item.label) : [];
+        const data = (await res.json()) as { results?: AddressAutocompleteResult[]; places?: NominatimPlace[] };
+        const nextResults = Array.isArray(data.results)
+          ? data.results.filter((item) => item.label)
+          : Array.isArray(data.places)
+            ? data.places.map(placeToAddress).filter((item) => item.label)
+            : [];
         setResults(nextResults);
         setActiveIndex(0);
         setSearched(true);

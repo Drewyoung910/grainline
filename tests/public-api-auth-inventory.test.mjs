@@ -14,6 +14,7 @@ function apiRoutes() {
 }
 
 const intentionalPublicRoutes = new Set([
+  "src/app/api/address/autocomplete/route.ts",
   "src/app/api/blog/route.ts",
   "src/app/api/blog/search/route.ts",
   "src/app/api/blog/search/suggestions/route.ts",
