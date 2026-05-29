@@ -1,7 +1,9 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { STRIPE_WEBHOOK_EVENT_STALE_PROCESSING_MS } from "@/lib/stripeWebhookEventState";
-import { truncateText } from "@/lib/sanitize";
+import {
+  STRIPE_WEBHOOK_EVENT_STALE_PROCESSING_MS,
+  stripeWebhookEventLastError,
+} from "@/lib/stripeWebhookEventState";
 
 export type StripeWebhookEventReservation = "process" | "processed" | "in_progress";
 
@@ -55,7 +57,7 @@ export async function markStripeWebhookEventFailed(id: string, error: unknown): 
     where: { id, processedAt: null },
     data: {
       processingStartedAt: null,
-      lastError: truncateText(error instanceof Error ? error.message : String(error), 500),
+      lastError: stripeWebhookEventLastError(error),
     },
   });
 }

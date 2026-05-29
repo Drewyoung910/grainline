@@ -2775,7 +2775,15 @@ Last updated: 2026-05-24
      records the status contract for future outbox changes. Guardrail:
      `tests/email-outbox-state.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 259 findings;
+274. **Stripe webhook failed-row error persistence sanitized** — code/test/docs
+     fix for #221. `markStripeWebhookEventFailed()` no longer stores raw
+     `error.message` text in `StripeWebhookEvent.lastError`; it now passes errors
+     through `stripeWebhookEventLastError()`, which reuses the shared operational
+     error scrubber and also removes card-last4 fragments before applying the
+     existing 500-character cap. Guardrail:
+     `tests/stripe-webhook-event-state.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 260 findings;
 verified stale/false-positive: 100 findings; product/design decisions deferred:
 39 findings. Remaining major categories: Stripe webhook subscription narrowing
 evidence, Round 10 deferred state-machine product designs, JSON size historical
