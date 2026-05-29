@@ -11,6 +11,7 @@ import {
   guildMasterApplicationBlockReason,
   guildMemberApplicationBlockReason,
 } from "@/lib/guildApplicationState";
+import { normalizePublicHttpsUrl } from "@/lib/urlValidation";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -31,17 +32,6 @@ const inputClass =
   "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300";
 const checkboxClass =
   "mt-0.5 h-4 w-4 rounded border-neutral-300 text-neutral-900 accent-neutral-900 focus:ring-neutral-300";
-
-function normalizeHttpsUrl(input: string): string | null {
-  const trimmed = input.trim();
-  if (!trimmed) return null;
-  try {
-    const url = new URL(trimmed);
-    return url.protocol === "https:" && url.toString().length <= 500 ? url.toString() : null;
-  } catch {
-    return null;
-  }
-}
 
 async function getGuildMemberEligibility({
   sellerProfileId,
@@ -201,7 +191,7 @@ export default async function VerificationPage() {
     const craftDescription = truncateText(sanitizeText(String(formData.get("craftDescription") ?? "")), 500);
     const yearsExperience = parseInt(String(formData.get("yearsExperience") ?? "0"), 10);
     const portfolioRaw = String(formData.get("portfolioUrl") ?? "").trim();
-    const portfolioUrl = portfolioRaw ? normalizeHttpsUrl(portfolioRaw) : null;
+    const portfolioUrl = portfolioRaw ? normalizePublicHttpsUrl(portfolioRaw) : null;
     const confirmHandmade = formData.get("confirmHandmade") === "on";
     if (!craftDescription || !Number.isFinite(yearsExperience) || yearsExperience < 0 || yearsExperience > 100 || !confirmHandmade) return;
     if (portfolioRaw && !portfolioUrl) return;
@@ -267,7 +257,7 @@ export default async function VerificationPage() {
     const { seller: s } = await ensureSeller();
     const craftBusiness = truncateText(sanitizeText(String(formData.get("craftBusiness") ?? "")), 500);
     const portfolioRaw = String(formData.get("portfolioUrl") ?? "").trim();
-    const portfolioUrl = portfolioRaw ? normalizeHttpsUrl(portfolioRaw) : null;
+    const portfolioUrl = portfolioRaw ? normalizePublicHttpsUrl(portfolioRaw) : null;
     const confirmStandards = formData.get("confirmStandards") === "on";
     if (!craftBusiness || !confirmStandards) return;
     if (portfolioRaw && !portfolioUrl) return;

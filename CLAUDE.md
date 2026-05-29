@@ -515,7 +515,7 @@ Four sections:
 - All approve/reject send `VERIFICATION_APPROVED` / `VERIFICATION_REJECTED` notifications and emails
 
 ### API route (`/api/verification/apply`)
-Server-side eligibility enforcement mirrors dashboard check — returns 400 with specific error messages if any of the 4 criteria fail (e.g. "You need $X more in sales") and 409 when current Guild state or the rejected/revoked cooldown blocks a new application. Use `guildApplicationState.ts` for Guild Member/Master reapplication rules.
+Server-side eligibility enforcement mirrors dashboard check — returns 400 with specific error messages if any of the 4 criteria fail (e.g. "You need $X more in sales") and 409 when current Guild state or the rejected/revoked cooldown blocks a new application. Use `guildApplicationState.ts` for Guild Member/Master reapplication rules. Portfolio URLs must be normalized through `normalizePublicHttpsUrl()` on every verification write path; do not store or directly link localhost, private-network, link-local, internal-label, or wildcard private-IP DNS hostnames.
 
 ### Terms page Section 19.2
 Updated to remove "identity verification" language; now lists: completed profile, ≥5 active listings, $250 in completed sales, good account standing, reviewed by Grainline staff.

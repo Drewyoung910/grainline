@@ -22,6 +22,7 @@ import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { guildMemberRevocationCaseWhere } from "@/lib/guildMemberRevocationState";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
+import { normalizePublicHttpsUrl } from "@/lib/urlValidation";
 
 type ActionState = { ok: boolean; error?: string };
 
@@ -56,6 +57,27 @@ function cachedMetricsToResult(sellerProfileId: string, metrics: CachedSellerMet
 
 function formatUsd(cents: number) {
   return (cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" });
+}
+
+function PortfolioUrlReviewLink({ url }: { url: string }) {
+  const safeUrl = normalizePublicHttpsUrl(url);
+  if (!safeUrl) {
+    return (
+      <span className="inline-flex flex-col gap-1">
+        <span className="break-all text-neutral-600">{url}</span>
+        <span className="text-xs text-amber-700">Not linked: URL is not a public HTTPS host.</span>
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex flex-col gap-1">
+      <a href={safeUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline break-all hover:text-blue-800">
+        {safeUrl}
+      </a>
+      <span className="text-xs text-neutral-500">Seller-provided external URL.</span>
+    </span>
+  );
 }
 
 function captureVerificationEmailFailure(
@@ -945,9 +967,7 @@ export default async function AdminVerificationPage() {
                     {v.portfolioUrl && (
                       <div>
                         <span className="font-medium text-neutral-700">Portfolio:</span>{" "}
-                        <a href={v.portfolioUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline break-all hover:text-blue-800">
-                          {v.portfolioUrl}
-                        </a>
+                        <PortfolioUrlReviewLink url={v.portfolioUrl} />
                       </div>
                     )}
                   </div>
@@ -1059,9 +1079,7 @@ export default async function AdminVerificationPage() {
                   {v.portfolioUrl && (
                     <div>
                       <span className="font-medium text-neutral-700">Portfolio:</span>{" "}
-                      <a href={v.portfolioUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline break-all hover:text-blue-800">
-                        {v.portfolioUrl}
-                      </a>
+                      <PortfolioUrlReviewLink url={v.portfolioUrl} />
                     </div>
                   )}
                 </div>

@@ -2804,7 +2804,18 @@ Last updated: 2026-05-24
      account anonymization from failing on a pre-existing colliding blog slug.
      Guardrail: `tests/round9-account-deletion-pii-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 263 findings;
+278. **Maker-verification portfolio URL host validation tightened** —
+     code/test/docs fix for #162. Verification write paths now normalize
+     portfolio links through `normalizePublicHttpsUrl()`, which requires
+     HTTPS and rejects credentials, localhost, private IPv4 ranges, loopback and
+     link-local IPv6 ranges, internal-label hostnames, and common wildcard
+     private-IP DNS aliases. The admin verification page re-checks stored
+     portfolio URLs before rendering external links, so historical unsafe
+     values are shown as text instead of direct links. Guardrails:
+     `tests/public-url-validation.test.mjs` and
+     `tests/guild-listing-edit-followups.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 264 findings;
 verified stale/false-positive: 100 findings; product/design decisions deferred:
 39 findings. Remaining major categories: Stripe webhook subscription narrowing
 evidence, Round 10 deferred state-machine product designs, JSON size historical

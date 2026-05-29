@@ -15,6 +15,20 @@ describe("guild and listing-edit audit follow-ups", () => {
     assert.match(applyRoute, /status: "ACTIVE", isPrivate: false/);
     assert.match(applyRoute, /safeRateLimit\(verificationApplyRatelimit, me\.id\)/);
     assert.match(applyRoute, /rateLimitResponse\(reset, "Too many verification applications\."\)/);
+    assert.match(dashboard, /normalizePublicHttpsUrl\(portfolioRaw\)/);
+    assert.match(applyRoute, /normalizePublicHttpsUrl\(verParsed\.portfolioUrl\)/);
+    assert.doesNotMatch(dashboard, /function normalizeHttpsUrl/);
+    assert.doesNotMatch(applyRoute, /function normalizeHttpsUrl/);
+  });
+
+  it("keeps admin Guild portfolio links behind public-url validation", () => {
+    const adminVerification = source("src/app/admin/verification/page.tsx");
+
+    assert.match(adminVerification, /function PortfolioUrlReviewLink/);
+    assert.match(adminVerification, /const safeUrl = normalizePublicHttpsUrl\(url\)/);
+    assert.match(adminVerification, /href=\{safeUrl\}/);
+    assert.match(adminVerification, /Not linked: URL is not a public HTTPS host\./);
+    assert.doesNotMatch(adminVerification, /href=\{v\.portfolioUrl\}/);
   });
 
   it("keeps listing edit row and variant replacement in one transaction", () => {

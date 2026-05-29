@@ -33,6 +33,77 @@ function normalizedUrl(input: string): URL | null {
   }
 }
 
+function hostnameWithoutIpv6Brackets(hostname: string): string {
+  return hostname.toLowerCase().replace(/^\[/, "").replace(/\]$/, "").replace(/\.+$/, "");
+}
+
+function ipv4Parts(hostname: string): [number, number, number, number] | null {
+  if (!/^\d+\.\d+\.\d+\.\d+$/.test(hostname)) return null;
+  const parts = hostname.split(".").map((part) => Number(part));
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+    return null;
+  }
+  return parts as [number, number, number, number];
+}
+
+function isNonPublicIpv4(hostname: string): boolean {
+  const parts = ipv4Parts(hostname);
+  if (!parts) return false;
+  const [a, b] = parts;
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 0) ||
+    (a === 192 && b === 168) ||
+    (a === 198 && (b === 18 || b === 19)) ||
+    a >= 224
+  );
+}
+
+function isNonPublicIpv6(hostname: string): boolean {
+  if (!hostname.includes(":")) return false;
+  if (hostname === "::" || hostname === "::1" || hostname === "0:0:0:0:0:0:0:1") return true;
+  if (hostname.startsWith("::ffff:")) return true;
+  if (hostname.startsWith("2001:db8:")) return true;
+
+  const firstHextet = hostname.split(":").find(Boolean);
+  if (!firstHextet) return true;
+  const first = Number.parseInt(firstHextet, 16);
+  if (!Number.isFinite(first)) return true;
+  return (first & 0xfe00) === 0xfc00 || (first & 0xffc0) === 0xfe80 || (first & 0xff00) === 0xff00;
+}
+
+export function isPublicHostname(hostname: string): boolean {
+  const normalized = hostnameWithoutIpv6Brackets(hostname);
+  if (!normalized) return false;
+  if (isNonPublicIpv4(normalized) || isNonPublicIpv6(normalized)) return false;
+
+  const labels = normalized.split(".");
+  if (labels.includes("localhost") || labels.includes("internal") || labels[0] === "intranet") return false;
+  if (labels.length < 2 && !ipv4Parts(normalized) && !normalized.includes(":")) return false;
+  if (["test", "invalid", "localhost", "local", "lan", "home", "corp"].includes(labels[labels.length - 1] ?? "")) return false;
+  for (const suffix of ["nip.io", "sslip.io", "xip.io", "localtest.me", "lvh.me", "vcap.me"]) {
+    if (normalized === suffix || normalized.endsWith(`.${suffix}`)) return false;
+  }
+  return true;
+}
+
+export function normalizePublicHttpsUrl(input: string | null | undefined, maxLength = 500): string | null {
+  const raw = input?.trim();
+  if (!raw) return null;
+  const url = normalizedUrl(raw);
+  if (!url || url.protocol !== "https:") return null;
+  if (url.username || url.password) return null;
+  if (!isPublicHostname(url.hostname)) return null;
+  url.hash = "";
+  const normalized = url.toString();
+  return normalized.length <= maxLength ? normalized : null;
+}
+
 function matchesAllowedBase(candidate: URL, allowedBases: string[]): boolean {
   const bases = allowedBases
     .map((url) => normalizedUrl(url))

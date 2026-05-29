@@ -11,6 +11,7 @@ import {
   readBoundedJson,
 } from "@/lib/requestBody";
 import { guildMemberApplicationBlockReason } from "@/lib/guildApplicationState";
+import { normalizePublicHttpsUrl } from "@/lib/urlValidation";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -25,20 +26,6 @@ const VerificationApplySchema = z.object({
   yearsExperience: z.number().int().min(0).max(100),
   portfolioUrl: z.string().max(500).optional().nullable(),
 });
-
-function normalizeHttpsUrl(input: string | null | undefined): string | null {
-  const raw = input?.trim();
-  if (!raw) return null;
-  let url: URL;
-  try {
-    url = new URL(raw);
-  } catch {
-    return null;
-  }
-  if (url.protocol !== "https:") return null;
-  url.hash = "";
-  return url.toString();
-}
 
 export async function POST(req: Request) {
   try {
@@ -64,7 +51,7 @@ export async function POST(req: Request) {
 
     const craftDescription = truncateText(sanitizeText(verParsed.craftDescription), 500);
     const yearsExperience = Math.max(0, Math.floor(verParsed.yearsExperience));
-    const portfolioUrl = normalizeHttpsUrl(verParsed.portfolioUrl);
+    const portfolioUrl = normalizePublicHttpsUrl(verParsed.portfolioUrl);
     if (verParsed.portfolioUrl?.trim() && !portfolioUrl) {
       return NextResponse.json({ error: "Portfolio URL must be a valid https:// URL." }, { status: 400 });
     }
