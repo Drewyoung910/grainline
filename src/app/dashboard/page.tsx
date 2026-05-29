@@ -9,7 +9,7 @@ import { ListingStatus } from "@prisma/client";
 import InlineActionButton from "@/components/InlineActionButton";
 import { Store, Package, Tag, MessageCircle, User, Grid, Edit, Shield, Bell, BarChart, Eye, Heart } from "@/components/icons";
 import { softDeleteListingWithCleanup } from "@/lib/listingSoftDelete";
-import { archiveListingBlockReason, hideListingBlockReason } from "@/lib/listingActionState";
+import { archiveListingBlockReason, hideListingBlockReason, withdrawReviewBlockReason } from "@/lib/listingActionState";
 import DismissibleBanner from "@/components/DismissibleBanner";
 import ResubmitButton from "@/components/ResubmitButton";
 import { listingMutationRatelimit, safeRateLimit, savedSearchRatelimit } from "@/lib/ratelimit";
@@ -124,6 +124,58 @@ async function deleteListing(
   revalidatePath("/dashboard");
   revalidatePath("/browse");
   revalidateListingSearchCaches();
+
+  return { ok: true };
+}
+
+async function withdrawListingReview(
+  listingId: string,
+  _prevState?: unknown,
+  _formData?: FormData,
+): Promise<DashboardActionState> {
+  "use server";
+  const { userId } = await auth();
+  if (!userId) return { ok: false, error: "Sign in to withdraw listings." };
+
+  const { success } = await safeRateLimit(listingMutationRatelimit, userId);
+  if (!success) return { ok: false, error: "Too many listing updates. Try again shortly." };
+
+  const me = await prisma.user.findUnique({ where: { clerkId: userId } });
+  if (!me) return { ok: false, error: "Account not found." };
+  if (me.banned || me.deletedAt) return { ok: false, error: "Account access is restricted." };
+
+  const listing = await prisma.listing.findUnique({
+    where: { id: listingId },
+    include: { seller: true },
+  });
+  if (!listing || listing.seller.userId !== me.id) return { ok: false, error: "Listing not found." };
+  const blockReason = withdrawReviewBlockReason(listing);
+  if (blockReason) return { ok: false, error: blockReason };
+
+  const updated = await prisma.listing.updateMany({
+    where: {
+      id: listingId,
+      sellerId: listing.sellerId,
+      status: ListingStatus.PENDING_REVIEW,
+      updatedAt: listing.updatedAt,
+    },
+    data: {
+      status: ListingStatus.DRAFT,
+      aiReviewFlags: [],
+      aiReviewScore: null,
+      reviewedByAdmin: false,
+      reviewedAt: null,
+      rejectionReason: null,
+    },
+  });
+  if (updated.count === 0) {
+    return { ok: false, error: "Listing changed in another tab. Refresh and try again." };
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath(`/listing/${listingId}`);
+  revalidatePath(`/seller/${listing.sellerId}`);
+  revalidatePath(`/seller/${listing.sellerId}/shop`);
 
   return { ok: true };
 }
@@ -540,12 +592,14 @@ export default async function DashboardPage({
                     <div className="pt-3 flex flex-wrap gap-2">
                       {!isArchived && (
                         <>
-                          <Link
-                            href={`/dashboard/listings/${l.id}/edit`}
-                            className="text-xs rounded border border-neutral-200 px-2 py-1 hover:bg-neutral-50"
-                          >
-                            Edit
-                          </Link>
+                          {l.status !== "PENDING_REVIEW" && (
+                            <Link
+                              href={`/dashboard/listings/${l.id}/edit`}
+                              className="text-xs rounded border border-neutral-200 px-2 py-1 hover:bg-neutral-50"
+                            >
+                              Edit
+                            </Link>
+                          )}
                           {(l.status === "DRAFT" || l.status === "HIDDEN" || l.status === "PENDING_REVIEW" || l.status === "REJECTED") && (
                             <Link
                               href={`${publicListingPath(l.id, l.title)}?preview=1`}
@@ -561,6 +615,16 @@ export default async function DashboardPage({
 
                       {!isArchived && l.status === "REJECTED" && (
                         <ResubmitButton listingId={l.id} />
+                      )}
+
+                      {!isArchived && l.status === "PENDING_REVIEW" && (
+                        <InlineActionButton
+                          action={withdrawListingReview.bind(null, l.id)}
+                          confirm="Withdraw this listing from review and move it back to drafts?"
+                          className="text-xs rounded border border-amber-300 px-2 py-1 text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+                        >
+                          Withdraw
+                        </InlineActionButton>
                       )}
 
                       {/* REJECTED: only Edit + Resubmit + Delete — no Hide/Unhide/Mark sold */}
@@ -591,14 +655,16 @@ export default async function DashboardPage({
                         </>
                       )}
 
-                      <InlineActionButton
-                        action={deleteListing.bind(null, l.id)}
-                        confirm="Archive this listing? It will be removed from public pages and current carts, but retained for order history."
-                        disabled={isArchived}
-                        className="text-xs rounded border px-2 py-1 hover:bg-red-50 text-red-600 border-red-300 disabled:opacity-50"
-                      >
-                        {isArchived ? "Archived" : "Archive"}
-                      </InlineActionButton>
+                      {l.status !== "PENDING_REVIEW" && (
+                        <InlineActionButton
+                          action={deleteListing.bind(null, l.id)}
+                          confirm="Archive this listing? It will be removed from public pages and current carts, but retained for order history."
+                          disabled={isArchived}
+                          className="text-xs rounded border px-2 py-1 hover:bg-red-50 text-red-600 border-red-300 disabled:opacity-50"
+                        >
+                          {isArchived ? "Archived" : "Archive"}
+                        </InlineActionButton>
+                      )}
                     </div>
                   </div>
                 </li>

@@ -7,6 +7,7 @@ import {
   markAvailableAction,
   deleteListingAction,
   publishListingAction,
+  withdrawListingReviewAction,
 } from "./actions";
 
 interface Props {
@@ -159,6 +160,23 @@ export default function ShopListingActions({ listingId, status, isPrivate = fals
         </button>
       )}
 
+      {/* Withdraw — PENDING_REVIEW only */}
+      {status === "PENDING_REVIEW" && (
+        <button
+          disabled={isPending}
+          onClick={() => {
+            if (!window.confirm("Withdraw this listing from review and move it back to drafts?")) return;
+            startTransition(async () => {
+              const result = await withdrawListingReviewAction(listingId);
+              showToast(result.ok ? "Moved back to drafts." : (result.error ?? "Could not withdraw this listing."));
+            });
+          }}
+          className="text-[11px] rounded border border-amber-300 text-amber-700 px-2 py-0.5 hover:bg-amber-50 disabled:opacity-50"
+        >
+          Withdraw
+        </button>
+      )}
+
       {/* Delete — all statuses except PENDING_REVIEW */}
       {status !== "PENDING_REVIEW" && !isArchived && (
         <button
@@ -176,8 +194,8 @@ export default function ShopListingActions({ listingId, status, isPrivate = fals
         </button>
       )}
 
-      {/* Edit link always shown */}
-      {!isArchived && (
+      {/* Edit link hidden while review owns the current draft state. */}
+      {!isArchived && status !== "PENDING_REVIEW" && (
         <a
           href={`/dashboard/listings/${listingId}/edit`}
           className="text-[11px] text-neutral-500 hover:text-neutral-800 hover:underline ml-auto"

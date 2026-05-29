@@ -2706,9 +2706,34 @@ Last updated: 2026-05-24
      records the future-agent contract. Guardrail:
      `tests/cache-invalidation-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 251 findings;
-verified stale/false-positive: 99 findings; product/design decisions deferred:
-40 findings. Remaining major categories: Stripe webhook subscription narrowing
+268. **Pending-review listing withdrawal added** — code/test/docs fix for
+     #1055 and #1059, moving them out of the earlier Round 10 deferred
+     state-machine bucket. `PENDING_REVIEW` listings still cannot be edited,
+     archived, unhidden, or published around moderation, but sellers can now
+     explicitly withdraw them back to `DRAFT` from the dashboard and seller shop.
+     The withdrawal path uses the shared `withdrawReviewBlockReason()` helper
+     and final `updateMany` predicates with owner `sellerId`, current
+     `PENDING_REVIEW` status, and `updatedAt` so a stale seller action cannot
+     override a concurrent admin decision. Adjacent parent review also tightened
+     `publishListingBlockReason()` to reject `PENDING_REVIEW` and other invalid
+     start states server-side, so forged publish/resubmit actions cannot advance
+     a held listing around admin review. Guardrail:
+     `tests/listing-action-state.test.mjs`.
+
+269. **Support/legal residual re-verification completed** — read-only
+     verification for #706, #750-#754, #757/#868, #163, and #166. #706 is now
+     stale for the raw-error/PII allegation because persisted email send errors
+     are sanitized before admin display; the remaining fact that admins see a
+     sanitized delivery error is an ops-product choice. #750-#754,
+     #757/#868, #163, and #166 remain previously fixed/stale with existing
+     tests and no tally increase. #168 remains open as a product/data-shape
+     decision about whether the public support "Order/listing" reference should
+     stay bounded free text or become structured `orderId` / `listingId`
+     fields.
+
+**Running tally after this pass:** verified fixed/reduced: 253 findings;
+verified stale/false-positive: 100 findings; product/design decisions deferred:
+38 findings. Remaining major categories: Stripe webhook subscription narrowing
 evidence, Round 10 deferred state-machine product designs, JSON size historical
 validation and email uniqueness production-scan decisions, email outbox
 retention/quota policy decisions, refund accounting runtime proof and refund
@@ -2717,4 +2742,5 @@ remaining case/message state-policy decisions, privacy/legal retention scope,
 remaining privacy/export retention decisions, cross-seller AI duplicate-detection
 product design, CSP `unsafe-eval` rollout monitoring, partial multi-seller
 checkout continuation design, deliberate BigInt money-column modeling, and
-live-data reconciliation for historical seller shipping-rate currency drift.
+live-data reconciliation for historical seller shipping-rate currency drift,
+plus support context structured-field design (#168).

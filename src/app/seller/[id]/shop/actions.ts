@@ -14,6 +14,7 @@ import {
   markAvailableBlockReason,
   publishListingBlockReason,
   unhideListingBlockReason,
+  withdrawReviewBlockReason,
 } from "@/lib/listingActionState";
 import { backfillEmptyAltTexts } from "@/lib/photoAltTextBackfill";
 import { maybeGrantFoundingMaker } from "@/lib/foundingMaker";
@@ -192,6 +193,35 @@ export async function deleteListingAction(listingId: string) {
   }
   await syncGuildMemberListingThreshold(listing.sellerId);
   queueCheckoutSessionExpiryForListing(listingId, listing.sellerId, "listing_archive");
+  revalidateListingSurfaces(listingId, listing.sellerId);
+  return { ok: true };
+}
+
+export async function withdrawListingReviewAction(listingId: string) {
+  const owned = await getOwnedListing(listingId);
+  if (!owned.ok) return { ok: false, error: owned.error };
+  const listing = owned.listing;
+  const blockReason = withdrawReviewBlockReason(listing);
+  if (blockReason) return { ok: false, error: blockReason };
+
+  const result = await prisma.listing.updateMany({
+    where: {
+      id: listingId,
+      sellerId: listing.sellerId,
+      status: ListingStatus.PENDING_REVIEW,
+      updatedAt: listing.updatedAt,
+    },
+    data: {
+      status: ListingStatus.DRAFT,
+      aiReviewFlags: [],
+      aiReviewScore: null,
+      reviewedByAdmin: false,
+      reviewedAt: null,
+      rejectionReason: null,
+    },
+  });
+  if (result.count === 0) return { ok: false, error: "Listing state changed; refresh and try again." };
+
   revalidateListingSurfaces(listingId, listing.sellerId);
   return { ok: true };
 }
