@@ -186,7 +186,13 @@ export default async function NewBlogPostPage() {
           const followers = await prisma.follow.findMany({
             where: {
               sellerProfileId,
-              follower: { banned: false, deletedAt: null },
+              followerId: { not: author.id },
+              follower: {
+                banned: false,
+                deletedAt: null,
+                blocks: { none: { blockedId: author.id } },
+                blockedBy: { none: { blockerId: author.id } },
+              },
             },
             select: { followerId: true },
             take: 10000,

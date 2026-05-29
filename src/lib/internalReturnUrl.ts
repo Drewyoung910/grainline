@@ -1,4 +1,6 @@
-const DEFAULT_APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com";
+import { APP_BASE_URL } from "./appBaseUrl.ts";
+
+const DEFAULT_APP_URL = APP_BASE_URL;
 
 function firstQueryValue(value: string | string[] | null | undefined): string | null {
   if (Array.isArray(value)) return value[0] ?? null;

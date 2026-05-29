@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { EMAIL_APP_URL } from "./emailBaseUrl.ts";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com";
+const APP_URL = EMAIL_APP_URL;
 export const UNSUBSCRIBE_TOKEN_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 
 function unsubscribeSecret(): string | null {

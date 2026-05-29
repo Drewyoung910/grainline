@@ -20,6 +20,7 @@ import {
   isRequestBodyTooLargeError,
   readBoundedJson,
 } from "@/lib/requestBody";
+import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
 import { z } from "zod";
 
 const CaseMessageSchema = z.object({
@@ -151,7 +152,7 @@ export async function POST(
 
     // Notify the appropriate party/parties
     const senderName = me.name ?? me.email?.split("@")[0] ?? "Someone";
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com";
+    const appUrl = EMAIL_APP_URL;
 
     if (isStaff && !isParty) {
       // Staff message — notify both buyer and seller

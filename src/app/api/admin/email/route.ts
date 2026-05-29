@@ -16,8 +16,9 @@ import {
   isRequestBodyTooLargeError,
   readBoundedJson,
 } from "@/lib/requestBody";
+import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com";
+const APP_URL = EMAIL_APP_URL;
 const ADMIN_EMAIL_BODY_MAX_BYTES = 64 * 1024;
 
 const Schema = z.object({

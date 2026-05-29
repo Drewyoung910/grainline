@@ -15,12 +15,13 @@ import {
 import { isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
 import { z } from "zod";
 import { revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
+import { APP_BASE_URL } from "@/lib/appBaseUrl";
 
 const ConnectCreateSchema = z.object({
   returnUrl: z.string().min(1).max(500).optional().nullable(),
 });
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com";
+const APP_URL = APP_BASE_URL;
 const STRIPE_CONNECT_CREATE_BODY_MAX_BYTES = 8 * 1024;
 
 export async function POST(req: Request) {

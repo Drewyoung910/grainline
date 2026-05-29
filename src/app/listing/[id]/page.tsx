@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
+import { cache } from "react";
 import FavoriteButton from "@/components/FavoriteButton";
 import DynamicMapCard from "@/components/DynamicMapCard";
 import type { Metadata } from "next";
@@ -34,6 +35,70 @@ function siteUrl(path: string) {
   return new URL(path, base).toString();
 }
 
+const getListingForDetailPage = cache(async (listingId: string) =>
+  prisma.listing.findUnique({
+    where: { id: listingId },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      metaDescription: true,
+      priceCents: true,
+      currency: true,
+      status: true,
+      isPrivate: true,
+      reservedForUserId: true,
+      listingType: true,
+      stockQuantity: true,
+      shipsWithinDays: true,
+      processingTimeMinDays: true,
+      processingTimeMaxDays: true,
+      category: true,
+      tags: true,
+      materials: true,
+      productLengthIn: true,
+      productWidthIn: true,
+      productHeightIn: true,
+      sellerId: true,
+      photos: { orderBy: { sortOrder: "asc" } },
+      seller: {
+        select: {
+          id: true,
+          userId: true,
+          displayName: true,
+          city: true,
+          state: true,
+          lat: true,
+          lng: true,
+          radiusMeters: true,
+          chargesEnabled: true,
+          stripeAccountVersion: true,
+          vacationMode: true,
+          acceptingNewOrders: true,
+          acceptsCustomOrders: true,
+          offersGiftWrapping: true,
+          giftWrappingPriceCents: true,
+          returnPolicy: true,
+          shippingPolicy: true,
+          customOrderPolicy: true,
+          tagline: true,
+          avatarImageUrl: true,
+          guildLevel: true,
+          isFoundingMaker: true,
+          foundingMakerNumber: true,
+          user: { select: { id: true, clerkId: true, imageUrl: true, banned: true, deletedAt: true } },
+        },
+      },
+      metro: { select: { slug: true, name: true, state: true } },
+      cityMetro: { select: { slug: true, name: true, state: true } },
+      variantGroups: {
+        orderBy: { sortOrder: "asc" },
+        include: { options: { orderBy: { sortOrder: "asc" } } },
+      },
+    },
+  })
+);
+
 export async function generateMetadata(
   { params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[]>> }
 ): Promise<Metadata> {
@@ -43,27 +108,7 @@ export async function generateMetadata(
   if (sp.preview === "1") {
     return { robots: { index: false, follow: false } };
   }
-  const listing = await prisma.listing.findUnique({
-    where: { id: listingId },
-    select: {
-      title: true,
-      description: true,
-      metaDescription: true,
-      priceCents: true,
-      currency: true,
-      status: true,
-      isPrivate: true,
-      photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
-      seller: {
-        select: {
-          displayName: true,
-          chargesEnabled: true,
-          vacationMode: true,
-          user: { select: { banned: true, deletedAt: true } },
-        },
-      },
-    },
-  });
+  const listing = await getListingForDetailPage(listingId);
   if (!listing) notFound();
   if (!isPublicListingDetail(listing)) {
     notFound();
@@ -145,67 +190,7 @@ export default async function ListingPage({
   }
   const blockedUserIds = await getBlockedUserIdsFor(meId);
 
-  const listing = await prisma.listing.findUnique({
-    where: { id: listingId },
-    select: {
-      id: true,
-      title: true,
-      description: true,
-      metaDescription: true,
-      priceCents: true,
-      currency: true,
-      status: true,
-      isPrivate: true,
-      reservedForUserId: true,
-      listingType: true,
-      stockQuantity: true,
-      shipsWithinDays: true,
-      processingTimeMinDays: true,
-      processingTimeMaxDays: true,
-      category: true,
-      tags: true,
-      materials: true,
-      productLengthIn: true,
-      productWidthIn: true,
-      productHeightIn: true,
-      sellerId: true,
-      photos: { orderBy: { sortOrder: "asc" } },
-      seller: {
-        select: {
-          id: true,
-          userId: true,
-          displayName: true,
-          city: true,
-          state: true,
-          lat: true,
-          lng: true,
-          radiusMeters: true,
-          chargesEnabled: true,
-          stripeAccountVersion: true,
-          vacationMode: true,
-          acceptingNewOrders: true,
-          acceptsCustomOrders: true,
-          offersGiftWrapping: true,
-          giftWrappingPriceCents: true,
-          returnPolicy: true,
-          shippingPolicy: true,
-          customOrderPolicy: true,
-          tagline: true,
-          avatarImageUrl: true,
-          guildLevel: true,
-          isFoundingMaker: true,
-          foundingMakerNumber: true,
-          user: { select: { id: true, clerkId: true, imageUrl: true, banned: true, deletedAt: true } },
-        },
-      },
-      metro: { select: { slug: true, name: true, state: true } },
-      cityMetro: { select: { slug: true, name: true, state: true } },
-      variantGroups: {
-        orderBy: { sortOrder: "asc" },
-        include: { options: { orderBy: { sortOrder: "asc" } } },
-      },
-    },
-  });
+  const listing = await getListingForDetailPage(listingId);
   if (!listing) return notFound();
 
   // Preview mode: seller can view their own listing regardless of status/chargesEnabled

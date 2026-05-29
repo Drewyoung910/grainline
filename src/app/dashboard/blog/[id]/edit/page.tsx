@@ -160,7 +160,7 @@ export default async function EditBlogPostPage({
         readingTimeMinutes,
         ...(publishedAt !== undefined ? { publishedAt } : {}),
       },
-      select: { slug: true, sellerProfileId: true, sellerProfile: { select: { displayName: true } } },
+      select: { slug: true, sellerProfileId: true, sellerProfile: { select: { displayName: true, userId: true } } },
     });
 
     if (existing.status === "PUBLISHED" || newStatus === "PUBLISHED") {
@@ -168,13 +168,20 @@ export default async function EditBlogPostPage({
     }
 
     // Notify followers only on the first-ever publish, not on archive/republish.
-    if (isFirstPublish && updated.sellerProfileId) {
+    if (isFirstPublish && updated.sellerProfileId && updated.sellerProfile?.userId) {
       after(async () => {
         try {
+          const sellerUserId = updated.sellerProfile!.userId;
           const followers = await prisma.follow.findMany({
             where: {
               sellerProfileId: updated.sellerProfileId!,
-              follower: { banned: false, deletedAt: null },
+              followerId: { not: sellerUserId },
+              follower: {
+                banned: false,
+                deletedAt: null,
+                blocks: { none: { blockedId: sellerUserId } },
+                blockedBy: { none: { blockerId: sellerUserId } },
+              },
             },
             select: { followerId: true },
             take: 10000,

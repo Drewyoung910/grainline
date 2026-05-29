@@ -2498,7 +2498,41 @@ Last updated: 2026-05-24
      prior entries and were not double-counted. Guardrail:
      `tests/anonymous-cart-merge.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 228 findings;
+250. **Listing-detail shared loader cache opportunity reduced** — code/test/docs
+     follow-up for the broader React `cache()` category noted after #1110 was
+     verified stale for the seller page. Listing detail metadata and page render
+     now share `getListingForDetailPage()` for the non-viewer-specific listing
+     read, while auth, block-list, favorite, follow, and stock-notification
+     reads remain outside the shared cache. This was not double-counted as a new
+     numbered Claude finding because #1110 itself was already closed as stale.
+     Guardrail: `tests/listing-page-performance.test.mjs`.
+
+251. **Maker follower fanout now respects blocks** — code/test/docs fix for
+     #231 plus adjacent blog/broadcast fanout parity. `fanOutListingToFollowers()`
+     now resolves the maker's owning user and filters follower pages before both
+     in-app notification and email fanout, excluding self-follows plus reciprocal
+     `Block` pairs where either the follower blocked the maker or the maker
+     blocked the follower. First-publish blog notifications and seller broadcast
+     in-app/email recipient lists now apply the same reciprocal block filters.
+     Guardrail: `tests/follower-listing-notifications.test.mjs`.
+
+252. **External link fallbacks to production removed** — code/test/docs fix for
+     #1005 plus adjacent checkout/Connect/case/admin-email parity. Email
+     rendering now resolves links through `resolveEmailAppUrl()`: configured app
+     URLs are normalized, production requires `NEXT_PUBLIC_APP_URL`, and
+     non-production live email config (`RESEND_API_KEY` plus `EMAIL_FROM`)
+     refuses to send without an explicit app URL instead of silently linking to
+     production. Non-sending local renders use `http://localhost:3000`. Checkout
+     return URLs, Stripe Connect account-link URLs, admin email footer links,
+     case-message email links, unsubscribe links, and internal absolute return
+     URL defaults now route through `APP_BASE_URL` / `EMAIL_APP_URL` rather than
+     hard-coded production fallbacks. Read-only agent re-verification in the same
+     pass confirmed #1095-#1099, #1075/#1076, #988-#992, #1045, and #811/#812
+     are stale on current `main`; those were already closed in prior entries and
+     were not double-counted. Guardrails: `tests/email-base-url.test.mjs` and
+     `tests/app-base-url.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 230 findings;
 verified stale/false-positive: 97 findings; product/design decisions deferred:
 44 findings. Remaining major categories: checkout concurrency integration
 evidence, Stripe webhook subscription narrowing evidence, Round 10 deferred
@@ -2507,6 +2541,7 @@ uniqueness production-scan decisions, email outbox retention/quota/versioning
 design, refund accounting runtime proof and refund attempt persistence
 semantics, founding-maker/quality-score consistency, case/message state-policy
 decisions, account export/legal retention scope, remaining privacy/export
-retention decisions, broader React `cache()` opportunities beyond the seller
-page, cross-seller AI duplicate-detection product design, CSP `unsafe-eval`
-rollout monitoring, and partial multi-seller checkout continuation design.
+retention decisions, cross-seller AI duplicate-detection product design, CSP
+`unsafe-eval` rollout monitoring, partial multi-seller checkout continuation
+design, and live-data reconciliation for historical seller shipping-rate
+currency drift.

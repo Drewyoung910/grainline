@@ -115,9 +115,12 @@ export async function POST(req: NextRequest) {
   const followers = await prisma.follow.findMany({
     where: {
       sellerProfileId: seller.id,
+      followerId: { not: me.id },
       follower: {
         banned: false,
         deletedAt: null,
+        blocks: { none: { blockedId: me.id } },
+        blockedBy: { none: { blockerId: me.id } },
         ...(sellersOnly ? { sellerProfile: { isNot: null } } : {}),
       },
     },

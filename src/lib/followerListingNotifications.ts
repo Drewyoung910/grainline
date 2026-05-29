@@ -5,6 +5,7 @@ import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { publicListingPath } from "@/lib/publicPaths";
 import { formatCurrencyCents } from "@/lib/money";
+import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
 
 const FOLLOWER_FANOUT_PAGE_SIZE = 1000;
 
@@ -28,15 +29,26 @@ export async function fanOutListingToFollowers({
 }) {
   const sellerDisplay = sellerDisplayName ?? "A maker you follow";
   const listingPath = publicListingPath(listing.id, listing.title);
-  const listingUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com"}${listingPath}`;
+  const listingUrl = `${EMAIL_APP_URL}${listingPath}`;
   const listingPrice = formatCurrencyCents(listing.priceCents, listing.currency);
+  const seller = await prisma.sellerProfile.findUnique({
+    where: { id: sellerProfileId },
+    select: { userId: true },
+  });
+  if (!seller) return;
   let cursor: string | undefined;
 
   while (true) {
     const followers = await prisma.follow.findMany({
       where: {
         sellerProfileId,
-        follower: { banned: false, deletedAt: null },
+        followerId: { not: seller.userId },
+        follower: {
+          banned: false,
+          deletedAt: null,
+          blocks: { none: { blockedId: seller.userId } },
+          blockedBy: { none: { blockerId: seller.userId } },
+        },
       },
       orderBy: { id: "asc" },
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
