@@ -80,6 +80,7 @@ export async function fanOutListingToFollowers({
         await enqueueEmailOutbox({
           ...email,
           dedupKey: emailDedupKey(f.followerId),
+          templateName: "followed_maker_new_listing",
           userId: f.followerId,
           preferenceKey: "EMAIL_FOLLOWED_MAKER_NEW_LISTING",
         });

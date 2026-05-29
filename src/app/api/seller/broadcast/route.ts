@@ -197,6 +197,7 @@ export async function POST(req: NextRequest) {
         return enqueueEmailOutbox({
           ...email,
           dedupKey: `seller-broadcast:${broadcast.id}:${f.followerId}`,
+          templateName: "seller_broadcast",
           userId: f.followerId,
           preferenceKey: "EMAIL_SELLER_BROADCAST",
         });

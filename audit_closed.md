@@ -2532,13 +2532,28 @@ Last updated: 2026-05-24
      were not double-counted. Guardrails: `tests/email-base-url.test.mjs` and
      `tests/app-base-url.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 230 findings;
+253. **Email outbox template versioning added** — code/test/docs fix for
+     #1007. Queued email rows now persist `templateName` and
+     `templateVersion`, with a positive-version DB check and a
+     `templateName, createdAt` support/debug index. Every current
+     `enqueueEmailOutbox()` / `enqueueEmailOutboxOnce()` caller passes a
+     stable template name, including welcome, order-confirmed buyer/seller,
+     first-sale, first-listing, back-in-stock, followed-maker, and seller
+     broadcast jobs. `CLAUDE.md` now requires future queued-email callers to
+     keep that metadata populated and to bump the version only for meaningful
+     template behavior changes. Guardrail:
+     `tests/email-outbox-versioning.test.mjs`. Read-only agent re-verification
+     in the same pass confirmed #737-#741, #750-#754, and #764 remain fixed,
+     stale, or product/legal-deferred on current `main`; those were already
+     closed in prior entries and were not double-counted.
+
+**Running tally after this pass:** verified fixed/reduced: 231 findings;
 verified stale/false-positive: 97 findings; product/design decisions deferred:
-44 findings. Remaining major categories: checkout concurrency integration
+43 findings. Remaining major categories: checkout concurrency integration
 evidence, Stripe webhook subscription narrowing evidence, Round 10 deferred
 system-audit and state-machine product designs, JSON shape/size and email
-uniqueness production-scan decisions, email outbox retention/quota/versioning
-design, refund accounting runtime proof and refund attempt persistence
+uniqueness production-scan decisions, email outbox retention/quota policy
+decisions, refund accounting runtime proof and refund attempt persistence
 semantics, founding-maker/quality-score consistency, case/message state-policy
 decisions, account export/legal retention scope, remaining privacy/export
 retention decisions, cross-seller AI duplicate-detection product design, CSP

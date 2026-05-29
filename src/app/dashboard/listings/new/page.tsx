@@ -313,6 +313,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
         await enqueueEmailOutbox({
           ...email,
           dedupKey: `first-listing-congrats:${seller.id}`,
+          templateName: "first_listing_congrats",
           userId: seller.userId,
         });
       }

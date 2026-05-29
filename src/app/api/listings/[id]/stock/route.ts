@@ -207,6 +207,7 @@ export async function PATCH(
                   await enqueueEmailOutbox({
                     ...email,
                     dedupKey: `back-in-stock:${id}:${sub.id}`,
+                    templateName: "back_in_stock",
                     userId: sub.id,
                     preferenceKey: "EMAIL_BACK_IN_STOCK",
                   });

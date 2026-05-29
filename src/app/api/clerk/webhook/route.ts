@@ -71,6 +71,7 @@ async function enqueueWelcomeFallbackEmail(
     subject: email.subject,
     html: email.html,
     dedupKey,
+    templateName: "welcome",
     userId,
   });
 }

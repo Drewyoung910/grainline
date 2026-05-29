@@ -25,14 +25,29 @@ import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
 const DEFAULT_BATCH_SIZE = 50;
 const DEFAULT_CONCURRENCY = 2;
 export const EMAIL_OUTBOX_HTML_MAX_CHARS = 200_000;
+export const EMAIL_OUTBOX_TEMPLATE_VERSION = 1;
+export const EMAIL_OUTBOX_TEMPLATE_NAMES = [
+  "back_in_stock",
+  "first_listing_congrats",
+  "first_sale_congrats",
+  "followed_maker_new_listing",
+  "order_confirmed_buyer",
+  "order_confirmed_seller",
+  "seller_broadcast",
+  "welcome",
+] as const;
 const dailySendAllowanceScript = redis.createScript<number>(EMAIL_OUTBOX_DAILY_ALLOWANCE_SCRIPT);
 const recipientDailySendAllowanceScript = redis.createScript<number>(EMAIL_OUTBOX_DAILY_ALLOWANCE_SCRIPT);
+
+export type EmailOutboxTemplateName = typeof EMAIL_OUTBOX_TEMPLATE_NAMES[number];
 
 export type QueuedEmail = {
   to: string;
   subject: string;
   html: string;
   dedupKey: string;
+  templateName: EmailOutboxTemplateName;
+  templateVersion?: number;
   userId?: string;
   preferenceKey?: string;
 };
@@ -44,6 +59,13 @@ export type EnqueueEmailOutboxResult = {
 
 function isUniqueError(error: unknown) {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
+
+function normalizeTemplateVersion(version: number | undefined) {
+  if (typeof version !== "number" || !Number.isInteger(version) || version < 1) {
+    return EMAIL_OUTBOX_TEMPLATE_VERSION;
+  }
+  return version;
 }
 
 async function reserveDailySendAllowance(requested: number, now: Date) {
@@ -130,6 +152,8 @@ export async function enqueueEmailOutboxOnce(email: QueuedEmail): Promise<Enqueu
         recipientEmail: recipient,
         userId: email.userId,
         preferenceKey: email.preferenceKey,
+        templateName: email.templateName,
+        templateVersion: normalizeTemplateVersion(email.templateVersion),
         subject: email.subject.slice(0, 300),
         html: truncateText(email.html, EMAIL_OUTBOX_HTML_MAX_CHARS),
         dedupKey,

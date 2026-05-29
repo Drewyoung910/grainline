@@ -546,7 +546,7 @@ export async function POST(req: Request) {
     dedupKey: string;
     userId?: string | null;
     preferenceKey?: QueuedEmail["preferenceKey"];
-    source: string;
+    source: QueuedEmail["templateName"];
     extra: Record<string, unknown>;
   }) {
     let enqueued: Awaited<ReturnType<typeof enqueueEmailOutboxOnce>>;
@@ -554,6 +554,7 @@ export async function POST(req: Request) {
       enqueued = await enqueueEmailOutboxOnce({
         ...email,
         dedupKey,
+        templateName: source,
         userId: userId ?? undefined,
         preferenceKey,
       });
