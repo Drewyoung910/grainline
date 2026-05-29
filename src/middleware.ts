@@ -236,7 +236,7 @@ export default clerkMiddleware(async (auth, req) => {
     return withRequestId(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), requestId);
   }
 
-  const { userId } = await auth();
+  const { userId, sessionId } = await auth();
   Sentry.setUser(userId ? { id: userId } : null);
 
   // Enforce authentication on all non-public routes with app-owned responses.
@@ -315,6 +315,7 @@ export default clerkMiddleware(async (auth, req) => {
       const pinVerified = await verifyAdminPinCookieValue(
         req.cookies.get(ADMIN_PIN_COOKIE_NAME)?.value,
         userId,
+        sessionId,
       );
       if (!pinVerified) {
         return withRequestId(NextResponse.json({ error: "Admin PIN required" }, { status: 403 }), requestId);

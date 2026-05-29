@@ -53,29 +53,34 @@ export function isAdminPinConfigured() {
   return Boolean(process.env.ADMIN_PIN);
 }
 
-export async function createAdminPinCookieValue(userId: string, now = Date.now()) {
+export async function createAdminPinSessionCookieValue(
+  userId: string,
+  sessionId: string | null | undefined,
+  now = Date.now(),
+) {
   const secret = getCookieSecret();
-  if (!secret) return null;
+  if (!secret || !sessionId) return null;
   const expiresAt = now + ADMIN_PIN_MAX_AGE_SECONDS * 1000;
-  const payload = `${userId}.${expiresAt}`;
+  const payload = `${userId}.${sessionId}.${expiresAt}`;
   const signature = await signPayload(payload, secret);
-  return `v1.${expiresAt}.${signature}`;
+  return `v2.${expiresAt}.${signature}`;
 }
 
 export async function verifyAdminPinCookieValue(
   cookieValue: string | undefined,
   userId: string,
+  sessionId?: string | null,
   now = Date.now(),
 ) {
   const secret = getCookieSecret();
-  if (!secret || !cookieValue) return false;
+  if (!secret || !cookieValue || !sessionId) return false;
 
   const [version, expiresAtRaw, signature] = cookieValue.split(".");
-  if (version !== "v1" || !expiresAtRaw || !signature) return false;
+  if (version !== "v2" || !expiresAtRaw || !signature) return false;
 
   const expiresAt = Number(expiresAtRaw);
   if (!Number.isFinite(expiresAt) || expiresAt <= now) return false;
 
-  const expected = await signPayload(`${userId}.${expiresAtRaw}`, secret);
+  const expected = await signPayload(`${userId}.${sessionId}.${expiresAtRaw}`, secret);
   return constantTimeEqual(signature, expected);
 }

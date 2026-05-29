@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-const { assertAdminPinCookieSecretConfigured } = await import("../src/lib/adminPin.ts");
+const {
+  assertAdminPinCookieSecretConfigured,
+  createAdminPinSessionCookieValue,
+  verifyAdminPinCookieValue,
+} = await import("../src/lib/adminPin.ts");
 
 describe("admin PIN cookie secret configuration", () => {
   it("allows production when a dedicated cookie secret is configured", () => {
@@ -40,5 +44,17 @@ describe("admin PIN cookie secret configuration", () => {
 
     assert.match(route, /sameSite: "strict"/);
     assert.doesNotMatch(route, /sameSite: "lax"/);
+  });
+
+  it("binds admin PIN cookies to the active Clerk session", async () => {
+    const now = Date.parse("2026-05-29T00:00:00Z");
+    const cookie = await createAdminPinSessionCookieValue("user_1", "sess_1", now);
+
+    assert.ok(cookie?.startsWith("v2."));
+    assert.equal(await verifyAdminPinCookieValue(cookie, "user_1", "sess_1", now), true);
+    assert.equal(await verifyAdminPinCookieValue(cookie, "user_1", "sess_2", now), false);
+    assert.equal(await verifyAdminPinCookieValue(cookie, "user_2", "sess_1", now), false);
+    assert.equal(await verifyAdminPinCookieValue(cookie, "user_1", null, now), false);
+    assert.equal(await verifyAdminPinCookieValue(cookie?.replace(/^v2\./, "v1."), "user_1", "sess_1", now), false);
   });
 });

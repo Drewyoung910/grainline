@@ -2573,7 +2573,16 @@ Last updated: 2026-05-24
      decision because it touches persisted order and seller-metrics contracts.
      Guardrail: `tests/listing-price-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 235 findings;
+256. **Admin PIN cookie session binding tightened** — code/test/docs fix for
+     #239. Admin PIN cookies are now v2 HMAC signatures over the local Clerk
+     `userId`, the active Clerk `sessionId`, and the expiry timestamp, so a
+     copied PIN cookie from one browser session does not verify in another
+     Clerk session for the same user. Middleware, the admin layout, and
+     `/api/admin/verify-pin` all pass the current session id through the shared
+     verifier. Legacy user-only PIN cookie signatures fail closed and require a
+     fresh PIN entry. Guardrail: `tests/admin-pin.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 236 findings;
 verified stale/false-positive: 97 findings; product/design decisions deferred:
 41 findings. Remaining major categories: checkout concurrency integration
 evidence, Stripe webhook subscription narrowing evidence, Round 10 deferred

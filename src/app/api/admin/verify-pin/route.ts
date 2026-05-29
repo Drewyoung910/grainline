@@ -9,7 +9,7 @@ import { logAdminAction } from "@/lib/audit";
 import {
   ADMIN_PIN_COOKIE_NAME,
   ADMIN_PIN_MAX_AGE_SECONDS,
-  createAdminPinCookieValue,
+  createAdminPinSessionCookieValue,
 } from "@/lib/adminPin";
 import { getIP } from "@/lib/ratelimit";
 import { logSecurityEvent } from "@/lib/security";
@@ -61,7 +61,7 @@ async function logAdminPinAttempt({
 }
 
 export async function POST(req: Request) {
-  const { userId } = await auth();
+  const { userId, sessionId } = await auth();
   if (!userId) return NextResponse.json({}, { status: 401 });
 
   // Verify user is allowed into the admin surface.
@@ -134,7 +134,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Admin PIN is not configured" }, { status: 503 });
     }
 
-    const cookieValue = await createAdminPinCookieValue(userId);
+    const cookieValue = await createAdminPinSessionCookieValue(userId, sessionId);
     if (!cookieValue) {
       return NextResponse.json({ error: "Admin PIN cookie could not be signed" }, { status: 503 });
     }
@@ -179,7 +179,7 @@ export async function POST(req: Request) {
   }
 
   // Set httpOnly cookie so admin APIs can verify PIN server-side
-  const cookieValue = await createAdminPinCookieValue(userId);
+  const cookieValue = await createAdminPinSessionCookieValue(userId, sessionId);
   if (!cookieValue) {
     return NextResponse.json({ error: "Admin PIN cookie could not be signed" }, { status: 503 });
   }

@@ -10,7 +10,7 @@ import { ADMIN_PIN_COOKIE_NAME, verifyAdminPinCookieValue } from "@/lib/adminPin
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   // Defense in depth: re-check role here in addition to middleware
-  const { userId } = await auth();
+  const { userId, sessionId } = await auth();
   if (!userId) redirect("/");
 
   const user = await prisma.user.findUnique({
@@ -23,6 +23,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const pinVerified = await verifyAdminPinCookieValue(
     cookieStore.get(ADMIN_PIN_COOKIE_NAME)?.value,
     userId,
+    sessionId,
   );
 
   if (!pinVerified) {
