@@ -2364,8 +2364,29 @@ Last updated: 2026-05-24
      `tests/stripe-webhook-cart-finalization.test.mjs`, and
      `tests/public-visibility-followups.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 203 findings;
-verified stale/false-positive: 77 findings; product/design decisions deferred:
+242. **Client notification, account action, and form recovery guardrails
+     reduced** — code/test fix for #918, #919, #920, #922, #924, #925, #926,
+     and #929, plus verified stale closure for #923. Notification and unread
+     badge polling now waits for Clerk to finish loading before user-specific
+     fetches, and the notification dropdown normalizes the response shape,
+     filters malformed rows, and caps rendered items/unread count. Header and
+     avatar-menu Clerk profile/sign-out actions now catch client errors and
+     only clear local signed-out state after `signOut()` succeeds, preserving
+     local cart/account state on failed sign-out attempts. Label tracking links
+     now URL-encode tracking numbers before carrier URL interpolation.
+     Accept-terms redirects are revalidated inside the client form before
+     navigation, not only by the parent page. Case-open, helpful-vote, and
+     seller-reply forms now recover from network failures with visible
+     errors/toasts and loading-state cleanup. #923 was stale because current
+     `ThreadMessages` and map fallback blank-target links already include
+     `rel="noopener noreferrer"`. Guardrails:
+     `tests/client-async-guardrails.test.mjs`,
+     `tests/link-security.test.mjs`,
+     `tests/terms-acceptance-enforcement.test.mjs`, and
+     `tests/verified-audit-followups.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 211 findings;
+verified stale/false-positive: 78 findings; product/design decisions deferred:
 43 findings. Remaining major categories: checkout concurrency integration
 evidence, Round 10 deferred system-audit and state-machine product designs,
 JSON shape/size and email uniqueness production-scan decisions, email outbox
@@ -2376,4 +2397,5 @@ remaining privacy/export retention decisions, anonymous-cart merge
 bulk/performance design, broader React `cache()` opportunities beyond the
 seller page, cross-seller AI duplicate-detection product design, CSP
 `unsafe-eval` rollout monitoring, partial multi-seller checkout continuation
-design, and dependency hygiene cleanup.
+design, address-autocomplete privacy/proxy design, buy-now rollback recovery
+window documentation, and dependency hygiene cleanup.

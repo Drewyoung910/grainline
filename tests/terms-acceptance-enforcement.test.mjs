@@ -69,7 +69,7 @@ describe("terms acceptance enforcement", () => {
     const form = source("src/app/accept-terms/AcceptTermsForm.tsx");
 
     assert.match(page, /<main className="min-h-\[100svh\]/);
-    assert.match(form, /window\.location\.assign\(redirectUrl\)/);
+    assert.match(form, /window\.location\.assign\(safeInternalPath\(redirectUrl, "\/account"\)\)/);
     assert.doesNotMatch(page + form, /onClose|setOpen|Dialog|Modal|dismiss/i);
   });
 

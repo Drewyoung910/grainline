@@ -60,6 +60,30 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
     return () => document.removeEventListener("focusin", onFocusIn);
   }, [open]);
 
+  const handleOpenUserProfile = React.useCallback(() => {
+    try {
+      openUserProfile({
+        appearance: {
+          elements: { rootBox: "cl-rootBox", card: "cl-card" },
+          variables: { colorBackground: "#ffffff" },
+        },
+      });
+      setOpen(false);
+    } catch (error) {
+      console.warn("[user-avatar-menu] open user profile failed", error);
+    }
+  }, [openUserProfile]);
+
+  const handleSignOut = React.useCallback(async () => {
+    setOpen(false);
+    try {
+      await signOut({ redirectUrl: "/" });
+      clearSignedOutLocalAccountState();
+    } catch (error) {
+      console.warn("[user-avatar-menu] sign out failed", error);
+    }
+  }, [signOut]);
+
   const avatarSrc = avatarImageUrl ?? imageUrl ?? null;
   const displayName = name ?? "Account";
   const isAdmin = role === "ADMIN" || role === "EMPLOYEE";
@@ -155,15 +179,7 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
 
             <button
               type="button"
-              onClick={() => {
-                openUserProfile({
-                  appearance: {
-                    elements: { rootBox: "cl-rootBox", card: "cl-card" },
-                    variables: { colorBackground: "#ffffff" },
-                  },
-                });
-                setOpen(false);
-              }}
+              onClick={handleOpenUserProfile}
               className="flex w-full items-center px-4 py-2.5 text-sm text-neutral-800 hover:bg-neutral-50"
             >
               Manage Account
@@ -171,10 +187,8 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
 
             <button
               type="button"
-              onClick={async () => {
-                setOpen(false);
-                clearSignedOutLocalAccountState();
-                await signOut({ redirectUrl: "/" });
+              onClick={() => {
+                void handleSignOut();
               }}
               className="flex w-full items-center px-4 py-2.5 text-sm text-neutral-800 hover:bg-neutral-50"
             >

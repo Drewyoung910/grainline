@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
+import { safeInternalPath } from "@/lib/internalReturnUrl";
 import { CURRENT_TERMS_VERSION } from "@/lib/termsAcceptance";
 
 export default function AcceptTermsForm({ redirectUrl }: { redirectUrl: string }) {
@@ -32,7 +33,7 @@ export default function AcceptTermsForm({ redirectUrl }: { redirectUrl: string }
         throw new Error(data?.error ?? "Could not save your acceptance. Please try again.");
       }
 
-      window.location.assign(redirectUrl);
+      window.location.assign(safeInternalPath(redirectUrl, "/account"));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save your acceptance. Please try again.");
     } finally {

@@ -58,6 +58,18 @@ describe("client async guardrails", () => {
     assert.match(header, /requestId !== loadAllRequestRef\.current/);
   });
 
+  it("handles Clerk client actions without clearing local state before failed sign-out", () => {
+    const header = source("src/components/Header.tsx");
+    const avatarMenu = source("src/components/UserAvatarMenu.tsx");
+
+    for (const text of [header, avatarMenu]) {
+      assert.match(text, /handleOpenUserProfile/);
+      assert.match(text, /try \{[\s\S]*?openUserProfile/);
+      assert.match(text, /catch \(error\) \{[\s\S]*?console\.warn/);
+      assert.match(text, /await signOut\(\{ redirectUrl: "\/" \}\);[\s\S]*?clearSignedOutLocalAccountState\(\)/);
+    }
+  });
+
   it("keeps Buy Now mounted after first open and rolls back late checkout sessions", () => {
     const button = source("src/components/BuyNowButton.tsx");
     const modal = source("src/components/BuyNowCheckoutModal.tsx");
@@ -101,5 +113,29 @@ describe("client async guardrails", () => {
     assert.match(pinGate, /autoComplete="off"/);
     assert.match(pinGate, /e\.key === "Enter" && !loading && !locked && pin\.length >= 4/);
     assert.match(pinGate, /void handleVerify\(\)/);
+  });
+
+  it("waits for Clerk loading and bounds notification dropdown payloads", () => {
+    const bell = source("src/components/NotificationBell.tsx");
+    const unread = source("src/components/UnreadBadge.tsx");
+
+    assert.match(bell, /const \{ isLoaded, isSignedIn \} = useUser\(\)/);
+    assert.match(bell, /MAX_NOTIFICATION_ITEMS = 20/);
+    assert.match(bell, /function normalizeNotificationsResponse/);
+    assert.match(bell, /\.filter\(isNotificationItem\)\.slice\(0, MAX_NOTIFICATION_ITEMS\)/);
+    assert.match(bell, /if \(!isLoaded \|\| !isSignedIn\) return/);
+    assert.match(unread, /const \{ isLoaded, isSignedIn \} = useUser\(\)/);
+    assert.match(unread, /if \(!isLoaded \|\| !isSignedIn\) return/);
+  });
+
+  it("keeps public case and review form network failures recoverable", () => {
+    const openCase = source("src/components/OpenCaseForm.tsx");
+    const reviews = source("src/components/ReviewItemClient.tsx");
+
+    assert.match(openCase, /try \{[\s\S]*?await fetch\("\/api\/cases"/);
+    assert.match(openCase, /catch \{[\s\S]*?setError\("Failed to open case"\)/);
+    assert.match(openCase, /finally \{[\s\S]*?setLoading\(false\)/);
+    assert.match(reviews, /catch \{[\s\S]*?toast\("Failed", "error"\)/);
+    assert.match(reviews, /catch \{[\s\S]*?toast\("Failed to reply", "error"\)/);
   });
 });

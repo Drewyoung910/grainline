@@ -40,18 +40,23 @@ export default function OpenCaseForm({
     }
     setLoading(true);
     setError(null);
-    const res = await fetch("/api/cases", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderId, reason, description }),
-    });
-    const data = await res.json().catch(() => null) as { error?: string } | null;
-    if (!res.ok) {
-      setError(data?.error ?? "Failed to open case");
+    try {
+      const res = await fetch("/api/cases", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId, reason, description }),
+      });
+      const data = await res.json().catch(() => null) as { error?: string } | null;
+      if (!res.ok) {
+        setError(data?.error ?? "Failed to open case");
+        return;
+      }
+      router.refresh();
+    } catch {
+      setError("Failed to open case");
+    } finally {
       setLoading(false);
-      return;
     }
-    router.refresh();
   }
 
   if (!expanded) {

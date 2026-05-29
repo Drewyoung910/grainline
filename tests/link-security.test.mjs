@@ -28,4 +28,12 @@ describe("link security", () => {
 
     assert.deepEqual(offenders, []);
   });
+
+  it("encodes tracking numbers before building carrier links", () => {
+    const labelSection = fs.readFileSync("src/components/LabelSection.tsx", "utf8");
+
+    assert.match(labelSection, /const trackingParam = encodeURIComponent\(labelTrackingNumber\)/);
+    assert.match(labelSection, /tracknum=\$\{trackingParam\}/);
+    assert.doesNotMatch(labelSection, /tracknum=\$\{labelTrackingNumber\}/);
+  });
 });

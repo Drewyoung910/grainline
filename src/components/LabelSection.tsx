@@ -70,11 +70,12 @@ export default function LabelSection({
           {labelCarrier && <div>Carrier: {labelCarrier}</div>}
           {labelTrackingNumber && (() => {
             const c = (labelCarrier ?? "").toUpperCase();
+            const trackingParam = encodeURIComponent(labelTrackingNumber);
             let url: string | null = null;
-            if (c.includes("UPS")) url = `https://www.ups.com/track?tracknum=${labelTrackingNumber}`;
-            else if (c.includes("USPS")) url = `https://tools.usps.com/go/TrackConfirmAction?tLabels=${labelTrackingNumber}`;
-            else if (c.includes("FEDEX") || c.includes("FED EX")) url = `https://www.fedex.com/fedextrack/?trknbr=${labelTrackingNumber}`;
-            else if (c.includes("DHL")) url = `https://www.dhl.com/us-en/home/tracking.html?tracking-id=${labelTrackingNumber}`;
+            if (c.includes("UPS")) url = `https://www.ups.com/track?tracknum=${trackingParam}`;
+            else if (c.includes("USPS")) url = `https://tools.usps.com/go/TrackConfirmAction?tLabels=${trackingParam}`;
+            else if (c.includes("FEDEX") || c.includes("FED EX")) url = `https://www.fedex.com/fedextrack/?trknbr=${trackingParam}`;
+            else if (c.includes("DHL")) url = `https://www.dhl.com/us-en/home/tracking.html?tracking-id=${trackingParam}`;
             return (
               <div>
                 Tracking:{" "}

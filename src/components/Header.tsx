@@ -42,6 +42,25 @@ export default function Header() {
   useDialogFocus(drawerOpen, drawerRef, () => setDrawerOpen(false));
   useBodyScrollLock(drawerOpen);
 
+  const handleOpenUserProfile = React.useCallback(() => {
+    try {
+      openUserProfile();
+      setDrawerOpen(false);
+    } catch (error) {
+      console.warn("[header] open user profile failed", error);
+    }
+  }, [openUserProfile]);
+
+  const handleSignOut = React.useCallback(async () => {
+    setDrawerOpen(false);
+    try {
+      await signOut({ redirectUrl: "/" });
+      clearSignedOutLocalAccountState();
+    } catch (error) {
+      console.warn("[header] sign out failed", error);
+    }
+  }, [signOut]);
+
   // Close drawer and search on navigation
   React.useEffect(() => {
     setDrawerOpen(false);
@@ -511,10 +530,7 @@ export default function Header() {
                 {/* Manage Account — opens Clerk modal directly, no dropdown */}
                 <button
                   type="button"
-                  onClick={() => {
-                    openUserProfile();
-                    setDrawerOpen(false);
-                  }}
+                  onClick={handleOpenUserProfile}
                   className="flex w-full items-center gap-3 px-0 py-2.5 text-sm text-neutral-800 hover:text-neutral-600 min-h-[44px]"
                 >
                   Manage Account
@@ -523,10 +539,8 @@ export default function Header() {
                 {/* Sign Out */}
                 <button
                   type="button"
-                  onClick={async () => {
-                    setDrawerOpen(false);
-                    clearSignedOutLocalAccountState();
-                    await signOut({ redirectUrl: "/" });
+                  onClick={() => {
+                    void handleSignOut();
                   }}
                   className="flex w-full items-center gap-3 px-0 py-2.5 text-sm text-red-600 hover:text-red-700 min-h-[44px]"
                 >

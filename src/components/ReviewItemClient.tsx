@@ -44,6 +44,8 @@ export function HelpfulButton({
       } else {
         toast(j?.error || "Failed", "error");
       }
+    } catch {
+      toast("Failed", "error");
     } finally {
       setLoading(false);
     }
@@ -117,6 +119,8 @@ export function SellerReplyForm({
       } else {
         window.location.reload();
       }
+    } catch {
+      toast("Failed to reply", "error");
     } finally {
       setLoading(false);
     }

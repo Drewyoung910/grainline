@@ -32,6 +32,8 @@ type NotificationItem = {
 };
 
 const NOTIFICATION_CHANNEL = "grainline:notifications";
+const MAX_NOTIFICATION_ITEMS = 20;
+const MAX_UNREAD_COUNT = 999;
 
 type NotificationSyncMessage =
   | { type: "all-read" }
@@ -95,6 +97,34 @@ function typeIcon(type: NotificationType) {
   }
 }
 
+function isNotificationItem(value: unknown): value is NotificationItem {
+  if (!value || typeof value !== "object") return false;
+  const item = value as Partial<NotificationItem>;
+  return (
+    typeof item.id === "string" &&
+    typeof item.type === "string" &&
+    typeof item.title === "string" &&
+    typeof item.body === "string" &&
+    (typeof item.link === "string" || item.link === null) &&
+    typeof item.read === "boolean" &&
+    typeof item.createdAt === "string"
+  );
+}
+
+function normalizeNotificationsResponse(data: unknown) {
+  const payload = data && typeof data === "object"
+    ? (data as { notifications?: unknown; unreadCount?: unknown })
+    : {};
+  const notifications = Array.isArray(payload.notifications)
+    ? payload.notifications.filter(isNotificationItem).slice(0, MAX_NOTIFICATION_ITEMS)
+    : [];
+  const unreadCount =
+    typeof payload.unreadCount === "number" && Number.isFinite(payload.unreadCount)
+      ? Math.max(0, Math.min(MAX_UNREAD_COUNT, Math.floor(payload.unreadCount)))
+      : 0;
+  return { notifications, unreadCount };
+}
+
 function timeAgo(dateStr: string): string {
   const date = new Date(dateStr);
   const timestamp = date.getTime();
@@ -115,7 +145,7 @@ export default function NotificationBell({
 }: {
   initialUnreadCount: number;
 }) {
-  const { isSignedIn } = useUser();
+  const { isLoaded, isSignedIn } = useUser();
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [notifications, setNotifications] = React.useState<NotificationItem[]>([]);
@@ -125,18 +155,19 @@ export default function NotificationBell({
   const containerRef = React.useRef<HTMLDivElement>(null);
 
   const fetchNotifications = React.useCallback(async () => {
-    if (!isSignedIn) return;
+    if (!isLoaded || !isSignedIn) return;
     try {
       const res = await fetch("/api/notifications", { cache: "no-store" });
       if (!res.ok) return;
       const data = await res.json();
-      setNotifications(data.notifications ?? []);
-      setUnreadCount(data.unreadCount ?? 0);
+      const normalized = normalizeNotificationsResponse(data);
+      setNotifications(normalized.notifications);
+      setUnreadCount(normalized.unreadCount);
       setLoaded(true);
     } catch {
       // ignore
     }
-  }, [isSignedIn]);
+  }, [isLoaded, isSignedIn]);
 
   // Open dropdown + load
   const handleOpen = React.useCallback(() => {
@@ -146,9 +177,9 @@ export default function NotificationBell({
 
   // Fetch on mount to populate unread count immediately
   React.useEffect(() => {
-    if (!isSignedIn) return;
+    if (!isLoaded || !isSignedIn) return;
     if (!loaded) fetchNotifications();
-  }, [loaded, fetchNotifications, isSignedIn]);
+  }, [loaded, fetchNotifications, isLoaded, isSignedIn]);
 
   React.useEffect(() => {
     if (!("BroadcastChannel" in window)) return;
@@ -211,7 +242,7 @@ export default function NotificationBell({
   }, [restartPolling]);
 
   React.useEffect(() => {
-    if (!isSignedIn) return;
+    if (!isLoaded || !isSignedIn) return;
 
     function getInterval(): number | null {
       if (document.visibilityState === "hidden") return 15 * 60 * 1000; // 15 min
@@ -253,7 +284,7 @@ export default function NotificationBell({
       if (timerRef.current) clearTimeout(timerRef.current);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [isSignedIn, fetchNotifications]);
+  }, [isLoaded, isSignedIn, fetchNotifications]);
 
   // Close on Escape
   React.useEffect(() => {

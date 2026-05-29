@@ -7,11 +7,11 @@ export default function UnreadBadge({
   className = "",
   pollMs = 600000,
 }: { className?: string; pollMs?: number }) {
-  const { isSignedIn } = useUser();
+  const { isLoaded, isSignedIn } = useUser();
   const [count, setCount] = React.useState<number>(0);
 
   const refresh = React.useCallback(async () => {
-    if (!isSignedIn) return;
+    if (!isLoaded || !isSignedIn) return;
     try {
       const res = await fetch("/api/messages/unread-count", { cache: "no-store" });
       if (!res.ok) return;
@@ -20,9 +20,10 @@ export default function UnreadBadge({
     } catch (error) {
       console.warn("[unread-badge] refresh failed", error);
     }
-  }, [isSignedIn]);
+  }, [isLoaded, isSignedIn]);
 
   React.useEffect(() => {
+    if (!isLoaded) return;
     if (!isSignedIn) {
       setCount(0);
       return;
@@ -30,7 +31,7 @@ export default function UnreadBadge({
     refresh();
     const id = window.setInterval(refresh, pollMs);
     return () => window.clearInterval(id);
-  }, [isSignedIn, pollMs, refresh]);
+  }, [isLoaded, isSignedIn, pollMs, refresh]);
 
   if (!count) return null;
 

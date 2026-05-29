@@ -126,7 +126,7 @@ describe("verified audit follow-up guardrails", () => {
 
     const acceptForm = source("src/app/accept-terms/AcceptTermsForm.tsx");
     assert.match(acceptForm, /fetch\("\/api\/account\/accept-terms"/);
-    assert.match(acceptForm, /window\.location\.assign\(redirectUrl\)/);
+    assert.match(acceptForm, /window\.location\.assign\(safeInternalPath\(redirectUrl, "\/account"\)\)/);
   });
 
   it("keeps Stripe setup reachable from the final onboarding summary", () => {
