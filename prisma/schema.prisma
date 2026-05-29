@@ -1118,6 +1118,7 @@ model EmailOutbox {
   subject         String    @db.VarChar(300)
   html            String    @db.VarChar(200000)
   dedupKey        String    @unique @db.VarChar(128)
+  // Raw CHECK-constrained to PENDING/PROCESSING/SENT/FAILED/SKIPPED/DEAD by migration.
   status          String    @default("PENDING") @db.VarChar(20)
   attempts        Int       @default(0)
   nextAttemptAt   DateTime? @default(now())

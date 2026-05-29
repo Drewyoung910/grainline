@@ -2,6 +2,16 @@ import { createHash } from "crypto";
 
 export const EMAIL_OUTBOX_MAX_ATTEMPTS = 10;
 export const EMAIL_OUTBOX_PROCESSING_STALE_MS = 10 * 60 * 1000;
+export const EMAIL_OUTBOX_STATUSES = [
+  "PENDING",
+  "PROCESSING",
+  "SENT",
+  "FAILED",
+  "SKIPPED",
+  "DEAD",
+] as const;
+
+export type EmailOutboxStatus = typeof EMAIL_OUTBOX_STATUSES[number];
 
 export type EmailOutboxProcessingCandidate = {
   status: string;

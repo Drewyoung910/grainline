@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { describe, it } from "node:test";
 
 const {
   EMAIL_OUTBOX_MAX_ATTEMPTS,
   EMAIL_OUTBOX_PROCESSING_STALE_MS,
+  EMAIL_OUTBOX_STATUSES,
   emailOutboxDedupKey,
   emailOutboxFailureState,
   emailOutboxProcessingStaleCutoff,
@@ -15,6 +17,32 @@ const {
 
 describe("email outbox state helpers", () => {
   const now = new Date("2026-04-28T12:00:00.000Z");
+
+  it("keeps the supported status set aligned with the raw DB constraint", () => {
+    assert.deepEqual(EMAIL_OUTBOX_STATUSES, [
+      "PENDING",
+      "PROCESSING",
+      "SENT",
+      "FAILED",
+      "SKIPPED",
+      "DEAD",
+    ]);
+
+    const schema = fs.readFileSync("prisma/schema.prisma", "utf8");
+    const migration = fs.readFileSync(
+      "prisma/migrations/20260529200000_email_outbox_status_constraint/migration.sql",
+      "utf8",
+    );
+
+    assert.match(
+      schema,
+      /Raw CHECK-constrained to PENDING\/PROCESSING\/SENT\/FAILED\/SKIPPED\/DEAD/,
+    );
+    assert.match(migration, /"EmailOutbox_status_chk"/);
+    for (const status of EMAIL_OUTBOX_STATUSES) {
+      assert.match(migration, new RegExp(`'${status}'`));
+    }
+  });
 
   it("calculates the stale processing cutoff from the configured window", () => {
     assert.equal(

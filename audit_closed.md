@@ -2765,7 +2765,17 @@ Last updated: 2026-05-24
      a fixed three-year purge window because no matching purge job exists.
      Guardrail: `tests/launch-readiness-followups.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 258 findings;
+273. **Email outbox status integrity constrained** — code/test/docs fix for
+     #727. `EmailOutbox.status` remains a Prisma string for low-risk migration
+     compatibility, but the database now raw-constrains it to the six processor
+     states: `PENDING`, `PROCESSING`, `SENT`, `FAILED`, `SKIPPED`, and `DEAD`.
+     The migration normalizes any historical invalid rows before validation,
+     preserving terminal intent from `sentAt` / attempt count where possible and
+     leaving sanitized `lastError` evidence on normalized rows. `CLAUDE.md`
+     records the status contract for future outbox changes. Guardrail:
+     `tests/email-outbox-state.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 259 findings;
 verified stale/false-positive: 100 findings; product/design decisions deferred:
 39 findings. Remaining major categories: Stripe webhook subscription narrowing
 evidence, Round 10 deferred state-machine product designs, JSON size historical
