@@ -38,6 +38,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/cron/checkout-stock-reservations",
+      "schedule": "*/15 * * * *"
+    },
+    {
       "path": "/api/cron/account-deletion-side-effects",
       "schedule": "10,40 * * * *"
     },

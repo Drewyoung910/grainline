@@ -32,6 +32,7 @@ import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import { sanitizeText, sanitizeUserName, truncateText } from "@/lib/sanitize";
 import {
   lockCheckoutSessionMutation,
+  markCheckoutStockReservationCompleted,
   restorableStockItemsFromLineItems,
   restoreReservedStockItems,
   restoreUnorderedCheckoutStockOnce,
@@ -1373,6 +1374,11 @@ export async function POST(req: Request) {
             stockVisibilityChanged = stockVisibilityChanged || listingSearchCacheInvalidationNeeded;
           }
 
+          await markCheckoutStockReservationCompleted(tx, {
+            reservationId: sessionMeta.checkoutReservationId,
+            sessionId,
+          });
+
           await tx.cartItem.deleteMany({
             where: sellerIdFromMeta
               ? { cartId, listing: { sellerId: sellerIdFromMeta } }
@@ -1644,6 +1650,11 @@ export async function POST(req: Request) {
             `;
             listingSearchCacheInvalidationNeeded = Number(soldOutCount) > 0;
           }
+
+          await markCheckoutStockReservationCompleted(tx, {
+            reservationId: sessionMeta.checkoutReservationId,
+            sessionId,
+          });
 
           return {
             id: order.id,

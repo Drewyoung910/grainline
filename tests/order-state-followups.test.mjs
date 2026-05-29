@@ -98,13 +98,18 @@ describe("order-state audit follow-up guardrails", () => {
   it("keeps checkout stock reservation tied to live active listing ownership", () => {
     const singleCheckout = source("src/app/api/cart/checkout/single/route.ts");
     const sellerCheckout = source("src/app/api/cart/checkout-seller/route.ts");
+    const stockRestore = source("src/lib/checkoutStockRestore.ts");
 
-    assert.match(singleCheckout, /WHERE id = \$\{listing\.id\}\s+AND "sellerId" = \$\{listing\.sellerId\}\s+AND status = 'ACTIVE'\s+AND "listingType" = 'IN_STOCK'\s+AND "stockQuantity" >= \$\{body\.quantity\}/);
-    assert.match(singleCheckout, /AND "sellerId" = \$\{reservedSellerId\}/);
+    assert.match(singleCheckout, /createCheckoutStockReservation\(\{/);
+    assert.match(singleCheckout, /sellerId: listing\.sellerId/);
+    assert.match(singleCheckout, /checkoutStockReservationMetadata\(checkoutReservationId\)/);
 
-    assert.match(sellerCheckout, /WHERE id = \$\{it\.listing\.id\}\s+AND "sellerId" = \$\{it\.listing\.sellerId\}\s+AND status = 'ACTIVE'\s+AND "listingType" = 'IN_STOCK'\s+AND "stockQuantity" >= \$\{it\.quantity\}/);
-    assert.match(sellerCheckout, /reservedItems\.push\(\{ listingId: it\.listing\.id, sellerId: it\.listing\.sellerId, quantity: it\.quantity \}\)/);
-    assert.match(sellerCheckout, /AND "sellerId" = \$\{r\.sellerId\}/);
+    assert.match(sellerCheckout, /createCheckoutStockReservation\(\{/);
+    assert.match(sellerCheckout, /sellerId: it\.listing\.sellerId/);
+    assert.match(sellerCheckout, /checkoutStockReservationMetadata\(checkoutReservationId\)/);
+
+    assert.match(stockRestore, /WHERE id = \$\{item\.listingId\}\s+AND "sellerId" = \$\{item\.sellerId\}\s+AND status = 'ACTIVE'\s+AND "listingType" = 'IN_STOCK'\s+AND "stockQuantity" >= \$\{item\.quantity\}/);
+    assert.match(stockRestore, /WHERE id = \$\{item\.listingId\}\s+AND "listingType" = 'IN_STOCK'/);
   });
 
   it("keeps staff case resolution atomic and persists computed full-refund amounts", () => {

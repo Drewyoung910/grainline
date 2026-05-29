@@ -18,7 +18,14 @@ import {
   releaseCheckoutLock,
   singleCheckoutLockKey,
 } from "@/lib/checkoutSessionLock";
-import { restoreUnorderedCheckoutStockOnce } from "@/lib/checkoutStockRestore";
+import {
+  CheckoutStockReservationStockError,
+  checkoutStockReservationMetadata,
+  createCheckoutStockReservation,
+  markCheckoutStockReservationSession,
+  restoreCheckoutStockReservationOnce,
+  restoreUnorderedCheckoutStockOnce,
+} from "@/lib/checkoutStockRestore";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { logSecurityEvent } from "@/lib/security";
@@ -67,10 +74,8 @@ export const preferredRegion = "iad1";
 const CHECKOUT_BODY_MAX_BYTES = 64 * 1024;
 
 export async function POST(req: Request) {
-  // Track stock reservation for rollback on error
-  let reservedListingId: string | null = null;
-  let reservedSellerId: string | null = null;
-  let reservedQuantity = 0;
+  let checkoutReservationId: string | null = null;
+  let checkoutReservationItemCount = 0;
   let checkoutLockKeyValue: string | null = null;
   let checkoutLockAcquired = false;
 
@@ -330,29 +335,33 @@ export async function POST(req: Request) {
       );
     }
 
-    // Stock reservation: atomically decrement stock at checkout time (not webhook).
-    // All validation-return paths must stay above this point; later failures
-    // should throw so the catch block restores this reservation.
-    if (listing.listingType === "IN_STOCK") {
-      const reserved: number = await prisma.$executeRaw`
-        UPDATE "Listing"
-        SET "stockQuantity" = "stockQuantity" - ${body.quantity}
-        WHERE id = ${listing.id}
-          AND "sellerId" = ${listing.sellerId}
-          AND status = 'ACTIVE'
-          AND "listingType" = 'IN_STOCK'
-          AND "stockQuantity" >= ${body.quantity}
-      `;
-      if (reserved === 0) {
-        await releaseCheckoutLock(checkoutLockKeyValue);
+    const reservableItems = listing.listingType === "IN_STOCK"
+      ? [{
+          listingId: listing.id,
+          sellerId: listing.sellerId,
+          quantity: body.quantity,
+          title: listing.title,
+        }]
+      : [];
+    checkoutReservationItemCount = reservableItems.length;
+    try {
+      const reservation = await createCheckoutStockReservation({
+        checkoutLockKey: checkoutLockKeyValue,
+        payloadHash,
+        buyerId: me.id,
+        sellerId: listing.sellerId,
+        items: reservableItems,
+      });
+      checkoutReservationId = reservation?.id ?? null;
+    } catch (reservationError) {
+      await releaseCheckoutLock(checkoutLockKeyValue);
+      if (reservationError instanceof CheckoutStockReservationStockError) {
         return NextResponse.json(
           { error: "Not enough stock available for this item." },
           { status: 400 },
         );
       }
-      reservedListingId = listing.id;
-      reservedSellerId = listing.sellerId;
-      reservedQuantity = body.quantity;
+      throw reservationError;
     }
 
     // Variant description suffix for Stripe line item name
@@ -436,6 +445,7 @@ export async function POST(req: Request) {
       giftWrappingPriceCents: body.giftWrapping ? String(giftWrapCents) : "",
       selectedVariants: selectedVariantsMetadata,
       checkoutLockKey: checkoutLockKeyValue,
+      ...checkoutStockReservationMetadata(checkoutReservationId),
       reservedStock: `${body.listingId}:${body.quantity}`,
     };
 
@@ -496,6 +506,40 @@ export async function POST(req: Request) {
       metadata: checkoutMetadata,
     });
 
+    if (checkoutReservationId) {
+      const reservationSessionRecorded = await markCheckoutStockReservationSession({
+        reservationId: checkoutReservationId,
+        payloadHash,
+        sessionId: session.id,
+      });
+      if (!reservationSessionRecorded) {
+        Sentry.captureMessage("Checkout stock reservation session transition rejected", {
+          level: "warning",
+          tags: { source: "checkout_stock_reservation_session", route: "single_checkout" },
+          extra: { checkoutReservationId, stripeSessionId: session.id },
+        });
+        let staleSessionExpired = false;
+        await stripe.checkout.sessions.expire(session.id).then(() => {
+          staleSessionExpired = true;
+        }).catch((error) => {
+          Sentry.captureException(error, { tags: { source: "checkout_stock_reservation_expire_stale" } });
+        });
+        if (staleSessionExpired) {
+          await restoreCheckoutStockReservationOnce({
+            reservationId: checkoutReservationId,
+            sessionId: session.id,
+            reason: "session_record_failed",
+          }).catch((error) => {
+            Sentry.captureException(error, { tags: { source: "checkout_stock_reservation_restore_stale" } });
+          });
+        }
+        return NextResponse.json(
+          { error: "Checkout state changed. Please try again." },
+          { status: 409 },
+        );
+      }
+    }
+
     try {
       const lockMarkedReady = await markCheckoutLockReady(
         checkoutLockKeyValue,
@@ -541,29 +585,24 @@ export async function POST(req: Request) {
     Sentry.captureException(err, {
       tags: { source: "checkout_single_route", route: "/api/cart/checkout/single" },
       extra: {
-        reservedListingId,
-        reservedSellerId,
-        reservedQuantity,
+        checkoutReservationId,
+        reservedItemCount: checkoutReservationItemCount,
         checkoutLockAcquired,
       },
     });
 
-    // Restore reserved stock if the Stripe session creation failed.
-    // Without this, stock is permanently lost on Stripe/DB errors.
-    if (reservedListingId && reservedQuantity > 0) {
-      await prisma.$executeRaw`
-        UPDATE "Listing"
-        SET "stockQuantity" = "stockQuantity" + ${reservedQuantity}
-        WHERE id = ${reservedListingId}
-          AND "sellerId" = ${reservedSellerId}
-          AND "listingType" = 'IN_STOCK'
-      `.catch((restoreError) => {
+    if (checkoutReservationId) {
+      await restoreCheckoutStockReservationOnce({
+        reservationId: checkoutReservationId,
+        reason: "checkout_create_error",
+        releaseLock: false,
+      }).catch((restoreError) => {
         Sentry.captureException(restoreError, {
           level: "warning",
           tags: { source: "checkout_stock_restore_failed", route: "cart_checkout_single" },
-          extra: { listingId: reservedListingId, quantity: reservedQuantity, reason: "checkout_create_error" },
+          extra: { checkoutReservationId, reason: "checkout_create_error" },
         });
-      }); // best effort — don't mask the original error
+      });
     }
 
     if (checkoutLockAcquired) {

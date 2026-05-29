@@ -130,9 +130,12 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.doesNotMatch(sellerCheckout, /console\.error\("POST \/api\/cart\/checkout-seller error:", err\)/);
     assert.doesNotMatch(singleCheckout, /console\.error\("POST \/api\/cart\/checkout\/single error:", err\)/);
     assert.match(sellerCheckout, /source: "checkout_stock_restore_failed", route: "cart_checkout_seller"/);
-    assert.match(sellerCheckout, /reason: "insufficient_stock_batch_rollback"/);
+    assert.match(sellerCheckout, /CheckoutStockReservationStockError/);
+    assert.match(sellerCheckout, /createCheckoutStockReservation/);
     assert.match(sellerCheckout, /reason: "checkout_create_error"/);
     assert.match(singleCheckout, /source: "checkout_stock_restore_failed", route: "cart_checkout_single"/);
+    assert.match(singleCheckout, /CheckoutStockReservationStockError/);
+    assert.match(singleCheckout, /createCheckoutStockReservation/);
     assert.match(singleCheckout, /reason: "checkout_create_error"/);
     assert.doesNotMatch(sellerCheckout, /\.catch\(\(\) => \{\}\)/);
     assert.doesNotMatch(singleCheckout, /\.catch\(\(\) => \{\}\)/);

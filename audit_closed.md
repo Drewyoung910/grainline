@@ -2605,11 +2605,26 @@ Last updated: 2026-05-24
      Guardrails: `tests/system-audit-log.test.mjs` and
      `tests/json-column-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 241 findings;
+259. **Checkout stock reservations made durable across pre-session failures** —
+     code/schema/test/docs fix for the verified checkout stock-reservation crash
+     window where stock was decremented before a Stripe session id existed.
+     `CheckoutStockReservation` now records reserved in-stock checkout items,
+     checkout routes create the reservation and decrement stock in one DB
+     transaction, Stripe metadata carries `checkoutReservationId`, paid webhooks
+     mark reservations `COMPLETED`, and restore paths prefer the durable
+     reservation before falling back to legacy line-item/metadata recovery. The
+     new `/api/cron/checkout-stock-reservations` job restores old no-session
+     `RESERVED` rows so a process death between DB reservation and Stripe
+     session creation no longer relies only on an in-process catch block.
+     Guardrails: `tests/checkout-stock-reservation-guardrails.test.mjs`,
+     `tests/order-state-followups.test.mjs`, and
+     `tests/payment-side-effect-observability.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 242 findings;
 verified stale/false-positive: 97 findings; product/design decisions deferred:
-41 findings. Remaining major categories: checkout concurrency integration
-evidence, Stripe webhook subscription narrowing evidence, Stripe webhook
-system-audit coverage, Round 10 deferred state-machine product designs, JSON size historical validation
+41 findings. Remaining major categories: Stripe webhook subscription narrowing
+evidence, Stripe webhook system-audit coverage, Round 10 deferred
+state-machine product designs, JSON size historical validation
 and email uniqueness production-scan decisions, email outbox retention/quota policy
 decisions, refund accounting runtime proof and refund attempt persistence
 semantics, founding-maker/quality-score consistency, case/message state-policy
