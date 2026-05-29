@@ -8,6 +8,7 @@ import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
 import { logUserAuditAction } from "@/lib/audit";
 import { normalizeEmailAddress } from "@/lib/emailSuppression";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { supportRequestAccountExportWhere } from "@/lib/supportRequest";
 
 export const runtime = "nodejs";
 
@@ -399,27 +400,25 @@ async function buildExport(user: NonNullable<ExportableUser>) {
         createdAt: true,
       },
     }),
-    accountEmail
-      ? prisma.supportRequest.findMany({
-          where: { email: accountEmail },
-          orderBy: { createdAt: "desc" },
-          select: {
-            id: true,
-            kind: true,
-            status: true,
-            name: true,
-            email: true,
-            topic: true,
-            orderId: true,
-            message: true,
-            slaDueAt: true,
-            emailSentAt: true,
-            closedAt: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        })
-      : [],
+    prisma.supportRequest.findMany({
+      where: supportRequestAccountExportWhere(user.id, accountEmail),
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        kind: true,
+        status: true,
+        name: true,
+        email: true,
+        topic: true,
+        orderId: true,
+        message: true,
+        slaDueAt: true,
+        emailSentAt: true,
+        closedAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    }),
     accountEmail
       ? prisma.emailSuppression.findMany({
           where: { email: accountEmail },

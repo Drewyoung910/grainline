@@ -49,4 +49,20 @@ describe("account export privacy coverage", () => {
       assert.match(payload, new RegExp(`${key}: data\\.${key}`), `payload must expose ${key}`);
     }
   });
+
+  it("exports support and data-request records by stable account link with email fallback", () => {
+    const schema = source("prisma/schema.prisma");
+    const route = source("src/app/api/account/export/route.ts");
+    const supportStart = route.indexOf("prisma.supportRequest.findMany");
+    const supportEnd = route.indexOf("prisma.emailSuppression.findMany", supportStart);
+    const supportBlock = route.slice(supportStart, supportEnd);
+
+    assert.match(schema, /supportRequests\s+SupportRequest\[\]/);
+    assert.match(schema, /userId\s+String\?/);
+    assert.match(schema, /user\s+User\?\s+@relation\(fields: \[userId\], references: \[id\], onDelete: SetNull\)/);
+    assert.match(schema, /@@index\(\[userId, createdAt\]\)/);
+    assert.ok(supportStart >= 0, "account export must query supportRequest");
+    assert.match(supportBlock, /supportRequestAccountExportWhere\(user\.id, accountEmail\)/);
+    assert.doesNotMatch(supportBlock, /where:\s*\{\s*email:\s*accountEmail\s*\}/);
+  });
 });

@@ -11,6 +11,10 @@ export type NormalizedSupportRequest = {
   orderId: string | null;
 };
 
+type SupportRequestAccountExportWhere =
+  | { userId: string }
+  | { OR: Array<{ userId: string } | { email: string }> };
+
 const SUPPORT_TOPICS = new Set([
   "order",
   "account",
@@ -115,6 +119,14 @@ export function supportRequestStorageKind(kind: SupportRequestKind) {
 
 export function supportRequestSlaDueAt(createdAt = new Date()) {
   return new Date(createdAt.getTime() + 45 * 24 * 60 * 60 * 1000);
+}
+
+export function supportRequestAccountExportWhere(
+  userId: string,
+  accountEmail: string | null,
+): SupportRequestAccountExportWhere {
+  if (!accountEmail) return { userId };
+  return { OR: [{ userId }, { email: accountEmail }] };
 }
 
 export function supportRequestSubject(request: NormalizedSupportRequest, requestId?: string) {

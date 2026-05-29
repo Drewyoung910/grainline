@@ -2620,7 +2620,19 @@ Last updated: 2026-05-24
      `tests/order-state-followups.test.mjs`, and
      `tests/payment-side-effect-observability.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 242 findings;
+260. **Support/data-request exports now survive account email changes** —
+     code/schema/test/docs fix for the verified account-export portability gap
+     in Round 8 #757 / Round 9 #868 follow-up scope. `SupportRequest` rows now
+     carry a nullable `userId` relation for signed-in support and privacy-rights
+     submissions, the migration backfills rows whose normalized email matches a
+     current account, and `/api/account/export` queries support/data-request
+     rows by stable account id plus current-email fallback instead of current
+     email only. Public support/legal intake remains public and
+     suspended-account-allowed. Guardrails: `tests/support-request.test.mjs`,
+     `tests/account-export-privacy.test.mjs`, and
+     `tests/account-privacy-observability.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 243 findings;
 verified stale/false-positive: 97 findings; product/design decisions deferred:
 41 findings. Remaining major categories: Stripe webhook subscription narrowing
 evidence, Stripe webhook system-audit coverage, Round 10 deferred
@@ -2628,7 +2640,7 @@ state-machine product designs, JSON size historical validation
 and email uniqueness production-scan decisions, email outbox retention/quota policy
 decisions, refund accounting runtime proof and refund attempt persistence
 semantics, founding-maker/quality-score consistency, case/message state-policy
-decisions, account export/legal retention scope, remaining privacy/export
+decisions, privacy/legal retention scope, remaining privacy/export
 retention decisions, cross-seller AI duplicate-detection product design, CSP
 `unsafe-eval` rollout monitoring, partial multi-seller checkout continuation
 design, deliberate BigInt money-column modeling, and live-data reconciliation

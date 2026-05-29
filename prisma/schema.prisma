@@ -110,6 +110,7 @@ model User {
   follows            Follow[]            @relation("UserFollows")
   savedBlogPosts     SavedBlogPost[]
   commissionRequests CommissionRequest[] @relation("CommissionRequests")
+  supportRequests    SupportRequest[]
 
   // Raw DB function grainline_notification_preferences_valid() enforces known
   // boolean keys. Update that migration-managed function when adding keys in
@@ -1163,6 +1164,8 @@ enum SupportRequestStatus {
 
 model SupportRequest {
   id             String               @id @default(cuid())
+  userId         String?
+  user           User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
   kind           SupportRequestKind
   status         SupportRequestStatus @default(OPEN)
   name           String?              @db.VarChar(100)
@@ -1178,6 +1181,7 @@ model SupportRequest {
   updatedAt      DateTime             @updatedAt
 
   @@index([kind, status, slaDueAt])
+  @@index([userId, createdAt])
   @@index([email, createdAt])
   @@index([status, createdAt])
 }

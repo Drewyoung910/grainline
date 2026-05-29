@@ -46,6 +46,21 @@ describe("account and privacy route observability guardrails", () => {
     }
   });
 
+  it("links signed-in support and privacy requests to the local account without requiring auth", () => {
+    const support = source("src/app/api/support/route.ts");
+    const dataRequest = source("src/app/api/legal/data-request/route.ts");
+    const accountLink = source("src/lib/supportRequestAccount.ts");
+
+    assert.match(accountLink, /auth\(\)/);
+    assert.match(accountLink, /where: \{ clerkId: clerkUserId \}/);
+    assert.match(accountLink, /select: \{ id: true \}/);
+    for (const route of [support, dataRequest]) {
+      assert.match(route, /currentSupportRequestUserId\(\)/);
+      assert.match(route, /userId: requesterUserId/);
+      assert.doesNotMatch(route, /ensureUser/);
+    }
+  });
+
   it("captures unsubscribe processing failures with hashed email telemetry only", () => {
     const route = source("src/app/api/email/unsubscribe/route.ts");
 

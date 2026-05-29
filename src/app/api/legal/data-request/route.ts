@@ -18,6 +18,7 @@ import {
   supportRequestStorageKind,
   supportRequestSubject,
 } from "@/lib/supportRequest";
+import { currentSupportRequestUserId } from "@/lib/supportRequestAccount";
 
 const DATA_REQUEST_BODY_MAX_BYTES = 24 * 1024;
 
@@ -41,10 +42,12 @@ export async function POST(req: Request) {
 
   const slaDueAt = supportRequestSlaDueAt();
   const emailHash = hashEmailForTelemetry(normalized.request.email);
+  const requesterUserId = await currentSupportRequestUserId();
   let record: { id: string; slaDueAt: Date };
   try {
     record = await prisma.supportRequest.create({
       data: {
+        userId: requesterUserId,
         kind: supportRequestStorageKind(normalized.request.kind),
         name: normalized.request.name,
         email: normalized.request.email,

@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-const { normalizeSupportRequest } = await import("../src/lib/supportRequest.ts");
+const {
+  normalizeSupportRequest,
+  supportRequestAccountExportWhere,
+  supportRequestSlaDueAt,
+} = await import("../src/lib/supportRequest.ts");
 
 const source = readFileSync(new URL("../src/lib/supportRequest.ts", import.meta.url), "utf8");
 
@@ -44,7 +48,16 @@ describe("support request helpers", () => {
   });
 
   it("computes a 45-day SLA due date for verifiable data requests", () => {
-    assert.match(source, /supportRequestSlaDueAt/);
-    assert.match(source, /45 \* 24 \* 60 \* 60 \* 1000/);
+    assert.equal(
+      supportRequestSlaDueAt(new Date("2026-05-01T00:00:00.000Z")).toISOString(),
+      "2026-06-15T00:00:00.000Z",
+    );
+  });
+
+  it("matches account exports by stable user id with current-email fallback", () => {
+    assert.deepEqual(supportRequestAccountExportWhere("user_123", "buyer@example.com"), {
+      OR: [{ userId: "user_123" }, { email: "buyer@example.com" }],
+    });
+    assert.deepEqual(supportRequestAccountExportWhere("user_123", null), { userId: "user_123" });
   });
 });
