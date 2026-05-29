@@ -2744,9 +2744,21 @@ Last updated: 2026-05-24
      `tests/stripe-connect-v2.test.mjs` and
      `tests/ratelimit-policy.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 253 findings;
+271. **Public security configuration hygiene tightened** — code/test/docs fix
+     for #712, #713, #715, and #716. Tracked agent docs no longer carry the
+     private founder inbox or residential formation-address note, `robots.txt`
+     now also disallows `/account` and `/messages`, `package.json` declares the
+     Node 22 runtime expected by CI/production builds, and `next.config.ts`
+     explicitly keeps production browser source maps disabled. The adjacent
+     #714 `i.postimg.cc` display-only media allowance was not changed because
+     current code still uses `isTrustedMediaUrl()` for legacy display reads and
+     removing that host needs a production-data scan first. Guardrails:
+     `tests/public-security-config.test.mjs` and
+     `tests/dependency-hygiene.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 257 findings;
 verified stale/false-positive: 100 findings; product/design decisions deferred:
-38 findings. Remaining major categories: Stripe webhook subscription narrowing
+39 findings. Remaining major categories: Stripe webhook subscription narrowing
 evidence, Round 10 deferred state-machine product designs, JSON size historical
 validation and email uniqueness production-scan decisions, email outbox
 retention/quota policy decisions, refund accounting runtime proof and refund
@@ -2756,4 +2768,5 @@ remaining privacy/export retention decisions, cross-seller AI duplicate-detectio
 product design, CSP `unsafe-eval` rollout monitoring, partial multi-seller
 checkout continuation design, deliberate BigInt money-column modeling, and
 live-data reconciliation for historical seller shipping-rate currency drift,
-plus support context structured-field design (#168).
+legacy display-only media host validation, plus support context structured-field
+design (#168).

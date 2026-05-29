@@ -24,6 +24,14 @@ describe("dependency hygiene guardrails", () => {
     assert.equal(devDeps["@types/sanitize-html"], "^2.16.1");
   });
 
+  it("declares the Node runtime expected by CI and production builds", () => {
+    const pkg = json("package.json");
+    const lock = json("package-lock.json");
+
+    assert.equal(pkg.engines?.node, ">=22");
+    assert.equal(lock.packages?.[""]?.engines?.node, ">=22");
+  });
+
   it("does not reintroduce stale marked ambient types", () => {
     const pkg = json("package.json");
     const lock = source("package-lock.json");

@@ -2898,7 +2898,7 @@ The `chargesEnabled Boolean @default(false)` field caused all existing sellers t
 
 ### DMCA Designated Agent
 - Registration: DMCA-1071504
-- Service Provider: Grainline LLC (258 Roehl Rd, Yorktown TX 78164 — matches LLC Certificate of Formation)
+- Service Provider: Grainline LLC (address on file with the DMCA directory; use the registered-agent public address in site copy)
 - Designated Agent: Joseph Young c/o Registered Agents Inc., 5900 Balcones Drive STE 100, Austin TX 78731
 - Email: legal@thegrainline.com
 - Update at: copyright.gov DMCA Designated Agent Directory
@@ -2911,7 +2911,7 @@ The `chargesEnabled Boolean @default(false)` field caused all existing sellers t
 
 ### Cloudflare Email Routing (set up 2026-04-14)
 - Domain: thegrainline.com
-- Routing addresses (all forward to drewyoung910@gmail.com):
+- Routing addresses (all forward to the private founder inbox):
   - legal@thegrainline.com (DMCA, legal notices)
   - support@thegrainline.com (general support)
   - hello@thegrainline.com

@@ -7,6 +7,8 @@ Allow: /
 Crawl-delay: 10
 Disallow: /dashboard
 Disallow: /admin
+Disallow: /account
+Disallow: /messages
 Disallow: /cart
 Disallow: /checkout
 Disallow: /sign-in
