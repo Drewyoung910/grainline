@@ -23,11 +23,18 @@ type CookieWriter = {
 
 export function parseTrackingIds(value: string | undefined): string[] {
   if (!value) return [];
-  return value
-    .split(",")
-    .map((id) => id.trim())
-    .filter(Boolean)
-    .slice(0, MAX_TRACKING_IDS);
+  const ids: string[] = [];
+  const seen = new Set<string>();
+
+  for (const rawId of value.split(",")) {
+    const id = rawId.trim();
+    if (!id || seen.has(id)) continue;
+    ids.push(id);
+    seen.add(id);
+    if (ids.length >= MAX_TRACKING_IDS) break;
+  }
+
+  return ids;
 }
 
 export function hasTrackingCookie(

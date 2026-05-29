@@ -2468,7 +2468,25 @@ Last updated: 2026-05-24
      `tests/dependency-hygiene.test.mjs`, plus manual verification with
      `npm ls @hono/node-server --depth=10`.
 
-**Running tally after this pass:** verified fixed/reduced: 219 findings;
+248. **Low-level helper input and copy guardrails reduced** — code/test/docs
+     fix for #272, #291, #292, #294, #296, #303, #304, and #306. Image
+     re-crop fetches now abort stalled URL loads instead of waiting
+     indefinitely. Slugged public routes validate extracted ids before Prisma
+     lookups and reject malformed slug-only segments. Seller shop hide actions
+     now allow `SOLD_OUT` listings, matching public sold-out detail visibility.
+     Tag normalization strips bidi controls after Unicode decomposition, and
+     tracking-cookie parsing deduplicates ids before applying the aggregate
+     cap. Support request email normalization explicitly rejects control
+     characters. Client API error rendering still accepts structured JSON and
+     bounded `text/plain` 4xx copy, but no longer surfaces raw 5xx or HTML
+     framework error bodies to users. Partial-refund case copy no longer
+     renders `$0.00` when older rows lack a refund amount. Guardrails:
+     `tests/image-file-from-url.test.mjs`, `tests/public-paths.test.mjs`,
+     `tests/listing-action-state.test.mjs`, `tests/tags.test.mjs`,
+     `tests/listing-tracking-cookies.test.mjs`, `tests/support-request.test.mjs`,
+     `tests/api-error.test.mjs`, and `tests/case-resolution-copy.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 227 findings;
 verified stale/false-positive: 97 findings; product/design decisions deferred:
 44 findings. Remaining major categories: checkout concurrency integration
 evidence, Stripe webhook subscription narrowing evidence, Round 10 deferred

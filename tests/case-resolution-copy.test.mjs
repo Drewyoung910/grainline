@@ -22,6 +22,14 @@ describe("case resolution copy", () => {
     assert.equal(copy.refunding, true);
   });
 
+  it("does not render a zero-dollar partial refund when older rows lack an amount", () => {
+    const copy = caseResolutionCopy("REFUND_PARTIAL", null, "usd");
+
+    assert.equal(copy.body, "A partial refund has been issued to your original payment method.");
+    assert.doesNotMatch(copy.body, /\$0\.00/);
+    assert.equal(copy.refunding, true);
+  });
+
   it("does not imply a refund for dismissed cases", () => {
     const copy = caseResolutionCopy("DISMISSED", null, "usd");
 

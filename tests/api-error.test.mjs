@@ -41,4 +41,22 @@ describe("api error messages", () => {
 
     assert.equal(await readApiErrorMessage(response, "Fallback"), "Too many requests. Try again in 2 minutes.");
   });
+
+  it("does not surface raw 5xx text bodies", async () => {
+    const response = new Response("Prisma timeout at internal-host.example", {
+      status: 500,
+      headers: { "content-type": "text/plain" },
+    });
+
+    assert.equal(await readApiErrorMessage(response, "Fallback"), "Fallback");
+  });
+
+  it("does not surface HTML error pages as user-facing copy", async () => {
+    const response = new Response("<html><body>Bad gateway</body></html>", {
+      status: 502,
+      headers: { "content-type": "text/html" },
+    });
+
+    assert.equal(await readApiErrorMessage(response, "Fallback"), "Fallback");
+  });
 });

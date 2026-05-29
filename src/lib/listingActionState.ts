@@ -11,8 +11,8 @@ export type ListingActionState = {
 };
 
 export function hideListingBlockReason(listing: ListingActionState) {
-  if (listing.status !== ListingStatus.ACTIVE) {
-    return "Only active listings can be hidden.";
+  if (listing.status !== ListingStatus.ACTIVE && listing.status !== ListingStatus.SOLD_OUT) {
+    return "Only active or sold-out listings can be hidden.";
   }
   return null;
 }

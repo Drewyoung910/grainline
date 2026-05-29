@@ -1,3 +1,5 @@
+const MAX_TEXT_ERROR_MESSAGE_LENGTH = 200;
+
 function retryAfterCopy(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds <= 0) return "";
   if (seconds < 60) return "Try again in a moment.";
@@ -13,6 +15,7 @@ function stringField(value: unknown): string | null {
 
 export async function readApiErrorMessage(response: Response, fallback: string): Promise<string> {
   const text = await response.text().catch(() => "");
+  const contentType = response.headers.get("content-type") ?? "";
   let body: { error?: unknown; message?: unknown; retryAfterSeconds?: unknown } | null = null;
   try {
     body = text ? JSON.parse(text) : null;
@@ -20,10 +23,14 @@ export async function readApiErrorMessage(response: Response, fallback: string):
     body = null;
   }
 
+  const textMessage =
+    response.status < 500 && /^text\/plain\b/i.test(contentType)
+      ? stringField(text)?.slice(0, MAX_TEXT_ERROR_MESSAGE_LENGTH)
+      : null;
   const message =
     stringField(body?.error) ??
     stringField(body?.message) ??
-    stringField(text) ??
+    textMessage ??
     fallback;
 
   if (response.status !== 429 || /\btry again\b/i.test(message)) {

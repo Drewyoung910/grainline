@@ -15,6 +15,7 @@ describe("tag normalization", () => {
 
   it("strips bidirectional controls and caps tag length", () => {
     assert.equal(normalizeTag("refund\u202Egpj.exe"), "refundgpj-exe");
+    assert.equal(normalizeTag("oak\u061C-maple"), "oak-maple");
     assert.equal(normalizeTag("a".repeat(40)), "a".repeat(24));
   });
 

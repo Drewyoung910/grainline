@@ -1,4 +1,4 @@
-import { normalizeUserText, truncateText } from "@/lib/sanitize";
+import { normalizeUserText, truncateText } from "./sanitize.ts";
 
 export type SupportRequestKind = "support" | "data_request";
 
@@ -33,10 +33,13 @@ const DATA_REQUEST_TOPICS = new Set([
 const DANGEROUS_BLOCK_TAGS = /<\s*(script|style|iframe|object|embed)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi;
 const COMMON_HTML_TAGS = /<\/?(?:a|abbr|article|aside|b|blockquote|br|button|code|dd|div|dl|dt|em|fieldset|footer|form|h[1-6]|header|hr|i|img|input|label|li|main|nav|ol|option|p|pre|section|select|small|span|strong|table|tbody|td|textarea|tfoot|th|thead|tr|u|ul)[^>]*>/gi;
 const SUPPORT_EMAIL_PATTERN = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
+const EMAIL_CONTROL_CHARS = /[\u0000-\u001F\u007F]/;
 
 function normalizeEmailAddress(email: string | null | undefined): string | null {
   const normalized = normalizeUserText(email ?? "").trim().normalize("NFC").toLowerCase();
-  if (!normalized || !SUPPORT_EMAIL_PATTERN.test(normalized)) return null;
+  if (!normalized || EMAIL_CONTROL_CHARS.test(normalized) || !SUPPORT_EMAIL_PATTERN.test(normalized)) {
+    return null;
+  }
   return normalized;
 }
 

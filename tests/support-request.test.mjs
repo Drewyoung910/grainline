@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
+const { normalizeSupportRequest } = await import("../src/lib/supportRequest.ts");
+
 const source = readFileSync(new URL("../src/lib/supportRequest.ts", import.meta.url), "utf8");
 
 describe("support request helpers", () => {
@@ -16,10 +18,20 @@ describe("support request helpers", () => {
 
   it("rejects invalid or empty requests", () => {
     assert.match(source, /const SUPPORT_EMAIL_PATTERN = \/\^\[A-Z0-9\._%\+-\]\+\@\[A-Z0-9\.-\]\+\\\.\[A-Z\]\{2,\}\$\/i/);
-    assert.match(source, /if \(!normalized \|\| !SUPPORT_EMAIL_PATTERN\.test\(normalized\)\) return null/);
+    assert.match(source, /EMAIL_CONTROL_CHARS\.test\(normalized\)/);
+    assert.match(source, /!SUPPORT_EMAIL_PATTERN\.test\(normalized\)/);
     assert.match(source, /message\.length < 10/);
     assert.match(source, /Enter a valid email address/);
     assert.match(source, /Add a few details so we can help/);
+  });
+
+  it("rejects support email addresses containing control characters", () => {
+    const normalized = normalizeSupportRequest("support", {
+      email: "buyer@example.com\nbcc:attacker@example.com",
+      message: "I need help with an order.",
+    });
+
+    assert.deepEqual(normalized, { ok: false, error: "Enter a valid email address." });
   });
 
   it("routes data requests to legal and escapes email HTML", () => {

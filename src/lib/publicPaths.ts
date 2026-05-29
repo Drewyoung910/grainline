@@ -1,5 +1,6 @@
 const MAX_SLUG_LENGTH = 80;
 const ROUTE_ID_DELIMITER = "--";
+const ROUTE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{1,127}$/;
 
 function stableHash(input: string): string {
   let hash = 2166136261;
@@ -33,7 +34,9 @@ export function routeSegmentWithSlug(id: string, label: string | null | undefine
 }
 
 export function extractRouteId(segment: string): string {
-  return segment.split(ROUTE_ID_DELIMITER, 1)[0] || segment;
+  const delimiterIndex = segment.indexOf(ROUTE_ID_DELIMITER);
+  const candidate = delimiterIndex >= 0 ? segment.slice(0, delimiterIndex) : segment;
+  return ROUTE_ID_PATTERN.test(candidate) ? candidate : "";
 }
 
 export function publicListingPath(id: string, title?: string | null): string {

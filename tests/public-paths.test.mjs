@@ -32,4 +32,10 @@ describe("public path helpers", () => {
     assert.equal(extractRouteId("clisting123"), "clisting123");
     assert.equal(extractRouteId("clisting123--cafe-table"), "clisting123");
   });
+
+  it("rejects malformed slug-only route segments instead of querying them as ids", () => {
+    assert.equal(extractRouteId("--evil-slug"), "");
+    assert.equal(extractRouteId("../evil"), "");
+    assert.equal(extractRouteId(""), "");
+  });
 });

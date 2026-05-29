@@ -21,8 +21,9 @@ function listing(overrides = {}) {
 }
 
 describe("listing shop action state", () => {
-  it("hides only active listings", () => {
+  it("hides active and sold-out listings", () => {
     assert.equal(hideListingBlockReason(listing()), null);
+    assert.equal(hideListingBlockReason(listing({ status: ListingStatus.SOLD_OUT })), null);
     assert.match(hideListingBlockReason(listing({ status: ListingStatus.SOLD })), /Only active/);
     assert.match(hideListingBlockReason(listing({ status: ListingStatus.HIDDEN })), /Only active/);
   });

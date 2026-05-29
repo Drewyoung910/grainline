@@ -13,6 +13,10 @@ function formatCaseRefundAmount(cents: number | null | undefined, currency: stri
   }
 }
 
+function hasPositiveRefundAmount(cents: number | null | undefined) {
+  return typeof cents === "number" && Number.isFinite(cents) && cents > 0;
+}
+
 export function caseResolutionCopy(
   resolution: CaseResolutionKind | string,
   refundAmountCents?: number | null,
@@ -29,10 +33,14 @@ export function caseResolutionCopy(
   }
 
   if (resolution === "REFUND_PARTIAL") {
-    const amount = formatCaseRefundAmount(refundAmountCents, currency);
+    const amount = hasPositiveRefundAmount(refundAmountCents)
+      ? formatCaseRefundAmount(refundAmountCents, currency)
+      : null;
     return {
       notificationTitle: "Partial refund issued",
-      body: `A partial refund of ${amount} has been issued to your original payment method.`,
+      body: amount
+        ? `A partial refund of ${amount} has been issued to your original payment method.`
+        : "A partial refund has been issued to your original payment method.",
       emailSubject: "Partial refund issued for your case",
       emailHeading: "Partial Refund Issued",
       refunding: true,
