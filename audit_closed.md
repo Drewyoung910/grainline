@@ -2450,8 +2450,26 @@ Last updated: 2026-05-24
      `tests/cron-monitor-state.test.mjs`, `tests/cron-run.test.mjs`, and
      `tests/cron-auth.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 215 findings;
-verified stale/false-positive: 96 findings; product/design decisions deferred:
+247. **Dependency hygiene and Dependabot visibility reduced** — code/test/docs
+     fix for #337, #338, #339, and #340, plus verified stale/false-positive
+     closure for #341. Dependabot no longer ignores every semver-major npm
+     update; weekly minor/patch updates remain grouped, while major updates
+     are grouped separately for manual review so security-relevant majors stay
+     visible without scattering many PRs. The CI/production install-script
+     difference is now documented as intentional: CI uses
+     `npm ci --ignore-scripts` plus explicit `npx prisma generate`, while
+     Vercel production keeps normal npm lifecycle behavior before
+     `prisma generate && next build`. `@types/marked` was removed because
+     `marked` ships its own types, and direct `@types/pg` plus
+     `@types/sanitize-html` were moved to dev dependencies. #341 was
+     false-positive on current npm resolution: `@hono/node-server` resolves
+     to 1.19.13 through the existing override, and the older version string is
+     only Prisma dependency metadata in the lockfile. Guardrails:
+     `tests/dependency-hygiene.test.mjs`, plus manual verification with
+     `npm ls @hono/node-server --depth=10`.
+
+**Running tally after this pass:** verified fixed/reduced: 219 findings;
+verified stale/false-positive: 97 findings; product/design decisions deferred:
 44 findings. Remaining major categories: checkout concurrency integration
 evidence, Stripe webhook subscription narrowing evidence, Round 10 deferred
 system-audit and state-machine product designs, JSON shape/size and email
@@ -2461,6 +2479,5 @@ semantics, founding-maker/quality-score consistency, case/message state-policy
 decisions, account export/legal retention scope, remaining privacy/export
 retention decisions, anonymous-cart merge bulk/performance design, broader
 React `cache()` opportunities beyond the seller page, cross-seller AI
-duplicate-detection product design, CSP `unsafe-eval` rollout monitoring,
-partial multi-seller checkout continuation design, and dependency hygiene
-cleanup.
+duplicate-detection product design, CSP `unsafe-eval` rollout monitoring, and
+partial multi-seller checkout continuation design.
