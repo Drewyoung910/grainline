@@ -20,6 +20,7 @@ import { normalizeTag } from "@/lib/tags";
 import { listingEditBlockReason } from "@/lib/listingEditState";
 import { parseJsonArrayField } from "@/lib/formJson";
 import { parseMoneyInputToCents } from "@/lib/money";
+import { listingPriceMaxError } from "@/lib/listingPrice";
 import {
   normalizeVariantPriceAdjustCents,
   validateVariantGroupsForBasePrice,
@@ -261,7 +262,8 @@ async function updateListing(
   if (!title || priceCents === null || priceCents <= 0) {
     return { ok: false, error: "Please provide a valid title and price." };
   }
-  if (priceCents > 10000000) return { ok: false, error: "Price cannot exceed $100,000." };
+  const priceMaxError = listingPriceMaxError(priceCents);
+  if (priceMaxError) return { ok: false, error: priceMaxError };
   const variantPriceError = validateVariantGroupsForBasePrice(variantGroups, priceCents);
   if (variantPriceError) return { ok: false, error: variantPriceError };
   if (listingType === "IN_STOCK" && stockQuantity === null) {

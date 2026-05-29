@@ -26,6 +26,7 @@ import { publicListingPath } from "@/lib/publicPaths";
 import { normalizeTag } from "@/lib/tags";
 import { parseJsonArrayField } from "@/lib/formJson";
 import { parseMoneyInputToCents } from "@/lib/money";
+import { listingPriceMaxError } from "@/lib/listingPrice";
 import {
   normalizeVariantPriceAdjustCents,
   validateVariantGroupsForBasePrice,
@@ -194,7 +195,8 @@ async function createListing(_prevState: unknown, formData: FormData) {
     return { ok: false, error: "Please fill title, price, and upload at least one photo." };
   }
   if (priceCents < 0) return { ok: false, error: "Price cannot be negative." };
-  if (priceCents > 10000000) return { ok: false, error: "Price cannot exceed $100,000." };
+  const priceMaxError = listingPriceMaxError(priceCents);
+  if (priceMaxError) return { ok: false, error: priceMaxError };
   const variantPriceError = validateVariantGroupsForBasePrice(variantGroups, priceCents);
   if (variantPriceError) return { ok: false, error: variantPriceError };
   if (listingType === "IN_STOCK" && stockQuantity === null) {

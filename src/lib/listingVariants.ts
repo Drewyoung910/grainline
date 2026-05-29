@@ -1,3 +1,5 @@
+import { MAX_LISTING_PRICE_CENTS } from "./listingPrice.ts";
+
 type VariantOption = {
   id: string;
   label: string;
@@ -14,7 +16,7 @@ type VariantGroup = {
 export const MIN_VARIANT_PRICE_ADJUST_CENTS = -10_000_000;
 export const MAX_VARIANT_PRICE_ADJUST_CENTS = 10_000_000;
 export const MIN_VARIANT_UNIT_PRICE_CENTS = 1;
-export const MAX_VARIANT_UNIT_PRICE_CENTS = 10_000_000;
+export const MAX_VARIANT_UNIT_PRICE_CENTS = MAX_LISTING_PRICE_CENTS;
 
 export type SelectedVariantSnapshot = {
   groupName: string;

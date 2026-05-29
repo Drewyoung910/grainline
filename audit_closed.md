@@ -2562,7 +2562,18 @@ Last updated: 2026-05-24
      the non-preference historical size constraints. Guardrail:
      `tests/json-column-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 234 findings;
+255. **Custom-listing price cap aligned with public listing cap** — code/test
+     fix for the code-fixable subset of #984. Standard listing create/edit
+     already capped seller-entered prices at $100,000, and cart quantity caps
+     bound normal checkout totals; custom private listings missed that same
+     cap. Listing create, edit, and custom-order listing creation now use the
+     shared `listingPriceMaxError()` helper, and variant unit-price validation
+     derives its cap from the same listing-price constant. The broader
+     `Int`-to-`BigInt` money-column change remains a deferred data-model
+     decision because it touches persisted order and seller-metrics contracts.
+     Guardrail: `tests/listing-price-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 235 findings;
 verified stale/false-positive: 97 findings; product/design decisions deferred:
 41 findings. Remaining major categories: checkout concurrency integration
 evidence, Stripe webhook subscription narrowing evidence, Round 10 deferred
@@ -2573,5 +2584,5 @@ semantics, founding-maker/quality-score consistency, case/message state-policy
 decisions, account export/legal retention scope, remaining privacy/export
 retention decisions, cross-seller AI duplicate-detection product design, CSP
 `unsafe-eval` rollout monitoring, partial multi-seller checkout continuation
-design, and live-data reconciliation for historical seller shipping-rate
-currency drift.
+design, deliberate BigInt money-column modeling, and live-data reconciliation
+for historical seller shipping-rate currency drift.

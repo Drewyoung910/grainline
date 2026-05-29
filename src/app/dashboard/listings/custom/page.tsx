@@ -19,6 +19,7 @@ import type { AIReviewResult } from "@/lib/ai-review";
 import { publicListingPath } from "@/lib/publicPaths";
 import { parseJsonArrayField, parseJsonObjectField } from "@/lib/formJson";
 import { parseMoneyInputToCents } from "@/lib/money";
+import { listingPriceMaxError } from "@/lib/listingPrice";
 import { listingCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { backfillEmptyAltTexts } from "@/lib/photoAltTextBackfill";
 import { MAX_MANUAL_STOCK_QUANTITY } from "@/lib/stockMutationState";
@@ -72,6 +73,8 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
   if (!title || priceCents === null || priceCents <= 0) {
     return { ok: false, error: "Please fill title and price." };
   }
+  const priceMaxError = listingPriceMaxError(priceCents);
+  if (priceMaxError) return { ok: false, error: priceMaxError };
 
   // Photos (optional for custom listings)
   let imageUrls: string[] = [];
