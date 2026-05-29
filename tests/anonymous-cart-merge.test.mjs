@@ -60,4 +60,32 @@ describe("anonymous cart merge durability", () => {
     assert.deepEqual(result.remainingItems.map((cartItem) => cartItem.lineKey), ["network"]);
     assert.deepEqual(result.errors, ["Saved cart items could not be restored right now."]);
   });
+
+  it("merges saved cart lines with bounded concurrency while preserving retry order", async () => {
+    let active = 0;
+    let maxActive = 0;
+    const items = [item("a"), item("b"), item("c"), item("d"), item("e")];
+
+    const result = await mergeAnonymousCartItemsToAccount(
+      items,
+      async (cartItem) => {
+        active += 1;
+        maxActive = Math.max(maxActive, active);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        active -= 1;
+
+        if (cartItem.lineKey === "b" || cartItem.lineKey === "d") {
+          return { ok: false, status: 503, error: `${cartItem.lineKey} retry later` };
+        }
+        return { ok: true };
+      },
+      2,
+    );
+
+    assert.equal(maxActive, 2);
+    assert.equal(result.mergedCount, 3);
+    assert.equal(result.retryableFailure, true);
+    assert.deepEqual(result.remainingItems.map((cartItem) => cartItem.lineKey), ["b", "d"]);
+    assert.deepEqual(result.errors, ["b retry later", "d retry later"]);
+  });
 });

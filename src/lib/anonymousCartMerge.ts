@@ -1,4 +1,7 @@
 import type { AnonymousCartItem } from "./anonymousCart";
+import { mapWithConcurrency } from "./concurrency.ts";
+
+export const ANONYMOUS_CART_MERGE_CONCURRENCY = 4;
 
 export type AnonymousCartAddResult =
   | { ok: true }
@@ -34,6 +37,7 @@ function displayErrors(errors: string[]): string[] {
 export async function mergeAnonymousCartItemsToAccount(
   items: AnonymousCartItem[],
   addItem: (item: AnonymousCartItem) => Promise<AnonymousCartAddResult>,
+  concurrency = ANONYMOUS_CART_MERGE_CONCURRENCY,
 ): Promise<AnonymousCartMergeResult> {
   let mergedCount = 0;
   let rejectedCount = 0;
@@ -41,28 +45,34 @@ export async function mergeAnonymousCartItemsToAccount(
   const remainingItems: AnonymousCartItem[] = [];
   const errors: string[] = [];
 
-  for (const item of items) {
-    try {
-      const result = await addItem(item);
-      if (result.ok) {
-        mergedCount += 1;
-        continue;
-      }
+  const attempts = await mapWithConcurrency(items, concurrency, async (item) => addItem(item));
 
-      if (isRetryableAnonymousCartMergeStatus(result.status)) {
-        retryableFailure = true;
-        remainingItems.push(item);
-        errors.push(retryableMessage(result.status, result.error));
-        continue;
-      }
+  for (let index = 0; index < attempts.length; index += 1) {
+    const item = items[index];
+    const attempt = attempts[index];
 
-      rejectedCount += 1;
-      errors.push(rejectedMessage(item, result.error));
-    } catch {
+    if (attempt.status === "rejected") {
       retryableFailure = true;
       remainingItems.push(item);
       errors.push("Saved cart items could not be restored right now.");
+      continue;
     }
+
+    const result = attempt.value;
+    if (result.ok) {
+      mergedCount += 1;
+      continue;
+    }
+
+    if (isRetryableAnonymousCartMergeStatus(result.status)) {
+      retryableFailure = true;
+      remainingItems.push(item);
+      errors.push(retryableMessage(result.status, result.error));
+      continue;
+    }
+
+    rejectedCount += 1;
+    errors.push(rejectedMessage(item, result.error));
   }
 
   return {

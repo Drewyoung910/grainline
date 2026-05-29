@@ -2486,7 +2486,19 @@ Last updated: 2026-05-24
      `tests/listing-tracking-cookies.test.mjs`, `tests/support-request.test.mjs`,
      `tests/api-error.test.mjs`, and `tests/case-resolution-copy.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 227 findings;
+249. **Anonymous-cart merge bulk-performance gap reduced** — code/test/docs fix
+     for #774. Sign-in cart restoration still preserves the existing durability
+     semantics from #771/#889: successfully merged lines and terminally
+     rejected lines leave local storage, while auth/rate-limit/network/5xx
+     failures stay retryable. The merge helper now runs add attempts through
+     bounded concurrency instead of one long sequential browser loop, preserving
+     source order for retryable lines and avoiding unbounded browser request
+     fan-out. Read-only agent re-verification in the same pass confirmed #1098
+     and #1108-#1111 are stale on current `main`; those were already closed in
+     prior entries and were not double-counted. Guardrail:
+     `tests/anonymous-cart-merge.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 228 findings;
 verified stale/false-positive: 97 findings; product/design decisions deferred:
 44 findings. Remaining major categories: checkout concurrency integration
 evidence, Stripe webhook subscription narrowing evidence, Round 10 deferred
@@ -2495,7 +2507,6 @@ uniqueness production-scan decisions, email outbox retention/quota/versioning
 design, refund accounting runtime proof and refund attempt persistence
 semantics, founding-maker/quality-score consistency, case/message state-policy
 decisions, account export/legal retention scope, remaining privacy/export
-retention decisions, anonymous-cart merge bulk/performance design, broader
-React `cache()` opportunities beyond the seller page, cross-seller AI
-duplicate-detection product design, CSP `unsafe-eval` rollout monitoring, and
-partial multi-seller checkout continuation design.
+retention decisions, broader React `cache()` opportunities beyond the seller
+page, cross-seller AI duplicate-detection product design, CSP `unsafe-eval`
+rollout monitoring, and partial multi-seller checkout continuation design.
