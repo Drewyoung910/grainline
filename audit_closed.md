@@ -3241,9 +3241,67 @@ Last updated: 2026-05-30
      `tests/internal-return-url.test.mjs`, `tests/stripe-redirect-state.test.mjs`,
      and `tests/local-account-state.test.mjs`.
 
+312. **Round 9 chain, ASVS, and observability slices reverified** —
+     source/test/docs closure for #348-#354, #356-#389 except the explicitly
+     deferred external-evidence items below. Photo mutation bypass chains are
+     stale: the old photo POST route is disabled, listing edit-save validates
+     new photo URLs with uploader ownership, and ACTIVE listing edits re-run AI
+     review. Similar listings apply reciprocal block seller filtering before raw
+     SQL results return. Seller/user text sanitizers now strip HTML with
+     `sanitize-html`, while blog markdown remains on its separate
+     `sanitize-html` pipeline. Founding Maker numbering is serialized with a
+     Postgres advisory transaction lock, blog comment notifications dedupe by
+     comment id, republishing no longer looks like first publish, dev order
+     fixtures require local development plus an explicit env flag, and saved
+     searches sort normalized tags plus rate-limit GET/POST/DELETE. Verification
+     applications, support forms, and legal data requests use fail-closed rate
+     limits before durable work. Guild metrics/reinstatement count unresolved
+     cases without the stale 3-month blind spot, and reinstatement is ADMIN-only
+     with fresh eligibility checks. Newsletter/unsubscribe paths normalize email,
+     keep public signup responses uniform, and have no active suppression toggle
+     to replay against. Ban and account-deletion Stripe races are narrowed by
+     local account-state checks in Stripe mirroring plus local orderability
+     disable/cleanup during deletion.
+
+     ASVS and observability items in the same slice are also stale or accepted:
+     Admin PIN cookies are already `sameSite: "strict"` with guardrails; direct
+     upload verification already reads R2 prefix bytes and validates file
+     signatures; secret-rotation cadence/procedure, SRI omission for Stripe/Clerk
+     style dynamic scripts, and unsubscribe-email-in-query risk are documented;
+     broad Prisma `user: true` relation loads are blocked by source tests; Sentry
+     `beforeSend()` now scrubs top-level messages, transactions, exception
+     values, stack-frame vars, request URLs/query strings, and nested extras;
+     checkout capture sites have bounded tags/extras; email and Resend telemetry
+     hash or sanitize recipient/error details; CSP report Sentry data redacts
+     dynamic IDs and tokens; profanity telemetry sends counts rather than raw
+     matched text; ban-audit review-note snapshots store hash/length; favorites
+     error logs no longer include Clerk ids; geo-metro logs omit city/state; and
+     Stripe webhook outer errors use the shared sanitized error string. Email
+     outbox quota-unavailable deferral uses retry cadence, DEAD jobs are surfaced
+     in ops-health and pruned after retention, and Resend transient suppression
+     counts only `email.failed` with a higher threshold. #355 remains folded into
+     the existing refund-accounting runtime-proof bucket and was not
+     double-counted. #363, #365, and #368 remain external ops/runtime evidence
+     tasks for Clerk staff MFA, HSTS preload acceptance, and Clerk breached
+     password protection. Guardrails include:
+     `tests/post-launch-ui-followups.test.mjs`,
+     `tests/r56-r67-small-fixes.test.mjs`, `tests/media-url.test.mjs`,
+     `tests/public-cron-search-hardening.test.mjs`,
+     `tests/block-filter-guardrails.test.mjs`, `tests/sanitize-unicode.test.mjs`,
+     `tests/blog-markdown-sanitization.test.mjs`,
+     `tests/blog-action-guardrails.test.mjs`, `tests/r49-account-state-routes.test.mjs`,
+     `tests/schema-hardening-followups.test.mjs`,
+     `tests/payment-side-effect-observability.test.mjs`,
+     `tests/account-privacy-observability.test.mjs`,
+     `tests/sentry-filter.test.mjs`, `tests/csp-report-sanitization.test.mjs`,
+     `tests/profanity-telemetry.test.mjs`, `tests/privacy-telemetry.test.mjs`,
+     `tests/admin-pin.test.mjs`, `tests/upload-verification-token.test.mjs`,
+     `tests/email-outbox-state.test.mjs`, `tests/email-outbox-retention.test.mjs`,
+     and `tests/email-outbox-quota.test.mjs`.
+
 **Running tally after this pass:** verified fixed/reduced: 309 findings;
-verified stale/false-positive: 188 findings; product/design/ops decisions
-deferred: 51 findings. Remaining major categories: Stripe webhook subscription
+verified stale/false-positive: 226 findings; product/design/ops decisions
+deferred: 54 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
 product designs, JSON size historical validation and email uniqueness
@@ -3256,6 +3314,7 @@ consent-epoch/manual-resubscribe semantics, legacy enum cleanup/data-migration
 decisions, Buy Now best-effort rollback window, partial multi-seller checkout
 continuation design, deliberate BigInt money-column modeling, live-data
 reconciliation for historical seller shipping-rate currency drift, legacy
-display-only media host validation, HSTS preload and Vercel max-duration ops
-evidence, and agent/worktree verification process hygiene. Approximate raw
-allegations left to verify from current max #1120: 573.
+display-only media host validation, Clerk staff MFA and breached-password
+dashboard evidence, HSTS preload and Vercel max-duration ops evidence, and
+agent/worktree verification process hygiene. Approximate raw allegations left
+to verify from current max #1120: 532.
