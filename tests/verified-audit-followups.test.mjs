@@ -250,6 +250,25 @@ describe("verified audit follow-up guardrails", () => {
     assert.match(source("src/app/messages/new/page.tsx"), /stripeAccountVersion: true/);
   });
 
+  it("keeps footer metro links behind a tagged cache and invalidates metro assignment changes", () => {
+    const footerMetros = source("src/lib/footerMetros.ts");
+    const layout = source("src/app/layout.tsx");
+    const geoMetro = source("src/lib/geo-metro.ts");
+    const newListing = source("src/app/dashboard/listings/new/page.tsx");
+    const sellerSettings = source("src/app/dashboard/seller/page.tsx");
+
+    assert.match(footerMetros, /FOOTER_METROS_CACHE_TAG = "footer-metros"/);
+    assert.match(footerMetros, /unstable_cache/);
+    assert.match(footerMetros, /revalidate: 300/);
+    assert.match(footerMetros, /tags: \[FOOTER_METROS_CACHE_TAG\]/);
+    assert.match(footerMetros, /revalidateTag\(FOOTER_METROS_CACHE_TAG, "max"\)/);
+    assert.match(layout, /getFooterMetros\(\)\.catch\(\(\) => \[\]\)/);
+    assert.doesNotMatch(layout, /prisma\.metro\.findMany/);
+    assert.match(geoMetro, /revalidateFooterMetrosCache\(\)/);
+    assert.match(newListing, /revalidateFooterMetrosCache\(\)/);
+    assert.match(sellerSettings, /revalidateFooterMetrosCache\(\)/);
+  });
+
   it("documents current notification polling once instead of stale fixed intervals", () => {
     assert.doesNotMatch(source("CLAUDE.md"), /polls `GET \/api\/notifications` every \*\*5 minutes\*\*/);
     assert.match(source("CLAUDE.md"), /adaptive 60s\/5min\/15min\/stop polling/);

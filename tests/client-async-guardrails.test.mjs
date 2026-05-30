@@ -142,11 +142,48 @@ describe("client async guardrails", () => {
   it("validates dismissible-banner storage before using parsed ids", () => {
     const banner = source("src/components/DismissibleBanner.tsx");
 
+    assert.match(banner, /MAX_DISMISSED_REJECTED_IDS = 500/);
+    assert.match(banner, /function normalizeDismissedIds\(ids: string\[\]\): string\[\]/);
+    assert.match(banner, /\.slice\(-MAX_DISMISSED_REJECTED_IDS\)/);
     assert.match(banner, /function parseDismissedIds\(stored: string \| null\): string\[\]/);
     assert.match(banner, /const parsed: unknown = JSON\.parse\(stored\)/);
     assert.match(banner, /Array\.isArray\(parsed\)/);
     assert.match(banner, /filter\(\(id\): id is string => typeof id === "string"\)/);
     assert.doesNotMatch(banner, /JSON\.parse\(stored\) as string\[\]/);
+  });
+
+  it("aborts account feed loads on unmount and ignores stale responses", () => {
+    const feed = source("src/app/account/feed/FeedClient.tsx");
+
+    assert.match(feed, /mountedRef/);
+    assert.match(feed, /feedAbortRef/);
+    assert.match(feed, /feedRequestRef/);
+    assert.match(feed, /const controller = new AbortController\(\)/);
+    assert.match(feed, /fetch\(url, \{ cache: "no-store", signal: controller\.signal \}\)/);
+    assert.match(feed, /requestId !== feedRequestRef\.current/);
+    assert.match(feed, /controller\.signal\.aborted/);
+    assert.match(feed, /error instanceof DOMException && error\.name === "AbortError"/);
+    assert.match(feed, /feedAbortRef\.current\?\.abort\(\)/);
+  });
+
+  it("validates markdown image upload responses before inserting editor images", () => {
+    const markdown = source("src/components/MarkdownToolbar.tsx");
+
+    assert.match(markdown, /isFirstPartyMediaUrl/);
+    assert.match(markdown, /function markdownUploadImageUrl\(raw: unknown\): string \| null/);
+    assert.match(markdown, /typeof raw !== "string"/);
+    assert.match(markdown, /!isFirstPartyMediaUrl\(value\)/);
+    assert.match(markdown, /throw new Error\("Image upload returned an invalid URL\."\)/);
+    assert.doesNotMatch(markdown, /const \{ publicUrl \} = await uploadRes\.json\(\) as \{ publicUrl: string \}/);
+  });
+
+  it("keeps toast context value stable between toast list updates", () => {
+    const toast = source("src/components/Toast.tsx");
+
+    assert.match(toast, /useMemo/);
+    assert.match(toast, /const value = useMemo\(\(\) => \(\{ toast \}\), \[toast\]\)/);
+    assert.match(toast, /<ToastContext\.Provider value=\{value\}>/);
+    assert.doesNotMatch(toast, /<ToastContext\.Provider value=\{\{ toast \}\}>/);
   });
 
   it("surfaces commission status update failures to the seller", () => {

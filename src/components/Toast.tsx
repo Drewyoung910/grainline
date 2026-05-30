@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from "react";
 
 type ToastType = "success" | "error" | "info";
 
@@ -61,8 +61,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener(TOAST_EVENT, onToast);
   }, [toast]);
 
+  const value = useMemo(() => ({ toast }), [toast]);
+
   return (
-    <ToastContext.Provider value={{ toast }}>
+    <ToastContext.Provider value={value}>
       {children}
       <div
         className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-4 z-[9999] space-y-2 pointer-events-none"

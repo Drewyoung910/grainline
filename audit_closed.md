@@ -19,7 +19,7 @@ deferred, stale, and open findings for traceability.
 
 ## Active Hardening Program Counter
 
-Last updated: 2026-05-24
+Last updated: 2026-05-30
 
 - Raw Claude/new-audit candidate total: pending triage.
 - Verified hardening/doc commits since 2026-05-13: 215.
@@ -2935,17 +2935,40 @@ Last updated: 2026-05-24
      `tests/round8-fulfillment-privacy-guardrails.test.mjs`, and
      `tests/post-launch-ui-followups.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 284 findings;
-verified stale/false-positive: 104 findings; product/design decisions deferred:
-39 findings. Remaining major categories: Stripe webhook subscription narrowing
-evidence, Round 10 deferred state-machine product designs, JSON size historical
-validation and email uniqueness production-scan decisions, email outbox
-retention/quota policy decisions, refund accounting runtime proof and refund
-attempt persistence semantics, founding-maker/quality-score consistency,
+292. **Round 10 residual client/cache guardrails tightened** — code/test fix
+     for #927, #930, #931, #932, and #1030, plus residual route-cache hardening
+     for already-counted #1028/#1035. Account feed pagination now aborts
+     in-flight requests on unmount and ignores stale responses, dismissed
+     rejection banner ids are capped before writing to localStorage, markdown
+     editor image uploads validate the returned URL shape and first-party media
+     origin before insertion, and the toast provider memoizes its context value.
+     Root-layout footer metro links now read through a tagged 5-minute
+     `unstable_cache`; auto-created metros and seller/listing metro assignment
+     paths invalidate that tag, moving #1030 out of the earlier deferred cache
+     bucket. The private JSON follow-up converted the identified auth mutation
+     routes (`cart/add`, favorites, notification read/read-all, and block/unblock)
+     to `privateJson()`/`privateResponse()` but did not increase the tally for
+     #1028/#1035 because those findings were already counted in entries 216 and
+     220. Read-only agent and parent review also verified #895, #896, #900,
+     #901, #928, and #934-#939 stale/false-positive on current `main`, and
+     classified #899 and #933 as product/design decisions rather than current
+     defects. The same sweep re-verified #1014-#1048 against entries 220/221
+     with no duplicate tally increase except the #1030 category move above.
+     Guardrails: `tests/client-async-guardrails.test.mjs`,
+     `tests/private-json-cache-headers.test.mjs`, and
+     `tests/verified-audit-followups.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 289 findings;
+verified stale/false-positive: 115 findings; product/design decisions deferred:
+40 findings. Remaining major categories: Stripe webhook subscription narrowing
+evidence, Round 10 deferred cache/state-machine product designs, JSON size
+historical validation and email uniqueness production-scan decisions, email
+outbox retention/quota policy decisions, refund accounting runtime proof and
+refund attempt persistence semantics, founding-maker/quality-score consistency,
 remaining case/message state-policy decisions, privacy/legal retention scope,
 remaining privacy/export retention decisions, cross-seller AI duplicate-detection
 product design, CSP `unsafe-eval` rollout monitoring, partial multi-seller
-checkout continuation design, deliberate BigInt money-column modeling, and
-live-data reconciliation for historical seller shipping-rate currency drift,
-legacy display-only media host validation, plus support context structured-field
-design (#168).
+checkout continuation design, deliberate BigInt money-column modeling, live-data
+reconciliation for historical seller shipping-rate currency drift, legacy
+display-only media host validation, plus support context structured-field design
+(#168). Approximate raw allegations left to verify from current max #1120: 676.

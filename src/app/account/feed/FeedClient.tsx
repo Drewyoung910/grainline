@@ -16,27 +16,46 @@ export default function FeedClient() {
   const [error, setError] = useState<string | null>(null);
   const [emptyMessage, setEmptyMessage] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const mountedRef = useRef(false);
+  const feedAbortRef = useRef<AbortController | null>(null);
+  const feedRequestRef = useRef(0);
 
   const loadMore = useCallback(async () => {
     if (loading || !hasMore) return;
+    feedAbortRef.current?.abort();
+    const controller = new AbortController();
+    feedAbortRef.current = controller;
+    const requestId = ++feedRequestRef.current;
     setLoading(true);
     setError(null);
     try {
       const url = `/api/account/feed?limit=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
-      const res = await fetch(url);
+      const res = await fetch(url, { cache: "no-store", signal: controller.signal });
       if (!res.ok) throw new Error("Failed to load feed");
       const data = await res.json();
+      if (!mountedRef.current || controller.signal.aborted || requestId !== feedRequestRef.current) return;
       if (!cursor) setEmptyMessage(typeof data.message === "string" ? data.message : null);
       setItems((prev) => [...prev, ...data.items]);
       setCursor(data.nextCursor);
       setHasMore(data.hasMore);
-    } catch {
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      if (!mountedRef.current || requestId !== feedRequestRef.current) return;
       setError("Failed to load feed. Please try again.");
     } finally {
+      if (!mountedRef.current || controller.signal.aborted || requestId !== feedRequestRef.current) return;
       setLoading(false);
       setInitialLoading(false);
     }
   }, [loading, hasMore, cursor]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      feedAbortRef.current?.abort();
+    };
+  }, []);
 
   // Load first batch on mount
   useEffect(() => {

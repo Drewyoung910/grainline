@@ -84,6 +84,24 @@ describe("private JSON cache headers", () => {
     }
   });
 
+  it("keeps selected auth mutation routes behind private response helpers", () => {
+    const routes = [
+      "src/app/api/cart/add/route.ts",
+      "src/app/api/notifications/read-all/route.ts",
+      "src/app/api/notifications/[id]/read/route.ts",
+      "src/app/api/users/[id]/block/route.ts",
+      "src/app/api/favorites/route.ts",
+    ];
+
+    for (const route of routes) {
+      const text = source(route);
+      assert.match(text, /@\/lib\/privateResponse/, `${route} should import private response helpers`);
+      assert.match(text, /privateJson/, `${route} should use privateJson for JSON responses`);
+      assert.doesNotMatch(text, /\b(?:NextResponse|Response)\.json\(/, `${route} should not return bare JSON`);
+      assert.doesNotMatch(text, /return rateLimitResponse\(/, `${route} should not return bare rate-limit JSON`);
+    }
+  });
+
   it("keeps auth-varying GET handlers private even when other methods stay unchanged", () => {
     const followGet = getHandlerSource("src/app/api/follow/[sellerId]/route.ts");
     const broadcastGet = getHandlerSource("src/app/api/seller/broadcast/route.ts");

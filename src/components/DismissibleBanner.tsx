@@ -2,13 +2,18 @@
 import { useEffect, useState } from "react";
 
 const STORAGE_KEY = "dismissed-rejected-ids";
+const MAX_DISMISSED_REJECTED_IDS = 500;
+
+function normalizeDismissedIds(ids: string[]): string[] {
+  return [...new Set(ids)].slice(-MAX_DISMISSED_REJECTED_IDS);
+}
 
 function parseDismissedIds(stored: string | null): string[] {
   if (!stored) return [];
   try {
     const parsed: unknown = JSON.parse(stored);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter((id): id is string => typeof id === "string");
+    return normalizeDismissedIds(parsed.filter((id): id is string => typeof id === "string"));
   } catch {
     return [];
   }
@@ -44,7 +49,7 @@ export default function DismissibleBanner({
       if (rejectedIds.length > 0) {
         const stored = localStorage.getItem(STORAGE_KEY);
         const dismissedIds = parseDismissedIds(stored);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify([...new Set([...dismissedIds, ...rejectedIds])]));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizeDismissedIds([...dismissedIds, ...rejectedIds])));
       }
     } catch { /* non-fatal */ }
     setDismissed(true);

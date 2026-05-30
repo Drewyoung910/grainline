@@ -8,6 +8,7 @@ import TipTapImage from "@tiptap/extension-image";
 import { Markdown } from "tiptap-markdown";
 import { useToast } from "@/components/Toast";
 import { validateUploadFile } from "@/lib/uploadRules";
+import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
 
 type Props = {
   value: string;
@@ -34,6 +35,13 @@ function normalizeSafeLink(raw: string): string | null {
     console.warn("[markdown-toolbar] invalid link URL", error);
   }
   return null;
+}
+
+function markdownUploadImageUrl(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const value = raw.trim();
+  if (!value || !isFirstPartyMediaUrl(value)) return null;
+  return value;
 }
 
 export default function MarkdownToolbar({
@@ -268,7 +276,13 @@ export default function MarkdownToolbar({
                   const body = await uploadRes.json().catch(() => ({} as { error?: string }));
                   throw new Error(body.error ?? "Image upload failed.");
                 }
-                const { publicUrl } = await uploadRes.json() as { publicUrl: string };
+                const body = await uploadRes.json().catch((): unknown => null);
+                const publicUrl = markdownUploadImageUrl(
+                  body && typeof body === "object" ? (body as { publicUrl?: unknown }).publicUrl : null,
+                );
+                if (!publicUrl) {
+                  throw new Error("Image upload returned an invalid URL.");
+                }
                 editor.chain().focus().setImage({ src: publicUrl }).run();
               } catch (error) {
                 toast(

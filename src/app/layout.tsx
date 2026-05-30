@@ -5,9 +5,7 @@ import { Providers } from "@/components/Providers";
 import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
-import { prisma } from "@/lib/db";
-import { publicListingWhere } from "@/lib/listingVisibility";
-import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
+import { getFooterMetros } from "@/lib/footerMetros";
 
 export const viewport: Viewport = {
   themeColor: "#1C1917",
@@ -63,26 +61,7 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const footerMetros = await prisma.metro.findMany({
-    where: {
-      isActive: true,
-      OR: [
-        {
-          listings: {
-            some: publicListingWhere(),
-          },
-        },
-        {
-          sellerProfiles: {
-            some: activeSellerProfileWhere(),
-          },
-        },
-      ],
-    },
-    select: { slug: true, name: true, state: true, _count: { select: { listings: true } } },
-    orderBy: { listings: { _count: "desc" } },
-    take: 10,
-  }).catch(() => [] as { slug: string; name: string; state: string; _count: { listings: number } }[]);
+  const footerMetros = await getFooterMetros().catch(() => []);
 
   return (
     <html lang="en" className="bg-[#F7F5F0]">

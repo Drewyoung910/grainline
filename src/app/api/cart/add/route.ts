@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { resolveListingVariantSelection } from "@/lib/listingVariants";
 import { cartMutationRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
 import {
   isInvalidJsonBodyError,
@@ -54,24 +54,24 @@ function isTransientPrismaError(err: unknown): boolean {
 export async function POST(req: Request) {
   try {
     const { userId } = await auth();
-    if (!userId) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+    if (!userId) return privateJson({ error: "Sign in required" }, { status: 401 });
 
     const me = await ensureUserByClerkId(userId);
     const { success, reset } = await safeRateLimit(cartMutationRatelimit, me.id);
-    if (!success) return rateLimitResponse(reset, "Too many cart updates.");
+    if (!success) return privateResponse(rateLimitResponse(reset, "Too many cart updates."));
 
     let parsed;
     try {
       parsed = CartAddSchema.parse(await readBoundedJson(req, CART_ADD_BODY_MAX_BYTES));
     } catch (e) {
       if (isRequestBodyTooLargeError(e)) {
-        return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+        return privateJson({ error: "Request body too large" }, { status: 413 });
       }
       if (isInvalidJsonBodyError(e)) {
-        return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+        return privateJson({ error: "Invalid JSON" }, { status: 400 });
       }
       if (e instanceof z.ZodError) {
-        return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+        return privateJson({ error: "Invalid input", details: e.issues }, { status: 400 });
       }
       throw e;
     }
@@ -87,34 +87,34 @@ export async function POST(req: Request) {
         variantGroups: { include: { options: true } },
       },
     });
-    if (!listing) return NextResponse.json({ error: "Listing not found" }, { status: 404 });
+    if (!listing) return privateJson({ error: "Listing not found" }, { status: 404 });
 
     if (listing.status !== "ACTIVE") {
-      return NextResponse.json({ error: "This listing is not available." }, { status: 400 });
+      return privateJson({ error: "This listing is not available." }, { status: 400 });
     }
 
     // prevent adding your own listing
     if (listing.seller.userId === me.id) {
-      return NextResponse.json({ error: "You cannot add your own listing to cart." }, { status: 400 });
+      return privateJson({ error: "You cannot add your own listing to cart." }, { status: 400 });
     }
 
     if (!listing.seller.chargesEnabled || !listing.seller.stripeAccountId) {
-      return NextResponse.json({ error: "This seller is not currently accepting orders." }, { status: 400 });
+      return privateJson({ error: "This seller is not currently accepting orders." }, { status: 400 });
     }
 
     const sellerBlockReason = sellerOrderBlockReason(listing.seller);
     if (sellerBlockReason) {
-      return NextResponse.json({ error: sellerOrderBlockMessage(sellerBlockReason) }, { status: 400 });
+      return privateJson({ error: sellerOrderBlockMessage(sellerBlockReason) }, { status: 400 });
     }
 
     // Block private/reserved listings
     if (listing.isPrivate && listing.reservedForUserId !== me.id) {
-      return NextResponse.json({ error: "This listing is not available." }, { status: 400 });
+      return privateJson({ error: "This listing is not available." }, { status: 400 });
     }
 
     // Cap made-to-order quantity at 1
     if (listing.listingType === "MADE_TO_ORDER" && quantity > 1) {
-      return NextResponse.json({ error: "Made-to-order items can only be ordered one at a time." }, { status: 400 });
+      return privateJson({ error: "Made-to-order items can only be ordered one at a time." }, { status: 400 });
     }
 
     const variantResolution = resolveListingVariantSelection(
@@ -122,12 +122,12 @@ export async function POST(req: Request) {
       selectedVariantOptionIds,
     );
     if (!variantResolution.ok) {
-      return NextResponse.json({ error: variantResolution.error }, { status: 400 });
+      return privateJson({ error: variantResolution.error }, { status: 400 });
     }
 
     const totalPriceCents = listing.priceCents + variantResolution.variantAdjustCents;
     if (totalPriceCents < 1) {
-      return NextResponse.json({ error: "Variant selection results in an invalid price." }, { status: 400 });
+      return privateJson({ error: "Variant selection results in an invalid price." }, { status: 400 });
     }
 
     const variantKey = variantResolution.variantKey;
@@ -246,7 +246,7 @@ export async function POST(req: Request) {
       item = await addOrIncrement();
     } catch (err) {
       if (err instanceof CartAddError) {
-        return NextResponse.json({ error: err.message }, { status: err.status });
+        return privateJson({ error: err.message }, { status: err.status });
       }
       if (isTransientPrismaError(err)) {
         Sentry.captureMessage("Cart add: transient Prisma error, retrying once", {
@@ -258,7 +258,7 @@ export async function POST(req: Request) {
           item = await addOrIncrement();
         } catch (retryErr) {
           if (retryErr instanceof CartAddError) {
-            return NextResponse.json({ error: retryErr.message }, { status: retryErr.status });
+            return privateJson({ error: retryErr.message }, { status: retryErr.status });
           }
           throw retryErr;
         }
@@ -268,13 +268,13 @@ export async function POST(req: Request) {
     }
 
     if (!item) {
-      return NextResponse.json({ error: "Cart quantity cannot exceed 99." }, { status: 400 });
+      return privateJson({ error: "Cart quantity cannot exceed 99." }, { status: 400 });
     }
 
-    return NextResponse.json({ ok: true, item });
+    return privateJson({ ok: true, item });
   } catch (err) {
     if (isAccountAccessError(err)) {
-      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
+      return privateJson({ error: err.message, code: err.code }, { status: err.status });
     }
     console.error("POST /api/cart/add error:", err);
     const errCode = err instanceof Prisma.PrismaClientKnownRequestError ? err.code : null;
@@ -288,7 +288,7 @@ export async function POST(req: Request) {
     // The previous generic 500 left buyers staring at "Server error adding to
     // cart" with no path forward. Surface a slightly more useful retry hint
     // so the user knows it wasn't a duplicate-add or validation problem.
-    return NextResponse.json(
+    return privateJson(
       { error: "We couldn't add this to your cart. Please try again in a moment." },
       { status: 500 },
     );

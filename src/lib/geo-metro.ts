@@ -3,6 +3,7 @@
 
 import { prisma } from "@/lib/db";
 import { reverseGeocode } from "@/lib/reverse-geocode";
+import { revalidateFooterMetrosCache } from "@/lib/footerMetros";
 
 // ---------------------------------------------------------------------------
 // Haversine distance in miles between two lat/lng points
@@ -141,6 +142,7 @@ export async function findOrCreateMetro(
       },
     });
 
+    revalidateFooterMetrosCache();
     console.log("[geo-metro] Auto-created metro");
 
     return { metroId: metro.id, cityMetroId: null };

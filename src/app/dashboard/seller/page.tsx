@@ -22,6 +22,7 @@ import { ensureUser, isAccountAccessError } from "@/lib/ensureUser";
 import { publicSellerShopPath } from "@/lib/publicPaths";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { safeRateLimit, sellerProfileRatelimit } from "@/lib/ratelimit";
+import { revalidateFooterMetrosCache } from "@/lib/footerMetros";
 
 const inputClass =
   "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300";
@@ -144,6 +145,7 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
       const { findOrCreateMetro } = await import("@/lib/geo-metro");
       const { metroId, cityMetroId } = await findOrCreateMetro(lat, lng);
       await prisma.sellerProfile.update({ where: { id: seller.id }, data: { metroId, cityMetroId } });
+      revalidateFooterMetrosCache();
     } catch (e) {
       console.error("[geo-metro] Failed to assign metro to seller profile:", e);
     }

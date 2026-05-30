@@ -1,5 +1,4 @@
 // src/app/api/favorites/route.ts
-import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
@@ -7,6 +6,7 @@ import { ensureUser } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { createNotification } from "@/lib/notifications";
 import { saveRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { publicListingDetailWhere } from "@/lib/listingVisibility";
 import { publicListingPath } from "@/lib/publicPaths";
 import {
@@ -23,10 +23,10 @@ const FAVORITE_BODY_MAX_BYTES = 8 * 1024;
 
 export async function POST(req: Request) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
   const { success: rlOk, reset } = await safeRateLimit(saveRatelimit, userId);
-  if (!rlOk) return rateLimitResponse(reset, "Too many save actions.");
+  if (!rlOk) return privateResponse(rateLimitResponse(reset, "Too many save actions."));
 
   let listingId: string;
   try {
@@ -34,13 +34,13 @@ export async function POST(req: Request) {
     listingId = parsed.listingId;
   } catch (e) {
     if (isRequestBodyTooLargeError(e)) {
-      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      return privateJson({ error: "Request body too large" }, { status: 413 });
     }
     if (isInvalidJsonBodyError(e)) {
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      return privateJson({ error: "Invalid JSON" }, { status: 400 });
     }
     if (e instanceof z.ZodError) {
-      return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+      return privateJson({ error: "Invalid input", details: e.issues }, { status: 400 });
     }
     throw e;
   }
@@ -53,17 +53,17 @@ export async function POST(req: Request) {
     if (accountResponse) return accountResponse;
 
     console.error("POST /api/favorites ensureUser error:", { error: (e as Error).message });
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return privateJson({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!me) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
   const listing = await prisma.listing.findFirst({
     where: publicListingDetailWhere({ id: listingId }),
     select: { title: true, seller: { select: { userId: true } } },
   });
-  if (!listing) return NextResponse.json({ error: "Listing not found." }, { status: 404 });
+  if (!listing) return privateJson({ error: "Listing not found." }, { status: 404 });
   if (listing.seller.userId === me.id) {
-    return NextResponse.json({ error: "Cannot favorite your own listing." }, { status: 400 });
+    return privateJson({ error: "Cannot favorite your own listing." }, { status: 400 });
   }
   const blockExists = await prisma.block.findFirst({
     where: {
@@ -74,7 +74,7 @@ export async function POST(req: Request) {
     },
     select: { id: true },
   });
-  if (blockExists) return NextResponse.json({ error: "Blocked" }, { status: 403 });
+  if (blockExists) return privateJson({ error: "Blocked" }, { status: 403 });
 
   try {
     await prisma.favorite.upsert({
@@ -92,7 +92,7 @@ export async function POST(req: Request) {
       tags: { source: "favorite_upsert" },
       extra: { listingId, dbUserId: me.id },
     });
-    return NextResponse.json({ error: "DB error" }, { status: 500 });
+    return privateJson({ error: "DB error" }, { status: 500 });
   }
 
   // Notify listing owner (non-fatal; createNotification handles exact duplicate suppression)
@@ -118,5 +118,5 @@ export async function POST(req: Request) {
     });
   }
 
-  return NextResponse.json({ ok: true });
+  return privateJson({ ok: true });
 }

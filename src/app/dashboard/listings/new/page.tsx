@@ -32,6 +32,7 @@ import {
   validateVariantGroupsForBasePrice,
 } from "@/lib/listingVariants";
 import { revalidateListingSearchCaches } from "@/lib/searchCache";
+import { revalidateFooterMetrosCache } from "@/lib/footerMetros";
 import { backfillEmptyAltTexts } from "@/lib/photoAltTextBackfill";
 import { MAX_MANUAL_STOCK_QUANTITY } from "@/lib/stockMutationState";
 import type { Metadata } from "next";
@@ -421,6 +422,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
   });
   if (finalListing?.status === "ACTIVE") {
     revalidateListingSearchCaches();
+    revalidateFooterMetrosCache();
     // First active listing might earn this seller the Founding Maker badge.
     await maybeGrantFoundingMaker(seller.id);
     // Notify followers after the response so listing creation stays responsive.

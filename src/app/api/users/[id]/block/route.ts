@@ -1,20 +1,20 @@
 import { auth } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { ensureUser } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { blockRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 
 export async function POST(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
   const { success, reset } = await safeRateLimit(blockRatelimit, userId);
-  if (!success) return rateLimitResponse(reset, "Too many block actions.");
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many block actions."));
 
   let me: Awaited<ReturnType<typeof ensureUser>>;
   try {
@@ -24,16 +24,16 @@ export async function POST(
     if (accountResponse) return accountResponse;
     throw err;
   }
-  if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!me) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
   const { id: blockedId } = await params;
-  if (blockedId === me.id) return NextResponse.json({ error: "Cannot block yourself" }, { status: 400 });
+  if (blockedId === me.id) return privateJson({ error: "Cannot block yourself" }, { status: 400 });
 
   const target = await prisma.user.findUnique({
     where: { id: blockedId },
     select: { id: true, deletedAt: true },
   });
-  if (!target || target.deletedAt) return NextResponse.json({ error: "User not found" }, { status: 404 });
+  if (!target || target.deletedAt) return privateJson({ error: "User not found" }, { status: 404 });
 
   await prisma.block.upsert({
     where: { blockerId_blockedId: { blockerId: me.id, blockedId } },
@@ -62,7 +62,7 @@ export async function POST(
     });
   }
 
-  return NextResponse.json({ ok: true, blocked: true });
+  return privateJson({ ok: true, blocked: true });
 }
 
 export async function DELETE(
@@ -70,10 +70,10 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
   const { success, reset } = await safeRateLimit(blockRatelimit, userId);
-  if (!success) return rateLimitResponse(reset, "Too many block actions.");
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many block actions."));
 
   let me: Awaited<ReturnType<typeof ensureUser>>;
   try {
@@ -83,7 +83,7 @@ export async function DELETE(
     if (accountResponse) return accountResponse;
     throw err;
   }
-  if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!me) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
   const { id: blockedId } = await params;
 
@@ -91,5 +91,5 @@ export async function DELETE(
     where: { blockerId: me.id, blockedId },
   });
 
-  return NextResponse.json({ ok: true, blocked: false });
+  return privateJson({ ok: true, blocked: false });
 }
