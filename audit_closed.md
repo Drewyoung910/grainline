@@ -2824,7 +2824,16 @@ Last updated: 2026-05-24
      that field for reports involving the deleted account. Guardrail:
      `tests/user-report-target-access.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 264 findings;
+280. **Stripe dispute-created case thread context surfaced** — code/test/docs
+     fix for #722. Stripe `charge.dispute.created` cases still use
+     `Case.description` as the system event summary rather than creating a
+     falsely buyer- or seller-authored `CaseMessage`, but buyer, seller, and
+     admin case-detail views now render that description whenever the thread has
+     no messages. This preserves attribution while removing empty under-review
+     case threads. Guardrail:
+     `tests/round10-state-machine-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 265 findings;
 verified stale/false-positive: 100 findings; product/design decisions deferred:
 39 findings. Remaining major categories: Stripe webhook subscription narrowing
 evidence, Round 10 deferred state-machine product designs, JSON size historical

@@ -5,6 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import LabelSection from "@/components/LabelSection";
 import CaseReplyBox from "@/components/CaseReplyBox";
+import CaseInitialSummary from "@/components/CaseInitialSummary";
 import CaseEscalateButton from "@/components/CaseEscalateButton";
 import CaseMarkResolvedButton from "@/components/CaseMarkResolvedButton";
 import SellerRefundPanel from "@/components/SellerRefundPanel";
@@ -331,32 +332,38 @@ export default async function SellerOrderDetailPage({
         <section className="card-section">
           <div className="border-b border-neutral-100 bg-white px-4 py-3 text-sm font-semibold">Case thread</div>
 
-          <ul className="divide-y divide-neutral-100 bg-white">
-            {activeCase.messages.map((msg) => {
-              const label = msgLabel(msg.author.id);
-              const isMe = label === "You (Seller)";
-              return (
-                <li key={msg.id} className="px-4 py-3 space-y-1">
-                  <div className="flex items-center gap-2 text-xs text-neutral-500">
-                    <span
-                      className={`font-medium ${
-                        isMe
-                          ? "text-neutral-900"
-                          : label === "Grainline Staff"
-                          ? "text-purple-700"
-                          : "text-neutral-700"
-                      }`}
-                    >
-                      {label}
-                    </span>
-                    <span>·</span>
-                    <span><LocalDate date={msg.createdAt} /></span>
-                  </div>
-                  <p className="text-sm text-neutral-800 whitespace-pre-wrap">{msg.body}</p>
-                </li>
-              );
-            })}
-          </ul>
+          {activeCase.messages.length === 0 ? (
+            <div className="bg-white px-4 py-3">
+              <CaseInitialSummary description={activeCase.description} />
+            </div>
+          ) : (
+            <ul className="divide-y divide-neutral-100 bg-white">
+              {activeCase.messages.map((msg) => {
+                const label = msgLabel(msg.author.id);
+                const isMe = label === "You (Seller)";
+                return (
+                  <li key={msg.id} className="px-4 py-3 space-y-1">
+                    <div className="flex items-center gap-2 text-xs text-neutral-500">
+                      <span
+                        className={`font-medium ${
+                          isMe
+                            ? "text-neutral-900"
+                            : label === "Grainline Staff"
+                            ? "text-purple-700"
+                            : "text-neutral-700"
+                        }`}
+                      >
+                        {label}
+                      </span>
+                      <span>·</span>
+                      <span><LocalDate date={msg.createdAt} /></span>
+                    </div>
+                    <p className="text-sm text-neutral-800 whitespace-pre-wrap">{msg.body}</p>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
 
           {(activeCase.status === "OPEN" ||
             activeCase.status === "IN_DISCUSSION" ||

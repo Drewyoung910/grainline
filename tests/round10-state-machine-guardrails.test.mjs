@@ -120,6 +120,21 @@ describe("Round 10 state-machine guardrails", () => {
     assert.match(webhook, /tx\.case\.updateMany\(\{\s*where: \{ id: caseAction\.caseId, status: \{ notIn: \["RESOLVED", "CLOSED"\] \} \}/s);
   });
 
+  it("surfaces stored case descriptions when dispute-created cases have no messages", () => {
+    const fallback = source("src/components/CaseInitialSummary.tsx");
+    const adminCase = source("src/app/admin/cases/[id]/page.tsx");
+    const sellerCase = source("src/app/dashboard/sales/[orderId]/page.tsx");
+    const buyerCase = source("src/app/dashboard/orders/[id]/page.tsx");
+    const webhook = source("src/app/api/stripe/webhook/route.ts");
+
+    assert.match(fallback, /description\.trim\(\)/);
+    assert.match(fallback, /Case summary/);
+    assert.match(webhook, /description: caseAction\.description/);
+    assert.match(adminCase, /caseRecord\.messages\.length === 0 \? \(\s*<CaseInitialSummary description=\{caseRecord\.description\} \/>/s);
+    assert.match(sellerCase, /activeCase\.messages\.length === 0 \? \(\s*<div className="bg-white px-4 py-3">\s*<CaseInitialSummary description=\{activeCase\.description\} \/>/s);
+    assert.match(buyerCase, /activeCase\.messages\.length === 0 \? \(\s*<div className="bg-white px-4 py-3">\s*<CaseInitialSummary description=\{activeCase\.description\} \/>/s);
+  });
+
   it("coordinates label/manual shipping, admin approval fanout, and mark-resolved notifications", () => {
     const fulfillment = source("src/app/api/orders/[id]/fulfillment/route.ts");
     const adminReview = source("src/app/api/admin/listings/[id]/review/route.ts");

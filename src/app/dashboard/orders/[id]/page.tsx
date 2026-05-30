@@ -5,6 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import OpenCaseForm from "@/components/OpenCaseForm";
 import CaseReplyBox from "@/components/CaseReplyBox";
+import CaseInitialSummary from "@/components/CaseInitialSummary";
 import CaseEscalateButton from "@/components/CaseEscalateButton";
 import CaseMarkResolvedButton from "@/components/CaseMarkResolvedButton";
 import LocalDate from "@/components/LocalDate";
@@ -482,20 +483,26 @@ export default async function BuyerOrderDetailPage({
             </div>
           </div>
 
-          <ul className="divide-y divide-neutral-100 bg-white">
-            {activeCase.messages.map((msg) => (
-              <li key={msg.id} className="px-4 py-3 space-y-1">
-                <div className="flex items-center gap-2 text-xs text-neutral-500">
-                  <span className="font-medium text-neutral-700">
-                    {msg.author.role === "EMPLOYEE" || msg.author.role === "ADMIN" ? "Grainline Staff" : msg.author.name ?? "Participant"}
-                  </span>
-                  <span>·</span>
-                  <span><LocalDate date={msg.createdAt} /></span>
-                </div>
-                <p className="text-sm text-neutral-800 whitespace-pre-wrap">{msg.body}</p>
-              </li>
-            ))}
-          </ul>
+          {activeCase.messages.length === 0 ? (
+            <div className="bg-white px-4 py-3">
+              <CaseInitialSummary description={activeCase.description} />
+            </div>
+          ) : (
+            <ul className="divide-y divide-neutral-100 bg-white">
+              {activeCase.messages.map((msg) => (
+                <li key={msg.id} className="px-4 py-3 space-y-1">
+                  <div className="flex items-center gap-2 text-xs text-neutral-500">
+                    <span className="font-medium text-neutral-700">
+                      {msg.author.role === "EMPLOYEE" || msg.author.role === "ADMIN" ? "Grainline Staff" : msg.author.name ?? "Participant"}
+                    </span>
+                    <span>·</span>
+                    <span><LocalDate date={msg.createdAt} /></span>
+                  </div>
+                  <p className="text-sm text-neutral-800 whitespace-pre-wrap">{msg.body}</p>
+                </li>
+              ))}
+            </ul>
+          )}
 
           {caseOpen && (
             <div className="border-t border-neutral-100 bg-neutral-50 px-4 py-4">
