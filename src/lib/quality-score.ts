@@ -14,7 +14,7 @@
 //     photoScore * 0.05 +
 //     descScore * 0.05 +
 //     newListingBump (0.15 for 14 days, linear decay to 0 by day 30) +
-//     newSellerBonus (0.05 if seller has zero reviews) -
+//     newSellerBonus (0.05 if seller has zero reviews and is <=30 days old) -
 //     qualityPenalty (short description, low photo count, moderation flags)
 //
 // Base weights sum to 1.0. Discovery bumps are additive by design, so a

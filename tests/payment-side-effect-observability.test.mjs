@@ -35,6 +35,17 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(route, /manualStripeReconciliationNeeded: true/);
   });
 
+  it("records staff case refunds only while the refund lock is still held", () => {
+    const route = source("src/app/api/cases/[id]/resolve/route.ts");
+
+    assert.match(route, /sellerProfile: \{ select: \{ id: true, stripeAccountId: true \} \}/);
+    assert.match(route, /refundMayRestoreStock\(caseRecord\.order\)/);
+    assert.match(route, /tx\.order\.updateMany\(\{\s*where: \{ id: caseRecord\.orderId, sellerRefundId: REFUND_LOCK_SENTINEL \}/s);
+    assert.match(route, /if \(orderUpdate\.count !== 1\)/);
+    assert.match(route, /CASE_REFUND_LOCK_LOST/);
+    assert.match(route, /manualStripeReconciliationNeeded: true/);
+  });
+
   it("allows partial refunds to restore only explicitly requested purchased stock", () => {
     const route = source("src/app/api/orders/[id]/refund/route.ts");
     const panel = source("src/components/SellerRefundPanel.tsx");

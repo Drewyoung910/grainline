@@ -3177,14 +3177,26 @@ Last updated: 2026-05-30
      dispute rows as eligible conversion signal. Guardrail:
      `tests/quality-score-query-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 303 findings;
+308. **Staff case refund route matched seller refund guardrails** — code/test
+     fix from agent-found refund-accounting follow-ups. Staff case full refunds
+     now restore stock only before buyer handoff, matching the seller refund
+     route's `refundMayRestoreStock()` behavior; staff case refund recording now
+     writes the Stripe refund id only while the local refund sentinel is still
+     held; and platform-only case refunds now flag the seller profile for manual
+     Stripe transfer reconciliation. The same pass also closed the stale
+     quality-score doc/test gap for #850 by documenting and testing the 30-day
+     zero-review new-seller bonus cap. Guardrails:
+     `tests/payment-side-effect-observability.test.mjs` and
+     `tests/quality-score-state.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 306 findings;
 verified stale/false-positive: 151 findings; product/design/ops decisions
 deferred: 47 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
 product designs, JSON size historical validation and email uniqueness
 production-scan decisions, email outbox retention/quota policy decisions, refund
-accounting runtime proof and refund attempt persistence semantics,
+accounting runtime proof and refund fee-policy reconciliation,
 founding-maker permanence policy, remaining case/message state-policy
 decisions, privacy/legal retention scope, remaining privacy/export retention
 decisions, cross-seller AI duplicate-detection product design, unsubscribe

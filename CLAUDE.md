@@ -4081,7 +4081,7 @@ Updated to modern floating-text cards: `rounded-2xl overflow-hidden` with the cu
 Added to `qualityScore` formula in `src/lib/quality-score.ts`:
 
 - **New listing bump**: +0.15 for the first 14 days, linear decay to 0 by day 30. Prevents new listings from being permanently buried by established ones. Mirrors Etsy's documented "new listing boost" approach.
-- **New seller bonus**: additional +0.05 for sellers with zero reviews. First-time sellers need more visibility than established sellers adding their 50th listing. Disappears after first review.
+- **New seller bonus**: additional +0.05 for sellers with zero reviews during their first 30 days. First-time sellers need more visibility than established sellers adding their 50th listing. Disappears after the first review or after day 30.
 
 Combined effect at launch:
 - Brand-new seller's first listing: ~0.62 (competitive with established top sellers at ~0.70)

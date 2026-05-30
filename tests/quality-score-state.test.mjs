@@ -159,10 +159,16 @@ describe("quality score penalties", () => {
       sellerCreatedAt: new Date(now - 20 * DAY_MS),
       sellerReviewCount: 0n,
     }), globalMeans, now);
+    const agedZeroReviewSeller = scoreQualityRow(qualityRow({
+      createdAt: new Date(now - 40 * DAY_MS),
+      sellerCreatedAt: new Date(now - 31 * DAY_MS),
+      sellerReviewCount: 0n,
+    }), globalMeans, now);
 
     assert.ok(guildMember > baseline, "Guild Member should add a smaller trust boost");
     assert.ok(guildMaster > guildMember, "Guild Master should outrank Guild Member when other signals match");
     assert.ok(newSeller > baseline, "new zero-review sellers should receive the documented starter bump");
+    assert.equal(agedZeroReviewSeller, baseline, "zero-review sellers should age out of the starter bump after day 30");
   });
 
   it("bounds quality scores to finite values", () => {

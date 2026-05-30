@@ -19,6 +19,7 @@ import {
   partialRefundInputError,
   refundAmountForResolution,
   refundLockAcquisitionConflictResponse,
+  refundMayRestoreStock,
   refundStockRestoreQuantities,
   sellerRefundConflictResponse,
 } from "@/lib/refundRouteState";
@@ -103,7 +104,7 @@ export async function POST(
         },
         seller: {
           select: {
-            sellerProfile: { select: { stripeAccountId: true } },
+            sellerProfile: { select: { id: true, stripeAccountId: true } },
           },
         },
       },
@@ -138,6 +139,7 @@ export async function POST(
     let stripeRefundId: string | null = null;
     let stripeRefundIds: string[] = [];
     let refundNote: string | null = null;
+    let refundRequiresManualTransferReconciliation = false;
     const refundAmountForOrder = refundAmountForResolution(resolution, caseRecord.order, refundAmountCents);
     const persistedRefundAmountCents = refunding ? refundAmountForOrder : null;
 
@@ -193,6 +195,7 @@ export async function POST(
         });
         stripeRefundId = refund.primaryRefundId;
         stripeRefundIds = refund.refundIds;
+        refundRequiresManualTransferReconciliation = refund.requiresManualTransferReconciliation;
         refundNote = [
           stripeRefundIds.length > 1
             ? `Stripe refunds ${stripeRefundIds.join(", ")}`
@@ -227,7 +230,7 @@ export async function POST(
       .join(" ");
 
     const stockRestores =
-      resolution === "REFUND_FULL"
+      resolution === "REFUND_FULL" && refundMayRestoreStock(caseRecord.order)
         ? refundStockRestoreQuantities(caseRecord.order.items)
         : [];
     const stockRestoreIds = stockRestores.map((restore) => restore.listingId);
@@ -255,15 +258,37 @@ export async function POST(
           throw new Error("CASE_RESOLUTION_CONFLICT");
         }
 
-        await tx.order.update({
-          where: { id: caseRecord.orderId },
-          data: {
-            reviewNeeded: true,
-            reviewNote: resolutionNote,
-            ...(refunding ? { sellerRefundLockedAt: null } : {}),
-            ...(stripeRefundId ? { sellerRefundId: stripeRefundId, sellerRefundAmountCents: refundAmountForOrder } : {}),
-          },
-        });
+        if (refunding) {
+          const orderUpdate = await tx.order.updateMany({
+            where: { id: caseRecord.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
+            data: {
+              reviewNeeded: true,
+              reviewNote: resolutionNote,
+              sellerRefundLockedAt: null,
+              ...(stripeRefundId ? { sellerRefundId: stripeRefundId, sellerRefundAmountCents: refundAmountForOrder } : {}),
+            },
+          });
+          if (orderUpdate.count !== 1) {
+            throw new Error("CASE_REFUND_LOCK_LOST");
+          }
+        } else {
+          await tx.order.update({
+            where: { id: caseRecord.orderId },
+            data: {
+              reviewNeeded: true,
+              reviewNote: resolutionNote,
+            },
+          });
+        }
+        if (refundRequiresManualTransferReconciliation && caseRecord.seller.sellerProfile?.id) {
+          await tx.sellerProfile.update({
+            where: { id: caseRecord.seller.sellerProfile.id },
+            data: {
+              manualStripeReconciliationNeeded: true,
+              manualStripeReconciliationNote: "Staff case refund used a platform-only Stripe refund because the connected account transfer could not be reversed. Staff must reconcile the seller transfer manually.",
+            },
+          });
+        }
         for (const restore of stockRestores) {
           await tx.listing.update({
             where: { id: restore.listingId },
@@ -328,6 +353,12 @@ export async function POST(
       if (txErr instanceof Error && txErr.message === "CASE_RESOLUTION_CONFLICT") {
         return NextResponse.json(
           { error: "Case status changed before this resolution could be saved. Refresh and try again." },
+          { status: 409 },
+        );
+      }
+      if (txErr instanceof Error && txErr.message === "CASE_REFUND_LOCK_LOST") {
+        return NextResponse.json(
+          { error: "Refund state changed after Stripe accepted the refund. Staff must reconcile this order before retrying." },
           { status: 409 },
         );
       }
