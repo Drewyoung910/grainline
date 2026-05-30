@@ -7,6 +7,10 @@ import { Search } from "@/components/icons";
 
 const FALLBACK_BLOG_TOPICS = ["woodworking", "behind the build", "care guide", "maker story"];
 
+function blogPostPath(slug: string): string {
+  return `/blog/${encodeURIComponent(slug)}`;
+}
+
 export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -88,7 +92,7 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
   function pick(s: BlogSuggestion) {
     setOpen(false);
     if (s.type === "post" && s.slug) {
-      router.push(`/blog/${s.slug}`);
+      router.push(blogPostPath(s.slug));
     } else if (s.type === "tag" && s.tag) {
       const p = new URLSearchParams();
       if (searchParams.get("type")) p.set("type", searchParams.get("type")!);

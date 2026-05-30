@@ -138,4 +138,24 @@ describe("client async guardrails", () => {
     assert.match(reviews, /catch \{[\s\S]*?toast\("Failed", "error"\)/);
     assert.match(reviews, /catch \{[\s\S]*?toast\("Failed to reply", "error"\)/);
   });
+
+  it("validates dismissible-banner storage before using parsed ids", () => {
+    const banner = source("src/components/DismissibleBanner.tsx");
+
+    assert.match(banner, /function parseDismissedIds\(stored: string \| null\): string\[\]/);
+    assert.match(banner, /const parsed: unknown = JSON\.parse\(stored\)/);
+    assert.match(banner, /Array\.isArray\(parsed\)/);
+    assert.match(banner, /filter\(\(id\): id is string => typeof id === "string"\)/);
+    assert.doesNotMatch(banner, /JSON\.parse\(stored\) as string\[\]/);
+  });
+
+  it("surfaces commission status update failures to the seller", () => {
+    const markStatusButtons = source("src/app/commission/[param]/MarkStatusButtons.tsx");
+
+    assert.match(markStatusButtons, /useToast/);
+    assert.match(markStatusButtons, /await res\.json\(\)\.catch\(\(\) => null\)/);
+    assert.match(markStatusButtons, /if \(!res\.ok\) \{/);
+    assert.match(markStatusButtons, /toast\(data\?\.error \?\? "Could not update commission request\.", "error"\)/);
+    assert.match(markStatusButtons, /catch \{[\s\S]*?toast\("Network error\. Please try again\.", "error"\)/);
+  });
 });

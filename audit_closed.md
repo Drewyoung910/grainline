@@ -2864,8 +2864,19 @@ Last updated: 2026-05-24
      carrier deep links, matching the already-hardened label and email link
      builders. Guardrail: `tests/link-security.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 270 findings;
-verified stale/false-positive: 100 findings; product/design decisions deferred:
+285. **Client navigation and UI recovery guardrails tightened** — code/test fix
+     for #731, #733, #735, and #736, plus verified stale/false-positive closure
+     for #732 and #734. Recently viewed listing IDs now travel through
+     `URLSearchParams`; search/blog suggestion category and slug routing now
+     encodes query/path values before navigation; dismissible-banner localStorage
+     state is shape-checked before use; and commission status buttons now show
+     server/network failures instead of silently clearing loading state. The
+     MapFallback blank-target rel and ImageCropModal body scroll-lock findings
+     were stale on current `main`. Guardrails: `tests/link-security.test.mjs`
+     and `tests/client-async-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 274 findings;
+verified stale/false-positive: 102 findings; product/design decisions deferred:
 39 findings. Remaining major categories: Stripe webhook subscription narrowing
 evidence, Round 10 deferred state-machine product designs, JSON size historical
 validation and email uniqueness production-scan decisions, email outbox

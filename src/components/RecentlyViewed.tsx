@@ -28,8 +28,9 @@ export default function RecentlyViewed() {
     }
     const controller = new AbortController();
     let active = true;
+    const params = new URLSearchParams({ ids: ids.join(",") });
 
-    fetch(`/api/listings/recently-viewed?ids=${ids.join(",")}`, {
+    fetch(`/api/listings/recently-viewed?${params.toString()}`, {
       signal: controller.signal,
     })
       .then(async (r) => {

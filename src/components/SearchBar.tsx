@@ -25,6 +25,15 @@ function browseSearchUrl(query: string): string {
   return normalized ? `/browse?q=${encodeURIComponent(normalized)}` : "/browse";
 }
 
+function browseCategoryUrl(category: string): string {
+  const params = new URLSearchParams({ category });
+  return `/browse?${params.toString()}`;
+}
+
+function blogPostPath(slug: string): string {
+  return `/blog/${encodeURIComponent(slug)}`;
+}
+
 // Humanize a tag/slug for display only. Storage and search queries still use
 // the raw value with dashes/underscores preserved.
 function humanizeTag(raw: string): string {
@@ -235,7 +244,7 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
   function pickBlog(slug: string) {
     setOpen(false);
     setActiveIndex(-1);
-    router.push(`/blog/${slug}`);
+    router.push(blogPostPath(slug));
   }
 
   function chooseOption(option: SearchOption) {
@@ -248,7 +257,7 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
         setValue("");
         setOpen(false);
         setActiveIndex(-1);
-        router.push(`/browse?category=${option.value}`);
+        router.push(browseCategoryUrl(option.value));
         return;
       case "blog":
         pickBlog(option.slug);

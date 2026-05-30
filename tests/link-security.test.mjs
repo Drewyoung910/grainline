@@ -47,4 +47,21 @@ describe("link security", () => {
       assert.doesNotMatch(source, /tracking-id=\$\{(?:labelTrackingNumber|number)\}/, file);
     }
   });
+
+  it("encodes client-supplied navigation values before building URLs", () => {
+    const recentlyViewed = fs.readFileSync("src/components/RecentlyViewed.tsx", "utf8");
+    const searchBar = fs.readFileSync("src/components/SearchBar.tsx", "utf8");
+    const blogSearchBar = fs.readFileSync("src/components/BlogSearchBar.tsx", "utf8");
+
+    assert.match(recentlyViewed, /new URLSearchParams\(\{ ids: ids\.join\(","\) \}\)/);
+    assert.doesNotMatch(recentlyViewed, /ids=\$\{ids\.join\(","\)\}/);
+
+    assert.match(searchBar, /new URLSearchParams\(\{ category \}\)/);
+    assert.match(searchBar, /encodeURIComponent\(slug\)/);
+    assert.doesNotMatch(searchBar, /category=\$\{option\.value\}/);
+    assert.doesNotMatch(searchBar, /\/blog\/\$\{slug\}/);
+
+    assert.match(blogSearchBar, /encodeURIComponent\(slug\)/);
+    assert.doesNotMatch(blogSearchBar, /\/blog\/\$\{s\.slug\}/);
+  });
 });

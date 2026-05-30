@@ -2,9 +2,11 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/Toast";
 
 export default function MarkStatusButtons({ requestId }: { requestId: string }) {
   const router = useRouter();
+  const { toast } = useToast();
   const [loading, setLoading] = React.useState<string | null>(null);
 
   async function updateStatus(status: string) {
@@ -15,7 +17,14 @@ export default function MarkStatusButtons({ requestId }: { requestId: string }) 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
       });
-      if (res.ok) router.refresh();
+      const data = await res.json().catch(() => null) as { error?: string } | null;
+      if (!res.ok) {
+        toast(data?.error ?? "Could not update commission request.", "error");
+        return;
+      }
+      router.refresh();
+    } catch {
+      toast("Network error. Please try again.", "error");
     } finally {
       setLoading(null);
     }
