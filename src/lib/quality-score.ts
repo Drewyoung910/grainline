@@ -7,7 +7,7 @@
 //   score =
 //     dampenedConversion * 0.25 +
 //     sellerRating * 0.20 +
-//     favNorm * 0.15 +
+//     favoriteSignal * 0.15 +
 //     recency * 0.15 +
 //     dampenedCtr * 0.10 +
 //     guildBonus * 0.05 +
@@ -19,6 +19,9 @@
 //
 // Base weights sum to 1.0. Discovery bumps are additive by design, so a
 // brand-new zero-review listing can temporarily score up to 1.20.
+// Engagement inputs are abuse-dampened: excess views without clicks/orders
+// cannot indefinitely suppress conversion/CTR, and favorites need some
+// engagement support before reaching their full ranking weight.
 
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";

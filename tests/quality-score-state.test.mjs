@@ -109,6 +109,32 @@ describe("quality score penalties", () => {
     assert.ok(sparse < mature, "one lucky view should not outrank sustained engagement");
   });
 
+  it("limits ranking damage from excess view-only traffic", () => {
+    const now = Date.parse("2026-05-23T12:00:00.000Z");
+    const baseline = scoreQualityRow(qualityRow({ viewCount: 100, clickCount: 10, orderCount: 5n }), globalMeans, now);
+    const viewBombed = scoreQualityRow(qualityRow({ viewCount: 20_000, clickCount: 10, orderCount: 5n }), globalMeans, now);
+
+    assert.ok(baseline - viewBombed < 0.04, "excess views without engagement should have bounded ranking impact");
+  });
+
+  it("does not let unsupported favorite spikes reach full favorite weight", () => {
+    const now = Date.parse("2026-05-23T12:00:00.000Z");
+    const favoriteOnly = scoreQualityRow(qualityRow({
+      viewCount: 50,
+      clickCount: 0,
+      orderCount: 0n,
+      favCount: 50n,
+    }), globalMeans, now);
+    const supported = scoreQualityRow(qualityRow({
+      viewCount: 50,
+      clickCount: 20,
+      orderCount: 2n,
+      favCount: 50n,
+    }), globalMeans, now);
+
+    assert.ok(supported - favoriteOnly > 0.07, "favorites should need engagement support for full ranking weight");
+  });
+
   it("orders Guild boosts and new-seller bumps without changing the base formula", () => {
     const now = Date.parse("2026-05-23T12:00:00.000Z");
     const baseline = scoreQualityRow(qualityRow({

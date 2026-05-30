@@ -27,6 +27,19 @@ export interface QualityScoreGlobalMeans {
 const DAMPENING_C = 50;
 export const MAX_QUALITY_SCORE = 1.2;
 
+function effectiveEngagementViews(views: number, clicks: number, orders: number) {
+  if (views <= 0) return 0;
+  const actionSupportedCap = DAMPENING_C + clicks * 25 + orders * 100;
+  return Math.min(views, Math.max(DAMPENING_C, actionSupportedCap));
+}
+
+function favoriteSignal(favs: number, clicks: number, orders: number) {
+  const base = Math.min(1, favs / 50);
+  if (base <= 0) return 0;
+  const engagementSupport = Math.min(1, (clicks + orders * 5) / Math.max(10, favs));
+  return base * (0.4 + engagementSupport * 0.6);
+}
+
 function clampQualityScore(score: number) {
   if (!Number.isFinite(score)) return 0;
   return Math.min(MAX_QUALITY_SCORE, Math.max(0, score));
@@ -42,19 +55,20 @@ export function scoreQualityRow(
   const orders = Number(row.orderCount);
   const favs = Number(row.favCount);
   const photos = Number(row.photoCount);
+  const engagementViews = effectiveEngagementViews(views, clicks, orders);
 
-  const rawConversion = views > 0 ? orders / views : 0;
+  const rawConversion = engagementViews > 0 ? orders / engagementViews : 0;
   const dampenedConversion =
-    (views * rawConversion + DAMPENING_C * globals.avgConversion) /
-    (views + DAMPENING_C);
+    (engagementViews * rawConversion + DAMPENING_C * globals.avgConversion) /
+    (engagementViews + DAMPENING_C);
 
-  const rawCtr = views > 0 ? clicks / views : 0;
+  const rawCtr = engagementViews > 0 ? clicks / engagementViews : 0;
   const dampenedCtr =
-    (views * rawCtr + DAMPENING_C * globals.avgCtr) / (views + DAMPENING_C);
+    (engagementViews * rawCtr + DAMPENING_C * globals.avgCtr) / (engagementViews + DAMPENING_C);
 
   const rating = row.sellerAvgRating ?? globals.avgRating;
   const sellerRating = Math.min(1, Math.max(0, rating / 5));
-  const favNorm = Math.min(1, favs / 50);
+  const favNorm = favoriteSignal(favs, clicks, orders);
 
   const ageMs = now - new Date(row.createdAt).getTime();
   const ageInDays = Math.max(0, ageMs / (1000 * 60 * 60 * 24));

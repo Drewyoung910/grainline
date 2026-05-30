@@ -2889,7 +2889,17 @@ Last updated: 2026-05-24
      `tests/verified-audit-followups.test.mjs`, and
      `tests/upload-verification-token.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 276 findings;
+287. **Ranking abuse and CSP report backpressure tightened** — code/test/docs
+     fix for #742, #743, and #745. The quality-score formula now bounds excess
+     view-only traffic before it affects conversion/CTR and reduces favorite-only
+     spikes that lack supporting clicks/orders, reducing ranking-manipulation and
+     view-bombing risk without removing the existing engagement signals. CSP
+     report intake now uses the fail-closed rate-limit helper so Redis/rate-limit
+     failures do not open an unbounded Sentry event path. Guardrails:
+     `tests/quality-score-state.test.mjs` and
+     `tests/public-cron-search-hardening.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 279 findings;
 verified stale/false-positive: 104 findings; product/design decisions deferred:
 39 findings. Remaining major categories: Stripe webhook subscription narrowing
 evidence, Round 10 deferred state-machine product designs, JSON size historical

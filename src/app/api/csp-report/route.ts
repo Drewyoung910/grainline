@@ -7,13 +7,13 @@ import {
   sanitizeCspReportForSentry,
   type CspReportLike,
 } from "@/lib/cspReport";
-import { cspReportRatelimit, getIP, safeRateLimitOpen } from "@/lib/ratelimit";
+import { cspReportRatelimit, getIP, safeRateLimit } from "@/lib/ratelimit";
 import { isRequestBodyTooLargeError, readBoundedText } from "@/lib/requestBody";
 
 const CSP_REPORT_BODY_MAX_BYTES = 32 * 1024;
 
 export async function POST(request: NextRequest) {
-  const { success } = await safeRateLimitOpen(cspReportRatelimit, getIP(request));
+  const { success } = await safeRateLimit(cspReportRatelimit, getIP(request));
   if (!success) return new NextResponse(null, { status: 204 });
 
   let rawBody = "";
