@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
+import { auth, reverificationErrorResponse } from "@clerk/nextjs/server";
 import { ensureUser, isAccountAccessError } from "@/lib/ensureUser";
 import { prisma } from "@/lib/db";
 import { accountExportRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
@@ -8,7 +9,12 @@ import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
 import { logUserAuditAction } from "@/lib/audit";
 import { normalizeEmailAddress } from "@/lib/emailSuppression";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { supportRequestAccountExportWhere } from "@/lib/supportRequest";
+import {
+  ACCOUNT_EXPORT_REVERIFICATION,
+  hasFreshAccountExportSession,
+} from "@/lib/accountExportReverification";
 
 export const runtime = "nodejs";
 
@@ -527,9 +533,21 @@ async function buildExport(user: NonNullable<ExportableUser>) {
   });
 }
 
-async function handleExport(method: "GET" | "POST") {
+async function handleExport(req: Request) {
   let exportUserId: string | null = null;
+  const method = "POST";
   try {
+    const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
+    if (crossOriginRejection) {
+      return privateJson({ error: "Cross-origin account export requests are not allowed." }, { status: 403 });
+    }
+
+    const session = await auth();
+    if (!session.userId) return privateJson({ error: "Sign in required" }, { status: 401 });
+    if (!hasFreshAccountExportSession(session.factorVerificationAge)) {
+      return privateResponse(reverificationErrorResponse(ACCOUNT_EXPORT_REVERIFICATION));
+    }
+
     const user = await ensureUser();
     if (!user) return privateJson({ error: "Sign in required" }, { status: 401 });
     exportUserId = user.id;
@@ -574,9 +592,9 @@ async function handleExport(method: "GET" | "POST") {
 }
 
 export async function GET() {
-  return handleExport("GET");
+  return privateJson({ error: "Use POST to download account data." }, { status: 405, headers: { Allow: "POST" } });
 }
 
-export async function POST() {
-  return handleExport("POST");
+export async function POST(req: Request) {
+  return handleExport(req);
 }

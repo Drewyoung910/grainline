@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { ensureUserForPage } from "@/lib/pageAuth";
 import { NotificationToggle } from "@/components/NotificationToggle";
 import { AccountDeletionButton } from "@/components/AccountDeletionButton";
+import { AccountExportButton } from "@/components/AccountExportButton";
 import { normalizeNotificationPreferences, type NotificationPreferenceKey } from "@/lib/notificationPreferenceKeys";
 import type { Metadata } from "next";
 
@@ -222,12 +223,7 @@ export default async function AccountSettingsPage() {
         <p className="mt-1 text-sm text-neutral-600">
           Download a JSON copy of your Grainline account, orders, messages, listings, reviews, and saved activity.
         </p>
-        <a
-          href="/api/account/export"
-          className="mt-4 inline-flex min-h-11 items-center rounded-md border border-neutral-200 px-4 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
-        >
-          Download account data
-        </a>
+        <AccountExportButton />
       </section>
 
       <section className="card-section border-red-200 bg-red-50/40 p-5">

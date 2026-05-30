@@ -67,4 +67,40 @@ describe("account export privacy coverage", () => {
     assert.match(supportBlock, /listingId: true/);
     assert.doesNotMatch(supportBlock, /where:\s*\{\s*email:\s*accountEmail\s*\}/);
   });
+
+  it("keeps account export behind POST, same-origin, and fresh session checks", () => {
+    const route = source("src/app/api/account/export/route.ts");
+    const settingsPage = source("src/app/account/settings/page.tsx");
+    const exportButton = source("src/components/AccountExportButton.tsx");
+
+    assert.match(route, /import \{ auth, reverificationErrorResponse \} from "@clerk\/nextjs\/server"/);
+    assert.match(route, /getExplicitCrossOriginPostRejection\(req\)/);
+    assert.match(route, /hasFreshAccountExportSession\(session\.factorVerificationAge\)/);
+    assert.match(route, /reverificationErrorResponse\(ACCOUNT_EXPORT_REVERIFICATION\)/);
+    assert.match(route, /export async function GET\(\) \{[\s\S]*status: 405[\s\S]*Allow: "POST"/);
+    assert.match(route, /export async function POST\(req: Request\)/);
+    assert.doesNotMatch(route, /handleExport\("GET"\)/);
+
+    const guardIndex = route.indexOf("getExplicitCrossOriginPostRejection(req)");
+    const authIndex = route.indexOf("await auth()");
+    const freshnessIndex = route.indexOf("hasFreshAccountExportSession(session.factorVerificationAge)");
+    const buildIndex = route.indexOf("await buildExport(user)");
+    const auditIndex = route.indexOf("await logUserAuditAction");
+    const downloadIndex = route.indexOf("return jsonDownload(payload, user.id)");
+
+    assert.ok(guardIndex > -1);
+    assert.ok(authIndex > guardIndex);
+    assert.ok(freshnessIndex > authIndex);
+    assert.ok(buildIndex > freshnessIndex);
+    assert.ok(auditIndex > buildIndex);
+    assert.ok(downloadIndex > auditIndex);
+
+    assert.match(settingsPage, /<AccountExportButton \/>/);
+    assert.doesNotMatch(settingsPage, /href="\/api\/account\/export"/);
+    assert.match(exportButton, /useReverification\(fetchAccountExport\)/);
+    assert.match(exportButton, /method: "POST"/);
+    assert.match(exportButton, /response\.json\(\)\.catch/);
+    assert.doesNotMatch(exportButton, /content-type/);
+    assert.doesNotMatch(exportButton, /window\.location\.href\s*=\s*"\/api\/account\/export"/);
+  });
 });
