@@ -45,6 +45,21 @@ describe("accessibility follow-ups", () => {
     assert.match(form, /role="alert"/);
   });
 
+  it("labels newsletter signup and links validation errors to the email field", () => {
+    const form = source("src/components/NewsletterSignup.tsx");
+
+    assert.match(form, /const emailId = React\.useId\(\)/);
+    assert.match(form, /const errorId = React\.useId\(\)/);
+    assert.match(form, /<label htmlFor=\{emailId\} className="sr-only">Email address<\/label>/);
+    assert.match(form, /id=\{emailId\}/);
+    assert.match(form, /aria-invalid=\{Boolean\(error\)\}/);
+    assert.match(form, /aria-describedby=\{error \? errorId : undefined\}/);
+    assert.match(form, /id=\{errorId\}/);
+    assert.match(form, /role="alert"/);
+    assert.match(form, /role="status"/);
+    assert.match(form, /aria-live="polite"/);
+  });
+
   it("keeps the image crop modal a real dialog with focus and scroll management", () => {
     const modal = source("src/components/ImageCropModal.tsx");
     assert.match(modal, /useDialogFocus\(mounted, dialogRef, onCancel\)/);
@@ -132,6 +147,12 @@ describe("accessibility follow-ups", () => {
     assert.match(listingTypeFields, /role="radio"/);
     assert.match(listingTypeFields, /aria-checked=\{type === "MADE_TO_ORDER"\}/);
     assert.match(listingTypeFields, /aria-checked=\{type === "IN_STOCK"\}/);
+    assert.match(listingTypeFields, /tabIndex=\{type === "MADE_TO_ORDER" \? 0 : -1\}/);
+    assert.match(listingTypeFields, /tabIndex=\{type === "IN_STOCK" \? 0 : -1\}/);
+    assert.match(listingTypeFields, /ArrowRight/);
+    assert.match(listingTypeFields, /ArrowLeft/);
+    assert.match(listingTypeFields, /Home/);
+    assert.match(listingTypeFields, /End/);
     assert.match(variantEditor, /useId/);
     assert.match(variantEditor, /htmlFor=\{`\$\{baseId\}-group-\$\{gi\}-option-\$\{oi\}-label`\}/);
     assert.match(variantEditor, /id=\{`\$\{baseId\}-group-\$\{gi\}-option-\$\{oi\}-label`\}/);
@@ -193,6 +214,7 @@ describe("accessibility follow-ups", () => {
   it("keeps compact visual controls accessible without noisy glyphs", () => {
     const thread = source("src/components/ThreadMessages.tsx");
     const favorite = source("src/components/FavoriteButton.tsx");
+    const saveBlog = source("src/components/SaveBlogButton.tsx");
     const imageLightbox = source("src/components/ImageLightbox.tsx");
     const listingGallery = source("src/components/ListingGallery.tsx");
     const home = source("src/app/page.tsx");
@@ -200,7 +222,8 @@ describe("accessibility follow-ups", () => {
     assert.match(thread, /Open<span className="sr-only"> in a new tab<\/span>/);
     assert.match(thread, /aria-label=\{`Open \$\{file\.name \?\? "file attachment"\} in a new tab`\}/);
     assert.doesNotMatch(thread, /⬇️/);
-    assert.match(favorite, /p-2\.5/);
+    assert.match(favorite, /p-3/);
+    assert.match(saveBlog, /p-3/);
     assert.match(imageLightbox, /<span aria-hidden="true">✕<\/span>/);
     assert.match(listingGallery, /<span aria-hidden="true">✕<\/span>/);
     assert.match(home, /<svg aria-hidden="true" width="24" height="24"/);
@@ -223,6 +246,9 @@ describe("accessibility follow-ups", () => {
     assert.match(starInput, /htmlFor=\{selectId\}/);
     assert.match(layout, /text-stone-100/);
     assert.doesNotMatch(layout, /text-stone-300\/60/);
+    assert.doesNotMatch(layout, /text-stone-300\/80/);
+    assert.doesNotMatch(source("src/app/page.tsx"), /text-amber-600">Blog post/);
+    assert.doesNotMatch(source("src/components/VariantSelector.tsx"), /text-amber-600">Please select/);
   });
 
   it("keeps data tables captioned and column headers scoped", () => {

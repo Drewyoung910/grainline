@@ -84,7 +84,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <div className="col-span-2 sm:col-span-2 md:col-span-1 space-y-3">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src="/logo-espresso.svg" alt="Grainline" className="h-6 w-auto invert opacity-90" />
-                  <p className="text-xs text-stone-300/80 leading-relaxed max-w-[200px]">
+                  <p className="text-xs text-stone-100 leading-relaxed max-w-[200px]">
                     Handmade woodworking from makers in your area.
                   </p>
                 </div>
@@ -139,7 +139,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               {/* Browse by City — only when metros have content */}
               {footerMetros.length > 0 && (
                 <div className="border-t border-stone-200/15 pt-6 pb-6 mb-6">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-300/80 mb-3">Browse by city</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-100 mb-3">Browse by city</p>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
                     {footerMetros.map((m) => (
                       <Link key={m.slug} href={`/browse/${m.slug}`} className="text-stone-300 hover:text-white hover:underline">
@@ -151,7 +151,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               )}
 
               {/* Bottom bar — copyright + trust note */}
-              <div className="border-t border-stone-200/15 pt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-stone-300/80">
+              <div className="border-t border-stone-200/15 pt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-stone-100">
                 <p>&copy; {new Date().getFullYear()} Grainline LLC. All rights reserved.</p>
                 <p className="text-stone-100">Built in Texas. Handmade pieces, real makers, fair fees.</p>
               </div>

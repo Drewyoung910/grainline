@@ -698,7 +698,7 @@ export default async function HomePage() {
                       </div>
                       <div className="p-2">
                         <p className="text-xs font-medium text-neutral-900 truncate">{item.title}</p>
-                        <p className="text-xs text-amber-600">Blog post</p>
+                        <p className="text-xs text-amber-700">Blog post</p>
                         <p className="text-xs text-neutral-500 truncate">{item.sellerName}</p>
                       </div>
                     </Link>

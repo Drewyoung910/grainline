@@ -3299,9 +3299,90 @@ Last updated: 2026-05-30
      `tests/email-outbox-state.test.mjs`, `tests/email-outbox-retention.test.mjs`,
      and `tests/email-outbox-quota.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 309 findings;
-verified stale/false-positive: 226 findings; product/design/ops decisions
-deferred: 54 findings. Remaining major categories: Stripe webhook subscription
+313. **Round 2 race, email, test-gap, accessibility, and persona slices
+     reverified** — source/test/code closure for #390-#501, with runtime and
+     architecture items explicitly left as such. Email/outbox and race findings
+     #390-#407 and #410-#427 are stale or current-clean: Resend failure counts
+     use atomic upsert logic, admin direct email resolves to existing users
+     before send, new-message emails use atomic throttle state, email plaintext
+     fallback no longer reintroduces decoded HTML, listing-followed-maker email
+     images are first-party only, unsubscribe POST has accepted RFC 8058 behavior
+     with origin/referer and per-email rate limits, direct transactional email
+     paths have outbox fallback behavior, case-message double submits are
+     serialized, EmailOutbox content/error fields are bounded and sanitized,
+     Resend webhook in-progress reservations return retryable status, admin
+     email audit targets do not store raw external recipient emails, account
+     deletion performs seller orderability disablement inside the deletion
+     transaction, create-time AI review cannot overwrite admin listing removal,
+     Guild threshold sync is centralized in one SQL update, saved-search
+     dedupe/cap/create is serializable, custom-order ready links use an advisory
+     lock, blog approval side effects run only on first approval, duplicate
+     review/case/slug/vote/cart races have friendly idempotent paths, follow vs
+     block races re-check after write, photo vanished-row conflicts clean new R2
+     URLs, Founding Maker numbering uses an advisory max-number assignment, and
+     Stripe/account-deletion in-progress locks return retryable status or lock
+     before external side effects.
+
+     Test-gap items #428-#440 were also reverified. JSON-LD escaping,
+     reciprocal block-filter helpers, AI-review response normalization,
+     rate-limit fail-open/fail-closed policy, quality-score boundary math, blog
+     markdown sanitization, reverse-geocode throttling, and admin-audit 24h undo
+     windows already had guardrails. This pass added tighter source guards for
+     shipping quote fallback/pickup/carrier-preference behavior, dynamic sitemap
+     public-visibility predicates, and notification/account-state fail-closed
+     behavior. Founding Maker live DB concurrency proof and broader cron
+     termination mocks remain test-backlog items rather than closed runtime
+     evidence.
+
+     Accessibility findings #441-#481 are now mostly stale or current-clean:
+     variant selectors, open-case fields, admin email, image crop modal, maps,
+     blog comments, review composer, shipping-rate groups, browse filters,
+     variant editor rows, report form, menus, address autocomplete, attachment
+     links, character counters, photo alt editors, follow/unread/Guild controls,
+     star ratings, StarInput, hero decorative SVG, close glyphs, notification
+     icons, and data tables all have source guardrails. This pass fixed the
+     remaining source-real items in that slice: newsletter signup now has a
+     labelled email input plus linked alert/status regions; listing type radio
+     buttons now support roving keyboard behavior with Arrow/Home/End keys;
+     footer and small amber text tokens were moved to higher-contrast colors;
+     and favorite/save blog icon targets were increased to 44px-plus geometry.
+     Homepage heading/contrast confirmation, mobile drawer background
+     reachability, and reduced-motion behavior remain runtime axe/browser proof
+     tasks.
+
+     Persona findings #482-#501 are stale or false-positive except two deferred
+     operational/architecture items. Banned reviewers are redacted in public
+     review display, ban/deletion removes seller commission/cache/outbox residue,
+     banned/deleted users are blocked from Stripe dashboard, messaging,
+     fulfillment, label, and refund actions, saved-search/newsletter/cart spam
+     paths are bounded or normalized, sensitive Guild actions are ADMIN-only,
+     report resolution requires a reason, staff thread access remains reported
+     thread read-only, destructive admin actions are ADMIN-only, deletion-time
+     email suppression is cleared on same-email re-signup, seller-authored review
+     replies are cleared on deletion, and account deletion sweeps seller metrics,
+     rating summaries, commission interest, and unresolved reports. #493 remains
+     Clerk dashboard runtime evidence for multi-account spam controls; #495
+     remains a separate per-user staff MFA/TOTP architecture project rather than
+     a drive-by replacement for the shared admin PIN. Guardrails include:
+     `tests/accessibility-followups.test.mjs`,
+     `tests/shipping-quote-state.test.mjs`,
+     `tests/sitemap-entry-limit.test.mjs`,
+     `tests/pr-h-deletion-analytics-email-followups.test.mjs`,
+     `tests/account-privacy-observability.test.mjs`,
+     `tests/admin-action-guardrails.test.mjs`,
+     `tests/custom-order-admin-thread-followups.test.mjs`,
+     `tests/case-observability-followups.test.mjs`,
+     `tests/post-launch-ui-followups.test.mjs`,
+     `tests/user-text-normalization-followups.test.mjs`,
+     `tests/email-normalization-followups.test.mjs`,
+     `tests/account-state-residue-followups.test.mjs`,
+     `tests/r49-account-state-routes.test.mjs`,
+     `tests/security-lifecycle-followups.test.mjs`, and
+     `tests/newsletter-double-opt-in.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 317 findings;
+verified stale/false-positive: 320 findings; product/design/ops decisions
+deferred: 64 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
 product designs, JSON size historical validation and email uniqueness
@@ -3315,6 +3396,9 @@ decisions, Buy Now best-effort rollback window, partial multi-seller checkout
 continuation design, deliberate BigInt money-column modeling, live-data
 reconciliation for historical seller shipping-rate currency drift, legacy
 display-only media host validation, Clerk staff MFA and breached-password
-dashboard evidence, HSTS preload and Vercel max-duration ops evidence, and
-agent/worktree verification process hygiene. Approximate raw allegations left
-to verify from current max #1120: 532.
+dashboard evidence, Clerk multi-account spam dashboard evidence, Stripe
+duplicate-webhook and buyer-deletion runtime replay proof, Founding Maker live
+DB concurrency proof, cron termination mock coverage, HSTS preload and Vercel
+max-duration ops evidence, remaining runtime a11y proof, and agent/worktree
+verification process hygiene. Approximate raw allegations left to verify from
+current max #1120: 420.

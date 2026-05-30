@@ -23,9 +23,38 @@ export default function ListingTypeFields({
 }) {
   const [type, setType] = React.useState<"MADE_TO_ORDER" | "IN_STOCK">(listingType);
   const listingTypeLabelId = React.useId();
+  const madeToOrderRef = React.useRef<HTMLButtonElement>(null);
+  const inStockRef = React.useRef<HTMLButtonElement>(null);
+
   function changeType(nextType: "MADE_TO_ORDER" | "IN_STOCK") {
     setType(nextType);
     onListingTypeChange?.(nextType);
+  }
+
+  function focusType(nextType: "MADE_TO_ORDER" | "IN_STOCK") {
+    const target = nextType === "MADE_TO_ORDER" ? madeToOrderRef : inStockRef;
+    requestAnimationFrame(() => target.current?.focus());
+  }
+
+  function handleListingTypeKeyDown(
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    currentType: "MADE_TO_ORDER" | "IN_STOCK",
+  ) {
+    let nextType: "MADE_TO_ORDER" | "IN_STOCK" | null = null;
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      nextType = currentType === "MADE_TO_ORDER" ? "IN_STOCK" : "MADE_TO_ORDER";
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      nextType = currentType === "IN_STOCK" ? "MADE_TO_ORDER" : "IN_STOCK";
+    } else if (event.key === "Home") {
+      nextType = "MADE_TO_ORDER";
+    } else if (event.key === "End") {
+      nextType = "IN_STOCK";
+    }
+    if (!nextType) return;
+
+    event.preventDefault();
+    changeType(nextType);
+    focusType(nextType);
   }
 
   return (
@@ -52,10 +81,13 @@ export default function ListingTypeFields({
         <p id={listingTypeLabelId} className="block text-sm font-medium text-neutral-700 mb-2">Listing type</p>
         <div className="grid grid-cols-2 gap-3">
           <button
+            ref={madeToOrderRef}
             type="button"
             role="radio"
             aria-checked={type === "MADE_TO_ORDER"}
+            tabIndex={type === "MADE_TO_ORDER" ? 0 : -1}
             onClick={() => changeType("MADE_TO_ORDER")}
+            onKeyDown={(event) => handleListingTypeKeyDown(event, "MADE_TO_ORDER")}
             className={`rounded-md border px-3 py-2.5 text-sm font-medium text-left transition-colors ${
               type === "MADE_TO_ORDER"
                 ? "border-neutral-900 bg-neutral-900 text-white"
@@ -65,10 +97,13 @@ export default function ListingTypeFields({
             Made to Order
           </button>
           <button
+            ref={inStockRef}
             type="button"
             role="radio"
             aria-checked={type === "IN_STOCK"}
+            tabIndex={type === "IN_STOCK" ? 0 : -1}
             onClick={() => changeType("IN_STOCK")}
+            onKeyDown={(event) => handleListingTypeKeyDown(event, "IN_STOCK")}
             className={`rounded-md border px-3 py-2.5 text-sm font-medium text-left transition-colors ${
               type === "IN_STOCK"
                 ? "border-neutral-900 bg-neutral-900 text-white"

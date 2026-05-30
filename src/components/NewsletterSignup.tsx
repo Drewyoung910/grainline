@@ -6,12 +6,15 @@ export default function NewsletterSignup({ heading, subheading }: { heading?: st
   const [email, setEmail] = React.useState("");
   const [status, setStatus] = React.useState<"idle" | "loading" | "success" | "error">("idle");
   const [error, setError] = React.useState("");
+  const emailId = React.useId();
+  const errorId = React.useId();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     const trimmed = email.trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setStatus("error");
       setError("Please enter a valid email address.");
       return;
     }
@@ -44,17 +47,25 @@ export default function NewsletterSignup({ heading, subheading }: { heading?: st
       </div>
 
       {status === "success" ? (
-        <div className="rounded-md border border-green-200 bg-white px-4 py-3 text-green-800 font-medium max-w-md mx-auto">
+        <div
+          className="rounded-md border border-green-200 bg-white px-4 py-3 text-green-800 font-medium max-w-md mx-auto"
+          role="status"
+          aria-live="polite"
+        >
           Check your email to confirm your subscription.
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2 max-w-md mx-auto">
+          <label htmlFor={emailId} className="sr-only">Email address</label>
           <input
+            id={emailId}
             type="email"
             placeholder="your@email.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
+            aria-invalid={Boolean(error)}
+            aria-describedby={error ? errorId : undefined}
             className="flex-1 min-w-0 rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
           />
           <button
@@ -67,7 +78,11 @@ export default function NewsletterSignup({ heading, subheading }: { heading?: st
         </form>
       )}
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && (
+        <p id={errorId} className="text-sm text-red-600" role="alert">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

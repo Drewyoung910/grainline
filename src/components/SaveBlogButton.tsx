@@ -51,9 +51,9 @@ export default function SaveBlogButton({ slug, initialSaved }: Props) {
       disabled={loading}
       title={saved ? "Remove from saved" : "Save post"}
       aria-label={saved ? "Remove from saved" : "Save post"}
-      className="inline-flex items-center justify-center p-2.5 rounded-full hover:bg-black/15 transition-colors disabled:opacity-50"
+      className="inline-flex items-center justify-center p-3 rounded-full hover:bg-black/15 transition-colors disabled:opacity-50"
     >
-      {/* Match FavoriteButton geometry exactly (size 22, p-2.5, no translate)
+      {/* Match FavoriteButton geometry exactly (size 22, p-3, no translate)
           so the hover circle hugs the bookmark the same way the heart
           treatment does. The bookmark icon's bounding box (3,3)-(21,21) is
           already centered inside the 24x24 viewBox, so no translateY is

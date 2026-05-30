@@ -68,4 +68,17 @@ describe("shipping quote state helpers", () => {
       blockedByCarrierPreference: false,
     });
   });
+
+  it("keeps the quote route fallback and pickup paths behind shared quote helpers", () => {
+    const route = readFileSync("src/app/api/shipping/quote/route.ts", "utf8");
+
+    assert.match(route, /fallbackRate\(\{\s*amountCents: safeFallbackShippingCents\(fallbackShippingCents\)/s);
+    assert.match(route, /const filtered = filterShippoRatesForCheckout\(\{/);
+    assert.match(route, /preferredCarriers: sellerPreferredCarriers/);
+    assert.match(route, /if \(filtered\.blockedByCarrierPreference\) \{/);
+    assert.match(route, /if \(sellerAllowsPickup\) \{\s*return pickupOnlyResponse/s);
+    assert.match(route, /No shipping rates matched this maker's carrier preferences\./);
+    assert.match(route, /if \(out\.length === 0 && !sellerAllowsPickup\) \{/);
+    assert.match(route, /out\.unshift\(pickupRate\(\{ contextId, buyerId: me\.id, buyerPostal: shipTo\.postal \}\)\)/);
+  });
 });

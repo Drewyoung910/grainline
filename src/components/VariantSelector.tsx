@@ -138,7 +138,7 @@ export default function VariantSelector({
         </div>
       ))}
       {groups.length > 0 && !allSelected && (
-        <p className="text-xs text-amber-600">Please select all options to continue</p>
+        <p className="text-xs text-amber-700">Please select all options to continue</p>
       )}
     </div>
   );

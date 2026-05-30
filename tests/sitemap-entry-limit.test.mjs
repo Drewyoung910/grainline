@@ -29,4 +29,17 @@ describe("sitemap entry limit guardrails", () => {
     assert.match(source, /skip: chunk\.rowSkip/);
     assert.match(source, /take: chunk\.rowTake/);
   });
+
+  it("keeps dynamic sitemap entries behind public visibility predicates", () => {
+    assert.match(source, /import \{ publicBlogPostWhere \} from "@\/lib\/blogVisibility"/);
+    assert.match(source, /import \{ publicListingDetailWhere, publicListingWhere \} from "@\/lib\/listingVisibility"/);
+    assert.match(source, /import \{ activeSellerProfileWhere \} from "@\/lib\/sellerVisibility"/);
+    assert.match(source, /where: activeSellerProfileWhere\(\{\s*listings: \{ some: publicListingWhere\(\) \}/s);
+    assert.match(source, /where: activeSellerProfileWhere\(\{\s*listings: \{\s*some: publicListingDetailWhere\(\{/s);
+    assert.match(source, /where: publicBlogPostWhere\(\)/);
+    assert.match(source, /where: openCommissionWhere\(\)/);
+    assert.match(source, /where: publicListingWhere\(\)/);
+    assert.match(source, /where: publicListingWhere\(\{\s*metroId: \{ not: null \}/s);
+    assert.match(source, /where: publicListingWhere\(\{\s*cityMetroId: \{ not: null \}/s);
+  });
 });
