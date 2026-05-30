@@ -421,6 +421,14 @@ describe("Stripe webhook state helpers", () => {
     assert.deepEqual(
       disputeCaseAction({
         eventType: "charge.dispute.created",
+        existingCase: { id: "case_1", status: "PENDING_CLOSE" },
+        dispute: { id: "dp_1" },
+      }),
+      { action: "update", caseId: "case_1", status: "UNDER_REVIEW" },
+    );
+    assert.deepEqual(
+      disputeCaseAction({
+        eventType: "charge.dispute.created",
         existingCase: { id: "case_1", status: "RESOLVED" },
         dispute: { id: "dp_1" },
       }),

@@ -2833,7 +2833,14 @@ Last updated: 2026-05-24
      case threads. Guardrail:
      `tests/round10-state-machine-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 265 findings;
+281. **Stripe dispute case-promotion behavior documented** — test/docs fix for
+     #721. Current code intentionally lets `charge.dispute.created` promote an
+     active `PENDING_CLOSE` case to `UNDER_REVIEW` because an external payment
+     dispute supersedes the in-app pending-close state, while terminal
+     `RESOLVED`/`CLOSED` cases remain untouched. Guardrail:
+     `tests/stripe-webhook-state.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 266 findings;
 verified stale/false-positive: 100 findings; product/design decisions deferred:
 39 findings. Remaining major categories: Stripe webhook subscription narrowing
 evidence, Round 10 deferred state-machine product designs, JSON size historical
