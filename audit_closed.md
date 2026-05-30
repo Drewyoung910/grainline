@@ -3149,9 +3149,28 @@ Last updated: 2026-05-30
      deleted seller no longer keeps active verification state. Guardrail:
      `tests/round9-account-deletion-pii-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 300 findings;
-verified stale/false-positive: 147 findings; product/design/ops decisions
-deferred: 46 findings. Remaining major categories: Stripe webhook subscription
+306. **Round 32 account-deletion residuals reverified** — test/docs closure for
+     #1, #7, #9, #11, #13, #15, #19, and #20. Account deletion intentionally
+     preserves conversations for the other participant, but the deleted user's
+     sent message bodies are redacted, other-party direct/case messages that
+     quote deleted-account identifiers are redacted, and message list/thread UI
+     stays off deleted-account email fallbacks. Authored blog comments are
+     scrubbed. Clerk-delete ordering now creates a retryable local-anonymize
+     side-effect row before deleting the external Clerk user; account export
+     writes a non-PII `ACCOUNT_EXPORT` audit row before returning the download;
+     block rows are deleted in both directions; the current `Listing` model has
+     no slug field and account deletion already scrubs title/metadescription;
+     commission reference media is collected for owner-scoped cleanup before
+     clearing URL arrays. Stripe Connect account rejection/deauthorization
+     semantics remain a product/ops decision rather than an automatic code
+     change in this pass. Guardrails:
+     `tests/round9-account-deletion-pii-guardrails.test.mjs`,
+     `tests/account-deletion-side-effects.test.mjs`, and
+     `tests/account-export-privacy.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 303 findings;
+verified stale/false-positive: 151 findings; product/design/ops decisions
+deferred: 47 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
 product designs, JSON size historical validation and email uniqueness
@@ -3165,4 +3184,4 @@ decisions, Buy Now best-effort rollback window, partial multi-seller checkout
 continuation design, deliberate BigInt money-column modeling, live-data
 reconciliation for historical seller shipping-rate currency drift, legacy
 display-only media host validation, and agent/worktree verification process
-hygiene. Approximate raw allegations left to verify from current max #1120: 625.
+hygiene. Approximate raw allegations left to verify from current max #1120: 617.

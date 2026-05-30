@@ -59,6 +59,27 @@ describe("Round 9 account deletion PII guardrails", () => {
     assert.match(deletion, /redactCaseMessagesAboutDeletedAccount\(tx, user\.id, accountSensitiveValues\)/);
   });
 
+  it("preserves conversations without deleted-account email fallbacks", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+    const threadPage = source("src/app/messages/[id]/page.tsx");
+    const inboxPage = source("src/app/messages/page.tsx");
+    const threadRenderQueryStart = threadPage.indexOf("const convo = await prisma.conversation.findFirst");
+    const threadRenderQueryEnd = threadPage.indexOf("  // Auto-mark any unread NEW_MESSAGE notifications", threadRenderQueryStart);
+    assert.ok(threadRenderQueryStart > -1, "thread page must keep a conversation render query");
+    assert.ok(threadRenderQueryEnd > threadRenderQueryStart, "thread render query must stay bounded before side effects");
+    const threadRenderQuery = threadPage.slice(
+      threadRenderQueryStart,
+      threadRenderQueryEnd,
+    );
+
+    assert.doesNotMatch(deletion, /conversation\.deleteMany/);
+    assert.match(deletion, /tx\.message\.updateMany\(\{\s*where: \{ senderId: user\.id \}/s);
+    assert.doesNotMatch(threadRenderQuery, /email: true/);
+    assert.doesNotMatch(inboxPage, /select: \{[^}]*email: true/s);
+    assert.match(threadPage, /otherSellerProfile\?\.displayName \|\| other\?\.name \|\| "User"/);
+    assert.match(inboxPage, /seller\?\.displayName \|\| other\?\.name \|\| "User"/);
+  });
+
   it("uses saved shipping fields as deletion redaction needles", () => {
     const deletion = source("src/lib/accountDeletion.ts");
 
@@ -84,6 +105,12 @@ describe("Round 9 account deletion PII guardrails", () => {
     assert.match(deletion, /OR: \[\{ userId: user\.id \}, \{ recipientEmail: \{ in: suppressionEmailMatches \} \}\]/);
     assert.match(deletion, /status: "SKIPPED"/);
     assert.match(deletion, /html: "\[Email removed after account deletion\]"/);
+  });
+
+  it("scrubs authored blog comments on account deletion", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+
+    assert.match(deletion, /tx\.blogComment\.updateMany\(\{\s*where: \{ authorId: user\.id \},\s*data: \{ body: "\[Comment deleted\]", approved: false \},\s*\}\)/s);
   });
 
   it("scrubs seller listing title and body fields on account deletion", () => {
