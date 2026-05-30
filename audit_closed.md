@@ -3072,8 +3072,19 @@ Last updated: 2026-05-30
      `tests/guild-listing-edit-followups.test.mjs`, and
      `tests/media-url.test.mjs`.
 
+298. **Retention-sensitive cascade-delete allegations are stale on current
+     schema** — verified stale/current-clean closure for #963, #964, #967, #968,
+     and #969. `Photo.listing`, `Review.listing`, `OrderPaymentEvent.order`,
+     `SellerPayoutEvent.sellerProfile`, and `BlogComment` parent/author/post
+     retention links no longer cascade parent hard deletes in the active Prisma
+     schema; the retention FK migration installs `ON DELETE RESTRICT` for the
+     listing, payment, payout, blog-post, and blog-comment author links, and
+     `ON DELETE SET NULL` for blog comment reply parents. Dashboard blog-post
+     removal archives posts rather than hard-deleting comment trees. Guardrail:
+     `tests/schema-retention-guardrails.test.mjs`.
+
 **Running tally after this pass:** verified fixed/reduced: 293 findings;
-verified stale/false-positive: 142 findings; product/design/ops decisions
+verified stale/false-positive: 147 findings; product/design/ops decisions
 deferred: 48 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -3090,4 +3101,4 @@ money-column modeling, live-data reconciliation for historical seller
 shipping-rate currency drift, legacy display-only media host validation, support
 context structured-field design (#168), and agent/worktree verification process
 hygiene. Approximate raw allegations left to verify from current max #1120:
-637.
+632.
