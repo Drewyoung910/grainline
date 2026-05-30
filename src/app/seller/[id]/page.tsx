@@ -39,6 +39,8 @@ const SOCIAL_LINK_ALLOWED_HOSTS = {
   Pinterest: ["pinterest.com"],
   TikTok: ["tiktok.com"],
 } satisfies Record<string, string[]>;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const RECENT_SHIPPING_STATS_DAYS = 180;
 
 function safeSellerSocialUrl(value: string | null, allowedHosts?: readonly string[]) {
   const normalized = normalizePublicHttpsUrl(value, 2048);
@@ -203,6 +205,8 @@ export default async function SellerPublicPage({
     seller.radiusMeters != null ? Number(seller.radiusMeters) : null;
 
   const cityState = [seller.city, seller.state].filter(Boolean).join(", ");
+  const nowMs = Date.now();
+  const recentShippingCutoff = new Date(nowMs - RECENT_SHIPPING_STATS_DAYS * MS_PER_DAY);
 
   const [
     [followerCount, isFollowing],
@@ -249,7 +253,7 @@ export default async function SellerPublicPage({
     prisma.order.findMany({
       where: {
         paidAt: { not: null },
-        shippedAt: { not: null },
+        shippedAt: { not: null, gte: recentShippingCutoff },
         items: {
           some: { listing: { sellerId: seller.id } },
           every: { listing: { sellerId: seller.id } },
@@ -298,7 +302,7 @@ export default async function SellerPublicPage({
   ]);
 
   const broadcastAgeDays = latestBroadcast
-    ? (Date.now() - latestBroadcast.sentAt.getTime()) / (1000 * 60 * 60 * 24)
+    ? (nowMs - latestBroadcast.sentAt.getTime()) / MS_PER_DAY
     : null;
 
   // Fetch featured listings in order
@@ -334,7 +338,7 @@ export default async function SellerPublicPage({
         1,
         Math.round(
           recentShipped.reduce(
-            (sum, o) => sum + (o.shippedAt!.getTime() - o.paidAt!.getTime()) / (24 * 60 * 60 * 1000),
+            (sum, o) => sum + (o.shippedAt!.getTime() - o.paidAt!.getTime()) / MS_PER_DAY,
             0,
           ) / recentShipped.length,
         ),

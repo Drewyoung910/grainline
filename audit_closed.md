@@ -2906,7 +2906,13 @@ Last updated: 2026-05-24
      images now render only when the stored URL is still a first-party media URL.
      Guardrail: `tests/round8-fulfillment-privacy-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 281 findings;
+289. **Seller shipping-speed stat narrowed to recent fulfillment** — code/test
+     fix for #787. The public seller page now computes the “Ships in N days”
+     summary from the last 30 shipped orders within a 180-day window instead of
+     letting stale historical shipments shape current buyer-facing expectations.
+     Guardrail: `tests/seller-page-performance.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 282 findings;
 verified stale/false-positive: 104 findings; product/design decisions deferred:
 39 findings. Remaining major categories: Stripe webhook subscription narrowing
 evidence, Round 10 deferred state-machine product designs, JSON size historical

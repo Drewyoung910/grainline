@@ -27,4 +27,14 @@ describe("seller public page query guardrails", () => {
     assert.match(sellerPage, /getSellerRatingMap\(\[seller\.id\]\)/);
     assert.match(sellerPage, /prisma\.orderItem\.count/);
   });
+
+  it("keeps public shipping-speed stats scoped to recent shipped orders", () => {
+    const sellerPage = source("src/app/seller/[id]/page.tsx");
+
+    assert.match(sellerPage, /const RECENT_SHIPPING_STATS_DAYS = 180/);
+    assert.match(sellerPage, /const recentShippingCutoff = new Date\(nowMs - RECENT_SHIPPING_STATS_DAYS \* MS_PER_DAY\)/);
+    assert.match(sellerPage, /shippedAt: \{ not: null, gte: recentShippingCutoff \}/);
+    assert.match(sellerPage, /orderBy: \{ shippedAt: "desc" \}/);
+    assert.match(sellerPage, /take: 30/);
+  });
 });
