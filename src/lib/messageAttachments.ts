@@ -10,9 +10,10 @@ const MAX_MESSAGE_ATTACHMENTS = 6;
 const MAX_ATTACHMENT_URL_LENGTH = 1000;
 const MAX_ATTACHMENT_NAME_LENGTH = 200;
 const MAX_ATTACHMENT_TYPE_LENGTH = 100;
+const ATTACHMENT_CONTROL_CHARS = /[\u0000-\u001F\u007F]/g;
 
 function sanitizeAttachmentText(input: string): string {
-  return sanitizeText(input);
+  return sanitizeText(input).replace(ATTACHMENT_CONTROL_CHARS, "");
 }
 
 function normalizeOptionalField(value: unknown, maxLength: number): string | null {

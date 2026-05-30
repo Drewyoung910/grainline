@@ -1,4 +1,5 @@
 import { CommissionStatus, type Prisma } from "@prisma/client";
+import { openCommissionBaseWhere } from "./commissionState.ts";
 
 export const COMMISSION_EXPIRY_DAYS = 90;
 
@@ -8,14 +9,11 @@ export function commissionExpiresAt(from = new Date()): Date {
 
 export function openCommissionWhere<T extends Prisma.CommissionRequestWhereInput>(
   extra?: T,
+  now = new Date(),
 ): Prisma.CommissionRequestWhereInput {
-  const base: Prisma.CommissionRequestWhereInput[] = [
-    { status: CommissionStatus.OPEN },
-    { buyer: { banned: false, deletedAt: null } },
-    { OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
-  ];
+  const base = openCommissionBaseWhere(now);
 
-  return extra ? { AND: [extra, ...base] } : { AND: base };
+  return extra ? { AND: [base, extra] } : base;
 }
 
 export function commissionIsExpired(request: { status: CommissionStatus; expiresAt: Date | null }) {

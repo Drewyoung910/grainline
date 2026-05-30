@@ -46,6 +46,7 @@ export type ThreadMessageEventMessage = {
 const MAX_FILE_MESSAGE_URL_LENGTH = 1000;
 const MAX_FILE_MESSAGE_NAME_LENGTH = 200;
 const MAX_FILE_MESSAGE_TYPE_LENGTH = 100;
+const FILE_MESSAGE_CONTROL_CHARS = /[\u0000-\u001F\u007F]/g;
 
 function parseJsonRecord(raw: string): Record<string, unknown> | null {
   try {
@@ -71,7 +72,7 @@ function optionalCleanNullableString(value: unknown, maxLength: number): string 
   if (value === null) return null;
   if (value === undefined) return undefined;
   if (typeof value !== "string") return undefined;
-  const cleaned = truncateText(sanitizeText(value), maxLength).trim();
+  const cleaned = truncateText(sanitizeText(value).replace(FILE_MESSAGE_CONTROL_CHARS, ""), maxLength).trim();
   return cleaned || null;
 }
 

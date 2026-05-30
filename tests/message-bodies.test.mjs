@@ -16,9 +16,10 @@ describe("message body parser guardrails", () => {
     assert.match(source, /import \{ sanitizeText, truncateText \} from "@\/lib\/sanitize"/);
     assert.match(source, /MAX_FILE_MESSAGE_NAME_LENGTH = 200/);
     assert.match(source, /MAX_FILE_MESSAGE_TYPE_LENGTH = 100/);
+    assert.match(source, /const FILE_MESSAGE_CONTROL_CHARS = \/\[\\u0000-\\u001F\\u007F\]\/g/);
     assert.match(source, /optionalCleanNullableString\(obj\.name, MAX_FILE_MESSAGE_NAME_LENGTH\)/);
     assert.match(source, /optionalCleanNullableString\(obj\.type, MAX_FILE_MESSAGE_TYPE_LENGTH\)/);
-    assert.match(source, /truncateText\(sanitizeText\(value\), maxLength\)/);
+    assert.match(source, /truncateText\(sanitizeText\(value\)\.replace\(FILE_MESSAGE_CONTROL_CHARS, ""\), maxLength\)/);
   });
 
   it("keeps non-file structured message parsers shape-checked", () => {

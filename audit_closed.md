@@ -3198,9 +3198,26 @@ Last updated: 2026-05-30
      buyers can still open a case. Guardrail:
      `tests/round8-fulfillment-privacy-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 307 findings;
-verified stale/false-positive: 151 findings; product/design/ops decisions
-deferred: 47 findings. Remaining major categories: Stripe webhook subscription
+310. **Message metadata and commission predicate residuals reduced** —
+     code/test/docs fix for #265 and #305, plus source-verified cleanup for the
+     adjacent file-message read parser. Message attachment write-path metadata
+     and structured file-message read-path metadata now strip C0/DEL control
+     characters after the shared dangerous-protocol text sanitizer and before
+     length caps. Public commission reads and commission mutation guards now
+     compose from `openCommissionBaseWhere()`, removing the duplicate
+     open/non-expired/active-buyer predicate between `commissionExpiry.ts` and
+     `commissionState.ts`. Read-only agent and parent verification in the same
+     pass newly classified #268, #270, #271, #273-#279, #281, #307-#312, #314,
+     #316, and #319-#324 as stale, false-positive, or current-clean. #266,
+     #267, #315, and #317 remain data-scan/ops decisions; exact duplicates or
+     already-counted closures (#269, #272, #280, #300-#304, #306, #313, #318,
+     and #325-#328) were not double-counted. Guardrails:
+     `tests/message-attachments.test.mjs`, `tests/message-bodies.test.mjs`, and
+     `tests/commission-state.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 309 findings;
+verified stale/false-positive: 176 findings; product/design/ops decisions
+deferred: 51 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
 product designs, JSON size historical validation and email uniqueness
@@ -3213,5 +3230,6 @@ consent-epoch/manual-resubscribe semantics, legacy enum cleanup/data-migration
 decisions, Buy Now best-effort rollback window, partial multi-seller checkout
 continuation design, deliberate BigInt money-column modeling, live-data
 reconciliation for historical seller shipping-rate currency drift, legacy
-display-only media host validation, and agent/worktree verification process
-hygiene. Approximate raw allegations left to verify from current max #1120: 616.
+display-only media host validation, HSTS preload and Vercel max-duration ops
+evidence, and agent/worktree verification process hygiene. Approximate raw
+allegations left to verify from current max #1120: 585.

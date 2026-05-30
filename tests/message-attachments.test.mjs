@@ -14,7 +14,8 @@ describe("message attachment normalization guardrails", () => {
 
   it("strips dangerous protocol text from attachment names and types", () => {
     assert.match(source, /function sanitizeAttachmentText\(input: string\): string/);
-    assert.match(source, /return sanitizeText\(input\)/);
+    assert.match(source, /const ATTACHMENT_CONTROL_CHARS = \/\[\\u0000-\\u001F\\u007F\]\/g/);
+    assert.match(source, /return sanitizeText\(input\)\.replace\(ATTACHMENT_CONTROL_CHARS, ""\)/);
     assert.doesNotMatch(source, /\.replace\(\/javascript:/);
   });
 
