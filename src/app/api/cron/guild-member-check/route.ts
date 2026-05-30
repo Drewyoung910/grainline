@@ -17,6 +17,11 @@ import {
   guildMemberRevocationSellerWhere,
   type GuildMemberRevocationGuard,
 } from "@/lib/guildMemberRevocationState";
+import {
+  GUILD_MEMBER_REVOKABLE_VERIFICATION_STATUSES,
+  assertGuildVerificationTransition,
+  isGuildVerificationTransitionConflict,
+} from "@/lib/guildVerificationState";
 import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
 import { logSystemActionOrThrow } from "@/lib/systemAudit";
 
@@ -151,41 +156,52 @@ async function revokeMember(
   guard: GuildMemberRevocationGuard,
   now: Date,
 ): Promise<number> {
-  const revoked = await prisma.$transaction(async (tx) => {
-    const updated = await tx.sellerProfile.updateMany({
-      where: guildMemberRevocationSellerWhere(seller.id, seller.userId, guard),
-      data: {
-        guildLevel: "NONE",
-        isVerifiedMaker: false,
-        consecutiveMetricFailures: 0,
-        metricWarningSentAt: null,
-      },
+  let revoked = false;
+  try {
+    revoked = await prisma.$transaction(async (tx) => {
+      const verificationUpdated = await tx.makerVerification.updateMany({
+        where: {
+          sellerProfileId: seller.id,
+          status: { in: [...GUILD_MEMBER_REVOKABLE_VERIFICATION_STATUSES] },
+        },
+        data: { status: "REJECTED", reviewedAt: now, reviewNotes: reason },
+      });
+      if (verificationUpdated.count === 0) return false;
+
+      const updated = await tx.sellerProfile.updateMany({
+        where: guildMemberRevocationSellerWhere(seller.id, seller.userId, guard),
+        data: {
+          guildLevel: "NONE",
+          isVerifiedMaker: false,
+          consecutiveMetricFailures: 0,
+          metricWarningSentAt: null,
+        },
+      });
+      assertGuildVerificationTransition(updated.count, "revoke Guild Member");
+
+      await logSystemActionOrThrow({
+        client: tx,
+        actorType: "cron",
+        actorId: "guild-member-check",
+        action: "AUTO_REVOKE_GUILD_MEMBER",
+        targetType: "SELLER_PROFILE",
+        targetId: seller.id,
+        reason,
+        metadata: {
+          jobName: "guild-member-check",
+          sellerUserId: seller.userId,
+          guardKind: guard.kind,
+          caseCreatedBefore:
+            guard.kind === "unresolved_case" ? guard.caseCreatedBefore.toISOString() : null,
+          listingsBelowThresholdBefore:
+            guard.kind === "listing_threshold" ? guard.listingsBelowThresholdBefore.toISOString() : null,
+        },
+      });
+      return true;
     });
-    if (updated.count === 0) return false;
-    await tx.makerVerification.updateMany({
-      where: { sellerProfileId: seller.id },
-      data: { status: "REJECTED", reviewedAt: now, reviewNotes: reason },
-    });
-    await logSystemActionOrThrow({
-      client: tx,
-      actorType: "cron",
-      actorId: "guild-member-check",
-      action: "AUTO_REVOKE_GUILD_MEMBER",
-      targetType: "SELLER_PROFILE",
-      targetId: seller.id,
-      reason,
-      metadata: {
-        jobName: "guild-member-check",
-        sellerUserId: seller.userId,
-        guardKind: guard.kind,
-        caseCreatedBefore:
-          guard.kind === "unresolved_case" ? guard.caseCreatedBefore.toISOString() : null,
-        listingsBelowThresholdBefore:
-          guard.kind === "listing_threshold" ? guard.listingsBelowThresholdBefore.toISOString() : null,
-      },
-    });
-    return true;
-  });
+  } catch (error) {
+    if (!isGuildVerificationTransitionConflict(error)) throw error;
+  }
   if (!revoked) return 0;
   revalidateFeaturedMakerCaches();
 

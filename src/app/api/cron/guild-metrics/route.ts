@@ -21,6 +21,11 @@ import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
 import { logSystemAction, logSystemActionOrThrow } from "@/lib/systemAudit";
+import {
+  GUILD_MASTER_REVOKABLE_VERIFICATION_STATUSES,
+  assertGuildVerificationTransition,
+  isGuildVerificationTransitionConflict,
+} from "@/lib/guildVerificationState";
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // 5-minute limit for large seller sets
@@ -243,52 +248,63 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
   }
 
   const revocationCutoff = new Date(now.getTime() - GUILD_MASTER_WARNING_GRACE_MS);
-  const revoked = await prisma.$transaction(async (tx) => {
-    const updated = await tx.sellerProfile.updateMany({
-      where: {
-        id: seller.id,
-        guildLevel: "GUILD_MASTER",
-        consecutiveMetricFailures: { gt: 0 },
-        metricWarningSentAt: { lte: revocationCutoff },
-      },
-      data: {
-        guildLevel: "GUILD_MEMBER",
-        isVerifiedMaker: true,
-        consecutiveMetricFailures: 0,
-        metricWarningSentAt: null,
-        lastMetricCheckAt: now,
-        guildMasterApprovedAt: null,
-        guildMasterAppliedAt: null,
-        guildMasterReviewNotes: null,
-      },
+  let revoked = false;
+  try {
+    revoked = await prisma.$transaction(async (tx) => {
+      const verificationUpdated = await tx.makerVerification.updateMany({
+        where: {
+          sellerProfileId: seller.id,
+          status: { in: [...GUILD_MASTER_REVOKABLE_VERIFICATION_STATUSES] },
+        },
+        data: {
+          status: "GUILD_MASTER_REJECTED",
+          reviewedAt: now,
+          reviewNotes: "Metrics fell below requirements for two consecutive months.",
+        },
+      });
+      if (verificationUpdated.count === 0) return false;
+
+      const updated = await tx.sellerProfile.updateMany({
+        where: {
+          id: seller.id,
+          guildLevel: "GUILD_MASTER",
+          consecutiveMetricFailures: { gt: 0 },
+          metricWarningSentAt: { lte: revocationCutoff },
+        },
+        data: {
+          guildLevel: "GUILD_MEMBER",
+          isVerifiedMaker: true,
+          consecutiveMetricFailures: 0,
+          metricWarningSentAt: null,
+          lastMetricCheckAt: now,
+          guildMasterApprovedAt: null,
+          guildMasterAppliedAt: null,
+          guildMasterReviewNotes: null,
+        },
+      });
+      assertGuildVerificationTransition(updated.count, "revoke Guild Master");
+
+      await logSystemActionOrThrow({
+        client: tx,
+        actorType: "cron",
+        actorId: "guild-metrics",
+        action: "AUTO_REVOKE_GUILD_MASTER",
+        targetType: "SELLER_PROFILE",
+        targetId: seller.id,
+        reason: "Metrics fell below requirements for two consecutive months.",
+        metadata: {
+          jobName: "guild-metrics",
+          sellerUserId: seller.userId,
+          warningSentAt: warningSentAt.toISOString(),
+          revocationCutoff: revocationCutoff.toISOString(),
+          failedCriteria: buildFailedLabels(revocationCriteria, revocationMetrics),
+        },
+      });
+      return true;
     });
-    if (updated.count === 0) return false;
-    await tx.makerVerification.updateMany({
-      where: { sellerProfileId: seller.id },
-      data: {
-        status: "GUILD_MASTER_REJECTED",
-        reviewedAt: now,
-        reviewNotes: "Metrics fell below requirements for two consecutive months.",
-      },
-    });
-    await logSystemActionOrThrow({
-      client: tx,
-      actorType: "cron",
-      actorId: "guild-metrics",
-      action: "AUTO_REVOKE_GUILD_MASTER",
-      targetType: "SELLER_PROFILE",
-      targetId: seller.id,
-      reason: "Metrics fell below requirements for two consecutive months.",
-      metadata: {
-        jobName: "guild-metrics",
-        sellerUserId: seller.userId,
-        warningSentAt: warningSentAt.toISOString(),
-        revocationCutoff: revocationCutoff.toISOString(),
-        failedCriteria: buildFailedLabels(revocationCriteria, revocationMetrics),
-      },
-    });
-    return true;
-  });
+  } catch (error) {
+    if (!isGuildVerificationTransitionConflict(error)) throw error;
+  }
   if (!revoked) return { processed: 1, warned: 0, revokedMaster: 0 };
   revalidateFeaturedMakerCaches();
 

@@ -20,6 +20,13 @@ import { publicSellerPath } from "@/lib/publicPaths";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { guildMemberRevocationCaseWhere } from "@/lib/guildMemberRevocationState";
+import {
+  GUILD_MASTER_REVOKABLE_VERIFICATION_STATUSES,
+  GUILD_MEMBER_REINSTATABLE_VERIFICATION_STATUSES,
+  GUILD_MEMBER_REVOKABLE_VERIFICATION_STATUSES,
+  assertGuildVerificationTransition,
+  isGuildVerificationTransitionConflict,
+} from "@/lib/guildVerificationState";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import { normalizePublicHttpsUrl } from "@/lib/urlValidation";
@@ -362,38 +369,48 @@ async function revokeMember(_prevState: unknown, formData: FormData): Promise<Ac
   });
 
   const revokedAt = new Date();
-  const revoked = await prisma.$transaction(async (tx) => {
-    const updated = await tx.sellerProfile.updateMany({
-      where: { id: sellerProfileId, guildLevel: "GUILD_MEMBER" },
-      data: {
-        guildLevel: "NONE",
-        isVerifiedMaker: false,
-        consecutiveMetricFailures: 0,
-        metricWarningSentAt: null,
-        listingsBelowThresholdSince: null,
-        lastMetricCheckAt: revokedAt,
-      },
-    });
-    if (updated.count === 0) return false;
+  let revoked = false;
+  try {
+    revoked = await prisma.$transaction(async (tx) => {
+      const verificationUpdated = await tx.makerVerification.updateMany({
+        where: {
+          sellerProfileId,
+          status: { in: [...GUILD_MEMBER_REVOKABLE_VERIFICATION_STATUSES] },
+        },
+        data: {
+          status: "REJECTED",
+          reviewedById: me.id,
+          reviewedAt: revokedAt,
+          reviewNotes: "Guild Member badge revoked by Grainline staff.",
+        },
+      });
+      if (verificationUpdated.count === 0) return false;
 
-    await tx.makerVerification.updateMany({
-      where: { sellerProfileId },
-      data: {
-        status: "REJECTED",
-        reviewedById: me.id,
-        reviewedAt: revokedAt,
-        reviewNotes: "Guild Member badge revoked by Grainline staff.",
-      },
+      const updated = await tx.sellerProfile.updateMany({
+        where: { id: sellerProfileId, guildLevel: "GUILD_MEMBER" },
+        data: {
+          guildLevel: "NONE",
+          isVerifiedMaker: false,
+          consecutiveMetricFailures: 0,
+          metricWarningSentAt: null,
+          listingsBelowThresholdSince: null,
+          lastMetricCheckAt: revokedAt,
+        },
+      });
+      assertGuildVerificationTransition(updated.count, "revoke Guild Member");
+
+      await logAdminActionOrThrow({
+        client: tx,
+        adminId: me.id,
+        action: "REVOKE_GUILD_MEMBER",
+        targetType: "SELLER_PROFILE",
+        targetId: sellerProfileId,
+      });
+      return true;
     });
-    await logAdminActionOrThrow({
-      client: tx,
-      adminId: me.id,
-      action: "REVOKE_GUILD_MEMBER",
-      targetType: "SELLER_PROFILE",
-      targetId: sellerProfileId,
-    });
-    return true;
-  });
+  } catch (error) {
+    if (!isGuildVerificationTransitionConflict(error)) throw error;
+  }
   if (!revoked) return { ok: false, error: "Guild Member badge was already changed. Refresh this page." };
 
   if (seller?.userId) {
@@ -608,39 +625,49 @@ async function revokeMaster(_prevState: unknown, formData: FormData): Promise<Ac
   });
 
   const revokedAt = new Date();
-  const revoked = await prisma.$transaction(async (tx) => {
-    const updated = await tx.sellerProfile.updateMany({
-      where: { id: sellerProfileId, guildLevel: "GUILD_MASTER" },
-      data: {
-        guildLevel: "GUILD_MEMBER",
-        consecutiveMetricFailures: 0,
-        metricWarningSentAt: null,
-        lastMetricCheckAt: revokedAt,
-        guildMasterApprovedAt: null,
-        guildMasterAppliedAt: null,
-        guildMasterReviewNotes: null,
-      },
-    });
-    if (updated.count === 0) return false;
+  let revoked = false;
+  try {
+    revoked = await prisma.$transaction(async (tx) => {
+      const verificationUpdated = await tx.makerVerification.updateMany({
+        where: {
+          sellerProfileId,
+          status: { in: [...GUILD_MASTER_REVOKABLE_VERIFICATION_STATUSES] },
+        },
+        data: {
+          status: "GUILD_MASTER_REJECTED",
+          reviewedById: me.id,
+          reviewedAt: revokedAt,
+          reviewNotes: "Guild Master badge revoked by Grainline staff.",
+        },
+      });
+      if (verificationUpdated.count === 0) return false;
 
-    await tx.makerVerification.updateMany({
-      where: { sellerProfileId },
-      data: {
-        status: "GUILD_MASTER_REJECTED",
-        reviewedById: me.id,
-        reviewedAt: revokedAt,
-        reviewNotes: "Guild Master badge revoked by Grainline staff.",
-      },
+      const updated = await tx.sellerProfile.updateMany({
+        where: { id: sellerProfileId, guildLevel: "GUILD_MASTER" },
+        data: {
+          guildLevel: "GUILD_MEMBER",
+          consecutiveMetricFailures: 0,
+          metricWarningSentAt: null,
+          lastMetricCheckAt: revokedAt,
+          guildMasterApprovedAt: null,
+          guildMasterAppliedAt: null,
+          guildMasterReviewNotes: null,
+        },
+      });
+      assertGuildVerificationTransition(updated.count, "revoke Guild Master");
+
+      await logAdminActionOrThrow({
+        client: tx,
+        adminId: me.id,
+        action: "REVOKE_GUILD_MASTER",
+        targetType: "SELLER_PROFILE",
+        targetId: sellerProfileId,
+      });
+      return true;
     });
-    await logAdminActionOrThrow({
-      client: tx,
-      adminId: me.id,
-      action: "REVOKE_GUILD_MASTER",
-      targetType: "SELLER_PROFILE",
-      targetId: sellerProfileId,
-    });
-    return true;
-  });
+  } catch (error) {
+    if (!isGuildVerificationTransitionConflict(error)) throw error;
+  }
   if (!revoked) return { ok: false, error: "Guild Master badge was already changed. Refresh this page." };
 
   if (seller?.userId) {
@@ -677,67 +704,77 @@ async function reinstateGuildMember(_prevState: unknown, formData: FormData): Pr
 
   const reinstatedAt = new Date();
   const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-  const reinstatedSeller = await prisma.$transaction(async (tx) => {
-    const seller = await tx.sellerProfile.findUnique({
-      where: { id: sellerProfileId },
-      select: {
-        userId: true,
-        displayName: true,
-        user: { select: { banned: true, deletedAt: true } },
-      },
-    });
-    if (!seller || seller.user.banned || seller.user.deletedAt) return null;
+  let reinstatedSeller: { userId: string; displayName: string } | null = null;
+  try {
+    reinstatedSeller = await prisma.$transaction(async (tx) => {
+      const seller = await tx.sellerProfile.findUnique({
+        where: { id: sellerProfileId },
+        select: {
+          userId: true,
+          displayName: true,
+          user: { select: { banned: true, deletedAt: true } },
+        },
+      });
+      if (!seller || seller.user.banned || seller.user.deletedAt) return null;
 
-    const longCase = await tx.case.findFirst({
-      where: guildMemberRevocationCaseWhere(seller.userId, {
-        kind: "unresolved_case",
-        caseCreatedBefore: ninetyDaysAgo,
-      }),
-      select: { id: true },
-    });
-    if (longCase) return null;
+      const longCase = await tx.case.findFirst({
+        where: guildMemberRevocationCaseWhere(seller.userId, {
+          kind: "unresolved_case",
+          caseCreatedBefore: ninetyDaysAgo,
+        }),
+        select: { id: true },
+      });
+      if (longCase) return null;
 
-    const activeListings = await tx.listing.count({
-      where: { sellerId: sellerProfileId, status: "ACTIVE", isPrivate: false },
-    });
-    if (activeListings < 5) return null;
+      const activeListings = await tx.listing.count({
+        where: { sellerId: sellerProfileId, status: "ACTIVE", isPrivate: false },
+      });
+      if (activeListings < 5) return null;
 
-    const updated = await tx.sellerProfile.updateMany({
-      where: {
-        id: sellerProfileId,
-        guildLevel: "NONE",
-        guildMemberApprovedAt: { not: null },
-        user: { banned: false, deletedAt: null },
-      },
-      data: {
-        guildLevel: "GUILD_MEMBER",
-        isVerifiedMaker: true,
-        consecutiveMetricFailures: 0,
-        metricWarningSentAt: null,
-        listingsBelowThresholdSince: null,
-        lastMetricCheckAt: reinstatedAt,
-      },
-    });
-    if (updated.count === 0) return null;
+      const verificationUpdated = await tx.makerVerification.updateMany({
+        where: {
+          sellerProfileId,
+          status: { in: [...GUILD_MEMBER_REINSTATABLE_VERIFICATION_STATUSES] },
+        },
+        data: {
+          status: "APPROVED",
+          reviewedById: me.id,
+          reviewedAt: reinstatedAt,
+          reviewNotes: null,
+        },
+      });
+      if (verificationUpdated.count === 0) return null;
 
-    await tx.makerVerification.updateMany({
-      where: { sellerProfileId },
-      data: {
-        status: "APPROVED",
-        reviewedById: me.id,
-        reviewedAt: reinstatedAt,
-        reviewNotes: null,
-      },
+      const updated = await tx.sellerProfile.updateMany({
+        where: {
+          id: sellerProfileId,
+          guildLevel: "NONE",
+          guildMemberApprovedAt: { not: null },
+          user: { banned: false, deletedAt: null },
+        },
+        data: {
+          guildLevel: "GUILD_MEMBER",
+          isVerifiedMaker: true,
+          consecutiveMetricFailures: 0,
+          metricWarningSentAt: null,
+          listingsBelowThresholdSince: null,
+          lastMetricCheckAt: reinstatedAt,
+        },
+      });
+      assertGuildVerificationTransition(updated.count, "reinstate Guild Member");
+
+      await logAdminActionOrThrow({
+        client: tx,
+        adminId: me.id,
+        action: "REINSTATE_GUILD_MEMBER",
+        targetType: "SELLER_PROFILE",
+        targetId: sellerProfileId,
+      });
+      return seller;
     });
-    await logAdminActionOrThrow({
-      client: tx,
-      adminId: me.id,
-      action: "REINSTATE_GUILD_MEMBER",
-      targetType: "SELLER_PROFILE",
-      targetId: sellerProfileId,
-    });
-    return seller;
-  });
+  } catch (error) {
+    if (!isGuildVerificationTransitionConflict(error)) throw error;
+  }
   if (!reinstatedSeller) {
     return {
       ok: false,

@@ -18,6 +18,13 @@ const {
   listingUndoDataFromMetadata,
 } = await import("../src/lib/adminListingUndoState.ts");
 
+const {
+  GUILD_MASTER_APPLICATION_VERIFICATION_STATUSES,
+  GUILD_MASTER_REVOKABLE_VERIFICATION_STATUSES,
+  GUILD_MEMBER_REINSTATABLE_VERIFICATION_STATUSES,
+  GUILD_MEMBER_REVOKABLE_VERIFICATION_STATUSES,
+} = await import("../src/lib/guildVerificationState.ts");
+
 describe("Round 10 state-machine guardrails", () => {
   it("blocks immediate Guild reapplication after rejection or revocation using current verification state", () => {
     const now = new Date("2026-05-23T12:00:00.000Z");
@@ -74,6 +81,29 @@ describe("Round 10 state-machine guardrails", () => {
     assert.match(adminVerification, /status: "GUILD_MASTER_REJECTED"/);
     assert.match(guildMemberCron, /status: "REJECTED", reviewedAt: now/);
     assert.match(guildMetricsCron, /status: "GUILD_MASTER_REJECTED",\s+reviewedAt: now/s);
+  });
+
+  it("guards paired Guild profile and verification transitions with current verification state", () => {
+    assert.deepEqual(GUILD_MASTER_APPLICATION_VERIFICATION_STATUSES, ["APPROVED", "GUILD_MASTER_REJECTED"]);
+    assert.deepEqual(GUILD_MEMBER_REVOKABLE_VERIFICATION_STATUSES, ["APPROVED", "GUILD_MASTER_REJECTED"]);
+    assert.deepEqual(GUILD_MASTER_REVOKABLE_VERIFICATION_STATUSES, ["GUILD_MASTER_APPROVED"]);
+    assert.deepEqual(GUILD_MEMBER_REINSTATABLE_VERIFICATION_STATUSES, ["REJECTED"]);
+
+    const dashboard = source("src/app/dashboard/verification/page.tsx");
+    const adminVerification = source("src/app/admin/verification/page.tsx");
+    const guildMemberCron = source("src/app/api/cron/guild-member-check/route.ts");
+    const guildMetricsCron = source("src/app/api/cron/guild-metrics/route.ts");
+
+    assert.match(dashboard, /makerVerification\.updateMany\(\{\s*where: \{\s*sellerProfileId: s\.id,\s*status: \{ in: \[\.\.\.GUILD_MASTER_APPLICATION_VERIFICATION_STATUSES\] \}/s);
+    assert.match(guildMemberCron, /makerVerification\.updateMany\(\{\s*where: \{\s*sellerProfileId: seller\.id,\s*status: \{ in: \[\.\.\.GUILD_MEMBER_REVOKABLE_VERIFICATION_STATUSES\] \}/s);
+    assert.match(guildMetricsCron, /makerVerification\.updateMany\(\{\s*where: \{\s*sellerProfileId: seller\.id,\s*status: \{ in: \[\.\.\.GUILD_MASTER_REVOKABLE_VERIFICATION_STATUSES\] \}/s);
+    assert.match(adminVerification, /status: \{ in: \[\.\.\.GUILD_MEMBER_REVOKABLE_VERIFICATION_STATUSES\] \}/);
+    assert.match(adminVerification, /status: \{ in: \[\.\.\.GUILD_MASTER_REVOKABLE_VERIFICATION_STATUSES\] \}/);
+    assert.match(adminVerification, /status: \{ in: \[\.\.\.GUILD_MEMBER_REINSTATABLE_VERIFICATION_STATUSES\] \}/);
+    assert.match(dashboard, /assertGuildVerificationTransition\(sellerUpdated\.count, "apply for Guild Master"\)/);
+    assert.match(adminVerification, /assertGuildVerificationTransition\(updated\.count, "revoke Guild Member"\)/);
+    assert.match(adminVerification, /assertGuildVerificationTransition\(updated\.count, "revoke Guild Master"\)/);
+    assert.match(adminVerification, /assertGuildVerificationTransition\(updated\.count, "reinstate Guild Member"\)/);
   });
 
   it("fails listing undo closed and uses current-state guards before restoring metadata", () => {

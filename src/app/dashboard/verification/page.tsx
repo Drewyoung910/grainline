@@ -11,6 +11,11 @@ import {
   guildMasterApplicationBlockReason,
   guildMemberApplicationBlockReason,
 } from "@/lib/guildApplicationState";
+import {
+  GUILD_MASTER_APPLICATION_VERIFICATION_STATUSES,
+  assertGuildVerificationTransition,
+  isGuildVerificationTransitionConflict,
+} from "@/lib/guildVerificationState";
 import { normalizePublicHttpsUrl } from "@/lib/urlValidation";
 import type { Metadata } from "next";
 
@@ -283,24 +288,39 @@ export default async function VerificationPage() {
     const criteria = meetsGuildMasterRequirements(metrics);
     if (!criteria.allMet) redirect("/dashboard/verification");
 
-    await prisma.$transaction([
-      prisma.makerVerification.update({
-        where: { sellerProfileId: s.id },
-        data: {
-          status: "GUILD_MASTER_PENDING",
-          guildMasterCraftBusiness: craftBusiness,
-          portfolioUrl: portfolioUrl ?? undefined,
-          appliedAt: new Date(),
-        },
-      }),
-      prisma.sellerProfile.update({
-        where: { id: s.id },
-        data: {
-          guildMasterAppliedAt: new Date(),
-          guildMasterReviewNotes: null,
-        },
-      }),
-    ]);
+    const appliedAt = new Date();
+    let applied = false;
+    try {
+      applied = await prisma.$transaction(async (tx) => {
+        const verificationUpdated = await tx.makerVerification.updateMany({
+          where: {
+            sellerProfileId: s.id,
+            status: { in: [...GUILD_MASTER_APPLICATION_VERIFICATION_STATUSES] },
+          },
+          data: {
+            status: "GUILD_MASTER_PENDING",
+            guildMasterCraftBusiness: craftBusiness,
+            portfolioUrl: portfolioUrl ?? undefined,
+            appliedAt,
+          },
+        });
+        if (verificationUpdated.count === 0) return false;
+
+        const sellerUpdated = await tx.sellerProfile.updateMany({
+          where: { id: s.id, guildLevel: "GUILD_MEMBER" },
+          data: {
+            guildMasterAppliedAt: appliedAt,
+            guildMasterReviewNotes: null,
+          },
+        });
+        assertGuildVerificationTransition(sellerUpdated.count, "apply for Guild Master");
+        return true;
+      });
+    } catch (error) {
+      if (!isGuildVerificationTransitionConflict(error)) throw error;
+    }
+
+    if (!applied) redirect("/dashboard/verification");
 
     redirect("/dashboard/verification");
   }

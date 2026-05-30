@@ -2840,7 +2840,16 @@ Last updated: 2026-05-24
      `RESOLVED`/`CLOSED` cases remain untouched. Guardrail:
      `tests/stripe-webhook-state.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 266 findings;
+282. **Guild verification stale-transition writes guarded** — code/test/docs
+     fix for #724. Guild Master applications, cron Guild Member/Master
+     revocations, admin revoke actions, and admin Guild Member reinstatement
+     now guard paired `MakerVerification.status` writes with explicit expected
+     current-state sets from `guildVerificationState.ts`; if the paired
+     `SellerProfile.guildLevel` transition no longer matches, the transaction
+     rolls back instead of leaving profile and verification state out of sync.
+     Guardrail: `tests/round10-state-machine-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 267 findings;
 verified stale/false-positive: 100 findings; product/design decisions deferred:
 39 findings. Remaining major categories: Stripe webhook subscription narrowing
 evidence, Round 10 deferred state-machine product designs, JSON size historical
