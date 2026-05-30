@@ -3058,8 +3058,22 @@ Last updated: 2026-05-30
      enabled without adding and testing the corresponding PaymentIntent failure
      lifecycle handling. Guardrail: `tests/checkout-payment-methods.test.mjs`.
 
+297. **Refund recovery, Guild sales, and media URL spoof allegations rechecked** —
+     verified stale/false-positive closure for #61, #159, and #545. The case
+     resolution orphan-refund recovery path now captures failed reconciliation
+     writes to Sentry instead of swallowing the update failure silently. Guild
+     verification sales qualification excludes both locally stamped
+     `sellerRefundId` orders and `OrderPaymentEvent` refund ledger rows, so
+     partially refunded orders no longer count as clean sales toward the
+     threshold. The first-party media URL validator uses `new URL()` plus exact
+     origin/path-prefix matching; IDN lookalikes normalize to a different
+     punycoded origin and fail the allowlist check. Guardrails:
+     `tests/case-observability-followups.test.mjs`,
+     `tests/guild-listing-edit-followups.test.mjs`, and
+     `tests/media-url.test.mjs`.
+
 **Running tally after this pass:** verified fixed/reduced: 293 findings;
-verified stale/false-positive: 139 findings; product/design/ops decisions
+verified stale/false-positive: 142 findings; product/design/ops decisions
 deferred: 48 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -3076,4 +3090,4 @@ money-column modeling, live-data reconciliation for historical seller
 shipping-rate currency drift, legacy display-only media host validation, support
 context structured-field design (#168), and agent/worktree verification process
 hygiene. Approximate raw allegations left to verify from current max #1120:
-640.
+637.

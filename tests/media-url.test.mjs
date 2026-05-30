@@ -34,6 +34,7 @@ describe("media URL validation", () => {
     assert.equal(isR2PublicUrl("https://attacker.r2.dev/listings/photo.jpg"), false);
     assert.equal(isR2PublicUrl("http://media.example.com/grain/listings/photo.jpg"), false);
     assert.equal(isR2PublicUrl("https://media.example.com/grainery/photo.jpg"), false);
+    assert.equal(isR2PublicUrl("https://\u0441dn.thegrainline.com/listings/photo.jpg"), false);
   });
 
   it("keeps display-only hosts out of R2 write-path validation", () => {
