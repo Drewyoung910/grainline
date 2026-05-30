@@ -9,6 +9,28 @@ export function normalizeCurrencyCode(currency: string | null | undefined): stri
   return ISO_CURRENCY_PATTERN.test(normalized) ? normalized : DEFAULT_CURRENCY.toUpperCase();
 }
 
+export function currencyMinorUnitDigits(currency: string | null | undefined = DEFAULT_CURRENCY): number {
+  const normalizedCurrency = normalizeCurrencyCode(currency);
+  try {
+    const formatter = new Intl.NumberFormat(DEFAULT_LOCALE, {
+      style: "currency",
+      currency: normalizedCurrency,
+    });
+    return formatter.resolvedOptions().maximumFractionDigits ?? 2;
+  } catch {
+    return 2;
+  }
+}
+
+export function formatCurrencyMinorUnitAmount(
+  amountMinorUnits: number,
+  currency: string | null | undefined = DEFAULT_CURRENCY,
+): string {
+  if (!Number.isFinite(amountMinorUnits)) return INVALID_CURRENCY_AMOUNT;
+  const fractionDigits = currencyMinorUnitDigits(currency);
+  return (amountMinorUnits / 10 ** fractionDigits).toFixed(fractionDigits);
+}
+
 export function formatCurrencyCents(
   cents: number,
   currency: string | null | undefined = DEFAULT_CURRENCY,
@@ -21,7 +43,7 @@ export function formatCurrencyCents(
       style: "currency",
       currency: normalizedCurrency,
     });
-    const fractionDigits = formatter.resolvedOptions().maximumFractionDigits ?? 2;
+    const fractionDigits = currencyMinorUnitDigits(normalizedCurrency);
     const amount = cents / 10 ** fractionDigits;
     return formatter.format(amount);
   } catch {

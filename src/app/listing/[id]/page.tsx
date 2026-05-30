@@ -28,7 +28,7 @@ import { extractRouteId, publicListingPath, publicSellerPath, routeSegmentWithSl
 import { truncateText } from "@/lib/sanitize";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { avatarInitials } from "@/lib/avatarInitials";
-import { DEFAULT_CURRENCY } from "@/lib/money";
+import { DEFAULT_CURRENCY, formatCurrencyCents, formatCurrencyMinorUnitAmount } from "@/lib/money";
 
 function siteUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -117,7 +117,7 @@ export async function generateMetadata(
   const title = `${listing.title} by ${sellerName}`;
   const desc = listing.metaDescription || truncateText(listing.description ?? "", 160);
   const img = listing.photos[0]?.url;
-  const price = (listing.priceCents / 100).toFixed(2);
+  const price = formatCurrencyMinorUnitAmount(listing.priceCents, listing.currency);
   const currency = (listing.currency || DEFAULT_CURRENCY).toUpperCase();
 
   return {
@@ -362,7 +362,7 @@ export default async function ListingPage({
     offers: {
       "@type": "Offer",
       priceCurrency: (listing.currency || DEFAULT_CURRENCY).toUpperCase(),
-      price: (listing.priceCents / 100).toFixed(2),
+      price: formatCurrencyMinorUnitAmount(listing.priceCents, listing.currency),
       priceValidUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
       availability: isOutOfStock
         ? "https://schema.org/OutOfStock"
@@ -833,7 +833,7 @@ export default async function ListingPage({
                 </div>
                 <p className="mt-2 text-sm font-medium text-neutral-900 line-clamp-1">{ml.title}</p>
                 <p className="text-sm text-neutral-500">
-                  ${(ml.priceCents / 100).toLocaleString("en-US", { minimumFractionDigits: 0 })}
+                  {formatCurrencyCents(ml.priceCents, ml.currency)}
                 </p>
               </Link>
             ))}

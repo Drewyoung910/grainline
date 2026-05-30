@@ -22,11 +22,11 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-30
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 216.
-- Verified code/feature fix commits since 2026-05-13: 191.
+- Verified hardening/doc commits since 2026-05-13: 217.
+- Verified code/feature fix commits since 2026-05-13: 192.
 - Verified docs/audit-only commits since 2026-05-13: 10.
-- Most recent reported pass tally: 289 verified fixed/reduced findings,
-  119 verified stale/false-positive findings, and 43 deferred/manual findings
+- Most recent reported pass tally: 290 verified fixed/reduced findings,
+  129 verified stale/false-positive findings, and 44 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
 ## 2026-05-14 Active Tracker
@@ -2991,9 +2991,36 @@ Last updated: 2026-05-30
      `tests/case-messaging-state.test.mjs`, and
      `tests/ban-side-effect-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 289 findings;
-verified stale/false-positive: 119 findings; product/design decisions deferred:
-43 findings. Remaining major categories: Stripe webhook subscription narrowing
+294. **Listing metadata money formatting aligned with currency minor units** —
+     code/test fix for #798, plus verified stale/current-clean closure for
+     #785, #786, and #1112-#1119, and product/design classification for #1120.
+     Listing Open Graph product price metadata and Product JSON-LD offer price
+     now format stored minor units through `formatCurrencyMinorUnitAmount()`
+     instead of directly dividing by 100, so future zero-decimal currencies do
+     not publish a 100x-smaller structured-data price. The listing detail
+     "More from" rail also uses `formatCurrencyCents()` with the listing
+     currency. Seller profile `"null banner"` and blank-H1 allegations were
+     stale on current `main` because `SellerProfile.displayName` is schema
+     non-null and seller auto-creation now falls back to `"Maker"` instead of
+     email-derived text. Read-only agent and parent verification also confirmed
+     the Round 14 clean inventory remains current for label clawback retry,
+     ban-side-effect repair, multi-seller checkout metadata, gift-wrap
+     server-side pricing, sitemap chunking, robots AI-bot/private-path blocks,
+     critical-form ARIA, and Stripe V2 webhook hardening (#1112-#1119).
+     #1095-#1099 and #1108-#1111 were re-verified stale/fixed but were already
+     counted in entries 236, 237, and 266, so this pass does not double-count
+     them. #1120 remains a documented product/UX tradeoff: Buy Now rollback is
+     best-effort browser cleanup, with stock recovery guaranteed by Stripe
+     session expiry/webhook if the browser closes first. Guardrails:
+     `tests/money.test.mjs`, `tests/round9-public-pii-guardrails.test.mjs`,
+     `tests/listing-page-performance.test.mjs`, plus the read-only Round 14
+     guardrail sweep covering env, seller-page performance, label clawback,
+     ban repair, checkout/email, sitemap/robots, accessibility, and Stripe V2
+     webhook tests.
+
+**Running tally after this pass:** verified fixed/reduced: 290 findings;
+verified stale/false-positive: 129 findings; product/design decisions deferred:
+44 findings. Remaining major categories: Stripe webhook subscription narrowing
 evidence, Round 10 deferred cache/state-machine product designs, JSON size
 historical validation and email uniqueness production-scan decisions, email
 outbox retention/quota policy decisions, refund accounting runtime proof and
@@ -3001,9 +3028,10 @@ refund attempt persistence semantics, founding-maker/quality-score consistency,
 remaining case/message state-policy decisions, privacy/legal retention scope,
 remaining privacy/export retention decisions, cross-seller AI duplicate-detection
 product design, unsubscribe consent-epoch/manual-resubscribe semantics, legacy
-enum cleanup/data-migration decisions, CSP `unsafe-eval` rollout monitoring,
-partial multi-seller checkout continuation design, deliberate BigInt
-money-column modeling, live-data reconciliation for historical seller
-shipping-rate currency drift, legacy display-only media host validation, plus
-support context structured-field design (#168). Approximate raw allegations left
-to verify from current max #1120: 669.
+enum cleanup/data-migration decisions, Buy Now best-effort rollback window,
+CSP `unsafe-eval` rollout monitoring, partial multi-seller checkout
+continuation design, deliberate BigInt money-column modeling, live-data
+reconciliation for historical seller shipping-rate currency drift, legacy
+display-only media host validation, plus support context structured-field
+design (#168). Approximate raw allegations left to verify from current max
+#1120: 657.

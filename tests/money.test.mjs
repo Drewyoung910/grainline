@@ -3,7 +3,12 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
-const { formatCurrencyCents, normalizeCurrencyCode, parseMoneyInputToCents } = await import("../src/lib/money.ts");
+const {
+  formatCurrencyCents,
+  formatCurrencyMinorUnitAmount,
+  normalizeCurrencyCode,
+  parseMoneyInputToCents,
+} = await import("../src/lib/money.ts");
 
 describe("money formatting", () => {
   it("normalizes ISO currency codes", () => {
@@ -23,8 +28,14 @@ describe("money formatting", () => {
     assert.doesNotMatch(formatCurrencyCents(12345, "jpy"), /123\.45/);
   });
 
+  it("formats metadata amounts from currency minor units", () => {
+    assert.equal(formatCurrencyMinorUnitAmount(12345, "usd"), "123.45");
+    assert.equal(formatCurrencyMinorUnitAmount(12345, "jpy"), "12345");
+  });
+
   it("does not hide non-finite money values as zero", () => {
     assert.equal(formatCurrencyCents(Number.NaN, "usd"), "Invalid amount");
+    assert.equal(formatCurrencyMinorUnitAmount(Number.NaN, "usd"), "Invalid amount");
     assert.equal(formatCurrencyCents(Number.POSITIVE_INFINITY, "usd"), "Invalid amount");
   });
 
@@ -34,6 +45,15 @@ describe("money formatting", () => {
     assert.match(listingCard, /import \{ formatCurrencyCents \} from "@\/lib\/money"/);
     assert.match(listingCard, /formatCurrencyCents\(priceCents, currency\)/);
     assert.doesNotMatch(listingCard, /priceCents \/ 100\)\.toLocaleString/);
+  });
+
+  it("keeps listing page metadata and cards on shared money helpers", () => {
+    const listingPage = readFileSync("src/app/listing/[id]/page.tsx", "utf8");
+
+    assert.match(listingPage, /formatCurrencyMinorUnitAmount\(listing\.priceCents, listing\.currency\)/);
+    assert.match(listingPage, /formatCurrencyCents\(ml\.priceCents, ml\.currency\)/);
+    assert.doesNotMatch(listingPage, /priceCents \/ 100\)\.toFixed\(2\)/);
+    assert.doesNotMatch(listingPage, /ml\.priceCents \/ 100/);
   });
 
   it("parses decimal money input without accepting exponent notation", () => {
