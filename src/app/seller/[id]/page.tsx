@@ -32,6 +32,7 @@ import { extractRouteId, publicSellerPath, publicSellerShopPath, routeSegmentWit
 import { truncateText } from "@/lib/sanitize";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { isFirstPartyMediaUrl, normalizePublicHttpsUrl } from "@/lib/urlValidation";
+import { getCachedPublicSellerStats } from "@/lib/publicSellerStats";
 
 const SOCIAL_LINK_ALLOWED_HOSTS = {
   Instagram: ["instagram.com"],
@@ -40,7 +41,6 @@ const SOCIAL_LINK_ALLOWED_HOSTS = {
   TikTok: ["tiktok.com"],
 } satisfies Record<string, string[]>;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const RECENT_SHIPPING_STATS_DAYS = 180;
 
 function safeSellerSocialUrl(value: string | null, allowedHosts?: readonly string[]) {
   const normalized = normalizePublicHttpsUrl(value, 2048);
@@ -206,7 +206,6 @@ export default async function SellerPublicPage({
 
   const cityState = [seller.city, seller.state].filter(Boolean).join(", ");
   const nowMs = Date.now();
-  const recentShippingCutoff = new Date(nowMs - RECENT_SHIPPING_STATS_DAYS * MS_PER_DAY);
 
   const [
     [followerCount, isFollowing],
@@ -214,8 +213,7 @@ export default async function SellerPublicPage({
     sellerBlogPosts,
     listings,
     sellerRatingMap,
-    soldCount,
-    recentShipped,
+    publicSellerStats,
     tagRows,
     customerPhotos,
     customerPhotoTotal,
@@ -247,22 +245,7 @@ export default async function SellerPublicPage({
       take: 100,
     }),
     getSellerRatingMap([seller.id]),
-    prisma.orderItem.count({
-      where: { listing: { sellerId: seller.id }, order: { paidAt: { not: null } } },
-    }),
-    prisma.order.findMany({
-      where: {
-        paidAt: { not: null },
-        shippedAt: { not: null, gte: recentShippingCutoff },
-        items: {
-          some: { listing: { sellerId: seller.id } },
-          every: { listing: { sellerId: seller.id } },
-        },
-      },
-      orderBy: { shippedAt: "desc" },
-      take: 30,
-      select: { paidAt: true, shippedAt: true },
-    }),
+    getCachedPublicSellerStats(seller.id),
     prisma.$queryRaw<{ tag: string; count: bigint }[]>`
       SELECT tag, COUNT(*) AS count
       FROM "Listing" l, unnest(l.tags) AS tag
@@ -332,18 +315,7 @@ export default async function SellerPublicPage({
   }
 
   const shopRating = sellerRatingMap.get(seller.id) ?? null;
-
-  const avgShipDays = recentShipped.length >= 3
-    ? Math.max(
-        1,
-        Math.round(
-          recentShipped.reduce(
-            (sum, o) => sum + (o.shippedAt!.getTime() - o.paidAt!.getTime()) / MS_PER_DAY,
-            0,
-          ) / recentShipped.length,
-        ),
-      )
-    : null;
+  const { soldCount, avgShipDays } = publicSellerStats;
 
   const topTags = tagRows.map((r) => r.tag);
   const memberSinceYear = seller.createdAt.getFullYear();

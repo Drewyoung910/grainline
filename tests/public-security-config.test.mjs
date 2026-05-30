@@ -27,4 +27,29 @@ describe("public security configuration guardrails", () => {
     assert.doesNotMatch(docs, /drewyoung910@gmail\.com/);
     assert.doesNotMatch(docs, /258 Roehl Rd/);
   });
+
+  it("keeps production env documentation aligned with required runtime secrets", () => {
+    const docs = source("CLAUDE.md");
+
+    for (const name of [
+      "NEXT_PUBLIC_APP_URL",
+      "DATABASE_URL",
+      "DIRECT_URL",
+      "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
+      "CLERK_SECRET_KEY",
+      "STRIPE_SECRET_KEY",
+      "SHIPPING_RATE_SECRET",
+      "CRON_SECRET",
+      "SENTRY_AUTH_TOKEN",
+    ]) {
+      assert.match(docs, new RegExp(`\`${name}\``));
+    }
+  });
+
+  it("keeps refund panel docs on the current orderTotalCents prop", () => {
+    const docs = source("CLAUDE.md");
+
+    assert.match(docs, /`SellerRefundPanel` now accepts `orderTotalCents`/);
+    assert.doesNotMatch(docs, /`SellerRefundPanel` now accepts `maxRefundCents`/);
+  });
 });

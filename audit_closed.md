@@ -3018,20 +3018,49 @@ Last updated: 2026-05-30
      ban repair, checkout/email, sitemap/robots, accessibility, and Stripe V2
      webhook tests.
 
-**Running tally after this pass:** verified fixed/reduced: 290 findings;
-verified stale/false-positive: 129 findings; product/design decisions deferred:
-44 findings. Remaining major categories: Stripe webhook subscription narrowing
-evidence, Round 10 deferred cache/state-machine product designs, JSON size
-historical validation and email uniqueness production-scan decisions, email
-outbox retention/quota policy decisions, refund accounting runtime proof and
-refund attempt persistence semantics, founding-maker/quality-score consistency,
-remaining case/message state-policy decisions, privacy/legal retention scope,
-remaining privacy/export retention decisions, cross-seller AI duplicate-detection
-product design, unsubscribe consent-epoch/manual-resubscribe semantics, legacy
-enum cleanup/data-migration decisions, Buy Now best-effort rollback window,
-CSP `unsafe-eval` rollout monitoring, partial multi-seller checkout
-continuation design, deliberate BigInt money-column modeling, live-data
-reconciliation for historical seller shipping-rate currency drift, legacy
-display-only media host validation, plus support context structured-field
-design (#168). Approximate raw allegations left to verify from current max
-#1120: 657.
+295. **Public seller stats moved off the live render path** — code/test fix
+     for #789, docs/test fixes for #800 and #803, verified stale/current-clean
+     closure for #747, #748, #749, #760, #792, #793, #801, #802, and #804,
+     and product/ops classification for #746, #762, #763, and #1082. The
+     public seller page now calls `getCachedPublicSellerStats()` instead of
+     issuing order/orderItem sold-count and recent-shipping aggregate queries
+     directly during every page render. The helper owns a five-minute
+     cross-request cache, preserves the previous 180-day/latest-30 shipped
+     order average behavior, and keeps the page component's independent query
+     batch focused on page-local data. CLAUDE production env documentation now
+     includes the missing required runtime/build/migration names
+     (`STRIPE_SECRET_KEY`, `CRON_SECRET`, `SHIPPING_RATE_SECRET`,
+     `DIRECT_URL`, and related public keys), and its seller-refund panel note
+     now uses the current `orderTotalCents` prop instead of the stale
+     `maxRefundCents` name. Read-only agent verification found #747, #748,
+     #749, #760, #792, #793, #801, #802, and #804 already clean on current
+     `main`; #746 remains an intentional Stripe Connect losses-controller
+     ops/legal decision, #762 remote branch pruning and #763 old git author
+     metadata remain ops hygiene, and #1082 is process guidance for verifying
+     agent work against current `main`/matching worktree HEAD. #1062-#1074 and
+     #1083-#1094 were re-verified as already-counted duplicates of earlier
+     closed entries, so this pass does not double-count them. Guardrails:
+     `tests/seller-page-performance.test.mjs`,
+     `tests/round8-fulfillment-privacy-guardrails.test.mjs`, and
+     `tests/public-security-config.test.mjs`; read-only agent sweeps also
+     reported 40/40 and 98/98 focused tests passing.
+
+**Running tally after this pass:** verified fixed/reduced: 293 findings;
+verified stale/false-positive: 138 findings; product/design/ops decisions
+deferred: 48 findings. Remaining major categories: Stripe webhook subscription
+narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
+remote branch and old git author hygiene, Round 10 deferred cache/state-machine
+product designs, JSON size historical validation and email uniqueness
+production-scan decisions, email outbox retention/quota policy decisions, refund
+accounting runtime proof and refund attempt persistence semantics,
+founding-maker/quality-score consistency, remaining case/message state-policy
+decisions, privacy/legal retention scope, remaining privacy/export retention
+decisions, cross-seller AI duplicate-detection product design, unsubscribe
+consent-epoch/manual-resubscribe semantics, legacy enum cleanup/data-migration
+decisions, Buy Now best-effort rollback window, CSP `unsafe-eval` rollout
+monitoring, partial multi-seller checkout continuation design, deliberate BigInt
+money-column modeling, live-data reconciliation for historical seller
+shipping-rate currency drift, legacy display-only media host validation, support
+context structured-field design (#168), and agent/worktree verification process
+hygiene. Approximate raw allegations left to verify from current max #1120:
+641.

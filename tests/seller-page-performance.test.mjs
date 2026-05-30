@@ -25,16 +25,23 @@ describe("seller public page query guardrails", () => {
     assert.match(sellerPage, /prisma\.blogPost\.findMany/);
     assert.match(sellerPage, /prisma\.listing\.findMany/);
     assert.match(sellerPage, /getSellerRatingMap\(\[seller\.id\]\)/);
-    assert.match(sellerPage, /prisma\.orderItem\.count/);
+    assert.match(sellerPage, /getCachedPublicSellerStats\(seller\.id\)/);
   });
 
-  it("keeps public shipping-speed stats scoped to recent shipped orders", () => {
+  it("keeps public sold and shipping-speed stats behind a cross-request cache", () => {
     const sellerPage = source("src/app/seller/[id]/page.tsx");
+    const publicSellerStats = source("src/lib/publicSellerStats.ts");
 
-    assert.match(sellerPage, /const RECENT_SHIPPING_STATS_DAYS = 180/);
-    assert.match(sellerPage, /const recentShippingCutoff = new Date\(nowMs - RECENT_SHIPPING_STATS_DAYS \* MS_PER_DAY\)/);
-    assert.match(sellerPage, /shippedAt: \{ not: null, gte: recentShippingCutoff \}/);
-    assert.match(sellerPage, /orderBy: \{ shippedAt: "desc" \}/);
-    assert.match(sellerPage, /take: 30/);
+    assert.doesNotMatch(sellerPage, /prisma\.orderItem\.count/);
+    assert.doesNotMatch(sellerPage, /prisma\.order\.findMany/);
+    assert.doesNotMatch(sellerPage, /recentShipped/);
+
+    assert.match(publicSellerStats, /import \{ unstable_cache \} from "next\/cache"/);
+    assert.match(publicSellerStats, /PUBLIC_SELLER_RECENT_SHIPPING_STATS_DAYS = 180/);
+    assert.match(publicSellerStats, /PUBLIC_SELLER_STATS_REVALIDATE_SECONDS = 5 \* 60/);
+    assert.match(publicSellerStats, /export const getCachedPublicSellerStats = unstable_cache\(/);
+    assert.match(publicSellerStats, /prisma\.orderItem\.count/);
+    assert.match(publicSellerStats, /ORDER BY o\."shippedAt" DESC/);
+    assert.match(publicSellerStats, /LIMIT 30/);
   });
 });
