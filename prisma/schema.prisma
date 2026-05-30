@@ -963,6 +963,7 @@ model BlogPost {
   title              String          @db.VarChar(200)
   excerpt            String?         @db.VarChar(500)
   body               String          @db.VarChar(50000)
+  materialDisclosure String?         @db.VarChar(500)
   coverImageUrl      String?         @db.VarChar(2048)
   videoUrl           String?         @db.VarChar(2048)
   authorId           String?

@@ -244,6 +244,13 @@ export default async function BlogPostPage({
         </div>
       </div>
 
+      {post.materialDisclosure && (
+        <div className="mb-8 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div className="font-medium">Disclosure</div>
+          <p className="mt-1 whitespace-pre-wrap">{post.materialDisclosure}</p>
+        </div>
+      )}
+
       {/* Cover image */}
       {post.coverImageUrl && (
         <div className="mb-8 rounded-2xl overflow-hidden">

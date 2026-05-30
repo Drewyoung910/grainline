@@ -2912,7 +2912,15 @@ Last updated: 2026-05-24
      letting stale historical shipments shape current buyer-facing expectations.
      Guardrail: `tests/seller-page-performance.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 282 findings;
+290. **Blog material-connection disclosures implemented** — schema/code/test fix
+     for #761. `BlogPost` now has a bounded `materialDisclosure` field, the
+     dashboard blog create/edit form persists it, publish-time profanity checks
+     include it, and public blog posts render the disclosure when present so the
+     Terms disclosure requirement has a concrete authoring surface. Migration:
+     `20260530061000_add_blog_material_disclosure`. Guardrail:
+     `tests/blog-action-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 283 findings;
 verified stale/false-positive: 104 findings; product/design decisions deferred:
 39 findings. Remaining major categories: Stripe webhook subscription narrowing
 evidence, Round 10 deferred state-machine product designs, JSON size historical

@@ -59,6 +59,8 @@ export default async function NewBlogPostPage() {
 
     const title = truncateText(sanitizeText(String(formData.get("title") ?? "").trim()), 200);
     const body = truncateText(sanitizeText(String(formData.get("body") ?? "").trim()), BLOG_BODY_MAX_CHARS);
+    const materialDisclosure =
+      truncateText(sanitizeText(String(formData.get("materialDisclosure") ?? "").trim()), 500) || null;
     const excerpt = truncateText(sanitizeText(String(formData.get("excerpt") ?? "").trim()), 200) || null;
     const metaDescription = truncateText(sanitizeText(String(formData.get("metaDescription") ?? "").trim()), 160) || null;
     let coverImageUrl: string | null = null;
@@ -83,7 +85,7 @@ export default async function NewBlogPostPage() {
 
     // Profanity check. Drafts may be saved for editing, but public posts fail closed.
     const { containsProfanity } = await import("@/lib/profanity");
-    const profCheck = containsProfanity(`${title} ${excerpt ?? ""} ${body} ${tags.join(" ")}`);
+    const profCheck = containsProfanity(`${title} ${excerpt ?? ""} ${materialDisclosure ?? ""} ${body} ${tags.join(" ")}`);
     if (profCheck.flagged) {
       captureProfanityFlag({
         source: "blog_create",
@@ -143,6 +145,7 @@ export default async function NewBlogPostPage() {
             slug,
             title,
             body,
+            materialDisclosure,
             excerpt,
             metaDescription,
             coverImageUrl,

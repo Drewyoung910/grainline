@@ -30,6 +30,7 @@ type Props = {
     coverImageUrl?: string;
     videoUrl?: string;
     body?: string;
+    materialDisclosure?: string;
     excerpt?: string;
     metaDescription?: string;
     tags?: string;
@@ -42,6 +43,7 @@ export default function BlogPostForm({ action, isStaff, listings, submitLabel = 
   const [title, setTitle] = React.useState(defaultValues.title ?? "");
   const [coverImageUrl, setCoverImageUrl] = React.useState(defaultValues.coverImageUrl ?? "");
   const [body, setBody] = React.useState(defaultValues.body ?? "");
+  const [materialDisclosure, setMaterialDisclosure] = React.useState(defaultValues.materialDisclosure ?? "");
   const [excerpt, setExcerpt] = React.useState(defaultValues.excerpt ?? "");
   const [metaDescription, setMetaDescription] = React.useState(defaultValues.metaDescription ?? "");
 
@@ -146,6 +148,21 @@ export default function BlogPostForm({ action, isStaff, listings, submitLabel = 
           </a>{" "}
           directly. Click Preview to see how it will look.
         </p>
+      </div>
+
+      {/* Material disclosure */}
+      <div className="space-y-1">
+        <label className="block text-sm font-medium">Material connection disclosure <span className="text-neutral-500 font-normal">(if applicable)</span></label>
+        <textarea
+          name="materialDisclosure"
+          rows={3}
+          maxLength={500}
+          value={materialDisclosure}
+          onChange={(e) => setMaterialDisclosure(e.target.value)}
+          placeholder="Disclose sponsored tools, free materials, affiliate relationships, or other compensation."
+          className={inputClass}
+        />
+        <p className="text-xs text-neutral-500">{materialDisclosure.length}/500</p>
       </div>
 
       {/* Excerpt */}

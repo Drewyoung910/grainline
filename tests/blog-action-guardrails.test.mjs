@@ -106,8 +106,28 @@ describe("blog dashboard action guardrails", () => {
     const newPage = source("src/app/dashboard/blog/new/page.tsx");
     const editPage = source("src/app/dashboard/blog/[id]/edit/page.tsx");
 
-    assert.match(newPage, /containsProfanity\(`\$\{title\} \$\{excerpt \?\? ""\} \$\{body\} \$\{tags\.join\(" "\)\}`\)/);
-    assert.match(editPage, /containsProfanity\(`\$\{title\} \$\{excerpt \?\? ""\} \$\{body\} \$\{tags\.join\(" "\)\}`\)/);
+    assert.match(newPage, /containsProfanity\(`\$\{title\} \$\{excerpt \?\? ""\} \$\{materialDisclosure \?\? ""\} \$\{body\} \$\{tags\.join\(" "\)\}`\)/);
+    assert.match(editPage, /containsProfanity\(`\$\{title\} \$\{excerpt \?\? ""\} \$\{materialDisclosure \?\? ""\} \$\{body\} \$\{tags\.join\(" "\)\}`\)/);
+  });
+
+  it("supports material connection disclosures on blog posts", () => {
+    const schema = source("prisma/schema.prisma");
+    const migration = source("prisma/migrations/20260530061000_add_blog_material_disclosure/migration.sql");
+    const form = source("src/components/BlogPostForm.tsx");
+    const newPage = source("src/app/dashboard/blog/new/page.tsx");
+    const editPage = source("src/app/dashboard/blog/[id]/edit/page.tsx");
+    const publicPage = source("src/app/blog/[slug]/page.tsx");
+
+    assert.match(schema, /materialDisclosure String\?\s+@db\.VarChar\(500\)/);
+    assert.match(migration, /ADD COLUMN "materialDisclosure" VARCHAR\(500\)/);
+    assert.match(form, /name="materialDisclosure"/);
+    assert.match(form, /maxLength=\{500\}/);
+    assert.match(newPage, /truncateText\(sanitizeText\(String\(formData\.get\("materialDisclosure"\)/);
+    assert.match(newPage, /materialDisclosure,/);
+    assert.match(editPage, /materialDisclosure: true/);
+    assert.match(editPage, /materialDisclosure: post\.materialDisclosure \?\? ""/);
+    assert.match(publicPage, /post\.materialDisclosure/);
+    assert.match(publicPage, /Disclosure/);
   });
 
   it("retries create-time blog slug collisions instead of surfacing P2002", () => {

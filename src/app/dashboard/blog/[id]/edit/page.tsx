@@ -37,9 +37,10 @@ export default async function EditBlogPostPage({
 
   const post = await prisma.blogPost.findUnique({
     where: { id },
-    select: {
-      id: true, slug: true, title: true, body: true, excerpt: true,
-      metaDescription: true, coverImageUrl: true, videoUrl: true,
+      select: {
+        id: true, slug: true, title: true, body: true, excerpt: true,
+        materialDisclosure: true,
+        metaDescription: true, coverImageUrl: true, videoUrl: true,
       type: true, status: true, tags: true, featuredListingIds: true,
       authorId: true,
     },
@@ -82,6 +83,8 @@ export default async function EditBlogPostPage({
 
     const title = truncateText(sanitizeText(String(formData.get("title") ?? "").trim()), 200);
     const body = truncateText(sanitizeText(String(formData.get("body") ?? "").trim()), BLOG_BODY_MAX_CHARS);
+    const materialDisclosure =
+      truncateText(sanitizeText(String(formData.get("materialDisclosure") ?? "").trim()), 500) || null;
     const excerpt = truncateText(sanitizeText(String(formData.get("excerpt") ?? "").trim()), 200) || null;
     const metaDescription = truncateText(sanitizeText(String(formData.get("metaDescription") ?? "").trim()), 160) || null;
     let coverImageUrl: string | null = null;
@@ -105,7 +108,7 @@ export default async function EditBlogPostPage({
     if (!title || !body) return { ok: false, error: "Title and body are required." };
 
     const { containsProfanity } = await import("@/lib/profanity");
-    const profCheck = containsProfanity(`${title} ${excerpt ?? ""} ${body} ${tags.join(" ")}`);
+    const profCheck = containsProfanity(`${title} ${excerpt ?? ""} ${materialDisclosure ?? ""} ${body} ${tags.join(" ")}`);
     if (profCheck.flagged) {
       captureProfanityFlag({
         source: "blog_update",
@@ -163,6 +166,7 @@ export default async function EditBlogPostPage({
         data: {
           title,
           body,
+          materialDisclosure,
           excerpt,
           metaDescription,
           coverImageUrl,
@@ -245,6 +249,7 @@ export default async function EditBlogPostPage({
           coverImageUrl: post.coverImageUrl ?? "",
           videoUrl: post.videoUrl ?? "",
           body: post.body,
+          materialDisclosure: post.materialDisclosure ?? "",
           excerpt: post.excerpt ?? "",
           metaDescription: post.metaDescription ?? "",
           tags: post.tags.join(", "),
