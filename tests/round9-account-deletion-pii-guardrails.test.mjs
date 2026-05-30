@@ -86,6 +86,23 @@ describe("Round 9 account deletion PII guardrails", () => {
     assert.match(deletion, /html: "\[Email removed after account deletion\]"/);
   });
 
+  it("scrubs seller listing title and body fields on account deletion", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+
+    const listingUpdateStart = deletion.indexOf("await tx.listing.updateMany({");
+    const listingUpdateEnd = deletion.indexOf("await tx.makerVerification.updateMany", listingUpdateStart);
+    const listingUpdate = deletion.slice(listingUpdateStart, listingUpdateEnd);
+
+    assert.ok(listingUpdateStart > -1, "account deletion must update seller listings");
+    assert.match(listingUpdate, /title: "Deleted listing"/);
+    assert.match(listingUpdate, /status: "HIDDEN"/);
+    assert.match(listingUpdate, /isPrivate: true/);
+    assert.match(listingUpdate, /description: "\[Listing removed\]"/);
+    assert.match(listingUpdate, /tags: \[\]/);
+    assert.match(listingUpdate, /metaDescription: null/);
+    assert.match(listingUpdate, /materials: \[\]/);
+  });
+
   it("redacts account identifiers from admin audit reasons as well as metadata", () => {
     const deletion = source("src/lib/accountDeletion.ts");
 

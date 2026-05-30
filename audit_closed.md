@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-30
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 218.
-- Verified code/feature fix commits since 2026-05-13: 193.
+- Verified hardening/doc commits since 2026-05-13: 219.
+- Verified code/feature fix commits since 2026-05-13: 194.
 - Verified docs/audit-only commits since 2026-05-13: 10.
-- Most recent reported pass tally: 296 verified fixed/reduced findings,
+- Most recent reported pass tally: 297 verified fixed/reduced findings,
   147 verified stale/false-positive findings, and 46 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
@@ -3113,7 +3113,15 @@ Last updated: 2026-05-30
      `tests/account-export-privacy.test.mjs` and
      `tests/account-export-reverification.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 296 findings;
+302. **Account deletion scrubs retained seller listing titles** — code/test
+     fix for Round 32 privacy finding #10. Seller account deletion already
+     hid/private-scoped listings and cleared descriptions, tags, materials,
+     SEO copy, media, and review surface fields, but retained
+     `Listing.title`. The deletion transaction now replaces the title with a
+     neutral placeholder alongside the existing listing redaction fields.
+     Guardrail: `tests/round9-account-deletion-pii-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 297 findings;
 verified stale/false-positive: 147 findings; product/design/ops decisions
 deferred: 46 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
@@ -3129,4 +3137,4 @@ decisions, Buy Now best-effort rollback window, partial multi-seller checkout
 continuation design, deliberate BigInt money-column modeling, live-data
 reconciliation for historical seller shipping-rate currency drift, legacy
 display-only media host validation, and agent/worktree verification process
-hygiene. Approximate raw allegations left to verify from current max #1120: 629.
+hygiene. Approximate raw allegations left to verify from current max #1120: 628.

@@ -1015,6 +1015,7 @@ export async function anonymizeUserAccount(
       await tx.listing.updateMany({
         where: { sellerId: user.sellerProfile.id },
         data: {
+          title: "Deleted listing",
           status: "HIDDEN",
           isPrivate: true,
           description: "[Listing removed]",
