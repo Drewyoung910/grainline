@@ -3168,6 +3168,15 @@ Last updated: 2026-05-30
      `tests/account-deletion-side-effects.test.mjs`, and
      `tests/account-export-privacy.test.mjs`.
 
+307. **Lost-dispute conversion signal removed from quality scoring** —
+     code/test/docs hardening adjacent to already-counted #848, with no
+     duplicate tally increase. Quality-score listing order counts and the site
+     metrics conversion snapshot already excluded refunded orders and open
+     Stripe dispute ledger rows; they now also exclude terminal lost disputes
+     and unknown dispute statuses, counting only `won` and `warning_closed`
+     dispute rows as eligible conversion signal. Guardrail:
+     `tests/quality-score-query-guardrails.test.mjs`.
+
 **Running tally after this pass:** verified fixed/reduced: 303 findings;
 verified stale/false-positive: 151 findings; product/design/ops decisions
 deferred: 47 findings. Remaining major categories: Stripe webhook subscription
@@ -3176,7 +3185,7 @@ remote branch and old git author hygiene, Round 10 deferred cache/state-machine
 product designs, JSON size historical validation and email uniqueness
 production-scan decisions, email outbox retention/quota policy decisions, refund
 accounting runtime proof and refund attempt persistence semantics,
-founding-maker/quality-score consistency, remaining case/message state-policy
+founding-maker permanence policy, remaining case/message state-policy
 decisions, privacy/legal retention scope, remaining privacy/export retention
 decisions, cross-seller AI duplicate-detection product design, unsubscribe
 consent-epoch/manual-resubscribe semantics, legacy enum cleanup/data-migration

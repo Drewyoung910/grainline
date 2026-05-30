@@ -95,7 +95,7 @@ async function fetchActiveListingBatch(cursorId: string | null): Promise<Listing
           SELECT 1 FROM "OrderPaymentEvent" ope
           WHERE ope."orderId" = o.id
             AND ope."eventType" = 'DISPUTE'
-            AND (ope.status IS NULL OR LOWER(ope.status) NOT IN ('won', 'lost', 'warning_closed'))
+            AND (ope.status IS NULL OR LOWER(ope.status) NOT IN ('won', 'warning_closed'))
         )
     ) ord ON true
     LEFT JOIN LATERAL (

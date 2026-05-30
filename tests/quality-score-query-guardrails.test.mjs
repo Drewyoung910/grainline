@@ -18,16 +18,17 @@ describe("quality score query guardrails", () => {
     assert.match(qualityScore, /b\."blockerId" = sp\."userId" AND b\."blockedId" = fu\.id/);
   });
 
-  it("excludes open Stripe disputes from quality and site conversion counts", () => {
+  it("excludes open, lost, and unknown Stripe disputes from quality and site conversion counts", () => {
     for (const path of ["src/lib/quality-score.ts", "src/lib/site-metrics-snapshot.ts"]) {
       const text = source(path);
 
       assert.match(text, /ope\."eventType" = 'DISPUTE'/, `${path} must inspect dispute ledger rows`);
       assert.match(
         text,
-        /LOWER\(ope\.status\) NOT IN \('won', 'lost', 'warning_closed'\)/,
-        `${path} must count only terminal Stripe disputes as closed`,
+        /LOWER\(ope\.status\) NOT IN \('won', 'warning_closed'\)/,
+        `${path} must count only won or warning-closed Stripe disputes as conversion signal`,
       );
+      assert.doesNotMatch(text, /'won', 'lost', 'warning_closed'/);
     }
   });
 });
