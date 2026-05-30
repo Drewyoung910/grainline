@@ -3045,8 +3045,21 @@ Last updated: 2026-05-30
      `tests/public-security-config.test.mjs`; read-only agent sweeps also
      reported 40/40 and 98/98 focused tests passing.
 
+296. **Checkout payment-failure allegation constrained to current card-only
+     behavior** — verified stale/current-clean closure for #678 with an added
+     regression guardrail. Both checkout routes still create embedded Checkout
+     Sessions with `payment_method_types: ["card"]`, and the Stripe webhook
+     already releases reserved stock on `checkout.session.expired` and
+     `checkout.session.async_payment_failed` through
+     `restoreUnorderedCheckoutStockOnce()`. Under that current card-only
+     design, a separate `payment_intent.payment_failed` handler is not a
+     verified missing production path. `CLAUDE.md` now records that delayed or
+     asynchronous payment methods and `automatic_payment_methods` must not be
+     enabled without adding and testing the corresponding PaymentIntent failure
+     lifecycle handling. Guardrail: `tests/checkout-payment-methods.test.mjs`.
+
 **Running tally after this pass:** verified fixed/reduced: 293 findings;
-verified stale/false-positive: 138 findings; product/design/ops decisions
+verified stale/false-positive: 139 findings; product/design/ops decisions
 deferred: 48 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -3063,4 +3076,4 @@ money-column modeling, live-data reconciliation for historical seller
 shipping-rate currency drift, legacy display-only media host validation, support
 context structured-field design (#168), and agent/worktree verification process
 hygiene. Approximate raw allegations left to verify from current max #1120:
-641.
+640.
