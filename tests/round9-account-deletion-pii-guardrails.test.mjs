@@ -103,6 +103,25 @@ describe("Round 9 account deletion PII guardrails", () => {
     assert.match(listingUpdate, /materials: \[\]/);
   });
 
+  it("scrubs maker verification personal details and reviewer linkage", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+
+    const verificationUpdateStart = deletion.indexOf("await tx.makerVerification.updateMany({");
+    const verificationUpdateEnd = deletion.indexOf("await tx.follow.deleteMany", verificationUpdateStart);
+    const verificationUpdate = deletion.slice(verificationUpdateStart, verificationUpdateEnd);
+
+    assert.ok(verificationUpdateStart > -1, "account deletion must update maker verification rows");
+    assert.match(verificationUpdate, /craftDescription: "\[Deleted\]"/);
+    assert.match(verificationUpdate, /guildMasterCraftBusiness: null/);
+    assert.match(verificationUpdate, /yearsExperience: 0/);
+    assert.match(verificationUpdate, /portfolioUrl: null/);
+    assert.match(verificationUpdate, /status: "REJECTED"/);
+    assert.match(verificationUpdate, /reviewedById: null/);
+    assert.match(verificationUpdate, /reviewNotes: null/);
+    assert.match(verificationUpdate, /appliedAt: now/);
+    assert.match(verificationUpdate, /reviewedAt: null/);
+  });
+
   it("redacts account identifiers from admin audit reasons as well as metadata", () => {
     const deletion = source("src/lib/accountDeletion.ts");
 

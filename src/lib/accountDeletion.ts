@@ -1039,8 +1039,13 @@ export async function anonymizeUserAccount(
         data: {
           craftDescription: "[Deleted]",
           guildMasterCraftBusiness: null,
+          yearsExperience: 0,
           portfolioUrl: null,
+          status: "REJECTED",
+          reviewedById: null,
           reviewNotes: null,
+          appliedAt: now,
+          reviewedAt: null,
         },
       });
       await tx.follow.deleteMany({

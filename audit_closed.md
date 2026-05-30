@@ -3140,7 +3140,16 @@ Last updated: 2026-05-30
      `tests/email-normalization-followups.test.mjs` and
      `tests/round9-account-deletion-pii-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 299 findings;
+305. **Account deletion scrubs maker-verification residue** — code/test/docs
+     fix for Round 32 privacy finding #18. Seller account deletion already
+     scrubbed maker-verification narrative fields, portfolio URL, and review
+     notes; it now also resets years of experience, clears reviewer linkage and
+     review timestamp, normalizes the retained application timestamp to the
+     deletion transaction time, and marks the retained row rejected so the
+     deleted seller no longer keeps active verification state. Guardrail:
+     `tests/round9-account-deletion-pii-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 300 findings;
 verified stale/false-positive: 147 findings; product/design/ops decisions
 deferred: 46 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
@@ -3156,4 +3165,4 @@ decisions, Buy Now best-effort rollback window, partial multi-seller checkout
 continuation design, deliberate BigInt money-column modeling, live-data
 reconciliation for historical seller shipping-rate currency drift, legacy
 display-only media host validation, and agent/worktree verification process
-hygiene. Approximate raw allegations left to verify from current max #1120: 626.
+hygiene. Approximate raw allegations left to verify from current max #1120: 625.
