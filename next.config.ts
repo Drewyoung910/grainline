@@ -43,8 +43,8 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      // Next.js requires 'unsafe-inline' for hydration scripts; 'unsafe-eval' retained for Sentry/source-map support
-      `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://clerk.thegrainline.com ${cloudflareTurnstileOrigin}`,
+      // Next.js hydration still needs inline bootstrap scripts; runtime eval is not allowed.
+      `script-src 'self' 'unsafe-inline' https://clerk.thegrainline.com ${cloudflareTurnstileOrigin}`,
       // script-src-elem overrides script-src for <script> elements — list all external script hosts here
       `script-src-elem 'self' 'unsafe-inline' https://clerk.com https://*.clerk.accounts.dev https://*.clerk.com https://clerk.thegrainline.com https://js.stripe.com ${cloudflareTurnstileOrigin}`,
       "style-src 'self' 'unsafe-inline' https://clerk.thegrainline.com",

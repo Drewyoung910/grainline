@@ -2865,7 +2865,7 @@ The `chargesEnabled Boolean @default(false)` field caused all existing sellers t
 
 | Directive | Key allowed sources |
 |---|---|
-| `script-src` | `'self' 'unsafe-inline' 'unsafe-eval'` (Next.js hydration requires both) + Clerk custom domain + Cloudflare Turnstile |
+| `script-src` | `'self' 'unsafe-inline'` (Next.js hydration bootstrap only; no `'unsafe-eval'`) + Clerk custom domain + Cloudflare Turnstile |
 | `script-src-elem` | `'self' 'unsafe-inline'` + `clerk.com *.clerk.accounts.dev *.clerk.com clerk.thegrainline.com js.stripe.com challenges.cloudflare.com` |
 | `style-src` | `'self' 'unsafe-inline'` |
 | `img-src` | `'self' data: blob:` + explicit Grainline CDN/R2, Clerk, Stripe, and map tile origins |
@@ -2880,7 +2880,7 @@ The `chargesEnabled Boolean @default(false)` field caused all existing sellers t
 
 **CSP maintenance**: When adding new third-party services, add their domains to `next.config.ts` `securityHeaders`. Any violations in production appear in Sentry under tag `csp_violation`.
 
-**Checkout script inventory behavior**: `docs/checkout-script-inventory.md` is the source of truth for browser code that can execute on `/cart`, `/listing/[id]` Buy Now, and `/checkout/success`. `EmbeddedCheckoutPanel` is the only local component that calls `loadStripe()`. Do not add third-party scripts, tag managers, fraud widgets, or analytics to checkout/payment surfaces without updating that inventory, tightening CSP with explicit hosts, and adding tests. Stripe.js must remain loaded directly from `https://js.stripe.com`; do not self-host or add stale SRI hashes.
+**Checkout script inventory behavior**: `docs/checkout-script-inventory.md` is the source of truth for browser code that can execute on `/cart`, `/listing/[id]` Buy Now, and `/checkout/success`. `EmbeddedCheckoutPanel` is the only local component that calls `loadStripe()`. Do not add third-party scripts, tag managers, fraud widgets, analytics, or runtime eval requirements to checkout/payment surfaces without updating that inventory, tightening CSP with explicit hosts, and adding tests. Stripe.js must remain loaded directly from `https://js.stripe.com`; do not self-host or add stale SRI hashes.
 
 ## Business (2026-04-01, updated 2026-04-24)
 

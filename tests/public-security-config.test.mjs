@@ -13,6 +13,13 @@ describe("public security configuration guardrails", () => {
     assert.match(config, /productionBrowserSourceMaps:\s*false/);
   });
 
+  it("keeps enforced script CSP off unsafe eval", () => {
+    const config = source("next.config.ts");
+
+    assert.match(config, /script-src 'self' 'unsafe-inline' https:\/\/clerk\.thegrainline\.com/);
+    assert.doesNotMatch(config, /'unsafe-eval'/);
+  });
+
   it("keeps sensitive signed-in routes disallowed in robots.txt", () => {
     const route = source("src/app/robots.txt/route.ts");
 

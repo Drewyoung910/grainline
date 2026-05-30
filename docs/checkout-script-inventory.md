@@ -1,6 +1,6 @@
 # Grainline Checkout Script Inventory
 
-Last updated: 2026-05-21
+Last updated: 2026-05-30
 
 This document is the launch evidence record for scripts and third-party browser code that can execute on Grainline checkout/payment surfaces. It supports the PCI SAQ A / PCI DSS v4 payment-page control process documented in `docs/security-hardening-plan.md`.
 
@@ -27,6 +27,7 @@ This document is the launch evidence record for scripts and third-party browser 
 - `EmbeddedCheckoutPanel` is the only local component that calls `loadStripe()`. The Buy Now modal lazy-loads this panel so crawlers and listing-page visitors do not load Stripe.js before payment intent.
 - Checkout success remains read-only; the Stripe webhook is the only order writer.
 - `/api/csp-report` sanitizes document/referrer query strings and tags cart/checkout document violations with `checkout_surface=true` for payment-page monitoring evidence.
+- Enforced `script-src` does not allow `'unsafe-eval'`; do not add runtime eval back for Sentry/source maps or third-party widgets without a separate checkout/auth smoke test and updated CSP evidence.
 
 ## Change-Control Rule
 

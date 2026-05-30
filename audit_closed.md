@@ -25,8 +25,8 @@ Last updated: 2026-05-30
 - Verified hardening/doc commits since 2026-05-13: 217.
 - Verified code/feature fix commits since 2026-05-13: 192.
 - Verified docs/audit-only commits since 2026-05-13: 10.
-- Most recent reported pass tally: 294 verified fixed/reduced findings,
-  147 verified stale/false-positive findings, and 47 deferred/manual findings
+- Most recent reported pass tally: 295 verified fixed/reduced findings,
+  147 verified stale/false-positive findings, and 46 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
 ## 2026-05-14 Active Tracker
@@ -3094,9 +3094,18 @@ Last updated: 2026-05-30
      `tests/support-request.test.mjs` and
      `tests/account-export-privacy.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 294 findings;
+300. **CSP runtime eval allowance removed from enforced script policy** —
+     code/test/docs fix for #313. The enforced `script-src` header no longer
+     includes `'unsafe-eval'`; Sentry source-map upload remains build-time
+     behavior and does not require browser runtime eval. CSP docs and checkout
+     script inventory now record the no-runtime-eval contract so third-party
+     checkout additions cannot silently reintroduce it. Guardrails:
+     `tests/public-security-config.test.mjs` and
+     `tests/checkout-script-inventory.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 295 findings;
 verified stale/false-positive: 147 findings; product/design/ops decisions
-deferred: 47 findings. Remaining major categories: Stripe webhook subscription
+deferred: 46 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
 product designs, JSON size historical validation and email uniqueness
@@ -3106,9 +3115,8 @@ founding-maker/quality-score consistency, remaining case/message state-policy
 decisions, privacy/legal retention scope, remaining privacy/export retention
 decisions, cross-seller AI duplicate-detection product design, unsubscribe
 consent-epoch/manual-resubscribe semantics, legacy enum cleanup/data-migration
-decisions, Buy Now best-effort rollback window, CSP `unsafe-eval` rollout
-monitoring, partial multi-seller checkout continuation design, deliberate BigInt
-money-column modeling, live-data reconciliation for historical seller
-shipping-rate currency drift, legacy display-only media host validation, and
-agent/worktree verification process hygiene. Approximate raw allegations left to
-verify from current max #1120: 631.
+decisions, Buy Now best-effort rollback window, partial multi-seller checkout
+continuation design, deliberate BigInt money-column modeling, live-data
+reconciliation for historical seller shipping-rate currency drift, legacy
+display-only media host validation, and agent/worktree verification process
+hygiene. Approximate raw allegations left to verify from current max #1120: 630.
