@@ -60,7 +60,7 @@ const isPublic = createRouteMatcher([
   "/commission",          // Commission Room board — public
   "/commission/((?!new)[^/]+)", // Commission request detail — public (excludes /new)
   "/api/csp-report",           // CSP violation reports — no auth needed
-  "/api/newsletter",           // newsletter signup — no auth needed
+  "/api/newsletter(.*)",       // newsletter signup/confirmation — no auth needed
   "/api/support",              // support request form — no auth needed
   "/api/legal/data-request",   // data/privacy request form — no auth needed
   "/api/listings/([^/]+)/view",   // listing view tracking — fire-and-forget analytics
@@ -102,6 +102,7 @@ const isTermsAcceptanceAllowed = createRouteMatcher([
   "/api/support",
   "/api/legal/data-request",
   "/api/csp-report",
+  "/api/newsletter(.*)",
   "/api/health",
   "/api/cron(.*)",
 ]);
@@ -127,6 +128,7 @@ const isSuspendedAccountAllowed = createRouteMatcher([
   "/api/email/unsubscribe",
   "/api/support",
   "/api/legal/data-request",
+  "/api/newsletter(.*)",
   "/api/health",
   "/api/cron(.*)",
 ]);

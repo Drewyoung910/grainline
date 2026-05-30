@@ -30,6 +30,9 @@ describe("account and privacy route observability guardrails", () => {
     assert.match(route, /source: "newsletter_subscribe"/);
     assert.match(route, /extra: \{ emailHash \}/);
     assert.match(route, /isEmailSuppressed\(email\)/);
+    assert.match(route, /confirmationRequired: true/);
+    assert.match(route, /sendNewsletterConfirmationEmail/);
+    assert.match(route, /active: false/);
     assert.doesNotMatch(route, /suppressed: true/);
     assert.doesNotMatch(route, /subscribed: false/);
   });

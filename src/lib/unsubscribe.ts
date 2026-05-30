@@ -21,8 +21,13 @@ export async function unsubscribeEmail(email: string): Promise<{ ok: boolean; us
 
   await prisma.$transaction(async (tx) => {
     const newsletter = await tx.newsletterSubscriber.updateMany({
-      where: { email: normalized, active: true },
-      data: { active: false },
+      where: { email: normalized },
+      data: {
+        active: false,
+        confirmationTokenHash: null,
+        confirmationExpiresAt: null,
+        confirmationSentAt: null,
+      },
     });
     newsletterUpdated = newsletter.count;
 

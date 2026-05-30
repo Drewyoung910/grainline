@@ -61,6 +61,7 @@ describe("Round 8 public profile privacy guardrails", () => {
   it("applies viewer privacy filters to public structured data and customer photos", () => {
     const listing = source("src/app/listing/[id]/page.tsx");
     const seller = source("src/app/seller/[id]/page.tsx");
+    const customerPhotos = source("src/app/seller/[id]/customer-photos/page.tsx");
     const similar = source("src/app/api/listings/[id]/similar/route.ts");
 
     assert.match(listing, /reviewer: \{ banned: false, deletedAt: null \}/);
@@ -68,6 +69,9 @@ describe("Round 8 public profile privacy guardrails", () => {
     assert.match(seller, /seller\.publicMapOptIn && !radiusMeters && lat != null && lng != null/);
     assert.match(seller, /reviewer: \{ banned: false, deletedAt: null \}/);
     assert.doesNotMatch(seller, /select: \{ listingId: true, reviewerId: true/);
+    assert.match(customerPhotos, /reviewer: \{ banned: false, deletedAt: null \}/);
+    assert.match(customerPhotos, /reviewerId: \{ notIn: \[\.\.\.blockedUserIds\] \}/);
+    assert.doesNotMatch(customerPhotos, /select: \{ listingId: true, reviewerId: true/);
     assert.match(seller, /function safeSellerSocialUrl/);
     assert.match(seller, /normalizePublicHttpsUrl\(value, 2048\)/);
     assert.match(seller, /const sameAs = socialLinks\.map\(\(link\) => link\.url\)/);

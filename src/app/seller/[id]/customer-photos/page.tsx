@@ -73,8 +73,15 @@ export default async function CustomerPhotosPage({ params, searchParams }: Props
     permanentRedirect(`/seller/${routeSegmentWithSlug(seller.id, seller.displayName, "maker")}/customer-photos${page > 1 ? `?page=${page}` : ""}`);
   }
 
+  const blockedReviewerFilter = blockedUserIds.size > 0
+    ? { reviewerId: { notIn: [...blockedUserIds] } }
+    : {};
   const photoWhere = {
-    review: { listing: publicListingDetailWhere({ sellerId: seller.id }) },
+    review: {
+      ...blockedReviewerFilter,
+      reviewer: { banned: false, deletedAt: null },
+      listing: publicListingDetailWhere({ sellerId: seller.id }),
+    },
   };
 
   const [photos, totalCount] = await Promise.all([

@@ -311,6 +311,27 @@ export async function sendRenderedEmail(email: RenderedEmail, opts: { throwOnFai
   await send(email.to, email.subject, email.html, opts);
 }
 
+export function renderNewsletterConfirmationEmail(opts: { email: string; confirmationUrl: string }) {
+  const html = baseTemplate(
+    "Confirm your Grainline newsletter subscription",
+    `<p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Please confirm that you want to receive Grainline newsletter emails at ${esc(opts.email)}.</p>
+    ${btn("Confirm subscription", opts.confirmationUrl)}
+    <p style="font-size:12px;line-height:1.6;color:#9D9C97;margin:18px 0 0;">If you did not request this, you can ignore this email and you will not be added to newsletter sends.</p>`,
+  );
+  return {
+    to: opts.email,
+    subject: "Confirm your Grainline newsletter subscription",
+    html,
+  };
+}
+
+export async function sendNewsletterConfirmationEmail(
+  opts: { email: string; confirmationUrl: string },
+  sendOpts: { throwOnFailure?: boolean } = {},
+) {
+  await sendRenderedEmail(renderNewsletterConfirmationEmail(opts), sendOpts);
+}
+
 // ─── Transactional emails ────────────────────────────────────────────────────
 
 export function renderOrderConfirmedBuyerEmail(opts: {

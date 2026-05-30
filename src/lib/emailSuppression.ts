@@ -50,7 +50,12 @@ export async function suppressEmail(opts: {
 
     await prisma.newsletterSubscriber.updateMany({
       where: { email },
-      data: { active: false },
+      data: {
+        active: false,
+        confirmationTokenHash: null,
+        confirmationExpiresAt: null,
+        confirmationSentAt: null,
+      },
     });
 
     return suppression;

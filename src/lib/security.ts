@@ -23,11 +23,10 @@
  *      no state mutation (only logs to Sentry). No sensitive data exposed.
  *      CSRF irrelevant for a write-only logging sink.
  *
- * 4. POST /api/newsletter
- *    — Upserts a NewsletterSubscriber row (email + name). No sensitive user
- *      data accessed; worst-case a cross-origin form could subscribe an email
- *      address the attacker already knows. Acceptable low-risk public action;
- *      protected by the public newsletter IP rate limiter.
+ * 4. POST /api/newsletter and POST /api/newsletter/confirm
+ *    — Signup creates an inactive NewsletterSubscriber row and sends a
+ *      confirmation email. Confirmation mutates only through the random token,
+ *      rejects explicit cross-origin browser headers, and is rate-limited.
  *
  * 5. POST /api/listings/[id]/view
  *    — Fire-and-forget analytics increment (viewCount). No user data accessed

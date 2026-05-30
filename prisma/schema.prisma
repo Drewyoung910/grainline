@@ -1010,11 +1010,18 @@ model BlogComment {
 }
 
 model NewsletterSubscriber {
-  id           String   @id @default(cuid())
-  email        String   @unique @db.VarChar(254)
-  name         String?  @db.VarChar(200)
-  subscribedAt DateTime @default(now())
-  active       Boolean  @default(true)
+  id                    String    @id @default(cuid())
+  email                 String    @unique @db.VarChar(254)
+  name                  String?   @db.VarChar(200)
+  subscribedAt          DateTime  @default(now())
+  active                Boolean   @default(false)
+  confirmedAt           DateTime?
+  confirmationTokenHash String?   @db.VarChar(64)
+  confirmationExpiresAt DateTime?
+  confirmationSentAt    DateTime?
+
+  @@index([confirmationTokenHash])
+  @@index([active, confirmedAt])
 }
 
 enum EmailSuppressionReason {

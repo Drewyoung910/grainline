@@ -2920,7 +2920,22 @@ Last updated: 2026-05-24
      `20260530061000_add_blog_material_disclosure`. Guardrail:
      `tests/blog-action-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 283 findings;
+291. **Newsletter double opt-in and customer-photo filter parity tightened** —
+     schema/code/test fix for #744, plus adjacent #783 public-gallery parity
+     with no duplicate tally increase because #783 was already counted in entry
+     205. Public newsletter signup now stores inactive pending subscribers,
+     sends a confirmation email, and activates only through
+     `POST /api/newsletter/confirm`; the confirmation `GET` renders a form only,
+     and unsubscribe/suppression paths clear pending confirmation tokens. The
+     seller customer-photos gallery now applies the same banned/deleted reviewer
+     and viewer block filters already used on the seller profile customer-photo
+     preview. Migration: `20260530190000_newsletter_double_opt_in`.
+     Guardrails: `tests/newsletter-double-opt-in.test.mjs`,
+     `tests/account-privacy-observability.test.mjs`,
+     `tests/round8-fulfillment-privacy-guardrails.test.mjs`, and
+     `tests/post-launch-ui-followups.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 284 findings;
 verified stale/false-positive: 104 findings; product/design decisions deferred:
 39 findings. Remaining major categories: Stripe webhook subscription narrowing
 evidence, Round 10 deferred state-machine product designs, JSON size historical

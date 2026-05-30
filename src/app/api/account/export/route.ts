@@ -461,7 +461,15 @@ async function buildExport(user: NonNullable<ExportableUser>) {
       ? prisma.newsletterSubscriber.findMany({
           where: { email: accountEmail },
           orderBy: { subscribedAt: "desc" },
-          select: { id: true, email: true, name: true, subscribedAt: true, active: true },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            subscribedAt: true,
+            active: true,
+            confirmedAt: true,
+            confirmationSentAt: true,
+          },
         })
       : [],
     sellerProfile
