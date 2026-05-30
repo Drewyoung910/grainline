@@ -87,7 +87,9 @@ export function canViewListingDetail(
   listing: ListingVisibilityInput,
   viewer: { dbUserId?: string | null; clerkUserId?: string | null; preview?: boolean },
 ) {
-  const isOwner = !!viewer.clerkUserId && listing.seller.user?.clerkId === viewer.clerkUserId;
+  const isOwner =
+    (!!viewer.dbUserId && listing.seller.user?.id === viewer.dbUserId) ||
+    (!!viewer.clerkUserId && listing.seller.user?.clerkId === viewer.clerkUserId);
   if (viewer.preview && isOwner) return true;
   if (isOwner) return true;
 

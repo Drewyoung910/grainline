@@ -86,7 +86,7 @@ const getListingForDetailPage = cache(async (listingId: string) =>
           guildLevel: true,
           isFoundingMaker: true,
           foundingMakerNumber: true,
-          user: { select: { id: true, clerkId: true, imageUrl: true, banned: true, deletedAt: true } },
+          user: { select: { id: true, imageUrl: true, banned: true, deletedAt: true } },
         },
       },
       metro: { select: { slug: true, name: true, state: true } },
@@ -194,7 +194,8 @@ export default async function ListingPage({
   if (!listing) return notFound();
 
   // Preview mode: seller can view their own listing regardless of status/chargesEnabled
-  const isPreview = sp.preview === "1" && !!userId && listing.seller.user?.clerkId === userId;
+  const viewerIsSeller = !!meId && listing.seller.userId === meId;
+  const isPreview = sp.preview === "1" && viewerIsSeller;
 
   if (!canViewListingDetail(listing, { dbUserId: meId, clerkUserId: userId, preview: isPreview })) {
     return notFound();
@@ -305,7 +306,6 @@ export default async function ListingPage({
   const sellerAvatar = listing.seller.avatarImageUrl ?? listing.seller.user?.imageUrl ?? null;
 
   const sellerDbUserId = listing.seller.user?.id ?? null;
-  const sellerClerkId = listing.seller.user?.clerkId ?? null;
   const sellerUserId = sellerDbUserId;
 
   const initials = avatarInitials(sellerName, "S");
@@ -321,10 +321,10 @@ export default async function ListingPage({
       : "#";
   const hideMessage = !!meId && !!sellerUserId && meId === sellerUserId;
 
-  const canReplyClerkId = userId && sellerClerkId === userId ? userId : null;
+  const canReplyClerkId = viewerIsSeller ? userId : null;
 
   const isActive = listing.status === "ACTIVE";
-  const isOwnListing = !!meId && !!sellerUserId && meId === sellerUserId;
+  const isOwnListing = viewerIsSeller;
 
   const isPrivate = listing.isPrivate;
   const reservedForMe = isPrivate && !!meId && listing.reservedForUserId === meId;

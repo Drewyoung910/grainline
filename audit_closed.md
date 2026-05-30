@@ -2875,8 +2875,22 @@ Last updated: 2026-05-24
      were stale on current `main`. Guardrails: `tests/link-security.test.mjs`
      and `tests/client-async-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 274 findings;
-verified stale/false-positive: 102 findings; product/design decisions deferred:
+286. **Round 6 public listing privacy/test follow-ups closed** — code/test/docs
+     fix for #681 and #682, plus verified stale/product-policy closure for #677
+     and #683. Public listing/message display names no longer fall back to email
+     on current `main`. The public listing detail loader no longer selects
+     seller `User.clerkId`; seller-preview/reply gating now compares the current
+     local user id to `SellerProfile.userId` server-side. The Commission Room
+     near-me raw SQL path now has a guardrail confirming category input is
+     allowlisted and passed as bound positional parameters, and GIF remains
+     intentionally unsupported by the upload allowlist/signature checks.
+     Guardrails: `tests/round8-fulfillment-privacy-guardrails.test.mjs`,
+     `tests/listing-visibility.test.mjs`,
+     `tests/verified-audit-followups.test.mjs`, and
+     `tests/upload-verification-token.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 276 findings;
+verified stale/false-positive: 104 findings; product/design decisions deferred:
 39 findings. Remaining major categories: Stripe webhook subscription narrowing
 evidence, Round 10 deferred state-machine product designs, JSON size historical
 validation and email uniqueness production-scan decisions, email outbox

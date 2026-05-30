@@ -61,6 +61,17 @@ describe("verified audit follow-up guardrails", () => {
     assert.match(interestRoute, /COMMISSION_CLOSED_DURING_INTEREST/);
   });
 
+  it("keeps commission near-me raw SQL inputs parameterized", () => {
+    const page = source("src/app/commission/page.tsx");
+
+    assert.match(page, /CATEGORY_VALUES\.includes\(categoryFilter\)/);
+    assert.match(page, /const categoryConditionSelect = categoryValid \? `AND cr\.category::text = \$8` : ""/);
+    assert.match(page, /const categoryConditionCount = categoryValid \? `AND cr\.category::text = \$4` : ""/);
+    assert.match(page, /args\.push\(categoryFilter\)/);
+    assert.match(page, /countArgs\.push\(categoryFilter\)/);
+    assert.doesNotMatch(page, /\$\{categoryFilter\}/);
+  });
+
   it("keeps order total displays and emails on the gift-wrap-aware helper", () => {
     const paths = [
       "src/app/account/page.tsx",

@@ -53,6 +53,8 @@ describe("Round 8 public profile privacy guardrails", () => {
     assert.doesNotMatch(browse, /seller:\s*\{\s*include:/);
     assert.doesNotMatch(listing, /email: true/);
     assert.doesNotMatch(listing, /seller\.user\?\.email/);
+    assert.doesNotMatch(listing, /clerkId: true/);
+    assert.doesNotMatch(listing, /sellerClerkId/);
     assert.match(listing, /const sellerName = listing\.seller\.displayName \?\? "Maker"/);
   });
 

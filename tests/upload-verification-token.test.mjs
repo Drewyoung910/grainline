@@ -144,6 +144,7 @@ describe("upload verification tokens", () => {
     assert.equal(uploadFileSignatureMatches(html, "application/pdf"), false);
     assert.equal(uploadFileSignatureMatches(html, "video/mp4"), false);
     assert.equal(uploadFileSignatureMatches(html, "application/octet-stream"), false);
+    assert.equal(uploadFileSignatureMatches(new TextEncoder().encode("GIF89a"), "image/gif"), false);
   });
 
   it("verifies uploaded object signatures before accepting direct uploads", () => {

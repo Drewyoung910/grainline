@@ -113,6 +113,17 @@ describe("listing visibility", () => {
 
   it("allows owners and reserved buyers without bypassing seller account safety", () => {
     assert.equal(canViewListingDetail(listing({ status: ListingStatus.HIDDEN }), { clerkUserId: "clerk_1" }), true);
+    assert.equal(canViewListingDetail(listing({ status: ListingStatus.HIDDEN }), { dbUserId: "user_1" }), true);
+    assert.equal(
+      canViewListingDetail(
+        listing({
+          status: ListingStatus.HIDDEN,
+          seller: { ...listing().seller, user: { ...listing().seller.user, clerkId: undefined } },
+        }),
+        { dbUserId: "user_1", preview: true },
+      ),
+      true,
+    );
     assert.equal(
       canViewListingDetail(
         listing({ isPrivate: true, reservedForUserId: "buyer_1" }),
