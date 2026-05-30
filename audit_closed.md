@@ -3215,8 +3215,34 @@ Last updated: 2026-05-30
      `tests/message-attachments.test.mjs`, `tests/message-bodies.test.mjs`, and
      `tests/commission-state.test.mjs`.
 
+311. **Client rendering and dependency false-positive slice reverified** —
+     source/test/docs closure for #329-#334 and #342-#347. Every current
+     `dangerouslySetInnerHTML` sink is either JSON-LD serialized through
+     `safeJsonLd()` or blog markdown rendered through `marked` and
+     `sanitize-html`; direct `eval` hits are Upstash Redis Lua helpers, with no
+     arbitrary `innerHTML`/`new Function` usage found. Current browser storage
+     users are anonymous cart, legacy cart-session cleanup keys, recently
+     viewed identity transition state, admin lockout timestamps, dismissed
+     banner IDs, and avatar draft URLs; the cart page no longer persists
+     shipping-address, selected-rate, or Stripe client-secret session data.
+     `window.location.href` client navigations route through
+     `safeInternalPath()` auth helpers or `safeStripeRedirectUrl()`, seller
+     social links require public HTTPS URLs plus host allowlists where
+     applicable, and target-blank links are covered by noopener/noreferrer
+     guardrails. The dependency review also verified CI secrets use
+     GitHub/Vercel secret indirection except fixed non-production CI sentinel
+     values, Next resolves to `16.2.6`, Hono/PostCSS/Svix overrides are applied,
+     Vercel migrations remain production-only, and CI tests run on Node 22 with
+     native strip-types. Previously closed exact findings #335-#341 and
+     #325-#328 were not double-counted. Guardrails:
+     `tests/rendering-security.test.mjs`, `tests/link-security.test.mjs`,
+     `tests/client-async-guardrails.test.mjs`,
+     `tests/dependency-hygiene.test.mjs`,
+     `tests/internal-return-url.test.mjs`, `tests/stripe-redirect-state.test.mjs`,
+     and `tests/local-account-state.test.mjs`.
+
 **Running tally after this pass:** verified fixed/reduced: 309 findings;
-verified stale/false-positive: 176 findings; product/design/ops decisions
+verified stale/false-positive: 188 findings; product/design/ops decisions
 deferred: 51 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -3232,4 +3258,4 @@ continuation design, deliberate BigInt money-column modeling, live-data
 reconciliation for historical seller shipping-rate currency drift, legacy
 display-only media host validation, HSTS preload and Vercel max-duration ops
 evidence, and agent/worktree verification process hygiene. Approximate raw
-allegations left to verify from current max #1120: 585.
+allegations left to verify from current max #1120: 573.
