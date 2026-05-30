@@ -40,6 +40,16 @@ describe("Round 8 fulfillment fraud-chain guardrails", () => {
     assert.match(accountDeletion, /fulfillmentStatus: "PICKED_UP"[\s\S]*pickedUpAt: \{ gte: terminalCutoff \}/);
     assert.match(accountDeletion, /within the case window/);
   });
+
+  it("blocks listing soft-delete for recent terminal orders inside the case window", () => {
+    const softDelete = source("src/lib/listingSoftDelete.ts");
+
+    assert.match(softDelete, /LISTING_SOFT_DELETE_TERMINAL_ORDER_BLOCK_DAYS = 30/);
+    assert.match(softDelete, /function listingSoftDeleteOrderBlockerWhere/);
+    assert.match(softDelete, /fulfillmentStatus: "DELIVERED"[\s\S]*deliveredAt: \{ gte: terminalCutoff \}/);
+    assert.match(softDelete, /fulfillmentStatus: "PICKED_UP"[\s\S]*pickedUpAt: \{ gte: terminalCutoff \}/);
+    assert.match(softDelete, /Cannot delete a listing with open, active, or recently fulfilled orders inside the case window/);
+  });
 });
 
 describe("Round 8 public profile privacy guardrails", () => {

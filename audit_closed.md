@@ -3189,7 +3189,16 @@ Last updated: 2026-05-30
      `tests/payment-side-effect-observability.test.mjs` and
      `tests/quality-score-state.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 306 findings;
+309. **Listing soft-delete blocks recent terminal orders inside case window** —
+     code/test/docs fix for #286. `softDeleteListingWithCleanup()` already
+     blocked open fulfillment and active cases; it now also blocks `DELIVERED`
+     and `PICKED_UP` orders inside the 30-day buyer case window unless the order
+     has been refunded or has a blocking refund ledger event. This keeps seller
+     archive/private-scope actions aligned with account-deletion blockers while
+     buyers can still open a case. Guardrail:
+     `tests/round8-fulfillment-privacy-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 307 findings;
 verified stale/false-positive: 151 findings; product/design/ops decisions
 deferred: 47 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
@@ -3205,4 +3214,4 @@ decisions, Buy Now best-effort rollback window, partial multi-seller checkout
 continuation design, deliberate BigInt money-column modeling, live-data
 reconciliation for historical seller shipping-rate currency drift, legacy
 display-only media host validation, and agent/worktree verification process
-hygiene. Approximate raw allegations left to verify from current max #1120: 617.
+hygiene. Approximate raw allegations left to verify from current max #1120: 616.
