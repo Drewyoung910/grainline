@@ -31,14 +31,15 @@ function carrierTrackingUrl(
   number: string
 ): string | null {
   const c = (carrier ?? "").toUpperCase();
+  const trackingParam = encodeURIComponent(number);
   if (c.includes("UPS"))
-    return `https://www.ups.com/track?tracknum=${number}`;
+    return `https://www.ups.com/track?tracknum=${trackingParam}`;
   if (c.includes("USPS"))
-    return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${number}`;
+    return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${trackingParam}`;
   if (c.includes("FEDEX") || c.includes("FED EX"))
-    return `https://www.fedex.com/fedextrack/?trknbr=${number}`;
+    return `https://www.fedex.com/fedextrack/?trknbr=${trackingParam}`;
   if (c.includes("DHL"))
-    return `https://www.dhl.com/us-en/home/tracking.html?tracking-id=${number}`;
+    return `https://www.dhl.com/us-en/home/tracking.html?tracking-id=${trackingParam}`;
   return null;
 }
 

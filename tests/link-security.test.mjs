@@ -30,10 +30,21 @@ describe("link security", () => {
   });
 
   it("encodes tracking numbers before building carrier links", () => {
-    const labelSection = fs.readFileSync("src/components/LabelSection.tsx", "utf8");
+    const paths = [
+      "src/components/LabelSection.tsx",
+      "src/components/OrderTimeline.tsx",
+      "src/app/dashboard/orders/[id]/page.tsx",
+      "src/app/dashboard/sales/[orderId]/page.tsx",
+    ];
 
-    assert.match(labelSection, /const trackingParam = encodeURIComponent\(labelTrackingNumber\)/);
-    assert.match(labelSection, /tracknum=\$\{trackingParam\}/);
-    assert.doesNotMatch(labelSection, /tracknum=\$\{labelTrackingNumber\}/);
+    for (const file of paths) {
+      const source = fs.readFileSync(file, "utf8");
+      assert.match(source, /const trackingParam = encodeURIComponent\(/, file);
+      assert.match(source, /tracknum=\$\{trackingParam\}/, file);
+      assert.doesNotMatch(source, /tracknum=\$\{(?:labelTrackingNumber|number)\}/, file);
+      assert.doesNotMatch(source, /tLabels=\$\{(?:labelTrackingNumber|number)\}/, file);
+      assert.doesNotMatch(source, /trknbr=\$\{(?:labelTrackingNumber|number)\}/, file);
+      assert.doesNotMatch(source, /tracking-id=\$\{(?:labelTrackingNumber|number)\}/, file);
+    }
   });
 });

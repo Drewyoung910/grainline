@@ -2858,7 +2858,13 @@ Last updated: 2026-05-24
      of direct `toLocaleString()` with untrusted currency text. Guardrails:
      `tests/blog-action-guardrails.test.mjs` and `tests/money.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 269 findings;
+284. **Order tracking-link encoding tightened** — code/test fix for #730.
+     `OrderTimeline`, buyer order detail, and seller sales detail tracking-link
+     helpers now URL-encode tracking numbers before interpolating them into
+     carrier deep links, matching the already-hardened label and email link
+     builders. Guardrail: `tests/link-security.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 270 findings;
 verified stale/false-positive: 100 findings; product/design decisions deferred:
 39 findings. Remaining major categories: Stripe webhook subscription narrowing
 evidence, Round 10 deferred state-machine product designs, JSON size historical

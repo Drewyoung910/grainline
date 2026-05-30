@@ -48,10 +48,11 @@ const REASON_LABELS: Record<string, string> = {
 function trackingUrl(carrier: string | null | undefined, number: string | null | undefined): string | null {
   if (!number) return null;
   const c = (carrier ?? "").toUpperCase();
-  if (c.includes("UPS")) return `https://www.ups.com/track?tracknum=${number}`;
-  if (c.includes("USPS")) return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${number}`;
-  if (c.includes("FEDEX") || c.includes("FED EX")) return `https://www.fedex.com/fedextrack/?trknbr=${number}`;
-  if (c.includes("DHL")) return `https://www.dhl.com/us-en/home/tracking.html?tracking-id=${number}`;
+  const trackingParam = encodeURIComponent(number);
+  if (c.includes("UPS")) return `https://www.ups.com/track?tracknum=${trackingParam}`;
+  if (c.includes("USPS")) return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${trackingParam}`;
+  if (c.includes("FEDEX") || c.includes("FED EX")) return `https://www.fedex.com/fedextrack/?trknbr=${trackingParam}`;
+  if (c.includes("DHL")) return `https://www.dhl.com/us-en/home/tracking.html?tracking-id=${trackingParam}`;
   return null;
 }
 
