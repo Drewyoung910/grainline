@@ -33,7 +33,6 @@ describe("seller order mutation ownership guardrails", () => {
       "src/app/dashboard/sales/page.tsx",
       "src/app/api/account/export/route.ts",
       "src/app/account/page.tsx",
-      "src/app/seller/[id]/page.tsx",
       "src/lib/accountDeletion.ts",
       "src/lib/ban.ts",
     ]) {
@@ -49,5 +48,20 @@ describe("seller order mutation ownership guardrails", () => {
         `${path} must require every order item to belong to the seller before exposing seller-order data`,
       );
     }
+  });
+
+  it("keeps cached public seller stats on whole-order ownership", () => {
+    const text = source("src/lib/publicSellerStats.ts");
+
+    assert.match(
+      text,
+      /EXISTS \([\s\S]*l\."sellerId" = \$\{sellerProfileId\}/,
+      "public seller stats must require at least one seller-owned item",
+    );
+    assert.match(
+      text,
+      /NOT EXISTS \([\s\S]*l\."sellerId" <> \$\{sellerProfileId\}/,
+      "public seller stats must exclude mixed-seller orders before exposing seller-order data",
+    );
   });
 });
