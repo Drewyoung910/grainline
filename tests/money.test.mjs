@@ -28,6 +28,14 @@ describe("money formatting", () => {
     assert.equal(formatCurrencyCents(Number.POSITIVE_INFINITY, "usd"), "Invalid amount");
   });
 
+  it("keeps listing card price rendering on the shared safe formatter", () => {
+    const listingCard = readFileSync("src/components/ListingCard.tsx", "utf8");
+
+    assert.match(listingCard, /import \{ formatCurrencyCents \} from "@\/lib\/money"/);
+    assert.match(listingCard, /formatCurrencyCents\(priceCents, currency\)/);
+    assert.doesNotMatch(listingCard, /priceCents \/ 100\)\.toLocaleString/);
+  });
+
   it("parses decimal money input without accepting exponent notation", () => {
     assert.equal(parseMoneyInputToCents("12"), 1200);
     assert.equal(parseMoneyInputToCents("12.3"), 1230);

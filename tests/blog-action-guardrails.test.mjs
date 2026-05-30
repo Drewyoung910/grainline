@@ -78,6 +78,16 @@ describe("blog dashboard action guardrails", () => {
     assert.doesNotMatch(editPage, /else if \(newStatus !== "PUBLISHED"\) \{\s*publishedAt = null/);
   });
 
+  it("guards blog edit status writes against stale reads", () => {
+    const editPage = source("src/app/dashboard/blog/[id]/edit/page.tsx");
+
+    assert.match(editPage, /updatedAt: true/);
+    assert.match(editPage, /tx\.blogPost\.updateMany\(\{\s*where: \{\s*id,\s*authorId: author\.id,\s*status: existing\.status,\s*updatedAt: existing\.updatedAt/s);
+    assert.match(editPage, /if \(claimed\.count === 0\) return null/);
+    assert.match(editPage, /Post changed while saving\. Refresh and try again\./);
+    assert.doesNotMatch(editPage, /prisma\.blogPost\.update\(\{\s*where: \{ id \}/);
+  });
+
   it("validates blog status input instead of relying on enum casts", () => {
     const helper = source("src/lib/blogStatusInput.ts");
     const newPage = source("src/app/dashboard/blog/new/page.tsx");

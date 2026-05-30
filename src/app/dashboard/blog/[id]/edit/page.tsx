@@ -66,7 +66,15 @@ export default async function EditBlogPostPage({
 
     const existing = await prisma.blogPost.findUnique({
       where: { id },
-      select: { authorId: true, status: true, publishedAt: true, slug: true, sellerProfileId: true, coverImageUrl: true },
+      select: {
+        authorId: true,
+        status: true,
+        publishedAt: true,
+        slug: true,
+        sellerProfileId: true,
+        coverImageUrl: true,
+        updatedAt: true,
+      },
     });
     if (!existing || existing.authorId !== author.id) return { ok: false, error: "Post not found." };
 
@@ -144,24 +152,36 @@ export default async function EditBlogPostPage({
       }
     }
 
-    const updated = await prisma.blogPost.update({
-      where: { id },
-      data: {
-        title,
-        body,
-        excerpt,
-        metaDescription,
-        coverImageUrl,
-        videoUrl,
-        type,
-        status: newStatus,
-        tags,
-        featuredListingIds: verifiedFeaturedListingIds,
-        readingTimeMinutes,
-        ...(publishedAt !== undefined ? { publishedAt } : {}),
-      },
-      select: { slug: true, sellerProfileId: true, sellerProfile: { select: { displayName: true, userId: true } } },
+    const updated = await prisma.$transaction(async (tx) => {
+      const claimed = await tx.blogPost.updateMany({
+        where: {
+          id,
+          authorId: author.id,
+          status: existing.status,
+          updatedAt: existing.updatedAt,
+        },
+        data: {
+          title,
+          body,
+          excerpt,
+          metaDescription,
+          coverImageUrl,
+          videoUrl,
+          type,
+          status: newStatus,
+          tags,
+          featuredListingIds: verifiedFeaturedListingIds,
+          readingTimeMinutes,
+          ...(publishedAt !== undefined ? { publishedAt } : {}),
+        },
+      });
+      if (claimed.count === 0) return null;
+      return tx.blogPost.findUnique({
+        where: { id },
+        select: { slug: true, sellerProfileId: true, sellerProfile: { select: { displayName: true, userId: true } } },
+      });
     });
+    if (!updated) return { ok: false, error: "Post changed while saving. Refresh and try again." };
 
     if (existing.status === "PUBLISHED" || newStatus === "PUBLISHED") {
       revalidateBlogSearchCaches();

@@ -6,6 +6,7 @@ import FavoriteButton from "@/components/FavoriteButton";
 import GuildBadge, { type GuildLevelValue } from "@/components/GuildBadge";
 import MediaImage from "@/components/MediaImage";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
+import { formatCurrencyCents } from "@/lib/money";
 
 export type ListingCardData = {
   id: string;
@@ -163,7 +164,7 @@ function ListingCardTitlePrice({
       </div>
       <div className="flex items-center gap-2 flex-wrap">
         <span className="font-bold text-sm text-neutral-900">
-          {(priceCents / 100).toLocaleString("en-US", { style: "currency", currency })}
+          {formatCurrencyCents(priceCents, currency)}
         </span>
         {rating && rating.count > 0 && (
           <span className="flex items-center gap-0.5 text-xs text-stone-500">

@@ -2849,7 +2849,16 @@ Last updated: 2026-05-24
      rolls back instead of leaving profile and verification state out of sync.
      Guardrail: `tests/round10-state-machine-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 267 findings;
+283. **Blog edit and listing-card money guardrails tightened** —
+     code/test/docs fix for #725 and #729. Dashboard blog edit saves now claim
+     the row with `id`, `authorId`, current `status`, and current `updatedAt`
+     before writing status/content changes and follower fanout context, so stale
+     edit tabs do not overwrite a newer status transition. `ListingCard` now
+     renders prices through `formatCurrencyCents(priceCents, currency)` instead
+     of direct `toLocaleString()` with untrusted currency text. Guardrails:
+     `tests/blog-action-guardrails.test.mjs` and `tests/money.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 269 findings;
 verified stale/false-positive: 100 findings; product/design decisions deferred:
 39 findings. Remaining major categories: Stripe webhook subscription narrowing
 evidence, Round 10 deferred state-machine product designs, JSON size historical
