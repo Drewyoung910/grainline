@@ -3128,7 +3128,19 @@ Last updated: 2026-05-30
      `USER` while keeping the deleted account blocked. Guardrail:
      `tests/round9-account-deletion-pii-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 298 findings;
+304. **Email suppression closes Gmail alias bypass for account deletion** —
+     code/test/docs fix for Round 32 privacy finding #14. Durable Grainline
+     account identity still stores the normalized literal email address, but
+     email suppression lookups and account-deletion suppression now also use a
+     Gmail/Googlemail alias-insensitive suppression key that removes dots and
+     plus tags for those domains only. Account deletion also skips pending
+     outbox rows and newsletter subscriptions matching either the literal or
+     suppression key, and Clerk same-email re-signup clears account-deletion
+     suppression rows for the same key set. Guardrails:
+     `tests/email-normalization-followups.test.mjs` and
+     `tests/round9-account-deletion-pii-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 299 findings;
 verified stale/false-positive: 147 findings; product/design/ops decisions
 deferred: 46 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
@@ -3144,4 +3156,4 @@ decisions, Buy Now best-effort rollback window, partial multi-seller checkout
 continuation design, deliberate BigInt money-column modeling, live-data
 reconciliation for historical seller shipping-rate currency drift, legacy
 display-only media host validation, and agent/worktree verification process
-hygiene. Approximate raw allegations left to verify from current max #1120: 627.
+hygiene. Approximate raw allegations left to verify from current max #1120: 626.

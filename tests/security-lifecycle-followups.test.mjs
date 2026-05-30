@@ -82,11 +82,11 @@ describe("security lifecycle follow-ups", () => {
   it("clears account-deletion email suppression on same-email re-signup only", () => {
     const webhook = source("src/app/api/clerk/webhook/route.ts");
 
-    assert.match(webhook, /import \{ normalizeEmailAddress \} from "@\/lib\/emailSuppression"/);
+    assert.match(webhook, /import \{ emailSuppressionAddressKeys \} from "@\/lib\/emailSuppression"/);
     assert.match(webhook, /if \(event\.type === "user\.created"\) \{/);
-    assert.match(webhook, /const normalizedEmail = normalizeEmailAddress\(email\)/);
-    assert.match(webhook, /emailSuppression\.deleteMany\(\{\s*where: \{ email: normalizedEmail, source: "account_deletion" \},\s*\}\)/s);
-    assert.doesNotMatch(webhook, /emailSuppression\.deleteMany\(\{\s*where: \{ email: normalizedEmail \}/);
+    assert.match(webhook, /const suppressionEmailKeys = emailSuppressionAddressKeys\(email\)/);
+    assert.match(webhook, /emailSuppression\.deleteMany\(\{\s*where: \{ email: \{ in: suppressionEmailKeys \}, source: "account_deletion" \},\s*\}\)/s);
+    assert.doesNotMatch(webhook, /emailSuppression\.deleteMany\(\{\s*where: \{ email: \{ in: suppressionEmailKeys \} \}/);
   });
 
   it("removes seller-derived state and seller-authored replies during account deletion", () => {

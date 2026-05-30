@@ -81,7 +81,7 @@ describe("Round 9 account deletion PII guardrails", () => {
     assert.match(deletion, /galleryImageUrls: \[\]/);
     assert.match(deletion, /galleryAltTexts: \[\]/);
     assert.match(deletion, /tx\.emailOutbox\.updateMany\(\{/);
-    assert.match(deletion, /OR: \[\{ userId: user\.id \}, \{ recipientEmail: suppressionEmail \}\]/);
+    assert.match(deletion, /OR: \[\{ userId: user\.id \}, \{ recipientEmail: \{ in: suppressionEmailMatches \} \}\]/);
     assert.match(deletion, /status: "SKIPPED"/);
     assert.match(deletion, /html: "\[Email removed after account deletion\]"/);
   });

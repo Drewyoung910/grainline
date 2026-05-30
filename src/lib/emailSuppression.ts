@@ -9,12 +9,37 @@ export function normalizeEmailAddress(email: string | null | undefined): string 
   return normalized;
 }
 
-export async function isEmailSuppressed(email: string | null | undefined): Promise<boolean> {
-  const normalized = normalizeEmailAddress(email);
-  if (!normalized) return true;
+function gmailSuppressionAddress(email: string) {
+  const [local, domain, ...rest] = email.split("@");
+  if (!local || !domain || rest.length > 0) return email;
 
-  const suppression = await prisma.emailSuppression.findUnique({
-    where: { email: normalized },
+  const normalizedDomain = domain === "googlemail.com" ? "gmail.com" : domain;
+  if (normalizedDomain !== "gmail.com") return email;
+
+  const baseLocal = local.split("+")[0]?.replaceAll(".", "");
+  if (!baseLocal) return email;
+  return `${baseLocal}@gmail.com`;
+}
+
+export function normalizeEmailSuppressionAddress(email: string | null | undefined): string | null {
+  const normalized = normalizeEmailAddress(email);
+  return normalized ? gmailSuppressionAddress(normalized) : null;
+}
+
+export function emailSuppressionAddressKeys(email: string | null | undefined): string[] {
+  const normalized = normalizeEmailAddress(email);
+  if (!normalized) return [];
+
+  const suppression = normalizeEmailSuppressionAddress(normalized);
+  return [...new Set([normalized, ...(suppression && suppression !== normalized ? [suppression] : [])])];
+}
+
+export async function isEmailSuppressed(email: string | null | undefined): Promise<boolean> {
+  const emails = emailSuppressionAddressKeys(email);
+  if (emails.length === 0) return true;
+
+  const suppression = await prisma.emailSuppression.findFirst({
+    where: { email: { in: emails } },
     select: { id: true },
   });
   return !!suppression;
@@ -27,8 +52,9 @@ export async function suppressEmail(opts: {
   eventId?: string;
   details?: Prisma.InputJsonValue;
 }) {
-  const email = normalizeEmailAddress(opts.email);
+  const email = normalizeEmailSuppressionAddress(opts.email);
   if (!email) return null;
+  const emailKeys = emailSuppressionAddressKeys(opts.email);
 
   try {
     const suppression = await prisma.emailSuppression.upsert({
@@ -49,7 +75,7 @@ export async function suppressEmail(opts: {
     });
 
     await prisma.newsletterSubscriber.updateMany({
-      where: { email },
+      where: { email: { in: emailKeys.length > 0 ? emailKeys : [email] } },
       data: {
         active: false,
         confirmationTokenHash: null,

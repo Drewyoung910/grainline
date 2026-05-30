@@ -19,7 +19,7 @@ import {
 } from "@/lib/clerkWebhookEmail";
 import { shouldRevokeSessionsForClerkEmailChange } from "@/lib/clerkSessionSecurity";
 import { revokeClerkUserSessions } from "@/lib/clerkUserLifecycle";
-import { normalizeEmailAddress } from "@/lib/emailSuppression";
+import { emailSuppressionAddressKeys } from "@/lib/emailSuppression";
 import { sanitizeUserName, truncateText } from "@/lib/sanitize";
 import { isRequestBodyTooLargeError, readBoundedText } from "@/lib/requestBody";
 import { invalidateAccountStateCache } from "@/lib/accountStateCache";
@@ -238,10 +238,10 @@ export async function POST(req: Request) {
     }
 
     if (event.type === "user.created") {
-      const normalizedEmail = normalizeEmailAddress(email);
-      if (normalizedEmail) {
+      const suppressionEmailKeys = emailSuppressionAddressKeys(email);
+      if (suppressionEmailKeys.length > 0) {
         await prisma.emailSuppression.deleteMany({
-          where: { email: normalizedEmail, source: "account_deletion" },
+          where: { email: { in: suppressionEmailKeys }, source: "account_deletion" },
         });
       }
     }

@@ -3,7 +3,10 @@ import { accountDeletionMediaUrlsForCleanup } from "@/lib/urlValidation";
 import { redis } from "@/lib/ratelimit";
 import { removeSellerCommissionInterests } from "@/lib/commissionInterestCleanup";
 import { revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
-import { normalizeEmailAddress } from "@/lib/emailSuppression";
+import {
+  emailSuppressionAddressKeys,
+  normalizeEmailSuppressionAddress,
+} from "@/lib/emailSuppression";
 import { invalidateAccountStateCache } from "@/lib/accountStateCache";
 import {
   Prisma,
@@ -953,10 +956,13 @@ export async function anonymizeUserAccount(
         resolutionNote: "Auto-resolved after the reported account was deleted.",
       },
     });
-    const suppressionEmail = normalizeEmailAddress(user.email) ?? user.email.trim().toLowerCase();
+    const suppressionEmail =
+      normalizeEmailSuppressionAddress(user.email) ?? user.email.trim().normalize("NFC").toLowerCase();
+    const suppressionEmailKeys = emailSuppressionAddressKeys(user.email);
+    const suppressionEmailMatches = suppressionEmailKeys.length > 0 ? suppressionEmailKeys : [suppressionEmail];
     await tx.emailOutbox.updateMany({
       where: {
-        OR: [{ userId: user.id }, { recipientEmail: suppressionEmail }],
+        OR: [{ userId: user.id }, { recipientEmail: { in: suppressionEmailMatches } }],
         sentAt: null,
         status: { in: ["PENDING", "PROCESSING"] },
       },
@@ -970,7 +976,7 @@ export async function anonymizeUserAccount(
       },
     });
     await tx.newsletterSubscriber.deleteMany({
-      where: { email: suppressionEmail },
+      where: { email: { in: suppressionEmailMatches } },
     });
     await tx.emailSuppression.upsert({
       where: { email: suppressionEmail },
