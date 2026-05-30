@@ -22,11 +22,11 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-30
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 215.
+- Verified hardening/doc commits since 2026-05-13: 216.
 - Verified code/feature fix commits since 2026-05-13: 191.
-- Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass tally: 190 verified fixed/reduced findings,
-  73 verified stale/false-positive findings, and 41 deferred/manual findings
+- Verified docs/audit-only commits since 2026-05-13: 10.
+- Most recent reported pass tally: 289 verified fixed/reduced findings,
+  119 verified stale/false-positive findings, and 43 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
 ## 2026-05-14 Active Tracker
@@ -2958,17 +2958,52 @@ Last updated: 2026-05-30
      `tests/private-json-cache-headers.test.mjs`, and
      `tests/verified-audit-followups.test.mjs`.
 
+293. **Agent-reviewed stale Guild/search/AI allegations closed** — docs-only
+     verification for #193, #494, #549, and #717 as stale/false-positive on
+     current `main`, plus product/design classification for #157, #718, and
+     #719. #283 was re-verified in the same Guild sweep, but it was already
+     counted in entry 235, so this pass does not double-count it. Guild Member
+     reinstatement and maker feature/unfeature actions are ADMIN-only and
+     reinstatement now rechecks banned/deleted state, unresolved long-running
+     cases, active public listing count, and guarded Guild state transitions.
+     Seller metrics count all non-terminal cases instead of narrowing active
+     cases to the current metrics window. Saved-search duplicate/cap handling is
+     route-mitigated with canonical tags and a Serializable transaction/retry;
+     a database-level unique key remains optional defense-in-depth rather than
+     a verified current route race. Listing create's AI post-processing writes
+     are status-preconditioned on `PENDING_REVIEW` in the normal create path,
+     with stricter `updatedAt`/status guards in custom-order create. The
+     unsubscribe token remains stateless and replayable inside its 90-day TTL,
+     but current public newsletter signup does not clear email suppression or
+     reactivate delivery; a persisted consent epoch is a product decision for
+     manual/staff resubscribe workflows. `CaseStatus.CLOSED` and
+     `CommissionStatus.IN_PROGRESS` remain legacy/reserved enum states handled
+     by readers/cleanup paths, with removal or full implementation requiring a
+     data check and explicit migration/product decision. Guardrails:
+     `tests/security-lifecycle-followups.test.mjs`,
+     `tests/guild-listing-edit-followups.test.mjs`,
+     `tests/guild-member-revocation-state.test.mjs`,
+     `tests/guild-metrics-state.test.mjs`,
+     `tests/r49-account-state-routes.test.mjs`,
+     `tests/schema-hardening-followups.test.mjs`,
+     `tests/server-action-hardening.test.mjs`,
+     `tests/newsletter-double-opt-in.test.mjs`,
+     `tests/case-messaging-state.test.mjs`, and
+     `tests/ban-side-effect-guardrails.test.mjs`.
+
 **Running tally after this pass:** verified fixed/reduced: 289 findings;
-verified stale/false-positive: 115 findings; product/design decisions deferred:
-40 findings. Remaining major categories: Stripe webhook subscription narrowing
+verified stale/false-positive: 119 findings; product/design decisions deferred:
+43 findings. Remaining major categories: Stripe webhook subscription narrowing
 evidence, Round 10 deferred cache/state-machine product designs, JSON size
 historical validation and email uniqueness production-scan decisions, email
 outbox retention/quota policy decisions, refund accounting runtime proof and
 refund attempt persistence semantics, founding-maker/quality-score consistency,
 remaining case/message state-policy decisions, privacy/legal retention scope,
 remaining privacy/export retention decisions, cross-seller AI duplicate-detection
-product design, CSP `unsafe-eval` rollout monitoring, partial multi-seller
-checkout continuation design, deliberate BigInt money-column modeling, live-data
-reconciliation for historical seller shipping-rate currency drift, legacy
-display-only media host validation, plus support context structured-field design
-(#168). Approximate raw allegations left to verify from current max #1120: 676.
+product design, unsubscribe consent-epoch/manual-resubscribe semantics, legacy
+enum cleanup/data-migration decisions, CSP `unsafe-eval` rollout monitoring,
+partial multi-seller checkout continuation design, deliberate BigInt
+money-column modeling, live-data reconciliation for historical seller
+shipping-rate currency drift, legacy display-only media host validation, plus
+support context structured-field design (#168). Approximate raw allegations left
+to verify from current max #1120: 669.
