@@ -1181,6 +1181,7 @@ model SupportRequest {
   email          String               @db.VarChar(254)
   topic          String               @db.VarChar(80)
   orderId        String?              @db.VarChar(80)
+  listingId      String?              @db.VarChar(80)
   message        String               @db.VarChar(4000)
   slaDueAt       DateTime
   emailSentAt    DateTime?
@@ -1192,6 +1193,8 @@ model SupportRequest {
   @@index([kind, status, slaDueAt])
   @@index([userId, createdAt])
   @@index([email, createdAt])
+  @@index([orderId])
+  @@index([listingId])
   @@index([status, createdAt])
 }
 

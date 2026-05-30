@@ -25,8 +25,8 @@ Last updated: 2026-05-30
 - Verified hardening/doc commits since 2026-05-13: 217.
 - Verified code/feature fix commits since 2026-05-13: 192.
 - Verified docs/audit-only commits since 2026-05-13: 10.
-- Most recent reported pass tally: 290 verified fixed/reduced findings,
-  129 verified stale/false-positive findings, and 44 deferred/manual findings
+- Most recent reported pass tally: 294 verified fixed/reduced findings,
+  147 verified stale/false-positive findings, and 47 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
 ## 2026-05-14 Active Tracker
@@ -3083,9 +3083,20 @@ Last updated: 2026-05-30
      removal archives posts rather than hard-deleting comment trees. Guardrail:
      `tests/schema-retention-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 293 findings;
+299. **Support request order/listing context split into structured fields** —
+     schema/code/test fix for #168. Public support intake now collects optional
+     `orderId` and `listingId` as separate bounded fields instead of one
+     ambiguous "Order/listing" value, persists both on `SupportRequest`, renders
+     them separately in support-notification email and the admin support queue,
+     and includes both fields in account export. Legal data-request submissions
+     continue to omit the optional context fields by default. Migration:
+     `20260530203000_support_request_listing_reference`. Guardrails:
+     `tests/support-request.test.mjs` and
+     `tests/account-export-privacy.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 294 findings;
 verified stale/false-positive: 147 findings; product/design/ops decisions
-deferred: 48 findings. Remaining major categories: Stripe webhook subscription
+deferred: 47 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
 product designs, JSON size historical validation and email uniqueness
@@ -3098,7 +3109,6 @@ consent-epoch/manual-resubscribe semantics, legacy enum cleanup/data-migration
 decisions, Buy Now best-effort rollback window, CSP `unsafe-eval` rollout
 monitoring, partial multi-seller checkout continuation design, deliberate BigInt
 money-column modeling, live-data reconciliation for historical seller
-shipping-rate currency drift, legacy display-only media host validation, support
-context structured-field design (#168), and agent/worktree verification process
-hygiene. Approximate raw allegations left to verify from current max #1120:
-632.
+shipping-rate currency drift, legacy display-only media host validation, and
+agent/worktree verification process hygiene. Approximate raw allegations left to
+verify from current max #1120: 631.

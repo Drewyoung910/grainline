@@ -54,6 +54,7 @@ export async function POST(req: Request) {
         email: normalized.request.email,
         topic: normalized.request.topic,
         orderId: normalized.request.orderId,
+        listingId: normalized.request.listingId,
         message: normalized.request.message,
         slaDueAt,
         emailLastError: SUPPORT_REQUEST_EMAIL_PENDING_MARKER,

@@ -64,6 +64,7 @@ export default function SupportRequestForm({
           email: formData.get("email"),
           topic: formData.get("topic"),
           orderId: formData.get("orderId"),
+          listingId: formData.get("listingId"),
           message: formData.get("message"),
         }),
       });
@@ -146,8 +147,15 @@ export default function SupportRequestForm({
 
         {includeOrderField && (
           <label className="space-y-1.5 text-sm font-medium text-neutral-800">
-            Order or listing
+            Order ID
             <input name="orderId" type="text" maxLength={80} className={fieldClass()} />
+          </label>
+        )}
+
+        {includeOrderField && (
+          <label className="space-y-1.5 text-sm font-medium text-neutral-800">
+            Listing ID
+            <input name="listingId" type="text" maxLength={80} className={fieldClass()} />
           </label>
         )}
       </div>

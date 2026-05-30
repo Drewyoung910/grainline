@@ -16,6 +16,7 @@ type SupportRequestRow = {
   email: string;
   topic: string;
   orderId: string | null;
+  listingId: string | null;
   message: string;
   slaDueAt: Date;
   emailSentAt: Date | null;
@@ -73,8 +74,14 @@ function RequestCard({ request }: { request: SupportRequestRow }) {
             </div>
             {request.orderId && (
               <div>
-                <dt className="text-xs font-medium uppercase text-neutral-500">Order/listing</dt>
+                <dt className="text-xs font-medium uppercase text-neutral-500">Order ID</dt>
                 <dd className="font-mono text-xs">{request.orderId}</dd>
+              </div>
+            )}
+            {request.listingId && (
+              <div>
+                <dt className="text-xs font-medium uppercase text-neutral-500">Listing ID</dt>
+                <dd className="font-mono text-xs">{request.listingId}</dd>
               </div>
             )}
             <div>

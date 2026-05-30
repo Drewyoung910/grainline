@@ -19,7 +19,26 @@ describe("support request helpers", () => {
     assert.match(source, /SUPPORT_EMAIL_PATTERN\.test\(normalized\)/);
     assert.match(source, /name: cleanOptionalText\(input\.name, 100\)/);
     assert.match(source, /orderId: cleanOptionalText\(input\.orderId, 80\)/);
+    assert.match(source, /listingId: cleanOptionalText\(input\.listingId, 80\)/);
     assert.match(source, /supportRequestStorageKind/);
+  });
+
+  it("keeps order and listing references as separate bounded fields", () => {
+    const normalized = normalizeSupportRequest("support", {
+      email: "Buyer@Example.com",
+      topic: "order",
+      orderId: "order_123",
+      listingId: "listing_456",
+      message: "<script>alert(1)</script>I need help with an order.",
+    });
+
+    assert.equal(normalized.ok, true);
+    if (normalized.ok) {
+      assert.equal(normalized.request.email, "buyer@example.com");
+      assert.equal(normalized.request.orderId, "order_123");
+      assert.equal(normalized.request.listingId, "listing_456");
+      assert.equal(normalized.request.message, "I need help with an order.");
+    }
   });
 
   it("rejects invalid or empty requests", () => {

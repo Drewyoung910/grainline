@@ -411,6 +411,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
         email: true,
         topic: true,
         orderId: true,
+        listingId: true,
         message: true,
         slaDueAt: true,
         emailSentAt: true,

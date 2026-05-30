@@ -63,6 +63,8 @@ describe("account export privacy coverage", () => {
     assert.match(schema, /@@index\(\[userId, createdAt\]\)/);
     assert.ok(supportStart >= 0, "account export must query supportRequest");
     assert.match(supportBlock, /supportRequestAccountExportWhere\(user\.id, accountEmail\)/);
+    assert.match(supportBlock, /orderId: true/);
+    assert.match(supportBlock, /listingId: true/);
     assert.doesNotMatch(supportBlock, /where:\s*\{\s*email:\s*accountEmail\s*\}/);
   });
 });

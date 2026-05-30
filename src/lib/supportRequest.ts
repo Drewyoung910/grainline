@@ -9,6 +9,7 @@ export type NormalizedSupportRequest = {
   topic: string;
   message: string;
   orderId: string | null;
+  listingId: string | null;
 };
 
 type SupportRequestAccountExportWhere =
@@ -78,6 +79,7 @@ export function normalizeSupportRequest(
     topic?: unknown;
     message?: unknown;
     orderId?: unknown;
+    listingId?: unknown;
   },
 ): { ok: true; request: NormalizedSupportRequest } | { ok: false; error: string } {
   const email = normalizeEmailAddress(typeof input.email === "string" ? input.email : "");
@@ -99,6 +101,7 @@ export function normalizeSupportRequest(
       topic,
       message,
       orderId: cleanOptionalText(input.orderId, 80),
+      listingId: cleanOptionalText(input.listingId, 80),
     },
   };
 }
@@ -164,7 +167,10 @@ export function supportRequestHtml(
 ) {
   const title = supportRequestSubject(request, context.requestId);
   const orderRow = request.orderId
-    ? `<tr><td style="padding:6px 0;color:#6B6A66;">Order/listing</td><td style="padding:6px 0;">${esc(request.orderId)}</td></tr>`
+    ? `<tr><td style="padding:6px 24px 6px 0;color:#6B6A66;">Order ID</td><td style="padding:6px 0;">${esc(request.orderId)}</td></tr>`
+    : "";
+  const listingRow = request.listingId
+    ? `<tr><td style="padding:6px 24px 6px 0;color:#6B6A66;">Listing ID</td><td style="padding:6px 0;">${esc(request.listingId)}</td></tr>`
     : "";
   const requestRow = context.requestId
     ? `<tr><td style="padding:6px 24px 6px 0;color:#6B6A66;">Request ID</td><td style="padding:6px 0;">${esc(context.requestId)}</td></tr>`
@@ -183,6 +189,7 @@ export function supportRequestHtml(
     <tr><td style="padding:6px 24px 6px 0;color:#6B6A66;">Email</td><td style="padding:6px 0;">${esc(request.email)}</td></tr>
     <tr><td style="padding:6px 24px 6px 0;color:#6B6A66;">Topic</td><td style="padding:6px 0;">${esc(request.topic)}</td></tr>
     ${orderRow}
+    ${listingRow}
     ${slaRow}
   </table>
   <h2 style="font-size:16px;margin-top:24px;">Message</h2>
