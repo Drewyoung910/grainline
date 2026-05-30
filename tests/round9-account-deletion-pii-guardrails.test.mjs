@@ -111,6 +111,18 @@ describe("Round 9 account deletion PII guardrails", () => {
     assert.match(deletion, /reason\.changed && reason\.text !== null \? \{ reason: reason\.text \} : \{\}/);
   });
 
+  it("resets retained deleted-account role while keeping deleted accounts blocked", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+
+    const userUpdateStart = deletion.indexOf("await tx.user.update({");
+    const userUpdate = deletion.slice(userUpdateStart, deletion.indexOf("return {", userUpdateStart));
+
+    assert.ok(userUpdateStart > -1, "account deletion must anonymize the retained user row");
+    assert.match(userUpdate, /role: "USER"/);
+    assert.match(userUpdate, /banned: true/);
+    assert.match(userUpdate, /deletedAt: now/);
+  });
+
   it("allocates collision-safe deleted-account blog archive slugs", () => {
     const deletion = source("src/lib/accountDeletion.ts");
 

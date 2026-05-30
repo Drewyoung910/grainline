@@ -1154,6 +1154,7 @@ export async function anonymizeUserAccount(
         shippingPostalCode: null,
         shippingPhone: null,
         notificationPreferences: {},
+        role: "USER",
         banned: true,
         bannedAt: now,
         banReason: "Account deleted at user's request",
