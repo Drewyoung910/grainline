@@ -31,6 +31,22 @@ import { isSupportedStripeAccountVersion } from "@/lib/sellerVisibility";
 import { extractRouteId, publicSellerPath, publicSellerShopPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 import { truncateText } from "@/lib/sanitize";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
+import { isFirstPartyMediaUrl, normalizePublicHttpsUrl } from "@/lib/urlValidation";
+
+const SOCIAL_LINK_ALLOWED_HOSTS = {
+  Instagram: ["instagram.com"],
+  Facebook: ["facebook.com", "fb.com"],
+  Pinterest: ["pinterest.com"],
+  TikTok: ["tiktok.com"],
+} satisfies Record<string, string[]>;
+
+function safeSellerSocialUrl(value: string | null, allowedHosts?: readonly string[]) {
+  const normalized = normalizePublicHttpsUrl(value, 2048);
+  if (!normalized) return null;
+  if (!allowedHosts) return normalized;
+  const host = new URL(normalized).hostname.toLowerCase().replace(/^www\./, "");
+  return allowedHosts.includes(host) ? normalized : null;
+}
 
 const getSellerProfileForPublicPage = cache(async (sellerId: string) =>
   prisma.sellerProfile.findUnique({
@@ -363,26 +379,26 @@ export default async function SellerPublicPage({
     };
   }
 
-  // Add social links to JSON-LD
-  const sameAs: string[] = [];
-  if (seller.instagramUrl) sameAs.push(seller.instagramUrl);
-  if (seller.facebookUrl) sameAs.push(seller.facebookUrl);
-  if (seller.pinterestUrl) sameAs.push(seller.pinterestUrl);
-  if (seller.tiktokUrl) sameAs.push(seller.tiktokUrl);
-  if (seller.websiteUrl) sameAs.push(seller.websiteUrl);
-  if (sameAs.length > 0) businessLd.sameAs = sameAs;
-
   // Social links
   type SocialLink = { label: string; url: string; Icon: (p: { size?: number; className?: string }) => React.ReactElement };
+  type SocialLinkCandidate = Omit<SocialLink, "url"> & { url: string | null };
   const socialLinks: SocialLink[] = (
     [
-      seller.instagramUrl ? { label: "Instagram", url: seller.instagramUrl, Icon: Instagram } : null,
-      seller.facebookUrl  ? { label: "Facebook",  url: seller.facebookUrl,  Icon: Facebook  } : null,
-      seller.pinterestUrl ? { label: "Pinterest", url: seller.pinterestUrl, Icon: Pinterest } : null,
-      seller.tiktokUrl    ? { label: "TikTok",    url: seller.tiktokUrl,    Icon: TikTok    } : null,
-      seller.websiteUrl   ? { label: "Website",   url: seller.websiteUrl,   Icon: Globe     } : null,
-    ] as (SocialLink | null)[]
-  ).filter((x): x is SocialLink => x !== null);
+      { label: "Instagram", url: safeSellerSocialUrl(seller.instagramUrl, SOCIAL_LINK_ALLOWED_HOSTS.Instagram), Icon: Instagram },
+      { label: "Facebook", url: safeSellerSocialUrl(seller.facebookUrl, SOCIAL_LINK_ALLOWED_HOSTS.Facebook), Icon: Facebook },
+      { label: "Pinterest", url: safeSellerSocialUrl(seller.pinterestUrl, SOCIAL_LINK_ALLOWED_HOSTS.Pinterest), Icon: Pinterest },
+      { label: "TikTok", url: safeSellerSocialUrl(seller.tiktokUrl, SOCIAL_LINK_ALLOWED_HOSTS.TikTok), Icon: TikTok },
+      { label: "Website", url: safeSellerSocialUrl(seller.websiteUrl), Icon: Globe },
+    ] satisfies SocialLinkCandidate[]
+  ).filter((x): x is SocialLink => x.url !== null);
+
+  const sameAs = socialLinks.map((link) => link.url);
+  if (sameAs.length > 0) businessLd.sameAs = sameAs;
+
+  const latestBroadcastImageUrl =
+    latestBroadcast?.imageUrl && isFirstPartyMediaUrl(latestBroadcast.imageUrl)
+      ? latestBroadcast.imageUrl
+      : null;
 
   return (
     <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
@@ -600,9 +616,9 @@ export default async function SellerPublicPage({
                 Shop update · <LocalDate date={latestBroadcast.sentAt} />
               </div>
               <p className="text-sm text-neutral-800 whitespace-pre-line">{latestBroadcast.message}</p>
-              {latestBroadcast.imageUrl && (
+              {latestBroadcastImageUrl && (
                 <MediaImage
-                  src={latestBroadcast.imageUrl}
+                  src={latestBroadcastImageUrl}
                   alt="Update"
                   className="mt-3 w-full max-h-48 object-cover rounded-md"
                   fallbackClassName="mt-3 h-32 w-full bg-gradient-to-br from-amber-50 to-stone-100 rounded-md"

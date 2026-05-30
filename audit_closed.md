@@ -2899,7 +2899,14 @@ Last updated: 2026-05-24
      `tests/quality-score-state.test.mjs` and
      `tests/public-cron-search-hardening.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 279 findings;
+288. **Seller profile public URL rendering revalidated** — code/test fix for
+     #788 and #790. Seller profile social links are normalized and host-checked
+     again before rendering or entering JSON-LD `sameAs`, so stale stored rows
+     cannot bypass the newer profile-write validators. Latest seller-broadcast
+     images now render only when the stored URL is still a first-party media URL.
+     Guardrail: `tests/round8-fulfillment-privacy-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 281 findings;
 verified stale/false-positive: 104 findings; product/design decisions deferred:
 39 findings. Remaining major categories: Stripe webhook subscription narrowing
 evidence, Round 10 deferred state-machine product designs, JSON size historical

@@ -68,6 +68,11 @@ describe("Round 8 public profile privacy guardrails", () => {
     assert.match(seller, /seller\.publicMapOptIn && !radiusMeters && lat != null && lng != null/);
     assert.match(seller, /reviewer: \{ banned: false, deletedAt: null \}/);
     assert.doesNotMatch(seller, /select: \{ listingId: true, reviewerId: true/);
+    assert.match(seller, /function safeSellerSocialUrl/);
+    assert.match(seller, /normalizePublicHttpsUrl\(value, 2048\)/);
+    assert.match(seller, /const sameAs = socialLinks\.map\(\(link\) => link\.url\)/);
+    assert.match(seller, /latestBroadcast\?\.imageUrl && isFirstPartyMediaUrl\(latestBroadcast\.imageUrl\)/);
+    assert.match(seller, /src=\{latestBroadcastImageUrl\}/);
     assert.match(similar, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
   });
 });
