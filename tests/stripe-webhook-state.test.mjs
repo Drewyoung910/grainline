@@ -81,6 +81,21 @@ describe("Stripe webhook state helpers", () => {
     );
   });
 
+  it("serializes charge refund and dispute webhook mutations by charge id", () => {
+    const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+    const refundStart = source.indexOf('if (event.type === "charge.refunded")');
+    const disputeStart = source.indexOf("if (STRIPE_DISPUTE_EVENT_TYPES.has(event.type))");
+
+    assert.ok(refundStart >= 0, "charge.refunded branch should exist");
+    assert.ok(disputeStart > refundStart, "dispute branch should follow refund branch");
+
+    const refundBranch = source.slice(refundStart, disputeStart);
+    const disputeBranch = source.slice(disputeStart);
+
+    assert.match(refundBranch, /await prisma\.\$transaction\(async \(tx\) => \{\s+await lockChargeMutation\(tx, charge\.id!\)/);
+    assert.match(disputeBranch, /await prisma\.\$transaction\(async \(tx\) => \{\s+await lockChargeMutation\(tx, chargeId\)/);
+  });
+
   it("detects stale Stripe webhook events from the signed event timestamp", () => {
     const now = 1_000_000;
     assert.equal(isStaleStripeEvent(now - 24 * 60 * 60, now), false);

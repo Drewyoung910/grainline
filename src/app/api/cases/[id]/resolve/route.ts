@@ -7,6 +7,7 @@ import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCaseResolved } from "@/lib/email";
 import { createMarketplaceRefund, refundIdempotencyKeyBase } from "@/lib/marketplaceRefunds";
+import { formatCurrencyCents } from "@/lib/money";
 import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { REFUND_LOCK_SENTINEL, releaseStaleRefundLocks } from "@/lib/refundLocks";
 import { caseResolutionCopy } from "@/lib/caseResolutionCopy";
@@ -220,9 +221,12 @@ export async function POST(
     }
 
     const now = new Date();
+    const persistedRefundAmountDisplay = persistedRefundAmountCents
+      ? formatCurrencyCents(persistedRefundAmountCents, caseRecord.order.currency)
+      : null;
     const resolutionNote = [
       `Case resolved: ${resolution}`,
-      persistedRefundAmountCents ? `(refund: $${(persistedRefundAmountCents / 100).toFixed(2)})` : null,
+      persistedRefundAmountDisplay ? `(refund: ${persistedRefundAmountDisplay})` : null,
       refundNote,
       `by ${me.name ?? me.email} at ${now.toISOString()}`,
     ]
@@ -416,7 +420,7 @@ export async function POST(
         action: "RESOLVE_CASE",
         targetType: "CASE",
         targetId: id,
-        reason: `${resolution}${persistedRefundAmountCents ? ` ($${(persistedRefundAmountCents / 100).toFixed(2)})` : ""}`,
+        reason: `${resolution}${persistedRefundAmountDisplay ? ` (${persistedRefundAmountDisplay})` : ""}`,
         metadata: { resolution, refundAmountCents: persistedRefundAmountCents, stripeRefundId },
       });
     } catch (auditError) {

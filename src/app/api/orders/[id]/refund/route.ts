@@ -10,6 +10,7 @@ import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { sendRefundIssued } from "@/lib/email";
 import { createMarketplaceRefund, refundIdempotencyKeyBase } from "@/lib/marketplaceRefunds";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { formatCurrencyCents } from "@/lib/money";
 import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { REFUND_LOCK_SENTINEL, releaseStaleRefundLocks } from "@/lib/refundLocks";
 import { revalidateListingSearchCaches } from "@/lib/searchCache";
@@ -197,6 +198,7 @@ export async function POST(
     if (partialRefundExceedsOrderTotal(type, amountCents, order)) {
       return NextResponse.json({ error: "Refund amount exceeds order total." }, { status: 400 });
     }
+    const refundAmountDisplay = formatCurrencyCents(refundAmountCents, order.currency);
 
     // Atomic lock: claim refund slot to prevent double-refund race after validation passes.
     const lockResult = await prisma.order.updateMany({
@@ -268,7 +270,7 @@ export async function POST(
       const statusNote = refund.requiresManualFollowUp
         ? ` Stripe refund status requires manual follow-up: ${refund.refundStatuses.filter(Boolean).join(", ") || "provider pending"}.`
         : "";
-      const reviewNote = `Seller-initiated ${type.toLowerCase()} refund of $${(refundAmountCents / 100).toFixed(2)} via ${refundSummary}.${transferNote}${statusNote}`;
+      const reviewNote = `Seller-initiated ${type.toLowerCase()} refund of ${refundAmountDisplay} via ${refundSummary}.${transferNote}${statusNote}`;
 
       const refundWrite = await prisma.$transaction(async (tx) => {
         const orderUpdate = await tx.order.updateMany({
@@ -377,7 +379,7 @@ export async function POST(
           userId: order.buyerId,
           type: "REFUND_ISSUED",
           title: "Refund from maker",
-          body: `Your maker issued a refund of $${(refundAmountCents / 100).toFixed(2)} for your order.`,
+          body: `Your maker issued a refund of ${refundAmountDisplay} for your order.`,
           link: `/dashboard/orders/${orderId}`,
         });
       } catch (error) {

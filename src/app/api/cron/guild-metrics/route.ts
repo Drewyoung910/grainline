@@ -22,6 +22,7 @@ import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
 import { logSystemAction, logSystemActionOrThrow } from "@/lib/systemAudit";
+import { formatCurrencyCents } from "@/lib/money";
 import {
   GUILD_MASTER_REVOKABLE_VERIFICATION_STATUSES,
   assertGuildVerificationTransition,
@@ -382,7 +383,7 @@ function buildFailedLabels(
     );
   if (!criteria.salesMet)
     labels.push(
-      `Completed sales $${(metrics.totalSalesCents / 100).toFixed(0)} (need $${GUILD_MASTER_REQUIREMENTS.totalSalesCents / 100}+)`
+      `Completed sales ${formatCurrencyCents(metrics.totalSalesCents)} (need ${formatCurrencyCents(GUILD_MASTER_REQUIREMENTS.totalSalesCents)}+)`
     );
   if (!criteria.casesMet)
     labels.push(`${metrics.activeCaseCount} open dispute${metrics.activeCaseCount !== 1 ? "s" : ""} (need 0)`);

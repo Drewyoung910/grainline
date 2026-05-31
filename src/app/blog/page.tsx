@@ -12,11 +12,16 @@ import BlogSearchBar from "@/components/BlogSearchBar";
 import MediaImage from "@/components/MediaImage";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { safeJsonLd } from "@/lib/json-ld";
-import { truncateTextWithEllipsis } from "@/lib/sanitize";
+import { truncateText, truncateTextWithEllipsis } from "@/lib/sanitize";
+import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 
 const BLOG_TITLE = "Stories from the Workshop";
 const BLOG_DESCRIPTION = "Maker spotlights, build guides, wood education, and gift guides from the Grainline community.";
 const BLOG_URL = "https://thegrainline.com/blog";
+const BLOG_SEARCH_QUERY_MAX_CHARS = 200;
+const BLOG_TAG_MAX_CHARS = 50;
+const BLOG_TAG_FILTER_MAX_COUNT = 10;
+const BLOG_AUTHOR_FILTER_MAX_CHARS = 50;
 
 export const metadata: Metadata = {
   title: BLOG_TITLE,
@@ -38,12 +43,18 @@ export default async function BlogIndexPage({
   searchParams: Promise<{ type?: string; page?: string; bq?: string; tags?: string; sort?: string; author?: string }>;
 }) {
   const sp = await searchParams;
-  const q = sp.bq?.trim() ?? "";
+  const q = truncateText((sp.bq ?? "").trim(), BLOG_SEARCH_QUERY_MAX_CHARS);
   const typeFilter = sp.type ?? "";
-  const tagsFilter = sp.tags ? sp.tags.split(",").filter(Boolean) : [];
-  const authorFilter = sp.author ?? "";
+  const tagsFilter = sp.tags
+    ? sp.tags
+        .split(",")
+        .map((tag) => truncateText(tag.trim(), BLOG_TAG_MAX_CHARS))
+        .filter(Boolean)
+        .slice(0, BLOG_TAG_FILTER_MAX_COUNT)
+    : [];
+  const authorFilter = truncateText((sp.author ?? "").trim(), BLOG_AUTHOR_FILTER_MAX_CHARS);
   const sort = sp.sort ?? (q ? "relevant" : "newest");
-  const page = Math.max(1, parseInt(sp.page ?? "1", 10));
+  const page = parseBoundedPositiveIntParam(sp.page, 1, 1000);
   const pageSize = 12;
   const skip = (page - 1) * pageSize;
 

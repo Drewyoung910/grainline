@@ -26,4 +26,24 @@ describe("checkout payment method guardrails", () => {
     assert.match(webhook, /checkout\.session\.expired/);
     assert.match(webhook, /restoreUnorderedCheckoutStockOnce\(/);
   });
+
+  it("derives gift-wrap price server-side in checkout routes", () => {
+    const sellerCheckout = source("src/app/api/cart/checkout-seller/route.ts");
+    const singleCheckout = source("src/app/api/cart/checkout/single/route.ts");
+    const sellerSchema = sellerCheckout.slice(
+      sellerCheckout.indexOf("const CheckoutSellerSchema"),
+      sellerCheckout.indexOf("export const runtime"),
+    );
+    const singleSchema = singleCheckout.slice(
+      singleCheckout.indexOf("const CheckoutSingleSchema"),
+      singleCheckout.indexOf("export const runtime"),
+    );
+
+    assert.doesNotMatch(sellerSchema, /giftWrappingPriceCents/);
+    assert.doesNotMatch(singleSchema, /giftWrappingPriceCents/);
+    assert.doesNotMatch(sellerCheckout, /body\.giftWrappingPriceCents/);
+    assert.doesNotMatch(singleCheckout, /body\.giftWrappingPriceCents/);
+    assert.match(sellerCheckout, /sellerItems\[0\]\.listing\.seller\.giftWrappingPriceCents \?\? 0/);
+    assert.match(singleCheckout, /listing\.seller\.giftWrappingPriceCents \?\? 0/);
+  });
 });
