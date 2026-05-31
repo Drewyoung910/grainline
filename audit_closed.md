@@ -3550,9 +3550,34 @@ Last updated: 2026-05-31
      normalized query text to Nominatim and maps returned structured address
      fields. Guardrail: `tests/cron-termination-state.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 357 findings;
-verified stale/false-positive: 384 findings; product/design/ops decisions
-deferred: 75 findings. Remaining major categories: Stripe webhook subscription
+322. **Admin query, staff preview, env, money, and email preference drift
+     reduced** — code/test/docs fix for #703, #704, #705, #709, #710, #1102,
+     and #1108, stale/false-positive closure for #1095-#1100, #1103-#1107, and
+     #1109-#1111, plus deferred/manual closure for #723 and #1101. Admin
+     users/audit/broadcast pages now parse page params through
+     `parseBoundedPositiveIntParam()` before Prisma `skip` math, and
+     admin/message free-text `contains` searches are trimmed and length-bounded
+     before query construction. The admin listing-review queue now links pending
+     listings through an explicit `?preview=admin` staff-preview mode; the
+     public listing page still keeps ordinary public visibility unchanged and
+     grants that preview only to active EMPLOYEE/ADMIN accounts. Seller-initiated
+     refund emails now respect the visible `EMAIL_REFUND_ISSUED` preference, and
+     private-message/review email links use `EMAIL_APP_URL` instead of a
+     hard-coded production origin. The remaining env non-null assertions were
+     removed from the Clerk provider and metro seed script, and case-resolution
+     partial-refund copy now uses shared minor-unit currency formatting. Newest
+     raw upload/AI/cron/webhook/seller-cache findings were reverified as already
+     fixed or false-positive on current `main`; Stripe webhook subscription
+     narrowing remains a dashboard evidence task, and
+     `LabelStatus.EXPIRED`/`VOIDED` remain a product/schema lifecycle cleanup
+     decision. Guardrails:
+     `tests/admin-query-and-email-guardrails.test.mjs`,
+     `tests/listing-visibility.test.mjs`, `tests/env-validation.test.mjs`, and
+     `tests/case-resolution-copy.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 364 findings;
+verified stale/false-positive: 398 findings; product/design/ops decisions
+deferred: 77 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
 product designs, historical text truncation/MakerVerification timestamp
@@ -3573,4 +3598,4 @@ DB concurrency proof, Sentry cron alert/R2 health/ListBucket ops evidence,
 HSTS preload and Vercel max-duration ops
 evidence, remaining runtime a11y proof, and agent/worktree verification process
 hygiene. Approximate raw allegations left to verify from current max #1120:
-304.
+281.

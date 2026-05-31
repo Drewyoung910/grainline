@@ -9,7 +9,7 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { sendRefundIssued } from "@/lib/email";
 import { createMarketplaceRefund, refundIdempotencyKeyBase } from "@/lib/marketplaceRefunds";
-import { createNotification } from "@/lib/notifications";
+import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { REFUND_LOCK_SENTINEL, releaseStaleRefundLocks } from "@/lib/refundLocks";
 import { revalidateListingSearchCaches } from "@/lib/searchCache";
@@ -390,7 +390,10 @@ export async function POST(
     }
 
     try {
-      const buyerUser = order.buyerId
+      const refundEmailAllowed = order.buyerId
+        ? await shouldSendEmail(order.buyerId, "EMAIL_REFUND_ISSUED")
+        : false;
+      const buyerUser = order.buyerId && refundEmailAllowed
         ? await prisma.user.findUnique({
             where: { id: order.buyerId },
             select: { name: true, email: true },

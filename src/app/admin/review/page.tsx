@@ -115,7 +115,7 @@ export default async function AdminReviewPage() {
                   <ReviewListingButtons listingId={listing.id} />
                   <DeleteListingButton listingId={listing.id} />
                   <Link
-                    href={publicListingPath(listing.id, listing.title)}
+                    href={`${publicListingPath(listing.id, listing.title)}?preview=admin`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-sm text-neutral-500 underline hover:text-neutral-900"

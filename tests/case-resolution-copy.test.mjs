@@ -22,6 +22,13 @@ describe("case resolution copy", () => {
     assert.equal(copy.refunding, true);
   });
 
+  it("uses shared currency minor-unit formatting for partial refunds", () => {
+    const copy = caseResolutionCopy("REFUND_PARTIAL", 12_345, "jpy");
+
+    assert.match(copy.body, /12,345/);
+    assert.doesNotMatch(copy.body, /123\.45/);
+  });
+
   it("does not render a zero-dollar partial refund when older rows lack an amount", () => {
     const copy = caseResolutionCopy("REFUND_PARTIAL", null, "usd");
 

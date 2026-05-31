@@ -85,8 +85,25 @@ export function isPublicListingDetail(listing: ListingVisibilityInput) {
 
 export function canViewListingDetail(
   listing: ListingVisibilityInput,
-  viewer: { dbUserId?: string | null; clerkUserId?: string | null; preview?: boolean },
+  viewer: {
+    dbUserId?: string | null;
+    clerkUserId?: string | null;
+    preview?: boolean;
+    staffPreview?: boolean;
+    role?: string | null;
+    banned?: boolean | null;
+    deletedAt?: Date | string | null;
+  },
 ) {
+  if (
+    viewer.staffPreview &&
+    !viewer.banned &&
+    !viewer.deletedAt &&
+    (viewer.role === "ADMIN" || viewer.role === "EMPLOYEE")
+  ) {
+    return true;
+  }
+
   const isOwner =
     (!!viewer.dbUserId && listing.seller.user?.id === viewer.dbUserId) ||
     (!!viewer.clerkUserId && listing.seller.user?.clerkId === viewer.clerkUserId);

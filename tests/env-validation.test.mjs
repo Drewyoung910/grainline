@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const { requiredProductionEnv } = await import("../src/lib/env.ts");
@@ -37,5 +38,17 @@ describe("production env validation", () => {
       if (previousValue === undefined) delete process.env.GRAINLINE_REQUIRED_ENV_TEST;
       else process.env.GRAINLINE_REQUIRED_ENV_TEST = previousValue;
     }
+  });
+
+  it("keeps remaining runtime and seed env lookups explicit instead of non-null assertions", () => {
+    const providers = readFileSync(new URL("../src/components/Providers.tsx", import.meta.url), "utf8");
+    const metroSeed = readFileSync(new URL("../prisma/seeds/metros.ts", import.meta.url), "utf8");
+
+    assert.match(providers, /resolveClerkPublishableKey/);
+    assert.match(providers, /NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY env var is required in production/);
+    assert.doesNotMatch(providers, /process\.env\.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY!/);
+
+    assert.match(metroSeed, /requiredSeedEnv\("DATABASE_URL"\)/);
+    assert.doesNotMatch(metroSeed, /process\.env\.DATABASE_URL!/);
   });
 });

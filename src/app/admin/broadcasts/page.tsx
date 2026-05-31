@@ -7,8 +7,9 @@ import { redirect } from "next/navigation";
 import DeleteBroadcastButton from "./DeleteBroadcastButton";
 import { logAdminActionOrThrow } from "@/lib/audit";
 import { publicSellerPath } from "@/lib/publicPaths";
+import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
-import { truncateTextWithEllipsis } from "@/lib/sanitize";
+import { truncateText, truncateTextWithEllipsis } from "@/lib/sanitize";
 import { sellerBroadcastEmailSubject } from "@/lib/email";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 
@@ -86,8 +87,8 @@ export default async function AdminBroadcastsPage({
 }) {
   await requireAdminPageAccess();
   const sp = await searchParams;
-  const page = Math.max(1, parseInt(sp.page ?? "1", 10));
-  const q = sp.q?.trim() ?? "";
+  const page = parseBoundedPositiveIntParam(sp.page, 1, 1000);
+  const q = truncateText((sp.q ?? "").trim(), 200);
   const pageSize = 25;
 
   const where = q
@@ -143,6 +144,7 @@ export default async function AdminBroadcastsPage({
         <input
           name="q"
           defaultValue={q}
+          maxLength={200}
           placeholder="Search message text…"
           className="flex-1 border rounded-lg px-3 py-2 text-sm"
         />

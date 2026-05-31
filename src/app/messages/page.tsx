@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
 import { parseFileMessageBody } from "@/lib/messageBodies";
+import { truncateText } from "@/lib/sanitize";
 import MessageTime from "@/components/MessageTime";
 import type { Metadata } from "next";
 
@@ -44,7 +45,8 @@ export default async function MessagesPage({
 }: {
   searchParams: Promise<{ tab?: string; q?: string }>;
 }) {
-  const { tab = "inbox", q = "" } = await searchParams;
+  const { tab = "inbox", q: qParam = "" } = await searchParams;
+  const q = truncateText(qParam.trim(), 200);
 
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/messages");
@@ -259,6 +261,7 @@ export default async function MessagesPage({
             <input
               name="q"
               defaultValue={q}
+              maxLength={200}
               placeholder="Search messages"
               className="w-full sm:w-52 bg-transparent text-sm outline-none focus:outline-none focus-visible:outline-none focus-visible:shadow-none"
             />

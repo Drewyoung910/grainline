@@ -1,16 +1,9 @@
+import { formatCurrencyCents } from "./money.ts";
+
 export type CaseResolutionKind = "REFUND_FULL" | "REFUND_PARTIAL" | "DISMISSED";
 
 function formatCaseRefundAmount(cents: number | null | undefined, currency: string | null | undefined) {
-  const normalizedCurrency = (currency || "USD").toUpperCase();
-  const amount = (cents ?? 0) / 100;
-  try {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: normalizedCurrency,
-    }).format(amount);
-  } catch {
-    return `${normalizedCurrency} ${amount.toFixed(2)}`;
-  }
+  return formatCurrencyCents(cents ?? 0, currency);
 }
 
 function hasPositiveRefundAmount(cents: number | null | undefined) {

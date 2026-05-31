@@ -5,7 +5,13 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
+function requiredSeedEnv(name: string) {
+  const value = process.env[name];
+  if (value && value.trim()) return value;
+  throw new Error(`${name} env var is required to seed metro data.`);
+}
+
+const adapter = new PrismaPg({ connectionString: requiredSeedEnv("DATABASE_URL") });
 const prisma = new PrismaClient({ adapter } as ConstructorParameters<typeof PrismaClient>[0]);
 
 const MAJOR_METROS = [

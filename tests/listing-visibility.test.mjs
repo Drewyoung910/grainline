@@ -151,6 +151,20 @@ describe("listing visibility", () => {
     );
   });
 
+  it("allows explicit staff preview without changing public listing visibility", () => {
+    const pending = listing({
+      status: ListingStatus.PENDING_REVIEW,
+      seller: { ...listing().seller, chargesEnabled: false },
+    });
+
+    assert.equal(isPublicListingDetail(pending), false);
+    assert.equal(canViewListingDetail(pending, {}), false);
+    assert.equal(canViewListingDetail(pending, { staffPreview: true }), false);
+    assert.equal(canViewListingDetail(pending, { staffPreview: true, role: "USER" }), false);
+    assert.equal(canViewListingDetail(pending, { staffPreview: true, role: "ADMIN", banned: true }), false);
+    assert.equal(canViewListingDetail(pending, { staffPreview: true, role: "EMPLOYEE" }), true);
+  });
+
   it("allows sold-out public listing detail pages without making them generally sellable", () => {
     assert.equal(isPublicListing(listing({ status: ListingStatus.SOLD_OUT })), false);
     assert.equal(isPublicListingDetail(listing({ status: ListingStatus.SOLD_OUT })), true);

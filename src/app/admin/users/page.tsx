@@ -5,6 +5,8 @@ import { BanUserButton } from "@/components/BanUserButton";
 import { AdminEmailForm } from "@/components/admin/AdminEmailForm";
 import Link from "next/link";
 import type { Metadata } from "next";
+import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { truncateText } from "@/lib/sanitize";
 
 export const metadata: Metadata = { title: "Users — Admin" };
 
@@ -22,8 +24,10 @@ export default async function AdminUsersPage({
   });
   if (!admin || admin.banned || admin.deletedAt || admin.role !== "ADMIN") redirect("/");
 
-  const { q, page: pageStr, email: emailParam } = await searchParams;
-  const page = Math.max(1, parseInt(pageStr ?? "1", 10));
+  const { q: qParam, page: pageStr, email: emailParam } = await searchParams;
+  const page = parseBoundedPositiveIntParam(pageStr, 1, 1000);
+  const q = truncateText((qParam ?? "").trim(), 200);
+  const email = truncateText((emailParam ?? "").trim(), 320);
   const perPage = 30;
 
   const where = q?.trim()
@@ -60,9 +64,9 @@ export default async function AdminUsersPage({
 
   // If ?email= is present, look up user for standalone email form
   let emailTarget: { id: string; name: string | null; email: string } | null = null;
-  if (emailParam) {
+  if (email) {
     const found = await prisma.user.findFirst({
-      where: { email: emailParam },
+      where: { email },
       select: { id: true, name: true, email: true },
     });
     emailTarget = found;
@@ -76,7 +80,7 @@ export default async function AdminUsersPage({
       </div>
 
       {/* Standalone email form when ?email= param is present */}
-      {emailParam && (
+      {email && (
         <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
           {emailTarget ? (
             <AdminEmailForm
@@ -86,7 +90,7 @@ export default async function AdminUsersPage({
             />
           ) : (
             <p className="text-sm text-neutral-700">
-              No Grainline user exists for <span className="font-medium">{emailParam}</span>. Use the
+              No Grainline user exists for <span className="font-medium">{email}</span>. Use the
               support mailbox for external replies.
             </p>
           )}
@@ -98,6 +102,7 @@ export default async function AdminUsersPage({
         <input
           name="q"
           defaultValue={q}
+          maxLength={200}
           placeholder="Search by email or name..."
           className="flex-1 border border-neutral-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-neutral-400"
         />

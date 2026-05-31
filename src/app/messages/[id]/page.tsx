@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
 import { sendNewMessageEmail } from "@/lib/email";
 import ActionForm, { SubmitButton } from "@/components/ActionForm";
 import MarkReadClient from "@/components/MarkReadClient";
@@ -257,7 +258,7 @@ export default async function ThreadPage({
               recipientName: recipientUser.name ?? "there",
               senderName: me.name ?? "Someone",
               messagePreview: truncateText(body, 200),
-              conversationUrl: `https://thegrainline.com/messages/${id}`,
+              conversationUrl: new URL(`/messages/${id}`, EMAIL_APP_URL).toString(),
             });
           }
         }

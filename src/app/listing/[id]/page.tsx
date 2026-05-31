@@ -105,7 +105,7 @@ export async function generateMetadata(
   const { id } = await params;
   const listingId = extractRouteId(id);
   const sp = await searchParams;
-  if (sp.preview === "1") {
+  if (sp.preview === "1" || sp.preview === "admin") {
     return { robots: { index: false, follow: false } };
   }
   const listing = await getListingForDetailPage(listingId);
@@ -183,9 +183,13 @@ export default async function ListingPage({
   const editingMine = sp.redit === "1";
 
   const { userId } = await auth();
+  let me: { id: string; role: string; banned: boolean; deletedAt: Date | null } | null = null;
   let meId: string | null = null;
   if (userId) {
-    const me = await prisma.user.findUnique({ where: { clerkId: userId } });
+    me = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { id: true, role: true, banned: true, deletedAt: true },
+    });
     meId = me?.id ?? null;
   }
   const blockedUserIds = await getBlockedUserIdsFor(meId);
@@ -195,9 +199,24 @@ export default async function ListingPage({
 
   // Preview mode: seller can view their own listing regardless of status/chargesEnabled
   const viewerIsSeller = !!meId && listing.seller.userId === meId;
-  const isPreview = sp.preview === "1" && viewerIsSeller;
+  const staffPreviewRequested = sp.preview === "admin";
+  const staffPreview =
+    sp.preview === "admin" &&
+    !!me &&
+    !me.banned &&
+    !me.deletedAt &&
+    (me.role === "ADMIN" || me.role === "EMPLOYEE");
+  const isPreview = (sp.preview === "1" && viewerIsSeller) || staffPreview;
 
-  if (!canViewListingDetail(listing, { dbUserId: meId, clerkUserId: userId, preview: isPreview })) {
+  if (!canViewListingDetail(listing, {
+    dbUserId: meId,
+    clerkUserId: userId,
+    preview: sp.preview === "1",
+    staffPreview: staffPreviewRequested,
+    role: me?.role,
+    banned: me?.banned,
+    deletedAt: me?.deletedAt,
+  })) {
     return notFound();
   }
 

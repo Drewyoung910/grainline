@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { UndoActionButton } from "@/components/UndoActionButton";
 import { isUndoableAdminAction } from "@/lib/audit";
+import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { truncateText } from "@/lib/sanitize";
 import type { Metadata } from "next";
 
@@ -38,7 +39,7 @@ export default async function AdminAuditPage({
   if (!admin || admin.banned || admin.deletedAt || admin.role !== "ADMIN") redirect("/");
 
   const { page: pageStr, action: actionParam } = await searchParams;
-  const page = Math.max(1, parseInt(pageStr ?? "1", 10));
+  const page = parseBoundedPositiveIntParam(pageStr, 1, 1000);
   const perPage = 30;
   const actionFilter = actionParam ? truncateText(actionParam.trim(), 80) : "";
   const where = actionFilter ? { action: actionFilter } : {};

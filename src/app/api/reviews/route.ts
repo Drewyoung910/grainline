@@ -5,6 +5,7 @@ import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
 import { sendNewReviewEmail } from "@/lib/email";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { reviewRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
@@ -233,7 +234,7 @@ export async function POST(req: NextRequest) {
             listingTitle: listing.title,
             rating: ratingX2 / 2,
             reviewPreview: truncateText(comment ?? "", 200),
-            reviewUrl: `https://thegrainline.com${publicListingPath(listingId, listing.title)}#reviews`,
+            reviewUrl: new URL(`${publicListingPath(listingId, listing.title)}#reviews`, EMAIL_APP_URL).toString(),
           });
         }
       }
