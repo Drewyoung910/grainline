@@ -22,11 +22,11 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-31
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 227.
+- Verified hardening/doc commits since 2026-05-13: 228.
 - Verified code/feature fix commits since 2026-05-13: 202.
-- Verified docs/audit-only commits since 2026-05-13: 10.
-- Most recent reported pass tally: 377 verified fixed/reduced findings,
-  398 verified stale/false-positive findings, and 75 deferred/manual findings
+- Verified docs/audit-only commits since 2026-05-13: 11.
+- Most recent reported pass tally: 378 verified fixed/reduced findings,
+  399 verified stale/false-positive findings, and 73 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
 ## 2026-05-14 Active Tracker
@@ -3666,17 +3666,33 @@ Last updated: 2026-05-31
      ops/refactor decisions rather than closed here. Guardrail:
      `tests/server-error-logger.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 377 findings;
-verified stale/false-positive: 398 findings; product/design/ops decisions
-deferred: 75 findings. Remaining major categories: Stripe webhook subscription
+329. **Production aggregate data scans completed for JSON size and email
+     uniqueness residue** — read-only evidence closure for the remaining #980
+     production-size scan and live-data verification for #981. Aggregate-only
+     Neon queries returned zero rows over the raw-managed JSON/TEXT size caps
+     for `User.notificationPreferences`, `AdminAuditLog.metadata`,
+     `SystemAuditLog.metadata`, `OrderItem.listingSnapshot`,
+     `OrderItem.selectedVariants`, `OrderShippingRateQuote.rates`,
+     `OrderPaymentEvent.metadata`, `EmailSuppression.details`, and
+     `CronRun.result`; `grainline_notification_preferences_valid()` also
+     reported zero invalid live rows. The same read-only pass found zero
+     case-insensitive duplicate email groups in `User`, `EmailSuppression`, and
+     `NewsletterSubscriber`, plus zero unsupported live `EMAIL_*`
+     notification preference keys. This verifies current production data is
+     clean for those allegations; a future `LOWER(email)` expression unique
+     index remains optional DB-hardening, not an observed live collision.
+
+**Running tally after this pass:** verified fixed/reduced: 378 findings;
+verified stale/false-positive: 399 findings; product/design/ops decisions
+deferred: 73 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
 product designs, historical text truncation/MakerVerification timestamp
-production evidence, EXPLAIN-dependent query-plan/index validation, email
-uniqueness production scan and quota policy decisions, refund accounting
-runtime proof and refund fee-policy reconciliation, founding-maker permanence
-policy, remaining case/message state-policy decisions, privacy/legal retention
-scope, remaining privacy/export retention decisions, cross-seller AI
+production evidence, EXPLAIN-dependent query-plan/index validation, email quota
+policy decisions, refund accounting runtime proof and refund fee-policy
+reconciliation, founding-maker permanence policy, remaining case/message state
+policy decisions, privacy/legal retention scope, remaining privacy/export
+retention decisions, cross-seller AI
 duplicate-detection product design, unsubscribe consent-epoch/manual-resubscribe
 semantics, legacy enum cleanup/data-migration decisions, Buy Now best-effort
 rollback window, partial multi-seller checkout continuation design, deliberate
@@ -3688,4 +3704,4 @@ proof, Sentry cron alert/R2 health/ListBucket ops evidence, HSTS preload and
 Vercel max-duration ops evidence, residual HTTP-status constants/log-forwarding
 and analytics observability refactors, remaining runtime a11y proof, and
 agent/worktree verification process hygiene. Approximate raw allegations left
-to verify from current max #1120: 268.
+to verify from current max #1120: 266.
