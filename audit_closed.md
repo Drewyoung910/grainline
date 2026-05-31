@@ -3380,9 +3380,47 @@ Last updated: 2026-05-30
      `tests/security-lifecycle-followups.test.mjs`, and
      `tests/newsletter-double-opt-in.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 317 findings;
-verified stale/false-positive: 320 findings; product/design/ops decisions
-deferred: 64 findings. Remaining major categories: Stripe webhook subscription
+314. **Round 3 stale Stripe branch and unicode/i18n slices reverified** —
+     source/test/docs closure for #502-#547, with current-main behavior
+     separated from stale-branch risk. The `feature/stripe-connect-v2` branch is
+     verified stale relative to `main`: its account-version predicate rejects
+     nullable legacy accounts, its dashboard route lacks the current
+     account-state guard, and it is missing current schema/runtime hardening.
+     Current `main` has the expected nullable account-version support, split
+     `/api/stripe/webhook/v2` thin-event destination, guarded Connect dashboard
+     and status routes, whole-order seller refund ownership check, checkout
+     completion account-state revalidation, and v2 route tests. `CLAUDE.md` was
+     corrected so future agents do not treat that branch as the v2 source of
+     truth or merge gate; pruning or rebasing the stale branch remains a branch
+     hygiene task rather than a current-main code defect.
+
+     Unicode/email findings #515-#539 and #541-#547 are fixed or current-clean
+     in source and tests. Account and newsletter email writers now use NFC
+     lowercase normalization through the shared email helpers; unsubscribe and
+     Clerk webhook email handling match that behavior. Canonical user-text
+     sanitization strips bidi controls including U+061C, zero-width characters,
+     null bytes, dangerous protocols, and the current Cyrillic confusable map;
+     downstream profanity, AI-review, notification, and tag helpers import the
+     canonical normalizer. Message, case, custom-order, commission, gift-note,
+     report, fulfillment seller-note, blog, saved-search, seller FAQ, audit-log
+     reason, email body/plaintext, shipping-address, message-attachment, avatar
+     initial, account-deletion redaction, and Stripe order snapshot paths now
+     route through bounded normalization helpers. #544 and #545 are verified
+     false positives for locale-invariant JavaScript case conversion and
+     byte-exact first-party media-origin comparison. #540 remains a low-priority
+     search semantics/product decision for accent/locale-insensitive matching,
+     and #543 remains a UI hardening decision for combining-mark density rather
+     than a closed security property. Guardrails include:
+     `tests/email-normalization-followups.test.mjs`,
+     `tests/sanitize-unicode.test.mjs`,
+     `tests/user-text-normalization-followups.test.mjs`,
+     `tests/email-text.test.mjs`,
+     `tests/unicode-boundary-followups.test.mjs`, and
+     `tests/stripe-connect-v2.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 346 findings;
+verified stale/false-positive: 335 findings; product/design/ops decisions
+deferred: 66 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
 product designs, JSON size historical validation and email uniqueness
@@ -3401,4 +3439,4 @@ duplicate-webhook and buyer-deletion runtime replay proof, Founding Maker live
 DB concurrency proof, cron termination mock coverage, HSTS preload and Vercel
 max-duration ops evidence, remaining runtime a11y proof, and agent/worktree
 verification process hygiene. Approximate raw allegations left to verify from
-current max #1120: 420.
+current max #1120: 374.
