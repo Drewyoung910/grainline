@@ -23,6 +23,7 @@ import { publicSellerShopPath } from "@/lib/publicPaths";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { safeRateLimit, sellerProfileRatelimit } from "@/lib/ratelimit";
 import { revalidateFooterMetrosCache } from "@/lib/footerMetros";
+import { logServerError } from "@/lib/serverErrorLogger";
 
 const inputClass =
   "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300";
@@ -147,7 +148,10 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
       await prisma.sellerProfile.update({ where: { id: seller.id }, data: { metroId, cityMetroId } });
       revalidateFooterMetrosCache();
     } catch (e) {
-      console.error("[geo-metro] Failed to assign metro to seller profile:", e);
+      logServerError(e, {
+        source: "seller_profile_geo_metro_assignment",
+        extra: { sellerId: seller.id },
+      });
     }
   }
 
@@ -206,7 +210,10 @@ export default async function SellerSettingsPage({
         currentRow = { ...currentRow, chargesEnabled };
       }
     } catch (error) {
-      console.error("[stripe-connect] Failed to refresh seller account status:", error);
+      logServerError(error, {
+        source: "seller_stripe_connect_status_refresh",
+        extra: { sellerId: seller.id, stripeAccountId: currentRow.stripeAccountId },
+      });
     }
   }
 

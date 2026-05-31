@@ -22,11 +22,11 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-31
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 226.
-- Verified code/feature fix commits since 2026-05-13: 201.
+- Verified hardening/doc commits since 2026-05-13: 227.
+- Verified code/feature fix commits since 2026-05-13: 202.
 - Verified docs/audit-only commits since 2026-05-13: 10.
-- Most recent reported pass tally: 357 verified fixed/reduced findings,
-  384 verified stale/false-positive findings, and 75 deferred/manual findings
+- Most recent reported pass tally: 377 verified fixed/reduced findings,
+  398 verified stale/false-positive findings, and 75 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
 ## 2026-05-14 Active Tracker
@@ -3653,7 +3653,20 @@ Last updated: 2026-05-31
      partial indexes without seeded or production query-plan evidence.
      Guardrail: `tests/schema-numeric-index-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 376 findings;
+328. **Server action observability helper added** — code/test/docs reduction for
+     the log-helper subset of #641. Sentry log forwarding remains intentionally
+     disabled, but selected admin/seller server-action failure paths no longer
+     rely on console-only evidence. `logServerError()` now sanitizes error
+     messages, tag values, and extra values before console/Sentry capture, and
+     the admin order actions, admin support status action, seller onboarding
+     actions, seller listing archive action, seller geo-metro assignment, and
+     seller Stripe Connect status-refresh catches use the shared helper with
+     bounded internal IDs/statuses only. Residual #641 status-constant,
+     Sentry-log-forwarding, and analytics/speed-insights choices remain
+     ops/refactor decisions rather than closed here. Guardrail:
+     `tests/server-error-logger.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 377 findings;
 verified stale/false-positive: 398 findings; product/design/ops decisions
 deferred: 75 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
@@ -3672,6 +3685,7 @@ shipping-rate currency drift, Clerk staff MFA and breached-password dashboard
 evidence, Clerk multi-account spam dashboard evidence, Stripe duplicate-webhook
 and buyer-deletion runtime replay proof, Founding Maker live DB concurrency
 proof, Sentry cron alert/R2 health/ListBucket ops evidence, HSTS preload and
-Vercel max-duration ops evidence, remaining runtime a11y proof, and
+Vercel max-duration ops evidence, residual HTTP-status constants/log-forwarding
+and analytics observability refactors, remaining runtime a11y proof, and
 agent/worktree verification process hygiene. Approximate raw allegations left
-to verify from current max #1120: 269.
+to verify from current max #1120: 268.

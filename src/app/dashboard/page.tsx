@@ -16,6 +16,7 @@ import { listingMutationRatelimit, safeRateLimit, savedSearchRatelimit } from "@
 import { publicListingPath, publicSellerShopPath } from "@/lib/publicPaths";
 import { revalidateListingSearchCaches } from "@/lib/searchCache";
 import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
+import { logServerError } from "@/lib/serverErrorLogger";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -115,7 +116,10 @@ async function deleteListing(
   try {
     await softDeleteListingWithCleanup(listingId);
   } catch (err) {
-    console.error("Archive listing failed:", err);
+    logServerError(err, {
+      source: "seller_listing_archive",
+      extra: { listingId, sellerId: listing.sellerId },
+    });
     return { ok: false, error: "Could not archive this listing. Please try again." };
   }
 

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { logAdminActionOrThrow } from "@/lib/audit";
 import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import { logServerError } from "@/lib/serverErrorLogger";
 
 export type AdminOrderActionState = { ok: boolean; error?: string };
 
@@ -55,7 +56,10 @@ export async function markReviewed(orderId: string, _prevState?: unknown): Promi
     revalidatePath("/admin/orders");
     return { ok: true };
   } catch (error) {
-    console.error("markReviewed failed:", error);
+    logServerError(error, {
+      source: "admin_order_mark_reviewed",
+      extra: { orderId },
+    });
     return { ok: false, error: "Could not mark this order reviewed." };
   }
 }
@@ -109,7 +113,10 @@ export async function appendNote(orderId: string, _prevState: unknown, formData:
     revalidatePath(`/admin/orders/${orderId}`);
     return { ok: true };
   } catch (error) {
-    console.error("appendNote failed:", error);
+    logServerError(error, {
+      source: "admin_order_append_note",
+      extra: { orderId },
+    });
     return { ok: false, error: "Could not append this note." };
   }
 }

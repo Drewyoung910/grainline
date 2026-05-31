@@ -9,6 +9,7 @@ import {
   isSupportRequestStatus,
   supportRequestStatusTransition,
 } from "@/lib/supportRequestState";
+import { logServerError } from "@/lib/serverErrorLogger";
 
 export type SupportRequestActionState = { ok: boolean; error?: string };
 
@@ -83,7 +84,10 @@ export async function setSupportRequestStatus(
     revalidatePath("/admin/support");
     return { ok: true };
   } catch (error) {
-    console.error("setSupportRequestStatus failed:", error);
+    logServerError(error, {
+      source: "admin_support_status_update",
+      extra: { requestId, status },
+    });
     return { ok: false, error: "Could not update this request." };
   }
 }
