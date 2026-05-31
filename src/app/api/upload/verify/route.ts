@@ -13,6 +13,7 @@ import {
   readBoundedJson,
 } from "@/lib/requestBody";
 import {
+  uploadVerificationExpiresAtIsTooFarFuture,
   uploadedObjectVerificationError,
   uploadFileSignatureMatches,
   uploadKeyBelongsToUser,
@@ -26,7 +27,10 @@ const Schema = z.object({
   expectedSize: z.number().int().positive(),
   contentType: z.string().min(1).max(100),
   verificationToken: z.string().min(1).max(200),
-  verificationExpiresAt: z.number().int().positive(),
+  verificationExpiresAt: z.number().int().positive().refine(
+    (expiresAt) => !uploadVerificationExpiresAtIsTooFarFuture(expiresAt),
+    "Upload verification expiry is too far in the future.",
+  ),
 });
 const UPLOAD_VERIFY_BODY_MAX_BYTES = 16 * 1024;
 

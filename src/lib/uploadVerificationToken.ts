@@ -68,6 +68,10 @@ export function createUploadVerificationToken(
   };
 }
 
+export function uploadVerificationExpiresAtIsTooFarFuture(expiresAt: number, now = Date.now()) {
+  return expiresAt > now + UPLOAD_VERIFICATION_TOKEN_TTL_MS + UPLOAD_VERIFICATION_FUTURE_SKEW_MS;
+}
+
 export function verifyUploadVerificationToken(
   fields: UploadVerificationFields,
   token: string,
@@ -77,7 +81,7 @@ export function verifyUploadVerificationToken(
   if (
     !secret ||
     fields.expiresAt < now ||
-    fields.expiresAt > now + UPLOAD_VERIFICATION_TOKEN_TTL_MS + UPLOAD_VERIFICATION_FUTURE_SKEW_MS
+    uploadVerificationExpiresAtIsTooFarFuture(fields.expiresAt, now)
   ) return false;
   const expected = signUploadVerification(fields, secret);
   return safeEqualHex(token, expected);

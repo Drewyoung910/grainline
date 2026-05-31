@@ -5,7 +5,7 @@ import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { checkoutRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { isFallbackRate } from "@/types/checkout";
-import { verifyRate } from "@/lib/shipping-token";
+import { shippingRateExpiresAtIsTooFarFuture, verifyRate } from "@/lib/shipping-token";
 import { resolveListingVariantSelection } from "@/lib/listingVariants";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { calculateCheckoutAmounts } from "@/lib/checkoutAmounts";
@@ -61,7 +61,10 @@ const CheckoutSingleSchema = z.object({
     carrier: z.string().max(100),
     estDays: z.number().int().min(1).max(SHIPPING_ESTIMATED_DAYS_MAX).nullable(),
     token: z.string().min(1),
-    expiresAt: z.number().int().min(0),
+    expiresAt: z.number().int().min(0).refine(
+      (expiresAt) => !shippingRateExpiresAtIsTooFarFuture(expiresAt),
+      "Shipping rate expiry is too far in the future.",
+    ),
   }),
   giftNote: z.string().max(200).optional().nullable(),
   giftWrapping: z.boolean().optional().default(false),

@@ -458,14 +458,14 @@ function LineChartSection({
 // ── Main component ─────────────────────────────────────────────────────────────
 
 const RANGE_OPTIONS: { key: RangeKey; label: string }[] = [
-  { key: "today", label: "Today" },
-  { key: "yesterday", label: "Yesterday" },
-  { key: "week", label: "This week" },
-  { key: "last7", label: "Last 7 days" },
-  { key: "month", label: "This month" },
-  { key: "last30", label: "Last 30 days" },
-  { key: "year", label: "This year" },
-  { key: "last365", label: "Last 365 days" },
+  { key: "today", label: "Today UTC" },
+  { key: "yesterday", label: "Yesterday UTC" },
+  { key: "week", label: "This week UTC" },
+  { key: "last7", label: "Last 7 UTC days" },
+  { key: "month", label: "This month UTC" },
+  { key: "last30", label: "Last 30 UTC days" },
+  { key: "year", label: "This year UTC" },
+  { key: "last365", label: "Last 365 UTC days" },
   { key: "alltime", label: "All time" },
 ];
 

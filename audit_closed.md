@@ -3418,13 +3418,66 @@ Last updated: 2026-05-30
      `tests/unicode-boundary-followups.test.mjs`, and
      `tests/stripe-connect-v2.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 346 findings;
-verified stale/false-positive: 335 findings; product/design/ops decisions
-deferred: 66 findings. Remaining major categories: Stripe webhook subscription
+315. **Round 3 schema, retention, ops, and time/date slices reverified** —
+     source/test/code closure for #548-#609, with current code defects separated
+     from production evidence and product-policy decisions. Schema findings
+     #548-#552, #555-#559, #561-#564, #570-#578, #580, #582, and #584-#585
+     are stale or current-clean: custom-order listings now have a real
+     `Conversation` SetNull FK and index; saved-search create/dedupe runs inside
+     a Serializable transaction with retry; schema FK onDelete behavior is
+     guarded against migration drift; the raw-managed blog tag GIN index was
+     restored and tested; listing CHECK constraints were validated; EmailOutbox
+     HTML and OrderPaymentEvent descriptions are bounded; Notification dedup
+     default is aligned; user email writes are normalized at the app boundary;
+     retention-sensitive blog/block/report FKs no longer cascade away
+     moderation evidence; processed webhook events, terminal EmailOutbox rows,
+     unread notifications, and ListingViewDaily rows have prune coverage; health
+     verbose token comparison is constant-time; ops-health surfaces webhook
+     failure piles; newsletter signup is double opt-in; and SiteConfig fallback
+     seeding/clamping is present. #558, #567, #569, #570, #571, #572, and #587
+     are verified false-positive/by-design confirmations rather than current
+     defects.
+
+     Time/date findings #588-#609 are likewise mostly stale or false-positive:
+     vacation return dates accept native date-input values; Guild Master warning
+     grace is a real fixed 30-day window; broadcast cooldowns and vacation return
+     displays use client-local formatting; metrics periods and shipping
+     estimated days are bounded; public blog visibility excludes future
+     `publishedAt`; message `since` params reject non-finite dates; Stripe event
+     freshness rejects future-created events; and Terms explicitly define the
+     case-response "48 hours" as calendar time including weekends and holidays.
+     This pass fixed the remaining low-risk current behavior in that slice:
+     seller analytics range labels now state their UTC buckets, upload and
+     shipping-rate checkout schemas reject excessive future expiries before HMAC
+     work, admin case deadlines render through `LocalDate` instead of server UTC
+     `toLocaleString()`, and ListingViewDaily retention uses a fixed 730-day
+     cutoff instead of `setFullYear()` rollover. Deferred/manual items left from
+     this slice are production-data impact proof for historical text truncation
+     and MakerVerification timestamp backfill, query-plan/index validation,
+     legacy tax-reversal column cleanup, future BigInt counter migration, nullable
+     empty-string cleanup, moderation-report retention policy, Sentry missed-cron
+     alert confirmation, R2 write-health versus lightweight health-check policy,
+     and R2 public key privacy/ListBucket evidence. Guardrails include:
+     `tests/schema-hardening-followups.test.mjs`,
+     `tests/schema-drift-followups.test.mjs`,
+     `tests/schema-retention-guardrails.test.mjs`,
+     `tests/retention-and-ops-followups.test.mjs`,
+     `tests/newsletter-double-opt-in.test.mjs`,
+     `tests/health-state.test.mjs`, `tests/upload-verification-token.test.mjs`,
+     `tests/shipping-token.test.mjs`, `tests/seller-ops-hardening.test.mjs`,
+     `tests/case-observability-followups.test.mjs`,
+     `tests/checkout-est-days-bounds.test.mjs`,
+     `tests/stripe-webhook-state.test.mjs`, and
+     `tests/guild-metrics-state.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 350 findings;
+verified stale/false-positive: 383 findings; product/design/ops decisions
+deferred: 76 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
-product designs, JSON size historical validation and email uniqueness
-production-scan decisions, email outbox retention/quota policy decisions, refund
+product designs, historical text truncation/MakerVerification timestamp
+production evidence, query-plan/index validation, email uniqueness production
+scan and quota policy decisions, refund
 accounting runtime proof and refund fee-policy reconciliation,
 founding-maker permanence policy, remaining case/message state-policy
 decisions, privacy/legal retention scope, remaining privacy/export retention
@@ -3436,7 +3489,8 @@ reconciliation for historical seller shipping-rate currency drift, legacy
 display-only media host validation, Clerk staff MFA and breached-password
 dashboard evidence, Clerk multi-account spam dashboard evidence, Stripe
 duplicate-webhook and buyer-deletion runtime replay proof, Founding Maker live
-DB concurrency proof, cron termination mock coverage, HSTS preload and Vercel
-max-duration ops evidence, remaining runtime a11y proof, and agent/worktree
-verification process hygiene. Approximate raw allegations left to verify from
-current max #1120: 374.
+DB concurrency proof, Sentry cron alert/R2 health/ListBucket ops evidence,
+cron termination mock coverage, HSTS preload and Vercel max-duration ops
+evidence, remaining runtime a11y proof, and agent/worktree verification process
+hygiene. Approximate raw allegations left to verify from current max #1120:
+312.

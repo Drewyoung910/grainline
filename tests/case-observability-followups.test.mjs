@@ -33,6 +33,14 @@ describe("case route observability follow-ups", () => {
     assert.match(route, /canCreateCaseMessageForStatus\(caseRecord\.status, \{ isStaff \}\)/);
   });
 
+  it("renders admin case deadlines with client-local dates", () => {
+    const page = source("src/app/admin/cases/[id]/page.tsx");
+
+    assert.match(page, /import LocalDate from "@\/components\/LocalDate"/);
+    assert.match(page, /<LocalDate date=\{caseRecord\.sellerRespondBy\} \/>/);
+    assert.doesNotMatch(page, /deadline\.toLocaleString/);
+  });
+
   it("captures case resolve email, audit, and refund-remediation failures", () => {
     const route = source("src/app/api/cases/[id]/resolve/route.ts");
 

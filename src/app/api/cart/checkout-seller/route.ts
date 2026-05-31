@@ -4,7 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
-import { verifyRate } from "@/lib/shipping-token";
+import { shippingRateExpiresAtIsTooFarFuture, verifyRate } from "@/lib/shipping-token";
 import { safeRateLimit, checkoutRatelimit } from "@/lib/ratelimit";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { calculateCheckoutAmounts } from "@/lib/checkoutAmounts";
@@ -60,7 +60,10 @@ const CheckoutSellerSchema = z.object({
     carrier: z.string().max(100),
     estDays: z.number().int().min(1).max(SHIPPING_ESTIMATED_DAYS_MAX).nullable(),
     token: z.string().min(1),
-    expiresAt: z.number().int().min(0),
+    expiresAt: z.number().int().min(0).refine(
+      (expiresAt) => !shippingRateExpiresAtIsTooFarFuture(expiresAt),
+      "Shipping rate expiry is too far in the future.",
+    ),
   }),
   giftNote: z.string().max(200).optional().nullable(),
   giftWrapping: z.boolean().optional().default(false),

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import CaseResolutionPanel from "@/components/CaseResolutionPanel";
 import CaseReplyBox from "@/components/CaseReplyBox";
 import CaseInitialSummary from "@/components/CaseInitialSummary";
+import LocalDate from "@/components/LocalDate";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY } from "@/lib/money";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
@@ -67,15 +68,15 @@ const REASON_LABELS: Record<string, string> = {
   OTHER: "Other",
 };
 
-function fmtDeadline(deadline: Date | null): { text: string; overdue: boolean } {
-  if (!deadline) return { text: "—", overdue: false };
+function fmtDeadline(deadline: Date | null): { suffix: string; overdue: boolean } {
+  if (!deadline) return { suffix: "", overdue: false };
   const now = new Date();
   const ms = deadline.getTime() - now.getTime();
   const overdue = ms <= 0;
-  if (overdue) return { text: `${deadline.toLocaleString("en-US")} (overdue)`, overdue: true };
+  if (overdue) return { suffix: " (overdue)", overdue: true };
   const hours = Math.floor(ms / (1000 * 60 * 60));
   const timeLeft = hours >= 48 ? `${Math.floor(hours / 24)}d remaining` : `${hours}h remaining`;
-  return { text: `${deadline.toLocaleString("en-US")} · ${timeLeft}`, overdue: false };
+  return { suffix: ` · ${timeLeft}`, overdue: false };
 }
 
 export default async function AdminCaseDetailPage({
@@ -210,7 +211,14 @@ export default async function AdminCaseDetailPage({
             deadline.overdue ? "font-medium text-red-700" : "text-neutral-700"
           }`}
         >
-          {deadline.text}
+          {caseRecord.sellerRespondBy ? (
+            <>
+              <LocalDate date={caseRecord.sellerRespondBy} />
+              {deadline.suffix}
+            </>
+          ) : (
+            "—"
+          )}
         </p>
       </Section>
 

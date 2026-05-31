@@ -105,6 +105,17 @@ describe("seller operational route hardening", () => {
     assert.match(recentSales, /accountAccessErrorResponse\(err\)/);
   });
 
+  it("labels seller analytics UTC bucket ranges explicitly", () => {
+    const page = source("src/app/dashboard/analytics/page.tsx");
+
+    assert.match(page, /label: "Today UTC"/);
+    assert.match(page, /label: "Yesterday UTC"/);
+    assert.match(page, /label: "This week UTC"/);
+    assert.match(page, /label: "Last 7 UTC days"/);
+    assert.doesNotMatch(page, /label: "Today"/);
+    assert.doesNotMatch(page, /label: "Yesterday"/);
+  });
+
   it("keeps listing stock updates owner-scoped in the final mutation", () => {
     const route = source("src/app/api/listings/[id]/stock/route.ts");
 

@@ -4,7 +4,7 @@ import { describe, it } from "node:test";
 
 process.env.SHIPPING_RATE_SECRET = "test-shipping-rate-secret";
 
-const { signRate, verifyRate } = await import("../src/lib/shipping-token.ts");
+const { shippingRateExpiresAtIsTooFarFuture, signRate, verifyRate } = await import("../src/lib/shipping-token.ts");
 
 const fields = {
   objectId: "rate_123",
@@ -77,6 +77,7 @@ describe("shipping rate tokens", () => {
 
   it("rejects shipping rate expiries beyond the signed-rate lifetime", () => {
     const nowSeconds = Math.floor(Date.now() / 1000);
+    assert.equal(shippingRateExpiresAtIsTooFarFuture(nowSeconds + 60 * 60, nowSeconds), true);
 
     assert.deepEqual(
       verifyRate(fields, "0".repeat(64), nowSeconds + 60 * 60, nowSeconds),
@@ -86,5 +87,16 @@ describe("shipping rate tokens", () => {
         status: 400,
       },
     );
+  });
+
+  it("rejects excessive future shipping rate expiry at checkout schema boundaries", () => {
+    const sellerCheckout = readFileSync("src/app/api/cart/checkout-seller/route.ts", "utf8");
+    const singleCheckout = readFileSync("src/app/api/cart/checkout/single/route.ts", "utf8");
+
+    for (const source of [sellerCheckout, singleCheckout]) {
+      assert.match(source, /shippingRateExpiresAtIsTooFarFuture/);
+      assert.match(source, /expiresAt: z\.number\(\)\.int\(\)\.min\(0\)\.refine/);
+      assert.doesNotMatch(source, /expiresAt: z\.number\(\)\.int\(\)\.min\(0\),/);
+    }
   });
 });

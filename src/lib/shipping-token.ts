@@ -79,6 +79,13 @@ export function signRate(
   return { token, expiresAt };
 }
 
+export function shippingRateExpiresAtIsTooFarFuture(
+  expiresAt: number,
+  nowSeconds = Math.floor(Date.now() / 1000),
+) {
+  return expiresAt > nowSeconds + SHIPPING_RATE_TOKEN_TTL_SECONDS + SHIPPING_RATE_FUTURE_SKEW_SECONDS;
+}
+
 export type VerifyRateResult =
   | { ok: true }
   | { ok: false; error: string; status: 400 | 422 };
@@ -101,7 +108,7 @@ export function verifyRate(
       status: 422,
     };
   }
-  if (expiresAt > now + SHIPPING_RATE_TOKEN_TTL_SECONDS + SHIPPING_RATE_FUTURE_SKEW_SECONDS) {
+  if (shippingRateExpiresAtIsTooFarFuture(expiresAt, now)) {
     return {
       ok: false,
       error: "Invalid shipping rate.",

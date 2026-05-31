@@ -6,6 +6,7 @@ process.env.UPLOAD_VERIFICATION_SECRET = "test-upload-secret";
 
 const {
   createUploadVerificationToken,
+  uploadVerificationExpiresAtIsTooFarFuture,
   uploadFileSignatureMatches,
   uploadedObjectVerificationError,
   uploadContentTypeMatches,
@@ -67,10 +68,19 @@ describe("upload verification tokens", () => {
   it("rejects verification tokens with excessive future expiry", () => {
     const signed = createUploadVerificationToken(fields, now + 5 * 60 * 1000 + 1);
     assert.ok(signed);
+    assert.equal(uploadVerificationExpiresAtIsTooFarFuture(signed.expiresAt, now), true);
     assert.equal(
       verifyUploadVerificationToken({ ...fields, expiresAt: signed.expiresAt }, signed.token, now),
       false,
     );
+  });
+
+  it("rejects excessive future upload verification expiry at the route schema boundary", () => {
+    const route = readFileSync("src/app/api/upload/verify/route.ts", "utf8");
+
+    assert.match(route, /uploadVerificationExpiresAtIsTooFarFuture/);
+    assert.match(route, /verificationExpiresAt: z\.number\(\)\.int\(\)\.positive\(\)\.refine/);
+    assert.doesNotMatch(route, /verificationExpiresAt: z\.number\(\)\.int\(\)\.positive\(\),/);
   });
 
   it("scopes uploaded keys to the authenticated user and endpoint", () => {

@@ -10,6 +10,7 @@ import {
   calculateSellerMetrics,
   meetsGuildMasterRequirements,
   GUILD_MASTER_REQUIREMENTS,
+  listingViewDailyRetentionCutoff,
 } from "@/lib/metrics";
 import { createNotification } from "@/lib/notifications";
 import {
@@ -95,9 +96,8 @@ async function runGuildMetricsCron() {
     if (sellers.length < SELLER_PAGE_SIZE) break;
   }
 
-  // Clean up view daily records older than 2 years
-  const twoYearsAgo = new Date();
-  twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+  // Clean up view daily records older than the fixed retention window.
+  const twoYearsAgo = listingViewDailyRetentionCutoff();
   let deletedViewRows = 0;
   let deletedViewRowsComplete = true;
   try {

@@ -23,10 +23,16 @@ export const GUILD_MASTER_REQUIREMENTS = {
 };
 
 export const METRICS_PERIOD_DAYS_PER_MONTH = 30;
+export const LISTING_VIEW_DAILY_RETENTION_DAYS = 365 * 2;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 export function metricsPeriodStart(now: Date, periodMonths: number) {
   const months = Math.max(0, Math.floor(periodMonths));
-  return new Date(now.getTime() - months * METRICS_PERIOD_DAYS_PER_MONTH * 24 * 60 * 60 * 1000);
+  return new Date(now.getTime() - months * METRICS_PERIOD_DAYS_PER_MONTH * DAY_MS);
+}
+
+export function listingViewDailyRetentionCutoff(now = new Date()) {
+  return new Date(now.getTime() - LISTING_VIEW_DAILY_RETENTION_DAYS * DAY_MS);
 }
 
 export function meetsGuildMasterRequirements(m: SellerMetricsResult): {

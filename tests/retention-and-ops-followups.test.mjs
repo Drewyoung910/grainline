@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 
 const notificationRetention = await import("../src/lib/notificationRetentionState.ts");
 const webhookRetention = await import("../src/lib/webhookEventRetentionState.ts");
+const metricsState = await import("../src/lib/metricsState.ts");
 
 describe("retention and ops-health follow-ups", () => {
   it("keeps read and unread notification retention windows explicit", () => {
@@ -55,6 +56,16 @@ describe("retention and ops-health follow-ups", () => {
     assert.match(source, /const VIEW_CLEANUP_TIME_BUDGET_MS = 60_000/);
     assert.match(source, /while \(Date\.now\(\) < deadline\)/);
     assert.match(source, /deletedViewRowsComplete/);
+  });
+
+  it("uses a fixed listing-view retention window without calendar rollover", () => {
+    const cutoff = metricsState.listingViewDailyRetentionCutoff(new Date("2028-02-29T09:00:00.000Z"));
+    const route = readFileSync("src/app/api/cron/guild-metrics/route.ts", "utf8");
+
+    assert.equal(metricsState.LISTING_VIEW_DAILY_RETENTION_DAYS, 730);
+    assert.equal(cutoff.toISOString(), "2026-03-01T09:00:00.000Z");
+    assert.match(route, /listingViewDailyRetentionCutoff\(\)/);
+    assert.doesNotMatch(route, /setFullYear\(twoYearsAgo\.getFullYear\(\) - 2\)/);
   });
 
   it("keeps Guild Master revocation behind a real 30-day warning grace", () => {
