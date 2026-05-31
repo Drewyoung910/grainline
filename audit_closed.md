@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-31
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 223.
-- Verified code/feature fix commits since 2026-05-13: 198.
+- Verified hardening/doc commits since 2026-05-13: 225.
+- Verified code/feature fix commits since 2026-05-13: 200.
 - Verified docs/audit-only commits since 2026-05-13: 10.
-- Most recent reported pass tally: 354 verified fixed/reduced findings,
+- Most recent reported pass tally: 356 verified fixed/reduced findings,
   383 verified stale/false-positive findings, and 75 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
@@ -3522,7 +3522,23 @@ Last updated: 2026-05-31
      still additionally require the reserved buyer participant. Guardrail:
      `tests/conversation-start-state.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 354 findings;
+319. **Public path fallback slug hash widened** — code/test/docs fix for #295.
+     Public listing/seller routes already preserve the durable database id as
+     the route prefix, so fallback slug collisions are cosmetic. The
+     non-readable label fallback now uses a stable FNV-64 base36 suffix instead
+     of the prior 32-bit FNV value, reducing collision risk for non-Latin titles
+     and display names without adding randomness or changing the ID authority
+     model. Guardrail: `tests/public-paths.test.mjs`.
+
+320. **Map support no longer rejects slower WebGL devices up front** —
+     code/test fix for #299. `maplibreSupported()` now probes MapLibre with
+     `failIfMajorPerformanceCaveat: false`, so low-end devices that can still
+     render maps get the map experience instead of the fallback solely because
+     of a major performance caveat. Explicit unsupported results and thrown
+     probes still return `false` for fallback rendering. Guardrail:
+     `tests/map-support.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 356 findings;
 verified stale/false-positive: 383 findings; product/design/ops decisions
 deferred: 75 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
@@ -3545,4 +3561,4 @@ DB concurrency proof, Sentry cron alert/R2 health/ListBucket ops evidence,
 cron termination mock coverage, HSTS preload and Vercel max-duration ops
 evidence, remaining runtime a11y proof, and agent/worktree verification process
 hygiene. Approximate raw allegations left to verify from current max #1120:
-308.
+306.

@@ -1,14 +1,17 @@
 const MAX_SLUG_LENGTH = 80;
 const ROUTE_ID_DELIMITER = "--";
 const ROUTE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{1,127}$/;
+const FNV_64_OFFSET = 0xcbf29ce484222325n;
+const FNV_64_PRIME = 0x100000001b3n;
+const FNV_64_MASK = 0xffffffffffffffffn;
 
 function stableHash(input: string): string {
-  let hash = 2166136261;
+  let hash = FNV_64_OFFSET;
   for (const char of input.trim()) {
-    hash ^= char.codePointAt(0) ?? 0;
-    hash = Math.imul(hash, 16777619);
+    hash ^= BigInt(char.codePointAt(0) ?? 0);
+    hash = (hash * FNV_64_PRIME) & FNV_64_MASK;
   }
-  return (hash >>> 0).toString(36);
+  return hash.toString(36);
 }
 
 export function slugifyPathSegment(input: string | null | undefined, fallbackPrefix = "item"): string {

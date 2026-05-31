@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const {
@@ -8,6 +9,8 @@ const {
   publicSellerShopPath,
   slugifyPathSegment,
 } = await import("../src/lib/publicPaths.ts");
+
+const source = readFileSync("src/lib/publicPaths.ts", "utf8");
 
 describe("public path helpers", () => {
   it("normalizes readable path segments with diacritics", () => {
@@ -20,6 +23,13 @@ describe("public path helpers", () => {
     const second = slugifyPathSegment("家具");
     assert.match(first, /^item-[a-z0-9]+$/);
     assert.equal(first, second);
+  });
+
+  it("uses a wider stable hash for non-readable fallback slugs", () => {
+    assert.match(source, /FNV_64_OFFSET/);
+    assert.match(source, /FNV_64_PRIME/);
+    assert.match(source, /FNV_64_MASK/);
+    assert.doesNotMatch(source, /2166136261|16777619|>>> 0/);
   });
 
   it("builds slugged listing and seller paths while preserving the database id prefix", () => {
