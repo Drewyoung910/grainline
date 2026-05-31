@@ -17,7 +17,6 @@ const FIRST_PARTY_MEDIA_ORIGINS = ["https://cdn.thegrainline.com"];
 // Legacy UploadThing media still exists in production data. Keep it renderable
 // and preservable while new uploads continue to go through Grainline's R2 flow.
 const LEGACY_MEDIA_ORIGINS = ["https://utfs.io", "https://ufs.sh", "https://qu5gyczaki.ufs.sh"];
-const DISPLAY_ONLY_MEDIA_HOSTS = new Set(["i.postimg.cc"]);
 const MAX_KEY_SEGMENT_LENGTH = 128;
 
 function uploadKeyUserSegmentForValidation(userId: string): string {
@@ -201,9 +200,7 @@ export function filterR2PublicUrls(urls: string[], max: number): string[] {
 }
 
 export function isTrustedMediaUrl(input: string): boolean {
-  if (isR2PublicUrl(input)) return true;
-  const candidate = normalizedUrl(input);
-  return Boolean(candidate && candidate.protocol === "https:" && DISPLAY_ONLY_MEDIA_HOSTS.has(candidate.hostname));
+  return isR2PublicUrl(input);
 }
 
 export function filterTrustedMediaUrls(urls: string[], max: number): string[] {

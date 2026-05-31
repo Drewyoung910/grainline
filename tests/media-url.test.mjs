@@ -37,15 +37,15 @@ describe("media URL validation", () => {
     assert.equal(isR2PublicUrl("https://\u0441dn.thegrainline.com/listings/photo.jpg"), false);
   });
 
-  it("keeps display-only hosts out of R2 write-path validation", () => {
-    assert.equal(isTrustedMediaUrl("https://i.postimg.cc/example/photo.jpg"), true);
+  it("keeps retired display-only hosts out of trusted media validation", () => {
+    assert.equal(isTrustedMediaUrl("https://i.postimg.cc/example/photo.jpg"), false);
     assert.equal(isR2PublicUrl("https://i.postimg.cc/example/photo.jpg"), false);
     assert.deepEqual(
       filterTrustedMediaUrls([
         "https://i.postimg.cc/example/photo.jpg",
         "https://attacker.example.com/photo.jpg",
       ], 5),
-      ["https://i.postimg.cc/example/photo.jpg"],
+      [],
     );
   });
 

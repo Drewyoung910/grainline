@@ -3598,9 +3598,19 @@ Last updated: 2026-05-31
      `tests/stripe-webhook-state.test.mjs`, and
      `tests/checkout-payment-methods.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 368 findings;
+324. **Retired third-party display media host removed** — code/test fix for
+     #267 and #714 after production data verification. A read-only database
+     count scan across media-bearing URL/text/array columns found zero
+     `i.postimg.cc` references, so the display-only Postimg allowance could be
+     removed without knowingly hiding existing production media. CSP `img-src`
+     no longer includes `https://i.postimg.cc`, and `isTrustedMediaUrl()` now
+     accepts only Grainline-controlled R2/CDN and documented legacy UploadThing
+     origins. Guardrails: `tests/media-url.test.mjs` and
+     `tests/public-security-config.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 370 findings;
 verified stale/false-positive: 398 findings; product/design/ops decisions
-deferred: 77 findings. Remaining major categories: Stripe webhook subscription
+deferred: 75 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
 product designs, historical text truncation/MakerVerification timestamp
@@ -3614,11 +3624,10 @@ product design, unsubscribe consent-epoch/manual-resubscribe semantics,
 legacy enum cleanup/data-migration decisions, Buy Now best-effort rollback
 window, partial multi-seller checkout continuation design, deliberate BigInt
 money-column modeling, live-data reconciliation for historical seller
-shipping-rate currency drift, legacy display-only media host validation,
-Clerk staff MFA and breached-password dashboard evidence, Clerk multi-account
-spam dashboard evidence, Stripe duplicate-webhook and buyer-deletion runtime
-replay proof, Founding Maker live DB concurrency proof, Sentry cron alert/R2
-health/ListBucket ops evidence, HSTS preload and Vercel max-duration ops
-evidence, remaining runtime a11y proof, and agent/worktree verification
-process hygiene. Approximate raw allegations left to verify from current max
-#1120: 277.
+shipping-rate currency drift, Clerk staff MFA and breached-password dashboard
+evidence, Clerk multi-account spam dashboard evidence, Stripe duplicate-webhook
+and buyer-deletion runtime replay proof, Founding Maker live DB concurrency
+proof, Sentry cron alert/R2 health/ListBucket ops evidence, HSTS preload and
+Vercel max-duration ops evidence, remaining runtime a11y proof, and
+agent/worktree verification process hygiene. Approximate raw allegations left
+to verify from current max #1120: 275.

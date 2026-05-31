@@ -20,6 +20,12 @@ describe("public security configuration guardrails", () => {
     assert.doesNotMatch(config, /'unsafe-eval'/);
   });
 
+  it("keeps retired third-party image hosts out of CSP", () => {
+    const config = source("next.config.ts");
+
+    assert.doesNotMatch(config, /i\.postimg\.cc/);
+  });
+
   it("keeps sensitive signed-in routes disallowed in robots.txt", () => {
     const route = source("src/app/robots.txt/route.ts");
 
