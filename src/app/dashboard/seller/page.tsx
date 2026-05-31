@@ -211,14 +211,14 @@ export default async function SellerSettingsPage({
   }
 
   const prefs = normalizeNotificationPreferences(userRow?.notificationPreferences);
-  const SELLER_DEFAULT_OFF: NotificationPreferenceKey[] = ["NEW_FAVORITE", "NEW_BLOG_COMMENT", "BLOG_COMMENT_REPLY", "EMAIL_NEW_FOLLOWER"];
+  const SELLER_DEFAULT_OFF: NotificationPreferenceKey[] = ["NEW_FAVORITE", "NEW_BLOG_COMMENT", "BLOG_COMMENT_REPLY"];
   function isEnabled(type: NotificationPreferenceKey) {
     if (SELLER_DEFAULT_OFF.includes(type)) return prefs[type] === true;
     return prefs[type] !== false;
   }
   function getEmailPref(key: NotificationPreferenceKey): boolean {
     if (key in prefs) return prefs[key] as boolean;
-    return !["EMAIL_NEW_FOLLOWER"].includes(key);
+    return true;
   }
 
   return (
@@ -521,18 +521,9 @@ export default async function SellerSettingsPage({
             { type: "EMAIL_NEW_ORDER", label: "New orders", desc: "Email when a buyer purchases from your shop" },
             { type: "EMAIL_CUSTOM_ORDER", label: "Custom order requests", desc: "Email when a buyer sends you a custom order request" },
             { type: "EMAIL_CASE_OPENED", label: "Cases opened", desc: "Email when a buyer opens a case" },
-            { type: "EMAIL_REFUND_ISSUED", label: "Refunds issued", desc: "Email when a refund is issued on an order" },
-            { type: "EMAIL_PAYMENT_DISPUTE", label: "Payment disputes", desc: "Email when Stripe opens or updates a dispute" },
             { type: "EMAIL_NEW_REVIEW", label: "New reviews", desc: "Email when a buyer leaves a review" },
-            { type: "EMAIL_NEW_FOLLOWER", label: "New followers", desc: "Email when someone follows your shop (off by default)" },
-            { type: "EMAIL_LISTING_APPROVED", label: "Listing approved", desc: "Email when a listing passes review and goes live" },
-            { type: "EMAIL_LISTING_REJECTED", label: "Listing rejected", desc: "Email when a listing needs changes before it can go live" },
             { type: "EMAIL_VERIFICATION_APPROVED", label: "Verification approved", desc: "Email when a Guild application is approved" },
             { type: "EMAIL_VERIFICATION_REJECTED", label: "Verification rejected", desc: "Email when a Guild application or badge is rejected or revoked" },
-            { type: "EMAIL_LOW_STOCK", label: "Low stock", desc: "Email when an in-stock listing is running low" },
-            { type: "EMAIL_ACCOUNT_WARNING", label: "Account warnings", desc: "Important account notices from Grainline" },
-            { type: "EMAIL_LISTING_FLAGGED_BY_USER", label: "Listing reports", desc: "Email when a report about one of your listings is received" },
-            { type: "EMAIL_PAYOUT_FAILED", label: "Payout failures", desc: "Email when Stripe reports a failed payout" },
           ] satisfies Array<{ type: NotificationPreferenceKey; label: string; desc: string }>).map((r) => (
             <div key={r.type} className="flex items-center justify-between py-3 border-b border-neutral-100 last:border-0">
               <div>

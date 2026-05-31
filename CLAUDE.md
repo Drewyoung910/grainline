@@ -2942,20 +2942,14 @@ Sellers and buyers can control which in-site notifications they receive.
 ### `createNotification` — preference check
 Before inserting a notification, fetches the recipient's `notificationPreferences`, normalizes to known boolean keys, and returns `null` (skips create) if the normalized in-app value is `false`. Never throws — preference failures don't break the main flow.
 
-### Settings page (`/account/settings`)
-- Server component; auth required
-- Queries `notificationPreferences` + `sellerProfile` presence
-- `DEFAULT_OFF` types (default to off unless explicitly enabled): `SELLER_BROADCAST`, `NEW_FAVORITE`, `NEW_BLOG_COMMENT`, `BLOG_COMMENT_REPLY`, `EMAIL_SELLER_BROADCAST`, `EMAIL_NEW_FOLLOWER`
-- **In-App Notifications** (5 groups):
-  - **From Makers You Follow** (3): `FOLLOWED_MAKER_NEW_LISTING`, `FOLLOWED_MAKER_NEW_BLOG`, `SELLER_BROADCAST` (default OFF)
-  - **Orders & Cases** (6): `NEW_ORDER`, `ORDER_SHIPPED`, `ORDER_DELIVERED`, `CASE_OPENED` (sellers), `CASE_MESSAGE`, `CASE_RESOLVED`
-  - **Your Shop** (sellers, 8): `NEW_MESSAGE`, `NEW_REVIEW`, `NEW_FOLLOWER`, `CUSTOM_ORDER_REQUEST`, `CUSTOM_ORDER_LINK`, `COMMISSION_INTEREST`, `NEW_FAVORITE` (default OFF), `LISTING_APPROVED`/`LISTING_REJECTED` (always-on labels)
-  - **Blog** (sellers, 2): `NEW_BLOG_COMMENT` (default OFF), `BLOG_COMMENT_REPLY` (default OFF)
-- **Email Notifications** (10 toggleable types, 4 subgroups):
-  - Messages & Orders: `EMAIL_NEW_MESSAGE`, `EMAIL_NEW_ORDER` (sellers), `EMAIL_CUSTOM_ORDER` (sellers)
-  - Cases & Reviews: `EMAIL_CASE_OPENED` (sellers), `EMAIL_CASE_MESSAGE`, `EMAIL_CASE_RESOLVED`, `EMAIL_NEW_REVIEW` (sellers)
-  - From Makers: `EMAIL_FOLLOWED_MAKER_NEW_LISTING`, `EMAIL_SELLER_BROADCAST` (default OFF)
-  - Your Shop (sellers): `EMAIL_NEW_FOLLOWER` (default OFF)
+### Settings pages (`/account/settings`, `/dashboard/seller`)
+- Server components; auth required
+- `/account/settings` queries `notificationPreferences` + `sellerProfile` presence and shows buyer/account-level notification preferences.
+- `/dashboard/seller` shows shop-level in-app and email preferences.
+- Default-off visible preferences: in-app `SELLER_BROADCAST`, `NEW_FAVORITE`, `NEW_BLOG_COMMENT`, `BLOG_COMMENT_REPLY`; email `EMAIL_SELLER_BROADCAST`. `EMAIL_NEW_FOLLOWER` remains a hidden legacy/default-off key for compatibility and unsubscribe normalization, but do not show it as a seller email toggle unless a sender is implemented.
+- Visible email toggles must correspond to currently gated sender paths. Seller settings currently show only `EMAIL_NEW_ORDER`, `EMAIL_CUSTOM_ORDER`, `EMAIL_CASE_OPENED`, `EMAIL_NEW_REVIEW`, `EMAIL_VERIFICATION_APPROVED`, and `EMAIL_VERIFICATION_REJECTED`. Do not add visible toggles for email keys that have no sender or are intentionally always-on.
+- Guild approval/rejection/warning/revocation emails, including cron-driven Guild Member/Guild Master revocations and warnings, must check `EMAIL_VERIFICATION_APPROVED` or `EMAIL_VERIFICATION_REJECTED` before sending.
+- Account settings still states order confirmations and shipping updates are always sent; hidden `EMAIL_ORDER_SHIPPED`/`EMAIL_ORDER_DELIVERED` keys are compatibility cleanup, not visible controls.
 - Linked from Account Settings section on `/account` as "Notification preferences →"
 - **NotificationBell** `markAllRead` button always visible in dropdown (removed `unreadCount > 0` condition); styled `text-xs text-neutral-500 hover:text-neutral-800 underline`
 

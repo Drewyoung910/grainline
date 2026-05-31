@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { revalidatePath, revalidateTag } from "next/cache";
-import { createNotification } from "@/lib/notifications";
+import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import {
   sendGuildMasterRevokedEmail,
   sendGuildMemberRevokedEmail,
@@ -266,7 +266,10 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
     link: publicSellerPath(verification.sellerProfile.id, verification.sellerProfile.displayName),
   });
 
-  if (verification.sellerProfile.user?.email) {
+  if (
+    verification.sellerProfile.user?.email &&
+    await shouldSendEmail(verification.sellerProfile.userId, "EMAIL_VERIFICATION_APPROVED")
+  ) {
     try {
       await sendVerificationApproved({
         seller: {
@@ -337,7 +340,10 @@ async function rejectGuildMember(formData: FormData) {
     });
   }
 
-  if (verification?.sellerProfile.user?.email) {
+  if (
+    verification?.sellerProfile.user?.email &&
+    await shouldSendEmail(verification.sellerProfile.userId, "EMAIL_VERIFICATION_REJECTED")
+  ) {
     try {
       await sendVerificationRejected({
         seller: {
@@ -422,7 +428,11 @@ async function revokeMember(_prevState: unknown, formData: FormData): Promise<Ac
       link: "/dashboard/verification",
     });
   }
-  if (seller?.user?.email) {
+  if (
+    seller?.userId &&
+    seller.user?.email &&
+    await shouldSendEmail(seller.userId, "EMAIL_VERIFICATION_REJECTED")
+  ) {
     try {
       await sendGuildMemberRevokedEmail({
         seller: { displayName: seller.displayName, email: seller.user.email },
@@ -538,7 +548,10 @@ async function approveGuildMaster(_prevState: unknown, formData: FormData): Prom
     link: publicSellerPath(verification.sellerProfile.id, verification.sellerProfile.displayName),
   });
 
-  if (verification.sellerProfile.user?.email) {
+  if (
+    verification.sellerProfile.user?.email &&
+    await shouldSendEmail(verification.sellerProfile.userId, "EMAIL_VERIFICATION_APPROVED")
+  ) {
     try {
       await sendVerificationApproved({
         seller: {
@@ -679,7 +692,11 @@ async function revokeMaster(_prevState: unknown, formData: FormData): Promise<Ac
       link: "/dashboard/verification",
     });
   }
-  if (seller?.user?.email) {
+  if (
+    seller?.userId &&
+    seller.user?.email &&
+    await shouldSendEmail(seller.userId, "EMAIL_VERIFICATION_REJECTED")
+  ) {
     try {
       await sendGuildMasterRevokedEmail({
         seller: { displayName: seller.displayName, email: seller.user.email },

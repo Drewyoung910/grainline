@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
-import { createNotification } from "@/lib/notifications";
+import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendGuildMemberRevokedEmail } from "@/lib/email";
 import { verifyCronRequest } from "@/lib/cronAuth";
 import { withSentryCronMonitor } from "@/lib/cronMonitor";
@@ -212,7 +212,7 @@ async function revokeMember(
     link: "/dashboard/verification",
   });
 
-  if (seller.user?.email) {
+  if (seller.user?.email && await shouldSendEmail(seller.userId, "EMAIL_VERIFICATION_REJECTED")) {
     try {
       await sendGuildMemberRevokedEmail({
         seller: { displayName: seller.user.name, email: seller.user.email },

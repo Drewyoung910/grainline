@@ -3608,26 +3608,42 @@ Last updated: 2026-05-31
      origins. Guardrails: `tests/media-url.test.mjs` and
      `tests/public-security-config.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 370 findings;
+325. **Seller email preference UI aligned with current senders** — code/test
+     fix for #711, plus partial reduction for #1009. Seller settings no longer
+     show email toggles for events that currently have only in-app delivery
+     (`EMAIL_NEW_FOLLOWER`, listing approval/rejection, low stock, payment
+     dispute, account warning, listing report, payout failure, and seller-side
+     refund copy). The remaining seller email toggles now correspond to current
+     sender paths, and admin Guild approval/rejection/revocation emails now
+     check `EMAIL_VERIFICATION_APPROVED` / `EMAIL_VERIFICATION_REJECTED` before
+     sending. Cron Guild Member/Guild Master warning/revocation emails use the
+     same rejected-verification preference gate, and `CLAUDE.md` records the
+     visible-toggle/sender parity contract for future agents. #1009 is not
+     fully closed here because hidden legacy valid keys still exist for
+     compatibility and unsubscribe normalization; there is no longer a visible
+     seller toggle for the no-sender keys. Guardrail:
+     `tests/notification-email-preferences.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 371 findings;
 verified stale/false-positive: 398 findings; product/design/ops decisions
 deferred: 75 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
 product designs, historical text truncation/MakerVerification timestamp
-production evidence, query-plan/index validation, email preference
-sender/toggle parity, email uniqueness production scan and quota policy
+production evidence, query-plan/index validation, hidden legacy email
+preference key cleanup, email uniqueness production scan and quota policy
 decisions, refund accounting runtime proof and refund fee-policy
 reconciliation, founding-maker permanence policy, remaining case/message
 state-policy decisions, privacy/legal retention scope, remaining
-privacy/export retention decisions, cross-seller AI duplicate-detection
-product design, unsubscribe consent-epoch/manual-resubscribe semantics,
-legacy enum cleanup/data-migration decisions, Buy Now best-effort rollback
-window, partial multi-seller checkout continuation design, deliberate BigInt
-money-column modeling, live-data reconciliation for historical seller
-shipping-rate currency drift, Clerk staff MFA and breached-password dashboard
-evidence, Clerk multi-account spam dashboard evidence, Stripe duplicate-webhook
-and buyer-deletion runtime replay proof, Founding Maker live DB concurrency
-proof, Sentry cron alert/R2 health/ListBucket ops evidence, HSTS preload and
-Vercel max-duration ops evidence, remaining runtime a11y proof, and
-agent/worktree verification process hygiene. Approximate raw allegations left
-to verify from current max #1120: 275.
+privacy/export retention decisions, cross-seller AI duplicate-detection product
+design, unsubscribe consent-epoch/manual-resubscribe semantics, legacy enum
+cleanup/data-migration decisions, Buy Now best-effort rollback window, partial
+multi-seller checkout continuation design, deliberate BigInt money-column
+modeling, live-data reconciliation for historical seller shipping-rate
+currency drift, Clerk staff MFA and breached-password dashboard evidence,
+Clerk multi-account spam dashboard evidence, Stripe duplicate-webhook and
+buyer-deletion runtime replay proof, Founding Maker live DB concurrency proof,
+Sentry cron alert/R2 health/ListBucket ops evidence, HSTS preload and Vercel
+max-duration ops evidence, remaining runtime a11y proof, and agent/worktree
+verification process hygiene. Approximate raw allegations left to verify from
+current max #1120: 274.

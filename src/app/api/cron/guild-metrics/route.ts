@@ -12,7 +12,7 @@ import {
   GUILD_MASTER_REQUIREMENTS,
   listingViewDailyRetentionCutoff,
 } from "@/lib/metrics";
-import { createNotification } from "@/lib/notifications";
+import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import {
   sendGuildMasterWarningEmail,
   sendGuildMasterRevokedEmail,
@@ -206,7 +206,7 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
       link: "/dashboard/verification",
     });
 
-    if (seller.user?.email) {
+    if (seller.user?.email && await shouldSendEmail(seller.userId, "EMAIL_VERIFICATION_REJECTED")) {
       try {
         await sendGuildMasterWarningEmail({
           seller: { displayName: seller.user.name, email: seller.user.email },
@@ -316,7 +316,7 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
     link: "/dashboard/verification",
   });
 
-  if (seller.user?.email) {
+  if (seller.user?.email && await shouldSendEmail(seller.userId, "EMAIL_VERIFICATION_REJECTED")) {
     try {
       await sendGuildMasterRevokedEmail({
         seller: { displayName: seller.user.name, email: seller.user.email },
