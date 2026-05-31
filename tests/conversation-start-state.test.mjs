@@ -28,8 +28,9 @@ describe("conversation start state", () => {
     assert.equal(canStartConversationWith("me", null, false), false);
   });
 
-  it("allows active public listings from active sellers as message context", () => {
-    assert.equal(canAttachConversationContextListing(activeListing, ["buyer_user", "other_user"]), true);
+  it("allows active public listings only when the seller is a participant", () => {
+    assert.equal(canAttachConversationContextListing(activeListing, ["seller_user", "buyer_user"]), true);
+    assert.equal(canAttachConversationContextListing(activeListing, ["buyer_user", "other_user"]), false);
   });
 
   it("allows private listings only between the seller and reserved buyer", () => {

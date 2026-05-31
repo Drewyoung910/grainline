@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-31
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 222.
-- Verified code/feature fix commits since 2026-05-13: 197.
+- Verified hardening/doc commits since 2026-05-13: 223.
+- Verified code/feature fix commits since 2026-05-13: 198.
 - Verified docs/audit-only commits since 2026-05-13: 10.
-- Most recent reported pass tally: 353 verified fixed/reduced findings,
+- Most recent reported pass tally: 354 verified fixed/reduced findings,
   383 verified stale/false-positive findings, and 75 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
@@ -3511,7 +3511,18 @@ Last updated: 2026-05-31
      runtime bug. Guardrails: `tests/categories.test.mjs` and
      `tests/reverse-geocode-throttle.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 353 findings;
+318. **Message-start listing context scoped to seller conversations** —
+     code/test/docs fix for #297. `/messages/new` already validated current
+     user, target user, block state, listing visibility, seller account state,
+     and private-reservation participants before attaching `contextListingId`,
+     but public listing context could still be attached to a conversation that
+     did not include the listing seller. `canAttachConversationContextListing()`
+     now requires the listing seller to be one of the conversation participants
+     for public and private listing context, while private reserved listings
+     still additionally require the reserved buyer participant. Guardrail:
+     `tests/conversation-start-state.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 354 findings;
 verified stale/false-positive: 383 findings; product/design/ops decisions
 deferred: 75 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
@@ -3534,4 +3545,4 @@ DB concurrency proof, Sentry cron alert/R2 health/ListBucket ops evidence,
 cron termination mock coverage, HSTS preload and Vercel max-duration ops
 evidence, remaining runtime a11y proof, and agent/worktree verification process
 hygiene. Approximate raw allegations left to verify from current max #1120:
-309.
+308.

@@ -55,14 +55,14 @@ export function canAttachConversationContextListing(
     return false;
   }
 
-  if (!listing.isPrivate) return true;
-
   const participants = new Set(participantUserIds);
   const sellerUserId = listing.seller.user?.id;
+  if (!sellerUserId || !participants.has(sellerUserId)) return false;
+
+  if (!listing.isPrivate) return true;
+
   return Boolean(
-    sellerUserId &&
-      participants.has(sellerUserId) &&
-      listing.reservedForUserId &&
+    listing.reservedForUserId &&
       participants.has(listing.reservedForUserId),
   );
 }
