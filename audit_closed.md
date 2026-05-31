@@ -3642,25 +3642,36 @@ Last updated: 2026-05-31
      `tests/json-column-guardrails.test.mjs`, and
      `tests/round9-account-deletion-pii-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 372 findings;
+327. **FK hygiene indexes added for residual schema-index findings** —
+     code/test fix for #954 and the remaining live parts of #956, #957, and
+     #958. Added schema-visible concurrent indexes for
+     `Listing.reservedForUserId`, `Conversation.contextListingId`,
+     `Case.resolvedById`, and `MakerVerification.reviewedById`. These are
+     FK/deletion-path hygiene fixes rather than proven hot-path query wins.
+     Read-only verification kept #565, #852, #858, and browse geo/rating
+     optimization as EXPLAIN-dependent work; do not add broader compound or
+     partial indexes without seeded or production query-plan evidence.
+     Guardrail: `tests/schema-numeric-index-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 376 findings;
 verified stale/false-positive: 398 findings; product/design/ops decisions
 deferred: 75 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
 product designs, historical text truncation/MakerVerification timestamp
-production evidence, query-plan/index validation, email uniqueness production
-scan and quota policy decisions, refund accounting runtime proof and refund
-fee-policy reconciliation, founding-maker permanence policy, remaining
-case/message state-policy decisions, privacy/legal retention scope, remaining
-privacy/export retention decisions, cross-seller AI duplicate-detection product
-design, unsubscribe consent-epoch/manual-resubscribe semantics, legacy enum
-cleanup/data-migration decisions, Buy Now best-effort rollback window, partial
-multi-seller checkout continuation design, deliberate BigInt money-column
-modeling, live-data reconciliation for historical seller shipping-rate currency
-drift, Clerk staff MFA and breached-password dashboard evidence, Clerk
-multi-account spam dashboard evidence, Stripe duplicate-webhook and
-buyer-deletion runtime replay proof, Founding Maker live DB concurrency proof,
-Sentry cron alert/R2 health/ListBucket ops evidence, HSTS preload and Vercel
-max-duration ops evidence, remaining runtime a11y proof, and agent/worktree
-verification process hygiene. Approximate raw allegations left to verify from
-current max #1120: 273.
+production evidence, EXPLAIN-dependent query-plan/index validation, email
+uniqueness production scan and quota policy decisions, refund accounting
+runtime proof and refund fee-policy reconciliation, founding-maker permanence
+policy, remaining case/message state-policy decisions, privacy/legal retention
+scope, remaining privacy/export retention decisions, cross-seller AI
+duplicate-detection product design, unsubscribe consent-epoch/manual-resubscribe
+semantics, legacy enum cleanup/data-migration decisions, Buy Now best-effort
+rollback window, partial multi-seller checkout continuation design, deliberate
+BigInt money-column modeling, live-data reconciliation for historical seller
+shipping-rate currency drift, Clerk staff MFA and breached-password dashboard
+evidence, Clerk multi-account spam dashboard evidence, Stripe duplicate-webhook
+and buyer-deletion runtime replay proof, Founding Maker live DB concurrency
+proof, Sentry cron alert/R2 health/ListBucket ops evidence, HSTS preload and
+Vercel max-duration ops evidence, remaining runtime a11y proof, and
+agent/worktree verification process hygiene. Approximate raw allegations left
+to verify from current max #1120: 269.

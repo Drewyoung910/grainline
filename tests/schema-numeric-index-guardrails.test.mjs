@@ -15,6 +15,7 @@ function modelBlock(schema, modelName) {
 describe("schema numeric and index guardrails", () => {
   const migrationPath = "prisma/migrations/20260523223000_schema_numeric_guards_and_indexes/migration.sql";
   const variantMigrationPath = "prisma/migrations/20260524090000_listing_variant_price_adjust_guard/migration.sql";
+  const fkHygieneMigrationPath = "prisma/migrations/20260531051500_add_fk_hygiene_indexes/migration.sql";
 
   it("adds and validates database numeric guardrails for money, scores, dates, and ranges", () => {
     const migration = source(migrationPath);
@@ -70,19 +71,26 @@ describe("schema numeric and index guardrails", () => {
 
   it("keeps verified hot-path indexes visible in schema and migration history", () => {
     const schema = source("prisma/schema.prisma");
-    const migration = source(migrationPath);
+    const migration = [
+      source(migrationPath),
+      source(fkHygieneMigrationPath),
+    ].join("\n");
 
     const expected = [
       ["SellerProfile", "@@index([metroId])", "SellerProfile_metroId_idx"],
       ["SellerProfile", "@@index([cityMetroId])", "SellerProfile_cityMetroId_idx"],
       ["Listing", "@@index([metroId])", "Listing_metroId_idx"],
       ["Listing", "@@index([cityMetroId])", "Listing_cityMetroId_idx"],
+      ["Listing", "@@index([reservedForUserId])", "Listing_reservedForUserId_idx"],
+      ["Conversation", "@@index([contextListingId])", "Conversation_contextListingId_idx"],
       ["CommissionRequest", "@@index([metroId])", "CommissionRequest_metroId_idx"],
       ["CommissionRequest", "@@index([cityMetroId])", "CommissionRequest_cityMetroId_idx"],
       ["Case", "@@index([sellerId])", "Case_sellerId_idx"],
+      ["Case", "@@index([resolvedById])", "Case_resolvedById_idx"],
       ["Message", "@@index([senderId])", "Message_senderId_idx"],
       ["CaseMessage", "@@index([authorId])", "CaseMessage_authorId_idx"],
       ["BlogComment", "@@index([authorId])", "BlogComment_authorId_idx"],
+      ["MakerVerification", "@@index([reviewedById])", "MakerVerification_reviewedById_idx"],
       ["Favorite", "@@index([listingId])", "Favorite_listingId_idx"],
       ["CartItem", "@@index([listingId])", "CartItem_listingId_idx"],
     ];

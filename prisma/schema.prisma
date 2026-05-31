@@ -373,6 +373,7 @@ model Listing {
   @@index([priceCents])
   @@index([qualityScore])
   @@index([sellerId, updatedAt])
+  @@index([reservedForUserId])
   @@index([customOrderConversationId])
   @@index([metroId])
   @@index([cityMetroId])
@@ -458,6 +459,7 @@ model Conversation {
   @@unique([userAId, userBId])
   @@index([userAId])
   @@index([userBId])
+  @@index([contextListingId])
   @@index([createdAt])
 }
 
@@ -855,6 +857,7 @@ model Case {
 
   @@index([buyerId])
   @@index([sellerId])
+  @@index([resolvedById])
   @@index([status, createdAt])
 }
 
@@ -938,6 +941,8 @@ model MakerVerification {
   reviewedAt               DateTime?
   createdAt                DateTime           @default(now())
   updatedAt                DateTime           @updatedAt
+
+  @@index([reviewedById])
 }
 
 enum BlogPostType {
