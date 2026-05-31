@@ -19,10 +19,9 @@ const DEFAULT_OFF: NotificationPreferenceKey[] = [
   "NEW_BLOG_COMMENT",
   "BLOG_COMMENT_REPLY",
   "EMAIL_SELLER_BROADCAST",
-  "EMAIL_NEW_FOLLOWER",
 ];
 
-const DEFAULT_OFF_EMAIL: NotificationPreferenceKey[] = ["EMAIL_SELLER_BROADCAST", "EMAIL_NEW_FOLLOWER"];
+const DEFAULT_OFF_EMAIL: NotificationPreferenceKey[] = ["EMAIL_SELLER_BROADCAST"];
 
 export default async function AccountSettingsPage() {
   const me = await ensureUserForPage("/account/settings");

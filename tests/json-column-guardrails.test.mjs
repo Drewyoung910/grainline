@@ -12,8 +12,10 @@ function source(path) {
 
 const migration = [
   source("prisma/migrations/20260529070500_json_shape_and_size_guardrails/migration.sql"),
+  source("prisma/migrations/20260531033000_prune_unsupported_email_preferences/migration.sql"),
   source("prisma/migrations/20260529173000_add_system_audit_log/migration.sql"),
 ].join("\n");
+const preferencePruneMigration = source("prisma/migrations/20260531033000_prune_unsupported_email_preferences/migration.sql");
 const schema = source("prisma/schema.prisma");
 
 describe("json column guardrails", () => {
@@ -35,6 +37,40 @@ describe("json column guardrails", () => {
     assert.match(migration, /jsonb_object_agg\(pref\.key, pref\.value\)/);
     assert.match(migration, /ELSE '\{\}'::jsonb/);
     assert.match(migration, /WHERE NOT "grainline_notification_preferences_valid"\("notificationPreferences"\)/);
+  });
+
+  it("prunes unsupported email preference keys before narrowing the DB validator", () => {
+    assert.match(preferencePruneMigration, /CREATE OR REPLACE FUNCTION "grainline_notification_preferences_valid"/);
+    assert.match(preferencePruneMigration, /pref\.key LIKE 'EMAIL_%'/);
+    assert.match(preferencePruneMigration, /ELSE '\{\}'::jsonb/);
+    assert.match(preferencePruneMigration, /DROP CONSTRAINT "User_notificationPreferences_shape_chk"/);
+    assert.match(preferencePruneMigration, /ADD CONSTRAINT "User_notificationPreferences_shape_chk"/);
+    assert.match(preferencePruneMigration, /VALIDATE CONSTRAINT "User_notificationPreferences_shape_chk"/);
+
+    for (const key of VALID_PREFERENCE_KEYS) {
+      assert.match(preferencePruneMigration, new RegExp(`'${key}'`), `${key} must stay allowed by the narrowed DB validator`);
+    }
+
+    for (const key of [
+      "EMAIL_ORDER_SHIPPED",
+      "EMAIL_ORDER_DELIVERED",
+      "EMAIL_CUSTOM_ORDER_LINK",
+      "EMAIL_LOW_STOCK",
+      "EMAIL_NEW_FAVORITE",
+      "EMAIL_NEW_BLOG_COMMENT",
+      "EMAIL_BLOG_COMMENT_REPLY",
+      "EMAIL_NEW_FOLLOWER",
+      "EMAIL_FOLLOWED_MAKER_NEW_BLOG",
+      "EMAIL_COMMISSION_INTEREST",
+      "EMAIL_LISTING_APPROVED",
+      "EMAIL_LISTING_REJECTED",
+      "EMAIL_ACCOUNT_WARNING",
+      "EMAIL_LISTING_FLAGGED_BY_USER",
+      "EMAIL_PAYMENT_DISPUTE",
+      "EMAIL_PAYOUT_FAILED",
+    ]) {
+      assert.doesNotMatch(preferencePruneMigration, new RegExp(`'${key}'`), `${key} should be pruned from the narrowed validator`);
+    }
   });
 
   it("adds raw-managed write-size caps for bulky json columns", () => {

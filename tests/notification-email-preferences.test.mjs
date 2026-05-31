@@ -11,12 +11,17 @@ function source(path) {
 describe("notification email preferences", () => {
   it("keeps high-volume marketing-style email preferences default-off", () => {
     assert.equal(emailPreferenceDefaultEnabled("EMAIL_SELLER_BROADCAST"), false);
-    assert.equal(emailPreferenceDefaultEnabled("EMAIL_NEW_FOLLOWER"), false);
   });
 
   it("keeps transactional email preferences default-on for transient preference lookup failures", () => {
     assert.equal(emailPreferenceDefaultEnabled("EMAIL_NEW_ORDER"), true);
     assert.equal(emailPreferenceDefaultEnabled("EMAIL_CASE_MESSAGE"), true);
+  });
+
+  it("fails closed for unsupported email preference keys", () => {
+    assert.equal(emailPreferenceDefaultEnabled("EMAIL_NEW_FOLLOWER"), false);
+    assert.equal(isEmailNotificationEnabled({ EMAIL_NEW_FOLLOWER: true }, "EMAIL_NEW_FOLLOWER"), false);
+    assert.equal(isEmailNotificationEnabled({ EMAIL_ORDER_SHIPPED: true }, "EMAIL_ORDER_SHIPPED"), false);
   });
 
   it("disables default-on emails only for explicit boolean false", () => {

@@ -41,10 +41,11 @@ describe("Round 9 account deletion PII guardrails", () => {
     assert.match(retention, /"buyerDataPurgedAt" = NOW\(\)/);
   });
 
-  it("removes bidirectional block residue and keeps media cleanup scoped to the deleted sender", () => {
+  it("removes only deleted-user-created blocks and keeps media cleanup scoped to the deleted sender", () => {
     const deletion = source("src/lib/accountDeletion.ts");
 
-    assert.match(deletion, /tx\.block\.deleteMany\(\{\s*where: \{ OR: \[\{ blockerId: user\.id \}, \{ blockedId: user\.id \}\] \} \}\)/);
+    assert.match(deletion, /tx\.block\.deleteMany\(\{\s*where: \{ blockerId: user\.id \} \}\)/);
+    assert.doesNotMatch(deletion, /blockedId: user\.id/);
     assert.match(deletion, /db\.message\.findMany\(\{\s*where: \{ senderId: userId \}/s);
     assert.doesNotMatch(deletion, /where: \{ OR: \[\{ senderId: userId \}, \{ recipientId: userId \}\] \}/);
   });

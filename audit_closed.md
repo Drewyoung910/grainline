@@ -3624,26 +3624,43 @@ Last updated: 2026-05-31
      seller toggle for the no-sender keys. Guardrail:
      `tests/notification-email-preferences.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 371 findings;
+326. **Unsupported email preference keys pruned and incoming block retention
+     restored** — code/test fix completing #1009 and fixing the Round 18
+     GDPR/privacy block-retention mismatch. Runtime and DB validation now
+     accept only sender-backed `EMAIL_*` preference keys; unsupported legacy
+     hidden keys are pruned before `grainline_notification_preferences_valid()`
+     is narrowed, and unknown email preference checks fail closed. Account
+     deletion now removes only blocks created by the deleted user and preserves
+     incoming block rows created by other users, matching the documented
+     retention boundary while block filters continue to ignore deleted-account
+     edges. Read-only agent verification in the same pass confirmed #757/#868
+     account export scope, order PII pruning, and privacy retention copy are
+     current/fixed; unsubscribe re-subscribe semantics and business-transfer
+     notice remain product/legal decisions. Guardrails:
+     `tests/notification-email-preferences.test.mjs`,
+     `tests/notification-preference-keys.test.mjs`,
+     `tests/json-column-guardrails.test.mjs`, and
+     `tests/round9-account-deletion-pii-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 372 findings;
 verified stale/false-positive: 398 findings; product/design/ops decisions
 deferred: 75 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
 product designs, historical text truncation/MakerVerification timestamp
-production evidence, query-plan/index validation, hidden legacy email
-preference key cleanup, email uniqueness production scan and quota policy
-decisions, refund accounting runtime proof and refund fee-policy
-reconciliation, founding-maker permanence policy, remaining case/message
-state-policy decisions, privacy/legal retention scope, remaining
+production evidence, query-plan/index validation, email uniqueness production
+scan and quota policy decisions, refund accounting runtime proof and refund
+fee-policy reconciliation, founding-maker permanence policy, remaining
+case/message state-policy decisions, privacy/legal retention scope, remaining
 privacy/export retention decisions, cross-seller AI duplicate-detection product
 design, unsubscribe consent-epoch/manual-resubscribe semantics, legacy enum
 cleanup/data-migration decisions, Buy Now best-effort rollback window, partial
 multi-seller checkout continuation design, deliberate BigInt money-column
-modeling, live-data reconciliation for historical seller shipping-rate
-currency drift, Clerk staff MFA and breached-password dashboard evidence,
-Clerk multi-account spam dashboard evidence, Stripe duplicate-webhook and
+modeling, live-data reconciliation for historical seller shipping-rate currency
+drift, Clerk staff MFA and breached-password dashboard evidence, Clerk
+multi-account spam dashboard evidence, Stripe duplicate-webhook and
 buyer-deletion runtime replay proof, Founding Maker live DB concurrency proof,
 Sentry cron alert/R2 health/ListBucket ops evidence, HSTS preload and Vercel
 max-duration ops evidence, remaining runtime a11y proof, and agent/worktree
 verification process hygiene. Approximate raw allegations left to verify from
-current max #1120: 274.
+current max #1120: 273.

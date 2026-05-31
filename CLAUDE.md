@@ -798,9 +798,10 @@ Live email link generation must have an explicit `NEXT_PUBLIC_APP_URL`. `resolve
 
 `shouldSendEmail(userId, prefKey)` in `src/lib/notifications.ts` — centralized preference check before all non-transactional email sends.
 - **Default ON**: sends unless user sets `prefs[key] = false`
-- **Default OFF** (`EMAIL_SELLER_BROADCAST`, `EMAIL_NEW_FOLLOWER`): only sends if `prefs[key] = true`
+- **Default OFF** (`EMAIL_SELLER_BROADCAST`): only sends if `prefs[key] = true`
+- Unsupported/no-sender `EMAIL_*` keys are not valid preference keys. Do not preserve hidden compatibility keys unless a sender path exists and is gated.
 
-All preference-backed email sends wrapped with `shouldSendEmail`, including refund emails because the settings UI exposes an explicit refund email toggle. Order confirmations, shipping/pickup emails, welcome/lifecycle emails, and verification approval/rejection emails are not user-preference gated.
+All preference-backed email sends wrapped with `shouldSendEmail`, including refund emails because the settings UI exposes an explicit refund email toggle. Order confirmations, shipping/pickup emails, and welcome/lifecycle emails are not user-preference gated.
 
 ## Clerk User Sync Webhook (complete)
 
@@ -2203,6 +2204,7 @@ Mutual block filtering applied to all public surfaces. When user A blocks user B
 ### Utility (`src/lib/blocks.ts`)
 - **`getBlockedUserIdsFor(meId)`** — queries `Block` table bidirectionally, returns `Set<string>` of all user IDs that are either blocking or blocked by the given user; both sides of each block row must have `deletedAt: null` so deleted-account edges do not keep hiding unrelated future/recreated profiles
 - **`getBlockedSellerProfileIdsFor(meId)`** — calls `getBlockedUserIdsFor`, maps user IDs to SellerProfile IDs
+- Account deletion removes blocks created by the deleted user (`blockerId`) but preserves incoming block rows created by other users. Do not delete incoming blocks during privacy cleanup; the block filters ignore deleted-account edges through their `deletedAt: null` joins.
 
 ### Pattern rules
 - Prisma: `...(list.length > 0 ? { field: { notIn: list } } : {})` — never passes `notIn: []`
@@ -2937,7 +2939,7 @@ US only (Canada removed to align with Terms of Service Section 31). Implemented 
 Sellers and buyers can control which in-site notifications they receive.
 
 ### Schema
-- **`User.notificationPreferences Json @default("{}")`** — stores preference booleans keyed by `VALID_PREFERENCE_KEYS`; `false` means opted out for default-on notifications, and default-off notifications require explicit `true`. Migration: `20260401003152_notification_preferences`; raw-managed migration `20260529070500_json_shape_and_size_guardrails` also enforces known boolean keys at the DB boundary through `grainline_notification_preferences_valid()`. Readers must normalize through `normalizeNotificationPreferences()` before checking values; do not cast raw JSON to `Record<string, boolean>`. When adding a preference key, update both `src/lib/notificationPreferenceKeys.ts` and the raw DB validator migration/function contract.
+- **`User.notificationPreferences Json @default("{}")`** — stores preference booleans keyed by `VALID_PREFERENCE_KEYS`; `false` means opted out for default-on notifications, and default-off notifications require explicit `true`. Migration: `20260401003152_notification_preferences`; raw-managed migrations `20260529070500_json_shape_and_size_guardrails` and `20260531033000_prune_unsupported_email_preferences` enforce known boolean keys at the DB boundary through `grainline_notification_preferences_valid()`. Readers must normalize through `normalizeNotificationPreferences()` before checking values; do not cast raw JSON to `Record<string, boolean>`. When adding a preference key, update both `src/lib/notificationPreferenceKeys.ts` and the raw DB validator migration/function contract.
 
 ### `createNotification` — preference check
 Before inserting a notification, fetches the recipient's `notificationPreferences`, normalizes to known boolean keys, and returns `null` (skips create) if the normalized in-app value is `false`. Never throws — preference failures don't break the main flow.
@@ -2946,10 +2948,10 @@ Before inserting a notification, fetches the recipient's `notificationPreference
 - Server components; auth required
 - `/account/settings` queries `notificationPreferences` + `sellerProfile` presence and shows buyer/account-level notification preferences.
 - `/dashboard/seller` shows shop-level in-app and email preferences.
-- Default-off visible preferences: in-app `SELLER_BROADCAST`, `NEW_FAVORITE`, `NEW_BLOG_COMMENT`, `BLOG_COMMENT_REPLY`; email `EMAIL_SELLER_BROADCAST`. `EMAIL_NEW_FOLLOWER` remains a hidden legacy/default-off key for compatibility and unsubscribe normalization, but do not show it as a seller email toggle unless a sender is implemented.
+- Default-off visible preferences: in-app `SELLER_BROADCAST`, `NEW_FAVORITE`, `NEW_BLOG_COMMENT`, `BLOG_COMMENT_REPLY`; email `EMAIL_SELLER_BROADCAST`.
 - Visible email toggles must correspond to currently gated sender paths. Seller settings currently show only `EMAIL_NEW_ORDER`, `EMAIL_CUSTOM_ORDER`, `EMAIL_CASE_OPENED`, `EMAIL_NEW_REVIEW`, `EMAIL_VERIFICATION_APPROVED`, and `EMAIL_VERIFICATION_REJECTED`. Do not add visible toggles for email keys that have no sender or are intentionally always-on.
 - Guild approval/rejection/warning/revocation emails, including cron-driven Guild Member/Guild Master revocations and warnings, must check `EMAIL_VERIFICATION_APPROVED` or `EMAIL_VERIFICATION_REJECTED` before sending.
-- Account settings still states order confirmations and shipping updates are always sent; hidden `EMAIL_ORDER_SHIPPED`/`EMAIL_ORDER_DELIVERED` keys are compatibility cleanup, not visible controls.
+- Account settings still states order confirmations and shipping updates are always sent; do not add `EMAIL_ORDER_SHIPPED` or `EMAIL_ORDER_DELIVERED` unless those emails become preference-gated.
 - Linked from Account Settings section on `/account` as "Notification preferences →"
 - **NotificationBell** `markAllRead` button always visible in dropdown (removed `unreadCount > 0` condition); styled `text-xs text-neutral-500 hover:text-neutral-800 underline`
 

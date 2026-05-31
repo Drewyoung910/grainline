@@ -884,7 +884,7 @@ export async function anonymizeUserAccount(
     await tx.notification.deleteMany({ where: { userId: user.id } });
     await tx.savedBlogPost.deleteMany({ where: { userId: user.id } });
     await tx.reviewVote.deleteMany({ where: { userId: user.id } });
-    await tx.block.deleteMany({ where: { OR: [{ blockerId: user.id }, { blockedId: user.id }] } });
+    await tx.block.deleteMany({ where: { blockerId: user.id } });
     await redactNotificationsAboutDeletedAccount(tx, user.id, accountSensitiveValues);
     await tx.message.updateMany({
       where: { senderId: user.id },
