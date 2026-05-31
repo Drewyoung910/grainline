@@ -129,7 +129,7 @@ prisma/
 ## Key Data Models
 
 - **User** — authenticated account (linked to Clerk user ID); `role`: `USER | EMPLOYEE | ADMIN` (used for admin panel access control); `banned Boolean @default(false)`, `bannedAt DateTime?`, `banReason String?`, `bannedBy String?` — ban fields set by admin
-- **SellerProfile** — seller info, location (lat/lng for map), Stripe Connect account, shipping config; `onboardingStep Int @default(0)`, `onboardingComplete Boolean @default(false)` track wizard progress
+- **SellerProfile** — seller info, location (lat/lng for map), Stripe Connect account, shipping config; `displayNameNormalized String @db.VarChar(100)` stores the canonical `normalizeDisplayNameForLookup(displayName)` key for confusable-resistant seller name lookup; `onboardingStep Int @default(0)`, `onboardingComplete Boolean @default(false)` track wizard progress
 - **Listing** — product for sale; status: `DRAFT | ACTIVE | SOLD | SOLD_OUT | HIDDEN | PENDING_REVIEW`; `listingType`: `MADE_TO_ORDER | IN_STOCK`; includes `processingTimeMinDays`, `processingTimeMaxDays` (MADE_TO_ORDER only), `stockQuantity Int?` and `shipsWithinDays Int?` (IN_STOCK only); `isReadyToShip` fully removed. Also has `category Category?`, `viewCount Int @default(0)`, `clickCount Int @default(0)`. Stock is decremented at checkout (Stripe webhook) and restored on case refund resolution. Custom order fields: `isPrivate Boolean @default(false)`, `reservedForUserId String?` (back-relation `reservedForUser User? @relation("ReservedListings")`), `customOrderConversationId String?` (FK to `Conversation`, `onDelete: SetNull`).
 - **Order** — purchase transaction with Stripe refs, shipping/tax amounts, fulfillment tracking, quoted address snapshot (`quotedTo*` fields), mismatch detection flag (`reviewNeeded`), Shippo label fields, `estimatedDeliveryDate`, and `processingDeadline` (see below)
 - **OrderItem** — line items in an order; `listingSnapshot Json?` — snapshot of listing data captured at checkout (title, description, priceCents, imageUrls, category, tags, sellerName, capturedAt)
@@ -280,7 +280,7 @@ The browse page (`src/app/browse/page.tsx`) is a full-featured search experience
 `GET /api/search/suggestions?q=` returns up to 8 deduplicated suggestions from 4 parallel queries:
 1. Listing title substring matches (ILIKE) — filtered `seller: { chargesEnabled: true }`
 2. Tag partial matches from cached `getPopularListingTags(200)` results, avoiding per-request `Listing x unnest(tags)` scans.
-3. Seller displayName matches — filtered to sellers who are not banned/deleted, not on vacation, and `chargesEnabled = true`.
+3. Seller displayName matches — filtered to sellers who are not banned/deleted, not on vacation, and `chargesEnabled = true`; use both `displayName` and `displayNameNormalized` so historical or visually confusable names remain searchable by the canonical text.
 4. Fuzzy title matches via `similarity(title, q) > 0.25` (pg_trgm) — same `INNER JOIN` + chargesEnabled filter
 
 Plus category label matches from `CATEGORY_VALUES`.

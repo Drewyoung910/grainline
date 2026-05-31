@@ -15,6 +15,7 @@ import {
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { normalizeDisplayNameForLookup } from "@/lib/sanitize";
 
 export async function GET(req: NextRequest) {
   const { success, reset } = await safeRateLimit(searchRatelimit, getIP(req));
@@ -39,6 +40,7 @@ export async function GET(req: NextRequest) {
   const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
 
   const qLower = q.toLowerCase();
+  const normalizedDisplayNameQuery = normalizeDisplayNameForLookup(q);
   const tagRows = (await getPopularListingTags(200))
     .filter((tag) => tag.toLowerCase().includes(qLower))
     .slice(0, 2)
@@ -59,7 +61,12 @@ export async function GET(req: NextRequest) {
     // Seller name matches
     prisma.sellerProfile.findMany({
       where: activeSellerProfileWhere({
-        displayName: { contains: q, mode: "insensitive" },
+        OR: [
+          { displayName: { contains: q, mode: "insensitive" } },
+          ...(normalizedDisplayNameQuery
+            ? [{ displayNameNormalized: { contains: normalizedDisplayNameQuery, mode: "insensitive" as const } }]
+            : []),
+        ],
         listings: { some: publicListingWhere() },
         ...(blockedSellerIds.length > 0 ? { id: { notIn: blockedSellerIds } } : {}),
       }),

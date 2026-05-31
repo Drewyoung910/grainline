@@ -19,7 +19,7 @@ import { publicListingWhere } from "@/lib/listingVisibility";
 import { getPopularListingTags } from "@/lib/popularTags";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
-import { truncateText } from "@/lib/sanitize";
+import { normalizeDisplayNameForLookup, truncateText } from "@/lib/sanitize";
 import { parseMoneyInputToCents } from "@/lib/money";
 
 const PAGE_SIZE = 24;
@@ -207,6 +207,7 @@ export default async function BrowsePage({
   const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
 
   const q = truncateText(sp.q ?? "", 200);
+  const normalizedDisplayNameQuery = normalizeDisplayNameForLookup(q);
   const page = sp.page ?? "1";
   const min = sp.min ?? "";
   const max = sp.max ?? "";
@@ -313,7 +314,16 @@ export default async function BrowsePage({
       // Partial tag matches (existing logic)
       ...(partialTagMatches.length > 0 ? [{ tags: { hasSome: partialTagMatches } }] : []),
       // Seller name match
-      { seller: { displayName: { contains: q, mode: "insensitive" as const } } },
+      {
+        seller: {
+          OR: [
+            { displayName: { contains: q, mode: "insensitive" as const } },
+            ...(normalizedDisplayNameQuery
+              ? [{ displayNameNormalized: { contains: normalizedDisplayNameQuery, mode: "insensitive" as const } }]
+              : []),
+          ],
+        },
+      },
     ];
   }
   if (Object.keys(priceFilter).length > 0) where.priceCents = priceFilter;

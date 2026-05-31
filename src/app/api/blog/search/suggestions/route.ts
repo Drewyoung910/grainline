@@ -7,6 +7,7 @@ import {
   BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY,
   normalizeSearchSuggestionQuery,
 } from "@/lib/searchSuggestionState";
+import { normalizeDisplayNameForLookup } from "@/lib/sanitize";
 
 export type BlogSuggestion = {
   type: "post" | "tag" | "author";
@@ -22,6 +23,7 @@ export async function GET(req: NextRequest) {
 
   const q = normalizeSearchSuggestionQuery(req.nextUrl.searchParams.get("bq"));
   if (q.length < 2) return NextResponse.json({ suggestions: [] });
+  const normalizedDisplayNameQuery = normalizeDisplayNameForLookup(q);
 
   const [postRows, tagRows, authorRows] = await Promise.all([
     // Fuzzy title matches
@@ -81,7 +83,12 @@ export async function GET(req: NextRequest) {
     // Author / seller display name matches
     prisma.sellerProfile.findMany({
       where: activeSellerProfileWhere({
-        displayName: { contains: q, mode: "insensitive" },
+        OR: [
+          { displayName: { contains: q, mode: "insensitive" } },
+          ...(normalizedDisplayNameQuery
+            ? [{ displayNameNormalized: { contains: normalizedDisplayNameQuery, mode: "insensitive" as const } }]
+            : []),
+        ],
       }),
       select: { id: true, displayName: true },
       take: 3,

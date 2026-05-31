@@ -2,7 +2,7 @@
 import { auth, currentUser, clerkClient } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { AccountAccessError } from "@/lib/ensureUser";
-import { sanitizeUserName } from "@/lib/sanitize";
+import { normalizeDisplayNameForLookup, sanitizeUserName } from "@/lib/sanitize";
 
 export async function ensureSeller() {
   const { userId } = await auth();
@@ -43,10 +43,12 @@ export async function ensureSeller() {
   // 2) Ensure we have a SellerProfile row
   let seller = await prisma.sellerProfile.findUnique({ where: { userId: me.id } });
   if (!seller) {
+    const displayName = sanitizeUserName(me.name ?? "") || "Maker";
     seller = await prisma.sellerProfile.create({
       data: {
         userId: me.id,
-        displayName: sanitizeUserName(me.name ?? "") || "Maker",
+        displayName,
+        displayNameNormalized: normalizeDisplayNameForLookup(displayName),
       },
     });
   }

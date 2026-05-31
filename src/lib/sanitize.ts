@@ -72,6 +72,10 @@ export function sanitizeUserName(input: string, maxLength = 100): string {
   return truncateText(sanitizeText(input).replace(/\s+/g, " "), maxLength).trim();
 }
 
+export function normalizeDisplayNameForLookup(input: string): string {
+  return sanitizeUserName(input);
+}
+
 export function truncateText(input: string, maxLength: number): string {
   const limit = Math.max(0, Math.floor(maxLength));
   const chars = Array.from(input);

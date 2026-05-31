@@ -19,14 +19,14 @@ deferred, stale, and open findings for traceability.
 
 ## Active Hardening Program Counter
 
-Last updated: 2026-05-30
+Last updated: 2026-05-31
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 220.
-- Verified code/feature fix commits since 2026-05-13: 195.
+- Verified hardening/doc commits since 2026-05-13: 221.
+- Verified code/feature fix commits since 2026-05-13: 196.
 - Verified docs/audit-only commits since 2026-05-13: 10.
-- Most recent reported pass tally: 298 verified fixed/reduced findings,
-  147 verified stale/false-positive findings, and 46 deferred/manual findings
+- Most recent reported pass tally: 351 verified fixed/reduced findings,
+  383 verified stale/false-positive findings, and 75 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
 ## 2026-05-14 Active Tracker
@@ -3470,9 +3470,34 @@ Last updated: 2026-05-30
      `tests/stripe-webhook-state.test.mjs`, and
      `tests/guild-metrics-state.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 350 findings;
+316. **Display-name confusable lookup residue reduced** — schema/code/test/docs
+     fix for the still-current subset of Round 4 #639, after read-only agent and
+     parent re-verification found the original "no write-time normalization"
+     severity overstated on current `main`. Seller display names were already
+     sanitized before new writes, but historical rows and seller-name search
+     still depended on raw `displayName` matching only. `SellerProfile` now has
+     a required `displayNameNormalized` lookup column, the migration backfills
+     existing rows with the current Cyrillic-confusable/invisible-control
+     folding policy, seller creation/profile/onboarding/deletion writes keep the
+     lookup key in sync, and global suggestions, blog author suggestions, and
+     browse seller-name search check both raw and normalized names. Round 4
+     #610-#644 was re-reconciled in the same pass without double-counting the
+     already-closed/stale items: #631 tag/author routes and #633 broad raw
+     `<img>` migration remain product/refactor backlog, while #637 tax
+     monitoring and #641 observability helper/status constants remain ops/refactor
+     backlog. Round 8 #737-#741, #750-#754, and #764 were also rechecked before
+     this fix and remain previously fixed, stale, or policy-truth-matched on
+     current `main`. Guardrails:
+     `tests/display-name-normalization-guardrails.test.mjs`,
+     `tests/sanitize-unicode.test.mjs`,
+     `tests/round9-public-pii-guardrails.test.mjs`,
+     `tests/round8-fulfillment-privacy-guardrails.test.mjs`,
+     `tests/search-suggestion-state.test.mjs`, and
+     `tests/public-cron-search-hardening.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 351 findings;
 verified stale/false-positive: 383 findings; product/design/ops decisions
-deferred: 76 findings. Remaining major categories: Stripe webhook subscription
+deferred: 75 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
 product designs, historical text truncation/MakerVerification timestamp
@@ -3493,4 +3518,4 @@ DB concurrency proof, Sentry cron alert/R2 health/ListBucket ops evidence,
 cron termination mock coverage, HSTS preload and Vercel max-duration ops
 evidence, remaining runtime a11y proof, and agent/worktree verification process
 hygiene. Approximate raw allegations left to verify from current max #1120:
-312.
+311.

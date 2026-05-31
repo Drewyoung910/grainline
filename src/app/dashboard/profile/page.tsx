@@ -15,7 +15,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 import CharCounter from "@/components/CharCounter";
 import RemoveAvatarButton from "./RemoveAvatarButton";
-import { sanitizeText, sanitizeRichText, sanitizeUserName, truncateText } from "@/lib/sanitize";
+import { normalizeDisplayNameForLookup, sanitizeText, sanitizeRichText, sanitizeUserName, truncateText } from "@/lib/sanitize";
 import { isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
 import { publicSellerPath } from "@/lib/publicPaths";
 import { parseMoneyInputToCents } from "@/lib/money";
@@ -108,6 +108,7 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   if (!displayNameRaw) return { ok: false, error: "Display name is required." };
   const displayName = sanitizeUserName(displayNameRaw);
   if (!displayName) return { ok: false, error: "Display name is required." };
+  const displayNameNormalized = normalizeDisplayNameForLookup(displayName);
 
   const taglineRaw = toNull(formData.get("tagline"));
   const tagline = taglineRaw ? truncateText(sanitizeText(taglineRaw), 140) : null;
@@ -155,7 +156,10 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   // Soft uniqueness check — warn (don't block) if another seller has the same name
   const duplicate = await prisma.sellerProfile.findFirst({
     where: {
-      displayName: { equals: displayName, mode: "insensitive" },
+      OR: [
+        { displayName: { equals: displayName, mode: "insensitive" } },
+        { displayNameNormalized: { equals: displayNameNormalized, mode: "insensitive" } },
+      ],
       id: { not: seller.id },
     },
     select: { id: true },
@@ -165,6 +169,7 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
     where: { id: seller.id },
     data: {
       displayName,
+      displayNameNormalized,
       tagline,
       bio,
       storyTitle,

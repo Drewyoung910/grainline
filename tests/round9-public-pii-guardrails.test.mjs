@@ -25,7 +25,8 @@ describe("Round 9 public PII and notification-link guardrails", () => {
     const buyerOrder = source("src/app/dashboard/orders/[id]/page.tsx");
 
     assert.doesNotMatch(ensureSeller, /email\.split\("@"/);
-    assert.match(ensureSeller, /displayName: sanitizeUserName\(me\.name \?\? ""\) \|\| "Maker"/);
+    assert.match(ensureSeller, /const displayName = sanitizeUserName\(me\.name \?\? ""\) \|\| "Maker"/);
+    assert.match(ensureSeller, /displayNameNormalized: normalizeDisplayNameForLookup\(displayName\)/);
 
     assert.doesNotMatch(reviews, /reviewer:\s*\{\s*select:\s*\{[^}]*email:\s*true/s);
     assert.doesNotMatch(reviews, /reviewer\.email|email\?\.split\("@"/);

@@ -2,7 +2,15 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-const { sanitizeRichText, sanitizeText, sanitizeUserName, stripBidiControls, truncateText, truncateTextWithEllipsis } = await import("../src/lib/sanitize.ts");
+const {
+  normalizeDisplayNameForLookup,
+  sanitizeRichText,
+  sanitizeText,
+  sanitizeUserName,
+  stripBidiControls,
+  truncateText,
+  truncateTextWithEllipsis,
+} = await import("../src/lib/sanitize.ts");
 const { containsProfanity } = await import("../src/lib/profanity.ts");
 
 describe("unicode sanitization", () => {
@@ -27,6 +35,11 @@ describe("unicode sanitization", () => {
 
   it("normalizes and caps user names at the database boundary", () => {
     assert.equal(sanitizeUserName("Ａlice   \u202E Woodworker", 12), "Alice Woodwo");
+  });
+
+  it("uses the user-name sanitizer as the seller display-name lookup key", () => {
+    assert.equal(normalizeDisplayNameForLookup("\u0410cm\u0435 Woodworks"), "Acme Woodworks");
+    assert.equal(normalizeDisplayNameForLookup("  Maker\u200B   Shop  "), "Maker Shop");
   });
 
   it("does not split surrogate-pair characters while truncating text", () => {

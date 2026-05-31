@@ -1072,6 +1072,7 @@ export async function anonymizeUserAccount(
         where: { id: user.sellerProfile.id },
         data: {
           displayName: "Deleted maker",
+          displayNameNormalized: "Deleted maker",
           bio: null,
           city: null,
           state: null,

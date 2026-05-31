@@ -137,6 +137,7 @@ model SellerProfile {
   userId         String   @unique
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   displayName    String   @db.VarChar(100)
+  displayNameNormalized String @db.VarChar(100)
   bio            String?  @db.VarChar(500)
   city           String?  @db.VarChar(100)
   state          String?  @db.VarChar(50)
@@ -259,6 +260,7 @@ model SellerProfile {
 
   @@index([featuredUntil])
   @@index([guildLevel, chargesEnabled, vacationMode])
+  @@index([displayNameNormalized])
   @@index([metroId])
   @@index([cityMetroId])
 }

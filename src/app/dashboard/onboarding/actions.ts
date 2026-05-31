@@ -4,7 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { sanitizeText, sanitizeUserName, truncateText } from "@/lib/sanitize";
+import { normalizeDisplayNameForLookup, sanitizeText, sanitizeUserName, truncateText } from "@/lib/sanitize";
 import { isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
 import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/sellerProfileText";
 import { safeRateLimit, sellerProfileRatelimit } from "@/lib/ratelimit";
@@ -70,7 +70,7 @@ export async function saveStep1(formData: FormData): Promise<ActionResult> {
     await prisma.sellerProfile.update({
       where: { id: seller.id },
       data: {
-        ...(displayName ? { displayName } : {}),
+        ...(displayName ? { displayName, displayNameNormalized: normalizeDisplayNameForLookup(displayName) } : {}),
         bio,
         tagline,
         avatarImageUrl,
