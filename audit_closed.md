@@ -3707,9 +3707,20 @@ Last updated: 2026-05-31
      fallbacks keep their coordinate/link behavior. Guardrail:
      `tests/round8-fulfillment-privacy-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 379 findings;
+332. **Buy Now rollback request survival improved** — code/test/docs reduction
+     for #1120, moving the client side of the Buy Now rollback window out of
+     the purely documented tradeoff bucket. `BuyNowCheckoutModal` now sends the
+     `/api/cart/checkout/rollback` POST with `keepalive: true`, reducing the
+     chance that modal close, retry, or page navigation tears down the request
+     before the server can expire the Stripe Checkout Session and restore stock.
+     This does not make browser rollback guaranteed; if the request is never
+     queued or fails, stock still falls back to the `checkout.session.expired`
+     webhook and the documented 31-minute session-expiry window. Guardrail:
+     `tests/client-async-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 380 findings;
 verified stale/false-positive: 401 findings; product/design/ops decisions
-deferred: 73 findings. Remaining major categories: Stripe webhook subscription
+deferred: 72 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
 product designs, EXPLAIN-dependent query-plan/index validation, email quota
@@ -3718,14 +3729,13 @@ reconciliation, founding-maker permanence policy, remaining case/message state
 policy decisions, privacy/legal retention scope, remaining privacy/export
 retention decisions, cross-seller AI
 duplicate-detection product design, unsubscribe consent-epoch/manual-resubscribe
-semantics, legacy enum cleanup/data-migration decisions, Buy Now best-effort
-rollback window, partial multi-seller checkout continuation design, deliberate
-BigInt money-column modeling, live-data reconciliation for historical seller
-shipping-rate currency drift, Clerk staff MFA and breached-password dashboard
-evidence, Clerk multi-account spam dashboard evidence, Stripe duplicate-webhook
-and buyer-deletion runtime replay proof, Founding Maker live DB concurrency
-proof, Sentry cron alert/R2 health/ListBucket ops evidence, HSTS preload and
-Vercel max-duration ops evidence, residual HTTP-status constants/log-forwarding
-and analytics observability refactors, remaining runtime a11y proof, and
-agent/worktree verification process hygiene. Approximate raw allegations left
-to verify from current max #1120: 264.
+semantics, legacy enum cleanup/data-migration decisions, partial multi-seller
+checkout continuation design, deliberate BigInt money-column modeling, live-data
+reconciliation for historical seller shipping-rate currency drift, Clerk staff
+MFA and breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, Stripe duplicate-webhook and buyer-deletion runtime replay proof,
+Founding Maker live DB concurrency proof, Sentry cron alert/R2 health/ListBucket
+ops evidence, HSTS preload and Vercel max-duration ops evidence, residual
+HTTP-status constants/log-forwarding and analytics observability refactors,
+remaining runtime a11y proof, and agent/worktree verification process hygiene.
+Approximate raw allegations left to verify from current max #1120: 264.

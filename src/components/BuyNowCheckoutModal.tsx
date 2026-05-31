@@ -49,6 +49,7 @@ async function rollbackCheckoutSessions(sessionIds: string[]) {
   try {
     await fetch("/api/cart/checkout/rollback", {
       method: "POST",
+      keepalive: true,
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ sessionIds: uniqueSessionIds }),
     });

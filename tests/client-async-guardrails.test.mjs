@@ -82,6 +82,7 @@ describe("client async guardrails", () => {
     assert.match(modal, /sessionIdRef/);
     assert.match(modal, /mountedRef/);
     assert.match(modal, /resetCheckoutState\(\{ rollback: true \}\)/);
+    assert.match(modal, /keepalive: true/);
     assert.match(modal, /await rollbackCheckoutSessions\(\[nextSessionId\]\)/);
     assert.match(modal, /requestId !== createSessionRequestRef\.current/);
     assert.match(modal, /completedRef\.current = true/);
