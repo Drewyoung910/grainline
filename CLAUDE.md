@@ -149,7 +149,7 @@ prisma/
 
 Fulfillment enums: `FulfillmentMethod` (PICKUP | SHIPPING), `FulfillmentStatus` (PENDING | READY_FOR_PICKUP | PICKED_UP | SHIPPED | DELIVERED)
 
-`Category` enum: `FURNITURE | KITCHEN | DECOR | TOOLS | TOYS | JEWELRY | ART | OUTDOOR | STORAGE | OTHER` — display labels in `src/lib/categories.ts` (`CATEGORY_LABELS`, `CATEGORY_VALUES`). **Always use `CATEGORY_VALUES.includes(raw)` to validate — never `Object.values(Category)` which crashes in RSC if Prisma enum is undefined at runtime.** Current display labels: TOOLS → "Home & Office", STORAGE → "Gifts" (updated 2026-04-01).
+`Category` enum: `FURNITURE | KITCHEN | DECOR | TOOLS | TOYS | JEWELRY | ART | OUTDOOR | STORAGE | OTHER` — display labels in `src/lib/categories.ts` (`CATEGORY_LABELS`, `CATEGORY_VALUES`). `CATEGORY_LABELS` has a TypeScript `satisfies Record<Category, string>` guard so Prisma enum additions break typecheck until labels are added, while `CATEGORY_VALUES` intentionally remains string-friendly for raw URL/form validation. **Always use `CATEGORY_VALUES.includes(raw)` to validate — never `Object.values(Category)` which crashes in RSC if Prisma enum is undefined at runtime.** Current display labels: TOOLS → "Home & Office", STORAGE → "Gifts" (updated 2026-04-01).
 
 `ListingStatus` enum: `DRAFT | ACTIVE | SOLD | SOLD_OUT | HIDDEN | PENDING_REVIEW | REJECTED`
 
@@ -1920,7 +1920,7 @@ npx dotenv-cli -e .env -- npx ts-node --transpile-only prisma/seeds/metros.ts
 
 ### `src/lib/reverse-geocode.ts`
 - **`reverseGeocode(lat, lng)`** — calls Nominatim (OpenStreetMap) reverse geocoding API; `User-Agent: Grainline/1.0 (thegrainline.com)`; enforces ≥1.1s between requests (Nominatim policy); extracts city from `address.city|town|village|hamlet`; returns `{ city, state, stateCode }` or `null` on failure/non-US result
-- **Throttle**: `throttledFetch` must acquire the shared Redis lock `reverse-geocode:nominatim:lock` before calling Nominatim. If Redis is unavailable or the shared lock stays contended after bounded retries, fail closed by returning `null` and logging to Sentry; do not fall back to per-instance local throttling because Vercel has multiple instances and Nominatim's policy is global to Grainline.
+- **Throttle**: `throttledFetch` must acquire the shared Redis lock `reverse-geocode:nominatim:lock` before calling Nominatim. `waitForNominatimSharedThrottle()` in `src/lib/nominatimThrottleState.ts` owns the 1.1s TTL, bounded retry count, and fail-closed behavior. If Redis is unavailable or the shared lock stays contended after bounded retries, fail closed by returning `null` and logging to Sentry; do not fall back to per-instance local throttling because Vercel has multiple instances and Nominatim's policy is global to Grainline.
 - All 50 US state names → two-letter codes in `STATE_CODES` map; returns `null` for non-US results
 
 ### Auto-mapping on create

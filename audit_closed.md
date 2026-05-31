@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-31
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 221.
-- Verified code/feature fix commits since 2026-05-13: 196.
+- Verified hardening/doc commits since 2026-05-13: 222.
+- Verified code/feature fix commits since 2026-05-13: 197.
 - Verified docs/audit-only commits since 2026-05-13: 10.
-- Most recent reported pass tally: 351 verified fixed/reduced findings,
+- Most recent reported pass tally: 353 verified fixed/reduced findings,
   383 verified stale/false-positive findings, and 75 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
@@ -3495,7 +3495,23 @@ Last updated: 2026-05-31
      `tests/search-suggestion-state.test.mjs`, and
      `tests/public-cron-search-hardening.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 351 findings;
+317. **Category enum drift and Nominatim throttle behavior guardrails reduced** —
+     code/test/docs fix for #293 and #439. Category labels now have a
+     `satisfies Record<Category, string>` type-level guard so future Prisma enum
+     additions require a display label while preserving the current
+     string-friendly `CATEGORY_VALUES.includes(raw)` validation contract for
+     RSC and URL/form inputs. Nominatim throttling now routes through the pure
+     `waitForNominatimSharedThrottle()` helper, with direct behavioral tests for
+     the 1.1s Redis lock TTL, immediate acquisition, Redis-error fail-closed
+     behavior, and bounded-contention fail-closed behavior. Read-only agents and
+     parent verification also confirmed #433/#883, #438, #681, #806, and #809
+     are already fixed/stale on current `main`; those previously closed or
+     source-guarded items were not double-counted. #436 remains a local
+     cron-termination mock coverage backlog item rather than a newly closed
+     runtime bug. Guardrails: `tests/categories.test.mjs` and
+     `tests/reverse-geocode-throttle.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 353 findings;
 verified stale/false-positive: 383 findings; product/design/ops decisions
 deferred: 75 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
@@ -3518,4 +3534,4 @@ DB concurrency proof, Sentry cron alert/R2 health/ListBucket ops evidence,
 cron termination mock coverage, HSTS preload and Vercel max-duration ops
 evidence, remaining runtime a11y proof, and agent/worktree verification process
 hygiene. Approximate raw allegations left to verify from current max #1120:
-311.
+309.

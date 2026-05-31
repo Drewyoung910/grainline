@@ -5,6 +5,7 @@
 import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
 import { redis } from "@/lib/ratelimit";
 import * as Sentry from "@sentry/nextjs";
+import { waitForNominatimSharedThrottle } from "./nominatimThrottleState.ts";
 
 const STATE_CODES: Record<string, string> = {
   Alabama: "al", Alaska: "ak", Arizona: "az", Arkansas: "ar", California: "ca",
@@ -21,26 +22,22 @@ const STATE_CODES: Record<string, string> = {
   Wisconsin: "wi", Wyoming: "wy",
 };
 
-function sleep(ms: number) {
+function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function waitForSharedThrottle() {
-  try {
-    for (let attempt = 0; attempt < 8; attempt++) {
-      const locked = await redis.set("reverse-geocode:nominatim:lock", "1", { nx: true, px: 1100 });
-      if (locked) return true;
-      await sleep(200);
-    }
-  } catch (error) {
-    Sentry.captureException(error, { tags: { source: "reverse_geocode_throttle" } });
-    return false;
-  }
-  Sentry.captureMessage("Reverse geocode shared throttle contention exceeded", {
-    level: "warning",
-    tags: { source: "reverse_geocode_throttle" },
+  return waitForNominatimSharedThrottle({
+    setLock: (key, value, options) => redis.set(key, value, options),
+    sleep,
+    onError: (error) =>
+      Sentry.captureException(error, { tags: { source: "reverse_geocode_throttle" } }),
+    onContentionExceeded: () =>
+      Sentry.captureMessage("Reverse geocode shared throttle contention exceeded", {
+        level: "warning",
+        tags: { source: "reverse_geocode_throttle" },
+      }),
   });
-  return false;
 }
 
 async function throttledFetch(url: string): Promise<Response | null> {
