@@ -54,7 +54,8 @@ describe("retention and ops-health follow-ups", () => {
     const source = readFileSync("src/app/api/cron/guild-metrics/route.ts", "utf8");
 
     assert.match(source, /const VIEW_CLEANUP_TIME_BUDGET_MS = 60_000/);
-    assert.match(source, /while \(Date\.now\(\) < deadline\)/);
+    assert.match(source, /runBoundedDeletionBatches\(\{/);
+    assert.match(source, /timeBudgetMs: VIEW_CLEANUP_TIME_BUDGET_MS/);
     assert.match(source, /deletedViewRowsComplete/);
   });
 

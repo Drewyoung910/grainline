@@ -24,6 +24,7 @@ import {
 } from "@/lib/guildVerificationState";
 import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
 import { logSystemActionOrThrow } from "@/lib/systemAudit";
+import { runCronCursorPages } from "@/lib/cronBatchState";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -60,31 +61,29 @@ async function runGuildMemberCheckCron() {
   let revokedMember = 0;
   const errors: Array<{ sellerId: string; code: string }> = [];
 
-  let cursorId: string | null = null;
-  while (true) {
-    const sellers = await fetchGuildMemberBatch(cursorId);
-    if (sellers.length === 0) break;
-
-    for (let i = 0; i < sellers.length; i += SELLER_PROCESS_CONCURRENCY) {
-      const batch = sellers.slice(i, i + SELLER_PROCESS_CONCURRENCY);
-      const results = await Promise.all(
-        batch.map(async (seller) => {
-          try {
-            return await checkGuildMemberSeller(seller, ninetyDaysAgo, thirtyDaysAgo, now);
-          } catch (err) {
-            const code = getErrorCode(err);
-            errors.push({ sellerId: seller.id, code });
-            Sentry.captureException(err, { tags: { source: "cron_guild_member_check", sellerId: seller.id, code } });
-            return 0;
-          }
-        }),
-      );
-      revokedMember += results.reduce((sum, result) => sum + result, 0);
-    }
-
-    cursorId = sellers[sellers.length - 1]?.id ?? null;
-    if (sellers.length < SELLER_PAGE_SIZE) break;
-  }
+  await runCronCursorPages({
+    pageSize: SELLER_PAGE_SIZE,
+    fetchPage: fetchGuildMemberBatch,
+    getCursor: (seller) => seller.id,
+    processPage: async (sellers) => {
+      for (let i = 0; i < sellers.length; i += SELLER_PROCESS_CONCURRENCY) {
+        const batch = sellers.slice(i, i + SELLER_PROCESS_CONCURRENCY);
+        const results = await Promise.all(
+          batch.map(async (seller) => {
+            try {
+              return await checkGuildMemberSeller(seller, ninetyDaysAgo, thirtyDaysAgo, now);
+            } catch (err) {
+              const code = getErrorCode(err);
+              errors.push({ sellerId: seller.id, code });
+              Sentry.captureException(err, { tags: { source: "cron_guild_member_check", sellerId: seller.id, code } });
+              return 0;
+            }
+          }),
+        );
+        revokedMember += results.reduce((sum, result) => sum + result, 0);
+      }
+    },
+  });
 
   return { revokedMember, errors };
 }

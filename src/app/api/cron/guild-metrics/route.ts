@@ -27,6 +27,7 @@ import {
   assertGuildVerificationTransition,
   isGuildVerificationTransitionConflict,
 } from "@/lib/guildVerificationState";
+import { runBoundedDeletionBatches, runCronCursorPages } from "@/lib/cronBatchState";
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // 5-minute limit for large seller sets
@@ -64,37 +65,35 @@ async function runGuildMetricsCron() {
   let revokedMaster = 0;
   const errors: Array<{ sellerId: string; code: string }> = [];
 
-  let cursorId: string | null = null;
-  while (true) {
-    const sellers = await fetchGuildSellerBatch(cursorId);
-    if (sellers.length === 0) break;
+  await runCronCursorPages({
+    pageSize: SELLER_PAGE_SIZE,
+    fetchPage: fetchGuildSellerBatch,
+    getCursor: (seller) => seller.id,
+    processPage: async (sellers) => {
+      for (let i = 0; i < sellers.length; i += SELLER_PROCESS_CONCURRENCY) {
+        const batch = sellers.slice(i, i + SELLER_PROCESS_CONCURRENCY);
+        const outcomes = await Promise.all(
+          batch.map(async (seller) => {
+            try {
+              return await processGuildSeller(seller);
+            } catch (err) {
+              const code = getErrorCode(err);
+              errors.push({ sellerId: seller.id, code });
+              Sentry.captureException(err, { tags: { source: "cron_guild_metrics", sellerId: seller.id, code } });
+              return null;
+            }
+          }),
+        );
 
-    for (let i = 0; i < sellers.length; i += SELLER_PROCESS_CONCURRENCY) {
-      const batch = sellers.slice(i, i + SELLER_PROCESS_CONCURRENCY);
-      const outcomes = await Promise.all(
-        batch.map(async (seller) => {
-          try {
-            return await processGuildSeller(seller);
-          } catch (err) {
-            const code = getErrorCode(err);
-            errors.push({ sellerId: seller.id, code });
-            Sentry.captureException(err, { tags: { source: "cron_guild_metrics", sellerId: seller.id, code } });
-            return null;
-          }
-        }),
-      );
-
-      for (const outcome of outcomes) {
-        if (!outcome) continue;
-        processed += outcome.processed;
-        warned += outcome.warned;
-        revokedMaster += outcome.revokedMaster;
+        for (const outcome of outcomes) {
+          if (!outcome) continue;
+          processed += outcome.processed;
+          warned += outcome.warned;
+          revokedMaster += outcome.revokedMaster;
+        }
       }
-    }
-
-    cursorId = sellers[sellers.length - 1]?.id ?? null;
-    if (sellers.length < SELLER_PAGE_SIZE) break;
-  }
+    },
+  });
 
   // Clean up view daily records older than the fixed retention window.
   const twoYearsAgo = listingViewDailyRetentionCutoff();
@@ -330,11 +329,10 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
 }
 
 async function deleteOldListingViewDaily(cutoff: Date): Promise<{ count: number; complete: boolean }> {
-  const deadline = Date.now() + VIEW_CLEANUP_TIME_BUDGET_MS;
-  let totalDeleted = 0;
-
-  while (Date.now() < deadline) {
-    const deleted = await prisma.$executeRaw<number>`
+  return runBoundedDeletionBatches({
+    batchSize: VIEW_CLEANUP_BATCH_SIZE,
+    timeBudgetMs: VIEW_CLEANUP_TIME_BUDGET_MS,
+    deleteBatch: async () => prisma.$executeRaw<number>`
       DELETE FROM "ListingViewDaily"
       WHERE id IN (
         SELECT id
@@ -343,15 +341,8 @@ async function deleteOldListingViewDaily(cutoff: Date): Promise<{ count: number;
         ORDER BY date ASC
         LIMIT ${VIEW_CLEANUP_BATCH_SIZE}
       )
-    `;
-    const count = Number(deleted);
-    totalDeleted += count;
-    if (count === 0 || count < VIEW_CLEANUP_BATCH_SIZE) {
-      return { count: totalDeleted, complete: true };
-    }
-  }
-
-  return { count: totalDeleted, complete: false };
+    `,
+  });
 }
 
 function getErrorCode(err: unknown): string {

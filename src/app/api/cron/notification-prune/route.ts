@@ -8,6 +8,7 @@ import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } fr
 import { pruneEmailOutboxRetention } from "@/lib/emailOutboxRetention";
 import { notificationRetentionCutoffs, NOTIFICATION_RETENTION_BATCH_SIZE, NOTIFICATION_RETENTION_TIME_BUDGET_MS } from "@/lib/notificationRetentionState";
 import { pruneWebhookEventRetention } from "@/lib/webhookEventRetention";
+import { runBoundedDeletionBatches } from "@/lib/cronBatchState";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -65,11 +66,10 @@ async function releaseStaleRefundLocksForPrune(): Promise<{ count: number; faile
 }
 
 async function pruneReadNotifications(cutoff: Date): Promise<{ count: number; complete: boolean }> {
-  const deadline = Date.now() + NOTIFICATION_RETENTION_TIME_BUDGET_MS;
-  let totalDeleted = 0;
-
-  while (Date.now() < deadline) {
-    const deleted = await prisma.$executeRaw<number>`
+  return runBoundedDeletionBatches({
+    batchSize: NOTIFICATION_RETENTION_BATCH_SIZE,
+    timeBudgetMs: NOTIFICATION_RETENTION_TIME_BUDGET_MS,
+    deleteBatch: async () => prisma.$executeRaw<number>`
       DELETE FROM "Notification"
       WHERE id IN (
         SELECT id
@@ -79,23 +79,15 @@ async function pruneReadNotifications(cutoff: Date): Promise<{ count: number; co
         ORDER BY "createdAt" ASC
         LIMIT ${NOTIFICATION_RETENTION_BATCH_SIZE}
       )
-    `;
-    const count = Number(deleted);
-    totalDeleted += count;
-    if (count === 0 || count < NOTIFICATION_RETENTION_BATCH_SIZE) {
-      return { count: totalDeleted, complete: true };
-    }
-  }
-
-  return { count: totalDeleted, complete: false };
+    `,
+  });
 }
 
 async function pruneUnreadNotifications(cutoff: Date): Promise<{ count: number; complete: boolean }> {
-  const deadline = Date.now() + NOTIFICATION_RETENTION_TIME_BUDGET_MS;
-  let totalDeleted = 0;
-
-  while (Date.now() < deadline) {
-    const deleted = await prisma.$executeRaw<number>`
+  return runBoundedDeletionBatches({
+    batchSize: NOTIFICATION_RETENTION_BATCH_SIZE,
+    timeBudgetMs: NOTIFICATION_RETENTION_TIME_BUDGET_MS,
+    deleteBatch: async () => prisma.$executeRaw<number>`
       DELETE FROM "Notification"
       WHERE id IN (
         SELECT id
@@ -105,13 +97,6 @@ async function pruneUnreadNotifications(cutoff: Date): Promise<{ count: number; 
         ORDER BY "createdAt" ASC
         LIMIT ${NOTIFICATION_RETENTION_BATCH_SIZE}
       )
-    `;
-    const count = Number(deleted);
-    totalDeleted += count;
-    if (count === 0 || count < NOTIFICATION_RETENTION_BATCH_SIZE) {
-      return { count: totalDeleted, complete: true };
-    }
-  }
-
-  return { count: totalDeleted, complete: false };
+    `,
+  });
 }

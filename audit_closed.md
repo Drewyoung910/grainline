@@ -22,11 +22,11 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-31
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 225.
-- Verified code/feature fix commits since 2026-05-13: 200.
+- Verified hardening/doc commits since 2026-05-13: 226.
+- Verified code/feature fix commits since 2026-05-13: 201.
 - Verified docs/audit-only commits since 2026-05-13: 10.
-- Most recent reported pass tally: 356 verified fixed/reduced findings,
-  383 verified stale/false-positive findings, and 75 deferred/manual findings
+- Most recent reported pass tally: 357 verified fixed/reduced findings,
+  384 verified stale/false-positive findings, and 75 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
 ## 2026-05-14 Active Tracker
@@ -3538,8 +3538,20 @@ Last updated: 2026-05-31
      probes still return `false` for fallback rendering. Guardrail:
      `tests/map-support.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 356 findings;
-verified stale/false-positive: 383 findings; product/design/ops decisions
+321. **Cron termination behavior now has direct helper coverage** —
+     code/test/docs fix for #436, plus stale/false-positive closure for #298.
+     Guild metrics and Guild Member checks now route cursor pagination through
+     `runCronCursorPages()`, and listing-view/notification retention deletes
+     use `runBoundedDeletionBatches()`. The new tests mock empty pages,
+     full-page-then-partial termination, full-page-then-empty termination, zero
+     and partial delete completion, and time-budget exhaustion. The
+     address-autocomplete street-suffix allegation was stale on current
+     `main`: there is no street-suffix rejection regex; the helper forwards
+     normalized query text to Nominatim and maps returned structured address
+     fields. Guardrail: `tests/cron-termination-state.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 357 findings;
+verified stale/false-positive: 384 findings; product/design/ops decisions
 deferred: 75 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -3558,7 +3570,7 @@ display-only media host validation, Clerk staff MFA and breached-password
 dashboard evidence, Clerk multi-account spam dashboard evidence, Stripe
 duplicate-webhook and buyer-deletion runtime replay proof, Founding Maker live
 DB concurrency proof, Sentry cron alert/R2 health/ListBucket ops evidence,
-cron termination mock coverage, HSTS preload and Vercel max-duration ops
+HSTS preload and Vercel max-duration ops
 evidence, remaining runtime a11y proof, and agent/worktree verification process
 hygiene. Approximate raw allegations left to verify from current max #1120:
-306.
+304.
