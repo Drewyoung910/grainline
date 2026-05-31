@@ -3697,7 +3697,17 @@ Last updated: 2026-05-31
      the named allegations; it does not assert that future imports or restored
      backups would have the same shape without re-running the aggregate check.
 
-**Running tally after this pass:** verified fixed/reduced: 378 findings;
+331. **Radius-protected map fallback no longer exposes exact coordinates** —
+     code/test/docs hardening adjacent to the already-closed #740 seller
+     location-privacy finding. `MapCard` already jitters/hides exact pins when
+     `radiusMeters` is set, but its WebGL-unavailable fallback passed raw
+     `lat`/`lng` into `MapFallback`, which printed coordinates and an
+     OpenStreetMap link. Radius-protected `MapCard` fallbacks now suppress those
+     raw coordinates and use privacy-specific fallback copy while exact-map
+     fallbacks keep their coordinate/link behavior. Guardrail:
+     `tests/round8-fulfillment-privacy-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 379 findings;
 verified stale/false-positive: 401 findings; product/design/ops decisions
 deferred: 73 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale

@@ -69,6 +69,8 @@ export default function MapCard({
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [mapUnavailable, setMapUnavailable] = useState(false);
+  const privacyRadiusMeters = typeof radiusMeters === "number" && radiusMeters > 0 ? radiusMeters : null;
+  const hasPrivacyRadius = privacyRadiusMeters !== null;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -81,8 +83,8 @@ export default function MapCard({
 
     let displayLat = lat;
     let displayLng = lng;
-    if (radiusMeters && radiusMeters > 0) {
-      const jittered = jitterAround(lat, lng, radiusMeters, seed);
+    if (hasPrivacyRadius) {
+      const jittered = jitterAround(lat, lng, privacyRadiusMeters, seed);
       displayLat = jittered.lat;
       displayLng = jittered.lng;
     }
@@ -93,7 +95,7 @@ export default function MapCard({
         container: containerRef.current,
         style: "https://tiles.openfreemap.org/styles/liberty",
         center: [displayLng, displayLat],
-        zoom: radiusMeters ? Math.max(9, 14 - Math.log2(radiusMeters / 100)) : 13,
+        zoom: privacyRadiusMeters ? Math.max(9, 14 - Math.log2(privacyRadiusMeters / 100)) : 13,
         // interactive defaults to true — pan and zoom enabled
       });
     } catch {
@@ -105,13 +107,13 @@ export default function MapCard({
     map.addControl(new maplibregl.NavigationControl(), "top-right");
 
     map.on("load", () => {
-      if (radiusMeters && radiusMeters > 0) {
+      if (hasPrivacyRadius) {
         const numPoints = 64;
         const coords: [number, number][] = [];
         for (let i = 0; i < numPoints; i++) {
           const angle = (i / numPoints) * 2 * Math.PI;
-          const dx = (radiusMeters / 111320) * Math.cos(angle);
-          const dy = (radiusMeters / (111320 * Math.cos((displayLat * Math.PI) / 180))) * Math.sin(angle);
+          const dx = (privacyRadiusMeters / 111320) * Math.cos(angle);
+          const dy = (privacyRadiusMeters / (111320 * Math.cos((displayLat * Math.PI) / 180))) * Math.sin(angle);
           coords.push([displayLng + dy, displayLat + dx]);
         }
         coords.push(coords[0]);
@@ -140,7 +142,7 @@ export default function MapCard({
         });
       }
 
-      if (!radiusMeters || showPinWithRadius) {
+      if (!hasPrivacyRadius || showPinWithRadius) {
         const marker = new maplibregl.Marker({ color: "#1C1C1A" })
           .setLngLat([displayLng, displayLat]);
         if (label) {
@@ -151,16 +153,20 @@ export default function MapCard({
     });
 
     return () => map.remove();
-  }, [lat, lng, radiusMeters, showPinWithRadius, seed, label]);
+  }, [lat, lng, privacyRadiusMeters, hasPrivacyRadius, showPinWithRadius, seed, label]);
 
   const resolvedClassName = className ?? "h-48 w-full rounded-xl border border-neutral-200 overflow-hidden";
   if (mapUnavailable) {
     return (
       <MapFallback
         className={resolvedClassName}
-        lat={lat}
-        lng={lng}
-        message="Map preview is unavailable because WebGL is disabled or unsupported."
+        lat={hasPrivacyRadius ? null : lat}
+        lng={hasPrivacyRadius ? null : lng}
+        message={
+          hasPrivacyRadius
+            ? "Map preview is unavailable because WebGL is disabled or unsupported. Exact pickup details are private."
+            : "Map preview is unavailable because WebGL is disabled or unsupported."
+        }
       />
     );
   }

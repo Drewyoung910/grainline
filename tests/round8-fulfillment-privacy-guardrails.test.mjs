@@ -89,6 +89,19 @@ describe("Round 8 public profile privacy guardrails", () => {
     assert.match(seller, /src=\{latestBroadcastImageUrl\}/);
     assert.match(similar, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
   });
+
+  it("does not expose exact coordinates in the MapCard fallback for radius-protected maps", () => {
+    const mapCard = source("src/components/MapCard.tsx");
+    const mapFallback = source("src/components/MapFallback.tsx");
+
+    assert.match(mapCard, /const privacyRadiusMeters = typeof radiusMeters === "number" && radiusMeters > 0 \? radiusMeters : null/);
+    assert.match(mapCard, /lat=\{hasPrivacyRadius \? null : lat\}/);
+    assert.match(mapCard, /lng=\{hasPrivacyRadius \? null : lng\}/);
+    assert.match(mapCard, /Exact pickup details are private/);
+    assert.match(mapFallback, /const hasCoordinates = typeof lat === "number" && typeof lng === "number"/);
+    assert.match(mapFallback, /Approximate coordinates:/);
+    assert.match(mapFallback, /Open in OpenStreetMap/);
+  });
 });
 
 describe("Round 8 compliance copy guardrails", () => {
