@@ -3682,13 +3682,27 @@ Last updated: 2026-05-31
      clean for those allegations; a future `LOWER(email)` expression unique
      index remains optional DB-hardening, not an observed live collision.
 
+330. **Production aggregate data scan completed for historical text-bound and
+     MakerVerification timestamp allegations** — read-only evidence closure for
+     #554 and #560. Aggregate-only Neon queries printed no row-level data and
+     found zero rows sitting exactly at the caps applied by
+     `20260505173000_schema_text_and_listing_guards` across
+     `SellerProfile.bio`, `storyBody`, `returnPolicy`, `customOrderPolicy`,
+     `shippingPolicy`, `Listing.description`, `Order.sellerNotes`,
+     `Order.reviewNote`, and `BlogPost.body`, reducing the concern that the
+     historical `LEFT(...)` precondition updates truncated live production
+     content. The same query found zero `MakerVerification` rows, so the
+     migration-date `createdAt`/`updatedAt` backfill concern has no current live
+     production rows to reconcile. This verifies current production evidence for
+     the named allegations; it does not assert that future imports or restored
+     backups would have the same shape without re-running the aggregate check.
+
 **Running tally after this pass:** verified fixed/reduced: 378 findings;
-verified stale/false-positive: 399 findings; product/design/ops decisions
+verified stale/false-positive: 401 findings; product/design/ops decisions
 deferred: 73 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
-product designs, historical text truncation/MakerVerification timestamp
-production evidence, EXPLAIN-dependent query-plan/index validation, email quota
+product designs, EXPLAIN-dependent query-plan/index validation, email quota
 policy decisions, refund accounting runtime proof and refund fee-policy
 reconciliation, founding-maker permanence policy, remaining case/message state
 policy decisions, privacy/legal retention scope, remaining privacy/export
@@ -3704,4 +3718,4 @@ proof, Sentry cron alert/R2 health/ListBucket ops evidence, HSTS preload and
 Vercel max-duration ops evidence, residual HTTP-status constants/log-forwarding
 and analytics observability refactors, remaining runtime a11y proof, and
 agent/worktree verification process hygiene. Approximate raw allegations left
-to verify from current max #1120: 266.
+to verify from current max #1120: 264.
