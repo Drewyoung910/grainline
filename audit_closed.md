@@ -3718,9 +3718,20 @@ Last updated: 2026-05-31
      webhook and the documented 31-minute session-expiry window. Guardrail:
      `tests/client-async-guardrails.test.mjs`.
 
+333. **Route-level maxDuration coverage verified and guarded** — test/docs
+     closure for #317. The raw allegation correctly noted that `vercel.json`
+     does not define a broad `functions.*.maxDuration` override, but current
+     Next route handlers do not rely on the default 10-second platform window
+     for the heavy paths: checkout/session rollback, Stripe webhooks,
+     label/refund/fulfillment, case resolution, shipping quotes, image upload,
+     message streaming, and every registered cron route all export explicit
+     route-level `maxDuration` values. `CLAUDE.md` now records that this
+     project prefers route-level duration declarations over a global Vercel
+     override. Guardrail: `tests/route-max-duration-guardrails.test.mjs`.
+
 **Running tally after this pass:** verified fixed/reduced: 380 findings;
-verified stale/false-positive: 401 findings; product/design/ops decisions
-deferred: 72 findings. Remaining major categories: Stripe webhook subscription
+verified stale/false-positive: 402 findings; product/design/ops decisions
+deferred: 71 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
 product designs, EXPLAIN-dependent query-plan/index validation, email quota
@@ -3735,7 +3746,7 @@ reconciliation for historical seller shipping-rate currency drift, Clerk staff
 MFA and breached-password dashboard evidence, Clerk multi-account spam dashboard
 evidence, Stripe duplicate-webhook and buyer-deletion runtime replay proof,
 Founding Maker live DB concurrency proof, Sentry cron alert/R2 health/ListBucket
-ops evidence, HSTS preload and Vercel max-duration ops evidence, residual
-HTTP-status constants/log-forwarding and analytics observability refactors,
-remaining runtime a11y proof, and agent/worktree verification process hygiene.
-Approximate raw allegations left to verify from current max #1120: 264.
+ops evidence, HSTS preload ops evidence, residual HTTP-status constants and
+log-forwarding and analytics observability refactors, remaining runtime a11y
+proof, and agent/worktree verification process hygiene. Approximate raw
+allegations left to verify from current max #1120: 264.
