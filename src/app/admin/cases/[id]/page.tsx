@@ -9,6 +9,7 @@ import LocalDate from "@/components/LocalDate";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY } from "@/lib/money";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
+import { refundMayRestoreStock } from "@/lib/refundRouteState";
 
 function fmtMoney(cents: number | null | undefined, currency = DEFAULT_CURRENCY) {
   if (cents == null) return "—";
@@ -98,6 +99,20 @@ export default async function AdminCaseDetailPage({
           shippingAmountCents: true,
           giftWrappingPriceCents: true,
           taxAmountCents: true,
+          fulfillmentStatus: true,
+          items: {
+            select: {
+              listingId: true,
+              quantity: true,
+              priceCents: true,
+              listing: {
+                select: {
+                  title: true,
+                  listingType: true,
+                },
+              },
+            },
+          },
         },
       },
       buyer: { select: { id: true, name: true, email: true } },
@@ -116,6 +131,20 @@ export default async function AdminCaseDetailPage({
   const currency = caseRecord.order.currency ?? DEFAULT_CURRENCY;
   const isActive =
     caseRecord.status !== "RESOLVED" && caseRecord.status !== "CLOSED";
+  const restorableRefundItems = Array.from(
+    caseRecord.order.items.reduce((items, item) => {
+      if (item.listing.listingType !== "IN_STOCK" || item.quantity <= 0) return items;
+      const existing = items.get(item.listingId);
+      items.set(item.listingId, {
+        listingId: item.listingId,
+        title: item.listing.title,
+        quantity: (existing?.quantity ?? 0) + item.quantity,
+      });
+      return items;
+    }, new Map<string, { listingId: string; title: string; quantity: number }>())
+      .values(),
+  );
+  const canRestoreRefundStock = refundMayRestoreStock(caseRecord.order);
 
   const deadline = fmtDeadline(caseRecord.sellerRespondBy);
 
@@ -273,7 +302,12 @@ export default async function AdminCaseDetailPage({
             Resolving will close the case. Full and partial refunds are processed immediately via
             Stripe.
           </p>
-          <CaseResolutionPanel caseId={caseRecord.id} currency={currency} />
+          <CaseResolutionPanel
+            caseId={caseRecord.id}
+            currency={currency}
+            restorableItems={restorableRefundItems}
+            canRestoreStock={canRestoreRefundStock}
+          />
         </Section>
       )}
 

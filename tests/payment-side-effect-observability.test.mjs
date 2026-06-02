@@ -46,7 +46,7 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(route, /manualStripeReconciliationNeeded: true/);
   });
 
-  it("allows partial refunds to restore only explicitly requested purchased stock", () => {
+  it("allows seller partial refunds to restore only explicitly requested purchased stock", () => {
     const route = source("src/app/api/orders/[id]/refund/route.ts");
     const panel = source("src/components/SellerRefundPanel.tsx");
     const salesPage = source("src/app/dashboard/sales/[orderId]/page.tsx");
@@ -60,6 +60,22 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(panel, /restoreStock\.push\(\{ listingId: item\.listingId, quantity \}\)/);
     assert.match(salesPage, /restorableRefundItems/);
     assert.match(salesPage, /canRestoreStock=\{canRestoreRefundStock\}/);
+  });
+
+  it("allows staff case partial refunds to restore only explicitly requested purchased stock", () => {
+    const route = source("src/app/api/cases/[id]/resolve/route.ts");
+    const panel = source("src/components/CaseResolutionPanel.tsx");
+    const adminCasePage = source("src/app/admin/cases/[id]/page.tsx");
+
+    assert.match(route, /restoreStock: z\.array/);
+    assert.match(route, /resolution !== "REFUND_PARTIAL" && requestedStockRestores\.length > 0/);
+    assert.match(route, /requestedRefundStockRestoreQuantities\(\s*caseRecord\.order\.items,\s*requestedStockRestores,\s*\)/s);
+    assert.match(route, /Stock cannot be restored after this order has shipped or been picked up/);
+    assert.match(route, /resolution === "REFUND_PARTIAL"[\s\S]*\? partialStockRestores/);
+    assert.match(panel, /Restore inventory \(optional\)/);
+    assert.match(panel, /restoreStock\.push\(\{ listingId: item\.listingId, quantity \}\)/);
+    assert.match(adminCasePage, /restorableRefundItems/);
+    assert.match(adminCasePage, /canRestoreStock=\{canRestoreRefundStock\}/);
   });
 
   it("sanitizes Stripe webhook console error output before logging", () => {

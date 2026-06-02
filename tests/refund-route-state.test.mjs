@@ -257,6 +257,13 @@ describe("refund route state", () => {
       { ok: false, error: "Cannot restore more than 3 purchased for this listing." },
     );
     assert.deepEqual(
+      requestedRefundStockRestoreQuantities(items, [
+        { listingId: "listing_1", quantity: 2 },
+        { listingId: "listing_1", quantity: 2 },
+      ]),
+      { ok: false, error: "Cannot restore more than 3 purchased for this listing." },
+    );
+    assert.deepEqual(
       requestedRefundStockRestoreQuantities(items, [{ listingId: "listing_2", quantity: 1 }]),
       { ok: false, error: "Stock can only be restored for in-stock listings in this order." },
     );

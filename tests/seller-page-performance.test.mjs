@@ -14,6 +14,11 @@ describe("seller public page query guardrails", () => {
     assert.match(sellerPage, /const getSellerProfileForPublicPage = cache\(async \(sellerId: string\) =>/);
     assert.match(sellerPage, /export async function generateMetadata[\s\S]*getSellerProfileForPublicPage\(sellerId\)/);
     assert.match(sellerPage, /export default async function SellerPublicPage[\s\S]*getSellerProfileForPublicPage\(sellerId\)/);
+    assert.equal(
+      (sellerPage.match(/prisma\.sellerProfile\.findUnique\(/g) ?? []).length,
+      1,
+      "metadata and page render should not duplicate the seller profile findUnique call",
+    );
     assert.doesNotMatch(sellerPage, /prisma\.sellerProfile\.findFirst\(\{\s*where: visibleSellerProfileWhere/);
   });
 

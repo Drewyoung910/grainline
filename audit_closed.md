@@ -3819,8 +3819,27 @@ Last updated: 2026-06-02
      the stale route comment that implied private restocks are promoted to
      active. Guardrail: `tests/stock-mutation-state.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 384 findings;
-verified stale/false-positive: 402 findings; product/design/ops decisions
+342. **Staff partial case refunds can explicitly restore purchased stock** —
+     code/test/docs fix for the current #635 adjacent gap. Seller partial
+     refunds already accepted bounded `restoreStock`; staff case resolution did
+     not. `POST /api/cases/[id]/resolve` now accepts `restoreStock` only for
+     `REFUND_PARTIAL`, rejects stock restoration after shipped/delivered/
+     picked-up buyer handoff states, validates requested quantities through the
+     shared purchased `IN_STOCK` helper, and reuses the existing refund-lock and
+     listing reactivation transaction. The admin case detail page now passes
+     actual restorable order items into `CaseResolutionPanel`, which exposes
+     optional restore quantities for partial refunds. The same pass verified
+     Round 14 #1108, #1109, and #1110 stale on current `main`: required envs
+     use `requiredProductionEnv()`, seller metadata/page renders share a
+     cached seller loader, and React `cache()` is already used on seller and
+     listing pages. #1111 is only partially stale and remains a smaller
+     performance opportunity rather than a closed finding. Guardrails:
+     `tests/payment-side-effect-observability.test.mjs`,
+     `tests/refund-route-state.test.mjs`, `tests/env-validation.test.mjs`, and
+     `tests/seller-page-performance.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 385 findings;
+verified stale/false-positive: 405 findings; product/design/ops decisions
 deferred: 70 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -3829,7 +3848,9 @@ accounting runtime proof and refund fee-policy reconciliation, founding-maker
 permanence policy, remaining case/message state policy decisions,
 privacy/legal retention scope, remaining privacy/export
 retention decisions, cross-seller AI
-duplicate-detection product design, unsubscribe consent-epoch/manual-resubscribe
+duplicate-detection product design, listing analytics self-traffic/rate-limit
+amplification, residual seller-page performance optimization, unsubscribe
+consent-epoch/manual-resubscribe
 semantics, legacy enum cleanup/data-migration decisions, partial multi-seller
 checkout continuation design, deliberate BigInt money-column modeling, live-data
 reconciliation for historical seller shipping-rate currency drift, Clerk staff
@@ -3840,4 +3861,4 @@ ops evidence, HSTS preload submission decision, residual HTTP-status constants
 and log-forwarding and analytics observability refactors, remaining
 homepage/reduced-motion runtime a11y proof, and agent/worktree verification
 process hygiene. Approximate raw allegations left to verify from current max
-#1120: 261.
+#1120: 257.

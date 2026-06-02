@@ -1,6 +1,6 @@
 # Grainline Security Hardening Plan
 
-Last updated: 2026-05-13
+Last updated: 2026-06-02
 
 This document defines the adversarial security process for Grainline. It is intentionally evidence-first: no AI-generated claim should become a finding or a fix until it is verified against code, data flow, and an exploit path.
 
@@ -137,6 +137,7 @@ Checklist:
 - Transfer reversals and label clawbacks have durable recovery paths.
 - Checkout stock/reservation paths are race-safe.
 - Staff/admin refund and case resolution paths are atomic.
+- Refund inventory restoration is explicit and state-gated: full refunds restore eligible in-stock items before buyer handoff, while partial refunds must validate bounded requested quantities against purchased in-stock order items and must not restore stock after shipped, delivered, or picked-up states.
 
 Runtime evidence is required for major Stripe/Shippo changes.
 

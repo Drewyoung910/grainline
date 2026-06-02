@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const { requiredProductionEnv } = await import("../src/lib/env.ts");
@@ -51,4 +51,40 @@ describe("production env validation", () => {
     assert.match(metroSeed, /requiredSeedEnv\("DATABASE_URL"\)/);
     assert.doesNotMatch(metroSeed, /process\.env\.DATABASE_URL!/);
   });
+
+  it("does not use non-null assertions on named process.env variables", () => {
+    const offenders = [];
+    for (const file of sourceFiles(["src", "prisma"])) {
+      const text = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
+      if (/process\.env\.[A-Z0-9_]+!/.test(text)) offenders.push(file);
+    }
+
+    assert.deepEqual(offenders, []);
+  });
 });
+
+function sourceFiles(roots) {
+  const files = [];
+  const allowed = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
+
+  for (const root of roots) {
+    walk(root);
+  }
+
+  return files;
+
+  function walk(relativePath) {
+    const absolute = new URL(`../${relativePath}`, import.meta.url);
+    const stat = statSync(absolute);
+    if (stat.isDirectory()) {
+      for (const entry of readdirSync(absolute)) {
+        if (entry === "node_modules" || entry === ".next") continue;
+        walk(`${relativePath}/${entry}`);
+      }
+      return;
+    }
+    if (allowed.has(relativePath.slice(relativePath.lastIndexOf(".")))) {
+      files.push(relativePath);
+    }
+  }
+}

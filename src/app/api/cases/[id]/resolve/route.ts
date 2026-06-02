@@ -21,6 +21,7 @@ import {
   refundAmountForResolution,
   refundLockAcquisitionConflictResponse,
   refundMayRestoreStock,
+  requestedRefundStockRestoreQuantities,
   refundStockRestoreQuantities,
   sellerRefundConflictResponse,
 } from "@/lib/refundRouteState";
@@ -39,6 +40,10 @@ export const preferredRegion = "iad1";
 const CaseResolveSchema = z.object({
   resolution: z.enum(["REFUND_FULL", "REFUND_PARTIAL", "DISMISSED"]),
   refundAmountCents: z.number().int().positive().optional().nullable(),
+  restoreStock: z.array(z.object({
+    listingId: z.string().min(1),
+    quantity: z.number().int().positive().max(99),
+  })).max(50).optional(),
 });
 const CASE_RESOLVE_BODY_MAX_BYTES = 24 * 1024;
 
@@ -78,6 +83,14 @@ export async function POST(
       throw e;
     }
     const { resolution, refundAmountCents } = parsed;
+    const requestedStockRestores = parsed.restoreStock ?? [];
+
+    if (resolution !== "REFUND_PARTIAL" && requestedStockRestores.length > 0) {
+      return NextResponse.json(
+        { error: "Stock restoration is only available for partial case refunds." },
+        { status: 400 },
+      );
+    }
 
     if (partialRefundInputError(resolution, refundAmountCents)) {
       return NextResponse.json(
@@ -117,6 +130,24 @@ export async function POST(
     }
 
     const refunding = resolution === "REFUND_FULL" || resolution === "REFUND_PARTIAL";
+
+    let partialStockRestores: Array<{ listingId: string; quantity: number }> = [];
+    if (resolution === "REFUND_PARTIAL" && requestedStockRestores.length > 0) {
+      if (!refundMayRestoreStock(caseRecord.order)) {
+        return NextResponse.json(
+          { error: "Stock cannot be restored after this order has shipped or been picked up." },
+          { status: 400 },
+        );
+      }
+      const restoreValidation = requestedRefundStockRestoreQuantities(
+        caseRecord.order.items,
+        requestedStockRestores,
+      );
+      if (!restoreValidation.ok) {
+        return NextResponse.json({ error: restoreValidation.error }, { status: 400 });
+      }
+      partialStockRestores = restoreValidation.restores;
+    }
 
     // Block refund if one is already in flight, locally recorded, or recorded by Stripe webhook.
     if (refunding) {
@@ -236,6 +267,8 @@ export async function POST(
     const stockRestores =
       resolution === "REFUND_FULL" && refundMayRestoreStock(caseRecord.order)
         ? refundStockRestoreQuantities(caseRecord.order.items)
+        : resolution === "REFUND_PARTIAL"
+          ? partialStockRestores
         : [];
     const stockRestoreIds = stockRestores.map((restore) => restore.listingId);
 
