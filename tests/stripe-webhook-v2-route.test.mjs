@@ -82,4 +82,36 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
     assert.match(audit, /Stripe Connect v2 webhook split pass/);
     assert.match(audit, /STRIPE_V2_WEBHOOK_SECRET/);
   });
+
+  it("keeps launch and recovery docs on exact Stripe webhook subscriptions", () => {
+    const launch = source("docs/launch-checklist.md");
+    const runbook = source("docs/runbook.md");
+
+    assert.match(launch, /https:\/\/thegrainline\.com\/api\/stripe\/webhook/);
+    assert.match(runbook, /\/api\/stripe\/webhook/);
+
+    for (const doc of [launch, runbook]) {
+      assert.match(doc, /checkout\.session\.completed/);
+      assert.match(doc, /checkout\.session\.async_payment_succeeded/);
+      assert.match(doc, /checkout\.session\.expired/);
+      assert.match(doc, /checkout\.session\.async_payment_failed/);
+      assert.match(doc, /account\.updated/);
+      assert.match(doc, /account\.application\.deauthorized/);
+      assert.match(doc, /charge\.refunded/);
+      assert.match(doc, /charge\.dispute\.created/);
+      assert.match(doc, /charge\.dispute\.updated/);
+      assert.match(doc, /charge\.dispute\.closed/);
+      assert.match(doc, /charge\.dispute\.funds_withdrawn/);
+      assert.match(doc, /charge\.dispute\.funds_reinstated/);
+      assert.match(doc, /payout\.failed/);
+      assert.match(doc, /payment_intent\.\*/);
+      assert.match(doc, /\/api\/stripe\/webhook\/v2/);
+      assert.match(doc, /STRIPE_V2_WEBHOOK_SECRET/);
+      assert.match(doc, /v2\.core\.account/);
+    }
+
+    assert.doesNotMatch(launch, /with at least `checkout\.session\.completed`/);
+    assert.match(launch, /screenshots of the exact event subscriptions/);
+    assert.match(runbook, /subscribed only to the handled snapshot events/);
+  });
 });

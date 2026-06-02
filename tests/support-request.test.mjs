@@ -12,6 +12,10 @@ const {
 
 const source = readFileSync(new URL("../src/lib/supportRequest.ts", import.meta.url), "utf8");
 
+function projectFile(path) {
+  return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+}
+
 describe("support request helpers", () => {
   it("normalizes support requests before email delivery", () => {
     assert.match(source, /function normalizeEmailAddress/);
@@ -109,5 +113,17 @@ describe("support request helpers", () => {
       supportRequestEmailNotificationState({ emailSentAt: null, emailLastError: null }),
       { label: "Pending", tone: "neutral", message: null },
     );
+  });
+
+  it("documents provider-side privacy request handling for processors", () => {
+    const runbook = projectFile("docs/runbook.md");
+
+    assert.match(runbook, /Processor-side privacy requests/);
+    assert.match(runbook, /SupportRequest` open or `IN_PROGRESS/);
+    assert.match(runbook, /hashed email/);
+    assert.match(runbook, /Resend: check sent-message, bounce, complaint, suppression, and webhook event records/);
+    assert.match(runbook, /provider ticket id, date, owner, and outcome/);
+    assert.match(runbook, /Do not assume `EmailOutbox` or `ResendWebhookEvent` pruning deletes provider copies/);
+    assert.match(runbook, /Stripe, Clerk, Shippo, Sentry, Cloudflare, Neon, Upstash, and Vercel/);
   });
 });

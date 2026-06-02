@@ -283,4 +283,31 @@ describe("accessibility follow-ups", () => {
       assert.doesNotMatch(text, /<th\b(?![^>]*\bscope=)/, `${path} should scope every table header`);
     }
   });
+
+  it("keeps homepage heading order and reduced-motion hero controls auditable", () => {
+    const home = source("src/app/page.tsx");
+    const heroMosaic = source("src/components/HeroMosaic.tsx");
+    const globals = source("src/app/globals.css");
+
+    assert.equal((home.match(/<h1\b/g) ?? []).length, 1);
+    assert.ok(home.indexOf("<h1") < home.indexOf("<h2"), "homepage h1 should precede section h2s");
+    assert.doesNotMatch(home, /<h[4-6]\b/);
+    for (const heading of [
+      "Shop by Category",
+      "New Arrivals",
+      "Top Picks",
+      "From the Blog",
+    ]) {
+      assert.match(home, new RegExp(`<h2[^>]*>[\\s\\S]*?${heading}[\\s\\S]*?<\\/h2>`));
+    }
+
+    assert.match(heroMosaic, /aria-label=\{paused \? "Play hero animation" : "Pause hero animation"\}/);
+    assert.match(heroMosaic, /aria-pressed=\{paused\}/);
+    assert.match(heroMosaic, /motion-reduce:animate-none/);
+    assert.match(heroMosaic, /motion-reduce:blur-none/);
+    assert.match(heroMosaic, /motion-reduce:scale-100/);
+    assert.match(globals, /@media \(prefers-reduced-motion: reduce\)/);
+    assert.match(globals, /\.animate-scroll-left,[\s\S]*\.animate-slide-down \{[\s\S]*animation: none !important/);
+    assert.match(globals, /transition-duration: 0\.01ms !important/);
+  });
 });

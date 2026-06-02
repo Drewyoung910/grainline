@@ -45,7 +45,8 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
 - Clerk: seller MFA requirement or documented enforcement plan at the Stripe-Connect-completed boundary.
 - Clerk: webhook endpoint registered at `https://thegrainline.com/api/clerk/webhook` for `user.created`, `user.updated`, and `user.deleted`.
 - Stripe: Connect live mode enabled and identity verification complete.
-- Stripe: live webhook endpoint registered at `https://thegrainline.com/api/stripe/webhook` with at least `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.expired`, `checkout.session.async_payment_failed`, `account.updated`, `account.application.deauthorized`, `charge.refunded`, `charge.dispute.created`, `charge.dispute.updated`, `charge.dispute.closed`, and `payout.failed`.
+- Stripe: live snapshot webhook endpoint registered at `https://thegrainline.com/api/stripe/webhook` with exactly the current handled event set: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.expired`, `checkout.session.async_payment_failed`, `account.updated`, `account.application.deauthorized`, `charge.refunded`, `charge.dispute.created`, `charge.dispute.updated`, `charge.dispute.closed`, `charge.dispute.funds_withdrawn`, `charge.dispute.funds_reinstated`, and `payout.failed`. Do not subscribe this endpoint to `payment_intent.*` events while Checkout Sessions are card-only and order creation is driven by Checkout events.
+- Stripe: Connect v2 thin webhook endpoint registered at `https://thegrainline.com/api/stripe/webhook/v2` with `v2.core.account` account-notification events only, using a distinct `STRIPE_V2_WEBHOOK_SECRET`.
 - Stripe: `thegrainline.com` registered for Apple Pay/payment method domains.
 - Stripe: PCI SAQ A completed and evidence retained with launch records.
 - Stripe/payment pages: checkout-page script inventory completed in `docs/checkout-script-inventory.md`; CSP reports from checkout pages verified in Sentry.
@@ -106,7 +107,7 @@ Record links/screenshots/dates for:
 - GitHub code-security settings.
 - Cloudflare WAF/Bot/TLS settings.
 - Clerk production security settings.
-- Stripe snapshot webhook and Connect v2 thin webhook delivery.
+- Stripe snapshot webhook and Connect v2 thin webhook delivery, including screenshots of the exact event subscriptions listed above.
 - Clerk and Resend webhook delivery.
 - Neon backup/PITR setting and most recent restore drill.
 - Sentry alert rules for CSP/script/frame violations and production error spikes.

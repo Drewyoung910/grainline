@@ -3850,7 +3850,41 @@ Last updated: 2026-06-02
      `Listing` or `ListingViewDaily` writes. Guardrail:
      `tests/listing-analytics-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 387 findings;
+344. **Homepage reduced-motion source guardrails tightened** — test-only
+     closure for the current-code portion of #480, with partial source evidence
+     for #447 but no runtime accessibility overclaim. Current `main` keeps a
+     single homepage `<h1>` before section `<h2>` headings, avoids h4-h6
+     heading skips in the homepage source, gives the animated hero mosaic a
+     pause/play button with `aria-pressed`, disables mosaic row animation under
+     `motion-reduce`, removes reduced-motion blur/scale transforms, and keeps
+     the global reduced-motion media query in place. Full axe/VoiceOver runtime
+     proof for the homepage remains a manual verification item. Guardrail:
+     `tests/accessibility-followups.test.mjs`.
+
+345. **Stripe webhook subscription evidence contract tightened** — docs/test
+     follow-up with no tally change because #1101 was already classified as a
+     manual Stripe Dashboard evidence item in entry 246. Parent review of the
+     read-only agent result confirmed no current code defect: the legacy
+     snapshot webhook is signed with `STRIPE_WEBHOOK_SECRET`, the Connect v2
+     thin webhook is separate and signed with `STRIPE_V2_WEBHOOK_SECRET`, and
+     current card-only Checkout flows are guarded against unhandled
+     `payment_intent.*` assumptions. `docs/launch-checklist.md` and
+     `docs/runbook.md` now require exact snapshot event subscriptions, separate
+     `v2.core.account` thin-event evidence, and screenshots/dates for launch.
+     Guardrails: `tests/stripe-webhook-v2-route.test.mjs` and
+     `tests/checkout-payment-methods.test.mjs`.
+
+346. **Processor-side privacy request runbook added** — docs/test fix for
+     verified #993. Current account deletion/export code and local outbox
+     pruning cover Grainline-owned storage, but they do not prove Resend or
+     other processors have deleted/exported provider-held copies. The operations
+     runbook now requires provider-side checks or counsel-documented retention
+     exceptions before closing relevant `SupportRequest` rows, with explicit
+     Resend sent-message/bounce/complaint/suppression/event review and ticket
+     evidence. This is an operational-evidence fix, not a claim of automatic
+     provider erasure. Guardrail: `tests/support-request.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 389 findings;
 verified stale/false-positive: 405 findings; product/design/ops decisions
 deferred: 70 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
@@ -3858,7 +3892,7 @@ remote branch and old git author hygiene, Round 10 deferred cache/state-machine
 product designs, EXPLAIN-dependent query-plan/index validation, refund
 accounting runtime proof and refund fee-policy reconciliation, founding-maker
 permanence policy, remaining case/message state policy decisions,
-privacy/legal retention scope, remaining privacy/export
+remaining privacy/legal retention scope, remaining privacy/export
 retention decisions, cross-seller AI
 duplicate-detection product design, residual seller-page performance
 optimization, unsubscribe
@@ -3870,7 +3904,6 @@ MFA and breached-password dashboard evidence, Clerk multi-account spam dashboard
 evidence, Stripe duplicate-webhook and buyer-deletion runtime replay proof,
 Founding Maker live DB concurrency proof, Sentry cron alert/R2 health/ListBucket
 ops evidence, HSTS preload submission decision, residual HTTP-status constants
-and log-forwarding and analytics observability refactors, remaining
-homepage/reduced-motion runtime a11y proof, and agent/worktree verification
-process hygiene. Approximate raw allegations left to verify from current max
-#1120: 255.
+and log-forwarding and analytics observability refactors, remaining homepage
+runtime a11y proof, and agent/worktree verification process hygiene.
+Approximate raw allegations left to verify from current max #1120: 253.

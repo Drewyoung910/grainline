@@ -1,6 +1,6 @@
 # Grainline Operations Runbook
 
-Last updated: 2026-04-30
+Last updated: 2026-06-02
 
 This runbook covers the minimum operational steps for production incidents, deploy rollback, secret rotation, webhook recovery, database restore drills, and public support/legal request handling.
 
@@ -108,9 +108,20 @@ Stripe:
 
 1. Confirm the production endpoint is `/api/stripe/webhook`.
 2. Confirm the deployed `STRIPE_WEBHOOK_SECRET` matches the Stripe endpoint secret.
-3. In Stripe Dashboard, filter failed events and replay after the app is healthy.
-4. Verify `StripeWebhookEvent` rows show processed state for replayed events.
-5. For checkout or refund incidents, compare Stripe charge/payment/refund IDs against `OrderPaymentEvent`.
+3. Confirm the endpoint is subscribed only to the handled snapshot events:
+   `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
+   `checkout.session.expired`, `checkout.session.async_payment_failed`,
+   `account.updated`, `account.application.deauthorized`, `charge.refunded`,
+   `charge.dispute.created`, `charge.dispute.updated`, `charge.dispute.closed`,
+   `charge.dispute.funds_withdrawn`, `charge.dispute.funds_reinstated`, and
+   `payout.failed`. Do not add `payment_intent.*` events unless checkout payment
+   methods and webhook failure handling are expanded.
+4. Confirm the Connect v2 thin-event endpoint is `/api/stripe/webhook/v2`, uses
+   `STRIPE_V2_WEBHOOK_SECRET`, and is subscribed only to the `v2.core.account`
+   account-notification event family.
+5. In Stripe Dashboard, filter failed events and replay after the app is healthy.
+6. Verify `StripeWebhookEvent` rows show processed state for replayed events.
+7. For checkout or refund incidents, compare Stripe charge/payment/refund IDs against `OrderPaymentEvent`.
 
 Clerk:
 
@@ -169,3 +180,13 @@ Public requests are recorded in `SupportRequest`.
 - Support requests route notification email to `support@thegrainline.com`.
 
 If notification email fails, the request still remains in `SupportRequest` with `emailLastError`. Admins should process overdue or failed-notification requests from `/admin/support`.
+
+### Processor-side privacy requests
+
+Local account deletion, export, and outbox pruning cover Grainline-owned storage. They do not automatically erase provider-held copies. For privacy requests that ask for deletion, export, retention evidence, or vendor-side suppression across processors:
+
+1. Keep the `SupportRequest` open or `IN_PROGRESS` until provider-side checks are complete or counsel documents that provider retention applies.
+2. Record the requester by local user id and hashed email when possible. Avoid raw email in internal notes unless it is needed for provider lookup.
+3. Resend: check sent-message, bounce, complaint, suppression, and webhook event records for the requester. If deletion, export, or suppression is required, use the Resend dashboard or support path and record the provider ticket id, date, owner, and outcome. Do not assume `EmailOutbox` or `ResendWebhookEvent` pruning deletes provider copies.
+4. Stripe, Clerk, Shippo, Sentry, Cloudflare, Neon, Upstash, and Vercel: determine whether the request is a deletion, export, suppression, or legal-retention exception, then use the provider dashboard or support path and record the evidence URL or ticket id.
+5. Close the `SupportRequest` only after local action, provider action or exception, requester response, owner, and completion date are recorded.
