@@ -30,6 +30,40 @@ describe("public visibility follow-ups", () => {
     assert.match(listingPage, /prisma\.listing\.findMany\(\{\s*where: publicListingWhere\(\{\s*sellerId: listing\.sellerId,\s*id: \{ not: listing\.id \},\s*\}\),/);
   });
 
+  it("keeps public listing-card queries on top-level select allowlists", () => {
+    const browsePage = read("src/app/browse/page.tsx");
+    const listingPage = read("src/app/listing/[id]/page.tsx");
+    const sellerPage = read("src/app/seller/[id]/page.tsx");
+    const sellerShopPage = read("src/app/seller/[id]/shop/page.tsx");
+
+    for (const [path, source] of [
+      ["browse", browsePage],
+      ["listing detail", listingPage],
+      ["seller profile", sellerPage],
+      ["seller shop", sellerShopPage],
+    ]) {
+      assert.doesNotMatch(source, /include:\s*\{\s*photos:/, `${path} should not fetch full Listing rows for cards`);
+      assert.match(source, /select:\s*\{[\s\S]*?id: true,[\s\S]*?title: true,[\s\S]*?priceCents: true,/);
+    }
+  });
+
+  it("keeps public owner checks off Clerk ids when local seller user ids are selected", () => {
+    const listingPage = read("src/app/listing/[id]/page.tsx");
+    const sellerPage = read("src/app/seller/[id]/page.tsx");
+    const sellerShopPage = read("src/app/seller/[id]/shop/page.tsx");
+    const visibility = read("src/lib/listingVisibility.ts");
+
+    assert.doesNotMatch(listingPage, /user: \{ select: \{ id: true/);
+    assert.match(listingPage, /const sellerUserId = listing\.seller\.userId/);
+    assert.match(listingPage, /blockedUserIds\.has\(listing\.seller\.userId\)/);
+
+    for (const source of [sellerPage, sellerShopPage]) {
+      assert.doesNotMatch(source, /clerkId: true/);
+      assert.match(source, /const isOwner = !!meId && seller\.userId === meId/);
+    }
+    assert.match(visibility, /listing\.seller\.userId === viewer\.dbUserId/);
+  });
+
   it("allows sellers to clear their workshop gallery explicitly", () => {
     const uploader = read("src/components/GalleryUploader.tsx");
     const profilePage = read("src/app/dashboard/profile/page.tsx");

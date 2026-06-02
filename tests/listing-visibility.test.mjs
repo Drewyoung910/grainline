@@ -17,6 +17,7 @@ function listing(overrides = {}) {
     isPrivate: false,
     reservedForUserId: null,
     seller: {
+      userId: "user_1",
       chargesEnabled: true,
       vacationMode: false,
       user: {
@@ -119,6 +120,19 @@ describe("listing visibility", () => {
         listing({
           status: ListingStatus.HIDDEN,
           seller: { ...listing().seller, user: { ...listing().seller.user, clerkId: undefined } },
+        }),
+        { dbUserId: "user_1", preview: true },
+      ),
+      true,
+    );
+    assert.equal(
+      canViewListingDetail(
+        listing({
+          status: ListingStatus.HIDDEN,
+          seller: {
+            ...listing().seller,
+            user: { banned: false, deletedAt: null },
+          },
         }),
         { dbUserId: "user_1", preview: true },
       ),

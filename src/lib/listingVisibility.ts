@@ -47,6 +47,7 @@ type ListingVisibilityInput = {
   isPrivate: boolean;
   reservedForUserId?: string | null;
   seller: {
+    userId?: string | null;
     chargesEnabled: boolean;
     stripeAccountVersion?: string | null;
     vacationMode?: boolean | null;
@@ -105,6 +106,7 @@ export function canViewListingDetail(
   }
 
   const isOwner =
+    (!!viewer.dbUserId && listing.seller.userId === viewer.dbUserId) ||
     (!!viewer.dbUserId && listing.seller.user?.id === viewer.dbUserId) ||
     (!!viewer.clerkUserId && listing.seller.user?.clerkId === viewer.clerkUserId);
   if (viewer.preview && isOwner) return true;

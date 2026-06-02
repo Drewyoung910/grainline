@@ -93,7 +93,7 @@ const getSellerProfileForPublicPage = cache(async (sellerId: string) =>
       foundingMakerNumber: true,
       chargesEnabled: true,
       stripeAccountVersion: true,
-      user: { select: { id: true, clerkId: true, imageUrl: true, banned: true, deletedAt: true } },
+      user: { select: { imageUrl: true, banned: true, deletedAt: true } },
       faqs: { orderBy: { sortOrder: "asc" }, select: { id: true, question: true, answer: true } },
       metro: { select: { slug: true, name: true, state: true } },
       cityMetro: { select: { slug: true, name: true, state: true } },
@@ -185,12 +185,12 @@ export default async function SellerPublicPage({
     const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
     meId = me?.id ?? null;
   }
-  const isOwner = !!userId && seller.user?.clerkId === userId;
+  const isOwner = !!meId && seller.userId === meId;
   if (!isOwner && !sellerIsPubliclyVisible(seller)) return notFound();
 
   // Block check — return 404 if the viewer has blocked or been blocked by the seller
   const blockedUserIds = await getBlockedUserIdsFor(meId);
-  if (seller.user?.id && blockedUserIds.has(seller.user.id)) {
+  if (blockedUserIds.has(seller.userId)) {
     return notFound();
   }
 
@@ -240,7 +240,21 @@ export default async function SellerPublicPage({
     }),
     prisma.listing.findMany({
       where: publicListingWhere({ sellerId: seller.id }),
-      include: { photos: { orderBy: { sortOrder: "asc" }, take: 1 } },
+      select: {
+        id: true,
+        title: true,
+        priceCents: true,
+        currency: true,
+        status: true,
+        isPrivate: true,
+        listingType: true,
+        stockQuantity: true,
+        photos: {
+          orderBy: { sortOrder: "asc" },
+          take: 1,
+          select: { url: true, altText: true },
+        },
+      },
       orderBy: { updatedAt: "desc" },
       take: 100,
     }),

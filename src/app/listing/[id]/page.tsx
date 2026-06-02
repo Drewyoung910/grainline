@@ -86,7 +86,7 @@ const getListingForDetailPage = cache(async (listingId: string) =>
           guildLevel: true,
           isFoundingMaker: true,
           foundingMakerNumber: true,
-          user: { select: { id: true, imageUrl: true, banned: true, deletedAt: true } },
+          user: { select: { imageUrl: true, banned: true, deletedAt: true } },
         },
       },
       metro: { select: { slug: true, name: true, state: true } },
@@ -221,7 +221,7 @@ export default async function ListingPage({
   }
 
   // Block filter — return 404 if the viewer has blocked or been blocked by the seller
-  if (!isPreview && listing.seller.user?.id && blockedUserIds.has(listing.seller.user.id)) {
+  if (!isPreview && blockedUserIds.has(listing.seller.userId)) {
     return notFound();
   }
 
@@ -264,7 +264,11 @@ export default async function ListingPage({
       }),
       orderBy: { qualityScore: "desc" },
       take: 4,
-      include: {
+      select: {
+        id: true,
+        title: true,
+        priceCents: true,
+        currency: true,
         photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
       },
     }),
@@ -324,8 +328,7 @@ export default async function ListingPage({
   const sellerHref = publicSellerPath(listing.sellerId, sellerName);
   const sellerAvatar = listing.seller.avatarImageUrl ?? listing.seller.user?.imageUrl ?? null;
 
-  const sellerDbUserId = listing.seller.user?.id ?? null;
-  const sellerUserId = sellerDbUserId;
+  const sellerUserId = listing.seller.userId;
 
   const initials = avatarInitials(sellerName, "S");
 

@@ -3900,10 +3900,26 @@ Last updated: 2026-06-02
      `tests/round8-fulfillment-privacy-guardrails.test.mjs`, and
      `tests/verified-audit-followups.test.mjs`.
 
+348. **Public listing-card and owner-check projections minimized** —
+     code/test/docs hardening adjacent to already-closed #764/#792, with no
+     duplicate raw tally increase. Parent review confirmed the original
+     full-row SellerProfile/User PII allegation remains stale on current
+     `main`, but public listing-card queries on browse, listing detail,
+     seller profile, and seller shop still fetched broad Listing rows through
+     `include: { photos: ... }`. Those card queries now use top-level `select`
+     allowlists, and public owner/block/message checks use the already-selected
+     local `seller.userId` / `listing.seller.userId` instead of selecting Clerk
+     ids or nested user ids. Guardrails:
+     `tests/public-visibility-followups.test.mjs`,
+     `tests/listing-visibility.test.mjs`, and
+     `tests/round8-fulfillment-privacy-guardrails.test.mjs`.
+
 **Running tally after this pass:** verified fixed/reduced: 390 findings;
 verified stale/false-positive: 405 findings; product/design/ops decisions
 deferred: 70 findings. This adjacent current-code fix did not reduce the raw
-Claude import count. Remaining major categories: Stripe webhook subscription
+Claude import count; entry 348 also has no duplicate tally increase because
+#764/#792 were already closed or classified in earlier passes. Remaining major
+categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
 product designs, EXPLAIN-dependent query-plan/index validation, refund

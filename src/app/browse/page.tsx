@@ -69,7 +69,21 @@ async function fetchListings(where: Prisma.ListingWhereInput, orderBy: Prisma.Li
     orderBy,
     take,
     skip,
-    include: {
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      priceCents: true,
+      currency: true,
+      status: true,
+      listingType: true,
+      stockQuantity: true,
+      shipsWithinDays: true,
+      processingTimeMinDays: true,
+      processingTimeMaxDays: true,
+      sellerId: true,
+      tags: true,
+      qualityScore: true,
       photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
       seller: {
         select: {
@@ -452,7 +466,11 @@ export default async function BrowsePage({
       where: publicListingWhere(),
       orderBy: { favorites: { _count: "desc" } },
       take: 4,
-      include: { photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } } },
+      select: {
+        id: true,
+        title: true,
+        photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
+      },
     });
 
     return (

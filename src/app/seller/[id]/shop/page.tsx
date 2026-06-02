@@ -98,7 +98,7 @@ export default async function SellerShopPage({
       vacationMessage: true,
       isFoundingMaker: true,
       foundingMakerNumber: true,
-      user: { select: { imageUrl: true, clerkId: true, banned: true, deletedAt: true } },
+      user: { select: { imageUrl: true, banned: true, deletedAt: true } },
     },
   });
 
@@ -113,7 +113,7 @@ export default async function SellerShopPage({
     meId = me?.id ?? null;
   }
 
-  const isOwner = !!userId && seller.user?.clerkId === userId;
+  const isOwner = !!meId && seller.userId === meId;
   if (seller.user?.banned || seller.user?.deletedAt) {
     return notFound();
   }
@@ -201,7 +201,21 @@ export default async function SellerShopPage({
       orderBy,
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
-      include: { photos: { orderBy: { sortOrder: "asc" }, take: 1 } },
+      select: {
+        id: true,
+        title: true,
+        priceCents: true,
+        currency: true,
+        status: true,
+        isPrivate: true,
+        listingType: true,
+        stockQuantity: true,
+        photos: {
+          orderBy: { sortOrder: "asc" },
+          take: 1,
+          select: { url: true, altText: true },
+        },
+      },
     }),
     prisma.listing.count({ where }),
   ]);
