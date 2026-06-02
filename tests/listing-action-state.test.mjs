@@ -120,6 +120,7 @@ describe("listing shop action state", () => {
     const shopActions = source("src/app/seller/[id]/shop/actions.ts");
     const shopUi = source("src/app/seller/[id]/shop/ShopListingActions.tsx");
     const dashboard = source("src/app/dashboard/page.tsx");
+    const inventoryRow = source("src/app/dashboard/inventory/InventoryRow.tsx");
 
     assert.match(shopActions, /export async function withdrawListingReviewAction/);
     assert.match(shopActions, /withdrawReviewBlockReason\(listing\)/);
@@ -144,5 +145,9 @@ describe("listing shop action state", () => {
     assert.match(dashboard, /status: ListingStatus\.DRAFT/);
     assert.match(dashboard, /action=\{withdrawListingReview\.bind\(null, l\.id\)\}/);
     assert.match(dashboard, />\s*Withdraw\s*</);
+
+    assert.match(inventoryRow, /listing\.status === "PENDING_REVIEW"/);
+    assert.match(inventoryRow, /`\$\{publicListingPath\(listing\.id, listing\.title\)\}\?preview=1`/);
+    assert.match(inventoryRow, /: `\/dashboard\/listings\/\$\{listing\.id\}\/edit`/);
   });
 });

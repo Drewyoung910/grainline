@@ -14,6 +14,7 @@ describe("case action state", () => {
     assert.equal(isResolvableCaseStatus("PENDING_CLOSE"), true);
     assert.equal(isResolvableCaseStatus("UNDER_REVIEW"), false);
     assert.equal(isResolvableCaseStatus("RESOLVED"), false);
+    assert.equal(isResolvableCaseStatus("CLOSED"), false);
   });
 
   it("limits escalation to discussion states before pending-close or review", () => {
@@ -21,6 +22,7 @@ describe("case action state", () => {
     assert.equal(isEscalatableCaseStatus("IN_DISCUSSION"), true);
     assert.equal(isEscalatableCaseStatus("PENDING_CLOSE"), false);
     assert.equal(isEscalatableCaseStatus("UNDER_REVIEW"), false);
+    assert.equal(isEscalatableCaseStatus("CLOSED"), false);
   });
 
   it("uses stable user-facing messages from the resulting status", () => {

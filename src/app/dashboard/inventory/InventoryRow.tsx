@@ -3,6 +3,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, Heart, Bell } from "@/components/icons";
+import { publicListingPath } from "@/lib/publicPaths";
 
 type Listing = {
   id: string;
@@ -27,6 +28,9 @@ export default function InventoryRow({ listing }: { listing: Listing }) {
   const expectedQuantityRef = React.useRef(listing.stockQuantity ?? 0);
 
   const thumb = listing.photos[0]?.url;
+  const titleHref = listing.status === "PENDING_REVIEW"
+    ? `${publicListingPath(listing.id, listing.title)}?preview=1`
+    : `/dashboard/listings/${listing.id}/edit`;
 
   React.useEffect(() => {
     expectedQuantityRef.current = listing.stockQuantity ?? 0;
@@ -81,7 +85,7 @@ export default function InventoryRow({ listing }: { listing: Listing }) {
 
       <div className="min-w-0 flex-1">
         <Link
-          href={`/dashboard/listings/${listing.id}/edit`}
+          href={titleHref}
           className="block truncate text-sm font-medium hover:underline"
         >
           {listing.title}

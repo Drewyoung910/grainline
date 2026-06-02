@@ -22,8 +22,8 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-06-02
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 228.
-- Verified code/feature fix commits since 2026-05-13: 202.
+- Verified hardening/doc commits since 2026-05-13: 230.
+- Verified code/feature fix commits since 2026-05-13: 204.
 - Verified docs/audit-only commits since 2026-05-13: 11.
 - Most recent reported pass tally: 381 verified fixed/reduced findings,
   402 verified stale/false-positive findings, and 70 deferred/manual findings
@@ -3771,6 +3771,16 @@ Last updated: 2026-06-02
      state on close/unmount so background links and controls are not tab-
      reachable through the modal state. Guardrail:
      `tests/accessibility-followups.test.mjs`.
+
+338. **State-machine follow-up guardrails tightened** — code/test follow-up with
+     no tally change because #1055/#1059 were already counted in entry 268 and
+     legacy `CaseStatus.CLOSED` enum cleanup remains a data-migration/product
+     decision. `caseActionState` tests now explicitly assert that `CLOSED` is
+     neither resolvable nor escalatable, and dashboard inventory rows route
+     `PENDING_REVIEW` listing titles to owner preview instead of the edit page,
+     matching the main dashboard's locked-review affordance. Guardrails:
+     `tests/case-action-state.test.mjs` and
+     `tests/listing-action-state.test.mjs`.
 
 **Running tally after this pass:** verified fixed/reduced: 381 findings;
 verified stale/false-positive: 402 findings; product/design/ops decisions
