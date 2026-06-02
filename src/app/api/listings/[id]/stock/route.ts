@@ -90,9 +90,8 @@ export async function PATCH(
     const applyDelta = expectedQuantity != null;
     const stockDelta = applyDelta ? quantity - expectedQuantity : 0;
 
-    // NOTE: restocking always promotes SOLD_OUT -> ACTIVE. If listing was
-    // previously HIDDEN before going SOLD_OUT, seller must re-hide manually.
-    // Tracking pre-SOLD_OUT status would require a schema change.
+    // Restocking public SOLD_OUT listings promotes them to ACTIVE. Private
+    // listings stay private/SOLD_OUT so restock cannot publish a reserved item.
     const updatedRows = await prisma.$queryRaw<Array<{
       id: string;
       title: string;
@@ -157,11 +156,19 @@ export async function PATCH(
           while (true) {
             const claimedSubscribers = await prisma.$queryRaw<{ userId: string; stockQuantity: number | null }[]>`
               WITH available_listing AS (
-                SELECT id, "stockQuantity"
-                FROM "Listing"
-                WHERE id = ${id}
-                  AND status = 'ACTIVE'::"ListingStatus"
-                  AND COALESCE("stockQuantity", 0) > 0
+                SELECT l.id, l."stockQuantity"
+                FROM "Listing" l
+                INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
+                INNER JOIN "User" u ON u.id = sp."userId"
+                WHERE l.id = ${id}
+                  AND l.status = 'ACTIVE'::"ListingStatus"
+                  AND l."isPrivate" = false
+                  AND COALESCE(l."stockQuantity", 0) > 0
+                  AND sp."chargesEnabled" = true
+                  AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
+                  AND sp."vacationMode" = false
+                  AND u.banned = false
+                  AND u."deletedAt" IS NULL
               ),
               next_subscribers AS (
                 SELECT sn.id

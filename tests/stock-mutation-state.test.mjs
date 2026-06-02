@@ -82,6 +82,25 @@ describe("stock mutation state", () => {
     assert.match(stockAlertBody(0), /Check the listing/);
   });
 
+  it("rechecks public seller state before claiming back-in-stock subscribers", () => {
+    const stockRoute = source("src/app/api/listings/[id]/stock/route.ts");
+    const fanoutSql = stockRoute.slice(
+      stockRoute.indexOf("WITH available_listing AS"),
+      stockRoute.indexOf("next_subscribers AS"),
+    );
+
+    assert.match(fanoutSql, /INNER JOIN "SellerProfile" sp ON sp\.id = l\."sellerId"/);
+    assert.match(fanoutSql, /INNER JOIN "User" u ON u\.id = sp\."userId"/);
+    assert.match(fanoutSql, /l\.status = 'ACTIVE'::"ListingStatus"/);
+    assert.match(fanoutSql, /l\."isPrivate" = false/);
+    assert.match(fanoutSql, /COALESCE\(l\."stockQuantity", 0\) > 0/);
+    assert.match(fanoutSql, /sp\."chargesEnabled" = true/);
+    assert.match(fanoutSql, /sp\."stripeAccountVersion" IS NULL OR sp\."stripeAccountVersion" = 'v2'/);
+    assert.match(fanoutSql, /sp\."vacationMode" = false/);
+    assert.match(fanoutSql, /u\.banned = false/);
+    assert.match(fanoutSql, /u\."deletedAt" IS NULL/);
+  });
+
   it("dedupes low-stock notifications per listing over a rolling multi-day window", () => {
     assert.equal(LOW_STOCK_DEDUP_WINDOW_MS, 72 * 60 * 60 * 1000);
     assert.equal(lowStockNotificationLink("listing_123"), "/dashboard/listings/listing_123/edit");

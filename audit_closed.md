@@ -25,7 +25,7 @@ Last updated: 2026-06-02
 - Verified hardening/doc commits since 2026-05-13: 230.
 - Verified code/feature fix commits since 2026-05-13: 204.
 - Verified docs/audit-only commits since 2026-05-13: 11.
-- Most recent reported pass tally: 383 verified fixed/reduced findings,
+- Most recent reported pass tally: 384 verified fixed/reduced findings,
   402 verified stale/false-positive findings, and 70 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
@@ -3807,7 +3807,19 @@ Last updated: 2026-06-02
      guard remains intact. Guardrails: `tests/seo-landing-routes.test.mjs`,
      `tests/public-paths.test.mjs`, and `tests/sitemap-entry-limit.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 383 findings;
+341. **Back-in-stock fanout rechecks seller visibility before claiming
+     subscribers** — code/test/docs fix for #91. The restock route already
+     claimed subscribers atomically after a `SOLD_OUT -> ACTIVE` transition,
+     but the async claim CTE only rechecked listing status and positive stock.
+     It now joins `SellerProfile` and `User` and mirrors public listing
+     visibility before deleting `StockNotification` rows or queuing
+     `BACK_IN_STOCK` notifications/emails: active, non-private, positive-stock
+     listing; seller charges enabled; supported Stripe account version; seller
+     not on vacation; seller user not banned or deleted. The same pass corrected
+     the stale route comment that implied private restocks are promoted to
+     active. Guardrail: `tests/stock-mutation-state.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 384 findings;
 verified stale/false-positive: 402 findings; product/design/ops decisions
 deferred: 70 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
@@ -3828,4 +3840,4 @@ ops evidence, HSTS preload submission decision, residual HTTP-status constants
 and log-forwarding and analytics observability refactors, remaining
 homepage/reduced-motion runtime a11y proof, and agent/worktree verification
 process hygiene. Approximate raw allegations left to verify from current max
-#1120: 262.
+#1120: 261.

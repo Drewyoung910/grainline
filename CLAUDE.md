@@ -390,7 +390,7 @@ Seven sections with a single `updateSellerProfile` server action for fields A–
 - **`POST /api/listings/[id]/notify`** — auth required; upserts `StockNotification` record; returns `{ subscribed: true }`
 - **`DELETE /api/listings/[id]/notify`** — auth required; deletes record; returns `{ subscribed: false }`
 - **`NotifyMeButton`** — client component; shown on listing detail when `isOutOfStock && !isOwnListing`; toggles subscription; redirects to sign-in if not logged in; shows "🔔 You'll be notified…" + unsubscribe link when subscribed
-- Restock email (`sendBackInStock`) wired in `PATCH /api/listings/[id]/stock/route.ts` — sends to each subscriber when status transitions `SOLD_OUT → ACTIVE`; only fires once Resend domain is verified
+- Restock fanout wired in `PATCH /api/listings/[id]/stock/route.ts` — when status transitions `SOLD_OUT → ACTIVE`, the async subscriber-claim CTE must re-check public listing visibility (`ACTIVE`, non-private, positive stock, seller charges enabled, supported Stripe account version, not vacationing, seller user not banned/deleted) before deleting `StockNotification` rows or sending in-app/email notifications.
 
 ## Homepage Personality Upgrades (complete)
 
