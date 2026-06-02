@@ -25,8 +25,8 @@ Last updated: 2026-06-02
 - Verified hardening/doc commits since 2026-05-13: 228.
 - Verified code/feature fix commits since 2026-05-13: 202.
 - Verified docs/audit-only commits since 2026-05-13: 11.
-- Most recent reported pass tally: 378 verified fixed/reduced findings,
-  399 verified stale/false-positive findings, and 73 deferred/manual findings
+- Most recent reported pass tally: 381 verified fixed/reduced findings,
+  402 verified stale/false-positive findings, and 70 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
 ## 2026-05-14 Active Tracker
@@ -3764,9 +3764,17 @@ Last updated: 2026-06-02
      appending an uppercase currency code. Guardrail:
      `tests/currency-format-drift.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 380 findings;
+337. **Mobile drawer background reachability reduced** — code/test fix for
+     #469. `Header` already used the shared focus trap and body-scroll lock for
+     the mobile navigation drawer; it now also marks `#main-content` inert and
+     `aria-hidden` while the drawer dialog is open, then restores the prior
+     state on close/unmount so background links and controls are not tab-
+     reachable through the modal state. Guardrail:
+     `tests/accessibility-followups.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 381 findings;
 verified stale/false-positive: 402 findings; product/design/ops decisions
-deferred: 71 findings. Remaining major categories: Stripe webhook subscription
+deferred: 70 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
 product designs, EXPLAIN-dependent query-plan/index validation, refund
@@ -3782,6 +3790,7 @@ MFA and breached-password dashboard evidence, Clerk multi-account spam dashboard
 evidence, Stripe duplicate-webhook and buyer-deletion runtime replay proof,
 Founding Maker live DB concurrency proof, Sentry cron alert/R2 health/ListBucket
 ops evidence, HSTS preload submission decision, residual HTTP-status constants
-and log-forwarding and analytics observability refactors, remaining runtime
-a11y proof, and agent/worktree verification process hygiene. Approximate raw
-allegations left to verify from current max #1120: 264.
+and log-forwarding and analytics observability refactors, remaining
+homepage/reduced-motion runtime a11y proof, and agent/worktree verification
+process hygiene. Approximate raw allegations left to verify from current max
+#1120: 263.

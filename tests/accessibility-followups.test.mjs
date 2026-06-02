@@ -251,6 +251,17 @@ describe("accessibility follow-ups", () => {
     assert.doesNotMatch(source("src/components/VariantSelector.tsx"), /text-amber-600">Please select/);
   });
 
+  it("makes background content inert while the mobile drawer is open", () => {
+    const header = source("src/components/Header.tsx");
+
+    assert.match(header, /const main = document\.getElementById\("main-content"\)/);
+    assert.match(header, /main\.setAttribute\("inert", ""\)/);
+    assert.match(header, /main\.setAttribute\("aria-hidden", "true"\)/);
+    assert.match(header, /main\.removeAttribute\("inert"\)/);
+    assert.match(header, /main\.removeAttribute\("aria-hidden"\)/);
+    assert.match(header, /\}, \[drawerOpen\]\)/);
+  });
+
   it("keeps data tables captioned and column headers scoped", () => {
     const tableFiles = [
       "src/app/why-sell-on-grainline/page.tsx",

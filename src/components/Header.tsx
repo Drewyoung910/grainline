@@ -42,6 +42,27 @@ export default function Header() {
   useDialogFocus(drawerOpen, drawerRef, () => setDrawerOpen(false));
   useBodyScrollLock(drawerOpen);
 
+  React.useEffect(() => {
+    if (!drawerOpen) return;
+
+    const main = document.getElementById("main-content");
+    if (!main) return;
+
+    const hadInert = main.hasAttribute("inert");
+    const previousAriaHidden = main.getAttribute("aria-hidden");
+    main.setAttribute("inert", "");
+    main.setAttribute("aria-hidden", "true");
+
+    return () => {
+      if (!hadInert) main.removeAttribute("inert");
+      if (previousAriaHidden === null) {
+        main.removeAttribute("aria-hidden");
+      } else {
+        main.setAttribute("aria-hidden", previousAriaHidden);
+      }
+    };
+  }, [drawerOpen]);
+
   const handleOpenUserProfile = React.useCallback(() => {
     try {
       openUserProfile();
