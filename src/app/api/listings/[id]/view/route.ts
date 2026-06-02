@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
-import { viewRatelimit, profileViewRatelimit, getIP, safeRateLimitOpen } from "@/lib/ratelimit";
+import {
+  claimListingAnalyticsDailyCap,
+  getIP,
+  profileViewRatelimit,
+  safeRateLimitOpen,
+  viewRatelimit,
+} from "@/lib/ratelimit";
 import { hasTrackingCookie, setTrackingCookie } from "@/lib/listingTrackingCookies";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { isLikelyBotUserAgent } from "@/lib/botUserAgent";
@@ -26,6 +33,7 @@ export async function POST(
   if (!globalOk) return NextResponse.json({ ok: true }); // silent drop
 
   const { id } = await params;
+  const { userId } = await auth();
 
   // Per-IP+listing dedup (24h) — silently skip if already counted
   const { success: dedupOk } = await safeRateLimitOpen(profileViewRatelimit, `${ip}:${id}`);
@@ -54,9 +62,15 @@ export async function POST(
     return res;
   }
 
+  const dailyCapOk = await claimListingAnalyticsDailyCap("view", id);
+  if (!dailyCapOk) return NextResponse.json({ ok: true, skipped: true });
+
   const tracked = await prisma.$transaction(async (tx) => {
     const updated = await tx.listing.updateMany({
-      where: publicListingWhere({ id }),
+      where: publicListingWhere({
+        id,
+        ...(userId ? { seller: { user: { clerkId: { not: userId } } } } : {}),
+      }),
       data: { viewCount: { increment: 1 } },
     });
     if (updated.count === 0) return false;

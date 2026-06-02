@@ -3,6 +3,7 @@ import { Redis } from "@upstash/redis";
 import { NextResponse } from "next/server";
 import { limitWithFailurePolicy } from "@/lib/ratelimitPolicy";
 import { requiredProductionEnv } from "@/lib/env";
+import * as Sentry from "@sentry/nextjs";
 
 export const redis = new Redis({
   url: requiredProductionEnv("UPSTASH_REDIS_REST_URL"),
@@ -19,17 +20,21 @@ export const searchRatelimit = new Ratelimit({
 
 export const viewRatelimit = new Ratelimit({
   redis,
-  limiter: Ratelimit.slidingWindow(20, "60 s"),
+  limiter: Ratelimit.slidingWindow(10, "60 s"),
   analytics: true,
   prefix: "rl:view",
 });
 
 export const clickRatelimit = new Ratelimit({
   redis,
-  limiter: Ratelimit.slidingWindow(20, "60 s"),
+  limiter: Ratelimit.slidingWindow(10, "60 s"),
   analytics: true,
   prefix: "rl:click",
 });
+
+export const LISTING_VIEW_DAILY_ANALYTICS_CAP = 5_000;
+export const LISTING_CLICK_DAILY_ANALYTICS_CAP = 1_000;
+const LISTING_ANALYTICS_DAILY_CAP_TTL_SECONDS = 60 * 60 * 48;
 
 // For authenticated endpoints — limit by user ID
 export const reviewRatelimit = new Ratelimit({
@@ -505,6 +510,45 @@ export async function safeRateLimitOpen(
   key: string
 ): Promise<{ success: boolean; reset: number }> {
   return limitWithFailurePolicy(limiter, key, true, "Rate limit Redis error (fail open):");
+}
+
+type ListingAnalyticsKind = "view" | "click";
+
+function listingAnalyticsDailyCap(kind: ListingAnalyticsKind) {
+  return kind === "view" ? LISTING_VIEW_DAILY_ANALYTICS_CAP : LISTING_CLICK_DAILY_ANALYTICS_CAP;
+}
+
+function todayUtcKeyPart(date = new Date()) {
+  return date.toISOString().slice(0, 10);
+}
+
+export function listingAnalyticsDailyCapKey(
+  kind: ListingAnalyticsKind,
+  listingId: string,
+  date = new Date(),
+) {
+  return `rl:listing-analytics-daily:${kind}:${todayUtcKeyPart(date)}:${listingId}`;
+}
+
+/**
+ * Fail open: listing analytics should not break user browsing if Redis is down.
+ */
+export async function claimListingAnalyticsDailyCap(kind: ListingAnalyticsKind, listingId: string) {
+  const key = listingAnalyticsDailyCapKey(kind, listingId);
+  try {
+    const count = Number(await redis.incr(key));
+    if (count === 1) {
+      await redis.expire(key, LISTING_ANALYTICS_DAILY_CAP_TTL_SECONDS);
+    }
+    return count <= listingAnalyticsDailyCap(kind);
+  } catch (error) {
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "listing_analytics_daily_cap", kind },
+      extra: { listingId },
+    });
+    return true;
+  }
 }
 
 /** Returns the client IP from Vercel's x-forwarded-for header. */

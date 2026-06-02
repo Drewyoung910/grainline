@@ -3838,7 +3838,19 @@ Last updated: 2026-06-02
      `tests/refund-route-state.test.mjs`, `tests/env-validation.test.mjs`, and
      `tests/seller-page-performance.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 385 findings;
+343. **Listing analytics self-traffic and broad-ID amplification reduced** —
+     code/test/docs fix for #93 and #95. Listing view/click routes already
+     required public listing visibility, bot filtering, 24h IP+listing dedup,
+     and aggregate tracking cookies, but signed-in sellers could still count
+     their own public listing views/clicks and accepted traffic could spread
+     across many listing IDs. The routes now call optional Clerk auth and add a
+     seller-user exclusion to the guarded `publicListingWhere()` update
+     predicate, tighten public view/click IP windows from 20/minute to
+     10/minute, and check fail-open per-listing daily Redis caps before any
+     `Listing` or `ListingViewDaily` writes. Guardrail:
+     `tests/listing-analytics-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 387 findings;
 verified stale/false-positive: 405 findings; product/design/ops decisions
 deferred: 70 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
@@ -3848,8 +3860,8 @@ accounting runtime proof and refund fee-policy reconciliation, founding-maker
 permanence policy, remaining case/message state policy decisions,
 privacy/legal retention scope, remaining privacy/export
 retention decisions, cross-seller AI
-duplicate-detection product design, listing analytics self-traffic/rate-limit
-amplification, residual seller-page performance optimization, unsubscribe
+duplicate-detection product design, residual seller-page performance
+optimization, unsubscribe
 consent-epoch/manual-resubscribe
 semantics, legacy enum cleanup/data-migration decisions, partial multi-seller
 checkout continuation design, deliberate BigInt money-column modeling, live-data
@@ -3861,4 +3873,4 @@ ops evidence, HSTS preload submission decision, residual HTTP-status constants
 and log-forwarding and analytics observability refactors, remaining
 homepage/reduced-motion runtime a11y proof, and agent/worktree verification
 process hygiene. Approximate raw allegations left to verify from current max
-#1120: 257.
+#1120: 255.

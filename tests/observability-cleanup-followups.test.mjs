@@ -16,7 +16,8 @@ describe("observability cleanup follow-ups", () => {
       "src/app/api/listings/[id]/click/route.ts",
     ]) {
       const text = source(path);
-      assert.match(text, /publicListingWhere\(\{ id \}\)/);
+      assert.match(text, /publicListingWhere\(\{\s*id,/);
+      assert.match(text, /seller: \{ user: \{ clerkId: \{ not: userId \} \} \}/);
       assert.match(text, /listing\.updateMany/);
       assert.doesNotMatch(text, /listing\.update\(\{\s*where: \{ id \}/);
     }

@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
-import { clickRatelimit, clickDedupRatelimit, getIP, safeRateLimitOpen } from "@/lib/ratelimit";
+import {
+  claimListingAnalyticsDailyCap,
+  clickDedupRatelimit,
+  clickRatelimit,
+  getIP,
+  safeRateLimitOpen,
+} from "@/lib/ratelimit";
 import { hasTrackingCookie, setTrackingCookie } from "@/lib/listingTrackingCookies";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { isLikelyBotUserAgent } from "@/lib/botUserAgent";
@@ -26,6 +33,7 @@ export async function POST(
   if (!success) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
   const { id } = await params;
+  const { userId } = await auth();
 
   // Per-IP+listing dedup (24h) — silently skip if already counted
   const { success: perClickOk } = await safeRateLimitOpen(clickDedupRatelimit, `${ip}:${id}`);
@@ -53,9 +61,15 @@ export async function POST(
     return res;
   }
 
+  const dailyCapOk = await claimListingAnalyticsDailyCap("click", id);
+  if (!dailyCapOk) return NextResponse.json({ ok: true, skipped: true });
+
   const tracked = await prisma.$transaction(async (tx) => {
     const updated = await tx.listing.updateMany({
-      where: publicListingWhere({ id }),
+      where: publicListingWhere({
+        id,
+        ...(userId ? { seller: { user: { clerkId: { not: userId } } } } : {}),
+      }),
       data: { clickCount: { increment: 1 } },
     });
     if (updated.count === 0) return false;

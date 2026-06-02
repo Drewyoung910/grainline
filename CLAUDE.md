@@ -301,6 +301,7 @@ Plus category label matches from `CATEGORY_VALUES`.
 
 - `viewCount` — incremented by `POST /api/listings/[id]/view` (24h `httpOnly` aggregate cookie deduplication, capped at 50 listing IDs to avoid header growth). `ListingViewTracker` ("use client") fires this on mount from listing detail pages.
 - `clickCount` — incremented by `POST /api/listings/[id]/click` (same aggregate cookie pattern). `ClickTracker` fires this on card click in browse and all other listing card surfaces (see ClickTracker entry above).
+- Listing view/click analytics are intentionally fail-open and non-blocking, but the routes must keep bot filtering, 10/minute public IP windows, 24h IP+listing dedup, aggregate cookie dedup, signed-in owner self-traffic exclusion, public listing visibility predicates, and per-listing daily Redis caps before incrementing `Listing.viewCount`, `Listing.clickCount`, or `ListingViewDaily`.
 - Listing/seller analytics counters must pass user agents through `isLikelyBotUserAgent()`. Missing/blank user agents and common non-browser clients (`curl`, `wget`, `python-requests`, `Go-http-client`, `axios`, `node-fetch`, `undici`, etc.) are treated as non-human traffic.
 
 ### Saved Searches
