@@ -419,8 +419,9 @@ export default async function BlogIndexPage({
                   )}
                   <div className="flex items-center gap-2 pt-1">
                     {(() => {
-                      const avatar = featured.author.sellerProfile?.avatarImageUrl ?? featured.author.imageUrl;
-                      const name = featured.author.sellerProfile?.displayName ?? featured.author.name ?? "Staff";
+                      const authorProfile = featured.sellerProfile ?? featured.author.sellerProfile;
+                      const avatar = authorProfile?.avatarImageUrl ?? featured.author.imageUrl;
+                      const name = authorProfile?.displayName ?? featured.author.name ?? "Staff";
                       return (
                         <>
                           {avatar ? (
@@ -451,8 +452,9 @@ export default async function BlogIndexPage({
           {rest.length > 0 && (
             <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mb-10">
               {rest.map((post) => {
-                const avatar = post.author.sellerProfile?.avatarImageUrl ?? post.author.imageUrl;
-                const name = post.author.sellerProfile?.displayName ?? post.author.name ?? "Staff";
+                const authorProfile = post.sellerProfile ?? post.author.sellerProfile;
+                const avatar = authorProfile?.avatarImageUrl ?? post.author.imageUrl;
+                const name = authorProfile?.displayName ?? post.author.name ?? "Staff";
                 const excerpt = post.excerpt ? truncateTextWithEllipsis(post.excerpt, 120) : null;
                 return (
                   <li key={post.id} className="relative card-listing">

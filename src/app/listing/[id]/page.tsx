@@ -24,7 +24,7 @@ import DescriptionExpander from "@/components/DescriptionExpander";
 import BlockReportButton from "@/components/BlockReportButton";
 import { Hammer } from "@/components/icons";
 import { canViewListingDetail, isPublicListingDetail, publicListingWhere } from "@/lib/listingVisibility";
-import { extractRouteId, publicListingPath, publicSellerPath, routeSegmentWithSlug } from "@/lib/publicPaths";
+import { extractRouteId, publicListingPath, publicSellerPath, publicTagPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 import { truncateText } from "@/lib/sanitize";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { avatarInitials } from "@/lib/avatarInitials";
@@ -694,7 +694,7 @@ export default async function ListingPage({
               {listing.tags.map((t) => (
                 <Link
                   key={t}
-                  href={`/browse?tag=${encodeURIComponent(t.toLowerCase())}`}
+                  href={publicTagPath(t.toLowerCase())}
                   className="rounded-full border border-neutral-200 bg-[#F7F5F0] px-3 py-1 text-[11px] text-neutral-600 hover:bg-white transition-colors"
                 >
                   #{t}

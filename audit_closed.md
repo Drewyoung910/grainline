@@ -25,7 +25,7 @@ Last updated: 2026-06-02
 - Verified hardening/doc commits since 2026-05-13: 230.
 - Verified code/feature fix commits since 2026-05-13: 204.
 - Verified docs/audit-only commits since 2026-05-13: 11.
-- Most recent reported pass tally: 382 verified fixed/reduced findings,
+- Most recent reported pass tally: 383 verified fixed/reduced findings,
   402 verified stale/false-positive findings, and 70 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
@@ -3793,7 +3793,21 @@ Last updated: 2026-06-02
      body content. Guardrail:
      `tests/pr-h-deletion-analytics-email-followups.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 382 findings;
+340. **Tag and blog-author SEO landing routes added** — code/test/docs fix for
+     current #631, which had left older #73/#74 as a product/refactor backlog
+     item. `/tag/[slug]` now normalizes through `normalizeTag()`, permanently
+     redirects stale tag slugs while preserving pagination, and renders
+     `ListingCard` results behind `publicListingWhere()` plus signed-in block
+     filtering. `/blog/author/[slug]` now extracts the seller profile id with
+     `extractRouteId()`, requires an active public seller with published public
+     blog posts, applies signed-in block filtering before canonical redirects,
+     and paginates maker posts. Homepage/listing tag chips and blog author
+     suggestions now point at canonical landing routes, and the base sitemap
+     includes only capped tag/author landing sets so the prior sitemap-size
+     guard remains intact. Guardrails: `tests/seo-landing-routes.test.mjs`,
+     `tests/public-paths.test.mjs`, and `tests/sitemap-entry-limit.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 383 findings;
 verified stale/false-positive: 402 findings; product/design/ops decisions
 deferred: 70 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
@@ -3814,4 +3828,4 @@ ops evidence, HSTS preload submission decision, residual HTTP-status constants
 and log-forwarding and analytics observability refactors, remaining
 homepage/reduced-motion runtime a11y proof, and agent/worktree verification
 process hygiene. Approximate raw allegations left to verify from current max
-#1120: 263.
+#1120: 262.

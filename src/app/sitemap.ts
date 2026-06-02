@@ -7,7 +7,8 @@ import { CATEGORY_VALUES } from "@/lib/categories";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { publicListingDetailWhere, publicListingWhere } from "@/lib/listingVisibility";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
-import { publicListingPath, publicSellerPath, publicSellerShopPath } from "@/lib/publicPaths";
+import { publicBlogAuthorPath, publicListingPath, publicSellerPath, publicSellerShopPath, publicTagPath } from "@/lib/publicPaths";
+import { getPopularListingTags } from "@/lib/popularTags";
 import { openCommissionWhere } from "@/lib/commissionExpiry";
 import {
   SITEMAP_ENTRY_LIMIT,
@@ -18,6 +19,9 @@ import { sitemapSourceCounts } from "@/lib/sitemapSourceCounts";
 
 const BASE_URL = "https://thegrainline.com";
 const STATIC_ROUTE_LAST_MODIFIED = new Date("2026-04-30T00:00:00.000Z");
+const TAG_LANDING_SITEMAP_LIMIT = 100;
+const BLOG_AUTHOR_LANDING_SITEMAP_LIMIT = 100;
+const BLOG_AUTHOR_LANDING_SOURCE_LIMIT = 500;
 const BLOG_TYPE_SITEMAP_FILTERS = [
   BlogPostType.GIFT_GUIDE,
   BlogPostType.MAKER_SPOTLIGHT,
@@ -163,7 +167,7 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
     { url: `${BASE_URL}/map`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "weekly", priority: 0.5 },
   ];
 
-  const [latestBlogPost, latestBlogPostsByType] = await Promise.all([
+  const [latestBlogPost, latestBlogPostsByType, popularListingTagsForSitemap, blogAuthorSeedPosts] = await Promise.all([
     prisma.blogPost.findFirst({
       where: publicBlogPostWhere(),
       select: { updatedAt: true },
@@ -174,6 +178,17 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
       select: { type: true, updatedAt: true },
       orderBy: [{ publishedAt: "desc" }, { id: "asc" }],
     }))),
+    getPopularListingTags(TAG_LANDING_SITEMAP_LIMIT),
+    prisma.blogPost.findMany({
+      where: publicBlogPostWhere({ sellerProfileId: { not: null } }),
+      select: {
+        sellerProfileId: true,
+        updatedAt: true,
+        sellerProfile: { select: { id: true, displayName: true } },
+      },
+      orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+      take: BLOG_AUTHOR_LANDING_SOURCE_LIMIT,
+    }),
   ]);
 
   // ---------------------------------------------------------------------------
@@ -276,6 +291,28 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
       priority: 0.7,
     }];
   });
+  const tagLandingRoutes: MetadataRoute.Sitemap = popularListingTagsForSitemap.map((tag) => ({
+    url: `${BASE_URL}${publicTagPath(tag)}`,
+    lastModified: STATIC_ROUTE_LAST_MODIFIED,
+    changeFrequency: "weekly" as const,
+    priority: 0.6,
+  }));
+  const blogAuthorRouteMap = new Map<string, { displayName: string; updatedAt: Date }>();
+  for (const post of blogAuthorSeedPosts) {
+    if (!post.sellerProfileId || !post.sellerProfile) continue;
+    if (blogAuthorRouteMap.has(post.sellerProfileId)) continue;
+    blogAuthorRouteMap.set(post.sellerProfileId, {
+      displayName: post.sellerProfile.displayName,
+      updatedAt: post.updatedAt,
+    });
+    if (blogAuthorRouteMap.size >= BLOG_AUTHOR_LANDING_SITEMAP_LIMIT) break;
+  }
+  const blogAuthorLandingRoutes: MetadataRoute.Sitemap = Array.from(blogAuthorRouteMap.entries()).map(([id, author]) => ({
+    url: `${BASE_URL}${publicBlogAuthorPath(id, author.displayName)}`,
+    lastModified: author.updatedAt,
+    changeFrequency: "weekly" as const,
+    priority: 0.6,
+  }));
 
   // Metro browse + makers: major metro = 0.8/0.7, child metro = 0.6/0.5
   const metroRoutes: MetadataRoute.Sitemap = metrosWithListings.flatMap((m) => {
@@ -318,6 +355,8 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
     ...staticRoutes,
     ...blogIndexRoute,
     ...blogTypeRoutes,
+    ...tagLandingRoutes,
+    ...blogAuthorLandingRoutes,
     ...metroRoutes,
     ...metroCategoryRoutes,
     ...metroCommissionRoutes,

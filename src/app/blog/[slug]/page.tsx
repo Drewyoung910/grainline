@@ -19,7 +19,7 @@ import { safeJsonLd } from "@/lib/json-ld";
 import { renderBlogMarkdown } from "@/lib/blogMarkdown";
 
 import { publicListingWhere } from "@/lib/listingVisibility";
-import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
+import { publicBlogAuthorPath, publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { extractBlogVideoEmbed } from "@/lib/blogVideo";
 
 export async function generateMetadata({
@@ -166,6 +166,9 @@ export default async function BlogPostPage({
   const video = post.videoUrl ? extractBlogVideoEmbed(post.videoUrl) : null;
   const authorName = post.author?.sellerProfile?.displayName ?? post.author?.name ?? "Former author";
   const authorAvatar = post.author?.sellerProfile?.avatarImageUrl ?? post.author?.imageUrl ?? null;
+  const authorPageHref = post.authorType === "MAKER" && post.sellerProfile
+    ? publicBlogAuthorPath(post.sellerProfile.id, authorName)
+    : null;
   const postUrl = `https://thegrainline.com/blog/${slug}`;
 
   const articleLd = {
@@ -230,8 +233,8 @@ export default async function BlogPostPage({
         )}
         <div>
           <div className="font-medium text-sm">
-            {post.authorType === "MAKER" && post.sellerProfile ? (
-              <Link href={publicSellerPath(post.sellerProfile.id, authorName)} className="hover:underline">
+            {authorPageHref ? (
+              <Link href={authorPageHref} className="hover:underline">
                 {authorName}
               </Link>
             ) : (
@@ -240,6 +243,14 @@ export default async function BlogPostPage({
           </div>
           <div className="text-xs text-neutral-500">
             {post.authorType === "MAKER" ? "Maker" : "Grainline Staff"}
+            {post.authorType === "MAKER" && post.sellerProfile && (
+              <>
+                <span className="mx-1">/</span>
+                <Link href={publicSellerPath(post.sellerProfile.id, authorName)} className="hover:underline">
+                  Visit shop
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </div>

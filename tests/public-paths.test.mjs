@@ -4,9 +4,11 @@ import { describe, it } from "node:test";
 
 const {
   extractRouteId,
+  publicBlogAuthorPath,
   publicListingPath,
   publicSellerPath,
   publicSellerShopPath,
+  publicTagPath,
   slugifyPathSegment,
 } = await import("../src/lib/publicPaths.ts");
 
@@ -36,6 +38,9 @@ describe("public path helpers", () => {
     assert.equal(publicListingPath("clisting123", "Café Table"), "/listing/clisting123--cafe-table");
     assert.equal(publicSellerPath("cseller123", "Miller & Sons"), "/seller/cseller123--miller-sons");
     assert.equal(publicSellerShopPath("cseller123", "Miller & Sons"), "/seller/cseller123--miller-sons/shop");
+    assert.equal(publicBlogAuthorPath("cseller123", "Miller & Sons"), "/blog/author/cseller123--miller-sons");
+    assert.equal(publicTagPath("cafe-creme"), "/tag/cafe-creme");
+    assert.equal(publicTagPath("家具"), "/tag/%E5%AE%B6%E5%85%B7");
   });
 
   it("extracts ids from legacy and slugged route segments", () => {

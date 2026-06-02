@@ -1,6 +1,6 @@
 # Grainline Architecture
 
-Last updated: 2026-05-13
+Last updated: 2026-06-02
 
 This document is the human onboarding map for Grainline. `CLAUDE.md` remains the detailed implementation memory and behavior-contract log; this file is the shorter architectural overview a new engineer should read first.
 
@@ -49,6 +49,10 @@ Clerk owns identity/session. Grainline stores durable user state in `User`, incl
 ### Listings
 
 Listing state is controlled by server actions and shared state helpers. Public visibility is not the same as ownership preview. Owners can preview non-public listings through preview routes; public pages must go through public visibility predicates. ACTIVE listing edits are reviewed when the seller explicitly presses Save, not when photo upload helper buttons attach files.
+
+### Public Discovery
+
+Public discovery routes are split by purpose. `/browse` remains the full filter UI, `/tag/[slug]` is the canonical SEO landing page for listing tags, `/seller/[id]` and `/seller/[id]/shop` are seller storefront routes, `/blog` and `/blog/[slug]` cover editorial content, and `/blog/author/[slug]` is the canonical maker-author archive. Tag and author sitemap entries are capped in the base sitemap so they do not become unbounded sitemap sources.
 
 ### Checkout And Orders
 

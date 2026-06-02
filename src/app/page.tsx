@@ -27,7 +27,7 @@ import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { isTrustedMediaUrl } from "@/lib/urlValidation";
 import { getPopularListingTags } from "@/lib/popularTags";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
-import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
+import { publicListingPath, publicSellerPath, publicTagPath } from "@/lib/publicPaths";
 import { avatarInitial } from "@/lib/avatarInitials";
 import { HOME_FEATURED_MAKER_CACHE_TAG } from "@/lib/searchCache";
 
@@ -569,7 +569,7 @@ export default async function HomePage() {
               {trendingTags.map((tag) => (
                 <Link
                   key={tag}
-                  href={`/browse?q=${encodeURIComponent(tag)}`}
+                  href={publicTagPath(tag)}
                   className={`rounded-full border px-3 py-1 text-xs transition-colors ${
                     mosaicPhotos.length >= 12
                       ? "border-white/40 bg-white/10 text-white hover:bg-white/20"

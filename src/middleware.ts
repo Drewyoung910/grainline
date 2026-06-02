@@ -16,6 +16,7 @@ const isPublic = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/browse(.*)",
+  "/tag(.*)",             // listing tag landing pages — public SEO/discovery
   "/listing(.*)",
   "/seller/map",          // legacy singular map route — redirects to /map
   "/seller/((?!payouts|map)[^/]+)",          // public seller profiles

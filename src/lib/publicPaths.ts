@@ -53,3 +53,11 @@ export function publicSellerPath(id: string, displayName?: string | null): strin
 export function publicSellerShopPath(id: string, displayName?: string | null): string {
   return `${publicSellerPath(id, displayName)}/shop`;
 }
+
+export function publicBlogAuthorPath(id: string, displayName?: string | null): string {
+  return `/blog/author/${routeSegmentWithSlug(id, displayName, "maker")}`;
+}
+
+export function publicTagPath(tag: string): string {
+  return `/tag/${encodeURIComponent(tag)}`;
+}
