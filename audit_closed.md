@@ -19,7 +19,7 @@ deferred, stale, and open findings for traceability.
 
 ## Active Hardening Program Counter
 
-Last updated: 2026-05-31
+Last updated: 2026-06-02
 
 - Raw Claude/new-audit candidate total: pending triage.
 - Verified hardening/doc commits since 2026-05-13: 228.
@@ -1968,10 +1968,11 @@ Last updated: 2026-05-31
      crons. Popular tag API routes no longer add a second route-level ISR layer
      over tagged `unstable_cache`, and `/why-grainline` now revalidates its DB
      counters every 5 minutes. Verified stale/false-positive: #995 as mostly
-     false for current namespaced outbox keys, #1000, #1004, #1011, #1028,
-     #1034, and #1035. Deferred/product/ops decisions: #993, #1003, #1005,
-     #1006, #1007, #1009, #1010, #1026, #1030, and #1033. Guardrails:
-     `tests/email-delivery-guardrails.test.mjs` and
+     false for current namespaced outbox keys, #1000, #1004, #1010, #1011,
+     #1028, #1034, and #1035. Later verified closures removed #1003, #1005,
+     #1006, #1007, and #1009 from this deferred set. Remaining
+     deferred/product/ops decisions from this range: #993, #1026, #1030, and
+     #1033. Guardrails: `tests/email-delivery-guardrails.test.mjs` and
      `tests/cache-invalidation-guardrails.test.mjs`.
 
 221. **Round 10 state-machine transition risks reduced** — code/test fix or
@@ -3741,15 +3742,29 @@ Last updated: 2026-05-31
      it commits the apex and all subdomains to HTTPS on a long-lived browser
      preload list.
 
+335. **Round 10 email quota/template ledger reconciled** — verification-only
+     ledger correction with no tally change. Current `main` keeps the central
+     Reply-To, fail-closed one-click unsubscribe, support footer/current-year
+     footer, placeholder-only unsubscribe injection, privacy-sensitive preview
+     redaction, order/context subject suffixes, strict tracking-carrier URL
+     handling, per-recipient queued-email quota, explicit email app URL
+     resolution, queued-template metadata, seller broadcast email delivery, and
+     atomic new-message email throttle covered by existing guardrails. The
+     remaining `email quota policy decisions` category was stale; quota caps are
+     documented operational tunables (`EMAIL_OUTBOX_DAILY_LIMIT` and
+     `EMAIL_OUTBOX_DAILY_RECIPIENT_LIMIT`) rather than an unclosed code
+     allegation. #993 remains a privacy/legal provider-retention decision, not
+     an email quota or template implementation gap.
+
 **Running tally after this pass:** verified fixed/reduced: 380 findings;
 verified stale/false-positive: 402 findings; product/design/ops decisions
 deferred: 71 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
-product designs, EXPLAIN-dependent query-plan/index validation, email quota
-policy decisions, refund accounting runtime proof and refund fee-policy
-reconciliation, founding-maker permanence policy, remaining case/message state
-policy decisions, privacy/legal retention scope, remaining privacy/export
+product designs, EXPLAIN-dependent query-plan/index validation, refund
+accounting runtime proof and refund fee-policy reconciliation, founding-maker
+permanence policy, remaining case/message state policy decisions,
+privacy/legal retention scope, remaining privacy/export
 retention decisions, cross-seller AI
 duplicate-detection product design, unsubscribe consent-epoch/manual-resubscribe
 semantics, legacy enum cleanup/data-migration decisions, partial multi-seller
