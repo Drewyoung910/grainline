@@ -3729,6 +3729,18 @@ Last updated: 2026-05-31
      project prefers route-level duration declarations over a global Vercel
      override. Guardrail: `tests/route-max-duration-guardrails.test.mjs`.
 
+334. **HSTS preload status checked; submission remains an ops/legal decision** —
+     live evidence update for #315 with no tally change. `next.config.ts` sends
+     `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload`,
+     so Grainline serves the opt-in header. A live
+     `hstspreload.org/api/v2/status?domain=thegrainline.com` check on
+     2026-06-02 returned `status: "unknown"`, so the domain is not currently
+     proven submitted or preloaded. `CLAUDE.md` now records that future agents
+     must not claim preload status without the live API reporting `pending` or
+     `preloaded`, and that actual submission is an ops/legal decision because
+     it commits the apex and all subdomains to HTTPS on a long-lived browser
+     preload list.
+
 **Running tally after this pass:** verified fixed/reduced: 380 findings;
 verified stale/false-positive: 402 findings; product/design/ops decisions
 deferred: 71 findings. Remaining major categories: Stripe webhook subscription
@@ -3746,7 +3758,7 @@ reconciliation for historical seller shipping-rate currency drift, Clerk staff
 MFA and breached-password dashboard evidence, Clerk multi-account spam dashboard
 evidence, Stripe duplicate-webhook and buyer-deletion runtime replay proof,
 Founding Maker live DB concurrency proof, Sentry cron alert/R2 health/ListBucket
-ops evidence, HSTS preload ops evidence, residual HTTP-status constants and
-log-forwarding and analytics observability refactors, remaining runtime a11y
-proof, and agent/worktree verification process hygiene. Approximate raw
+ops evidence, HSTS preload submission decision, residual HTTP-status constants
+and log-forwarding and analytics observability refactors, remaining runtime
+a11y proof, and agent/worktree verification process hygiene. Approximate raw
 allegations left to verify from current max #1120: 264.
