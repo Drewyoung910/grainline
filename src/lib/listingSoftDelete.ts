@@ -1,10 +1,11 @@
 import { prisma } from "@/lib/db";
 import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
 import { withSerializableRetry } from "@/lib/transactionRetry";
+import { CASE_WINDOW_DAYS } from "@/lib/caseCreateState";
 import { Prisma } from "@prisma/client";
 
 const LISTING_SOFT_DELETE_ACTIVE_FULFILLMENT_STATUSES = ["PENDING", "READY_FOR_PICKUP", "SHIPPED"] as const;
-export const LISTING_SOFT_DELETE_TERMINAL_ORDER_BLOCK_DAYS = 30;
+export const LISTING_SOFT_DELETE_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
 const LISTING_SOFT_DELETE_ACTIVE_CASE_STATUSES = ["OPEN", "IN_DISCUSSION", "PENDING_CLOSE", "UNDER_REVIEW"] as const;
 
 function listingSoftDeleteOrderBlockerWhere(listingId: string, now = new Date()): Prisma.OrderWhereInput {

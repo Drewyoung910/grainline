@@ -16,6 +16,11 @@ import { caseStatusLabel } from "@/lib/caseLabels";
 import { publicListingPath } from "@/lib/publicPaths";
 import { blockingRefundLedgerWhere, latestRefundLedgerEvent } from "@/lib/refundRouteState";
 import { orderTotalCents } from "@/lib/orderTotals";
+import {
+  caseWindowClosedMessage,
+  caseWindowClosesAt,
+  isOrderCaseWindowClosed,
+} from "@/lib/caseCreateState";
 import { DEFAULT_CURRENCY } from "@/lib/money";
 import type { CaseStatus } from "@prisma/client";
 import type { Metadata } from "next";
@@ -150,21 +155,25 @@ export default async function BuyerOrderDetailPage({
   const processingMaxes = order.items
     .map((item) => item.listing.processingTimeMaxDays)
     .filter((value): value is number => typeof value === "number");
+  const activeCase = order.case;
+  const externalRefund = latestRefundLedgerEvent(order.paymentEvents);
+  const sellerRefundPending = order.sellerRefundId === "pending";
+  const sellerRefundIssued = !!order.sellerRefundId && !sellerRefundPending;
+  const hasRefund = sellerRefundIssued || !!activeCase?.stripeRefundId || !!externalRefund;
 
   // Case eligibility
   const now = new Date();
   const terminalStatuses = ["DELIVERED", "PICKED_UP"];
   const isTerminal = terminalStatuses.includes(status);
+  const caseWindowClosedAt = caseWindowClosesAt(order);
+  const caseWindowClosed = isOrderCaseWindowClosed(order, now);
   const deliveryPassed =
     isTerminal || (order.estimatedDeliveryDate != null && order.estimatedDeliveryDate < now);
   const canOpenCase =
     deliveryPassed &&
-    !order.case;
-
-  const activeCase = order.case;
-  const externalRefund = latestRefundLedgerEvent(order.paymentEvents);
-  const sellerRefundPending = order.sellerRefundId === "pending";
-  const sellerRefundIssued = !!order.sellerRefundId && !sellerRefundPending;
+    !caseWindowClosed &&
+    !activeCase &&
+    !hasRefund;
 
   // Refund info — seller-initiated refund takes precedence; fall back to case staff refund
   const refundCents =
@@ -172,7 +181,6 @@ export default async function BuyerOrderDetailPage({
     activeCase?.refundAmountCents ??
     externalRefund?.amountCents ??
     null;
-  const hasRefund = sellerRefundIssued || !!activeCase?.stripeRefundId || !!externalRefund;
 
   const caseOpen =
     activeCase &&
@@ -544,6 +552,10 @@ export default async function BuyerOrderDetailPage({
         <section>
           <OpenCaseForm orderId={order.id} allowNotReceived={!isTerminal} />
         </section>
+      ) : caseWindowClosed ? (
+        <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+          {caseWindowClosedMessage(caseWindowClosedAt)}
+        </div>
       ) : !isTerminal ? (
         deliveryInFuture ? (
           <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">

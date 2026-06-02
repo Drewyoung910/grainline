@@ -29,9 +29,10 @@ import {
   processAccountDeletionSideEffectsForUser,
   runAccountDeletionStripeRejectSideEffect,
 } from "@/lib/accountDeletionSideEffects";
+import { CASE_WINDOW_DAYS } from "@/lib/caseCreateState";
 
 const ACTIVE_FULFILLMENT_STATUSES = ["PENDING", "READY_FOR_PICKUP", "SHIPPED"] as const;
-export const ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = 30;
+export const ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
 const ACTIVE_CASE_STATUSES = ["OPEN", "IN_DISCUSSION", "PENDING_CLOSE", "UNDER_REVIEW"] as const;
 const ACTIVE_COMMISSION_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
 const ACCOUNT_DELETION_REDACTION_BATCH_SIZE = 500;

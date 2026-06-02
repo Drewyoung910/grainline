@@ -99,6 +99,8 @@ describe("verified audit follow-up guardrails", () => {
     const page = source("src/app/dashboard/orders/[id]/page.tsx");
     const form = source("src/components/OpenCaseForm.tsx");
     assert.match(page, /isTerminal \|\| \(order\.estimatedDeliveryDate/);
+    assert.match(page, /!caseWindowClosed/);
+    assert.match(page, /!hasRefund/);
     assert.match(page, /allowNotReceived=\{!isTerminal\}/);
     assert.match(form, /allowNotReceived \|\| value !== "NOT_RECEIVED"/);
     assert.match(form, /useState\(allowNotReceived \? "NOT_RECEIVED" : "DAMAGED"\)/);

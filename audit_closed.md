@@ -3884,9 +3884,26 @@ Last updated: 2026-06-02
      evidence. This is an operational-evidence fix, not a claim of automatic
      provider erasure. Guardrail: `tests/support-request.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 389 findings;
+347. **Buyer case window now matches seller deletion blockers** — code/test/docs
+     fix from the verified #737-#739 fraud-chain review. The manual shipped,
+     buyer-delivered, and deletion-blocker fixes were already current, but the
+     case creation route and buyer order UI still lacked the same 30-day upper
+     case-window guard used by account deletion and listing soft-delete.
+     `CASE_WINDOW_DAYS` now lives in `caseCreateState.ts`; `/api/cases`, buyer
+     order detail, account deletion, and listing soft-delete share that value.
+     Buyer cases close after the delivery reference date (`deliveredAt` or
+     `pickedUpAt` for terminal orders, otherwise `estimatedDeliveryDate`), and
+     the seller handbook now matches the 30-day policy instead of saying 90
+     days. The buyer order page also avoids rendering a case form when the
+     server would reject the order for an existing blocking refund. Guardrails:
+     `tests/case-create-state.test.mjs`,
+     `tests/round8-fulfillment-privacy-guardrails.test.mjs`, and
+     `tests/verified-audit-followups.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 390 findings;
 verified stale/false-positive: 405 findings; product/design/ops decisions
-deferred: 70 findings. Remaining major categories: Stripe webhook subscription
+deferred: 70 findings. This adjacent current-code fix did not reduce the raw
+Claude import count. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
 product designs, EXPLAIN-dependent query-plan/index validation, refund

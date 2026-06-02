@@ -34,7 +34,8 @@ describe("Round 8 fulfillment fraud-chain guardrails", () => {
   it("blocks account deletion for recent terminal orders inside the case window", () => {
     const accountDeletion = source("src/lib/accountDeletion.ts");
 
-    assert.match(accountDeletion, /ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = 30/);
+    assert.match(accountDeletion, /import \{ CASE_WINDOW_DAYS \} from "@\/lib\/caseCreateState"/);
+    assert.match(accountDeletion, /ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS/);
     assert.match(accountDeletion, /function accountDeletionFulfillmentBlockerWhere/);
     assert.match(accountDeletion, /fulfillmentStatus: "DELIVERED"[\s\S]*deliveredAt: \{ gte: terminalCutoff \}/);
     assert.match(accountDeletion, /fulfillmentStatus: "PICKED_UP"[\s\S]*pickedUpAt: \{ gte: terminalCutoff \}/);
@@ -43,12 +44,16 @@ describe("Round 8 fulfillment fraud-chain guardrails", () => {
 
   it("blocks listing soft-delete for recent terminal orders inside the case window", () => {
     const softDelete = source("src/lib/listingSoftDelete.ts");
+    const handbook = source("src/app/seller-handbook/page.tsx");
 
-    assert.match(softDelete, /LISTING_SOFT_DELETE_TERMINAL_ORDER_BLOCK_DAYS = 30/);
+    assert.match(softDelete, /import \{ CASE_WINDOW_DAYS \} from "@\/lib\/caseCreateState"/);
+    assert.match(softDelete, /LISTING_SOFT_DELETE_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS/);
     assert.match(softDelete, /function listingSoftDeleteOrderBlockerWhere/);
     assert.match(softDelete, /fulfillmentStatus: "DELIVERED"[\s\S]*deliveredAt: \{ gte: terminalCutoff \}/);
     assert.match(softDelete, /fulfillmentStatus: "PICKED_UP"[\s\S]*pickedUpAt: \{ gte: terminalCutoff \}/);
     assert.match(softDelete, /Cannot delete a listing with open, active, or recently fulfilled orders inside the case window/);
+    assert.doesNotMatch(handbook, /within 90 days/);
+    assert.match(handbook, /within the 30-day case window after/);
   });
 });
 

@@ -357,7 +357,8 @@ export default function SellerHandbookPage() {
           <p>
             Grainline handles disputes in-house through the <strong>Cases</strong> system rather than throwing it back
             to credit card chargebacks (which cost you more and damage your seller account). If a buyer has a problem,
-            they can open a case from their order page within 90 days.
+            they can open a case from their order page within the 30-day case window after
+            delivery, pickup, or the estimated delivery date.
           </p>
 
           <h3>The case lifecycle</h3>

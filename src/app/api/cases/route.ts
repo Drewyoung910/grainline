@@ -9,7 +9,12 @@ import { sendCaseOpened } from "@/lib/email";
 import { caseCreateRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { blockingRefundLedgerWhere, orderHasRefundLedger } from "@/lib/refundRouteState";
 import { logUserAuditAction } from "@/lib/audit";
-import { caseEstimatedDeliveryBlockMessage } from "@/lib/caseCreateState";
+import {
+  caseEstimatedDeliveryBlockMessage,
+  caseWindowClosedMessage,
+  caseWindowClosesAt,
+  isOrderCaseWindowClosed,
+} from "@/lib/caseCreateState";
 import { sanitizeRichText, truncateText } from "@/lib/sanitize";
 import {
   isInvalidJsonBodyError,
@@ -105,6 +110,7 @@ export async function POST(req: Request) {
     const sellerUser = order.items[0]?.listing.seller.user;
     const sellerUnavailable = Boolean(sellerUser?.banned || sellerUser?.deletedAt);
     const fulfillmentStatus = order.fulfillmentStatus ?? "PENDING";
+    const now = new Date();
     if (fulfillmentStatus === "PENDING" && !sellerUnavailable && !order.reviewNeeded) {
       return NextResponse.json(
         { error: "Please wait until your order has shipped before opening a case." },
@@ -115,12 +121,19 @@ export async function POST(req: Request) {
     // Block case if estimated delivery date is still in the future
     if (
       order.estimatedDeliveryDate &&
-      order.estimatedDeliveryDate > new Date() &&
+      order.estimatedDeliveryDate > now &&
       !sellerUnavailable &&
       !order.reviewNeeded
     ) {
       return NextResponse.json(
         { error: caseEstimatedDeliveryBlockMessage(order.estimatedDeliveryDate) },
+        { status: 400 }
+      );
+    }
+
+    if (isOrderCaseWindowClosed(order, now)) {
+      return NextResponse.json(
+        { error: caseWindowClosedMessage(caseWindowClosesAt(order)) },
         { status: 400 }
       );
     }
