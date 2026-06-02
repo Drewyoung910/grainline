@@ -3756,6 +3756,14 @@ Last updated: 2026-06-02
      allegation. #993 remains a privacy/legal provider-retention decision, not
      an email quota or template implementation gap.
 
+336. **Message custom-order link price formatting aligned** — code/test fix for
+     residual #707 money-formatting drift with no tally change because #707 was
+     already counted in an earlier currency-formatting pass. `ThreadMessages`
+     now renders custom-order link card prices through `formatCurrencyCents()`
+     with the stored message currency instead of dividing cents by 100 and
+     appending an uppercase currency code. Guardrail:
+     `tests/currency-format-drift.test.mjs`.
+
 **Running tally after this pass:** verified fixed/reduced: 380 findings;
 verified stale/false-positive: 402 findings; product/design/ops decisions
 deferred: 71 findings. Remaining major categories: Stripe webhook subscription

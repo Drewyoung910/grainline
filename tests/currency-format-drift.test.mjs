@@ -12,6 +12,7 @@ describe("currency formatting drift guardrails", () => {
     const caseResolve = source("src/app/api/cases/[id]/resolve/route.ts");
     const guildMetrics = source("src/app/api/cron/guild-metrics/route.ts");
     const followerFanout = source("src/lib/followerListingNotifications.ts");
+    const threadMessages = source("src/components/ThreadMessages.tsx");
 
     assert.match(sellerRefund, /import \{ formatCurrencyCents \} from "@\/lib\/money"/);
     assert.match(sellerRefund, /const refundAmountDisplay = formatCurrencyCents\(refundAmountCents, order\.currency\)/);
@@ -28,5 +29,9 @@ describe("currency formatting drift guardrails", () => {
 
     assert.match(followerFanout, /formatCurrencyCents\(listing\.priceCents, listing\.currency\)/);
     assert.doesNotMatch(followerFanout, /priceCents \/ 100|toFixed\(2\)/);
+
+    assert.match(threadMessages, /import \{ DEFAULT_CURRENCY, formatCurrencyCents \} from "@\/lib\/money"/);
+    assert.match(threadMessages, /formatCurrencyCents\(link\.priceCents, link\.currency \?\? DEFAULT_CURRENCY\)/);
+    assert.doesNotMatch(threadMessages, /link\.priceCents \/ 100|toFixed\(2\)/);
   });
 });
