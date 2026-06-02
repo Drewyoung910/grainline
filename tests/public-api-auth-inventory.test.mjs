@@ -13,7 +13,7 @@ function apiRoutes() {
   }).trim().split("\n").filter(Boolean).sort();
 }
 
-const intentionalPublicRoutes = new Set([
+const intentionalNoAuthPublicRoutes = new Set([
   "src/app/api/address/autocomplete/route.ts",
   "src/app/api/blog/route.ts",
   "src/app/api/blog/search/route.ts",
@@ -22,13 +22,21 @@ const intentionalPublicRoutes = new Set([
   "src/app/api/email/unsubscribe/route.ts",
   "src/app/api/health/route.ts",
   "src/app/api/legal/data-request/route.ts",
-  "src/app/api/listings/[id]/click/route.ts",
-  "src/app/api/listings/[id]/view/route.ts",
   "src/app/api/newsletter/confirm/route.ts",
   "src/app/api/newsletter/route.ts",
   "src/app/api/search/popular-blog-tags/route.ts",
   "src/app/api/search/popular-tags/route.ts",
   "src/app/api/support/route.ts",
+]);
+
+const intentionalOptionalAuthPublicRoutes = new Set([
+  "src/app/api/listings/[id]/click/route.ts",
+  "src/app/api/listings/[id]/view/route.ts",
+]);
+
+const intentionalPublicRoutes = new Set([
+  ...intentionalNoAuthPublicRoutes,
+  ...intentionalOptionalAuthPublicRoutes,
 ]);
 
 describe("public API auth inventory", () => {
@@ -47,7 +55,18 @@ describe("public API auth inventory", () => {
       ].some((needle) => route.includes(needle));
     });
 
-    assert.deepEqual(unauthenticatedRoutes, [...intentionalPublicRoutes].sort());
+    assert.deepEqual(unauthenticatedRoutes, [...intentionalNoAuthPublicRoutes].sort());
+  });
+
+  it("keeps optional-auth public routes limited to routes that still allow signed-out callers", () => {
+    for (const path of intentionalOptionalAuthPublicRoutes) {
+      const route = source(path);
+
+      assert.match(route, /const \{ userId \} = await auth\(\)/);
+      assert.doesNotMatch(route, /if \s*\(!userId\)/);
+      assert.doesNotMatch(route, /ensureUser|ensureSeller|verifyCronRequest/);
+      assert.match(route, /NextResponse\.json\(\{ ok: true/);
+    }
   });
 
   it("keeps public unauthenticated Prisma/raw-SQL routes rate-limited or statically cached", () => {
