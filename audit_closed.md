@@ -25,7 +25,7 @@ Last updated: 2026-06-02
 - Verified hardening/doc commits since 2026-05-13: 230.
 - Verified code/feature fix commits since 2026-05-13: 204.
 - Verified docs/audit-only commits since 2026-05-13: 11.
-- Most recent reported pass tally: 381 verified fixed/reduced findings,
+- Most recent reported pass tally: 382 verified fixed/reduced findings,
   402 verified stale/false-positive findings, and 70 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
@@ -3782,7 +3782,18 @@ Last updated: 2026-06-02
      `tests/case-action-state.test.mjs` and
      `tests/listing-action-state.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 381 findings;
+339. **Notification dedup fallback observability reduced** — code/test
+     follow-up adjacent to the residual #1098 observability family. The
+     originally alleged console-only notification preference path was stale on
+     current `main`, but the dedup-collision recovery path still silently
+     returned `null` if the existing notification lookup failed after a
+     `P2002`. That fallback remains non-blocking so notifications cannot break
+     the main flow, but it now captures warning-level Sentry evidence keyed by
+     source, notification type, and bounded booleans rather than raw link or
+     body content. Guardrail:
+     `tests/pr-h-deletion-analytics-email-followups.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 382 findings;
 verified stale/false-positive: 402 findings; product/design/ops decisions
 deferred: 70 findings. Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale

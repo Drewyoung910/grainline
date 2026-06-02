@@ -47,6 +47,10 @@ describe("PR H account deletion, analytics, and email follow-ups", () => {
     assert.match(notifications, /if \(!user \|\| user\.banned \|\| user\.deletedAt\) return null/);
     assert.match(notifications, /if \(!isInAppNotificationEnabled\(user\.notificationPreferences, type\)\) return null/);
     assert.match(notifications, /tags: \{ source: "create_notification", notificationType: type \}/);
+    assert.match(notifications, /source: "notification_dedup_lookup"/);
+    assert.match(notifications, /notificationType: type/);
+    assert.match(notifications, /hasDedupScope: Boolean\(dedupScope\)/);
+    assert.doesNotMatch(notifications, /catch \{\s*return null;\s*\}/);
     assert.doesNotMatch(notifications, /return fallbackEnabled/);
     assert.match(email, /inactive-account lookup failed; skipping send/);
     assert.match(email, /throw err/);

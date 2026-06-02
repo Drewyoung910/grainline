@@ -100,7 +100,15 @@ export async function createNotification({
           return await prisma.notification.findUnique({
             where: { userId_type_dedupKey: { userId, type, dedupKey } },
           });
-        } catch {
+        } catch (dedupLookupError) {
+          Sentry.captureException(dedupLookupError, {
+            level: "warning",
+            tags: {
+              source: "notification_dedup_lookup",
+              notificationType: type,
+            },
+            extra: { userId, hasLink: Boolean(notificationLink), hasDedupScope: Boolean(dedupScope) },
+          });
           return null;
         }
       }
