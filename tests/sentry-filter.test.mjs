@@ -92,13 +92,14 @@ describe("Sentry beforeSend filtering", () => {
 
   it("redacts sensitive data from top-level messages, transactions, and exception values", () => {
     const event = beforeSend({
-      message: "Failed to email buyer@example.com for /checkout/success?session_id=cs_test_123",
+      message: "Failed to email buyer@example.com for /checkout/success?session_id=cs_test_123 after https://api.stripe.com/v1/payment_intents/pi_1234567890abcdef",
       transaction: "GET /unsubscribe?token=secret-token&email=seller@example.com",
       exception: {
         values: [
           {
             type: "Error",
-            value: "Stripe rejected customer buyer@example.com with client_secret=secret_123",
+            value:
+              "Stripe rejected customer buyer@example.com with client_secret=secret_123, transfer tr_1234567890abcdef, event svix_1234567890abcdef, cuid c123456789012345678901234, and 0123456789abcdef0123456789abcdef",
             stacktrace: {
               frames: [
                 {
@@ -117,12 +118,12 @@ describe("Sentry beforeSend filtering", () => {
 
     assert.equal(
       event.message,
-      "Failed to email [redacted-email] for /checkout/success?session_id=[redacted]",
+      "Failed to email [redacted-email] for /checkout/success?session_id=[redacted] after [redacted-url]",
     );
     assert.equal(event.transaction, "GET /unsubscribe?token=[redacted]&email=[redacted-email]");
     assert.equal(
       event.exception.values[0].value,
-      "Stripe rejected customer [redacted-email] with client_secret=[redacted]",
+      "Stripe rejected customer [redacted-email] with client_secret=[redacted], transfer [redacted-token], event [redacted-token], cuid [redacted-token], and [redacted-token]",
     );
     assert.deepEqual(event.exception.values[0].stacktrace.frames[0].vars, {
       email: "[redacted]",
@@ -143,7 +144,7 @@ describe("Sentry beforeSend filtering", () => {
     assert.equal(breadcrumb.message, "POST /api/account/export?token=[redacted]");
     assert.equal(
       breadcrumb.data.url,
-      "https://thegrainline.com/checkout/success?session_id=[redacted]&safe=1",
+      "[redacted-url]",
     );
     assert.deepEqual(breadcrumb.data.requestHeaders, {
       cookie: "[redacted]",

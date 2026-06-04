@@ -452,7 +452,6 @@ async function buildExport(user: NonNullable<ExportableUser>) {
         templateName: true,
         templateVersion: true,
         subject: true,
-        html: true,
         status: true,
         attempts: true,
         nextAttemptAt: true,

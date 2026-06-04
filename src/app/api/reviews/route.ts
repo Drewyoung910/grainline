@@ -18,6 +18,7 @@ import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 import { publicListingPath } from "@/lib/publicPaths";
 import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
 import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
+import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -212,7 +213,7 @@ export async function POST(req: NextRequest) {
         dedupScope: created.id,
       });
     } catch (e) {
-      console.error("Failed to create review notification:", e);
+      console.error("Failed to create review notification:", sanitizeEmailOutboxError(e));
       Sentry.captureException(e, {
         level: "warning",
         tags: { source: "review_notification" },
@@ -239,7 +240,7 @@ export async function POST(req: NextRequest) {
         }
       }
     } catch (e) {
-      console.error("Failed to send review notification email:", e);
+      console.error("Failed to send review notification email:", sanitizeEmailOutboxError(e));
       Sentry.captureException(e, {
         level: "warning",
         tags: { source: "review_notification_email" },

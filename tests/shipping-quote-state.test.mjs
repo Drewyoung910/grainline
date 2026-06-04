@@ -81,4 +81,18 @@ describe("shipping quote state helpers", () => {
     assert.match(route, /if \(out\.length === 0 && !sellerAllowsPickup\) \{/);
     assert.match(route, /out\.unshift\(pickupRate\(\{ contextId, buyerId: me\.id, buyerPostal: shipTo\.postal \}\)\)/);
   });
+
+  it("keeps shipping quote provider fallback failures observable without raw console errors", () => {
+    const route = readFileSync("src/app/api/shipping/quote/route.ts", "utf8");
+
+    assert.match(route, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
+    assert.match(route, /source: "shipping_quote_shippo_fallback"/);
+    assert.match(route, /source: "shipping_quote_fallback_config"/);
+    assert.match(route, /source: "shipping_quote_empty_rates_fallback_config"/);
+    assert.match(route, /source: "shipping_quote_route"/);
+    assert.match(route, /extra: \{ mode, sellerId, contextId \}/);
+    assert.doesNotMatch(route, /console\.error\("Shippo quote failed; returning signed fallback rate:", err\)/);
+    assert.doesNotMatch(route, /console\.error\("Site config fallback shipping lookup failed:", siteConfigError\)/);
+    assert.doesNotMatch(route, /console\.error\("POST \/api\/shipping\/quote error:", err\)/);
+  });
 });

@@ -16,6 +16,11 @@ describe("ban side-effect repair cron guardrails", () => {
     assert.match(ban, /appliedBannedAt: bannedAt/);
     assert.match(ban, /banAuditLogId: banAuditLog\.id/);
     assert.match(ban, /originalActionId: clerkSync\.banAuditLogId/);
+    assert.match(ban, /import \{ sanitizeEmailOutboxError \} from '\.\/emailOutboxSanitize'/);
+    assert.match(ban, /error: sanitizeEmailOutboxError\(error\)/);
+    assert.match(ban, /sellerRestoreError = sanitizeEmailOutboxError\(err\)/);
+    assert.doesNotMatch(ban, /error: error instanceof Error \? error\.message : String\(error\)/);
+    assert.doesNotMatch(ban, /sellerRestoreError = err instanceof Error \? err\.message : String\(err\)/);
     assert.match(metadata, /appliedBannedAt: appliedBannedAt\?\.toISOString\(\) \?\? null/);
     assert.match(metadata, /externalSyncVersion = 1/);
     assert.match(audit, /dateFromMetadata\(banMetadata\?\.appliedBannedAt \?\? null\)/);
@@ -38,6 +43,9 @@ describe("ban side-effect repair cron guardrails", () => {
     assert.match(repair, /checkoutRepaired = true/);
     assert.match(repair, /banClerkUserAndRevokeSessions\(target\.clerkId\)/);
     assert.match(repair, /action: "BAN_USER_CLERK_SYNC_FAILED"/);
+    assert.match(repair, /import \{ sanitizeEmailOutboxError \} from "@\/lib\/emailOutboxSanitize"/);
+    assert.match(repair, /error: sanitizeEmailOutboxError\(error\)/);
+    assert.doesNotMatch(repair, /error: error instanceof Error \? error\.message : String\(error\)/);
     assert.match(route, /verifyCronRequest\(request\)/);
     assert.match(route, /beginCronRun\("ban-side-effects", halfHourBucket\(\)\)/);
     assert.match(route, /processBanUserExternalSideEffectRepairBatch\(\{ take: 20 \}\)/);

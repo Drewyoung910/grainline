@@ -52,11 +52,22 @@ describe("label clawback reconciliation state", () => {
   });
 
   it("normalizes and bounds Stripe error messages", () => {
-    const err = new Error(` ${"A".repeat(800)} `);
+    const err = new Error(` ${"Z".repeat(800)} `);
     const message = labelClawbackErrorMessage(err);
 
     assert.equal(message.length <= 500, true);
     assert.match(message, /\.\.\.$/);
+  });
+
+  it("sanitizes Stripe reversal errors before persisting review notes", () => {
+    const message = labelClawbackErrorMessage(
+      new Error(
+        "Failed reversal for seller@example.com at https://api.stripe.com/v1/transfers/tr_1234567890abcdef with pi_1234567890abcdef and 0123456789abcdef0123456789abcdef",
+      ),
+    );
+
+    assert.equal(message, "Failed reversal for [email] at [url] with [token] and [token]");
+    assert.doesNotMatch(message, /seller@example\.com|https:\/\/api\.stripe\.com|tr_1234567890abcdef|pi_1234567890abcdef|0123456789abcdef/);
   });
 
   it("uses a stable Stripe idempotency key for initial and retry reversals", () => {

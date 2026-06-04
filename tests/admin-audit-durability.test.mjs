@@ -22,6 +22,10 @@ describe("admin audit durability", () => {
     assert.doesNotMatch(audit, /return ''/);
     assert.match(audit, /Cannot automatically undo this ban because its audit metadata is incomplete/);
     assert.match(audit, /source: 'admin_undo_stripe_account_verify'/);
+    assert.match(audit, /console\.error\('Failed to verify Stripe account during admin undo:', sanitizeEmailOutboxError\(err\)\)/);
+    assert.doesNotMatch(audit, /console\.error\('Failed to verify Stripe account during admin undo:', err\)/);
+    assert.match(audit, /error: sanitizeEmailOutboxError\(error\)/);
+    assert.doesNotMatch(audit, /error: error instanceof Error \? error\.message : String\(error\)/);
   });
 
   it("co-commits high-risk admin mutations with their audit rows", () => {

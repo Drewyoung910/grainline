@@ -27,7 +27,12 @@ describe("review/report/favorite observability hardening", () => {
     const createRoute = source("src/app/api/reviews/route.ts");
     const editRoute = source("src/app/api/reviews/[id]/route.ts");
 
+    assert.match(createRoute, /import \{ sanitizeEmailOutboxError \} from "@\/lib\/emailOutboxSanitize"/);
     assert.match(createRoute, /source: "review_notification_email"/);
+    assert.match(createRoute, /console\.error\("Failed to create review notification:", sanitizeEmailOutboxError\(e\)\)/);
+    assert.match(createRoute, /console\.error\("Failed to send review notification email:", sanitizeEmailOutboxError\(e\)\)/);
+    assert.doesNotMatch(createRoute, /console\.error\("Failed to create review notification:", e\)/);
+    assert.doesNotMatch(createRoute, /console\.error\("Failed to send review notification email:", e\)/);
     assert.match(editRoute, /source: "review_photo_cleanup_edit"/);
     assert.match(editRoute, /source: "review_photo_cleanup_delete"/);
     assert.match(editRoute, /Review photo cleanup skipped non-R2 media/);

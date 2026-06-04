@@ -24,6 +24,7 @@ import { sanitizeUserName, truncateText } from "@/lib/sanitize";
 import { isRequestBodyTooLargeError, readBoundedText } from "@/lib/requestBody";
 import { invalidateAccountStateCache } from "@/lib/accountStateCache";
 import { recordWebhookFailureSpike } from "@/lib/webhookFailureSpike";
+import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import * as Sentry from "@sentry/nextjs";
 
 interface ClerkUserEvent {
@@ -56,11 +57,6 @@ const CLERK_WEBHOOK_RETRY_AFTER_SECONDS = Math.ceil(CLERK_WEBHOOK_RETRY_AFTER_MS
 
 function isUniqueViolation(err: unknown) {
   return typeof err === "object" && err !== null && "code" in err && (err as { code?: unknown }).code === "P2002";
-}
-
-function errorMessage(err: unknown) {
-  if (err instanceof Error) return err.message;
-  return String(err);
 }
 
 async function enqueueWelcomeFallbackEmail(
@@ -128,7 +124,7 @@ async function markClerkWebhookFailed(svixId: string, err: unknown) {
     where: { svixId, processedAt: null },
     data: {
       processingStartedAt: null,
-      lastError: truncateText(errorMessage(err), 2000),
+      lastError: truncateText(sanitizeEmailOutboxError(err), 2000),
     },
   });
 }

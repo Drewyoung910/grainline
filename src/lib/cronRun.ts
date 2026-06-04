@@ -1,8 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import * as Sentry from "@sentry/nextjs";
-import { cronUtcHourBucket, shouldReclaimFailedCronRun } from "@/lib/cronRunState";
-import { truncateText } from "@/lib/sanitize";
+import { cronRunErrorMessage, cronUtcHourBucket, shouldReclaimFailedCronRun } from "@/lib/cronRunState";
 
 export type CronRunHandle =
   | { acquired: true; runId: string; jobName: string; bucket: string }
@@ -10,7 +9,7 @@ export type CronRunHandle =
 
 const MAX_RECLAIM_RETRIES = 2;
 
-export { CRON_RUN_FAILED_RECLAIM_MS, cronUtcHourBucket, shouldReclaimFailedCronRun } from "@/lib/cronRunState";
+export { CRON_RUN_FAILED_RECLAIM_MS, cronRunErrorMessage, cronUtcHourBucket, shouldReclaimFailedCronRun } from "@/lib/cronRunState";
 
 export async function beginCronRun(
   jobName: string,
@@ -79,19 +78,20 @@ export async function failCronRun(
   handle: Extract<CronRunHandle, { acquired: true }>,
   error: unknown,
 ) {
+  const errorMessage = cronRunErrorMessage(error);
   await prisma.cronRun.update({
     where: { id: handle.runId },
     data: {
       status: "FAILED",
       completedAt: new Date(),
       result: {
-        error: error instanceof Error ? truncateText(error.message, 500) : "Unknown error",
+        error: errorMessage,
       },
     },
   }).catch((updateError) => {
     Sentry.captureException(updateError, {
       tags: { source: "cron_run_failure_update", jobName: handle.jobName },
-      extra: { runId: handle.runId, originalError: error instanceof Error ? error.message : String(error) },
+      extra: { runId: handle.runId, originalError: errorMessage },
     });
   });
 }

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { banClerkUserAndRevokeSessions } from "@/lib/clerkUserLifecycle";
 import { expireOpenCheckoutSessionsForSeller } from "@/lib/checkoutSessionExpiry";
 import { readBanAuditMetadata } from "@/lib/banAuditMetadata";
+import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 
 const BAN_SYNC_REPAIR_LOOKBACK_DAYS = 14;
 const BAN_SYNC_REPAIR_SCAN_LIMIT = 100;
@@ -168,7 +169,7 @@ export async function repairBanUserExternalSideEffects(input: {
       metadata: {
         retry: true,
         clerkUserId: target.clerkId,
-        error: error instanceof Error ? error.message : String(error),
+        error: sanitizeEmailOutboxError(error),
       },
     });
     return { status: "failed" as const };

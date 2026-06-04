@@ -113,6 +113,9 @@ describe("R65 observability guardrails", () => {
     const text = source("src/app/api/clerk/webhook/route.ts");
 
     assert.match(text, /import \{ recordWebhookFailureSpike \} from "@\/lib\/webhookFailureSpike"/);
+    assert.match(text, /import \{ sanitizeEmailOutboxError \} from "@\/lib\/emailOutboxSanitize"/);
+    assert.match(text, /lastError: truncateText\(sanitizeEmailOutboxError\(err\), 2000\)/);
+    assert.doesNotMatch(text, /lastError: truncateText\(errorMessage\(err\), 2000\)/);
 
     const configBlock = text.slice(text.indexOf("if (!webhookSecret)"), text.indexOf("const headerPayload = await headers"));
     assert.match(configBlock, /Sentry\.captureMessage\("Clerk webhook secret is not configured"/);

@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 const {
   CRON_RUN_FAILED_RECLAIM_MS,
+  cronRunErrorMessage,
   cronUtcHourBucket,
   shouldReclaimFailedCronRun,
 } = await import("../src/lib/cronRunState.ts");
@@ -24,5 +25,16 @@ describe("cron run idempotency helpers", () => {
     assert.equal(shouldReclaimFailedCronRun({ status: "COMPLETED", startedAt: stale }, now), false);
     assert.equal(shouldReclaimFailedCronRun({ status: "FAILED", startedAt: null }, now), false);
     assert.equal(shouldReclaimFailedCronRun(null, now), false);
+  });
+
+  it("sanitizes persisted cron failure messages", () => {
+    const message = cronRunErrorMessage(
+      new Error(
+        "Failed for buyer@example.com at https://api.stripe.com/v1/transfers/tr_1234567890abcdef with 0123456789abcdef0123456789abcdef",
+      ),
+    );
+
+    assert.equal(message, "Failed for [email] at [url] with [token]");
+    assert.equal(cronRunErrorMessage({ raw: "object" }), "Unknown error");
   });
 });

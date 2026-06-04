@@ -4232,7 +4232,68 @@ Last updated: 2026-06-02
      any pre-existing closure-evidence fields because those fields did not
      exist before this pass.
 
-**Running tally after this pass:** verified fixed/reduced: 428 findings;
+373. **Parallel observability, unsubscribe, export, and Stripe residue pass** —
+     parent-reviewed multi-agent/source fixes across the next privacy,
+     consent, Stripe, and telemetry slices. Shipping quote provider fallback,
+     SiteConfig fallback, empty-rate fallback, and top-level quote failures now
+     use `logServerError()` with bounded route context instead of raw
+     console-only errors. Review notification/email side-effect console lines
+     now use `sanitizeEmailOutboxError()` while preserving existing Sentry
+     evidence. One-click unsubscribe now uses the same Gmail/Googlemail
+     suppression-key set for renewed-consent epoch checks, newsletter
+     deactivation, and user preference updates, so an old alias unsubscribe
+     link cannot bypass a later opt-in or confirmation on the canonical key.
+     `docs/security-audit-log.md` and `CLAUDE.md` now describe the current
+     epoch model rather than the stale "suppression is permanent" rationale.
+     Known duplicate checkout-session `stripeSessionId` webhook races now mark
+     the reserved `StripeWebhookEvent` processed before returning success, so
+     the success path does not leave a failed/unprocessed ops-health row.
+     The why-sell public fee example now matches runtime transfer math for a
+     `$50 + $15 shipping` order: `$62.50` before tax/refund adjustments, with
+     Stripe processing absorbed by Grainline rather than deducted from maker
+     payout.
+
+     Account export no longer selects raw `EmailOutbox.html`; it keeps delivery
+     metadata such as recipient, template, subject, status, attempts, errors,
+     and timestamps while avoiding stored template bodies that can contain
+     third-party buyer names in seller-facing order emails. Admin undo Stripe
+     verification console output, Clerk webhook failed-row persistence, cron
+     failure persistence/Sentry fallback metadata, ban/unban external-sync
+     audit metadata, and label-clawback review-note Stripe error text now use
+     the shared email/outbox sanitizer before logging or durable storage.
+     Sentry's global filter now also redacts provider IDs/tokens, long CUID/hex
+     tokens, and generic URLs from exception messages, extras, contexts, tags,
+     and breadcrumbs while keeping request URL/query redaction behavior
+     explicit. Guardrails:
+     `tests/shipping-quote-state.test.mjs`,
+     `tests/review-report-observability.test.mjs`,
+     `tests/account-privacy-observability.test.mjs`,
+     `tests/account-export-privacy.test.mjs`,
+     `tests/admin-audit-durability.test.mjs`,
+     `tests/public-fee-policy-copy.test.mjs`,
+     `tests/stripe-webhook-v2-route.test.mjs`,
+     `tests/sentry-filter.test.mjs`, `tests/cron-run.test.mjs`,
+     `tests/r65-observability-guardrails.test.mjs`,
+     `tests/label-clawback-state.test.mjs`, and
+     `tests/ban-side-effect-repair.test.mjs`.
+
+     Parent review also reverified without stale-tally inflation that several
+     old privacy/export and email allegations are closed or stale on current
+     `main`: data-request closure evidence exists and omits staff FK from
+     exports; account export already covers the previously alleged missing
+     local tables; fulfilled-order buyer PII pruning/deletion clears the
+     expected shipping/tracking/Shippo/gift/seller-note fields; one-click
+     unsubscribe is public, POST-only for mutation, rate-limited by IP and
+     signed email hash, and backed by 90-day signed tokens; Resend final
+     failure/bounce/complaint suppression handling exists; and Stripe webhook
+     subscription narrowing plus provider-side privacy deletion evidence remain
+     dashboard/runbook evidence items, not locally provable source behavior.
+     The broader console-only final-catch sweep reported by the observability
+     sidecar remains open for case/listing/verification/admin/fulfillment
+     routes; this entry only closes the source-verified durable/persisted
+     evidence paths and the specific shipping/review route gaps above.
+
+**Running tally after this pass:** verified fixed/reduced: 440 findings;
 verified stale/false-positive: 406 findings; product/design/ops decisions
 deferred: 73 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
@@ -4255,8 +4316,13 @@ source issues found during parent/agent review rather than separately numbered
 raw-Claude allegations. Entry 372 adds two fixed/reduced source/docs issues
 and removes the data-request closure-evidence source gap from the privacy
 retention scope.
-Remaining major
-categories: Stripe webhook subscription
+Entry 373 adds twelve fixed/reduced current-code or docs/copy issues across
+shipping/review observability, unsubscribe consent epochs, Stripe duplicate
+webhook residue, account export body scope, admin/cron/webhook/review-note
+sanitization, Sentry filtering, and public fee-copy drift. Only six approximate
+raw-category decrements are counted because several were adjacent issues found
+by parent/agent review within already-open observability/privacy categories.
+Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
 product designs, EXPLAIN-dependent query-plan/index validation, Stripe
@@ -4269,10 +4335,11 @@ self-service path, legacy enum cleanup/data-migration decisions, partial multi-s
 checkout continuation design, deliberate BigInt money-column modeling, live-data
 reconciliation for historical seller shipping-rate currency drift, Clerk staff
 MFA and breached-password dashboard evidence, Clerk multi-account spam dashboard
-evidence, Stripe duplicate-webhook and buyer-deletion runtime replay proof,
+evidence, buyer-deletion runtime replay proof,
 Founding Maker live DB concurrency proof, Sentry cron alert evidence,
 Cloudflare R2 ListBucket/public-bucket dashboard evidence, HSTS preload
-submission decision, residual HTTP-status constants
-and log-forwarding and analytics observability refactors, remaining homepage
+submission decision, residual HTTP-status constants,
+console-only route final-catch/log-forwarding, and analytics observability
+refactors, remaining homepage
 runtime a11y proof, and agent/worktree verification process hygiene.
-Approximate raw allegations left to verify from current max #1120: 243.
+Approximate raw allegations left to verify from current max #1120: 237.

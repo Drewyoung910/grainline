@@ -158,9 +158,9 @@ export default async function WhySellOnGrainlinePage() {
             seller cost. Buyers paid for shipping; you funded the platform&apos;s cut on it.
           </p>
           <p className="text-stone-700 leading-relaxed">
-            On Grainline, that same $50 piece with $15 shipping nets you about $61 after our 5% and Stripe
-            processing. We charge nothing on shipping. We charge nothing on tax. We don&apos;t run mandatory ads.
-            The math stays simple.
+            On Grainline, that same $50 piece with $15 shipping nets you $62.50 before tax or refund
+            adjustments. We charge nothing on shipping. We charge nothing on tax. Stripe processing is absorbed
+            by Grainline under our payout model. The math stays simple.
           </p>
         </div>
       </section>

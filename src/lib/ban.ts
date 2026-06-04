@@ -14,6 +14,7 @@ import {
   restoreOrderReviewStateAfterBan,
 } from './banOrderReviewState'
 import { readBanAuditMetadata, type BanOpenOrderSnapshot } from './banAuditMetadata'
+import { sanitizeEmailOutboxError } from './emailOutboxSanitize'
 import * as Sentry from '@sentry/nextjs'
 
 const OPEN_SELLER_ORDER_STATUSES = ['PENDING', 'READY_FOR_PICKUP', 'SHIPPED'] as const
@@ -342,7 +343,7 @@ export async function banUser({ userId, adminId, reason }: {
       originalActionId: clerkSync.banAuditLogId,
       metadata: {
         clerkUserId: clerkSync.clerkId,
-        error: error instanceof Error ? error.message : String(error),
+        error: sanitizeEmailOutboxError(error),
       },
     })
     throw new BanUserExternalSyncError("User was banned locally, but active Clerk sessions could not be revoked. Try the ban action again or contact support.")
@@ -369,7 +370,7 @@ export async function unbanUser({ userId, adminId, reason }: {
       sellerRestore = { id: seller.id, chargesEnabled, vacationMode: !chargesEnabled }
     } catch (err) {
       sellerRestoreWarning = "Stripe account could not be verified; seller shop settings were left unchanged."
-      sellerRestoreError = err instanceof Error ? err.message : String(err)
+      sellerRestoreError = sanitizeEmailOutboxError(err)
       Sentry.captureException(err, {
         tags: { source: 'unban_user_stripe_restore' },
         extra: { userId, adminId, sellerProfileId: seller.id, stripeAccountId: seller.stripeAccountId },
@@ -460,7 +461,7 @@ export async function unbanUser({ userId, adminId, reason }: {
       targetId: userId,
       metadata: {
         clerkUserId: clerkSync.clerkId,
-        error: error instanceof Error ? error.message : String(error),
+        error: sanitizeEmailOutboxError(error),
       },
     })
     throw new BanUserExternalSyncError("User was unbanned locally, but Clerk still could not be updated. Try the unban action again or contact support.")

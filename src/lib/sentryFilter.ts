@@ -13,7 +13,11 @@ const NOISY_PATTERNS = [
 
 const SECRET_KEY_PATTERN = /(authorization|cookie|set-cookie|email|ip[_-]?address|token|secret|password|api[_-]?key|session|clerk|stripe|resend)/i;
 const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
-const TOKEN_QUERY_PATTERN = /(^|[?&\s])((?:token|signature|sig|code|session_id|client_secret)=)[^&\s]+/gi;
+const URL_PATTERN = /https?:\/\/[^\s"'<>]+/gi;
+const TOKEN_QUERY_PATTERN = /(^|[?&\s])((?:token|signature|sig|code|session_id|client_secret)=)[^&\s,]+/gi;
+const PROVIDER_TOKEN_PATTERN = /\b(?:acct_|ch_|cs_|cu_|evt_|in_|pi_|po_|re_|rk_|seti_|sk_|pk_|tr_|txn_|whsec_|svix_|v1_|eyJ)[A-Za-z0-9._~+/=-]{12,}\b/g;
+const CUID_PATTERN = /\bc[a-z0-9]{24,}\b/g;
+const LONG_HEX_PATTERN = /\b[a-f0-9]{32,}\b/gi;
 const EMAIL_HASH_KEY_PATTERN = /(^|[_-])emailHash$/i;
 const EMAIL_HASH_VALUE_PATTERN = /^sha256:[a-f0-9]{24}$/;
 
@@ -48,15 +52,20 @@ function isBotStripeLoadFailure(event: ErrorEvent, text: string) {
   return isKnownBot(`${requestHeaders} ${tagText}`);
 }
 
-function scrubString(value: string) {
-  return value
+function scrubString(value: string, opts: { redactUrls?: boolean } = {}) {
+  let scrubbed = value
     .replace(EMAIL_PATTERN, "[redacted-email]")
     .replace(TOKEN_QUERY_PATTERN, "$1$2[redacted]");
+  if (opts.redactUrls) scrubbed = scrubbed.replace(URL_PATTERN, "[redacted-url]");
+  return scrubbed
+    .replace(PROVIDER_TOKEN_PATTERN, "[redacted-token]")
+    .replace(CUID_PATTERN, "[redacted-token]")
+    .replace(LONG_HEX_PATTERN, "[redacted-token]");
 }
 
 function scrubValue(value: unknown, depth = 0): unknown {
   if (depth > 8) return "[redacted-depth]";
-  if (typeof value === "string") return scrubString(value);
+  if (typeof value === "string") return scrubString(value, { redactUrls: true });
   if (value == null || typeof value !== "object") return value;
   if (Array.isArray(value)) return value.map((item) => scrubValue(item, depth + 1));
 
@@ -83,8 +92,8 @@ export function beforeSend(event: ErrorEvent, hint?: EventHint): ErrorEvent | nu
   if (isBotStripeLoadFailure(event, text)) return null;
   if (NOISY_PATTERNS.some((pattern) => pattern.test(text))) return null;
 
-  if (typeof event.message === "string") event.message = scrubString(event.message);
-  if (typeof event.transaction === "string") event.transaction = scrubString(event.transaction);
+  if (typeof event.message === "string") event.message = scrubString(event.message, { redactUrls: true });
+  if (typeof event.transaction === "string") event.transaction = scrubString(event.transaction, { redactUrls: true });
   if (event.exception) event.exception = scrubValue(event.exception) as ErrorEvent["exception"];
 
   if (event.request) {

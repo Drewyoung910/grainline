@@ -67,6 +67,26 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
     assert.match(legacyRoute, /"Retry-After": String\(STRIPE_WEBHOOK_RETRY_AFTER_SECONDS\)/);
   });
 
+  it("marks known duplicate checkout sessions processed before returning webhook success", () => {
+    const legacyRoute = source("src/app/api/stripe/webhook/route.ts");
+    const duplicateStart = legacyRoute.indexOf("const duplicateSession =");
+    const duplicateBranch = legacyRoute.slice(
+      duplicateStart,
+      legacyRoute.indexOf('console.error("Stripe webhook handler error:', duplicateStart),
+    );
+
+    assert.ok(duplicateStart >= 0, "legacy webhook route must keep an explicit duplicate-session branch");
+    assert.match(duplicateBranch, /code === "P2002"/);
+    assert.match(duplicateBranch, /p2002Target\.includes\("stripeSessionId"\)/);
+    assert.match(duplicateBranch, /markStripeWebhookEventProcessed\(event\.id\)/);
+    assert.match(duplicateBranch, /return NextResponse\.json\(\{ ok: true \}\)/);
+    assert.ok(
+      duplicateBranch.indexOf("markStripeWebhookEventProcessed(event.id)") <
+        duplicateBranch.indexOf("return NextResponse.json({ ok: true })"),
+      "duplicate-session webhook success should not leave a failed/unprocessed reservation row",
+    );
+  });
+
   it("documents and exposes the new webhook destination without weakening public middleware", () => {
     const middleware = source("src/middleware.ts");
     const env = source(".env.example");

@@ -1,3 +1,6 @@
+import { sanitizeEmailOutboxError } from "./emailOutboxSanitize.ts";
+import { truncateText } from "./sanitize.ts";
+
 export const CRON_RUN_FAILED_RECLAIM_MS = 5 * 60 * 1000;
 
 export function cronUtcHourBucket(date = new Date()) {
@@ -11,4 +14,9 @@ export function shouldReclaimFailedCronRun(
   if (!existing || existing.status !== "FAILED") return false;
   if (!(existing.startedAt instanceof Date) || Number.isNaN(existing.startedAt.getTime())) return false;
   return existing.startedAt.getTime() < now.getTime() - CRON_RUN_FAILED_RECLAIM_MS;
+}
+
+export function cronRunErrorMessage(error: unknown) {
+  if (!(error instanceof Error) && typeof error !== "string") return "Unknown error";
+  return truncateText(sanitizeEmailOutboxError(error), 500);
 }

@@ -2146,6 +2146,7 @@ export async function POST(req: Request) {
         ? p2002Target.includes("stripeSessionId")
         : typeof p2002Target === "string" && p2002Target.includes("stripeSessionId"));
     if (duplicateSession) {
+      await markStripeWebhookEventProcessed(event.id);
       return NextResponse.json({ ok: true });
     }
     console.error("Stripe webhook handler error:", sanitizeEmailOutboxError(err));

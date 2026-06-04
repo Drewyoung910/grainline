@@ -34,7 +34,11 @@ describe("public fee-policy copy", () => {
     assert.doesNotMatch(handbook, /non-refundable \(their policy, not ours\)/);
 
     assert.match(whySell, /Grainline currently absorbs it/);
+    assert.match(whySell, /\$62\.50 before tax or refund\s+adjustments/);
+    assert.match(whySell, /Stripe processing is absorbed\s+by Grainline under our payout model/);
     assert.doesNotMatch(whySell, /platform fees on top of Stripe/);
+    assert.doesNotMatch(whySell, /nets you about \$61/);
+    assert.doesNotMatch(whySell, /after our 5% and Stripe\s+processing/);
     assert.match(claude, /must not say Stripe processing fees are deducted from maker payouts/);
   });
 });

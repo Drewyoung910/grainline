@@ -202,10 +202,29 @@ describe("account and privacy route observability guardrails", () => {
     );
 
     assert.match(unsubscribe, /export async function unsubscribeTokenSuperseded/);
-    assert.match(unsubscribe, /SELECT "emailPreferenceOptInAt"/);
+    assert.match(unsubscribe, /emailSuppressionAddressKeys\(normalized\)/);
+    assert.match(unsubscribe, /where: \{ email: \{ in: emails \}, emailPreferenceOptInAt: \{ not: null \} \}/);
+    assert.match(unsubscribe, /orderBy: \{ emailPreferenceOptInAt: "desc" \}/);
     assert.match(unsubscribe, /user\.emailPreferenceOptInAt\.getTime\(\) > issuedAt/);
-    assert.match(unsubscribe, /newsletterSubscriber\.findUnique/);
+    assert.match(unsubscribe, /newsletterSubscriber\.findFirst/);
+    assert.match(unsubscribe, /where: \{ email: \{ in: emails \}, confirmedAt: \{ not: null \} \}/);
+    assert.match(unsubscribe, /orderBy: \{ confirmedAt: "desc" \}/);
     assert.match(unsubscribe, /newsletter\.confirmedAt\.getTime\(\) > issuedAt/);
+  });
+
+  it("applies Gmail suppression keys to one-click unsubscribe preference and newsletter updates", () => {
+    const unsubscribe = source("src/lib/unsubscribe.ts");
+    const unsubscribeEmailStart = unsubscribe.indexOf("export async function unsubscribeEmail");
+    const unsubscribeEmailHelper = unsubscribe.slice(unsubscribeEmailStart);
+
+    assert.match(unsubscribeEmailHelper, /const suppressionEmailKeys = emailSuppressionAddressKeys\(normalized\)/);
+    assert.match(unsubscribeEmailHelper, /const emails = suppressionEmailKeys\.length > 0 \? suppressionEmailKeys : \[normalized\]/);
+    assert.match(unsubscribeEmailHelper, /newsletterSubscriber\.updateMany\(\{\s*where: \{ email: \{ in: emails \} \}/s);
+    assert.match(unsubscribeEmailHelper, /user\.findMany\(\{\s*where: \{ email: \{ in: emails \} \}/s);
+    assert.match(unsubscribeEmailHelper, /for \(const user of users\)/);
+    assert.match(unsubscribeEmailHelper, /userUpdated = users\.length > 0/);
+    assert.doesNotMatch(unsubscribeEmailHelper, /newsletterSubscriber\.updateMany\(\{\s*where: \{ email: normalized \}/s);
+    assert.doesNotMatch(unsubscribeEmailHelper, /user\.findUnique\(\{\s*where: \{ email: normalized \}/s);
   });
 
   it("keeps Clerk user ids out of favorites route console telemetry", () => {

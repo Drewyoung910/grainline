@@ -15,6 +15,7 @@ import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrd
 import { shippingQuoteRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
 import { DEFAULT_CURRENCY } from "@/lib/money";
 import { sanitizeAddressField, sanitizeOptionalAddressField } from "@/lib/addressFields";
+import { logServerError } from "@/lib/serverErrorLogger";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -533,7 +534,10 @@ export async function POST(req: Request) {
       });
       rates = Array.isArray(shipment?.rates) ? shipment.rates : [];
     } catch (err) {
-      console.error("Shippo quote failed; returning signed fallback rate:", err);
+      logServerError(err, {
+        source: "shipping_quote_shippo_fallback",
+        extra: { mode, sellerId, contextId },
+      });
       let fallbackShippingCents: number | null | undefined;
       try {
         const siteConfig = await prisma.siteConfig.findUnique({
@@ -542,7 +546,10 @@ export async function POST(req: Request) {
         });
         fallbackShippingCents = siteConfig?.fallbackShippingCents;
       } catch (siteConfigError) {
-        console.error("Site config fallback shipping lookup failed:", siteConfigError);
+        logServerError(siteConfigError, {
+          source: "shipping_quote_fallback_config",
+          extra: { mode, sellerId, contextId },
+        });
       }
       return NextResponse.json({
         rates: [
@@ -619,7 +626,10 @@ export async function POST(req: Request) {
         });
         fallbackShippingCents = siteConfig?.fallbackShippingCents;
       } catch (siteConfigError) {
-        console.error("Site config fallback shipping lookup failed:", siteConfigError);
+        logServerError(siteConfigError, {
+          source: "shipping_quote_empty_rates_fallback_config",
+          extra: { mode, sellerId, contextId },
+        });
       }
       out.push(
         fallbackRate({
@@ -651,7 +661,7 @@ export async function POST(req: Request) {
     const accountResponse = accountAccessErrorResponse(err);
     if (accountResponse) return accountResponse;
 
-    console.error("POST /api/shipping/quote error:", err);
+    logServerError(err, { source: "shipping_quote_route" });
     // Fail closed: checkout requires a signed rate from this endpoint.
     return NextResponse.json({ rates: [] });
   }

@@ -1,3 +1,5 @@
+import { sanitizeEmailOutboxError } from "./emailOutboxSanitize.ts";
+
 export type LabelClawbackFailureReason = "missing_transfer" | "stripe_reversal_failed";
 export type LabelClawbackStatus = "RETRY_PENDING" | "RETRYING" | "REVERSED" | "MANUAL_REVIEW";
 
@@ -23,8 +25,8 @@ function boundedText(value: string, maxChars: number) {
 }
 
 export function labelClawbackErrorMessage(error: unknown) {
-  if (error instanceof Error) return boundedText(error.message || error.name, ERROR_MAX_CHARS);
-  if (typeof error === "string") return boundedText(error, ERROR_MAX_CHARS);
+  if (error instanceof Error) return boundedText(sanitizeEmailOutboxError(error.message || error.name), ERROR_MAX_CHARS);
+  if (typeof error === "string") return boundedText(sanitizeEmailOutboxError(error), ERROR_MAX_CHARS);
   return "Unknown Stripe reversal error";
 }
 

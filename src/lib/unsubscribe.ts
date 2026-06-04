@@ -67,16 +67,19 @@ export async function unsubscribeTokenSuperseded(
   const issuedAt = typeof issuedAtValue === "number" ? issuedAtValue : Number(issuedAtValue);
   if (!normalized || !Number.isSafeInteger(issuedAt) || issuedAt <= 0) return true;
 
-  const [user] = await prisma.$queryRaw<{ emailPreferenceOptInAt: Date | null }[]>`
-    SELECT "emailPreferenceOptInAt"
-    FROM "User"
-    WHERE "email" = ${normalized}
-    LIMIT 1
-  `;
+  const suppressionEmailKeys = emailSuppressionAddressKeys(normalized);
+  const emails = suppressionEmailKeys.length > 0 ? suppressionEmailKeys : [normalized];
+
+  const user = await prisma.user.findFirst({
+    where: { email: { in: emails }, emailPreferenceOptInAt: { not: null } },
+    orderBy: { emailPreferenceOptInAt: "desc" },
+    select: { emailPreferenceOptInAt: true },
+  });
   if (user?.emailPreferenceOptInAt && user.emailPreferenceOptInAt.getTime() > issuedAt) return true;
 
-  const newsletter = await prisma.newsletterSubscriber.findUnique({
-    where: { email: normalized },
+  const newsletter = await prisma.newsletterSubscriber.findFirst({
+    where: { email: { in: emails }, confirmedAt: { not: null } },
+    orderBy: { confirmedAt: "desc" },
     select: { confirmedAt: true },
   });
   return !!newsletter?.confirmedAt && newsletter.confirmedAt.getTime() > issuedAt;
@@ -85,13 +88,15 @@ export async function unsubscribeTokenSuperseded(
 export async function unsubscribeEmail(email: string): Promise<{ ok: boolean; userUpdated: boolean; newsletterUpdated: number }> {
   const normalized = normalizeUnsubscribeEmail(email);
   if (!normalized) return { ok: false, userUpdated: false, newsletterUpdated: 0 };
+  const suppressionEmailKeys = emailSuppressionAddressKeys(normalized);
+  const emails = suppressionEmailKeys.length > 0 ? suppressionEmailKeys : [normalized];
 
   let userUpdated = false;
   let newsletterUpdated = 0;
 
   await prisma.$transaction(async (tx) => {
     const newsletter = await tx.newsletterSubscriber.updateMany({
-      where: { email: normalized },
+      where: { email: { in: emails } },
       data: {
         active: false,
         confirmationTokenHash: null,
@@ -101,12 +106,12 @@ export async function unsubscribeEmail(email: string): Promise<{ ok: boolean; us
     });
     newsletterUpdated = newsletter.count;
 
-    const user = await tx.user.findUnique({
-      where: { email: normalized },
+    const users = await tx.user.findMany({
+      where: { email: { in: emails } },
       select: { id: true, notificationPreferences: true },
     });
 
-    if (user) {
+    for (const user of users) {
       const preferences = normalizeNotificationPreferences(user.notificationPreferences);
       for (const key of EMAIL_PREFS_TO_DISABLE) {
         preferences[key] = false;
@@ -116,8 +121,8 @@ export async function unsubscribeEmail(email: string): Promise<{ ok: boolean; us
         where: { id: user.id },
         data: { notificationPreferences: preferences },
       });
-      userUpdated = true;
     }
+    userUpdated = users.length > 0;
 
     await setOneClickEmailSuppression(tx, normalized);
   });

@@ -138,7 +138,7 @@ async function retryUndoBanClerkSyncIfPending(log: {
         originalActionId: log.id,
         clerkUserId: clerkUnbanTarget.clerkId,
         retry: true,
-        error: error instanceof Error ? error.message : String(error),
+        error: sanitizeEmailOutboxError(error),
       },
     })
     throw new Error('Database undo already succeeded, but Clerk still could not be unbanned. Retry the undo or contact support.')
@@ -278,7 +278,7 @@ export async function undoAdminAction({
             !account.requirements?.disabled_reason
           )
         } catch (err) {
-          console.error('Failed to verify Stripe account during admin undo:', err)
+          console.error('Failed to verify Stripe account during admin undo:', sanitizeEmailOutboxError(err))
           Sentry.captureException(err, {
             level: 'warning',
             tags: { source: 'admin_undo_stripe_account_verify' },
@@ -390,7 +390,7 @@ export async function undoAdminAction({
         metadata: {
           originalActionId: logId,
           clerkUserId: clerkUnbanTarget.clerkId,
-          error: error instanceof Error ? error.message : String(error),
+          error: sanitizeEmailOutboxError(error),
         },
       })
       throw new Error('Database undo succeeded, but Clerk could not be unbanned. Retry the undo or contact support.')

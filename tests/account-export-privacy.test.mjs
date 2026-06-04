@@ -100,8 +100,8 @@ describe("account export privacy coverage", () => {
     assert.match(outboxBlock, /recipientEmail: true/);
     assert.match(outboxBlock, /templateName: true/);
     assert.match(outboxBlock, /subject: true/);
-    assert.match(outboxBlock, /html: true/);
     assert.match(outboxBlock, /lastError: true/);
+    assert.doesNotMatch(outboxBlock, /html: true/);
 
     assert.ok(failureStart >= 0, "account export must query EmailFailureCount");
     assert.match(failureBlock, /where: \{ email: \{ in: accountEmailSuppressionKeys \} \}/);
