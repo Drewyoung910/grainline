@@ -1,12 +1,12 @@
 // src/app/api/seller/analytics/recent-sales/route.ts
 import { auth } from "@clerk/nextjs/server";
-import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { rateLimitResponse, safeRateLimit, sellerAnalyticsRatelimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
+import { logServerError } from "@/lib/serverErrorLogger";
 
 export const runtime = "nodejs";
 
@@ -73,8 +73,7 @@ export async function GET() {
     const accountResponse = accountAccessErrorResponse(err);
     if (accountResponse) return accountResponse;
 
-    console.error("GET /api/seller/analytics/recent-sales error:", err);
-    Sentry.captureException(err, { tags: { source: "seller_analytics_recent_sales" } });
+    logServerError(err, { source: "seller_analytics_recent_sales" });
     return privateJson({ error: "Server error" }, { status: 500 });
   }
 }

@@ -123,6 +123,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
           type="number"
           inputMode="numeric"
           min="1"
+          max="365"
           defaultValue={currentShips}
           placeholder="e.g. 7"
           className="w-full rounded-md border border-neutral-200 bg-[#F7F5F0] text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300"
@@ -215,6 +216,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
             type="number"
             inputMode="numeric"
             min="1"
+            max="500"
             defaultValue={currentRadius}
             placeholder="Radius (miles)"
             className="w-full rounded-md border border-neutral-200 bg-[#F7F5F0] text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300"

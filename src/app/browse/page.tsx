@@ -21,9 +21,11 @@ import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { normalizeDisplayNameForLookup, truncateText } from "@/lib/sanitize";
 import { parseMoneyInputToCents } from "@/lib/money";
-import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { parseBoundedDecimalParam, parseBoundedPositiveIntParam } from "@/lib/queryParams";
 
 const PAGE_SIZE = 24;
+const MAX_SHIPS_WITHIN_DAYS = 365;
+const MAX_BROWSE_RADIUS_MILES = 500;
 
 type Search = {
   q?: string;
@@ -245,16 +247,12 @@ export default async function BrowsePage({
   const typeFilter = sp.type === "IN_STOCK" ? ListingType.IN_STOCK
     : sp.type === "MADE_TO_ORDER" ? ListingType.MADE_TO_ORDER
     : null;
-  const shipsRaw = sp.ships ? Number(sp.ships) : null;
-  const shipsFilter = shipsRaw != null && Number.isFinite(shipsRaw) ? Math.max(1, shipsRaw) : null;
+  const shipsFilter = sp.ships ? parseBoundedPositiveIntParam(sp.ships, 0, MAX_SHIPS_WITHIN_DAYS) : null;
   const ratingRaw = sp.rating ? Number(sp.rating) : null;
   const ratingFilter = ratingRaw != null && Number.isFinite(ratingRaw) ? Math.max(1, Math.min(5, ratingRaw)) : null;
-  const latRaw = sp.lat ? Number(sp.lat) : null;
-  const latFilter = latRaw != null && Number.isFinite(latRaw) ? latRaw : null;
-  const lngRaw = sp.lng ? Number(sp.lng) : null;
-  const lngFilter = lngRaw != null && Number.isFinite(lngRaw) ? lngRaw : null;
-  const radiusRaw = sp.radius ? Number(sp.radius) : null;
-  const radiusFilter = radiusRaw != null && Number.isFinite(radiusRaw) ? Math.max(1, radiusRaw) : null;
+  const latFilter = parseBoundedDecimalParam(sp.lat, -90, 90);
+  const lngFilter = parseBoundedDecimalParam(sp.lng, -180, 180);
+  const radiusFilter = parseBoundedDecimalParam(sp.radius, 1, MAX_BROWSE_RADIUS_MILES);
   const hasLocationFilter = latFilter !== null && lngFilter !== null && radiusFilter !== null;
   const popularTags = await getPopularListingTags(q ? 200 : 12);
 

@@ -1,9 +1,11 @@
 // src/lib/metrics.ts
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import {
   metricsPeriodStart,
   type SellerMetricsResult,
 } from "@/lib/metricsState";
+import { NON_BLOCKING_REFUND_LEDGER_STATUSES } from "@/lib/refundRouteState";
 
 export {
   GUILD_MASTER_REQUIREMENTS,
@@ -14,6 +16,18 @@ export {
   metricsPeriodStart,
   type SellerMetricsResult,
 } from "@/lib/metricsState";
+
+const BLOCKING_REFUND_LEDGER_SQL = Prisma.sql`
+  AND NOT EXISTS (
+    SELECT 1 FROM "OrderPaymentEvent" ope
+    WHERE ope."orderId" = o.id
+      AND ope."eventType" = 'REFUND'
+      AND (
+        ope."status" IS NULL
+        OR lower(ope."status") NOT IN (${Prisma.join(NON_BLOCKING_REFUND_LEDGER_STATUSES)})
+      )
+  )
+`;
 
 export async function calculateSellerMetrics(
   sellerProfileId: string,
@@ -52,11 +66,7 @@ export async function calculateSellerMetrics(
         WHERE l."sellerId" = ${sellerProfileId}
           AND o."fulfillmentStatus" IN ('DELIVERED', 'PICKED_UP')
           AND o."sellerRefundId" IS NULL
-          AND NOT EXISTS (
-            SELECT 1 FROM "OrderPaymentEvent" ope
-            WHERE ope."orderId" = o.id
-              AND ope."eventType" = 'REFUND'
-          )
+          ${BLOCKING_REFUND_LEDGER_SQL}
       `,
 
       prisma.$queryRaw<Array<{ shippedCount: bigint; onTimeCount: bigint }>>`
@@ -65,11 +75,7 @@ export async function calculateSellerMetrics(
           COUNT(*) FILTER (WHERE o."shippedAt" <= o."processingDeadline")::bigint AS "onTimeCount"
         FROM "Order" o
         WHERE o."sellerRefundId" IS NULL
-          AND NOT EXISTS (
-            SELECT 1 FROM "OrderPaymentEvent" ope
-            WHERE ope."orderId" = o.id
-              AND ope."eventType" = 'REFUND'
-          )
+          ${BLOCKING_REFUND_LEDGER_SQL}
           AND o."shippedAt" IS NOT NULL
           AND o."shippedAt" >= ${periodStart}
           AND o."processingDeadline" IS NOT NULL

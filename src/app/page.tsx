@@ -30,6 +30,7 @@ import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { publicListingPath, publicSellerPath, publicTagPath } from "@/lib/publicPaths";
 import { avatarInitial } from "@/lib/avatarInitials";
 import { HOME_FEATURED_MAKER_CACHE_TAG } from "@/lib/searchCache";
+import { compareAccountFeedItemsDesc } from "@/lib/accountFeedCursor";
 
 function StarsInline({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
@@ -322,6 +323,7 @@ export default async function HomePage() {
         ...(blockedSellerIds.length > 0 ? { id: { notIn: blockedSellerIds } } : {}),
       }),
       select: { id: true, displayName: true, city: true, state: true, lat: true, lng: true },
+      orderBy: { id: "asc" },
       take: 200,
     }),
     getPopularListingTags(5),
@@ -402,8 +404,8 @@ export default async function HomePage() {
   let saved = new Set<string>();
   let savedBlogSlugs = new Set<string>();
   type FromYourMakersItem =
-    | { kind: "listing"; id: string; title: string; priceCents: number; currency: string; photoUrl: string | null; photoAltText: string | null; sellerName: string; sellerProfileId: string }
-    | { kind: "blog"; slug: string; title: string; coverImageUrl: string | null; sellerName: string; sellerProfileId: string };
+    | { kind: "listing"; id: string; date: string; title: string; priceCents: number; currency: string; photoUrl: string | null; photoAltText: string | null; sellerName: string; sellerProfileId: string }
+    | { kind: "blog"; id: string; date: string; slug: string; title: string; coverImageUrl: string | null; sellerName: string; sellerProfileId: string };
   let fromYourMakers: FromYourMakersItem[] = [];
 
   if (meDbId) {
@@ -417,6 +419,7 @@ export default async function HomePage() {
       prisma.follow.findMany({
         where: { followerId: meDbId },
         select: { sellerProfileId: true },
+        orderBy: { createdAt: "desc" },
         take: 50,
       }),
       blogPostIds.length > 0
@@ -441,7 +444,7 @@ export default async function HomePage() {
             sellerId: { in: followedIds, ...(blockedSellerIds.length > 0 ? { notIn: blockedSellerIds } : {}) },
             createdAt: { gte: cutoff },
           }),
-          orderBy: { createdAt: "desc" },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
           take: 6,
           select: {
             id: true, title: true, priceCents: true, currency: true, createdAt: true, sellerId: true,
@@ -454,10 +457,10 @@ export default async function HomePage() {
             sellerProfileId: { in: followedIds, ...(blockedSellerIds.length > 0 ? { notIn: blockedSellerIds } : {}) },
             publishedAt: { gte: cutoff },
           }),
-          orderBy: { publishedAt: "desc" },
+          orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
           take: 6,
           select: {
-            slug: true, title: true, coverImageUrl: true, publishedAt: true, sellerProfileId: true,
+            id: true, slug: true, title: true, coverImageUrl: true, publishedAt: true, sellerProfileId: true,
             sellerProfile: { select: { displayName: true } },
           },
         }),
@@ -465,20 +468,19 @@ export default async function HomePage() {
 
       const merged: FromYourMakersItem[] = [
         ...recentListings.map((l): FromYourMakersItem => ({
-          kind: "listing", id: l.id, title: l.title, priceCents: l.priceCents, currency: l.currency,
+          kind: "listing", id: l.id, date: l.createdAt.toISOString(), title: l.title, priceCents: l.priceCents, currency: l.currency,
           photoUrl: l.photos[0]?.url ?? null,
           photoAltText: l.photos[0]?.altText ?? null,
           sellerName: l.seller.displayName ?? "Maker",
           sellerProfileId: l.sellerId,
         })),
         ...recentPosts.map((p): FromYourMakersItem => ({
-          kind: "blog", slug: p.slug, title: p.title, coverImageUrl: p.coverImageUrl,
+          kind: "blog", id: p.id, date: (p.publishedAt ?? new Date(0)).toISOString(), slug: p.slug, title: p.title, coverImageUrl: p.coverImageUrl,
           sellerName: p.sellerProfile?.displayName ?? "Maker",
           sellerProfileId: p.sellerProfileId ?? "",
         })),
       ];
-      // Sort by recency (listings by createdAt, posts by publishedAt - both are within cutoff)
-      fromYourMakers = merged.slice(0, 6);
+      fromYourMakers = merged.sort(compareAccountFeedItemsDesc).slice(0, 6);
     }
   }
 

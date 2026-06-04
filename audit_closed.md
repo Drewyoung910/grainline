@@ -4421,7 +4421,44 @@ Last updated: 2026-06-02
      dashboard evidence items remain ops/runtime evidence tasks rather than
      local source fixes.
 
-**Running tally after this pass:** verified fixed/reduced: 450 findings;
+377. **Seller analytics, browse/homepage determinism, and Connect telemetry
+     tightened** - parent/agent-reviewed source fixes for five verified-open
+     current-code categories plus adjacent issues found during the same
+     review. Seller analytics raw SQL now uses one status-aware refund-ledger
+     fragment aligned with `blockingRefundLedgerWhere()`, so failed/canceled
+     Stripe refund attempts no longer remove otherwise valid orders from
+     overview revenue/order counts, repeat-buyer rate, processing time, chart
+     buckets, or top-listing metrics. `calculateSellerMetrics()` now mirrors
+     the same raw SQL semantics for completed-sales and on-time-shipping Guild
+     metrics. Seller analytics and recent-sales final catches now route
+     through `logServerError()` instead of raw console/Sentry logging.
+
+     Public browse now bounds decimal location inputs before the Haversine raw
+     SQL prepass: latitude must be `[-90, 90]`, longitude `[-180, 180]`, and
+     radius `1..500` miles. The ships-within filter is capped at 365 days and
+     the filter UI advertises the same caps. Homepage exact-pin map rows now
+     have deterministic ordering before the 200-row cap. The personalized
+     "Makers You Follow" row now deterministically orders followed sellers,
+     adds timestamp/id tie-breakers to listing and blog queries, keeps merged
+     feed item dates/ids, and sorts mixed listing/blog items with
+     `compareAccountFeedItemsDesc()` before slicing.
+
+     Stripe Connect create now captures non-blocking existing-account
+     `charges_enabled` refresh failures as sanitized
+     `stripe_connect_create_status_refresh` telemetry while still returning
+     the onboarding link. Connect login-link/dashboard link failures now use
+     `logServerError()` instead of direct raw console/Sentry calls. `CLAUDE.md`
+     records the durable refund-ledger, query-bound, homepage deterministic
+     cap, and Connect telemetry contracts. Guardrails:
+     `tests/seller-analytics-refund-guardrails.test.mjs`,
+     `tests/query-param-state.test.mjs`,
+     `tests/homepage-determinism.test.mjs`,
+     `tests/server-error-logger.test.mjs`,
+     `tests/stripe-connect-v2.test.mjs`,
+     `tests/refund-route-state.test.mjs`, and
+     `tests/account-feed-cursor.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 458 findings;
 verified stale/false-positive: 406 findings; product/design/ops decisions
 deferred: 73 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
@@ -4461,7 +4498,13 @@ order-email/outbox sends. Entry 376 adds two fixed/reduced current-code issues
 for historical email-key export/deletion coverage and per-key account-deletion
 suppression writes; only one approximate raw-category decrement is counted
 because the per-key hard-suppression behavior was an adjacent hidden issue
-found during parent/agent review.
+found during parent/agent review. Entry 377 adds eight fixed/reduced
+current-code issues across seller analytics/Guild refund-ledger SQL,
+analytics sanitized logging, browse numeric bounds, homepage map/feed
+determinism, and Stripe Connect route telemetry. Only five approximate
+raw-category decrements are counted because the Guild metrics SQL, ships cap,
+and Connect login/dashboard logging residues were adjacent hidden issues found
+during parent/agent review within already-open categories.
 Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -4478,10 +4521,7 @@ MFA and breached-password dashboard evidence, Clerk multi-account spam dashboard
 evidence, buyer-deletion runtime replay proof,
 Founding Maker live DB concurrency proof, Sentry cron alert evidence,
 Cloudflare R2 ListBucket/public-bucket dashboard evidence, HSTS preload
-submission decision, residual HTTP-status constants,
-seller analytics failed/canceled refund SQL and sanitized-logging residue,
-browse radius parameter bounds, homepage merged-feed/map determinism,
-Stripe Connect create status-refresh telemetry, analytics observability
+submission decision, residual HTTP-status constants, analytics observability
 refactors, remaining homepage runtime a11y proof, and agent/worktree
 verification process hygiene. Approximate raw allegations left to verify from
-current max #1120: 230.
+current max #1120: 225.

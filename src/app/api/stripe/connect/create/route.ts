@@ -16,6 +16,7 @@ import { isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/reque
 import { z } from "zod";
 import { revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
 import { APP_BASE_URL } from "@/lib/appBaseUrl";
+import { logServerError } from "@/lib/serverErrorLogger";
 
 const ConnectCreateSchema = z.object({
   returnUrl: z.string().min(1).max(500).optional().nullable(),
@@ -103,7 +104,14 @@ export async function POST(req: Request) {
         });
         revalidatePublicSellerVisibilityCaches();
       }
-    } catch {
+    } catch (error) {
+      logServerError(error, {
+        source: "stripe_connect_create_status_refresh",
+        extra: {
+          stripeAccountVersion: seller.stripeAccountVersion ?? "legacy",
+          previousChargesEnabled: seller.chargesEnabled,
+        },
+      });
       // Non-fatal — continue to return the account link
     }
   }
