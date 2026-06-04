@@ -1,17 +1,17 @@
 // src/app/api/listings/[id]/notify/route.ts
-import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { notifyRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { publicListingDetailWhere } from "@/lib/listingVisibility";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 
 export async function POST(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { userId: clerkId } = await auth();
-  if (!clerkId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!clerkId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
   const { id: listingId } = await params;
 
@@ -20,21 +20,21 @@ export async function POST(
     user = await ensureUserByClerkId(clerkId);
   } catch (err) {
     if (isAccountAccessError(err)) {
-      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
+      return privateJson({ error: err.message, code: err.code }, { status: err.status });
     }
     throw err;
   }
 
   const { success: rlOk, reset } = await safeRateLimit(notifyRatelimit, user.id);
-  if (!rlOk) return rateLimitResponse(reset, "Too many requests.");
+  if (!rlOk) return privateResponse(rateLimitResponse(reset, "Too many requests."));
 
   const listing = await prisma.listing.findFirst({
     where: publicListingDetailWhere({ id: listingId }),
     select: { id: true, listingType: true, stockQuantity: true },
   });
-  if (!listing) return NextResponse.json({ error: "Listing not found" }, { status: 404 });
+  if (!listing) return privateJson({ error: "Listing not found" }, { status: 404 });
   if (listing.listingType !== "IN_STOCK" || (listing.stockQuantity ?? 0) > 0) {
-    return NextResponse.json({ error: "Notifications are only available for out-of-stock items." }, { status: 400 });
+    return privateJson({ error: "Notifications are only available for out-of-stock items." }, { status: 400 });
   }
 
   await prisma.stockNotification.upsert({
@@ -43,7 +43,7 @@ export async function POST(
     update: {},
   });
 
-  return NextResponse.json({ subscribed: true });
+  return privateJson({ subscribed: true });
 }
 
 export async function DELETE(
@@ -51,7 +51,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { userId: clerkId } = await auth();
-  if (!clerkId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!clerkId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
   const { id: listingId } = await params;
 
@@ -60,17 +60,17 @@ export async function DELETE(
     user = await ensureUserByClerkId(clerkId);
   } catch (err) {
     if (isAccountAccessError(err)) {
-      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
+      return privateJson({ error: err.message, code: err.code }, { status: err.status });
     }
     throw err;
   }
 
   const { success: rlOk, reset } = await safeRateLimit(notifyRatelimit, user.id);
-  if (!rlOk) return rateLimitResponse(reset, "Too many requests.");
+  if (!rlOk) return privateResponse(rateLimitResponse(reset, "Too many requests."));
 
   await prisma.stockNotification.deleteMany({
     where: { listingId, userId: user.id },
   });
 
-  return NextResponse.json({ subscribed: false });
+  return privateJson({ subscribed: false });
 }

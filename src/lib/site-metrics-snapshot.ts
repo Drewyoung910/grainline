@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
 
 export type SiteMetricsSnapshotResult = {
   avgConversion: number;
@@ -38,11 +39,7 @@ export async function calculateSiteMetricsSnapshot(): Promise<SiteMetricsSnapsho
           JOIN "Order" o ON o.id = oi."orderId"
           JOIN visible_listings vl ON vl.id = oi."listingId"
           WHERE o."sellerRefundId" IS NULL
-            AND NOT EXISTS (
-              SELECT 1 FROM "OrderPaymentEvent" ope
-              WHERE ope."orderId" = o.id
-                AND ope."eventType" = 'REFUND'
-            )
+            ${BLOCKING_REFUND_LEDGER_SQL}
             AND NOT EXISTS (
               SELECT 1 FROM "OrderPaymentEvent" ope
               WHERE ope."orderId" = o.id

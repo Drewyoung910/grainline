@@ -43,8 +43,10 @@ describe("user email address history", () => {
         findMany: async (query) => {
           assert.deepEqual(query.where, {
             id: { not: "user_1" },
-            email: { in: ["old@example.com", "current@example.com"] },
             deletedAt: null,
+            OR: [
+              { email: { in: ["old@example.com", "current@example.com"] } },
+            ],
           });
           assert.deepEqual(query.select, { email: true });
           return [{ email: "old@example.com" }];
@@ -58,6 +60,40 @@ describe("user email address history", () => {
         emails: ["old@example.com", "current@example.com", "old@example.com"],
       }),
       ["current@example.com"],
+    );
+  });
+
+  it("does not use historical Gmail aliases whose suppression key belongs to another active account", async () => {
+    const client = {
+      user: {
+        findMany: async (query) => {
+          assert.equal(query.where.id.not, "user_1");
+          assert.equal(query.where.deletedAt, null);
+          assert.deepEqual(query.select, { email: true });
+          assert.deepEqual(query.where.OR, [
+            {
+              email: {
+                in: [
+                  "first.last+tag@gmail.com",
+                  "woodworker@example.com",
+                  "firstlast@gmail.com",
+                ],
+              },
+            },
+            { email: { endsWith: "@gmail.com" } },
+            { email: { endsWith: "@googlemail.com" } },
+          ]);
+          return [{ email: "firstlast@gmail.com" }];
+        },
+      },
+    };
+
+    assert.deepEqual(
+      await accountEmailFallbackEmailsForUser(client, {
+        userId: "user_1",
+        emails: ["First.Last+tag@gmail.com", "woodworker@example.com"],
+      }),
+      ["woodworker@example.com"],
     );
   });
 

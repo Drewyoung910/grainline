@@ -1,7 +1,7 @@
 // src/app/api/blog/search/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { BlogPostType } from "@prisma/client";
+import { BlogPostType, Prisma } from "@prisma/client";
 import { getIP, searchRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { truncateText } from "@/lib/sanitize";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
@@ -54,6 +54,10 @@ export async function GET(req: NextRequest) {
   if (q && sort === "relevant") {
     // GIN full-text search — get IDs ranked by ts_rank
     type RankedRow = { id: string };
+    const typeSql = typeValid ? Prisma.sql`AND bp.type = ${type}::"BlogPostType"` : Prisma.empty;
+    const tagsSql = tags.length > 0
+      ? Prisma.sql`AND bp.tags && ARRAY[${Prisma.join(tags)}]::text[]`
+      : Prisma.empty;
     const rankedRows = await prisma.$queryRaw<RankedRow[]>`
       SELECT bp.id
       FROM "BlogPost" bp
@@ -75,6 +79,8 @@ export async function GET(req: NextRequest) {
             AND seller_user."deletedAt" IS NULL
           )
         )
+        ${typeSql}
+        ${tagsSql}
         AND to_tsvector('english',
           coalesce(bp.title, '') || ' ' ||
           coalesce(bp.excerpt, '') || ' ' ||
@@ -87,7 +93,9 @@ export async function GET(req: NextRequest) {
           coalesce(bp.body, '')
         ),
         plainto_tsquery('english', ${q})
-      ) DESC
+      ) DESC,
+      bp."publishedAt" DESC,
+      bp.id DESC
       LIMIT 500
     `;
 

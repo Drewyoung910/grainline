@@ -84,9 +84,13 @@ describe("account and privacy route observability guardrails", () => {
   it("captures unsubscribe processing failures with hashed email telemetry only", () => {
     const route = source("src/app/api/email/unsubscribe/route.ts");
 
+    assert.match(route, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
+    assert.match(route, /logServerError\(error, \{/);
     assert.match(route, /source: "unsubscribe_email"/);
+    assert.match(route, /level: "warning"/);
     assert.match(route, /hashEmailForTelemetry\(email\)/);
     assert.doesNotMatch(route, /extra: \{ email \}/);
+    assert.doesNotMatch(route, /console\.error\("Unsubscribe failed:", error\)/);
   });
 
   it("sanitizes duplicate route-level logs for direct email send failures", () => {

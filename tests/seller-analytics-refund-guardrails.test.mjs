@@ -7,18 +7,24 @@ function source(path) {
 }
 
 describe("seller analytics refund guardrails", () => {
-  it("keeps raw seller analytics SQL aligned with blocking refund ledger semantics", () => {
+  it("centralizes raw blocking-refund ledger SQL and keeps callers on it", () => {
+    const helper = source("src/lib/refundLedgerSql.ts");
+    assert.match(helper, /NON_BLOCKING_REFUND_LEDGER_STATUSES/);
+    assert.match(helper, /lower\(ope\."status"\) NOT IN \(\$\{Prisma\.join\(NON_BLOCKING_REFUND_LEDGER_STATUSES\)\}\)/);
+
     for (const path of [
       "src/app/api/seller/analytics/route.ts",
       "src/lib/metrics.ts",
+      "src/app/api/verification/apply/route.ts",
+      "src/app/dashboard/verification/page.tsx",
+      "src/app/admin/verification/page.tsx",
+      "src/lib/site-metrics-snapshot.ts",
+      "src/lib/quality-score.ts",
     ]) {
       const text = source(path);
-      const refundEventChecks = text.match(/ope\."eventType" = 'REFUND'/g) ?? [];
 
-      assert.equal(refundEventChecks.length, 1, `${path} should use one shared raw refund ledger fragment`);
-      assert.match(text, /NON_BLOCKING_REFUND_LEDGER_STATUSES/);
-      assert.match(text, /lower\(ope\."status"\) NOT IN \(\$\{Prisma\.join\(NON_BLOCKING_REFUND_LEDGER_STATUSES\)\}\)/);
-      assert.doesNotMatch(text, /SELECT 1 FROM "OrderPaymentEvent" ope[\s\S]{0,180}ope\."eventType" = 'REFUND'[\s\S]{0,80}\)[\s\S]{0,80}AND o\."createdAt"/);
+      assert.match(text, /BLOCKING_REFUND_LEDGER_SQL/, `${path} should import/use shared raw refund ledger SQL`);
+      assert.doesNotMatch(text, /ope\."eventType" = 'REFUND'/, `${path} should not inline bare refund ledger SQL`);
     }
   });
 

@@ -20,6 +20,7 @@ import {
   ACCOUNT_EXPORT_REVERIFICATION,
   hasFreshAccountExportSession,
 } from "@/lib/accountExportReverification";
+import { logServerError } from "@/lib/serverErrorLogger";
 
 export const runtime = "nodejs";
 
@@ -640,10 +641,9 @@ async function handleExport(req: Request) {
     if (isAccountAccessError(error)) {
       return privateJson({ error: error.message, code: error.code }, { status: error.status });
     }
-    console.error("account export failed", error);
-    Sentry.captureException(error, {
+    logServerError(error, {
+      source: "account_export",
       level: "warning",
-      tags: { source: "account_export" },
       extra: { userId: exportUserId, method },
     });
     return privateJson({ error: "Could not generate account export" }, { status: 500 });

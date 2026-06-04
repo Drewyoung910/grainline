@@ -30,6 +30,7 @@ import {
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import { normalizePublicHttpsUrl } from "@/lib/urlValidation";
+import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
 
 type ActionState = { ok: boolean; error?: string };
 
@@ -183,11 +184,7 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
       WHERE l."sellerId" = ${verification.sellerProfileId}
         AND o."fulfillmentStatus" IN ('DELIVERED'::"FulfillmentStatus", 'PICKED_UP'::"FulfillmentStatus")
         AND o."sellerRefundId" IS NULL
-        AND NOT EXISTS (
-          SELECT 1 FROM "OrderPaymentEvent" ope
-          WHERE ope."orderId" = o.id
-            AND ope."eventType" = 'REFUND'
-        )
+        ${BLOCKING_REFUND_LEDGER_SQL}
     `,
     prisma.case.count({
       where: {

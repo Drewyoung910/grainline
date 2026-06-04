@@ -71,6 +71,7 @@ describe("server error logger", () => {
     assert.doesNotMatch(source("src/app/dashboard/seller/page.tsx"), /console\.error\("\[stripe-connect\] Failed to refresh seller account status:/);
 
     assert.match(source("src/lib/serverErrorLogger.ts"), /sanitizeEmailOutboxError\(error\.stack\)/);
+    assert.match(source("src/lib/serverErrorLogger.ts"), /level: context\.level/);
   });
 
   it("routes selected API final catches through the shared helper", () => {

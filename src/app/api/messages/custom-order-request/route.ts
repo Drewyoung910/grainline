@@ -1,5 +1,4 @@
 import { auth } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
@@ -15,6 +14,7 @@ import {
   readBoundedJson,
 } from "@/lib/requestBody";
 import { z } from "zod";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 
 const TIMELINE_LABELS: Record<string, string> = {
   no_rush: "No rush (2+ months)",
@@ -38,30 +38,30 @@ const CUSTOM_ORDER_REQUEST_BODY_MAX_BYTES = 24 * 1024;
 
 export async function POST(req: Request) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
   const { success, reset } = await safeRateLimit(customOrderRequestRatelimit, userId);
-  if (!success) return rateLimitResponse(reset, "Too many custom order requests. Try again later.");
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many custom order requests. Try again later."));
 
   const me = await prisma.user.findUnique({
     where: { clerkId: userId },
     select: { id: true, name: true, email: true, banned: true, deletedAt: true },
   });
-  if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (me.banned || me.deletedAt) return NextResponse.json({ error: "Account is suspended" }, { status: 403 });
+  if (!me) return privateJson({ error: "Unauthorized" }, { status: 401 });
+  if (me.banned || me.deletedAt) return privateJson({ error: "Account is suspended" }, { status: 403 });
 
   let parsed;
   try {
     parsed = CustomOrderRequestSchema.parse(await readBoundedJson(req, CUSTOM_ORDER_REQUEST_BODY_MAX_BYTES));
   } catch (e) {
     if (isRequestBodyTooLargeError(e)) {
-      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      return privateJson({ error: "Request body too large" }, { status: 413 });
     }
     if (isInvalidJsonBodyError(e)) {
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      return privateJson({ error: "Invalid JSON" }, { status: 400 });
     }
     if (e instanceof z.ZodError) {
-      return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+      return privateJson({ error: "Invalid input", details: e.issues }, { status: 400 });
     }
     throw e;
   }
@@ -71,7 +71,7 @@ export async function POST(req: Request) {
   const cleanedDimensions = dimensions ? truncateText(sanitizeText(dimensions.trim()), 200) : null;
 
   if (me.id === sellerUserId) {
-    return NextResponse.json({ error: "Cannot message yourself" }, { status: 400 });
+    return privateJson({ error: "Cannot message yourself" }, { status: 400 });
   }
 
   // Block check — cannot send custom order request if either user blocked the other
@@ -84,7 +84,7 @@ export async function POST(req: Request) {
     },
   });
   if (blockExists) {
-    return NextResponse.json({ error: "Unable to send request." }, { status: 403 });
+    return privateJson({ error: "Unable to send request." }, { status: 403 });
   }
 
   const seller = await prisma.user.findUnique({
@@ -106,16 +106,16 @@ export async function POST(req: Request) {
       },
     },
   });
-  if (!seller) return NextResponse.json({ error: "Seller not found" }, { status: 404 });
-  if (seller.banned || seller.deletedAt) return NextResponse.json({ error: "Seller not found" }, { status: 404 });
-  if (!seller.sellerProfile) return NextResponse.json({ error: "This user is not a seller." }, { status: 400 });
-  if (!seller.sellerProfile.acceptsCustomOrders) return NextResponse.json({ error: "This seller is not accepting custom orders." }, { status: 400 });
+  if (!seller) return privateJson({ error: "Seller not found" }, { status: 404 });
+  if (seller.banned || seller.deletedAt) return privateJson({ error: "Seller not found" }, { status: 404 });
+  if (!seller.sellerProfile) return privateJson({ error: "This user is not a seller." }, { status: 400 });
+  if (!seller.sellerProfile.acceptsCustomOrders) return privateJson({ error: "This seller is not accepting custom orders." }, { status: 400 });
   const sellerBlockReason = sellerOrderBlockReason({ ...seller.sellerProfile, user: seller });
   if (sellerBlockReason) {
-    return NextResponse.json({ error: sellerOrderBlockMessage(sellerBlockReason) }, { status: 400 });
+    return privateJson({ error: sellerOrderBlockMessage(sellerBlockReason) }, { status: 400 });
   }
   if (!seller.sellerProfile.chargesEnabled || !seller.sellerProfile.stripeAccountId) {
-    return NextResponse.json({ error: "This seller is not accepting new orders right now." }, { status: 400 });
+    return privateJson({ error: "This seller is not accepting new orders right now." }, { status: 400 });
   }
 
   let contextListingId: string | null = null;
@@ -131,7 +131,7 @@ export async function POST(req: Request) {
       select: { id: true, title: true },
     });
     if (!listing) {
-      return NextResponse.json({ error: "Invalid listing context." }, { status: 400 });
+      return privateJson({ error: "Invalid listing context." }, { status: 400 });
     }
     contextListingId = listing.id;
     contextListingTitle = listing.title;
@@ -139,10 +139,10 @@ export async function POST(req: Request) {
 
   const budgetCents = budget != null ? parseMoneyInputToCents(budget) : null;
   if (budget != null && (budgetCents === null || budgetCents <= 0)) {
-    return NextResponse.json({ error: "Budget must be a valid dollar amount." }, { status: 400 });
+    return privateJson({ error: "Budget must be a valid dollar amount." }, { status: 400 });
   }
   if (budgetCents !== null && budgetCents > 10_000_000) {
-    return NextResponse.json({ error: "Budget cannot exceed $100,000." }, { status: 400 });
+    return privateJson({ error: "Budget cannot exceed $100,000." }, { status: 400 });
   }
   const budgetNum = budgetCents !== null ? budgetCents / 100 : null;
   const timelineStr = timeline ? truncateText(sanitizeText(timeline), 50) : null;
@@ -172,7 +172,7 @@ export async function POST(req: Request) {
       }
     }
   }
-  if (!convo) return NextResponse.json({ error: "Failed to create conversation" }, { status: 500 });
+  if (!convo) return privateJson({ error: "Failed to create conversation" }, { status: 500 });
 
   // Attach listing context if not already set
   if (contextListingId && !convo.contextListingId) {
@@ -252,5 +252,5 @@ export async function POST(req: Request) {
     });
   }
 
-  return NextResponse.json({ conversationId: convo.id });
+  return privateJson({ conversationId: convo.id });
 }

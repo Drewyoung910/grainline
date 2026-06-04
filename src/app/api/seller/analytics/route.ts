@@ -1,34 +1,19 @@
 // src/app/api/seller/analytics/route.ts
 import { auth } from "@clerk/nextjs/server";
-import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { calculateSellerMetrics, meetsGuildMasterRequirements } from "@/lib/metrics";
-import {
-  NON_BLOCKING_REFUND_LEDGER_STATUSES,
-  blockingRefundLedgerWhere,
-} from "@/lib/refundRouteState";
+import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
 import { rateLimitResponse, safeRateLimit, sellerAnalyticsRatelimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
 
 export const runtime = "nodejs";
 
 type RangeKey = "today" | "yesterday" | "week" | "last7" | "month" | "last30" | "year" | "last365" | "alltime";
 type ChartGrouping = "hour" | "day" | "month" | "year";
-
-const BLOCKING_REFUND_LEDGER_SQL = Prisma.sql`
-  AND NOT EXISTS (
-    SELECT 1 FROM "OrderPaymentEvent" ope
-    WHERE ope."orderId" = o.id
-      AND ope."eventType" = 'REFUND'
-      AND (
-        ope."status" IS NULL
-        OR lower(ope."status") NOT IN (${Prisma.join(NON_BLOCKING_REFUND_LEDGER_STATUSES)})
-      )
-  )
-`;
 
 function getRangeDates(
   range: RangeKey,

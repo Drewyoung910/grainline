@@ -33,17 +33,34 @@ export async function accountEmailFallbackEmailsForUser(
 ) {
   const emails = uniqueAccountEmailAddresses(input.emails);
   if (emails.length === 0) return [];
+  const suppressionKeyCandidates = accountEmailSuppressionKeysForEmails(emails);
+  const ownerEmailCandidates = [...new Set([...emails, ...suppressionKeyCandidates])];
+  const needsGmailCollisionScan = suppressionKeyCandidates.some((email) => email.endsWith("@gmail.com"));
 
   const claimedByOtherActiveUsers = await client.user.findMany({
     where: {
       id: { not: input.userId },
-      email: { in: emails },
       deletedAt: null,
+      OR: [
+        { email: { in: ownerEmailCandidates } },
+        ...(needsGmailCollisionScan
+          ? [
+              { email: { endsWith: "@gmail.com" } },
+              { email: { endsWith: "@googlemail.com" } },
+            ]
+          : []),
+      ],
     },
     select: { email: true },
   });
-  const blocked = new Set(claimedByOtherActiveUsers.map((user) => normalizeEmailAddress(user.email)).filter(Boolean));
-  return emails.filter((email) => !blocked.has(email));
+  const blockedExactEmails = new Set(
+    claimedByOtherActiveUsers.map((user) => normalizeEmailAddress(user.email)).filter(Boolean),
+  );
+  const blockedSuppressionKeys = new Set(accountEmailSuppressionKeysForEmails([...blockedExactEmails]));
+  return emails.filter((email) => {
+    if (blockedExactEmails.has(email)) return false;
+    return !emailSuppressionAddressKeys(email).some((key) => blockedSuppressionKeys.has(key));
+  });
 }
 
 function emailAddressSource(source: string | null | undefined) {

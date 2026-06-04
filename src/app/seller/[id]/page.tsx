@@ -272,7 +272,7 @@ export default async function SellerPublicPage({
         AND l.status = 'ACTIVE'
         AND l."isPrivate" = false
       GROUP BY tag
-      ORDER BY COUNT(*) DESC
+      ORDER BY COUNT(*) DESC, tag ASC
       LIMIT 8
     `,
     prisma.reviewPhoto.findMany({

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import * as Sentry from "@sentry/nextjs";
 import { unsubscribeEmail, unsubscribeTokenSuperseded, verifyUnsubscribeToken } from "@/lib/unsubscribe";
 import {
   getIP,
@@ -11,6 +10,7 @@ import {
 import { logSecurityEvent } from "@/lib/security";
 import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
 import { assertContentLengthUnder, isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
+import { logServerError } from "@/lib/serverErrorLogger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -225,10 +225,9 @@ async function handlePost(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "Invalid email address" }, { status: 400 });
     }
   } catch (error) {
-    console.error("Unsubscribe failed:", error);
-    Sentry.captureException(error, {
+    logServerError(error, {
+      source: "unsubscribe_email",
       level: "warning",
-      tags: { source: "unsubscribe_email" },
       extra: { emailHash: hashEmailForTelemetry(email) },
     });
     if (mode === "html") return htmlResponse("Unsubscribe failed", "We could not process this request. Please try again later.", 500);

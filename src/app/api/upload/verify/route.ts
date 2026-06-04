@@ -1,6 +1,5 @@
 import { HeadObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { auth } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
@@ -20,6 +19,10 @@ import {
   verifyUploadVerificationToken,
 } from "@/lib/uploadVerificationToken";
 import { DIRECT_UPLOAD_ENDPOINTS, UPLOAD_MAX_SIZES } from "@/lib/uploadRules";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { uploadTelemetryKeyHash } from "@/lib/uploadTelemetry";
+
+export const maxDuration = 60;
 
 const Schema = z.object({
   key: z.string().min(1).max(500),
@@ -47,7 +50,7 @@ async function objectPrefixBytes(key: string) {
 
 export async function POST(req: Request) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
   try {
     await ensureUserByClerkId(userId);
   } catch (err) {
@@ -57,29 +60,29 @@ export async function POST(req: Request) {
   }
 
   const { success, reset } = await safeRateLimit(uploadHourlyRatelimit, userId);
-  if (!success) return rateLimitResponse(reset, "Too many uploads.");
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many uploads."));
 
   let body: unknown;
   try {
     body = await readBoundedJson(req, UPLOAD_VERIFY_BODY_MAX_BYTES);
   } catch (error) {
     if (isRequestBodyTooLargeError(error)) {
-      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      return privateJson({ error: "Request body too large" }, { status: 413 });
     }
     if (isInvalidJsonBodyError(error)) {
-      return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+      return privateJson({ error: "Invalid input" }, { status: 400 });
     }
     throw error;
   }
 
   const parsed = Schema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    return privateJson({ error: "Invalid input" }, { status: 400 });
   }
 
   const { key, endpoint, expectedSize, contentType, verificationToken, verificationExpiresAt } = parsed.data;
   if (!uploadKeyBelongsToUser(key, endpoint, userId)) {
-    return NextResponse.json({ error: "Upload key mismatch" }, { status: 403 });
+    return privateJson({ error: "Upload key mismatch" }, { status: 403 });
   }
 
   const tokenValid = verifyUploadVerificationToken({
@@ -90,14 +93,14 @@ export async function POST(req: Request) {
     expiresAt: verificationExpiresAt,
   }, verificationToken);
   if (!tokenValid) {
-    return NextResponse.json({ error: "Upload verification token is invalid or expired" }, { status: 403 });
+    return privateJson({ error: "Upload verification token is invalid or expired" }, { status: 403 });
   }
 
   let head;
   try {
     head = await r2.send(new HeadObjectCommand({ Bucket: R2_BUCKET, Key: key }));
   } catch {
-    return NextResponse.json({ error: "Uploaded object was not found" }, { status: 404 });
+    return privateJson({ error: "Uploaded object was not found" }, { status: 404 });
   }
 
   const actualSize = head.ContentLength ?? 0;
@@ -115,10 +118,10 @@ export async function POST(req: Request) {
       Sentry.captureException(error, {
         level: "warning",
         tags: { source: "upload_verify_cleanup", endpoint },
-        extra: { key },
+        extra: { keyHash: uploadTelemetryKeyHash(key) },
       });
     });
-    return NextResponse.json({ error: verificationError }, { status: 400 });
+    return privateJson({ error: verificationError }, { status: 400 });
   }
 
   let prefixBytes: Uint8Array;
@@ -130,15 +133,15 @@ export async function POST(req: Request) {
       Sentry.captureException(cleanupError, {
         level: "warning",
         tags: { source: "upload_verify_cleanup", endpoint },
-        extra: { key },
+        extra: { keyHash: uploadTelemetryKeyHash(key) },
       });
     });
     Sentry.captureException(error, {
       level: "warning",
       tags: { source: "upload_verify_read_signature", endpoint },
-      extra: { key },
+      extra: { keyHash: uploadTelemetryKeyHash(key) },
     });
-    return NextResponse.json({ error: "Uploaded object could not be verified" }, { status: 400 });
+    return privateJson({ error: "Uploaded object could not be verified" }, { status: 400 });
   }
 
   if (!uploadFileSignatureMatches(prefixBytes, contentType)) {
@@ -147,11 +150,11 @@ export async function POST(req: Request) {
       Sentry.captureException(error, {
         level: "warning",
         tags: { source: "upload_verify_cleanup", endpoint },
-        extra: { key },
+        extra: { keyHash: uploadTelemetryKeyHash(key) },
       });
     });
-    return NextResponse.json({ error: "Uploaded file content did not match the signed file type." }, { status: 400 });
+    return privateJson({ error: "Uploaded file content did not match the signed file type." }, { status: 400 });
   }
 
-  return NextResponse.json({ ok: true, size: actualSize });
+  return privateJson({ ok: true, size: actualSize });
 }

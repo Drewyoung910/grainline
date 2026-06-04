@@ -29,6 +29,7 @@ type SimilarRow = {
   sellerCity: string | null;
   sellerState: string | null;
   sellerAcceptingNewOrders: boolean;
+  createdAt: Date;
   tagOverlap: bigint;
   categoryMatch: boolean;
 };
@@ -95,6 +96,7 @@ export async function GET(
         sp.city AS "sellerCity",
         sp.state AS "sellerState",
         sp."acceptingNewOrders" AS "sellerAcceptingNewOrders",
+        l."createdAt",
         COALESCE((SELECT COUNT(*) FROM unnest(l.tags) t WHERE t = ANY(${tags})), 0) AS "tagOverlap",
         (l.category = ${category ?? "OTHER"}::"Category") AS "categoryMatch"
       FROM "Listing" l
@@ -118,7 +120,9 @@ export async function GET(
       ORDER BY
         (l.category = ${category ?? "OTHER"}::"Category") DESC,
         COALESCE((SELECT COUNT(*) FROM unnest(l.tags) t WHERE t = ANY(${tags})), 0) DESC,
-        ABS(l."priceCents" - ${priceCents}) ASC
+        ABS(l."priceCents" - ${priceCents}) ASC,
+        l."createdAt" DESC,
+        l.id DESC
       LIMIT 24
     `);
 
@@ -140,7 +144,11 @@ export async function GET(
     // marketplace is small enough that per-seller dedup leaves the carousel
     // half-empty; "More from this maker" already covers same-seller items
     // above this section, so allowing duplicates here is fine.
-    scored.sort((a, b) => b.totalScore - a.totalScore);
+    scored.sort((a, b) =>
+      (b.totalScore - a.totalScore) ||
+      (b.createdAt.getTime() - a.createdAt.getTime()) ||
+      b.id.localeCompare(a.id)
+    );
     const TARGET = 12;
     const results = scored.slice(0, TARGET);
 

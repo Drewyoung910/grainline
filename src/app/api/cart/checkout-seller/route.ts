@@ -1,5 +1,4 @@
 // src/app/api/cart/checkout-seller/route.ts
-import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
@@ -26,7 +25,6 @@ import {
   restoreCheckoutStockReservationOnce,
   restoreUnorderedCheckoutStockOnce,
 } from "@/lib/checkoutStockRestore";
-import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import { logSecurityEvent } from "@/lib/security";
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
 import { DEFAULT_CURRENCY } from "@/lib/money";
@@ -41,6 +39,8 @@ import { sanitizeText, truncateText } from "@/lib/sanitize";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 import { APP_BASE_URL } from "@/lib/appBaseUrl";
+import { privateJson } from "@/lib/privateResponse";
+import { logServerError } from "@/lib/serverErrorLogger";
 
 const CheckoutSellerSchema = z.object({
   sellerId: z.string().min(1),
@@ -82,11 +82,11 @@ export async function POST(req: Request) {
 
   try {
     const { userId } = await auth();
-    if (!userId) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+    if (!userId) return privateJson({ error: "Sign in required" }, { status: 401 });
 
     const rl = await safeRateLimit(checkoutRatelimit, userId);
     if (!rl.success) {
-      return NextResponse.json(
+      return privateJson(
         { error: "Too many requests. Please try again in a moment." },
         { status: 429 }
       );
@@ -99,19 +99,19 @@ export async function POST(req: Request) {
       body = CheckoutSellerSchema.parse(await readBoundedJson(req, CHECKOUT_BODY_MAX_BYTES));
     } catch (e) {
       if (isRequestBodyTooLargeError(e)) {
-        return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+        return privateJson({ error: "Request body too large" }, { status: 413 });
       }
       if (isInvalidJsonBodyError(e)) {
-        return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+        return privateJson({ error: "Invalid JSON" }, { status: 400 });
       }
       if (e instanceof z.ZodError) {
-        return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+        return privateJson({ error: "Invalid input", details: e.issues }, { status: 400 });
       }
       throw e;
     }
     const shippingAddress = normalizeCheckoutShippingAddress(body.shippingAddress);
     if (!shippingAddress.name || !shippingAddress.line1 || !shippingAddress.city) {
-      return NextResponse.json({ error: "Shipping address is incomplete." }, { status: 400 });
+      return privateJson({ error: "Shipping address is incomplete." }, { status: 400 });
     }
     const sellerId = body.sellerId;
 
@@ -127,7 +127,7 @@ export async function POST(req: Request) {
     });
     const buyerEmail = userWithEmail?.email;
     if (!buyerEmail) {
-      return NextResponse.json({ error: "Buyer email required for tax calculation" }, { status: 400 });
+      return privateJson({ error: "Buyer email required for tax calculation" }, { status: 400 });
     }
 
     // Load cart (filter items to this seller)
@@ -148,12 +148,12 @@ export async function POST(req: Request) {
         },
       },
     });
-    if (!cart) return NextResponse.json({ error: "Cart is empty" }, { status: 400 });
+    if (!cart) return privateJson({ error: "Cart is empty" }, { status: 400 });
 
     const cartSellerCount = new Set(cart.items.map((it) => it.listing.sellerId)).size;
     const sellerItems = cart.items.filter((it) => it.listing.sellerId === sellerId);
     if (sellerItems.length === 0) {
-      return NextResponse.json({ error: "No items for this seller" }, { status: 400 });
+      return privateJson({ error: "No items for this seller" }, { status: 400 });
     }
 
     const currency = (sellerItems[0].listing.currency || DEFAULT_CURRENCY).toLowerCase();
@@ -161,7 +161,7 @@ export async function POST(req: Request) {
       (item) => (item.listing.currency || DEFAULT_CURRENCY).toLowerCase() !== currency,
     );
     if (mixedCurrencyItem) {
-      return NextResponse.json(
+      return privateJson(
         { error: "Items with different currencies cannot be checked out together." },
         { status: 400 },
       );
@@ -171,7 +171,7 @@ export async function POST(req: Request) {
 
     const sellerBlockReason = sellerOrderBlockReason(sellerItems[0].listing.seller);
     if (sellerBlockReason) {
-      return NextResponse.json(
+      return privateJson(
         {
           error: sellerOrderBlockMessage(sellerBlockReason),
           blockedSellers: [{ sellerId, reason: sellerBlockReason }],
@@ -182,12 +182,12 @@ export async function POST(req: Request) {
 
     // Pre-flight: verify seller can accept payments
     if (!destination || !sellerChargesEnabled) {
-      return NextResponse.json({ error: "This seller is not currently accepting orders. Please try again later." }, { status: 400 });
+      return privateJson({ error: "This seller is not currently accepting orders. Please try again later." }, { status: 400 });
     }
 
     // Block self-purchase (Stripe ToS violation)
     if (sellerItems[0].listing.seller.userId === me.id) {
-      return NextResponse.json(
+      return privateJson(
         { error: "You cannot purchase your own listings." },
         { status: 400 },
       );
@@ -199,7 +199,7 @@ export async function POST(req: Request) {
       (it) => it.listing.status !== "ACTIVE",
     );
     if (inactiveItem) {
-      return NextResponse.json(
+      return privateJson(
         { error: `"${inactiveItem.listing.title}" is no longer available.` },
         { status: 400 },
       );
@@ -212,7 +212,7 @@ export async function POST(req: Request) {
         it.listing.reservedForUserId !== me.id,
     );
     if (privateItem) {
-      return NextResponse.json(
+      return privateJson(
         { error: "One or more items in your cart are not available for purchase." },
         { status: 400 },
       );
@@ -220,7 +220,7 @@ export async function POST(req: Request) {
 
     // Gift wrapping: reject if buyer requested it but seller does not offer it.
     if (giftWrapping && !sellerItems[0].listing.seller.offersGiftWrapping) {
-      return NextResponse.json(
+      return privateJson(
         { error: "This seller does not offer gift wrapping." },
         { status: 400 },
       );
@@ -241,7 +241,7 @@ export async function POST(req: Request) {
 
     for (const item of sellerItems) {
       if (item.listing.listingType === "MADE_TO_ORDER" && item.quantity !== 1) {
-        return NextResponse.json(
+        return privateJson(
           { error: `"${item.listing.title}" can only be ordered one at a time.` },
           { status: 400 },
         );
@@ -249,13 +249,13 @@ export async function POST(req: Request) {
       if (item.listing.listingType === "IN_STOCK") {
         const available = item.listing.stockQuantity ?? 0;
         if (available <= 0) {
-          return NextResponse.json(
+          return privateJson(
             { error: `"${item.listing.title}" is currently out of stock.` },
             { status: 400 },
           );
         }
         if (item.quantity > available) {
-          return NextResponse.json(
+          return privateJson(
             { error: `Only ${available} available for "${item.listing.title}".` },
             { status: 400 },
           );
@@ -267,7 +267,7 @@ export async function POST(req: Request) {
         item.selectedVariantOptionIds ?? [],
       );
       if (!variantResolution.ok) {
-        return NextResponse.json(
+        return privateJson(
           { error: `"${item.listing.title}": ${variantResolution.error}` },
           { status: 400 },
         );
@@ -275,7 +275,7 @@ export async function POST(req: Request) {
 
       const unitPriceCents = item.listing.priceCents + variantResolution.variantAdjustCents;
       if (unitPriceCents < 1) {
-        return NextResponse.json(
+        return privateJson(
           { error: `"${item.listing.title}" has an invalid variant price.` },
           { status: 400 },
         );
@@ -288,7 +288,7 @@ export async function POST(req: Request) {
             priceVersion: item.listing.priceVersion,
           },
         });
-        return NextResponse.json(
+        return privateJson(
           {
             error: "Price changed since this item was added to your cart. Review your cart before checking out.",
             code: "PRICE_CHANGED",
@@ -340,7 +340,7 @@ export async function POST(req: Request) {
           tokenLength: body.selectedRate.token.length,
         });
       }
-      return NextResponse.json(
+      return privateJson(
         { error: rateVerification.error },
         { status: rateVerification.status },
       );
@@ -399,7 +399,7 @@ export async function POST(req: Request) {
     const sellerTransferAmount = checkoutAmounts.sellerTransferAmountCents;
 
     if (checkoutAmounts.belowMinimumSellerTransfer) {
-      return NextResponse.json(
+      return privateJson(
         { error: "Order total is too low after fees. Minimum effective order is approximately $2." },
         { status: 400 },
       );
@@ -435,13 +435,13 @@ export async function POST(req: Request) {
         existingCheckoutLock.clientSecret &&
         existingCheckoutLock.sessionId
       ) {
-        return NextResponse.json({
+        return privateJson({
           clientSecret: existingCheckoutLock.clientSecret,
           sessionId: existingCheckoutLock.sessionId,
           reused: true,
         });
       }
-      return NextResponse.json(
+      return privateJson(
         { error: "A checkout session is already open for this seller. Complete payment in the Stripe tab or wait up to 31 minutes for the reservation to expire." },
         { status: 409 },
       );
@@ -456,13 +456,13 @@ export async function POST(req: Request) {
         racedCheckoutLock.clientSecret &&
         racedCheckoutLock.sessionId
       ) {
-        return NextResponse.json({
+        return privateJson({
           clientSecret: racedCheckoutLock.clientSecret,
           sessionId: racedCheckoutLock.sessionId,
           reused: true,
         });
       }
-      return NextResponse.json(
+      return privateJson(
         { error: "A checkout session is already being prepared. Please try again in a moment." },
         { status: 409 },
       );
@@ -490,7 +490,7 @@ export async function POST(req: Request) {
       await releaseCheckoutLock(checkoutLockKeyValue);
       if (reservationError instanceof CheckoutStockReservationStockError) {
         const item = reservableItems.find((candidate) => candidate.listingId === reservationError.listingId);
-        return NextResponse.json(
+        return privateJson(
           { error: item ? `"${item.title}" does not have enough stock.` : "One or more items do not have enough stock." },
           { status: 400 },
         );
@@ -594,7 +594,7 @@ export async function POST(req: Request) {
             Sentry.captureException(error, { tags: { source: "checkout_stock_reservation_restore_stale" } });
           });
         }
-        return NextResponse.json(
+        return privateJson(
           { error: "Checkout state changed. Please try again." },
           { status: 409 },
         );
@@ -628,7 +628,7 @@ export async function POST(req: Request) {
             Sentry.captureException(error, { tags: { source: "checkout_lock_restore_stale" } });
           });
         }
-        return NextResponse.json(
+        return privateJson(
           { error: "Checkout state changed. Please try again." },
           { status: 409 },
         );
@@ -637,20 +637,20 @@ export async function POST(req: Request) {
       Sentry.captureException(lockErr, { tags: { source: "checkout_lock_ready" } });
     }
 
-    return NextResponse.json({ clientSecret: session.client_secret, sessionId: session.id });
+    return privateJson({ clientSecret: session.client_secret, sessionId: session.id });
   } catch (err: unknown) {
     const accountResponse = accountAccessErrorResponse(err);
     if (accountResponse) return accountResponse;
 
-    Sentry.captureException(err, {
-      tags: { source: "checkout_seller_route", route: "/api/cart/checkout-seller" },
+    logServerError(err, {
+      source: "checkout_seller_route",
+      tags: { route: "/api/cart/checkout-seller" },
       extra: {
         checkoutReservationId,
         reservedItemCount: checkoutReservationItemCount,
         checkoutLockAcquired,
       },
     });
-    console.error("POST /api/cart/checkout-seller error:", sanitizeEmailOutboxError(err));
 
     if (checkoutReservationId) {
       await restoreCheckoutStockReservationOnce({
@@ -670,9 +670,8 @@ export async function POST(req: Request) {
       await releaseCheckoutLock(checkoutLockKeyValue);
     }
 
-    const msg = err instanceof Error ? err.message : "Server error creating checkout session";
-    return NextResponse.json(
-      { error: msg },
+    return privateJson(
+      { error: "Server error creating checkout session" },
       { status: 500 }
     );
   }

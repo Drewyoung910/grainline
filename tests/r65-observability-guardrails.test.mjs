@@ -12,14 +12,21 @@ describe("R65 observability guardrails", () => {
       ["src/app/api/cart/route.ts", "cart_route", "/api/cart"],
       ["src/app/api/cart/add/route.ts", "cart_add_route", "/api/cart/add"],
       ["src/app/api/cart/update/route.ts", "cart_update_route", "/api/cart/update"],
-      ["src/app/api/cart/checkout/single/route.ts", "checkout_single_route", "/api/cart/checkout/single"],
-      ["src/app/api/cart/checkout-seller/route.ts", "checkout_seller_route", "/api/cart/checkout-seller"],
     ];
 
     for (const [routePath, sourceTag, route] of routes) {
       const text = source(routePath);
       assert.match(text, /import \* as Sentry from "@sentry\/nextjs"/);
       assert.match(text, new RegExp(`Sentry\\.captureException\\(err, \\{[\\s\\S]*source: "${sourceTag}",[\\s\\S]*route: "${route}"`));
+    }
+
+    for (const [routePath, sourceTag, route] of [
+      ["src/app/api/cart/checkout/single/route.ts", "checkout_single_route", "/api/cart/checkout/single"],
+      ["src/app/api/cart/checkout-seller/route.ts", "checkout_seller_route", "/api/cart/checkout-seller"],
+    ]) {
+      const text = source(routePath);
+      assert.match(text, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
+      assert.match(text, new RegExp(`logServerError\\(err, \\{[\\s\\S]*source: "${sourceTag}",[\\s\\S]*route: "${route}"`));
     }
   });
 

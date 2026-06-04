@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
@@ -7,13 +6,14 @@ import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { stripeLoginLinkRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { isSupportedStripeConnectAccountVersion } from "@/lib/stripeConnectV2";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 
 export async function POST() {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
   const { success, reset } = await safeRateLimit(stripeLoginLinkRatelimit, userId);
-  if (!success) return rateLimitResponse(reset, "Too many requests. Try again in a few minutes.");
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many requests. Try again in a few minutes."));
 
   let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
   try {
@@ -30,20 +30,20 @@ export async function POST() {
   });
   const stripeAccountId = seller?.stripeAccountId;
   if (!stripeAccountId) {
-    return NextResponse.json({ error: "No Stripe account connected" }, { status: 400 });
+    return privateJson({ error: "No Stripe account connected" }, { status: 400 });
   }
   if (!isSupportedStripeConnectAccountVersion(seller.stripeAccountVersion)) {
-    return NextResponse.json({ error: "Reconnect Stripe payouts before opening the dashboard." }, { status: 409 });
+    return privateJson({ error: "Reconnect Stripe payouts before opening the dashboard." }, { status: 409 });
   }
 
   try {
     const loginLink = await stripe.accounts.createLoginLink(stripeAccountId);
-    return NextResponse.json({ url: loginLink.url });
+    return privateJson({ url: loginLink.url });
   } catch (e) {
     logServerError(e, {
       source: "stripe_connect_login_link",
       extra: { stripeAccountVersion: seller.stripeAccountVersion ?? "legacy" },
     });
-    return NextResponse.json({ error: "Failed to generate Stripe link" }, { status: 500 });
+    return privateJson({ error: "Failed to generate Stripe link" }, { status: 500 });
   }
 }

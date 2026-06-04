@@ -75,12 +75,44 @@ describe("private JSON cache headers", () => {
       "src/app/api/blog/[slug]/save/route.ts",
       "src/app/api/search/suggestions/route.ts",
       "src/app/api/listings/[id]/similar/route.ts",
+      "src/app/api/stripe/connect/create/route.ts",
+      "src/app/api/stripe/connect/dashboard/route.ts",
+      "src/app/api/stripe/connect/login-link/route.ts",
+      "src/app/api/upload/presign/route.ts",
+      "src/app/api/upload/verify/route.ts",
+      "src/app/api/upload/image/route.ts",
+      "src/app/api/cart/checkout/single/route.ts",
+      "src/app/api/cart/checkout-seller/route.ts",
     ];
 
     for (const route of routes) {
       const text = source(route);
       assert.match(text, /@\/lib\/privateResponse/, `${route} should import private response helpers`);
       assert.doesNotMatch(text, /\b(?:NextResponse|Response)\.json\(/, `${route} should not return bare JSON`);
+    }
+  });
+
+  it("keeps private wrappers around retryable auth route failures", () => {
+    for (const route of [
+      "src/app/api/stripe/connect/create/route.ts",
+      "src/app/api/stripe/connect/dashboard/route.ts",
+      "src/app/api/stripe/connect/login-link/route.ts",
+      "src/app/api/upload/presign/route.ts",
+      "src/app/api/upload/verify/route.ts",
+      "src/app/api/upload/image/route.ts",
+    ]) {
+      const text = source(route);
+
+      assert.match(text, /privateResponse\(rateLimitResponse\(/, `${route} should preserve rate-limit headers as private`);
+    }
+
+    for (const route of [
+      "src/app/api/upload/presign/route.ts",
+      "src/app/api/upload/image/route.ts",
+    ]) {
+      const text = source(route);
+
+      assert.match(text, /privateJson\(failure\.body, failure\.init\)/, `${route} should preserve upload retry headers as private`);
     }
   });
 
@@ -91,6 +123,12 @@ describe("private JSON cache headers", () => {
       "src/app/api/notifications/[id]/read/route.ts",
       "src/app/api/users/[id]/block/route.ts",
       "src/app/api/favorites/route.ts",
+      "src/app/api/favorites/[listingId]/route.ts",
+      "src/app/api/listings/[id]/notify/route.ts",
+      "src/app/api/messages/[id]/read/route.ts",
+      "src/app/api/messages/custom-order-request/route.ts",
+      "src/app/api/cart/checkout/single/route.ts",
+      "src/app/api/cart/checkout-seller/route.ts",
     ];
 
     for (const route of routes) {

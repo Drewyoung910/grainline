@@ -1,7 +1,6 @@
 import { randomUUID } from "crypto";
 import { DeleteObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { auth } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import sharp from "sharp";
 import { z } from "zod";
@@ -25,6 +24,8 @@ import {
   uploadTooManyFilesMessage,
   uploadTypeMessage,
 } from "@/lib/uploadRules";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { uploadTelemetryKeyHash } from "@/lib/uploadTelemetry";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -57,7 +58,7 @@ async function deleteUploadedImageObject(key: string) {
 
 export async function POST(req: Request) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
   let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
   try {
     me = await ensureUserByClerkId(userId);
@@ -68,9 +69,9 @@ export async function POST(req: Request) {
   }
 
   const { success, reset } = await safeRateLimit(uploadRatelimit, userId);
-  if (!success) return rateLimitResponse(reset, "Too many uploads.");
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many uploads."));
   const { success: hourlySuccess, reset: hourlyReset } = await safeRateLimit(uploadHourlyRatelimit, userId);
-  if (!hourlySuccess) return rateLimitResponse(hourlyReset, "Too many uploads.");
+  if (!hourlySuccess) return privateResponse(rateLimitResponse(hourlyReset, "Too many uploads."));
 
   let form: FormData;
   try {
@@ -78,7 +79,7 @@ export async function POST(req: Request) {
     form = await req.formData();
   } catch (error) {
     if (isRequestBodyTooLargeError(error)) {
-      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      return privateJson({ error: "Request body too large" }, { status: 413 });
     }
     throw error;
   }
@@ -89,7 +90,7 @@ export async function POST(req: Request) {
   const file = form.get("file");
 
   if (!parsed.success || !(file instanceof File)) {
-    return NextResponse.json({ error: "Invalid upload" }, { status: 400 });
+    return privateJson({ error: "Invalid upload" }, { status: 400 });
   }
 
   const { endpoint, fileIndex } = parsed.data;
@@ -99,27 +100,27 @@ export async function POST(req: Request) {
       where: { userId: me.id },
       select: { id: true },
     });
-    if (!seller) return NextResponse.json({ error: "Seller profile required" }, { status: 403 });
+    if (!seller) return privateJson({ error: "Seller profile required" }, { status: 403 });
   }
   if (fileIndex >= UPLOAD_MAX_COUNTS[uploadEndpoint]) {
-    return NextResponse.json({ error: uploadTooManyFilesMessage(uploadEndpoint) }, { status: 400 });
+    return privateJson({ error: uploadTooManyFilesMessage(uploadEndpoint) }, { status: 400 });
   }
   if (!IMAGE_UPLOAD_TYPES.includes(file.type as (typeof IMAGE_UPLOAD_TYPES)[number])) {
-    return NextResponse.json({ error: uploadTypeMessage(uploadEndpoint, file.type) }, { status: 400 });
+    return privateJson({ error: uploadTypeMessage(uploadEndpoint, file.type) }, { status: 400 });
   }
   if (file.size > UPLOAD_MAX_SIZES[uploadEndpoint]) {
-    return NextResponse.json({ error: uploadTooLargeMessage(uploadEndpoint, file.size) }, { status: 400 });
+    return privateJson({ error: uploadTooLargeMessage(uploadEndpoint, file.size) }, { status: 400 });
   }
 
   let processed: Buffer;
   try {
     const input = Buffer.from(await file.arrayBuffer());
     if (!uploadFileSignatureMatches(input, file.type)) {
-      return NextResponse.json({ error: "Invalid image file" }, { status: 400 });
+      return privateJson({ error: "Invalid image file" }, { status: 400 });
     }
     processed = await stripMetadata(input, file.type);
   } catch {
-    return NextResponse.json({ error: "Image processing failed" }, { status: 400 });
+    return privateJson({ error: "Image processing failed" }, { status: 400 });
   }
 
   const output = outputFor(file.type);
@@ -140,7 +141,7 @@ export async function POST(req: Request) {
       extra: { contentType: output.contentType, size: processed.byteLength },
     });
     const failure = uploadServiceFailure("object-write");
-    return NextResponse.json(failure.body, failure.init);
+    return privateJson(failure.body, failure.init);
   }
 
   const publicUrl = `${R2_PUBLIC_URL}/${key}`;
@@ -153,13 +154,13 @@ export async function POST(req: Request) {
       Sentry.captureException(deleteError, {
         level: "warning",
         tags: { source: "upload_image_cleanup", endpoint },
-        extra: { key },
+        extra: { keyHash: uploadTelemetryKeyHash(key) },
       });
     });
-    return NextResponse.json({ error: message }, { status: 502 });
+    return privateJson({ error: message }, { status: 502 });
   }
 
-  return NextResponse.json({
+  return privateJson({
     publicUrl,
     key,
     contentType: output.contentType,

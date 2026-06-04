@@ -4458,8 +4458,69 @@ Last updated: 2026-06-02
      `tests/refund-route-state.test.mjs`, and
      `tests/account-feed-cursor.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 458 findings;
-verified stale/false-positive: 406 findings; product/design/ops decisions
+378. **Private response, refund-ledger, privacy-key, and public-query
+     guardrails widened** - parent/agent-reviewed pass over Stripe/refund,
+     privacy/export/delete, public search/listing/blog, and ops/cron adjacency.
+     Auth-varying API responses that return Connect account links, Checkout
+     client secrets/session IDs, upload presigned URLs or verification tokens,
+     stock-notification state, custom-order conversation IDs, message-read
+     state, and per-listing favorite delete state now use the shared private
+     response helpers. Checkout final catches now return generic 500 JSON and
+     route details through `logServerError()` instead of returning raw exception
+     messages. Account export and unsubscribe final catches now use the same
+     sanitized logger path.
+
+     Raw SQL refund-ledger checks in seller analytics, recent sales, Guild
+     metrics, Guild Member apply/admin eligibility, site metrics, and quality
+     score now import the shared `BLOCKING_REFUND_LEDGER_SQL` fragment instead
+     of open-coding `NOT EXISTS eventType='REFUND'` semantics. This keeps
+     failed/canceled refund attempts from silently excluding completed orders
+     across those metrics. Account export/deletion email fallback now excludes
+     historical Gmail/Googlemail aliases whose expanded suppression key collides
+     with another active account, avoiding cross-account historical email
+     ownership claims while preserving exact local history coverage. Upload
+     verification has a longer route max duration for direct-upload proofing,
+     and upload cleanup/read-signature telemetry now records a short key hash
+     rather than raw object keys.
+
+     Public query pass fixes moved blog relevant-search type/tag/author/block
+     filters before the 500-row rank cap, added stable publishedAt/id
+     tie-breakers, added stable browse and similar-listing relevance tie
+     breakers, ordered exact seller-map pins before the 500-row cap, and made
+     equal-count listing/blog/seller tag caps deterministic by tag. Parent
+     review also classified already-stale or duplicate allegations for private
+     no-store GET coverage, old similar-listing visibility/rate-limit claims,
+     old blog input-bound claims, popular-tag visibility, duplicate webhook
+     handling, partial-refund stock restoration, raw export missing-record
+     behavior, buyer deletion PII cleanup, cross-user media deletion,
+     unsubscribe token/rate-limit/suppression behavior, and source-side Connect
+     v2 liability configuration. Stripe webhook subscription narrowing,
+     partial-refund Stripe economics proof, Sentry cron alert routing, R2
+     ListBucket/public-bucket evidence, provider-side export/deletion scope,
+     and public newsletter-only resubscribe remain deferred ops/runtime or
+     product/legal evidence items.
+
+     `CLAUDE.md` records the reusable contracts for private auth responses,
+     shared refund-ledger SQL, Gmail suppression-key collisions, upload
+     telemetry, and deterministic public query caps. Guardrails:
+     `tests/private-json-cache-headers.test.mjs`,
+     `tests/form-data-body-bounds.test.mjs`,
+     `tests/stripe-connect-v2.test.mjs`,
+     `tests/upload-ux-followups.test.mjs`,
+     `tests/upload-verification-token.test.mjs`,
+     `tests/upload-service-failure.test.mjs`,
+     `tests/route-max-duration-guardrails.test.mjs`,
+     `tests/seller-analytics-refund-guardrails.test.mjs`,
+     `tests/guild-listing-edit-followups.test.mjs`,
+     `tests/user-email-address-history.test.mjs`,
+     `tests/account-privacy-observability.test.mjs`,
+     `tests/r65-observability-guardrails.test.mjs`,
+     `tests/payment-side-effect-observability.test.mjs`,
+     `tests/public-query-determinism.test.mjs`, and
+     `tests/public-cron-search-hardening.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 473 findings;
+verified stale/false-positive: 414 findings; product/design/ops decisions
 deferred: 73 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
 export/deletion residue. Entry 361 removes the remaining Resend webhook
@@ -4504,7 +4565,16 @@ analytics sanitized logging, browse numeric bounds, homepage map/feed
 determinism, and Stripe Connect route telemetry. Only five approximate
 raw-category decrements are counted because the Guild metrics SQL, ships cap,
 and Connect login/dashboard logging residues were adjacent hidden issues found
-during parent/agent review within already-open categories.
+during parent/agent review within already-open categories. Entry 378 adds
+fifteen fixed/reduced current-code issues across auth-varying private
+responses, checkout/export/unsubscribe sanitized logging, shared
+refund-ledger SQL, Gmail suppression-key collision handling, upload telemetry
+and duration, and deterministic public query caps. It also adds eight
+stale/false-positive or duplicate classifications for already-covered privacy,
+unsubscribe, webhook, refund-stock, media-deletion, popular-tag, similar, and
+Connect-source claims. Twenty approximate raw-category decrements are counted
+because several fixed and stale classifications were adjacent hidden issues or
+duplicates within already-open categories.
 Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -4524,4 +4594,4 @@ Cloudflare R2 ListBucket/public-bucket dashboard evidence, HSTS preload
 submission decision, residual HTTP-status constants, analytics observability
 refactors, remaining homepage runtime a11y proof, and agent/worktree
 verification process hygiene. Approximate raw allegations left to verify from
-current max #1120: 225.
+current max #1120: 205.

@@ -16,7 +16,8 @@ describe("guild and listing-edit audit follow-ups", () => {
     assert.match(applyRoute, /safeRateLimit\(verificationApplyRatelimit, me\.id\)/);
     assert.match(applyRoute, /rateLimitResponse\(reset, "Too many verification applications\."\)/);
     assert.match(applyRoute, /o\."sellerRefundId" IS NULL/);
-    assert.match(applyRoute, /OrderPaymentEvent[\s\S]*eventType" = 'REFUND'/);
+    assert.match(applyRoute, /import \{ BLOCKING_REFUND_LEDGER_SQL \} from "@\/lib\/refundLedgerSql"/);
+    assert.match(applyRoute, /\$\{BLOCKING_REFUND_LEDGER_SQL\}/);
     assert.match(dashboard, /normalizePublicHttpsUrl\(portfolioRaw\)/);
     assert.match(applyRoute, /normalizePublicHttpsUrl\(verParsed\.portfolioUrl\)/);
     assert.doesNotMatch(dashboard, /function normalizeHttpsUrl/);

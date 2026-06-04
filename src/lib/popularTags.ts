@@ -17,7 +17,7 @@ export const getPopularListingTags = unstable_cache(
         AND u.banned = false
         AND u."deletedAt" IS NULL
       GROUP BY tag
-      ORDER BY count DESC
+      ORDER BY count DESC, tag ASC
       LIMIT ${limit}
     `;
 

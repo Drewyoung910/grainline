@@ -27,6 +27,7 @@ describe("route maxDuration guardrails", () => {
       "src/app/api/cases/[id]/resolve/route.ts": 60,
       "src/app/api/shipping/quote/route.ts": 30,
       "src/app/api/upload/image/route.ts": 60,
+      "src/app/api/upload/verify/route.ts": 60,
     };
 
     for (const [path, expected] of Object.entries(routes)) {

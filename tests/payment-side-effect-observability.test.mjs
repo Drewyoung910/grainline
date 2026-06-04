@@ -189,8 +189,12 @@ describe("payment and fulfillment side-effect observability", () => {
     const sellerCheckout = source("src/app/api/cart/checkout-seller/route.ts");
     const singleCheckout = source("src/app/api/cart/checkout/single/route.ts");
 
-    assert.match(sellerCheckout, /sanitizeEmailOutboxError\(err\)/);
-    assert.match(singleCheckout, /sanitizeEmailOutboxError\(err\)/);
+    assert.match(sellerCheckout, /logServerError\(err, \{/);
+    assert.match(singleCheckout, /logServerError\(err, \{/);
+    assert.match(sellerCheckout, /Server error creating checkout session/);
+    assert.match(singleCheckout, /Server error creating checkout session/);
+    assert.doesNotMatch(sellerCheckout, /err instanceof Error \? err\.message/);
+    assert.doesNotMatch(singleCheckout, /err instanceof Error \? err\.message/);
     assert.doesNotMatch(sellerCheckout, /console\.error\("POST \/api\/cart\/checkout-seller error:", err\)/);
     assert.doesNotMatch(singleCheckout, /console\.error\("POST \/api\/cart\/checkout\/single error:", err\)/);
     assert.match(sellerCheckout, /source: "checkout_stock_restore_failed", route: "cart_checkout_seller"/);

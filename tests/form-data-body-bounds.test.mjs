@@ -26,7 +26,9 @@ describe("form-data body bounds", () => {
     assert.match(route, /IMAGE_UPLOAD_LIMIT_INPUT_PIXELS = 50_000_000/);
     assert.match(route, /sharp\(input, \{ failOn: "error", limitInputPixels: IMAGE_UPLOAD_LIMIT_INPUT_PIXELS \}\)/);
     assert.match(route, /uploadFileSignatureMatches\(input, file\.type\)/);
-    assert.match(route, /return NextResponse\.json\(\{ error: "Invalid image file" \}, \{ status: 400 \}\)/);
+    assert.match(route, /return privateJson\(\{ error: "Invalid image file" \}, \{ status: 400 \}\)/);
+    assert.match(route, /uploadTelemetryKeyHash\(key\)/);
+    assert.doesNotMatch(route, /extra: \{ key \}/);
   });
 
   it("bounds order fulfillment and unsubscribe form fallbacks before formData parsing", () => {

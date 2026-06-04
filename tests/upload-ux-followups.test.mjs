@@ -69,6 +69,8 @@ describe("upload UX follow-ups", () => {
     assert.match(verifyRoute, /source: "upload_verify_cleanup"/);
     assert.match(verifyRoute, /level: "warning"/);
     assert.match(verifyRoute, /tags: \{ source: "upload_verify_cleanup", endpoint \}/);
+    assert.match(verifyRoute, /uploadTelemetryKeyHash\(key\)/);
+    assert.doesNotMatch(verifyRoute, /extra: \{ key \}/);
   });
 
   it("prevalidates before upload and reports progress with XMLHttpRequest", () => {

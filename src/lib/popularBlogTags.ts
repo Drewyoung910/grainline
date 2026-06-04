@@ -26,7 +26,7 @@ export const getPopularBlogTags = unstable_cache(
           )
         )
       GROUP BY tag
-      ORDER BY count DESC
+      ORDER BY count DESC, tag ASC
       LIMIT ${limit}
     `;
 

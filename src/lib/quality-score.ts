@@ -31,6 +31,7 @@ import {
   type ListingQualityScoreRow,
   type QualityScoreGlobalMeans,
 } from "./qualityScoreFormula.ts";
+import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
 
 const BATCH_SIZE = 200;
 
@@ -86,11 +87,7 @@ async function fetchActiveListingBatch(cursorId: string | null): Promise<Listing
       JOIN "Order" o ON o.id = oi."orderId"
       WHERE oi."listingId" = l.id
         AND o."sellerRefundId" IS NULL
-        AND NOT EXISTS (
-          SELECT 1 FROM "OrderPaymentEvent" ope
-          WHERE ope."orderId" = o.id
-            AND ope."eventType" = 'REFUND'
-        )
+        ${BLOCKING_REFUND_LEDGER_SQL}
         AND NOT EXISTS (
           SELECT 1 FROM "OrderPaymentEvent" ope
           WHERE ope."orderId" = o.id

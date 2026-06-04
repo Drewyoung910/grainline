@@ -15,6 +15,7 @@ export default async function SellersMapPage() {
       OR: [{ radiusMeters: null }, { radiusMeters: 0 }], // exact pins only
     },
     select: { id: true, displayName: true, city: true, state: true, lat: true, lng: true },
+    orderBy: { id: "asc" },
     take: 500,
   });
 

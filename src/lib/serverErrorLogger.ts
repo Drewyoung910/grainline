@@ -2,9 +2,11 @@ import * as Sentry from "@sentry/nextjs";
 import { sanitizeEmailOutboxError } from "./emailOutboxSanitize.ts";
 
 type TelemetryPrimitive = string | number | boolean | null | undefined;
+type ServerErrorLevel = "fatal" | "error" | "warning" | "log" | "info" | "debug";
 
 export type ServerErrorLogContext = {
   source: string;
+  level?: ServerErrorLevel;
   tags?: Record<string, TelemetryPrimitive>;
   extra?: Record<string, TelemetryPrimitive>;
 };
@@ -53,6 +55,7 @@ export function logServerError(error: unknown, context: ServerErrorLogContext) {
   const sanitizedMessage = sanitizeServerErrorMessage(error);
   console.error(`[${context.source}]`, sanitizedMessage);
   Sentry.captureException(sentryErrorFrom(error, sanitizedMessage), {
+    level: context.level,
     tags: {
       source: context.source,
       ...sanitizeServerErrorTags(context.tags),

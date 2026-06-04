@@ -106,6 +106,14 @@ export default async function BlogIndexPage({
   if (q && sort === "relevant") {
     // GIN full-text ranked search
     type RankedRow = { id: string };
+    const typeSql = typeValid ? Prisma.sql`AND "BlogPost".type = ${typeFilter}::"BlogPostType"` : Prisma.empty;
+    const tagsSql = tagsFilter.length > 0
+      ? Prisma.sql`AND "BlogPost".tags && ARRAY[${Prisma.join(tagsFilter)}]::text[]`
+      : Prisma.empty;
+    const authorSql = authorFilter ? Prisma.sql`AND "BlogPost"."sellerProfileId" = ${authorFilter}` : Prisma.empty;
+    const blockedAuthorSql = blockedUserIdList.length > 0
+      ? Prisma.sql`AND "BlogPost"."authorId" != ALL(${blockedUserIdList})`
+      : Prisma.empty;
     const rankedRows = await prisma.$queryRaw<RankedRow[]>`
       SELECT "BlogPost".id FROM "BlogPost"
       JOIN "User" author_user ON author_user.id = "BlogPost"."authorId"
@@ -126,6 +134,10 @@ export default async function BlogIndexPage({
             AND seller_user."deletedAt" IS NULL
           )
         )
+        ${typeSql}
+        ${tagsSql}
+        ${authorSql}
+        ${blockedAuthorSql}
         AND to_tsvector('english',
           coalesce("BlogPost".title, '') || ' ' || coalesce("BlogPost".excerpt, '') || ' ' || coalesce("BlogPost".body, '')
         ) @@ plainto_tsquery('english', ${q})
@@ -134,7 +146,9 @@ export default async function BlogIndexPage({
           coalesce("BlogPost".title, '') || ' ' || coalesce("BlogPost".excerpt, '') || ' ' || coalesce("BlogPost".body, '')
         ),
         plainto_tsquery('english', ${q})
-      ) DESC
+      ) DESC,
+      "BlogPost"."publishedAt" DESC,
+      "BlogPost".id DESC
       LIMIT 500
     `;
     const rankedIds = rankedRows.map((r) => r.id);
@@ -200,7 +214,7 @@ export default async function BlogIndexPage({
           )
         )
       GROUP BY tag
-      ORDER BY count DESC
+      ORDER BY count DESC, tag ASC
       LIMIT 20
     `;
     tagCloud = rows.map((r) => ({ tag: r.tag, count: Number(r.count) }));

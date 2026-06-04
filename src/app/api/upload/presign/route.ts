@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import * as Sentry from "@sentry/nextjs";
 import { randomBytes } from "crypto";
@@ -30,6 +30,7 @@ import {
   uploadTooManyFilesMessage,
   uploadTypeMessage,
 } from "@/lib/uploadRules";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 
 const ALLOWED_TYPES = [
   "video/mp4", "video/quicktime",
@@ -55,7 +56,7 @@ const UPLOAD_PRESIGN_BODY_MAX_BYTES = 16 * 1024;
 
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
   let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
   try {
     me = await ensureUserByClerkId(userId);
@@ -66,22 +67,22 @@ export async function POST(req: NextRequest) {
   }
 
   const { success: rlOk, reset } = await safeRateLimit(uploadRatelimit, userId);
-  if (!rlOk) return rateLimitResponse(reset, "Too many uploads.");
+  if (!rlOk) return privateResponse(rateLimitResponse(reset, "Too many uploads."));
   const { success: hourlyOk, reset: hourlyReset } = await safeRateLimit(uploadHourlyRatelimit, userId);
-  if (!hourlyOk) return rateLimitResponse(hourlyReset, "Too many uploads.");
+  if (!hourlyOk) return privateResponse(rateLimitResponse(hourlyReset, "Too many uploads."));
 
   let body;
   try {
     body = Schema.parse(await readBoundedJson(req, UPLOAD_PRESIGN_BODY_MAX_BYTES));
   } catch (e) {
     if (isRequestBodyTooLargeError(e)) {
-      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      return privateJson({ error: "Request body too large" }, { status: 413 });
     }
     if (isInvalidJsonBodyError(e)) {
-      return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+      return privateJson({ error: "Invalid input" }, { status: 400 });
     }
     if (e instanceof z.ZodError) {
-      return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+      return privateJson({ error: "Invalid input", details: e.issues }, { status: 400 });
     }
     throw e;
   }
@@ -93,36 +94,36 @@ export async function POST(req: NextRequest) {
       where: { userId: me.id },
       select: { id: true },
     });
-    if (!seller) return NextResponse.json({ error: "Seller profile required" }, { status: 403 });
+    if (!seller) return privateJson({ error: "Seller profile required" }, { status: 403 });
   }
 
   if (IMAGE_UPLOAD_TYPES.includes(contentType as (typeof IMAGE_UPLOAD_TYPES)[number])) {
-    return NextResponse.json(
+    return privateJson(
       { error: "Image uploads must use the processed upload endpoint." },
       { status: 400 }
     );
   }
 
   if (!DIRECT_ENDPOINT_ALLOWED_TYPES[uploadEndpoint]?.includes(contentType)) {
-    return NextResponse.json({ error: uploadTypeMessage(uploadEndpoint, contentType) }, { status: 400 });
+    return privateJson({ error: uploadTypeMessage(uploadEndpoint, contentType) }, { status: 400 });
   }
 
   if (!ALLOWED_TYPES.includes(contentType)) {
-    return NextResponse.json({ error: uploadTypeMessage(uploadEndpoint, contentType) }, { status: 400 });
+    return privateJson({ error: uploadTypeMessage(uploadEndpoint, contentType) }, { status: 400 });
   }
 
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
   const allowedExtensions = ALLOWED_EXTENSIONS[contentType] ?? [];
   if (!allowedExtensions.includes(ext)) {
-    return NextResponse.json({ error: uploadExtensionMessage(contentType, allowedExtensions) }, { status: 400 });
+    return privateJson({ error: uploadExtensionMessage(contentType, allowedExtensions) }, { status: 400 });
   }
 
   if (size > UPLOAD_MAX_SIZES[uploadEndpoint]) {
-    return NextResponse.json({ error: uploadTooLargeMessage(uploadEndpoint, size) }, { status: 400 });
+    return privateJson({ error: uploadTooLargeMessage(uploadEndpoint, size) }, { status: 400 });
   }
 
   if (fileIndex >= UPLOAD_MAX_COUNTS[uploadEndpoint]) {
-    return NextResponse.json({ error: uploadTooManyFilesMessage(uploadEndpoint) }, { status: 400 });
+    return privateJson({ error: uploadTooManyFilesMessage(uploadEndpoint) }, { status: 400 });
   }
 
   const key = `${endpoint}/${uploadKeyUserSegment(userId)}/${Date.now()}-${randomBytes(12).toString("hex")}.${ext}`;
@@ -146,7 +147,7 @@ export async function POST(req: NextRequest) {
       extra: { contentType, size },
     });
     const failure = uploadServiceFailure("presign");
-    return NextResponse.json(failure.body, failure.init);
+    return privateJson(failure.body, failure.init);
   }
   const publicUrl = `${R2_PUBLIC_URL}/${key}`;
   const verification = createUploadVerificationToken({
@@ -156,10 +157,10 @@ export async function POST(req: NextRequest) {
     contentType,
   });
   if (!verification) {
-    return NextResponse.json({ error: "Upload verification is not configured" }, { status: 500 });
+    return privateJson({ error: "Upload verification is not configured" }, { status: 500 });
   }
 
-  return NextResponse.json({
+  return privateJson({
     presignedUrl,
     publicUrl,
     key,

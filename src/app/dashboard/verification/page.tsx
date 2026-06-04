@@ -18,6 +18,7 @@ import {
 } from "@/lib/guildVerificationState";
 import { normalizePublicHttpsUrl } from "@/lib/urlValidation";
 import type { Metadata } from "next";
+import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -59,11 +60,7 @@ async function getGuildMemberEligibility({
       WHERE l."sellerId" = ${sellerProfileId}
         AND o."fulfillmentStatus" IN ('DELIVERED', 'PICKED_UP')
         AND o."sellerRefundId" IS NULL
-        AND NOT EXISTS (
-          SELECT 1 FROM "OrderPaymentEvent" ope
-          WHERE ope."orderId" = o.id
-            AND ope."eventType" = 'REFUND'
-        )
+        ${BLOCKING_REFUND_LEDGER_SQL}
     `,
     prisma.case.count({
       where: {

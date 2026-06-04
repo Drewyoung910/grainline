@@ -84,6 +84,7 @@ async function fetchListings(where: Prisma.ListingWhereInput, orderBy: Prisma.Li
       shipsWithinDays: true,
       processingTimeMinDays: true,
       processingTimeMaxDays: true,
+      createdAt: true,
       sellerId: true,
       tags: true,
       qualityScore: true,
@@ -145,7 +146,11 @@ function scoreListings(listings: ListingWithIncludes[], query?: string) {
       const score = normalizedText * 0.6 + qualityBase * 0.4;
       return { listing: l, score };
     })
-    .sort((a, b) => b.score - a.score);
+    .sort((a, b) =>
+      (b.score - a.score) ||
+      (b.listing.createdAt.getTime() - a.listing.createdAt.getTime()) ||
+      b.listing.id.localeCompare(a.listing.id)
+    );
 }
 
 export async function generateMetadata({
@@ -383,7 +388,7 @@ export default async function BrowsePage({
 
   if (sort === "relevant" && q) {
     // Search relevance: fetch up to 200, re-score with text-match bonus, paginate
-    const all = await fetchListings(where, { qualityScore: "desc" }, 200, 0, true);
+    const all = await fetchListings(where, [{ qualityScore: "desc" }, { createdAt: "desc" }, { id: "desc" }], 200, 0, true);
     const scored = scoreListings(all, q);
     total = scored.length;
     listings = scored
