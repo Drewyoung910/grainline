@@ -89,6 +89,27 @@ describe("account and privacy route observability guardrails", () => {
     assert.doesNotMatch(route, /extra: \{ email \}/);
   });
 
+  it("lets signed-in email preference opt-in clear only one-click manual suppression", () => {
+    const route = source("src/app/api/account/notifications/preferences/route.ts");
+    const suppression = source("src/lib/emailSuppression.ts");
+    const clearStart = suppression.indexOf("export async function clearOneClickEmailSuppression");
+    const clearHelper = suppression.slice(clearStart, suppression.indexOf("export async function suppressEmail", clearStart));
+
+    assert.match(route, /import \{ isValidEmailPreferenceKey, VALID_PREFERENCE_KEYS \}/);
+    assert.match(route, /clearOneClickEmailSuppression\(me\.email, tx\)/);
+    assert.match(route, /if \(enabled && isValidEmailPreferenceKey\(type\)\)/);
+    assert.ok(
+      route.indexOf("tx.$executeRaw") < route.indexOf("clearOneClickEmailSuppression(me.email, tx)"),
+      "preference opt-in should write the preference before clearing one-click suppression",
+    );
+
+    assert.match(clearHelper, /emailSuppressionAddressKeys\(email\)/);
+    assert.match(clearHelper, /reason: EmailSuppressionReason\.MANUAL/);
+    assert.match(clearHelper, /source: "one_click_unsubscribe"/);
+    assert.doesNotMatch(clearHelper, /source: "account_deletion"/);
+    assert.doesNotMatch(clearHelper, /reason: EmailSuppressionReason\.BOUNCE|reason: EmailSuppressionReason\.COMPLAINT/);
+  });
+
   it("keeps Clerk user ids out of favorites route console telemetry", () => {
     const route = source("src/app/api/favorites/route.ts");
     const match = route.match(/console\.error\("POST \/api\/favorites ensureUser error:", (?<payload>\{[^}]+\})\);/);

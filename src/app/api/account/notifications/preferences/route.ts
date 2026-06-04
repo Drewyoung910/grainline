@@ -6,9 +6,10 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
-import { VALID_PREFERENCE_KEYS } from "@/lib/notificationPreferenceKeys";
+import { isValidEmailPreferenceKey, VALID_PREFERENCE_KEYS } from "@/lib/notificationPreferenceKeys";
 import { notificationPreferenceRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { clearOneClickEmailSuppression } from "@/lib/emailSuppression";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -53,16 +54,22 @@ export async function POST(request: NextRequest) {
   }
   const { type, enabled } = body;
 
-  await prisma.$executeRaw`
-    UPDATE "User"
-    SET "notificationPreferences" = jsonb_set(
-      COALESCE("notificationPreferences", '{}'::jsonb),
-      ARRAY[${type}]::text[],
-      to_jsonb(${enabled}::boolean),
-      true
-    )
-    WHERE "id" = ${me.id}
-  `;
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`
+      UPDATE "User"
+      SET "notificationPreferences" = jsonb_set(
+        COALESCE("notificationPreferences", '{}'::jsonb),
+        ARRAY[${type}]::text[],
+        to_jsonb(${enabled}::boolean),
+        true
+      )
+      WHERE "id" = ${me.id}
+    `;
+
+    if (enabled && isValidEmailPreferenceKey(type)) {
+      await clearOneClickEmailSuppression(me.email, tx);
+    }
+  });
 
   return privateJson({ ok: true });
 }

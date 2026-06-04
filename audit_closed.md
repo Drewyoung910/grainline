@@ -3914,11 +3914,29 @@ Last updated: 2026-06-02
      `tests/listing-visibility.test.mjs`, and
      `tests/round8-fulfillment-privacy-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 390 findings;
+349. **Signed-in email preference opt-in clears one-click suppression only** —
+     code/test/docs fix for the current unsubscribe consent/manual-resubscribe
+     gap. Current `main` already made the original Round 16 unsubscribe raw
+     claims stale or previously closed: unsubscribe tokens use a dedicated
+     secret, carry `issuedAt`, expire after 90 days, reject future-dated tokens,
+     are IP- and signed-email-rate-limited, and newsletter signup checks
+     `EmailSuppression` without disclosing suppression history. The remaining
+     current mismatch was that an authenticated user could turn an email
+     preference back on in account settings while an old
+     `one_click_unsubscribe` `EmailSuppression` row still blocked all outbound
+     email. The notification preference route now clears only
+     `EmailSuppressionReason.MANUAL` rows with
+     `source = "one_click_unsubscribe"` for the signed-in user's suppression
+     key set when enabling a valid email preference; bounce, complaint, and
+     account-deletion suppressions are untouched. Public newsletter signup
+     still does not send confirmation mail to suppressed addresses. Guardrail:
+     `tests/account-privacy-observability.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 391 findings;
 verified stale/false-positive: 405 findings; product/design/ops decisions
-deferred: 70 findings. This adjacent current-code fix did not reduce the raw
-Claude import count; entry 348 also has no duplicate tally increase because
-#764/#792 were already closed or classified in earlier passes. Remaining major
+deferred: 70 findings. Entry 349 increases the fixed/reduced tally by one
+current-code mismatch; it does not re-count the older Round 16 unsubscribe raw
+claims that were already closed or classified in earlier passes. Remaining major
 categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -3928,9 +3946,8 @@ permanence policy, remaining case/message state policy decisions,
 remaining privacy/legal retention scope, remaining privacy/export
 retention decisions, cross-seller AI
 duplicate-detection product design, residual seller-page performance
-optimization, unsubscribe
-consent-epoch/manual-resubscribe
-semantics, legacy enum cleanup/data-migration decisions, partial multi-seller
+optimization, public/newsletter-only resubscribe policy if support wants a
+self-service path, legacy enum cleanup/data-migration decisions, partial multi-seller
 checkout continuation design, deliberate BigInt money-column modeling, live-data
 reconciliation for historical seller shipping-rate currency drift, Clerk staff
 MFA and breached-password dashboard evidence, Clerk multi-account spam dashboard
@@ -3939,4 +3956,4 @@ Founding Maker live DB concurrency proof, Sentry cron alert/R2 health/ListBucket
 ops evidence, HSTS preload submission decision, residual HTTP-status constants
 and log-forwarding and analytics observability refactors, remaining homepage
 runtime a11y proof, and agent/worktree verification process hygiene.
-Approximate raw allegations left to verify from current max #1120: 253.
+Approximate raw allegations left to verify from current max #1120: 252.
