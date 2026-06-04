@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { describe, it } from "node:test";
 
+const {
+  checkoutStockReservationRepairAction,
+} = await import("../src/lib/checkoutStockReservationRepairState.ts");
+
 function source(path) {
   return fs.readFileSync(path, "utf8");
 }
@@ -52,7 +56,24 @@ describe("durable checkout stock reservation guardrails", () => {
     assert.match(cronRoute, /beginCronRun\("checkout-stock-reservations", quarterHourBucket\(\)\)/);
     assert.match(cronRoute, /restoreStaleCheckoutStockReservations/);
     assert.match(restore, /CHECKOUT_STOCK_RESERVATION_STALE_BATCH_SIZE = 50/);
-    assert.match(restore, /stripeSessionId: null/);
-    assert.match(restore, /reason: "stale_no_session"/);
+    assert.match(restore, /status: "RESERVED", stripeSessionId: null/);
+    assert.match(restore, /let reason = "stale_no_session"/);
+  });
+
+  it("repairs stale Stripe-session reservations only when the session is unpaid and restorable", () => {
+    const restore = source("src/lib/checkoutStockRestore.ts");
+
+    assert.equal(checkoutStockReservationRepairAction({ status: "expired", payment_status: "unpaid" }), "restore");
+    assert.equal(checkoutStockReservationRepairAction({ status: "open", payment_status: "unpaid" }), "expire_and_restore");
+    assert.equal(checkoutStockReservationRepairAction({ status: "complete", payment_status: "unpaid" }), "skip_paid_or_complete");
+    assert.equal(checkoutStockReservationRepairAction({ status: "expired", payment_status: "paid" }), "skip_paid_or_complete");
+    assert.equal(checkoutStockReservationRepairAction({ status: "unknown", payment_status: "unpaid" }), "skip_unrecognized");
+
+    assert.match(restore, /status: "SESSION_CREATED", stripeSessionId: \{ not: null \}/);
+    assert.match(restore, /stripe\.checkout\.sessions\.retrieve\(reservation\.stripeSessionId\)/);
+    assert.match(restore, /stripe\.checkout\.sessions\.expire\(reservation\.stripeSessionId\)/);
+    assert.match(restore, /source: "checkout_stock_reservation_paid_missing_order"/);
+    assert.match(restore, /reason = "stale_stripe_session_unpaid"/);
+    assert.match(restore, /where: \{ stripeSessionId: reservation\.stripeSessionId \}/);
   });
 });

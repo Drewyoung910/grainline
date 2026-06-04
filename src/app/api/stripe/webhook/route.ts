@@ -598,7 +598,10 @@ export async function POST(req: Request) {
 
     let directSendError: unknown;
     try {
-      await sendRenderedEmail(email, { throwOnFailure: true });
+      await sendRenderedEmail(email, {
+        throwOnFailure: true,
+        idempotencyKey: enqueued.job.dedupKey,
+      });
     } catch (error) {
       directSendError = error;
       Sentry.captureException(error, {

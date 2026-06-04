@@ -127,7 +127,7 @@ describe("payment and fulfillment side-effect observability", () => {
     const route = source("src/app/api/stripe/webhook/route.ts");
 
     const enqueueIndex = route.indexOf("enqueued = await enqueueEmailOutboxOnce");
-    const directSendIndex = route.indexOf("await sendRenderedEmail(email, { throwOnFailure: true })");
+    const directSendIndex = route.indexOf("await sendRenderedEmail(email, {");
 
     assert.notEqual(enqueueIndex, -1);
     assert.notEqual(directSendIndex, -1);
@@ -135,6 +135,7 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(route, /throw outboxError/);
     assert.match(route, /status: "SENT"/);
     assert.match(route, /emailOutboxFailureState\(enqueued\.job\.attempts \+ 1\)/);
+    assert.match(route, /idempotencyKey: enqueued\.job\.dedupKey/);
   });
 
   it("skips post-payment side effects for refunded or blocked checkout orders", () => {

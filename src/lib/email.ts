@@ -209,6 +209,10 @@ type RenderedEmail = {
   html: string;
 };
 export type QueuedRenderedEmail = RenderedEmail;
+type EmailSendOptions = {
+  throwOnFailure?: boolean;
+  idempotencyKey?: string;
+};
 
 async function findInactiveEmailAccount(recipient: string, subject: string) {
   const emailHash = hashEmailForTelemetry(recipient);
@@ -237,7 +241,7 @@ function emailDeliverySkippedError(reason: string) {
   return new Error(`Email delivery skipped: ${reason}`);
 }
 
-async function send(to: string, subject: string, html: string, opts: { throwOnFailure?: boolean } = {}) {
+async function send(to: string, subject: string, html: string, opts: EmailSendOptions = {}) {
   const sanitizedSubject = safeSubject(subject);
   const recipient = normalizeEmailAddress(to);
   if (!recipient) {
@@ -283,18 +287,21 @@ async function send(to: string, subject: string, html: string, opts: { throwOnFa
 
     await sendEmailWithRetry(
       () =>
-        resend!.emails.send({
-          from: EMAIL_FROM,
-          to: recipient,
-          subject: sanitizedSubject,
-          replyTo: EMAIL_REPLY_TO,
-          html: htmlForRecipient,
-          text: htmlToText(htmlForRecipient),
-          headers: {
-            "List-Unsubscribe": `<${unsubscribeUrl}>`,
-            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        resend!.emails.send(
+          {
+            from: EMAIL_FROM,
+            to: recipient,
+            subject: sanitizedSubject,
+            replyTo: EMAIL_REPLY_TO,
+            html: htmlForRecipient,
+            text: htmlToText(htmlForRecipient),
+            headers: {
+              "List-Unsubscribe": `<${unsubscribeUrl}>`,
+              "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+            },
           },
-        }),
+          opts.idempotencyKey ? { idempotencyKey: opts.idempotencyKey } : undefined,
+        ),
       {
         onRetry: (err, attempt, delayMs) => {
           Sentry.captureException(err, {
@@ -315,7 +322,7 @@ async function send(to: string, subject: string, html: string, opts: { throwOnFa
   }
 }
 
-export async function sendRenderedEmail(email: RenderedEmail, opts: { throwOnFailure?: boolean } = {}) {
+export async function sendRenderedEmail(email: RenderedEmail, opts: EmailSendOptions = {}) {
   await send(email.to, email.subject, email.html, opts);
 }
 

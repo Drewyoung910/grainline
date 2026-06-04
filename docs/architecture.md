@@ -68,7 +68,7 @@ Write paths must persist only first-party Grainline media URLs, and new user-sub
 
 ### Email And Notifications
 
-Notifications respect preference keys and deduplication helpers. Time-critical transactional emails are direct sends; bulk/non-critical sends use the email outbox.
+Notifications respect preference keys and deduplication helpers. Time-critical transactional emails reserve deterministic email-outbox rows before the direct-send fast path, and retryable provider sends use the outbox dedup key as the provider idempotency key. Bulk/non-critical sends use the email outbox directly.
 
 ## Operational References
 

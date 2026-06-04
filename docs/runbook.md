@@ -173,7 +173,7 @@ Production migration rules:
 2. Check `/api/cron/*` logs in Vercel for route-level failures.
 3. Check `CronRun` rows with `status = FAILED` in the last 24 hours.
 4. Check Sentry for cron route exceptions and failed cron check-ins.
-5. For email delays, inspect `EmailOutbox` rows by `status`, `nextAttemptAt`, `attempts`, and `lastError`. `SENT`, `SKIPPED`, and `DEAD` rows are pruned after 30 days by the daily notification-prune cron.
+5. For email delays, inspect `EmailOutbox` rows by `status`, `nextAttemptAt`, `attempts`, `dedupKey`, and `lastError`. Retryable provider sends use `dedupKey` as the Resend idempotency key, so check the Resend dashboard before manually resending a stuck `PROCESSING` row. `SENT`, `SKIPPED`, and `DEAD` rows are pruned after 30 days by the daily notification-prune cron.
 6. Keep outbox draining at bounded concurrency; do not manually send large batches outside the quota guard.
 
 ## Support and Legal Requests

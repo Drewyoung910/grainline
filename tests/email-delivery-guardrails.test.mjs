@@ -35,9 +35,20 @@ describe("email delivery guardrails", () => {
     assert.match(sendBody, /if \(opts\.throwOnFailure\) throw emailDeliverySkippedError\("email provider not configured"\)/);
     assert.match(sendBody, /isEmailDeliverySuppressed\(recipient\)[\s\S]*?throw emailDeliverySkippedError\("recipient suppressed"\)/);
     assert.match(sendBody, /account\?\.banned \|\| account\?\.deletedAt[\s\S]*?emailDeliverySkippedError\(account\.banned \? "recipient banned" : "recipient deleted"\)/);
-    assert.match(source("src/lib/emailOutbox.ts"), /sendRenderedEmail\(\s*\{ to: job\.recipientEmail, subject: job\.subject, html: job\.html \},\s*\{ throwOnFailure: true \}/);
+    assert.match(source("src/lib/emailOutbox.ts"), /sendRenderedEmail\(\s*\{ to: job\.recipientEmail, subject: job\.subject, html: job\.html \},\s*\{ throwOnFailure: true/);
     assert.match(source("src/app/api/support/route.ts"), /sendRenderedEmail\(\{[\s\S]*?\}, \{ throwOnFailure: true \}\)/);
     assert.match(source("src/app/api/legal/data-request/route.ts"), /sendRenderedEmail\(\{[\s\S]*?\}, \{ throwOnFailure: true \}\)/);
+  });
+
+  it("uses outbox dedup keys as provider idempotency keys for retryable sends", () => {
+    const email = source("src/lib/email.ts");
+    const outbox = source("src/lib/emailOutbox.ts");
+    const webhook = source("src/app/api/stripe/webhook/route.ts");
+
+    assert.match(email, /type EmailSendOptions = \{\s*throwOnFailure\?: boolean;\s*idempotencyKey\?: string;\s*\}/);
+    assert.match(email, /resend!\.emails\.send\(\s*\{[\s\S]*?\},\s*opts\.idempotencyKey \? \{ idempotencyKey: opts\.idempotencyKey \} : undefined,\s*\)/);
+    assert.match(outbox, /sendRenderedEmail\(\s*\{ to: job\.recipientEmail, subject: job\.subject, html: job\.html \},\s*\{ throwOnFailure: true, idempotencyKey: job\.dedupKey \}/);
+    assert.match(webhook, /sendRenderedEmail\(email, \{\s*throwOnFailure: true,\s*idempotencyKey: enqueued\.job\.dedupKey,\s*\}\)/);
   });
 
   it("only injects unsubscribe URLs into the footer href placeholder", () => {

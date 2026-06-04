@@ -4337,7 +4337,40 @@ Last updated: 2026-06-02
      status-aware repair. These remain in the privacy/export, email outbox, and
      checkout-stock repair categories for future passes.
 
-**Running tally after this pass:** verified fixed/reduced: 446 findings;
+375. **Checkout stale-session repair and email provider idempotency tightened** —
+     parent/agent-reviewed code/docs/test fixes for two source-verifiable
+     gaps left open in entry 374. The checkout stock reservation repair cron
+     now scans stale `SESSION_CREATED` rows as well as no-session `RESERVED`
+     rows. For stale Stripe-backed reservations it first checks for an existing
+     local order, then retrieves the Stripe Checkout Session, skips and alerts
+     paid/complete sessions without a local order, expires unpaid open
+     sessions before restoring stock, restores unpaid expired sessions, and
+     leaves retrieve/expire failures or unrecognized states for retry/review
+     instead of blindly adding inventory back. The pure
+     `checkoutStockReservationRepairAction()` helper covers the state
+     classification.
+
+     Order-confirmed and first-sale transactional emails now pass the reserved
+     `EmailOutbox.dedupKey` to Resend as the provider idempotency key on the
+     direct-send fast path, and the cron outbox drain uses the same
+     `job.dedupKey` on retries. This reduces duplicate-send risk when a
+     provider send succeeds but the local `SENT` update fails, without claiming
+     provider-side retention beyond Resend's idempotency semantics.
+     `CLAUDE.md`, `docs/architecture.md`, and `docs/runbook.md` now describe
+     these contracts. Guardrails:
+     `tests/checkout-stock-reservation-guardrails.test.mjs`,
+     `tests/email-delivery-guardrails.test.mjs`,
+     `tests/payment-side-effect-observability.test.mjs`, and
+     `tests/order-state-followups.test.mjs`.
+
+     Parent review kept the historical email-key export/deletion finding open
+     without tally inflation: old email-only `EmailSuppression`,
+     `EmailFailureCount`, `NewsletterSubscriber`, and null-user `EmailOutbox`
+     rows after Clerk primary-email changes still need a durable
+     `UserEmailAddress`/alias capture, conservative backfill, and
+     export/deletion query update.
+
+**Running tally after this pass:** verified fixed/reduced: 448 findings;
 verified stale/false-positive: 406 findings; product/design/ops decisions
 deferred: 73 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
@@ -4371,6 +4404,9 @@ observability, label/refund mutual exclusion, account export, outbox deletion
 scrubbing, and Shippo quote retention. Four approximate raw-category
 decrements are counted; the label failed/canceled-ledger lock and staff-label
 refund block were adjacent hidden issues found by agent review.
+Entry 375 adds two fixed/reduced current-code issues for stale Stripe-backed
+checkout reservation repair and shared Resend idempotency keys for direct
+order-email/outbox sends.
 Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -4379,8 +4415,7 @@ partial-refund runtime reconciliation proof, founding-maker
 permanence policy, remaining case/message state policy decisions,
 remaining privacy/legal retention scope, remaining privacy/export
 retention decisions, historical email-key export/deletion backfill,
-checkout direct-send email outbox duplicate protection, stale
-`SESSION_CREATED` checkout stock reservation repair, cross-seller AI
+cross-seller AI
 duplicate-detection product design, public/newsletter-only resubscribe policy if support wants a
 self-service path, legacy enum cleanup/data-migration decisions, partial multi-seller
 checkout continuation design, deliberate BigInt money-column modeling, live-data
@@ -4392,4 +4427,4 @@ Cloudflare R2 ListBucket/public-bucket dashboard evidence, HSTS preload
 submission decision, residual HTTP-status constants,
 analytics observability refactors, remaining homepage
 runtime a11y proof, and agent/worktree verification process hygiene.
-Approximate raw allegations left to verify from current max #1120: 233.
+Approximate raw allegations left to verify from current max #1120: 231.

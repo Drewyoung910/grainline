@@ -332,7 +332,7 @@ export async function processEmailOutboxBatch({
 
       await sendRenderedEmail(
         { to: job.recipientEmail, subject: job.subject, html: job.html },
-        { throwOnFailure: true },
+        { throwOnFailure: true, idempotencyKey: job.dedupKey },
       );
       await prisma.emailOutbox.update({
         where: { id: job.id },

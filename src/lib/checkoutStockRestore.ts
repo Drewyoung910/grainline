@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import { releaseCheckoutLock } from "@/lib/checkoutSessionLock";
 import { revalidateListingSearchCaches } from "@/lib/searchCache";
 import { parsePositiveInt } from "@/lib/stripeWebhookState";
+import { stripe } from "@/lib/stripe";
+import { checkoutStockReservationRepairAction } from "@/lib/checkoutStockReservationRepairState";
 
 export const CHECKOUT_STOCK_RESERVATION_TTL_MS = 31 * 60 * 1000;
 export const CHECKOUT_STOCK_RESERVATION_STALE_GRACE_MS = 2 * 60 * 60 * 1000;
@@ -378,13 +380,15 @@ export async function restoreStaleCheckoutStockReservations(input: {
   const take = input.take ?? CHECKOUT_STOCK_RESERVATION_STALE_BATCH_SIZE;
   const staleReservations = await prisma.checkoutStockReservation.findMany({
     where: {
-      status: "RESERVED",
-      stripeSessionId: null,
+      OR: [
+        { status: "RESERVED", stripeSessionId: null },
+        { status: "SESSION_CREATED", stripeSessionId: { not: null } },
+      ],
       expiresAt: { lt: cutoff },
     },
     orderBy: { expiresAt: "asc" },
     take,
-    select: { id: true },
+    select: { id: true, stripeSessionId: true },
   });
 
   let restored = 0;
@@ -393,9 +397,84 @@ export async function restoreStaleCheckoutStockReservations(input: {
 
   for (const reservation of staleReservations) {
     try {
+      let reason = "stale_no_session";
+      if (reservation.stripeSessionId) {
+        const orderExists = await prisma.order.findFirst({
+          where: { stripeSessionId: reservation.stripeSessionId },
+          select: { id: true },
+        });
+        if (orderExists) {
+          const result = await restoreCheckoutStockReservationOnce({
+            reservationId: reservation.id,
+            sessionId: reservation.stripeSessionId,
+            reason: "stale_session_order_exists",
+          });
+          if (result.restored) restored += 1;
+          else skipped += 1;
+          continue;
+        }
+
+        let session: { status?: string | null; payment_status?: string | null };
+        try {
+          session = await stripe.checkout.sessions.retrieve(reservation.stripeSessionId);
+        } catch (error) {
+          const err = error as { code?: string; name?: string };
+          errors.push({ reservationId: reservation.id, code: err.code ?? err.name ?? "SESSION_RETRIEVE_FAILED" });
+          Sentry.captureException(error, {
+            tags: { source: "checkout_stock_reservation_stale_session_retrieve" },
+            extra: { reservationId: reservation.id, stripeSessionId: reservation.stripeSessionId },
+          });
+          continue;
+        }
+
+        const action = checkoutStockReservationRepairAction(session);
+        if (action === "skip_paid_or_complete") {
+          skipped += 1;
+          Sentry.captureMessage("Paid checkout session missing local order during stock reservation repair", {
+            level: "warning",
+            tags: { source: "checkout_stock_reservation_paid_missing_order" },
+            extra: {
+              reservationId: reservation.id,
+              stripeSessionId: reservation.stripeSessionId,
+              sessionStatus: session.status,
+              paymentStatus: session.payment_status,
+            },
+          });
+          continue;
+        }
+        if (action === "skip_unrecognized") {
+          skipped += 1;
+          Sentry.captureMessage("Checkout stock reservation repair skipped unrecognized Stripe session state", {
+            level: "warning",
+            tags: { source: "checkout_stock_reservation_unrecognized_session_state" },
+            extra: {
+              reservationId: reservation.id,
+              stripeSessionId: reservation.stripeSessionId,
+              sessionStatus: session.status,
+              paymentStatus: session.payment_status,
+            },
+          });
+          continue;
+        }
+        if (action === "expire_and_restore") {
+          try {
+            await stripe.checkout.sessions.expire(reservation.stripeSessionId);
+          } catch (error) {
+            const err = error as { code?: string; name?: string };
+            errors.push({ reservationId: reservation.id, code: err.code ?? err.name ?? "SESSION_EXPIRE_FAILED" });
+            Sentry.captureException(error, {
+              tags: { source: "checkout_stock_reservation_stale_session_expire" },
+              extra: { reservationId: reservation.id, stripeSessionId: reservation.stripeSessionId },
+            });
+            continue;
+          }
+        }
+        reason = "stale_stripe_session_unpaid";
+      }
       const result = await restoreCheckoutStockReservationOnce({
         reservationId: reservation.id,
-        reason: "stale_no_session",
+        sessionId: reservation.stripeSessionId,
+        reason,
       });
       if (result.restored) restored += 1;
       else skipped += 1;
