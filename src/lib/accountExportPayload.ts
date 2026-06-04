@@ -43,6 +43,8 @@ type AccountExportCollections = {
   userReportsReceived: unknown[];
   supportRequests: unknown[];
   emailSuppressions: unknown[];
+  emailOutboxRows: unknown[];
+  emailFailureCounts: unknown[];
   stockNotifications: unknown[];
   makerVerification: unknown;
   sellerFaqs: unknown[];
@@ -101,6 +103,8 @@ export function buildAccountExportPayload(
     userReportsReceived: data.userReportsReceived,
     supportRequests: data.supportRequests,
     emailSuppressions: data.emailSuppressions,
+    emailOutboxRows: data.emailOutboxRows,
+    emailFailureCounts: data.emailFailureCounts,
     stockNotifications: data.stockNotifications,
     makerVerification: data.makerVerification,
     sellerFaqs: data.sellerFaqs,

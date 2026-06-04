@@ -23,6 +23,7 @@ import { emailSuppressionAddressKeys } from "@/lib/emailSuppression";
 import { sanitizeUserName, truncateText } from "@/lib/sanitize";
 import { isRequestBodyTooLargeError, readBoundedText } from "@/lib/requestBody";
 import { invalidateAccountStateCache } from "@/lib/accountStateCache";
+import { recordWebhookFailureSpike } from "@/lib/webhookFailureSpike";
 import * as Sentry from "@sentry/nextjs";
 
 interface ClerkUserEvent {
@@ -51,6 +52,7 @@ function dateFromMetadata(value: unknown): Date | null {
 
 const CLERK_WEBHOOK_RETRY_AFTER_MS = 5 * 60 * 1000;
 const CLERK_WEBHOOK_BODY_MAX_BYTES = 512 * 1024;
+const CLERK_WEBHOOK_RETRY_AFTER_SECONDS = Math.ceil(CLERK_WEBHOOK_RETRY_AFTER_MS / 1000);
 
 function isUniqueViolation(err: unknown) {
   return typeof err === "object" && err !== null && "code" in err && (err as { code?: unknown }).code === "P2002";
@@ -134,6 +136,11 @@ async function markClerkWebhookFailed(svixId: string, err: unknown) {
 export async function POST(req: Request) {
   const webhookSecret = process.env.CLERK_WEBHOOK_SECRET;
   if (!webhookSecret) {
+    Sentry.captureMessage("Clerk webhook secret is not configured", {
+      level: "fatal",
+      tags: { source: "clerk_webhook_config" },
+    });
+    await recordWebhookFailureSpike({ webhook: "clerk", kind: "config", status: 500 });
     return NextResponse.json({ error: "Missing CLERK_WEBHOOK_SECRET" }, { status: 500 });
   }
 
@@ -143,6 +150,16 @@ export async function POST(req: Request) {
   const svixSignature = headerPayload.get("svix-signature");
 
   if (!svixId || !svixTimestamp || !svixSignature) {
+    Sentry.captureMessage("Clerk webhook signature headers missing", {
+      level: "warning",
+      tags: { source: "clerk_webhook_signature" },
+      extra: {
+        hasSvixId: Boolean(svixId),
+        hasSvixTimestamp: Boolean(svixTimestamp),
+        hasSvixSignature: Boolean(svixSignature),
+      },
+    });
+    await recordWebhookFailureSpike({ webhook: "clerk", kind: "signature", status: 400 });
     return NextResponse.json({ error: "Missing svix headers" }, { status: 400 });
   }
 
@@ -156,6 +173,7 @@ export async function POST(req: Request) {
         tags: { source: "clerk_webhook_payload" },
         extra: { maxBytes: err.maxBytes, svixId },
       });
+      await recordWebhookFailureSpike({ webhook: "clerk", kind: "payload", status: 413 });
       return NextResponse.json({ error: "Payload too large" }, { status: 413 });
     }
     throw err;
@@ -174,12 +192,34 @@ export async function POST(req: Request) {
       tags: { source: "clerk_webhook_verify" },
       extra: { svixId, svixTimestamp },
     });
+    await recordWebhookFailureSpike({ webhook: "clerk", kind: "signature", status: 400 });
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
-  const reservation = await reserveClerkWebhookEvent(svixId, event.type);
-  if (reservation !== "process") {
+  let reservation: Awaited<ReturnType<typeof reserveClerkWebhookEvent>>;
+  try {
+    reservation = await reserveClerkWebhookEvent(svixId, event.type);
+  } catch (error) {
+    Sentry.captureException(error, {
+      tags: { source: "clerk_webhook_reservation" },
+      extra: { svixId, eventType: event.type },
+    });
+    await recordWebhookFailureSpike({
+      webhook: "clerk",
+      kind: "reservation",
+      status: 503,
+      extra: { svixId, eventType: event.type },
+    });
+    return NextResponse.json({ error: "Webhook temporarily unavailable" }, { status: 503 });
+  }
+  if (reservation === "processed") {
     return NextResponse.json({ ok: true });
+  }
+  if (reservation === "in_progress") {
+    return NextResponse.json(
+      { ok: false, status: reservation },
+      { status: 503, headers: { "Retry-After": String(CLERK_WEBHOOK_RETRY_AFTER_SECONDS) } },
+    );
   }
 
   try {
@@ -362,6 +402,12 @@ export async function POST(req: Request) {
     });
     Sentry.captureException(error, {
       tags: { source: "clerk_webhook" },
+      extra: { svixId, eventType: event.type },
+    });
+    await recordWebhookFailureSpike({
+      webhook: "clerk",
+      kind: "handler",
+      status: 500,
       extra: { svixId, eventType: event.type },
     });
     throw error;

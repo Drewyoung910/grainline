@@ -97,15 +97,18 @@ describe("Round 9 account deletion PII guardrails", () => {
     }
   });
 
-  it("scrubs seller gallery alt text and pending outbox content on account deletion", () => {
+  it("scrubs seller gallery alt text and unsent outbox content on account deletion", () => {
     const deletion = source("src/lib/accountDeletion.ts");
 
     assert.match(deletion, /galleryImageUrls: \[\]/);
     assert.match(deletion, /galleryAltTexts: \[\]/);
     assert.match(deletion, /tx\.emailOutbox\.updateMany\(\{/);
     assert.match(deletion, /OR: \[\{ userId: user\.id \}, \{ recipientEmail: \{ in: suppressionEmailMatches \} \}\]/);
+    assert.match(deletion, /sentAt: null/);
+    assert.match(deletion, /status: \{ in: \["PENDING", "PROCESSING", "FAILED", "DEAD"\] \}/);
     assert.match(deletion, /status: "SKIPPED"/);
     assert.match(deletion, /html: "\[Email removed after account deletion\]"/);
+    assert.match(deletion, /tx\.emailFailureCount\.deleteMany\(\{\s*where: \{ email: \{ in: suppressionEmailMatches \} \},\s*\}\)/s);
   });
 
   it("scrubs authored blog comments on account deletion", () => {

@@ -965,7 +965,7 @@ export async function anonymizeUserAccount(
       where: {
         OR: [{ userId: user.id }, { recipientEmail: { in: suppressionEmailMatches } }],
         sentAt: null,
-        status: { in: ["PENDING", "PROCESSING"] },
+        status: { in: ["PENDING", "PROCESSING", "FAILED", "DEAD"] },
       },
       data: {
         status: "SKIPPED",
@@ -975,6 +975,9 @@ export async function anonymizeUserAccount(
         sentAt: now,
         lastError: "Skipped because the recipient account was deleted.",
       },
+    });
+    await tx.emailFailureCount.deleteMany({
+      where: { email: { in: suppressionEmailMatches } },
     });
     await tx.newsletterSubscriber.deleteMany({
       where: { email: { in: suppressionEmailMatches } },

@@ -112,7 +112,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Stale Stripe event" }, { status: 400 });
   }
 
-  const reservation = await beginStripeWebhookEvent(stripeEventId, stripeEventType);
+  let reservation: Awaited<ReturnType<typeof beginStripeWebhookEvent>>;
+  try {
+    reservation = await beginStripeWebhookEvent(stripeEventId, stripeEventType);
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { source: "stripe_v2_webhook_reservation" },
+      extra: { stripeEventId, stripeEventType },
+    });
+    await recordWebhookFailureSpike({
+      webhook: "stripe_v2",
+      kind: "reservation",
+      status: 503,
+      extra: { stripeEventId, stripeEventType },
+    });
+    return NextResponse.json({ error: "Webhook temporarily unavailable" }, { status: 503 });
+  }
   if (reservation === "processed") return NextResponse.json({ received: true });
   if (reservation === "in_progress") {
     return NextResponse.json(

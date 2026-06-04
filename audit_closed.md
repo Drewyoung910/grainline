@@ -4041,12 +4041,75 @@ Last updated: 2026-06-02
      three webhook failure counts. Guardrail:
      `tests/retention-and-ops-followups.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 402 findings;
+361. **Resend webhook failures feed the shared spike detector** —
+     code/test fix for the remaining Resend webhook failure-spike aggregation
+     gap. Resend config, missing/invalid Svix signature, oversized payload,
+     reservation, and processing failures now call `recordWebhookFailureSpike()`
+     with bounded provider IDs/event types only. The missing-Svix-header branch
+     also emits a direct Sentry message with header-presence booleans so
+     low-volume misconfiguration is observable before the spike threshold.
+     Guardrail: `tests/r65-observability-guardrails.test.mjs`.
+
+362. **Clerk webhook failures match shared provider-webhook telemetry** —
+     newly found adjacent observability fix. Clerk config, missing/invalid Svix
+     signature, oversized payload, reservation, and handler failures now record
+     webhook failure-spike buckets with bounded Svix/event metadata. In-progress
+     Clerk webhook reservations now return retryable 503 + `Retry-After`
+     instead of acknowledging as successful duplicate deliveries. Guardrail:
+     `tests/r65-observability-guardrails.test.mjs`.
+
+363. **Webhook reservation failures no longer escape unclassified** —
+     newly found adjacent observability fix across Stripe snapshot, Stripe v2
+     thin, Resend, and Clerk webhooks. Reservation DB failures now capture
+     provider-specific Sentry context, feed a `reservation` failure-spike bucket,
+     and return retryable 503 before any handler side effects. Guardrail:
+     `tests/r65-observability-guardrails.test.mjs`.
+
+364. **Ops-health counts reclaimable stale webhook reservations** —
+     newly found adjacent ops fix. `/api/cron/ops-health` now counts failed or
+     reclaimable unprocessed Stripe/Resend/Clerk webhook idempotency rows:
+     `lastError` piles, null `processingStartedAt`, and rows older than the
+     provider reclaim window. A webhook process that dies after reservation but
+     before failure marking is now surfaced as actionable instead of looking
+     healthy indefinitely. Guardrail:
+     `tests/retention-and-ops-followups.test.mjs`.
+
+365. **Ops runbook and launch checklist reflect current monitoring gates** —
+     docs/test fix for stale ops evidence wording. The runbook now lists stale
+     `RUNNING` cron rows plus failed/stale StripeWebhookEvent,
+     ResendWebhookEvent, and ClerkWebhookEvent rows in the ops-health triage
+     path. The launch checklist now includes `STRIPE_V2_WEBHOOK_SECRET` and
+     `HEALTH_CHECK_TOKEN` in the environment section, and requires evidence for
+     Sentry cron monitors, `source=cron_ops_health` warning routing, and webhook
+     failure-spike alerts. Guardrail:
+     `tests/retention-and-ops-followups.test.mjs`.
+
+366. **Account export includes local email delivery records** —
+     newly found adjacent privacy/export fix. `/api/account/export` now exports
+     local `EmailOutbox` rows tied to the account by `userId` or recipient
+     suppression-key set, and exports `EmailFailureCount` rows for the same
+     suppression-key set. This reduces the gap where Grainline-owned email
+     delivery records and transient failure counters were retained locally but
+     absent from the self-service JSON export. Guardrail:
+     `tests/account-export-privacy.test.mjs`.
+
+367. **Account deletion scrubs failed/dead unsent email rows and failure counters** —
+     newly found adjacent privacy/deletion refinement. Prior Round 9 work
+     already scrubbed queued/processing outbox rows; this pass widened the
+     deletion scrub to every unsent outbox state (`PENDING`, `PROCESSING`,
+     `FAILED`, and `DEAD`) for the deleted user/email and deletes matching
+     `EmailFailureCount` rows. Delivery was already suppressed; this reduces
+     retained local email content/counter residue after deletion. Guardrail:
+     `tests/round9-account-deletion-pii-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 414 findings;
 verified stale/false-positive: 405 findings; product/design/ops decisions
-deferred: 70 findings. Entries 349-360 increase the fixed/reduced tally by
-twelve current-code mismatches; entries 350-351 and 353-360 were newly found in
-adjacent source review and do not reduce the raw-Claude remaining count, while
-entry 352 reduces the open raw unsubscribe-token replay category by one.
+deferred: 70 findings. Entries 361-367 add twelve fixed/reduced current-code
+or ops-documentation mismatches across webhook monitoring and email
+export/deletion residue. Entry 361 removes the remaining Resend webhook
+failure-spike raw category; entries 362-367 were adjacent parent/agent-reviewed
+findings or refinements of already-closed categories, so they do not all reduce
+the raw-Claude count.
 Remaining major
 categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
@@ -4064,8 +4127,7 @@ reconciliation for historical seller shipping-rate currency drift, Clerk staff
 MFA and breached-password dashboard evidence, Clerk multi-account spam dashboard
 evidence, Stripe duplicate-webhook and buyer-deletion runtime replay proof,
 Founding Maker live DB concurrency proof, Sentry cron alert/R2 health/ListBucket
-ops evidence, Resend webhook failure-spike aggregation, HSTS preload submission
-decision, residual HTTP-status constants and log-forwarding and analytics
-observability refactors, remaining homepage runtime a11y proof, and
-agent/worktree verification process hygiene.
-Approximate raw allegations left to verify from current max #1120: 251.
+ops evidence, HSTS preload submission decision, residual HTTP-status constants
+and log-forwarding and analytics observability refactors, remaining homepage
+runtime a11y proof, and agent/worktree verification process hygiene.
+Approximate raw allegations left to verify from current max #1120: 250.

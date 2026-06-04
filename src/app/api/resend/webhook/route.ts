@@ -8,6 +8,7 @@ import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
 import { resolveResendWebhookConfig } from "@/lib/resendWebhookConfig";
 import { isRequestBodyTooLargeError, readBoundedText } from "@/lib/requestBody";
+import { recordWebhookFailureSpike } from "@/lib/webhookFailureSpike";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -191,6 +192,7 @@ export async function POST(request: Request) {
       tags: { source: "resend_webhook_config" },
       extra: { missing: config.missing },
     });
+    await recordWebhookFailureSpike({ webhook: "resend", kind: "config", status: 503 });
     return NextResponse.json({ ok: false, error: "Webhook not configured" }, { status: 503 });
   }
 
@@ -198,6 +200,16 @@ export async function POST(request: Request) {
   const timestamp = request.headers.get("svix-timestamp");
   const signature = request.headers.get("svix-signature");
   if (!id || !timestamp || !signature) {
+    Sentry.captureMessage("Resend webhook signature headers missing", {
+      level: "warning",
+      tags: { source: "resend_webhook_signature" },
+      extra: {
+        hasSvixId: Boolean(id),
+        hasSvixTimestamp: Boolean(timestamp),
+        hasSvixSignature: Boolean(signature),
+      },
+    });
+    await recordWebhookFailureSpike({ webhook: "resend", kind: "signature", status: 400 });
     return NextResponse.json({ ok: false, error: "Missing webhook signature headers" }, { status: 400 });
   }
 
@@ -212,6 +224,7 @@ export async function POST(request: Request) {
         tags: { source: "resend_webhook_payload" },
         extra: { maxBytes: err.maxBytes, webhookId: id },
       });
+      await recordWebhookFailureSpike({ webhook: "resend", kind: "payload", status: 413 });
       return NextResponse.json({ ok: false, error: "Payload too large" }, { status: 413 });
     }
     throw err;
@@ -225,10 +238,26 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     Sentry.captureException(err, { tags: { source: "resend_webhook_verify" } });
+    await recordWebhookFailureSpike({ webhook: "resend", kind: "signature", status: 400 });
     return NextResponse.json({ ok: false, error: "Invalid webhook signature" }, { status: 400 });
   }
 
-  const reservation = await reserveWebhookEvent(id, event.type);
+  let reservation: Awaited<ReturnType<typeof reserveWebhookEvent>>;
+  try {
+    reservation = await reserveWebhookEvent(id, event.type);
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { source: "resend_webhook_reservation" },
+      extra: { svixId: id, type: event.type },
+    });
+    await recordWebhookFailureSpike({
+      webhook: "resend",
+      kind: "reservation",
+      status: 503,
+      extra: { svixId: id, type: event.type },
+    });
+    return NextResponse.json({ ok: false, error: "Webhook temporarily unavailable" }, { status: 503 });
+  }
   if (reservation === "processed") {
     return NextResponse.json({ ok: true, duplicate: true, status: reservation, type: event.type });
   }
@@ -287,6 +316,12 @@ export async function POST(request: Request) {
       });
     });
     Sentry.captureException(err, { tags: { source: "resend_webhook_process", type: event.type } });
+    await recordWebhookFailureSpike({
+      webhook: "resend",
+      kind: "handler",
+      status: 500,
+      extra: { svixId: id, type: event.type },
+    });
     return NextResponse.json({ ok: false, error: "Webhook processing failed" }, { status: 500 });
   }
 }

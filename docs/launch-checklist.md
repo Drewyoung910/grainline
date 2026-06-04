@@ -14,6 +14,7 @@ Confirm production and preview values in Vercel:
 - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_V2_WEBHOOK_SECRET`
 - `ADMIN_PIN`
 - `ADMIN_PIN_COOKIE_SECRET`
 - `CLOUDFLARE_R2_ACCOUNT_ID`
@@ -30,6 +31,7 @@ Confirm production and preview values in Vercel:
 - `UPSTASH_REDIS_REST_TOKEN`
 - `OPENAI_API_KEY`
 - `CRON_SECRET`
+- `HEALTH_CHECK_TOKEN`
 - `UNSUBSCRIBE_SECRET`
 - `SENTRY_DSN`
 - `NEXT_PUBLIC_SENTRY_DSN`
@@ -60,6 +62,7 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
 - Cloudflare: WAF managed rules and bot protection mode enabled only after provider/webhook/API smoke tests confirm Stripe, Clerk, Resend, Shippo, Vercel health checks, and uptime checks are not challenged.
 - Upstash: production Redis database configured.
 - Sentry: production project receiving errors and source maps.
+- Sentry: cron monitors configured for every `vercel.json` cron; alert routing verified for `source=cron_ops_health` warnings and webhook failure spike messages.
 - UptimeRobot: monitoring `https://thegrainline.com/api/health`.
 - GitHub: branch protection on `main`, required CI, Dependabot alerts/updates, secret scanning/push protection where available, and CodeQL/code scanning where available.
 - Security disclosure: `/security` and `/.well-known/security.txt` are live; `security@thegrainline.com` mailbox routing verified.
@@ -110,7 +113,7 @@ Record links/screenshots/dates for:
 - Stripe snapshot webhook and Connect v2 thin webhook delivery, including screenshots of the exact event subscriptions listed above.
 - Clerk and Resend webhook delivery.
 - Neon backup/PITR setting and most recent restore drill.
-- Sentry alert rules for CSP/script/frame violations and production error spikes.
+- Sentry alert rules for CSP/script/frame violations, production error spikes, Sentry cron monitors, `source=cron_ops_health` warnings, and webhook failure spike messages.
 
 ## Business And Legal
 

@@ -23,6 +23,8 @@ describe("account export privacy coverage", () => {
       "userReport",
       "supportRequest",
       "emailSuppression",
+      "emailOutbox",
+      "emailFailureCount",
       "stockNotification",
       "makerVerification",
       "sellerFaq",
@@ -39,6 +41,8 @@ describe("account export privacy coverage", () => {
       "userReportsReceived",
       "supportRequests",
       "emailSuppressions",
+      "emailOutboxRows",
+      "emailFailureCounts",
       "stockNotifications",
       "makerVerification",
       "sellerFaqs",
@@ -77,6 +81,32 @@ describe("account export privacy coverage", () => {
     assert.match(route, /const accountEmailSuppressionKeys = accountEmail \? emailSuppressionAddressKeys\(accountEmail\) : \[\]/);
     assert.match(suppressionBlock, /where: \{ email: \{ in: accountEmailSuppressionKeys \} \}/);
     assert.doesNotMatch(suppressionBlock, /where: \{ email: accountEmail \}/);
+  });
+
+  it("exports local email outbox and transient failure records by account id or delivery email keys", () => {
+    const route = source("src/app/api/account/export/route.ts");
+    const payload = source("src/lib/accountExportPayload.ts");
+
+    const outboxStart = route.indexOf("prisma.emailOutbox.findMany");
+    const failureStart = route.indexOf("prisma.emailFailureCount.findMany");
+    const outboxBlock = route.slice(outboxStart, failureStart);
+    const failureBlock = route.slice(failureStart, route.indexOf("prisma.stockNotification.findMany", failureStart));
+
+    assert.ok(outboxStart >= 0, "account export must query EmailOutbox");
+    assert.match(outboxBlock, /OR: \[\{ userId: user\.id \}, \{ recipientEmail: \{ in: accountEmailSuppressionKeys \} \}\]/);
+    assert.match(outboxBlock, /recipientEmail: true/);
+    assert.match(outboxBlock, /templateName: true/);
+    assert.match(outboxBlock, /subject: true/);
+    assert.match(outboxBlock, /html: true/);
+    assert.match(outboxBlock, /lastError: true/);
+
+    assert.ok(failureStart >= 0, "account export must query EmailFailureCount");
+    assert.match(failureBlock, /where: \{ email: \{ in: accountEmailSuppressionKeys \} \}/);
+    assert.match(failureBlock, /count: true/);
+    assert.match(failureBlock, /lastEventId: true/);
+
+    assert.match(payload, /emailOutboxRows: data\.emailOutboxRows/);
+    assert.match(payload, /emailFailureCounts: data\.emailFailureCounts/);
   });
 
   it("keeps account export behind POST, same-origin, and fresh session checks", () => {

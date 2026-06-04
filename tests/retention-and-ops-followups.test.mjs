@@ -99,14 +99,38 @@ describe("retention and ops-health follow-ups", () => {
     const warningStart = source.indexOf("if (");
     const warningCondition = source.slice(warningStart, source.indexOf("Sentry.captureMessage", warningStart));
 
+    assert.match(source, /STRIPE_WEBHOOK_EVENT_STALE_PROCESSING_MS/);
+    assert.match(source, /STALE_SVIX_WEBHOOK_PROCESSING_MS/);
+    assert.match(source, /staleStripeWebhookBefore/);
+    assert.match(source, /staleSvixWebhookBefore/);
     assert.match(source, /stripeWebhookFailureCount/);
     assert.match(source, /resendWebhookFailureCount/);
     assert.match(source, /clerkWebhookFailureCount/);
     assert.match(source, /lastError:\s*\{\s*not:\s*null\s*\}/);
     assert.match(source, /processedAt:\s*null/);
+    assert.match(source, /processingStartedAt:\s*null/);
+    assert.match(source, /processingStartedAt:\s*\{\s*lt:\s*staleStripeWebhookBefore\s*\}/);
+    assert.match(source, /processingStartedAt:\s*\{\s*lt:\s*staleSvixWebhookBefore\s*\}/);
     assert.match(warningCondition, /issues\.stripeWebhookFailureCount > 0/);
     assert.match(warningCondition, /issues\.resendWebhookFailureCount > 0/);
     assert.match(warningCondition, /issues\.clerkWebhookFailureCount > 0/);
+  });
+
+  it("keeps ops-health runbook and launch monitoring evidence aligned with current checks", () => {
+    const runbook = readFileSync("docs/runbook.md", "utf8");
+    const launch = readFileSync("docs/launch-checklist.md", "utf8");
+
+    assert.match(runbook, /stale `RUNNING` cron rows/);
+    assert.match(runbook, /StripeWebhookEvent/);
+    assert.match(runbook, /ResendWebhookEvent/);
+    assert.match(runbook, /ClerkWebhookEvent/);
+    assert.match(runbook, /webhook failure spike/);
+
+    assert.match(launch, /HEALTH_CHECK_TOKEN/);
+    assert.match(launch, /STRIPE_V2_WEBHOOK_SECRET/);
+    assert.match(launch, /Sentry cron monitors/);
+    assert.match(launch, /source=cron_ops_health/);
+    assert.match(launch, /webhook failure spike/);
   });
 
   it("keeps verbose health token comparison constant-time", () => {

@@ -79,6 +79,8 @@ async function buildExport(user: NonNullable<ExportableUser>) {
     userReportsReceived,
     supportRequests,
     emailSuppressions,
+    emailOutboxRows,
+    emailFailureCounts,
     stockNotifications,
     makerVerification,
     sellerFaqs,
@@ -434,6 +436,37 @@ async function buildExport(user: NonNullable<ExportableUser>) {
           select: { email: true, reason: true, source: true, details: true, createdAt: true, updatedAt: true },
         })
       : [],
+    prisma.emailOutbox.findMany({
+      where:
+        accountEmailSuppressionKeys.length > 0
+          ? { OR: [{ userId: user.id }, { recipientEmail: { in: accountEmailSuppressionKeys } }] }
+          : { userId: user.id },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        recipientEmail: true,
+        userId: true,
+        preferenceKey: true,
+        templateName: true,
+        templateVersion: true,
+        subject: true,
+        html: true,
+        status: true,
+        attempts: true,
+        nextAttemptAt: true,
+        sentAt: true,
+        lastError: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    }),
+    accountEmailSuppressionKeys.length > 0
+      ? prisma.emailFailureCount.findMany({
+          where: { email: { in: accountEmailSuppressionKeys } },
+          orderBy: { lastFailedAt: "desc" },
+          select: { email: true, count: true, firstFailedAt: true, lastFailedAt: true, lastEventId: true },
+        })
+      : [],
     prisma.stockNotification.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: "desc" },
@@ -525,6 +558,8 @@ async function buildExport(user: NonNullable<ExportableUser>) {
     userReportsReceived,
     supportRequests,
     emailSuppressions,
+    emailOutboxRows,
+    emailFailureCounts,
     stockNotifications,
     makerVerification,
     sellerFaqs,
