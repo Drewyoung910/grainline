@@ -70,6 +70,8 @@ Write paths must persist only first-party Grainline media URLs, and new user-sub
 
 Notifications respect preference keys and deduplication helpers. Time-critical transactional emails reserve deterministic email-outbox rows before the direct-send fast path, and retryable provider sends use the outbox dedup key as the provider idempotency key. Bulk/non-critical sends use the email outbox directly.
 
+`UserEmailAddress` stores exact-normalized account email history captured during Clerk/user refreshes. Account export and deletion use current `User.email` plus this user-owned history for support/data-request and local email-record coverage after excluding historical emails currently assigned to another non-deleted user, expanding to Gmail/Googlemail suppression keys only when querying suppression, outbox, failure-count, or newsletter tables.
+
 ## Operational References
 
 - `docs/runbook.md`: production incidents, rollback, webhook recovery, restore drills, secret rotation.

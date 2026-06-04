@@ -107,6 +107,12 @@ describe("Round 9 account deletion PII guardrails", () => {
   it("scrubs seller gallery alt text and email outbox content on account deletion", () => {
     const deletion = source("src/lib/accountDeletion.ts");
 
+    assert.match(deletion, /const accountEmailState = await userAccountEmailAddressState\(tx, \{/);
+    assert.match(deletion, /const accountEmails = await accountEmailFallbackEmailsForUser\(tx, \{/);
+    assert.match(deletion, /emails: accountEmailState\.emails/);
+    assert.match(deletion, /\.\.\.accountEmails/);
+    assert.match(deletion, /const accountEmailSuppressionKeys = accountEmailSuppressionKeysForEmails\(accountEmails\)/);
+    assert.match(deletion, /accountEmailSuppressionKeys\.length > 0/);
     assert.match(deletion, /galleryImageUrls: \[\]/);
     assert.match(deletion, /galleryAltTexts: \[\]/);
     assert.match(deletion, /tx\.emailOutbox\.updateMany\(\{/);
@@ -118,6 +124,18 @@ describe("Round 9 account deletion PII guardrails", () => {
     assert.match(deletion, /recipientEmail: "deleted-account@deleted\.thegrainline\.local"/);
     assert.match(deletion, /subject: "Email removed after account deletion"/);
     assert.match(deletion, /tx\.emailFailureCount\.deleteMany\(\{\s*where: \{ email: \{ in: suppressionEmailMatches \} \},\s*\}\)/s);
+    assert.match(deletion, /tx\.newsletterSubscriber\.deleteMany\(\{\s*where: \{ email: \{ in: suppressionEmailMatches \} \},\s*\}\)/s);
+    assert.match(deletion, /tx\.userEmailAddress\.deleteMany\(\{\s*where: \{ userId: user\.id \},\s*\}\)/s);
+  });
+
+  it("does not let one hard provider suppression block account-deletion suppressions for other aliases", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+
+    assert.match(deletion, /const providerHardSuppressionEmails = new Set\(/);
+    assert.match(deletion, /suppressionEmailMatches\.filter\(\s*\(email\) => !providerHardSuppressionEmails\.has\(email\),\s*\)/s);
+    assert.match(deletion, /email: \{ in: manualSuppressionEmails \}/);
+    assert.doesNotMatch(deletion, /const hasProviderHardSuppression/);
+    assert.doesNotMatch(deletion, /if \(!hasProviderHardSuppression\)/);
   });
 
   it("scrubs authored blog comments on account deletion", () => {

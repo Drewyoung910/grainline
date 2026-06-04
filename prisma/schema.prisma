@@ -84,6 +84,7 @@ model User {
   sellerProfile SellerProfile?
   favorites     Favorite[]
   reviews       Review[]
+  emailAddresses UserEmailAddress[]
 
   // Orders & review votes
   orders      Order[]      @relation("OrdersByBuyer")
@@ -132,6 +133,21 @@ model User {
   reportsResolved UserReport[] @relation("UserReportsResolved")
 
   @@index([deletedAt])
+}
+
+model UserEmailAddress {
+  id          String   @id @default(cuid())
+  userId      String   @db.VarChar(191)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email       String   @db.VarChar(254)
+  source      String?  @db.VarChar(80)
+  isCurrent   Boolean  @default(false)
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  @@unique([userId, email])
+  @@index([email])
+  @@index([userId, isCurrent])
 }
 
 model SellerProfile {

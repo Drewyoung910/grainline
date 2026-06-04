@@ -81,9 +81,16 @@ describe("support request helpers", () => {
     );
   });
 
-  it("matches account exports by stable user id with current-email fallback", () => {
+  it("matches account exports by stable user id with account email history fallback", () => {
     assert.deepEqual(supportRequestAccountExportWhere("user_123", "buyer@example.com"), {
-      OR: [{ userId: "user_123" }, { email: "buyer@example.com" }],
+      OR: [{ userId: "user_123" }, { email: { in: ["buyer@example.com"] } }],
+    });
+    assert.deepEqual(supportRequestAccountExportWhere("user_123", [
+      "buyer@example.com",
+      "old@example.com",
+      "buyer@example.com",
+    ]), {
+      OR: [{ userId: "user_123" }, { email: { in: ["buyer@example.com", "old@example.com"] } }],
     });
     assert.deepEqual(supportRequestAccountExportWhere("user_123", null), { userId: "user_123" });
   });

@@ -39,6 +39,7 @@ describe("account export privacy coverage", () => {
       "blocks",
       "userReportsSubmitted",
       "userReportsReceived",
+      "accountEmailAddresses",
       "supportRequests",
       "emailSuppressions",
       "emailOutboxRows",
@@ -87,7 +88,7 @@ describe("account export privacy coverage", () => {
     assert.match(schema, /user\s+User\?\s+@relation\(fields: \[userId\], references: \[id\], onDelete: SetNull\)/);
     assert.match(schema, /@@index\(\[userId, createdAt\]\)/);
     assert.ok(supportStart >= 0, "account export must query supportRequest");
-    assert.match(supportBlock, /supportRequestAccountExportWhere\(user\.id, accountEmail\)/);
+    assert.match(supportBlock, /supportRequestAccountExportWhere\(user\.id, accountEmails\)/);
     assert.match(supportBlock, /orderId: true/);
     assert.match(supportBlock, /listingId: true/);
     assert.match(supportBlock, /closureEvidence: true/);
@@ -101,8 +102,13 @@ describe("account export privacy coverage", () => {
     const suppressionStart = route.indexOf("prisma.emailSuppression.findMany");
     const suppressionBlock = route.slice(suppressionStart, route.indexOf("prisma.stockNotification.findMany", suppressionStart));
 
-    assert.match(route, /import \{ emailSuppressionAddressKeys, normalizeEmailAddress \}/);
-    assert.match(route, /const accountEmailSuppressionKeys = accountEmail \? emailSuppressionAddressKeys\(accountEmail\) : \[\]/);
+    assert.match(route, /accountEmailFallbackEmailsForUser/);
+    assert.match(route, /accountEmailSuppressionKeysForEmails/);
+    assert.match(route, /userAccountEmailAddressState/);
+    assert.match(route, /const accountEmailState = await userAccountEmailAddressState\(prisma, \{/);
+    assert.match(route, /const accountEmails = await accountEmailFallbackEmailsForUser\(prisma, \{/);
+    assert.match(route, /emails: accountEmailState\.emails/);
+    assert.match(route, /const accountEmailSuppressionKeys = accountEmailSuppressionKeysForEmails\(accountEmails\)/);
     assert.match(suppressionBlock, /where: \{ email: \{ in: accountEmailSuppressionKeys \} \}/);
     assert.doesNotMatch(suppressionBlock, /where: \{ email: accountEmail \}/);
   });
@@ -131,6 +137,29 @@ describe("account export privacy coverage", () => {
 
     assert.match(payload, /emailOutboxRows: data\.emailOutboxRows/);
     assert.match(payload, /emailFailureCounts: data\.emailFailureCounts/);
+  });
+
+  it("exports historical account email rows and newsletter records by account email keys", () => {
+    const route = source("src/app/api/account/export/route.ts");
+    const payload = source("src/lib/accountExportPayload.ts");
+
+    const historyStart = route.indexOf("const accountEmailState = await userAccountEmailAddressState");
+    const sellerProfileStart = route.indexOf("const sellerProfile = await prisma.sellerProfile.findUnique");
+    const historyBlock = route.slice(historyStart, sellerProfileStart);
+    const newsletterStart = route.indexOf("prisma.newsletterSubscriber.findMany");
+    const newsletterEnd = route.indexOf("sellerProfile\n      ? prisma.sellerBroadcast.findMany", newsletterStart);
+    const newsletterBlock = route.slice(newsletterStart, newsletterEnd);
+
+    assert.match(historyBlock, /userId: user\.id/);
+    assert.match(historyBlock, /currentEmail: accountEmail/);
+    assert.match(historyBlock, /accountEmailFallbackEmailsForUser\(prisma/);
+    assert.match(historyBlock, /emails: accountEmailState\.emails/);
+    assert.match(route, /const accountEmailAddresses = accountEmailState\.rows/);
+    assert.match(route, /accountEmailAddresses,/);
+    assert.match(payload, /accountEmailAddresses: unknown\[\]/);
+    assert.match(payload, /accountEmailAddresses: data\.accountEmailAddresses/);
+    assert.match(newsletterBlock, /where: \{ email: \{ in: accountEmailSuppressionKeys \} \}/);
+    assert.doesNotMatch(newsletterBlock, /where: \{ email: accountEmail \}/);
   });
 
   it("keeps account export behind POST, same-origin, and fresh session checks", () => {

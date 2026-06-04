@@ -20,6 +20,7 @@ type ExportUser = {
 };
 
 type AccountExportCollections = {
+  accountEmailAddresses: unknown[];
   sellerProfile: unknown;
   listings: unknown[];
   buyerOrders: unknown[];
@@ -80,6 +81,7 @@ export function buildAccountExportPayload(
       shippingPhone: user.shippingPhone,
       notificationPreferences: user.notificationPreferences,
     },
+    accountEmailAddresses: data.accountEmailAddresses,
     sellerProfile: data.sellerProfile,
     listings: data.listings,
     buyerOrders: data.buyerOrders,

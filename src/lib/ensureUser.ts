@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { sanitizeUserName, truncateText } from "@/lib/sanitize";
 import { AccountAccessError, isAccountAccessError } from "@/lib/accountAccessError";
 import { normalizeEmailAddress } from "@/lib/emailSuppression";
+import { syncUserEmailAddressHistory } from "@/lib/userEmailAddresses";
 import * as Sentry from "@sentry/nextjs";
 
 export { AccountAccessError, isAccountAccessError };
@@ -82,9 +83,20 @@ export async function ensureUserByClerkId(
     if (Object.keys(updateData).length === 0) return existing;
 
     try {
-      return await prisma.user.update({
-        where: { clerkId },
-        data: updateData,
+      return await prisma.$transaction(async (tx) => {
+        const updated = await tx.user.update({
+          where: { clerkId },
+          data: updateData,
+        });
+        if (updateData.email) {
+          await syncUserEmailAddressHistory(tx, {
+            userId: updated.id,
+            previousEmail: existing.email,
+            currentEmail: updateData.email,
+            source: "ensure_user",
+          });
+        }
+        return updated;
       });
     } catch (e) {
       // P2002 = unique constraint violation (another row already has this email)
@@ -119,7 +131,15 @@ export async function ensureUserByClerkId(
   };
 
   try {
-    return await prisma.user.create({ data: createData });
+    return await prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({ data: createData });
+      await syncUserEmailAddressHistory(tx, {
+        userId: created.id,
+        currentEmail: created.email,
+        source: "ensure_user_create",
+      });
+      return created;
+    });
   } catch (e) {
     if (isUniqueViolationOn(e, "clerkId")) {
       const raced = await prisma.user.findUnique({ where: { clerkId } });
@@ -130,11 +150,19 @@ export async function ensureUserByClerkId(
         tags: { source: "ensure_user_create_email_conflict" },
         extra: { clerkId, droppedField: "email" },
       });
-      return prisma.user.create({
-        data: {
-          ...createData,
-          email: `${clerkId}@placeholder.invalid`,
-        },
+      return prisma.$transaction(async (tx) => {
+        const created = await tx.user.create({
+          data: {
+            ...createData,
+            email: `${clerkId}@placeholder.invalid`,
+          },
+        });
+        await syncUserEmailAddressHistory(tx, {
+          userId: created.id,
+          currentEmail: created.email,
+          source: "ensure_user_create_email_conflict",
+        });
+        return created;
       });
     }
     throw e;

@@ -30,6 +30,7 @@ function user(overrides = {}) {
 function collections(overrides = {}) {
   return {
     sellerProfile: null,
+    accountEmailAddresses: [],
     listings: [],
     buyerOrders: [],
     sellerOrders: [],
@@ -79,6 +80,7 @@ describe("account export payload", () => {
     assert.deepEqual(Object.keys(payload), [
       "generatedAt",
       "account",
+      "accountEmailAddresses",
       "sellerProfile",
       "listings",
       "buyerOrders",

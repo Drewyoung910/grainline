@@ -7,10 +7,15 @@ import { accountExportJsonResponse } from "@/lib/accountExportFormat";
 import { buildAccountExportPayload } from "@/lib/accountExportPayload";
 import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
 import { logUserAuditAction } from "@/lib/audit";
-import { emailSuppressionAddressKeys, normalizeEmailAddress } from "@/lib/emailSuppression";
+import { normalizeEmailAddress } from "@/lib/emailSuppression";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { supportRequestAccountExportWhere } from "@/lib/supportRequest";
+import {
+  accountEmailFallbackEmailsForUser,
+  accountEmailSuppressionKeysForEmails,
+  userAccountEmailAddressState,
+} from "@/lib/userEmailAddresses";
 import {
   ACCOUNT_EXPORT_REVERIFICATION,
   hasFreshAccountExportSession,
@@ -26,7 +31,16 @@ function jsonDownload(data: unknown, userId: string) {
 
 async function buildExport(user: NonNullable<ExportableUser>) {
   const accountEmail = normalizeEmailAddress(user.email ?? "") ?? user.email?.trim().toLowerCase() ?? null;
-  const accountEmailSuppressionKeys = accountEmail ? emailSuppressionAddressKeys(accountEmail) : [];
+  const accountEmailState = await userAccountEmailAddressState(prisma, {
+    userId: user.id,
+    currentEmail: accountEmail,
+  });
+  const accountEmails = await accountEmailFallbackEmailsForUser(prisma, {
+    userId: user.id,
+    emails: accountEmailState.emails,
+  });
+  const accountEmailSuppressionKeys = accountEmailSuppressionKeysForEmails(accountEmails);
+  const accountEmailAddresses = accountEmailState.rows;
   const sellerProfile = await prisma.sellerProfile.findUnique({
     where: { userId: user.id },
     select: {
@@ -417,7 +431,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
       },
     }),
     prisma.supportRequest.findMany({
-      where: supportRequestAccountExportWhere(user.id, accountEmail),
+      where: supportRequestAccountExportWhere(user.id, accountEmails),
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
@@ -506,9 +520,9 @@ async function buildExport(user: NonNullable<ExportableUser>) {
           select: { id: true, question: true, answer: true, sortOrder: true, createdAt: true },
         })
       : [],
-    accountEmail
+    accountEmailSuppressionKeys.length > 0
       ? prisma.newsletterSubscriber.findMany({
-          where: { email: accountEmail },
+          where: { email: { in: accountEmailSuppressionKeys } },
           orderBy: { subscribedAt: "desc" },
           select: {
             id: true,
@@ -543,6 +557,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
   }));
 
   return buildAccountExportPayload(user, {
+    accountEmailAddresses,
     sellerProfile,
     listings,
     buyerOrders,

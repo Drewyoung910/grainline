@@ -13,21 +13,24 @@ describe("email normalization follow-ups", () => {
     const newsletter = source("src/app/api/newsletter/route.ts");
     const unsubscribe = source("src/lib/unsubscribeToken.ts");
     const suppression = source("src/lib/emailSuppression.ts");
+    const normalization = source("src/lib/emailAddressNormalization.ts");
 
     assert.match(ensureUser, /import \{ normalizeEmailAddress \} from "@\/lib\/emailSuppression"/);
     assert.match(ensureUser, /const normalizedEmail = normalizeEmailAddress\(opts\.email\)/);
     assert.match(ensureUser, /const email = normalizeEmailAddress\(opts\?\.email\) \?\? `\$\{clerkId\}@placeholder\.invalid`/);
     assert.match(deletion, /normalizeEmailSuppressionAddress\(user\.email\) \?\? user\.email\.trim\(\)\.normalize\("NFC"\)\.toLowerCase\(\)/);
-    assert.match(deletion, /const suppressionEmailKeys = emailSuppressionAddressKeys\(user\.email\)/);
+    assert.match(deletion, /const suppressionEmailMatches =\s*accountEmailSuppressionKeys\.length > 0/s);
     assert.match(deletion, /recipientEmail: \{ in: suppressionEmailMatches \}/);
     assert.match(newsletter, /parsed\.email\.trim\(\)\.normalize\("NFC"\)\.toLowerCase\(\)/);
     assert.match(unsubscribe, /email\.trim\(\)\.normalize\("NFC"\)\.toLowerCase\(\)/);
 
-    assert.match(suppression, /function gmailSuppressionAddress\(email: string\)/);
-    assert.match(suppression, /domain === "googlemail\.com" \? "gmail\.com" : domain/);
-    assert.match(suppression, /local\.split\("\+"\)\[0\]\?\.replaceAll\("\.", ""\)/);
-    assert.match(suppression, /export function normalizeEmailSuppressionAddress/);
-    assert.match(suppression, /export function emailSuppressionAddressKeys/);
+    assert.match(suppression, /from "\.\/emailAddressNormalization\.ts"/);
+    assert.match(suppression, /export \{ emailSuppressionAddressKeys, normalizeEmailAddress, normalizeEmailSuppressionAddress \}/);
+    assert.match(normalization, /function gmailSuppressionAddress\(email: string\)/);
+    assert.match(normalization, /domain === "googlemail\.com" \? "gmail\.com" : domain/);
+    assert.match(normalization, /local\.split\("\+"\)\[0\]\?\.replaceAll\("\.", ""\)/);
+    assert.match(normalization, /export function normalizeEmailSuppressionAddress/);
+    assert.match(normalization, /export function emailSuppressionAddressKeys/);
     assert.match(suppression, /where: \{ email: \{ in: emails \} \}/);
     assert.match(suppression, /const email = normalizeEmailSuppressionAddress\(opts\.email\)/);
   });

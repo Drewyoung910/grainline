@@ -14,7 +14,7 @@ export type NormalizedSupportRequest = {
 
 type SupportRequestAccountExportWhere =
   | { userId: string }
-  | { OR: Array<{ userId: string } | { email: string }> };
+  | { OR: Array<{ userId: string } | { email: { in: string[] } }> };
 
 export const SUPPORT_REQUEST_EMAIL_PENDING_MARKER =
   "Notification email delivery is pending confirmation; check Sentry or email provider logs if this remains after intake.";
@@ -131,10 +131,18 @@ export function supportRequestSlaDueAt(createdAt = new Date()) {
 
 export function supportRequestAccountExportWhere(
   userId: string,
-  accountEmail: string | null,
+  accountEmails: readonly string[] | string | null,
 ): SupportRequestAccountExportWhere {
-  if (!accountEmail) return { userId };
-  return { OR: [{ userId }, { email: accountEmail }] };
+  let emails: string[];
+  if (Array.isArray(accountEmails)) {
+    emails = [...new Set(accountEmails.filter((email): email is string => Boolean(email)))];
+  } else if (typeof accountEmails === "string" && accountEmails) {
+    emails = [accountEmails];
+  } else {
+    emails = [];
+  }
+  if (emails.length === 0) return { userId };
+  return { OR: [{ userId }, { email: { in: emails } }] };
 }
 
 export function supportRequestEmailNotificationState(input: {

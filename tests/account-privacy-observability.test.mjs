@@ -142,7 +142,7 @@ describe("account and privacy route observability guardrails", () => {
     assert.match(adminEmailRoute, /isEmailSuppressed\(normalizedRecipientEmail\)/);
   });
 
-  it("preserves hard email suppressions when lower-priority manual suppression is written", () => {
+  it("preserves hard email suppressions per key when lower-priority manual suppression is written", () => {
     const unsubscribe = source("src/lib/unsubscribe.ts");
     const deletion = source("src/lib/accountDeletion.ts");
     const oneClickStart = unsubscribe.indexOf("async function setOneClickEmailSuppression");
@@ -166,12 +166,16 @@ describe("account and privacy route observability guardrails", () => {
     assert.doesNotMatch(oneClickHelper, /emailSuppression\.upsert/);
 
     assert.ok(deletionStart >= 0, "account deletion should inspect existing suppression before writing");
-    assert.match(deletionSuppressionBlock, /hasProviderHardSuppression/);
+    assert.match(deletionSuppressionBlock, /providerHardSuppressionEmails/);
     assert.match(deletionSuppressionBlock, /EmailSuppressionReason\.BOUNCE/);
     assert.match(deletionSuppressionBlock, /EmailSuppressionReason\.COMPLAINT/);
+    assert.match(deletionSuppressionBlock, /manualSuppressionEmails = suppressionEmailMatches\.filter/);
+    assert.match(deletionSuppressionBlock, /!providerHardSuppressionEmails\.has\(email\)/);
+    assert.match(deletionSuppressionBlock, /email: \{ in: manualSuppressionEmails \}/);
     assert.match(deletionSuppressionBlock, /reason: EmailSuppressionReason\.MANUAL/);
     assert.match(deletionSuppressionBlock, /source: "account_deletion"/);
     assert.doesNotMatch(deletionSuppressionBlock, /emailSuppression\.upsert/);
+    assert.doesNotMatch(deletionSuppressionBlock, /hasProviderHardSuppression/);
   });
 
   it("rejects unsubscribe links issued before a later signed-in email opt-in", () => {

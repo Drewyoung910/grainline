@@ -4,9 +4,13 @@ import { redis } from "@/lib/ratelimit";
 import { removeSellerCommissionInterests } from "@/lib/commissionInterestCleanup";
 import { revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
 import {
-  emailSuppressionAddressKeys,
   normalizeEmailSuppressionAddress,
 } from "@/lib/emailSuppression";
+import {
+  accountEmailFallbackEmailsForUser,
+  accountEmailSuppressionKeysForEmails,
+  userAccountEmailAddressState,
+} from "@/lib/userEmailAddresses";
 import { invalidateAccountStateCache } from "@/lib/accountStateCache";
 import {
   Prisma,
@@ -843,10 +847,26 @@ export async function anonymizeUserAccount(
     const deletedEmail = `deleted+${user.id}@deleted.thegrainline.local`;
     const deletedClerkId = `deleted:${user.id}:${now.getTime()}`;
     const auditTargetIds = [user.id, user.sellerProfile?.id].filter(Boolean) as string[];
+    const accountEmailState = await userAccountEmailAddressState(tx, {
+      userId: user.id,
+      currentEmail: user.email,
+    });
+    const accountEmails = await accountEmailFallbackEmailsForUser(tx, {
+      userId: user.id,
+      emails: accountEmailState.emails,
+    });
+    const fallbackSuppressionEmail =
+      normalizeEmailSuppressionAddress(user.email) ?? user.email.trim().normalize("NFC").toLowerCase();
+    const accountEmailSuppressionKeys = accountEmailSuppressionKeysForEmails(accountEmails);
+    const suppressionEmailMatches =
+      accountEmailSuppressionKeys.length > 0
+        ? accountEmailSuppressionKeys
+        : [fallbackSuppressionEmail];
     const accountSensitiveValues = normalizedSensitiveValues([
       user.id,
       user.clerkId,
       user.email,
+      ...accountEmails,
       user.name,
       user.shippingName,
       user.shippingLine1,
@@ -976,10 +996,6 @@ export async function anonymizeUserAccount(
         resolutionNote: "Auto-resolved after the reported account was deleted.",
       },
     });
-    const suppressionEmail =
-      normalizeEmailSuppressionAddress(user.email) ?? user.email.trim().normalize("NFC").toLowerCase();
-    const suppressionEmailKeys = emailSuppressionAddressKeys(user.email);
-    const suppressionEmailMatches = suppressionEmailKeys.length > 0 ? suppressionEmailKeys : [suppressionEmail];
     await tx.emailOutbox.updateMany({
       where: {
         OR: [{ userId: user.id }, { recipientEmail: { in: suppressionEmailMatches } }],
@@ -1015,15 +1031,21 @@ export async function anonymizeUserAccount(
       where: { email: { in: suppressionEmailMatches } },
       select: { email: true, reason: true },
     });
-    const hasProviderHardSuppression = existingEmailSuppressions.some(
-      (suppression) =>
-        suppression.reason === EmailSuppressionReason.BOUNCE ||
-        suppression.reason === EmailSuppressionReason.COMPLAINT,
+    const existingSuppressionEmails = new Set(existingEmailSuppressions.map((suppression) => suppression.email));
+    const providerHardSuppressionEmails = new Set(
+      existingEmailSuppressions
+        .filter((suppression) =>
+          suppression.reason === EmailSuppressionReason.BOUNCE ||
+          suppression.reason === EmailSuppressionReason.COMPLAINT)
+        .map((suppression) => suppression.email),
     );
-    if (!hasProviderHardSuppression) {
+    const manualSuppressionEmails = suppressionEmailMatches.filter(
+      (email) => !providerHardSuppressionEmails.has(email),
+    );
+    if (manualSuppressionEmails.length > 0) {
       await tx.emailSuppression.updateMany({
         where: {
-          email: { in: suppressionEmailMatches },
+          email: { in: manualSuppressionEmails },
           reason: EmailSuppressionReason.MANUAL,
         },
         data: {
@@ -1032,10 +1054,13 @@ export async function anonymizeUserAccount(
           details: { accountDeleted: true },
         },
       });
-      if (!existingEmailSuppressions.some((suppression) => suppression.email === suppressionEmail)) {
+      const suppressionEmailsToCreate = manualSuppressionEmails.filter(
+        (email) => !existingSuppressionEmails.has(email),
+      );
+      for (const email of suppressionEmailsToCreate) {
         await tx.emailSuppression.create({
           data: {
-            email: suppressionEmail,
+            email,
             reason: EmailSuppressionReason.MANUAL,
             source: "account_deletion",
             details: { accountDeleted: true },
@@ -1200,6 +1225,10 @@ export async function anonymizeUserAccount(
         radiusMeters: null,
         isNational: true,
       },
+    });
+
+    await tx.userEmailAddress.deleteMany({
+      where: { userId: user.id },
     });
 
     await tx.user.update({

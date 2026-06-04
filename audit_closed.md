@@ -4370,7 +4370,58 @@ Last updated: 2026-06-02
      `UserEmailAddress`/alias capture, conservative backfill, and
      export/deletion query update.
 
-**Running tally after this pass:** verified fixed/reduced: 448 findings;
+376. **Historical email-key export/deletion coverage now uses durable account
+     email history** — parent/agent-reviewed code/docs/test fix for the
+     privacy/export gap left open in entry 375, plus one adjacent hidden
+     account-deletion suppression fix. A new `UserEmailAddress` table stores
+     exact-normalized current/previous account emails. The migration
+     conservatively backfills current `User.email` rows and user-linked
+     `EmailOutbox.recipientEmail` rows only; it does not infer ownership from
+     email-only suppression/newsletter/failure tables. `ensureUserByClerkId()`
+     now records current and previous emails in the same transaction as user
+     create/update, while email-conflict fallbacks continue to drop the
+     contested email and record only the placeholder owned by that account.
+
+     Account export now includes `accountEmailAddresses`, matches
+     support/data-request records by user id or exact historical account
+     emails that are not currently assigned to another non-deleted user, and
+     derives `EmailSuppression`, `EmailOutbox`, `EmailFailureCount`, and
+     `NewsletterSubscriber` coverage from that current/historical
+     suppression-key set. Account deletion now uses the same filtered
+     current/historical state before anonymization, redacts those historical
+     exact emails as account-sensitive values, scrubs outbox rows and deletes
+     failure counts/newsletter rows across that key set, deletes
+     `UserEmailAddress` history after local scrubbing, and writes
+     account-deletion manual suppressions per email key while preserving only
+     the specific `BOUNCE`/`COMPLAINT` keys that are already provider-hard
+     suppressed. This reduces historical local email-key residue after Clerk
+     primary-email changes without claiming provider-side deletion or treating
+     an email currently owned by another active account as deletion-owned. Pure
+     email normalization semantics moved to `emailAddressNormalization.ts` so
+     durable account identity remains exact-normalized and Gmail/Googlemail
+     dot/plus folding is used only at suppression/delivery lookup boundaries.
+
+     `CLAUDE.md` and `docs/architecture.md` now record the durable behavior
+     contract. Guardrails:
+     `tests/user-email-address-history.test.mjs`,
+     `tests/account-export-privacy.test.mjs`,
+     `tests/account-export-payload.test.mjs`,
+     `tests/account-privacy-observability.test.mjs`,
+     `tests/round9-account-deletion-pii-guardrails.test.mjs`,
+     `tests/support-request.test.mjs`, and
+     `tests/email-normalization-followups.test.mjs`.
+
+     Parent review of the read-only agents kept several verified-open findings
+     in the remaining backlog without tally inflation: seller analytics still
+     has source-verifiable failed/canceled refund SQL over-exclusion and
+     sanitized-logging residue; browse radius parameters still need bounded
+     validation; homepage "From Your Makers" merge ordering and capped map
+     query determinism need source fixes; Stripe Connect create still has a
+     silent non-blocking status-refresh catch; and Stripe/Clerk/Sentry/R2
+     dashboard evidence items remain ops/runtime evidence tasks rather than
+     local source fixes.
+
+**Running tally after this pass:** verified fixed/reduced: 450 findings;
 verified stale/false-positive: 406 findings; product/design/ops decisions
 deferred: 73 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
@@ -4406,7 +4457,11 @@ decrements are counted; the label failed/canceled-ledger lock and staff-label
 refund block were adjacent hidden issues found by agent review.
 Entry 375 adds two fixed/reduced current-code issues for stale Stripe-backed
 checkout reservation repair and shared Resend idempotency keys for direct
-order-email/outbox sends.
+order-email/outbox sends. Entry 376 adds two fixed/reduced current-code issues
+for historical email-key export/deletion coverage and per-key account-deletion
+suppression writes; only one approximate raw-category decrement is counted
+because the per-key hard-suppression behavior was an adjacent hidden issue
+found during parent/agent review.
 Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -4414,8 +4469,7 @@ product designs, EXPLAIN-dependent query-plan/index validation, Stripe
 partial-refund runtime reconciliation proof, founding-maker
 permanence policy, remaining case/message state policy decisions,
 remaining privacy/legal retention scope, remaining privacy/export
-retention decisions, historical email-key export/deletion backfill,
-cross-seller AI
+retention decisions, cross-seller AI
 duplicate-detection product design, public/newsletter-only resubscribe policy if support wants a
 self-service path, legacy enum cleanup/data-migration decisions, partial multi-seller
 checkout continuation design, deliberate BigInt money-column modeling, live-data
@@ -4425,6 +4479,9 @@ evidence, buyer-deletion runtime replay proof,
 Founding Maker live DB concurrency proof, Sentry cron alert evidence,
 Cloudflare R2 ListBucket/public-bucket dashboard evidence, HSTS preload
 submission decision, residual HTTP-status constants,
-analytics observability refactors, remaining homepage
-runtime a11y proof, and agent/worktree verification process hygiene.
-Approximate raw allegations left to verify from current max #1120: 231.
+seller analytics failed/canceled refund SQL and sanitized-logging residue,
+browse radius parameter bounds, homepage merged-feed/map determinism,
+Stripe Connect create status-refresh telemetry, analytics observability
+refactors, remaining homepage runtime a11y proof, and agent/worktree
+verification process hygiene. Approximate raw allegations left to verify from
+current max #1120: 230.
