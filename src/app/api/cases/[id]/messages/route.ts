@@ -21,6 +21,7 @@ import {
   readBoundedJson,
 } from "@/lib/requestBody";
 import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
+import { logServerError } from "@/lib/serverErrorLogger";
 import { z } from "zod";
 
 const CaseMessageSchema = z.object({
@@ -262,7 +263,7 @@ export async function POST(
       );
     }
 
-    console.error("POST /api/cases/[id]/messages error:", err);
+    logServerError(err, { source: "case_message_route" });
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

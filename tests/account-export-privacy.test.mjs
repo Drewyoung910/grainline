@@ -54,6 +54,27 @@ describe("account export privacy coverage", () => {
     }
   });
 
+  it("exports seller ship-from address fields used for label purchases", () => {
+    const schema = source("prisma/schema.prisma");
+    const route = source("src/app/api/account/export/route.ts");
+    const sellerSelectStart = route.indexOf("const sellerProfile = await prisma.sellerProfile.findUnique");
+    const sellerSelectEnd = route.indexOf("const [", sellerSelectStart);
+    const sellerSelect = route.slice(sellerSelectStart, sellerSelectEnd);
+
+    for (const field of [
+      "shipFromName",
+      "shipFromLine1",
+      "shipFromLine2",
+      "shipFromCity",
+      "shipFromState",
+      "shipFromPostal",
+      "shipFromCountry",
+    ]) {
+      assert.match(schema, new RegExp(`${field}\\s+String\\?`), `schema must retain ${field}`);
+      assert.match(sellerSelect, new RegExp(`${field}: true`), `account export must select ${field}`);
+    }
+  });
+
   it("exports support and data-request records by stable account link with email fallback", () => {
     const schema = source("prisma/schema.prisma");
     const route = source("src/app/api/account/export/route.ts");

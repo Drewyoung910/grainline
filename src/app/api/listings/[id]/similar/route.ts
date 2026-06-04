@@ -6,6 +6,7 @@ import { publicListingWhere } from "@/lib/listingVisibility";
 import { getIP, rateLimitResponse, safeRateLimit, searchRatelimit } from "@/lib/ratelimit";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { logServerError } from "@/lib/serverErrorLogger";
 
 export const runtime = "nodejs";
 
@@ -168,7 +169,7 @@ export async function GET(
       })),
     });
   } catch (err) {
-    console.error("GET /api/listings/[id]/similar error:", err);
+    logServerError(err, { source: "listing_similar_route" });
     return privateJson({ error: "Server error" }, { status: 500 });
   }
 }

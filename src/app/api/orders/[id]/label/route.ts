@@ -13,6 +13,7 @@ import {
   isRequestBodyTooLargeError,
   readOptionalBoundedJson,
 } from "@/lib/requestBody";
+import { logServerError } from "@/lib/serverErrorLogger";
 import type { FulfillmentStatus, LabelStatus, Prisma } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
@@ -342,6 +343,10 @@ export async function POST(
           SELECT 1 FROM "OrderPaymentEvent" ope
           WHERE ope."orderId" = "Order".id
             AND ope."eventType" = 'REFUND'
+            AND (
+              ope."status" IS NULL
+              OR ope."status" NOT IN ('failed', 'canceled', 'cancelled')
+            )
         )
     `;
     if (labelLockResult === 0) {
@@ -532,8 +537,7 @@ export async function POST(
       throw labelErr;
     }
   } catch (err) {
-    console.error("POST /api/orders/[id]/label error:", err);
-    Sentry.captureException(err, { tags: { source: "label_purchase" } });
+    logServerError(err, { source: "label_purchase_route" });
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

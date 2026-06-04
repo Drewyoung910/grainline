@@ -12,6 +12,7 @@ import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { caseActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { caseResolutionMessage, isResolvableCaseStatus } from "@/lib/caseActionState";
 import { createNotification } from "@/lib/notifications";
+import { logServerError } from "@/lib/serverErrorLogger";
 
 export const runtime = "nodejs";
 
@@ -165,7 +166,7 @@ export async function POST(
     const accountResponse = accountAccessErrorResponse(err);
     if (accountResponse) return accountResponse;
 
-    console.error("POST /api/cases/[id]/mark-resolved error:", err);
+    logServerError(err, { source: "case_mark_resolved_route" });
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

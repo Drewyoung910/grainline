@@ -4293,7 +4293,51 @@ Last updated: 2026-06-02
      routes; this entry only closes the source-verified durable/persisted
      evidence paths and the specific shipping/review route gaps above.
 
-**Running tally after this pass:** verified fixed/reduced: 440 findings;
+374. **Route observability, label/refund locks, and privacy retention tightened** —
+     parent-reviewed source and read-only-agent pass across the residual
+     route-final-catch, refund/label accounting, and privacy/export retention
+     categories. Case create/message/escalate/mark-resolved/resolve,
+     listing similar/stock, verification apply, order confirm-delivery,
+     fulfillment, seller refund, label purchase, and admin audit undo route
+     boundary failures now use `logServerError()` with bounded source tags
+     instead of raw `console.error()` final catches. Expected admin undo
+     business denials remain out of Sentry; only unexpected unsafe undo
+     failures are logged. The case-resolution orphaned-refund path still
+     writes a staff reconciliation note on the order, but its route telemetry
+     no longer sends raw Stripe refund IDs.
+
+     Staff case refunds now match seller refunds by rejecting already purchased
+     shipping labels before refunding and by including the purchased-label
+     predicate in the atomic refund lock/fresh conflict path. Label purchase
+     still blocks local refund locks and blocking refund ledger rows, but its
+     SQL lock now mirrors `blockingRefundLedgerWhere()` so failed/canceled
+     Stripe refund ledger rows do not block label purchase after the visible
+     route guard already treated them as non-blocking.
+
+     Account export now includes seller `shipFrom*` address fields used by
+     label purchase. Account deletion now scrubs matching sent and unsent
+     `EmailOutbox` recipient/subject/body content while still marking
+     retryable unsent rows `SKIPPED`. Buyer PII pruning and account deletion
+     now delete `OrderShippingRateQuote` rows tied to purged buyer orders and
+     whole-seller-owned deleted-account orders, reducing retained local Shippo
+     shipment-ID residue after address fields are cleared. `CLAUDE.md` records
+     the durable export/deletion retention behavior contract. Guardrails:
+     `tests/server-error-logger.test.mjs`,
+     `tests/payment-side-effect-observability.test.mjs`,
+     `tests/account-export-privacy.test.mjs`,
+     `tests/round9-account-deletion-pii-guardrails.test.mjs`, and
+     `tests/refund-route-state.test.mjs`.
+
+     Parent review also kept several agent findings open without tally
+     inflation: historical email-only records after Clerk email changes need a
+     durable email-history/backfill design before export/deletion can cover old
+     aliases; checkout direct-send email duplication after a successful send
+     plus failed `SENT` mark needs a separate outbox delivery-model pass; and
+     stale `SESSION_CREATED` checkout stock reservations need Stripe-session
+     status-aware repair. These remain in the privacy/export, email outbox, and
+     checkout-stock repair categories for future passes.
+
+**Running tally after this pass:** verified fixed/reduced: 446 findings;
 verified stale/false-positive: 406 findings; product/design/ops decisions
 deferred: 73 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
@@ -4322,6 +4366,11 @@ webhook residue, account export body scope, admin/cron/webhook/review-note
 sanitization, Sentry filtering, and public fee-copy drift. Only six approximate
 raw-category decrements are counted because several were adjacent issues found
 by parent/agent review within already-open observability/privacy categories.
+Entry 374 adds six fixed/reduced current-code issues across route-boundary
+observability, label/refund mutual exclusion, account export, outbox deletion
+scrubbing, and Shippo quote retention. Four approximate raw-category
+decrements are counted; the label failed/canceled-ledger lock and staff-label
+refund block were adjacent hidden issues found by agent review.
 Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -4329,7 +4378,9 @@ product designs, EXPLAIN-dependent query-plan/index validation, Stripe
 partial-refund runtime reconciliation proof, founding-maker
 permanence policy, remaining case/message state policy decisions,
 remaining privacy/legal retention scope, remaining privacy/export
-retention decisions, cross-seller AI
+retention decisions, historical email-key export/deletion backfill,
+checkout direct-send email outbox duplicate protection, stale
+`SESSION_CREATED` checkout stock reservation repair, cross-seller AI
 duplicate-detection product design, public/newsletter-only resubscribe policy if support wants a
 self-service path, legacy enum cleanup/data-migration decisions, partial multi-seller
 checkout continuation design, deliberate BigInt money-column modeling, live-data
@@ -4339,7 +4390,6 @@ evidence, buyer-deletion runtime replay proof,
 Founding Maker live DB concurrency proof, Sentry cron alert evidence,
 Cloudflare R2 ListBucket/public-bucket dashboard evidence, HSTS preload
 submission decision, residual HTTP-status constants,
-console-only route final-catch/log-forwarding, and analytics observability
-refactors, remaining homepage
+analytics observability refactors, remaining homepage
 runtime a11y proof, and agent/worktree verification process hygiene.
-Approximate raw allegations left to verify from current max #1120: 237.
+Approximate raw allegations left to verify from current max #1120: 233.

@@ -21,6 +21,7 @@ import {
   isRequestBodyTooLargeError,
   readBoundedJson,
 } from "@/lib/requestBody";
+import { logServerError } from "@/lib/serverErrorLogger";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -210,7 +211,7 @@ export async function POST(req: Request) {
     if ((err as { code?: string }).code === "P2002") {
       return NextResponse.json({ error: "A case is already open for this order." }, { status: 409 });
     }
-    console.error("POST /api/cases error:", err);
+    logServerError(err, { source: "case_create_route" });
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

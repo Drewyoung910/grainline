@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import * as Sentry from "@sentry/nextjs";
 import { CaseStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { fulfillmentRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { blockingRefundLedgerWhere, orderHasRefundLedger } from "@/lib/refundRouteState";
+import { logServerError } from "@/lib/serverErrorLogger";
 
 export const runtime = "nodejs";
 
@@ -109,8 +109,7 @@ export async function POST(
     const origin = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
     return NextResponse.redirect(new URL(`/dashboard/orders/${id}`, origin), { status: 303 });
   } catch (error) {
-    Sentry.captureException(error, { tags: { source: "buyer_confirm_delivery" } });
-    console.error("POST /api/orders/[id]/confirm-delivery error:", error);
+    logServerError(error, { source: "buyer_confirm_delivery_route" });
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

@@ -21,6 +21,7 @@ import {
   refundAmountForResolution,
   refundLockAcquisitionConflictResponse,
   refundMayRestoreStock,
+  orderHasPurchasedLabel,
   requestedRefundStockRestoreQuantities,
   refundStockRestoreQuantities,
   sellerRefundConflictResponse,
@@ -30,6 +31,7 @@ import {
   isRequestBodyTooLargeError,
   readBoundedJson,
 } from "@/lib/requestBody";
+import { logServerError } from "@/lib/serverErrorLogger";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
 
@@ -161,6 +163,12 @@ export async function POST(
       if (orderHasRefundLedger(caseRecord.order)) {
         return NextResponse.json({ error: "A refund has already been issued for this order." }, { status: 400 });
       }
+      if (orderHasPurchasedLabel(caseRecord.order)) {
+        return NextResponse.json(
+          { error: "Cannot refund this order after a shipping label has been purchased. Void or resolve the label first." },
+          { status: 409 },
+        );
+      }
     }
 
     // Partial refund amount cap
@@ -185,7 +193,12 @@ export async function POST(
       }
 
       const lockResult = await prisma.order.updateMany({
-        where: { id: caseRecord.orderId, sellerRefundId: null, paymentEvents: { none: blockingRefundOrDisputeLedgerWhere() } },
+        where: {
+          id: caseRecord.orderId,
+          sellerRefundId: null,
+          OR: [{ labelStatus: null }, { labelStatus: { not: "PURCHASED" } }],
+          paymentEvents: { none: blockingRefundOrDisputeLedgerWhere() },
+        },
         data: { sellerRefundId: REFUND_LOCK_SENTINEL, sellerRefundLockedAt: new Date() },
       });
       if (lockResult.count === 0) {
@@ -193,6 +206,7 @@ export async function POST(
           where: { id: caseRecord.orderId },
           select: {
             sellerRefundId: true,
+            labelStatus: true,
             paymentEvents: {
               where: blockingRefundOrDisputeLedgerWhere(),
               take: 2,
@@ -356,10 +370,14 @@ export async function POST(
       stockStatusRestoredCount = caseWrite.stockStatusRestoredCount;
     } catch (txErr) {
       if (stripeRefundId) {
-        console.error(`ORPHANED REFUND: ${stripeRefundId} for case ${id}. Manual reconciliation required.`);
-        Sentry.captureException(txErr, {
-          tags: { source: "case_refund_orphaned_after_stripe" },
-          extra: { caseId: id, orderId: caseRecord.orderId, stripeRefundId, stripeRefundIds, refundAmountForOrder },
+        logServerError(txErr, {
+          source: "case_refund_orphaned_after_stripe",
+          extra: {
+            caseId: id,
+            orderId: caseRecord.orderId,
+            refundCount: stripeRefundIds.length,
+            refundAmountForOrder,
+          },
         });
         await prisma.order.updateMany({
           where: { id: caseRecord.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
@@ -470,7 +488,7 @@ export async function POST(
     const accountResponse = accountAccessErrorResponse(err);
     if (accountResponse) return accountResponse;
 
-    console.error("POST /api/cases/[id]/resolve error:", err);
+    logServerError(err, { source: "case_resolve_route" });
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

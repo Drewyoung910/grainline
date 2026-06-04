@@ -64,6 +64,24 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(caseRoute, /where:\s*\{\s*id: caseRecord\.orderId,\s*sellerRefundId: null/s);
   });
 
+  it("keeps refund and label-purchase locks aligned", () => {
+    const sellerRoute = source("src/app/api/orders/[id]/refund/route.ts");
+    const caseRoute = source("src/app/api/cases/[id]/resolve/route.ts");
+    const labelRoute = source("src/app/api/orders/[id]/label/route.ts");
+
+    for (const route of [sellerRoute, caseRoute]) {
+      assert.match(route, /orderHasPurchasedLabel/);
+      assert.match(route, /Cannot refund this order after a shipping label has been purchased/);
+      assert.match(route, /OR:\s*\[\{ labelStatus: null \}, \{ labelStatus: \{ not: "PURCHASED" \} \}\]/);
+      assert.match(route, /labelStatus: true/);
+    }
+
+    assert.match(labelRoute, /"sellerRefundId" IS NULL/);
+    assert.match(labelRoute, /"sellerRefundLockedAt" IS NULL/);
+    assert.match(labelRoute, /ope\."status" IS NULL/);
+    assert.match(labelRoute, /ope\."status" NOT IN \('failed', 'canceled', 'cancelled'\)/);
+  });
+
   it("allows seller partial refunds to restore only explicitly requested purchased stock", () => {
     const route = source("src/app/api/orders/[id]/refund/route.ts");
     const panel = source("src/components/SellerRefundPanel.tsx");

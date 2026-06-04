@@ -12,6 +12,7 @@ import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { CaseStatus, LabelStatus, type FulfillmentStatus, type Prisma } from "@prisma/client";
 import { z } from "zod";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
+import { logServerError } from "@/lib/serverErrorLogger";
 
 const FulfillmentSchema = z.object({
   action: z.enum(["ready_for_pickup", "picked_up", "shipped", "delivered", "update_notes"]),
@@ -358,7 +359,7 @@ export async function POST(
       { status: 303 },
     );
   } catch (err) {
-    console.error("POST /api/orders/[id]/fulfillment error:", err);
+    logServerError(err, { source: "order_fulfillment_route" });
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

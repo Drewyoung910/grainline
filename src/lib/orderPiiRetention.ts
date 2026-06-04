@@ -32,36 +32,7 @@ export async function purgeOldFulfilledOrderBuyerPii({
 
   while (Date.now() < deadline) {
     const updated = await prisma.$executeRaw<number>`
-      UPDATE "Order"
-      SET
-        "buyerEmail" = NULL,
-        "buyerName" = NULL,
-        "shipToLine1" = NULL,
-        "shipToLine2" = NULL,
-        "shipToCity" = NULL,
-        "shipToState" = NULL,
-        "shipToPostalCode" = NULL,
-        "shipToCountry" = NULL,
-        "quotedToLine1" = NULL,
-        "quotedToLine2" = NULL,
-        "quotedToCity" = NULL,
-        "quotedToState" = NULL,
-        "quotedToPostalCode" = NULL,
-        "quotedToCountry" = NULL,
-        "quotedToName" = NULL,
-        "quotedToPhone" = NULL,
-        "trackingCarrier" = NULL,
-        "trackingNumber" = NULL,
-        "sellerNotes" = NULL,
-        "shippoShipmentId" = NULL,
-        "shippoRateObjectId" = NULL,
-        "shippoTransactionId" = NULL,
-        "labelUrl" = NULL,
-        "labelCarrier" = NULL,
-        "labelTrackingNumber" = NULL,
-        "giftNote" = NULL,
-        "buyerDataPurgedAt" = NOW()
-      WHERE id IN (
+      WITH pii_candidates AS (
         SELECT id
         FROM "Order"
         WHERE "buyerDataPurgedAt" IS NULL
@@ -94,11 +65,52 @@ export async function purgeOldFulfilledOrderBuyerPii({
             "labelUrl" IS NOT NULL OR
             "labelCarrier" IS NOT NULL OR
             "labelTrackingNumber" IS NOT NULL OR
-            "giftNote" IS NOT NULL
+            "giftNote" IS NOT NULL OR
+            EXISTS (
+              SELECT 1
+              FROM "OrderShippingRateQuote" quote
+              WHERE quote."orderId" = "Order".id
+            )
           )
         ORDER BY COALESCE("deliveredAt", "pickedUpAt") ASC
         LIMIT ${batchSize}
+      ),
+      deleted_quotes AS (
+        DELETE FROM "OrderShippingRateQuote" quote
+        USING pii_candidates
+        WHERE quote."orderId" = pii_candidates.id
+        RETURNING quote.id
       )
+      UPDATE "Order"
+      SET
+        "buyerEmail" = NULL,
+        "buyerName" = NULL,
+        "shipToLine1" = NULL,
+        "shipToLine2" = NULL,
+        "shipToCity" = NULL,
+        "shipToState" = NULL,
+        "shipToPostalCode" = NULL,
+        "shipToCountry" = NULL,
+        "quotedToLine1" = NULL,
+        "quotedToLine2" = NULL,
+        "quotedToCity" = NULL,
+        "quotedToState" = NULL,
+        "quotedToPostalCode" = NULL,
+        "quotedToCountry" = NULL,
+        "quotedToName" = NULL,
+        "quotedToPhone" = NULL,
+        "trackingCarrier" = NULL,
+        "trackingNumber" = NULL,
+        "sellerNotes" = NULL,
+        "shippoShipmentId" = NULL,
+        "shippoRateObjectId" = NULL,
+        "shippoTransactionId" = NULL,
+        "labelUrl" = NULL,
+        "labelCarrier" = NULL,
+        "labelTrackingNumber" = NULL,
+        "giftNote" = NULL,
+        "buyerDataPurgedAt" = NOW()
+      WHERE id IN (SELECT id FROM pii_candidates)
     `;
     const count = Number(updated);
     purged += count;

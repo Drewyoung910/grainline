@@ -39,6 +39,13 @@ describe("Round 9 account deletion PII guardrails", () => {
 
     assert.match(deletion, /buyerDataPurgedAt: now/);
     assert.match(retention, /"buyerDataPurgedAt" = NOW\(\)/);
+    assert.match(deletion, /tx\.orderShippingRateQuote\.deleteMany\(\{/);
+    assert.match(deletion, /order: \{ buyerId: user\.id \}/);
+    assert.match(deletion, /some: \{ listing: \{ sellerId: user\.sellerProfile\.id \} \}/);
+    assert.match(deletion, /every: \{ listing: \{ sellerId: user\.sellerProfile\.id \} \}/);
+    assert.match(retention, /EXISTS \(\s*SELECT 1\s*FROM "OrderShippingRateQuote" quote/s);
+    assert.match(retention, /DELETE FROM "OrderShippingRateQuote" quote/s);
+    assert.match(retention, /WHERE quote\."orderId" = pii_candidates\.id/);
   });
 
   it("removes only deleted-user-created blocks and keeps media cleanup scoped to the deleted sender", () => {
@@ -97,7 +104,7 @@ describe("Round 9 account deletion PII guardrails", () => {
     }
   });
 
-  it("scrubs seller gallery alt text and unsent outbox content on account deletion", () => {
+  it("scrubs seller gallery alt text and email outbox content on account deletion", () => {
     const deletion = source("src/lib/accountDeletion.ts");
 
     assert.match(deletion, /galleryImageUrls: \[\]/);
@@ -108,6 +115,8 @@ describe("Round 9 account deletion PII guardrails", () => {
     assert.match(deletion, /status: \{ in: \["PENDING", "PROCESSING", "FAILED", "DEAD"\] \}/);
     assert.match(deletion, /status: "SKIPPED"/);
     assert.match(deletion, /html: "\[Email removed after account deletion\]"/);
+    assert.match(deletion, /recipientEmail: "deleted-account@deleted\.thegrainline\.local"/);
+    assert.match(deletion, /subject: "Email removed after account deletion"/);
     assert.match(deletion, /tx\.emailFailureCount\.deleteMany\(\{\s*where: \{ email: \{ in: suppressionEmailMatches \} \},\s*\}\)/s);
   });
 

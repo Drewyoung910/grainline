@@ -70,4 +70,44 @@ describe("server error logger", () => {
 
     assert.match(source("src/lib/serverErrorLogger.ts"), /sanitizeEmailOutboxError\(error\.stack\)/);
   });
+
+  it("routes selected API final catches through the shared helper", () => {
+    const routes = [
+      ["src/app/api/cases/route.ts", "case_create_route"],
+      ["src/app/api/cases/[id]/messages/route.ts", "case_message_route"],
+      ["src/app/api/cases/[id]/escalate/route.ts", "case_escalate_route"],
+      ["src/app/api/cases/[id]/mark-resolved/route.ts", "case_mark_resolved_route"],
+      ["src/app/api/cases/[id]/resolve/route.ts", "case_resolve_route"],
+      ["src/app/api/listings/[id]/similar/route.ts", "listing_similar_route"],
+      ["src/app/api/listings/[id]/stock/route.ts", "listing_stock_route"],
+      ["src/app/api/verification/apply/route.ts", "verification_apply_route"],
+      ["src/app/api/orders/[id]/confirm-delivery/route.ts", "buyer_confirm_delivery_route"],
+      ["src/app/api/orders/[id]/fulfillment/route.ts", "order_fulfillment_route"],
+      ["src/app/api/orders/[id]/refund/route.ts", "seller_refund_route"],
+      ["src/app/api/orders/[id]/label/route.ts", "label_purchase_route"],
+    ];
+
+    for (const [path, sourceTag] of routes) {
+      const text = source(path);
+      assert.match(text, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"|import \{ logServerError \} from '@\/lib\/serverErrorLogger'/);
+      assert.match(text, new RegExp(`logServerError\\([^,]+, \\{ source: ["']${sourceTag}["']`), `${path} should use ${sourceTag}`);
+      assert.doesNotMatch(text, /console\.error\(/, `${path} should not raw-console final route failures`);
+    }
+
+    const caseResolve = source("src/app/api/cases/[id]/resolve/route.ts");
+    assert.match(caseResolve, /source: "case_refund_orphaned_after_stripe"/);
+    assert.match(caseResolve, /refundCount: stripeRefundIds\.length/);
+    const orphanedRefundTelemetry = caseResolve.slice(
+      caseResolve.indexOf('source: "case_refund_orphaned_after_stripe"'),
+      caseResolve.indexOf("await prisma.order.updateMany", caseResolve.indexOf('source: "case_refund_orphaned_after_stripe"')),
+    );
+    assert.doesNotMatch(orphanedRefundTelemetry, /stripeRefundId[:,]/);
+    assert.doesNotMatch(orphanedRefundTelemetry, /stripeRefundIds[:,]/);
+
+    const adminUndo = source("src/app/api/admin/audit/[id]/undo/route.ts");
+    assert.match(adminUndo, /import \{ logServerError \} from '@\/lib\/serverErrorLogger'/);
+    assert.match(adminUndo, /safeMessage === 'This action cannot be undone\.'/);
+    assert.match(adminUndo, /source: 'admin_audit_undo_route'/);
+    assert.doesNotMatch(adminUndo, /console\.error\('Admin undo failed:', error\)/);
+  });
 });

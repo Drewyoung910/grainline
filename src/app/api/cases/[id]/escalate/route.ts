@@ -13,6 +13,7 @@ import { verifyCronRequest } from "@/lib/cronAuth";
 import { isEscalatableCaseStatus } from "@/lib/caseActionState";
 import { unavailableCaseMessageRecipientReason } from "@/lib/caseMessagingState";
 import { logSystemActionOrThrow } from "@/lib/systemAudit";
+import { logServerError } from "@/lib/serverErrorLogger";
 
 export const runtime = "nodejs";
 
@@ -166,7 +167,7 @@ export async function POST(
     const accountResponse = accountAccessErrorResponse(err);
     if (accountResponse) return accountResponse;
 
-    console.error("POST /api/cases/[id]/escalate error:", err);
+    logServerError(err, { source: "case_escalate_route" });
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

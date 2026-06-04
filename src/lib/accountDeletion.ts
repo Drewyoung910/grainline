@@ -944,6 +944,25 @@ export async function anonymizeUserAccount(
         buyerDataPurgedAt: now,
       },
     });
+    await tx.orderShippingRateQuote.deleteMany({
+      where: {
+        OR: [
+          { order: { buyerId: user.id } },
+          ...(user.sellerProfile
+            ? [
+                {
+                  order: {
+                    items: {
+                      some: { listing: { sellerId: user.sellerProfile.id } },
+                      every: { listing: { sellerId: user.sellerProfile.id } },
+                    },
+                  },
+                },
+              ]
+            : []),
+        ],
+      },
+    });
     await tx.userReport.updateMany({
       where: { OR: [{ reporterId: user.id }, { reportedId: user.id }] },
       data: { details: null },
@@ -974,6 +993,16 @@ export async function anonymizeUserAccount(
         nextAttemptAt: null,
         sentAt: now,
         lastError: "Skipped because the recipient account was deleted.",
+      },
+    });
+    await tx.emailOutbox.updateMany({
+      where: {
+        OR: [{ userId: user.id }, { recipientEmail: { in: suppressionEmailMatches } }],
+      },
+      data: {
+        recipientEmail: "deleted-account@deleted.thegrainline.local",
+        subject: "Email removed after account deletion",
+        html: "[Email removed after account deletion]",
       },
     });
     await tx.emailFailureCount.deleteMany({

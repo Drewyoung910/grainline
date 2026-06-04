@@ -35,6 +35,7 @@ import {
   isRequestBodyTooLargeError,
   readBoundedJson,
 } from "@/lib/requestBody";
+import { logServerError } from "@/lib/serverErrorLogger";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
 
@@ -427,8 +428,7 @@ export async function POST(
     const accountResponse = accountAccessErrorResponse(err);
     if (accountResponse) return accountResponse;
 
-    console.error("POST /api/orders/[id]/refund error:", err);
-    Sentry.captureException(err, { tags: { source: "seller_refund" } });
+    logServerError(err, { source: "seller_refund_route" });
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

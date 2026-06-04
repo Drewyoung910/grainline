@@ -8,6 +8,7 @@ import {
   isRequestBodyTooLargeError,
   readBoundedJson,
 } from '@/lib/requestBody'
+import { logServerError } from '@/lib/serverErrorLogger'
 import { z } from 'zod'
 
 const UndoSchema = z.object({
@@ -49,7 +50,6 @@ export async function POST(
     await undoAdminAction({ logId: id, adminId: admin.id, reason })
     return NextResponse.json({ ok: true })
   } catch (error) {
-    console.error('Admin undo failed:', error)
     const message = error instanceof Error ? error.message : 'Action could not be undone'
     const safeMessages = new Set([
       'Action not found',
@@ -61,6 +61,9 @@ export async function POST(
     const safeMessage = safeMessages.has(message) || message.endsWith('cannot be undone')
       ? message
       : 'This action cannot be undone.'
+    if (safeMessage === 'This action cannot be undone.') {
+      logServerError(error, { source: 'admin_audit_undo_route', extra: { auditLogId: id, adminId: admin.id } })
+    }
     return NextResponse.json({ error: safeMessage }, { status: 400 })
   }
 }

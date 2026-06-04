@@ -26,6 +26,7 @@ import {
   isRequestBodyTooLargeError,
   readBoundedJson,
 } from "@/lib/requestBody";
+import { logServerError } from "@/lib/serverErrorLogger";
 import { z } from "zod";
 
 const StockPatchSchema = z.object({
@@ -239,7 +240,7 @@ export async function PATCH(
     const accountResponse = accountAccessErrorResponse(err);
     if (accountResponse) return accountResponse;
 
-    console.error("PATCH /api/listings/[id]/stock error:", err);
+    logServerError(err, { source: "listing_stock_route" });
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

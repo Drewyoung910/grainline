@@ -12,6 +12,7 @@ import {
 } from "@/lib/requestBody";
 import { guildMemberApplicationBlockReason } from "@/lib/guildApplicationState";
 import { normalizePublicHttpsUrl } from "@/lib/urlValidation";
+import { logServerError } from "@/lib/serverErrorLogger";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -164,7 +165,7 @@ export async function POST(req: Request) {
     const accountResponse = accountAccessErrorResponse(err);
     if (accountResponse) return accountResponse;
 
-    console.error("POST /api/verification/apply error:", err);
+    logServerError(err, { source: "verification_apply_route" });
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
