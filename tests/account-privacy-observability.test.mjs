@@ -89,6 +89,17 @@ describe("account and privacy route observability guardrails", () => {
     assert.doesNotMatch(route, /extra: \{ email \}/);
   });
 
+  it("sanitizes duplicate route-level logs for direct email send failures", () => {
+    const newsletterRoute = source("src/app/api/newsletter/route.ts");
+    const adminEmailRoute = source("src/app/api/admin/email/route.ts");
+
+    for (const route of [newsletterRoute, adminEmailRoute]) {
+      assert.match(route, /import \{ sanitizeEmailOutboxError \} from "@\/lib\/emailOutboxSanitize"/);
+      assert.match(route, /console\.error\([^,\n]+,\s*sanitizeEmailOutboxError\(err\)\)/);
+      assert.doesNotMatch(route, /console\.error\([^,\n]+,\s*err\)/);
+    }
+  });
+
   it("lets signed-in email preference opt-in clear only one-click manual suppression", () => {
     const route = source("src/app/api/account/notifications/preferences/route.ts");
     const suppression = source("src/lib/emailSuppression.ts");
@@ -108,6 +119,93 @@ describe("account and privacy route observability guardrails", () => {
     assert.match(clearHelper, /source: "one_click_unsubscribe"/);
     assert.doesNotMatch(clearHelper, /source: "account_deletion"/);
     assert.doesNotMatch(clearHelper, /reason: EmailSuppressionReason\.BOUNCE|reason: EmailSuppressionReason\.COMPLAINT/);
+  });
+
+  it("keeps one-click unsubscribe separate from hard email delivery suppression", () => {
+    const email = source("src/lib/email.ts");
+    const newsletterRoute = source("src/app/api/newsletter/route.ts");
+    const adminEmailRoute = source("src/app/api/admin/email/route.ts");
+    const suppression = source("src/lib/emailSuppression.ts");
+    const deliveryStart = suppression.indexOf("export async function isEmailDeliverySuppressed");
+    const deliveryHelper = suppression.slice(deliveryStart, suppression.indexOf("export async function clearOneClickEmailSuppression", deliveryStart));
+
+    assert.match(email, /import \{ isEmailDeliverySuppressed, normalizeEmailAddress \}/);
+    assert.match(email, /isEmailDeliverySuppressed\(recipient\)/);
+    assert.doesNotMatch(email, /isEmailSuppressed\(recipient\)/);
+
+    assert.match(deliveryHelper, /EmailSuppressionReason\.BOUNCE/);
+    assert.match(deliveryHelper, /EmailSuppressionReason\.COMPLAINT/);
+    assert.match(deliveryHelper, /source: "account_deletion"/);
+    assert.doesNotMatch(deliveryHelper, /source: "one_click_unsubscribe"/);
+
+    assert.match(newsletterRoute, /isEmailSuppressed\(email\)/);
+    assert.match(adminEmailRoute, /isEmailSuppressed\(normalizedRecipientEmail\)/);
+  });
+
+  it("preserves hard email suppressions when lower-priority manual suppression is written", () => {
+    const unsubscribe = source("src/lib/unsubscribe.ts");
+    const deletion = source("src/lib/accountDeletion.ts");
+    const oneClickStart = unsubscribe.indexOf("async function setOneClickEmailSuppression");
+    const oneClickHelper = unsubscribe.slice(
+      oneClickStart,
+      unsubscribe.indexOf("export async function unsubscribeTokenSuperseded", oneClickStart),
+    );
+    const deletionStart = deletion.indexOf("const existingEmailSuppressions = await tx.emailSuppression.findMany");
+    const deletionSuppressionBlock = deletion.slice(
+      deletionStart,
+      deletion.indexOf("await tx.commissionRequest.updateMany", deletionStart),
+    );
+
+    assert.ok(oneClickStart >= 0, "unsubscribe should use an explicit one-click suppression writer");
+    assert.match(oneClickHelper, /emailSuppressionAddressKeys\(email\)/);
+    assert.match(oneClickHelper, /EmailSuppressionReason\.BOUNCE/);
+    assert.match(oneClickHelper, /EmailSuppressionReason\.COMPLAINT/);
+    assert.match(oneClickHelper, /source === "account_deletion"/);
+    assert.match(oneClickHelper, /reason: EmailSuppressionReason\.MANUAL/);
+    assert.match(oneClickHelper, /source: "one_click_unsubscribe"/);
+    assert.doesNotMatch(oneClickHelper, /emailSuppression\.upsert/);
+
+    assert.ok(deletionStart >= 0, "account deletion should inspect existing suppression before writing");
+    assert.match(deletionSuppressionBlock, /hasProviderHardSuppression/);
+    assert.match(deletionSuppressionBlock, /EmailSuppressionReason\.BOUNCE/);
+    assert.match(deletionSuppressionBlock, /EmailSuppressionReason\.COMPLAINT/);
+    assert.match(deletionSuppressionBlock, /reason: EmailSuppressionReason\.MANUAL/);
+    assert.match(deletionSuppressionBlock, /source: "account_deletion"/);
+    assert.doesNotMatch(deletionSuppressionBlock, /emailSuppression\.upsert/);
+  });
+
+  it("rejects unsubscribe links issued before a later signed-in email opt-in", () => {
+    const schema = source("prisma/schema.prisma");
+    const migration = source("prisma/migrations/20260604033000_add_email_preference_opt_in_epoch/migration.sql");
+    const preferencesRoute = source("src/app/api/account/notifications/preferences/route.ts");
+    const unsubscribeRoute = source("src/app/api/email/unsubscribe/route.ts");
+    const unsubscribe = source("src/lib/unsubscribe.ts");
+    const validateStart = unsubscribeRoute.indexOf("async function validateUnsubscribeRequest");
+    const validateRequest = unsubscribeRoute.slice(validateStart, unsubscribeRoute.indexOf("async function handlePost", validateStart));
+
+    assert.match(schema, /emailPreferenceOptInAt DateTime\?/);
+    assert.match(migration, /ADD COLUMN "emailPreferenceOptInAt" TIMESTAMP\(3\)/);
+    assert.match(preferencesRoute, /SET "emailPreferenceOptInAt" = \$\{new Date\(\)\}/);
+    assert.ok(
+      preferencesRoute.indexOf('SET "emailPreferenceOptInAt"') <
+        preferencesRoute.indexOf("clearOneClickEmailSuppression(me.email, tx)"),
+      "email opt-in epoch should be written before one-click suppression is cleared",
+    );
+
+    assert.match(unsubscribeRoute, /import \{ unsubscribeEmail, unsubscribeTokenSuperseded, verifyUnsubscribeToken \}/);
+    assert.match(validateRequest, /verifyUnsubscribeToken\(email, token, issuedAt\)/);
+    assert.match(validateRequest, /unsubscribeTokenSuperseded\(email, issuedAt\)/);
+    assert.ok(
+      validateRequest.indexOf("verifyUnsubscribeToken(email, token, issuedAt)") <
+        validateRequest.indexOf("unsubscribeTokenSuperseded(email, issuedAt)"),
+      "unsubscribe token should be authenticated before checking opt-in epoch",
+    );
+
+    assert.match(unsubscribe, /export async function unsubscribeTokenSuperseded/);
+    assert.match(unsubscribe, /SELECT "emailPreferenceOptInAt"/);
+    assert.match(unsubscribe, /user\.emailPreferenceOptInAt\.getTime\(\) > issuedAt/);
+    assert.match(unsubscribe, /newsletterSubscriber\.findUnique/);
+    assert.match(unsubscribe, /newsletter\.confirmedAt\.getTime\(\) > issuedAt/);
   });
 
   it("keeps Clerk user ids out of favorites route console telemetry", () => {

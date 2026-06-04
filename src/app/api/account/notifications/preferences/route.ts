@@ -67,6 +67,11 @@ export async function POST(request: NextRequest) {
     `;
 
     if (enabled && isValidEmailPreferenceKey(type)) {
+      await tx.$executeRaw`
+        UPDATE "User"
+        SET "emailPreferenceOptInAt" = ${new Date()}
+        WHERE "id" = ${me.id}
+      `;
       await clearOneClickEmailSuppression(me.email, tx);
     }
   });

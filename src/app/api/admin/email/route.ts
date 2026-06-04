@@ -8,6 +8,7 @@ import { isEmailSuppressed, normalizeEmailAddress } from "@/lib/emailSuppression
 import { createNotification } from "@/lib/notifications";
 import { normalizeUserText, stripBidiControls, truncateText } from "@/lib/sanitize";
 import { sendRenderedEmail } from "@/lib/email";
+import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import { inactiveAdminEmailRecipientReason } from "@/lib/adminEmailRecipient";
 import { logAdminAction } from "@/lib/audit";
 import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
@@ -154,7 +155,7 @@ export async function POST(request: Request) {
       html: htmlBody,
     }, { throwOnFailure: true });
   } catch (err) {
-    console.error("[admin email] send failed:", err);
+    console.error("[admin email] send failed:", sanitizeEmailOutboxError(err));
     Sentry.captureException(err, {
       level: "warning",
       tags: { source: "admin_email_send" },

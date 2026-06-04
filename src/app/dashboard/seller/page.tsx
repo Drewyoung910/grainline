@@ -526,7 +526,7 @@ export default async function SellerSettingsPage({
           <h3 className="text-sm font-semibold text-neutral-700 mb-2">Email</h3>
           {([
             { type: "EMAIL_NEW_ORDER", label: "New orders", desc: "Email when a buyer purchases from your shop" },
-            { type: "EMAIL_CUSTOM_ORDER", label: "Custom order requests", desc: "Email when a buyer sends you a custom order request" },
+            { type: "EMAIL_CUSTOM_ORDER", label: "Custom order updates", desc: "Email for custom order requests and ready-to-purchase custom listings" },
             { type: "EMAIL_CASE_OPENED", label: "Cases opened", desc: "Email when a buyer opens a case" },
             { type: "EMAIL_NEW_REVIEW", label: "New reviews", desc: "Email when a buyer leaves a review" },
             { type: "EMAIL_VERIFICATION_APPROVED", label: "Verification approved", desc: "Email when a Guild application is approved" },

@@ -14,6 +14,7 @@ import {
 } from "@/lib/newsletterConfirmation";
 import { sanitizeUserName } from "@/lib/sanitize";
 import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
+import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -129,7 +130,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(NEWSLETTER_CONFIRMATION_RESPONSE);
   } catch (err) {
-    console.error("POST /api/newsletter error:", err);
+    console.error("POST /api/newsletter error:", sanitizeEmailOutboxError(err));
     Sentry.captureException(err, {
       level: "warning",
       tags: { source: "newsletter_subscribe" },

@@ -62,6 +62,8 @@ describe("Sentry beforeSend filtering", () => {
     const event = beforeSend({
       extra: {
         email: "seller@example.com",
+        emailHash: "sha256:0123456789abcdef01234567",
+        badEmailHash: "seller@example.com",
         nested: { stripeSecret: "sk_test_123", note: "Contact buyer@example.com" },
       },
       contexts: {
@@ -75,6 +77,8 @@ describe("Sentry beforeSend filtering", () => {
 
     assert.deepEqual(event.extra, {
       email: "[redacted]",
+      emailHash: "sha256:0123456789abcdef01234567",
+      badEmailHash: "[redacted]",
       nested: { stripeSecret: "[redacted]", note: "Contact [redacted-email]" },
     });
     assert.deepEqual(event.contexts, {

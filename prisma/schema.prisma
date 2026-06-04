@@ -115,7 +115,8 @@ model User {
   // Raw DB function grainline_notification_preferences_valid() enforces known
   // boolean keys. Update that migration-managed function when adding keys in
   // src/lib/notificationPreferenceKeys.ts.
-  notificationPreferences Json @default("{}")
+  notificationPreferences Json      @default("{}")
+  emailPreferenceOptInAt DateTime?
 
   banned       Boolean         @default(false)
   bannedAt     DateTime?

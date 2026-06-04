@@ -7,7 +7,7 @@ import { accountExportJsonResponse } from "@/lib/accountExportFormat";
 import { buildAccountExportPayload } from "@/lib/accountExportPayload";
 import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
 import { logUserAuditAction } from "@/lib/audit";
-import { normalizeEmailAddress } from "@/lib/emailSuppression";
+import { emailSuppressionAddressKeys, normalizeEmailAddress } from "@/lib/emailSuppression";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { supportRequestAccountExportWhere } from "@/lib/supportRequest";
@@ -26,6 +26,7 @@ function jsonDownload(data: unknown, userId: string) {
 
 async function buildExport(user: NonNullable<ExportableUser>) {
   const accountEmail = normalizeEmailAddress(user.email ?? "") ?? user.email?.trim().toLowerCase() ?? null;
+  const accountEmailSuppressionKeys = accountEmail ? emailSuppressionAddressKeys(accountEmail) : [];
   const sellerProfile = await prisma.sellerProfile.findUnique({
     where: { userId: user.id },
     select: {
@@ -426,9 +427,9 @@ async function buildExport(user: NonNullable<ExportableUser>) {
         updatedAt: true,
       },
     }),
-    accountEmail
+    accountEmailSuppressionKeys.length > 0
       ? prisma.emailSuppression.findMany({
-          where: { email: accountEmail },
+          where: { email: { in: accountEmailSuppressionKeys } },
           orderBy: { createdAt: "desc" },
           select: { email: true, reason: true, source: true, details: true, createdAt: true, updatedAt: true },
         })

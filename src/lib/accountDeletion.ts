@@ -979,20 +979,38 @@ export async function anonymizeUserAccount(
     await tx.newsletterSubscriber.deleteMany({
       where: { email: { in: suppressionEmailMatches } },
     });
-    await tx.emailSuppression.upsert({
-      where: { email: suppressionEmail },
-      create: {
-        email: suppressionEmail,
-        reason: EmailSuppressionReason.MANUAL,
-        source: "account_deletion",
-        details: { accountDeleted: true },
-      },
-      update: {
-        reason: EmailSuppressionReason.MANUAL,
-        source: "account_deletion",
-        details: { accountDeleted: true },
-      },
+    const existingEmailSuppressions = await tx.emailSuppression.findMany({
+      where: { email: { in: suppressionEmailMatches } },
+      select: { email: true, reason: true },
     });
+    const hasProviderHardSuppression = existingEmailSuppressions.some(
+      (suppression) =>
+        suppression.reason === EmailSuppressionReason.BOUNCE ||
+        suppression.reason === EmailSuppressionReason.COMPLAINT,
+    );
+    if (!hasProviderHardSuppression) {
+      await tx.emailSuppression.updateMany({
+        where: {
+          email: { in: suppressionEmailMatches },
+          reason: EmailSuppressionReason.MANUAL,
+        },
+        data: {
+          source: "account_deletion",
+          eventId: null,
+          details: { accountDeleted: true },
+        },
+      });
+      if (!existingEmailSuppressions.some((suppression) => suppression.email === suppressionEmail)) {
+        await tx.emailSuppression.create({
+          data: {
+            email: suppressionEmail,
+            reason: EmailSuppressionReason.MANUAL,
+            source: "account_deletion",
+            details: { accountDeleted: true },
+          },
+        });
+      }
+    }
     await tx.commissionRequest.updateMany({
       where: { buyerId: user.id, status: { in: [...ACTIVE_COMMISSION_STATUSES] } },
       data: { status: "CLOSED" },

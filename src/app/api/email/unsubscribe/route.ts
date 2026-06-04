@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
-import { unsubscribeEmail, verifyUnsubscribeToken } from "@/lib/unsubscribe";
+import { unsubscribeEmail, unsubscribeTokenSuperseded, verifyUnsubscribeToken } from "@/lib/unsubscribe";
 import {
   getIP,
   rateLimitResponse,
@@ -144,6 +144,23 @@ async function validateUnsubscribeRequest(req: NextRequest, mode: "json" | "html
       hasToken: !!token,
       hasIssuedAt: !!issuedAt,
       tokenLength: token?.length ?? 0,
+    });
+    if (mode === "html") {
+      return { response: htmlResponse("Invalid unsubscribe link", "This unsubscribe link is invalid or has expired.", 400) };
+    }
+    return { response: NextResponse.json({ ok: false, error: "Invalid unsubscribe link" }, { status: 400 }) };
+  }
+
+  if (await unsubscribeTokenSuperseded(email, issuedAt)) {
+    logSecurityEvent("token_rejected", {
+      ip: getIP(req),
+      route: "/api/email/unsubscribe",
+      reason: "superseded unsubscribe token",
+      method: req.method,
+      hasEmail: true,
+      hasToken: true,
+      hasIssuedAt: true,
+      tokenLength: token.length,
     });
     if (mode === "html") {
       return { response: htmlResponse("Invalid unsubscribe link", "This unsubscribe link is invalid or has expired.", 400) };

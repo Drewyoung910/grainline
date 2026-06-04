@@ -3932,11 +3932,122 @@ Last updated: 2026-06-02
      still does not send confirmation mail to suppressed addresses. Guardrail:
      `tests/account-privacy-observability.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 391 findings;
+350. **One-click unsubscribe no longer hard-blocks transactional email** —
+     newly found adjacent code/test/docs fix from the email suppression audit,
+     not a raw-Claude allegation closure. Current code treated every
+     `EmailSuppression` row as a hard delivery block inside the central
+     `send()` helper, so a footer/list-unsubscribe action could suppress order,
+     case, account, and other transactional emails even though account settings,
+     Terms, and Privacy copy say transactional emails continue. Central email
+     delivery now uses `isEmailDeliverySuppressed()`, which only treats bounce,
+     complaint, and account-deletion suppression rows as hard delivery blocks.
+     Broader manual one-click suppressions still disable email preferences and
+     newsletter state, and newsletter signup plus admin email recipient checks
+     intentionally keep using `isEmailSuppressed()`. Guardrail:
+     `tests/account-privacy-observability.test.mjs`.
+
+351. **Hard provider suppressions survive lower-priority manual writes** —
+     newly found adjacent code/test/docs fix from the email suppression audit.
+     Parent review confirmed `unsubscribeEmail()` could overwrite an existing
+     `BOUNCE`/`COMPLAINT` suppression with `source = "one_click_unsubscribe"`,
+     and account deletion could overwrite a provider hard-suppression row with
+     `source = "account_deletion"`. One-click unsubscribe and account deletion
+     now inspect the same exact/canonical suppression-key set before writing:
+     bounce and complaint rows are left intact, while account deletion may still
+     replace lower-priority manual rows so intentional same-email re-signup can
+     clear deletion-only suppression without clearing provider evidence.
+     Guardrail: `tests/account-privacy-observability.test.mjs`.
+
+352. **Old unsubscribe links cannot undo later email opt-in evidence** —
+     code/test/docs reduction for raw #157/#358 unsubscribe-token replay.
+     `User.emailPreferenceOptInAt` now records signed-in email preference
+     opt-ins, and `/api/email/unsubscribe` rejects signed unsubscribe tokens
+     issued before that later opt-in or before a later newsletter confirmation.
+     The token remains stateless inside its 90-day TTL, but replay can no
+     longer undo a newer signed-in opt-in/reconfirmation epoch. Public
+     newsletter-only self-service resubscribe remains a product/support-policy
+     decision because public newsletter signup still does not clear suppression
+     rows for suppressed addresses. Guardrail:
+     `tests/account-privacy-observability.test.mjs`.
+
+353. **Attachment-only direct messages honor new-message email preference** —
+     newly found adjacent code/test fix from the notification preference audit,
+     not a raw-Claude allegation closure. Current code created an in-app
+     `NEW_MESSAGE` notification for attachment-only messages but skipped the
+     `EMAIL_NEW_MESSAGE` path because it gated email on text `body` only. The
+     message send action now uses the same `hasMessageContent` predicate for
+     in-app and email notification eligibility and sends a safe attachment
+     fallback preview when there is no text body. Guardrail:
+     `tests/notification-email-preferences.test.mjs`.
+
+354. **Staff case-refund emails use the refund preference key** —
+     newly found adjacent code/test fix from the notification preference audit.
+     Staff case resolution already created `REFUND_ISSUED` in-app
+     notifications when a refund was issued, but the email path checked
+     `EMAIL_CASE_RESOLVED` even on refunding resolutions. The staff case
+     resolve route now checks `EMAIL_REFUND_ISSUED` for refunding resolutions
+     and keeps `EMAIL_CASE_RESOLVED` for dismiss/non-refund resolutions.
+     Guardrail: `tests/notification-email-preferences.test.mjs`.
+
+355. **Custom-order email preference surface matches both send paths** —
+     newly found adjacent UI/test reduction from the notification preference
+     audit. The single `EMAIL_CUSTOM_ORDER` key gates both seller custom-order
+     request emails and buyer custom-listing-ready emails, but the settings UI
+     only described the seller request meaning. Buyer/account settings now show
+     a "Custom order updates" email row for the same key, and seller settings
+     use matching "Custom order updates" copy covering both request and ready
+     listing emails. Guardrail:
+     `tests/notification-email-preferences.test.mjs`.
+
+356. **Explicit email-send failure callers no longer mark skipped delivery as sent** —
+     newly found adjacent email observability fix. Central email delivery still
+     allows normal fire-and-forget callers to skip invalid, unconfigured,
+     suppressed, or inactive-recipient sends without throwing, but
+     `sendRenderedEmail(..., { throwOnFailure: true })` now throws on those
+     skipped-delivery paths. This prevents email outbox, support, and legal
+     direct-send paths from treating non-delivery as successful handoff.
+     Guardrail: `tests/email-delivery-guardrails.test.mjs`.
+
+357. **Account export includes canonical email-suppression rows** —
+     newly found adjacent privacy/export fix. Account export previously queried
+     `EmailSuppression` by exact normalized account email only, while delivery
+     and suppression checks use the exact/canonical Gmail/Googlemail suppression
+     key set. `/api/account/export` now queries suppressions with
+     `emailSuppressionAddressKeys(accountEmail)` so exported suppression state
+     matches current delivery behavior. Guardrail:
+     `tests/account-export-privacy.test.mjs`.
+
+358. **Direct email routes sanitize duplicate provider-error console logs** —
+     newly found adjacent telemetry fix. Newsletter confirmation and admin
+     direct-email routes already sent hashed-email Sentry context, but their
+     duplicate `console.error` calls re-logged the raw thrown provider/error
+     object. Those route-level logs now pass through
+     `sanitizeEmailOutboxError()`. Guardrail:
+     `tests/account-privacy-observability.test.mjs`.
+
+359. **Sentry filter preserves only valid hashed email correlation** —
+     newly found adjacent observability fix. The Sentry scrubber redacted
+     `extra.emailHash` because the key contained `email`, which removed the
+     intended privacy-preserving correlation value. The filter now preserves
+     only values matching `sha256:<24 hex>` for `emailHash`, while raw `email`
+     fields and malformed hash values still redact. Guardrail:
+     `tests/sentry-filter.test.mjs`.
+
+360. **Ops-health Sentry warning includes webhook-only failure piles** —
+     newly found adjacent ops observability fix. `/api/cron/ops-health` already
+     counted failed unprocessed Stripe/Resend/Clerk webhook rows and returned an
+     unhealthy response when they existed, but webhook-only failures did not
+     enter the Sentry warning condition. The warning trigger now includes all
+     three webhook failure counts. Guardrail:
+     `tests/retention-and-ops-followups.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 402 findings;
 verified stale/false-positive: 405 findings; product/design/ops decisions
-deferred: 70 findings. Entry 349 increases the fixed/reduced tally by one
-current-code mismatch; it does not re-count the older Round 16 unsubscribe raw
-claims that were already closed or classified in earlier passes. Remaining major
+deferred: 70 findings. Entries 349-360 increase the fixed/reduced tally by
+twelve current-code mismatches; entries 350-351 and 353-360 were newly found in
+adjacent source review and do not reduce the raw-Claude remaining count, while
+entry 352 reduces the open raw unsubscribe-token replay category by one.
+Remaining major
 categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -3953,7 +4064,8 @@ reconciliation for historical seller shipping-rate currency drift, Clerk staff
 MFA and breached-password dashboard evidence, Clerk multi-account spam dashboard
 evidence, Stripe duplicate-webhook and buyer-deletion runtime replay proof,
 Founding Maker live DB concurrency proof, Sentry cron alert/R2 health/ListBucket
-ops evidence, HSTS preload submission decision, residual HTTP-status constants
-and log-forwarding and analytics observability refactors, remaining homepage
-runtime a11y proof, and agent/worktree verification process hygiene.
-Approximate raw allegations left to verify from current max #1120: 252.
+ops evidence, Resend webhook failure-spike aggregation, HSTS preload submission
+decision, residual HTTP-status constants and log-forwarding and analytics
+observability refactors, remaining homepage runtime a11y proof, and
+agent/worktree verification process hygiene.
+Approximate raw allegations left to verify from current max #1120: 251.

@@ -4,7 +4,7 @@ import * as Sentry from "@sentry/nextjs";
 import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
 import { prisma } from "@/lib/db";
 import { buildUnsubscribeUrl } from "@/lib/unsubscribe";
-import { isEmailSuppressed, normalizeEmailAddress } from "@/lib/emailSuppression";
+import { isEmailDeliverySuppressed, normalizeEmailAddress } from "@/lib/emailSuppression";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { normalizeUserText, truncateTextWithEllipsis } from "@/lib/sanitize";
 import { htmlToText } from "@/lib/emailText";
@@ -233,6 +233,10 @@ async function findInactiveEmailAccount(recipient: string, subject: string) {
   return null;
 }
 
+function emailDeliverySkippedError(reason: string) {
+  return new Error(`Email delivery skipped: ${reason}`);
+}
+
 async function send(to: string, subject: string, html: string, opts: { throwOnFailure?: boolean } = {}) {
   const sanitizedSubject = safeSubject(subject);
   const recipient = normalizeEmailAddress(to);
@@ -242,6 +246,7 @@ async function send(to: string, subject: string, html: string, opts: { throwOnFa
       tags: { source: "email_send" },
       extra: { emailHash: hashEmailForTelemetry(to), subjectLength: sanitizedSubject.length },
     });
+    if (opts.throwOnFailure) throw emailDeliverySkippedError("invalid recipient");
     return;
   }
   const emailHash = hashEmailForTelemetry(recipient);
@@ -250,6 +255,7 @@ async function send(to: string, subject: string, html: string, opts: { throwOnFa
   const htmlForRecipient = injectUnsubscribeHref(html, unsubscribeUrl ?? unsubscribeFallbackUrl());
   if (!HAS_RESEND) {
     console.log("[email:dev]", { emailHash, subjectLength: sanitizedSubject.length });
+    if (opts.throwOnFailure) throw emailDeliverySkippedError("email provider not configured");
     return;
   }
   if (!unsubscribeUrl) {
@@ -263,13 +269,15 @@ async function send(to: string, subject: string, html: string, opts: { throwOnFa
     return;
   }
   try {
-    if (await isEmailSuppressed(recipient)) {
+    if (await isEmailDeliverySuppressed(recipient)) {
       console.warn("[email] suppressed recipient skipped", { emailHash, subjectLength: sanitizedSubject.length });
+      if (opts.throwOnFailure) throw emailDeliverySkippedError("recipient suppressed");
       return;
     }
     const account = await findInactiveEmailAccount(recipient, sanitizedSubject);
     if (account?.banned || account?.deletedAt) {
       console.warn("[email] inactive recipient skipped", { emailHash, subjectLength: sanitizedSubject.length });
+      if (opts.throwOnFailure) throw emailDeliverySkippedError(account.banned ? "recipient banned" : "recipient deleted");
       return;
     }
 

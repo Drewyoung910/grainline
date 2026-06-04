@@ -187,6 +187,11 @@ export default async function AccountSettingsPage() {
             description="Email when a refund is issued for one of your orders"
           />
           <EmailRow
+            type="EMAIL_CUSTOM_ORDER"
+            label="Custom order updates"
+            description="Email when a custom order request or custom listing is ready"
+          />
+          <EmailRow
             type="EMAIL_BACK_IN_STOCK"
             label="Back in stock"
             description="Email when a piece you asked about is available again"

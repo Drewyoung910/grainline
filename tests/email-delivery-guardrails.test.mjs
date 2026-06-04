@@ -25,6 +25,21 @@ describe("email delivery guardrails", () => {
     assert.match(email, /"List-Unsubscribe-Post": "List-Unsubscribe=One-Click"/);
   });
 
+  it("treats skipped delivery as failure for throwOnFailure callers", () => {
+    const email = source("src/lib/email.ts");
+    const sendStart = email.indexOf("async function send(");
+    const sendBody = email.slice(sendStart, email.indexOf("export async function sendRenderedEmail", sendStart));
+
+    assert.match(email, /function emailDeliverySkippedError\(reason: string\)/);
+    assert.match(sendBody, /if \(opts\.throwOnFailure\) throw emailDeliverySkippedError\("invalid recipient"\)/);
+    assert.match(sendBody, /if \(opts\.throwOnFailure\) throw emailDeliverySkippedError\("email provider not configured"\)/);
+    assert.match(sendBody, /isEmailDeliverySuppressed\(recipient\)[\s\S]*?throw emailDeliverySkippedError\("recipient suppressed"\)/);
+    assert.match(sendBody, /account\?\.banned \|\| account\?\.deletedAt[\s\S]*?emailDeliverySkippedError\(account\.banned \? "recipient banned" : "recipient deleted"\)/);
+    assert.match(source("src/lib/emailOutbox.ts"), /sendRenderedEmail\(\s*\{ to: job\.recipientEmail, subject: job\.subject, html: job\.html \},\s*\{ throwOnFailure: true \}/);
+    assert.match(source("src/app/api/support/route.ts"), /sendRenderedEmail\(\{[\s\S]*?\}, \{ throwOnFailure: true \}\)/);
+    assert.match(source("src/app/api/legal/data-request/route.ts"), /sendRenderedEmail\(\{[\s\S]*?\}, \{ throwOnFailure: true \}\)/);
+  });
+
   it("only injects unsubscribe URLs into the footer href placeholder", () => {
     const email = source("src/lib/email.ts");
 

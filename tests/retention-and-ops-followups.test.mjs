@@ -96,12 +96,17 @@ describe("retention and ops-health follow-ups", () => {
 
   it("surfaces webhook failure piles in ops-health", () => {
     const source = readFileSync("src/app/api/cron/ops-health/route.ts", "utf8");
+    const warningStart = source.indexOf("if (");
+    const warningCondition = source.slice(warningStart, source.indexOf("Sentry.captureMessage", warningStart));
 
     assert.match(source, /stripeWebhookFailureCount/);
     assert.match(source, /resendWebhookFailureCount/);
     assert.match(source, /clerkWebhookFailureCount/);
     assert.match(source, /lastError:\s*\{\s*not:\s*null\s*\}/);
     assert.match(source, /processedAt:\s*null/);
+    assert.match(warningCondition, /issues\.stripeWebhookFailureCount > 0/);
+    assert.match(warningCondition, /issues\.resendWebhookFailureCount > 0/);
+    assert.match(warningCondition, /issues\.clerkWebhookFailureCount > 0/);
   });
 
   it("keeps verbose health token comparison constant-time", () => {

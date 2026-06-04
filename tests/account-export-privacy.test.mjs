@@ -68,6 +68,17 @@ describe("account export privacy coverage", () => {
     assert.doesNotMatch(supportBlock, /where:\s*\{\s*email:\s*accountEmail\s*\}/);
   });
 
+  it("exports email suppressions by the same exact and canonical keys used for delivery checks", () => {
+    const route = source("src/app/api/account/export/route.ts");
+    const suppressionStart = route.indexOf("prisma.emailSuppression.findMany");
+    const suppressionBlock = route.slice(suppressionStart, route.indexOf("prisma.stockNotification.findMany", suppressionStart));
+
+    assert.match(route, /import \{ emailSuppressionAddressKeys, normalizeEmailAddress \}/);
+    assert.match(route, /const accountEmailSuppressionKeys = accountEmail \? emailSuppressionAddressKeys\(accountEmail\) : \[\]/);
+    assert.match(suppressionBlock, /where: \{ email: \{ in: accountEmailSuppressionKeys \} \}/);
+    assert.doesNotMatch(suppressionBlock, /where: \{ email: accountEmail \}/);
+  });
+
   it("keeps account export behind POST, same-origin, and fresh session checks", () => {
     const route = source("src/app/api/account/export/route.ts");
     const settingsPage = source("src/app/account/settings/page.tsx");

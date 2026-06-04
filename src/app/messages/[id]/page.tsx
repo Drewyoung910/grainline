@@ -205,9 +205,11 @@ export default async function ThreadPage({
       });
     }
 
+    const hasMessageContent = atts.length > 0 || !!body;
+
     // bump thread; set firstResponseAt if this is the first reply from the other side
     const messageSentAt = new Date();
-    if (!c.firstResponseAt && (atts.length > 0 || body)) {
+    if (!c.firstResponseAt && hasMessageContent) {
       // Check if the other person has sent a prior message (this is a response, not an opener)
       const priorFromOther = await prisma.message.findFirst({
         where: { conversationId: id, senderId: { not: me.id } },
@@ -226,7 +228,7 @@ export default async function ThreadPage({
     });
 
     // Notify recipient
-    if (atts.length > 0 || body) {
+    if (hasMessageContent) {
       await createNotification({
         userId: recipientId,
         type: "NEW_MESSAGE",
@@ -238,7 +240,7 @@ export default async function ThreadPage({
 
     // Email notification for new message (fire-and-forget, 5-min atomic throttle)
     try {
-      if (body && (await shouldSendEmail(recipientId, "EMAIL_NEW_MESSAGE"))) {
+      if (hasMessageContent && (await shouldSendEmail(recipientId, "EMAIL_NEW_MESSAGE"))) {
         const recipientUser = await prisma.user.findUnique({
           where: { id: recipientId },
           select: { email: true, name: true },
@@ -257,7 +259,7 @@ export default async function ThreadPage({
               recipientEmail: recipientUser.email,
               recipientName: recipientUser.name ?? "there",
               senderName: me.name ?? "Someone",
-              messagePreview: truncateText(body, 200),
+              messagePreview: body ? truncateText(body, 200) : "Sent an attachment",
               conversationUrl: new URL(`/messages/${id}`, EMAIL_APP_URL).toString(),
             });
           }

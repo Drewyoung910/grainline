@@ -67,6 +67,41 @@ describe("notification email preferences", () => {
     }
   });
 
+  it("honors new-message email preferences for attachment-only messages", () => {
+    const messageThread = source("src/app/messages/[id]/page.tsx");
+    const emailStart = messageThread.indexOf("// Email notification for new message");
+    const emailBlock = messageThread.slice(emailStart, messageThread.indexOf("} catch (emailError)", emailStart));
+
+    assert.match(messageThread, /const hasMessageContent = atts\.length > 0 \|\| !!body/);
+    assert.match(emailBlock, /hasMessageContent && \(await shouldSendEmail\(recipientId, "EMAIL_NEW_MESSAGE"\)\)/);
+    assert.match(emailBlock, /messagePreview: body \? truncateText\(body, 200\) : "Sent an attachment"/);
+    assert.doesNotMatch(emailBlock, /if \(body &&/);
+  });
+
+  it("uses the refund email preference for staff case refunds", () => {
+    const caseResolve = source("src/app/api/cases/[id]/resolve/route.ts");
+    const emailStart = caseResolve.indexOf("const emailPreferenceKey = refunding");
+    const emailBlock = caseResolve.slice(emailStart, caseResolve.indexOf("} catch (emailError)", emailStart));
+
+    assert.match(emailBlock, /const emailPreferenceKey = refunding \? "EMAIL_REFUND_ISSUED" : "EMAIL_CASE_RESOLVED"/);
+    assert.match(emailBlock, /shouldSendEmail\(caseRecord\.buyerId, emailPreferenceKey\)/);
+    assert.ok(emailBlock.indexOf("shouldSendEmail(caseRecord.buyerId, emailPreferenceKey)") < emailBlock.indexOf("await sendCaseResolved"));
+    assert.doesNotMatch(emailBlock, /shouldSendEmail\(caseRecord\.buyerId, "EMAIL_CASE_RESOLVED"\)/);
+  });
+
+  it("exposes the shared custom-order email preference on buyer and seller settings", () => {
+    const accountSettings = source("src/app/account/settings/page.tsx");
+    const sellerSettings = source("src/app/dashboard/seller/page.tsx");
+    const requestRoute = source("src/app/api/messages/custom-order-request/route.ts");
+    const readyLink = source("src/lib/customOrderReadyLink.ts");
+
+    assert.match(accountSettings, /type="EMAIL_CUSTOM_ORDER"/);
+    assert.match(accountSettings, /label="Custom order updates"/);
+    assert.match(sellerSettings, /type: "EMAIL_CUSTOM_ORDER", label: "Custom order updates"/);
+    assert.match(requestRoute, /shouldSendEmail\(sellerUserId, "EMAIL_CUSTOM_ORDER"\)/);
+    assert.match(readyLink, /shouldSendEmail\(buyerUserId, "EMAIL_CUSTOM_ORDER"\)/);
+  });
+
   it("honors verification email preferences before admin verification emails", () => {
     const adminVerification = source("src/app/admin/verification/page.tsx");
     const firstApprovalPref = adminVerification.indexOf('shouldSendEmail(verification.sellerProfile.userId, "EMAIL_VERIFICATION_APPROVED")');

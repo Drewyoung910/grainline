@@ -422,7 +422,8 @@ export async function POST(
     }
 
     try {
-      if (caseRecord.buyerId && await shouldSendEmail(caseRecord.buyerId, "EMAIL_CASE_RESOLVED")) {
+      const emailPreferenceKey = refunding ? "EMAIL_REFUND_ISSUED" : "EMAIL_CASE_RESOLVED";
+      if (caseRecord.buyerId && await shouldSendEmail(caseRecord.buyerId, emailPreferenceKey)) {
         const buyerUser = await prisma.user.findUnique({
           where: { id: caseRecord.buyerId },
           select: { name: true, email: true },

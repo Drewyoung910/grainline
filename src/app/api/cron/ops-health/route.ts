@@ -108,7 +108,10 @@ export async function GET(request: Request) {
         issues.staleRunningCronRunCount > 0 ||
         issues.staleEmailOutboxCount > 0 ||
         issues.deadEmailOutboxCount > 0 ||
-        issues.overdueSupportRequestCount > 0
+        issues.overdueSupportRequestCount > 0 ||
+        issues.stripeWebhookFailureCount > 0 ||
+        issues.resendWebhookFailureCount > 0 ||
+        issues.clerkWebhookFailureCount > 0
       ) {
         Sentry.captureMessage("Ops health check found actionable issues", {
           level: "warning",

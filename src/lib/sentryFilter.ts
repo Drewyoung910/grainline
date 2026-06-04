@@ -14,6 +14,8 @@ const NOISY_PATTERNS = [
 const SECRET_KEY_PATTERN = /(authorization|cookie|set-cookie|email|ip[_-]?address|token|secret|password|api[_-]?key|session|clerk|stripe|resend)/i;
 const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 const TOKEN_QUERY_PATTERN = /(^|[?&\s])((?:token|signature|sig|code|session_id|client_secret)=)[^&\s]+/gi;
+const EMAIL_HASH_KEY_PATTERN = /(^|[_-])emailHash$/i;
+const EMAIL_HASH_VALUE_PATTERN = /^sha256:[a-f0-9]{24}$/;
 
 function eventText(event: ErrorEvent, hint?: EventHint) {
   const exceptionValues = event.exception?.values?.map((value) => value.value).filter(Boolean).join(" ") ?? "";
@@ -60,7 +62,10 @@ function scrubValue(value: unknown, depth = 0): unknown {
 
   const out: Record<string, unknown> = {};
   for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-    out[key] = SECRET_KEY_PATTERN.test(key) ? "[redacted]" : scrubValue(child, depth + 1);
+    const preserveHashedEmail = EMAIL_HASH_KEY_PATTERN.test(key) &&
+      typeof child === "string" &&
+      EMAIL_HASH_VALUE_PATTERN.test(child);
+    out[key] = preserveHashedEmail ? child : SECRET_KEY_PATTERN.test(key) ? "[redacted]" : scrubValue(child, depth + 1);
   }
   return out;
 }
