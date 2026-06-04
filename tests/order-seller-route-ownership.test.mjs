@@ -16,7 +16,7 @@ describe("seller order mutation ownership guardrails", () => {
       const text = source(path);
       assert.match(
         text,
-        /order\.items\.length > 0 && order\.items\.every\(\(it\) => it\.listing\.sellerId === seller\.id\)/,
+        /order\.items\.length > 0\s*&&\s*order\.items\.every\(\(it\) => it\.listing\.sellerId === seller\.id\)/,
         `${path} must require every order item to belong to the seller`,
       );
       assert.doesNotMatch(

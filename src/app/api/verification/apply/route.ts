@@ -1,5 +1,4 @@
 // src/app/api/verification/apply/route.ts
-import { NextResponse } from "next/server";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { prisma } from "@/lib/db";
@@ -15,6 +14,7 @@ import { normalizePublicHttpsUrl } from "@/lib/urlValidation";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { z } from "zod";
 import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 
 export const runtime = "nodejs";
 
@@ -33,20 +33,20 @@ export async function POST(req: Request) {
   try {
     const { me, seller } = await ensureSeller();
     const { success: rlOk, reset } = await safeRateLimit(verificationApplyRatelimit, me.id);
-    if (!rlOk) return rateLimitResponse(reset, "Too many verification applications.");
+    if (!rlOk) return privateResponse(rateLimitResponse(reset, "Too many verification applications."));
 
     let verParsed;
     try {
       verParsed = VerificationApplySchema.parse(await readBoundedJson(req, VERIFICATION_APPLY_BODY_MAX_BYTES));
     } catch (e) {
       if (isRequestBodyTooLargeError(e)) {
-        return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+        return privateJson({ error: "Request body too large" }, { status: 413 });
       }
       if (isInvalidJsonBodyError(e)) {
-        return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+        return privateJson({ error: "Invalid JSON" }, { status: 400 });
       }
       if (e instanceof z.ZodError) {
-        return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+        return privateJson({ error: "Invalid input", details: e.issues }, { status: 400 });
       }
       throw e;
     }
@@ -55,7 +55,7 @@ export async function POST(req: Request) {
     const yearsExperience = Math.max(0, Math.floor(verParsed.yearsExperience));
     const portfolioUrl = normalizePublicHttpsUrl(verParsed.portfolioUrl);
     if (verParsed.portfolioUrl?.trim() && !portfolioUrl) {
-      return NextResponse.json({ error: "Portfolio URL must be a valid https:// URL." }, { status: 400 });
+      return privateJson({ error: "Portfolio URL must be a valid https:// URL." }, { status: 400 });
     }
 
     // ── Server-side eligibility check ─────────────────────────────────────
@@ -72,7 +72,7 @@ export async function POST(req: Request) {
     });
 
     if (!sellerData) {
-      return NextResponse.json({ error: "Seller profile not found" }, { status: 404 });
+      return privateJson({ error: "Seller profile not found" }, { status: 404 });
     }
     const applicationBlockReason = guildMemberApplicationBlockReason({
       guildLevel: sellerData.guildLevel,
@@ -80,7 +80,7 @@ export async function POST(req: Request) {
       reviewedAt: sellerData.makerVerification?.reviewedAt,
     });
     if (applicationBlockReason) {
-      return NextResponse.json({ error: applicationBlockReason }, { status: 409 });
+      return privateJson({ error: applicationBlockReason }, { status: 409 });
     }
 
     const [activeListings, salesRows, longCaseCount] = await Promise.all([
@@ -110,27 +110,27 @@ export async function POST(req: Request) {
       : 0;
 
     if (activeListings < REQUIRED_LISTINGS) {
-      return NextResponse.json(
+      return privateJson(
         { error: `You need at least ${REQUIRED_LISTINGS} active listings. You currently have ${activeListings}.` },
         { status: 400 }
       );
     }
     if (totalSalesCents < REQUIRED_SALES_CENTS) {
       const needed = ((REQUIRED_SALES_CENTS - totalSalesCents) / 100).toFixed(2);
-      return NextResponse.json(
+      return privateJson(
         { error: `You need $250 in completed sales. You need $${needed} more.` },
         { status: 400 }
       );
     }
     if (accountAgeDays < REQUIRED_ACCOUNT_DAYS) {
       const remaining = REQUIRED_ACCOUNT_DAYS - accountAgeDays;
-      return NextResponse.json(
+      return privateJson(
         { error: `Your account must be at least ${REQUIRED_ACCOUNT_DAYS} days old. ${remaining} days remaining.` },
         { status: 400 }
       );
     }
     if (longCaseCount > 0) {
-      return NextResponse.json(
+      return privateJson(
         { error: `You have ${longCaseCount} unresolved case${longCaseCount !== 1 ? "s" : ""} open longer than 60 days. Resolve them before applying.` },
         { status: 400 }
       );
@@ -157,12 +157,12 @@ export async function POST(req: Request) {
       },
     });
 
-    return NextResponse.json(record, { status: 201 });
+    return privateJson(record, { status: 201 });
   } catch (err) {
     const accountResponse = accountAccessErrorResponse(err);
     if (accountResponse) return accountResponse;
 
     logServerError(err, { source: "verification_apply_route" });
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return privateJson({ error: "Server error" }, { status: 500 });
   }
 }

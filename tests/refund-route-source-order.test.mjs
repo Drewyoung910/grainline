@@ -6,16 +6,18 @@ describe("seller refund route source-order guardrails", () => {
   it("releases stale refund locks only after seller item ownership is established", () => {
     const source = readFileSync("src/app/api/orders/[id]/refund/route.ts", "utf8");
 
-    const ownershipCheck = 'if (!allItemsBelongToSeller) return NextResponse.json({ error: "Forbidden." }, { status: 403 });';
+    const ownershipCheck = source.search(
+      /if \(!allItemsBelongToSeller\)\s*return privateJson\(\{ error: "Forbidden\." \}, \{ status: 403 \}\);/,
+    );
     const lockRelease = "const staleLocksReleased = await releaseStaleRefundLocks(orderId);";
     const disputeCheck = "const latestDispute = await prisma.orderPaymentEvent.findFirst";
 
     assert.match(source, /order\.items\.every\(\(it\) => it\.listing\.sellerId === seller\.id\)/);
-    assert.notEqual(source.indexOf(ownershipCheck), -1);
+    assert.notEqual(ownershipCheck, -1);
     assert.notEqual(source.indexOf(lockRelease), -1);
     assert.notEqual(source.indexOf(disputeCheck), -1);
     assert.ok(
-      source.indexOf(ownershipCheck) < source.indexOf(lockRelease),
+      ownershipCheck < source.indexOf(lockRelease),
       "refund lock cleanup must not run before order item ownership is verified",
     );
     assert.ok(

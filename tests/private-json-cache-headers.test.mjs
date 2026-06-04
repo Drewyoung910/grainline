@@ -18,7 +18,9 @@ function getHandlerSource(path) {
   const start = text.indexOf("export async function GET");
   assert.notEqual(start, -1, `${path} must define GET`);
   const rest = text.slice(start);
-  const nextMethod = rest.search(/\nexport async function (POST|PUT|PATCH|DELETE)\b/);
+  const nextMethod = rest.search(
+    /\nexport async function (POST|PUT|PATCH|DELETE)\b/,
+  );
   return nextMethod === -1 ? rest : rest.slice(0, nextMethod);
 }
 
@@ -26,7 +28,10 @@ describe("private JSON cache headers", () => {
   it("sets no-store cache control and Vary: Cookie on private JSON responses", async () => {
     const response = privateJson({ ok: true });
 
-    assert.equal(response.headers.get("cache-control"), PRIVATE_JSON_CACHE_CONTROL);
+    assert.equal(
+      response.headers.get("cache-control"),
+      PRIVATE_JSON_CACHE_CONTROL,
+    );
     assert.equal(response.headers.get("vary"), PRIVATE_JSON_VARY);
     assert.deepEqual(await response.json(), { ok: true });
   });
@@ -42,7 +47,10 @@ describe("private JSON cache headers", () => {
 
     privateResponse(response);
 
-    assert.equal(response.headers.get("cache-control"), PRIVATE_JSON_CACHE_CONTROL);
+    assert.equal(
+      response.headers.get("cache-control"),
+      PRIVATE_JSON_CACHE_CONTROL,
+    );
     assert.equal(response.headers.get("retry-after"), "30");
     assert.equal(response.headers.get("vary"), "Accept-Encoding, Cookie");
   });
@@ -83,12 +91,21 @@ describe("private JSON cache headers", () => {
       "src/app/api/upload/image/route.ts",
       "src/app/api/cart/checkout/single/route.ts",
       "src/app/api/cart/checkout-seller/route.ts",
+      "src/app/api/shipping/quote/route.ts",
     ];
 
     for (const route of routes) {
       const text = source(route);
-      assert.match(text, /@\/lib\/privateResponse/, `${route} should import private response helpers`);
-      assert.doesNotMatch(text, /\b(?:NextResponse|Response)\.json\(/, `${route} should not return bare JSON`);
+      assert.match(
+        text,
+        /@\/lib\/privateResponse/,
+        `${route} should import private response helpers`,
+      );
+      assert.doesNotMatch(
+        text,
+        /\b(?:NextResponse|Response)\.json\(/,
+        `${route} should not return bare JSON`,
+      );
     }
   });
 
@@ -100,10 +117,27 @@ describe("private JSON cache headers", () => {
       "src/app/api/upload/presign/route.ts",
       "src/app/api/upload/verify/route.ts",
       "src/app/api/upload/image/route.ts",
+      "src/app/api/account/accept-terms/route.ts",
+      "src/app/api/account/delete/route.ts",
+      "src/app/api/cart/update/route.ts",
+      "src/app/api/shipping/quote/route.ts",
+      "src/app/api/verification/apply/route.ts",
+      "src/app/api/cases/route.ts",
+      "src/app/api/cases/[id]/messages/route.ts",
+      "src/app/api/commission/[id]/interest/route.ts",
+      "src/app/api/orders/[id]/refund/route.ts",
+      "src/app/api/orders/[id]/label/route.ts",
+      "src/app/api/follow/[sellerId]/route.ts",
+      "src/app/api/seller/broadcast/route.ts",
+      "src/app/api/cart/checkout/rollback/route.ts",
     ]) {
       const text = source(route);
 
-      assert.match(text, /privateResponse\(rateLimitResponse\(/, `${route} should preserve rate-limit headers as private`);
+      assert.match(
+        text,
+        /privateResponse\(\s*rateLimitResponse\(/,
+        `${route} should preserve rate-limit headers as private`,
+      );
     }
 
     for (const route of [
@@ -112,7 +146,11 @@ describe("private JSON cache headers", () => {
     ]) {
       const text = source(route);
 
-      assert.match(text, /privateJson\(failure\.body, failure\.init\)/, `${route} should preserve upload retry headers as private`);
+      assert.match(
+        text,
+        /privateJson\(failure\.body, failure\.init\)/,
+        `${route} should preserve upload retry headers as private`,
+      );
     }
   });
 
@@ -129,20 +167,53 @@ describe("private JSON cache headers", () => {
       "src/app/api/messages/custom-order-request/route.ts",
       "src/app/api/cart/checkout/single/route.ts",
       "src/app/api/cart/checkout-seller/route.ts",
+      "src/app/api/account/accept-terms/route.ts",
+      "src/app/api/account/delete/route.ts",
+      "src/app/api/cart/update/route.ts",
+      "src/app/api/shipping/quote/route.ts",
+      "src/app/api/verification/apply/route.ts",
+      "src/app/api/cases/route.ts",
+      "src/app/api/cases/[id]/messages/route.ts",
+      "src/app/api/commission/[id]/interest/route.ts",
+      "src/app/api/orders/[id]/refund/route.ts",
+      "src/app/api/orders/[id]/label/route.ts",
+      "src/app/api/follow/[sellerId]/route.ts",
+      "src/app/api/seller/broadcast/route.ts",
+      "src/app/api/cart/checkout/rollback/route.ts",
     ];
 
     for (const route of routes) {
       const text = source(route);
-      assert.match(text, /@\/lib\/privateResponse/, `${route} should import private response helpers`);
-      assert.match(text, /privateJson/, `${route} should use privateJson for JSON responses`);
-      assert.doesNotMatch(text, /\b(?:NextResponse|Response)\.json\(/, `${route} should not return bare JSON`);
-      assert.doesNotMatch(text, /return rateLimitResponse\(/, `${route} should not return bare rate-limit JSON`);
+      assert.match(
+        text,
+        /@\/lib\/privateResponse/,
+        `${route} should import private response helpers`,
+      );
+      assert.match(
+        text,
+        /privateJson/,
+        `${route} should use privateJson for JSON responses`,
+      );
+      assert.doesNotMatch(
+        text,
+        /\b(?:NextResponse|Response)\.json\(/,
+        `${route} should not return bare JSON`,
+      );
+      assert.doesNotMatch(
+        text,
+        /return rateLimitResponse\(/,
+        `${route} should not return bare rate-limit JSON`,
+      );
     }
   });
 
   it("keeps auth-varying GET handlers private even when other methods stay unchanged", () => {
-    const followGet = getHandlerSource("src/app/api/follow/[sellerId]/route.ts");
-    const broadcastGet = getHandlerSource("src/app/api/seller/broadcast/route.ts");
+    const followGet = getHandlerSource(
+      "src/app/api/follow/[sellerId]/route.ts",
+    );
+    const broadcastGet = getHandlerSource(
+      "src/app/api/seller/broadcast/route.ts",
+    );
 
     assert.match(followGet, /privateJson/);
     assert.match(followGet, /privateResponse/);
@@ -156,7 +227,10 @@ describe("private JSON cache headers", () => {
     const stream = source("src/app/api/messages/[id]/stream/route.ts");
 
     assert.match(stream, /privateJson\(\{ error: "Unauthorized" \}/);
-    assert.match(stream, /"Cache-Control": "private, no-store, no-cache, no-transform, max-age=0"/);
+    assert.match(
+      stream,
+      /"Cache-Control": "private, no-store, no-cache, no-transform, max-age=0"/,
+    );
     assert.match(stream, /Vary: "Cookie"/);
   });
 });

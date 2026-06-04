@@ -1,8 +1,11 @@
 // src/lib/ensureSeller.ts
 import { auth, currentUser, clerkClient } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import { AccountAccessError } from "@/lib/ensureUser";
-import { normalizeDisplayNameForLookup, sanitizeUserName } from "@/lib/sanitize";
+import { AccountAccessError, ensureUserByClerkId } from "@/lib/ensureUser";
+import {
+  normalizeDisplayNameForLookup,
+  sanitizeUserName,
+} from "@/lib/sanitize";
 
 export async function ensureSeller() {
   const { userId } = await auth();
@@ -16,15 +19,16 @@ export async function ensureSeller() {
     const cu = await currentUser();
     const u = cu ?? (await (await clerkClient()).users.getUser(userId));
 
-    const email =
-      u?.emailAddresses?.find(e => e.id === u.primaryEmailAddressId)?.emailAddress ??
-      u?.emailAddresses?.[0]?.emailAddress ??
-      "";
-    const name = u?.fullName ? sanitizeUserName(u.fullName) || null : null;
+    const primaryEmail = u?.emailAddresses?.find(
+      (e) => e.id === u.primaryEmailAddressId,
+    )?.emailAddress;
+    const name = u?.fullName ?? null;
     const imageUrl = u?.imageUrl ?? null;
 
-    me = await prisma.user.create({
-      data: { clerkId: userId, email, name, imageUrl },
+    me = await ensureUserByClerkId(userId, {
+      name,
+      imageUrl,
+      ...(primaryEmail ? { email: primaryEmail } : {}),
     });
   }
   if (me.banned) {
@@ -41,7 +45,9 @@ export async function ensureSeller() {
   }
 
   // 2) Ensure we have a SellerProfile row
-  let seller = await prisma.sellerProfile.findUnique({ where: { userId: me.id } });
+  let seller = await prisma.sellerProfile.findUnique({
+    where: { userId: me.id },
+  });
   if (!seller) {
     const displayName = sanitizeUserName(me.name ?? "") || "Maker";
     seller = await prisma.sellerProfile.create({

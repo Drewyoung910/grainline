@@ -32,7 +32,10 @@ describe("user email address history", () => {
 
   it("expands Gmail aliases only for suppression-key lookups", () => {
     assert.deepEqual(
-      accountEmailSuppressionKeysForEmails(["First.Last+tag@gmail.com", "old@example.com"]),
+      accountEmailSuppressionKeysForEmails([
+        "First.Last+tag@gmail.com",
+        "old@example.com",
+      ]),
       ["first.last+tag@gmail.com", "firstlast@gmail.com", "old@example.com"],
     );
   });
@@ -44,9 +47,7 @@ describe("user email address history", () => {
           assert.deepEqual(query.where, {
             id: { not: "user_1" },
             deletedAt: null,
-            OR: [
-              { email: { in: ["old@example.com", "current@example.com"] } },
-            ],
+            OR: [{ email: { in: ["old@example.com", "current@example.com"] } }],
           });
           assert.deepEqual(query.select, { email: true });
           return [{ email: "old@example.com" }];
@@ -99,7 +100,9 @@ describe("user email address history", () => {
 
   it("stores conservative user-owned history without inferring from email-only tables", () => {
     const schema = source("prisma/schema.prisma");
-    const migration = source("prisma/migrations/20260604173000_user_email_address_history/migration.sql");
+    const migration = source(
+      "prisma/migrations/20260604173000_user_email_address_history/migration.sql",
+    );
 
     assert.match(schema, /emailAddresses UserEmailAddress\[\]/);
     assert.match(schema, /model UserEmailAddress \{/);
@@ -118,12 +121,42 @@ describe("user email address history", () => {
   it("captures current and previous emails when Clerk refreshes account state", () => {
     const ensureUser = source("src/lib/ensureUser.ts");
 
-    assert.match(ensureUser, /import \{ syncUserEmailAddressHistory \} from "@\/lib\/userEmailAddresses"/);
+    assert.match(
+      ensureUser,
+      /import \{ syncUserEmailAddressHistory \} from "@\/lib\/userEmailAddresses"/,
+    );
     assert.match(ensureUser, /previousEmail: existing\.email/);
     assert.match(ensureUser, /currentEmail: updateData\.email/);
     assert.match(ensureUser, /source: "ensure_user"/);
     assert.match(ensureUser, /source: "ensure_user_create"/);
     assert.match(ensureUser, /source: "ensure_user_create_email_conflict"/);
     assert.match(ensureUser, /droppedField: "email"/);
+  });
+
+  it("uses only Clerk primary email when request-time helpers create or refresh users", () => {
+    const ensureUser = source("src/lib/ensureUser.ts");
+    const ensureSeller = source("src/lib/ensureSeller.ts");
+    const ensureUserWrapperStart = ensureUser.indexOf(
+      "export async function ensureUser()",
+    );
+    assert.notEqual(ensureUserWrapperStart, -1);
+    const ensureUserWrapper = ensureUser.slice(ensureUserWrapperStart);
+
+    assert.match(ensureUserWrapper, /primaryEmailAddressId/);
+    assert.match(
+      ensureUserWrapper,
+      /\.\.\.\(primaryEmail \? \{ email: primaryEmail \} : \{\}\)/,
+    );
+    assert.doesNotMatch(ensureUserWrapper, /emailAddresses\?\.\[0\]/);
+    assert.doesNotMatch(ensureUserWrapper, /placeholder\.invalid/);
+
+    assert.match(
+      ensureSeller,
+      /import \{ AccountAccessError, ensureUserByClerkId \} from "@\/lib\/ensureUser"/,
+    );
+    assert.match(ensureSeller, /ensureUserByClerkId\(userId/);
+    assert.match(ensureSeller, /primaryEmailAddressId/);
+    assert.doesNotMatch(ensureSeller, /prisma\.user\.create/);
+    assert.doesNotMatch(ensureSeller, /emailAddresses\?\.\[0\]/);
   });
 });

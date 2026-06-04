@@ -61,7 +61,7 @@ describe("seller operational route hardening", () => {
   it("keeps seller broadcast history pagination bounded", () => {
     const route = source("src/app/api/seller/broadcast/route.ts");
 
-    assert.match(route, /parseBoundedPositiveIntParam\(url\.searchParams\.get\("page"\), 1, 1000\)/);
+    assert.match(route, /parseBoundedPositiveIntParam\(\s*url\.searchParams\.get\("page"\),\s*1,\s*1000,\s*\)/s);
     assert.match(route, /where: \{ sellerProfileId: seller\.id \}/);
   });
 
@@ -72,10 +72,10 @@ describe("seller operational route hardening", () => {
     assert.match(route, /!seller\.chargesEnabled \|\| seller\.vacationMode/);
     assert.match(route, /isFirstPartyMediaUrl\(u\)/);
     assert.match(route, /isFirstPartyMediaUrlForUser\(imageUrl, userId/);
-    assert.match(route, /safeRateLimit\(broadcastRatelimit, seller\.id\)/);
+    assert.match(route, /safeRateLimit\(\s*broadcastRatelimit,\s*seller\.id,\s*\)/s);
     assert.match(route, /dedupScope: broadcast\.id/);
     assert.match(route, /link: `\/account\/feed\?broadcast=\$\{broadcast\.id\}`/);
-    assert.match(route, /isEmailNotificationEnabled\(f\.follower\.notificationPreferences, "EMAIL_SELLER_BROADCAST"\)/);
+    assert.match(route, /isEmailNotificationEnabled\(\s*f\.follower\.notificationPreferences,\s*"EMAIL_SELLER_BROADCAST",\s*\)/s);
     assert.match(route, /renderSellerBroadcastEmail/);
     assert.match(route, /enqueueEmailOutbox\(\{/);
     assert.match(route, /preferenceKey: "EMAIL_SELLER_BROADCAST"/);

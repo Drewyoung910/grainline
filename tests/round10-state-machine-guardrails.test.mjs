@@ -146,7 +146,7 @@ describe("Round 10 state-machine guardrails", () => {
     assert.match(autoClose, /status: "IN_DISCUSSION", updatedAt: \{ lt: discussionCutoff \}/);
     assert.match(autoClose, /staleDiscussionEscalated\+\+/);
     assert.match(escalate, /status: "IN_DISCUSSION", escalateUnlocksAt: \{ lt: now \}/);
-    assert.match(refund, /tx\.case\.updateMany\(\{\s*where: \{ id: existingCase\.id, status: \{ notIn: \["RESOLVED", "CLOSED"\] \} \}/s);
+    assert.match(refund, /tx\.case\.updateMany\(\{\s*where: \{\s*id: existingCase\.id,\s*status: \{ notIn: \["RESOLVED", "CLOSED"\] \},\s*\}/s);
     assert.match(webhook, /tx\.case\.updateMany\(\{\s*where: \{ id: caseAction\.caseId, status: \{ notIn: \["RESOLVED", "CLOSED"\] \} \}/s);
   });
 

@@ -100,7 +100,7 @@ describe("public visibility follow-ups", () => {
 
     assert.match(followRoute, /const blockAfterFollow = await prisma\.block\.findFirst/);
     assert.match(followRoute, /await prisma\.follow\.deleteMany\(\{\s*where: \{ followerId: me\.id, sellerProfileId: sellerProfile\.id \}/s);
-    assert.match(followRoute, /return NextResponse\.json\(\{ error: "Blocked" \}, \{ status: 403 \}\)/);
+    assert.match(followRoute, /return privateJson\(\{ error: "Blocked" \}, \{ status: 403 \}\)/);
     assert.ok(
       followRoute.indexOf("const blockAfterFollow") > followRoute.indexOf("await prisma.follow.upsert"),
       "follow route must re-check block state after the follow write",

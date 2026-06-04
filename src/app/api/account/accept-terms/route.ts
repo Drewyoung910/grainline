@@ -1,5 +1,4 @@
 import { auth } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
 import { z } from "zod";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { ensureUser } from "@/lib/ensureUser";
@@ -9,6 +8,7 @@ import { CURRENT_TERMS_VERSION, currentTermsAcceptanceUpdate } from "@/lib/terms
 import { isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
 import { invalidateAccountStateCache } from "@/lib/accountStateCache";
 import { logUserAuditAction } from "@/lib/audit";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 
 const AcceptTermsSchema = z.object({
   termsAccepted: z.literal(true),
@@ -19,23 +19,23 @@ const ACCEPT_TERMS_BODY_MAX_BYTES = 8 * 1024;
 
 export async function POST(req: Request) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
   const { success, reset } = await safeRateLimit(termsAcceptanceRatelimit, userId);
-  if (!success) return rateLimitResponse(reset, "Too many acceptance attempts.");
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many acceptance attempts."));
 
   let body: unknown;
   try {
     body = await readOptionalBoundedJson(req, ACCEPT_TERMS_BODY_MAX_BYTES, null);
   } catch (error) {
     if (isRequestBodyTooLargeError(error)) {
-      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      return privateJson({ error: "Request body too large" }, { status: 413 });
     }
     throw error;
   }
   const parsed = AcceptTermsSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json(
+    return privateJson(
       { error: "Terms acceptance and age confirmation are required.", code: "TERMS_ACCEPTANCE_REQUIRED" },
       { status: 400 },
     );
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
     throw error;
   }
 
-  if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!me) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
   const acceptedAt = new Date();
   const user = await prisma.user.update({
@@ -76,7 +76,7 @@ export async function POST(req: Request) {
     },
   });
 
-  return NextResponse.json({
+  return privateJson({
     ok: true,
     termsAcceptedAt: user.termsAcceptedAt?.toISOString() ?? null,
     termsVersion: user.termsVersion,

@@ -17,7 +17,7 @@ describe("email normalization follow-ups", () => {
 
     assert.match(ensureUser, /import \{ normalizeEmailAddress \} from "@\/lib\/emailSuppression"/);
     assert.match(ensureUser, /const normalizedEmail = normalizeEmailAddress\(opts\.email\)/);
-    assert.match(ensureUser, /const email = normalizeEmailAddress\(opts\?\.email\) \?\? `\$\{clerkId\}@placeholder\.invalid`/);
+    assert.match(ensureUser, /const email =\s*normalizeEmailAddress\(opts\?\.email\) \?\? `\$\{clerkId\}@placeholder\.invalid`/);
     assert.match(deletion, /normalizeEmailSuppressionAddress\(user\.email\) \?\? user\.email\.trim\(\)\.normalize\("NFC"\)\.toLowerCase\(\)/);
     assert.match(deletion, /const suppressionEmailMatches =\s*accountEmailSuppressionKeys\.length > 0/s);
     assert.match(deletion, /recipientEmail: \{ in: suppressionEmailMatches \}/);

@@ -40,7 +40,7 @@ describe("social interaction route hardening", () => {
 
     assert.match(route, /source: "follow_notification"/);
     assert.match(route, /Failed to create follow notification/);
-    assert.match(route, /return NextResponse\.json\(\{ following: true, followerCount \}\)/);
+    assert.match(route, /return privateJson\(\{ following: true, followerCount \}\)/);
     assert.match(notifications, /function isNotificationDedupError/);
     assert.match(notifications, /err\?\.code === "P2002"/);
     assert.match(notifications, /userId_type_dedupKey/);

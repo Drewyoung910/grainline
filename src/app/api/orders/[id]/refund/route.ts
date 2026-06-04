@@ -2,17 +2,26 @@
 // Seller-initiated refund. Issues a Stripe refund immediately. Connected
 // seller refunds use Stripe reverse_transfer under the manual transfer_data
 // checkout model; full refunds also restore IN_STOCK inventory.
-import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { sendRefundIssued } from "@/lib/email";
-import { createMarketplaceRefund, refundIdempotencyKeyBase } from "@/lib/marketplaceRefunds";
+import {
+  createMarketplaceRefund,
+  refundIdempotencyKeyBase,
+} from "@/lib/marketplaceRefunds";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { formatCurrencyCents } from "@/lib/money";
-import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
-import { REFUND_LOCK_SENTINEL, releaseStaleRefundLocks } from "@/lib/refundLocks";
+import {
+  rateLimitResponse,
+  refundRatelimit,
+  safeRateLimit,
+} from "@/lib/ratelimit";
+import {
+  REFUND_LOCK_SENTINEL,
+  releaseStaleRefundLocks,
+} from "@/lib/refundLocks";
 import { revalidateListingSearchCaches } from "@/lib/searchCache";
 import {
   blockingRefundLedgerWhere,
@@ -36,16 +45,22 @@ import {
   readBoundedJson,
 } from "@/lib/requestBody";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
 
 const RefundSchema = z.object({
   type: z.enum(["FULL", "PARTIAL"]).optional(),
   amountCents: z.number().int().positive().optional().nullable(),
-  restoreStock: z.array(z.object({
-    listingId: z.string().min(1),
-    quantity: z.number().int().positive().max(99),
-  })).max(50).optional(),
+  restoreStock: z
+    .array(
+      z.object({
+        listingId: z.string().min(1),
+        quantity: z.number().int().positive().max(99),
+      }),
+    )
+    .max(50)
+    .optional(),
 });
 const REFUND_BODY_MAX_BYTES = 16 * 1024;
 
@@ -55,50 +70,68 @@ export const preferredRegion = "iad1";
 
 export async function POST(
   req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id: orderId } = await params;
 
     const { userId } = await auth();
-    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
     const { success, reset } = await safeRateLimit(refundRatelimit, userId);
-    if (!success) return rateLimitResponse(reset, "Too many refund attempts.");
+    if (!success)
+      return privateResponse(
+        rateLimitResponse(reset, "Too many refund attempts."),
+      );
 
     const me = await ensureUserByClerkId(userId);
 
     let refundParsed;
     try {
-      refundParsed = RefundSchema.parse(await readBoundedJson(req, REFUND_BODY_MAX_BYTES));
+      refundParsed = RefundSchema.parse(
+        await readBoundedJson(req, REFUND_BODY_MAX_BYTES),
+      );
     } catch (e) {
       if (isRequestBodyTooLargeError(e)) {
-        return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+        return privateJson(
+          { error: "Request body too large" },
+          { status: 413 },
+        );
       }
       if (isInvalidJsonBodyError(e)) {
-        return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+        return privateJson({ error: "Invalid JSON" }, { status: 400 });
       }
       if (e instanceof z.ZodError) {
-        return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+        return privateJson(
+          { error: "Invalid input", details: e.issues },
+          { status: 400 },
+        );
       }
       throw e;
     }
 
-    const type: "FULL" | "PARTIAL" = refundParsed.type === "PARTIAL" ? "PARTIAL" : "FULL";
+    const type: "FULL" | "PARTIAL" =
+      refundParsed.type === "PARTIAL" ? "PARTIAL" : "FULL";
     const amountCents: number | null = refundParsed.amountCents ?? null;
     const requestedStockRestores = refundParsed.restoreStock ?? [];
 
     if (type === "FULL" && requestedStockRestores.length > 0) {
-      return NextResponse.json(
-        { error: "Full refunds restore eligible stock automatically. Use restoreStock only for partial refunds." },
+      return privateJson(
+        {
+          error:
+            "Full refunds restore eligible stock automatically. Use restoreStock only for partial refunds.",
+        },
         { status: 400 },
       );
     }
 
     if (partialRefundInputError(type, amountCents)) {
-      return NextResponse.json(
-        { error: "amountCents is required and must be positive for PARTIAL refunds." },
-        { status: 400 }
+      return privateJson(
+        {
+          error:
+            "amountCents is required and must be positive for PARTIAL refunds.",
+        },
+        { status: 400 },
       );
     }
 
@@ -107,7 +140,7 @@ export async function POST(
       where: { userId: me.id },
       select: { id: true, stripeAccountId: true },
     });
-    if (!seller) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+    if (!seller) return privateJson({ error: "Forbidden." }, { status: 403 });
 
     const order = await prisma.order.findUnique({
       where: { id: orderId },
@@ -115,7 +148,13 @@ export async function POST(
         items: {
           include: {
             listing: {
-              select: { id: true, sellerId: true, listingType: true, stockQuantity: true, status: true },
+              select: {
+                id: true,
+                sellerId: true,
+                listingType: true,
+                stockQuantity: true,
+                status: true,
+              },
             },
           },
         },
@@ -126,23 +165,34 @@ export async function POST(
         },
       },
     });
-    if (!order) return NextResponse.json({ error: "Order not found." }, { status: 404 });
+    if (!order)
+      return privateJson({ error: "Order not found." }, { status: 404 });
 
-    const allItemsBelongToSeller = order.items.length > 0 && order.items.every((it) => it.listing.sellerId === seller.id);
-    if (!allItemsBelongToSeller) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+    const allItemsBelongToSeller =
+      order.items.length > 0 &&
+      order.items.every((it) => it.listing.sellerId === seller.id);
+    if (!allItemsBelongToSeller)
+      return privateJson({ error: "Forbidden." }, { status: 403 });
     const myItems = order.items;
 
-    let partialStockRestores: Array<{ listingId: string; quantity: number }> = [];
+    let partialStockRestores: Array<{ listingId: string; quantity: number }> =
+      [];
     if (type === "PARTIAL" && requestedStockRestores.length > 0) {
       if (!refundMayRestoreStock(order)) {
-        return NextResponse.json(
-          { error: "Stock cannot be restored after this order has shipped or been picked up." },
+        return privateJson(
+          {
+            error:
+              "Stock cannot be restored after this order has shipped or been picked up.",
+          },
           { status: 400 },
         );
       }
-      const restoreValidation = requestedRefundStockRestoreQuantities(myItems, requestedStockRestores);
+      const restoreValidation = requestedRefundStockRestoreQuantities(
+        myItems,
+        requestedStockRestores,
+      );
       if (!restoreValidation.ok) {
-        return NextResponse.json({ error: restoreValidation.error }, { status: 400 });
+        return privateJson({ error: restoreValidation.error }, { status: 400 });
       }
       partialStockRestores = restoreValidation.restores;
     }
@@ -150,7 +200,10 @@ export async function POST(
     const staleLocksReleased = await releaseStaleRefundLocks(orderId);
     const orderForRefundState = {
       ...order,
-      sellerRefundId: sellerRefundIdAfterStaleRelease(order.sellerRefundId, staleLocksReleased.count),
+      sellerRefundId: sellerRefundIdAfterStaleRelease(
+        order.sellerRefundId,
+        staleLocksReleased.count,
+      ),
     };
 
     const latestDispute = await prisma.orderPaymentEvent.findFirst({
@@ -159,47 +212,74 @@ export async function POST(
       select: { status: true },
     });
     if (latestDispute && isOpenStripeDisputeStatus(latestDispute.status)) {
-      return NextResponse.json(
-        { error: "This payment has an open Stripe dispute. Resolve the dispute before issuing a seller refund." },
+      return privateJson(
+        {
+          error:
+            "This payment has an open Stripe dispute. Resolve the dispute before issuing a seller refund.",
+        },
         { status: 409 },
       );
     }
 
-    const refundConflict = sellerRefundConflictResponse(orderForRefundState.sellerRefundId);
+    const refundConflict = sellerRefundConflictResponse(
+      orderForRefundState.sellerRefundId,
+    );
     if (refundConflict) {
-      return NextResponse.json(
+      return privateJson(
         { error: refundConflict.error },
         { status: refundConflict.status },
       );
     }
     if (orderHasRefundLedger(orderForRefundState)) {
-      return NextResponse.json({ error: "A refund has already been issued for this order." }, { status: 400 });
+      return privateJson(
+        { error: "A refund has already been issued for this order." },
+        { status: 400 },
+      );
     }
     if (orderHasPurchasedLabel(order)) {
-      return NextResponse.json(
-        { error: "Cannot refund this order after a shipping label has been purchased. Void or resolve the label first." },
+      return privateJson(
+        {
+          error:
+            "Cannot refund this order after a shipping label has been purchased. Void or resolve the label first.",
+        },
         { status: 409 },
       );
     }
 
     if (!order.stripePaymentIntentId) {
-      return NextResponse.json(
-        { error: "Order has no Stripe payment intent. Refund must be processed manually." },
-        { status: 400 }
+      return privateJson(
+        {
+          error:
+            "Order has no Stripe payment intent. Refund must be processed manually.",
+        },
+        { status: 400 },
       );
     }
 
-    const refundAmountCents = refundAmountForResolution(type, order, amountCents);
+    const refundAmountCents = refundAmountForResolution(
+      type,
+      order,
+      amountCents,
+    );
     if (refundAmountCents == null) {
-      return NextResponse.json(
-        { error: "amountCents is required and must be positive for PARTIAL refunds." },
+      return privateJson(
+        {
+          error:
+            "amountCents is required and must be positive for PARTIAL refunds.",
+        },
         { status: 400 },
       );
     }
     if (partialRefundExceedsOrderTotal(type, amountCents, order)) {
-      return NextResponse.json({ error: "Refund amount exceeds order total." }, { status: 400 });
+      return privateJson(
+        { error: "Refund amount exceeds order total." },
+        { status: 400 },
+      );
     }
-    const refundAmountDisplay = formatCurrencyCents(refundAmountCents, order.currency);
+    const refundAmountDisplay = formatCurrencyCents(
+      refundAmountCents,
+      order.currency,
+    );
 
     // Atomic lock: claim refund slot to prevent double-refund race after validation passes.
     const lockResult = await prisma.order.updateMany({
@@ -209,7 +289,10 @@ export async function POST(
         OR: [{ labelStatus: null }, { labelStatus: { not: "PURCHASED" } }],
         paymentEvents: { none: blockingRefundOrDisputeLedgerWhere() },
       },
-      data: { sellerRefundId: REFUND_LOCK_SENTINEL, sellerRefundLockedAt: new Date() },
+      data: {
+        sellerRefundId: REFUND_LOCK_SENTINEL,
+        sellerRefundLockedAt: new Date(),
+      },
     });
     if (lockResult.count === 0) {
       const freshOrder = await prisma.order.findUnique({
@@ -225,7 +308,10 @@ export async function POST(
         },
       });
       const conflict = refundLockAcquisitionConflictResponse(freshOrder);
-      return NextResponse.json({ error: conflict.error }, { status: conflict.status });
+      return privateJson(
+        { error: conflict.error },
+        { status: conflict.status },
+      );
     }
 
     let refundId: string | null = null;
@@ -250,9 +336,10 @@ export async function POST(
       refundId = refund.primaryRefundId;
       refundIds = refund.refundIds;
 
-      const stockRestores = type === "FULL" && refundMayRestoreStock(order)
-        ? refundStockRestoreQuantities(myItems)
-        : partialStockRestores;
+      const stockRestores =
+        type === "FULL" && refundMayRestoreStock(order)
+          ? refundStockRestoreQuantities(myItems)
+          : partialStockRestores;
       const stockRestoreIds = stockRestores.map((restore) => restore.listingId);
 
       // Resolve any open case on this order
@@ -262,9 +349,10 @@ export async function POST(
       });
 
       const now = new Date();
-      const refundSummary = refundIds.length > 1
-        ? `Stripe refunds ${refundIds.join(", ")}`
-        : `Stripe refund ${refundId}`;
+      const refundSummary =
+        refundIds.length > 1
+          ? `Stripe refunds ${refundIds.join(", ")}`
+          : `Stripe refund ${refundId}`;
       const transferNote = refund.requiresManualTransferReconciliation
         ? " Seller Stripe account is disconnected; transfer reversal must be reconciled manually."
         : "";
@@ -285,7 +373,9 @@ export async function POST(
           },
         });
         if (orderUpdate.count !== 1) {
-          throw new Error("Seller refund lock was no longer held while recording Stripe refund.");
+          throw new Error(
+            "Seller refund lock was no longer held while recording Stripe refund.",
+          );
         }
 
         if (refund.requiresManualTransferReconciliation) {
@@ -293,14 +383,18 @@ export async function POST(
             where: { id: seller.id },
             data: {
               manualStripeReconciliationNeeded: true,
-              manualStripeReconciliationNote: "Seller refund used a platform-only Stripe refund because the connected account transfer could not be reversed. Staff must reconcile the seller transfer manually.",
+              manualStripeReconciliationNote:
+                "Seller refund used a platform-only Stripe refund because the connected account transfer could not be reversed. Staff must reconcile the seller transfer manually.",
             },
           });
         }
 
         if (existingCase) {
           await tx.case.updateMany({
-            where: { id: existingCase.id, status: { notIn: ["RESOLVED", "CLOSED"] } },
+            where: {
+              id: existingCase.id,
+              status: { notIn: ["RESOLVED", "CLOSED"] },
+            },
             data: {
               status: "RESOLVED",
               resolution: type === "FULL" ? "REFUND_FULL" : "REFUND_PARTIAL",
@@ -344,31 +438,35 @@ export async function POST(
           tags: { source: "seller_refund_orphaned_after_stripe" },
           extra: { orderId, refundId, refundIds, refundAmountCents },
         });
-        await prisma.order.updateMany({
-          where: { id: orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
-          data: {
-            sellerRefundId: refundId,
-            sellerRefundAmountCents: refundAmountCents,
-            sellerRefundLockedAt: null,
-            reviewNeeded: true,
-            reviewNote: `ORPHANED REFUND: Stripe refund(s) ${refundIds.join(", ")} were created, but follow-up DB work failed. Manual reconciliation required.`,
-          },
-        }).catch((dbError) => {
-          Sentry.captureException(dbError, {
-            tags: { source: "seller_refund_orphan_record_failed" },
-            extra: { orderId, refundId, refundIds, refundAmountCents },
+        await prisma.order
+          .updateMany({
+            where: { id: orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
+            data: {
+              sellerRefundId: refundId,
+              sellerRefundAmountCents: refundAmountCents,
+              sellerRefundLockedAt: null,
+              reviewNeeded: true,
+              reviewNote: `ORPHANED REFUND: Stripe refund(s) ${refundIds.join(", ")} were created, but follow-up DB work failed. Manual reconciliation required.`,
+            },
+          })
+          .catch((dbError) => {
+            Sentry.captureException(dbError, {
+              tags: { source: "seller_refund_orphan_record_failed" },
+              extra: { orderId, refundId, refundIds, refundAmountCents },
+            });
           });
-        });
       } else {
-        await prisma.order.updateMany({
-          where: { id: orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
-          data: { sellerRefundId: null, sellerRefundLockedAt: null },
-        }).catch((dbError) => {
-          Sentry.captureException(dbError, {
-            tags: { source: "seller_refund_lock_release_failed" },
-            extra: { orderId, refundAmountCents },
+        await prisma.order
+          .updateMany({
+            where: { id: orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
+            data: { sellerRefundId: null, sellerRefundLockedAt: null },
+          })
+          .catch((dbError) => {
+            Sentry.captureException(dbError, {
+              tags: { source: "seller_refund_lock_release_failed" },
+              extra: { orderId, refundAmountCents },
+            });
           });
-        });
       }
       throw err;
     }
@@ -396,12 +494,13 @@ export async function POST(
       const refundEmailAllowed = order.buyerId
         ? await shouldSendEmail(order.buyerId, "EMAIL_REFUND_ISSUED")
         : false;
-      const buyerUser = order.buyerId && refundEmailAllowed
-        ? await prisma.user.findUnique({
-            where: { id: order.buyerId },
-            select: { name: true, email: true },
-          })
-        : null;
+      const buyerUser =
+        order.buyerId && refundEmailAllowed
+          ? await prisma.user.findUnique({
+              where: { id: order.buyerId },
+              select: { name: true, email: true },
+            })
+          : null;
       if (buyerUser?.email) {
         await sendRefundIssued({
           buyer: { name: buyerUser.name, email: buyerUser.email },
@@ -418,7 +517,7 @@ export async function POST(
       });
     }
 
-    return NextResponse.json({
+    return privateJson({
       ok: true,
       refundId: refundId!,
       refundIds,
@@ -429,6 +528,6 @@ export async function POST(
     if (accountResponse) return accountResponse;
 
     logServerError(err, { source: "seller_refund_route" });
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return privateJson({ error: "Server error" }, { status: 500 });
   }
 }

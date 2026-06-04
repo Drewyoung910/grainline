@@ -1,13 +1,19 @@
 // src/app/api/cases/route.ts
-import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCaseOpened } from "@/lib/email";
-import { caseCreateRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
-import { blockingRefundLedgerWhere, orderHasRefundLedger } from "@/lib/refundRouteState";
+import {
+  caseCreateRatelimit,
+  rateLimitResponse,
+  safeRateLimit,
+} from "@/lib/ratelimit";
+import {
+  blockingRefundLedgerWhere,
+  orderHasRefundLedger,
+} from "@/lib/refundRouteState";
 import { logUserAuditAction } from "@/lib/audit";
 import {
   caseEstimatedDeliveryBlockMessage,
@@ -22,13 +28,20 @@ import {
   readBoundedJson,
 } from "@/lib/requestBody";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { z } from "zod";
 
 export const runtime = "nodejs";
 
 const CaseCreateSchema = z.object({
   orderId: z.string().min(1),
-  reason: z.enum(["NOT_RECEIVED", "NOT_AS_DESCRIBED", "DAMAGED", "WRONG_ITEM", "OTHER"]),
+  reason: z.enum([
+    "NOT_RECEIVED",
+    "NOT_AS_DESCRIBED",
+    "DAMAGED",
+    "WRONG_ITEM",
+    "OTHER",
+  ]),
   description: z.string().min(1).max(2000),
 });
 const CASE_CREATE_BODY_MAX_BYTES = 24 * 1024;
@@ -36,32 +49,46 @@ const CASE_CREATE_BODY_MAX_BYTES = 24 * 1024;
 export async function POST(req: Request) {
   try {
     const { userId } = await auth();
-    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
     const { success, reset } = await safeRateLimit(caseCreateRatelimit, userId);
-    if (!success) return rateLimitResponse(reset, "Too many case submissions. Try again later.");
+    if (!success)
+      return privateResponse(
+        rateLimitResponse(reset, "Too many case submissions. Try again later."),
+      );
 
     const me = await ensureUserByClerkId(userId);
 
     let parsed;
     try {
-      parsed = CaseCreateSchema.parse(await readBoundedJson(req, CASE_CREATE_BODY_MAX_BYTES));
+      parsed = CaseCreateSchema.parse(
+        await readBoundedJson(req, CASE_CREATE_BODY_MAX_BYTES),
+      );
     } catch (e) {
       if (isRequestBodyTooLargeError(e)) {
-        return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+        return privateJson(
+          { error: "Request body too large" },
+          { status: 413 },
+        );
       }
       if (isInvalidJsonBodyError(e)) {
-        return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+        return privateJson({ error: "Invalid JSON" }, { status: 400 });
       }
       if (e instanceof z.ZodError) {
-        return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+        return privateJson(
+          { error: "Invalid input", details: e.issues },
+          { status: 400 },
+        );
       }
       throw e;
     }
     const { orderId, reason } = parsed;
     const description = sanitizeRichText(parsed.description.trim());
     if (description.length < 20) {
-      return NextResponse.json({ error: "Description must be at least 20 characters." }, { status: 400 });
+      return privateJson(
+        { error: "Description must be at least 20 characters." },
+        { status: 400 },
+      );
     }
 
     const order = await prisma.order.findUnique({
@@ -80,7 +107,9 @@ export async function POST(req: Request) {
               select: {
                 seller: {
                   select: {
-                    user: { select: { id: true, banned: true, deletedAt: true } },
+                    user: {
+                      select: { id: true, banned: true, deletedAt: true },
+                    },
                   },
                 },
               },
@@ -90,32 +119,43 @@ export async function POST(req: Request) {
       },
     });
 
-    if (!order) return NextResponse.json({ error: "Order not found." }, { status: 404 });
-    if (order.buyerId !== me.id) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+    if (!order)
+      return privateJson({ error: "Order not found." }, { status: 404 });
+    if (order.buyerId !== me.id)
+      return privateJson({ error: "Forbidden." }, { status: 403 });
     if (order.case) {
-      return NextResponse.json(
+      return privateJson(
         { error: "A case already exists for this order." },
-        { status: 409 }
+        { status: 409 },
       );
     }
 
     // Block case if seller already refunded
     if (orderHasRefundLedger(order)) {
-      return NextResponse.json(
+      return privateJson(
         { error: "A refund has already been issued for this order." },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // Block case if order hasn't been shipped yet
     const sellerUser = order.items[0]?.listing.seller.user;
-    const sellerUnavailable = Boolean(sellerUser?.banned || sellerUser?.deletedAt);
+    const sellerUnavailable = Boolean(
+      sellerUser?.banned || sellerUser?.deletedAt,
+    );
     const fulfillmentStatus = order.fulfillmentStatus ?? "PENDING";
     const now = new Date();
-    if (fulfillmentStatus === "PENDING" && !sellerUnavailable && !order.reviewNeeded) {
-      return NextResponse.json(
-        { error: "Please wait until your order has shipped before opening a case." },
-        { status: 400 }
+    if (
+      fulfillmentStatus === "PENDING" &&
+      !sellerUnavailable &&
+      !order.reviewNeeded
+    ) {
+      return privateJson(
+        {
+          error:
+            "Please wait until your order has shipped before opening a case.",
+        },
+        { status: 400 },
       );
     }
 
@@ -126,24 +166,26 @@ export async function POST(req: Request) {
       !sellerUnavailable &&
       !order.reviewNeeded
     ) {
-      return NextResponse.json(
-        { error: caseEstimatedDeliveryBlockMessage(order.estimatedDeliveryDate) },
-        { status: 400 }
+      return privateJson(
+        {
+          error: caseEstimatedDeliveryBlockMessage(order.estimatedDeliveryDate),
+        },
+        { status: 400 },
       );
     }
 
     if (isOrderCaseWindowClosed(order, now)) {
-      return NextResponse.json(
+      return privateJson(
         { error: caseWindowClosedMessage(caseWindowClosesAt(order)) },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     const sellerId = sellerUser?.id;
     if (!sellerId) {
-      return NextResponse.json(
+      return privateJson(
         { error: "Could not determine seller for this order." },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -203,15 +245,21 @@ export async function POST(req: Request) {
       });
     }
 
-    return NextResponse.json(newCase, { status: 201 });
+    return privateJson(newCase, { status: 201 });
   } catch (err) {
     if (isAccountAccessError(err)) {
-      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
+      return privateJson(
+        { error: err.message, code: err.code },
+        { status: err.status },
+      );
     }
     if ((err as { code?: string }).code === "P2002") {
-      return NextResponse.json({ error: "A case is already open for this order." }, { status: 409 });
+      return privateJson(
+        { error: "A case is already open for this order." },
+        { status: 409 },
+      );
     }
     logServerError(err, { source: "case_create_route" });
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return privateJson({ error: "Server error" }, { status: 500 });
   }
 }

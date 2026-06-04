@@ -1,10 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-const {
-  createMarketplaceRefundWithCreator,
-  refundIdempotencyKeyBase,
-} = await import("../src/lib/marketplaceRefunds.ts");
+const { createMarketplaceRefundWithCreator, refundIdempotencyKeyBase } =
+  await import("../src/lib/marketplaceRefunds.ts");
 
 function baseOpts(overrides = {}) {
   const opts = {
@@ -32,10 +30,13 @@ function baseOpts(overrides = {}) {
 describe("marketplace refunds", () => {
   it("uses one full reverse-transfer refund when the original order included tax", async () => {
     const calls = [];
-    const result = await createMarketplaceRefundWithCreator(baseOpts(), async (params, requestOptions) => {
-      calls.push({ params, requestOptions });
-      return { id: "re_full" };
-    });
+    const result = await createMarketplaceRefundWithCreator(
+      baseOpts(),
+      async (params, requestOptions) => {
+        calls.push({ params, requestOptions });
+        return { id: "re_full" };
+      },
+    );
 
     assert.deepEqual(result, {
       primaryRefundId: "re_full",
@@ -54,7 +55,9 @@ describe("marketplace refunds", () => {
           amount: 11_325,
           reverse_transfer: true,
         },
-        requestOptions: { idempotencyKey: "seller-refund:order_1:FULL:11325:full" },
+        requestOptions: {
+          idempotencyKey: "seller-refund:order_1:FULL:11325:full",
+        },
       },
     ]);
   });
@@ -86,7 +89,9 @@ describe("marketplace refunds", () => {
           amount: 11_825,
           reverse_transfer: true,
         },
-        requestOptions: { idempotencyKey: "seller-refund:order_1:FULL:11825:full" },
+        requestOptions: {
+          idempotencyKey: "seller-refund:order_1:FULL:11825:full",
+        },
       },
     ]);
   });
@@ -118,7 +123,9 @@ describe("marketplace refunds", () => {
           amount: 11_325,
           reason: "requested_by_customer",
         },
-        requestOptions: { idempotencyKey: "seller-refund:order_1:FULL:11325:platform" },
+        requestOptions: {
+          idempotencyKey: "seller-refund:order_1:FULL:11325:platform",
+        },
       },
     ]);
   });
@@ -155,7 +162,9 @@ describe("marketplace refunds", () => {
           reverse_transfer: true,
           reason: "requested_by_customer",
         },
-        requestOptions: { idempotencyKey: "seller-refund:order_1:PARTIAL:1200:seller" },
+        requestOptions: {
+          idempotencyKey: "seller-refund:order_1:PARTIAL:1200:seller",
+        },
       },
     ]);
   });
@@ -190,7 +199,9 @@ describe("marketplace refunds", () => {
           payment_intent: "pi_test",
           amount: 825,
         },
-        requestOptions: { idempotencyKey: "seller-refund:order_1:FULL:825:tax-only" },
+        requestOptions: {
+          idempotencyKey: "seller-refund:order_1:FULL:825:tax-only",
+        },
       },
     ]);
   });
@@ -201,7 +212,10 @@ describe("marketplace refunds", () => {
     await assert.rejects(
       () =>
         createMarketplaceRefundWithCreator(
-          baseOpts({ amountCents: 0, idempotencyKeyBase: "seller-refund:order_1:FULL:1" }),
+          baseOpts({
+            amountCents: 0,
+            idempotencyKeyBase: "seller-refund:order_1:FULL:1",
+          }),
           async () => {
             calls += 1;
             return { id: "never" };
@@ -221,6 +235,15 @@ describe("marketplace refunds", () => {
         amountCents: 1200,
       }),
       "seller-refund:order_1:PARTIAL:1200",
+    );
+    assert.equal(
+      refundIdempotencyKeyBase({
+        scope: "blocked-checkout-refund",
+        id: "cs_test_123",
+        resolution: "FULL",
+        amountCents: 2400,
+      }),
+      "blocked-checkout-refund:cs_test_123:FULL:2400",
     );
 
     await assert.rejects(
@@ -261,10 +284,13 @@ describe("marketplace refunds", () => {
 
     await assert.rejects(
       () =>
-        createMarketplaceRefundWithCreator(baseOpts({ amountCents: 11_326 }), async () => {
-          calls += 1;
-          return { id: "never" };
-        }),
+        createMarketplaceRefundWithCreator(
+          baseOpts({ amountCents: 11_326 }),
+          async () => {
+            calls += 1;
+            return { id: "never" };
+          },
+        ),
       /Refund amount exceeds order total/,
     );
     assert.equal(calls, 0);
@@ -289,9 +315,12 @@ describe("marketplace refunds", () => {
   });
 
   it("surfaces pending Stripe refund statuses for manual follow-up without dropping the refund id", async () => {
-    const result = await createMarketplaceRefundWithCreator(baseOpts(), async () => {
-      return { id: "re_pending", status: "pending" };
-    });
+    const result = await createMarketplaceRefundWithCreator(
+      baseOpts(),
+      async () => {
+        return { id: "re_pending", status: "pending" };
+      },
+    );
 
     assert.equal(result.primaryRefundId, "re_pending");
     assert.deepEqual(result.refundStatuses, ["pending"]);

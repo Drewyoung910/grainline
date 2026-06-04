@@ -2,7 +2,10 @@
 import { currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { sanitizeUserName, truncateText } from "@/lib/sanitize";
-import { AccountAccessError, isAccountAccessError } from "@/lib/accountAccessError";
+import {
+  AccountAccessError,
+  isAccountAccessError,
+} from "@/lib/accountAccessError";
 import { normalizeEmailAddress } from "@/lib/emailSuppression";
 import { syncUserEmailAddressHistory } from "@/lib/userEmailAddresses";
 import * as Sentry from "@sentry/nextjs";
@@ -32,7 +35,7 @@ export async function ensureUserByClerkId(
     termsAcceptedAt?: Date | null;
     termsVersion?: string | null;
     ageAttestedAt?: Date | null;
-  }
+  },
 ) {
   const existing = await prisma.user.findUnique({ where: { clerkId } });
 
@@ -117,7 +120,8 @@ export async function ensureUserByClerkId(
   }
 
   // CREATE path: allow placeholder email if none provided
-  const email = normalizeEmailAddress(opts?.email) ?? `${clerkId}@placeholder.invalid`;
+  const email =
+    normalizeEmailAddress(opts?.email) ?? `${clerkId}@placeholder.invalid`;
   const name = opts?.name ? sanitizeUserName(opts.name) || null : null;
   const imageUrl = (opts?.imageUrl ?? null) as string | null;
   const createData = {
@@ -192,15 +196,12 @@ export async function ensureUser() {
   const u = await currentUser();
   if (!u) return null;
 
-  const email =
-    u.emailAddresses?.find((e) => e.id === u.primaryEmailAddressId)?.emailAddress ??
-    u.emailAddresses?.[0]?.emailAddress ??
-    `${u.id}@placeholder.invalid`;
+  const primaryEmail = u.emailAddresses?.find(
+    (e) => e.id === u.primaryEmailAddressId,
+  )?.emailAddress;
 
   const name =
-    u.fullName ||
-    [u.firstName, u.lastName].filter(Boolean).join(" ") ||
-    null;
+    u.fullName || [u.firstName, u.lastName].filter(Boolean).join(" ") || null;
 
   const imageUrl = u.imageUrl ?? null;
 
@@ -208,12 +209,14 @@ export async function ensureUser() {
   const termsAcceptedAt = dateFromMetadata(unsafeMetadata.termsAcceptedAt);
   const ageAttestedAt = dateFromMetadata(unsafeMetadata.ageAttestedAt);
   const termsVersion =
-    typeof unsafeMetadata.termsVersion === "string" ? truncateText(unsafeMetadata.termsVersion, 50) : undefined;
+    typeof unsafeMetadata.termsVersion === "string"
+      ? truncateText(unsafeMetadata.termsVersion, 50)
+      : undefined;
 
   const userFields: Parameters<typeof ensureUserByClerkId>[1] = {
-    email,
     name,
     imageUrl,
+    ...(primaryEmail ? { email: primaryEmail } : {}),
     ...(termsAcceptedAt ? { termsAcceptedAt } : {}),
     ...(ageAttestedAt ? { ageAttestedAt } : {}),
     ...(termsVersion ? { termsVersion } : {}),

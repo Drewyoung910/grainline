@@ -1,28 +1,39 @@
 // src/app/api/commission/[id]/interest/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { after } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import { createNotification } from "@/lib/notifications";
-import { commissionInterestRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import {
+  commissionInterestRatelimit,
+  rateLimitResponse,
+  safeRateLimit,
+} from "@/lib/ratelimit";
 import { commissionIsExpired } from "@/lib/commissionExpiry";
 import { openCommissionMutationWhere } from "@/lib/commissionState";
 import { logSecurityEvent } from "@/lib/security";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 
 const COMMISSION_CLOSED_DURING_INTEREST = "COMMISSION_CLOSED_DURING_INTEREST";
 
 export async function POST(
   _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
-  const { success: rlOk, reset } = await safeRateLimit(commissionInterestRatelimit, userId);
-  if (!rlOk) return rateLimitResponse(reset, "Too many interest expressions today.");
+  const { success: rlOk, reset } = await safeRateLimit(
+    commissionInterestRatelimit,
+    userId,
+  );
+  if (!rlOk)
+    return privateResponse(
+      rateLimitResponse(reset, "Too many interest expressions today."),
+    );
 
   const me = await prisma.user.findUnique({
     where: { clerkId: userId },
@@ -42,15 +53,23 @@ export async function POST(
       },
     },
   });
-  if (!me) return NextResponse.json({ error: "User not found" }, { status: 401 });
-  if (me.banned || me.deletedAt) return NextResponse.json({ error: "Account is suspended" }, { status: 403 });
+  if (!me) return privateJson({ error: "User not found" }, { status: 401 });
+  if (me.banned || me.deletedAt)
+    return privateJson({ error: "Account is suspended" }, { status: 403 });
   const sellerProfile = me.sellerProfile;
-  if (!sellerProfile) return NextResponse.json({ error: "Seller profile required" }, { status: 403 });
+  if (!sellerProfile)
+    return privateJson({ error: "Seller profile required" }, { status: 403 });
   if (!sellerProfile.chargesEnabled) {
-    return NextResponse.json({ error: "Connect Stripe before expressing interest." }, { status: 403 });
+    return privateJson(
+      { error: "Connect Stripe before expressing interest." },
+      { status: 403 },
+    );
   }
   if (sellerProfile.vacationMode) {
-    return NextResponse.json({ error: "Turn off vacation mode before expressing interest." }, { status: 403 });
+    return privateJson(
+      { error: "Turn off vacation mode before expressing interest." },
+      { status: 403 },
+    );
   }
 
   const commissionRequest = await prisma.commissionRequest.findUnique({
@@ -65,19 +84,35 @@ export async function POST(
       budgetMinCents: true,
       budgetMaxCents: true,
       timeline: true,
-      buyer: { select: { id: true, name: true, banned: true, deletedAt: true } },
+      buyer: {
+        select: { id: true, name: true, banned: true, deletedAt: true },
+      },
     },
   });
-  if (!commissionRequest) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!commissionRequest)
+    return privateJson({ error: "Not found" }, { status: 404 });
   if (commissionRequest.buyer.banned || commissionRequest.buyer.deletedAt) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return privateJson({ error: "Not found" }, { status: 404 });
   }
-  if (commissionRequest.status !== "OPEN" || commissionIsExpired(commissionRequest)) {
-    return NextResponse.json({ error: "Commission request is no longer open" }, { status: 400 });
+  if (
+    commissionRequest.status !== "OPEN" ||
+    commissionIsExpired(commissionRequest)
+  ) {
+    return privateJson(
+      { error: "Commission request is no longer open" },
+      { status: 400 },
+    );
   }
   if (commissionRequest.buyerId === me.id) {
-    logSecurityEvent("spam_attempt", { userId: me.id, route: "/api/commission/interest", reason: "interest on own commission" });
-    return NextResponse.json({ error: "Cannot express interest in your own request" }, { status: 400 });
+    logSecurityEvent("spam_attempt", {
+      userId: me.id,
+      route: "/api/commission/interest",
+      reason: "interest on own commission",
+    });
+    return privateJson(
+      { error: "Cannot express interest in your own request" },
+      { status: 400 },
+    );
   }
 
   const blockExists = await prisma.block.findFirst({
@@ -90,7 +125,10 @@ export async function POST(
     select: { id: true },
   });
   if (blockExists) {
-    return NextResponse.json({ error: "Unable to express interest." }, { status: 403 });
+    return privateJson(
+      { error: "Unable to express interest." },
+      { status: 403 },
+    );
   }
 
   // Check if already expressed interest
@@ -104,7 +142,10 @@ export async function POST(
   });
   if (existing) {
     // Return existing conversation if any
-    return NextResponse.json({ conversationId: existing.conversationId, alreadyInterested: true });
+    return privateJson({
+      conversationId: existing.conversationId,
+      alreadyInterested: true,
+    });
   }
 
   // Upsert conversation (canonical sort, race-safe)
@@ -145,9 +186,15 @@ export async function POST(
     });
   } catch (e) {
     if (e instanceof Error && e.message === COMMISSION_CLOSED_DURING_INTEREST) {
-      return NextResponse.json({ error: "Commission request is no longer open" }, { status: 409 });
+      return privateJson(
+        { error: "Commission request is no longer open" },
+        { status: 409 },
+      );
     }
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+    if (
+      e instanceof Prisma.PrismaClientKnownRequestError &&
+      e.code === "P2002"
+    ) {
       const racedExisting = await prisma.commissionInterest.findUnique({
         where: {
           commissionRequestId_sellerProfileId: {
@@ -158,12 +205,19 @@ export async function POST(
         select: { conversationId: true },
       });
       if (racedExisting) {
-        return NextResponse.json({ conversationId: racedExisting.conversationId, alreadyInterested: true });
+        return privateJson({
+          conversationId: racedExisting.conversationId,
+          alreadyInterested: true,
+        });
       }
     }
     throw e;
   }
-  if (!conversationId) return NextResponse.json({ error: "Failed to create conversation" }, { status: 500 });
+  if (!conversationId)
+    return privateJson(
+      { error: "Failed to create conversation" },
+      { status: 500 },
+    );
   const finalConversationId = conversationId;
 
   // Send a structured system message to the buyer
@@ -213,5 +267,8 @@ export async function POST(
     }
   });
 
-  return NextResponse.json({ conversationId: finalConversationId, alreadyInterested: false });
+  return privateJson({
+    conversationId: finalConversationId,
+    alreadyInterested: false,
+  });
 }

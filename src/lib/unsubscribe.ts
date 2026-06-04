@@ -4,7 +4,10 @@ import {
   emailSuppressionAddressKeys,
   normalizeEmailSuppressionAddress,
 } from "@/lib/emailSuppression";
-import { normalizeNotificationPreferences, VALID_EMAIL_PREFERENCE_KEYS } from "@/lib/notificationPreferenceKeys";
+import {
+  normalizeNotificationPreferences,
+  VALID_EMAIL_PREFERENCE_KEYS,
+} from "@/lib/notificationPreferenceKeys";
 import { normalizeUnsubscribeEmail } from "@/lib/unsubscribeToken";
 
 export {
@@ -15,12 +18,19 @@ export {
 } from "@/lib/unsubscribeToken";
 
 const EMAIL_PREFS_TO_DISABLE = [...VALID_EMAIL_PREFERENCE_KEYS];
-type EmailSuppressionClient = Pick<Prisma.TransactionClient, "emailSuppression">;
+type EmailSuppressionClient = Pick<
+  Prisma.TransactionClient,
+  "emailSuppression"
+>;
 
-async function setOneClickEmailSuppression(tx: EmailSuppressionClient, email: string) {
+async function setOneClickEmailSuppression(
+  tx: EmailSuppressionClient,
+  email: string,
+) {
   const suppressionEmail = normalizeEmailSuppressionAddress(email) ?? email;
   const suppressionEmailKeys = emailSuppressionAddressKeys(email);
-  const emails = suppressionEmailKeys.length > 0 ? suppressionEmailKeys : [suppressionEmail];
+  const emails =
+    suppressionEmailKeys.length > 0 ? suppressionEmailKeys : [suppressionEmail];
   const details = { disabledPreferences: EMAIL_PREFS_TO_DISABLE };
 
   const existingSuppressions = await tx.emailSuppression.findMany({
@@ -47,7 +57,11 @@ async function setOneClickEmailSuppression(tx: EmailSuppressionClient, email: st
     },
   });
 
-  if (!existingSuppressions.some((suppression) => suppression.email === suppressionEmail)) {
+  if (
+    !existingSuppressions.some(
+      (suppression) => suppression.email === suppressionEmail,
+    )
+  ) {
     await tx.emailSuppression.create({
       data: {
         email: suppressionEmail,
@@ -64,32 +78,56 @@ export async function unsubscribeTokenSuperseded(
   issuedAtValue: string | number | null,
 ): Promise<boolean> {
   const normalized = normalizeUnsubscribeEmail(email);
-  const issuedAt = typeof issuedAtValue === "number" ? issuedAtValue : Number(issuedAtValue);
-  if (!normalized || !Number.isSafeInteger(issuedAt) || issuedAt <= 0) return true;
+  const issuedAt =
+    typeof issuedAtValue === "number" ? issuedAtValue : Number(issuedAtValue);
+  if (!normalized || !Number.isSafeInteger(issuedAt) || issuedAt <= 0)
+    return true;
 
   const suppressionEmailKeys = emailSuppressionAddressKeys(normalized);
-  const emails = suppressionEmailKeys.length > 0 ? suppressionEmailKeys : [normalized];
+  const emails =
+    suppressionEmailKeys.length > 0 ? suppressionEmailKeys : [normalized];
+
+  const newerAccountClaim = await prisma.user.findFirst({
+    where: {
+      email: { in: emails },
+      deletedAt: null,
+      createdAt: { gt: new Date(issuedAt) },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true },
+  });
+  if (newerAccountClaim) return true;
 
   const user = await prisma.user.findFirst({
     where: { email: { in: emails }, emailPreferenceOptInAt: { not: null } },
     orderBy: { emailPreferenceOptInAt: "desc" },
     select: { emailPreferenceOptInAt: true },
   });
-  if (user?.emailPreferenceOptInAt && user.emailPreferenceOptInAt.getTime() > issuedAt) return true;
+  if (
+    user?.emailPreferenceOptInAt &&
+    user.emailPreferenceOptInAt.getTime() > issuedAt
+  )
+    return true;
 
   const newsletter = await prisma.newsletterSubscriber.findFirst({
     where: { email: { in: emails }, confirmedAt: { not: null } },
     orderBy: { confirmedAt: "desc" },
     select: { confirmedAt: true },
   });
-  return !!newsletter?.confirmedAt && newsletter.confirmedAt.getTime() > issuedAt;
+  return (
+    !!newsletter?.confirmedAt && newsletter.confirmedAt.getTime() > issuedAt
+  );
 }
 
-export async function unsubscribeEmail(email: string): Promise<{ ok: boolean; userUpdated: boolean; newsletterUpdated: number }> {
+export async function unsubscribeEmail(
+  email: string,
+): Promise<{ ok: boolean; userUpdated: boolean; newsletterUpdated: number }> {
   const normalized = normalizeUnsubscribeEmail(email);
-  if (!normalized) return { ok: false, userUpdated: false, newsletterUpdated: 0 };
+  if (!normalized)
+    return { ok: false, userUpdated: false, newsletterUpdated: 0 };
   const suppressionEmailKeys = emailSuppressionAddressKeys(normalized);
-  const emails = suppressionEmailKeys.length > 0 ? suppressionEmailKeys : [normalized];
+  const emails =
+    suppressionEmailKeys.length > 0 ? suppressionEmailKeys : [normalized];
 
   let userUpdated = false;
   let newsletterUpdated = 0;
@@ -112,7 +150,9 @@ export async function unsubscribeEmail(email: string): Promise<{ ok: boolean; us
     });
 
     for (const user of users) {
-      const preferences = normalizeNotificationPreferences(user.notificationPreferences);
+      const preferences = normalizeNotificationPreferences(
+        user.notificationPreferences,
+      );
       for (const key of EMAIL_PREFS_TO_DISABLE) {
         preferences[key] = false;
       }

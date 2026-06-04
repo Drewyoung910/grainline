@@ -30,7 +30,10 @@ describe("payment and fulfillment side-effect observability", () => {
     const route = source("src/app/api/orders/[id]/refund/route.ts");
 
     assert.match(route, /refundMayRestoreStock\(order\)/);
-    assert.match(route, /tx\.order\.updateMany\(\{\s*where: \{ id: orderId, sellerRefundId: REFUND_LOCK_SENTINEL \}/s);
+    assert.match(
+      route,
+      /tx\.order\.updateMany\(\{\s*where: \{ id: orderId, sellerRefundId: REFUND_LOCK_SENTINEL \}/s,
+    );
     assert.match(route, /if \(orderUpdate\.count !== 1\)/);
     assert.match(route, /manualStripeReconciliationNeeded: true/);
   });
@@ -38,9 +41,15 @@ describe("payment and fulfillment side-effect observability", () => {
   it("records staff case refunds only while the refund lock is still held", () => {
     const route = source("src/app/api/cases/[id]/resolve/route.ts");
 
-    assert.match(route, /sellerProfile: \{ select: \{ id: true, stripeAccountId: true \} \}/);
+    assert.match(
+      route,
+      /sellerProfile: \{ select: \{ id: true, stripeAccountId: true \} \}/,
+    );
     assert.match(route, /refundMayRestoreStock\(caseRecord\.order\)/);
-    assert.match(route, /tx\.order\.updateMany\(\{\s*where: \{ id: caseRecord\.orderId, sellerRefundId: REFUND_LOCK_SENTINEL \}/s);
+    assert.match(
+      route,
+      /tx\.order\.updateMany\(\{\s*where: \{ id: caseRecord\.orderId, sellerRefundId: REFUND_LOCK_SENTINEL \}/s,
+    );
     assert.match(route, /if \(orderUpdate\.count !== 1\)/);
     assert.match(route, /CASE_REFUND_LOCK_LOST/);
     assert.match(route, /manualStripeReconciliationNeeded: true/);
@@ -55,13 +64,25 @@ describe("payment and fulfillment side-effect observability", () => {
       assert.match(route, /blockingRefundOrDisputeLedgerWhere/);
       assert.match(route, /sellerRefundConflictResponse/);
       assert.match(route, /orderHasRefundLedger/);
-      assert.match(route, /paymentEvents:\s*\{\s*none:\s*blockingRefundOrDisputeLedgerWhere\(\)\s*\}/);
+      assert.match(
+        route,
+        /paymentEvents:\s*\{\s*none:\s*blockingRefundOrDisputeLedgerWhere\(\)\s*\}/,
+      );
     }
 
-    assert.match(sellerRoute, /if \(orderHasRefundLedger\(orderForRefundState\)\)/);
-    assert.match(sellerRoute, /where:\s*\{\s*id: orderId,\s*sellerRefundId: null/s);
+    assert.match(
+      sellerRoute,
+      /if \(orderHasRefundLedger\(orderForRefundState\)\)/,
+    );
+    assert.match(
+      sellerRoute,
+      /where:\s*\{\s*id: orderId,\s*sellerRefundId: null/s,
+    );
     assert.match(caseRoute, /if \(orderHasRefundLedger\(caseRecord\.order\)\)/);
-    assert.match(caseRoute, /where:\s*\{\s*id: caseRecord\.orderId,\s*sellerRefundId: null/s);
+    assert.match(
+      caseRoute,
+      /where:\s*\{\s*id: caseRecord\.orderId,\s*sellerRefundId: null/s,
+    );
   });
 
   it("keeps refund and label-purchase locks aligned", () => {
@@ -71,15 +92,24 @@ describe("payment and fulfillment side-effect observability", () => {
 
     for (const route of [sellerRoute, caseRoute]) {
       assert.match(route, /orderHasPurchasedLabel/);
-      assert.match(route, /Cannot refund this order after a shipping label has been purchased/);
-      assert.match(route, /OR:\s*\[\{ labelStatus: null \}, \{ labelStatus: \{ not: "PURCHASED" \} \}\]/);
+      assert.match(
+        route,
+        /Cannot refund this order after a shipping label has been purchased/,
+      );
+      assert.match(
+        route,
+        /OR:\s*\[\{ labelStatus: null \}, \{ labelStatus: \{ not: "PURCHASED" \} \}\]/,
+      );
       assert.match(route, /labelStatus: true/);
     }
 
     assert.match(labelRoute, /"sellerRefundId" IS NULL/);
     assert.match(labelRoute, /"sellerRefundLockedAt" IS NULL/);
     assert.match(labelRoute, /ope\."status" IS NULL/);
-    assert.match(labelRoute, /ope\."status" NOT IN \('failed', 'canceled', 'cancelled'\)/);
+    assert.match(
+      labelRoute,
+      /ope\."status" NOT IN \('failed', 'canceled', 'cancelled'\)/,
+    );
   });
 
   it("allows seller partial refunds to restore only explicitly requested purchased stock", () => {
@@ -87,13 +117,22 @@ describe("payment and fulfillment side-effect observability", () => {
     const panel = source("src/components/SellerRefundPanel.tsx");
     const salesPage = source("src/app/dashboard/sales/[orderId]/page.tsx");
 
-    assert.match(route, /restoreStock: z\.array/);
-    assert.match(route, /requestedRefundStockRestoreQuantities\(myItems, requestedStockRestores\)/);
+    assert.match(route, /restoreStock:\s*z\s*\.array/);
+    assert.match(
+      route,
+      /requestedRefundStockRestoreQuantities\(\s*myItems,\s*requestedStockRestores,\s*\)/,
+    );
     assert.match(route, /Full refunds restore eligible stock automatically/);
-    assert.match(route, /Stock cannot be restored after this order has shipped or been picked up/);
+    assert.match(
+      route,
+      /Stock cannot be restored after this order has shipped or been picked up/,
+    );
     assert.match(route, /: partialStockRestores/);
     assert.match(panel, /Restore inventory \(optional\)/);
-    assert.match(panel, /restoreStock\.push\(\{ listingId: item\.listingId, quantity \}\)/);
+    assert.match(
+      panel,
+      /restoreStock\.push\(\{ listingId: item\.listingId, quantity \}\)/,
+    );
     assert.match(salesPage, /restorableRefundItems/);
     assert.match(salesPage, /canRestoreStock=\{canRestoreRefundStock\}/);
   });
@@ -104,12 +143,27 @@ describe("payment and fulfillment side-effect observability", () => {
     const adminCasePage = source("src/app/admin/cases/[id]/page.tsx");
 
     assert.match(route, /restoreStock: z\.array/);
-    assert.match(route, /resolution !== "REFUND_PARTIAL" && requestedStockRestores\.length > 0/);
-    assert.match(route, /requestedRefundStockRestoreQuantities\(\s*caseRecord\.order\.items,\s*requestedStockRestores,\s*\)/s);
-    assert.match(route, /Stock cannot be restored after this order has shipped or been picked up/);
-    assert.match(route, /resolution === "REFUND_PARTIAL"[\s\S]*\? partialStockRestores/);
+    assert.match(
+      route,
+      /resolution !== "REFUND_PARTIAL" && requestedStockRestores\.length > 0/,
+    );
+    assert.match(
+      route,
+      /requestedRefundStockRestoreQuantities\(\s*caseRecord\.order\.items,\s*requestedStockRestores,\s*\)/s,
+    );
+    assert.match(
+      route,
+      /Stock cannot be restored after this order has shipped or been picked up/,
+    );
+    assert.match(
+      route,
+      /resolution === "REFUND_PARTIAL"[\s\S]*\? partialStockRestores/,
+    );
     assert.match(panel, /Restore inventory \(optional\)/);
-    assert.match(panel, /restoreStock\.push\(\{ listingId: item\.listingId, quantity \}\)/);
+    assert.match(
+      panel,
+      /restoreStock\.push\(\{ listingId: item\.listingId, quantity \}\)/,
+    );
     assert.match(adminCasePage, /restorableRefundItems/);
     assert.match(adminCasePage, /canRestoreStock=\{canRestoreRefundStock\}/);
   });
@@ -119,22 +173,36 @@ describe("payment and fulfillment side-effect observability", () => {
 
     assert.match(route, /sanitizeEmailOutboxError\(retrieveErr\)/);
     assert.match(route, /sanitizeEmailOutboxError\(err\)/);
-    assert.doesNotMatch(route, /console\.error\("Webhook: failed to retrieve full event:", retrieveErr\)/);
-    assert.doesNotMatch(route, /console\.error\("Stripe webhook handler error:", err\)/);
+    assert.doesNotMatch(
+      route,
+      /console\.error\("Webhook: failed to retrieve full event:", retrieveErr\)/,
+    );
+    assert.doesNotMatch(
+      route,
+      /console\.error\("Stripe webhook handler error:", err\)/,
+    );
   });
 
   it("persists Stripe order emails to the outbox before any direct send", () => {
     const route = source("src/app/api/stripe/webhook/route.ts");
 
-    const enqueueIndex = route.indexOf("enqueued = await enqueueEmailOutboxOnce");
+    const enqueueIndex = route.indexOf(
+      "enqueued = await enqueueEmailOutboxOnce",
+    );
     const directSendIndex = route.indexOf("await sendRenderedEmail(email, {");
 
     assert.notEqual(enqueueIndex, -1);
     assert.notEqual(directSendIndex, -1);
-    assert.ok(enqueueIndex < directSendIndex, "order emails must reserve the outbox dedup row before direct send");
+    assert.ok(
+      enqueueIndex < directSendIndex,
+      "order emails must reserve the outbox dedup row before direct send",
+    );
     assert.match(route, /throw outboxError/);
     assert.match(route, /status: "SENT"/);
-    assert.match(route, /emailOutboxFailureState\(enqueued\.job\.attempts \+ 1\)/);
+    assert.match(
+      route,
+      /emailOutboxFailureState\(enqueued\.job\.attempts \+ 1\)/,
+    );
     assert.match(route, /idempotencyKey: enqueued\.job\.dedupKey/);
   });
 
@@ -146,22 +214,42 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(route, /BLOCKED_CHECKOUT_REVIEW_MARKER/);
     assert.match(route, /sellerRefundId: true/);
     assert.match(route, /reviewNeeded: true/);
-    assert.match(route, /if \(orderPostPaymentSideEffectsBlocked\(order\)\) return/);
+    assert.match(
+      route,
+      /if \(orderPostPaymentSideEffectsBlocked\(order\)\) return/,
+    );
   });
 
   it("uses the refund sentinel lock before issuing automatic blocked-checkout refunds", () => {
     const route = source("src/app/api/stripe/webhook/route.ts");
 
     assert.match(route, /sellerRefundId: REFUND_LOCK_SENTINEL/);
-    assert.match(route, /paymentEvents: \{ none: blockingRefundOrDisputeLedgerWhere\(\) \}/);
-    assert.match(route, /stripe\.refunds\.create/);
-    assert.ok(
-      route.indexOf("sellerRefundId: REFUND_LOCK_SENTINEL") < route.indexOf("stripe.refunds.create"),
-      "blocked-checkout refunds must acquire the local lock before the Stripe refund call",
+    assert.match(
+      route,
+      /paymentEvents: \{ none: blockingRefundOrDisputeLedgerWhere\(\) \}/,
     );
-    assert.match(route, /where: \{ id: input\.orderId, sellerRefundId: REFUND_LOCK_SENTINEL \}/);
-    assert.match(route, /Blocked checkout refund lock was no longer held while recording Stripe refund/);
-    assert.match(route, /stripe_webhook_blocked_checkout_refund_lock_release_failed/);
+    assert.match(route, /createMarketplaceRefund\(\{/);
+    assert.match(route, /scope: "blocked-checkout-refund"/);
+    assert.match(route, /refundIdempotencyKeyBase\(\{/);
+    assert.match(route, /Stripe refund status requires manual follow-up/);
+    assert.doesNotMatch(route, /refund\s*=\s*await stripe\.refunds\.create/);
+    assert.ok(
+      route.indexOf("sellerRefundId: REFUND_LOCK_SENTINEL") <
+        route.indexOf("createMarketplaceRefund({"),
+      "blocked-checkout refunds must acquire the local lock before the shared Stripe refund helper",
+    );
+    assert.match(
+      route,
+      /where: \{ id: input\.orderId, sellerRefundId: REFUND_LOCK_SENTINEL \}/,
+    );
+    assert.match(
+      route,
+      /Blocked checkout refund lock was no longer held while recording Stripe refund/,
+    );
+    assert.match(
+      route,
+      /stripe_webhook_blocked_checkout_refund_lock_release_failed/,
+    );
   });
 
   it("preserves fresh refund locks when terminal Stripe dispute events arrive", () => {
@@ -179,10 +267,22 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(route, /source: "label_lock_revert_failed"/);
     assert.match(route, /source: "shippo_label_post_purchase_db_update"/);
     assert.match(route, /source: "shippo_label_orphan_record_failed"/);
-    assert.match(route, /hasLabelUrl: Boolean\(purchasedLabelDetails\?\.labelUrl\)/);
-    assert.match(route, /hasTrackingNumber: Boolean\(purchasedLabelDetails\?\.trackingNumber\)/);
-    assert.doesNotMatch(route, /extra: \{ orderId: id, purchasedLabelDetails \}/);
-    assert.doesNotMatch(route, /source: "shippo_label_orphan_record_failed"[\s\S]*labelUrl: purchasedLabelDetails/s);
+    assert.match(
+      route,
+      /hasLabelUrl: Boolean\(purchasedLabelDetails\?\.labelUrl\)/,
+    );
+    assert.match(
+      route,
+      /hasTrackingNumber: Boolean\(purchasedLabelDetails\?\.trackingNumber\)/,
+    );
+    assert.doesNotMatch(
+      route,
+      /extra: \{ orderId: id, purchasedLabelDetails \}/,
+    );
+    assert.doesNotMatch(
+      route,
+      /source: "shippo_label_orphan_record_failed"[\s\S]*labelUrl: purchasedLabelDetails/s,
+    );
   });
 
   it("captures best-effort checkout stock restoration failures", () => {
@@ -195,13 +295,25 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(singleCheckout, /Server error creating checkout session/);
     assert.doesNotMatch(sellerCheckout, /err instanceof Error \? err\.message/);
     assert.doesNotMatch(singleCheckout, /err instanceof Error \? err\.message/);
-    assert.doesNotMatch(sellerCheckout, /console\.error\("POST \/api\/cart\/checkout-seller error:", err\)/);
-    assert.doesNotMatch(singleCheckout, /console\.error\("POST \/api\/cart\/checkout\/single error:", err\)/);
-    assert.match(sellerCheckout, /source: "checkout_stock_restore_failed", route: "cart_checkout_seller"/);
+    assert.doesNotMatch(
+      sellerCheckout,
+      /console\.error\("POST \/api\/cart\/checkout-seller error:", err\)/,
+    );
+    assert.doesNotMatch(
+      singleCheckout,
+      /console\.error\("POST \/api\/cart\/checkout\/single error:", err\)/,
+    );
+    assert.match(
+      sellerCheckout,
+      /source: "checkout_stock_restore_failed", route: "cart_checkout_seller"/,
+    );
     assert.match(sellerCheckout, /CheckoutStockReservationStockError/);
     assert.match(sellerCheckout, /createCheckoutStockReservation/);
     assert.match(sellerCheckout, /reason: "checkout_create_error"/);
-    assert.match(singleCheckout, /source: "checkout_stock_restore_failed", route: "cart_checkout_single"/);
+    assert.match(
+      singleCheckout,
+      /source: "checkout_stock_restore_failed", route: "cart_checkout_single"/,
+    );
     assert.match(singleCheckout, /CheckoutStockReservationStockError/);
     assert.match(singleCheckout, /createCheckoutStockReservation/);
     assert.match(singleCheckout, /reason: "checkout_create_error"/);

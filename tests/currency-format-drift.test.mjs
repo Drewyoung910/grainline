@@ -15,7 +15,7 @@ describe("currency formatting drift guardrails", () => {
     const threadMessages = source("src/components/ThreadMessages.tsx");
 
     assert.match(sellerRefund, /import \{ formatCurrencyCents \} from "@\/lib\/money"/);
-    assert.match(sellerRefund, /const refundAmountDisplay = formatCurrencyCents\(refundAmountCents, order\.currency\)/);
+    assert.match(sellerRefund, /const refundAmountDisplay = formatCurrencyCents\(\s*refundAmountCents,\s*order\.currency,\s*\)/s);
     assert.doesNotMatch(sellerRefund, /refundAmountCents \/ 100|refund of \$\$\{/);
 
     assert.match(caseResolve, /import \{ formatCurrencyCents \} from "@\/lib\/money"/);

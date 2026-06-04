@@ -23,7 +23,7 @@ describe("case route observability follow-ups", () => {
     assert.match(route, /CASE_MESSAGE_DEDUP_WINDOW_MS = 30_000/);
     assert.match(route, /pg_advisory_xact_lock\(hashtext/);
     assert.match(route, /caseMessage\.findFirst\(\{\s*where: \{\s*caseId: id,\s*authorId: me\.id,\s*body: messageBody,\s*createdAt: \{ gte: duplicateCutoff \}/s);
-    assert.match(route, /if \(messageResult\.duplicate\) \{\s*return NextResponse\.json\(messageResult\.message, \{ status: 200 \}\)/s);
+    assert.match(route, /if \(messageResult\.duplicate\) \{\s*return privateJson\(messageResult\.message, \{ status: 200 \}\)/s);
     assert.ok(transactionStart !== -1 && notificationStart !== -1 && transactionStart < notificationStart);
   });
 

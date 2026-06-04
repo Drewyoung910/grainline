@@ -41,6 +41,7 @@ import {
 } from "@/lib/checkoutStockRestore";
 import { blockingRefundLedgerWhere, blockingRefundOrDisputeLedgerWhere, orderHasRefundLedger } from "@/lib/refundRouteState";
 import { REFUND_LOCK_SENTINEL, isStaleRefundLock } from "@/lib/refundLockState";
+import { createMarketplaceRefund, refundIdempotencyKeyBase } from "@/lib/marketplaceRefunds";
 import { stripeWebhookCreatedSeconds } from "@/lib/stripeConnectV2";
 import { revalidateListingSearchCaches, revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
 import {
@@ -946,26 +947,47 @@ export async function POST(req: Request) {
             return;
           }
 
-          let refund: Stripe.Refund | null = null;
+          let refundId: string | null = null;
+          let refundAmountCents: number | null = null;
+          let refundIds: string[] = [];
           try {
-            refund = await stripe.refunds.create(
-              {
-                payment_intent: paymentIntentId,
-                reverse_transfer: true,
-              },
-              { idempotencyKey: `blocked-checkout-refund:${sessionId}` },
-            );
+            refundAmountCents = s.amount_total ?? itemsSubtotalCents + shippingAmountCents + (giftWrappingPriceCents ?? 0) + taxAmountCents;
+            const refund = await createMarketplaceRefund({
+              paymentIntentId,
+              resolution: "FULL",
+              amountCents: refundAmountCents,
+              itemsSubtotalCents,
+              shippingAmountCents,
+              giftWrappingPriceCents,
+              taxAmountCents,
+              canReverseTransfer: Boolean(stripeTransferId),
+              idempotencyKeyBase: refundIdempotencyKeyBase({
+                scope: "blocked-checkout-refund",
+                id: sessionId,
+                resolution: "FULL",
+                amountCents: refundAmountCents,
+              }),
+            });
+            refundId = refund.primaryRefundId;
+            refundIds = refund.refundIds;
+
+            const transferNote = refund.requiresManualTransferReconciliation
+              ? " Seller transfer reversal requires manual reconciliation."
+              : "";
+            const statusNote = refund.requiresManualFollowUp
+              ? ` Stripe refund status requires manual follow-up: ${refund.refundStatuses.filter(Boolean).join(", ") || "provider pending"}.`
+              : "";
 
             const stockStatusRestoredCount = await prisma.$transaction(async (tx) => {
               const restoredCount = await restoreReservedStockItems(tx, restorableStockItemsFromLineItems(input.lineItems));
               const orderUpdate = await tx.order.updateMany({
                 where: { id: input.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
                 data: {
-                  sellerRefundId: refund!.id,
-                  sellerRefundAmountCents: refund!.amount ?? s.amount_total ?? null,
+                  sellerRefundId: refundId,
+                  sellerRefundAmountCents: refundAmountCents,
                   sellerRefundLockedAt: null,
                   reviewNeeded: true,
-                  reviewNote: `${reviewPrefix} Automatic refund issued because the maker account was not eligible to accept this order.`,
+                  reviewNote: `${reviewPrefix} Automatic refund issued because the maker account was not eligible to accept this order.${transferNote}${statusNote}`,
                 },
               });
               if (orderUpdate.count !== 1) {
@@ -987,30 +1009,31 @@ export async function POST(req: Request) {
               });
             }
           } catch (refundError) {
-            if (refund?.id) {
+            if (refundId) {
               Sentry.captureException(refundError, {
                 tags: { source: "stripe_webhook_blocked_checkout_orphaned_after_stripe" },
                 extra: {
                   stripeSessionId: sessionId,
                   orderId: input.orderId,
                   reason: input.reason,
-                  refundId: refund.id,
-                  refundAmountCents: refund.amount ?? s.amount_total ?? null,
+                  refundId,
+                  refundIds,
+                  refundAmountCents,
                 },
               });
               await prisma.order.updateMany({
                 where: { id: input.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
                 data: {
-                  sellerRefundId: refund.id,
-                  sellerRefundAmountCents: refund.amount ?? s.amount_total ?? null,
+                  sellerRefundId: refundId,
+                  sellerRefundAmountCents: refundAmountCents,
                   sellerRefundLockedAt: null,
                   reviewNeeded: true,
-                  reviewNote: `${reviewPrefix} ORPHANED REFUND: Stripe refund ${refund.id} was created, but follow-up DB work failed. Manual reconciliation required.`,
+                  reviewNote: `${reviewPrefix} ORPHANED REFUND: Stripe refund(s) ${refundIds.join(", ")} were created, but follow-up DB work failed. Manual reconciliation required.`,
                 },
               }).catch((dbError) => {
                 Sentry.captureException(dbError, {
                   tags: { source: "stripe_webhook_blocked_checkout_orphan_record_failed" },
-                  extra: { stripeSessionId: sessionId, orderId: input.orderId, reason: input.reason, refundId: refund?.id },
+                  extra: { stripeSessionId: sessionId, orderId: input.orderId, reason: input.reason, refundId, refundIds },
                 });
               });
             } else {

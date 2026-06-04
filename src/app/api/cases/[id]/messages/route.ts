@@ -1,5 +1,4 @@
 // src/app/api/cases/[id]/messages/route.ts
-import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import * as Sentry from "@sentry/nextjs";
 import { createHash } from "crypto";
@@ -8,7 +7,11 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCaseMessage } from "@/lib/email";
-import { caseMessageRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import {
+  caseMessageRatelimit,
+  rateLimitResponse,
+  safeRateLimit,
+} from "@/lib/ratelimit";
 import {
   canCreateCaseMessageForStatus,
   unavailableCaseMessageRecipientReason,
@@ -22,6 +25,7 @@ import {
 } from "@/lib/requestBody";
 import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { z } from "zod";
 
 const CaseMessageSchema = z.object({
@@ -34,36 +38,51 @@ export const runtime = "nodejs";
 
 export async function POST(
   req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
 
     const { userId } = await auth();
-    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
-    const { success, reset } = await safeRateLimit(caseMessageRatelimit, userId);
-    if (!success) return rateLimitResponse(reset, "Too many messages. Slow down and try again.");
+    const { success, reset } = await safeRateLimit(
+      caseMessageRatelimit,
+      userId,
+    );
+    if (!success)
+      return privateResponse(
+        rateLimitResponse(reset, "Too many messages. Slow down and try again."),
+      );
 
     const me = await ensureUserByClerkId(userId);
 
     let parsed;
     try {
-      parsed = CaseMessageSchema.parse(await readBoundedJson(req, CASE_MESSAGE_BODY_MAX_BYTES));
+      parsed = CaseMessageSchema.parse(
+        await readBoundedJson(req, CASE_MESSAGE_BODY_MAX_BYTES),
+      );
     } catch (e) {
       if (isRequestBodyTooLargeError(e)) {
-        return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+        return privateJson(
+          { error: "Request body too large" },
+          { status: 413 },
+        );
       }
       if (isInvalidJsonBodyError(e)) {
-        return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+        return privateJson({ error: "Invalid JSON" }, { status: 400 });
       }
       if (e instanceof z.ZodError) {
-        return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+        return privateJson(
+          { error: "Invalid input", details: e.issues },
+          { status: 400 },
+        );
       }
       throw e;
     }
     const messageBody = sanitizeRichText(parsed.body.trim());
-    if (!messageBody) return NextResponse.json({ error: "body is required." }, { status: 400 });
+    if (!messageBody)
+      return privateJson({ error: "body is required." }, { status: 400 });
 
     const caseRecord = await prisma.case.findUnique({
       where: { id },
@@ -72,14 +91,17 @@ export async function POST(
         seller: { select: { id: true, banned: true, deletedAt: true } },
       },
     });
-    if (!caseRecord) return NextResponse.json({ error: "Case not found." }, { status: 404 });
+    if (!caseRecord)
+      return privateJson({ error: "Case not found." }, { status: 404 });
 
-    const isParty = me.id === caseRecord.buyerId || me.id === caseRecord.sellerId;
+    const isParty =
+      me.id === caseRecord.buyerId || me.id === caseRecord.sellerId;
     const isStaff = me.role === "EMPLOYEE" || me.role === "ADMIN";
-    if (!isParty && !isStaff) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+    if (!isParty && !isStaff)
+      return privateJson({ error: "Forbidden." }, { status: 403 });
 
     if (!canCreateCaseMessageForStatus(caseRecord.status, { isStaff })) {
-      return NextResponse.json({ error: "This case is closed." }, { status: 400 });
+      return privateJson({ error: "This case is closed." }, { status: 400 });
     }
 
     const unavailableRecipientReason = unavailableCaseMessageRecipientReason({
@@ -89,7 +111,7 @@ export async function POST(
       isStaff,
     });
     if (unavailableRecipientReason) {
-      return NextResponse.json(
+      return privateJson(
         { error: unavailableCaseRecipientMessage(unavailableRecipientReason) },
         { status: 409 },
       );
@@ -102,10 +124,14 @@ export async function POST(
     if (me.id === caseRecord.sellerId && caseRecord.status === "OPEN") {
       caseUpdates.status = "IN_DISCUSSION";
       caseUpdates.discussionStartedAt = now;
-      caseUpdates.escalateUnlocksAt = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+      caseUpdates.escalateUnlocksAt = new Date(
+        now.getTime() + 48 * 60 * 60 * 1000,
+      );
     }
 
-    const duplicateCutoff = new Date(now.getTime() - CASE_MESSAGE_DEDUP_WINDOW_MS);
+    const duplicateCutoff = new Date(
+      now.getTime() - CASE_MESSAGE_DEDUP_WINDOW_MS,
+    );
     const duplicateKey = createHash("sha256")
       .update(`${id}:${me.id}:${messageBody}`)
       .digest("hex");
@@ -138,7 +164,8 @@ export async function POST(
           },
           orderBy: { createdAt: "desc" },
         });
-        if (statusRaceDuplicate) return { message: statusRaceDuplicate, duplicate: true as const };
+        if (statusRaceDuplicate)
+          return { message: statusRaceDuplicate, duplicate: true as const };
         throw new Error("CASE_STATUS_CHANGED");
       }
       const message = await tx.caseMessage.create({
@@ -147,14 +174,18 @@ export async function POST(
       return { message, duplicate: false as const };
     });
     if (messageResult.duplicate) {
-      return NextResponse.json(messageResult.message, { status: 200 });
+      return privateJson(messageResult.message, { status: 200 });
     }
     const message = messageResult.message;
 
     // Notify the appropriate party/parties
     const senderName =
       me.name ??
-      (me.id === caseRecord.buyerId ? "A buyer" : me.id === caseRecord.sellerId ? "The seller" : "Someone");
+      (me.id === caseRecord.buyerId
+        ? "A buyer"
+        : me.id === caseRecord.sellerId
+          ? "The seller"
+          : "Someone");
     const appUrl = EMAIL_APP_URL;
 
     if (isStaff && !isParty) {
@@ -180,11 +211,21 @@ export async function POST(
       try {
         const [buyer, seller] = await Promise.all([
           caseRecord.buyerId
-            ? prisma.user.findUnique({ where: { id: caseRecord.buyerId }, select: { name: true, email: true } })
+            ? prisma.user.findUnique({
+                where: { id: caseRecord.buyerId },
+                select: { name: true, email: true },
+              })
             : Promise.resolve(null),
-          prisma.user.findUnique({ where: { id: caseRecord.sellerId }, select: { name: true, email: true } }),
+          prisma.user.findUnique({
+            where: { id: caseRecord.sellerId },
+            select: { name: true, email: true },
+          }),
         ]);
-        if (caseRecord.buyerId && buyer?.email && await shouldSendEmail(caseRecord.buyerId, "EMAIL_CASE_MESSAGE")) {
+        if (
+          caseRecord.buyerId &&
+          buyer?.email &&
+          (await shouldSendEmail(caseRecord.buyerId, "EMAIL_CASE_MESSAGE"))
+        ) {
           await sendCaseMessage({
             recipientName: buyer.name,
             recipientEmail: buyer.email,
@@ -193,7 +234,10 @@ export async function POST(
             messageSnippet: messageBody,
           });
         }
-        if (seller?.email && await shouldSendEmail(caseRecord.sellerId, "EMAIL_CASE_MESSAGE")) {
+        if (
+          seller?.email &&
+          (await shouldSendEmail(caseRecord.sellerId, "EMAIL_CASE_MESSAGE"))
+        ) {
           await sendCaseMessage({
             recipientName: seller.name,
             recipientEmail: seller.email,
@@ -211,7 +255,8 @@ export async function POST(
       }
     } else {
       // Buyer or seller message — notify the other party
-      const recipientId = me.id === caseRecord.buyerId ? caseRecord.sellerId : caseRecord.buyerId;
+      const recipientId =
+        me.id === caseRecord.buyerId ? caseRecord.sellerId : caseRecord.buyerId;
       const caseLink =
         me.id === caseRecord.buyerId
           ? `/dashboard/sales/${caseRecord.orderId}`
@@ -252,18 +297,21 @@ export async function POST(
       }
     }
 
-    return NextResponse.json(message, { status: 201 });
+    return privateJson(message, { status: 201 });
   } catch (err) {
     const accountResponse = accountAccessErrorResponse(err);
     if (accountResponse) return accountResponse;
     if (err instanceof Error && err.message === "CASE_STATUS_CHANGED") {
-      return NextResponse.json(
-        { error: "Case status changed before your message could be saved. Refresh and try again." },
+      return privateJson(
+        {
+          error:
+            "Case status changed before your message could be saved. Refresh and try again.",
+        },
         { status: 409 },
       );
     }
 
     logServerError(err, { source: "case_message_route" });
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return privateJson({ error: "Server error" }, { status: 500 });
   }
 }

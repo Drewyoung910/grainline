@@ -4519,8 +4519,62 @@ Last updated: 2026-06-02
      `tests/public-query-determinism.test.mjs`, and
      `tests/public-cron-search-hardening.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 473 findings;
-verified stale/false-positive: 414 findings; product/design/ops decisions
+379. **Private mutation responses, blocked-checkout refunds, and email-epoch
+     privacy tightened** - parent/agent-reviewed pass over residual
+     auth-varying API responses, Stripe blocked-checkout refund accounting, and
+     email-key privacy edge cases. Five auth mutation/state routes already
+     identified in the parent pass (`/api/account/accept-terms`,
+     `/api/account/delete`, `/api/cart/update`, `/api/shipping/quote`, and
+     `/api/verification/apply`) now return through `privateJson()` or wrap
+     rate-limit responses with `privateResponse()`. The agent-identified
+     residual routes were then verified and fixed too: case creation, case
+     messages, commission interest, seller refund, label purchase,
+     follow/unfollow, seller broadcast, and checkout rollback. Checkout rollback
+     now also uses the shared `rateLimitResponse()` path so retry metadata is
+     preserved while still marking the response private.
+
+     Blocked-checkout auto-refunds in the Stripe webhook now call
+     `createMarketplaceRefund()` with a `blocked-checkout-refund` idempotency
+     scope instead of directly calling `stripe.refunds.create()`. That aligns
+     automatic refunds with seller/staff refund status handling: immediate
+     failed/canceled Stripe refund responses are not recorded as issued refunds,
+     pending/requires-action statuses keep the refund id and add manual
+     follow-up text, and missing transfer state records manual reconciliation
+     language rather than silently treating it as an ordinary reverse-transfer
+     refund.
+
+     One-click unsubscribe token supersession now treats a token as stale when
+     an active account claimed the same exact/suppression-key email after the
+     token was issued, preserving the existing email-only token format while
+     reducing risk that an old link suppresses a newer account at a reused
+     address. Request-time Clerk refresh/creation paths now use only the Clerk
+     primary email: `ensureUser()` no longer falls back to `emailAddresses[0]`
+     or synthesizes a wrapper-level placeholder, and `ensureSeller()` now calls
+     `ensureUserByClerkId()` instead of directly creating `User` rows, keeping
+     normalization, conflict fallback, and `UserEmailAddress` history sync
+     centralized.
+
+     Parent review classified the raw seller duplicate-query allegations
+     #1109/#1110 stale on current `main`: both `/seller/[id]` and
+     `/seller/[id]/shop` already import React `cache()` and wrap their
+     seller-profile loaders. Other agent findings remain in the backlog without
+     tally movement here: public deterministic pagination/searchbar ID issues
+     still need a source pass, while Stripe webhook subscription narrowing,
+     Connect loss-liability, EXPLAIN/index proof, provider-side privacy scope,
+     R2/Sentry/Clerk dashboard evidence, and newsletter-only public resubscribe
+     remain ops/runtime or product/legal evidence tasks.
+
+     `CLAUDE.md` now records that blocked-checkout auto-refunds share the
+     marketplace refund helper and that auth-aware JSON includes signed
+     shipping-rate tokens and terms/account-deletion state. Guardrails:
+     `tests/private-json-cache-headers.test.mjs`,
+     `tests/payment-side-effect-observability.test.mjs`,
+     `tests/marketplace-refunds.test.mjs`,
+     `tests/account-privacy-observability.test.mjs`, and
+     `tests/user-email-address-history.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 481 findings;
+verified stale/false-positive: 416 findings; product/design/ops decisions
 deferred: 73 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
 export/deletion residue. Entry 361 removes the remaining Resend webhook
@@ -4574,7 +4628,15 @@ stale/false-positive or duplicate classifications for already-covered privacy,
 unsubscribe, webhook, refund-stock, media-deletion, popular-tag, similar, and
 Connect-source claims. Twenty approximate raw-category decrements are counted
 because several fixed and stale classifications were adjacent hidden issues or
-duplicates within already-open categories.
+duplicates within already-open categories. Entry 379 adds eight fixed/reduced
+current-code issues across residual auth-varying private responses,
+checkout-rollback rate-limit metadata, blocked-checkout refund helper/status
+handling, unsubscribe account-claim epochs, and request-time Clerk primary
+email/history synchronization. It also adds two stale/false-positive raw
+classifications for already-cached seller profile loaders (#1109/#1110). Only
+two approximate raw-category decrements are counted because the fixed issues
+were mostly adjacent hidden drift inside already-open privacy/refund/private
+response categories.
 Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -4591,7 +4653,8 @@ MFA and breached-password dashboard evidence, Clerk multi-account spam dashboard
 evidence, buyer-deletion runtime replay proof,
 Founding Maker live DB concurrency proof, Sentry cron alert evidence,
 Cloudflare R2 ListBucket/public-bucket dashboard evidence, HSTS preload
-submission decision, residual HTTP-status constants, analytics observability
+submission decision, residual HTTP-status constants, residual public
+deterministic pagination/searchbar ID issues, analytics observability
 refactors, remaining homepage runtime a11y proof, and agent/worktree
 verification process hygiene. Approximate raw allegations left to verify from
-current max #1120: 205.
+current max #1120: 203.

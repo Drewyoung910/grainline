@@ -20,10 +20,13 @@ type MarketplaceRefundOptions = {
   reason?: Stripe.RefundCreateParams.Reason;
 };
 
-type RefundIdempotencyScope = "seller-refund" | "case-resolve";
+type RefundIdempotencyScope =
+  | "seller-refund"
+  | "case-resolve"
+  | "blocked-checkout-refund";
 
 const REFUND_IDEMPOTENCY_BASE_PATTERN =
-  /^(?:seller-refund|case-resolve):[A-Za-z0-9_-]+:(?:FULL|PARTIAL|REFUND_FULL|REFUND_PARTIAL):[1-9]\d*$/;
+  /^(?:seller-refund|case-resolve|blocked-checkout-refund):[A-Za-z0-9_-]+:(?:FULL|PARTIAL|REFUND_FULL|REFUND_PARTIAL):[1-9]\d*$/;
 
 export function refundIdempotencyKeyBase({
   scope,
@@ -45,18 +48,27 @@ export function refundIdempotencyKeyBase({
   return `${scope}:${id}:${resolution}:${amountCents}`;
 }
 
-function assertRefundIdempotencyKeyBase(value: string, opts: Pick<MarketplaceRefundOptions, "resolution" | "amountCents">) {
+function assertRefundIdempotencyKeyBase(
+  value: string,
+  opts: Pick<MarketplaceRefundOptions, "resolution" | "amountCents">,
+) {
   if (!REFUND_IDEMPOTENCY_BASE_PATTERN.test(value)) {
-    throw new Error("Refund idempotency key base must include scope, id, resolution, and positive amount.");
+    throw new Error(
+      "Refund idempotency key base must include scope, id, resolution, and positive amount.",
+    );
   }
   if (!value.endsWith(`:${opts.resolution}:${opts.amountCents}`)) {
-    throw new Error("Refund idempotency key base must match the refund resolution and amount.");
+    throw new Error(
+      "Refund idempotency key base must match the refund resolution and amount.",
+    );
   }
 }
 
 function assertCreatedRefundUsable(refund: CreatedRefund) {
   if (refund.status === "failed" || refund.status === "canceled") {
-    throw new Error(`Stripe refund ${refund.id} returned ${refund.status} status.`);
+    throw new Error(
+      `Stripe refund ${refund.id} returned ${refund.status} status.`,
+    );
   }
 }
 
@@ -74,17 +86,23 @@ export async function createMarketplaceRefundWithCreator(
 
   const sellerPortionCents = Math.max(
     0,
-    opts.itemsSubtotalCents + opts.shippingAmountCents + (opts.giftWrappingPriceCents ?? 0),
+    opts.itemsSubtotalCents +
+      opts.shippingAmountCents +
+      (opts.giftWrappingPriceCents ?? 0),
   );
   const taxAmountCents = Math.max(0, opts.taxAmountCents);
   const maxRefundCents = sellerPortionCents + taxAmountCents;
-  const isFullRefund = opts.resolution === "FULL" || opts.resolution === "REFUND_FULL";
+  const isFullRefund =
+    opts.resolution === "FULL" || opts.resolution === "REFUND_FULL";
   if (opts.amountCents > maxRefundCents) {
     throw new Error("Refund amount exceeds order total.");
   }
   assertRefundIdempotencyKeyBase(opts.idempotencyKeyBase, opts);
 
-  const createRefund = async (params: Stripe.RefundCreateParams, suffix: string) => {
+  const createRefund = async (
+    params: Stripe.RefundCreateParams,
+    suffix: string,
+  ) => {
     const refund = await createStripeRefund(params, {
       idempotencyKey: `${opts.idempotencyKeyBase}:${suffix}`,
     });
