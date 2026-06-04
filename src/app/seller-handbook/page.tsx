@@ -188,7 +188,7 @@ export default function SellerHandbookPage() {
             <li><strong>5% platform fee</strong> on each sale&apos;s subtotal (item price + variant adjustments). Shipping
               and taxes aren&apos;t included in the fee base.</li>
             <li><strong>Stripe processing</strong>: ~2.9% + $0.30 per transaction. Same as every other major marketplace,
-              and the unavoidable cost of credit cards.</li>
+              and currently absorbed by Grainline under our payout model rather than separately deducted from your payout.</li>
             <li><strong>$0 listing fees</strong>. List as many pieces as you want. You only pay when you sell.</li>
           </ul>
           <p>
@@ -222,7 +222,7 @@ export default function SellerHandbookPage() {
 
           <h3>Payouts</h3>
           <p>
-            Stripe deposits your earnings (sale price minus the 5% Grainline fee, minus Stripe processing) into your
+            Stripe deposits your earnings (sale price minus the 5% Grainline fee) into your
             connected bank account on a rolling schedule, typically 2 business days after the order is paid. You can
             view your balance and payout history in your Stripe dashboard, linked from{" "}
             <Link href="/dashboard/seller">Shop Settings</Link>.
@@ -232,7 +232,7 @@ export default function SellerHandbookPage() {
           <p>
             If you issue a refund (or a buyer wins a case), Stripe automatically reverses the corresponding portion of
             the payout. Refunds don&apos;t cost you Grainline&apos;s 5%. We waive our fee on refunded amounts. Stripe&apos;s
-            processing fee is non-refundable (their policy, not ours).
+            processing fees are not separately passed to you through the normal Grainline refund tools.
           </p>
         </section>
 

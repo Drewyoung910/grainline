@@ -54,10 +54,10 @@ export default function TermsPage() {
       <div className="mb-10">
         <p className="text-sm text-neutral-500 mb-2">Legal</p>
         <h1 className="text-4xl font-bold mb-2">Terms of Service</h1>
-        <p className="text-sm text-neutral-500">Last Updated: March 30, 2026</p>
+        <p className="text-sm text-neutral-500">Last Updated: June 4, 2026</p>
 
         <div className="mt-6 rounded border border-red-300 bg-red-50 px-5 py-4 text-sm text-red-900">
-          <strong>DRAFT — Under Attorney Review.</strong> Last reviewed March 30, 2026. This document
+          <strong>DRAFT — Under Attorney Review.</strong> Last reviewed June 4, 2026. This document
           is a draft and has not been finalized by legal counsel. Do not rely on this document as
           final legal advice. Consult a qualified attorney for legal advice specific to your situation.
         </div>
@@ -238,7 +238,8 @@ export default function TermsPage() {
           <p>
             Grainline charges a platform fee of <strong>5% of the item subtotal</strong>{" "}
             (excluding shipping and taxes). This fee is deducted before your payout via Stripe Connect.
-            Stripe&apos;s standard payment processing fees also apply. Grainline reserves the right to
+            Under Grainline&apos;s current payout model, Stripe&apos;s standard payment processing fees are
+            paid by Grainline and are not separately deducted from Maker payouts. Grainline reserves the right to
             adjust its fee structure upon 30 days&apos; written notice. Fee changes apply to orders
             placed after the effective date of the change. Orders placed before the effective date are
             subject to the fee structure in effect at the time of purchase.
@@ -570,15 +571,16 @@ export default function TermsPage() {
             <strong> 30 days written notice</strong> to affected Makers.
           </p>
           <p className="mt-3">
-            When Grainline issues a refund through the Case System (Section 9), the platform fee is
-            not refunded to the Maker. When a Maker issues a voluntary refund through the seller
-            dashboard (Section 8.5), the platform fee is also not refunded.
+            When Grainline issues a refund through the Case System (Section 9), or when a Maker
+            issues a voluntary refund through the seller dashboard (Section 8.5), Grainline waives
+            the corresponding platform-fee portion on the refunded amount.
           </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">6.3 Maker Payouts</h3>
           <p>
-            Makers receive payouts via Stripe Connect after deduction of the platform fee and
-            Stripe&apos;s payment processing fees. Payout timing is determined by Stripe&apos;s payout schedule, which may
+            Makers receive payouts via Stripe Connect after deduction of the platform fee. Under
+            Grainline&apos;s current payout model, Stripe&apos;s standard payment processing fees are paid by
+            Grainline and are not separately deducted from Maker payouts. Payout timing is determined by Stripe&apos;s payout schedule, which may
             change. Payouts are typically processed within <strong>2–7 business days</strong> after
             sale completion, depending on the Maker&apos;s Stripe account status and bank. See
             Stripe&apos;s Terms for current payout timing. Grainline is not responsible for changes to
@@ -822,8 +824,8 @@ export default function TermsPage() {
           <p>
             Makers may issue full or partial refunds to Buyers at any time through the Grainline
             seller dashboard. Refunds are processed through Stripe and typically appear within
-            5–10 business days. Grainline&apos;s platform fee is not refunded when a Maker
-            voluntarily issues a refund. For full refunds of in-stock items, the item&apos;s stock
+            5–10 business days. Grainline waives the corresponding platform-fee portion on
+            refunded amounts. For full refunds of in-stock items, the item&apos;s stock
             quantity is automatically restored.
           </p>
 

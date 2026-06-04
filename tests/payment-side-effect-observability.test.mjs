@@ -46,6 +46,24 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(route, /manualStripeReconciliationNeeded: true/);
   });
 
+  it("keeps seller and staff refund entrypoints single-refund per order", () => {
+    const sellerRoute = source("src/app/api/orders/[id]/refund/route.ts");
+    const caseRoute = source("src/app/api/cases/[id]/resolve/route.ts");
+
+    for (const route of [sellerRoute, caseRoute]) {
+      assert.match(route, /blockingRefundLedgerWhere/);
+      assert.match(route, /blockingRefundOrDisputeLedgerWhere/);
+      assert.match(route, /sellerRefundConflictResponse/);
+      assert.match(route, /orderHasRefundLedger/);
+      assert.match(route, /paymentEvents:\s*\{\s*none:\s*blockingRefundOrDisputeLedgerWhere\(\)\s*\}/);
+    }
+
+    assert.match(sellerRoute, /if \(orderHasRefundLedger\(orderForRefundState\)\)/);
+    assert.match(sellerRoute, /where:\s*\{\s*id: orderId,\s*sellerRefundId: null/s);
+    assert.match(caseRoute, /if \(orderHasRefundLedger\(caseRecord\.order\)\)/);
+    assert.match(caseRoute, /where:\s*\{\s*id: caseRecord\.orderId,\s*sellerRefundId: null/s);
+  });
+
   it("allows seller partial refunds to restore only explicitly requested purchased stock", () => {
     const route = source("src/app/api/orders/[id]/refund/route.ts");
     const panel = source("src/components/SellerRefundPanel.tsx");

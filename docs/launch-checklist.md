@@ -57,6 +57,8 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
 - Resend: webhook endpoint registered at `https://thegrainline.com/api/resend/webhook` with bounce, complaint, delivery delayed, failed, and suppressed events enabled; `RESEND_WEBHOOK_SECRET` configured in production.
 - Shippo: live API key configured.
 - Cloudflare R2: bucket CORS and public URL verified.
+- Cloudflare R2: processed image upload and direct upload/verify smoke tests pass with production credentials after any R2 credential, CORS, public-domain, or bucket-policy change. `/api/health` only proves `HeadBucket` reachability.
+- Cloudflare R2: public bucket listing/ListBucket exposure is disabled or otherwise non-public, with dashboard or CLI evidence retained.
 - Cloudflare R2: bucket-level max object-size defense verified where available; app-level upload validation remains required.
 - Cloudflare: TLS 1.0/1.1 disabled, TLS 1.2+ enabled, TLS 1.3 enabled, HSTS preload accepted or submitted, SSL Labs grade recorded.
 - Cloudflare: WAF managed rules and bot protection mode enabled only after provider/webhook/API smoke tests confirm Stripe, Clerk, Resend, Shippo, Vercel health checks, and uptime checks are not challenged.
@@ -112,6 +114,7 @@ Record links/screenshots/dates for:
 - Clerk production security settings.
 - Stripe snapshot webhook and Connect v2 thin webhook delivery, including screenshots of the exact event subscriptions listed above.
 - Clerk and Resend webhook delivery.
+- Cloudflare R2 public bucket-listing/ListBucket posture, bucket-level max object-size setting, CORS/public-domain settings, and upload smoke-test result.
 - Neon backup/PITR setting and most recent restore drill.
 - Sentry alert rules for CSP/script/frame violations, production error spikes, Sentry cron monitors, `source=cron_ops_health` warnings, and webhook failure spike messages.
 

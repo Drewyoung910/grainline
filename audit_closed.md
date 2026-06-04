@@ -4102,20 +4102,65 @@ Last updated: 2026-06-02
      retained local email content/counter residue after deletion. Guardrail:
      `tests/round9-account-deletion-pii-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 414 findings;
-verified stale/false-positive: 405 findings; product/design/ops decisions
-deferred: 70 findings. Entries 361-367 add twelve fixed/reduced current-code
+368. **R2 health-check scope documented; ListBucket evidence kept manual** —
+     docs/test/behavior-contract closure for current-code #583 and
+     classification for #586. Parent review verified `/api/health` still uses a
+     cheap `HeadBucketCommand` R2 probe; that is acceptable for the public
+     10-second health endpoint but does not prove upload writes, public custom
+     domain delivery, CORS, bucket-level object-size controls, or public
+     ListBucket/bucket-listing posture. The runbook and `CLAUDE.md` now state
+     this boundary and require processed-image plus direct upload/verify smoke
+     tests after R2 credential/CORS/public-domain/bucket-policy changes. The
+     launch checklist now separately requires public ListBucket/bucket-listing
+     evidence, bucket-size evidence, and upload-smoke evidence. No code change
+     was made to add a deep write health check. #586 remains a manual
+     Cloudflare/R2 dashboard evidence item; no claim was made that it is
+     verified from local code. Guardrail:
+     `tests/retention-and-ops-followups.test.mjs`.
+
+369. **Refund-chain allegation narrowed; public fee copy aligned to code** —
+     parent/agent-reviewed code/docs/test closure for raw #355 plus adjacent
+     fee-policy copy drift. The claimed "many small partial refunds" chain is
+     stale on current `main`: seller self-service refunds and staff case
+     refunds both reject existing local `sellerRefundId` state, reject blocking
+     external Stripe refund ledger rows, and acquire the shared
+     `sellerRefundId = "pending"` lock with
+     `blockingRefundOrDisputeLedgerWhere()` before calling Stripe. That leaves
+     at most one blocking local/app refund per order across seller, staff,
+     blocked-checkout auto-refund, and external Stripe-dashboard refund paths.
+     Raw #217 remains a Stripe test-mode/accounting-policy evidence item for
+     the current manual `transfer_data.amount` partial-refund economics, not a
+     proven current exploit; do not add multi-partial-refund support without
+     redoing that runtime reconciliation. The adjacent real issue was that
+     public Terms and seller handbook copy still said Stripe processing was
+     deducted from maker payouts and platform fees were not refunded, while
+     current checkout transfer math makes Grainline absorb Stripe processing
+     and waive the corresponding platform-fee portion on refunded amounts.
+     Terms, seller handbook, and why-sell copy now match the current model, and
+     `CURRENT_TERMS_VERSION` is bumped to `2026-06-04`. Guardrails:
+     `tests/payment-side-effect-observability.test.mjs`,
+     `tests/marketplace-refunds.test.mjs`,
+     `tests/refund-route-state.test.mjs`, and
+     `tests/public-fee-policy-copy.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 416 findings;
+verified stale/false-positive: 406 findings; product/design/ops decisions
+deferred: 72 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
 export/deletion residue. Entry 361 removes the remaining Resend webhook
 failure-spike raw category; entries 362-367 were adjacent parent/agent-reviewed
 findings or refinements of already-closed categories, so they do not all reduce
-the raw-Claude count.
+the raw-Claude count. Entry 368 adds one fixed/reduced docs/test closure for R2
+health-check scope and one deferred/manual R2 ListBucket evidence
+classification. Entry 369 adds one adjacent fixed/reduced public fee-copy
+alignment, one stale/false-positive refund-chain classification, and one
+deferred/manual Stripe partial-refund runtime proof classification.
 Remaining major
 categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
-product designs, EXPLAIN-dependent query-plan/index validation, refund
-accounting runtime proof and refund fee-policy reconciliation, founding-maker
+product designs, EXPLAIN-dependent query-plan/index validation, Stripe
+partial-refund runtime reconciliation proof, founding-maker
 permanence policy, remaining case/message state policy decisions,
 remaining privacy/legal retention scope, remaining privacy/export
 retention decisions, cross-seller AI
@@ -4126,8 +4171,9 @@ checkout continuation design, deliberate BigInt money-column modeling, live-data
 reconciliation for historical seller shipping-rate currency drift, Clerk staff
 MFA and breached-password dashboard evidence, Clerk multi-account spam dashboard
 evidence, Stripe duplicate-webhook and buyer-deletion runtime replay proof,
-Founding Maker live DB concurrency proof, Sentry cron alert/R2 health/ListBucket
-ops evidence, HSTS preload submission decision, residual HTTP-status constants
+Founding Maker live DB concurrency proof, Sentry cron alert evidence,
+Cloudflare R2 ListBucket/public-bucket dashboard evidence, HSTS preload
+submission decision, residual HTTP-status constants
 and log-forwarding and analytics observability refactors, remaining homepage
 runtime a11y proof, and agent/worktree verification process hygiene.
-Approximate raw allegations left to verify from current max #1120: 250.
+Approximate raw allegations left to verify from current max #1120: 246.

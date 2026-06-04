@@ -129,8 +129,8 @@ export default async function WhySellOnGrainlinePage() {
             </table>
           </div>
           <p className="text-xs text-stone-500 px-4 py-3 border-t border-stone-100">
-            Stripe processing (~2.9% + $0.30) applies on every platform listed here. The numbers above are
-            platform fees on top of Stripe.
+            Stripe processing (~2.9% + $0.30) applies to card payments. Grainline currently absorbs it
+            under our payout model; the numbers above compare platform fees.
           </p>
         </div>
       </section>

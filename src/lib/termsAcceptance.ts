@@ -1,4 +1,4 @@
-export const CURRENT_TERMS_VERSION = "2026-03-30";
+export const CURRENT_TERMS_VERSION = "2026-06-04";
 
 export type TermsAcceptanceState = {
   termsAcceptedAt: Date | string | null;

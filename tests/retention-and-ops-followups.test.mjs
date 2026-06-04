@@ -133,6 +133,23 @@ describe("retention and ops-health follow-ups", () => {
     assert.match(launch, /webhook failure spike/);
   });
 
+  it("keeps R2 health limitations and launch evidence explicit", () => {
+    const health = readFileSync("src/app/api/health/route.ts", "utf8");
+    const runbook = readFileSync("docs/runbook.md", "utf8");
+    const launch = readFileSync("docs/launch-checklist.md", "utf8");
+    const claude = readFileSync("CLAUDE.md", "utf8");
+
+    assert.match(health, /HeadBucketCommand/);
+    assert.match(runbook, /HeadBucketCommand/);
+    assert.match(runbook, /does not prove\s+`PutObject`/);
+    assert.match(runbook, /direct\s+upload\/verify/);
+    assert.match(launch, /only proves `HeadBucket` reachability/);
+    assert.match(launch, /public bucket listing\/ListBucket exposure/);
+    assert.match(launch, /bucket-level max object-size/);
+    assert.match(launch, /upload smoke-test result/);
+    assert.match(claude, /cheap `HeadBucketCommand` reachability probe only/);
+  });
+
   it("keeps verbose health token comparison constant-time", () => {
     const source = readFileSync("src/lib/healthState.ts", "utf8");
 

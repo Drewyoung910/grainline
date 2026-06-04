@@ -14,6 +14,15 @@ This runbook covers the minimum operational steps for production incidents, depl
 6. Check Clerk Dashboard for auth/session incidents and webhook delivery failures.
 7. Check Resend Dashboard for failed, bounced, or delayed transactional email.
 
+The verbose health route's R2 check is intentionally a cheap `HeadBucketCommand`
+reachability check. Treat `checks.r2 = "ok"` as evidence that the configured R2
+bucket can be reached with the current credentials; it does not prove
+`PutObject`, `GetObject`, `DeleteObject`, CORS, public custom-domain delivery,
+public bucket-listing/ListBucket posture, or bucket-level object-size settings.
+After any R2 credential, CORS, public-domain, or bucket-policy change, run a
+real upload smoke test through both processed image upload and direct
+upload/verify before calling media healthy.
+
 Every incident note should include: start time, affected surface, current deploy SHA, primary request IDs, customer-visible impact, mitigation, owner, and follow-up issue.
 
 ## Security Incident Addendum
