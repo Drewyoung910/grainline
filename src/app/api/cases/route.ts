@@ -174,7 +174,7 @@ export async function POST(req: Request) {
     await createNotification({
       userId: sellerId,
       type: "CASE_OPENED",
-      title: `${me.name ?? me.email?.split("@")[0] ?? "A buyer"} opened a case`,
+      title: `${me.name ?? "A buyer"} opened a case`,
       body: truncateText(description, 60),
       link: `/dashboard/sales/${orderId}`,
     });

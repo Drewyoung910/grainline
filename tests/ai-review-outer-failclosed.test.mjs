@@ -118,4 +118,37 @@ describe("AI review outer fail-closed behavior", () => {
     assert.match(prompt, /€450\.00/);
     assert.doesNotMatch(prompt, /\$450\.00/);
   });
+
+  it("keeps the moderation prompt aligned with the US-only marketplace scope", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+    let requestBody;
+
+    await reviewListingWithAI(listing(), {
+      findRecentListingTitles: async () => [],
+      fetchWithTimeout: async (_url, init) => {
+        requestBody = JSON.parse(init.body);
+        return new Response(JSON.stringify({
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                approved: false,
+                flags: ["low-quality-description"],
+                confidence: 0.6,
+                reason: "Manual review",
+                altTexts: [],
+              }),
+            },
+          }],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      },
+      sleep: async () => {},
+    });
+
+    const systemPrompt = requestBody.messages[0].content;
+    assert.match(systemPrompt, /marketplace serving the United States/);
+    assert.doesNotMatch(systemPrompt, /US and Canada|United States and Canada/);
+  });
 });

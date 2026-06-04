@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { sendCustomOrderReady } from "@/lib/email";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { publicListingPath } from "@/lib/publicPaths";
+import { messagingUnavailableReason } from "@/lib/messageRecipientState";
 
 type CustomOrderReadyListing = {
   id: string;
@@ -32,6 +33,43 @@ export async function sendCustomOrderReadyLink({
     await tx.$executeRaw`
       SELECT pg_advisory_xact_lock(${CUSTOM_ORDER_READY_LINK_LOCK_NAMESPACE}, hashtext(${`${conversationId}:${listing.id}`}))
     `;
+
+    const conversation = await tx.conversation.findUnique({
+      where: { id: conversationId },
+      select: {
+        userAId: true,
+        userBId: true,
+        userA: { select: { banned: true, deletedAt: true } },
+        userB: { select: { banned: true, deletedAt: true } },
+      },
+    });
+    if (!conversation) return false;
+
+    const participants = new Set([conversation.userAId, conversation.userBId]);
+    if (
+      sellerUserId === buyerUserId ||
+      !participants.has(sellerUserId) ||
+      !participants.has(buyerUserId)
+    ) {
+      return false;
+    }
+
+    const sellerState = conversation.userAId === sellerUserId ? conversation.userA : conversation.userB;
+    const buyerState = conversation.userAId === buyerUserId ? conversation.userA : conversation.userB;
+    if (messagingUnavailableReason(sellerState) || messagingUnavailableReason(buyerState)) {
+      return false;
+    }
+
+    const blockExists = await tx.block.findFirst({
+      where: {
+        OR: [
+          { blockerId: sellerUserId, blockedId: buyerUserId },
+          { blockerId: buyerUserId, blockedId: sellerUserId },
+        ],
+      },
+      select: { id: true },
+    });
+    if (blockExists) return false;
 
     const existingLinkMessage = await tx.message.findFirst({
       where: {

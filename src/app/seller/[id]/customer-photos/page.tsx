@@ -7,6 +7,7 @@ import { getBlockedUserIdsFor } from "@/lib/blocks";
 import { publicListingDetailWhere } from "@/lib/listingVisibility";
 import { visibleSellerProfileWhere } from "@/lib/sellerVisibility";
 import { extractRouteId, publicSellerPath, routeSegmentWithSlug } from "@/lib/publicPaths";
+import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import CustomerPhotosGallery from "@/components/CustomerPhotosGallery";
 
 const PAGE_SIZE = 24;
@@ -35,7 +36,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function CustomerPhotosPage({ params, searchParams }: Props) {
   const { id } = await params;
   const sp = await searchParams;
-  const page = Math.max(1, Number(sp.page) || 1);
+  const page = parseBoundedPositiveIntParam(sp.page, 1, 500);
   const sellerId = extractRouteId(id);
 
   const seller = await prisma.sellerProfile.findUnique({

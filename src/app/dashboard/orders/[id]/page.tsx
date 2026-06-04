@@ -21,6 +21,10 @@ import {
   caseWindowClosesAt,
   isOrderCaseWindowClosed,
 } from "@/lib/caseCreateState";
+import {
+  unavailableCaseMessageRecipientReason,
+  unavailableCaseRecipientMessage,
+} from "@/lib/caseMessagingState";
 import { DEFAULT_CURRENCY } from "@/lib/money";
 import type { CaseStatus } from "@prisma/client";
 import type { Metadata } from "next";
@@ -113,6 +117,8 @@ export default async function BuyerOrderDetailPage({
       },
       case: {
         include: {
+          buyer: { select: { id: true, banned: true, deletedAt: true } },
+          seller: { select: { id: true, banned: true, deletedAt: true } },
           messages: {
             include: {
               author: { select: { name: true, role: true } },
@@ -187,6 +193,17 @@ export default async function BuyerOrderDetailPage({
     (activeCase.status === "OPEN" ||
       activeCase.status === "IN_DISCUSSION" ||
       activeCase.status === "PENDING_CLOSE");
+  const caseReplyUnavailableReason = activeCase
+    ? unavailableCaseMessageRecipientReason({
+        senderId: me.id,
+        buyer: activeCase.buyer,
+        seller: activeCase.seller,
+        isStaff: false,
+      })
+    : null;
+  const caseReplyUnavailableMessage = caseReplyUnavailableReason
+    ? unavailableCaseRecipientMessage(caseReplyUnavailableReason)
+    : null;
 
   const escalateAvailable =
     activeCase?.status === "IN_DISCUSSION" &&
@@ -515,7 +532,11 @@ export default async function BuyerOrderDetailPage({
 
           {caseOpen && (
             <div className="border-t border-neutral-100 bg-neutral-50 px-4 py-4">
-              <CaseReplyBox caseId={activeCase.id} />
+              {caseReplyUnavailableMessage ? (
+                <p className="text-sm text-neutral-600">{caseReplyUnavailableMessage}</p>
+              ) : (
+                <CaseReplyBox caseId={activeCase.id} />
+              )}
             </div>
           )}
 

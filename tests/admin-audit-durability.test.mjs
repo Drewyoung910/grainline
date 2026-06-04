@@ -14,6 +14,9 @@ describe("admin audit durability", () => {
     assert.match(audit, /export async function logAdminAction\(input: AdminAuditLogInput\): Promise<string \| null>/);
     assert.match(audit, /export async function logAdminActionOrThrow/);
     assert.match(audit, /throw new AdminAuditLogError\(\)/);
+    assert.match(audit, /import \{ sanitizeEmailOutboxError \} from '\.\/emailOutboxSanitize'/);
+    assert.match(audit, /console\.error\('Audit log failed:', sanitizeEmailOutboxError\(error\)\)/);
+    assert.doesNotMatch(audit, /console\.error\('Audit log failed:', error\)/);
     assert.match(audit, /Sentry\.captureException\(error, \{\s*tags: \{ source: 'audit_log', action \}/);
     assert.match(audit, /extra: \{ adminId, targetType, targetId \}/);
     assert.doesNotMatch(audit, /return ''/);

@@ -27,6 +27,9 @@ describe("system audit logging", () => {
     assert.match(helper, /export async function logSystemActionOrThrow/);
     assert.match(helper, /throw new SystemAuditLogError\(\)/);
     assert.match(helper, /truncateText\(sanitizeText\(reason\), 1000\)/);
+    assert.match(helper, /import \{ sanitizeEmailOutboxError \} from "@\/lib\/emailOutboxSanitize";/);
+    assert.match(helper, /console\.error\("System audit log failed:", sanitizeEmailOutboxError\(error\)\);/);
+    assert.doesNotMatch(helper, /console\.error\("System audit log failed:", error\);/);
     assert.match(helper, /source: "system_audit_log"/);
   });
 

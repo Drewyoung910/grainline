@@ -2,6 +2,7 @@ import * as Sentry from "@sentry/nextjs";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
+import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 
 type SystemAuditLogClient = Pick<Prisma.TransactionClient, "systemAuditLog">;
 
@@ -50,7 +51,7 @@ function captureSystemAuditLogFailure(
   error: unknown,
   { actorType, actorId, action, targetType, targetId }: SystemAuditLogInput,
 ) {
-  console.error("System audit log failed:", error);
+  console.error("System audit log failed:", sanitizeEmailOutboxError(error));
   Sentry.captureException(error, {
     tags: { source: "system_audit_log", actorType, action },
     extra: { actorId, targetType, targetId },

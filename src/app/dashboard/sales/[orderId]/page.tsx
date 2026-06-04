@@ -14,6 +14,10 @@ import { ArrowLeft, Gift } from "@/components/icons";
 import LocalDate from "@/components/LocalDate";
 import OrderTimeline from "@/components/OrderTimeline";
 import { caseStatusLabel } from "@/lib/caseLabels";
+import {
+  unavailableCaseMessageRecipientReason,
+  unavailableCaseRecipientMessage,
+} from "@/lib/caseMessagingState";
 import { publicListingPath } from "@/lib/publicPaths";
 import { blockingRefundLedgerWhere, latestRefundLedgerEvent, orderHasRefundLedger, refundMayRestoreStock } from "@/lib/refundRouteState";
 import { orderTotalCents } from "@/lib/orderTotals";
@@ -100,6 +104,8 @@ export default async function SellerOrderDetailPage({
       },
       case: {
         include: {
+          buyer: { select: { id: true, banned: true, deletedAt: true } },
+          seller: { select: { id: true, banned: true, deletedAt: true } },
           messages: {
             include: {
               author: { select: { id: true, name: true, email: true } },
@@ -178,6 +184,17 @@ export default async function SellerOrderDetailPage({
   const hasRefund = sellerRefundIssued || !!activeCase?.stripeRefundId || !!externalRefund;
   const buyerId = order.buyerId ?? "";
   const meId = me.id;
+  const caseReplyUnavailableReason = activeCase
+    ? unavailableCaseMessageRecipientReason({
+        senderId: me.id,
+        buyer: activeCase.buyer,
+        seller: activeCase.seller,
+        isStaff: false,
+      })
+    : null;
+  const caseReplyUnavailableMessage = caseReplyUnavailableReason
+    ? unavailableCaseRecipientMessage(caseReplyUnavailableReason)
+    : null;
 
   // Per-message label helper (runs server-side)
   function msgLabel(authorId: string): string {
@@ -370,7 +387,11 @@ export default async function SellerOrderDetailPage({
             activeCase.status === "IN_DISCUSSION" ||
             activeCase.status === "PENDING_CLOSE") && (
             <div className="border-t border-neutral-100 bg-neutral-50 px-4 py-4">
-              <CaseReplyBox caseId={activeCase.id} />
+              {caseReplyUnavailableMessage ? (
+                <p className="text-sm text-neutral-600">{caseReplyUnavailableMessage}</p>
+              ) : (
+                <CaseReplyBox caseId={activeCase.id} />
+              )}
             </div>
           )}
 

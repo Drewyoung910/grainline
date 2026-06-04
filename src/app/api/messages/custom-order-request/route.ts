@@ -211,7 +211,7 @@ export async function POST(req: Request) {
     await createNotification({
       userId: sellerUserId,
       type: "CUSTOM_ORDER_REQUEST",
-      title: `${me.name ?? me.email?.split("@")[0] ?? "Someone"} wants a custom piece!`,
+      title: `${me.name ?? "A customer"} wants a custom piece!`,
       body: truncateText(cleanedDescription, 60),
       link: `/messages/${convo.id}`,
     });

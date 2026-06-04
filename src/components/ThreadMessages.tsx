@@ -70,6 +70,7 @@ export default function ThreadMessages({
   otherUser,
   height = "60vh",
   refreshEventFormId,
+  liveUpdates = true,
 }: {
   convoId: string;
   meId: string;
@@ -77,6 +78,7 @@ export default function ThreadMessages({
   otherUser?: OtherUser | null;
   height?: number | string;
   refreshEventFormId?: string;
+  liveUpdates?: boolean;
 }) {
   const [msgs, setMsgs] = React.useState<Msg[]>(initial || []);
   const [streamError, setStreamError] = React.useState<string | null>(null);
@@ -124,6 +126,8 @@ export default function ThreadMessages({
   // so the sent message appears within a few hundred ms instead of waiting
   // for the next 3s poll or SSE push.
   React.useEffect(() => {
+    if (!liveUpdates) return;
+
     let active = true;
     let controller: AbortController | null = null;
 
@@ -168,9 +172,14 @@ export default function ThreadMessages({
       controller?.abort();
       document.removeEventListener("actionform:ok", onOk);
     };
-  }, [convoId, refreshEventFormId]);
+  }, [convoId, refreshEventFormId, liveUpdates]);
 
   React.useEffect(() => {
+    if (!liveUpdates) {
+      setStreamError(null);
+      return;
+    }
+
     let closed = false;
     let pollId: number | null = null;
     let pollController: AbortController | null = null;
@@ -250,7 +259,7 @@ export default function ThreadMessages({
         pollController?.abort();
       };
     }
-  }, [convoId]);
+  }, [convoId, liveUpdates]);
 
   const boxHeight = typeof height === "number" ? `${height}px` : height ?? "60vh";
 

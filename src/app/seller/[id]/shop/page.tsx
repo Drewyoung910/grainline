@@ -17,6 +17,7 @@ import SortSelect from "./SortSelect";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { visibleSellerProfileWhere } from "@/lib/sellerVisibility";
 import { extractRouteId, publicListingPath, publicSellerPath, publicSellerShopPath, routeSegmentWithSlug } from "@/lib/publicPaths";
+import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 
 const PAGE_SIZE = 20;
 
@@ -74,7 +75,7 @@ export default async function SellerShopPage({
   const sort = sp.sort && ["newest", "price_asc", "price_desc", "popular"].includes(sp.sort)
     ? sp.sort
     : "newest";
-  const page = Math.max(1, Number(sp.page ?? 1));
+  const page = parseBoundedPositiveIntParam(sp.page, 1, 500);
   const categoryRaw = sp.category ?? "";
   const category: Category | null = CATEGORY_VALUES.includes(categoryRaw)
     ? (categoryRaw as Category)

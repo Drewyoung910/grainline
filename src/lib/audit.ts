@@ -8,6 +8,7 @@ import { restoreOrderReviewStateAfterBan } from './banOrderReviewState'
 import { unbanClerkUser } from './clerkUserLifecycle'
 import { sanitizeText, truncateText } from './sanitize'
 import { invalidateAccountStateCache } from './accountStateCache'
+import { sanitizeEmailOutboxError } from './emailOutboxSanitize'
 
 export const UNDOABLE_ADMIN_ACTIONS = ['BAN_USER', 'REMOVE_LISTING', 'HOLD_LISTING'] as const
 
@@ -172,7 +173,7 @@ function captureAdminAuditLogFailure(
   error: unknown,
   { adminId, action, targetType, targetId }: AdminAuditLogInput,
 ) {
-  console.error('Audit log failed:', error)
+  console.error('Audit log failed:', sanitizeEmailOutboxError(error))
   Sentry.captureException(error, {
     tags: { source: 'audit_log', action },
     extra: { adminId, targetType, targetId },

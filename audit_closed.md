@@ -4143,9 +4143,46 @@ Last updated: 2026-06-02
      `tests/refund-route-state.test.mjs`, and
      `tests/public-fee-policy-copy.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 416 findings;
+370. **Message/case policy, seller pagination, and telemetry drift tightened** —
+     parent/agent-reviewed code/test fixes for current source issues and
+     adjacent missed cases. Public seller shop and customer-photo subroutes now
+     parse `page` through `parseBoundedPositiveIntParam(..., 1, 500)` before
+     Prisma `skip`, reducing malformed/huge offset risk on public routes. The
+     AI review moderation system prompt now describes Grainline as a United
+     States marketplace; the raw AI price-format allegation was reverified
+     stale because prompt prices already use `formatCurrencyCents()`. Custom
+     order ready-link creation now revalidates conversation participants,
+     buyer/seller account availability, and reciprocal block rows inside the
+     advisory-lock transaction before creating the `custom_order_link` message.
+     Buyer and seller case detail pages now select case-party account state and
+     use `unavailableCaseMessageRecipientReason()` before rendering
+     `CaseReplyBox`, so the UI no longer invites party-to-party replies that
+     the API will reject. Nonparticipant staff reported-thread review now
+     renders `ThreadMessages` with live updates disabled instead of starting
+     participant-only SSE/polling fetches. Cross-user notification titles in
+     cases, case messages, custom-order requests, reviews, favorites, and blog
+     comment approvals no longer derive display names from email local-parts.
+     Admin and system audit failure console logs now pass through
+     `sanitizeEmailOutboxError()` instead of logging raw error objects.
+     Guardrails: `tests/message-case-policy-guardrails.test.mjs`,
+     `tests/query-param-state.test.mjs`,
+     `tests/ai-review-outer-failclosed.test.mjs`,
+     `tests/admin-audit-durability.test.mjs`, and
+     `tests/system-audit-log.test.mjs`.
+
+     Parent review also reverified several agent-reported items without tally
+     inflation: incoming block retention is intentional per entry 326 and the
+     Privacy Policy moderation-retention copy; account export scope, order PII
+     pruning, email suppression/outbox handling, cart checkout-address
+     `sessionStorage`, `/seller/[id]` cache/over-fetch, and FK/index allegations
+     are stale or already closed on current `main`. Support/data-request
+     retention remains a product/legal decision, reciprocal user blocks in
+     active case threads remain an explicit case/message policy decision, and
+     seller subroute shared-loader optimization remains a performance follow-up.
+
+**Running tally after this pass:** verified fixed/reduced: 423 findings;
 verified stale/false-positive: 406 findings; product/design/ops decisions
-deferred: 72 findings. Entries 361-367 add twelve fixed/reduced current-code
+deferred: 73 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
 export/deletion residue. Entry 361 removes the remaining Resend webhook
 failure-spike raw category; entries 362-367 were adjacent parent/agent-reviewed
@@ -4154,7 +4191,11 @@ the raw-Claude count. Entry 368 adds one fixed/reduced docs/test closure for R2
 health-check scope and one deferred/manual R2 ListBucket evidence
 classification. Entry 369 adds one adjacent fixed/reduced public fee-copy
 alignment, one stale/false-positive refund-chain classification, and one
-deferred/manual Stripe partial-refund runtime proof classification.
+deferred/manual Stripe partial-refund runtime proof classification. Entry 370
+adds seven fixed/reduced current-code issues across message/case policy, public
+seller pagination, AI prompt scope, cross-user notification naming, and audit
+telemetry, plus one deferred case-block policy decision; already-closed
+agent rechecks did not increase the stale tally.
 Remaining major
 categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
@@ -4176,4 +4217,4 @@ Cloudflare R2 ListBucket/public-bucket dashboard evidence, HSTS preload
 submission decision, residual HTTP-status constants
 and log-forwarding and analytics observability refactors, remaining homepage
 runtime a11y proof, and agent/worktree verification process hygiene.
-Approximate raw allegations left to verify from current max #1120: 246.
+Approximate raw allegations left to verify from current max #1120: 245.

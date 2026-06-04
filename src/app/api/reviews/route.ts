@@ -201,7 +201,7 @@ export async function POST(req: NextRequest) {
   });
   if (listing?.seller.userId && !listing.seller.user.banned && !listing.seller.user.deletedAt) {
     const stars = (ratingX2 / 2).toFixed(1).replace(".0", "");
-    const reviewerName = me.name ?? me.email?.split("@")[0] ?? "Someone";
+    const reviewerName = me.name ?? "A buyer";
     try {
       await createNotification({
         userId: listing.seller.userId,

@@ -99,7 +99,7 @@ export async function POST(req: Request) {
   try {
     const ownerUserId = listing.seller.userId;
     if (ownerUserId && ownerUserId !== me.id) {
-      const favName = me.name ?? me.email?.split("@")[0] ?? "Someone";
+      const favName = me.name ?? "Someone";
       await createNotification({
         userId: ownerUserId,
         type: "NEW_FAVORITE",

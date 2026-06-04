@@ -151,7 +151,9 @@ export async function POST(
     const message = messageResult.message;
 
     // Notify the appropriate party/parties
-    const senderName = me.name ?? me.email?.split("@")[0] ?? "Someone";
+    const senderName =
+      me.name ??
+      (me.id === caseRecord.buyerId ? "A buyer" : me.id === caseRecord.sellerId ? "The seller" : "Someone");
     const appUrl = EMAIL_APP_URL;
 
     if (isStaff && !isParty) {

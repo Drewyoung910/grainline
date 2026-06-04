@@ -58,7 +58,7 @@ async function approveComment(commentId: string) {
       },
     });
     if (comment) {
-      const commenterName = comment.author.name ?? comment.author.email?.split("@")[0] ?? "Someone";
+      const commenterName = comment.author.name ?? "Someone";
       if (comment.parentId) {
         // Reply — notify the parent comment author
         const parent = await prisma.blogComment.findUnique({
