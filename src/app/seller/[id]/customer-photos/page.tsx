@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
+import { cache } from "react";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
 import { publicListingDetailWhere } from "@/lib/listingVisibility";
-import { visibleSellerProfileWhere } from "@/lib/sellerVisibility";
+import { isSupportedStripeAccountVersion } from "@/lib/sellerVisibility";
 import { extractRouteId, publicSellerPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import CustomerPhotosGallery from "@/components/CustomerPhotosGallery";
@@ -17,14 +18,38 @@ type Props = {
   searchParams: Promise<{ page?: string }>;
 };
 
+const getSellerProfileForCustomerPhotosPage = cache(async (sellerId: string) =>
+  prisma.sellerProfile.findUnique({
+    where: { id: sellerId },
+    select: {
+      id: true,
+      displayName: true,
+      chargesEnabled: true,
+      stripeAccountVersion: true,
+      user: { select: { id: true, banned: true, deletedAt: true, clerkId: true } },
+    },
+  })
+);
+
+type CustomerPhotosSellerProfile = NonNullable<Awaited<ReturnType<typeof getSellerProfileForCustomerPhotosPage>>>;
+
+function sellerPhotosIsPubliclyVisible(
+  seller: Awaited<ReturnType<typeof getSellerProfileForCustomerPhotosPage>>,
+): seller is CustomerPhotosSellerProfile {
+  return Boolean(
+    seller &&
+      seller.chargesEnabled &&
+      isSupportedStripeAccountVersion(seller.stripeAccountVersion) &&
+      !seller.user?.banned &&
+      !seller.user?.deletedAt,
+  );
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const sellerId = extractRouteId(id);
-  const seller = await prisma.sellerProfile.findFirst({
-    where: visibleSellerProfileWhere({ id: sellerId }),
-    select: { displayName: true },
-  });
-  if (!seller) return {};
+  const seller = await getSellerProfileForCustomerPhotosPage(sellerId);
+  if (!sellerPhotosIsPubliclyVisible(seller)) return {};
   const name = seller.displayName ?? "Maker";
   return {
     title: `Customer photos from ${name} | Grainline`,
@@ -39,14 +64,7 @@ export default async function CustomerPhotosPage({ params, searchParams }: Props
   const page = parseBoundedPositiveIntParam(sp.page, 1, 500);
   const sellerId = extractRouteId(id);
 
-  const seller = await prisma.sellerProfile.findUnique({
-    where: { id: sellerId },
-    select: {
-      id: true,
-      displayName: true,
-      user: { select: { id: true, banned: true, deletedAt: true, clerkId: true } },
-    },
-  });
+  const seller = await getSellerProfileForCustomerPhotosPage(sellerId);
   if (!seller) return notFound();
   if (seller.user?.banned || seller.user?.deletedAt) return notFound();
 
@@ -57,12 +75,7 @@ export default async function CustomerPhotosPage({ params, searchParams }: Props
     meId = me?.id ?? null;
   }
   const isOwner = !!userId && seller.user?.clerkId === userId;
-  if (!isOwner) {
-    const isVisibleSeller = await prisma.sellerProfile.count({
-      where: visibleSellerProfileWhere({ id: seller.id }),
-    });
-    if (!isVisibleSeller) return notFound();
-  }
+  if (!isOwner && !sellerPhotosIsPubliclyVisible(seller)) return notFound();
 
   const blockedUserIds = await getBlockedUserIdsFor(meId);
   if (seller.user?.id && blockedUserIds.has(seller.user.id)) {

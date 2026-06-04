@@ -1,6 +1,7 @@
 // src/app/seller/[id]/shop/page.tsx
 import { notFound, permanentRedirect } from "next/navigation";
 import Link from "next/link";
+import { cache } from "react";
 import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
@@ -15,7 +16,7 @@ import ShopListingActions from "./ShopListingActions";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import SortSelect from "./SortSelect";
 import { publicListingWhere } from "@/lib/listingVisibility";
-import { visibleSellerProfileWhere } from "@/lib/sellerVisibility";
+import { isSupportedStripeAccountVersion } from "@/lib/sellerVisibility";
 import { extractRouteId, publicListingPath, publicSellerPath, publicSellerShopPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 
@@ -39,6 +40,44 @@ type ShopSearch = {
   status?: string;
 };
 
+const getSellerProfileForShopPage = cache(async (sellerId: string) =>
+  prisma.sellerProfile.findUnique({
+    where: { id: sellerId },
+    select: {
+      id: true,
+      userId: true,
+      displayName: true,
+      avatarImageUrl: true,
+      guildLevel: true,
+      city: true,
+      state: true,
+      acceptingNewOrders: true,
+      chargesEnabled: true,
+      stripeAccountVersion: true,
+      vacationMode: true,
+      vacationReturnDate: true,
+      vacationMessage: true,
+      isFoundingMaker: true,
+      foundingMakerNumber: true,
+      user: { select: { imageUrl: true, banned: true, deletedAt: true } },
+    },
+  })
+);
+
+type ShopSellerProfile = NonNullable<Awaited<ReturnType<typeof getSellerProfileForShopPage>>>;
+
+function sellerShopIsPubliclyVisible(
+  seller: Awaited<ReturnType<typeof getSellerProfileForShopPage>>,
+): seller is ShopSellerProfile {
+  return Boolean(
+    seller &&
+      seller.chargesEnabled &&
+      isSupportedStripeAccountVersion(seller.stripeAccountVersion) &&
+      !seller.user?.banned &&
+      !seller.user?.deletedAt,
+  );
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -46,13 +85,8 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const sellerId = extractRouteId(id);
-  const seller = await prisma.sellerProfile.findFirst({
-    where: visibleSellerProfileWhere({ id: sellerId }),
-    select: {
-      displayName: true,
-    },
-  });
-  if (!seller) return {};
+  const seller = await getSellerProfileForShopPage(sellerId);
+  if (!sellerShopIsPubliclyVisible(seller)) return {};
   const name = seller.displayName ?? "Maker";
   return {
     title: { absolute: `${name}'s Shop — Grainline` },
@@ -82,26 +116,7 @@ export default async function SellerShopPage({
     : null;
   const statusRaw = sp.status ?? "";
 
-  const seller = await prisma.sellerProfile.findUnique({
-    where: { id: sellerId },
-    select: {
-      id: true,
-      userId: true,
-      displayName: true,
-      avatarImageUrl: true,
-      guildLevel: true,
-      city: true,
-      state: true,
-      acceptingNewOrders: true,
-      chargesEnabled: true,
-      vacationMode: true,
-      vacationReturnDate: true,
-      vacationMessage: true,
-      isFoundingMaker: true,
-      foundingMakerNumber: true,
-      user: { select: { imageUrl: true, banned: true, deletedAt: true } },
-    },
-  });
+  const seller = await getSellerProfileForShopPage(sellerId);
 
   if (!seller) return notFound();
   const sellerShopHref = publicSellerShopPath(seller.id, seller.displayName);
@@ -118,16 +133,7 @@ export default async function SellerShopPage({
   if (seller.user?.banned || seller.user?.deletedAt) {
     return notFound();
   }
-  if (!isOwner) {
-    const isVisibleSeller = await prisma.sellerProfile.count({
-      where: visibleSellerProfileWhere({ id: seller.id }),
-    });
-    if (!isVisibleSeller) return notFound();
-  }
-
-  if (isOwner && (seller.user?.banned || seller.user?.deletedAt)) {
-    return notFound();
-  }
+  if (!isOwner && !sellerShopIsPubliclyVisible(seller)) return notFound();
 
   const validStatuses = STATUS_TABS.map((t) => t.value).filter(Boolean);
   const statusFilter = isOwner && validStatuses.includes(statusRaw as typeof validStatuses[number])

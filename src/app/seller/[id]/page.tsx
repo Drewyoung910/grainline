@@ -41,6 +41,23 @@ const SOCIAL_LINK_ALLOWED_HOSTS = {
   TikTok: ["tiktok.com"],
 } satisfies Record<string, string[]>;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const SELLER_PROFILE_LISTING_PREVIEW_SIZE = 9;
+
+const sellerProfileListingCardSelect = {
+  id: true,
+  title: true,
+  priceCents: true,
+  currency: true,
+  status: true,
+  isPrivate: true,
+  listingType: true,
+  stockQuantity: true,
+  photos: {
+    orderBy: { sortOrder: "asc" },
+    take: 1,
+    select: { url: true, altText: true },
+  },
+} as const;
 
 function safeSellerSocialUrl(value: string | null, allowedHosts?: readonly string[]) {
   const normalized = normalizePublicHttpsUrl(value, 2048);
@@ -212,6 +229,7 @@ export default async function SellerPublicPage({
     latestBroadcast,
     sellerBlogPosts,
     listings,
+    activePublicListingCount,
     sellerRatingMap,
     publicSellerStats,
     tagRows,
@@ -240,24 +258,11 @@ export default async function SellerPublicPage({
     }),
     prisma.listing.findMany({
       where: publicListingWhere({ sellerId: seller.id }),
-      select: {
-        id: true,
-        title: true,
-        priceCents: true,
-        currency: true,
-        status: true,
-        isPrivate: true,
-        listingType: true,
-        stockQuantity: true,
-        photos: {
-          orderBy: { sortOrder: "asc" },
-          take: 1,
-          select: { url: true, altText: true },
-        },
-      },
+      select: sellerProfileListingCardSelect,
       orderBy: { updatedAt: "desc" },
-      take: 100,
+      take: SELLER_PROFILE_LISTING_PREVIEW_SIZE,
     }),
+    prisma.listing.count({ where: publicListingWhere({ sellerId: seller.id }) }),
     getSellerRatingMap([seller.id]),
     getCachedPublicSellerStats(seller.id),
     prisma.$queryRaw<{ tag: string; count: bigint }[]>`
@@ -305,11 +310,11 @@ export default async function SellerPublicPage({
   // Fetch featured listings in order
   let featuredListings: typeof listings = [];
   if (seller.featuredListingIds && seller.featuredListingIds.length > 0) {
-    const featuredById = new Map(
-      listings
-        .filter((l) => seller.featuredListingIds.includes(l.id))
-        .map((l) => [l.id, l])
-    );
+    const featuredRows = await prisma.listing.findMany({
+      where: publicListingWhere({ sellerId: seller.id, id: { in: seller.featuredListingIds } }),
+      select: sellerProfileListingCardSelect,
+    });
+    const featuredById = new Map(featuredRows.map((l) => [l.id, l]));
     featuredListings = seller.featuredListingIds
       .map((fid) => featuredById.get(fid))
       .filter((l): l is (typeof listings)[0] => l !== undefined);
@@ -788,22 +793,17 @@ export default async function SellerPublicPage({
 
           {/* All Listings */}
           <section>
-            {(() => {
-              const activePublicCount = listings.filter((l) => l.status === "ACTIVE" && !l.isPrivate).length;
-              return (
-                <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                  <h2 className="text-xl sm:text-2xl font-display font-semibold">All Listings</h2>
-                  {activePublicCount > 0 && (
-                    <Link
-                      href={publicSellerShopPath(seller.id, seller.displayName)}
-                      className="text-sm text-amber-700 hover:underline"
-                    >
-                      See all {activePublicCount} {activePublicCount === 1 ? "piece" : "pieces"} →
-                    </Link>
-                  )}
-                </div>
-              );
-            })()}
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+              <h2 className="text-xl sm:text-2xl font-display font-semibold">All Listings</h2>
+              {activePublicListingCount > 0 && (
+                <Link
+                  href={publicSellerShopPath(seller.id, seller.displayName)}
+                  className="text-sm text-amber-700 hover:underline"
+                >
+                  See all {activePublicListingCount} {activePublicListingCount === 1 ? "piece" : "pieces"} →
+                </Link>
+              )}
+            </div>
 
             {/* Tag filter row — desktop only. Mobile has limited horizontal
                 space and the filter chips were adding visual noise; on mobile
@@ -830,7 +830,7 @@ export default async function SellerPublicPage({
             ) : (
               <ScrollFadeRow mobileOnly className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0 sm:overflow-visible">
                 <ul className="flex gap-4 snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-2 sm:pb-0 md:grid-cols-3 sm:gap-6">
-                  {listings.slice(0, 9).map((l) => (
+                  {listings.map((l) => (
                     <ClickTracker key={l.id} listingId={l.id} className="w-[220px] flex-none snap-start sm:w-auto transition-transform hover:-translate-y-1 duration-200">
                       <ListingCard
                         listing={{
@@ -862,19 +862,16 @@ export default async function SellerPublicPage({
                 </ul>
               </ScrollFadeRow>
             )}
-            {(() => {
-              const activePublicCount = listings.filter((l) => l.status === "ACTIVE" && !l.isPrivate).length;
-              return activePublicCount > 9 ? (
-                <div className="mt-5 text-center">
-                  <Link
-                    href={publicSellerShopPath(seller.id, seller.displayName)}
-                    className="inline-block rounded-md border border-neutral-300 px-5 py-2 text-sm font-medium hover:bg-neutral-50"
-                  >
-                    See all {activePublicCount} pieces →
-                  </Link>
-                </div>
-              ) : null;
-            })()}
+            {activePublicListingCount > SELLER_PROFILE_LISTING_PREVIEW_SIZE ? (
+              <div className="mt-5 text-center">
+                <Link
+                  href={publicSellerShopPath(seller.id, seller.displayName)}
+                  className="inline-block rounded-md border border-neutral-300 px-5 py-2 text-sm font-medium hover:bg-neutral-50"
+                >
+                  See all {activePublicListingCount} pieces →
+                </Link>
+              </div>
+            ) : null}
           </section>
 
           {/* Workshop gallery (full width, separate from story workshop photo) */}

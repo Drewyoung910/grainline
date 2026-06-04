@@ -43,7 +43,7 @@ describe("public visibility follow-ups", () => {
       ["seller shop", sellerShopPage],
     ]) {
       assert.doesNotMatch(source, /include:\s*\{\s*photos:/, `${path} should not fetch full Listing rows for cards`);
-      assert.match(source, /select:\s*\{[\s\S]*?id: true,[\s\S]*?title: true,[\s\S]*?priceCents: true,/);
+      assert.match(source, /(?:select:\s*\{|const sellerProfileListingCardSelect = \{)[\s\S]*?id: true,[\s\S]*?title: true,[\s\S]*?priceCents: true,/);
     }
   });
 

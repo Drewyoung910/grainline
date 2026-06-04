@@ -30,17 +30,19 @@ describe("query parameter parsing helpers", () => {
     assert.equal(parseTimestampMsParam("999999999999999999999"), null);
   });
 
-  it("keeps public seller subroute pagination bounded before Prisma skip", () => {
+  it("keeps public browse and seller pagination bounded before Prisma skip", () => {
     for (const routePath of [
+      "src/app/browse/page.tsx",
       "src/app/seller/[id]/shop/page.tsx",
       "src/app/seller/[id]/customer-photos/page.tsx",
     ]) {
       const source = readFileSync(routePath, "utf8");
 
       assert.match(source, /import \{ parseBoundedPositiveIntParam \} from "@\/lib\/queryParams";/);
-      assert.match(source, /const page = parseBoundedPositiveIntParam\(sp\.page, 1, 500\);/);
+      assert.match(source, /parseBoundedPositiveIntParam\(sp\.page, 1, 500\)/);
       assert.doesNotMatch(source, /Math\.max\(1,\s*Number\(sp\.page/);
       assert.doesNotMatch(source, /Number\(sp\.page/);
+      assert.doesNotMatch(source, /Number\.parseInt\(sp\.page/);
     }
   });
 });

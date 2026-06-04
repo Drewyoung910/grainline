@@ -21,6 +21,7 @@ import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { normalizeDisplayNameForLookup, truncateText } from "@/lib/sanitize";
 import { parseMoneyInputToCents } from "@/lib/money";
+import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 
 const PAGE_SIZE = 24;
 
@@ -154,8 +155,7 @@ export async function generateMetadata({
   const q = sp.q?.trim() ?? "";
   const categoryRaw = sp.category?.toUpperCase() ?? "";
   const categoryFilter = CATEGORY_VALUES.includes(categoryRaw) ? categoryRaw : null;
-  const pageRaw = Number.parseInt(sp.page ?? "1", 10);
-  const page = Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1;
+  const page = parseBoundedPositiveIntParam(sp.page, 1, 500);
   const hasTags = Array.isArray(sp.tag) ? sp.tag.length > 0 : Boolean(sp.tag);
   const hasIndexBlockingFilters = Boolean(
     q ||
@@ -222,7 +222,6 @@ export default async function BrowsePage({
 
   const q = truncateText(sp.q ?? "", 200);
   const normalizedDisplayNameQuery = normalizeDisplayNameForLookup(q);
-  const page = sp.page ?? "1";
   const min = sp.min ?? "";
   const max = sp.max ?? "";
   const sortRaw = sp.sort ?? "";
@@ -236,8 +235,7 @@ export default async function BrowsePage({
     ? uniq(rawTag.filter(Boolean).map((t) => t.trim()).slice(0, 10))
     : [rawTag.trim()].filter(Boolean);
 
-  const pageNumRaw = Number.parseInt(page || "1", 10);
-  const pageNum = Math.min(Number.isFinite(pageNumRaw) && pageNumRaw > 0 ? pageNumRaw : 1, 500);
+  const pageNum = parseBoundedPositiveIntParam(sp.page, 1, 500);
 
   // New filters
   const categoryRaw = sp.category?.toUpperCase() ?? "";

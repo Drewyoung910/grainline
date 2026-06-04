@@ -4180,7 +4180,32 @@ Last updated: 2026-06-02
      active case threads remain an explicit case/message policy decision, and
      seller subroute shared-loader optimization remains a performance follow-up.
 
-**Running tally after this pass:** verified fixed/reduced: 423 findings;
+371. **Public seller performance and browse page parsing tightened** —
+     parent/agent-reviewed code/test fixes for the remaining source-verifiable
+     seller-page performance follow-up plus one adjacent public pagination
+     parser drift. The seller shop and customer-photo subroutes now share one
+     React `cache()` seller-profile loader between `generateMetadata()` and the
+     page render, and they reuse the same in-memory public-visibility check
+     instead of issuing an extra `visibleSellerProfileWhere()` count for
+     non-owners. The main public seller profile now fetches only the nine
+     listing cards it renders, gets the "See all" total from a real public
+     listing count, and fetches curated featured listing IDs directly so older
+     featured work is not lost when the preview is bounded. The browse page now
+     uses `parseBoundedPositiveIntParam(sp.page, 1, 500)` in metadata and page
+     render so malformed values like `12abc` do not become valid Prisma
+     offsets. Guardrails: `tests/seller-page-performance.test.mjs`,
+     `tests/query-param-state.test.mjs`, and
+     `tests/public-visibility-followups.test.mjs`.
+
+     Parent review also verified one support/privacy source gap from the
+     read-only sidecar without counting it as fixed in this pass:
+     `DATA_REQUEST` support tickets can still be closed without durable
+     provider-side privacy evidence fields or required closure evidence, even
+     though the runbook says provider action/exception, requester response,
+     owner, and completion date must be recorded before closure. That remains
+     in the privacy/legal retention scope for a schema/UI/action follow-up.
+
+**Running tally after this pass:** verified fixed/reduced: 426 findings;
 verified stale/false-positive: 406 findings; product/design/ops decisions
 deferred: 73 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
@@ -4195,7 +4220,12 @@ deferred/manual Stripe partial-refund runtime proof classification. Entry 370
 adds seven fixed/reduced current-code issues across message/case policy, public
 seller pagination, AI prompt scope, cross-user notification naming, and audit
 telemetry, plus one deferred case-block policy decision; already-closed
-agent rechecks did not increase the stale tally.
+agent rechecks did not increase the stale tally. Entry 371 adds three
+fixed/reduced current-code performance/query issues and retires the residual
+seller-page performance category; only one approximate raw-category decrement
+is counted because the browse parser and preview-count fixes were adjacent
+source issues found during parent/agent review rather than separately numbered
+raw-Claude allegations.
 Remaining major
 categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
@@ -4203,10 +4233,10 @@ remote branch and old git author hygiene, Round 10 deferred cache/state-machine
 product designs, EXPLAIN-dependent query-plan/index validation, Stripe
 partial-refund runtime reconciliation proof, founding-maker
 permanence policy, remaining case/message state policy decisions,
-remaining privacy/legal retention scope, remaining privacy/export
+remaining privacy/legal retention scope including data-request closure evidence
+capture, remaining privacy/export
 retention decisions, cross-seller AI
-duplicate-detection product design, residual seller-page performance
-optimization, public/newsletter-only resubscribe policy if support wants a
+duplicate-detection product design, public/newsletter-only resubscribe policy if support wants a
 self-service path, legacy enum cleanup/data-migration decisions, partial multi-seller
 checkout continuation design, deliberate BigInt money-column modeling, live-data
 reconciliation for historical seller shipping-rate currency drift, Clerk staff
@@ -4217,4 +4247,4 @@ Cloudflare R2 ListBucket/public-bucket dashboard evidence, HSTS preload
 submission decision, residual HTTP-status constants
 and log-forwarding and analytics observability refactors, remaining homepage
 runtime a11y proof, and agent/worktree verification process hygiene.
-Approximate raw allegations left to verify from current max #1120: 245.
+Approximate raw allegations left to verify from current max #1120: 244.

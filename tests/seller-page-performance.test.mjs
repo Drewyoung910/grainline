@@ -33,6 +33,20 @@ describe("seller public page query guardrails", () => {
     assert.match(sellerPage, /getCachedPublicSellerStats\(seller\.id\)/);
   });
 
+  it("keeps seller profile listing previews bounded without deriving total count from preview rows", () => {
+    const sellerPage = source("src/app/seller/[id]/page.tsx");
+
+    assert.match(sellerPage, /const SELLER_PROFILE_LISTING_PREVIEW_SIZE = 9/);
+    assert.match(sellerPage, /take: SELLER_PROFILE_LISTING_PREVIEW_SIZE/);
+    assert.match(sellerPage, /prisma\.listing\.count\(\{ where: publicListingWhere\(\{ sellerId: seller\.id \}\) \}\)/);
+    assert.match(sellerPage, /const featuredRows = await prisma\.listing\.findMany\(\{/);
+    assert.match(sellerPage, /where: publicListingWhere\(\{ sellerId: seller\.id, id: \{ in: seller\.featuredListingIds \} \}\)/);
+    assert.match(sellerPage, /See all \{activePublicListingCount\}/);
+    assert.doesNotMatch(sellerPage, /take: 100/);
+    assert.doesNotMatch(sellerPage, /listings\.slice\(0, 9\)/);
+    assert.doesNotMatch(sellerPage, /listings\.filter\(\(l\) => l\.status === "ACTIVE" && !l\.isPrivate\)\.length/);
+  });
+
   it("keeps public sold and shipping-speed stats behind a cross-request cache", () => {
     const sellerPage = source("src/app/seller/[id]/page.tsx");
     const publicSellerStats = source("src/lib/publicSellerStats.ts");
@@ -48,5 +62,30 @@ describe("seller public page query guardrails", () => {
     assert.match(publicSellerStats, /prisma\.orderItem\.count/);
     assert.match(publicSellerStats, /ORDER BY o\."shippedAt" DESC/);
     assert.match(publicSellerStats, /LIMIT 30/);
+  });
+
+  it("shares seller loaders on public seller subroutes and avoids duplicate visibility queries", () => {
+    const sellerShopPage = source("src/app/seller/[id]/shop/page.tsx");
+    const customerPhotosPage = source("src/app/seller/[id]/customer-photos/page.tsx");
+
+    for (const pageSource of [sellerShopPage, customerPhotosPage]) {
+      assert.match(pageSource, /import \{ cache \} from "react"/);
+      assert.match(pageSource, /isSupportedStripeAccountVersion\(seller\.stripeAccountVersion\)/);
+      assert.equal(
+        (pageSource.match(/prisma\.sellerProfile\.findUnique\(/g) ?? []).length,
+        1,
+        "metadata and page render should share one cached seller profile findUnique call",
+      );
+      assert.doesNotMatch(pageSource, /prisma\.sellerProfile\.findFirst\(\{\s*where: visibleSellerProfileWhere/);
+      assert.doesNotMatch(pageSource, /prisma\.sellerProfile\.count\(\{\s*where: visibleSellerProfileWhere/);
+    }
+
+    assert.match(sellerShopPage, /const getSellerProfileForShopPage = cache\(async \(sellerId: string\) =>/);
+    assert.match(sellerShopPage, /export async function generateMetadata[\s\S]*getSellerProfileForShopPage\(sellerId\)/);
+    assert.match(sellerShopPage, /export default async function SellerShopPage[\s\S]*getSellerProfileForShopPage\(sellerId\)/);
+
+    assert.match(customerPhotosPage, /const getSellerProfileForCustomerPhotosPage = cache\(async \(sellerId: string\) =>/);
+    assert.match(customerPhotosPage, /export async function generateMetadata[\s\S]*getSellerProfileForCustomerPhotosPage\(sellerId\)/);
+    assert.match(customerPhotosPage, /export default async function CustomerPhotosPage[\s\S]*getSellerProfileForCustomerPhotosPage\(sellerId\)/);
   });
 });
