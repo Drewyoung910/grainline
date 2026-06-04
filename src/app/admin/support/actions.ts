@@ -3,6 +3,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
+import { normalizeSupportRequestClosureEvidence } from "@/lib/supportRequest";
 import { logAdminActionOrThrow } from "@/lib/audit";
 import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import {
@@ -38,6 +39,7 @@ export async function setSupportRequestStatus(
   requestId: string,
   status: string,
   _prevState?: unknown,
+  formData?: FormData,
 ): Promise<SupportRequestActionState> {
   try {
     if (!isSupportRequestStatus(status)) {
@@ -48,16 +50,35 @@ export async function setSupportRequestStatus(
     const updated = await prisma.$transaction(async (tx) => {
       const current = await tx.supportRequest.findUnique({
         where: { id: requestId },
-        select: { status: true, closedAt: true },
+        select: { kind: true, status: true, closedAt: true },
       });
       if (!current) return { status: "missing" as const };
 
-      const transition = supportRequestStatusTransition(current, status);
+      const requiresClosureEvidence =
+        current.kind === "DATA_REQUEST" &&
+        current.status !== "CLOSED" &&
+        status === "CLOSED";
+      const closureEvidence = requiresClosureEvidence
+        ? normalizeSupportRequestClosureEvidence(formData?.get("closureEvidence"))
+        : null;
+      if (closureEvidence && !closureEvidence.ok) {
+        return { status: "missing_closure_evidence" as const, error: closureEvidence.error };
+      }
+
+      const now = new Date();
+      const transition = supportRequestStatusTransition(current, status, now);
       if (!transition.ok) return { status: "closed_terminal" as const };
 
+      const closureEvidenceData = closureEvidence?.ok
+        ? {
+            closureEvidence: closureEvidence.evidence,
+            closureEvidenceAt: now,
+            closureEvidenceById: admin.id,
+          }
+        : {};
       const result = await tx.supportRequest.updateMany({
         where: { id: requestId, status: current.status },
-        data: transition.data,
+        data: { ...transition.data, ...closureEvidenceData },
       });
       if (result.count === 0) return { status: "conflict" as const };
       await logAdminActionOrThrow({
@@ -66,7 +87,16 @@ export async function setSupportRequestStatus(
         action: "UPDATE_SUPPORT_REQUEST",
         targetType: "SUPPORT_REQUEST",
         targetId: requestId,
-        metadata: transition.metadata,
+        metadata: {
+          ...transition.metadata,
+          ...(closureEvidence?.ok
+            ? {
+                closureEvidenceRecorded: true,
+                closureEvidenceLength: closureEvidence.evidence.length,
+                closureEvidenceAt: now.toISOString(),
+              }
+            : {}),
+        },
       });
       return { status: "updated" as const };
     });
@@ -76,6 +106,9 @@ export async function setSupportRequestStatus(
     }
     if (updated.status === "closed_terminal") {
       return { ok: false, error: "Closed requests cannot be reopened." };
+    }
+    if (updated.status === "missing_closure_evidence") {
+      return { ok: false, error: updated.error };
     }
     if (updated.status === "conflict") {
       return { ok: false, error: "Request changed before it could be updated. Try again." };

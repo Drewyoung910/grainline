@@ -4205,7 +4205,34 @@ Last updated: 2026-06-02
      owner, and completion date must be recorded before closure. That remains
      in the privacy/legal retention scope for a schema/UI/action follow-up.
 
-**Running tally after this pass:** verified fixed/reduced: 426 findings;
+372. **Data-request closure evidence made durable** —
+     parent/agent-reviewed schema/action/UI/docs/test fixes for the support
+     privacy closure gap recorded in entry 371 plus one adjacent stale
+     rate-limit documentation claim. `SupportRequest` now has bounded
+     `closureEvidence`, `closureEvidenceAt`, and nullable
+     `closureEvidenceById` fields. The admin support action requires sanitized
+     closure evidence before a `DATA_REQUEST` can move to `CLOSED`, stamps the
+     evidence date and owner, and keeps raw evidence out of
+     `AdminAuditLog.metadata` by logging only recorded/length/date metadata.
+     `/admin/support` now renders a required closure-evidence textarea for
+     open data requests and displays recorded evidence for closed data
+     requests. Account export includes requester-facing closure evidence text
+     and date while intentionally omitting the internal staff FK. `CLAUDE.md`
+     now records the durable behavior contract and migration. The stale
+     fail-open wording in `src/lib/ratelimit.ts` and
+     `docs/security-audit-log.md` now matches current source: support and
+     legal data-request writes are public but fail-closed. Guardrails:
+     `tests/support-request-state.test.mjs`, `tests/support-request.test.mjs`,
+     `tests/account-export-privacy.test.mjs`, and
+     `tests/public-cron-search-hardening.test.mjs`.
+
+     Parent review also reverified without tally inflation that admin support
+     actions already return inline errors through `InlineActionButton`, closed
+     support requests are terminal, and current account export was not omitting
+     any pre-existing closure-evidence fields because those fields did not
+     exist before this pass.
+
+**Running tally after this pass:** verified fixed/reduced: 428 findings;
 verified stale/false-positive: 406 findings; product/design/ops decisions
 deferred: 73 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
@@ -4225,7 +4252,9 @@ fixed/reduced current-code performance/query issues and retires the residual
 seller-page performance category; only one approximate raw-category decrement
 is counted because the browse parser and preview-count fixes were adjacent
 source issues found during parent/agent review rather than separately numbered
-raw-Claude allegations.
+raw-Claude allegations. Entry 372 adds two fixed/reduced source/docs issues
+and removes the data-request closure-evidence source gap from the privacy
+retention scope.
 Remaining major
 categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
@@ -4233,8 +4262,7 @@ remote branch and old git author hygiene, Round 10 deferred cache/state-machine
 product designs, EXPLAIN-dependent query-plan/index validation, Stripe
 partial-refund runtime reconciliation proof, founding-maker
 permanence policy, remaining case/message state policy decisions,
-remaining privacy/legal retention scope including data-request closure evidence
-capture, remaining privacy/export
+remaining privacy/legal retention scope, remaining privacy/export
 retention decisions, cross-seller AI
 duplicate-detection product design, public/newsletter-only resubscribe policy if support wants a
 self-service path, legacy enum cleanup/data-migration decisions, partial multi-seller
@@ -4247,4 +4275,4 @@ Cloudflare R2 ListBucket/public-bucket dashboard evidence, HSTS preload
 submission decision, residual HTTP-status constants
 and log-forwarding and analytics observability refactors, remaining homepage
 runtime a11y proof, and agent/worktree verification process hygiene.
-Approximate raw allegations left to verify from current max #1120: 244.
+Approximate raw allegations left to verify from current max #1120: 243.

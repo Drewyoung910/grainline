@@ -110,7 +110,8 @@ model User {
   follows            Follow[]            @relation("UserFollows")
   savedBlogPosts     SavedBlogPost[]
   commissionRequests CommissionRequest[] @relation("CommissionRequests")
-  supportRequests    SupportRequest[]
+  supportRequests        SupportRequest[]
+  supportRequestClosures SupportRequest[] @relation("SupportRequestClosureEvidence")
 
   // Raw DB function grainline_notification_preferences_valid() enforces known
   // boolean keys. Update that migration-managed function when adding keys in
@@ -1194,12 +1195,17 @@ model SupportRequest {
   slaDueAt       DateTime
   emailSentAt    DateTime?
   emailLastError String?              @db.VarChar(1000)
-  closedAt       DateTime?
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
+  closedAt            DateTime?
+  closureEvidence     String?         @db.VarChar(4000)
+  closureEvidenceAt   DateTime?
+  closureEvidenceById String?
+  closureEvidenceBy   User?           @relation("SupportRequestClosureEvidence", fields: [closureEvidenceById], references: [id], onDelete: SetNull)
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
 
   @@index([kind, status, slaDueAt])
   @@index([userId, createdAt])
+  @@index([closureEvidenceById])
   @@index([email, createdAt])
   @@index([orderId])
   @@index([listingId])

@@ -3,7 +3,11 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import InlineActionButton from "@/components/InlineActionButton";
 import { prisma } from "@/lib/db";
-import { supportRequestEmailNotificationState } from "@/lib/supportRequest";
+import {
+  SUPPORT_REQUEST_CLOSURE_EVIDENCE_MAX_CHARS,
+  SUPPORT_REQUEST_CLOSURE_EVIDENCE_MIN_CHARS,
+  supportRequestEmailNotificationState,
+} from "@/lib/supportRequest";
 import { setSupportRequestStatus } from "./actions";
 
 export const metadata: Metadata = { title: "Support Requests — Admin" };
@@ -21,6 +25,9 @@ type SupportRequestRow = {
   slaDueAt: Date;
   emailSentAt: Date | null;
   emailLastError: string | null;
+  closureEvidence: string | null;
+  closureEvidenceAt: Date | null;
+  closureEvidenceBy: { email: string } | null;
   createdAt: Date;
 };
 
@@ -45,6 +52,7 @@ function RequestCard({ request }: { request: SupportRequestRow }) {
     emailState.tone === "error"
       ? "border-red-200 bg-red-50 text-red-800"
       : "border-amber-200 bg-amber-50 text-amber-800";
+  const needsDataRequestClosureEvidence = request.kind === "DATA_REQUEST" && request.status !== "CLOSED";
 
   return (
     <article className={`rounded-lg border bg-white p-4 ${overdue ? "border-red-200" : "border-neutral-200"}`}>
@@ -107,9 +115,20 @@ function RequestCard({ request }: { request: SupportRequestRow }) {
           <p className="whitespace-pre-wrap rounded-md bg-neutral-50 px-3 py-2 text-sm leading-6 text-neutral-800">
             {request.message}
           </p>
+
+          {request.kind === "DATA_REQUEST" && request.closureEvidence && (
+            <div className="rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-800">
+              <div className="mb-1 text-xs font-medium uppercase text-neutral-500">Closure evidence</div>
+              <p className="whitespace-pre-wrap leading-6">{request.closureEvidence}</p>
+              <p className="mt-2 text-xs text-neutral-500">
+                Recorded {request.closureEvidenceAt ? formatDate(request.closureEvidenceAt) : "date unavailable"}
+                {request.closureEvidenceBy?.email ? ` by ${request.closureEvidenceBy.email}` : ""}
+              </p>
+            </div>
+          )}
         </div>
 
-        <div className="flex shrink-0 flex-wrap gap-2 lg:w-40 lg:flex-col">
+        <div className={`flex shrink-0 flex-wrap gap-2 lg:flex-col ${needsDataRequestClosureEvidence ? "lg:w-72" : "lg:w-40"}`}>
           {request.status === "OPEN" && (
             <InlineActionButton
               action={setSupportRequestStatus.bind(null, request.id, "IN_PROGRESS")}
@@ -128,7 +147,30 @@ function RequestCard({ request }: { request: SupportRequestRow }) {
               Reopen
             </InlineActionButton>
           )}
-          {request.status !== "CLOSED" && (
+          {request.status !== "CLOSED" && request.kind === "DATA_REQUEST" && (
+            <InlineActionButton
+              action={setSupportRequestStatus.bind(null, request.id, "CLOSED")}
+              className="rounded-lg border border-green-300 bg-green-50 px-3 py-2 text-xs font-medium text-green-800 hover:bg-green-100"
+              pendingLabel="Closing..."
+              fields={
+                <label className="w-full text-xs font-medium text-neutral-700">
+                  Closure evidence
+                  <textarea
+                    name="closureEvidence"
+                    required
+                    minLength={SUPPORT_REQUEST_CLOSURE_EVIDENCE_MIN_CHARS}
+                    maxLength={SUPPORT_REQUEST_CLOSURE_EVIDENCE_MAX_CHARS}
+                    rows={5}
+                    className="mt-1 w-full rounded-md border border-neutral-300 px-2 py-1 text-xs text-neutral-900"
+                    placeholder="Record local action, provider action or exception, requester response, owner, completion date, and provider ticket or evidence URL."
+                  />
+                </label>
+              }
+            >
+              Close data request
+            </InlineActionButton>
+          )}
+          {request.status !== "CLOSED" && request.kind !== "DATA_REQUEST" && (
             <InlineActionButton
               action={setSupportRequestStatus.bind(null, request.id, "CLOSED")}
               className="rounded-lg border border-green-300 bg-green-50 px-3 py-2 text-xs font-medium text-green-800 hover:bg-green-100"
@@ -158,11 +200,13 @@ export default async function AdminSupportPage() {
       where: { status: { in: ["OPEN", "IN_PROGRESS"] } },
       orderBy: [{ slaDueAt: "asc" }, { createdAt: "asc" }],
       take: 100,
+      include: { closureEvidenceBy: { select: { email: true } } },
     }),
     prisma.supportRequest.findMany({
       where: { status: "CLOSED" },
       orderBy: { closedAt: "desc" },
       take: 20,
+      include: { closureEvidenceBy: { select: { email: true } } },
     }),
   ]);
 

@@ -12,6 +12,7 @@ type Props = {
   className?: string;
   confirm?: string;
   disabled?: boolean;
+  fields?: ReactNode;
   pendingLabel?: string;
   title?: string;
 };
@@ -49,13 +50,15 @@ export default function InlineActionButton({
   className,
   confirm,
   disabled,
+  fields,
   pendingLabel,
   title,
 }: Props) {
   const [state, formAction] = useActionState(action, { ok: false });
 
   return (
-    <form action={formAction} className="inline-flex flex-col items-start gap-1">
+    <form action={formAction} className={`inline-flex flex-col items-start gap-1 ${fields ? "w-full" : ""}`}>
+      {fields}
       <SubmitButton
         className={className}
         confirm={confirm}
@@ -66,7 +69,7 @@ export default function InlineActionButton({
         {children}
       </SubmitButton>
       {state?.error && (
-        <span role="alert" className="max-w-40 text-[10px] leading-tight text-red-700">
+        <span role="alert" className="max-w-72 text-[10px] leading-tight text-red-700">
           {state.error}
         </span>
       )}

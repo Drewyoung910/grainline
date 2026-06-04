@@ -106,6 +106,11 @@ describe("cron and public route hardening", () => {
         `${path} should not fail open unless it is telemetry or diagnostics`,
       );
     }
+
+    const ratelimit = source("src/lib/ratelimit.ts");
+    const auditLog = source("docs/security-audit-log.md");
+    assert.doesNotMatch(ratelimit, /support\/data request forms/);
+    assert.doesNotMatch(auditLog, /support\/legal data-request stay fail-open/);
   });
 
   it("keeps public blog and search APIs rate-limited and visibility-scoped", () => {

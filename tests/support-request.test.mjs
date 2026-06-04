@@ -8,6 +8,8 @@ const {
   supportRequestEmailNotificationState,
   supportRequestAccountExportWhere,
   supportRequestSlaDueAt,
+  normalizeSupportRequestClosureEvidence,
+  SUPPORT_REQUEST_CLOSURE_EVIDENCE_MAX_CHARS,
 } = await import("../src/lib/supportRequest.ts");
 
 const source = readFileSync(new URL("../src/lib/supportRequest.ts", import.meta.url), "utf8");
@@ -113,6 +115,23 @@ describe("support request helpers", () => {
       supportRequestEmailNotificationState({ emailSentAt: null, emailLastError: null }),
       { label: "Pending", tone: "neutral", message: null },
     );
+  });
+
+  it("requires bounded sanitized closure evidence for data requests", () => {
+    assert.deepEqual(
+      normalizeSupportRequestClosureEvidence("too short"),
+      { ok: false, error: "Add closure evidence before closing this data request." },
+    );
+
+    const normalized = normalizeSupportRequestClosureEvidence(
+      "<script>alert(1)</script>Local deletion completed. Resend ticket R-123 closed. Requester response sent by legal owner on 2026-06-04.",
+    );
+    assert.equal(normalized.ok, true);
+    if (normalized.ok) {
+      assert.doesNotMatch(normalized.evidence, /<script|alert/);
+      assert.match(normalized.evidence, /Resend ticket R-123 closed/);
+      assert.ok(normalized.evidence.length <= SUPPORT_REQUEST_CLOSURE_EVIDENCE_MAX_CHARS);
+    }
   });
 
   it("documents provider-side privacy request handling for processors", () => {

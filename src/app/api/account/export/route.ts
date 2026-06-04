@@ -425,6 +425,8 @@ async function buildExport(user: NonNullable<ExportableUser>) {
         slaDueAt: true,
         emailSentAt: true,
         closedAt: true,
+        closureEvidence: true,
+        closureEvidenceAt: true,
         createdAt: true,
         updatedAt: true,
       },

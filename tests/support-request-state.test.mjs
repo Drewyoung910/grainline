@@ -56,11 +56,36 @@ describe("support request state transitions", () => {
     const actions = source("src/app/admin/support/actions.ts");
     const page = source("src/app/admin/support/page.tsx");
 
-    assert.match(actions, /select: \{ status: true, closedAt: true \}/);
-    assert.match(actions, /supportRequestStatusTransition\(current, status\)/);
-    assert.match(actions, /metadata: transition\.metadata/);
+    assert.match(actions, /select: \{ kind: true, status: true, closedAt: true \}/);
+    assert.match(actions, /supportRequestStatusTransition\(current, status, now\)/);
+    assert.match(actions, /\.\.\.transition\.metadata/);
     assert.doesNotMatch(actions, /metadata:\s*\{\s*status\s*\}/);
     assert.match(page, /request\.status === "OPEN"[\s\S]*In progress/);
     assert.match(page, /request\.status === "IN_PROGRESS"[\s\S]*Reopen/);
+  });
+
+  it("requires durable closure evidence before closing data requests", () => {
+    const actions = source("src/app/admin/support/actions.ts");
+    const page = source("src/app/admin/support/page.tsx");
+    const schema = source("prisma/schema.prisma");
+
+    assert.match(schema, /closureEvidence\s+String\?\s+@db\.VarChar\(4000\)/);
+    assert.match(schema, /closureEvidenceAt\s+DateTime\?/);
+    assert.match(schema, /closureEvidenceById\s+String\?/);
+    assert.match(schema, /closureEvidenceBy\s+User\?\s+@relation\("SupportRequestClosureEvidence"/);
+
+    assert.match(actions, /current\.kind === "DATA_REQUEST"/);
+    assert.match(actions, /status === "CLOSED"/);
+    assert.match(actions, /normalizeSupportRequestClosureEvidence\(formData\?\.get\("closureEvidence"\)\)/);
+    assert.match(actions, /closureEvidenceById: admin\.id/);
+    assert.match(actions, /closureEvidenceRecorded: true/);
+    assert.match(actions, /closureEvidenceLength: closureEvidence\.evidence\.length/);
+    assert.doesNotMatch(actions, /metadata: \{[\s\S]*closureEvidence: closureEvidence\.evidence/);
+
+    assert.match(page, /name="closureEvidence"/);
+    assert.match(page, /required/);
+    assert.match(page, /minLength=\{SUPPORT_REQUEST_CLOSURE_EVIDENCE_MIN_CHARS\}/);
+    assert.match(page, /provider action or exception/);
+    assert.match(page, /request\.kind === "DATA_REQUEST" && request\.status !== "CLOSED"/);
   });
 });

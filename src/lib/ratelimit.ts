@@ -502,8 +502,8 @@ export async function safeRateLimit(
 /**
  * Fail OPEN — if Redis is down, allow the request.
  * Use ONLY for: view tracking, click tracking, profile view dedup, health/CSP
- * diagnostics, and public support/data request forms where outage should not
- * remove the user's escalation path.
+ * diagnostics, and other telemetry-only routes that should not block user
+ * flows during a Redis outage.
  */
 export async function safeRateLimitOpen(
   limiter: Ratelimit,

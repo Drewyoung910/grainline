@@ -69,6 +69,9 @@ describe("account export privacy coverage", () => {
     assert.match(supportBlock, /supportRequestAccountExportWhere\(user\.id, accountEmail\)/);
     assert.match(supportBlock, /orderId: true/);
     assert.match(supportBlock, /listingId: true/);
+    assert.match(supportBlock, /closureEvidence: true/);
+    assert.match(supportBlock, /closureEvidenceAt: true/);
+    assert.doesNotMatch(supportBlock, /closureEvidenceById: true/);
     assert.doesNotMatch(supportBlock, /where:\s*\{\s*email:\s*accountEmail\s*\}/);
   });
 

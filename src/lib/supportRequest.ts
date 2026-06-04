@@ -18,6 +18,8 @@ type SupportRequestAccountExportWhere =
 
 export const SUPPORT_REQUEST_EMAIL_PENDING_MARKER =
   "Notification email delivery is pending confirmation; check Sentry or email provider logs if this remains after intake.";
+export const SUPPORT_REQUEST_CLOSURE_EVIDENCE_MIN_CHARS = 40;
+export const SUPPORT_REQUEST_CLOSURE_EVIDENCE_MAX_CHARS = 4000;
 
 const SUPPORT_TOPICS = new Set([
   "order",
@@ -153,6 +155,16 @@ export function supportRequestEmailNotificationState(input: {
     return { label: "Failed", tone: "error" as const, message: `Email error: ${input.emailLastError}` };
   }
   return { label: "Pending", tone: "neutral" as const, message: null };
+}
+
+export function normalizeSupportRequestClosureEvidence(
+  value: unknown,
+): { ok: true; evidence: string } | { ok: false; error: string } {
+  const evidence = cleanRequiredText(value, SUPPORT_REQUEST_CLOSURE_EVIDENCE_MAX_CHARS);
+  if (evidence.length < SUPPORT_REQUEST_CLOSURE_EVIDENCE_MIN_CHARS) {
+    return { ok: false, error: "Add closure evidence before closing this data request." };
+  }
+  return { ok: true, evidence };
 }
 
 export function supportRequestSubject(request: NormalizedSupportRequest, requestId?: string) {
