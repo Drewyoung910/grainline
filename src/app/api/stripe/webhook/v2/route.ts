@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { stripe } from "@/lib/stripe";
 import { recordWebhookFailureSpike } from "@/lib/webhookFailureSpike";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 import { isRequestBodyTooLargeError, readBoundedText } from "@/lib/requestBody";
 import {
   beginStripeWebhookEvent,
@@ -40,16 +41,19 @@ export async function POST(req: Request) {
       level: "fatal",
       tags: { source: "stripe_v2_webhook_config" },
     });
-    await recordWebhookFailureSpike({ webhook: "stripe_v2", kind: "config", status: 500 });
-    return NextResponse.json({ error: "Webhook temporarily unavailable" }, { status: 500 });
+    await recordWebhookFailureSpike({ webhook: "stripe_v2", kind: "config", status: HTTP_STATUS.INTERNAL_SERVER_ERROR });
+    return NextResponse.json(
+      { error: "Webhook temporarily unavailable" },
+      { status: HTTP_STATUS.INTERNAL_SERVER_ERROR },
+    );
   }
   if (!signature) {
     Sentry.captureMessage("Stripe v2 webhook signature header missing", {
       level: "warning",
       tags: { source: "stripe_v2_webhook_signature" },
     });
-    await recordWebhookFailureSpike({ webhook: "stripe_v2", kind: "signature", status: 400 });
-    return NextResponse.json({ error: "Missing Stripe signature" }, { status: 400 });
+    await recordWebhookFailureSpike({ webhook: "stripe_v2", kind: "signature", status: HTTP_STATUS.BAD_REQUEST });
+    return NextResponse.json({ error: "Missing Stripe signature" }, { status: HTTP_STATUS.BAD_REQUEST });
   }
 
   let body = "";
@@ -62,8 +66,12 @@ export async function POST(req: Request) {
         tags: { source: "stripe_v2_webhook_payload" },
         extra: { maxBytes: err.maxBytes },
       });
-      await recordWebhookFailureSpike({ webhook: "stripe_v2", kind: "payload", status: 413 });
-      return NextResponse.json({ error: "Payload too large" }, { status: 413 });
+      await recordWebhookFailureSpike({
+        webhook: "stripe_v2",
+        kind: "payload",
+        status: HTTP_STATUS.PAYLOAD_TOO_LARGE,
+      });
+      return NextResponse.json({ error: "Payload too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
     }
     throw err;
   }
@@ -74,8 +82,8 @@ export async function POST(req: Request) {
   } catch (err: unknown) {
     console.error("Stripe v2 webhook signature verification failed:", (err as { message?: string })?.message);
     Sentry.captureException(err, { tags: { source: "stripe_v2_webhook_signature" } });
-    await recordWebhookFailureSpike({ webhook: "stripe_v2", kind: "signature", status: 400 });
-    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
+    await recordWebhookFailureSpike({ webhook: "stripe_v2", kind: "signature", status: HTTP_STATUS.BAD_REQUEST });
+    return NextResponse.json({ error: "Invalid signature" }, { status: HTTP_STATUS.BAD_REQUEST });
   }
 
   const eventId = typeof notification.id === "string" ? notification.id : null;
@@ -86,8 +94,8 @@ export async function POST(req: Request) {
       tags: { source: "stripe_v2_webhook_payload" },
       extra: { hasEventId: Boolean(eventId), eventType },
     });
-    await recordWebhookFailureSpike({ webhook: "stripe_v2", kind: "payload", status: 400 });
-    return NextResponse.json({ error: "Invalid Stripe notification" }, { status: 400 });
+    await recordWebhookFailureSpike({ webhook: "stripe_v2", kind: "payload", status: HTTP_STATUS.BAD_REQUEST });
+    return NextResponse.json({ error: "Invalid Stripe notification" }, { status: HTTP_STATUS.BAD_REQUEST });
   }
   const stripeEventId = eventId;
   const stripeEventType = eventType;
@@ -106,10 +114,10 @@ export async function POST(req: Request) {
     await recordWebhookFailureSpike({
       webhook: "stripe_v2",
       kind: "stale_event",
-      status: 400,
+      status: HTTP_STATUS.BAD_REQUEST,
       extra: { stripeEventId, stripeEventType },
     });
-    return NextResponse.json({ error: "Stale Stripe event" }, { status: 400 });
+    return NextResponse.json({ error: "Stale Stripe event" }, { status: HTTP_STATUS.BAD_REQUEST });
   }
 
   let reservation: Awaited<ReturnType<typeof beginStripeWebhookEvent>>;
@@ -123,16 +131,19 @@ export async function POST(req: Request) {
     await recordWebhookFailureSpike({
       webhook: "stripe_v2",
       kind: "reservation",
-      status: 503,
+      status: HTTP_STATUS.SERVICE_UNAVAILABLE,
       extra: { stripeEventId, stripeEventType },
     });
-    return NextResponse.json({ error: "Webhook temporarily unavailable" }, { status: 503 });
+    return NextResponse.json(
+      { error: "Webhook temporarily unavailable" },
+      { status: HTTP_STATUS.SERVICE_UNAVAILABLE },
+    );
   }
   if (reservation === "processed") return NextResponse.json({ received: true });
   if (reservation === "in_progress") {
     return NextResponse.json(
       { received: false, status: reservation },
-      { status: 503, headers: { "Retry-After": String(STRIPE_V2_WEBHOOK_RETRY_AFTER_SECONDS) } },
+      { status: HTTP_STATUS.SERVICE_UNAVAILABLE, headers: { "Retry-After": String(STRIPE_V2_WEBHOOK_RETRY_AFTER_SECONDS) } },
     );
   }
 
@@ -184,9 +195,12 @@ export async function POST(req: Request) {
     await recordWebhookFailureSpike({
       webhook: "stripe_v2",
       kind: "handler",
-      status: 500,
+      status: HTTP_STATUS.INTERNAL_SERVER_ERROR,
       extra: { stripeEventId, stripeEventType },
     });
-    return NextResponse.json({ error: "Webhook handler failed" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Webhook handler failed" },
+      { status: HTTP_STATUS.INTERNAL_SERVER_ERROR },
+    );
   }
 }

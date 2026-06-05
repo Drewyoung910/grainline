@@ -462,7 +462,7 @@ describe("account and privacy route observability guardrails", () => {
     const inProgressStart = route.indexOf('reservation === "in_progress"');
     const processStart = route.indexOf("try {", inProgressStart);
     const inProgressBlock = route.slice(inProgressStart, processStart);
-    assert.match(inProgressBlock, /status: 503/);
+    assert.match(inProgressBlock, /status: HTTP_STATUS\.SERVICE_UNAVAILABLE/);
     assert.match(
       inProgressBlock,
       /"Retry-After": String\(RESEND_WEBHOOK_RETRY_AFTER_SECONDS\)/,

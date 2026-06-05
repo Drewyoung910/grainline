@@ -1,7 +1,9 @@
+import { HTTP_STATUS } from "./httpStatus.ts";
+
 export type AccountAccessCode = "ACCOUNT_SUSPENDED" | "ACCOUNT_DELETED";
 
 export class AccountAccessError extends Error {
-  status = 403;
+  status = HTTP_STATUS.FORBIDDEN;
   code: AccountAccessCode;
 
   constructor(message: string, code: AccountAccessCode) {

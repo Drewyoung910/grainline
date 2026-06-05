@@ -9,6 +9,7 @@ import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
 import { resolveResendWebhookConfig } from "@/lib/resendWebhookConfig";
 import { isRequestBodyTooLargeError, readBoundedText } from "@/lib/requestBody";
 import { recordWebhookFailureSpike } from "@/lib/webhookFailureSpike";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -192,8 +193,11 @@ export async function POST(request: Request) {
       tags: { source: "resend_webhook_config" },
       extra: { missing: config.missing },
     });
-    await recordWebhookFailureSpike({ webhook: "resend", kind: "config", status: 503 });
-    return NextResponse.json({ ok: false, error: "Webhook not configured" }, { status: 503 });
+    await recordWebhookFailureSpike({ webhook: "resend", kind: "config", status: HTTP_STATUS.SERVICE_UNAVAILABLE });
+    return NextResponse.json(
+      { ok: false, error: "Webhook not configured" },
+      { status: HTTP_STATUS.SERVICE_UNAVAILABLE },
+    );
   }
 
   const id = request.headers.get("svix-id");
@@ -209,8 +213,11 @@ export async function POST(request: Request) {
         hasSvixSignature: Boolean(signature),
       },
     });
-    await recordWebhookFailureSpike({ webhook: "resend", kind: "signature", status: 400 });
-    return NextResponse.json({ ok: false, error: "Missing webhook signature headers" }, { status: 400 });
+    await recordWebhookFailureSpike({ webhook: "resend", kind: "signature", status: HTTP_STATUS.BAD_REQUEST });
+    return NextResponse.json(
+      { ok: false, error: "Missing webhook signature headers" },
+      { status: HTTP_STATUS.BAD_REQUEST },
+    );
   }
 
   let event: WebhookEventPayload;
@@ -224,8 +231,12 @@ export async function POST(request: Request) {
         tags: { source: "resend_webhook_payload" },
         extra: { maxBytes: err.maxBytes, webhookId: id },
       });
-      await recordWebhookFailureSpike({ webhook: "resend", kind: "payload", status: 413 });
-      return NextResponse.json({ ok: false, error: "Payload too large" }, { status: 413 });
+      await recordWebhookFailureSpike({
+        webhook: "resend",
+        kind: "payload",
+        status: HTTP_STATUS.PAYLOAD_TOO_LARGE,
+      });
+      return NextResponse.json({ ok: false, error: "Payload too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
     }
     throw err;
   }
@@ -238,8 +249,11 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     Sentry.captureException(err, { tags: { source: "resend_webhook_verify" } });
-    await recordWebhookFailureSpike({ webhook: "resend", kind: "signature", status: 400 });
-    return NextResponse.json({ ok: false, error: "Invalid webhook signature" }, { status: 400 });
+    await recordWebhookFailureSpike({ webhook: "resend", kind: "signature", status: HTTP_STATUS.BAD_REQUEST });
+    return NextResponse.json(
+      { ok: false, error: "Invalid webhook signature" },
+      { status: HTTP_STATUS.BAD_REQUEST },
+    );
   }
 
   let reservation: Awaited<ReturnType<typeof reserveWebhookEvent>>;
@@ -253,10 +267,13 @@ export async function POST(request: Request) {
     await recordWebhookFailureSpike({
       webhook: "resend",
       kind: "reservation",
-      status: 503,
+      status: HTTP_STATUS.SERVICE_UNAVAILABLE,
       extra: { svixId: id, type: event.type },
     });
-    return NextResponse.json({ ok: false, error: "Webhook temporarily unavailable" }, { status: 503 });
+    return NextResponse.json(
+      { ok: false, error: "Webhook temporarily unavailable" },
+      { status: HTTP_STATUS.SERVICE_UNAVAILABLE },
+    );
   }
   if (reservation === "processed") {
     return NextResponse.json({ ok: true, duplicate: true, status: reservation, type: event.type });
@@ -264,7 +281,7 @@ export async function POST(request: Request) {
   if (reservation === "in_progress") {
     return NextResponse.json(
       { ok: false, duplicate: true, status: reservation, type: event.type },
-      { status: 503, headers: { "Retry-After": String(RESEND_WEBHOOK_RETRY_AFTER_SECONDS) } },
+      { status: HTTP_STATUS.SERVICE_UNAVAILABLE, headers: { "Retry-After": String(RESEND_WEBHOOK_RETRY_AFTER_SECONDS) } },
     );
   }
 
@@ -319,9 +336,12 @@ export async function POST(request: Request) {
     await recordWebhookFailureSpike({
       webhook: "resend",
       kind: "handler",
-      status: 500,
+      status: HTTP_STATUS.INTERNAL_SERVER_ERROR,
       extra: { svixId: id, type: event.type },
     });
-    return NextResponse.json({ ok: false, error: "Webhook processing failed" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: "Webhook processing failed" },
+      { status: HTTP_STATUS.INTERNAL_SERVER_ERROR },
+    );
   }
 }

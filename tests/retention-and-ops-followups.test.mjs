@@ -94,26 +94,37 @@ describe("retention and ops-health follow-ups", () => {
     );
   });
 
-  it("surfaces webhook failure piles in ops-health", () => {
+  it("surfaces webhook and account-deletion side-effect piles in ops-health", () => {
     const source = readFileSync("src/app/api/cron/ops-health/route.ts", "utf8");
     const warningStart = source.indexOf("if (");
     const warningCondition = source.slice(warningStart, source.indexOf("Sentry.captureMessage", warningStart));
 
+    assert.match(source, /import \{ HTTP_STATUS \} from "@\/lib\/httpStatus"/);
+    assert.match(source, /ACCOUNT_DELETION_SIDE_EFFECT_STATUS/);
     assert.match(source, /STRIPE_WEBHOOK_EVENT_STALE_PROCESSING_MS/);
     assert.match(source, /STALE_SVIX_WEBHOOK_PROCESSING_MS/);
+    assert.match(source, /STALE_ACCOUNT_DELETION_SIDE_EFFECT_MS/);
     assert.match(source, /staleStripeWebhookBefore/);
     assert.match(source, /staleSvixWebhookBefore/);
+    assert.match(source, /staleAccountDeletionSideEffectBefore/);
     assert.match(source, /stripeWebhookFailureCount/);
     assert.match(source, /resendWebhookFailureCount/);
     assert.match(source, /clerkWebhookFailureCount/);
+    assert.match(source, /accountDeletionSideEffectFailureCount/);
     assert.match(source, /lastError:\s*\{\s*not:\s*null\s*\}/);
     assert.match(source, /processedAt:\s*null/);
     assert.match(source, /processingStartedAt:\s*null/);
     assert.match(source, /processingStartedAt:\s*\{\s*lt:\s*staleStripeWebhookBefore\s*\}/);
     assert.match(source, /processingStartedAt:\s*\{\s*lt:\s*staleSvixWebhookBefore\s*\}/);
+    assert.match(source, /status:\s*ACCOUNT_DELETION_SIDE_EFFECT_STATUS\.FAILED/);
+    assert.match(source, /ACCOUNT_DELETION_SIDE_EFFECT_STATUS\.PENDING/);
+    assert.match(source, /ACCOUNT_DELETION_SIDE_EFFECT_STATUS\.PROCESSING/);
+    assert.match(source, /updatedAt:\s*\{\s*lt:\s*staleAccountDeletionSideEffectBefore\s*\}/);
     assert.match(warningCondition, /issues\.stripeWebhookFailureCount > 0/);
     assert.match(warningCondition, /issues\.resendWebhookFailureCount > 0/);
     assert.match(warningCondition, /issues\.clerkWebhookFailureCount > 0/);
+    assert.match(warningCondition, /issues\.accountDeletionSideEffectFailureCount > 0/);
+    assert.match(source, /response\.ok \? HTTP_STATUS\.OK : HTTP_STATUS\.SERVICE_UNAVAILABLE/);
   });
 
   it("keeps ops-health runbook and launch monitoring evidence aligned with current checks", () => {
@@ -124,12 +135,14 @@ describe("retention and ops-health follow-ups", () => {
     assert.match(runbook, /StripeWebhookEvent/);
     assert.match(runbook, /ResendWebhookEvent/);
     assert.match(runbook, /ClerkWebhookEvent/);
+    assert.match(runbook, /AccountDeletionSideEffect/);
     assert.match(runbook, /webhook failure spike/);
 
     assert.match(launch, /HEALTH_CHECK_TOKEN/);
     assert.match(launch, /STRIPE_V2_WEBHOOK_SECRET/);
     assert.match(launch, /Sentry cron monitors/);
     assert.match(launch, /source=cron_ops_health/);
+    assert.match(launch, /AccountDeletionSideEffect/);
     assert.match(launch, /webhook failure spike/);
   });
 

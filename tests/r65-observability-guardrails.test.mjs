@@ -71,7 +71,7 @@ describe("R65 observability guardrails", () => {
     );
 
     assert.match(signatureCatch, /Sentry\.captureException\(err, \{ tags: \{ source: "stripe_webhook_signature" \} \}\)/);
-    assert.match(signatureCatch, /recordWebhookFailureSpike\(\{ webhook: "stripe", kind: "signature", status: 400 \}\)/);
+    assert.match(signatureCatch, /recordWebhookFailureSpike\(\{ webhook: "stripe", kind: "signature", status: HTTP_STATUS\.BAD_REQUEST \}\)/);
     assert.doesNotMatch(signatureCatch, /Sentry\.captureMessage\("Stripe webhook signature verification failed"/);
   });
 
@@ -79,9 +79,10 @@ describe("R65 observability guardrails", () => {
     const text = source("src/app/api/resend/webhook/route.ts");
 
     assert.match(text, /import \{ recordWebhookFailureSpike \} from "@\/lib\/webhookFailureSpike"/);
+    assert.match(text, /import \{ HTTP_STATUS \} from "@\/lib\/httpStatus"/);
 
     const configBlock = text.slice(text.indexOf("if (!config.ok)"), text.indexOf("const id = request.headers.get"));
-    assert.match(configBlock, /recordWebhookFailureSpike\(\{ webhook: "resend", kind: "config", status: 503 \}\)/);
+    assert.match(configBlock, /recordWebhookFailureSpike\(\{ webhook: "resend", kind: "config", status: HTTP_STATUS\.SERVICE_UNAVAILABLE \}\)/);
 
     const missingSignatureBlock = text.slice(
       text.indexOf("if (!id || !timestamp || !signature)"),
@@ -90,20 +91,20 @@ describe("R65 observability guardrails", () => {
     assert.match(missingSignatureBlock, /Sentry\.captureMessage\("Resend webhook signature headers missing"/);
     assert.match(
       missingSignatureBlock,
-      /recordWebhookFailureSpike\(\{ webhook: "resend", kind: "signature", status: 400 \}\)/,
+      /recordWebhookFailureSpike\(\{ webhook: "resend", kind: "signature", status: HTTP_STATUS\.BAD_REQUEST \}\)/,
     );
 
     const payloadBlock = text.slice(
       text.indexOf("Resend webhook payload is too large"),
       text.indexOf("return NextResponse.json({ ok: false, error: \"Payload too large\" }"),
     );
-    assert.match(payloadBlock, /recordWebhookFailureSpike\(\{ webhook: "resend", kind: "payload", status: 413 \}\)/);
+    assert.match(payloadBlock, /status: HTTP_STATUS\.PAYLOAD_TOO_LARGE/);
 
     const verifyCatch = text.slice(
       text.indexOf("Sentry.captureException(err, { tags: { source: \"resend_webhook_verify\" } })"),
       text.indexOf("return NextResponse.json({ ok: false, error: \"Invalid webhook signature\" }"),
     );
-    assert.match(verifyCatch, /recordWebhookFailureSpike\(\{ webhook: "resend", kind: "signature", status: 400 \}\)/);
+    assert.match(verifyCatch, /recordWebhookFailureSpike\(\{ webhook: "resend", kind: "signature", status: HTTP_STATUS\.BAD_REQUEST \}\)/);
 
     const processCatch = text.slice(
       text.indexOf("Sentry.captureException(err, { tags: { source: \"resend_webhook_process\""),
@@ -111,7 +112,7 @@ describe("R65 observability guardrails", () => {
     );
     assert.match(processCatch, /webhook: "resend"/);
     assert.match(processCatch, /kind: "handler"/);
-    assert.match(processCatch, /status: 500/);
+    assert.match(processCatch, /status: HTTP_STATUS\.INTERNAL_SERVER_ERROR/);
     assert.match(processCatch, /extra: \{ svixId: id, type: event\.type \}/);
     assert.doesNotMatch(processCatch, /\bpayload\b|\bemail\b|\brecipientHashes\b/);
   });
@@ -120,13 +121,14 @@ describe("R65 observability guardrails", () => {
     const text = source("src/app/api/clerk/webhook/route.ts");
 
     assert.match(text, /import \{ recordWebhookFailureSpike \} from "@\/lib\/webhookFailureSpike"/);
+    assert.match(text, /import \{ HTTP_STATUS \} from "@\/lib\/httpStatus"/);
     assert.match(text, /import \{ sanitizeEmailOutboxError \} from "@\/lib\/emailOutboxSanitize"/);
     assert.match(text, /lastError: truncateText\(sanitizeEmailOutboxError\(err\), 2000\)/);
     assert.doesNotMatch(text, /lastError: truncateText\(errorMessage\(err\), 2000\)/);
 
     const configBlock = text.slice(text.indexOf("if (!webhookSecret)"), text.indexOf("const headerPayload = await headers"));
     assert.match(configBlock, /Sentry\.captureMessage\("Clerk webhook secret is not configured"/);
-    assert.match(configBlock, /recordWebhookFailureSpike\(\{ webhook: "clerk", kind: "config", status: 500 \}\)/);
+    assert.match(configBlock, /recordWebhookFailureSpike\(\{ webhook: "clerk", kind: "config", status: HTTP_STATUS\.INTERNAL_SERVER_ERROR \}\)/);
 
     const missingSignatureBlock = text.slice(
       text.indexOf("if (!svixId || !svixTimestamp || !svixSignature)"),
@@ -138,21 +140,21 @@ describe("R65 observability guardrails", () => {
     assert.match(missingSignatureBlock, /hasSvixSignature: Boolean\(svixSignature\)/);
     assert.match(
       missingSignatureBlock,
-      /recordWebhookFailureSpike\(\{ webhook: "clerk", kind: "signature", status: 400 \}\)/,
+      /recordWebhookFailureSpike\(\{ webhook: "clerk", kind: "signature", status: HTTP_STATUS\.BAD_REQUEST \}\)/,
     );
 
     const payloadBlock = text.slice(
       text.indexOf("Clerk webhook payload is too large"),
       text.indexOf("return NextResponse.json({ error: \"Payload too large\" }"),
     );
-    assert.match(payloadBlock, /recordWebhookFailureSpike\(\{ webhook: "clerk", kind: "payload", status: 413 \}\)/);
+    assert.match(payloadBlock, /status: HTTP_STATUS\.PAYLOAD_TOO_LARGE/);
 
     const verifyCatch = text.slice(
       text.indexOf("Sentry.captureException(err, {"),
       text.indexOf("return NextResponse.json({ error: \"Invalid signature\" }"),
     );
     assert.match(verifyCatch, /source: "clerk_webhook_verify"/);
-    assert.match(verifyCatch, /recordWebhookFailureSpike\(\{ webhook: "clerk", kind: "signature", status: 400 \}\)/);
+    assert.match(verifyCatch, /recordWebhookFailureSpike\(\{ webhook: "clerk", kind: "signature", status: HTTP_STATUS\.BAD_REQUEST \}\)/);
 
     const finalCatchStart = text.indexOf("await markClerkWebhookFailed(svixId, error)");
     const processCatch = text.slice(
@@ -162,7 +164,7 @@ describe("R65 observability guardrails", () => {
     assert.match(processCatch, /source: "clerk_webhook"/);
     assert.match(processCatch, /webhook: "clerk"/);
     assert.match(processCatch, /kind: "handler"/);
-    assert.match(processCatch, /status: 500/);
+    assert.match(processCatch, /status: HTTP_STATUS\.INTERNAL_SERVER_ERROR/);
     assert.match(processCatch, /extra: \{ svixId, eventType: event\.type \}/);
     assert.doesNotMatch(processCatch, /\bbody\b|\bemail_addresses\b|\bprimary_email_address_id\b/);
   });
@@ -205,7 +207,7 @@ describe("R65 observability guardrails", () => {
       assert.match(reservationBlock, new RegExp(`source: "${sourceTag}"`));
       assert.match(reservationBlock, new RegExp(`webhook: "${webhook}"`));
       assert.match(reservationBlock, /kind: "reservation"/);
-      assert.match(reservationBlock, /status: 503/);
+      assert.match(reservationBlock, /status: HTTP_STATUS\.SERVICE_UNAVAILABLE/);
       assert.match(reservationBlock, extraPattern);
       assert.doesNotMatch(reservationBlock, /\bbody\b|\bpayload\b|\bemail\b|\bmetadata\b/);
     }

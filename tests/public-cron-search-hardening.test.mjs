@@ -62,7 +62,7 @@ describe("cron and public route hardening", () => {
     assert.match(route, /staleRunningCronRunCount/);
     assert.match(route, /status:\s*"RUNNING"/);
     assert.match(route, /startedAt:\s*\{\s*lt: staleCronRunningBefore\s*\}/);
-    assert.match(route, /status:\s*response\.ok \? 200 : 503/);
+    assert.match(route, /status:\s*response\.ok \? HTTP_STATUS\.OK : HTTP_STATUS\.SERVICE_UNAVAILABLE/);
   });
 
   it("keeps dev-only order fixtures disabled outside local development", () => {

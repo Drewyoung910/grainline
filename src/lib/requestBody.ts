@@ -1,5 +1,7 @@
+import { HTTP_STATUS } from "./httpStatus.ts";
+
 export class RequestBodyTooLargeError extends Error {
-  readonly status = 413;
+  readonly status = HTTP_STATUS.PAYLOAD_TOO_LARGE;
   readonly maxBytes: number;
 
   constructor(maxBytes: number) {
@@ -10,7 +12,7 @@ export class RequestBodyTooLargeError extends Error {
 }
 
 export class InvalidJsonBodyError extends Error {
-  readonly status = 400;
+  readonly status = HTTP_STATUS.BAD_REQUEST;
 
   constructor() {
     super("Invalid JSON");

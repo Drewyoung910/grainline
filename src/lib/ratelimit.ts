@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { limitWithFailurePolicy } from "@/lib/ratelimitPolicy";
 import { requiredProductionEnv } from "@/lib/env";
 import * as Sentry from "@sentry/nextjs";
+import { HTTP_STATUS } from "./httpStatus.ts";
 
 export const redis = new Redis({
   url: requiredProductionEnv("UPSTASH_REDIS_REST_URL"),
@@ -583,7 +584,7 @@ export function rateLimitResponse(reset: number, customMessage?: string): Respon
       retryAt: resetDate.toISOString(),
     },
     {
-      status: 429,
+      status: HTTP_STATUS.TOO_MANY_REQUESTS,
       headers: {
         "Retry-After": String(retryAfterSeconds),
         "X-RateLimit-Reset": String(reset),

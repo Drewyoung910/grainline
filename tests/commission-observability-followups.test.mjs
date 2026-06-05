@@ -22,6 +22,28 @@ describe("commission route observability follow-ups", () => {
     assert.doesNotMatch(interestRoute, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
   });
 
+  it("creates the commission-interest opening message before returning success", () => {
+    const interestRoute = source("src/app/api/commission/[id]/interest/route.ts");
+    const transactionStart = interestRoute.indexOf("await prisma.$transaction");
+    const afterStart = interestRoute.indexOf("after(async () =>", transactionStart);
+    const transactionBlock = interestRoute.slice(transactionStart, afterStart);
+    const afterBlock = interestRoute.slice(afterStart);
+
+    assert.notEqual(transactionStart, -1);
+    assert.notEqual(afterStart, -1);
+    assert.match(transactionBlock, /await tx\.commissionInterest\.create/);
+    assert.match(transactionBlock, /await tx\.message\.create/);
+    assert.match(transactionBlock, /kind: "commission_interest_card"/);
+    assert.match(transactionBlock, /isSystemMessage: true/);
+    assert.ok(
+      transactionBlock.indexOf("await tx.commissionInterest.create") <
+        transactionBlock.indexOf("await tx.message.create"),
+      "opening message should be committed with the interest row",
+    );
+    assert.doesNotMatch(afterBlock, /prisma\.message\.create|tx\.message\.create/);
+    assert.match(afterBlock, /createNotification\(/);
+  });
+
   it("does not select unused buyer email data in the interest route", () => {
     const interestRoute = source("src/app/api/commission/[id]/interest/route.ts");
 

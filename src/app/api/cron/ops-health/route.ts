@@ -5,6 +5,8 @@ import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 import { prisma } from "@/lib/db";
 import { STRIPE_WEBHOOK_EVENT_STALE_PROCESSING_MS } from "@/lib/stripeWebhookEventState";
+import { ACCOUNT_DELETION_SIDE_EFFECT_STATUS } from "@/lib/accountDeletionSideEffects";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -13,10 +15,11 @@ const FAILED_CRON_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 const STALE_CRON_RUNNING_MS = 30 * 60 * 1000;
 const STALE_EMAIL_OUTBOX_MS = 30 * 60 * 1000;
 const STALE_SVIX_WEBHOOK_PROCESSING_MS = 5 * 60 * 1000;
+const STALE_ACCOUNT_DELETION_SIDE_EFFECT_MS = 60 * 60 * 1000;
 
 export async function GET(request: Request) {
   if (!verifyCronRequest(request)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
   }
 
   return withSentryCronMonitor("ops-health", { value: "20 * * * *", maxRuntimeMinutes: 1 }, async () => {
@@ -30,6 +33,7 @@ export async function GET(request: Request) {
       const staleEmailBefore = new Date(now.getTime() - STALE_EMAIL_OUTBOX_MS);
       const staleStripeWebhookBefore = new Date(now.getTime() - STRIPE_WEBHOOK_EVENT_STALE_PROCESSING_MS);
       const staleSvixWebhookBefore = new Date(now.getTime() - STALE_SVIX_WEBHOOK_PROCESSING_MS);
+      const staleAccountDeletionSideEffectBefore = new Date(now.getTime() - STALE_ACCOUNT_DELETION_SIDE_EFFECT_MS);
 
       const [
         failedCronRuns,
@@ -40,6 +44,7 @@ export async function GET(request: Request) {
         stripeWebhookFailureCount,
         resendWebhookFailureCount,
         clerkWebhookFailureCount,
+        accountDeletionSideEffectFailureCount,
       ] = await Promise.all([
         prisma.cronRun.findMany({
           where: {
@@ -106,6 +111,25 @@ export async function GET(request: Request) {
             ],
           },
         }),
+        prisma.accountDeletionSideEffect.count({
+          where: {
+            OR: [
+              {
+                status: ACCOUNT_DELETION_SIDE_EFFECT_STATUS.FAILED,
+                lastError: { not: null },
+              },
+              {
+                status: {
+                  in: [
+                    ACCOUNT_DELETION_SIDE_EFFECT_STATUS.PENDING,
+                    ACCOUNT_DELETION_SIDE_EFFECT_STATUS.PROCESSING,
+                  ],
+                },
+                updatedAt: { lt: staleAccountDeletionSideEffectBefore },
+              },
+            ],
+          },
+        }),
       ]);
 
       const issues = {
@@ -117,6 +141,7 @@ export async function GET(request: Request) {
         stripeWebhookFailureCount,
         resendWebhookFailureCount,
         clerkWebhookFailureCount,
+        accountDeletionSideEffectFailureCount,
       };
 
       if (
@@ -127,7 +152,8 @@ export async function GET(request: Request) {
         issues.overdueSupportRequestCount > 0 ||
         issues.stripeWebhookFailureCount > 0 ||
         issues.resendWebhookFailureCount > 0 ||
-        issues.clerkWebhookFailureCount > 0
+        issues.clerkWebhookFailureCount > 0 ||
+        issues.accountDeletionSideEffectFailureCount > 0
       ) {
         Sentry.captureMessage("Ops health check found actionable issues", {
           level: "warning",
@@ -152,11 +178,13 @@ export async function GET(request: Request) {
 
       const response = { ok: Object.values(issues).every((count) => count === 0), ...issues };
       await completeCronRun(cronRun, response);
-      return NextResponse.json(response, { status: response.ok ? 200 : 503 });
+      return NextResponse.json(response, {
+        status: response.ok ? HTTP_STATUS.OK : HTTP_STATUS.SERVICE_UNAVAILABLE,
+      });
     } catch (error) {
       await failCronRun(cronRun, error);
       Sentry.captureException(error, { tags: { source: "cron_ops_health" } });
-      return NextResponse.json({ error: "Ops health check failed" }, { status: 500 });
+      return NextResponse.json({ error: "Ops health check failed" }, { status: HTTP_STATUS.INTERNAL_SERVER_ERROR });
     }
   });
 }

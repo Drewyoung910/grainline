@@ -169,7 +169,7 @@ Production migration rules:
 
 ## Cron and Email Outbox
 
-1. Check the hourly `/api/cron/ops-health` Sentry warning first; it polls failed `CronRun` rows from the last 24 hours, stale `RUNNING` cron rows, stale email outbox jobs, dead email outbox jobs, overdue support requests, and failed or stale unprocessed `StripeWebhookEvent`, `ResendWebhookEvent`, and `ClerkWebhookEvent` rows. Also check webhook failure spike alerts for repeated provider edge failures.
+1. Check the hourly `/api/cron/ops-health` Sentry warning first; it polls failed `CronRun` rows from the last 24 hours, stale `RUNNING` cron rows, stale email outbox jobs, dead email outbox jobs, overdue support requests, failed or stale unprocessed `StripeWebhookEvent`, `ResendWebhookEvent`, and `ClerkWebhookEvent` rows, and failed or stale `AccountDeletionSideEffect` rows. Also check webhook failure spike alerts for repeated provider edge failures.
 2. Check `/api/cron/*` logs in Vercel for route-level failures.
 3. Check `CronRun` rows with `status = FAILED` in the last 24 hours.
 4. Check Sentry for cron route exceptions and failed cron check-ins.

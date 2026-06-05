@@ -25,6 +25,7 @@ import { isRequestBodyTooLargeError, readBoundedText } from "@/lib/requestBody";
 import { invalidateAccountStateCache } from "@/lib/accountStateCache";
 import { recordWebhookFailureSpike } from "@/lib/webhookFailureSpike";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 import * as Sentry from "@sentry/nextjs";
 
 interface ClerkUserEvent {
@@ -136,8 +137,11 @@ export async function POST(req: Request) {
       level: "fatal",
       tags: { source: "clerk_webhook_config" },
     });
-    await recordWebhookFailureSpike({ webhook: "clerk", kind: "config", status: 500 });
-    return NextResponse.json({ error: "Missing CLERK_WEBHOOK_SECRET" }, { status: 500 });
+    await recordWebhookFailureSpike({ webhook: "clerk", kind: "config", status: HTTP_STATUS.INTERNAL_SERVER_ERROR });
+    return NextResponse.json(
+      { error: "Missing CLERK_WEBHOOK_SECRET" },
+      { status: HTTP_STATUS.INTERNAL_SERVER_ERROR },
+    );
   }
 
   const headerPayload = await headers();
@@ -155,8 +159,8 @@ export async function POST(req: Request) {
         hasSvixSignature: Boolean(svixSignature),
       },
     });
-    await recordWebhookFailureSpike({ webhook: "clerk", kind: "signature", status: 400 });
-    return NextResponse.json({ error: "Missing svix headers" }, { status: 400 });
+    await recordWebhookFailureSpike({ webhook: "clerk", kind: "signature", status: HTTP_STATUS.BAD_REQUEST });
+    return NextResponse.json({ error: "Missing svix headers" }, { status: HTTP_STATUS.BAD_REQUEST });
   }
 
   let body = "";
@@ -169,8 +173,12 @@ export async function POST(req: Request) {
         tags: { source: "clerk_webhook_payload" },
         extra: { maxBytes: err.maxBytes, svixId },
       });
-      await recordWebhookFailureSpike({ webhook: "clerk", kind: "payload", status: 413 });
-      return NextResponse.json({ error: "Payload too large" }, { status: 413 });
+      await recordWebhookFailureSpike({
+        webhook: "clerk",
+        kind: "payload",
+        status: HTTP_STATUS.PAYLOAD_TOO_LARGE,
+      });
+      return NextResponse.json({ error: "Payload too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
     }
     throw err;
   }
@@ -188,8 +196,8 @@ export async function POST(req: Request) {
       tags: { source: "clerk_webhook_verify" },
       extra: { svixId, svixTimestamp },
     });
-    await recordWebhookFailureSpike({ webhook: "clerk", kind: "signature", status: 400 });
-    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
+    await recordWebhookFailureSpike({ webhook: "clerk", kind: "signature", status: HTTP_STATUS.BAD_REQUEST });
+    return NextResponse.json({ error: "Invalid signature" }, { status: HTTP_STATUS.BAD_REQUEST });
   }
 
   let reservation: Awaited<ReturnType<typeof reserveClerkWebhookEvent>>;
@@ -203,10 +211,13 @@ export async function POST(req: Request) {
     await recordWebhookFailureSpike({
       webhook: "clerk",
       kind: "reservation",
-      status: 503,
+      status: HTTP_STATUS.SERVICE_UNAVAILABLE,
       extra: { svixId, eventType: event.type },
     });
-    return NextResponse.json({ error: "Webhook temporarily unavailable" }, { status: 503 });
+    return NextResponse.json(
+      { error: "Webhook temporarily unavailable" },
+      { status: HTTP_STATUS.SERVICE_UNAVAILABLE },
+    );
   }
   if (reservation === "processed") {
     return NextResponse.json({ ok: true });
@@ -214,7 +225,7 @@ export async function POST(req: Request) {
   if (reservation === "in_progress") {
     return NextResponse.json(
       { ok: false, status: reservation },
-      { status: 503, headers: { "Retry-After": String(CLERK_WEBHOOK_RETRY_AFTER_SECONDS) } },
+      { status: HTTP_STATUS.SERVICE_UNAVAILABLE, headers: { "Retry-After": String(CLERK_WEBHOOK_RETRY_AFTER_SECONDS) } },
     );
   }
 
@@ -403,7 +414,7 @@ export async function POST(req: Request) {
     await recordWebhookFailureSpike({
       webhook: "clerk",
       kind: "handler",
-      status: 500,
+      status: HTTP_STATUS.INTERNAL_SERVER_ERROR,
       extra: { svixId, eventType: event.type },
     });
     throw error;

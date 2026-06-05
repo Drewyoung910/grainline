@@ -11,14 +11,16 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
     const route = source("src/app/api/stripe/webhook/v2/route.ts");
     const legacyRoute = source("src/app/api/stripe/webhook/route.ts");
 
+    assert.match(route, /import \{ HTTP_STATUS \} from "@\/lib\/httpStatus"/);
     assert.match(route, /process\.env\.STRIPE_V2_WEBHOOK_SECRET/);
-    assert.match(route, /return NextResponse\.json\(\{ error: "Webhook temporarily unavailable" \}, \{ status: 500 \}\)/);
-    assert.match(route, /return NextResponse\.json\(\{ error: "Missing Stripe signature" \}, \{ status: 400 \}\)/);
-    assert.match(route, /return NextResponse\.json\(\{ error: "Invalid signature" \}, \{ status: 400 \}\)/);
+    assert.match(route, /status: HTTP_STATUS\.INTERNAL_SERVER_ERROR/);
+    assert.match(route, /return NextResponse\.json\(\{ error: "Missing Stripe signature" \}, \{ status: HTTP_STATUS\.BAD_REQUEST \}\)/);
+    assert.match(route, /return NextResponse\.json\(\{ error: "Invalid signature" \}, \{ status: HTTP_STATUS\.BAD_REQUEST \}\)/);
     assert.match(route, /readBoundedText\(req, STRIPE_V2_WEBHOOK_BODY_MAX_BYTES\)/);
     assert.match(route, /stripe\.parseEventNotification\(body, signature, secret\)/);
     assert.doesNotMatch(route, /STRIPE_WEBHOOK_SECRET/);
 
+    assert.match(legacyRoute, /import \{ HTTP_STATUS \} from "@\/lib\/httpStatus"/);
     assert.match(legacyRoute, /process\.env\.STRIPE_WEBHOOK_SECRET/);
     assert.match(legacyRoute, /readBoundedText\(req, STRIPE_WEBHOOK_BODY_MAX_BYTES\)/);
     assert.match(legacyRoute, /stripe\.webhooks\.constructEvent\(body, signature, secret\)/);
@@ -33,7 +35,7 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
     assert.match(route, /beginStripeWebhookEvent\(stripeEventId, stripeEventType\)/);
     assert.match(route, /reservation === "processed"/);
     assert.match(route, /reservation === "in_progress"/);
-    assert.match(route, /status: 503/);
+    assert.match(route, /status: HTTP_STATUS\.SERVICE_UNAVAILABLE/);
     assert.match(route, /"Retry-After": String\(STRIPE_V2_WEBHOOK_RETRY_AFTER_SECONDS\)/);
     assert.match(route, /markStripeWebhookEventProcessed\(stripeEventId\)/);
     assert.match(route, /markStripeWebhookEventFailed\(stripeEventId, handlerErr\)/);
@@ -63,7 +65,7 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
     assert.match(events, /return claimed\.count > 0 \? "process" : "in_progress"/);
     assert.match(legacyRoute, /reservation === "processed"/);
     assert.match(legacyRoute, /reservation === "in_progress"/);
-    assert.match(legacyRoute, /status: 503/);
+    assert.match(legacyRoute, /status: HTTP_STATUS\.SERVICE_UNAVAILABLE/);
     assert.match(legacyRoute, /"Retry-After": String\(STRIPE_WEBHOOK_RETRY_AFTER_SECONDS\)/);
   });
 

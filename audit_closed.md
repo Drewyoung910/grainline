@@ -22,11 +22,11 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-06-05
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 230.
-- Verified code/feature fix commits since 2026-05-13: 204.
+- Verified hardening/doc commits since 2026-05-13: 231.
+- Verified code/feature fix commits since 2026-05-13: 205.
 - Verified docs/audit-only commits since 2026-05-13: 11.
-- Most recent reported pass tally: 495 verified fixed/reduced findings,
-  417 verified stale/false-positive findings, and 73 deferred/manual findings
+- Most recent reported pass tally: 498 verified fixed/reduced findings,
+  419 verified stale/false-positive findings, and 74 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
 ## 2026-05-14 Active Tracker
@@ -4689,9 +4689,62 @@ Last updated: 2026-06-05
      `tests/account-deletion-media.test.mjs`, and
      `npm audit --audit-level=moderate`.
 
-**Running tally after this pass:** verified fixed/reduced: 495 findings;
-verified stale/false-positive: 417 findings; product/design/ops decisions
-deferred: 73 findings. Entries 361-367 add twelve fixed/reduced current-code
+383. **Webhook status constants, ops-health deletion cleanup, and commission
+     opening messages tightened** - parent/agent-reviewed observability and
+     message-lifecycle pass over the residual HTTP-status/analytics slice plus
+     adjacent privacy and commission hidden issues. `src/lib/httpStatus.ts` now
+     owns shared named HTTP status codes. The high-signal routes/helpers in
+     this pass use those names instead of route-local literals: bounded request
+     body errors, account-state errors, `rateLimitResponse()`, Stripe snapshot
+     and Connect v2 webhooks, Clerk and Resend webhooks, and ops-health. This
+     reduces drift between response statuses and Sentry webhook failure-spike
+     telemetry without attempting a broad mechanical rewrite of every API
+     status literal.
+
+     The raw observability subclaims that Grainline had no shared server error
+     logger and that Sentry `enableLogs: false` meant no useful production
+     error evidence were re-verified stale/currently not defects on `main`:
+     `logServerError()` exists and is covered on seller analytics, checkout,
+     account export, cases, shipping quote, and other high-signal catches; the
+     Sentry configs intentionally keep `sendDefaultPii: false` and
+     `enableLogs: false` while route catches emit bounded Sentry events. The
+     separate Vercel Analytics/Speed Insights claim remains a deferred
+     product/ops decision because adding analytics scripts affects the checkout
+     script inventory/CSP posture and needs explicit product/ops ownership
+     rather than a silent audit fix.
+
+     Ops-health now counts failed or stale `AccountDeletionSideEffect` rows in
+     addition to cron, email outbox, support-request, and webhook idempotency
+     piles. Failed deletion side effects carry provider/privacy cleanup risk
+     for Stripe rejection, R2 media deletion, audit redaction, or local
+     anonymization retries, so they now surface through the hourly
+     `source=cron_ops_health` warning and unhealthy 503 response. `docs/runbook.md`,
+     `docs/launch-checklist.md`, and `CLAUDE.md` record the expanded monitoring
+     contract.
+
+     Commission-interest creation now commits the opening
+     `commission_interest_card` message inside the same transaction as the
+     `CommissionInterest` row before returning the conversation id. Buyer
+     notification remains a non-blocking `after()` side effect, but the
+     conversation can no longer be durably created as an empty thread that the
+     inbox hides behind `messages: { some: {} }`.
+
+     Guardrails: `tests/http-status-constants.test.mjs`,
+     `tests/stripe-webhook-v2-route.test.mjs`,
+     `tests/r65-observability-guardrails.test.mjs`,
+     `tests/account-privacy-observability.test.mjs`,
+     `tests/request-body-bounds.test.mjs`,
+     `tests/webhook-body-bounds.test.mjs`,
+     `tests/retention-and-ops-followups.test.mjs`,
+     `tests/account-deletion-side-effects.test.mjs`,
+     `tests/commission-observability-followups.test.mjs`,
+     `tests/conversation-pair-guardrails.test.mjs`,
+     `tests/verified-audit-followups.test.mjs`, and
+     `tests/message-bodies.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 498 findings;
+verified stale/false-positive: 419 findings; product/design/ops decisions
+deferred: 74 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
 export/deletion residue. Entry 361 removes the remaining Resend webhook
 failure-spike raw category; entries 362-367 were adjacent parent/agent-reviewed
@@ -4772,6 +4825,15 @@ and the transitive Hono moderate advisory. No approximate raw-category
 decrement is counted because the case/refund and photo-original cleanup issues
 were hidden adjacent findings, while the older `Photo.originalUrl` export raw
 claim was already closed in entry 213.
+Entry 383 adds three fixed/reduced current-code issues for named high-signal
+HTTP statuses, account-deletion side-effect ops-health visibility, and durable
+commission-interest opening messages. It also adds two stale/false-positive
+observability classifications for the already-present bounded server-error
+logger and intentional non-PII Sentry log-forwarding posture, plus one deferred
+Vercel Analytics/Speed Insights product/ops decision. Four approximate
+raw-category decrements are counted; the ops-health and commission fixes were
+hidden adjacent issues found during parent/agent review within already-open
+observability/privacy/message-lifecycle categories.
 Remaining major categories: Stripe webhook subscription dashboard evidence,
 Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -4788,7 +4850,8 @@ MFA and breached-password dashboard evidence, Clerk multi-account spam dashboard
 evidence, buyer-deletion runtime replay proof,
 Founding Maker live DB concurrency proof, Sentry cron alert evidence,
 Cloudflare R2 ListBucket/public-bucket dashboard evidence, HSTS preload
-submission decision, residual HTTP-status constants, analytics observability
-refactors, remaining homepage runtime a11y proof, and residual
+submission decision, residual lower-risk HTTP-status constants outside the
+high-signal helpers, Vercel Analytics/Speed Insights product/ops decision,
+remaining homepage runtime a11y proof, and residual
 agent/worktree verification process hygiene. Approximate raw allegations left
-to verify from current max #1120: 198.
+to verify from current max #1120: 194.

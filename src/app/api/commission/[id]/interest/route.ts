@@ -152,6 +152,7 @@ export async function POST(
   const buyerUserId = commissionRequest.buyerId;
   const [a, b] = [me.id, buyerUserId].sort((x, y) => (x < y ? -1 : 1));
   let conversationId: string | null = null;
+  const sellerDisplayName = sellerProfile.displayName ?? me.name ?? "A maker";
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -174,6 +175,23 @@ export async function POST(
           commissionRequestId: id,
           sellerProfileId: sellerProfile.id,
           conversationId: convo.id,
+        },
+      });
+      await tx.message.create({
+        data: {
+          conversationId: convo.id,
+          senderId: me.id,
+          recipientId: commissionRequest.buyerId,
+          body: JSON.stringify({
+            commissionId: id,
+            commissionTitle: commissionRequest.title,
+            sellerName: sellerDisplayName,
+            budgetMinCents: commissionRequest.budgetMinCents,
+            budgetMaxCents: commissionRequest.budgetMaxCents,
+            timeline: commissionRequest.timeline,
+          }),
+          kind: "commission_interest_card",
+          isSystemMessage: true,
         },
       });
       const interestedCount = await tx.commissionInterest.count({
@@ -220,38 +238,17 @@ export async function POST(
     );
   const finalConversationId = conversationId;
 
-  // Send a structured system message to the buyer
-  const sellerDisplayName = sellerProfile.displayName ?? me.name ?? "A maker";
-  const sellerName = sellerProfile.displayName ?? me.name ?? "A maker";
+  const sellerName = sellerDisplayName;
   after(async () => {
     try {
-      await Promise.all([
-        prisma.message.create({
-          data: {
-            conversationId: finalConversationId,
-            senderId: me.id,
-            recipientId: commissionRequest.buyerId,
-            body: JSON.stringify({
-              commissionId: id,
-              commissionTitle: commissionRequest.title,
-              sellerName: sellerDisplayName,
-              budgetMinCents: commissionRequest.budgetMinCents,
-              budgetMaxCents: commissionRequest.budgetMaxCents,
-              timeline: commissionRequest.timeline,
-            }),
-            kind: "commission_interest_card",
-            isSystemMessage: true,
-          },
-        }),
-        createNotification({
-          userId: commissionRequest.buyerId,
-          type: "COMMISSION_INTEREST",
-          title: `${sellerName} is interested in your commission`,
-          body: `"${commissionRequest.title}" — view the conversation`,
-          link: `/messages/${finalConversationId}`,
-          dedupScope: id,
-        }),
-      ]);
+      await createNotification({
+        userId: commissionRequest.buyerId,
+        type: "COMMISSION_INTEREST",
+        title: `${sellerName} is interested in your commission`,
+        body: `"${commissionRequest.title}" — view the conversation`,
+        link: `/messages/${finalConversationId}`,
+        dedupScope: id,
+      });
     } catch (error) {
       Sentry.captureException(error, {
         level: "warning",
