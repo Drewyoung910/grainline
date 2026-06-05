@@ -2,11 +2,39 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
+const { emailSuppressionLookupForEmails } = await import("../src/lib/emailAddressNormalization.ts");
+
 function source(path) {
   return readFileSync(path, "utf8");
 }
 
 describe("email normalization follow-ups", () => {
+  it("builds reverse Gmail alias lookup keys without changing durable account identity", () => {
+    assert.deepEqual(
+      emailSuppressionLookupForEmails(["First.Last+tag@gmail.com"]),
+      {
+        exactEmails: ["first.last+tag@gmail.com", "firstlast@gmail.com"],
+        gmailLocalParts: ["firstlast"],
+      },
+    );
+
+    assert.deepEqual(
+      emailSuppressionLookupForEmails(["firstlast@gmail.com"]),
+      {
+        exactEmails: ["firstlast@gmail.com"],
+        gmailLocalParts: ["firstlast"],
+      },
+    );
+
+    assert.deepEqual(
+      emailSuppressionLookupForEmails(["Buyer@Example.com"]),
+      {
+        exactEmails: ["buyer@example.com"],
+        gmailLocalParts: [],
+      },
+    );
+  });
+
   it("normalizes durable user emails through the suppression helper", () => {
     const ensureUser = source("src/lib/ensureUser.ts");
     const deletion = source("src/lib/accountDeletion.ts");
@@ -25,12 +53,13 @@ describe("email normalization follow-ups", () => {
     assert.match(unsubscribe, /email\.trim\(\)\.normalize\("NFC"\)\.toLowerCase\(\)/);
 
     assert.match(suppression, /from "\.\/emailAddressNormalization\.ts"/);
-    assert.match(suppression, /export \{ emailSuppressionAddressKeys, normalizeEmailAddress, normalizeEmailSuppressionAddress \}/);
+    assert.match(suppression, /export \{ emailSuppressionAddressKeys, emailSuppressionLookupForEmails, normalizeEmailAddress, normalizeEmailSuppressionAddress \}/);
     assert.match(normalization, /function gmailSuppressionAddress\(email: string\)/);
     assert.match(normalization, /domain === "googlemail\.com" \? "gmail\.com" : domain/);
     assert.match(normalization, /local\.split\("\+"\)\[0\]\?\.replaceAll\("\.", ""\)/);
     assert.match(normalization, /export function normalizeEmailSuppressionAddress/);
     assert.match(normalization, /export function emailSuppressionAddressKeys/);
+    assert.match(normalization, /export function emailSuppressionLookupForEmails/);
     assert.match(suppression, /where: \{ email: \{ in: emails \} \}/);
     assert.match(suppression, /const email = normalizeEmailSuppressionAddress\(opts\.email\)/);
   });

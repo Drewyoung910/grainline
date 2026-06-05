@@ -15,6 +15,7 @@ import {
 } from './banOrderReviewState'
 import { readBanAuditMetadata, type BanOpenOrderSnapshot } from './banAuditMetadata'
 import { sanitizeEmailOutboxError } from './emailOutboxSanitize'
+import { sanitizeAdminAuditReason } from './audit'
 import * as Sentry from '@sentry/nextjs'
 
 const OPEN_SELLER_ORDER_STATUSES = ['PENDING', 'READY_FOR_PICKUP', 'SHIPPED'] as const
@@ -265,7 +266,7 @@ export async function banUser({ userId, adminId, reason }: {
         action: 'BAN_USER',
         targetType: 'USER',
         targetId: userId,
-        reason,
+        reason: sanitizeAdminAuditReason(reason),
         metadata: {
           ...buildBanAuditMetadata({
             sellerProfile,
@@ -418,7 +419,7 @@ export async function unbanUser({ userId, adminId, reason }: {
         action: 'UNBAN_USER',
         targetType: 'USER',
         targetId: userId,
-        reason,
+        reason: sanitizeAdminAuditReason(reason),
         metadata: {
           previousUser: previousUser
             ? {

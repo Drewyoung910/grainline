@@ -328,27 +328,31 @@ describe("account and privacy route observability guardrails", () => {
       /export async function unsubscribeTokenSuperseded/,
     );
     assert.match(unsubscribe, /emailSuppressionAddressKeys\(normalized\)/);
+    assert.match(unsubscribe, /emailSuppressionLookupForEmails\(emails\)/);
+    assert.match(unsubscribe, /function emailSuppressionMatchWhereSql/);
+    assert.match(unsubscribe, /split_part\(\$\{emailColumn\}, '@', 2\) IN \('gmail\.com', 'googlemail\.com'\)/);
+    assert.match(unsubscribe, /replace\(split_part\(split_part\(\$\{emailColumn\}, '@', 1\), '\+', 1\), '\.', ''\) IN/);
     assert.match(
       unsubscribe,
-      /where:\s*\{\s*email: \{ in: emails \},\s*deletedAt: null,\s*createdAt: \{ gt: new Date\(issuedAt\) \},\s*\}/,
+      /WHERE \$\{emailSuppressionMatchWhereSql\(lookup\)\}\s+AND "deletedAt" IS NULL\s+AND "createdAt" > \$\{new Date\(issuedAt\)\}/,
     );
-    assert.match(unsubscribe, /orderBy: \{ createdAt: "desc" \}/);
+    assert.match(unsubscribe, /ORDER BY "createdAt" DESC/);
     assert.match(unsubscribe, /if \(newerAccountClaim\) return true/);
     assert.match(
       unsubscribe,
-      /where: \{ email: \{ in: emails \}, emailPreferenceOptInAt: \{ not: null \} \}/,
+      /AND "emailPreferenceOptInAt" IS NOT NULL/,
     );
-    assert.match(unsubscribe, /orderBy: \{ emailPreferenceOptInAt: "desc" \}/);
+    assert.match(unsubscribe, /ORDER BY "emailPreferenceOptInAt" DESC/);
     assert.match(
       unsubscribe,
       /user\.emailPreferenceOptInAt\.getTime\(\) > issuedAt/,
     );
-    assert.match(unsubscribe, /newsletterSubscriber\.findFirst/);
+    assert.match(unsubscribe, /FROM "NewsletterSubscriber"/);
     assert.match(
       unsubscribe,
-      /where: \{ email: \{ in: emails \}, confirmedAt: \{ not: null \} \}/,
+      /AND "confirmedAt" IS NOT NULL/,
     );
-    assert.match(unsubscribe, /orderBy: \{ confirmedAt: "desc" \}/);
+    assert.match(unsubscribe, /ORDER BY "confirmedAt" DESC/);
     assert.match(
       unsubscribe,
       /newsletter\.confirmedAt\.getTime\(\) > issuedAt/,
@@ -372,11 +376,19 @@ describe("account and privacy route observability guardrails", () => {
     );
     assert.match(
       unsubscribeEmailHelper,
-      /newsletterSubscriber\.updateMany\(\{\s*where: \{ email: \{ in: emails \} \}/s,
+      /newsletterIdsMatchingSuppressionLookup\(tx, lookup\)/,
     );
     assert.match(
       unsubscribeEmailHelper,
-      /user\.findMany\(\{\s*where: \{ email: \{ in: emails \} \}/s,
+      /newsletterSubscriber\.updateMany\(\{\s*where: \{ id: \{ in: newsletterIds \} \}/s,
+    );
+    assert.match(
+      unsubscribeEmailHelper,
+      /userIdsMatchingSuppressionLookup\(tx, lookup\)/,
+    );
+    assert.match(
+      unsubscribeEmailHelper,
+      /user\.findMany\(\{\s*where: \{ id: \{ in: userIds \} \}/s,
     );
     assert.match(unsubscribeEmailHelper, /for \(const user of users\)/);
     assert.match(unsubscribeEmailHelper, /userUpdated = users\.length > 0/);
@@ -439,6 +451,7 @@ describe("account and privacy route observability guardrails", () => {
 
   it("preserves Resend webhook error evidence even when marking the event failed errors", () => {
     const route = source("src/app/api/resend/webhook/route.ts");
+    const launch = source("docs/launch-checklist.md");
 
     assert.match(route, /markWebhookFailed\(id, err\)\.catch/);
     assert.match(route, /sanitizeEmailOutboxError\(err\)/);
@@ -454,6 +467,8 @@ describe("account and privacy route observability guardrails", () => {
     );
     assert.doesNotMatch(route, /emailFailureCount\.findUnique/);
     assert.doesNotMatch(route, /email\.delivery_delayed/);
+    assert.match(launch, /Delivery-delayed provider events may be monitored in the Resend dashboard/);
+    assert.match(launch, /app intentionally ignores them for durable suppression/);
     assert.doesNotMatch(
       route,
       /details: event as unknown as Prisma\.InputJsonValue/,

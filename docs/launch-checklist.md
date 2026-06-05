@@ -54,7 +54,7 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
 - Stripe/payment pages: checkout-page script inventory completed in `docs/checkout-script-inventory.md`; CSP reports from checkout pages verified in Sentry.
 - Resend: sending domain verified.
 - Resend/DNS: SPF, DKIM, and DMARC policy verified. Move DMARC to `p=reject` only after monitoring shows legitimate mail is aligned.
-- Resend: webhook endpoint registered at `https://thegrainline.com/api/resend/webhook` with bounce, complaint, delivery delayed, failed, and suppressed events enabled; `RESEND_WEBHOOK_SECRET` configured in production.
+- Resend: webhook endpoint registered at `https://thegrainline.com/api/resend/webhook` with bounce, complaint, failed, and suppressed events enabled; `RESEND_WEBHOOK_SECRET` configured in production. Delivery-delayed provider events may be monitored in the Resend dashboard, but the app intentionally ignores them for durable suppression.
 - Shippo: live API key configured.
 - Cloudflare R2: bucket CORS and public URL verified.
 - Cloudflare R2: processed image upload and direct upload/verify smoke tests pass with production credentials after any R2 credential, CORS, public-domain, or bucket-policy change. `/api/health` only proves `HeadBucket` reachability.
@@ -99,7 +99,7 @@ Run these in test mode before switching to live money:
 - Seller refund and staff case refund paths.
 - Private custom listing is visible only to the reserved buyer.
 - Public listing visibility: draft, hidden, pending review, rejected, private, vacation, banned seller.
-- `/api/health` returns 200 when DB/Redis are healthy and 503 on dependency failure.
+- `/api/health` returns 200 when DB/Redis/R2 dependency checks are healthy and 503 on dependency failure.
 
 ## Security Evidence
 

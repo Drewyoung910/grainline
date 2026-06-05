@@ -46,6 +46,21 @@ describe("admin PIN cookie secret configuration", () => {
     assert.doesNotMatch(route, /sameSite: "lax"/);
   });
 
+  it("keeps raw source IPs and Clerk ids out of permanent admin PIN audit metadata", () => {
+    const route = readFileSync("src/app/api/admin/verify-pin/route.ts", "utf8");
+    const helperStart = route.indexOf("async function logAdminPinAttempt");
+    const helper = route.slice(helperStart, route.indexOf("export async function POST", helperStart));
+
+    assert.match(route, /hashIdentifierForTelemetry\(ip\)/);
+    assert.match(route, /hashIdentifierForTelemetry\(userId\)/);
+    assert.match(helper, /ipHash/);
+    assert.match(helper, /clerkUserIdHash/);
+    assert.doesNotMatch(helper, /\bip,\s*\n/);
+    assert.doesNotMatch(helper, /clerkUserId,\s*\n/);
+    assert.doesNotMatch(route, /extra:\s*\{[^}]*\bip,\s*/s);
+    assert.match(route, /user: \{ id: user\.id \}/);
+  });
+
   it("binds admin PIN cookies to the active Clerk session", async () => {
     const now = Date.parse("2026-05-29T00:00:00Z");
     const cookie = await createAdminPinSessionCookieValue("user_1", "sess_1", now);

@@ -28,3 +28,19 @@ export function emailSuppressionAddressKeys(email: string | null | undefined): s
   const suppression = normalizeEmailSuppressionAddress(normalized);
   return [...new Set([normalized, ...(suppression && suppression !== normalized ? [suppression] : [])])];
 }
+
+function gmailSuppressionLocalPart(email: string) {
+  const suppression = normalizeEmailSuppressionAddress(email);
+  if (!suppression) return null;
+  const [local, domain, ...rest] = suppression.split("@");
+  if (!local || domain !== "gmail.com" || rest.length > 0) return null;
+  return local;
+}
+
+export function emailSuppressionLookupForEmails(emails: Array<string | null | undefined>) {
+  const exactEmails = [...new Set(emails.flatMap((email) => emailSuppressionAddressKeys(email)))];
+  const gmailLocalParts = [
+    ...new Set(exactEmails.map((email) => gmailSuppressionLocalPart(email)).filter(Boolean)),
+  ] as string[];
+  return { exactEmails, gmailLocalParts };
+}

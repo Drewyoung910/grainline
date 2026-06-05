@@ -31,12 +31,17 @@ describe("user text normalization followups", () => {
     const report = source("src/app/api/users/[id]/report/route.ts");
     const fulfillment = source("src/app/api/orders/[id]/fulfillment/route.ts");
     const audit = source("src/lib/audit.ts");
+    const ban = source("src/lib/ban.ts");
 
     assert.match(sellerCheckout, /const giftNote = body\.giftNote \? truncateText\(sanitizeText\(body\.giftNote\), 200\) : ""/);
     assert.match(singleCheckout, /giftNote: body\.giftNote \? truncateText\(sanitizeText\(body\.giftNote\), 200\) : ""/);
     assert.match(report, /const details = body\.details \? truncateText\(sanitizeText\(body\.details\), 500\) \|\| null : null/);
     assert.match(fulfillment, /data\.sellerNotes = payload\.sellerNotes \? truncateText\(sanitizeText\(payload\.sellerNotes\), 2000\) \|\| null : null/);
-    assert.match(audit, /reason: reason \? truncateText\(sanitizeText\(reason\), 500\) \|\| null : undefined/);
+    assert.match(audit, /export function sanitizeAdminAuditReason/);
+    assert.match(audit, /truncateText\(sanitizeText\(reason\), 500\) \|\| null/);
+    assert.match(audit, /reason: sanitizeAdminAuditReason\(reason\)/);
+    assert.match(ban, /import \{ sanitizeAdminAuditReason \} from '\.\/audit'/);
+    assert.match(ban, /reason: sanitizeAdminAuditReason\(reason\)/);
   });
 
   it("keeps shipping address fields single-line after sanitization", () => {

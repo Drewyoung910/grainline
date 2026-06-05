@@ -61,6 +61,8 @@ describe("R65 observability guardrails", () => {
     const adminPin = source("src/app/api/admin/verify-pin/route.ts");
     assert.match(adminPin, /logSecurityEvent\("auth_challenge_failed"/);
     assert.match(adminPin, /reason: "invalid admin pin"/);
+    assert.match(adminPin, /ipHash/);
+    assert.doesNotMatch(adminPin, /logSecurityEvent\("auth_challenge_failed",\s*\{[^}]*\bip,/s);
   });
 
   it("keeps Stripe signature failures to one captured exception plus failure-spike accounting", () => {

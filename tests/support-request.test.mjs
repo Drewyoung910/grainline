@@ -143,6 +143,7 @@ describe("support request helpers", () => {
 
   it("documents provider-side privacy request handling for processors", () => {
     const runbook = projectFile("docs/runbook.md");
+    const privacy = projectFile("src/app/privacy/page.tsx");
 
     assert.match(runbook, /Processor-side privacy requests/);
     assert.match(runbook, /SupportRequest` open or `IN_PROGRESS/);
@@ -150,6 +151,8 @@ describe("support request helpers", () => {
     assert.match(runbook, /Resend: check sent-message, bounce, complaint, suppression, and webhook event records/);
     assert.match(runbook, /provider ticket id, date, owner, and outcome/);
     assert.match(runbook, /Do not assume `EmailOutbox` or `ResendWebhookEvent` pruning deletes provider copies/);
-    assert.match(runbook, /Stripe, Clerk, Shippo, Sentry, Cloudflare, Neon, Upstash, and Vercel/);
+    assert.match(runbook, /Stripe, Clerk, Shippo, Sentry, Cloudflare, UploadThing\/UTFS legacy media, Neon, Upstash, and Vercel/);
+    assert.match(privacy, /<strong>UploadThing \/ UTFS<\/strong>/);
+    assert.match(privacy, /Legacy object storage for older uploaded media/);
   });
 });

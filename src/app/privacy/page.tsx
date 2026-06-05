@@ -342,6 +342,12 @@ export default function PrivacyPage() {
               domain.
             </li>
             <li>
+              <strong>UploadThing / UTFS</strong> — Legacy object storage for older uploaded media that
+              may still be visible in existing listings, messages, reviews, or profile content. New
+              uploads use Grainline&apos;s Cloudflare-backed storage, but privacy requests involving
+              legacy media may require UploadThing/UTFS provider-side handling.
+            </li>
+            <li>
               <strong>Sentry</strong> — Error tracking and performance monitoring. Sentry receives
               anonymized technical information about errors and performance issues, which may include
               IP addresses and browser information. We do not intentionally send personally

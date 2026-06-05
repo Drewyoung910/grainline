@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, it } from "node:test";
 
-const { hashEmailForTelemetry } = await import("../src/lib/privacyTelemetry.ts");
+const { hashEmailForTelemetry, hashIdentifierForTelemetry } = await import("../src/lib/privacyTelemetry.ts");
 
 function read(path) {
   return fs.readFileSync(path, "utf8");
@@ -31,6 +31,15 @@ describe("privacy telemetry helpers", () => {
   it("returns null for invalid emails", () => {
     assert.equal(hashEmailForTelemetry(null), null);
     assert.equal(hashEmailForTelemetry("not-an-email"), null);
+  });
+
+  it("hashes generic identifiers for security telemetry without exposing raw values", () => {
+    const hash = hashIdentifierForTelemetry("  203.0.113.10 ");
+
+    assert.match(hash, /^sha256:[a-f0-9]{24}$/);
+    assert.equal(hash, hashIdentifierForTelemetry("203.0.113.10"));
+    assert.doesNotMatch(hash, /203\.0\.113\.10/);
+    assert.equal(hashIdentifierForTelemetry("   "), null);
   });
 
   it("keeps raw public-form emails out of Sentry extra payloads", () => {

@@ -507,7 +507,7 @@ Results:
 - Destructive admin listing/review/user actions require `ADMIN`; staff review/report/support/order actions allow `ADMIN | EMPLOYEE` where intended.
 - Admin listing review uses a pending-status precondition for approve/reject writes, and custom-order ready-link side effects remain idempotent through `customOrderReadyLink.ts`.
 - User ban/unban flows block admin-target bans, write durable audit metadata, disable seller orderability on ban, close open buyer commission requests, mark open seller orders for review, expire open checkout sessions for banned sellers, and sync Clerk session state after the local transaction.
-- Admin PIN verification uses account and IP rate limits, constant-time digest comparison, signed HTTP-only cookies, and audit/Sentry evidence for rate-limit and failed-auth cases.
+- Admin PIN verification uses account and IP rate limits, constant-time digest comparison, signed HTTP-only cookies, and audit/Sentry evidence for rate-limit and failed-auth cases using hashed source-IP / Clerk-user identifiers rather than raw network addresses in permanent audit metadata.
 
 Follow-up fix from this pass:
 

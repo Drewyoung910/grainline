@@ -157,6 +157,7 @@ describe("retention and ops-health follow-ups", () => {
     assert.match(runbook, /does not prove\s+`PutObject`/);
     assert.match(runbook, /direct\s+upload\/verify/);
     assert.match(launch, /only proves `HeadBucket` reachability/);
+    assert.match(launch, /DB\/Redis\/R2 dependency checks/);
     assert.match(launch, /public bucket listing\/ListBucket exposure/);
     assert.match(launch, /bucket-level max object-size/);
     assert.match(launch, /upload smoke-test result/);

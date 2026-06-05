@@ -4951,8 +4951,34 @@ Last updated: 2026-06-05
      `tests/http-status-constants.test.mjs`,
      `tests/refund-route-state.test.mjs`, and
      `tests/payment-side-effect-observability.test.mjs`.
+390. **Email-consent alias, privacy telemetry, and processor-disclosure pass** -
+     parent/agent-reviewed code/test/docs fix for the remaining unsubscribe
+     consent-epoch slice plus privacy/legal adjacent findings. The current
+     one-click unsubscribe supersession check and unsubscribe mutation now use a
+     Gmail/Googlemail folded lookup so an old canonical `gmail.com` unsubscribe
+     link cannot miss a later plus-address account opt-in or newsletter
+     confirmation for the same suppression-key set. `safeRateLimit()` and
+     `safeRateLimitOpen()` now hash provider keys before calling Upstash,
+     matching the Privacy Policy's hashed-identifier claim without changing
+     route-local key semantics. Admin PIN attempt audit/Sentry/security-event
+     evidence now stores hashed source-IP and hashed Clerk-user identifiers
+     rather than raw network addresses in permanent `AdminAuditLog.metadata`.
+     Direct `BAN_USER`, `UNBAN_USER`, and `UNDO_*` audit writes now share the
+     sanitized audit-reason helper used by `logAdminAction()`. Privacy/runbook
+     docs now disclose legacy UploadThing/UTFS media while that allowlist remains
+     intentionally renderable for existing production media. The launch
+     checklist was also aligned to current source: Resend `delivery_delayed`
+     events remain dashboard-only and ignored by durable suppression code, and
+     `/api/health` depends on DB/Redis/R2 checks. Guardrails:
+     `tests/ratelimit-policy.test.mjs`, `tests/privacy-telemetry.test.mjs`,
+     `tests/admin-pin.test.mjs`, `tests/support-request.test.mjs`,
+     `tests/user-text-normalization-followups.test.mjs`,
+     `tests/r65-observability-guardrails.test.mjs`,
+     `tests/account-privacy-observability.test.mjs`,
+     `tests/email-normalization-followups.test.mjs`, and
+     `tests/retention-and-ops-followups.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 578 findings;
+**Running tally after this pass:** verified fixed/reduced: 585 findings;
 verified stale/false-positive: 442 findings; product/design/ops decisions
 deferred: 74 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
@@ -5111,6 +5137,17 @@ approximate raw-category decrement is counted because #1120 remains a
 best-effort rollback/design limitation and the status-constant work is a
 subclaim inside an already-open observability bucket; provider/dashboard
 evidence rechecks remain deferred/manual. Deferred stays flat.
+Entry 390 adds seven fixed/reduced code/docs issues across unsubscribe
+Gmail-alias consent epochs, hashed Upstash rate-limit provider keys, hashed
+admin PIN audit/telemetry evidence, sanitized direct ban/unban/undo audit
+reasons, legacy UploadThing/UTFS privacy disclosure, Resend delayed-event docs
+scope, and DB/Redis/R2 health-check docs. Four approximate raw-category
+decrements are counted because the unsubscribe and privacy/provider/audit
+metadata fixes overlap remaining privacy/legal and email-consent categories;
+the Resend/health checklist alignment and direct-reason helper were adjacent
+current-code/docs issues. Deferred stays flat; support-request retention policy
+and newsletter-only public resubscribe remain existing deferred/manual
+decisions.
 Remaining major categories: Stripe webhook subscription dashboard evidence,
 Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -5130,4 +5167,4 @@ submission decision, residual lower-risk HTTP-status constants outside the
 high-signal helpers, Vercel Analytics/Speed Insights product/ops decision,
 remaining homepage runtime a11y proof, and residual
 agent/worktree verification process hygiene. Approximate raw allegations left
-to verify from current max #1120: 156.
+to verify from current max #1120: 152.

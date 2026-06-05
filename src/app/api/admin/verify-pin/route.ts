@@ -14,6 +14,7 @@ import {
 import { getIP } from "@/lib/ratelimit";
 import { logSecurityEvent } from "@/lib/security";
 import { isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
+import { hashIdentifierForTelemetry } from "@/lib/privacyTelemetry";
 import { createHash, timingSafeEqual } from "crypto";
 
 // 5 attempts per 15 minutes per user — fail closed for compromised sessions.
@@ -37,14 +38,14 @@ const pinIpRatelimit = new Ratelimit({
 async function logAdminPinAttempt({
   adminId,
   action,
-  ip,
-  clerkUserId,
+  ipHash,
+  clerkUserIdHash,
   metadata = {},
 }: {
   adminId: string;
   action: "ADMIN_PIN_VERIFY_OK" | "ADMIN_PIN_VERIFY_FAIL" | "ADMIN_PIN_RATE_LIMIT";
-  ip: string;
-  clerkUserId: string;
+  ipHash: string;
+  clerkUserIdHash: string;
   metadata?: Record<string, unknown>;
 }) {
   await logAdminAction({
@@ -53,8 +54,8 @@ async function logAdminPinAttempt({
     targetType: "USER",
     targetId: adminId,
     metadata: {
-      ip,
-      clerkUserId,
+      ipHash,
+      clerkUserIdHash,
       ...metadata,
     },
   });
@@ -77,6 +78,8 @@ export async function POST(req: Request) {
   // should not get a fresh PIN budget by changing networks, and one noisy IP
   // should not be able to brute-force across staff accounts.
   const ip = getIP(req);
+  const ipHash = hashIdentifierForTelemetry(ip) ?? "unknown";
+  const clerkUserIdHash = hashIdentifierForTelemetry(userId) ?? "unknown";
   const [userLimit, ipLimit] = await Promise.all([
     safeRateLimit(pinUserRatelimit, userId),
     safeRateLimit(pinIpRatelimit, ip),
@@ -85,8 +88,8 @@ export async function POST(req: Request) {
     await logAdminPinAttempt({
       adminId: user.id,
       action: "ADMIN_PIN_RATE_LIMIT",
-      ip,
-      clerkUserId: userId,
+      ipHash,
+      clerkUserIdHash,
       metadata: {
         userLimitSuccess: userLimit.success,
         ipLimitSuccess: ipLimit.success,
@@ -97,10 +100,10 @@ export async function POST(req: Request) {
     Sentry.captureMessage("ADMIN_PIN_BRUTEFORCE", {
       level: "warning",
       tags: { source: "admin_pin", reason: "rate_limit" },
-      user: { id: userId },
+      user: { id: user.id },
       extra: {
         adminId: user.id,
-        ip,
+        ipHash,
         userLimitSuccess: userLimit.success,
         ipLimitSuccess: ipLimit.success,
         userLimitReset: userLimit.reset,
@@ -142,8 +145,8 @@ export async function POST(req: Request) {
     await logAdminPinAttempt({
       adminId: user.id,
       action: "ADMIN_PIN_VERIFY_OK",
-      ip,
-      clerkUserId: userId,
+      ipHash,
+      clerkUserIdHash,
       metadata: { devBypass: true },
     });
 
@@ -166,12 +169,12 @@ export async function POST(req: Request) {
     await logAdminPinAttempt({
       adminId: user.id,
       action: "ADMIN_PIN_VERIFY_FAIL",
-      ip,
-      clerkUserId: userId,
+      ipHash,
+      clerkUserIdHash,
     });
     logSecurityEvent("auth_challenge_failed", {
       userId: user.id,
-      ip,
+      ipHash,
       route: "/api/admin/verify-pin",
       reason: "invalid admin pin",
     });
@@ -187,8 +190,8 @@ export async function POST(req: Request) {
   await logAdminPinAttempt({
     adminId: user.id,
     action: "ADMIN_PIN_VERIFY_OK",
-    ip,
-    clerkUserId: userId,
+    ipHash,
+    clerkUserIdHash,
   });
 
   const res = NextResponse.json({ ok: true });

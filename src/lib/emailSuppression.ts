@@ -4,11 +4,12 @@ import { prisma } from "@/lib/db";
 import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
 import {
   emailSuppressionAddressKeys,
+  emailSuppressionLookupForEmails,
   normalizeEmailAddress,
   normalizeEmailSuppressionAddress,
 } from "./emailAddressNormalization.ts";
 
-export { emailSuppressionAddressKeys, normalizeEmailAddress, normalizeEmailSuppressionAddress };
+export { emailSuppressionAddressKeys, emailSuppressionLookupForEmails, normalizeEmailAddress, normalizeEmailSuppressionAddress };
 
 export async function isEmailSuppressed(email: string | null | undefined): Promise<boolean> {
   const emails = emailSuppressionAddressKeys(email);

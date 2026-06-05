@@ -34,6 +34,10 @@ export function isUndoableAdminAction(action: string): boolean {
   return (UNDOABLE_ADMIN_ACTIONS as readonly string[]).includes(action)
 }
 
+export function sanitizeAdminAuditReason(reason: string | null | undefined): string | null | undefined {
+  return reason ? truncateText(sanitizeText(reason), 500) || null : undefined
+}
+
 async function restoreBannedSellerOrderReviewState(
   tx: Pick<Prisma.TransactionClient, 'order'>,
   snapshots: BanOpenOrderSnapshot[],
@@ -162,7 +166,7 @@ async function createAdminAuditLog({
       action,
       targetType,
       targetId,
-      reason: reason ? truncateText(sanitizeText(reason), 500) || null : undefined,
+      reason: sanitizeAdminAuditReason(reason),
       metadata: metadata as Parameters<typeof prisma.adminAuditLog.create>[0]['data']['metadata'],
     }
   })
@@ -360,7 +364,7 @@ export async function undoAdminAction({
         action: `UNDO_${log.action}`,
         targetType: log.targetType,
         targetId: log.targetId,
-        reason,
+        reason: sanitizeAdminAuditReason(reason),
         metadata: { originalActionId: logId },
       },
     })
