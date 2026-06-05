@@ -35,7 +35,8 @@ export default async function CommissionPage({
   searchParams: Promise<{ page?: string; category?: string; tab?: string }>;
 }) {
   const sp = await searchParams;
-  const page = Math.max(1, parseInt(sp.page ?? "1", 10));
+  const parsedPage = Number.parseInt(sp.page ?? "1", 10);
+  const page = Number.isFinite(parsedPage) ? Math.max(1, parsedPage) : 1;
   const categoryFilter = sp.category ?? "";
   const categoryValid = categoryFilter && CATEGORY_VALUES.includes(categoryFilter);
   const tab = sp.tab === "near" ? "near" : "all";
@@ -99,11 +100,11 @@ export default async function CommissionPage({
 
     // SECURITY: $queryRawUnsafe is used here because Prisma's $queryRaw
     // tagged template cannot handle conditional SQL fragments. All user
-    // input (categoryFilter) is passed as bound positional parameters ($8/$4),
+    // input (categoryFilter) is passed as bound positional parameters ($9/$5),
     // never interpolated into the SQL string. categoryFilter is also
     // validated against CATEGORY_VALUES allowlist before reaching this code.
-    const categoryConditionSelect = categoryValid ? `AND cr.category::text = $8` : "";
-    const categoryConditionCount = categoryValid ? `AND cr.category::text = $4` : "";
+    const categoryConditionSelect = categoryValid ? `AND cr.category::text = $9` : "";
+    const categoryConditionCount = categoryValid ? `AND cr.category::text = $5` : "";
 
     const selectSql = `
       SELECT
@@ -132,6 +133,9 @@ export default async function CommissionPage({
       ) ci ON ci."commissionRequestId" = cr.id
       WHERE cr.status = 'OPEN'
         AND (cr."expiresAt" IS NULL OR cr."expiresAt" > NOW())
+        AND u.banned = false
+        AND u."deletedAt" IS NULL
+        AND NOT (u.id = ANY($8::text[]))
         ${categoryConditionSelect}
         AND (
           cr."isNational" = true
@@ -148,7 +152,8 @@ export default async function CommissionPage({
       ORDER BY
         CASE WHEN cr."isNational" = false AND cr.lat IS NOT NULL THEN 0 ELSE 1 END ASC,
         distance_m ASC NULLS LAST,
-        cr."createdAt" DESC
+        cr."createdAt" DESC,
+        cr.id ASC
       LIMIT $6 OFFSET $7`;
 
     const rawResults = await prisma.$queryRawUnsafe<Array<{
@@ -170,15 +175,19 @@ export default async function CommissionPage({
       buyerImageUrl: string | null;
       distance_m: number | null;
     }>>(selectSql, ...((): unknown[] => {
-      const args: unknown[] = [viewerLat, viewerLng, viewerLat, viewerLng, radius, pageSize, (page - 1) * pageSize];
+      const args: unknown[] = [viewerLat, viewerLng, viewerLat, viewerLng, radius, pageSize, (page - 1) * pageSize, [...blockedUserIds]];
       if (categoryValid) args.push(categoryFilter);
       return args;
     })());
 
     const countSql = `
       SELECT COUNT(*) FROM "CommissionRequest" cr
+      JOIN "User" u ON u.id = cr."buyerId"
       WHERE cr.status = 'OPEN'
         AND (cr."expiresAt" IS NULL OR cr."expiresAt" > NOW())
+        AND u.banned = false
+        AND u."deletedAt" IS NULL
+        AND NOT (u.id = ANY($4::text[]))
         ${categoryConditionCount}
         AND (
           cr."isNational" = true
@@ -193,15 +202,12 @@ export default async function CommissionPage({
           )
         )`;
 
-    const countArgs: unknown[] = [viewerLat, viewerLng, radius];
+    const countArgs: unknown[] = [viewerLat, viewerLng, radius, [...blockedUserIds]];
     if (categoryValid) countArgs.push(categoryFilter);
     const countResult = await prisma.$queryRawUnsafe<[{ count: bigint }]>(countSql, ...countArgs);
 
     total = Number(countResult[0].count);
-    const filteredRawResults = blockedUserIds.size > 0
-      ? rawResults.filter((r) => !blockedUserIds.has(r.buyerId))
-      : rawResults;
-    requests = filteredRawResults.map((r) => ({
+    requests = rawResults.map((r) => ({
       id: r.id,
       title: r.title,
       description: r.description,
@@ -222,7 +228,7 @@ export default async function CommissionPage({
     const [found, count] = await Promise.all([
       prisma.commissionRequest.findMany({
         where,
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "asc" }],
         skip: (page - 1) * pageSize,
         take: pageSize,
         select: {

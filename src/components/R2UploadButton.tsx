@@ -6,7 +6,7 @@ import { validateUploadFile } from "@/lib/uploadRules";
 
 type Endpoint =
   | "listingImage" | "messageImage" | "messageFile" | "messageAny"
-  | "reviewPhoto" | "listingVideo" | "bannerImage" | "galleryImage";
+  | "reviewPhoto" | "listingVideo" | "bannerImage" | "galleryImage" | "blogImage";
 
 type Props = {
   endpoint: Endpoint;
@@ -82,6 +82,7 @@ export default function R2UploadButton({
     listingVideo: "video/*",
     bannerImage: "image/*",
     galleryImage: "image/*",
+    blogImage: "image/*",
   };
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {

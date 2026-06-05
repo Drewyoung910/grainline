@@ -10,6 +10,7 @@ export const UPLOAD_ENDPOINTS = [
   "listingVideo",
   "bannerImage",
   "galleryImage",
+  "blogImage",
 ] as const;
 
 export type UploadEndpoint = (typeof UPLOAD_ENDPOINTS)[number];
@@ -21,6 +22,7 @@ export const IMAGE_UPLOAD_ENDPOINTS = [
   "reviewPhoto",
   "bannerImage",
   "galleryImage",
+  "blogImage",
 ] as const satisfies readonly UploadEndpoint[];
 
 export const DIRECT_UPLOAD_ENDPOINTS = [
@@ -38,6 +40,7 @@ export const UPLOAD_MAX_SIZES: Record<UploadEndpoint, number> = {
   listingVideo: 128 * 1024 * 1024,
   bannerImage: 15 * 1024 * 1024,
   galleryImage: 8 * 1024 * 1024,
+  blogImage: 8 * 1024 * 1024,
 };
 
 export const UPLOAD_MAX_COUNTS: Record<UploadEndpoint, number> = {
@@ -49,6 +52,7 @@ export const UPLOAD_MAX_COUNTS: Record<UploadEndpoint, number> = {
   listingVideo: 1,
   bannerImage: 1,
   galleryImage: 10,
+  blogImage: 10,
 };
 
 export const UPLOAD_ENDPOINT_LABELS: Record<UploadEndpoint, string> = {
@@ -60,6 +64,7 @@ export const UPLOAD_ENDPOINT_LABELS: Record<UploadEndpoint, string> = {
   listingVideo: "listing video",
   bannerImage: "shop banner",
   galleryImage: "gallery photo",
+  blogImage: "blog image",
 };
 
 export const DIRECT_ENDPOINT_ALLOWED_TYPES: Record<UploadEndpoint, readonly string[]> = {
@@ -71,6 +76,7 @@ export const DIRECT_ENDPOINT_ALLOWED_TYPES: Record<UploadEndpoint, readonly stri
   listingVideo: ["video/mp4", "video/quicktime"],
   bannerImage: [],
   galleryImage: [],
+  blogImage: [],
 };
 
 export function formatUploadMegabytes(bytes: number) {

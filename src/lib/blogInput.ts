@@ -16,7 +16,7 @@ export function normalizeBlogCoverImageUrl(
   if (value === existingUrl) {
     return value;
   }
-  if (!isFirstPartyMediaUrlForUser(value, clerkUserId, ["galleryImage"])) {
+  if (!isFirstPartyMediaUrlForUser(value, clerkUserId, ["galleryImage", "blogImage"])) {
     throw new Error("Cover image must be an uploaded Grainline image.");
   }
   return value;

@@ -50,6 +50,24 @@ describe("message and case policy guardrails", () => {
     }
   });
 
+  it("shows escalation controls when an unavailable case counterparty bypasses the timer", () => {
+    const actionState = source("src/lib/caseActionState.ts");
+    assert.match(actionState, /export function caseEscalationAvailable/);
+    assert.match(actionState, /if \(counterpartyUnavailable\) return true/);
+
+    for (const pagePath of [
+      "src/app/dashboard/orders/[id]/page.tsx",
+      "src/app/dashboard/sales/[orderId]/page.tsx",
+    ]) {
+      const page = source(pagePath);
+      assert.match(page, /caseEscalationAvailable/);
+      assert.match(page, /caseReplyUnavailableReason != null/);
+      assert.match(page, /activeCase\.status === "OPEN"/);
+      assert.match(page, /activeCase\.status !== "OPEN" && <CaseMarkResolvedButton/);
+      assert.match(page, /<CaseEscalateButton caseId=\{activeCase\.id\} \/>/);
+    }
+  });
+
   it("does not derive cross-user notification display names from email local-parts", () => {
     for (const path of [
       "src/app/api/cases/route.ts",

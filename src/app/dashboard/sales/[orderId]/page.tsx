@@ -14,10 +14,12 @@ import { ArrowLeft, Gift } from "@/components/icons";
 import LocalDate from "@/components/LocalDate";
 import OrderTimeline from "@/components/OrderTimeline";
 import { caseStatusLabel } from "@/lib/caseLabels";
+import { fulfillmentStatusLabel } from "@/lib/fulfillmentLabels";
 import {
   unavailableCaseMessageRecipientReason,
   unavailableCaseRecipientMessage,
 } from "@/lib/caseMessagingState";
+import { caseEscalationAvailable } from "@/lib/caseActionState";
 import { publicListingPath } from "@/lib/publicPaths";
 import { blockingRefundLedgerWhere, latestRefundLedgerEvent, orderHasRefundLedger, refundMayRestoreStock } from "@/lib/refundRouteState";
 import { orderTotalCents } from "@/lib/orderTotals";
@@ -125,8 +127,10 @@ export default async function SellerOrderDetailPage({
 
   if (!order) notFound();
 
-  const myItems = order.items.filter((it) => it.listing.seller.id === seller.id);
-  if (myItems.length === 0) notFound();
+  const allItemsBelongToSeller =
+    order.items.length > 0 && order.items.every((it) => it.listing.seller.id === seller.id);
+  if (!allItemsBelongToSeller) notFound();
+  const myItems = order.items;
 
   const currency = order.currency ?? DEFAULT_CURRENCY;
   const myItemsSubtotal = myItems.reduce((s, it) => s + it.priceCents * it.quantity, 0);
@@ -217,7 +221,7 @@ export default async function SellerOrderDetailPage({
             Placed <LocalDate date={order.createdAt} /> · {order.paidAt ? "Paid" : "Unpaid"}
           </span>
           <Badge>{method}</Badge>
-          <Badge>{status.replaceAll("_", " ")}</Badge>
+          <Badge>{fulfillmentStatusLabel(status)}</Badge>
           {order.reviewNeeded && <Badge>Review needed</Badge>}
         </div>
         <div className="text-neutral-600 text-sm">
@@ -395,11 +399,16 @@ export default async function SellerOrderDetailPage({
             </div>
           )}
 
-          {(activeCase.status === "IN_DISCUSSION" || activeCase.status === "PENDING_CLOSE") && (() => {
-            const escalateAvailable =
-              activeCase.status === "IN_DISCUSSION" &&
-              activeCase.escalateUnlocksAt != null &&
-              activeCase.escalateUnlocksAt < now;
+          {(activeCase.status === "IN_DISCUSSION" ||
+            activeCase.status === "PENDING_CLOSE" ||
+            (activeCase.status === "OPEN" &&
+              caseEscalationAvailable(activeCase.status, activeCase.escalateUnlocksAt, now, caseReplyUnavailableReason != null))) && (() => {
+            const escalateAvailable = caseEscalationAvailable(
+              activeCase.status,
+              activeCase.escalateUnlocksAt,
+              now,
+              caseReplyUnavailableReason != null,
+            );
             const waitingForBuyer =
               activeCase.sellerMarkedResolved && !activeCase.buyerMarkedResolved;
             return (
@@ -410,7 +419,7 @@ export default async function SellerOrderDetailPage({
                   </p>
                 ) : (
                   <div className="flex flex-wrap gap-2">
-                    <CaseMarkResolvedButton caseId={activeCase.id} />
+                    {activeCase.status !== "OPEN" && <CaseMarkResolvedButton caseId={activeCase.id} />}
                     {escalateAvailable && (
                       <CaseEscalateButton caseId={activeCase.id} />
                     )}

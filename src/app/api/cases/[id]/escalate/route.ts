@@ -2,7 +2,8 @@
 // Call with id="all" to bulk-escalate expired cases (staff/cron only).
 // Call with a case cuid to escalate a single case:
 //   - Staff / CRON_SECRET bearer: always allowed
-//   - Buyer or seller: allowed only if escalateUnlocksAt is in the past
+//   - Buyer or seller: allowed if escalateUnlocksAt is in the past, or if
+//     the counterparty account is unavailable.
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";

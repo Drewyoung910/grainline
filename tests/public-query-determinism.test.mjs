@@ -58,6 +58,28 @@ describe("public query determinism", () => {
     );
   });
 
+  it("filters browse geo seller pre-pass by public seller and listing visibility", () => {
+    const browse = source("src/app/browse/page.tsx");
+    const geoStart = browse.indexOf("const blockedSellerGeoSql");
+    const geoEnd = browse.indexOf("sellerIdFilters.push(rows.map((r) => r.id));", geoStart);
+    const geoBlock = browse.slice(geoStart, geoEnd);
+
+    assert.match(geoBlock, /FROM "SellerProfile" sp/);
+    assert.match(geoBlock, /INNER JOIN "User" u ON u\.id = sp\."userId"/);
+    assert.match(geoBlock, /sp\."chargesEnabled" = true/);
+    assert.match(geoBlock, /sp\."stripeAccountVersion" IS NULL OR sp\."stripeAccountVersion" = 'v2'/);
+    assert.match(geoBlock, /sp\."vacationMode" = false/);
+    assert.match(geoBlock, /u\.banned = false/);
+    assert.match(geoBlock, /u\."deletedAt" IS NULL/);
+    assert.match(geoBlock, /blockedSellerGeoSql/);
+    assert.match(geoBlock, /EXISTS \(\s*SELECT 1\s*FROM "Listing" l/);
+    assert.match(geoBlock, /l\."sellerId" = sp\.id/);
+    assert.match(geoBlock, /l\.status = 'ACTIVE'::"ListingStatus"/);
+    assert.match(geoBlock, /l\."isPrivate" = false/);
+    assert.match(geoBlock, /sp\.lat::float/);
+    assert.match(geoBlock, /sp\.lng::float/);
+  });
+
   it("orders equal-count public tag caps by tag", () => {
     assert.match(source("src/lib/popularTags.ts"), /ORDER BY count DESC, tag ASC/);
     assert.match(source("src/lib/popularBlogTags.ts"), /ORDER BY count DESC, tag ASC/);

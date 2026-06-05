@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 const {
+  caseEscalationAvailable,
   caseResolutionMessage,
   isEscalatableCaseStatus,
   isResolvableCaseStatus,
@@ -23,6 +24,20 @@ describe("case action state", () => {
     assert.equal(isEscalatableCaseStatus("PENDING_CLOSE"), false);
     assert.equal(isEscalatableCaseStatus("UNDER_REVIEW"), false);
     assert.equal(isEscalatableCaseStatus("CLOSED"), false);
+  });
+
+  it("matches case escalation availability to timer or unavailable-counterparty policy", () => {
+    const now = new Date("2026-06-05T12:00:00.000Z");
+    const past = new Date("2026-06-05T11:59:59.000Z");
+    const future = new Date("2026-06-05T12:01:00.000Z");
+
+    assert.equal(caseEscalationAvailable("IN_DISCUSSION", past, now), true);
+    assert.equal(caseEscalationAvailable("IN_DISCUSSION", now, now), true);
+    assert.equal(caseEscalationAvailable("IN_DISCUSSION", future, now), false);
+    assert.equal(caseEscalationAvailable("IN_DISCUSSION", future, now, true), true);
+    assert.equal(caseEscalationAvailable("OPEN", null, now, true), true);
+    assert.equal(caseEscalationAvailable("OPEN", null, now, false), false);
+    assert.equal(caseEscalationAvailable("PENDING_CLOSE", past, now, true), false);
   });
 
   it("uses stable user-facing messages from the resulting status", () => {

@@ -25,6 +25,18 @@ describe("seller order mutation ownership guardrails", () => {
         `${path} must not authorize whole-order mutations from partial order ownership`,
       );
     }
+
+    const detail = source("src/app/dashboard/sales/[orderId]/page.tsx");
+    assert.match(
+      detail,
+      /order\.items\.length > 0\s*&&\s*order\.items\.every\(\(it\) => it\.listing\.seller\.id === seller\.id\)/,
+      "seller sales detail must require every order item to belong to the seller",
+    );
+    assert.doesNotMatch(
+      detail,
+      /myItems\.length === 0/,
+      "seller sales detail must not expose whole-order data from partial order ownership",
+    );
   });
 
   it("keeps seller order read surfaces on whole-order ownership", () => {

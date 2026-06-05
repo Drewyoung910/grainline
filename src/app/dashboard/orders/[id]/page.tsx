@@ -13,6 +13,7 @@ import { ArrowLeft, Truck, Gift } from "@/components/icons";
 import OrderTimeline from "@/components/OrderTimeline";
 import ConfirmButton from "@/components/ConfirmButton";
 import { caseStatusLabel } from "@/lib/caseLabels";
+import { fulfillmentStatusLabel } from "@/lib/fulfillmentLabels";
 import { publicListingPath } from "@/lib/publicPaths";
 import { blockingRefundLedgerWhere, latestRefundLedgerEvent } from "@/lib/refundRouteState";
 import { orderTotalCents } from "@/lib/orderTotals";
@@ -21,6 +22,7 @@ import {
   caseWindowClosesAt,
   isOrderCaseWindowClosed,
 } from "@/lib/caseCreateState";
+import { caseEscalationAvailable } from "@/lib/caseActionState";
 import {
   unavailableCaseMessageRecipientReason,
   unavailableCaseRecipientMessage,
@@ -205,10 +207,14 @@ export default async function BuyerOrderDetailPage({
     ? unavailableCaseRecipientMessage(caseReplyUnavailableReason)
     : null;
 
-  const escalateAvailable =
-    activeCase?.status === "IN_DISCUSSION" &&
-    activeCase.escalateUnlocksAt != null &&
-    activeCase.escalateUnlocksAt < now;
+  const escalateAvailable = activeCase
+    ? caseEscalationAvailable(
+        activeCase.status,
+        activeCase.escalateUnlocksAt,
+        now,
+        caseReplyUnavailableReason != null,
+      )
+    : false;
 
   // Conversation link for "contact seller" fallback
   const sellerUserId = order.items[0]?.listing.seller.userId ?? null;
@@ -244,7 +250,7 @@ export default async function BuyerOrderDetailPage({
             Placed <LocalDate date={order.createdAt} /> · {order.paidAt ? "Paid" : "Unpaid"}
           </span>
           <Badge>{method}</Badge>
-          <Badge>{status.replaceAll("_", " ")}</Badge>
+          <Badge>{fulfillmentStatusLabel(status)}</Badge>
         </div>
       </header>
 
@@ -540,7 +546,9 @@ export default async function BuyerOrderDetailPage({
             </div>
           )}
 
-          {(activeCase.status === "IN_DISCUSSION" || activeCase.status === "PENDING_CLOSE") && (
+          {(activeCase.status === "IN_DISCUSSION" ||
+            activeCase.status === "PENDING_CLOSE" ||
+            (activeCase.status === "OPEN" && escalateAvailable)) && (
             <div className="border-t border-neutral-100 bg-neutral-50 px-4 py-3 space-y-2">
               {activeCase.buyerMarkedResolved && !activeCase.sellerMarkedResolved ? (
                 <p className="text-sm text-neutral-500">
@@ -548,7 +556,7 @@ export default async function BuyerOrderDetailPage({
                 </p>
               ) : (
                 <div className="flex flex-wrap gap-2">
-                  <CaseMarkResolvedButton caseId={activeCase.id} />
+                  {activeCase.status !== "OPEN" && <CaseMarkResolvedButton caseId={activeCase.id} />}
                   {escalateAvailable && (
                     <CaseEscalateButton caseId={activeCase.id} />
                   )}

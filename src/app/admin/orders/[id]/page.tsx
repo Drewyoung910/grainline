@@ -7,6 +7,7 @@ import { latestRefundLedgerEvent } from "@/lib/refundRouteState";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY } from "@/lib/money";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
+import { fulfillmentStatusLabel } from "@/lib/fulfillmentLabels";
 
 function fmtMoney(cents: number | null | undefined, currency = DEFAULT_CURRENCY) {
   if (cents == null) return "—";
@@ -124,7 +125,7 @@ export default async function AdminOrderDetailPage({
           <p className="mt-1 text-sm text-neutral-500">
             {order.createdAt.toLocaleString("en-US")} ·{" "}
             <span className="font-medium">
-              {(order.fulfillmentStatus ?? "PENDING").replaceAll("_", " ")}
+              {fulfillmentStatusLabel(order.fulfillmentStatus)}
             </span>
             {order.fulfillmentMethod && ` · ${order.fulfillmentMethod}`}
           </p>

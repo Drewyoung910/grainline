@@ -3,6 +3,7 @@ import Link from "next/link";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY } from "@/lib/money";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
+import { fulfillmentStatusLabel } from "@/lib/fulfillmentLabels";
 
 const PAGE_SIZE = 25;
 
@@ -134,7 +135,7 @@ export default async function AllOrdersPage({
                       </td>
                       <td className="px-4 py-3">
                         <span className="text-xs text-neutral-500">
-                          {(order.fulfillmentStatus ?? "PENDING").replaceAll("_", " ")}
+                          {fulfillmentStatusLabel(order.fulfillmentStatus)}
                         </span>
                       </td>
                       <td className="px-4 py-3">

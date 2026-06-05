@@ -65,10 +65,21 @@ describe("verified audit follow-up guardrails", () => {
     const page = source("src/app/commission/page.tsx");
 
     assert.match(page, /CATEGORY_VALUES\.includes\(categoryFilter\)/);
-    assert.match(page, /const categoryConditionSelect = categoryValid \? `AND cr\.category::text = \$8` : ""/);
-    assert.match(page, /const categoryConditionCount = categoryValid \? `AND cr\.category::text = \$4` : ""/);
+    assert.match(page, /const categoryConditionSelect = categoryValid \? `AND cr\.category::text = \$9` : ""/);
+    assert.match(page, /const categoryConditionCount = categoryValid \? `AND cr\.category::text = \$5` : ""/);
+    assert.match(page, /JOIN "User" u ON u\.id = cr\."buyerId"/);
+    assert.match(page, /u\.banned = false/);
+    assert.match(page, /u\."deletedAt" IS NULL/);
+    assert.match(page, /NOT \(u\.id = ANY\(\$8::text\[\]\)\)/);
+    assert.match(page, /NOT \(u\.id = ANY\(\$4::text\[\]\)\)/);
+    assert.match(page, /\[viewerLat, viewerLng, viewerLat, viewerLng, radius, pageSize, \(page - 1\) \* pageSize, \[\.\.\.blockedUserIds\]\]/);
+    assert.match(page, /\[viewerLat, viewerLng, radius, \[\.\.\.blockedUserIds\]\]/);
     assert.match(page, /args\.push\(categoryFilter\)/);
     assert.match(page, /countArgs\.push\(categoryFilter\)/);
+    assert.match(page, /const parsedPage = Number\.parseInt\(sp\.page \?\? "1", 10\)/);
+    assert.match(page, /Number\.isFinite\(parsedPage\) \? Math\.max\(1, parsedPage\) : 1/);
+    assert.match(page, /cr\."createdAt" DESC,\s*cr\.id ASC/);
+    assert.match(page, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "asc" \}\]/);
     assert.doesNotMatch(page, /\$\{categoryFilter\}/);
   });
 

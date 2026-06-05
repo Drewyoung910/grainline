@@ -10,6 +10,8 @@ import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY } from "@/lib/money";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import { refundMayRestoreStock } from "@/lib/refundRouteState";
+import { caseStatusLabel } from "@/lib/caseLabels";
+import type { CaseStatus } from "@prisma/client";
 
 function fmtMoney(cents: number | null | undefined, currency = DEFAULT_CURRENCY) {
   if (cents == null) return "—";
@@ -39,7 +41,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function CaseStatusBadge({ status }: { status: string }) {
+function CaseStatusBadge({ status }: { status: CaseStatus }) {
   const color =
     status === "OPEN"
       ? "bg-amber-100 text-amber-800"
@@ -56,7 +58,7 @@ function CaseStatusBadge({ status }: { status: string }) {
     <span
       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${color}`}
     >
-      {status.replaceAll("_", " ")}
+      {caseStatusLabel(status)}
     </span>
   );
 }

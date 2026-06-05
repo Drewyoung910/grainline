@@ -94,6 +94,14 @@ describe("media URL validation", () => {
       ),
       false,
     );
+    assert.equal(
+      isFirstPartyMediaUrlForUser(
+        "https://media.example.com/grain/blogImage/user_123/photo.jpg",
+        "user_123",
+        ["blogImage"],
+      ),
+      true,
+    );
     assert.deepEqual(
       filterFirstPartyMediaUrlsForUser([
         "https://media.example.com/grain/listingImage/user_123/a.jpg",

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import Link from "next/link";
 import type { CaseStatus } from "@prisma/client";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
+import { caseStatusLabel } from "@/lib/caseLabels";
 
 const PAGE_SIZE = 25;
 
@@ -23,7 +24,7 @@ const REASON_LABELS: Record<string, string> = {
   OTHER: "Other",
 };
 
-function CaseStatusBadge({ status }: { status: string }) {
+function CaseStatusBadge({ status }: { status: CaseStatus }) {
   const color =
     status === "OPEN"
       ? "bg-amber-100 text-amber-800"
@@ -38,7 +39,7 @@ function CaseStatusBadge({ status }: { status: string }) {
       : "bg-neutral-100 text-neutral-600"; // CLOSED
   return (
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${color}`}>
-      {status.replaceAll("_", " ")}
+      {caseStatusLabel(status)}
     </span>
   );
 }
@@ -125,7 +126,7 @@ export default async function AdminCasesPage({
                 : "bg-white text-neutral-600 hover:bg-neutral-50"
             }`}
           >
-            {s.replaceAll("_", " ")}
+            {caseStatusLabel(s)}
           </Link>
         ))}
       </div>

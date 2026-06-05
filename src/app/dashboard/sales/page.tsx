@@ -9,6 +9,7 @@ import { publicListingPath } from "@/lib/publicPaths";
 import { blockingRefundLedgerWhere, latestRefundLedgerEvent } from "@/lib/refundRouteState";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY } from "@/lib/money";
+import { fulfillmentStatusLabel } from "@/lib/fulfillmentLabels";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -32,7 +33,7 @@ function StatusBadge({ status }: { status: FulfillmentStatus }) {
   };
   return (
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${styles[status]}`}>
-      {status.replaceAll("_", " ")}
+      {fulfillmentStatusLabel(status)}
     </span>
   );
 }

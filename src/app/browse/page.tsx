@@ -273,15 +273,32 @@ export default async function BrowsePage({
   const sellerIdFilters: string[][] = [];
 
   if (hasLocationFilter) {
+    const blockedSellerGeoSql = blockedSellerIds.length > 0
+      ? Prisma.sql`AND sp.id NOT IN (${Prisma.join(blockedSellerIds)})`
+      : Prisma.empty;
     const rows = await prisma.$queryRaw<Array<{ id: string }>>`
-      SELECT id
-      FROM "SellerProfile"
-      WHERE lat IS NOT NULL AND lng IS NOT NULL
+      SELECT sp.id
+      FROM "SellerProfile" sp
+      INNER JOIN "User" u ON u.id = sp."userId"
+      WHERE sp.lat IS NOT NULL AND sp.lng IS NOT NULL
+      AND sp."chargesEnabled" = true
+      AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
+      AND sp."vacationMode" = false
+      AND u.banned = false
+      AND u."deletedAt" IS NULL
+      ${blockedSellerGeoSql}
+      AND EXISTS (
+        SELECT 1
+        FROM "Listing" l
+        WHERE l."sellerId" = sp.id
+        AND l.status = 'ACTIVE'::"ListingStatus"
+        AND l."isPrivate" = false
+      )
       AND (
         6371 * 2 * asin(sqrt(
-          pow(sin(radians((lat::float - ${latFilter!}) / 2)), 2) +
-          cos(radians(${latFilter!})) * cos(radians(lat::float)) *
-          pow(sin(radians((lng::float - ${lngFilter!}) / 2)), 2)
+          pow(sin(radians((sp.lat::float - ${latFilter!}) / 2)), 2) +
+          cos(radians(${latFilter!})) * cos(radians(sp.lat::float)) *
+          pow(sin(radians((sp.lng::float - ${lngFilter!}) / 2)), 2)
         ))
       ) <= ${radiusFilter! * 1.60934}
     `;

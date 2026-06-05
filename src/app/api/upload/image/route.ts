@@ -31,6 +31,7 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const SELLER_ONLY_ENDPOINTS = new Set(["listingImage", "bannerImage", "galleryImage"]);
+const BLOG_AUTHOR_ENDPOINTS = new Set(["blogImage"]);
 const IMAGE_UPLOAD_MULTIPART_BODY_MAX_BYTES = 16 * 1024 * 1024;
 const IMAGE_UPLOAD_LIMIT_INPUT_PIXELS = 50_000_000;
 
@@ -101,6 +102,16 @@ export async function POST(req: Request) {
       select: { id: true },
     });
     if (!seller) return privateJson({ error: "Seller profile required" }, { status: 403 });
+  }
+  if (BLOG_AUTHOR_ENDPOINTS.has(endpoint)) {
+    const isStaff = me.role === "EMPLOYEE" || me.role === "ADMIN";
+    if (!isStaff) {
+      const seller = await prisma.sellerProfile.findUnique({
+        where: { userId: me.id },
+        select: { id: true },
+      });
+      if (!seller) return privateJson({ error: "Seller profile required" }, { status: 403 });
+    }
   }
   if (fileIndex >= UPLOAD_MAX_COUNTS[uploadEndpoint]) {
     return privateJson({ error: uploadTooManyFilesMessage(uploadEndpoint) }, { status: 400 });

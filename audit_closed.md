@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-06-05
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 231.
-- Verified code/feature fix commits since 2026-05-13: 205.
+- Verified hardening/doc commits since 2026-05-13: 232.
+- Verified code/feature fix commits since 2026-05-13: 206.
 - Verified docs/audit-only commits since 2026-05-13: 11.
-- Most recent reported pass tally: 498 verified fixed/reduced findings,
+- Most recent reported pass tally: 506 verified fixed/reduced findings,
   419 verified stale/false-positive findings, and 74 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
@@ -4742,7 +4742,66 @@ Last updated: 2026-06-05
      `tests/verified-audit-followups.test.mjs`, and
      `tests/message-bodies.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 498 findings;
+384. **Media uploads, public geo filters, seller order reads, and case-policy
+     UI tightened** - parent/agent-reviewed source fix pass across upload/media,
+     public-discovery, seller order, commission, and case/message surfaces.
+     Staff-authored blog posts can exist without a seller profile, but blog
+     cover and markdown image controls reused the seller-only `galleryImage`
+     endpoint. Blog images now use a distinct `blogImage` endpoint that allows
+     staff or sellers, while `galleryImage` stays seller/profile-only. Blog
+     media validation accepts new `blogImage` URLs plus existing
+     `galleryImage` rows, and account-deletion media cleanup includes
+     `blogImage` keys.
+
+     Browse radius filtering no longer performs an unbounded coordinate-only
+     `SellerProfile` raw-SQL pre-pass before the public listing query filters
+     inactive sellers away. The geo pre-pass now filters to active public seller
+     state, supported/null Stripe account version, active non-private listings,
+     and the viewer's blocked seller IDs before returning IDs into the Prisma
+     listing query. Commission near-me raw SQL now mirrors
+     `openCommissionWhere()` buyer account-state filters and applies block
+     filtering in both the selected page and count query before `LIMIT/OFFSET`.
+     The commission page also now coerces invalid `page` params back to page 1
+     instead of letting `NaN` reach `skip`/`OFFSET`, and both the near-me SQL
+     and all-requests Prisma query use `id` as a deterministic final ordering
+     key before pagination.
+
+     The seller sales detail page now matches seller mutation routes and the
+     sales list by requiring every order item to belong to the acting seller
+     before rendering whole-order buyer, shipping, case, totals, or refund data;
+     a malformed mixed-seller order no longer authorizes on partial ownership.
+     Buyer/seller case detail pages now derive escalation visibility from
+     `caseEscalationAvailable()`, matching the API behavior that allows
+     `OPEN`/`IN_DISCUSSION` cases to escalate when the timer has unlocked or
+     immediately when the counterparty account is suspended/deleted/missing,
+     while avoiding mark-resolved controls on `OPEN` cases. Admin/buyer/seller
+     case and order surfaces now use canonical `caseStatusLabel()` and
+     `fulfillmentStatusLabel()` helpers instead of ad hoc enum-string labels.
+
+     Read-only agent and parent verification in the same pass rechecked upload
+     allegations #1095, #1096, #1099/#615, #748, and #686 as stale/fixed on
+     current `main`; the R2 nosniff/public-delivery and no-Content-Length
+     multipart-body questions remain external/runtime evidence items already
+     tracked in the launch/runbook buckets. Public seller cache/performance raw
+     #1109/#1110/#1111 and label-clawback #1112 were also reverified as stale
+     or previously handled; the remaining seller shop/listing-detail waterfalls
+     and EXPLAIN-dependent public stats questions remain performance/runtime
+     follow-ups rather than source defects closed here.
+
+     `CLAUDE.md` now records the blog-image endpoint boundary, seller order
+     read-ownership contract, case escalation UI/API parity, public geo raw-SQL
+     filtering rule, and canonical status-label helpers. Guardrails:
+     `tests/upload-ux-followups.test.mjs`, `tests/media-url.test.mjs`,
+     `tests/form-data-body-bounds.test.mjs`,
+     `tests/upload-verification-token.test.mjs`,
+     `tests/public-query-determinism.test.mjs`,
+     `tests/order-seller-route-ownership.test.mjs`,
+     `tests/verified-audit-followups.test.mjs`,
+     `tests/case-action-state.test.mjs`,
+     `tests/message-case-policy-guardrails.test.mjs`, and
+     `tests/status-label-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 506 findings;
 verified stale/false-positive: 419 findings; product/design/ops decisions
 deferred: 74 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
@@ -4834,6 +4893,15 @@ Vercel Analytics/Speed Insights product/ops decision. Four approximate
 raw-category decrements are counted; the ops-health and commission fixes were
 hidden adjacent issues found during parent/agent review within already-open
 observability/privacy/message-lifecycle categories.
+Entry 384 adds eight fixed/reduced current-code issues across staff blog image
+uploads, public browse geo pre-filtering, commission near-me buyer/block
+filtering, commission page invalid-page coercion, commission pagination
+determinism, seller sales detail whole-order ownership, unavailable-counterparty
+case escalation UI parity, and canonical case/fulfillment status labels. Two
+approximate raw-category decrements are counted because the public-discovery
+geo and case/message policy fixes overlap remaining major categories; the blog,
+seller-order detail, commission block/count/pagination, and status-label work
+were hidden adjacent source issues found by parent/agent review.
 Remaining major categories: Stripe webhook subscription dashboard evidence,
 Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -4854,4 +4922,4 @@ submission decision, residual lower-risk HTTP-status constants outside the
 high-signal helpers, Vercel Analytics/Speed Insights product/ops decision,
 remaining homepage runtime a11y proof, and residual
 agent/worktree verification process hygiene. Approximate raw allegations left
-to verify from current max #1120: 194.
+to verify from current max #1120: 192.

@@ -216,6 +216,7 @@ const ACCOUNT_DELETION_MEDIA_ENDPOINTS = [
   "messageAny",
   "messageFile",
   "reviewPhoto",
+  "blogImage",
 ] as const;
 
 export function accountDeletionMediaUrlsForCleanup(urls: Iterable<string>, clerkUserId: string): string[] {

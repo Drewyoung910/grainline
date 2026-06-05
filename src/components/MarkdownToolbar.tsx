@@ -262,11 +262,11 @@ export default function MarkdownToolbar({
               const file = input.files?.[0];
               if (!file) return;
               try {
-                validateUploadFile("galleryImage", file, 0);
+                validateUploadFile("blogImage", file, 0);
 
                 const form = new FormData();
                 form.set("file", file);
-                form.set("endpoint", "galleryImage");
+                form.set("endpoint", "blogImage");
                 form.set("fileIndex", "0");
                 const uploadRes = await fetch("/api/upload/image", {
                   method: "POST",

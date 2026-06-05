@@ -11,7 +11,9 @@ describe("upload UX follow-ups", () => {
     const rules = await import("../src/lib/uploadRules.ts");
 
     assert.equal(rules.UPLOAD_MAX_SIZES.bannerImage, 15 * 1024 * 1024);
+    assert.equal(rules.UPLOAD_MAX_SIZES.blogImage, 8 * 1024 * 1024);
     assert.equal(rules.uploadMaxSizeMb("bannerImage"), "15");
+    assert.equal(rules.uploadMaxSizeMb("blogImage"), "8");
     assert.match(
       rules.uploadTooLargeMessage("bannerImage", 12.4 * 1024 * 1024),
       /Shop banner must be under 15 MB\. Your file is 12\.4 MB/,
@@ -27,6 +29,10 @@ describe("upload UX follow-ups", () => {
     assert.match(
       rules.uploadTypeMessage("messageAny", "video/mp4"),
       /Only JPEG, PNG, WebP, and PDF are allowed\. You uploaded video\/mp4\./,
+    );
+    assert.match(
+      rules.uploadTooLargeMessage("blogImage", 9 * 1024 * 1024),
+      /Blog image must be under 8 MB/,
     );
     assert.throws(
       () => rules.validateUploadFile("messageAny", { size: 1024, type: "video/mp4" }, 0),
@@ -58,9 +64,25 @@ describe("upload UX follow-ups", () => {
     assert.match(imageRoute, /uploadTypeMessage/);
     assert.match(imageRoute, /uploadTooManyFilesMessage/);
     assert.match(imageRoute, /uploadKeyUserSegment\(userId\)/);
+    assert.match(imageRoute, /BLOG_AUTHOR_ENDPOINTS/);
+    assert.match(imageRoute, /me\.role === "EMPLOYEE" \|\| me\.role === "ADMIN"/);
     assert.doesNotMatch(imageRoute, /File too large/);
     assert.doesNotMatch(imageRoute, /File type not allowed/);
     assert.doesNotMatch(source("src/components/MarkdownToolbar.tsx"), /max 4MB/);
+  });
+
+  it("keeps blog image uploads distinct from seller-only gallery uploads", () => {
+    const blogForm = source("src/components/BlogPostForm.tsx");
+    const markdownToolbar = source("src/components/MarkdownToolbar.tsx");
+    const blogInput = source("src/lib/blogInput.ts");
+    const deletion = source("src/lib/urlValidation.ts");
+
+    assert.match(blogForm, /endpoint="blogImage"/);
+    assert.doesNotMatch(blogForm, /endpoint="galleryImage"/);
+    assert.match(markdownToolbar, /validateUploadFile\("blogImage", file, 0\)/);
+    assert.match(markdownToolbar, /form\.set\("endpoint", "blogImage"\)/);
+    assert.match(blogInput, /\["galleryImage", "blogImage"\]/);
+    assert.match(deletion, /"blogImage"/);
   });
 
   it("keeps direct upload verification cleanup observable", () => {
