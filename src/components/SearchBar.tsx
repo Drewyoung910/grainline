@@ -13,7 +13,6 @@ type SearchOption =
   | { kind: "suggestion"; key: string; section: "Suggestions"; label: string }
   | { kind: "blog"; key: string; section: "Stories"; slug: string; label: string };
 const MAX_SEARCH_QUERY_LENGTH = 200;
-const SEARCH_LISTBOX_ID = "site-search-listbox";
 const FALLBACK_POPULAR_SEARCHES = ["furniture", "kitchen", "decor", "gifts", "woodworking"];
 
 function normalizeSearchQuery(query: string): string {
@@ -43,6 +42,8 @@ function humanizeTag(raw: string): string {
 export default function SearchBar({ variant = "default" }: { variant?: "default" | "glass" }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const reactId = React.useId();
+  const searchListboxId = `${reactId}-site-search-listbox`;
 
   const [value, setValue] = React.useState(searchParams.get("q") ?? "");
   const [suggestions, setSuggestions] = React.useState<string[]>([]);
@@ -118,6 +119,7 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
       suggestionsAbortRef.current = controller;
       try {
         const res = await fetch(`/api/search/suggestions?q=${encodeURIComponent(q)}`, {
+          cache: "no-store",
           signal: controller.signal,
         });
         const data: SuggestionsResponse = await res.json();
@@ -266,7 +268,7 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
   }
 
   const activeOptionId = activeIndex >= 0 && options[activeIndex]
-    ? `${SEARCH_LISTBOX_ID}-${activeIndex}`
+    ? `${searchListboxId}-${activeIndex}`
     : undefined;
 
   return (
@@ -292,7 +294,7 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
             role="combobox"
             aria-autocomplete="list"
             aria-expanded={open && options.length > 0}
-            aria-controls={SEARCH_LISTBOX_ID}
+            aria-controls={searchListboxId}
             aria-activedescendant={activeOptionId}
           />
           <button
@@ -308,7 +310,7 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
 
       {options.length > 0 && (
         <ul
-          id={SEARCH_LISTBOX_ID}
+          id={searchListboxId}
           role="listbox"
           className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-neutral-200 bg-white text-neutral-900 shadow-lg"
         >
@@ -325,7 +327,7 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
                 </li>
               )}
               <li
-                id={`${SEARCH_LISTBOX_ID}-${index}`}
+                id={`${searchListboxId}-${index}`}
                 role="option"
                 aria-selected={activeIndex === index}
               >

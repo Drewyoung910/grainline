@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
       }),
       select: { title: true },
       take: 4,
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     }),
 
     // Seller name matches
@@ -72,13 +72,14 @@ export async function GET(req: NextRequest) {
       }),
       select: { displayName: true },
       take: 2,
+      orderBy: [{ displayNameNormalized: "asc" }, { id: "asc" }],
     }),
 
     // Fuzzy title suggestions via pg_trgm. Keep threshold conservative to avoid
     // surfacing weak visual/homograph matches as marketplace suggestions.
     blockedSellerIds.length > 0
       ? prisma.$queryRaw<Array<{ title: string; sim: number }>>`
-          SELECT DISTINCT l.title, similarity(l.title, ${q}) as sim
+          SELECT l.title, similarity(l.title, ${q}) as sim, MAX(l."createdAt") as latest_created_at, MAX(l.id) as latest_id
           FROM "Listing" l
           INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
           INNER JOIN "User" u ON u.id = sp."userId"
@@ -91,10 +92,12 @@ export async function GET(req: NextRequest) {
             AND similarity(l.title, ${q}) > ${LISTING_FUZZY_SUGGESTION_MIN_SIMILARITY}
             AND l.title NOT ILIKE ${`%${q}%`}
             AND l."sellerId" != ALL(${blockedSellerIds})
-          ORDER BY sim DESC LIMIT 2
+          GROUP BY l.title
+          ORDER BY sim DESC, latest_created_at DESC, latest_id DESC
+          LIMIT 2
         `
       : prisma.$queryRaw<Array<{ title: string; sim: number }>>`
-          SELECT DISTINCT l.title, similarity(l.title, ${q}) as sim
+          SELECT l.title, similarity(l.title, ${q}) as sim, MAX(l."createdAt") as latest_created_at, MAX(l.id) as latest_id
           FROM "Listing" l
           INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
           INNER JOIN "User" u ON u.id = sp."userId"
@@ -106,7 +109,9 @@ export async function GET(req: NextRequest) {
             AND u."deletedAt" IS NULL
             AND similarity(l.title, ${q}) > ${LISTING_FUZZY_SUGGESTION_MIN_SIMILARITY}
             AND l.title NOT ILIKE ${`%${q}%`}
-          ORDER BY sim DESC LIMIT 2
+          GROUP BY l.title
+          ORDER BY sim DESC, latest_created_at DESC, latest_id DESC
+          LIMIT 2
         `,
   ]);
 
@@ -143,7 +148,7 @@ export async function GET(req: NextRequest) {
           )
           AND (bp."sellerProfileId" IS NULL OR bp."sellerProfileId" != ALL(${blockedSellerIds}))
           AND similarity(bp.title, ${q}) > ${BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY}
-        ORDER BY similarity(bp.title, ${q}) DESC
+        ORDER BY similarity(bp.title, ${q}) DESC, bp."publishedAt" DESC, bp.id DESC
         LIMIT 3
       `
     : await prisma.$queryRaw<Array<{ slug: string; title: string }>>`
@@ -168,7 +173,7 @@ export async function GET(req: NextRequest) {
             )
           )
           AND similarity(bp.title, ${q}) > ${BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY}
-        ORDER BY similarity(bp.title, ${q}) DESC
+        ORDER BY similarity(bp.title, ${q}) DESC, bp."publishedAt" DESC, bp.id DESC
         LIMIT 3
       `;
 

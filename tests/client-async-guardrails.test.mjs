@@ -12,9 +12,51 @@ describe("client async guardrails", () => {
 
     assert.match(searchBar, /suggestionsAbortRef/);
     assert.match(searchBar, /suggestionsRequestRef/);
+    assert.match(searchBar, /cache: "no-store",\s*signal: controller\.signal/);
     assert.match(searchBar, /signal: controller\.signal/);
     assert.match(searchBar, /requestId !== suggestionsRequestRef\.current/);
     assert.match(searchBar, /suggestionsAbortRef\.current\?\.abort\(\)/);
+  });
+
+  it("keeps responsive search combobox ids instance-scoped", () => {
+    const searchBar = source("src/components/SearchBar.tsx");
+
+    assert.match(searchBar, /const reactId = React\.useId\(\)/);
+    assert.match(searchBar, /const searchListboxId = `\$\{reactId\}-site-search-listbox`/);
+    assert.match(searchBar, /aria-controls=\{searchListboxId\}/);
+    assert.match(searchBar, /id=\{searchListboxId\}/);
+    assert.match(searchBar, /id=\{`\$\{searchListboxId\}-\$\{index\}`\}/);
+    assert.doesNotMatch(searchBar, /const SEARCH_LISTBOX_ID/);
+  });
+
+  it("keeps blog search suggestions on latest-request-wins semantics", () => {
+    const blogSearchBar = source("src/components/BlogSearchBar.tsx");
+
+    assert.match(blogSearchBar, /MAX_BLOG_SEARCH_QUERY_LENGTH = 200/);
+    assert.match(blogSearchBar, /suggestionsAbortRef/);
+    assert.match(blogSearchBar, /suggestionsRequestRef/);
+    assert.match(blogSearchBar, /fetch\(`\/api\/blog\/search\/suggestions\?bq=\$\{encodeURIComponent\(q\)\}`, \{\s*cache: "no-store",\s*signal: controller\.signal,\s*\}\)/);
+    assert.match(blogSearchBar, /requestId !== suggestionsRequestRef\.current/);
+    assert.match(blogSearchBar, /suggestionsAbortRef\.current\?\.abort\(\)/);
+    assert.match(blogSearchBar, /maxLength=\{MAX_BLOG_SEARCH_QUERY_LENGTH\}/);
+  });
+
+  it("keeps blog search suggestions keyboard-accessible with instance-scoped ids", () => {
+    const blogSearchBar = source("src/components/BlogSearchBar.tsx");
+
+    assert.match(blogSearchBar, /const reactId = React\.useId\(\)/);
+    assert.match(blogSearchBar, /const blogSearchListboxId = `\$\{reactId\}-blog-search-listbox`/);
+    assert.match(blogSearchBar, /role="combobox"/);
+    assert.match(blogSearchBar, /aria-controls=\{blogSearchListboxId\}/);
+    assert.match(blogSearchBar, /aria-activedescendant=\{activeOptionId\}/);
+    assert.match(blogSearchBar, /id=\{blogSearchListboxId\}/);
+    assert.match(blogSearchBar, /role="listbox"/);
+    assert.match(blogSearchBar, /role="option"/);
+    assert.match(blogSearchBar, /id=\{`\$\{blogSearchListboxId\}-\$\{index\}`\}/);
+    assert.match(blogSearchBar, /e\.key === "ArrowDown"/);
+    assert.match(blogSearchBar, /e\.key === "ArrowUp"/);
+    assert.match(blogSearchBar, /e\.key === "Enter"/);
+    assert.match(blogSearchBar, /chooseOption\(activeOption\)/);
   });
 
   it("aborts recently viewed and saved-address loads on cleanup", () => {

@@ -56,7 +56,6 @@ export default async function BlogIndexPage({
   const sort = sp.sort ?? (q ? "relevant" : "newest");
   const page = parseBoundedPositiveIntParam(sp.page, 1, 1000);
   const pageSize = 12;
-  const skip = (page - 1) * pageSize;
 
   const typeValid = typeFilter && (Object.values(BlogPostType) as string[]).includes(typeFilter);
 
@@ -161,7 +160,10 @@ export default async function BlogIndexPage({
       const byId = new Map(fetched.map((p) => [p.id, p as PostSelect]));
       const ordered = rankedIds.map((id) => byId.get(id)).filter((p): p is PostSelect => !!p);
       total = ordered.length;
-      allPosts = ordered.slice(skip, skip + pageSize);
+      const relevantTotalPages = Math.max(1, Math.ceil(total / pageSize));
+      const relevantPage = Math.min(Math.max(page, 1), relevantTotalPages);
+      const relevantSkip = (relevantPage - 1) * pageSize;
+      allPosts = ordered.slice(relevantSkip, relevantSkip + pageSize);
     }
   } else {
     // Standard sort
@@ -177,16 +179,24 @@ export default async function BlogIndexPage({
           }
         : {}),
     });
-    const orderBy = sort === "alpha" ? { title: "asc" as const } : { publishedAt: "desc" as const };
-    [allPosts, total] = await Promise.all([
-      prisma.blogPost.findMany({ where, orderBy, skip, take: pageSize, select: POST_SELECT }) as Promise<PostSelect[]>,
-      prisma.blogPost.count({ where }),
-    ]);
+    const orderBy: Prisma.BlogPostOrderByWithRelationInput[] =
+      sort === "alpha" ? [{ title: "asc" }, { publishedAt: "desc" }, { id: "desc" }] : [{ publishedAt: "desc" }, { id: "desc" }];
+    total = await prisma.blogPost.count({ where });
+    const standardTotalPages = Math.max(1, Math.ceil(total / pageSize));
+    const standardPage = Math.min(Math.max(page, 1), standardTotalPages);
+    allPosts = await prisma.blogPost.findMany({
+      where,
+      orderBy,
+      skip: (standardPage - 1) * pageSize,
+      take: pageSize,
+      select: POST_SELECT,
+    }) as PostSelect[];
   }
 
-  const featured = !q && page === 1 && tagsFilter.length === 0 ? allPosts[0] ?? null : null;
+  const totalPages = Math.ceil(total / pageSize);
+  const clampedPage = Math.min(Math.max(page, 1), Math.max(1, totalPages));
+  const featured = !q && clampedPage === 1 && tagsFilter.length === 0 ? allPosts[0] ?? null : null;
   const rest = featured ? allPosts.slice(1) : allPosts;
-  const totalPages = q ? Math.ceil(total / pageSize) : Math.ceil(total / pageSize);
 
   // Tag cloud — only when no active search
   let tagCloud: Array<{ tag: string; count: number }> = [];
@@ -522,20 +532,20 @@ export default async function BlogIndexPage({
           {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex justify-center gap-2 mb-12">
-              {page > 1 && (
+              {clampedPage > 1 && (
                 <Link
-                  href={buildHref({ page: String(page - 1) })}
+                  href={buildHref({ page: String(clampedPage - 1) })}
                   className="rounded-lg border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50"
                 >
                   ← Previous
                 </Link>
               )}
               <span className="rounded-lg border border-neutral-200 px-4 py-2 text-sm bg-neutral-50 text-neutral-500">
-                Page {page} of {totalPages}
+                Page {clampedPage} of {totalPages}
               </span>
-              {page < totalPages && (
+              {clampedPage < totalPages && (
                 <Link
-                  href={buildHref({ page: String(page + 1) })}
+                  href={buildHref({ page: String(clampedPage + 1) })}
                   className="rounded-lg border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50"
                 >
                   Next →

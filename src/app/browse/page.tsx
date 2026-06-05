@@ -375,12 +375,12 @@ export default async function BrowsePage({
   }
 
   // ORDER BY
-  const orderBy =
-    sort === "price_asc" ? { priceCents: "asc" as const }
-    : sort === "price_desc" ? { priceCents: "desc" as const }
-    : sort === "popular" ? { favorites: { _count: "desc" as const } }
-    : sort === "relevant" ? { qualityScore: "desc" as const }
-    : { createdAt: "desc" as const };
+  const orderBy: Prisma.ListingOrderByWithRelationInput[] =
+    sort === "price_asc" ? [{ priceCents: "asc" }, { createdAt: "desc" }, { id: "desc" }]
+    : sort === "price_desc" ? [{ priceCents: "desc" }, { createdAt: "desc" }, { id: "desc" }]
+    : sort === "popular" ? [{ favorites: { _count: "desc" } }, { createdAt: "desc" }, { id: "desc" }]
+    : sort === "relevant" ? [{ qualityScore: "desc" }, { createdAt: "desc" }, { id: "desc" }]
+    : [{ createdAt: "desc" }, { id: "desc" }];
 
   // Fetch listings
   let listings: ListingWithIncludes[];
@@ -391,14 +391,16 @@ export default async function BrowsePage({
     const all = await fetchListings(where, [{ qualityScore: "desc" }, { createdAt: "desc" }, { id: "desc" }], 200, 0, true);
     const scored = scoreListings(all, q);
     total = scored.length;
+    const relevantTotalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    const relevantPage = Math.min(Math.max(pageNum, 1), relevantTotalPages);
     listings = scored
-      .slice((pageNum - 1) * PAGE_SIZE, pageNum * PAGE_SIZE)
+      .slice((relevantPage - 1) * PAGE_SIZE, relevantPage * PAGE_SIZE)
       .map((s) => s.listing);
   } else {
-    [listings, total] = await Promise.all([
-      fetchListings(where, orderBy, PAGE_SIZE, (pageNum - 1) * PAGE_SIZE, false),
-      prisma.listing.count({ where }),
-    ]);
+    total = await prisma.listing.count({ where });
+    const standardTotalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    const standardPage = Math.min(Math.max(pageNum, 1), standardTotalPages);
+    listings = await fetchListings(where, orderBy, PAGE_SIZE, (standardPage - 1) * PAGE_SIZE, false);
   }
 
   const visiblePopularTags = popularTags.slice(0, 12);
@@ -465,7 +467,7 @@ export default async function BrowsePage({
   if (total === 0) {
     const featured = await prisma.listing.findMany({
       where: publicListingWhere(),
-      orderBy: { favorites: { _count: "desc" } },
+      orderBy: [{ favorites: { _count: "desc" } }, { createdAt: "desc" }, { id: "desc" }],
       take: 4,
       select: {
         id: true,

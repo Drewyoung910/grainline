@@ -5,7 +5,7 @@ import { cache } from "react";
 import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import { Category } from "@prisma/client";
+import { Category, Prisma } from "@prisma/client";
 import ClickTracker from "@/components/ClickTracker";
 import ListingCard from "@/components/ListingCard";
 import GuildBadge from "@/components/GuildBadge";
@@ -190,44 +190,37 @@ export default async function SellerShopPage({
     : publicListingWhere({ sellerId, ...categoryFilter });
 
   // Build orderBy
-  type OrderBy =
-    | { createdAt: "desc" }
-    | { priceCents: "asc" }
-    | { priceCents: "desc" }
-    | { favorites: { _count: "desc" } };
+  const orderBy: Prisma.ListingOrderByWithRelationInput[] =
+    sort === "price_asc" ? [{ priceCents: "asc" }, { createdAt: "desc" }, { id: "desc" }]
+    : sort === "price_desc" ? [{ priceCents: "desc" }, { createdAt: "desc" }, { id: "desc" }]
+    : sort === "popular" ? [{ favorites: { _count: "desc" } }, { createdAt: "desc" }, { id: "desc" }]
+    : [{ createdAt: "desc" }, { id: "desc" }];
 
-  const orderBy: OrderBy =
-    sort === "price_asc" ? { priceCents: "asc" }
-    : sort === "price_desc" ? { priceCents: "desc" }
-    : sort === "popular" ? { favorites: { _count: "desc" } }
-    : { createdAt: "desc" };
-
-  const [listings, total] = await Promise.all([
-    prisma.listing.findMany({
-      where,
-      orderBy,
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-      select: {
-        id: true,
-        title: true,
-        priceCents: true,
-        currency: true,
-        status: true,
-        isPrivate: true,
-        listingType: true,
-        stockQuantity: true,
-        photos: {
-          orderBy: { sortOrder: "asc" },
-          take: 1,
-          select: { url: true, altText: true },
-        },
-      },
-    }),
-    prisma.listing.count({ where }),
-  ]);
-
+  const total = await prisma.listing.count({ where });
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const clampedPage = Math.min(Math.max(page, 1), totalPages);
+
+  const listings = await prisma.listing.findMany({
+    where,
+    orderBy,
+    skip: (clampedPage - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
+    select: {
+      id: true,
+      title: true,
+      priceCents: true,
+      currency: true,
+      status: true,
+      isPrivate: true,
+      listingType: true,
+      stockQuantity: true,
+      photos: {
+        orderBy: { sortOrder: "asc" },
+        take: 1,
+        select: { url: true, altText: true },
+      },
+    },
+  });
 
   // Favorites for current viewer
   const savedSet = new Set<string>();
@@ -475,9 +468,9 @@ export default async function SellerShopPage({
       {/* ── Pagination ──────────────────────────────────────────────── */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between mt-8 text-sm">
-          {page > 1 ? (
+          {clampedPage > 1 ? (
             <Link
-              href={shopUrl({ page: page - 1 })}
+              href={shopUrl({ page: clampedPage - 1 })}
               className="rounded border border-neutral-300 px-4 py-2 hover:bg-neutral-50"
             >
               ← Prev
@@ -486,11 +479,11 @@ export default async function SellerShopPage({
             <span />
           )}
           <span className="text-neutral-500">
-            Page {page} of {totalPages}
+            Page {clampedPage} of {totalPages}
           </span>
-          {page < totalPages ? (
+          {clampedPage < totalPages ? (
             <Link
-              href={shopUrl({ page: page + 1 })}
+              href={shopUrl({ page: clampedPage + 1 })}
               className="rounded border border-neutral-300 px-4 py-2 hover:bg-neutral-50"
             >
               Next →

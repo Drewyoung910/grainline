@@ -4573,8 +4573,53 @@ Last updated: 2026-06-02
      `tests/account-privacy-observability.test.mjs`, and
      `tests/user-email-address-history.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 481 findings;
-verified stale/false-positive: 416 findings; product/design/ops decisions
+380. **Public discovery determinism, search cache, and autocomplete a11y
+     tightened** - parent/agent-reviewed pass over the residual public
+     deterministic pagination/searchbar category plus adjacent public discovery
+     surfaces. The main `SearchBar` no longer hardcodes the global
+     `site-search-listbox`/option IDs, so the desktop header, mobile drawer,
+     and homepage hero instances use instance-scoped `React.useId()` listbox
+     IDs. Its personalized `/api/search/suggestions` client fetch now uses
+     `cache: "no-store"` in addition to the existing abort/request-token
+     latest-wins behavior.
+
+     `BlogSearchBar` now matches the main search contract: bounded 200-character
+     input, abort/request-token latest-wins suggestion loads, no-store
+     suggestion fetches, per-instance listbox/option IDs, combobox/listbox/option
+     semantics, and ArrowUp/ArrowDown/Home/End/Enter/Escape keyboard behavior.
+     This fixed the live stale-suggestion race and the mouse-only suggestion
+     dropdown gap; the older raw claim that the main `SearchBar` lacked
+     latest-response protection was re-verified stale on current `main`.
+
+     Public capped query ordering now has stable tie-breakers across the
+     verified surfaces: browse and seller-shop price/popular/newest sorts,
+     browse no-results featured listings, global search exact/seller/fuzzy/blog
+     suggestions, blog search suggestions, the blog index, `/api/blog/search`,
+     and `/api/blog`. Out-of-range public pages are clamped before fetching or
+     slicing rows and before rendering/returning pagination metadata for
+     browse, seller shop, blog index, `/api/blog/search`, and `/api/blog`, so a
+     high `?page=` value no longer produces an empty-but-counted page state.
+
+     The ops agent rechecked Stripe webhook subscription narrowing, Connect v2
+     loss-liability, refund runtime proof, Sentry cron alerting, R2 ListBucket,
+     and Clerk dashboard evidence; those remain deferred ops/runtime/legal
+     evidence items with no tally movement in this code pass. A separate
+     privacy/legal agent was still running during this pass, so its unrelated
+     scope was not used for closure here.
+
+     `CLAUDE.md` now records the public discovery determinism and search
+     combobox contracts. Guardrails:
+     `tests/client-async-guardrails.test.mjs`,
+     `tests/public-query-determinism.test.mjs`,
+     `tests/blog-index-param-guardrails.test.mjs`,
+     `tests/public-cron-search-hardening.test.mjs`,
+     `tests/query-param-state.test.mjs`,
+     `tests/homepage-determinism.test.mjs`,
+     `tests/public-visibility-followups.test.mjs`, and
+     `tests/seller-page-performance.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 489 findings;
+verified stale/false-positive: 417 findings; product/design/ops decisions
 deferred: 73 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
 export/deletion residue. Entry 361 removes the remaining Resend webhook
@@ -4637,6 +4682,13 @@ classifications for already-cached seller profile loaders (#1109/#1110). Only
 two approximate raw-category decrements are counted because the fixed issues
 were mostly adjacent hidden drift inside already-open privacy/refund/private
 response categories.
+Entry 380 adds eight fixed/reduced current-code issues across public
+search/listing/blog/seller discovery determinism, out-of-range public page
+clamping, search suggestion cache behavior, and blog-search accessibility. It
+also adds one stale/false-positive classification for the already-fixed main
+`SearchBar` latest-response race allegation (#908). Five approximate
+raw-category decrements are counted because several fixed query/page behaviors
+were adjacent hidden issues inside the same residual public-discovery category.
 Remaining major categories: Stripe webhook subscription
 narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -4653,8 +4705,7 @@ MFA and breached-password dashboard evidence, Clerk multi-account spam dashboard
 evidence, buyer-deletion runtime replay proof,
 Founding Maker live DB concurrency proof, Sentry cron alert evidence,
 Cloudflare R2 ListBucket/public-bucket dashboard evidence, HSTS preload
-submission decision, residual HTTP-status constants, residual public
-deterministic pagination/searchbar ID issues, analytics observability
+submission decision, residual HTTP-status constants, analytics observability
 refactors, remaining homepage runtime a11y proof, and agent/worktree
 verification process hygiene. Approximate raw allegations left to verify from
-current max #1120: 203.
+current max #1120: 198.

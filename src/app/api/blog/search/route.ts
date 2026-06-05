@@ -48,7 +48,6 @@ export async function GET(req: NextRequest) {
   const sort = url.searchParams.get("sort") ?? (q ? "relevant" : "newest");
   const page = parseBoundedPositiveIntParam(url.searchParams.get("page"), 1, 1000);
   const limit = parseBoundedPositiveIntParam(url.searchParams.get("limit"), 12, 50);
-  const skip = (page - 1) * limit;
 
   const typeValid = type && (Object.values(BlogPostType) as string[]).includes(type);
   if (q && sort === "relevant") {
@@ -119,9 +118,12 @@ export async function GET(req: NextRequest) {
     const byId = new Map(allPosts.map((p) => [p.id, p as PostRow]));
     const ordered = rankedIds.map((id) => byId.get(id)).filter((p): p is PostRow => !!p);
     const total = ordered.length;
+    const totalPages = Math.ceil(total / limit);
+    const clampedPage = Math.min(Math.max(page, 1), Math.max(1, totalPages));
+    const skip = (clampedPage - 1) * limit;
     const posts = ordered.slice(skip, skip + limit);
 
-    return NextResponse.json({ posts, total, page, totalPages: Math.ceil(total / limit), relatedTags: [] });
+    return NextResponse.json({ posts, total, page: clampedPage, totalPages, relatedTags: [] });
   }
 
   // Standard Prisma query (newest or alpha sort)
@@ -141,12 +143,14 @@ export async function GET(req: NextRequest) {
     ...(tags.length > 0 ? { tags: { hasSome: tags } } : {}),
   });
 
-  const orderBy = sort === "alpha" ? { title: "asc" as const } : { publishedAt: "desc" as const };
+  const orderBy: Prisma.BlogPostOrderByWithRelationInput[] =
+    sort === "alpha" ? [{ title: "asc" }, { publishedAt: "desc" }, { id: "desc" }] : [{ publishedAt: "desc" }, { id: "desc" }];
 
-  const [posts, total] = await Promise.all([
-    prisma.blogPost.findMany({ where, orderBy, skip, take: limit, select: POST_SELECT }),
-    prisma.blogPost.count({ where }),
-  ]);
+  const total = await prisma.blogPost.count({ where });
+  const totalPages = Math.ceil(total / limit);
+  const clampedPage = Math.min(Math.max(page, 1), Math.max(1, totalPages));
+  const skip = (clampedPage - 1) * limit;
+  const posts = await prisma.blogPost.findMany({ where, orderBy, skip, take: limit, select: POST_SELECT });
 
-  return NextResponse.json({ posts, total, page, totalPages: Math.ceil(total / limit), relatedTags: [] });
+  return NextResponse.json({ posts, total, page: clampedPage, totalPages, relatedTags: [] });
 }

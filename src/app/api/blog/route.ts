@@ -18,36 +18,38 @@ export async function GET(req: NextRequest) {
   const tag = truncateText(searchParams.get("tag")?.trim() ?? "", 64);
   const page = parseBoundedPositiveIntParam(searchParams.get("page"), 1, 1000);
   const pageSize = 12;
+  const orderBy: Prisma.BlogPostOrderByWithRelationInput[] = [{ publishedAt: "desc" }, { id: "desc" }];
 
   const where: Prisma.BlogPostWhereInput = publicBlogPostWhere({
     ...(type && Object.keys(BlogPostType).includes(type) ? { type: type as BlogPostType } : {}),
     ...(tag ? { tags: { has: tag } } : {}),
   });
 
-  const [posts, total] = await Promise.all([
-    prisma.blogPost.findMany({
-      where,
-      orderBy: { publishedAt: "desc" },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-      select: {
-        id: true,
-        slug: true,
-        title: true,
-        excerpt: true,
-        coverImageUrl: true,
-        type: true,
-        tags: true,
-        readingTimeMinutes: true,
-        publishedAt: true,
-        authorType: true,
-        author: { select: { id: true, name: true, imageUrl: true } },
-        sellerProfile: { select: { id: true, displayName: true, avatarImageUrl: true } },
-        _count: { select: { comments: { where: { approved: true } } } },
-      },
-    }),
-    prisma.blogPost.count({ where }),
-  ]);
+  const total = await prisma.blogPost.count({ where });
+  const totalPages = Math.ceil(total / pageSize);
+  const clampedPage = Math.min(Math.max(page, 1), Math.max(1, totalPages));
 
-  return NextResponse.json({ posts, total, page, pageSize });
+  const posts = await prisma.blogPost.findMany({
+    where,
+    orderBy,
+    skip: (clampedPage - 1) * pageSize,
+    take: pageSize,
+    select: {
+      id: true,
+      slug: true,
+      title: true,
+      excerpt: true,
+      coverImageUrl: true,
+      type: true,
+      tags: true,
+      readingTimeMinutes: true,
+      publishedAt: true,
+      authorType: true,
+      author: { select: { id: true, name: true, imageUrl: true } },
+      sellerProfile: { select: { id: true, displayName: true, avatarImageUrl: true } },
+      _count: { select: { comments: { where: { approved: true } } } },
+    },
+  });
+
+  return NextResponse.json({ posts, total, page: clampedPage, pageSize });
 }

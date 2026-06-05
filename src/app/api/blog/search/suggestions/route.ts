@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
           )
         )
         AND similarity(bp.title, ${q}) > ${BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY}
-      ORDER BY similarity(bp.title, ${q}) DESC
+      ORDER BY similarity(bp.title, ${q}) DESC, bp."publishedAt" DESC, bp.id DESC
       LIMIT 5
     `,
 
@@ -77,6 +77,7 @@ export async function GET(req: NextRequest) {
           )
         )
         AND tag ILIKE ${`%${q}%`}
+      ORDER BY tag ASC
       LIMIT 5
     `,
 
@@ -92,6 +93,7 @@ export async function GET(req: NextRequest) {
       }),
       select: { id: true, displayName: true },
       take: 3,
+      orderBy: [{ displayNameNormalized: "asc" }, { id: "asc" }],
     }),
   ]);
 
