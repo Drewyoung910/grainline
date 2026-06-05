@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { shippingRateExpiresAtIsTooFarFuture, verifyRate } from "@/lib/shipping-token";
-import { safeRateLimit, checkoutRatelimit } from "@/lib/ratelimit";
+import { checkoutRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { calculateCheckoutAmounts } from "@/lib/checkoutAmounts";
 import { resolveListingVariantSelection, type SelectedVariantSnapshot } from "@/lib/listingVariants";
@@ -39,7 +39,7 @@ import { sanitizeText, truncateText } from "@/lib/sanitize";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 import { APP_BASE_URL } from "@/lib/appBaseUrl";
-import { privateJson } from "@/lib/privateResponse";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { logServerError } from "@/lib/serverErrorLogger";
 
 const CheckoutSellerSchema = z.object({
@@ -84,13 +84,8 @@ export async function POST(req: Request) {
     const { userId } = await auth();
     if (!userId) return privateJson({ error: "Sign in required" }, { status: 401 });
 
-    const rl = await safeRateLimit(checkoutRatelimit, userId);
-    if (!rl.success) {
-      return privateJson(
-        { error: "Too many requests. Please try again in a moment." },
-        { status: 429 }
-      );
-    }
+    const { success, reset } = await safeRateLimit(checkoutRatelimit, userId);
+    if (!success) return privateResponse(rateLimitResponse(reset, "Too many checkout attempts."));
 
     const me = await ensureUserByClerkId(userId);
 

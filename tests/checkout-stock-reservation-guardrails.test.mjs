@@ -76,4 +76,25 @@ describe("durable checkout stock reservation guardrails", () => {
     assert.match(restore, /reason = "stale_stripe_session_unpaid"/);
     assert.match(restore, /where: \{ stripeSessionId: reservation\.stripeSessionId \}/);
   });
+
+  it("backs off unrecoverable stale reservation rows so newer repairs are not starved", () => {
+    const restore = source("src/lib/checkoutStockRestore.ts");
+    const deferStart = restore.indexOf("async function deferCheckoutStockReservationRepair");
+    const deferBlock = restore.slice(deferStart, restore.indexOf("export async function restoreStaleCheckoutStockReservations", deferStart));
+
+    assert.notEqual(deferStart, -1, "stale reservation repair must have a bounded defer helper");
+    assert.match(deferBlock, /status: \{ in: \[\.\.\.CHECKOUT_STOCK_RESERVATION_RESTORABLE_STATUSES\] \}/);
+    assert.match(deferBlock, /expiresAt: now/);
+    assert.match(deferBlock, /restoreReason: reason/);
+    assert.match(deferBlock, /source: "checkout_stock_reservation_repair_defer"/);
+    for (const reason of [
+      "session_retrieve_failed",
+      "paid_missing_local_order",
+      "unrecognized_session_state",
+      "session_expire_failed",
+      "stale_restore_failed",
+    ]) {
+      assert.match(restore, new RegExp(`deferCheckoutStockReservationRepair\\(reservation\\.id, "${reason}", now\\)`));
+    }
+  });
 });

@@ -29,6 +29,7 @@ import {
 } from "@/lib/requestBody";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 import { Prisma, type FulfillmentStatus, type LabelStatus } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
@@ -406,7 +407,7 @@ export async function POST(
             error:
               "No current shipping label rates are available for this order.",
           },
-          { status: 502 },
+          { status: HTTP_STATUS.BAD_GATEWAY },
         );
       }
 
@@ -430,7 +431,7 @@ export async function POST(
 
       return privateJson(
         { requiresRateSelection: true, shipmentId, rates: prioritized },
-        { status: 202 },
+        { status: HTTP_STATUS.ACCEPTED },
       );
     }
 
@@ -513,7 +514,7 @@ export async function POST(
         const msgs = (txn.messages || []).map((m) => m.text).join("; ");
         return privateJson(
           { error: `Shippo label purchase failed: ${msgs || txn.status}` },
-          { status: 502 },
+          { status: HTTP_STATUS.BAD_GATEWAY },
         );
       }
       shippoPurchaseSucceeded = true;

@@ -369,6 +369,31 @@ export async function restoreCheckoutStockReservationOnce(input: {
   return result;
 }
 
+async function deferCheckoutStockReservationRepair(
+  reservationId: string,
+  reason: string,
+  now: Date,
+) {
+  try {
+    await prisma.checkoutStockReservation.updateMany({
+      where: {
+        id: reservationId,
+        status: { in: [...CHECKOUT_STOCK_RESERVATION_RESTORABLE_STATUSES] },
+      },
+      data: {
+        expiresAt: now,
+        restoreReason: reason,
+      },
+    });
+  } catch (error) {
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "checkout_stock_reservation_repair_defer" },
+      extra: { reservationId, reason },
+    });
+  }
+}
+
 export async function restoreStaleCheckoutStockReservations(input: {
   now?: Date;
   take?: number;
@@ -424,6 +449,7 @@ export async function restoreStaleCheckoutStockReservations(input: {
             tags: { source: "checkout_stock_reservation_stale_session_retrieve" },
             extra: { reservationId: reservation.id, stripeSessionId: reservation.stripeSessionId },
           });
+          await deferCheckoutStockReservationRepair(reservation.id, "session_retrieve_failed", now);
           continue;
         }
 
@@ -440,6 +466,7 @@ export async function restoreStaleCheckoutStockReservations(input: {
               paymentStatus: session.payment_status,
             },
           });
+          await deferCheckoutStockReservationRepair(reservation.id, "paid_missing_local_order", now);
           continue;
         }
         if (action === "skip_unrecognized") {
@@ -454,6 +481,7 @@ export async function restoreStaleCheckoutStockReservations(input: {
               paymentStatus: session.payment_status,
             },
           });
+          await deferCheckoutStockReservationRepair(reservation.id, "unrecognized_session_state", now);
           continue;
         }
         if (action === "expire_and_restore") {
@@ -466,6 +494,7 @@ export async function restoreStaleCheckoutStockReservations(input: {
               tags: { source: "checkout_stock_reservation_stale_session_expire" },
               extra: { reservationId: reservation.id, stripeSessionId: reservation.stripeSessionId },
             });
+            await deferCheckoutStockReservationRepair(reservation.id, "session_expire_failed", now);
             continue;
           }
         }
@@ -485,6 +514,7 @@ export async function restoreStaleCheckoutStockReservations(input: {
         tags: { source: "checkout_stock_reservation_stale_restore" },
         extra: { reservationId: reservation.id },
       });
+      await deferCheckoutStockReservationRepair(reservation.id, "stale_restore_failed", now);
     }
   }
 

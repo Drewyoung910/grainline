@@ -19,6 +19,7 @@ import {
   readBoundedJson,
 } from "@/lib/requestBody";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 const RollbackSchema = z.object({
   sessionIds: z.array(z.string().min(1)).min(1).max(20),
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
   try {
     const { userId } = await auth();
     if (!userId)
-      return privateJson({ error: "Sign in required" }, { status: 401 });
+      return privateJson({ error: "Sign in required" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
     const me = await ensureUserByClerkId(userId);
     const rl = await safeRateLimit(cartMutationRatelimit, me.id);
@@ -55,41 +56,19 @@ export async function POST(req: Request) {
       if (isRequestBodyTooLargeError(error)) {
         return privateJson(
           { error: "Request body too large" },
-          { status: 413 },
+          { status: HTTP_STATUS.PAYLOAD_TOO_LARGE },
         );
       }
       if (isInvalidJsonBodyError(error)) {
-        return privateJson({ error: "Invalid JSON" }, { status: 400 });
+        return privateJson({ error: "Invalid JSON" }, { status: HTTP_STATUS.BAD_REQUEST });
       }
       if (error instanceof z.ZodError) {
         return privateJson(
           { error: "Invalid input", details: error.issues },
-          { status: 400 },
+          { status: HTTP_STATUS.BAD_REQUEST },
         );
       }
       throw error;
-    }
-
-    const sessionIds = [...new Set(parsed.sessionIds)];
-    const sessions: Array<{
-      session: Stripe.Checkout.Session;
-      metadata: Record<string, string | undefined>;
-    }> = [];
-    for (const sessionId of sessionIds) {
-      const session = await stripe.checkout.sessions.retrieve(sessionId, {
-        expand: ["line_items.data.price.product"],
-      });
-      const metadata = (session.metadata ?? {}) as Record<
-        string,
-        string | undefined
-      >;
-      if (metadata.buyerId !== me.id) {
-        return privateJson(
-          { error: "Checkout session not found" },
-          { status: 403 },
-        );
-      }
-      sessions.push({ session, metadata });
     }
 
     const results: Array<{
@@ -98,8 +77,31 @@ export async function POST(req: Request) {
       reason?: string;
     }> = [];
 
-    for (const { session, metadata } of sessions) {
-      const sessionId = session.id;
+    const sessionIds = [...new Set(parsed.sessionIds)];
+    for (const sessionId of sessionIds) {
+      let session: Stripe.Checkout.Session;
+      try {
+        session = await stripe.checkout.sessions.retrieve(sessionId, {
+          expand: ["line_items.data.price.product"],
+        });
+      } catch (error) {
+        Sentry.captureException(error, {
+          tags: { source: "cart_checkout_rollback_retrieve" },
+          extra: { stripeSessionId: sessionId },
+        });
+        results.push({ sessionId, status: "failed", reason: "retrieve_failed" });
+        continue;
+      }
+
+      const metadata = (session.metadata ?? {}) as Record<
+        string,
+        string | undefined
+      >;
+      if (metadata.buyerId !== me.id) {
+        results.push({ sessionId, status: "failed", reason: "not_found" });
+        continue;
+      }
+
       if (session.payment_status === "paid" || session.status === "complete") {
         results.push({
           sessionId,
@@ -169,7 +171,7 @@ export async function POST(req: Request) {
     });
     return privateJson(
       { error: "Server error rolling back checkout" },
-      { status: 500 },
+      { status: HTTP_STATUS.INTERNAL_SERVER_ERROR },
     );
   }
 }

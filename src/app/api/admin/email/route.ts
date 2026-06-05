@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
-import { adminEmailRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import { adminEmailRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { isEmailSuppressed, normalizeEmailAddress } from "@/lib/emailSuppression";
 import { createNotification } from "@/lib/notifications";
 import { normalizeUserText, stripBidiControls, truncateText } from "@/lib/sanitize";
@@ -18,6 +18,7 @@ import {
   readBoundedJson,
 } from "@/lib/requestBody";
 import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
+import { privateResponse } from "@/lib/privateResponse";
 
 const APP_URL = EMAIL_APP_URL;
 const ADMIN_EMAIL_BODY_MAX_BYTES = 64 * 1024;
@@ -51,7 +52,7 @@ export async function POST(request: Request) {
   }
 
   const rl = await safeRateLimit(adminEmailRatelimit, admin.id);
-  if (!rl.success) return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
+  if (!rl.success) return privateResponse(rateLimitResponse(rl.reset, "Too many admin email attempts."));
 
   let body;
   try {

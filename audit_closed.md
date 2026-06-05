@@ -22,11 +22,11 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-06-05
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 234.
-- Verified code/feature fix commits since 2026-05-13: 208.
+- Verified hardening/doc commits since 2026-05-13: 235.
+- Verified code/feature fix commits since 2026-05-13: 209.
 - Verified docs/audit-only commits since 2026-05-13: 11.
-- Most recent reported pass tally: 570 verified fixed/reduced findings,
-  441 verified stale/false-positive findings, and 74 deferred/manual findings
+- Most recent reported pass tally: 578 verified fixed/reduced findings,
+  442 verified stale/false-positive findings, and 74 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
 ## 2026-05-14 Active Tracker
@@ -4904,8 +4904,56 @@ Last updated: 2026-06-05
      `tests/account-state-residue-followups.test.mjs`, and
      `tests/round9-public-pii-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 543 findings;
-verified stale/false-positive: 431 findings; product/design/ops decisions
+389. **Checkout rollback/session repair and high-signal status drift closed** -
+     parent/agent-reviewed checkout/session-recovery and observability pass.
+     Cart checkout now mirrors buy-now's best-effort cleanup behavior with a
+     `pagehide` rollback that uses `keepalive` and never persists Stripe
+     client secrets. `/api/cart/checkout/rollback` now processes each submitted
+     session id independently: Stripe retrieve failures and foreign-session
+     metadata produce per-session `retrieve_failed` / `not_found` results with
+     bounded Sentry evidence, while later valid buyer-owned sessions can still
+     expire and restore stock. This reduces stuck-session risk without claiming
+     rollback is guaranteed; Stripe expiry webhooks and stale-reservation repair
+     remain the backstops.
+
+     Stale checkout-stock reservation repair now backs off unrecoverable stale
+     rows by updating `expiresAt` and `restoreReason` while preserving the
+     restorable status guard. Retrieve failures, paid/complete sessions missing
+     a local order, unrecognized Stripe session states, session-expire
+     failures, and restore failures are still observable, but one old bad batch
+     no longer starves newer stale reservation candidates. The repair path
+     continues to avoid blindly restoring paid/complete sessions without a
+     local order.
+
+     High-signal status/429 drift was reduced in the same slice. Seller-cart
+     checkout and admin direct-email rate limits now use `rateLimitResponse()`
+     through `privateResponse()` so callers keep structured retry metadata.
+     `refundRouteState.ts` now names shared refund conflict statuses through
+     `HTTP_STATUS`, the Shippo label route names `202`/`502` statuses through
+     `HTTP_STATUS.ACCEPTED` and `HTTP_STATUS.BAD_GATEWAY`, and the checkout
+     rollback route names its auth/body/server statuses through `HTTP_STATUS`.
+     The raw claim that Grainline had no shared HTTP status constants is now
+     stale as stated; residual ordinary route-local numeric statuses remain
+     lower-risk consistency work, not launch-blocking source defects.
+
+     Provider/dashboard evidence items were rechecked and remain manual:
+     Stripe webhook subscription proof, Clerk MFA/spam settings, Sentry alert
+     routing, R2 ListBucket/public-bucket posture, HSTS submission, Vercel
+     Analytics/Speed Insights, and provider-side privacy-request proof cannot
+     be closed from source alone. The deferred count therefore stays flat.
+
+     `CLAUDE.md` now records the buy-now/cart rollback, stale-reservation
+     backoff, high-signal `rateLimitResponse()`, and HTTP status helper
+     contracts. Guardrails: `tests/client-async-guardrails.test.mjs`,
+     `tests/public-cron-search-hardening.test.mjs`,
+     `tests/checkout-stock-reservation-guardrails.test.mjs`,
+     `tests/admin-action-guardrails.test.mjs`,
+     `tests/http-status-constants.test.mjs`,
+     `tests/refund-route-state.test.mjs`, and
+     `tests/payment-side-effect-observability.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 578 findings;
+verified stale/false-positive: 442 findings; product/design/ops decisions
 deferred: 74 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
 export/deletion residue. Entry 361 removes the remaining Resend webhook
@@ -5053,6 +5101,16 @@ decrements are counted because the email/unsubscribe, Stripe/refund/Shippo, and
 privacy-retention slices overlap remaining raw categories; newsletter-only
 self-service resubscribe, Stripe/Shippo runtime proof, and privacy/legal policy
 scope remain deferred/manual rather than source-fixed. Deferred stays flat.
+Entry 389 adds eight fixed/reduced current-code issues across cart checkout
+pagehide rollback, independent per-session rollback processing, stale
+checkout-stock repair backoff, seller-cart/admin-email structured 429
+responses, named refund conflict statuses, named Shippo label 202/502 statuses,
+and named checkout rollback statuses. It also adds one stale/false-positive
+classification for the raw "no shared HTTP status constants" subclaim. No
+approximate raw-category decrement is counted because #1120 remains a
+best-effort rollback/design limitation and the status-constant work is a
+subclaim inside an already-open observability bucket; provider/dashboard
+evidence rechecks remain deferred/manual. Deferred stays flat.
 Remaining major categories: Stripe webhook subscription dashboard evidence,
 Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine

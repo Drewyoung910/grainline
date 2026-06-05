@@ -123,6 +123,7 @@ describe("admin server action guardrails", () => {
     const route = source("src/app/api/admin/email/route.ts");
     const usersPage = source("src/app/admin/users/page.tsx");
 
+    assert.match(route, /privateResponse\(rateLimitResponse\(rl\.reset, "Too many admin email attempts\."\)\)/);
     assert.match(route, /Admin email can only be sent to an existing Grainline user/);
     assert.match(route, /where: \{ email: normalizedInputEmail \}/);
     assert.match(route, /recipientUserId = recipient\.id/);

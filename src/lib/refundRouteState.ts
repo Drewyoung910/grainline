@@ -1,3 +1,5 @@
+import { HTTP_STATUS } from "./httpStatus.ts";
+
 const REFUND_LOCK_SENTINEL = "pending";
 
 type RefundResolution = "FULL" | "PARTIAL" | "REFUND_FULL" | "REFUND_PARTIAL" | "DISMISSED";
@@ -143,27 +145,27 @@ export function refundLockAcquisitionConflictResponse(order: {
 
   if (order && orderHasRefundLedger(order)) {
     return {
-      status: 400,
+      status: HTTP_STATUS.BAD_REQUEST,
       error: "A refund has already been issued for this order.",
     };
   }
 
   if (order?.paymentEvents?.some(isBlockingDisputeLedgerEvent)) {
     return {
-      status: 409,
+      status: HTTP_STATUS.CONFLICT,
       error: "This payment has an open Stripe dispute. Resolve the dispute before issuing a seller refund.",
     };
   }
 
   if (order && orderHasPurchasedLabel(order)) {
     return {
-      status: 409,
+      status: HTTP_STATUS.CONFLICT,
       error: "Cannot refund this order after a shipping label has been purchased. Void or resolve the label first.",
     };
   }
 
   return {
-    status: 409,
+    status: HTTP_STATUS.CONFLICT,
     error: "Refund state changed while processing. Refresh and try again.",
   };
 }

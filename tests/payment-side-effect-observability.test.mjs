@@ -277,6 +277,9 @@ describe("payment and fulfillment side-effect observability", () => {
   it("keeps shipping-label orphan paths observable without full label URLs", () => {
     const route = source("src/app/api/orders/[id]/label/route.ts");
 
+    assert.match(route, /import \{ HTTP_STATUS \} from "@\/lib\/httpStatus"/);
+    assert.match(route, /status: HTTP_STATUS\.ACCEPTED/);
+    assert.match(route, /status: HTTP_STATUS\.BAD_GATEWAY/);
     assert.match(route, /source: "label_lock_revert_failed"/);
     assert.match(route, /source: "shippo_label_post_purchase_db_update"/);
     assert.match(route, /source: "shippo_label_orphan_record_failed"/);

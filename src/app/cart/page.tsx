@@ -209,6 +209,7 @@ async function rollbackCheckoutSessions(sessionIds: string[]) {
   try {
     await fetch("/api/cart/checkout/rollback", {
       method: "POST",
+      keepalive: true,
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ sessionIds: uniqueSessionIds }),
     });
@@ -241,6 +242,12 @@ function CartPage() {
   const [currentPaymentIndex, setCurrentPaymentIndex] = React.useState(0);
   const [creatingSession, setCreatingSession] = React.useState(false);
   const [rollingBackCheckout, setRollingBackCheckout] = React.useState(false);
+  const clientSecretsRef = React.useRef<ClientSecretEntry[]>([]);
+  const checkoutCompletedRef = React.useRef(false);
+
+  React.useEffect(() => {
+    clientSecretsRef.current = clientSecrets;
+  }, [clientSecrets]);
 
   // Mount-time URL restoration
   React.useEffect(() => {
@@ -284,6 +291,25 @@ function CartPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, shippingAddress, clientSecrets]);
+
+  React.useEffect(() => {
+    if (step !== "payment" || clientSecrets.length === 0) {
+      checkoutCompletedRef.current = false;
+    }
+  }, [step, clientSecrets.length]);
+
+  React.useEffect(() => {
+    function rollbackOpenCheckoutSessions() {
+      if (checkoutCompletedRef.current) return;
+      const sessionIds = clientSecretsRef.current.map((entry) => entry.sessionId);
+      if (sessionIds.length > 0) {
+        void rollbackCheckoutSessions(sessionIds);
+      }
+    }
+
+    window.addEventListener("pagehide", rollbackOpenCheckoutSessions);
+    return () => window.removeEventListener("pagehide", rollbackOpenCheckoutSessions);
+  }, []);
 
   async function load() {
     setLoading(true);
@@ -632,6 +658,7 @@ function CartPage() {
       return;
     }
     setCreatingSession(true);
+    checkoutCompletedRef.current = false;
     setError(null);
 
     const secrets: ClientSecretEntry[] = [];
@@ -976,6 +1003,7 @@ function CartPage() {
                   setCurrentPaymentIndex((prev) => prev + 1);
                 } else {
                   // All payments complete — clean up and redirect
+                  checkoutCompletedRef.current = true;
                   clearCartSessionStorage({ includeAddress: true });
                   const sessionIds = clientSecrets.map((entry) => entry.sessionId);
                   const params = new URLSearchParams({

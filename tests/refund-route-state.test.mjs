@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const {
@@ -30,7 +31,19 @@ const order = {
   taxAmountCents: 825,
 };
 
+function source(path) {
+  return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+}
+
 describe("refund route state", () => {
+  it("uses named HTTP statuses for shared refund conflict responses", () => {
+    const state = source("src/lib/refundRouteState.ts");
+
+    assert.match(state, /import \{ HTTP_STATUS \} from "\.\/httpStatus\.ts"/);
+    assert.match(state, /status: HTTP_STATUS\.BAD_REQUEST/);
+    assert.match(state, /status: HTTP_STATUS\.CONFLICT/);
+  });
+
   it("calculates full refund amounts from the order total", () => {
     assert.equal(orderRefundTotalCents(order), 11_625);
     assert.equal(refundAmountForResolution("FULL", order, null), 11_625);

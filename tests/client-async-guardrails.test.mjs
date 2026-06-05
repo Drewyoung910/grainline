@@ -131,6 +131,18 @@ describe("client async guardrails", () => {
     assert.match(modal, /if \(!completedRef\.current && currentSessionId\)/);
   });
 
+  it("rolls back cart checkout sessions on pagehide without persisting Stripe secrets", () => {
+    const cartPage = source("src/app/cart/page.tsx");
+
+    assert.match(cartPage, /keepalive: true/);
+    assert.match(cartPage, /const clientSecretsRef = React\.useRef<ClientSecretEntry\[\]>\(\[\]\)/);
+    assert.match(cartPage, /const checkoutCompletedRef = React\.useRef\(false\)/);
+    assert.match(cartPage, /window\.addEventListener\("pagehide", rollbackOpenCheckoutSessions\)/);
+    assert.match(cartPage, /void rollbackCheckoutSessions\(sessionIds\)/);
+    assert.match(cartPage, /checkoutCompletedRef\.current = true/);
+    assert.doesNotMatch(cartPage, /writeCartSessionJson\(CART_CHECKOUTS_KEY/);
+  });
+
   it("scopes action-form success events to the message composer form", () => {
     const actionForm = source("src/components/ActionForm.tsx");
     const page = source("src/app/messages/[id]/page.tsx");

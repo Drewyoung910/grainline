@@ -187,9 +187,17 @@ describe("cron and public route hardening", () => {
   it("keeps checkout rollback scoped to the signed-in buyer and idempotent stock restore", () => {
     const rollback = source("src/app/api/cart/checkout/rollback/route.ts");
 
+    assert.match(rollback, /import \{ HTTP_STATUS \} from "@\/lib\/httpStatus"/);
     assert.match(rollback, /ensureUserByClerkId\(userId\)/);
     assert.match(rollback, /safeRateLimit\(cartMutationRatelimit, me\.id\)/);
+    assert.match(rollback, /status: HTTP_STATUS\.UNAUTHORIZED/);
+    assert.match(rollback, /status: HTTP_STATUS\.PAYLOAD_TOO_LARGE/);
+    assert.match(rollback, /status: HTTP_STATUS\.BAD_REQUEST/);
+    assert.match(rollback, /status: HTTP_STATUS\.INTERNAL_SERVER_ERROR/);
     assert.match(rollback, /metadata\.buyerId !== me\.id/);
+    assert.match(rollback, /reason: "not_found"/);
+    assert.match(rollback, /source: "cart_checkout_rollback_retrieve"/);
+    assert.match(rollback, /reason: "retrieve_failed"/);
     assert.match(rollback, /stripe\.checkout\.sessions\.expire\(sessionId\)/);
     assert.match(rollback, /restoreUnorderedCheckoutStockOnce/);
     assert.match(rollback, /source: "cart_checkout_rollback_expire"/);
