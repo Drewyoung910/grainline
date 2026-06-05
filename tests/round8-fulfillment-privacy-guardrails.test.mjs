@@ -36,9 +36,9 @@ describe("Round 8 fulfillment fraud-chain guardrails", () => {
 
     assert.match(accountDeletion, /import \{ CASE_WINDOW_DAYS \} from "@\/lib\/caseCreateState"/);
     assert.match(accountDeletion, /ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS/);
-    assert.match(accountDeletion, /function accountDeletionFulfillmentBlockerWhere/);
-    assert.match(accountDeletion, /fulfillmentStatus: "DELIVERED"[\s\S]*deliveredAt: \{ gte: terminalCutoff \}/);
-    assert.match(accountDeletion, /fulfillmentStatus: "PICKED_UP"[\s\S]*pickedUpAt: \{ gte: terminalCutoff \}/);
+    assert.match(accountDeletion, /function accountDeletionFulfillmentBlockerSql\(terminalCutoff: Date\)/);
+    assert.match(accountDeletion, /o\."fulfillmentStatus" = 'DELIVERED'[\s\S]*o\."deliveredAt" IS NULL OR o\."deliveredAt" >= \$\{terminalCutoff\}/);
+    assert.match(accountDeletion, /o\."fulfillmentStatus" = 'PICKED_UP'[\s\S]*o\."pickedUpAt" IS NULL OR o\."pickedUpAt" >= \$\{terminalCutoff\}/);
     assert.match(accountDeletion, /within the case window/);
   });
 

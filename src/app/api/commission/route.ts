@@ -60,31 +60,30 @@ export async function GET(req: NextRequest) {
     ...(categoryValid ? { category: category as Category } : {}),
   });
 
-  const [requestRows, total] = await Promise.all([
-    prisma.commissionRequest.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        category: true,
-        budgetMinCents: true,
-        budgetMaxCents: true,
-        timeline: true,
-        referenceImageUrls: true,
-        status: true,
-        interestedCount: true,
-        _count: { select: { interests: true } },
-        expiresAt: true,
-        createdAt: true,
-        buyer: { select: { name: true, imageUrl: true } },
-      },
-    }),
-    prisma.commissionRequest.count({ where }),
-  ]);
+  const total = await prisma.commissionRequest.count({ where });
+  const currentPage = Math.min(page, Math.max(1, Math.ceil(total / pageSize)));
+  const requestRows = await prisma.commissionRequest.findMany({
+    where,
+    orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+    skip: (currentPage - 1) * pageSize,
+    take: pageSize,
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      category: true,
+      budgetMinCents: true,
+      budgetMaxCents: true,
+      timeline: true,
+      referenceImageUrls: true,
+      status: true,
+      interestedCount: true,
+      _count: { select: { interests: true } },
+      expiresAt: true,
+      createdAt: true,
+      buyer: { select: { name: true, imageUrl: true } },
+    },
+  });
   const requests = requestRows.map(({ _count, ...request }) => ({
     ...request,
     interestedCount: resolvedInterestedCount({
@@ -93,7 +92,7 @@ export async function GET(req: NextRequest) {
     }),
   }));
 
-  return NextResponse.json({ requests, total, page, totalPages: Math.ceil(total / pageSize) });
+  return NextResponse.json({ requests, total, page: currentPage, totalPages: Math.ceil(total / pageSize) });
 }
 
 export async function POST(req: NextRequest) {

@@ -253,8 +253,7 @@ export default async function BrowsePage({
     : sp.type === "MADE_TO_ORDER" ? ListingType.MADE_TO_ORDER
     : null;
   const shipsFilter = sp.ships ? parseBoundedPositiveIntParam(sp.ships, 0, MAX_SHIPS_WITHIN_DAYS) : null;
-  const ratingRaw = sp.rating ? Number(sp.rating) : null;
-  const ratingFilter = ratingRaw != null && Number.isFinite(ratingRaw) ? Math.max(1, Math.min(5, ratingRaw)) : null;
+  const ratingFilter = parseBoundedDecimalParam(sp.rating, 1, 5);
   const latFilter = parseBoundedDecimalParam(sp.lat, -90, 90);
   const lngFilter = parseBoundedDecimalParam(sp.lng, -180, 180);
   const radiusFilter = parseBoundedDecimalParam(sp.radius, 1, MAX_BROWSE_RADIUS_MILES);

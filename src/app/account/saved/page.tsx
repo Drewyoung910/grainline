@@ -12,6 +12,7 @@ import SaveBlogButton from "@/components/SaveBlogButton";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
 import type { Prisma } from "@prisma/client";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
+import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { savedListingFavoriteWhere } from "@/lib/savedListingVisibility";
 import { truncateText } from "@/lib/sanitize";
 
@@ -37,7 +38,7 @@ export default async function SavedPage({
 
   const sp = await searchParams;
   const tab = sp.tab === "posts" ? "posts" : "listings";
-  const page = Math.max(1, parseInt(sp.page ?? "1", 10));
+  const page = parseBoundedPositiveIntParam(sp.page, 1, 1000);
   const savedListingWhere = savedListingFavoriteWhere(me.id, blockedSellerIds);
   const savedPostWhere: Prisma.SavedBlogPostWhereInput = {
     userId: me.id,
@@ -58,10 +59,11 @@ export default async function SavedPage({
 
   if (tab === "listings") {
     const totalPages = Math.ceil(listingTotal / PAGE_SIZE);
+    const listingPage = Math.min(page, Math.max(1, totalPages));
     const favorites = await prisma.favorite.findMany({
       where: savedListingWhere,
       orderBy: { createdAt: "desc" },
-      skip: (page - 1) * PAGE_SIZE,
+      skip: (listingPage - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
       select: {
         listing: {
@@ -140,7 +142,7 @@ export default async function SavedPage({
                 );
               })}
             </ul>
-            <Pagination page={page} totalPages={totalPages} baseHref={tabHref("listings")} />
+            <Pagination page={listingPage} totalPages={totalPages} baseHref={tabHref("listings")} />
           </>
         )}
       </main>
@@ -149,10 +151,11 @@ export default async function SavedPage({
 
   // Posts tab
   const totalPages = Math.ceil(postTotal / PAGE_SIZE);
+  const postPage = Math.min(page, Math.max(1, totalPages));
   const savedPosts = await prisma.savedBlogPost.findMany({
     where: savedPostWhere,
     orderBy: { createdAt: "desc" },
-    skip: (page - 1) * PAGE_SIZE,
+    skip: (postPage - 1) * PAGE_SIZE,
     take: PAGE_SIZE,
     select: {
       blogPost: {
@@ -236,7 +239,7 @@ export default async function SavedPage({
               );
             })}
           </ul>
-          <Pagination page={page} totalPages={totalPages} baseHref={tabHref("posts")} />
+          <Pagination page={postPage} totalPages={totalPages} baseHref={tabHref("posts")} />
         </>
       )}
     </main>

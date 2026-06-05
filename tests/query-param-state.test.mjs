@@ -60,6 +60,22 @@ describe("query parameter parsing helpers", () => {
     }
   });
 
+  it("keeps private saved-page pagination finite and clamped before Prisma skip", () => {
+    const source = readFileSync("src/app/account/saved/page.tsx", "utf8");
+
+    assert.match(source, /import \{[^}]*parseBoundedPositiveIntParam[^}]*\} from "@\/lib\/queryParams";/);
+    assert.match(source, /const page = parseBoundedPositiveIntParam\(sp\.page, 1, 1000\)/);
+    assert.match(source, /const listingPage = Math\.min\(page, Math\.max\(1, totalPages\)\)/);
+    assert.match(source, /skip: \(listingPage - 1\) \* PAGE_SIZE/);
+    assert.match(source, /<Pagination page=\{listingPage\} totalPages=\{totalPages\} baseHref=\{tabHref\("listings"\)\} \/>/);
+    assert.match(source, /const postPage = Math\.min\(page, Math\.max\(1, totalPages\)\)/);
+    assert.match(source, /skip: \(postPage - 1\) \* PAGE_SIZE/);
+    assert.match(source, /<Pagination page=\{postPage\} totalPages=\{totalPages\} baseHref=\{tabHref\("posts"\)\} \/>/);
+    assert.doesNotMatch(source, /Math\.max\(1,\s*parseInt\(sp\.page/);
+    assert.doesNotMatch(source, /Number\(sp\.page/);
+    assert.doesNotMatch(source, /Number\.parseInt\(sp\.page/);
+  });
+
   it("bounds browse location and shipping filters before query construction", () => {
     const browse = readFileSync("src/app/browse/page.tsx", "utf8");
     const filters = readFileSync("src/components/FilterSidebar.tsx", "utf8");
@@ -70,9 +86,11 @@ describe("query parameter parsing helpers", () => {
     assert.match(browse, /parseBoundedDecimalParam\(sp\.lat, -90, 90\)/);
     assert.match(browse, /parseBoundedDecimalParam\(sp\.lng, -180, 180\)/);
     assert.match(browse, /parseBoundedDecimalParam\(sp\.radius, 1, MAX_BROWSE_RADIUS_MILES\)/);
+    assert.match(browse, /const ratingFilter = parseBoundedDecimalParam\(sp\.rating, 1, 5\)/);
     assert.doesNotMatch(browse, /Number\(sp\.lat/);
     assert.doesNotMatch(browse, /Number\(sp\.lng/);
     assert.doesNotMatch(browse, /Number\(sp\.radius/);
+    assert.doesNotMatch(browse, /Number\(sp\.rating/);
     assert.match(filters, /name="ships"[\s\S]*max="365"/);
     assert.match(filters, /name="radius"[\s\S]*max="500"/);
   });

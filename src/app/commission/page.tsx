@@ -12,6 +12,7 @@ import { MapPin } from "@/components/icons";
 import { safeJsonLd } from "@/lib/json-ld";
 import { openCommissionWhere } from "@/lib/commissionExpiry";
 import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
+import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 
 export const metadata: Metadata = {
   title: "Custom Woodworking Commissions — Find a Maker | Grainline",
@@ -35,8 +36,8 @@ export default async function CommissionPage({
   searchParams: Promise<{ page?: string; category?: string; tab?: string }>;
 }) {
   const sp = await searchParams;
-  const parsedPage = Number.parseInt(sp.page ?? "1", 10);
-  const page = Number.isFinite(parsedPage) ? Math.max(1, parsedPage) : 1;
+  const requestedPage = parseBoundedPositiveIntParam(sp.page, 1, 1000);
+  let page = requestedPage;
   const categoryFilter = sp.category ?? "";
   const categoryValid = categoryFilter && CATEGORY_VALUES.includes(categoryFilter);
   const tab = sp.tab === "near" ? "near" : "all";
@@ -105,6 +106,35 @@ export default async function CommissionPage({
     // validated against CATEGORY_VALUES allowlist before reaching this code.
     const categoryConditionSelect = categoryValid ? `AND cr.category::text = $9` : "";
     const categoryConditionCount = categoryValid ? `AND cr.category::text = $5` : "";
+
+    const countSql = `
+      SELECT COUNT(*) FROM "CommissionRequest" cr
+      JOIN "User" u ON u.id = cr."buyerId"
+      WHERE cr.status = 'OPEN'
+        AND (cr."expiresAt" IS NULL OR cr."expiresAt" > NOW())
+        AND u.banned = false
+        AND u."deletedAt" IS NULL
+        AND NOT (u.id = ANY($4::text[]))
+        ${categoryConditionCount}
+        AND (
+          cr."isNational" = true
+          OR (cr.lat IS NOT NULL AND cr.lng IS NOT NULL AND
+              6371000 * acos(
+                LEAST(1.0, GREATEST(-1.0,
+                  cos(radians($1)) * cos(radians(cr.lat)) *
+                  cos(radians(cr.lng) - radians($2)) +
+                  sin(radians($1)) * sin(radians(cr.lat))
+                ))
+              ) <= $3
+          )
+        )`;
+
+    const countArgs: unknown[] = [viewerLat, viewerLng, radius, [...blockedUserIds]];
+    if (categoryValid) countArgs.push(categoryFilter);
+    const countResult = await prisma.$queryRawUnsafe<[{ count: bigint }]>(countSql, ...countArgs);
+
+    total = Number(countResult[0].count);
+    page = Math.min(requestedPage, Math.max(1, Math.ceil(total / pageSize)));
 
     const selectSql = `
       SELECT
@@ -180,33 +210,6 @@ export default async function CommissionPage({
       return args;
     })());
 
-    const countSql = `
-      SELECT COUNT(*) FROM "CommissionRequest" cr
-      JOIN "User" u ON u.id = cr."buyerId"
-      WHERE cr.status = 'OPEN'
-        AND (cr."expiresAt" IS NULL OR cr."expiresAt" > NOW())
-        AND u.banned = false
-        AND u."deletedAt" IS NULL
-        AND NOT (u.id = ANY($4::text[]))
-        ${categoryConditionCount}
-        AND (
-          cr."isNational" = true
-          OR (cr.lat IS NOT NULL AND cr.lng IS NOT NULL AND
-              6371000 * acos(
-                LEAST(1.0, GREATEST(-1.0,
-                  cos(radians($1)) * cos(radians(cr.lat)) *
-                  cos(radians(cr.lng) - radians($2)) +
-                  sin(radians($1)) * sin(radians(cr.lat))
-                ))
-              ) <= $3
-          )
-        )`;
-
-    const countArgs: unknown[] = [viewerLat, viewerLng, radius, [...blockedUserIds]];
-    if (categoryValid) countArgs.push(categoryFilter);
-    const countResult = await prisma.$queryRawUnsafe<[{ count: bigint }]>(countSql, ...countArgs);
-
-    total = Number(countResult[0].count);
     requests = rawResults.map((r) => ({
       id: r.id,
       title: r.title,
@@ -225,32 +228,31 @@ export default async function CommissionPage({
       distanceMeters: r.distance_m != null ? Number(r.distance_m) : undefined,
     }));
   } else {
-    const [found, count] = await Promise.all([
-      prisma.commissionRequest.findMany({
-        where,
-        orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-        select: {
-          id: true,
-          title: true,
-          description: true,
-          category: true,
-          budgetMinCents: true,
-          budgetMaxCents: true,
-          timeline: true,
-          referenceImageUrls: true,
-          interestedCount: true,
-          _count: { select: { interests: true } },
-          createdAt: true,
-          lat: true,
-          lng: true,
-          isNational: true,
-          buyer: { select: { name: true, imageUrl: true } },
-        },
-      }),
-      prisma.commissionRequest.count({ where }),
-    ]);
+    total = await prisma.commissionRequest.count({ where });
+    page = Math.min(requestedPage, Math.max(1, Math.ceil(total / pageSize)));
+    const found = await prisma.commissionRequest.findMany({
+      where,
+      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        category: true,
+        budgetMinCents: true,
+        budgetMaxCents: true,
+        timeline: true,
+        referenceImageUrls: true,
+        interestedCount: true,
+        _count: { select: { interests: true } },
+        createdAt: true,
+        lat: true,
+        lng: true,
+        isNational: true,
+        buyer: { select: { name: true, imageUrl: true } },
+      },
+    });
     requests = found.map(({ _count, ...request }) => ({
       ...request,
       interestedCount: resolvedInterestedCount({
@@ -258,7 +260,6 @@ export default async function CommissionPage({
         _count,
       }),
     }));
-    total = count;
   }
 
   const totalPages = Math.ceil(total / pageSize);

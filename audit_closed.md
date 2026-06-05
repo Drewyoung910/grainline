@@ -4801,7 +4801,56 @@ Last updated: 2026-06-05
      `tests/message-case-policy-guardrails.test.mjs`, and
      `tests/status-label-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 506 findings;
+385. **Account-deletion blockers and public pagination/map guardrails tightened**
+     - parent/agent-reviewed privacy/legal-retention and public-query pass.
+     Two real account-deletion retention defects were verified and fixed.
+     Clerk `user.deleted` webhooks no longer bypass Grainline deletion blockers:
+     `anonymizeUserAccountByClerkId()` now checks
+     `getAccountDeletionBlockers()` before local anonymization, and provider-side
+     deletes with active orders/cases/commissions now defer PII scrubbing, mark
+     the local account blocked, disable seller orderability, invalidate
+     account-state caches, and emit support-review telemetry. Order deletion
+     blockers also no longer treat any refund marker as sufficient. Active or
+     case-window buyer/seller orders are waived only when the order row proves a
+     full refund with a non-pending refund id and `sellerRefundAmountCents`
+     greater than or equal to item subtotal plus shipping, gift wrap, and tax;
+     partial refunds and pending refund locks still preserve the blocker.
+
+     Several adjacent public/private pagination and public-query issues were
+     verified and fixed in the same slice. `/account/saved` now uses
+     `parseBoundedPositiveIntParam()` and clamps listing/post pages before
+     Prisma `skip`, so malformed `?page=` values cannot become `NaN`. The
+     `/commission` page now uses the shared bounded parser, counts first,
+     clamps before both raw near-me `OFFSET` and Prisma `skip`, and renders the
+     clamped page. `GET /api/commission` now clamps before fetch and uses
+     deterministic `createdAt desc, id asc` ordering. `/map` caps exact-pin
+     seller points at 500 with deterministic id ordering. Browse rating filters
+     now use `parseBoundedDecimalParam(sp.rating, 1, 5)` instead of `Number()`
+     coercion, rejecting malformed values rather than clamping partial parses.
+
+     Read-only sidecar agents rechecked privacy/support/export/email-history
+     and Stripe/refund/webhook categories. Support/data-request durable intake
+     and closure evidence, account export privacy/history coverage, local
+     retention cleanup, email suppression/history behavior, Stripe webhook
+     split-secret setup, refund accounting source behavior, fee-policy copy,
+     label clawback retry state, and webhook idempotency were verified as
+     current, stale, duplicate, or already-deferred runtime/ops evidence items;
+     those rechecks did not inflate stale/deferred tallies because the relevant
+     categories were already closed or already listed as manual evidence
+     follow-ups. The EXPLAIN/index questions remain runtime proof items, not
+     source defects closed here.
+
+     `CLAUDE.md` now records the account-deletion blocker/refund and
+     provider-side Clerk deletion contract. Guardrails:
+     `tests/account-deletion-blocker-refund-state.test.mjs`,
+     `tests/query-param-state.test.mjs`,
+     `tests/public-query-determinism.test.mjs`,
+     `tests/public-cron-search-hardening.test.mjs`,
+     `tests/verified-audit-followups.test.mjs`,
+     `tests/round8-fulfillment-privacy-guardrails.test.mjs`, and
+     `tests/account-deletion-timeout-fix.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 513 findings;
 verified stale/false-positive: 419 findings; product/design/ops decisions
 deferred: 74 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
@@ -4902,6 +4951,17 @@ approximate raw-category decrements are counted because the public-discovery
 geo and case/message policy fixes overlap remaining major categories; the blog,
 seller-order detail, commission block/count/pagination, and status-label work
 were hidden adjacent source issues found by parent/agent review.
+Entry 385 adds seven fixed/reduced current-code issues across account-deletion
+provider webhook blockers, partial-refund deletion blockers, private saved-page
+pagination, commission page/API clamping and deterministic ordering, public map
+row caps, and browse rating parsing. Five approximate raw-category decrements
+are counted because the deletion and public-query fixes overlap remaining
+privacy/legal-retention and public-discovery/performance categories; the saved
+page and rating/parser issues were adjacent hidden findings found during
+parent/agent review. Agent rechecks of support/data-request, account export,
+email-history, Stripe webhook/refund, fee-copy, label-clawback, and webhook
+idempotency source behavior were recorded as current/stale/already-deferred
+without increasing stale or deferred tallies.
 Remaining major categories: Stripe webhook subscription dashboard evidence,
 Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -4922,4 +4982,4 @@ submission decision, residual lower-risk HTTP-status constants outside the
 high-signal helpers, Vercel Analytics/Speed Insights product/ops decision,
 remaining homepage runtime a11y proof, and residual
 agent/worktree verification process hygiene. Approximate raw allegations left
-to verify from current max #1120: 192.
+to verify from current max #1120: 187.

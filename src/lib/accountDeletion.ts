@@ -22,7 +22,7 @@ import {
   redactAccountDeletionAuditMetadata,
   redactAccountDeletionText,
 } from "@/lib/accountDeletionAuditRedaction";
-import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
+import { REFUND_LOCK_SENTINEL } from "@/lib/refundLockState";
 import {
   ACCOUNT_DELETION_SIDE_EFFECT_KIND,
   type AccountDeletionAuditRedactionUpdate,
@@ -35,7 +35,6 @@ import {
 } from "@/lib/accountDeletionSideEffects";
 import { CASE_WINDOW_DAYS } from "@/lib/caseCreateState";
 
-const ACTIVE_FULFILLMENT_STATUSES = ["PENDING", "READY_FOR_PICKUP", "SHIPPED"] as const;
 export const ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
 const ACTIVE_CASE_STATUSES = ["OPEN", "IN_DISCUSSION", "PENDING_CLOSE", "UNDER_REVIEW"] as const;
 const ACTIVE_COMMISSION_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
@@ -78,30 +77,43 @@ function accountDeletionLockKey(userId: string) {
   return `account-delete:${userId}`;
 }
 
-function accountDeletionFulfillmentBlockerWhere(now = new Date()): Prisma.OrderWhereInput {
-  const terminalCutoff = new Date(
+function accountDeletionTerminalCutoff(now = new Date()) {
+  return new Date(
     now.getTime() - ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS * 24 * 60 * 60 * 1000,
   );
+}
 
-  return {
-    OR: [
-      { fulfillmentStatus: { in: [...ACTIVE_FULFILLMENT_STATUSES] } },
-      {
-        fulfillmentStatus: "DELIVERED",
-        OR: [
-          { deliveredAt: null },
-          { deliveredAt: { gte: terminalCutoff } },
-        ],
-      },
-      {
-        fulfillmentStatus: "PICKED_UP",
-        OR: [
-          { pickedUpAt: null },
-          { pickedUpAt: { gte: terminalCutoff } },
-        ],
-      },
-    ],
-  };
+const ACCOUNT_DELETION_FULL_REFUND_SQL = Prisma.sql`
+  o."sellerRefundId" IS NOT NULL
+  AND o."sellerRefundId" <> ${REFUND_LOCK_SENTINEL}
+  AND COALESCE(o."sellerRefundAmountCents", 0) > 0
+  AND COALESCE(o."sellerRefundAmountCents", 0) >= (
+    COALESCE(o."itemsSubtotalCents", 0) +
+    COALESCE(o."shippingAmountCents", 0) +
+    COALESCE(o."giftWrappingPriceCents", 0) +
+    COALESCE(o."taxAmountCents", 0)
+  )
+`;
+
+function accountDeletionFulfillmentBlockerSql(terminalCutoff: Date) {
+  return Prisma.sql`
+    (
+      o."fulfillmentStatus" IN ('PENDING', 'READY_FOR_PICKUP', 'SHIPPED')
+      OR (
+        o."fulfillmentStatus" = 'DELIVERED'
+        AND (o."deliveredAt" IS NULL OR o."deliveredAt" >= ${terminalCutoff})
+      )
+      OR (
+        o."fulfillmentStatus" = 'PICKED_UP'
+        AND (o."pickedUpAt" IS NULL OR o."pickedUpAt" >= ${terminalCutoff})
+      )
+    )
+    AND NOT (${ACCOUNT_DELETION_FULL_REFUND_SQL})
+  `;
+}
+
+function rawCount(rows: Array<{ count: bigint | number | string }>) {
+  return Number(rows[0]?.count ?? 0);
 }
 
 export async function acquireAccountDeletionLock(userId: string): Promise<AccountDeletionLock | null> {
@@ -576,29 +588,35 @@ export async function getAccountDeletionBlockers(userId: string): Promise<Accoun
     where: { userId },
     select: { id: true },
   });
-  const fulfillmentBlockerWhere = accountDeletionFulfillmentBlockerWhere();
+  const fulfillmentBlockerSql = accountDeletionFulfillmentBlockerSql(accountDeletionTerminalCutoff());
 
   const [buyerOrders, sellerOrders, openCases, activeCommissions] = await Promise.all([
-    prisma.order.count({
-      where: {
-        buyerId: userId,
-        ...fulfillmentBlockerWhere,
-        sellerRefundId: null,
-        paymentEvents: { none: blockingRefundLedgerWhere() },
-      },
-    }),
+    prisma.$queryRaw<Array<{ count: bigint }>>`
+      SELECT COUNT(*) AS count
+      FROM "Order" o
+      WHERE o."buyerId" = ${userId}
+        AND ${fulfillmentBlockerSql}
+    `.then(rawCount),
     seller
-      ? prisma.order.count({
-          where: {
-            ...fulfillmentBlockerWhere,
-            sellerRefundId: null,
-            paymentEvents: { none: blockingRefundLedgerWhere() },
-            items: {
-              some: { listing: { sellerId: seller.id } },
-              every: { listing: { sellerId: seller.id } },
-            },
-          },
-        })
+      ? prisma.$queryRaw<Array<{ count: bigint }>>`
+          SELECT COUNT(DISTINCT o.id) AS count
+          FROM "Order" o
+          WHERE ${fulfillmentBlockerSql}
+            AND EXISTS (
+              SELECT 1
+              FROM "OrderItem" oi
+              JOIN "Listing" l ON l.id = oi."listingId"
+              WHERE oi."orderId" = o.id
+                AND l."sellerId" = ${seller.id}
+            )
+            AND NOT EXISTS (
+              SELECT 1
+              FROM "OrderItem" oi
+              JOIN "Listing" l ON l.id = oi."listingId"
+              WHERE oi."orderId" = o.id
+                AND l."sellerId" <> ${seller.id}
+            )
+        `.then(rawCount)
       : Promise.resolve(0),
     prisma.case.count({
       where: {
@@ -785,6 +803,41 @@ async function disableSellerOrderabilityAfterStripeReject(input: {
       },
     });
   }
+}
+
+async function deferProviderDeletedAccountAnonymization(input: {
+  userId: string;
+  clerkId: string;
+  blockers: AccountDeletionBlocker[];
+}) {
+  const now = new Date();
+  await prisma.$transaction([
+    prisma.user.updateMany({
+      where: { id: input.userId, deletedAt: null },
+      data: {
+        banned: true,
+        bannedAt: now,
+        banReason: "Clerk account deleted before Grainline deletion blockers cleared; support review required",
+        bannedBy: "system",
+      },
+    }),
+    prisma.sellerProfile.updateMany({
+      where: { userId: input.userId },
+      data: { chargesEnabled: false, vacationMode: true },
+    }),
+  ]);
+
+  await invalidateAccountStateCache(input.clerkId, "provider_deleted_account_blocked_anonymization");
+  revalidateDeletedAccountSearchCaches(input.userId);
+  Sentry.captureMessage("Provider deleted account has Grainline deletion blockers; local anonymization deferred", {
+    level: "warning",
+    tags: { source: "clerk_deleted_account_blocked_anonymization" },
+    extra: {
+      userId: input.userId,
+      blockerCodes: input.blockers.map((blocker) => blocker.code),
+      blockerCounts: input.blockers.map((blocker) => ({ code: blocker.code, count: blocker.count })),
+    },
+  });
 }
 
 export async function anonymizeUserAccount(
@@ -1331,8 +1384,16 @@ export async function anonymizeUserAccount(
 export async function anonymizeUserAccountByClerkId(clerkId: string) {
   const user = await prisma.user.findUnique({
     where: { clerkId },
-    select: { id: true },
+    select: { id: true, deletedAt: true },
   });
   if (!user) return { ok: true, alreadyDeleted: true };
+  if (user.deletedAt) return { ok: true, alreadyDeleted: true };
+
+  const blockers = await getAccountDeletionBlockers(user.id);
+  if (blockers.length > 0) {
+    await deferProviderDeletedAccountAnonymization({ userId: user.id, clerkId, blockers });
+    return { ok: false, alreadyDeleted: false, blocked: true, blockers };
+  }
+
   return anonymizeUserAccount(user.id);
 }

@@ -27,6 +27,8 @@ type Point = {
   state: string | null;
 };
 
+const MAP_SELLER_POINT_LIMIT = 500;
+
 export default async function AllSellersMapPage({
   searchParams,
 }: {
@@ -106,6 +108,8 @@ export default async function AllSellersMapPage({
       lat: true,
       lng: true,
     },
+    orderBy: { id: "asc" },
+    take: MAP_SELLER_POINT_LIMIT,
   });
 
   const points: Point[] = sellers

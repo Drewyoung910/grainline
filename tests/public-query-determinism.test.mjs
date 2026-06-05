@@ -31,6 +31,7 @@ describe("public query determinism", () => {
     const sellerShop = source("src/app/seller/[id]/shop/page.tsx");
     const similar = source("src/app/api/listings/[id]/similar/route.ts");
     const sellersMap = source("src/app/sellers/map/page.tsx");
+    const publicMap = source("src/app/map/page.tsx");
 
     assert.match(browse, /\[\{ qualityScore: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(browse, /sort === "price_asc" \? \[\{ priceCents: "asc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
@@ -55,6 +56,11 @@ describe("public query determinism", () => {
     assert.ok(
       sellersMap.indexOf('orderBy: { id: "asc" }') < sellersMap.indexOf("take: 500"),
       "sellers map should order before the cap",
+    );
+    assert.match(publicMap, /const MAP_SELLER_POINT_LIMIT = 500/);
+    assert.ok(
+      publicMap.indexOf('orderBy: { id: "asc" }') < publicMap.indexOf("take: MAP_SELLER_POINT_LIMIT"),
+      "public map should order before the cap",
     );
   });
 
@@ -118,6 +124,8 @@ describe("public query determinism", () => {
     const blogPage = source("src/app/blog/page.tsx");
     const blogSearch = source("src/app/api/blog/search/route.ts");
     const blogApi = source("src/app/api/blog/route.ts");
+    const commissionPage = source("src/app/commission/page.tsx");
+    const commissionApi = source("src/app/api/commission/route.ts");
 
     assert.match(browse, /const relevantPage = Math\.min\(Math\.max\(pageNum, 1\), relevantTotalPages\)/);
     assert.match(browse, /const standardPage = Math\.min\(Math\.max\(pageNum, 1\), standardTotalPages\)/);
@@ -136,5 +144,16 @@ describe("public query determinism", () => {
       assert.match(text, /const clampedPage = Math\.min\(Math\.max\(page, 1\), Math\.max\(1, totalPages\)\)/);
       assert.match(text, /page: clampedPage/);
     }
+
+    assert.match(commissionPage, /const requestedPage = parseBoundedPositiveIntParam\(sp\.page, 1, 1000\)/);
+    assert.doesNotMatch(commissionPage, /Number\.parseInt\(sp\.page/);
+    assert.match(commissionPage, /page = Math\.min\(requestedPage, Math\.max\(1, Math\.ceil\(total \/ pageSize\)\)\)/);
+    assert.match(commissionPage, /\(page - 1\) \* pageSize/);
+    assert.match(commissionPage, /Page \{page\} of \{totalPages\}/);
+
+    assert.match(commissionApi, /const currentPage = Math\.min\(page, Math\.max\(1, Math\.ceil\(total \/ pageSize\)\)\)/);
+    assert.match(commissionApi, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "asc" \}\]/);
+    assert.match(commissionApi, /skip: \(currentPage - 1\) \* pageSize/);
+    assert.match(commissionApi, /page: currentPage/);
   });
 });

@@ -76,8 +76,9 @@ describe("verified audit follow-up guardrails", () => {
     assert.match(page, /\[viewerLat, viewerLng, radius, \[\.\.\.blockedUserIds\]\]/);
     assert.match(page, /args\.push\(categoryFilter\)/);
     assert.match(page, /countArgs\.push\(categoryFilter\)/);
-    assert.match(page, /const parsedPage = Number\.parseInt\(sp\.page \?\? "1", 10\)/);
-    assert.match(page, /Number\.isFinite\(parsedPage\) \? Math\.max\(1, parsedPage\) : 1/);
+    assert.match(page, /const requestedPage = parseBoundedPositiveIntParam\(sp\.page, 1, 1000\)/);
+    assert.match(page, /page = Math\.min\(requestedPage, Math\.max\(1, Math\.ceil\(total \/ pageSize\)\)\)/);
+    assert.doesNotMatch(page, /Number\.parseInt\(sp\.page/);
     assert.match(page, /cr\."createdAt" DESC,\s*cr\.id ASC/);
     assert.match(page, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "asc" \}\]/);
     assert.doesNotMatch(page, /\$\{categoryFilter\}/);

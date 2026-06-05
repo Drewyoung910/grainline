@@ -179,6 +179,9 @@ describe("cron and public route hardening", () => {
     assert.match(commission, /rateLimitResponse\(rate\.reset, "Too many commission requests\."\)/);
     assert.match(commission, /parseBoundedPositiveIntParam\(url\.searchParams\.get\("page"\), 1, 1000\)/);
     assert.match(commission, /openCommissionWhere/);
+    assert.match(commission, /const currentPage = Math\.min\(page, Math\.max\(1, Math\.ceil\(total \/ pageSize\)\)\)/);
+    assert.match(commission, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "asc" \}\]/);
+    assert.match(commission, /skip: \(currentPage - 1\) \* pageSize/);
   });
 
   it("keeps checkout rollback scoped to the signed-in buyer and idempotent stock restore", () => {
