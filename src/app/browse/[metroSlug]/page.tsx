@@ -127,7 +127,7 @@ export default async function BrowseMetroPage({
   const [listings, listingCount, sellerCount] = await Promise.all([
     prisma.listing.findMany({
       where: listingWhere,
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: 24,
       select: {
         id: true,

@@ -11,7 +11,8 @@ describe("SEO landing route guardrails", () => {
     const page = source("src/app/tag/[slug]/page.tsx");
 
     assert.match(page, /normalizeTag\(rawSlug\)/);
-    assert.match(page, /permanentRedirect\(`\$\{publicTagPath\(tag\)\}\$\{page > 1 \? `\?page=\$\{page\}` : ""\}`\)/);
+    assert.match(page, /const requestedPage = parseBoundedPositiveIntParam\(sp\.page, 1, 500\)/);
+    assert.match(page, /permanentRedirect\(`\$\{publicTagPath\(tag\)\}\$\{requestedPage > 1 \? `\?page=\$\{requestedPage\}` : ""\}`\)/);
     assert.match(page, /where: publicListingWhere\(\{/);
     assert.match(page, /tags: \{ has: tag \}/);
     assert.match(page, /getBlockedSellerProfileIdsFor\(meDbId\)/);
@@ -33,7 +34,9 @@ describe("SEO landing route guardrails", () => {
       page.indexOf("getBlockedUserIdsFor(meDbId)") < page.indexOf("permanentRedirect("),
       "blocked author viewers should 404 before canonical slug redirects",
     );
-    assert.match(page, /permanentRedirect\(`\$\{canonicalPath\}\$\{page > 1 \? `\?page=\$\{page\}` : ""\}`\)/);
+    assert.match(page, /const requestedPage = parseBoundedPositiveIntParam\(sp\.page, 1, 500\)/);
+    assert.match(page, /permanentRedirect\(`\$\{canonicalPath\}\$\{requestedPage > 1 \? `\?page=\$\{requestedPage\}` : ""\}`\)/);
+    assert.match(page, /const page = Math\.min\(requestedPage, totalPages\)/);
     assert.doesNotMatch(page, /sellerProfileId: slug/);
   });
 

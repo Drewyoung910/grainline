@@ -101,9 +101,8 @@ export default async function TagLandingPage({
   const tag = normalizeTag(rawSlug);
   if (!tag) return notFound();
 
-  const page = parseBoundedPositiveIntParam(sp.page, 1, 500);
-  if (rawSlug !== tag) permanentRedirect(`${publicTagPath(tag)}${page > 1 ? `?page=${page}` : ""}`);
-  const skip = (page - 1) * TAG_PAGE_SIZE;
+  const requestedPage = parseBoundedPositiveIntParam(sp.page, 1, 500);
+  if (rawSlug !== tag) permanentRedirect(`${publicTagPath(tag)}${requestedPage > 1 ? `?page=${requestedPage}` : ""}`);
 
   const { userId } = await auth();
   let meDbId: string | null = null;
@@ -120,21 +119,22 @@ export default async function TagLandingPage({
     ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
   });
 
-  const [listings, total, popularTags] = await Promise.all([
-    prisma.listing.findMany({
-      where,
-      orderBy: [{ qualityScore: "desc" }, { createdAt: "desc" }],
-      skip,
-      take: TAG_PAGE_SIZE,
-      include: TAG_LISTING_INCLUDE,
-    }),
+  const [total, popularTags] = await Promise.all([
     prisma.listing.count({ where }),
     getPopularListingTags(12),
   ]);
 
   if (total === 0) return notFound();
   const totalPages = Math.max(1, Math.ceil(total / TAG_PAGE_SIZE));
-  if (page > totalPages) return notFound();
+  const page = Math.min(requestedPage, totalPages);
+
+  const listings = await prisma.listing.findMany({
+    where,
+    orderBy: [{ qualityScore: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+    skip: (page - 1) * TAG_PAGE_SIZE,
+    take: TAG_PAGE_SIZE,
+    include: TAG_LISTING_INCLUDE,
+  });
 
   let savedSet = new Set<string>();
   if (meDbId && listings.length > 0) {

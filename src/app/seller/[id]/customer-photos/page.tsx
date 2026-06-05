@@ -61,7 +61,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function CustomerPhotosPage({ params, searchParams }: Props) {
   const { id } = await params;
   const sp = await searchParams;
-  const page = parseBoundedPositiveIntParam(sp.page, 1, 500);
+  const requestedPage = parseBoundedPositiveIntParam(sp.page, 1, 500);
   const sellerId = extractRouteId(id);
 
   const seller = await getSellerProfileForCustomerPhotosPage(sellerId);
@@ -84,7 +84,7 @@ export default async function CustomerPhotosPage({ params, searchParams }: Props
 
   // Canonicalize URL slug
   if (id !== routeSegmentWithSlug(seller.id, seller.displayName, "maker")) {
-    permanentRedirect(`/seller/${routeSegmentWithSlug(seller.id, seller.displayName, "maker")}/customer-photos${page > 1 ? `?page=${page}` : ""}`);
+    permanentRedirect(`/seller/${routeSegmentWithSlug(seller.id, seller.displayName, "maker")}/customer-photos${requestedPage > 1 ? `?page=${requestedPage}` : ""}`);
   }
 
   const blockedReviewerFilter = blockedUserIds.size > 0
@@ -98,21 +98,7 @@ export default async function CustomerPhotosPage({ params, searchParams }: Props
     },
   };
 
-  const [photos, totalCount] = await Promise.all([
-    prisma.reviewPhoto.findMany({
-      where: photoWhere,
-      orderBy: { review: { createdAt: "desc" } },
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-      select: {
-        id: true,
-        url: true,
-        altText: true,
-        review: { select: { listingId: true, listing: { select: { title: true } } } },
-      },
-    }),
-    prisma.reviewPhoto.count({ where: photoWhere }),
-  ]);
+  const totalCount = await prisma.reviewPhoto.count({ where: photoWhere });
 
   // Empty state: redirect back to seller profile if no photos exist
   if (totalCount === 0) {
@@ -120,6 +106,19 @@ export default async function CustomerPhotosPage({ params, searchParams }: Props
   }
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const page = Math.min(requestedPage, totalPages);
+  const photos = await prisma.reviewPhoto.findMany({
+    where: photoWhere,
+    orderBy: [{ review: { createdAt: "desc" } }, { id: "desc" }],
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
+    select: {
+      id: true,
+      url: true,
+      altText: true,
+      review: { select: { listingId: true, listing: { select: { title: true } } } },
+    },
+  });
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">

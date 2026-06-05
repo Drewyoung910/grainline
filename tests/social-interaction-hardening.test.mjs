@@ -9,13 +9,14 @@ function source(path) {
 describe("social interaction route hardening", () => {
   it("bounds public blog comment reads and rejects replies to hidden or inactive parents", () => {
     const route = source("src/app/api/blog/[slug]/comments/route.ts");
+    const limits = source("src/lib/blogCommentLimits.ts");
 
-    assert.match(route, /TOP_LEVEL_COMMENT_LIMIT = 100/);
-    assert.match(route, /REPLY_COMMENT_LIMIT = 50/);
-    assert.match(route, /NESTED_REPLY_COMMENT_LIMIT = 25/);
-    assert.match(route, /take: TOP_LEVEL_COMMENT_LIMIT/);
-    assert.match(route, /take: REPLY_COMMENT_LIMIT/);
-    assert.match(route, /take: NESTED_REPLY_COMMENT_LIMIT/);
+    assert.match(limits, /TOP_LEVEL_BLOG_COMMENT_LIMIT = 100/);
+    assert.match(limits, /BLOG_REPLY_COMMENT_LIMIT = 50/);
+    assert.match(limits, /BLOG_NESTED_REPLY_COMMENT_LIMIT = 25/);
+    assert.match(route, /take: TOP_LEVEL_BLOG_COMMENT_LIMIT/);
+    assert.match(route, /take: BLOG_REPLY_COMMENT_LIMIT/);
+    assert.match(route, /take: BLOG_NESTED_REPLY_COMMENT_LIMIT/);
     assert.match(route, /parent\.author\.banned/);
     assert.match(route, /parent\.author\.deletedAt/);
     assert.match(route, /!parent\.approved/);

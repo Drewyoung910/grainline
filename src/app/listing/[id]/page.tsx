@@ -262,7 +262,7 @@ export default async function ListingPage({
         sellerId: listing.sellerId,
         id: { not: listing.id },
       }),
-      orderBy: { qualityScore: "desc" },
+      orderBy: [{ qualityScore: "desc" }, { createdAt: "desc" }, { id: "desc" }],
       take: 4,
       select: {
         id: true,
@@ -274,7 +274,7 @@ export default async function ListingPage({
     }),
     prisma.review.findMany({
       where: visibleListingReviewWhere,
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: 5,
       select: {
         id: true,

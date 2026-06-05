@@ -79,7 +79,7 @@ const getFeaturedMakers = unstable_cache(async (): Promise<FeaturedMaker[]> => {
   // Tier 1: admin-featured (featuredUntil > now)
   const curated = await prisma.sellerProfile.findMany({
     where: activeSellerProfileWhere({ featuredUntil: { gt: now } }),
-    orderBy: { featuredUntil: "desc" },
+    orderBy: [{ featuredUntil: "desc" }, { id: "asc" }],
     include: featuredMakerInclude,
     take: 2,
   });
@@ -136,7 +136,7 @@ const getFeaturedMakers = unstable_cache(async (): Promise<FeaturedMaker[]> => {
             AND l.status = 'ACTIVE'
             AND l."isPrivate" = false
         )
-      ORDER BY COALESCE(srs."reviewCount", 0) DESC
+      ORDER BY COALESCE(srs."reviewCount", 0) DESC, sp.id ASC
       LIMIT 4
     `;
     const candidateIds = topReviewedRows.map((r) => r.sellerId).filter((id) => !seen.has(id));
@@ -181,7 +181,7 @@ async function getFeaturedMakerBlock(blockedSellerIds: string[] = []): Promise<F
     makers.map(async (maker) => {
       let listings: FeaturedListing[] = [];
       if (maker.featuredListingIds.length > 0) {
-        listings = await prisma.listing.findMany({
+        const featuredRows = await prisma.listing.findMany({
           where: {
             id: { in: maker.featuredListingIds },
             sellerId: maker.id,
@@ -190,8 +190,12 @@ async function getFeaturedMakerBlock(blockedSellerIds: string[] = []): Promise<F
             photos: { some: {} },
           },
           select: featuredListingSelect,
-          take: 3,
         });
+        const featuredById = new Map(featuredRows.map((listing) => [listing.id, listing]));
+        listings = maker.featuredListingIds
+          .map((listingId) => featuredById.get(listingId))
+          .filter((listing): listing is FeaturedListing => listing !== undefined)
+          .slice(0, 3);
       }
       if (listings.length < 3) {
         const existingIds = listings.map((l) => l.id);
@@ -203,7 +207,7 @@ async function getFeaturedMakerBlock(blockedSellerIds: string[] = []): Promise<F
             photos: { some: {} },
             ...(existingIds.length > 0 ? { id: { notIn: existingIds } } : {}),
           },
-          orderBy: { updatedAt: "desc" },
+          orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
           select: featuredListingSelect,
           take: 3 - listings.length,
         });
@@ -250,7 +254,7 @@ export default async function HomePage() {
         createdAt: { gte: new Date(Date.now() - 30 * 86400000) },
         ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
       }),
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: 12,
       include: {
         photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
@@ -273,7 +277,7 @@ export default async function HomePage() {
         where: publicListingWhere({
           ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
         }),
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         take: 12,
         include: {
           photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
@@ -296,7 +300,7 @@ export default async function HomePage() {
         qualityScore: { gt: 0 },
         ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
       }),
-      orderBy: { qualityScore: "desc" },
+      orderBy: [{ qualityScore: "desc" }, { createdAt: "desc" }, { id: "desc" }],
       take: 12,
       include: {
         photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
@@ -343,12 +347,10 @@ export default async function HomePage() {
       prisma.user.count({ where: { banned: false, deletedAt: null } }),
     ]),
     prisma.blogPost.findMany({
-      where: {
-        status: "PUBLISHED",
-        author: { banned: false, deletedAt: null },
+      where: publicBlogPostWhere({
         ...(blockedUserIds.size > 0 ? { authorId: { notIn: [...blockedUserIds] } } : {}),
-      },
-      orderBy: { publishedAt: "desc" },
+      }),
+      orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
       take: 3,
       select: {
         id: true, slug: true, title: true, excerpt: true, coverImageUrl: true, publishedAt: true,
@@ -358,7 +360,7 @@ export default async function HomePage() {
     }),
     prisma.listing.findMany({
       where: publicListingWhere(),
-      orderBy: [{ qualityScore: "desc" }, { createdAt: "desc" }],
+      orderBy: [{ qualityScore: "desc" }, { createdAt: "desc" }, { id: "desc" }],
       take: 24,
       select: {
         id: true,
@@ -419,7 +421,7 @@ export default async function HomePage() {
       prisma.follow.findMany({
         where: { followerId: meDbId },
         select: { sellerProfileId: true },
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         take: 50,
       }),
       blogPostIds.length > 0

@@ -43,7 +43,7 @@ async function loadPublicSellerStats(sellerProfileId: string): Promise<PublicSel
             WHERE oi."orderId" = o.id
               AND l."sellerId" <> ${sellerProfileId}
           )
-        ORDER BY o."shippedAt" DESC
+        ORDER BY o."shippedAt" DESC, o.id DESC
         LIMIT 30
       ) recent
     `,

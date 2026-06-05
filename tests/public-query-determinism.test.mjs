@@ -27,11 +27,28 @@ describe("public query determinism", () => {
   });
 
   it("keeps public capped queries and score sorts stable on ties", () => {
+    const home = source("src/app/page.tsx");
     const browse = source("src/app/browse/page.tsx");
     const sellerShop = source("src/app/seller/[id]/shop/page.tsx");
+    const sellerPage = source("src/app/seller/[id]/page.tsx");
+    const listingPage = source("src/app/listing/[id]/page.tsx");
+    const tagPage = source("src/app/tag/[slug]/page.tsx");
+    const metroPage = source("src/app/browse/[metroSlug]/page.tsx");
+    const metroCategoryPage = source("src/app/browse/[metroSlug]/[category]/page.tsx");
+    const blogDetail = source("src/app/blog/[slug]/page.tsx");
     const similar = source("src/app/api/listings/[id]/similar/route.ts");
     const sellersMap = source("src/app/sellers/map/page.tsx");
     const publicMap = source("src/app/map/page.tsx");
+
+    assert.match(home, /orderBy: \[\{ featuredUntil: "desc" \}, \{ id: "asc" \}\]/);
+    assert.match(home, /ORDER BY COALESCE\(srs\."reviewCount", 0\) DESC, sp\.id ASC/);
+    assert.match(home, /orderBy: \[\{ updatedAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(home, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(home, /orderBy: \[\{ qualityScore: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(home, /where: publicBlogPostWhere\(\{\s*\.\.\.\(blockedUserIds\.size > 0/);
+    assert.doesNotMatch(home, /status: "PUBLISHED",\s*author: \{ banned: false, deletedAt: null \}/);
+    assert.match(home, /orderBy: \[\{ publishedAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(home, /featuredById = new Map\(featuredRows\.map\(\(listing\) => \[listing\.id, listing\]\)\)/);
 
     assert.match(browse, /\[\{ qualityScore: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(browse, /sort === "price_asc" \? \[\{ priceCents: "asc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
@@ -48,6 +65,19 @@ describe("public query determinism", () => {
       assert.match(text, /sort === "popular" \? \[\{ favorites: \{ _count: "desc" \} \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
       assert.match(text, /: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     }
+
+    assert.match(sellerPage, /orderBy: \[\{ updatedAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(sellerPage, /orderBy: \[\{ sentAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(sellerPage, /orderBy: \[\{ publishedAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(sellerPage, /orderBy: \[\{ review: \{ createdAt: "desc" \} \}, \{ id: "desc" \}\]/);
+
+    assert.match(listingPage, /orderBy: \[\{ qualityScore: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(listingPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+
+    assert.match(tagPage, /orderBy: \[\{ qualityScore: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(metroPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(metroCategoryPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(blogDetail, /orderBy: \[\{ publishedAt: "desc" \}, \{ id: "desc" \}\]/);
 
     assert.match(similar, /l\."createdAt" DESC,\s*l\.id DESC/);
     assert.match(similar, /b\.createdAt\.getTime\(\) - a\.createdAt\.getTime\(\)/);
@@ -116,6 +146,64 @@ describe("public query determinism", () => {
       assert.match(text, /sort === "alpha" \? \[\{ title: "asc" \}, \{ publishedAt: "desc" \}, \{ id: "desc" \}\] : \[\{ publishedAt: "desc" \}, \{ id: "desc" \}\]/);
     }
     assert.match(blogApi, /const orderBy: Prisma\.BlogPostOrderByWithRelationInput\[\] = \[\{ publishedAt: "desc" \}, \{ id: "desc" \}\]/);
+  });
+
+  it("bounds and tie-breaks remaining public capped query surfaces", () => {
+    const home = source("src/app/page.tsx");
+    const tagPage = source("src/app/tag/[slug]/page.tsx");
+    const authorPage = source("src/app/blog/author/[slug]/page.tsx");
+    const customerPhotosPage = source("src/app/seller/[id]/customer-photos/page.tsx");
+    const footerMetros = source("src/lib/footerMetros.ts");
+    const publicSellerStats = source("src/lib/publicSellerStats.ts");
+    const blogCommentLimits = source("src/lib/blogCommentLimits.ts");
+    const blogCommentApi = source("src/app/api/blog/[slug]/comments/route.ts");
+    const blogDetail = source("src/app/blog/[slug]/page.tsx");
+    const reviewsSection = source("src/components/ReviewsSection.tsx");
+
+    const featuredBlockStart = home.indexOf("const featuredRows = await prisma.listing.findMany");
+    const featuredBlockEnd = home.indexOf("const featuredById", featuredBlockStart);
+    const featuredFetchBlock = home.slice(featuredBlockStart, featuredBlockEnd);
+    assert.ok(featuredBlockStart >= 0 && featuredBlockEnd > featuredBlockStart);
+    assert.doesNotMatch(featuredFetchBlock, /take:\s*3/);
+    assert.match(home, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\],\s*take: 50/);
+
+    assert.match(tagPage, /const requestedPage = parseBoundedPositiveIntParam\(sp\.page, 1, 500\)/);
+    assert.match(tagPage, /const page = Math\.min\(requestedPage, totalPages\)/);
+    assert.match(tagPage, /skip: \(page - 1\) \* TAG_PAGE_SIZE/);
+    assert.doesNotMatch(tagPage, /if \(page > totalPages\) return notFound\(\)/);
+
+    assert.match(authorPage, /const requestedPage = parseBoundedPositiveIntParam\(sp\.page, 1, 500\)/);
+    assert.match(authorPage, /const page = Math\.min\(requestedPage, totalPages\)/);
+    assert.match(authorPage, /orderBy: \[\{ publishedAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(authorPage, /skip: \(page - 1\) \* AUTHOR_POST_PAGE_SIZE/);
+    assert.doesNotMatch(authorPage, /if \(page > totalPages\) return notFound\(\)/);
+
+    assert.match(customerPhotosPage, /const requestedPage = parseBoundedPositiveIntParam\(sp\.page, 1, 500\)/);
+    assert.match(customerPhotosPage, /const page = Math\.min\(requestedPage, totalPages\)/);
+    assert.match(customerPhotosPage, /orderBy: \[\{ review: \{ createdAt: "desc" \} \}, \{ id: "desc" \}\]/);
+    assert.match(customerPhotosPage, /skip: \(page - 1\) \* PAGE_SIZE/);
+    assert.match(customerPhotosPage, /Page \{page\} of \{totalPages\}/);
+
+    assert.match(footerMetros, /orderBy: \[\{ listings: \{ _count: "desc" \} \}, \{ name: "asc" \}, \{ slug: "asc" \}\]/);
+    assert.match(publicSellerStats, /ORDER BY o\."shippedAt" DESC, o\.id DESC/);
+
+    assert.match(blogCommentLimits, /TOP_LEVEL_BLOG_COMMENT_LIMIT = 100/);
+    assert.match(blogCommentLimits, /BLOG_REPLY_COMMENT_LIMIT = 50/);
+    assert.match(blogCommentLimits, /BLOG_NESTED_REPLY_COMMENT_LIMIT = 25/);
+    for (const text of [blogCommentApi, blogDetail]) {
+      assert.match(text, /orderBy: \[\{ createdAt: "asc" \}, \{ id: "asc" \}\]/);
+      assert.match(text, /take: TOP_LEVEL_BLOG_COMMENT_LIMIT/);
+      assert.match(text, /take: BLOG_REPLY_COMMENT_LIMIT/);
+      assert.match(text, /take: BLOG_NESTED_REPLY_COMMENT_LIMIT/);
+    }
+
+    assert.match(reviewsSection, /const LISTING_REVIEW_DISPLAY_LIMIT = 100/);
+    assert.match(reviewsSection, /function reviewOrderByForSort/);
+    assert.match(reviewsSection, /return \[\{ helpfulCount: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(reviewsSection, /return \[\{ photos: \{ _count: "desc" \} \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(reviewsSection, /orderBy: reviewOrderByForSort\(sort\)/);
+    assert.match(reviewsSection, /take: LISTING_REVIEW_DISPLAY_LIMIT/);
+    assert.doesNotMatch(reviewsSection, /others\.slice\(\)\.sort/);
   });
 
   it("clamps public paged queries before fetching or rendering", () => {

@@ -17,6 +17,11 @@ import { getBlockedUserIdsFor } from "@/lib/blocks";
 import BlockReportButton from "@/components/BlockReportButton";
 import { safeJsonLd } from "@/lib/json-ld";
 import { renderBlogMarkdown } from "@/lib/blogMarkdown";
+import {
+  BLOG_NESTED_REPLY_COMMENT_LIMIT,
+  BLOG_REPLY_COMMENT_LIMIT,
+  TOP_LEVEL_BLOG_COMMENT_LIMIT,
+} from "@/lib/blogCommentLimits";
 
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { publicBlogAuthorPath, publicListingPath, publicSellerPath } from "@/lib/publicPaths";
@@ -70,7 +75,8 @@ export default async function BlogPostPage({
       sellerProfile: { select: { id: true, displayName: true, avatarImageUrl: true, user: { select: { imageUrl: true } } } },
       comments: {
         where: { approved: true, parentId: null, author: { banned: false, deletedAt: null } },
-        orderBy: { createdAt: "asc" },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        take: TOP_LEVEL_BLOG_COMMENT_LIMIT,
         select: {
           id: true,
           body: true,
@@ -78,7 +84,8 @@ export default async function BlogPostPage({
           author: { select: { id: true, name: true, imageUrl: true, sellerProfile: { select: { avatarImageUrl: true } } } },
           replies: {
             where: { approved: true, author: { banned: false, deletedAt: null } },
-            orderBy: { createdAt: "asc" },
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+            take: BLOG_REPLY_COMMENT_LIMIT,
             select: {
               id: true,
               body: true,
@@ -86,7 +93,8 @@ export default async function BlogPostPage({
               author: { select: { id: true, name: true, imageUrl: true, sellerProfile: { select: { avatarImageUrl: true } } } },
               replies: {
                 where: { approved: true, author: { banned: false, deletedAt: null } },
-                orderBy: { createdAt: "asc" },
+                orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+                take: BLOG_NESTED_REPLY_COMMENT_LIMIT,
                 select: {
                   id: true,
                   body: true,
@@ -153,7 +161,7 @@ export default async function BlogPostPage({
         ...(post.tags.length > 0 ? [{ tags: { hasSome: post.tags } }] : []),
       ],
     }),
-    orderBy: { publishedAt: "desc" },
+    orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
     take: 3,
     select: {
       slug: true, title: true, coverImageUrl: true, type: true,

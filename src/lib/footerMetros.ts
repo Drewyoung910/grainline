@@ -30,7 +30,7 @@ async function queryFooterMetros(): Promise<FooterMetro[]> {
       ],
     },
     select: { slug: true, name: true, state: true, _count: { select: { listings: true } } },
-    orderBy: { listings: { _count: "desc" } },
+    orderBy: [{ listings: { _count: "desc" } }, { name: "asc" }, { slug: "asc" }],
     take: 10,
   });
 }

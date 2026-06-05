@@ -24,7 +24,7 @@ describe("homepage deterministic query guardrails", () => {
     const home = source("src/app/page.tsx");
 
     assert.match(home, /import \{ compareAccountFeedItemsDesc \} from "@\/lib\/accountFeedCursor"/);
-    assert.match(home, /prisma\.follow\.findMany\(\{[\s\S]*orderBy: \{ createdAt: "desc" \}[\s\S]*take: 50/);
+    assert.match(home, /prisma\.follow\.findMany\(\{[\s\S]*orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: 50/);
     assert.match(home, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(home, /orderBy: \[\{ publishedAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(home, /kind: "listing", id: l\.id, date: l\.createdAt\.toISOString\(\)/);

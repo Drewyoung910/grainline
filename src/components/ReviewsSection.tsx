@@ -3,10 +3,13 @@ import { prisma } from "@/lib/db";
 import ReviewComposer from "@/components/ReviewComposer";
 import { HelpfulButton, SellerReplyForm } from "@/components/ReviewItemClient";
 import Link from "next/link";
+import type { Prisma } from "@prisma/client";
 import { ImageLightbox } from "@/components/ImageLightbox";
 import BlockReportButton from "@/components/BlockReportButton";
 import { publicListingPath } from "@/lib/publicPaths";
 import { avatarInitials } from "@/lib/avatarInitials";
+
+const LISTING_REVIEW_DISPLAY_LIMIT = 100;
 
 function quarterRound(n: number) {
   return Math.min(5, Math.max(0, Math.round(n * 4) / 4));
@@ -48,6 +51,19 @@ function reviewerName(reviewer: ReviewAuthorDisplay) {
 function reviewerInitials(reviewer: ReviewAuthorDisplay) {
   if (reviewerUnavailable(reviewer)) return "FB";
   return avatarInitials(reviewerName(reviewer), "B");
+}
+
+function reviewOrderByForSort(sort: "top" | "new" | "rating" | "photos"): Prisma.ReviewOrderByWithRelationInput[] {
+  switch (sort) {
+    case "new":
+      return [{ createdAt: "desc" }, { id: "desc" }];
+    case "rating":
+      return [{ ratingX2: "desc" }, { createdAt: "desc" }, { id: "desc" }];
+    case "photos":
+      return [{ photos: { _count: "desc" } }, { createdAt: "desc" }, { id: "desc" }];
+    default:
+      return [{ helpfulCount: "desc" }, { createdAt: "desc" }, { id: "desc" }];
+  }
 }
 
 export default async function ReviewsSection({
@@ -114,15 +130,20 @@ export default async function ReviewsSection({
     canCreate = !!paidOrder;
   }
 
-  // All reviews (others)
-  const all = await prisma.review.findMany({
-    where: { listingId, ...(blockedUserIds && blockedUserIds.length > 0 ? { reviewerId: { notIn: blockedUserIds } } : {}) },
+  // Other visible reviews, bounded and ordered in the database.
+  const others = await prisma.review.findMany({
+    where: {
+      listingId,
+      ...(mine ? { id: { not: mine.id } } : {}),
+      ...(blockedUserIds && blockedUserIds.length > 0 ? { reviewerId: { notIn: blockedUserIds } } : {}),
+    },
+    orderBy: reviewOrderByForSort(sort),
+    take: LISTING_REVIEW_DISPLAY_LIMIT,
     include: {
       reviewer: { select: { id: true, name: true, imageUrl: true, banned: true, deletedAt: true } },
       photos: { orderBy: { sortOrder: "asc" } },
     },
   });
-  const others = mine ? all.filter((r) => r.id !== mine.id) : all;
 
   // Look up which of these reviews the current viewer has already marked
   // helpful, so the like button can render in its correct initial state
@@ -146,19 +167,6 @@ export default async function ReviewsSection({
     : null;
   const sellerName = sellerProfile?.displayName ?? "Maker";
   const sellerAvatarUrl = sellerProfile?.avatarImageUrl ?? sellerProfile?.user?.imageUrl ?? null;
-
-  const sorted = others.slice().sort((a, b) => {
-    switch (sort) {
-      case "new":
-        return +new Date(b.createdAt) - +new Date(a.createdAt);
-      case "rating":
-        return b.ratingX2 - a.ratingX2 || +new Date(b.createdAt) - +new Date(a.createdAt);
-      case "photos":
-        return b.photos.length - a.photos.length || +new Date(b.createdAt) - +new Date(a.createdAt);
-      default:
-        return b.helpfulCount - a.helpfulCount || +new Date(b.createdAt) - +new Date(a.createdAt);
-    }
-  });
 
   // Link builders (always target listing path + #reviews)
   const sortHref = (k: "top" | "new" | "rating" | "photos", keepEdit = false) =>
@@ -289,11 +297,11 @@ export default async function ReviewsSection({
       </div>
 
       {/* Others */}
-      {sorted.length === 0 ? (
+      {others.length === 0 ? (
         <div className="rounded-lg border border-stone-200/60 shadow-sm bg-[#EFEAE0] px-4 py-3 text-neutral-600">No reviews yet — be the first to share your experience.</div>
       ) : (
         <ul className="space-y-4">
-          {sorted.map((r) => {
+          {others.map((r) => {
             const stars = r.ratingX2 / 2;
             const displayName = reviewerName(r.reviewer);
             const initials = reviewerInitials(r.reviewer);

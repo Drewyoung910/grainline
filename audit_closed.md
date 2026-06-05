@@ -4850,8 +4850,62 @@ Last updated: 2026-06-05
      `tests/round8-fulfillment-privacy-guardrails.test.mjs`, and
      `tests/account-deletion-timeout-fix.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 513 findings;
-verified stale/false-positive: 419 findings; product/design/ops decisions
+386. **Public capped-query determinism, comment/review caps, and Round 14
+     rechecks closed** - parent/agent-reviewed public performance/query and
+     evidence-classification pass. Public capped queries now consistently use
+     deterministic final tie-breakers before row caps: homepage featured makers,
+     top-reviewed maker fallback, new-arrival/fallback listings, top-saved
+     listings, hero mosaic listings, followed-maker lookup, seller metadata
+     preview photo, seller broadcast/blog/listing/customer-photo previews,
+     listing-detail related listings/reviews, blog related posts, tag landing
+     listings, metro/category listing caps, footer metros, and public seller
+     shipping-speed samples. Homepage recent blog posts now use
+     `publicBlogPostWhere()` instead of an inline published-author predicate, so
+     seller-attached post visibility stays aligned with the shared blog helper.
+     Featured maker listing previews now fetch all eligible curated ids, restore
+     seller-configured order, and slice only after order restoration instead of
+     asking Prisma for an arbitrary three-row subset.
+
+     Public paged surfaces that previously derived `skip` from the requested
+     page before knowing the total now clamp before fetching/rendering. Tag
+     landing pages, blog author archives, and seller customer-photo pages count
+     first, clamp to the available page range, and then fetch with the clamped
+     offset. Blog detail and blog comments API now share the 100/50/25
+     top-level/reply/nested reply caps from `blogCommentLimits.ts` and order
+     comment trees by `createdAt asc, id asc`. `ReviewsSection` no longer loads
+     every public listing review and sorts in JavaScript; it applies a 100-row
+     display cap and database ordering/tie-breakers for top, newest, rating, and
+     with-photos sorts.
+
+     Parent verification rechecked Round 14 #1108-#1119 against current `main`.
+     #1108 is stale because critical env-dependent libs use
+     `requiredProductionEnv()` at module load in production. #1109, #1110, and
+     #1111 are stale as originally stated because current seller/listing public
+     routes already share React `cache()` loaders and the seller page already
+     batches independent reads; the residual public capped-query gaps were
+     hidden adjacent issues fixed above. #1112-#1119 were reverified as current
+     source/docs behavior or external runtime evidence where applicable: label
+     clawback retry, ban side-effect repair, multi-seller checkout metadata,
+     server-side gift-wrap pricing, sitemap chunking, robots AI-bot rules,
+     critical-form ARIA, and Stripe v2 webhook hardening. Sidecar agents also
+     rechecked unsubscribe/newsletter consent-epoch and Stripe/R2/Sentry/Clerk
+     evidence buckets. No source defect was verified there; newsletter-only
+     manual resubscribe, Stripe dashboard delivery/subscription proof, R2
+     ListBucket/public posture, Sentry cron alert routing, Clerk security
+     dashboard proof, Connect loss-liability, and Stripe refund runtime
+     reconciliation remain product/ops/legal/runtime-evidence items.
+
+     `CLAUDE.md` now records the public capped-query, clamp-before-fetch,
+     curated-id ordering, blog-comment cap, and listing-review cap contracts.
+     Guardrails: `tests/public-query-determinism.test.mjs`,
+     `tests/seller-page-performance.test.mjs`,
+     `tests/listing-page-performance.test.mjs`,
+     `tests/public-visibility-followups.test.mjs`,
+     `tests/account-state-residue-followups.test.mjs`, and
+     `tests/round9-public-pii-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 543 findings;
+verified stale/false-positive: 431 findings; product/design/ops decisions
 deferred: 74 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
 export/deletion residue. Entry 361 removes the remaining Resend webhook
@@ -4962,6 +5016,13 @@ parent/agent review. Agent rechecks of support/data-request, account export,
 email-history, Stripe webhook/refund, fee-copy, label-clawback, and webhook
 idempotency source behavior were recorded as current/stale/already-deferred
 without increasing stale or deferred tallies.
+Entry 386 adds thirty fixed/reduced current-code issues across public capped
+query ordering, public blog visibility helper drift, curated featured-listing
+ordering, clamp-before-fetch pagination, blog comment caps/tie-breakers, and
+listing-review query caps. It also adds twelve stale/false-positive/current
+source classifications for Round 14 #1108-#1119. Twelve approximate
+raw-category decrements are counted; #1120 remains a low-risk best-effort
+rollback/design note rather than a source fix closed here.
 Remaining major categories: Stripe webhook subscription dashboard evidence,
 Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -4982,4 +5043,4 @@ submission decision, residual lower-risk HTTP-status constants outside the
 high-signal helpers, Vercel Analytics/Speed Insights product/ops decision,
 remaining homepage runtime a11y proof, and residual
 agent/worktree verification process hygiene. Approximate raw allegations left
-to verify from current max #1120: 187.
+to verify from current max #1120: 175.

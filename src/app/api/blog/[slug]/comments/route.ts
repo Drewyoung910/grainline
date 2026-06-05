@@ -8,6 +8,11 @@ import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { sanitizeText } from "@/lib/sanitize";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import {
+  BLOG_NESTED_REPLY_COMMENT_LIMIT,
+  BLOG_REPLY_COMMENT_LIMIT,
+  TOP_LEVEL_BLOG_COMMENT_LIMIT,
+} from "@/lib/blogCommentLimits";
+import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
   readBoundedJson,
@@ -26,9 +31,6 @@ const CommentSchema = z.object({
   parentId: z.string().min(1).optional(),
 });
 
-const TOP_LEVEL_COMMENT_LIMIT = 100;
-const REPLY_COMMENT_LIMIT = 50;
-const NESTED_REPLY_COMMENT_LIMIT = 25;
 const BLOG_COMMENT_BODY_MAX_BYTES = 24 * 1024;
 
 export const runtime = "nodejs";
@@ -47,8 +49,8 @@ export async function GET(
 
   const comments = await prisma.blogComment.findMany({
     where: { postId: post.id, approved: true, parentId: null, author: { banned: false, deletedAt: null } },
-    orderBy: { createdAt: "asc" },
-    take: TOP_LEVEL_COMMENT_LIMIT,
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    take: TOP_LEVEL_BLOG_COMMENT_LIMIT,
     select: {
       id: true,
       body: true,
@@ -56,8 +58,8 @@ export async function GET(
       author: { select: AUTHOR_SELECT },
       replies: {
         where: { approved: true, author: { banned: false, deletedAt: null } },
-        orderBy: { createdAt: "asc" },
-        take: REPLY_COMMENT_LIMIT,
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        take: BLOG_REPLY_COMMENT_LIMIT,
         select: {
           id: true,
           body: true,
@@ -65,8 +67,8 @@ export async function GET(
           author: { select: AUTHOR_SELECT },
           replies: {
             where: { approved: true, author: { banned: false, deletedAt: null } },
-            orderBy: { createdAt: "asc" },
-            take: NESTED_REPLY_COMMENT_LIMIT,
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+            take: BLOG_NESTED_REPLY_COMMENT_LIMIT,
             select: {
               id: true,
               body: true,

@@ -152,7 +152,7 @@ export async function generateMetadata({
   const firstPhoto = await prisma.listing.findFirst({
     where: publicListingWhere({ sellerId }),
     select: { photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } } },
-    orderBy: { updatedAt: "desc" },
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
   });
   const img =
     seller.bannerImageUrl ||
@@ -247,19 +247,19 @@ export default async function SellerPublicPage({
     ]),
     prisma.sellerBroadcast.findFirst({
       where: { sellerProfileId: seller.id },
-      orderBy: { sentAt: "desc" },
+      orderBy: [{ sentAt: "desc" }, { id: "desc" }],
       select: { message: true, sentAt: true, imageUrl: true },
     }),
     prisma.blogPost.findMany({
       where: publicBlogPostWhere({ sellerProfileId: seller.id }),
-      orderBy: { publishedAt: "desc" },
+      orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
       take: 3,
       select: { slug: true, title: true, excerpt: true, coverImageUrl: true, publishedAt: true, type: true },
     }),
     prisma.listing.findMany({
       where: publicListingWhere({ sellerId: seller.id }),
       select: sellerProfileListingCardSelect,
-      orderBy: { updatedAt: "desc" },
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
       take: SELLER_PROFILE_LISTING_PREVIEW_SIZE,
     }),
     prisma.listing.count({ where: publicListingWhere({ sellerId: seller.id }) }),
@@ -283,7 +283,7 @@ export default async function SellerPublicPage({
           ...(blockedUserIds.size > 0 ? { reviewerId: { notIn: [...blockedUserIds] } } : {}),
         },
       },
-      orderBy: { review: { createdAt: "desc" } },
+      orderBy: [{ review: { createdAt: "desc" } }, { id: "desc" }],
       take: 12,
       select: {
         id: true,

@@ -122,27 +122,24 @@ export default async function BlogAuthorPage({
     if (blockedUserIds.has(author.user.id)) return notFound();
   }
 
-  const page = parseBoundedPositiveIntParam(sp.page, 1, 500);
+  const requestedPage = parseBoundedPositiveIntParam(sp.page, 1, 500);
   const canonicalPath = publicBlogAuthorPath(author.id, author.displayName);
   if (`/blog/author/${slug}` !== canonicalPath) {
-    permanentRedirect(`${canonicalPath}${page > 1 ? `?page=${page}` : ""}`);
+    permanentRedirect(`${canonicalPath}${requestedPage > 1 ? `?page=${requestedPage}` : ""}`);
   }
-  const skip = (page - 1) * AUTHOR_POST_PAGE_SIZE;
   const where = publicBlogPostWhere({ sellerProfileId: author.id });
-  const [posts, total] = await Promise.all([
-    prisma.blogPost.findMany({
-      where,
-      orderBy: [{ publishedAt: "desc" }, { id: "asc" }],
-      skip,
-      take: AUTHOR_POST_PAGE_SIZE,
-      select: AUTHOR_POST_SELECT,
-    }),
-    prisma.blogPost.count({ where }),
-  ]);
+  const total = await prisma.blogPost.count({ where });
 
   if (total === 0) return notFound();
   const totalPages = Math.max(1, Math.ceil(total / AUTHOR_POST_PAGE_SIZE));
-  if (page > totalPages) return notFound();
+  const page = Math.min(requestedPage, totalPages);
+  const posts = await prisma.blogPost.findMany({
+    where,
+    orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
+    skip: (page - 1) * AUTHOR_POST_PAGE_SIZE,
+    take: AUTHOR_POST_PAGE_SIZE,
+    select: AUTHOR_POST_SELECT,
+  });
 
   let savedSet = new Set<string>();
   if (meDbId && posts.length > 0) {
