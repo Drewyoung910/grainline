@@ -21,6 +21,46 @@ describe("message and case policy guardrails", () => {
     assert.match(helper, /messagingUnavailableReason\(sellerState\) \|\| messagingUnavailableReason\(buyerState\)/);
     assert.match(helper, /\{ blockerId: sellerUserId, blockedId: buyerUserId \}/);
     assert.match(helper, /\{ blockerId: buyerUserId, blockedId: sellerUserId \}/);
+    assert.match(helper, /data: \{ updatedAt: new Date\(\), archivedAAt: null, archivedBAt: null \}/);
+  });
+
+  it("reopens pending-close cases before accepting a new party message", () => {
+    const route = source("src/app/api/cases/[id]/messages/route.ts");
+
+    assert.match(route, /caseMessageStatusTransition/);
+    assert.match(route, /statusTransition === "party_reopened_pending_close"/);
+    assert.match(route, /caseUpdates\.status = "IN_DISCUSSION"/);
+    assert.match(route, /caseUpdates\.buyerMarkedResolved = false/);
+    assert.match(route, /caseUpdates\.sellerMarkedResolved = false/);
+  });
+
+  it("keeps blocked and archived conversations out of visible unread counts before caps", () => {
+    const inbox = source("src/app/messages/page.tsx");
+    const unreadCount = source("src/app/api/messages/unread-count/route.ts");
+
+    assert.match(inbox, /const blockedUserIdList = \[\.\.\.blockedUserIds\]/);
+    assert.ok(
+      inbox.indexOf("blockedUserIdList.length > 0") < inbox.indexOf("take: 50"),
+      "messages inbox must exclude blocked users before the capped query",
+    );
+    assert.match(inbox, /orderBy: \[\{ updatedAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(inbox, /where: \{ recipientId: me\.id, readAt: null, conversation: \{ is: where \} \}/);
+
+    assert.match(unreadCount, /getBlockedUserIdsFor/);
+    assert.match(unreadCount, /archivedAAt: null/);
+    assert.match(unreadCount, /archivedBAt: null/);
+    assert.match(unreadCount, /userAId: \{ notIn: blockedUserIds \}/);
+    assert.match(unreadCount, /userBId: \{ notIn: blockedUserIds \}/);
+  });
+
+  it("loads the latest message-thread window and reopens archived threads on new content", () => {
+    const threadPage = source("src/app/messages/[id]/page.tsx");
+    const customOrderRequest = source("src/app/api/messages/custom-order-request/route.ts");
+
+    assert.match(threadPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\],\s*take: 200/);
+    assert.match(threadPage, /\)\)\.reverse\(\)/);
+    assert.match(threadPage, /data: \{ updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null \}/);
+    assert.match(customOrderRequest, /data: \{ updatedAt: new Date\(\), archivedAAt: null, archivedBAt: null \}/);
   });
 
   it("keeps staff reported-thread review from starting participant-only live fetches", () => {

@@ -44,12 +44,12 @@ export default async function OrdersPage() {
         },
         paymentEvents: {
           where: blockingRefundLedgerWhere(),
-          orderBy: { createdAt: "desc" },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
           take: 1,
           select: { eventType: true, amountCents: true, status: true },
         },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: LIMIT,
     }),
   ]);

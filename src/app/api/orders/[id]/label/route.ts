@@ -10,7 +10,9 @@ import {
 } from "@/lib/ratelimit";
 import {
   blockingRefundLedgerWhere,
+  NON_BLOCKING_REFUND_LEDGER_STATUSES,
   orderHasRefundLedger,
+  STRIPE_DISPUTE_CLOSED_STATUSES,
 } from "@/lib/refundRouteState";
 import {
   labelClawbackErrorMessage,
@@ -27,7 +29,7 @@ import {
 } from "@/lib/requestBody";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
-import type { FulfillmentStatus, LabelStatus, Prisma } from "@prisma/client";
+import { Prisma, type FulfillmentStatus, type LabelStatus } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 
@@ -442,12 +444,26 @@ export async function POST(
         AND "sellerRefundId" IS NULL
         AND "sellerRefundLockedAt" IS NULL
         AND NOT EXISTS (
+          SELECT 1 FROM "Case" c
+          WHERE c."orderId" = "Order".id
+            AND c."status"::text IN (${Prisma.join([...ACTIVE_CASE_STATUSES])})
+        )
+        AND NOT EXISTS (
           SELECT 1 FROM "OrderPaymentEvent" ope
           WHERE ope."orderId" = "Order".id
             AND ope."eventType" = 'REFUND'
             AND (
               ope."status" IS NULL
-              OR ope."status" NOT IN ('failed', 'canceled', 'cancelled')
+              OR lower(ope."status") NOT IN (${Prisma.join(NON_BLOCKING_REFUND_LEDGER_STATUSES)})
+            )
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM "OrderPaymentEvent" ope
+          WHERE ope."orderId" = "Order".id
+            AND ope."eventType" = 'DISPUTE'
+            AND (
+              ope."status" IS NULL
+              OR lower(ope."status") NOT IN (${Prisma.join([...STRIPE_DISPUTE_CLOSED_STATUSES])})
             )
         )
     `;

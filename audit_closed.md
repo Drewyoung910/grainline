@@ -22,11 +22,11 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-06-05
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 232.
-- Verified code/feature fix commits since 2026-05-13: 206.
+- Verified hardening/doc commits since 2026-05-13: 233.
+- Verified code/feature fix commits since 2026-05-13: 207.
 - Verified docs/audit-only commits since 2026-05-13: 11.
-- Most recent reported pass tally: 506 verified fixed/reduced findings,
-  419 verified stale/false-positive findings, and 74 deferred/manual findings
+- Most recent reported pass tally: 561 verified fixed/reduced findings,
+  431 verified stale/false-positive findings, and 74 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
 ## 2026-05-14 Active Tracker
@@ -5023,13 +5023,22 @@ listing-review query caps. It also adds twelve stale/false-positive/current
 source classifications for Round 14 #1108-#1119. Twelve approximate
 raw-category decrements are counted; #1120 remains a low-risk best-effort
 rollback/design note rather than a source fix closed here.
+Entry 387 adds eighteen fixed/reduced current-code issues across private/admin
+page clamping and deterministic capped-list ordering, pending-close case
+reopen semantics, blocked/archived message inbox and unread-count scope, latest
+message-thread windowing, archived-thread reopening on new messages/custom
+order links, Sentry header value/IP scrubbing, shipping-label final-lock case
+and dispute guards, and the Stripe webhook event-age recovery window. Eight
+approximate raw-category decrements are counted because the private capped-list
+work was mostly hidden adjacent audit coverage, while the case/message,
+privacy/Sentry, label/dispute, and webhook retry fixes overlap remaining raw
+categories. Deferred stays flat.
 Remaining major categories: Stripe webhook subscription dashboard evidence,
 Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
 product designs, EXPLAIN-dependent query-plan/index validation, Stripe
 partial-refund runtime reconciliation proof, founding-maker
-permanence policy, remaining case/message state policy decisions,
-remaining privacy/legal retention scope, remaining privacy/export
+permanence policy, remaining privacy/legal retention scope, remaining privacy/export
 retention decisions, cross-seller AI
 duplicate-detection product design, public/newsletter-only resubscribe policy if support wants a
 self-service path, legacy enum cleanup/data-migration decisions, partial multi-seller
@@ -5043,4 +5052,4 @@ submission decision, residual lower-risk HTTP-status constants outside the
 high-signal helpers, Vercel Analytics/Speed Insights product/ops decision,
 remaining homepage runtime a11y proof, and residual
 agent/worktree verification process hygiene. Approximate raw allegations left
-to verify from current max #1120: 175.
+to verify from current max #1120: 167.

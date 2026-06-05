@@ -55,6 +55,7 @@ export default async function MessagesPage({
   if (!me) redirect("/sign-in?redirect_url=/messages");
 
   const blockedUserIds = await getBlockedUserIdsFor(me.id);
+  const blockedUserIdList = [...blockedUserIds];
 
   const isArchivedTab = tab === "archived";
 
@@ -83,6 +84,12 @@ export default async function MessagesPage({
       // either party's inbox. The thread becomes visible automatically once
       // someone sends the first message.
       { messages: { some: {} } },
+      blockedUserIdList.length > 0
+        ? {
+            userAId: { notIn: blockedUserIdList },
+            userBId: { notIn: blockedUserIdList },
+          }
+        : {},
       q
         ? {
             OR: [
@@ -114,13 +121,13 @@ export default async function MessagesPage({
   // Pull conversations newest-first with one latest message + listing context thumb
   const convos = await prisma.conversation.findMany({
     where,
-    orderBy: { updatedAt: "desc" },
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
     take: 50,
     include: {
       userA: { select: { id: true, name: true, imageUrl: true } },
       userB: { select: { id: true, name: true, imageUrl: true } },
       messages: {
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         take: 1,
         select: { id: true, body: true, kind: true, createdAt: true, senderId: true },
       },
@@ -137,7 +144,7 @@ export default async function MessagesPage({
   // Unread counts in one query
   const unread = await prisma.message.groupBy({
     by: ["conversationId"],
-    where: { recipientId: me.id, readAt: null },
+    where: { recipientId: me.id, readAt: null, conversation: { is: where } },
     _count: { _all: true },
   });
   const unreadByConvo = new Map<string, number>(

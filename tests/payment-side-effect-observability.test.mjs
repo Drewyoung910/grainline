@@ -105,11 +105,12 @@ describe("payment and fulfillment side-effect observability", () => {
 
     assert.match(labelRoute, /"sellerRefundId" IS NULL/);
     assert.match(labelRoute, /"sellerRefundLockedAt" IS NULL/);
+    assert.match(labelRoute, /SELECT 1 FROM "Case" c/);
+    assert.match(labelRoute, /c\."status"::text IN \(\$\{Prisma\.join\(\[\.\.\.ACTIVE_CASE_STATUSES\]\)\}\)/);
     assert.match(labelRoute, /ope\."status" IS NULL/);
-    assert.match(
-      labelRoute,
-      /ope\."status" NOT IN \('failed', 'canceled', 'cancelled'\)/,
-    );
+    assert.match(labelRoute, /lower\(ope\."status"\) NOT IN \(\$\{Prisma\.join\(NON_BLOCKING_REFUND_LEDGER_STATUSES\)\}\)/);
+    assert.match(labelRoute, /ope\."eventType" = 'DISPUTE'/);
+    assert.match(labelRoute, /Prisma\.join\(\[\.\.\.STRIPE_DISPUTE_CLOSED_STATUSES\]\)/);
   });
 
   it("allows seller partial refunds to restore only explicitly requested purchased stock", () => {

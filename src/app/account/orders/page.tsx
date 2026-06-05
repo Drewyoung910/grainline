@@ -6,6 +6,7 @@ import LocalDate from "@/components/LocalDate";
 import { publicListingPath } from "@/lib/publicPaths";
 import { blockingRefundLedgerWhere, latestRefundLedgerEvent } from "@/lib/refundRouteState";
 import { orderTotalCents } from "@/lib/orderTotals";
+import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -23,57 +24,55 @@ export default async function AccountOrdersPage({
   const me = await ensureUserForPage("/account/orders");
 
   const { page: pageParam } = await searchParams;
-  const parsedPage = parseInt(pageParam ?? "1", 10);
-  const page = Math.min(10_000, Math.max(1, Number.isFinite(parsedPage) ? parsedPage : 1));
+  const requestedPage = parseBoundedPositiveIntParam(pageParam, 1, 1000);
 
-  const [totalOrders, orders] = await Promise.all([
-    prisma.order.count({ where: { buyerId: me.id } }),
-    prisma.order.findMany({
-      where: { buyerId: me.id },
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-      select: {
-        id: true,
-        createdAt: true,
-        currency: true,
-        itemsSubtotalCents: true,
-        shippingAmountCents: true,
-        taxAmountCents: true,
-        giftWrappingPriceCents: true,
-        sellerRefundAmountCents: true,
-        fulfillmentStatus: true,
-        labelTrackingNumber: true,
-        labelCarrier: true,
-        paymentEvents: {
-          where: blockingRefundLedgerWhere(),
-          orderBy: { createdAt: "desc" },
-          take: 1,
-          select: { eventType: true, amountCents: true, status: true },
-        },
-        items: {
-          select: {
-            id: true,
-            priceCents: true,
-            quantity: true,
-            listing: {
-              select: {
-                id: true,
-                title: true,
-                photos: {
-                  take: 1,
-                  orderBy: { sortOrder: "asc" },
-                  select: { url: true },
-                },
+  const totalOrders = await prisma.order.count({ where: { buyerId: me.id } });
+  const totalPages = Math.max(1, Math.ceil(totalOrders / PAGE_SIZE));
+  const page = Math.min(requestedPage, totalPages);
+
+  const orders = await prisma.order.findMany({
+    where: { buyerId: me.id },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
+    select: {
+      id: true,
+      createdAt: true,
+      currency: true,
+      itemsSubtotalCents: true,
+      shippingAmountCents: true,
+      taxAmountCents: true,
+      giftWrappingPriceCents: true,
+      sellerRefundAmountCents: true,
+      fulfillmentStatus: true,
+      labelTrackingNumber: true,
+      labelCarrier: true,
+      paymentEvents: {
+        where: blockingRefundLedgerWhere(),
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 1,
+        select: { eventType: true, amountCents: true, status: true },
+      },
+      items: {
+        select: {
+          id: true,
+          priceCents: true,
+          quantity: true,
+          listing: {
+            select: {
+              id: true,
+              title: true,
+              photos: {
+                take: 1,
+                orderBy: { sortOrder: "asc" },
+                select: { url: true },
               },
             },
           },
         },
       },
-    }),
-  ]);
-
-  const totalPages = Math.ceil(totalOrders / PAGE_SIZE);
+    },
+  });
 
   function formatStatus(status: string | null) {
     if (!status) return "Processing";

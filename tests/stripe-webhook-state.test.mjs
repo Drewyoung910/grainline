@@ -98,8 +98,8 @@ describe("Stripe webhook state helpers", () => {
 
   it("detects stale Stripe webhook events from the signed event timestamp", () => {
     const now = 1_000_000;
-    assert.equal(isStaleStripeEvent(now - 24 * 60 * 60, now), false);
-    assert.equal(isStaleStripeEvent(now - 24 * 60 * 60 - 1, now), true);
+    assert.equal(isStaleStripeEvent(now - 30 * 24 * 60 * 60, now), false);
+    assert.equal(isStaleStripeEvent(now - 30 * 24 * 60 * 60 - 1, now), true);
     assert.equal(isStaleStripeEvent(now + 10 * 60, now), false);
     assert.equal(isStaleStripeEvent(now + 10 * 60 + 1, now), true);
     assert.equal(isStaleStripeEvent(undefined, now), true);

@@ -62,7 +62,7 @@ export default async function SavedPage({
     const listingPage = Math.min(page, Math.max(1, totalPages));
     const favorites = await prisma.favorite.findMany({
       where: savedListingWhere,
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { listingId: "desc" }],
       skip: (listingPage - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
       select: {
@@ -154,7 +154,7 @@ export default async function SavedPage({
   const postPage = Math.min(page, Math.max(1, totalPages));
   const savedPosts = await prisma.savedBlogPost.findMany({
     where: savedPostWhere,
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     skip: (postPage - 1) * PAGE_SIZE,
     take: PAGE_SIZE,
     select: {

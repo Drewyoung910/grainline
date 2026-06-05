@@ -204,7 +204,7 @@ export async function POST(req: Request) {
 
   await prisma.conversation.update({
     where: { id: convo.id },
-    data: { updatedAt: new Date() },
+    data: { updatedAt: new Date(), archivedAAt: null, archivedBAt: null },
   });
 
   try {

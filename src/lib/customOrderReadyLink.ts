@@ -98,7 +98,7 @@ export async function sendCustomOrderReadyLink({
     });
     await tx.conversation.update({
       where: { id: conversationId },
-      data: { updatedAt: new Date() },
+      data: { updatedAt: new Date(), archivedAAt: null, archivedBAt: null },
     });
     return true;
   });

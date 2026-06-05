@@ -22,7 +22,7 @@ export default async function AccountPage() {
     // Most recent 5 orders as a buyer
     prisma.order.findMany({
       where: { buyerId: me.id },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: 5,
       select: {
         id: true,
@@ -56,7 +56,7 @@ export default async function AccountPage() {
     // Most recent 6 saved (favorited) listings
     prisma.favorite.findMany({
       where: savedListingFavoriteWhere(me.id, blockedSellerIds),
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { listingId: "desc" }],
       take: 6,
       select: {
         listing: {

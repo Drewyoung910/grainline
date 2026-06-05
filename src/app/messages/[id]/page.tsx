@@ -105,9 +105,9 @@ export default async function ThreadPage({
     ? publicSellerPath(otherSellerProfile.id, otherSellerProfile.displayName)
     : null;
 
-  const messages = await prisma.message.findMany({
+  const messages = (await prisma.message.findMany({
     where: { conversationId: convo.id },
-    orderBy: { createdAt: "asc" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: 200,
     select: {
       id: true,
@@ -118,7 +118,7 @@ export default async function ThreadPage({
       createdAt: true,
       readAt: true,
     },
-  });
+  })).reverse();
 
   // --- Server actions --------------------------------------------------------
   async function sendMessage(_prev: unknown, formData: FormData) {
@@ -224,7 +224,7 @@ export default async function ThreadPage({
     }
     await prisma.conversation.update({
       where: { id },
-      data: { updatedAt: messageSentAt },
+      data: { updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null },
     });
 
     // Notify recipient

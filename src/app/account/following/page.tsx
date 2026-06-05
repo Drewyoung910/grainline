@@ -27,7 +27,7 @@ export default async function FollowingPage() {
       followerId: me.id,
       sellerProfile: visibleSellerProfileWhere(),
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: 50,
     select: {
       id: true,
@@ -48,7 +48,7 @@ export default async function FollowingPage() {
           _count: { select: { followers: true, listings: { where: publicListingWhere() } } },
           listings: {
             where: publicListingWhere(),
-            orderBy: { createdAt: "desc" },
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
             take: 1,
             select: {
               id: true,

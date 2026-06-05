@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 const {
+  caseMessageStatusTransition,
   canCreateCaseMessageForStatus,
   unavailableCaseMessageRecipientReason,
   unavailableCaseRecipientMessage,
@@ -74,5 +75,48 @@ describe("case messaging account-state guard", () => {
     assert.equal(canCreateCaseMessageForStatus("UNDER_REVIEW", { isStaff: true }), true);
     assert.equal(canCreateCaseMessageForStatus("RESOLVED", { isStaff: true }), false);
     assert.equal(canCreateCaseMessageForStatus("CLOSED", { isStaff: true }), false);
+  });
+
+  it("reopens pending-close cases when a party continues the discussion", () => {
+    assert.equal(
+      caseMessageStatusTransition({
+        status: "PENDING_CLOSE",
+        actorId: "buyer",
+        buyerId: "buyer",
+        sellerId: "seller",
+      }),
+      "party_reopened_pending_close",
+    );
+    assert.equal(
+      caseMessageStatusTransition({
+        status: "PENDING_CLOSE",
+        actorId: "staff",
+        buyerId: "buyer",
+        sellerId: "seller",
+        isStaff: true,
+      }),
+      "none",
+    );
+  });
+
+  it("keeps the seller first-reply transition distinct from reopen semantics", () => {
+    assert.equal(
+      caseMessageStatusTransition({
+        status: "OPEN",
+        actorId: "seller",
+        buyerId: "buyer",
+        sellerId: "seller",
+      }),
+      "seller_started_discussion",
+    );
+    assert.equal(
+      caseMessageStatusTransition({
+        status: "OPEN",
+        actorId: "buyer",
+        buyerId: "buyer",
+        sellerId: "seller",
+      }),
+      "none",
+    );
   });
 });

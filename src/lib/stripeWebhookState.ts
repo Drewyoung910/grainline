@@ -8,7 +8,9 @@ export type StripeRefundLike = {
   reason?: string | null;
 };
 
-export const STRIPE_WEBHOOK_MAX_EVENT_AGE_SECONDS = 24 * 60 * 60;
+// Stripe can retry live webhooks for up to 3 days and manual CLI resends for
+// up to 30 days; keep the app-side age gate aligned with that recovery window.
+export const STRIPE_WEBHOOK_MAX_EVENT_AGE_SECONDS = 30 * 24 * 60 * 60;
 export const STRIPE_WEBHOOK_FUTURE_SKEW_SECONDS = 10 * 60;
 export const SHIPPING_ESTIMATED_DAYS_MAX = 60;
 

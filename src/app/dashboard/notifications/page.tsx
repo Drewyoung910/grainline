@@ -6,6 +6,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { markReadRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { safeNotificationPath } from "@/lib/notificationLinks";
+import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -100,21 +101,21 @@ export default async function NotificationsPage({
   if (!me) redirect("/sign-in");
 
   const { page: pageStr } = await searchParams;
-  const page = Math.max(1, parseInt(pageStr ?? "1", 10) || 1);
-  const skip = (page - 1) * PAGE_SIZE;
+  const requestedPage = parseBoundedPositiveIntParam(pageStr, 1, 1000);
 
-  const [notifications, total, unreadCount] = await Promise.all([
-    prisma.notification.findMany({
-      where: { userId: me.id },
-      orderBy: { createdAt: "desc" },
-      skip,
-      take: PAGE_SIZE,
-    }),
+  const [total, unreadCount] = await Promise.all([
     prisma.notification.count({ where: { userId: me.id } }),
     prisma.notification.count({ where: { userId: me.id, read: false } }),
   ]);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const page = Math.min(requestedPage, totalPages);
 
-  const totalPages = Math.ceil(total / PAGE_SIZE);
+  const notifications = await prisma.notification.findMany({
+    where: { userId: me.id },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
+  });
 
   return (
     <main className="max-w-2xl mx-auto p-8">

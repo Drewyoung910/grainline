@@ -20,6 +20,7 @@ const CUID_PATTERN = /\bc[a-z0-9]{24,}\b/g;
 const LONG_HEX_PATTERN = /\b[a-f0-9]{32,}\b/gi;
 const EMAIL_HASH_KEY_PATTERN = /(^|[_-])emailHash$/i;
 const EMAIL_HASH_VALUE_PATTERN = /^sha256:[a-f0-9]{24}$/;
+const IP_HEADER_PATTERN = /^(?:x-forwarded-for|forwarded|x-real-ip|cf-connecting-ip|true-client-ip)$/i;
 
 function eventText(event: ErrorEvent, hint?: EventHint) {
   const exceptionValues = event.exception?.values?.map((value) => value.value).filter(Boolean).join(" ") ?? "";
@@ -82,7 +83,9 @@ function scrubValue(value: unknown, depth = 0): unknown {
 function scrubHeaders(headers: Record<string, string>) {
   const scrubbed: Record<string, string> = {};
   for (const [key, value] of Object.entries(headers)) {
-    scrubbed[key] = SECRET_KEY_PATTERN.test(key) ? "[redacted]" : value;
+    scrubbed[key] = SECRET_KEY_PATTERN.test(key) || IP_HEADER_PATTERN.test(key)
+      ? "[redacted]"
+      : scrubString(value, { redactUrls: true });
   }
   return scrubbed;
 }

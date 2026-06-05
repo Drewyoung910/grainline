@@ -31,6 +31,8 @@ describe("Sentry beforeSend filtering", () => {
         headers: {
           authorization: "Bearer secret",
           cookie: "session=abc",
+          referer: "https://thegrainline.com/legal/data-request?email=buyer@example.com&token=secret-token",
+          "x-forwarded-for": "203.0.113.7, 198.51.100.9",
           "x-trace-id": "trace-123",
         },
         cookies: { session: "abc" },
@@ -47,6 +49,8 @@ describe("Sentry beforeSend filtering", () => {
     assert.deepEqual(event.request.headers, {
       authorization: "[redacted]",
       cookie: "[redacted]",
+      referer: "[redacted-url]",
+      "x-forwarded-for": "[redacted]",
       "x-trace-id": "trace-123",
     });
     assert.deepEqual(event.request.cookies, {});

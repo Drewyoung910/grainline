@@ -14,6 +14,7 @@ import {
 } from "@/lib/ratelimit";
 import {
   canCreateCaseMessageForStatus,
+  caseMessageStatusTransition,
   unavailableCaseMessageRecipientReason,
   unavailableCaseRecipientMessage,
 } from "@/lib/caseMessagingState";
@@ -119,14 +120,27 @@ export async function POST(
 
     const now = new Date();
     const caseUpdates: Record<string, unknown> = { updatedAt: now };
+    const statusTransition = caseMessageStatusTransition({
+      status: caseRecord.status,
+      actorId: me.id,
+      buyerId: caseRecord.buyerId,
+      sellerId: caseRecord.sellerId,
+      isStaff,
+    });
 
-    // When seller responds to an OPEN case for the first time, transition to IN_DISCUSSION
-    if (me.id === caseRecord.sellerId && caseRecord.status === "OPEN") {
+    // When seller responds to an OPEN case for the first time, transition to IN_DISCUSSION.
+    // If a party continues a pending-close case, clear prior resolution flags so
+    // the case cannot close on stale consent.
+    if (statusTransition === "seller_started_discussion") {
       caseUpdates.status = "IN_DISCUSSION";
       caseUpdates.discussionStartedAt = now;
       caseUpdates.escalateUnlocksAt = new Date(
         now.getTime() + 48 * 60 * 60 * 1000,
       );
+    } else if (statusTransition === "party_reopened_pending_close") {
+      caseUpdates.status = "IN_DISCUSSION";
+      caseUpdates.buyerMarkedResolved = false;
+      caseUpdates.sellerMarkedResolved = false;
     }
 
     const duplicateCutoff = new Date(

@@ -24,6 +24,30 @@ export function canCreateCaseMessageForStatus(
   return allowed.includes(status ?? "");
 }
 
+export type CaseMessageStatusTransition =
+  | "none"
+  | "seller_started_discussion"
+  | "party_reopened_pending_close";
+
+export function caseMessageStatusTransition({
+  status,
+  actorId,
+  buyerId,
+  sellerId,
+  isStaff = false,
+}: {
+  status: string | null | undefined;
+  actorId: string;
+  buyerId: string | null | undefined;
+  sellerId: string;
+  isStaff?: boolean;
+}): CaseMessageStatusTransition {
+  if (status === "OPEN" && actorId === sellerId) return "seller_started_discussion";
+  const isParty = actorId === buyerId || actorId === sellerId;
+  if (!isStaff && isParty && status === "PENDING_CLOSE") return "party_reopened_pending_close";
+  return "none";
+}
+
 export function unavailableCaseMessageRecipientReason({
   senderId,
   buyer,

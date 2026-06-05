@@ -76,6 +76,53 @@ describe("query parameter parsing helpers", () => {
     assert.doesNotMatch(source, /Number\.parseInt\(sp\.page/);
   });
 
+  it("keeps private order and notification pages clamped before Prisma skip", () => {
+    const accountOrders = readFileSync("src/app/account/orders/page.tsx", "utf8");
+    const dashboardSales = readFileSync("src/app/dashboard/sales/page.tsx", "utf8");
+    const adminOrders = readFileSync("src/app/admin/orders/page.tsx", "utf8");
+    const notifications = readFileSync("src/app/dashboard/notifications/page.tsx", "utf8");
+
+    for (const source of [accountOrders, dashboardSales, adminOrders, notifications]) {
+      assert.match(source, /import \{[^}]*parseBoundedPositiveIntParam[^}]*\} from "@\/lib\/queryParams";/);
+      assert.match(source, /parseBoundedPositiveIntParam\(page(?:Param|Str), 1, 1000\)/);
+      assert.doesNotMatch(source, /parseInt\(page(?:Param|Str)/);
+      assert.doesNotMatch(source, /Number\.parseInt\(page(?:Param|Str)/);
+    }
+
+    assert.match(accountOrders, /const totalOrders = await prisma\.order\.count\(\{ where: \{ buyerId: me\.id \} \}\)/);
+    assert.match(accountOrders, /const page = Math\.min\(requestedPage, totalPages\)/);
+    assert.match(accountOrders, /skip: \(page - 1\) \* PAGE_SIZE/);
+
+    assert.match(dashboardSales, /const total = await prisma\.order\.count\(\{ where \}\)/);
+    assert.match(dashboardSales, /const safePage = Math\.min\(requestedPage, totalPages\)/);
+    assert.match(dashboardSales, /skip: \(safePage - 1\) \* PAGE_SIZE/);
+
+    assert.match(adminOrders, /const total = await prisma\.order\.count\(\)/);
+    assert.match(adminOrders, /const safePage = Math\.min\(requestedPage, totalPages\)/);
+    assert.match(adminOrders, /skip: \(safePage - 1\) \* PAGE_SIZE/);
+
+    assert.match(notifications, /const \[total, unreadCount\] = await Promise\.all\(/);
+    assert.match(notifications, /const page = Math\.min\(requestedPage, totalPages\)/);
+    assert.match(notifications, /skip: \(page - 1\) \* PAGE_SIZE/);
+  });
+
+  it("keeps private capped account lists stable on equal timestamps", () => {
+    const account = readFileSync("src/app/account/page.tsx", "utf8");
+    const saved = readFileSync("src/app/account/saved/page.tsx", "utf8");
+    const following = readFileSync("src/app/account/following/page.tsx", "utf8");
+    const blocked = readFileSync("src/app/account/blocked/page.tsx", "utf8");
+    const dashboardOrders = readFileSync("src/app/dashboard/orders/page.tsx", "utf8");
+
+    assert.match(account, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: 5/);
+    assert.match(account, /orderBy: \[\{ createdAt: "desc" \}, \{ listingId: "desc" \}\][\s\S]*take: 6/);
+    assert.match(saved, /orderBy: \[\{ createdAt: "desc" \}, \{ listingId: "desc" \}\][\s\S]*skip: \(listingPage - 1\) \* PAGE_SIZE/);
+    assert.match(saved, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*skip: \(postPage - 1\) \* PAGE_SIZE/);
+    assert.match(following, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: 50/);
+    assert.match(following, /listings: \{[\s\S]*orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: 1/);
+    assert.match(blocked, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: 50/);
+    assert.match(dashboardOrders, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: LIMIT/);
+  });
+
   it("bounds browse location and shipping filters before query construction", () => {
     const browse = readFileSync("src/app/browse/page.tsx", "utf8");
     const filters = readFileSync("src/components/FilterSidebar.tsx", "utf8");

@@ -10,6 +10,7 @@ import { blockingRefundLedgerWhere, latestRefundLedgerEvent } from "@/lib/refund
 import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY } from "@/lib/money";
 import { fulfillmentStatusLabel } from "@/lib/fulfillmentLabels";
+import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -91,8 +92,7 @@ export default async function SalesPage({
   }
 
   const { page: pageParam } = await searchParams;
-  const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
-  const skip = (page - 1) * PAGE_SIZE;
+  const requestedPage = parseBoundedPositiveIntParam(pageParam, 1, 1000);
 
   const where = {
     items: {
@@ -101,37 +101,35 @@ export default async function SalesPage({
     },
   } as const;
 
-  const [orders, total] = await Promise.all([
-    prisma.order.findMany({
-      where,
-      include: {
-        items: {
-          include: {
-            listing: {
-              include: {
-                photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-                seller: { select: { id: true } },
-              },
+  const total = await prisma.order.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const safePage = Math.min(requestedPage, totalPages);
+
+  const orders = await prisma.order.findMany({
+    where,
+    include: {
+      items: {
+        include: {
+          listing: {
+            include: {
+              photos: { orderBy: { sortOrder: "asc" }, take: 1 },
+              seller: { select: { id: true } },
             },
           },
         },
-        buyer: { select: { id: true, name: true, email: true, imageUrl: true } },
-        paymentEvents: {
-          where: blockingRefundLedgerWhere(),
-          orderBy: { createdAt: "desc" },
-          take: 1,
-          select: { eventType: true, amountCents: true, status: true },
-        },
       },
-      orderBy: { createdAt: "desc" },
-      skip,
-      take: PAGE_SIZE,
-    }),
-    prisma.order.count({ where }),
-  ]);
-
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const safePage = Math.min(page, totalPages);
+      buyer: { select: { id: true, name: true, email: true, imageUrl: true } },
+      paymentEvents: {
+        where: blockingRefundLedgerWhere(),
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 1,
+        select: { eventType: true, amountCents: true, status: true },
+      },
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    skip: (safePage - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
+  });
 
   return (
     <main className="mx-auto max-w-7xl p-8 space-y-6">
