@@ -39,12 +39,10 @@ describe("RLS feasibility plan guardrails", () => {
   it("cross-links the RLS plan from the active audit docs", () => {
     const hardening = source("docs/security-hardening-plan.md");
     const auditLog = source("docs/security-audit-log.md");
-    const openFindings = source("audit_open_findings.md");
     const claude = source("CLAUDE.md");
 
     assert.match(hardening, /docs\/rls-feasibility-plan\.md/);
     assert.match(auditLog, /docs\/rls-feasibility-plan\.md/);
-    assert.match(openFindings, /docs\/rls-feasibility-plan\.md/);
     assert.match(claude, /docs\/rls-feasibility-plan\.md/);
   });
 });

@@ -130,8 +130,6 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     assert.match(claude, /timeout: 30000/);
     assert.match(claude, /Do not re-merge audit-log scans or R2 object deletion into the transaction/);
 
-    const audit = source("audit_open_findings.md");
-    assert.match(audit, /account deletion timeout\/terminal UX pass/);
-    assert.match(audit, /tests\/account-deletion-timeout-fix\.test\.mjs/);
+    assert.match(source("docs/runbook.md"), /public support\/legal request handling/);
   });
 });

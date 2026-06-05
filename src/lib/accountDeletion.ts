@@ -693,7 +693,7 @@ async function collectAccountDeletionMediaUrls(
         listings: {
           select: {
             videoUrl: true,
-            photos: { select: { url: true } },
+            photos: { select: { url: true, originalUrl: true } },
           },
         },
       },
@@ -727,7 +727,10 @@ async function collectAccountDeletionMediaUrls(
     });
     sellerProfile.listings.forEach((listing) => {
       if (listing.videoUrl) urls.add(listing.videoUrl);
-      listing.photos.forEach((photo) => urls.add(photo.url));
+      listing.photos.forEach((photo) => {
+        urls.add(photo.url);
+        if (photo.originalUrl) urls.add(photo.originalUrl);
+      });
     });
   }
 

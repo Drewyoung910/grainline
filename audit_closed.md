@@ -19,14 +19,14 @@ deferred, stale, and open findings for traceability.
 
 ## Active Hardening Program Counter
 
-Last updated: 2026-06-02
+Last updated: 2026-06-05
 
 - Raw Claude/new-audit candidate total: pending triage.
 - Verified hardening/doc commits since 2026-05-13: 230.
 - Verified code/feature fix commits since 2026-05-13: 204.
 - Verified docs/audit-only commits since 2026-05-13: 11.
-- Most recent reported pass tally: 384 verified fixed/reduced findings,
-  402 verified stale/false-positive findings, and 70 deferred/manual findings
+- Most recent reported pass tally: 495 verified fixed/reduced findings,
+  417 verified stale/false-positive findings, and 73 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
 ## 2026-05-14 Active Tracker
@@ -4618,7 +4618,78 @@ Last updated: 2026-06-02
      `tests/public-visibility-followups.test.mjs`, and
      `tests/seller-page-performance.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 489 findings;
+381. **Stripe ops docs, admin MFA launch copy, and raw-audit test coupling
+     tightened** - parent-reviewed follow-up from the ops/docs slice plus
+     adjacent process hygiene found while verifying the claim against current
+     `main`. Current source and stable ops docs already handle the exact
+     Stripe snapshot event set:
+     `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
+     `checkout.session.expired`, `checkout.session.async_payment_failed`,
+     `account.updated`, `account.application.deauthorized`,
+     `charge.refunded`, `charge.dispute.created`,
+     `charge.dispute.updated`, `charge.dispute.closed`,
+     `charge.dispute.funds_withdrawn`,
+     `charge.dispute.funds_reinstated`, and `payout.failed`; `payment_intent.*`
+     remains intentionally out of scope for the current card-only Checkout
+     model unless payment methods and failure handling are expanded. The older
+     stock-reservation section in `CLAUDE.md` still said only to add
+     `checkout.session.expired` and overstated abandoned reservations as
+     permanently held. That section now points operators to the exact current
+     event set, the separate Connect v2 thin-event destination, and the
+     reservation repair cron fallback, using reduced-risk wording instead of a
+     guarantee.
+
+     Four source-inspection tests still read `audit_open_findings.md` directly.
+     That file is a raw/unvetted import in the current workflow and can be
+     dirty or locally replaced, so regression tests now assert stable source,
+     committed docs, or `CLAUDE.md` behavior contracts instead. A new
+     guardrail test fails if future tests reintroduce a raw audit import
+     dependency. `CLAUDE.md` now records that reusable testing rule.
+
+     `README.md` also carried stale launch posture saying to keep the admin PIN
+     until Clerk MFA was worth the monthly cost. It now matches
+     `docs/launch-checklist.md`: keep the PIN as an extra staff gate, but do
+     not treat it as a substitute for provider/account MFA evidence. Live
+     Stripe Dashboard subscription proof and Clerk MFA/breached-password/spam
+     dashboard evidence remain external ops-evidence items rather than source
+     closures in this pass.
+
+     Guardrails: `tests/audit-ledger-coupling.test.mjs`,
+     `tests/stripe-webhook-v2-route.test.mjs`,
+     `tests/onboarding-incomplete-dashboard-access.test.mjs`,
+     `tests/account-deletion-timeout-fix.test.mjs`,
+     `tests/rls-feasibility-plan.test.mjs`, and `tests/admin-pin.test.mjs`.
+
+382. **Case refund reason, deletion photo-original cleanup, and transitive
+     Hono audit issue reduced** - parent-verified follow-up from the
+     refund/accounting and privacy/legal sidecar agents plus the local
+     dependency-audit gate. Staff case resolutions no longer send ordinary full
+     refunds to Stripe with `reason: "fraudulent"`. Stripe's refund API treats
+     that reason as a fraud signal with block-list side effects, while
+     Grainline's current case reasons are buyer order-dispute reasons rather
+     than explicit fraud determinations. Case refunds now use
+     `reason: "requested_by_customer"`; `CLAUDE.md` records that `fraudulent`
+     must be reserved for a future explicit fraud-only resolution.
+
+     Account deletion media cleanup now selects and enqueues both listing
+     `Photo.url` and divergent `Photo.originalUrl` values through the existing
+     `accountDeletionMediaUrlsForCleanup()` ownership filter before deleting
+     local `Photo` rows. This closes the hidden cleanup gap where a re-cropped
+     listing photo's pre-crop source could lose its DB reference while
+     remaining in first-party media storage. The older raw claim that
+     `Photo.originalUrl` was missing from account export remains already closed
+     by entry 213 and was not counted again.
+
+     `npm audit --audit-level=moderate` surfaced a transitive Prisma tooling
+     `hono <= 4.12.20` advisory. `package-lock.json` now resolves that
+     dev/tooling dependency to `hono@4.12.23`, and moderate audit returns zero
+     vulnerabilities.
+
+     Guardrails: `tests/payment-side-effect-observability.test.mjs`,
+     `tests/account-deletion-media.test.mjs`, and
+     `npm audit --audit-level=moderate`.
+
+**Running tally after this pass:** verified fixed/reduced: 495 findings;
 verified stale/false-positive: 417 findings; product/design/ops decisions
 deferred: 73 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
@@ -4689,8 +4760,20 @@ also adds one stale/false-positive classification for the already-fixed main
 `SearchBar` latest-response race allegation (#908). Five approximate
 raw-category decrements are counted because several fixed query/page behaviors
 were adjacent hidden issues inside the same residual public-discovery category.
-Remaining major categories: Stripe webhook subscription
-narrowing evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
+Entry 381 adds three fixed/reduced docs/test/process issues for stale Stripe
+webhook setup docs, raw-audit regression-test coupling, and stale admin
+PIN/MFA launch copy. No approximate raw-category decrement is counted because
+live Stripe Dashboard subscription evidence and Clerk MFA dashboard evidence
+remain external proof items, and the raw-test coupling was adjacent process
+hygiene rather than a separately numbered raw allegation.
+Entry 382 adds three fixed/reduced source/dependency issues for ordinary case
+refund Stripe reason semantics, deleted-account listing photo-original cleanup,
+and the transitive Hono moderate advisory. No approximate raw-category
+decrement is counted because the case/refund and photo-original cleanup issues
+were hidden adjacent findings, while the older `Photo.originalUrl` export raw
+claim was already closed in entry 213.
+Remaining major categories: Stripe webhook subscription dashboard evidence,
+Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
 product designs, EXPLAIN-dependent query-plan/index validation, Stripe
 partial-refund runtime reconciliation proof, founding-maker
@@ -4706,6 +4789,6 @@ evidence, buyer-deletion runtime replay proof,
 Founding Maker live DB concurrency proof, Sentry cron alert evidence,
 Cloudflare R2 ListBucket/public-bucket dashboard evidence, HSTS preload
 submission decision, residual HTTP-status constants, analytics observability
-refactors, remaining homepage runtime a11y proof, and agent/worktree
-verification process hygiene. Approximate raw allegations left to verify from
-current max #1120: 198.
+refactors, remaining homepage runtime a11y proof, and residual
+agent/worktree verification process hygiene. Approximate raw allegations left
+to verify from current max #1120: 198.

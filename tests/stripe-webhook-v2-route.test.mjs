@@ -91,7 +91,7 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
     const middleware = source("src/middleware.ts");
     const env = source(".env.example");
     const claude = source("CLAUDE.md");
-    const audit = source("audit_open_findings.md");
+    const securityAuditLog = source("docs/security-audit-log.md");
 
     assert.match(middleware, /"\/api\/stripe\/webhook\/v2"/);
     assert.match(middleware, /pathname === "\/api\/stripe\/webhook\/v2"/);
@@ -99,8 +99,7 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
     assert.match(claude, /Stripe Connect v2 thin events are delivered to `\/api\/stripe\/webhook\/v2` with `STRIPE_V2_WEBHOOK_SECRET`/);
     assert.match(claude, /Snapshot events continue at `\/api\/stripe\/webhook` with `STRIPE_WEBHOOK_SECRET`/);
     assert.match(claude, /Do not consolidate these destinations/);
-    assert.match(audit, /Stripe Connect v2 webhook split pass/);
-    assert.match(audit, /STRIPE_V2_WEBHOOK_SECRET/);
+    assert.match(securityAuditLog, /Accounts v2 thin events remain isolated on `\/api\/stripe\/webhook\/v2` with `STRIPE_V2_WEBHOOK_SECRET`/);
   });
 
   it("keeps launch and recovery docs on exact Stripe webhook subscriptions", () => {

@@ -252,6 +252,17 @@ describe("payment and fulfillment side-effect observability", () => {
     );
   });
 
+  it("does not tag ordinary staff case refunds as fraudulent Stripe refunds", () => {
+    const route = source("src/app/api/cases/[id]/resolve/route.ts");
+    const refundStart = route.indexOf("const refund = await createMarketplaceRefund({");
+    const refundEnd = route.indexOf("});", refundStart);
+    const refundCall = route.slice(refundStart, refundEnd);
+
+    assert.ok(refundStart >= 0, "case resolution route must use the shared marketplace refund helper");
+    assert.match(refundCall, /reason: "requested_by_customer"/);
+    assert.doesNotMatch(refundCall, /fraudulent/);
+  });
+
   it("preserves fresh refund locks when terminal Stripe dispute events arrive", () => {
     const route = source("src/app/api/stripe/webhook/route.ts");
 

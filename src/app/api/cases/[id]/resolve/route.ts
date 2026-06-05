@@ -237,7 +237,7 @@ export async function POST(
             resolution,
             amountCents: refundAmountForOrder!,
           }),
-          reason: resolution === "REFUND_FULL" ? "fraudulent" : undefined,
+          reason: "requested_by_customer",
         });
         stripeRefundId = refund.primaryRefundId;
         stripeRefundIds = refund.refundIds;

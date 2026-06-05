@@ -69,13 +69,9 @@ describe("onboarding-incomplete dashboard access", () => {
     assert.match(sellerCheckout, /sellerOrderBlockReason\(sellerItems\[0\]\.listing\.seller\)/);
   });
 
-  it("documents the access contract in CLAUDE.md and the audit ledger", () => {
+  it("documents the access contract in CLAUDE.md", () => {
     const claude = source("CLAUDE.md");
     assert.match(claude, /Onboarding-incomplete dashboard access behavior/);
     assert.match(claude, /Do not re-add the `!onboardingComplete` redirect from `\/dashboard`/);
-
-    const audit = source("audit_open_findings.md");
-    assert.match(audit, /onboarding-incomplete dashboard access pass/);
-    assert.match(audit, /tests\/onboarding-incomplete-dashboard-access\.test\.mjs/);
   });
 });

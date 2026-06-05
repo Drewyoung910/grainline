@@ -83,7 +83,7 @@ If a Prisma migration has already been applied in production, do not rename its 
 
 ## Current Launch Notes
 
-- Keep admin PIN enabled until Clerk MFA is worth the added monthly cost.
+- Keep admin PIN enabled as an extra staff gate, and complete the Clerk/admin MFA evidence items in `docs/launch-checklist.md` before live operations. Do not treat the PIN as a substitute for provider/account MFA.
 - Clerk and Stripe production webhooks must be configured in their dashboards before live payments.
 - Rotate any database credentials that were exposed in terminal output.
 - Attorney/business decisions remain for final Terms/Privacy wording, money-transmitter analysis, and INFORM Consumers Act scope. Clickwrap and age-attestation are implemented technically, but counsel should still review wording.

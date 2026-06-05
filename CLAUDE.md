@@ -14,7 +14,7 @@ These rules exist to survive context compaction and multi-agent handoffs. Read t
 
 - Work from `/Users/drewyoung/grainline` on `main` unless Drew explicitly says otherwise.
 - Treat Claude/other-agent findings as allegations, not facts. Verify each one against current `main` before fixing or closing it.
-- Do not commit raw Claude audit imports. `audit_open_findings.md` can contain unvetted findings; move only verified fixes or verified-stale findings into `audit_closed.md`.
+- Do not commit raw Claude audit imports. `audit_open_findings.md` can contain unvetted findings; move only verified fixes or verified-stale findings into `audit_closed.md`. Regression tests must not read raw audit imports; assert stable source, docs, or the closed ledger instead.
 - Keep a running tally after each pass: verified real fixed, verified stale/false-positive closed, deferred/manual, and remaining unvetted.
 - If another worktree such as `.claude/worktrees/sleepy-hypatia-*` appears, compare it to main only when needed; do not assume it is current.
 
@@ -226,7 +226,7 @@ Five API routes handle the full case lifecycle:
 | `POST /api/cases/[id]/messages` | Buyer, seller, or staff | Adds a message to the thread. Blocks on RESOLVED/CLOSED cases. When seller posts first reply on OPEN case: sets `IN_DISCUSSION`, `discussionStartedAt`, `escalateUnlocksAt = now + 48h`. |
 | `POST /api/cases/[id]/escalate` | Buyer/seller (if `escalateUnlocksAt` past) or staff/CRON_SECRET | `id="all"` bulk-escalates OPEN cases past `sellerRespondBy` and IN_DISCUSSION cases past `escalateUnlocksAt` (staff/cron only). Single ID: buyer/seller may escalate after `escalateUnlocksAt`; sets `UNDER_REVIEW`. |
 | `POST /api/cases/[id]/mark-resolved` | Buyer or seller | Marks their side resolved. First call → `PENDING_CLOSE`; both calls → `RESOLVED` with `DISMISSED`. The route notifies the counterparty on both the pending-close and final-resolved transitions. |
-| `POST /api/cases/[id]/resolve` | EMPLOYEE or ADMIN | Accepts `resolution`, optional `refundAmountCents`, and bounded `restoreStock` for partial refunds only. Issues Stripe refund (full with `reason: "fraudulent"`, partial by amount). Stamps `stripeRefundId`, sets case RESOLVED, flags order `reviewNeeded`. |
+| `POST /api/cases/[id]/resolve` | EMPLOYEE or ADMIN | Accepts `resolution`, optional `refundAmountCents`, and bounded `restoreStock` for partial refunds only. Issues Stripe refund with `reason: "requested_by_customer"` for ordinary case resolutions; do not use Stripe's `fraudulent` refund reason unless a future explicit fraud-only resolution exists. Stamps `stripeRefundId`, sets case RESOLVED, flags order `reviewNeeded`. |
 
 ### Seller self-service refund
 
@@ -3224,10 +3224,11 @@ Stock is now reserved at checkout time (session creation), not at payment time (
 - **Buy-now rollback window**: modal close/retry rollback is best-effort browser cleanup. The client uses a same-origin `fetch` with `keepalive: true` to reduce the chance that close/navigation cancels the rollback request, but if the `/api/cart/checkout/rollback` fetch still fails or the browser closes before it is queued, stock/session cleanup falls back to Stripe's `checkout.session.expired` webhook. The buyer-visible reservation lock can still last until the 31-minute session expiry window. Do not describe client rollback as guaranteed immediate release.
 
 ### Stripe webhook setup required
-Add `checkout.session.expired` to your Stripe webhook events:
-Stripe Dashboard → Developers → Webhooks → endpoint → Add events → `checkout.session.expired`
+Production snapshot webhooks stay on `/api/stripe/webhook` with `STRIPE_WEBHOOK_SECRET` and must be subscribed only to the handled snapshot events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.expired`, `checkout.session.async_payment_failed`, `account.updated`, `account.application.deauthorized`, `charge.refunded`, `charge.dispute.created`, `charge.dispute.updated`, `charge.dispute.closed`, `charge.dispute.funds_withdrawn`, `charge.dispute.funds_reinstated`, and `payout.failed`. Do not add `payment_intent.*` events unless checkout payment methods and webhook failure handling are expanded.
 
-Without this, expired sessions won't trigger stock restoration. Stock reserved by abandoned checkouts would be permanently held until manual adjustment.
+Connect v2 thin account notifications stay on `/api/stripe/webhook/v2` with `STRIPE_V2_WEBHOOK_SECRET` and the `v2.core.account` event family. Do not consolidate snapshot and thin-event destinations.
+
+`checkout.session.expired` and `checkout.session.async_payment_failed` restore reserved stock for unpaid sessions. The reservation repair cron is still the fallback for missed webhooks, no-session rows, and stale session rows, so describe this as reduced stuck-reservation risk rather than guaranteed immediate cleanup.
 
 ### Seller experience
 - Sellers see nothing when stock is reserved or restored. No notifications.
