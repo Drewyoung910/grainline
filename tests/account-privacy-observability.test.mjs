@@ -199,6 +199,14 @@ describe("account and privacy route observability guardrails", () => {
       adminEmailRoute,
       /isEmailSuppressed\(normalizedRecipientEmail\)/,
     );
+    assert.match(
+      adminEmailRoute,
+      /Recipient email is suppressed or unsubscribed/,
+    );
+    assert.doesNotMatch(
+      adminEmailRoute,
+      /Recipient email is suppressed after a bounce or complaint/,
+    );
   });
 
   it("preserves hard email suppressions per key when lower-priority manual suppression is written", () => {

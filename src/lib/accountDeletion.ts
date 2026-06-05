@@ -193,13 +193,29 @@ function bodyTextMatchSql(value: string) {
   return Prisma.sql`lower(body) ~ ${pattern}`;
 }
 
+function auditMetadataTextMatchSql(value: string) {
+  const normalized = value.toLowerCase();
+  if (Array.from(normalized).length >= 3) {
+    return Prisma.sql`(
+      position(${normalized} in lower(metadata::text)) > 0 OR
+      position(${normalized} in lower(COALESCE(reason, ''))) > 0
+    )`;
+  }
+
+  const pattern = `(^|[^[:alnum:]])${escapePostgresRegex(normalized)}([^[:alnum:]]|$)`;
+  return Prisma.sql`(
+    lower(metadata::text) ~ ${pattern} OR
+    lower(COALESCE(reason, '')) ~ ${pattern}
+  )`;
+}
+
 async function collectAuditLogsBySensitiveMetadata(
   db: AuditLogRedactionDb,
   candidates: Map<string, AuditLogRedactionCandidate>,
   sensitiveValues: string[],
 ) {
-  for (const value of sensitiveValues) {
-    const normalized = value.toLowerCase();
+  for (const value of sensitiveValues.filter((item) => Array.from(item).length >= 2)) {
+    const textMatchSql = auditMetadataTextMatchSql(value);
     let cursor: string | null = null;
 
     for (;;) {
@@ -208,20 +224,14 @@ async function collectAuditLogsBySensitiveMetadata(
           SELECT id, metadata, reason
           FROM "AdminAuditLog"
           WHERE id > ${cursor}
-            AND (
-              position(${normalized} in lower(metadata::text)) > 0 OR
-              position(${normalized} in lower(COALESCE(reason, ''))) > 0
-            )
+            AND ${textMatchSql}
           ORDER BY id ASC
           LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
         `
         : Prisma.sql`
           SELECT id, metadata, reason
           FROM "AdminAuditLog"
-          WHERE (
-            position(${normalized} in lower(metadata::text)) > 0 OR
-            position(${normalized} in lower(COALESCE(reason, ''))) > 0
-          )
+          WHERE ${textMatchSql}
           ORDER BY id ASC
           LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
         `;
@@ -1042,6 +1052,16 @@ export async function anonymizeUserAccount(
     await tx.userReport.updateMany({
       where: { OR: [{ reporterId: user.id }, { reportedId: user.id }] },
       data: { details: null },
+    });
+    await tx.userReport.updateMany({
+      where: {
+        OR: [{ reporterId: user.id }, { reportedId: user.id }],
+        resolved: true,
+        resolutionNote: { not: null },
+      },
+      data: {
+        resolutionNote: "Resolution note removed after an involved account was deleted.",
+      },
     });
     await tx.userReport.updateMany({
       where: { reportedId: user.id, resolved: false },

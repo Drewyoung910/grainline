@@ -41,6 +41,7 @@ import {
   type CheckoutStockRestoreLineItem,
 } from "@/lib/checkoutStockRestore";
 import { blockingRefundLedgerWhere, blockingRefundOrDisputeLedgerWhere, orderHasRefundLedger } from "@/lib/refundRouteState";
+import { blockingRefundOrLatestOpenDisputeLedgerExistsSql } from "@/lib/refundLedgerSql";
 import { REFUND_LOCK_SENTINEL, isStaleRefundLock } from "@/lib/refundLockState";
 import { createMarketplaceRefund, refundIdempotencyKeyBase } from "@/lib/marketplaceRefunds";
 import { stripeWebhookCreatedSeconds } from "@/lib/stripeConnectV2";
@@ -63,7 +64,7 @@ import {
   retrievedStripeEventMatchesSignedEnvelope,
   SHIPPING_ESTIMATED_DAYS_MAX,
 } from "@/lib/stripeWebhookState";
-import type { FulfillmentStatus, Prisma } from "@prisma/client";
+import { Prisma, type FulfillmentStatus } from "@prisma/client";
 
 
 export const runtime = "nodejs";
@@ -923,20 +924,17 @@ export async function POST(req: Request) {
             return;
           }
 
-          const lockResult = await prisma.order.updateMany({
-            where: {
-              id: input.orderId,
-              sellerRefundId: null,
-              paymentEvents: { none: blockingRefundOrDisputeLedgerWhere() },
-            },
-            data: {
-              sellerRefundId: REFUND_LOCK_SENTINEL,
-              sellerRefundLockedAt: new Date(),
-              reviewNeeded: true,
-              reviewNote: `${reviewPrefix} Automatic refund is being processed because the maker account was not eligible to accept this order.`,
-            },
-          });
-          if (lockResult.count !== 1) {
+          const lockResult: number = await prisma.$executeRaw`
+            UPDATE "Order"
+            SET "sellerRefundId" = ${REFUND_LOCK_SENTINEL},
+                "sellerRefundLockedAt" = ${new Date()},
+                "reviewNeeded" = true,
+                "reviewNote" = ${`${reviewPrefix} Automatic refund is being processed because the maker account was not eligible to accept this order.`}
+            WHERE id = ${input.orderId}
+              AND "sellerRefundId" IS NULL
+              AND NOT (${blockingRefundOrLatestOpenDisputeLedgerExistsSql(Prisma.sql`"Order".id`)})
+          `;
+          if (lockResult !== 1) {
             const conflictingOrder = await prisma.order.findUnique({
               where: { id: input.orderId },
               select: {
@@ -1849,6 +1847,7 @@ export async function POST(req: Request) {
                 id: true,
                 currency: true,
                 sellerRefundId: true,
+                sellerRefundLockedAt: true,
                 sellerRefundAmountCents: true,
                 itemsSubtotalCents: true,
                 shippingAmountCents: true,

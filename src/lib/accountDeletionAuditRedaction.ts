@@ -27,7 +27,7 @@ function redactValue(
 ): { value: AuditJsonValue; changed: boolean } {
   if (typeof value === "string") {
     const normalized = value.toLowerCase();
-    const shouldRedact = needles.some((needle) => normalized.includes(needle));
+    const shouldRedact = needles.some((needle) => accountDeletionAuditValueContainsNeedle(normalized, needle));
     return shouldRedact
       ? { value: ACCOUNT_DELETION_AUDIT_REDACTION, changed: true }
       : { value, changed: false };
@@ -70,11 +70,16 @@ function redactionPatternForNeedle(needle: string) {
   return new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`, "giu");
 }
 
+function accountDeletionAuditValueContainsNeedle(normalizedValue: string, needle: string) {
+  if (Array.from(needle).length >= 3) return normalizedValue.includes(needle);
+  return redactionPatternForNeedle(needle).test(normalizedValue);
+}
+
 export function redactAccountDeletionAuditMetadata(
   metadata: AuditJsonValue,
   sensitiveValues: Iterable<string | null | undefined>,
 ) {
-  const needles = normalizeNeedles(sensitiveValues);
+  const needles = normalizeNeedles(sensitiveValues).filter((value) => Array.from(value).length >= 2);
   if (needles.length === 0) return { metadata, changed: false };
 
   const result = redactValue(metadata, needles);

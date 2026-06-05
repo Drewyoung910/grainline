@@ -5,7 +5,10 @@ import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 import { prisma } from "@/lib/db";
 import { STRIPE_WEBHOOK_EVENT_STALE_PROCESSING_MS } from "@/lib/stripeWebhookEventState";
-import { ACCOUNT_DELETION_SIDE_EFFECT_STATUS } from "@/lib/accountDeletionSideEffects";
+import {
+  ACCOUNT_DELETION_SIDE_EFFECT_STALE_PROCESSING_MS,
+  ACCOUNT_DELETION_SIDE_EFFECT_STATUS,
+} from "@/lib/accountDeletionSideEffects";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 
 export const runtime = "nodejs";
@@ -15,7 +18,6 @@ const FAILED_CRON_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 const STALE_CRON_RUNNING_MS = 30 * 60 * 1000;
 const STALE_EMAIL_OUTBOX_MS = 30 * 60 * 1000;
 const STALE_SVIX_WEBHOOK_PROCESSING_MS = 5 * 60 * 1000;
-const STALE_ACCOUNT_DELETION_SIDE_EFFECT_MS = 60 * 60 * 1000;
 
 export async function GET(request: Request) {
   if (!verifyCronRequest(request)) {
@@ -33,7 +35,7 @@ export async function GET(request: Request) {
       const staleEmailBefore = new Date(now.getTime() - STALE_EMAIL_OUTBOX_MS);
       const staleStripeWebhookBefore = new Date(now.getTime() - STRIPE_WEBHOOK_EVENT_STALE_PROCESSING_MS);
       const staleSvixWebhookBefore = new Date(now.getTime() - STALE_SVIX_WEBHOOK_PROCESSING_MS);
-      const staleAccountDeletionSideEffectBefore = new Date(now.getTime() - STALE_ACCOUNT_DELETION_SIDE_EFFECT_MS);
+      const staleAccountDeletionSideEffectBefore = new Date(now.getTime() - ACCOUNT_DELETION_SIDE_EFFECT_STALE_PROCESSING_MS);
 
       const [
         failedCronRuns,

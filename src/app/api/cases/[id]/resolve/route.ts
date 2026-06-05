@@ -10,6 +10,7 @@ import { createMarketplaceRefund, refundIdempotencyKeyBase } from "@/lib/marketp
 import { formatCurrencyCents } from "@/lib/money";
 import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { REFUND_LOCK_SENTINEL, releaseStaleRefundLocks } from "@/lib/refundLocks";
+import { blockingRefundOrLatestOpenDisputeLedgerExistsSql } from "@/lib/refundLedgerSql";
 import { caseResolutionCopy } from "@/lib/caseResolutionCopy";
 import { revalidateListingSearchCaches } from "@/lib/searchCache";
 import {
@@ -32,6 +33,7 @@ import {
   readBoundedJson,
 } from "@/lib/requestBody";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
 
@@ -192,16 +194,16 @@ export async function POST(
         );
       }
 
-      const lockResult = await prisma.order.updateMany({
-        where: {
-          id: caseRecord.orderId,
-          sellerRefundId: null,
-          OR: [{ labelStatus: null }, { labelStatus: { not: "PURCHASED" } }],
-          paymentEvents: { none: blockingRefundOrDisputeLedgerWhere() },
-        },
-        data: { sellerRefundId: REFUND_LOCK_SENTINEL, sellerRefundLockedAt: new Date() },
-      });
-      if (lockResult.count === 0) {
+      const lockResult: number = await prisma.$executeRaw`
+        UPDATE "Order"
+        SET "sellerRefundId" = ${REFUND_LOCK_SENTINEL},
+            "sellerRefundLockedAt" = ${new Date()}
+        WHERE id = ${caseRecord.orderId}
+          AND "sellerRefundId" IS NULL
+          AND ("labelStatus" IS NULL OR "labelStatus" != 'PURCHASED'::"LabelStatus")
+          AND NOT (${blockingRefundOrLatestOpenDisputeLedgerExistsSql(Prisma.sql`"Order".id`)})
+      `;
+      if (lockResult === 0) {
         const freshOrder = await prisma.order.findUnique({
           where: { id: caseRecord.orderId },
           select: {

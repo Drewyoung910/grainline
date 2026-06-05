@@ -1,4 +1,5 @@
 import { DEFAULT_CURRENCY } from "./money.ts";
+import { REFUND_LOCK_SENTINEL, isStaleRefundLock } from "./refundLockState.ts";
 
 export type StripeRefundLike = {
   id?: string;
@@ -57,6 +58,7 @@ export type CheckoutInvalidReasonState = {
 export type ChargeRefundOrderState = {
   currency: string;
   sellerRefundId: string | null;
+  sellerRefundLockedAt?: Date | null;
   sellerRefundAmountCents: number | null;
   itemsSubtotalCents?: number | null;
   shippingAmountCents?: number | null;
@@ -80,6 +82,7 @@ export type ChargeRefundLedgerState = {
       latestRefundAmountCents: number | null;
       totalRefundedCents: number;
       preservedLocalRefundId: string | null;
+      pendingLocalRefundLock: boolean;
       orderTotalCents: number;
       refundExceedsOrderTotal: boolean;
     };
@@ -400,22 +403,32 @@ export function chargeRefundLedgerState({
   const refundExceedsOrderTotal = orderTotalCents > 0 && totalRefundedCents > orderTotalCents;
   const hasLocalRefundAudit =
     !!order.sellerRefundId &&
-    order.sellerRefundId !== "pending" &&
+    order.sellerRefundId !== REFUND_LOCK_SENTINEL &&
     !order.sellerRefundId.startsWith("external:");
+  const hasFreshLocalRefundLock =
+    order.sellerRefundId === REFUND_LOCK_SENTINEL &&
+    !isStaleRefundLock({
+      sellerRefundId: order.sellerRefundId,
+      sellerRefundLockedAt: order.sellerRefundLockedAt ?? null,
+    });
   const isKnownLocalRefund = hasLocalRefundAudit && order.sellerRefundId === latestRefundId;
   const isAdditionalExternalRefund = hasLocalRefundAudit && !isKnownLocalRefund;
   const reason =
-    latestRefund?.reason ??
-    (isKnownLocalRefund
-      ? "local_refund_confirmed"
-      : isAdditionalExternalRefund
-        ? "additional_external_refund"
-        : "external_refund");
+    hasFreshLocalRefundLock
+      ? "local_refund_pending_confirmation"
+      : latestRefund?.reason ??
+        (isKnownLocalRefund
+          ? "local_refund_confirmed"
+          : isAdditionalExternalRefund
+            ? "additional_external_refund"
+            : "external_refund");
   const description = isKnownLocalRefund
     ? "Stripe confirmed a Grainline-tracked refund."
-    : isAdditionalExternalRefund
-      ? "Stripe reported an additional refund outside the local Grainline refund record."
-      : "Stripe reported a refund created outside Grainline.";
+    : hasFreshLocalRefundLock
+      ? "Stripe reported a refund while Grainline was recording local refund side effects."
+      : isAdditionalExternalRefund
+        ? "Stripe reported an additional refund outside the local Grainline refund record."
+        : "Stripe reported a refund created outside Grainline.";
   const ledger = {
     stripeObjectId: latestRefundId,
     amountCents: latestRefund?.amount ?? totalRefundedCents,
@@ -429,12 +442,17 @@ export function chargeRefundLedgerState({
       latestRefundAmountCents: latestRefund?.amount ?? null,
       totalRefundedCents,
       preservedLocalRefundId: isAdditionalExternalRefund ? order.sellerRefundId : null,
+      pendingLocalRefundLock: hasFreshLocalRefundLock,
       orderTotalCents,
       refundExceedsOrderTotal,
     },
   };
 
   if (order.sellerRefundId === latestRefundId) {
+    return { latestRefundId, totalRefundedCents, ledger, orderUpdate: null };
+  }
+
+  if (hasFreshLocalRefundLock) {
     return { latestRefundId, totalRefundedCents, ledger, orderUpdate: null };
   }
 

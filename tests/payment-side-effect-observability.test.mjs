@@ -62,11 +62,12 @@ describe("payment and fulfillment side-effect observability", () => {
     for (const route of [sellerRoute, caseRoute]) {
       assert.match(route, /blockingRefundLedgerWhere/);
       assert.match(route, /blockingRefundOrDisputeLedgerWhere/);
+      assert.match(route, /blockingRefundOrLatestOpenDisputeLedgerExistsSql/);
       assert.match(route, /sellerRefundConflictResponse/);
       assert.match(route, /orderHasRefundLedger/);
       assert.match(
         route,
-        /paymentEvents:\s*\{\s*none:\s*blockingRefundOrDisputeLedgerWhere\(\)\s*\}/,
+        /await prisma\.\$executeRaw`[\s\S]*"sellerRefundId" IS NULL[\s\S]*blockingRefundOrLatestOpenDisputeLedgerExistsSql/,
       );
     }
 
@@ -76,12 +77,12 @@ describe("payment and fulfillment side-effect observability", () => {
     );
     assert.match(
       sellerRoute,
-      /where:\s*\{\s*id: orderId,\s*sellerRefundId: null/s,
+      /WHERE id = \$\{orderId\}[\s\S]*"sellerRefundId" IS NULL/s,
     );
     assert.match(caseRoute, /if \(orderHasRefundLedger\(caseRecord\.order\)\)/);
     assert.match(
       caseRoute,
-      /where:\s*\{\s*id: caseRecord\.orderId,\s*sellerRefundId: null/s,
+      /WHERE id = \$\{caseRecord\.orderId\}[\s\S]*"sellerRefundId" IS NULL/s,
     );
   });
 
@@ -98,7 +99,7 @@ describe("payment and fulfillment side-effect observability", () => {
       );
       assert.match(
         route,
-        /OR:\s*\[\{ labelStatus: null \}, \{ labelStatus: \{ not: "PURCHASED" \} \}\]/,
+        /"labelStatus" IS NULL OR "labelStatus" != 'PURCHASED'::"LabelStatus"/,
       );
       assert.match(route, /labelStatus: true/);
     }
@@ -109,8 +110,8 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(labelRoute, /c\."status"::text IN \(\$\{Prisma\.join\(\[\.\.\.ACTIVE_CASE_STATUSES\]\)\}\)/);
     assert.match(labelRoute, /ope\."status" IS NULL/);
     assert.match(labelRoute, /lower\(ope\."status"\) NOT IN \(\$\{Prisma\.join\(NON_BLOCKING_REFUND_LEDGER_STATUSES\)\}\)/);
-    assert.match(labelRoute, /ope\."eventType" = 'DISPUTE'/);
-    assert.match(labelRoute, /Prisma\.join\(\[\.\.\.STRIPE_DISPUTE_CLOSED_STATUSES\]\)/);
+    assert.match(labelRoute, /latestOpenDisputeLedgerExistsSql/);
+    assert.match(labelRoute, /latestOpenDisputeLedgerExistsSql\(Prisma\.sql`"Order"\.id`\)/);
   });
 
   it("allows seller partial refunds to restore only explicitly requested purchased stock", () => {
@@ -227,7 +228,7 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(route, /sellerRefundId: REFUND_LOCK_SENTINEL/);
     assert.match(
       route,
-      /paymentEvents: \{ none: blockingRefundOrDisputeLedgerWhere\(\) \}/,
+      /await prisma\.\$executeRaw`[\s\S]*"sellerRefundId" IS NULL[\s\S]*blockingRefundOrLatestOpenDisputeLedgerExistsSql/,
     );
     assert.match(route, /createMarketplaceRefund\(\{/);
     assert.match(route, /scope: "blocked-checkout-refund"/);
@@ -235,7 +236,7 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(route, /Stripe refund status requires manual follow-up/);
     assert.doesNotMatch(route, /refund\s*=\s*await stripe\.refunds\.create/);
     assert.ok(
-      route.indexOf("sellerRefundId: REFUND_LOCK_SENTINEL") <
+      route.indexOf('SET "sellerRefundId" = ${REFUND_LOCK_SENTINEL}') <
         route.indexOf("createMarketplaceRefund({"),
       "blocked-checkout refunds must acquire the local lock before the shared Stripe refund helper",
     );

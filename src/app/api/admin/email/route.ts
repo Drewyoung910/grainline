@@ -112,7 +112,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid recipient email" }, { status: 400 });
   }
   if (await isEmailSuppressed(normalizedRecipientEmail)) {
-    return NextResponse.json({ error: "Recipient email is suppressed after a bounce or complaint" }, { status: 409 });
+    return NextResponse.json({ error: "Recipient email is suppressed or unsubscribed" }, { status: 409 });
   }
 
   const recipientAccount = await prisma.user.findUnique({

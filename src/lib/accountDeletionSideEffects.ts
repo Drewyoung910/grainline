@@ -11,6 +11,7 @@ export const ACCOUNT_DELETION_SIDE_EFFECT_STATUS = {
   DONE: "DONE",
   FAILED: "FAILED",
 } as const;
+export const ACCOUNT_DELETION_SIDE_EFFECT_STALE_PROCESSING_MS = 60 * 60 * 1000;
 
 export const ACCOUNT_DELETION_SIDE_EFFECT_KIND = {
   LOCAL_ANONYMIZE: "LOCAL_ANONYMIZE",
@@ -46,6 +47,30 @@ function sanitizeSideEffectError(error: unknown) {
 function nextAttemptAt(attempts: number, now = new Date()) {
   const minutes = Math.min(60, Math.max(5, 2 ** Math.min(attempts, 5)));
   return new Date(now.getTime() + minutes * 60 * 1000);
+}
+
+function staleProcessingBefore(now = new Date()) {
+  return new Date(now.getTime() - ACCOUNT_DELETION_SIDE_EFFECT_STALE_PROCESSING_MS);
+}
+
+function claimableAccountDeletionSideEffectWhere(now = new Date()): Prisma.AccountDeletionSideEffectWhereInput {
+  return {
+    OR: [
+      {
+        status: {
+          in: [
+            ACCOUNT_DELETION_SIDE_EFFECT_STATUS.PENDING,
+            ACCOUNT_DELETION_SIDE_EFFECT_STATUS.FAILED,
+          ],
+        },
+        OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: now } }],
+      },
+      {
+        status: ACCOUNT_DELETION_SIDE_EFFECT_STATUS.PROCESSING,
+        updatedAt: { lt: staleProcessingBefore(now) },
+      },
+    ],
+  };
 }
 
 function isUniqueConstraintError(error: unknown) {
@@ -260,13 +285,7 @@ export async function processAccountDeletionSideEffect(id: string) {
   const claimed = await prisma.accountDeletionSideEffect.updateMany({
     where: {
       id,
-      status: {
-        in: [
-          ACCOUNT_DELETION_SIDE_EFFECT_STATUS.PENDING,
-          ACCOUNT_DELETION_SIDE_EFFECT_STATUS.FAILED,
-        ],
-      },
-      OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: now } }],
+      ...claimableAccountDeletionSideEffectWhere(now),
     },
     data: {
       status: ACCOUNT_DELETION_SIDE_EFFECT_STATUS.PROCESSING,
@@ -327,13 +346,7 @@ export async function processAccountDeletionSideEffectsForUser(
     where: {
       userId,
       kind: { in: kinds },
-      status: {
-        in: [
-          ACCOUNT_DELETION_SIDE_EFFECT_STATUS.PENDING,
-          ACCOUNT_DELETION_SIDE_EFFECT_STATUS.FAILED,
-        ],
-      },
-      OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: new Date() } }],
+      ...claimableAccountDeletionSideEffectWhere(new Date()),
     },
     orderBy: { createdAt: "asc" },
     take: 50,
@@ -352,13 +365,7 @@ export async function processAccountDeletionSideEffectsForUser(
 export async function processAccountDeletionSideEffectBatch({ take = 20 } = {}) {
   const effects = await prisma.accountDeletionSideEffect.findMany({
     where: {
-      status: {
-        in: [
-          ACCOUNT_DELETION_SIDE_EFFECT_STATUS.PENDING,
-          ACCOUNT_DELETION_SIDE_EFFECT_STATUS.FAILED,
-        ],
-      },
-      OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: new Date() } }],
+      ...claimableAccountDeletionSideEffectWhere(new Date()),
     },
     orderBy: { createdAt: "asc" },
     take,

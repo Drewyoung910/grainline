@@ -11,6 +11,10 @@ describe("seller analytics refund guardrails", () => {
     const helper = source("src/lib/refundLedgerSql.ts");
     assert.match(helper, /NON_BLOCKING_REFUND_LEDGER_STATUSES/);
     assert.match(helper, /lower\(ope\."status"\) NOT IN \(\$\{Prisma\.join\(NON_BLOCKING_REFUND_LEDGER_STATUSES\)\}\)/);
+    assert.match(helper, /latestOpenDisputeLedgerExistsSql/);
+    assert.match(helper, /SELECT DISTINCT ON \(COALESCE\(ope\."stripeObjectId", ope\.id\)\)/);
+    assert.match(helper, /ORDER BY COALESCE\(ope\."stripeObjectId", ope\.id\), ope\."createdAt" DESC, ope\.id DESC/);
+    assert.match(helper, /STRIPE_DISPUTE_CLOSED_STATUSES/);
 
     for (const path of [
       "src/app/api/seller/analytics/route.ts",

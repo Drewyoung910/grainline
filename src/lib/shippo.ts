@@ -2,6 +2,7 @@
 import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
 import { readResponseTextWithTimeout } from "@/lib/responseText";
 import { requiredProductionEnv } from "@/lib/env";
+import { shippoProviderErrorMessage } from "@/lib/shippoErrorSanitize";
 
 const SHIPPO_API_KEY = requiredProductionEnv("SHIPPO_API_KEY");
 const SHIPPO_BASE = "https://api.goshippo.com";
@@ -37,7 +38,7 @@ export async function shippoRequest<T = unknown>(
   const res = await fetchWithTimeout(`${SHIPPO_BASE}${path}`, { ...init, headers }, 15_000);
   if (!res.ok) {
     const text = await readResponseTextWithTimeout(res);
-    throw new Error(`Shippo ${res.status} ${res.statusText}: ${text}`);
+    throw new Error(shippoProviderErrorMessage("Shippo request failed", res.status, res.statusText, text));
   }
   return (await res.json()) as T;
 }
@@ -90,7 +91,7 @@ export async function shippoRatesMultiPiece(opts: {
 
   if (!res.ok) {
     const t = await readResponseTextWithTimeout(res);
-    throw new Error(`Shippo create shipment failed: ${res.status} ${t}`);
+    throw new Error(shippoProviderErrorMessage("Shippo create shipment failed", res.status, res.statusText, t));
   }
 
   const shipmentObj = await res.json();

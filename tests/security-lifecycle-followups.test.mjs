@@ -73,7 +73,9 @@ describe("security lifecycle follow-ups", () => {
     assert.match(route, /readBoundedJson\(req, ADMIN_REPORT_RESOLVE_BODY_MAX_BYTES\)/);
     assert.match(route, /const resolutionNote = truncateText\(sanitizeText\(body\.reason\), 500\)/);
     assert.match(route, /data: \{ resolved: true, resolvedAt: new Date\(\), resolvedById: admin\.id, resolutionNote \}/);
-    assert.match(route, /metadata: \{ resolutionNote \}/);
+    assert.match(route, /resolutionNoteStored: true/);
+    assert.match(route, /resolutionNoteLength: resolutionNote\.length/);
+    assert.doesNotMatch(route, /metadata: \{ resolutionNote \}/);
     assert.match(button, /Resolution reason/);
     assert.match(button, /body: JSON\.stringify\(\{ reason: trimmedReason \}\)/);
     assert.match(button, /Add a resolution reason before closing the report/);
@@ -95,6 +97,8 @@ describe("security lifecycle follow-ups", () => {
     assert.match(deletion, /sellerMetrics\.deleteMany\(\{\s*where: \{ sellerProfileId: user\.sellerProfile\.id \},\s*\}\)/s);
     assert.match(deletion, /sellerRatingSummary\.deleteMany\(\{\s*where: \{ sellerProfileId: user\.sellerProfile\.id \},\s*\}\)/s);
     assert.match(deletion, /review\.updateMany\(\{\s*where: \{ listing: \{ sellerId: user\.sellerProfile\.id \} \},\s*data: \{ sellerReply: null, sellerReplyAt: null \},\s*\}\)/s);
+    assert.match(deletion, /resolutionNote: \{ not: null \}/);
+    assert.match(deletion, /Resolution note removed after an involved account was deleted\./);
     assert.match(deletion, /where: \{ reportedId: user\.id, resolved: false \}/);
     assert.match(deletion, /resolutionNote: "Auto-resolved after the reported account was deleted\."/);
   });

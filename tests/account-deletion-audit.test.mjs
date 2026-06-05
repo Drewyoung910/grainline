@@ -48,6 +48,28 @@ describe("account deletion audit metadata redaction", () => {
     assert.deepEqual(result.metadata, metadata);
   });
 
+  it("does not redact embedded short names inside unrelated metadata words", () => {
+    const unrelated = redactAccountDeletionAuditMetadata(
+      { action: "listing approved", reason: "listing remains visible" },
+      ["Li"],
+    );
+    assert.equal(unrelated.changed, false);
+    assert.deepEqual(unrelated.metadata, {
+      action: "listing approved",
+      reason: "listing remains visible",
+    });
+
+    const related = redactAccountDeletionAuditMetadata(
+      { note: "Li approved this listing" },
+      ["Li"],
+    );
+    assert.equal(related.changed, true);
+    assert.deepEqual(related.metadata, {
+      note: ACCOUNT_DELETION_AUDIT_REDACTION,
+      redactedForAccountDeletion: true,
+    });
+  });
+
   it("marks related audit metadata without discarding unrelated context", () => {
     const result = markAccountDeletionAuditMetadata({
       listingId: "listing_123",

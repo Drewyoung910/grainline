@@ -63,6 +63,25 @@ describe("account deletion side-effect retries", () => {
     assert.match(sideEffects, /sanitizeSideEffectError/);
   });
 
+  it("reclaims stale PROCESSING side effects without taking fresh in-flight work", () => {
+    const sideEffects = source("src/lib/accountDeletionSideEffects.ts");
+    const opsHealth = source("src/app/api/cron/ops-health/route.ts");
+
+    assert.match(sideEffects, /ACCOUNT_DELETION_SIDE_EFFECT_STALE_PROCESSING_MS = 60 \* 60 \* 1000/);
+    assert.match(sideEffects, /function staleProcessingBefore\(now = new Date\(\)\)/);
+    assert.match(sideEffects, /function claimableAccountDeletionSideEffectWhere/);
+    assert.match(
+      sideEffects,
+      /status: ACCOUNT_DELETION_SIDE_EFFECT_STATUS\.PROCESSING,\s*updatedAt: \{ lt: staleProcessingBefore\(now\) \}/s,
+    );
+    assert.match(
+      sideEffects,
+      /status: \{\s*in: \[\s*ACCOUNT_DELETION_SIDE_EFFECT_STATUS\.PENDING,\s*ACCOUNT_DELETION_SIDE_EFFECT_STATUS\.FAILED,\s*\],\s*\},\s*OR: \[\{ nextAttemptAt: null \}, \{ nextAttemptAt: \{ lte: now \} \}\]/s,
+    );
+    assert.match(opsHealth, /ACCOUNT_DELETION_SIDE_EFFECT_STALE_PROCESSING_MS/);
+    assert.doesNotMatch(opsHealth, /const STALE_ACCOUNT_DELETION_SIDE_EFFECT_MS/);
+  });
+
   it("schedules a cron to retry pending account-deletion side effects", () => {
     const route = source("src/app/api/cron/account-deletion-side-effects/route.ts");
     const vercel = source("vercel.json");

@@ -103,7 +103,7 @@ describe("retention and ops-health follow-ups", () => {
     assert.match(source, /ACCOUNT_DELETION_SIDE_EFFECT_STATUS/);
     assert.match(source, /STRIPE_WEBHOOK_EVENT_STALE_PROCESSING_MS/);
     assert.match(source, /STALE_SVIX_WEBHOOK_PROCESSING_MS/);
-    assert.match(source, /STALE_ACCOUNT_DELETION_SIDE_EFFECT_MS/);
+    assert.match(source, /ACCOUNT_DELETION_SIDE_EFFECT_STALE_PROCESSING_MS/);
     assert.match(source, /staleStripeWebhookBefore/);
     assert.match(source, /staleSvixWebhookBefore/);
     assert.match(source, /staleAccountDeletionSideEffectBefore/);

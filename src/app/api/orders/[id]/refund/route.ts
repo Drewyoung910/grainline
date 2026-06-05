@@ -22,6 +22,7 @@ import {
   REFUND_LOCK_SENTINEL,
   releaseStaleRefundLocks,
 } from "@/lib/refundLocks";
+import { blockingRefundOrLatestOpenDisputeLedgerExistsSql } from "@/lib/refundLedgerSql";
 import { revalidateListingSearchCaches } from "@/lib/searchCache";
 import {
   blockingRefundLedgerWhere,
@@ -46,6 +47,7 @@ import {
 } from "@/lib/requestBody";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
 
@@ -282,19 +284,16 @@ export async function POST(
     );
 
     // Atomic lock: claim refund slot to prevent double-refund race after validation passes.
-    const lockResult = await prisma.order.updateMany({
-      where: {
-        id: orderId,
-        sellerRefundId: null,
-        OR: [{ labelStatus: null }, { labelStatus: { not: "PURCHASED" } }],
-        paymentEvents: { none: blockingRefundOrDisputeLedgerWhere() },
-      },
-      data: {
-        sellerRefundId: REFUND_LOCK_SENTINEL,
-        sellerRefundLockedAt: new Date(),
-      },
-    });
-    if (lockResult.count === 0) {
+    const lockResult: number = await prisma.$executeRaw`
+      UPDATE "Order"
+      SET "sellerRefundId" = ${REFUND_LOCK_SENTINEL},
+          "sellerRefundLockedAt" = ${new Date()}
+      WHERE id = ${orderId}
+        AND "sellerRefundId" IS NULL
+        AND ("labelStatus" IS NULL OR "labelStatus" != 'PURCHASED'::"LabelStatus")
+        AND NOT (${blockingRefundOrLatestOpenDisputeLedgerExistsSql(Prisma.sql`"Order".id`)})
+    `;
+    if (lockResult === 0) {
       const freshOrder = await prisma.order.findUnique({
         where: { id: orderId },
         select: {

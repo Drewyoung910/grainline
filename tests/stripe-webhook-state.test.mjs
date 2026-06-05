@@ -326,6 +326,51 @@ describe("Stripe webhook state helpers", () => {
     });
   });
 
+  it("records charge.refunded ledgers without stealing fresh local refund locks", () => {
+    const state = chargeRefundLedgerState({
+      chargeId: "ch_1",
+      chargeCurrency: "usd",
+      amountRefundedCents: 3_500,
+      latestRefund: { id: "re_route", amount: 3_500, status: "succeeded", created: 10 },
+      order: {
+        currency: "usd",
+        sellerRefundId: "pending",
+        sellerRefundLockedAt: new Date(),
+        sellerRefundAmountCents: null,
+      },
+    });
+
+    assert.equal(state.ledger.reason, "local_refund_pending_confirmation");
+    assert.equal(state.ledger.description, "Stripe reported a refund while Grainline was recording local refund side effects.");
+    assert.equal(state.ledger.metadata.pendingLocalRefundLock, true);
+    assert.equal(state.orderUpdate, null);
+  });
+
+  it("lets charge.refunded recover stale pending refund locks", () => {
+    const state = chargeRefundLedgerState({
+      chargeId: "ch_1",
+      chargeCurrency: "usd",
+      amountRefundedCents: 3_500,
+      latestRefund: { id: "re_stale", amount: 3_500, status: "succeeded", created: 10 },
+      order: {
+        currency: "usd",
+        sellerRefundId: "pending",
+        sellerRefundLockedAt: new Date(0),
+        sellerRefundAmountCents: null,
+      },
+    });
+
+    assert.equal(state.ledger.reason, "external_refund");
+    assert.equal(state.ledger.metadata.pendingLocalRefundLock, false);
+    assert.deepEqual(state.orderUpdate, {
+      sellerRefundId: "re_stale",
+      sellerRefundAmountCents: 3_500,
+      sellerRefundLockedAt: null,
+      reviewNeeded: true,
+      reviewNote: "Stripe refund was created outside Grainline.",
+    });
+  });
+
   it("preserves a local refund id when Stripe reports an additional external refund", () => {
     const state = chargeRefundLedgerState({
       chargeId: "ch_1",

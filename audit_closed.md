@@ -22,11 +22,11 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-06-05
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 233.
-- Verified code/feature fix commits since 2026-05-13: 207.
+- Verified hardening/doc commits since 2026-05-13: 234.
+- Verified code/feature fix commits since 2026-05-13: 208.
 - Verified docs/audit-only commits since 2026-05-13: 11.
-- Most recent reported pass tally: 561 verified fixed/reduced findings,
-  431 verified stale/false-positive findings, and 74 deferred/manual findings
+- Most recent reported pass tally: 570 verified fixed/reduced findings,
+  441 verified stale/false-positive findings, and 74 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
 ## 2026-05-14 Active Tracker
@@ -5033,6 +5033,26 @@ approximate raw-category decrements are counted because the private capped-list
 work was mostly hidden adjacent audit coverage, while the case/message,
 privacy/Sentry, label/dispute, and webhook retry fixes overlap remaining raw
 categories. Deferred stays flat.
+Entry 388 adds nine fixed/reduced current-code/docs issues across admin direct
+email suppression copy, latest-per-dispute Stripe refund/label locks, fresh
+`charge.refunded` pending-lock preservation, Shippo provider-error PII
+scrubbing, stale `AccountDeletionSideEffect.PROCESSING` reclaim, user-report
+resolution-note retention after account deletion, non-raw admin report
+resolution audit metadata, bounded short-name audit metadata redaction, and the
+stale account-deletion block-direction docs contract. It also records ten
+verified stale/false-positive/current-behavior classifications: unsubscribe GET
+is render-only, newsletter confirmation GET is render-only, newsletter tokens
+store hashes rather than raw tokens, unsubscribe/suppression clears pending
+newsletter tokens, later opt-in/confirmation supersedes older one-click links,
+one-click manual suppression does not block transactional direct sends, label
+final-lock active case/refund/open-dispute guards are present, Stripe webhook
+event-age recovery is already 30 days, connected full refunds use one
+reverse-transfer refund rather than split tax refunds, and in-progress webhook
+duplicates return retryable 503/Retry-After. Eleven approximate raw-category
+decrements are counted because the email/unsubscribe, Stripe/refund/Shippo, and
+privacy-retention slices overlap remaining raw categories; newsletter-only
+self-service resubscribe, Stripe/Shippo runtime proof, and privacy/legal policy
+scope remain deferred/manual rather than source-fixed. Deferred stays flat.
 Remaining major categories: Stripe webhook subscription dashboard evidence,
 Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -5052,4 +5072,4 @@ submission decision, residual lower-risk HTTP-status constants outside the
 high-signal helpers, Vercel Analytics/Speed Insights product/ops decision,
 remaining homepage runtime a11y proof, and residual
 agent/worktree verification process hygiene. Approximate raw allegations left
-to verify from current max #1120: 167.
+to verify from current max #1120: 156.

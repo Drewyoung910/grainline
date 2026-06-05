@@ -12,8 +12,8 @@ import {
   blockingRefundLedgerWhere,
   NON_BLOCKING_REFUND_LEDGER_STATUSES,
   orderHasRefundLedger,
-  STRIPE_DISPUTE_CLOSED_STATUSES,
 } from "@/lib/refundRouteState";
+import { latestOpenDisputeLedgerExistsSql } from "@/lib/refundLedgerSql";
 import {
   labelClawbackErrorMessage,
   labelClawbackIdempotencyKey,
@@ -457,15 +457,7 @@ export async function POST(
               OR lower(ope."status") NOT IN (${Prisma.join(NON_BLOCKING_REFUND_LEDGER_STATUSES)})
             )
         )
-        AND NOT EXISTS (
-          SELECT 1 FROM "OrderPaymentEvent" ope
-          WHERE ope."orderId" = "Order".id
-            AND ope."eventType" = 'DISPUTE'
-            AND (
-              ope."status" IS NULL
-              OR lower(ope."status") NOT IN (${Prisma.join([...STRIPE_DISPUTE_CLOSED_STATUSES])})
-            )
-        )
+        AND NOT (${latestOpenDisputeLedgerExistsSql(Prisma.sql`"Order".id`)})
     `;
     if (labelLockResult === 0) {
       return privateJson(

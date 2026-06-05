@@ -67,7 +67,10 @@ export async function POST(
       action: "RESOLVE_REPORT",
       targetType: "UserReport",
       targetId: id,
-      metadata: { resolutionNote },
+      metadata: {
+        resolutionNoteStored: true,
+        resolutionNoteLength: resolutionNote.length,
+      },
     });
     return result;
   });
