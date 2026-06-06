@@ -19,6 +19,8 @@ import { normalizeMessageAttachments } from "@/lib/messageAttachments";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
 import { messagingUnavailableReason } from "@/lib/messageRecipientState";
+import { canViewListingDetail } from "@/lib/listingVisibility";
+import { isSupportedStripeAccountVersion } from "@/lib/sellerVisibility";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import * as Sentry from "@sentry/nextjs";
@@ -55,6 +57,18 @@ export default async function ThreadPage({
           title: true,
           priceCents: true,
           currency: true,
+          status: true,
+          isPrivate: true,
+          reservedForUserId: true,
+          seller: {
+            select: {
+              userId: true,
+              chargesEnabled: true,
+              stripeAccountVersion: true,
+              vacationMode: true,
+              user: { select: { id: true, banned: true, deletedAt: true } },
+            },
+          },
           photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
         },
       },
@@ -86,7 +100,14 @@ export default async function ThreadPage({
   const otherSellerProfile = other
     ? await prisma.sellerProfile.findUnique({
         where: { userId: other.id },
-        select: { id: true, displayName: true, acceptsCustomOrders: true, avatarImageUrl: true },
+        select: {
+          id: true,
+          displayName: true,
+          acceptsCustomOrders: true,
+          avatarImageUrl: true,
+          chargesEnabled: true,
+          stripeAccountVersion: true,
+        },
       })
     : null;
 
@@ -101,7 +122,11 @@ export default async function ThreadPage({
 
   // When the other party has a public seller profile, the header avatar +
   // name link to that shop. Otherwise no link.
-  const sellerProfileHref = otherSellerProfile?.id && otherSellerProfile.displayName
+  const sellerProfileHref = !otherUnavailableReason &&
+    otherSellerProfile?.id &&
+    otherSellerProfile.displayName &&
+    otherSellerProfile.chargesEnabled &&
+    isSupportedStripeAccountVersion(otherSellerProfile.stripeAccountVersion)
     ? publicSellerPath(otherSellerProfile.id, otherSellerProfile.displayName)
     : null;
 
@@ -336,6 +361,15 @@ export default async function ThreadPage({
 
   const ctx = convo.contextListing;
   const ctxImg = ctx?.photos?.[0]?.url ?? null;
+  const contextListingHref = ctx &&
+    canViewListingDetail(ctx, {
+      dbUserId: isParticipant ? me.id : null,
+      role: me.role,
+      banned: me.banned,
+      deletedAt: me.deletedAt,
+    })
+    ? publicListingPath(ctx.id, ctx.title)
+    : null;
   const archivedForMe =
     isParticipant ? (convo.userAId === me.id ? convo.archivedAAt : convo.archivedBAt) ?? null : null;
   const messageComposerFormId = `message-composer-${convo.id}`;
@@ -467,9 +501,9 @@ export default async function ThreadPage({
             </div>
           ) : null}
 
-          {ctx && (
+          {ctx && contextListingHref ? (
             <Link
-              href={publicListingPath(ctx.id, ctx.title)}
+              href={contextListingHref}
               className="flex items-center gap-3 p-3 rounded-lg bg-[#EFEAE0] border border-stone-200/60 hover:shadow-md transition-shadow"
             >
               <div className="h-14 w-14 rounded-md overflow-hidden bg-[#F7F5F0] shrink-0">
@@ -487,7 +521,23 @@ export default async function ThreadPage({
               </div>
               <div className="ml-auto text-sm text-amber-700 shrink-0">View listing →</div>
             </Link>
-          )}
+          ) : ctx ? (
+            <div className="flex items-center gap-3 rounded-lg border border-stone-200/60 bg-[#EFEAE0] p-3">
+              <div className="h-14 w-14 rounded-md overflow-hidden bg-[#F7F5F0] shrink-0">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {ctxImg ? <img src={ctxImg} alt="" className="h-full w-full object-cover" /> : null}
+              </div>
+              <div className="min-w-0">
+                <div className="truncate font-medium">{ctx.title}</div>
+                <div className="text-sm text-neutral-600">
+                  {(ctx.priceCents / 100).toLocaleString("en-US", {
+                    style: "currency",
+                    currency: ctx.currency ?? "USD",
+                  })}
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           {/* Scrollable thread */}
           <ThreadMessages

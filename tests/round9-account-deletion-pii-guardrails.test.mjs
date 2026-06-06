@@ -84,6 +84,7 @@ describe("Round 9 account deletion PII guardrails", () => {
     assert.match(deletion, /tx\.message\.updateMany\(\{\s*where: \{ senderId: user\.id \}/s);
     assert.doesNotMatch(threadRenderQuery, /email: true/);
     assert.doesNotMatch(inboxPage, /select: \{[^}]*email: true/s);
+    assert.doesNotMatch(inboxPage, /email:\s*\{\s*contains:\s*q/);
     assert.match(threadPage, /otherSellerProfile\?\.displayName \|\| other\?\.name \|\| "User"/);
     assert.match(inboxPage, /seller\?\.displayName \|\| other\?\.name \|\| "User"/);
   });

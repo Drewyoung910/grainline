@@ -83,6 +83,14 @@ describe("public query determinism", () => {
     assert.match(metroPage, /href=\{`\/browse\?lat=\$\{metro\.latitude\}&lng=\$\{metro\.longitude\}&radius=50`\}/);
     assert.doesNotMatch(metroPage, /\/browse\?lat=\$\{metro\.id\}/);
     assert.match(metroCategoryPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+    for (const metroText of [metroPage, metroCategoryPage]) {
+      assert.ok(
+        metroText.indexOf("const [listings") < metroText.indexOf("const favs = await prisma.favorite.findMany"),
+        "metro favorites should be scoped after the capped page listings are known",
+      );
+      assert.match(metroText, /const listingIds = listings\.map\(\(listing\) => listing\.id\)/);
+      assert.match(metroText, /where: \{ userId: meDbId, listingId: \{ in: listingIds \} \}/);
+    }
     assert.match(blogDetail, /orderBy: \[\{ publishedAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(makersMetro, /orderBy: \[\{ profileViews: "desc" \}, \{ id: "asc" \}\]/);
     assert.match(makersMetro, /listings: \{[\s\S]*orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: 1/);

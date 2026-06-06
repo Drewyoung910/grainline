@@ -118,12 +118,6 @@ export default async function BrowseMetroCategoryPage({
     ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
   });
 
-  let savedSet = new Set<string>();
-  if (meDbId) {
-    const favs = await prisma.favorite.findMany({ where: { userId: meDbId }, select: { listingId: true } });
-    savedSet = new Set(favs.map((f) => f.listingId));
-  }
-
   const [listings, listingCount] = await Promise.all([
     prisma.listing.findMany({
       where: listingWhere,
@@ -154,6 +148,16 @@ export default async function BrowseMetroCategoryPage({
     }),
     prisma.listing.count({ where: listingWhere }),
   ]);
+
+  let savedSet = new Set<string>();
+  if (meDbId && listings.length > 0) {
+    const listingIds = listings.map((listing) => listing.id);
+    const favs = await prisma.favorite.findMany({
+      where: { userId: meDbId, listingId: { in: listingIds } },
+      select: { listingId: true },
+    });
+    savedSet = new Set(favs.map((f) => f.listingId));
+  }
 
   // JSON-LD
   const itemListLd = {

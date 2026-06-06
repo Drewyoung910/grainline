@@ -5,6 +5,7 @@ import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { parseTimestampMsParam } from "@/lib/queryParams";
 import { messageListRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { MESSAGE_POLL_LIMIT } from "@/lib/messagePolling";
 
 export async function GET(
   req: Request,
@@ -44,8 +45,8 @@ export async function GET(
       conversationId: id,
       ...(sinceDate ? { createdAt: { gt: sinceDate } } : {}),
     },
-    orderBy: { createdAt: "asc" },
-    take: 200,
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    take: MESSAGE_POLL_LIMIT,
     select: {
       id: true,
       senderId: true,

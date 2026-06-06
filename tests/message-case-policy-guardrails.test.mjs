@@ -85,6 +85,20 @@ describe("message and case policy guardrails", () => {
     assert.match(page, /canCreateCustomListings=\{isParticipant && !otherUnavailableReason\}/);
   });
 
+  it("keeps unavailable message-thread public links inert", () => {
+    const page = source("src/app/messages/[id]/page.tsx");
+
+    assert.match(page, /import \{ canViewListingDetail \} from "@\/lib\/listingVisibility"/);
+    assert.match(page, /import \{ isSupportedStripeAccountVersion \} from "@\/lib\/sellerVisibility"/);
+    assert.match(page, /const sellerProfileHref = !otherUnavailableReason &&/);
+    assert.match(page, /otherSellerProfile\.chargesEnabled &&/);
+    assert.match(page, /isSupportedStripeAccountVersion\(otherSellerProfile\.stripeAccountVersion\)/);
+    assert.match(page, /const contextListingHref = ctx &&\s+canViewListingDetail\(ctx,/);
+    assert.match(page, /href=\{contextListingHref\}/);
+    assert.doesNotMatch(page, /href=\{publicListingPath\(ctx\.id, ctx\.title\)\}/);
+    assert.match(page, /\) : ctx \? \(/);
+  });
+
   it("hides buyer and seller case reply boxes when the API would reject the recipient", () => {
     for (const pagePath of [
       "src/app/dashboard/orders/[id]/page.tsx",

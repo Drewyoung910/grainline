@@ -1856,55 +1856,56 @@ export async function POST(req: Request) {
                 taxAmountCents: true,
               },
             });
-            if (existingOrder) {
-              const refundLedger = chargeRefundLedgerState({
-                chargeId: charge.id!,
-                chargeCurrency: charge.currency,
-                amountRefundedCents: charge.amount_refunded,
-                latestRefund,
-                fallbackRefundId: `external:${event.id}`,
-                order: existingOrder,
-              });
+            if (!existingOrder) {
+              throw new Error("Stripe charge.refunded webhook could not find a Grainline order for charge.");
+            }
+            const refundLedger = chargeRefundLedgerState({
+              chargeId: charge.id!,
+              chargeCurrency: charge.currency,
+              amountRefundedCents: charge.amount_refunded,
+              latestRefund,
+              fallbackRefundId: `external:${event.id}`,
+              order: existingOrder,
+            });
 
-              await recordOrderPaymentEvent({
-                orderId: existingOrder.id,
-                stripeEventId: event.id,
-                stripeObjectId: refundLedger.ledger.stripeObjectId,
-                stripeObjectType: "refund",
-                eventType: "REFUND",
+            await recordOrderPaymentEvent({
+              orderId: existingOrder.id,
+              stripeEventId: event.id,
+              stripeObjectId: refundLedger.ledger.stripeObjectId,
+              stripeObjectType: "refund",
+              eventType: "REFUND",
+              amountCents: refundLedger.ledger.amountCents,
+              currency: refundLedger.ledger.currency,
+              status: refundLedger.ledger.status,
+              reason: refundLedger.ledger.reason,
+              description: refundLedger.ledger.description,
+              metadata: refundLedger.ledger.metadata,
+            }, tx);
+
+            if (refundLedger.orderUpdate) {
+              await tx.order.update({
+                where: { id: existingOrder.id },
+                data: refundLedger.orderUpdate,
+              });
+            }
+            await logSystemActionOrThrow({
+              client: tx,
+              actorType: "webhook",
+              actorId: event.id,
+              action: "STRIPE_REFUND_RECORDED",
+              targetType: "ORDER",
+              targetId: existingOrder.id,
+              reason: refundLedger.ledger.reason ?? null,
+              metadata: {
+                stripeEventType: event.type,
+                stripeChargeId: charge.id!,
+                stripeRefundId: refundLedger.ledger.stripeObjectId,
                 amountCents: refundLedger.ledger.amountCents,
                 currency: refundLedger.ledger.currency,
                 status: refundLedger.ledger.status,
-                reason: refundLedger.ledger.reason,
-                description: refundLedger.ledger.description,
-                metadata: refundLedger.ledger.metadata,
-              }, tx);
-
-              if (refundLedger.orderUpdate) {
-                await tx.order.update({
-                  where: { id: existingOrder.id },
-                  data: refundLedger.orderUpdate,
-                });
-              }
-              await logSystemActionOrThrow({
-                client: tx,
-                actorType: "webhook",
-                actorId: event.id,
-                action: "STRIPE_REFUND_RECORDED",
-                targetType: "ORDER",
-                targetId: existingOrder.id,
-                reason: refundLedger.ledger.reason ?? null,
-                metadata: {
-                  stripeEventType: event.type,
-                  stripeChargeId: charge.id!,
-                  stripeRefundId: refundLedger.ledger.stripeObjectId,
-                  amountCents: refundLedger.ledger.amountCents,
-                  currency: refundLedger.ledger.currency,
-                  status: refundLedger.ledger.status,
-                  hasOrderUpdate: Boolean(refundLedger.orderUpdate),
-                },
-              });
-            }
+                hasOrderUpdate: Boolean(refundLedger.orderUpdate),
+              },
+            });
           });
         }
         return NextResponse.json({ received: true });
@@ -1948,7 +1949,9 @@ export async function POST(req: Request) {
                 },
               },
             });
-            if (!order) return null;
+            if (!order) {
+              throw new Error("Stripe dispute webhook could not find a Grainline order for charge.");
+            }
             const sellerUserId = order.items[0]?.listing.seller.userId;
             const disputeLedger = chargeDisputeLedgerState({
               chargeId,

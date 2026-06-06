@@ -4,6 +4,7 @@ import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { messageStreamRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { parseTimestampMsParam } from "@/lib/queryParams";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { MESSAGE_POLL_LIMIT } from "@/lib/messagePolling";
 import * as Sentry from "@sentry/nextjs";
 
 export const runtime = "nodejs";
@@ -79,7 +80,8 @@ export async function GET(
               conversationId: id,
               ...(since ? { createdAt: { gt: new Date(since) } } : {}),
             },
-            orderBy: { createdAt: "asc" },
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+            take: MESSAGE_POLL_LIMIT,
             select: { id: true, senderId: true, recipientId: true, body: true, kind: true, createdAt: true, readAt: true },
           });
           if (messages.length) {

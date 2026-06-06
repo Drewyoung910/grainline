@@ -106,12 +106,21 @@ describe("custom-order and staff-thread audit follow-ups", () => {
   it("bounds message polling since parameters before Prisma date filters", () => {
     const listRoute = source("src/app/api/messages/[id]/list/route.ts");
     const streamRoute = source("src/app/api/messages/[id]/stream/route.ts");
+    const limits = source("src/lib/messagePolling.ts");
+
+    assert.match(limits, /export const MESSAGE_POLL_LIMIT = 200/);
 
     assert.match(listRoute, /parseTimestampMsParam\(url\.searchParams\.get\("since"\)\)/);
     assert.match(listRoute, /const sinceDate = sinceMs == null \? null : new Date\(sinceMs\)/);
+    assert.match(listRoute, /import \{ MESSAGE_POLL_LIMIT \} from "@\/lib\/messagePolling"/);
+    assert.match(listRoute, /orderBy: \[\{ createdAt: "asc" \}, \{ id: "asc" \}\]/);
+    assert.match(listRoute, /take: MESSAGE_POLL_LIMIT/);
     assert.doesNotMatch(listRoute, /new Date\(Number\(since\)\)/);
 
     assert.match(streamRoute, /parseTimestampMsParam\(url\.searchParams\.get\("since"\)\) \?\? 0/);
+    assert.match(streamRoute, /import \{ MESSAGE_POLL_LIMIT \} from "@\/lib\/messagePolling"/);
+    assert.match(streamRoute, /orderBy: \[\{ createdAt: "asc" \}, \{ id: "asc" \}\]/);
+    assert.match(streamRoute, /take: MESSAGE_POLL_LIMIT/);
     assert.doesNotMatch(streamRoute, /Number\(url\.searchParams\.get\("since"\)/);
   });
 

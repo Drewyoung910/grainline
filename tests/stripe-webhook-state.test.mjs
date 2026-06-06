@@ -96,6 +96,38 @@ describe("Stripe webhook state helpers", () => {
     assert.match(disputeBranch, /await prisma\.\$transaction\(async \(tx\) => \{\s+await lockChargeMutation\(tx, chargeId\)/);
   });
 
+  it("keeps unmatched charge refund and dispute webhooks retryable", () => {
+    const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+    const refundStart = source.indexOf('if (event.type === "charge.refunded")');
+    const disputeStart = source.indexOf("if (STRIPE_DISPUTE_EVENT_TYPES.has(event.type))");
+    const payoutStart = source.indexOf('if (event.type === "payout.failed")');
+
+    assert.ok(refundStart >= 0, "charge.refunded branch should exist");
+    assert.ok(disputeStart > refundStart, "dispute branch should follow refund branch");
+    assert.ok(payoutStart > disputeStart, "payout branch should follow dispute branch");
+
+    const refundBranch = source.slice(refundStart, disputeStart);
+    const disputeBranch = source.slice(disputeStart, payoutStart);
+
+    assert.match(
+      refundBranch,
+      /if \(!existingOrder\) \{\s+throw new Error\("Stripe charge\.refunded webhook could not find a Grainline order for charge\."\);\s+\}/,
+    );
+    assert.ok(
+      refundBranch.indexOf("if (!existingOrder)") < refundBranch.indexOf("await recordOrderPaymentEvent"),
+      "refund webhook should fail before recording or marking the event processed",
+    );
+
+    assert.match(
+      disputeBranch,
+      /if \(!order\) \{\s+throw new Error\("Stripe dispute webhook could not find a Grainline order for charge\."\);\s+\}/,
+    );
+    assert.ok(
+      disputeBranch.indexOf("if (!order)") < disputeBranch.indexOf("await recordOrderPaymentEvent"),
+      "dispute webhook should fail before recording or marking the event processed",
+    );
+  });
+
   it("detects stale Stripe webhook events from the signed event timestamp", () => {
     const now = 1_000_000;
     assert.equal(isStaleStripeEvent(now - 30 * 24 * 60 * 60, now), false);

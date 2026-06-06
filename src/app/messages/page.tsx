@@ -95,18 +95,12 @@ export default async function MessagesPage({
             OR: [
               {
                 userA: {
-                  OR: [
-                    { name: { contains: q, mode: "insensitive" } },
-                    { email: { contains: q, mode: "insensitive" } },
-                  ],
+                  name: { contains: q, mode: "insensitive" },
                 },
               },
               {
                 userB: {
-                  OR: [
-                    { name: { contains: q, mode: "insensitive" } },
-                    { email: { contains: q, mode: "insensitive" } },
-                  ],
+                  name: { contains: q, mode: "insensitive" },
                 },
               },
               { contextListing: { title: { contains: q, mode: "insensitive" } } },

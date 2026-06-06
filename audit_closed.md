@@ -5061,8 +5061,42 @@ Last updated: 2026-06-06
      `tests/query-param-state.test.mjs`,
      `tests/seller-facing-user-label.test.mjs`, and
      `tests/message-case-policy-guardrails.test.mjs`.
+393. **Webhook retry, message privacy, and capped query follow-up pass** -
+     parent/agent-reviewed source fixes for verified current-code defects plus
+     stale/current rechecks inside the same Stripe, message/privacy, rate-limit,
+     and public-query slices. Stripe `charge.refunded` and `charge.dispute.*`
+     events that carry a charge id but cannot match `Order.stripeChargeId` now
+     throw inside the idempotent handler, leaving the `StripeWebhookEvent` row
+     failed/retryable instead of marking the event processed without refund or
+     dispute ledger evidence.
 
-**Running tally after this pass:** verified fixed/reduced: 626 findings;
+     Message surfaces were tightened in three places: inbox search no longer
+     predicates on hidden `User.email` values, so deleted-account placeholder
+     emails cannot match a user's search; thread seller-profile links require a
+     live/displayable counterpart seller state; and thread context listing cards
+     only link when `canViewListingDetail()` says the participant may view the
+     listing. The message list and SSE polling routes now share
+     `MESSAGE_POLL_LIMIT = 200`, use deterministic `createdAt`/`id` ordering,
+     and cap stream poll results the same way as the list endpoint.
+
+     Public metro browse pages now fetch favorite state only for the 24 listing
+     ids already selected for the page, instead of loading every favorite for
+     the signed-in user before the capped listing query. Parent rechecks also
+     verified saved-search dedupe/cap, account deletion, verification apply, and
+     profile FAQ/avatar rate-limit allegations as already closed/current-clean
+     on `main`; no duplicate stale tally increase is counted for those. Agent
+     findings still needing runtime/source follow-up include trigram EXPLAIN
+     proof, blog tag helper drift, browse geo pre-pass boundedness, commission
+     Near Me interest-count shape, local refund ledger co-commit evidence,
+     partial-refund runtime reconciliation semantics, and seller-level manual
+     Stripe reconciliation visibility. Guardrails:
+     `tests/stripe-webhook-state.test.mjs`,
+     `tests/custom-order-admin-thread-followups.test.mjs`,
+     `tests/public-query-determinism.test.mjs`,
+     `tests/round9-account-deletion-pii-guardrails.test.mjs`, and
+     `tests/message-case-policy-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 631 findings;
 verified stale/false-positive: 447 findings; product/design/ops decisions
 deferred: 74 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
@@ -5251,7 +5285,13 @@ durability, and email suppression boundaries. Fourteen approximate raw-category
 decrements are counted because this pass closed remaining slices in admin
 pagination, HTTP UX, public discovery/a11y, and seller-facing privacy while
 several fixes were hidden adjacent findings discovered during parent/agent
-review. Deferred stays flat.
+review. Entry 393 adds five fixed/reduced current-code issues across unmatched
+Stripe charge webhook retry behavior, message hidden-email search, message
+thread link visibility, shared capped message polling, and metro favorite-query
+scoping. Three approximate raw-category decrements are counted because the
+Stripe webhook, message/privacy, and public-query fixes overlap remaining raw
+categories; already-closed rate-limit rechecks did not increase the stale tally.
+Deferred stays flat.
 Remaining major categories: Stripe webhook subscription dashboard evidence,
 Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -5271,4 +5311,4 @@ submission decision, residual lower-risk HTTP-status constants outside the
 high-signal helpers, Vercel Analytics/Speed Insights product/ops decision,
 remaining homepage runtime a11y proof, and residual
 agent/worktree verification process hygiene. Approximate raw allegations left
-to verify from current max #1120: 133.
+to verify from current max #1120: 130.
