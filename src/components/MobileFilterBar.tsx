@@ -258,7 +258,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
             </div>
           )}
           {geoError && (
-            <div className="text-xs text-red-600">
+            <div role="alert" className="text-xs text-red-600">
               {geoError}
             </div>
           )}

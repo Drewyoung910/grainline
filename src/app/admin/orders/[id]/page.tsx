@@ -8,6 +8,8 @@ import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY } from "@/lib/money";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import { fulfillmentStatusLabel } from "@/lib/fulfillmentLabels";
+import { caseResolutionLabel } from "@/lib/caseLabels";
+import { orderPaymentEventTypeLabel } from "@/lib/orderPaymentEventLabels";
 
 function fmtMoney(cents: number | null | undefined, currency = DEFAULT_CURRENCY) {
   if (cents == null) return "—";
@@ -273,7 +275,7 @@ export default async function AdminOrderDetailPage({
                 Case refund
                 {order.case.resolution && (
                   <span className="ml-1 text-xs text-neutral-500 font-normal">
-                    ({order.case.resolution.replaceAll("_", " ").toLowerCase()})
+                    ({caseResolutionLabel(order.case.resolution)})
                   </span>
                 )}
                 <span className="ml-1 text-xs text-neutral-500 font-normal">
@@ -308,7 +310,7 @@ export default async function AdminOrderDetailPage({
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="font-medium text-neutral-800">
-                      {event.eventType.replaceAll("_", " ")}
+                      {orderPaymentEventTypeLabel(event.eventType)}
                       {event.status ? ` · ${event.status}` : ""}
                     </div>
                     {event.description && (

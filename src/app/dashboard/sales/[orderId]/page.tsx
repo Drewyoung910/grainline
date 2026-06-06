@@ -24,6 +24,10 @@ import { publicListingPath } from "@/lib/publicPaths";
 import { blockingRefundLedgerWhere, latestRefundLedgerEvent, orderHasRefundLedger, refundMayRestoreStock } from "@/lib/refundRouteState";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY } from "@/lib/money";
+import {
+  DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE,
+  orderHasDeauthorizedSellerReviewHold,
+} from "@/lib/orderReviewHolds";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -153,6 +157,7 @@ export default async function SellerOrderDetailPage({
 
   const status = order.fulfillmentStatus ?? "PENDING";
   const method = order.fulfillmentMethod ?? (isPickup ? "PICKUP" : "SHIPPING");
+  const deauthorizedReviewHold = orderHasDeauthorizedSellerReviewHold(order);
   const processingMins = myItems
     .map((item) => item.listing.processingTimeMinDays)
     .filter((value): value is number => typeof value === "number");
@@ -253,7 +258,11 @@ export default async function SellerOrderDetailPage({
         refundAmountCents={hasRefund ? refundCents : null}
       />
 
-      {order.reviewNeeded && (
+      {deauthorizedReviewHold ? (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          {DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE} Check the review note or contact support before changing fulfillment.
+        </div>
+      ) : order.reviewNeeded && (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           This order needs staff review before fulfillment. Check the review note or contact support before shipping.
         </div>
@@ -651,81 +660,89 @@ export default async function SellerOrderDetailPage({
         <section className="card-section p-4 space-y-3">
           <div className="font-medium">Fulfillment actions</div>
 
-          {method === "PICKUP" && status === "PENDING" && (
-            <form method="post" action={`/api/orders/${order.id}/fulfillment`}>
-              <input type="hidden" name="action" value="ready_for_pickup" />
-              <button className="rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50">
-                Mark ready for pickup
-              </button>
-            </form>
-          )}
-
-          {method === "PICKUP" && status === "READY_FOR_PICKUP" && (
-            <form method="post" action={`/api/orders/${order.id}/fulfillment`}>
-              <input type="hidden" name="action" value="picked_up" />
-              <button className="rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50">
-                Mark picked up
-              </button>
-            </form>
-          )}
-
-          {method === "SHIPPING" && status === "PENDING" && (
-            <div className="space-y-4">
-              <LabelSection
-                orderId={order.id}
-                labelStatus={order.labelStatus ?? null}
-                labelUrl={order.labelUrl ?? null}
-                labelCarrier={order.labelCarrier ?? null}
-                labelTrackingNumber={order.labelTrackingNumber ?? null}
-                labelPurchasedAt={order.labelPurchasedAt?.toISOString() ?? null}
-                fulfillmentStatus={status}
-                shippingAmountCents={shipping}
-                currency={currency}
-              />
-
-              <div className="border-t border-neutral-100 pt-3 space-y-2">
-                <div className="text-xs font-medium text-neutral-500 uppercase tracking-wide">
-                  Already shipped? Enter tracking manually
-                </div>
-                <form
-                  method="post"
-                  action={`/api/orders/${order.id}/fulfillment`}
-                  className="space-y-2"
-                >
-                  <input type="hidden" name="action" value="shipped" />
-                  <div className="flex flex-wrap gap-2">
-                    <select
-                      name="trackingCarrier"
-                      required
-                      className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
-                      defaultValue=""
-                    >
-                      <option value="" disabled>Carrier</option>
-                      <option value="UPS">UPS</option>
-                      <option value="USPS">USPS</option>
-                      <option value="FedEx">FedEx</option>
-                      <option value="DHL">DHL</option>
-                      <option value="Other">Other</option>
-                    </select>
-                    <input
-                      name="trackingNumber"
-                      placeholder="Tracking number"
-                      required
-                      className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
-                    />
-                    <button className="rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50">
-                      Mark shipped
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
-
-          {method === "SHIPPING" && status === "SHIPPED" && (
+          {deauthorizedReviewHold ? (
             <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
-              Waiting for buyer delivery confirmation. If tracking shows a problem, contact the buyer or support.
+              {DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE}
             </div>
+          ) : (
+            <>
+              {method === "PICKUP" && status === "PENDING" && (
+                <form method="post" action={`/api/orders/${order.id}/fulfillment`}>
+                  <input type="hidden" name="action" value="ready_for_pickup" />
+                  <button className="rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50">
+                    Mark ready for pickup
+                  </button>
+                </form>
+              )}
+
+              {method === "PICKUP" && status === "READY_FOR_PICKUP" && (
+                <form method="post" action={`/api/orders/${order.id}/fulfillment`}>
+                  <input type="hidden" name="action" value="picked_up" />
+                  <button className="rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50">
+                    Mark picked up
+                  </button>
+                </form>
+              )}
+
+              {method === "SHIPPING" && status === "PENDING" && (
+                <div className="space-y-4">
+                  <LabelSection
+                    orderId={order.id}
+                    labelStatus={order.labelStatus ?? null}
+                    labelUrl={order.labelUrl ?? null}
+                    labelCarrier={order.labelCarrier ?? null}
+                    labelTrackingNumber={order.labelTrackingNumber ?? null}
+                    labelPurchasedAt={order.labelPurchasedAt?.toISOString() ?? null}
+                    fulfillmentStatus={status}
+                    shippingAmountCents={shipping}
+                    currency={currency}
+                  />
+
+                  <div className="border-t border-neutral-100 pt-3 space-y-2">
+                    <div className="text-xs font-medium text-neutral-500 uppercase tracking-wide">
+                      Already shipped? Enter tracking manually
+                    </div>
+                    <form
+                      method="post"
+                      action={`/api/orders/${order.id}/fulfillment`}
+                      className="space-y-2"
+                    >
+                      <input type="hidden" name="action" value="shipped" />
+                      <div className="flex flex-wrap gap-2">
+                        <select
+                          name="trackingCarrier"
+                          required
+                          className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
+                          defaultValue=""
+                        >
+                          <option value="" disabled>Carrier</option>
+                          <option value="UPS">UPS</option>
+                          <option value="USPS">USPS</option>
+                          <option value="FedEx">FedEx</option>
+                          <option value="DHL">DHL</option>
+                          <option value="Other">Other</option>
+                        </select>
+                        <input
+                          name="trackingNumber"
+                          placeholder="Tracking number"
+                          required
+                          className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
+                        />
+                        <button className="rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50">
+                          Mark shipped
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
+
+              {method === "SHIPPING" && status === "SHIPPED" && (
+                <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+                  Waiting for buyer delivery confirmation. If tracking shows a problem, contact the buyer or support.
+                </div>
+              )}
+            </>
           )}
         </section>
       )}

@@ -46,6 +46,7 @@ import { REFUND_LOCK_SENTINEL, isStaleRefundLock } from "@/lib/refundLockState";
 import { createMarketplaceRefund, refundIdempotencyKeyBase } from "@/lib/marketplaceRefunds";
 import { stripeWebhookCreatedSeconds } from "@/lib/stripeConnectV2";
 import { revalidateListingSearchCaches, revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
+import { DEAUTHORIZED_SELLER_REVIEW_NOTE } from "@/lib/orderReviewHolds";
 import {
   blockedCheckoutDisputeState,
   chargeDisputeLedgerState,
@@ -2113,7 +2114,7 @@ export async function POST(req: Request) {
               },
               data: {
                 reviewNeeded: true,
-                reviewNote: "Seller Stripe account was deauthorized after payment. Staff must review payout and fulfillment state before further action.",
+                reviewNote: DEAUTHORIZED_SELLER_REVIEW_NOTE,
               },
             });
           }

@@ -4,15 +4,30 @@ import type { Metadata } from "next";
 import { ensureUserForPage } from "@/lib/pageAuth";
 import { DeleteOwnReviewButton } from "@/components/DeleteOwnReviewButton";
 import { publicListingPath } from "@/lib/publicPaths";
+import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 
 export const metadata: Metadata = { title: "My Reviews", robots: { index: false, follow: false } };
 
-export default async function MyReviewsPage() {
+const PAGE_SIZE = 20;
+
+export default async function MyReviewsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const me = await ensureUserForPage("/account/reviews");
+
+  const { page: pageParam } = await searchParams;
+  const requestedPage = parseBoundedPositiveIntParam(pageParam, 1, 1000);
+  const totalReviews = await prisma.review.count({ where: { reviewerId: me.id } });
+  const totalPages = Math.max(1, Math.ceil(totalReviews / PAGE_SIZE));
+  const page = Math.min(requestedPage, totalPages);
 
   const reviews = await prisma.review.findMany({
     where: { reviewerId: me.id },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
     include: {
       listing: {
         select: {
@@ -30,7 +45,7 @@ export default async function MyReviewsPage() {
       <div className="mb-6">
         <Link href="/account" className="text-sm text-neutral-500 hover:underline">← My Account</Link>
         <h1 className="text-2xl font-display font-semibold text-neutral-900 mt-2">My Reviews</h1>
-        <p className="text-sm text-neutral-500 mt-1">{reviews.length} review{reviews.length !== 1 ? "s" : ""}</p>
+        <p className="text-sm text-neutral-500 mt-1">{totalReviews} review{totalReviews !== 1 ? "s" : ""}</p>
       </div>
 
       {reviews.length === 0 ? (
@@ -94,6 +109,30 @@ export default async function MyReviewsPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <div className="mt-8 flex items-center justify-center gap-4">
+          {page > 1 && (
+            <Link
+              href={`/account/reviews?page=${page - 1}`}
+              className="border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50"
+            >
+              ← Previous
+            </Link>
+          )}
+          <span className="text-sm text-neutral-600">
+            Page {page} of {totalPages}
+          </span>
+          {page < totalPages && (
+            <Link
+              href={`/account/reviews?page=${page + 1}`}
+              className="border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50"
+            >
+              Next →
+            </Link>
+          )}
         </div>
       )}
     </main>

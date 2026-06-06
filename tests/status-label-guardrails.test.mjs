@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-const { caseStatusLabel } = await import("../src/lib/caseLabels.ts");
+const { caseResolutionLabel, caseStatusLabel } = await import("../src/lib/caseLabels.ts");
 const { fulfillmentStatusLabel } = await import("../src/lib/fulfillmentLabels.ts");
+const { orderPaymentEventTypeLabel } = await import("../src/lib/orderPaymentEventLabels.ts");
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -15,6 +16,7 @@ describe("status label guardrails", () => {
     assert.equal(caseStatusLabel("IN_DISCUSSION"), "In Discussion");
     assert.equal(caseStatusLabel("PENDING_CLOSE"), "Awaiting Resolution");
     assert.equal(caseStatusLabel("UNDER_REVIEW"), "Under Review");
+    assert.equal(caseStatusLabel("FUTURE_STATUS"), "Unknown");
 
     for (const path of [
       "src/app/admin/cases/page.tsx",
@@ -23,7 +25,23 @@ describe("status label guardrails", () => {
       const text = source(path);
       assert.match(text, /caseStatusLabel/);
       assert.doesNotMatch(text, /status\.replaceAll\("_", " "\)/);
+      assert.doesNotMatch(text, /resolution\.replaceAll\("_", " "\)/);
     }
+  });
+
+  it("keeps case resolution and Stripe payment event labels centralized", () => {
+    assert.equal(caseResolutionLabel("REFUND_FULL"), "Full refund");
+    assert.equal(caseResolutionLabel("REFUND_PARTIAL"), "Partial refund");
+    assert.equal(caseResolutionLabel("DISMISSED"), "Dismissed");
+    assert.equal(caseResolutionLabel("FUTURE_RESOLUTION"), "Unknown");
+    assert.equal(orderPaymentEventTypeLabel("REFUND"), "Refund");
+    assert.equal(orderPaymentEventTypeLabel("DISPUTE"), "Dispute");
+    assert.equal(orderPaymentEventTypeLabel("FUTURE_EVENT"), "Payment event");
+
+    const adminOrder = source("src/app/admin/orders/[id]/page.tsx");
+    assert.match(adminOrder, /caseResolutionLabel\(order\.case\.resolution\)/);
+    assert.match(adminOrder, /orderPaymentEventTypeLabel\(event\.eventType\)/);
+    assert.doesNotMatch(adminOrder, /replaceAll\("_", " "\)/);
   });
 
   it("keeps fulfillment status labels centralized across order surfaces", () => {

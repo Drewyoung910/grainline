@@ -3,6 +3,7 @@ import Link from "next/link";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY } from "@/lib/money";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
+import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 
 const PAGE_SIZE = 25;
 
@@ -21,36 +22,32 @@ export default async function FlaggedOrdersPage({
 }) {
   await requireAdminPageAccess();
   const { page: pageParam } = await searchParams;
-  const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
-  const skip = (page - 1) * PAGE_SIZE;
+  const requestedPage = parseBoundedPositiveIntParam(pageParam, 1, 1000);
 
   const where = { reviewNeeded: true } as const;
 
-  const [orders, total] = await Promise.all([
-    prisma.order.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      skip,
-      take: PAGE_SIZE,
-      include: {
-        buyer: { select: { name: true, email: true } },
-        items: {
-          include: {
-            listing: {
-              select: {
-                title: true,
-                seller: { select: { id: true, displayName: true } },
-              },
+  const total = await prisma.order.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const safePage = Math.min(requestedPage, totalPages);
+  const orders = await prisma.order.findMany({
+    where,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    skip: (safePage - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
+    include: {
+      buyer: { select: { name: true, email: true } },
+      items: {
+        include: {
+          listing: {
+            select: {
+              title: true,
+              seller: { select: { id: true, displayName: true } },
             },
           },
         },
       },
-    }),
-    prisma.order.count({ where }),
-  ]);
-
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const safePage = Math.min(page, totalPages);
+    },
+  });
 
   return (
     <div>

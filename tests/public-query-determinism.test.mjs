@@ -39,6 +39,7 @@ describe("public query determinism", () => {
     const similar = source("src/app/api/listings/[id]/similar/route.ts");
     const sellersMap = source("src/app/sellers/map/page.tsx");
     const publicMap = source("src/app/map/page.tsx");
+    const makersMetro = source("src/app/makers/[metroSlug]/page.tsx");
 
     assert.match(home, /orderBy: \[\{ featuredUntil: "desc" \}, \{ id: "asc" \}\]/);
     assert.match(home, /ORDER BY COALESCE\(srs\."reviewCount", 0\) DESC, sp\.id ASC/);
@@ -78,6 +79,8 @@ describe("public query determinism", () => {
     assert.match(metroPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(metroCategoryPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(blogDetail, /orderBy: \[\{ publishedAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(makersMetro, /orderBy: \[\{ profileViews: "desc" \}, \{ id: "asc" \}\]/);
+    assert.match(makersMetro, /listings: \{[\s\S]*orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: 1/);
 
     assert.match(similar, /l\."createdAt" DESC,\s*l\.id DESC/);
     assert.match(similar, /b\.createdAt\.getTime\(\) - a\.createdAt\.getTime\(\)/);

@@ -128,6 +128,26 @@ describe("Round 9 account deletion PII guardrails", () => {
     assert.match(deletion, /tx\.userEmailAddress\.deleteMany\(\{\s*where: \{ userId: user\.id \},\s*\}\)/s);
   });
 
+  it("scrubs account-linked support and data-request contact fields on account deletion", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+
+    assert.match(deletion, /import \{ supportRequestAccountExportWhere \} from "@\/lib\/supportRequest"/);
+    assert.match(deletion, /const DELETED_SUPPORT_REQUEST_EMAIL = "deleted-account@deleted\.thegrainline\.local"/);
+    assert.match(deletion, /const DELETED_SUPPORT_REQUEST_MESSAGE = "\[Support request removed after account deletion\]"/);
+    assert.match(deletion, /async function redactSupportRequestsForDeletedAccount/);
+    assert.match(deletion, /supportRequestAccountExportWhere\(deletedUserId, accountEmails\)/);
+    assert.match(deletion, /tx\.supportRequest\.findMany\(\{/);
+    assert.match(deletion, /redactAccountDeletionText\(request\.closureEvidence, sensitiveValues\)\.text/);
+    assert.match(deletion, /redactAccountDeletionText\(request\.emailLastError, sensitiveValues\)\.text/);
+    assert.match(deletion, /userId: null/);
+    assert.match(deletion, /name: null/);
+    assert.match(deletion, /email: DELETED_SUPPORT_REQUEST_EMAIL/);
+    assert.match(deletion, /orderId: null/);
+    assert.match(deletion, /listingId: null/);
+    assert.match(deletion, /message: DELETED_SUPPORT_REQUEST_MESSAGE/);
+    assert.match(deletion, /redactSupportRequestsForDeletedAccount\(tx, user\.id, accountEmails, accountSensitiveValues\)/);
+  });
+
   it("does not let one hard provider suppression block account-deletion suppressions for other aliases", () => {
     const deletion = source("src/lib/accountDeletion.ts");
 

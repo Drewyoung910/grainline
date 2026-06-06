@@ -93,7 +93,7 @@ export default async function MakersMetroPage({
 
   const sellers = await prisma.sellerProfile.findMany({
     where: sellerWhere,
-    orderBy: { profileViews: "desc" },
+    orderBy: [{ profileViews: "desc" }, { id: "asc" }],
     take: 24,
     select: {
       id: true,
@@ -109,7 +109,7 @@ export default async function MakersMetroPage({
       listings: {
         where: publicListingWhere(),
         take: 1,
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: { photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } } },
       },
       _count: {

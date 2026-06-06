@@ -78,7 +78,7 @@ export default function MakersMapSection({
               Open Makers Map
             </a>
           </div>
-          {geoErr && <div className="mt-2 text-xs text-red-600">{geoErr}</div>}
+          {geoErr && <div role="alert" className="mt-2 text-xs text-red-600">{geoErr}</div>}
         </div>
 
         <div className="flex-1 min-h-[280px] rounded-2xl overflow-hidden">

@@ -11,6 +11,7 @@ import {
   accountEmailSuppressionKeysForEmails,
   userAccountEmailAddressState,
 } from "@/lib/userEmailAddresses";
+import { supportRequestAccountExportWhere } from "@/lib/supportRequest";
 import { invalidateAccountStateCache } from "@/lib/accountStateCache";
 import {
   Prisma,
@@ -40,6 +41,8 @@ const ACTIVE_CASE_STATUSES = ["OPEN", "IN_DISCUSSION", "PENDING_CLOSE", "UNDER_R
 const ACTIVE_COMMISSION_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
 const ACCOUNT_DELETION_REDACTION_BATCH_SIZE = 500;
 const ACCOUNT_DELETION_LOCK_TTL_SECONDS = 120;
+const DELETED_SUPPORT_REQUEST_EMAIL = "deleted-account@deleted.thegrainline.local";
+const DELETED_SUPPORT_REQUEST_MESSAGE = "[Support request removed after account deletion]";
 
 export type AccountDeletionLock = {
   key: string;
@@ -524,6 +527,53 @@ async function redactCaseMessagesAboutDeletedAccount(
       where: { id },
       data: { body: body.text },
     });
+  }
+}
+
+async function redactSupportRequestsForDeletedAccount(
+  tx: Prisma.TransactionClient,
+  deletedUserId: string,
+  accountEmails: string[],
+  sensitiveValues: string[],
+) {
+  const where = supportRequestAccountExportWhere(deletedUserId, accountEmails);
+  let cursor: string | undefined;
+
+  for (;;) {
+    const requests = await tx.supportRequest.findMany({
+      where,
+      select: { id: true, closureEvidence: true, emailLastError: true },
+      orderBy: { id: "asc" },
+      take: ACCOUNT_DELETION_REDACTION_BATCH_SIZE,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+
+    for (const request of requests) {
+      const closureEvidence = request.closureEvidence
+        ? redactAccountDeletionText(request.closureEvidence, sensitiveValues).text
+        : null;
+      const emailLastError = request.emailLastError
+        ? redactAccountDeletionText(request.emailLastError, sensitiveValues).text
+        : null;
+
+      await tx.supportRequest.update({
+        where: { id: request.id },
+        data: {
+          userId: null,
+          name: null,
+          email: DELETED_SUPPORT_REQUEST_EMAIL,
+          orderId: null,
+          listingId: null,
+          message: DELETED_SUPPORT_REQUEST_MESSAGE,
+          emailLastError,
+          closureEvidence,
+        },
+      });
+    }
+
+    if (requests.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
+    cursor = requests[requests.length - 1]?.id;
+    if (!cursor) break;
   }
 }
 
@@ -1072,6 +1122,7 @@ export async function anonymizeUserAccount(
         resolutionNote: "Auto-resolved after the reported account was deleted.",
       },
     });
+    await redactSupportRequestsForDeletedAccount(tx, user.id, accountEmails, accountSensitiveValues);
     await tx.emailOutbox.updateMany({
       where: {
         OR: [{ userId: user.id }, { recipientEmail: { in: suppressionEmailMatches } }],

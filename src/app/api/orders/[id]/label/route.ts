@@ -33,6 +33,11 @@ import { HTTP_STATUS } from "@/lib/httpStatus";
 import { Prisma, type FulfillmentStatus, type LabelStatus } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
+import {
+  DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE,
+  DEAUTHORIZED_SELLER_REVIEW_NOTE_SQL_PATTERN,
+  orderHasDeauthorizedSellerReviewHold,
+} from "@/lib/orderReviewHolds";
 
 const LabelSchema = z.object({
   rateObjectId: z.string().min(1).optional().nullable(),
@@ -249,6 +254,12 @@ export async function POST(
         { status: 400 },
       );
     }
+    if (orderHasDeauthorizedSellerReviewHold(order)) {
+      return privateJson(
+        { error: DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE },
+        { status: 409 },
+      );
+    }
     const terminalStatuses: FulfillmentStatus[] = [
       "SHIPPED",
       "DELIVERED",
@@ -444,6 +455,7 @@ export async function POST(
         AND "fulfillmentStatus" = 'PENDING'::"FulfillmentStatus"
         AND "sellerRefundId" IS NULL
         AND "sellerRefundLockedAt" IS NULL
+        AND NOT ("reviewNeeded" = true AND COALESCE("reviewNote", '') LIKE ${DEAUTHORIZED_SELLER_REVIEW_NOTE_SQL_PATTERN})
         AND NOT EXISTS (
           SELECT 1 FROM "Case" c
           WHERE c."orderId" = "Order".id

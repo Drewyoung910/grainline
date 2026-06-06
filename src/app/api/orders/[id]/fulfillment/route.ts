@@ -13,6 +13,11 @@ import { CaseStatus, LabelStatus, type FulfillmentStatus, type Prisma } from "@p
 import { z } from "zod";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { logServerError } from "@/lib/serverErrorLogger";
+import {
+  DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE,
+  deauthorizedSellerReviewHoldWhere,
+  orderHasDeauthorizedSellerReviewHold,
+} from "@/lib/orderReviewHolds";
 
 const FulfillmentSchema = z.object({
   action: z.enum(["ready_for_pickup", "picked_up", "shipped", "delivered", "update_notes"]),
@@ -158,6 +163,12 @@ export async function POST(
         { status: 400 },
       );
     }
+    if (action !== "update_notes" && orderHasDeauthorizedSellerReviewHold(authz.order)) {
+      return NextResponse.json(
+        { error: DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE },
+        { status: 409 },
+      );
+    }
     if (action === "shipped" && authz.order.labelStatus === "PURCHASED") {
       return NextResponse.json(
         { error: "A Grainline shipping label has already been purchased for this order." },
@@ -257,6 +268,7 @@ export async function POST(
           { case: { is: { status: { notIn: [...ACTIVE_CASE_STATUSES] } } } },
         ],
       });
+      orderWhereAnd.push({ NOT: deauthorizedSellerReviewHoldWhere() });
     }
 
     const updatedCount = await prisma.order.updateMany({

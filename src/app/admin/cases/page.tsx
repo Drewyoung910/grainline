@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { CaseStatus } from "@prisma/client";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import { caseStatusLabel } from "@/lib/caseLabels";
+import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 
 const PAGE_SIZE = 25;
 
@@ -51,8 +52,7 @@ export default async function AdminCasesPage({
 }) {
   await requireAdminPageAccess();
   const { page: pageParam, status: statusParam } = await searchParams;
-  const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
-  const skip = (page - 1) * PAGE_SIZE;
+  const requestedPage = parseBoundedPositiveIntParam(pageParam, 1, 1000);
 
   const statusFilter =
     statusParam && VALID_STATUSES.includes(statusParam as CaseStatus)
@@ -61,28 +61,26 @@ export default async function AdminCasesPage({
 
   const where = statusFilter ? { status: statusFilter } : undefined;
 
-  const [cases, total] = await Promise.all([
-    prisma.case.findMany({
-      where,
-      // Sort: active cases (resolvedAt = null) first, then by createdAt desc
-      orderBy: [
-        { resolvedAt: { sort: "asc", nulls: "first" } },
-        { createdAt: "desc" },
-      ],
-      skip,
-      take: PAGE_SIZE,
-      include: {
-        order: { select: { id: true } },
-        buyer: { select: { name: true, email: true } },
-        seller: { select: { name: true, email: true } },
-        _count: { select: { messages: true } },
-      },
-    }),
-    prisma.case.count({ where }),
-  ]);
-
+  const total = await prisma.case.count({ where });
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const safePage = Math.min(page, totalPages);
+  const safePage = Math.min(requestedPage, totalPages);
+  const cases = await prisma.case.findMany({
+    where,
+    // Sort: active cases (resolvedAt = null) first, then by newest stable row.
+    orderBy: [
+      { resolvedAt: { sort: "asc", nulls: "first" } },
+      { createdAt: "desc" },
+      { id: "desc" },
+    ],
+    skip: (safePage - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
+    include: {
+      order: { select: { id: true } },
+      buyer: { select: { name: true, email: true } },
+      seller: { select: { name: true, email: true } },
+      _count: { select: { messages: true } },
+    },
+  });
 
   function pagerHref(p: number) {
     const params = new URLSearchParams();

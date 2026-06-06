@@ -80,9 +80,11 @@ describe("query parameter parsing helpers", () => {
     const accountOrders = readFileSync("src/app/account/orders/page.tsx", "utf8");
     const dashboardSales = readFileSync("src/app/dashboard/sales/page.tsx", "utf8");
     const adminOrders = readFileSync("src/app/admin/orders/page.tsx", "utf8");
+    const adminCases = readFileSync("src/app/admin/cases/page.tsx", "utf8");
+    const adminFlagged = readFileSync("src/app/admin/flagged/page.tsx", "utf8");
     const notifications = readFileSync("src/app/dashboard/notifications/page.tsx", "utf8");
 
-    for (const source of [accountOrders, dashboardSales, adminOrders, notifications]) {
+    for (const source of [accountOrders, dashboardSales, adminOrders, adminCases, adminFlagged, notifications]) {
       assert.match(source, /import \{[^}]*parseBoundedPositiveIntParam[^}]*\} from "@\/lib\/queryParams";/);
       assert.match(source, /parseBoundedPositiveIntParam\(page(?:Param|Str), 1, 1000\)/);
       assert.doesNotMatch(source, /parseInt\(page(?:Param|Str)/);
@@ -100,6 +102,16 @@ describe("query parameter parsing helpers", () => {
     assert.match(adminOrders, /const total = await prisma\.order\.count\(\)/);
     assert.match(adminOrders, /const safePage = Math\.min\(requestedPage, totalPages\)/);
     assert.match(adminOrders, /skip: \(safePage - 1\) \* PAGE_SIZE/);
+
+    assert.match(adminCases, /const total = await prisma\.case\.count\(\{ where \}\)/);
+    assert.match(adminCases, /const safePage = Math\.min\(requestedPage, totalPages\)/);
+    assert.match(adminCases, /orderBy: \[\s*\{ resolvedAt: \{ sort: "asc", nulls: "first" \} \},\s*\{ createdAt: "desc" \},\s*\{ id: "desc" \},\s*\]/);
+    assert.match(adminCases, /skip: \(safePage - 1\) \* PAGE_SIZE/);
+
+    assert.match(adminFlagged, /const total = await prisma\.order\.count\(\{ where \}\)/);
+    assert.match(adminFlagged, /const safePage = Math\.min\(requestedPage, totalPages\)/);
+    assert.match(adminFlagged, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(adminFlagged, /skip: \(safePage - 1\) \* PAGE_SIZE/);
 
     assert.match(notifications, /const \[total, unreadCount\] = await Promise\.all\(/);
     assert.match(notifications, /const page = Math\.min\(requestedPage, totalPages\)/);

@@ -71,6 +71,8 @@ describe("accessibility follow-ups", () => {
   });
 
   it("labels interactive map canvases and exposes text alternatives", () => {
+    assert.match(source("src/components/MakersMapSection.tsx"), /role="alert"/);
+    assert.match(source("src/components/MobileFilterBar.tsx"), /role="alert"/);
     assert.match(source("src/components/AllSellersMap.tsx"), /role="application"/);
     assert.match(source("src/components/AllSellersMap.tsx"), /aria-label="Map of Grainline makers"/);
     assert.match(source("src/components/AllSellersMap.tsx"), /className="sr-only"/);

@@ -4977,8 +4977,50 @@ Last updated: 2026-06-05
      `tests/account-privacy-observability.test.mjs`,
      `tests/email-normalization-followups.test.mjs`, and
      `tests/retention-and-ops-followups.test.mjs`.
+391. **Support deletion, deauthorization holds, pagination, labels, and a11y
+     pass** - parent/agent-reviewed source fixes for verified current-code
+     defects plus adjacent hidden issues found in the same areas. Account
+     deletion now unlinks and scrubs account-linked `SupportRequest` contact,
+     message, order, and listing fields by the same stable user/current-or-
+     historical-email scope used by account export, while retaining
+     status/SLA/closure-evidence process records and redacting account needles
+     from retained support closure/error text. This reduces residual local
+     support/data-request PII after deletion without claiming provider-side
+     privacy requests are automatic.
 
-**Running tally after this pass:** verified fixed/reduced: 585 findings;
+     Stripe deauthorization review holds are now a shared `orderReviewHolds.ts`
+     contract. The Stripe webhook writes the shared hold note, label purchase
+     blocks the hold before Shippo work and in the final label DB lock, seller
+     fulfillment blocks non-note state changes in both the precheck and final
+     `updateMany` predicate, and the seller order page hides label/manual
+     fulfillment controls while the hold is active. Ordinary `reviewNeeded`
+     orders with other review notes are not blanket-blocked by this helper.
+
+     Private/admin query surfaces found in the same pass were tightened:
+     `/account/reviews`, `/admin/cases`, and `/admin/flagged` now parse bounded
+     page params, count and clamp before fetching, and include deterministic id
+     tie-breakers before `skip`. The public metro makers page now deterministically
+     orders its capped seller list and nested latest-listing selection. Admin
+     order case-resolution/payment-event display now uses centralized labels
+     instead of raw enum fallback text. `MakersMapSection` and
+     `MobileFilterBar` geolocation failures now expose `role="alert"`.
+
+     Agent rechecks found no current source defect in Stripe webhook route
+     signing/idempotency, Connect v2 source configuration, shared refund
+     accounting, fee-policy copy, or ordinary label-clawback state beyond the
+     deauthorization hold gap fixed here; remaining proof for Stripe Dashboard,
+     Connect loss-liability acceptance, runtime refund reconciliation, and
+     provider-side privacy requests stays manual/deferred and does not increase
+     the deferred tally. Guardrails:
+     `tests/order-review-holds.test.mjs`,
+     `tests/round9-account-deletion-pii-guardrails.test.mjs`,
+     `tests/account-review-pagination.test.mjs`,
+     `tests/query-param-state.test.mjs`,
+     `tests/public-query-determinism.test.mjs`,
+     `tests/status-label-guardrails.test.mjs`, and
+     `tests/accessibility-followups.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 597 findings;
 verified stale/false-positive: 442 findings; product/design/ops decisions
 deferred: 74 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
@@ -5148,6 +5190,14 @@ the Resend/health checklist alignment and direct-reason helper were adjacent
 current-code/docs issues. Deferred stays flat; support-request retention policy
 and newsletter-only public resubscribe remain existing deferred/manual
 decisions.
+Entry 391 adds twelve fixed/reduced current-code issues across support-request
+account-deletion scrubbing, Stripe-deauthorization label/fulfillment/UI holds,
+private/admin pagination clamping, public makers determinism, admin enum-label
+fallbacks, and geolocation alert semantics. Five approximate raw-category
+decrements are counted because the support deletion, deauthorization hold,
+private/admin pagination, public-determinism, and a11y fixes overlap remaining
+major categories; the admin labels and several query/UI refinements were
+hidden adjacent issues found by parent/agent review. Deferred stays flat.
 Remaining major categories: Stripe webhook subscription dashboard evidence,
 Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -5167,4 +5217,4 @@ submission decision, residual lower-risk HTTP-status constants outside the
 high-signal helpers, Vercel Analytics/Speed Insights product/ops decision,
 remaining homepage runtime a11y proof, and residual
 agent/worktree verification process hygiene. Approximate raw allegations left
-to verify from current max #1120: 152.
+to verify from current max #1120: 147.
