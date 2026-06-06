@@ -497,6 +497,7 @@ export default async function ThreadPage({
             otherUser={{ imageUrl: other?.imageUrl, avatarImageUrl: otherSellerProfile?.avatarImageUrl, name: other?.name }}
             refreshEventFormId={messageComposerFormId}
             liveUpdates={!isStaffReviewMode}
+            canCreateCustomListings={isParticipant && !otherUnavailableReason}
           />
         </div>
 

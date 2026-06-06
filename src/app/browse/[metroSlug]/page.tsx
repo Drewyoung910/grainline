@@ -94,6 +94,8 @@ export default async function BrowseMetroPage({
       id: true,
       name: true,
       state: true,
+      latitude: true,
+      longitude: true,
       parentMetroId: true,
       parentMetro: { select: { id: true, slug: true, name: true } },
       childMetros: { select: { id: true, slug: true, name: true } },
@@ -168,7 +170,7 @@ export default async function BrowseMetroPage({
     by: ["category"],
     where: { ...listingWhere, category: { not: null } },
     _count: { _all: true },
-    orderBy: { _count: { category: "desc" } },
+    orderBy: [{ _count: { category: "desc" } }, { category: "asc" }],
   });
 
   // Nearby metros with content
@@ -188,6 +190,7 @@ export default async function BrowseMetroPage({
           ],
         },
         select: { id: true, slug: true, name: true },
+        orderBy: [{ name: "asc" }, { slug: "asc" }],
       })
     : [];
 
@@ -321,7 +324,7 @@ export default async function BrowseMetroPage({
 
       {listingCount > 24 && (
         <div className="text-center mb-10">
-          <Link href={`/browse?lat=${metro.id}`} className="text-sm text-neutral-500 hover:underline">
+          <Link href={`/browse?lat=${metro.latitude}&lng=${metro.longitude}&radius=50`} className="text-sm text-neutral-500 hover:underline">
             Showing 24 of {listingCount} pieces — use filters on the main browse page for more
           </Link>
         </div>

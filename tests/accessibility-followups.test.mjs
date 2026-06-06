@@ -73,6 +73,7 @@ describe("accessibility follow-ups", () => {
   it("labels interactive map canvases and exposes text alternatives", () => {
     assert.match(source("src/components/MakersMapSection.tsx"), /role="alert"/);
     assert.match(source("src/components/MobileFilterBar.tsx"), /role="alert"/);
+    assert.match(source("src/components/FilterSidebar.tsx"), /role="alert"/);
     assert.match(source("src/components/AllSellersMap.tsx"), /role="application"/);
     assert.match(source("src/components/AllSellersMap.tsx"), /aria-label="Map of Grainline makers"/);
     assert.match(source("src/components/AllSellersMap.tsx"), /className="sr-only"/);
@@ -128,6 +129,7 @@ describe("accessibility follow-ups", () => {
   it("groups checkout and browse filters with accessible legends and labels", () => {
     const shippingRates = source("src/components/ShippingRateSelector.tsx");
     const filters = source("src/components/FilterSidebar.tsx");
+    const mobileFilters = source("src/components/MobileFilterBar.tsx");
 
     assert.match(shippingRates, /<fieldset className="space-y-2">/);
     assert.match(shippingRates, /<legend className="text-sm font-medium text-neutral-500">Shipping from/);
@@ -138,6 +140,22 @@ describe("accessibility follow-ups", () => {
     assert.match(filters, /htmlFor=\{`\$\{baseId\}-min`\}/);
     assert.match(filters, /htmlFor=\{`\$\{baseId\}-max`\}/);
     assert.match(filters, /htmlFor=\{`\$\{baseId\}-radius`\}/);
+
+    assert.match(mobileFilters, /htmlFor=\{`\$\{baseId\}-mobile-category`\}/);
+    assert.match(mobileFilters, /id=\{`\$\{baseId\}-mobile-category`\}/);
+    assert.match(mobileFilters, /<legend className="font-medium mb-1.5">Listing type<\/legend>/);
+    assert.match(mobileFilters, /htmlFor=\{`\$\{baseId\}-mobile-ships`\}/);
+    assert.match(mobileFilters, /id=\{`\$\{baseId\}-mobile-ships`\}/);
+    assert.match(mobileFilters, /htmlFor=\{`\$\{baseId\}-mobile-rating`\}/);
+    assert.match(mobileFilters, /id=\{`\$\{baseId\}-mobile-rating`\}/);
+    assert.match(mobileFilters, /<legend className="font-medium mb-1.5">Price \(USD\)<\/legend>/);
+    assert.match(mobileFilters, /htmlFor=\{`\$\{baseId\}-mobile-min`\}/);
+    assert.match(mobileFilters, /htmlFor=\{`\$\{baseId\}-mobile-max`\}/);
+    assert.match(mobileFilters, /htmlFor=\{`\$\{baseId\}-mobile-sort`\}/);
+    assert.match(mobileFilters, /id=\{`\$\{baseId\}-mobile-sort`\}/);
+    assert.match(mobileFilters, /<legend className="font-medium mb-1.5">Near location<\/legend>/);
+    assert.match(mobileFilters, /htmlFor=\{`\$\{baseId\}-mobile-radius`\}/);
+    assert.match(mobileFilters, /id=\{`\$\{baseId\}-mobile-radius`\}/);
   });
 
   it("gives listing type and variant editor controls machine-readable labels", () => {
@@ -192,6 +210,23 @@ describe("accessibility follow-ups", () => {
       assert.match(text, /aria-label=\{`\$\{value\.toFixed\(1\)\} out of 5 stars`\}/);
       assert.match(text, /aria-hidden="true">★★★★★/);
     }
+  });
+
+  it("keeps decorative hero mosaic tiles non-interactive", () => {
+    const mosaic = source("src/components/HeroMosaic.tsx");
+
+    assert.doesNotMatch(mosaic, /publicListingPath/);
+    assert.doesNotMatch(mosaic, /<a[\s\S]*tabIndex=\{-1\}[\s\S]*aria-hidden="true"/);
+    assert.match(mosaic, /<div\s+key=\{`r1-\$\{item\.listingId\}-\$\{i\}`\}/);
+    assert.match(mosaic, /<div\s+key=\{`r2-\$\{item\.listingId\}-\$\{i\}`\}/);
+  });
+
+  it("uses stored listing photo alt text in browse list cards", () => {
+    const browse = source("src/app/browse/page.tsx");
+
+    assert.match(browse, /photoAltText: l\.photos\[0\]\?\.altText \?\? null/);
+    assert.match(browse, /<img alt=\{l\.photos\[0\]\?\.altText \?\? l\.title\}/);
+    assert.doesNotMatch(browse, /<img alt=\{l\.title\} src=\{img\}/);
   });
 
   it("labels report forms and address autocomplete listboxes", () => {

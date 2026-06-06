@@ -138,6 +138,7 @@ describe("query parameter parsing helpers", () => {
   it("bounds browse location and shipping filters before query construction", () => {
     const browse = readFileSync("src/app/browse/page.tsx", "utf8");
     const filters = readFileSync("src/components/FilterSidebar.tsx", "utf8");
+    const map = readFileSync("src/app/map/page.tsx", "utf8");
 
     assert.match(browse, /const MAX_SHIPS_WITHIN_DAYS = 365/);
     assert.match(browse, /const MAX_BROWSE_RADIUS_MILES = 500/);
@@ -150,6 +151,12 @@ describe("query parameter parsing helpers", () => {
     assert.doesNotMatch(browse, /Number\(sp\.lng/);
     assert.doesNotMatch(browse, /Number\(sp\.radius/);
     assert.doesNotMatch(browse, /Number\(sp\.rating/);
+    assert.match(map, /parseBoundedDecimalParam\(latStr, -90, 90\)/);
+    assert.match(map, /parseBoundedDecimalParam\(lngStr, -180, 180\)/);
+    assert.match(map, /parseBoundedPositiveIntParam\(zoom, 3, 18\)/);
+    assert.doesNotMatch(map, /Number\(latStr\)/);
+    assert.doesNotMatch(map, /Number\(lngStr\)/);
+    assert.doesNotMatch(map, /parseInt\(zoom/);
     assert.match(filters, /name="ships"[\s\S]*max="365"/);
     assert.match(filters, /name="radius"[\s\S]*max="500"/);
   });

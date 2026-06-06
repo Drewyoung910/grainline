@@ -28,6 +28,7 @@ import {
   DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE,
   orderHasDeauthorizedSellerReviewHold,
 } from "@/lib/orderReviewHolds";
+import { sellerFacingUserLabel } from "@/lib/sellerFacingUser";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -97,7 +98,7 @@ export default async function SellerOrderDetailPage({
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: {
-      buyer: { select: { id: true, name: true, email: true, imageUrl: true } },
+      buyer: { select: { id: true, name: true, email: true, imageUrl: true, deletedAt: true } },
       items: {
         include: {
           listing: {
@@ -230,7 +231,7 @@ export default async function SellerOrderDetailPage({
           {order.reviewNeeded && <Badge>Review needed</Badge>}
         </div>
         <div className="text-neutral-600 text-sm">
-          Buyer: {order.buyer?.name ?? order.buyer?.email ?? "Deleted user"}
+          Buyer: {sellerFacingUserLabel(order.buyer, "Deleted user")}
         </div>
       </header>
 

@@ -7,6 +7,7 @@ import { ensureSeller } from "@/lib/ensureSeller";
 import { filterFirstPartyMediaUrlsForUser } from "@/lib/urlValidation";
 import { sanitizeRichText, sanitizeText, truncateText } from "@/lib/sanitize";
 import { sendCustomOrderReadyLink } from "@/lib/customOrderReadyLink";
+import { sellerFacingUserLabel } from "@/lib/sellerFacingUser";
 import ActionForm from "@/components/ActionForm";
 import PhotoManager from "@/components/PhotoManager";
 import ListingTypeFields from "@/components/ListingTypeFields";
@@ -311,7 +312,7 @@ export default async function CustomListingPage({
   // Fetch buyer info for display
   const buyer = await prisma.user.findUnique({
     where: { id: buyerId },
-    select: { name: true, email: true },
+    select: { name: true, email: true, deletedAt: true },
   });
 
   return (
@@ -319,7 +320,7 @@ export default async function CustomListingPage({
       <h1 className="text-2xl font-semibold mb-2">Create a Custom Listing</h1>
       <p className="text-sm text-neutral-500 mb-6">
         This listing will be private and reserved for{" "}
-        <span className="font-medium">{buyer?.name || buyer?.email || "the buyer"}</span>. Once
+        <span className="font-medium">{sellerFacingUserLabel(buyer, "the buyer")}</span>. Once
         you create it, a link will be sent to them in the conversation.
       </p>
 

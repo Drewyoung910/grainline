@@ -1,8 +1,11 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
+import Link from "next/link";
+import { Prisma, type SupportRequestStatus } from "@prisma/client";
 import type { Metadata } from "next";
 import InlineActionButton from "@/components/InlineActionButton";
 import { prisma } from "@/lib/db";
+import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import {
   SUPPORT_REQUEST_CLOSURE_EVIDENCE_MAX_CHARS,
   SUPPORT_REQUEST_CLOSURE_EVIDENCE_MIN_CHARS,
@@ -12,24 +15,28 @@ import { setSupportRequestStatus } from "./actions";
 
 export const metadata: Metadata = { title: "Support Requests — Admin" };
 
-type SupportRequestRow = {
-  id: string;
-  kind: string;
-  status: string;
-  name: string | null;
-  email: string;
-  topic: string;
-  orderId: string | null;
-  listingId: string | null;
-  message: string;
-  slaDueAt: Date;
-  emailSentAt: Date | null;
-  emailLastError: string | null;
-  closureEvidence: string | null;
-  closureEvidenceAt: Date | null;
-  closureEvidenceBy: { email: string } | null;
-  createdAt: Date;
-};
+const ACTIVE_PAGE_SIZE = 50;
+
+const SUPPORT_REQUEST_ROW_SELECT = {
+  id: true,
+  kind: true,
+  status: true,
+  name: true,
+  email: true,
+  topic: true,
+  orderId: true,
+  listingId: true,
+  message: true,
+  slaDueAt: true,
+  emailSentAt: true,
+  emailLastError: true,
+  closureEvidence: true,
+  closureEvidenceAt: true,
+  closureEvidenceBy: { select: { email: true } },
+  createdAt: true,
+} satisfies Prisma.SupportRequestSelect;
+
+type SupportRequestRow = Prisma.SupportRequestGetPayload<{ select: typeof SUPPORT_REQUEST_ROW_SELECT }>;
 
 function formatDate(value: Date) {
   return value.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -185,7 +192,11 @@ function RequestCard({ request }: { request: SupportRequestRow }) {
   );
 }
 
-export default async function AdminSupportPage() {
+export default async function AdminSupportPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const { userId } = await auth();
   if (!userId) redirect("/");
 
@@ -195,18 +206,27 @@ export default async function AdminSupportPage() {
   });
   if (!admin || admin.banned || admin.deletedAt || (admin.role !== "ADMIN" && admin.role !== "EMPLOYEE")) redirect("/");
 
+  const { page: pageParam } = await searchParams;
+  const requestedPage = parseBoundedPositiveIntParam(pageParam, 1, 1000);
+  const activeStatuses: SupportRequestStatus[] = ["OPEN", "IN_PROGRESS"];
+  const activeWhere = { status: { in: activeStatuses } } satisfies Prisma.SupportRequestWhereInput;
+  const activeCount = await prisma.supportRequest.count({ where: activeWhere });
+  const totalPages = Math.max(1, Math.ceil(activeCount / ACTIVE_PAGE_SIZE));
+  const page = Math.min(requestedPage, totalPages);
+
   const [activeRequests, recentlyClosed] = await Promise.all([
     prisma.supportRequest.findMany({
-      where: { status: { in: ["OPEN", "IN_PROGRESS"] } },
-      orderBy: [{ slaDueAt: "asc" }, { createdAt: "asc" }],
-      take: 100,
-      include: { closureEvidenceBy: { select: { email: true } } },
+      where: activeWhere,
+      orderBy: [{ slaDueAt: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+      skip: (page - 1) * ACTIVE_PAGE_SIZE,
+      take: ACTIVE_PAGE_SIZE,
+      select: SUPPORT_REQUEST_ROW_SELECT,
     }),
     prisma.supportRequest.findMany({
       where: { status: "CLOSED" },
-      orderBy: { closedAt: "desc" },
+      orderBy: [{ closedAt: "desc" }, { id: "desc" }],
       take: 20,
-      include: { closureEvidenceBy: { select: { email: true } } },
+      select: SUPPORT_REQUEST_ROW_SELECT,
     }),
   ]);
 
@@ -214,7 +234,7 @@ export default async function AdminSupportPage() {
     <main className="mx-auto max-w-7xl p-6">
       <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="font-display text-2xl font-semibold">Support Requests ({activeRequests.length} open)</h1>
+          <h1 className="font-display text-2xl font-semibold">Support Requests ({activeCount} open)</h1>
           <p className="mt-1 text-sm text-neutral-500">
             Public support and legal data requests with 45-day SLA tracking.
           </p>
@@ -231,6 +251,32 @@ export default async function AdminSupportPage() {
           </div>
         )}
       </section>
+
+      {totalPages > 1 && (
+        <nav className="mt-6 flex items-center justify-center gap-3 text-sm" aria-label="Open support request pagination">
+          {page > 1 ? (
+            <Link
+              href={page === 2 ? "/admin/support" : `/admin/support?page=${page - 1}`}
+              className="rounded-md border border-neutral-200 bg-white px-3 py-1.5 hover:bg-neutral-50"
+            >
+              ← Previous
+            </Link>
+          ) : (
+            <span className="rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-neutral-500">← Previous</span>
+          )}
+          <span className="text-neutral-500">Page {page} of {totalPages}</span>
+          {page < totalPages ? (
+            <Link
+              href={`/admin/support?page=${page + 1}`}
+              className="rounded-md border border-neutral-200 bg-white px-3 py-1.5 hover:bg-neutral-50"
+            >
+              Next →
+            </Link>
+          ) : (
+            <span className="rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-neutral-500">Next →</span>
+          )}
+        </nav>
+      )}
 
       {recentlyClosed.length > 0 && (
         <section className="mt-8 space-y-3">

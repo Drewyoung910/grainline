@@ -140,6 +140,7 @@ export default async function MakersMetroPage({
           ],
         },
         select: { id: true, slug: true, name: true },
+        orderBy: [{ name: "asc" }, { slug: "asc" }],
       })
     : [];
 

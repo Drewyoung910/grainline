@@ -6,6 +6,7 @@ import { auth } from "@clerk/nextjs/server";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import type { Metadata } from "next";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
+import { parseBoundedDecimalParam, parseBoundedPositiveIntParam } from "@/lib/queryParams";
 
 export const metadata: Metadata = {
   title: "Find Local Woodworkers Near You | Grainline Makers Map",
@@ -49,15 +50,14 @@ export default async function AllSellersMapPage({
 
   if (near) {
     const [latStr, lngStr] = near.split(",");
-    const lat = Number(latStr);
-    const lng = Number(lngStr);
-    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+    const lat = parseBoundedDecimalParam(latStr, -90, 90);
+    const lng = parseBoundedDecimalParam(lngStr, -180, 180);
+    if (lat !== null && lng !== null) {
       initialCenter = { lat, lng };
     }
   }
   if (zoom) {
-    const z = parseInt(zoom, 10);
-    if (Number.isFinite(z)) initialZoom = z;
+    initialZoom = parseBoundedPositiveIntParam(zoom, 3, 18);
   }
 
   // Only sellers with a precise pin (lat & lng present). Exclude radius-only rows.

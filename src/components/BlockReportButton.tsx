@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
+import { readApiErrorMessage } from "@/lib/apiError";
 
 type Props = {
   targetUserId: string;
@@ -36,11 +37,6 @@ export default function BlockReportButton({ targetUserId, targetName, initialBlo
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  async function readApiError(res: Response, fallback: string) {
-    const data = await res.json().catch(() => null) as { error?: string } | null;
-    return data?.error || fallback;
-  }
 
   // Position the menu relative to the trigger but clamped inside the
   // viewport so it never gets cut off (especially on mobile where the
@@ -94,7 +90,7 @@ export default function BlockReportButton({ targetUserId, targetName, initialBlo
     const method = blocked ? "DELETE" : "POST";
     try {
       const res = await fetch(`/api/users/${targetUserId}/block`, { method });
-      if (!res.ok) throw new Error(await readApiError(res, "Could not update block settings."));
+      if (!res.ok) throw new Error(await readApiErrorMessage(res, "Could not update block settings."));
       setBlocked(!blocked);
       setStatus("idle");
       setOpen(false);
@@ -113,7 +109,7 @@ export default function BlockReportButton({ targetUserId, targetName, initialBlo
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason: reportReason, details: reportDetails || undefined, ...(targetType ? { targetType } : {}), ...(targetId ? { targetId } : {}) }),
       });
-      if (!res.ok) throw new Error(await readApiError(res, "Could not submit report."));
+      if (!res.ok) throw new Error(await readApiErrorMessage(res, "Could not submit report."));
       setStatus("done");
       setTimeout(() => { setOpen(false); setView("menu"); setStatus("idle"); }, 1500);
     } catch (e) {

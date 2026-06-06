@@ -21,6 +21,7 @@ import { safeJsonLd } from "@/lib/json-ld";
 import { commissionIsExpired, openCommissionWhere } from "@/lib/commissionExpiry";
 import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
 import { publicSellerPath } from "@/lib/publicPaths";
+import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 
 const COMMISSION_INTEREST_DISPLAY_LIMIT = 100;
 
@@ -42,6 +43,7 @@ export async function generateStaticParams() {
     prisma.commissionRequest.findMany({
       where: openCommissionWhere(),
       select: { id: true },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: 500,
     }),
   ]);
@@ -149,7 +151,7 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
 
   const rawCommissions = await prisma.commissionRequest.findMany({
     where: commissionWhere,
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: 20,
     select: {
       id: true,
@@ -374,13 +376,9 @@ async function CommissionDetailPage({ id }: { id: string }) {
       },
       interests: {
         where: {
-          sellerProfile: {
-            chargesEnabled: true,
-            vacationMode: false,
-            user: { banned: false, deletedAt: null },
-          },
+          sellerProfile: activeSellerProfileWhere(),
         },
-        orderBy: { createdAt: "asc" },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         take: COMMISSION_INTEREST_DISPLAY_LIMIT,
         select: {
           id: true,

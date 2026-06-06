@@ -71,6 +71,7 @@ export default function ThreadMessages({
   height = "60vh",
   refreshEventFormId,
   liveUpdates = true,
+  canCreateCustomListings = true,
 }: {
   convoId: string;
   meId: string;
@@ -79,6 +80,7 @@ export default function ThreadMessages({
   height?: number | string;
   refreshEventFormId?: string;
   liveUpdates?: boolean;
+  canCreateCustomListings?: boolean;
 }) {
   const [msgs, setMsgs] = React.useState<Msg[]>(initial || []);
   const [streamError, setStreamError] = React.useState<string | null>(null);
@@ -352,7 +354,7 @@ export default function ThreadMessages({
           // ── Custom order request card ───────────────────────────────────
           if (m.kind === "custom_order_request") {
             const req = parseCustomOrderRequestMessageBody(body);
-            const isSeller = !mine;
+            const canCreateCustomListing = canCreateCustomListings && !mine;
             return (
               <li key={m.id} className="max-w-[90%]">
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-2">
@@ -380,7 +382,7 @@ export default function ThreadMessages({
                       <span className="font-medium">Inspired by:</span> {req.listingTitle}
                     </p>
                   )}
-                  {isSeller && (
+                  {canCreateCustomListing && (
                     <Link
                       href={`/dashboard/listings/custom?conversationId=${convoId}&buyerId=${m.senderId}`}
                       className="inline-flex items-center gap-1 rounded-lg bg-amber-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 mt-1"

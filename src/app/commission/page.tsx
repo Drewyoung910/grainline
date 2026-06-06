@@ -183,7 +183,7 @@ export default async function CommissionPage({
         CASE WHEN cr."isNational" = false AND cr.lat IS NOT NULL THEN 0 ELSE 1 END ASC,
         distance_m ASC NULLS LAST,
         cr."createdAt" DESC,
-        cr.id ASC
+        cr.id DESC
       LIMIT $6 OFFSET $7`;
 
     const rawResults = await prisma.$queryRawUnsafe<Array<{
@@ -232,7 +232,7 @@ export default async function CommissionPage({
     page = Math.min(requestedPage, Math.max(1, Math.ceil(total / pageSize)));
     const found = await prisma.commissionRequest.findMany({
       where,
-      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       skip: (page - 1) * pageSize,
       take: pageSize,
       select: {

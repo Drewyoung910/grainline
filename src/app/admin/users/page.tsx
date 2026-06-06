@@ -25,7 +25,7 @@ export default async function AdminUsersPage({
   if (!admin || admin.banned || admin.deletedAt || admin.role !== "ADMIN") redirect("/");
 
   const { q: qParam, page: pageStr, email: emailParam } = await searchParams;
-  const page = parseBoundedPositiveIntParam(pageStr, 1, 1000);
+  const requestedPage = parseBoundedPositiveIntParam(pageStr, 1, 1000);
   const q = truncateText((qParam ?? "").trim(), 200);
   const email = truncateText((emailParam ?? "").trim(), 320);
   const perPage = 30;
@@ -39,28 +39,35 @@ export default async function AdminUsersPage({
       }
     : {};
 
-  const [users, total] = await Promise.all([
-    prisma.user.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * perPage,
-      take: perPage,
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        banned: true,
-        bannedAt: true,
-        banReason: true,
-        createdAt: true,
-        sellerProfile: { select: { displayName: true } },
-      },
-    }),
-    prisma.user.count({ where }),
-  ]);
+  const total = await prisma.user.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / perPage));
+  const page = Math.min(requestedPage, totalPages);
 
-  const totalPages = Math.ceil(total / perPage);
+  const users = await prisma.user.findMany({
+    where,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    skip: (page - 1) * perPage,
+    take: perPage,
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      banned: true,
+      bannedAt: true,
+      banReason: true,
+      createdAt: true,
+      sellerProfile: { select: { displayName: true } },
+    },
+  });
+
+  function pageHref(nextPage: number) {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (nextPage > 1) params.set("page", String(nextPage));
+    const qs = params.toString();
+    return `/admin/users${qs ? `?${qs}` : ""}`;
+  }
 
   // If ?email= is present, look up user for standalone email form
   let emailTarget: { id: string; name: string | null; email: string } | null = null;
@@ -202,7 +209,7 @@ export default async function AdminUsersPage({
         <div className="flex gap-2 items-center justify-center">
           {page > 1 && (
             <a
-              href={`/admin/users?${q ? `q=${encodeURIComponent(q)}&` : ""}page=${page - 1}`}
+              href={pageHref(page - 1)}
               className="border border-neutral-200 px-3 py-1 text-sm hover:bg-neutral-50"
             >
               ← Prev
@@ -213,7 +220,7 @@ export default async function AdminUsersPage({
           </span>
           {page < totalPages && (
             <a
-              href={`/admin/users?${q ? `q=${encodeURIComponent(q)}&` : ""}page=${page + 1}`}
+              href={pageHref(page + 1)}
               className="border border-neutral-200 px-3 py-1 text-sm hover:bg-neutral-50"
             >
               Next →

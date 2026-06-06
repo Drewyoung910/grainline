@@ -17,6 +17,7 @@ const SORT_LABELS: Record<string, string> = {
 
 export default function MobileFilterBar({ popularTags }: { popularTags: string[] }) {
   const searchParams = useSearchParams();
+  const baseId = React.useId();
   const q = searchParams.get("q") ?? "";
   const selectedTags = searchParams.getAll("tag");
   const view = searchParams.get("view") ?? "grid";
@@ -133,8 +134,9 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
 
       {/* Category */}
       <div>
-        <label className="block font-medium mb-1.5">Category</label>
+        <label htmlFor={`${baseId}-mobile-category`} className="block font-medium mb-1.5">Category</label>
         <select
+          id={`${baseId}-mobile-category`}
           name="category"
           defaultValue={currentCategory}
           className="w-full rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-sm min-h-[44px]"
@@ -149,8 +151,8 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
       </div>
 
       {/* Listing type */}
-      <div>
-        <div className="font-medium mb-1.5">Listing type</div>
+      <fieldset>
+        <legend className="font-medium mb-1.5">Listing type</legend>
         <div className="space-y-1.5">
           {[
             { value: "", label: "All" },
@@ -168,12 +170,13 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
             </label>
           ))}
         </div>
-      </div>
+      </fieldset>
 
       {/* Ships within */}
       <div>
-        <label className="block font-medium mb-1.5">Ships within (days)</label>
+        <label htmlFor={`${baseId}-mobile-ships`} className="block font-medium mb-1.5">Ships within (days)</label>
         <input
+          id={`${baseId}-mobile-ships`}
           name="ships"
           type="number"
           inputMode="numeric"
@@ -186,8 +189,9 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
 
       {/* Min seller rating */}
       <div>
-        <label className="block font-medium mb-1.5">Min seller rating</label>
+        <label htmlFor={`${baseId}-mobile-rating`} className="block font-medium mb-1.5">Min seller rating</label>
         <select
+          id={`${baseId}-mobile-rating`}
           name="rating"
           defaultValue={currentRating}
           className="w-full rounded-md border border-neutral-200 bg-white px-3 py-1.5 min-h-[44px] text-sm"
@@ -200,10 +204,12 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
       </div>
 
       {/* Price range */}
-      <div>
-        <div className="font-medium mb-1.5">Price (USD)</div>
+      <fieldset>
+        <legend className="font-medium mb-1.5">Price (USD)</legend>
         <div className="flex items-center gap-2">
+          <label htmlFor={`${baseId}-mobile-min`} className="sr-only">Minimum price</label>
           <input
+            id={`${baseId}-mobile-min`}
             name="min"
             type="text"
             inputMode="decimal"
@@ -213,7 +219,9 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
             className="w-full rounded-md border border-neutral-200 bg-white px-3 py-1.5 min-h-[44px] text-sm"
           />
           <span className="text-neutral-500 shrink-0">–</span>
+          <label htmlFor={`${baseId}-mobile-max`} className="sr-only">Maximum price</label>
           <input
+            id={`${baseId}-mobile-max`}
             name="max"
             type="text"
             inputMode="decimal"
@@ -223,12 +231,13 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
             className="w-full rounded-md border border-neutral-200 bg-white px-3 py-1.5 min-h-[44px] text-sm"
           />
         </div>
-      </div>
+      </fieldset>
 
       {/* Sort */}
       <div>
-        <label className="block font-medium mb-1.5">Sort by</label>
+        <label htmlFor={`${baseId}-mobile-sort`} className="block font-medium mb-1.5">Sort by</label>
         <select
+          id={`${baseId}-mobile-sort`}
           name="sort"
           defaultValue={currentSort}
           className="w-full rounded-md border border-neutral-200 bg-white px-3 py-1.5 min-h-[44px] text-sm"
@@ -242,8 +251,8 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
       </div>
 
       {/* Location */}
-      <div>
-        <div className="font-medium mb-1.5">Near location</div>
+      <fieldset>
+        <legend className="font-medium mb-1.5">Near location</legend>
         <div className="space-y-1.5">
           <button
             type="button"
@@ -262,7 +271,9 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
               {geoError}
             </div>
           )}
+          <label htmlFor={`${baseId}-mobile-radius`} className="sr-only">Radius in miles</label>
           <input
+            id={`${baseId}-mobile-radius`}
             name="radius"
             type="number"
             inputMode="numeric"
@@ -272,7 +283,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
             className="w-full rounded-md border border-neutral-200 bg-white px-3 py-1.5 min-h-[44px] text-sm"
           />
         </div>
-      </div>
+      </fieldset>
 
       <div className="flex gap-2">
         <button

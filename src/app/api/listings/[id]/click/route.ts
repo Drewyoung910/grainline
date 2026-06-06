@@ -30,7 +30,7 @@ export async function POST(
 
   const ip = getIP(req);
   const { success } = await safeRateLimitOpen(clickRatelimit, ip);
-  if (!success) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  if (!success) return NextResponse.json({ ok: true, skipped: true });
 
   const { id } = await params;
   const { userId } = await auth();

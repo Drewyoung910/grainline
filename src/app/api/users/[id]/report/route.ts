@@ -14,7 +14,7 @@ import {
   readBoundedJson,
 } from "@/lib/requestBody";
 import { z } from "zod";
-import { reportRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import { rateLimitResponse, reportRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 
 const Schema = z.object({
@@ -53,7 +53,7 @@ export async function POST(
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const rl = await safeRateLimit(reportRatelimit, me.id);
-  if (!rl.success) return NextResponse.json({ error: "Too many reports" }, { status: 429 });
+  if (!rl.success) return rateLimitResponse(rl.reset, "Too many reports.");
 
   const { id: reportedId } = await params;
   if (reportedId === me.id) return NextResponse.json({ error: "Cannot report yourself" }, { status: 400 });

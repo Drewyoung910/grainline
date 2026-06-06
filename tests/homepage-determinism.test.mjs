@@ -20,6 +20,18 @@ describe("homepage deterministic query guardrails", () => {
     );
   });
 
+  it("applies viewer block filters to the homepage hero mosaic query", () => {
+    const home = source("src/app/page.tsx");
+    const mosaicStart = home.indexOf("const [topListings");
+    const mosaicQueryStart = home.indexOf("prisma.listing.findMany({", mosaicStart);
+    const mosaicQueryEnd = home.indexOf("getFeaturedMakerBlock(blockedSellerIds)", mosaicQueryStart);
+    const mosaicQuery = home.slice(mosaicQueryStart, mosaicQueryEnd);
+
+    assert.match(mosaicQuery, /where: publicListingWhere\(\s*blockedSellerIds\.length > 0 \? \{ sellerId: \{ notIn: blockedSellerIds \} \} : \{\},\s*\)/);
+    assert.match(mosaicQuery, /orderBy: \[\{ qualityScore: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(mosaicQuery, /take: 24/);
+  });
+
   it("merges followed-maker listing and blog items by recency before slicing", () => {
     const home = source("src/app/page.tsx");
 

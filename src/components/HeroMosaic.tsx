@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { publicListingPath } from "@/lib/publicPaths";
 
 type PhotoItem = {
   url: string;
@@ -67,11 +66,9 @@ export default function HeroMosaic({ photos }: Props) {
         style={row1Style}
       >
         {row1.map((item, i) => (
-          <a
+          <div
             key={`r1-${item.listingId}-${i}`}
-            href={publicListingPath(item.listingId, item.title)}
             className="flex-none w-64 h-full overflow-hidden block"
-            tabIndex={-1}
             aria-hidden="true"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -83,7 +80,7 @@ export default function HeroMosaic({ photos }: Props) {
               fetchPriority={i < 4 ? "high" : "auto"}
               decoding="async"
             />
-          </a>
+          </div>
         ))}
       </div>
 
@@ -93,11 +90,9 @@ export default function HeroMosaic({ photos }: Props) {
         style={row2Style}
       >
         {row2.map((item, i) => (
-          <a
+          <div
             key={`r2-${item.listingId}-${i}`}
-            href={publicListingPath(item.listingId, item.title)}
             className="flex-none w-64 h-full overflow-hidden block"
-            tabIndex={-1}
             aria-hidden="true"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -109,7 +104,7 @@ export default function HeroMosaic({ photos }: Props) {
               fetchPriority={i < 4 ? "high" : "auto"}
               decoding="async"
             />
-          </a>
+          </div>
         ))}
       </div>
 

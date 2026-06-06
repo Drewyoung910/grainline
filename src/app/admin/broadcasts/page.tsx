@@ -87,7 +87,7 @@ export default async function AdminBroadcastsPage({
 }) {
   await requireAdminPageAccess();
   const sp = await searchParams;
-  const page = parseBoundedPositiveIntParam(sp.page, 1, 1000);
+  const requestedPage = parseBoundedPositiveIntParam(sp.page, 1, 1000);
   const q = truncateText((sp.q ?? "").trim(), 200);
   const pageSize = 25;
 
@@ -95,31 +95,30 @@ export default async function AdminBroadcastsPage({
     ? { message: { contains: q, mode: "insensitive" as const } }
     : {};
 
-  const [broadcasts, total] = await Promise.all([
-    prisma.sellerBroadcast.findMany({
-      where,
-      orderBy: { sentAt: "desc" },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-      select: {
-        id: true,
-        message: true,
-        imageUrl: true,
-        sentAt: true,
-        recipientCount: true,
-        sellerProfile: {
-          select: {
-            id: true,
-            displayName: true,
-            user: { select: { email: true } },
-          },
+  const total = await prisma.sellerBroadcast.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(requestedPage, totalPages);
+
+  const broadcasts = await prisma.sellerBroadcast.findMany({
+    where,
+    orderBy: [{ sentAt: "desc" }, { id: "desc" }],
+    skip: (page - 1) * pageSize,
+    take: pageSize,
+    select: {
+      id: true,
+      message: true,
+      imageUrl: true,
+      sentAt: true,
+      recipientCount: true,
+      sellerProfile: {
+        select: {
+          id: true,
+          displayName: true,
+          user: { select: { email: true } },
         },
       },
-    }),
-    prisma.sellerBroadcast.count({ where }),
-  ]);
-
-  const totalPages = Math.ceil(total / pageSize);
+    },
+  });
 
   function buildHref(overrides: Record<string, string>) {
     const p = new URLSearchParams();

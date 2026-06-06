@@ -39,7 +39,7 @@ export default async function AdminAuditPage({
   if (!admin || admin.banned || admin.deletedAt || admin.role !== "ADMIN") redirect("/");
 
   const { page: pageStr, action: actionParam } = await searchParams;
-  const page = parseBoundedPositiveIntParam(pageStr, 1, 1000);
+  const requestedPage = parseBoundedPositiveIntParam(pageStr, 1, 1000);
   const perPage = 30;
   const actionFilter = actionParam ? truncateText(actionParam.trim(), 80) : "";
   const where = actionFilter ? { action: actionFilter } : {};
@@ -51,21 +51,21 @@ export default async function AdminAuditPage({
     return `/admin/audit?${params.toString()}`;
   };
 
-  const [logs, total] = await Promise.all([
-    prisma.adminAuditLog.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * perPage,
-      take: perPage,
-      include: {
-        admin: { select: { name: true, email: true } },
-      },
-    }),
-    prisma.adminAuditLog.count({ where }),
-  ]);
+  const total = await prisma.adminAuditLog.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / perPage));
+  const page = Math.min(requestedPage, totalPages);
+
+  const logs = await prisma.adminAuditLog.findMany({
+    where,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    skip: (page - 1) * perPage,
+    take: perPage,
+    include: {
+      admin: { select: { name: true, email: true } },
+    },
+  });
 
   const now = Date.now();
-  const totalPages = Math.ceil(total / perPage);
 
   return (
     <div className="space-y-6">

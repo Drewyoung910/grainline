@@ -19,14 +19,14 @@ deferred, stale, and open findings for traceability.
 
 ## Active Hardening Program Counter
 
-Last updated: 2026-06-05
+Last updated: 2026-06-06
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 235.
-- Verified code/feature fix commits since 2026-05-13: 209.
+- Verified hardening/doc commits since 2026-05-13: 236.
+- Verified code/feature fix commits since 2026-05-13: 210.
 - Verified docs/audit-only commits since 2026-05-13: 11.
-- Most recent reported pass tally: 578 verified fixed/reduced findings,
-  442 verified stale/false-positive findings, and 74 deferred/manual findings
+- Most recent reported pass tally: 626 verified fixed/reduced findings,
+  447 verified stale/false-positive findings, and 74 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
 ## 2026-05-14 Active Tracker
@@ -5019,9 +5019,51 @@ Last updated: 2026-06-05
      `tests/public-query-determinism.test.mjs`,
      `tests/status-label-guardrails.test.mjs`, and
      `tests/accessibility-followups.test.mjs`.
+392. **Admin queues, rate-limit responses, public discovery, and seller-facing
+     privacy/a11y pass** - parent/agent-reviewed source fixes for verified
+     current-code defects plus adjacent hidden issues in the same surfaces.
+     Admin users, audit logs, broadcasts, reviews, and support active queues now
+     count before fetching, clamp requested pages to the available page range,
+     and keep deterministic id tie-breakers. Admin reviews/support gained
+     bounded pagination instead of broad unpaged queue reads, and support active
+     counts now come from an exact count instead of the current page length.
 
-**Running tally after this pass:** verified fixed/reduced: 597 findings;
-verified stale/false-positive: 442 findings; product/design/ops decisions
+     High-signal rate-limit drift was tightened: blog search suggestions, blog
+     search, user reports, and message streams now return the structured
+     `rateLimitResponse()` payload with retry metadata; `BlockReportButton`
+     reads API error messages through `readApiErrorMessage()`; and
+     fire-and-forget listing click telemetry silently no-ops on the global public
+     limiter instead of surfacing a user-visible 429 from card clicks.
+
+     Public discovery and accessibility fixes in the same pass: homepage hero
+     mosaic tiles are decorative non-links, homepage mosaic and browse
+     no-results featured fallbacks honor signed-in block exclusions, browse list
+     cards use stored photo alt text, public map `near`/`zoom` params are parsed
+     through bounded helpers, metro browse overflow CTAs now pass real
+     coordinates instead of internal metro IDs, metro/nearby/category and
+     commission capped lists have deterministic id/name tie-breakers, commission
+     interest rows use `activeSellerProfileWhere()`, the main commission page
+     uses newest-first id tie-breakers, desktop browse geolocation failures are
+     announced, and mobile browse filter labels are tied to their controls.
+
+     Seller-facing privacy/UI fixes: reported-thread staff review no longer
+     exposes custom-order creation controls through `ThreadMessages`, and seller
+     sales/custom-order surfaces use `sellerFacingUserLabel()` so internal
+     deleted-account placeholder emails do not render to sellers. Agent rechecks
+     also verified current/stale source behavior for seller broadcast cooldowns,
+     account export/deletion redaction scope, support/legal durability, and email
+     suppression boundaries; provider/dashboard evidence items remain manual.
+     Guardrails: `tests/admin-query-and-email-guardrails.test.mjs`,
+     `tests/http-rate-limit-followups.test.mjs`,
+     `tests/homepage-determinism.test.mjs`,
+     `tests/accessibility-followups.test.mjs`,
+     `tests/public-query-determinism.test.mjs`,
+     `tests/query-param-state.test.mjs`,
+     `tests/seller-facing-user-label.test.mjs`, and
+     `tests/message-case-policy-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 626 findings;
+verified stale/false-positive: 447 findings; product/design/ops decisions
 deferred: 74 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
 export/deletion residue. Entry 361 removes the remaining Resend webhook
@@ -5198,6 +5240,18 @@ decrements are counted because the support deletion, deauthorization hold,
 private/admin pagination, public-determinism, and a11y fixes overlap remaining
 major categories; the admin labels and several query/UI refinements were
 hidden adjacent issues found by parent/agent review. Deferred stays flat.
+Entry 392 adds twenty-nine fixed/reduced current-code issues across admin queue
+count/clamp pagination, structured rate-limit responses, public discovery
+block-filtering and deterministic caps, commission/map/metro parameter and
+ordering fixes, seller-facing deleted-account labels, staff reported-thread UI
+gating, and desktop/mobile browse filter accessibility. It also adds five
+verified stale/false-positive/current-source classifications from agent
+rechecks of seller broadcast cooldowns, export/deletion redaction, support/legal
+durability, and email suppression boundaries. Fourteen approximate raw-category
+decrements are counted because this pass closed remaining slices in admin
+pagination, HTTP UX, public discovery/a11y, and seller-facing privacy while
+several fixes were hidden adjacent findings discovered during parent/agent
+review. Deferred stays flat.
 Remaining major categories: Stripe webhook subscription dashboard evidence,
 Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -5217,4 +5271,4 @@ submission decision, residual lower-risk HTTP-status constants outside the
 high-signal helpers, Vercel Analytics/Speed Insights product/ops decision,
 remaining homepage runtime a11y proof, and residual
 agent/worktree verification process hygiene. Approximate raw allegations left
-to verify from current max #1120: 147.
+to verify from current max #1120: 133.

@@ -1,9 +1,9 @@
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
-import { messageStreamRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import { messageStreamRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { parseTimestampMsParam } from "@/lib/queryParams";
-import { privateJson } from "@/lib/privateResponse";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 import * as Sentry from "@sentry/nextjs";
 
 export const runtime = "nodejs";
@@ -17,8 +17,8 @@ export async function GET(
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
-  const { success } = await safeRateLimit(messageStreamRatelimit, userId);
-  if (!success) return privateJson({ error: "Too many requests" }, { status: 429 });
+  const { success, reset } = await safeRateLimit(messageStreamRatelimit, userId);
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many message update requests."));
 
   let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
   try {

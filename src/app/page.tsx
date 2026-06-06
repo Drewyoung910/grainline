@@ -359,7 +359,9 @@ export default async function HomePage() {
       },
     }),
     prisma.listing.findMany({
-      where: publicListingWhere(),
+      where: publicListingWhere(
+        blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {},
+      ),
       orderBy: [{ qualityScore: "desc" }, { createdAt: "desc" }, { id: "desc" }],
       take: 24,
       select: {

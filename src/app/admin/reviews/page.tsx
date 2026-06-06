@@ -5,10 +5,17 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { DeleteReviewButton } from "@/components/admin/DeleteReviewButton";
 import { publicListingPath } from "@/lib/publicPaths";
+import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 
 export const metadata: Metadata = { title: "Reviews — Admin" };
 
-export default async function AdminReviewsPage() {
+const PAGE_SIZE = 50;
+
+export default async function AdminReviewsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const { userId } = await auth();
   if (!userId) redirect("/");
 
@@ -18,19 +25,31 @@ export default async function AdminReviewsPage() {
   });
   if (!admin || admin.banned || admin.deletedAt || (admin.role !== "ADMIN" && admin.role !== "EMPLOYEE")) redirect("/");
 
+  const { page: pageParam } = await searchParams;
+  const requestedPage = parseBoundedPositiveIntParam(pageParam, 1, 1000);
+  const total = await prisma.review.count();
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const page = Math.min(requestedPage, totalPages);
+
   const reviews = await prisma.review.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 100,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
     include: {
       reviewer: { select: { name: true, email: true } },
       listing: { select: { id: true, title: true } },
-      photos: { orderBy: { sortOrder: "asc" } },
+      photos: { orderBy: [{ sortOrder: "asc" }, { id: "asc" }] },
     },
   });
 
   return (
     <main className="p-6 max-w-7xl mx-auto">
-      <h1 className="text-2xl font-semibold font-display mb-6">All Reviews</h1>
+      <div className="mb-6 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <h1 className="text-2xl font-semibold font-display">All Reviews</h1>
+        <p className="text-sm text-neutral-500">
+          {total} total{totalPages > 1 ? ` · Page ${page} of ${totalPages}` : ""}
+        </p>
+      </div>
       <div className="space-y-3">
         {reviews.map((r) => (
           <div key={r.id} className="border border-neutral-200 rounded-lg p-4">
@@ -77,6 +96,31 @@ export default async function AdminReviewsPage() {
           <p className="text-neutral-500 text-sm">No reviews yet.</p>
         )}
       </div>
+      {totalPages > 1 && (
+        <nav className="mt-8 flex items-center justify-center gap-3 text-sm" aria-label="Pagination">
+          {page > 1 ? (
+            <Link
+              href={page === 2 ? "/admin/reviews" : `/admin/reviews?page=${page - 1}`}
+              className="rounded-md border border-neutral-200 px-3 py-1.5 hover:bg-neutral-50"
+            >
+              ← Previous
+            </Link>
+          ) : (
+            <span className="rounded-md border border-neutral-200 px-3 py-1.5 text-neutral-500">← Previous</span>
+          )}
+          <span className="text-neutral-500">Page {page} of {totalPages}</span>
+          {page < totalPages ? (
+            <Link
+              href={`/admin/reviews?page=${page + 1}`}
+              className="rounded-md border border-neutral-200 px-3 py-1.5 hover:bg-neutral-50"
+            >
+              Next →
+            </Link>
+          ) : (
+            <span className="rounded-md border border-neutral-200 px-3 py-1.5 text-neutral-500">Next →</span>
+          )}
+        </nav>
+      )}
     </main>
   );
 }

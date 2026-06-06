@@ -74,6 +74,17 @@ describe("message and case policy guardrails", () => {
     assert.match(page, /liveUpdates=\{!isStaffReviewMode\}/);
   });
 
+  it("keeps staff reported-thread review from rendering seller-only custom listing actions", () => {
+    const thread = source("src/components/ThreadMessages.tsx");
+    const page = source("src/app/messages/[id]/page.tsx");
+
+    assert.match(thread, /canCreateCustomListings = true/);
+    assert.match(thread, /canCreateCustomListings\?: boolean/);
+    assert.match(thread, /const canCreateCustomListing = canCreateCustomListings && !mine/);
+    assert.match(thread, /\{canCreateCustomListing && \(/);
+    assert.match(page, /canCreateCustomListings=\{isParticipant && !otherUnavailableReason\}/);
+  });
+
   it("hides buyer and seller case reply boxes when the API would reject the recipient", () => {
     for (const pagePath of [
       "src/app/dashboard/orders/[id]/page.tsx",

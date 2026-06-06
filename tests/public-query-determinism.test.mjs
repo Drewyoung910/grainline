@@ -57,6 +57,7 @@ describe("public query determinism", () => {
     assert.match(browse, /sort === "popular" \? \[\{ favorites: \{ _count: "desc" \} \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(browse, /: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(browse, /orderBy: \[\{ favorites: \{ _count: "desc" \} \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(browse, /const featured = await prisma\.listing\.findMany\(\{\s*where: publicListingWhere\(\s*blockedSellerIds\.length > 0 \? \{ sellerId: \{ notIn: blockedSellerIds \} \} : \{\},\s*\)/);
     assert.match(browse, /b\.listing\.createdAt\.getTime\(\) - a\.listing\.createdAt\.getTime\(\)/);
     assert.match(browse, /b\.listing\.id\.localeCompare\(a\.listing\.id\)/);
 
@@ -77,10 +78,15 @@ describe("public query determinism", () => {
 
     assert.match(tagPage, /orderBy: \[\{ qualityScore: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(metroPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(metroPage, /orderBy: \[\{ _count: \{ category: "desc" \} \}, \{ category: "asc" \}\]/);
+    assert.match(metroPage, /orderBy: \[\{ name: "asc" \}, \{ slug: "asc" \}\]/);
+    assert.match(metroPage, /href=\{`\/browse\?lat=\$\{metro\.latitude\}&lng=\$\{metro\.longitude\}&radius=50`\}/);
+    assert.doesNotMatch(metroPage, /\/browse\?lat=\$\{metro\.id\}/);
     assert.match(metroCategoryPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(blogDetail, /orderBy: \[\{ publishedAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(makersMetro, /orderBy: \[\{ profileViews: "desc" \}, \{ id: "asc" \}\]/);
     assert.match(makersMetro, /listings: \{[\s\S]*orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: 1/);
+    assert.match(makersMetro, /orderBy: \[\{ name: "asc" \}, \{ slug: "asc" \}\]/);
 
     assert.match(similar, /l\."createdAt" DESC,\s*l\.id DESC/);
     assert.match(similar, /b\.createdAt\.getTime\(\) - a\.createdAt\.getTime\(\)/);
@@ -216,6 +222,7 @@ describe("public query determinism", () => {
     const blogSearch = source("src/app/api/blog/search/route.ts");
     const blogApi = source("src/app/api/blog/route.ts");
     const commissionPage = source("src/app/commission/page.tsx");
+    const commissionDetail = source("src/app/commission/[param]/page.tsx");
     const commissionApi = source("src/app/api/commission/route.ts");
 
     assert.match(browse, /const relevantPage = Math\.min\(Math\.max\(pageNum, 1\), relevantTotalPages\)/);
@@ -241,6 +248,14 @@ describe("public query determinism", () => {
     assert.match(commissionPage, /page = Math\.min\(requestedPage, Math\.max\(1, Math\.ceil\(total \/ pageSize\)\)\)/);
     assert.match(commissionPage, /\(page - 1\) \* pageSize/);
     assert.match(commissionPage, /Page \{page\} of \{totalPages\}/);
+    assert.match(commissionPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\],\s*skip: \(page - 1\) \* pageSize,\s*take: pageSize/);
+    assert.match(commissionPage, /cr\."createdAt" DESC,\s*cr\.id DESC/);
+
+    assert.match(commissionDetail, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\],\s*take: 500/);
+    assert.match(commissionDetail, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\],\s*take: 20/);
+    assert.match(commissionDetail, /sellerProfile: activeSellerProfileWhere\(\)/);
+    assert.match(commissionDetail, /orderBy: \[\{ createdAt: "asc" \}, \{ id: "asc" \}\],\s*take: COMMISSION_INTEREST_DISPLAY_LIMIT/);
+    assert.doesNotMatch(commissionDetail, /sellerProfile: \{\s*chargesEnabled: true,\s*vacationMode: false,\s*user: \{ banned: false, deletedAt: null \}/s);
 
     assert.match(commissionApi, /const currentPage = Math\.min\(page, Math\.max\(1, Math\.ceil\(total \/ pageSize\)\)\)/);
     assert.match(commissionApi, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "asc" \}\]/);

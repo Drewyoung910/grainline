@@ -14,9 +14,14 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
   const [geoLat, setGeoLat] = React.useState(searchParams.get("lat") ?? "");
   const [geoLng, setGeoLng] = React.useState(searchParams.get("lng") ?? "");
   const [locating, setLocating] = React.useState(false);
+  const [geoError, setGeoError] = React.useState<string | null>(null);
 
   function detectLocation() {
-    if (!navigator.geolocation) return;
+    setGeoError(null);
+    if (!navigator.geolocation) {
+      setGeoError("Location is not available in this browser.");
+      return;
+    }
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -24,7 +29,15 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
         setGeoLng(pos.coords.longitude.toFixed(5));
         setLocating(false);
       },
-      () => setLocating(false)
+      (error) => {
+        setLocating(false);
+        setGeoError(
+          error.code === error.PERMISSION_DENIED
+            ? "Location permission was denied."
+            : "Could not detect your location. Try again or enter a radius without location filtering."
+        );
+      },
+      { enableHighAccuracy: false, maximumAge: 300000, timeout: 8000 }
     );
   }
 
@@ -207,6 +220,11 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
           {(geoLat || geoLng) && (
             <div className="text-xs text-neutral-500 truncate">
               {geoLat}, {geoLng}
+            </div>
+          )}
+          {geoError && (
+            <div role="alert" className="text-xs text-red-600">
+              {geoError}
             </div>
           )}
           <label htmlFor={`${baseId}-radius`} className="sr-only">Radius in miles</label>
