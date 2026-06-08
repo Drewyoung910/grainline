@@ -11,6 +11,7 @@ import {
   createMarketplaceRefund,
   refundIdempotencyKeyBase,
 } from "@/lib/marketplaceRefunds";
+import { recordLocalRefundEvidence } from "@/lib/localRefundEvidence";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { formatCurrencyCents } from "@/lib/money";
 import {
@@ -375,6 +376,26 @@ export async function POST(
           throw new Error(
             "Seller refund lock was no longer held while recording Stripe refund.",
           );
+        }
+        if (refundId) {
+          await recordLocalRefundEvidence(tx, {
+            action: "SELLER_REFUND_RECORDED",
+            actorType: "system",
+            actorId: me.id,
+            orderId,
+            refundId,
+            refundIds,
+            amountCents: refundAmountCents,
+            currency: order.currency,
+            status: refund.refundStatuses[0] ?? null,
+            reason: "seller_refund",
+            description: reviewNote,
+            metadata: {
+              refundType: type,
+              requiresManualTransferReconciliation: refund.requiresManualTransferReconciliation,
+              requiresManualFollowUp: refund.requiresManualFollowUp,
+            },
+          });
         }
 
         if (refund.requiresManualTransferReconciliation) {

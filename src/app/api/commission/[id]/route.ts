@@ -7,7 +7,8 @@ import { prisma } from "@/lib/db";
 import { CommissionStatus } from "@prisma/client";
 import { createNotification } from "@/lib/notifications";
 import { commissionIsExpired } from "@/lib/commissionExpiry";
-import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
+import { publicCommissionInterestWhere, resolvedInterestedCount } from "@/lib/commissionInterestCount";
+import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { openCommissionMutationWhere } from "@/lib/commissionState";
 import { commissionStatusRatelimit, getIP, rateLimitResponse, safeRateLimit, searchRatelimit } from "@/lib/ratelimit";
@@ -48,18 +49,14 @@ export async function GET(
       referenceImageUrls: true,
       status: true,
       interestedCount: true,
-      _count: { select: { interests: true } },
+      _count: { select: { interests: { where: publicCommissionInterestWhere() } } },
       expiresAt: true,
       createdAt: true,
       buyerId: true,
       buyer: { select: { name: true, imageUrl: true, banned: true, deletedAt: true } },
       interests: {
         where: {
-          sellerProfile: {
-            chargesEnabled: true,
-            vacationMode: false,
-            user: { banned: false, deletedAt: null },
-          },
+          sellerProfile: activeSellerProfileWhere(),
         },
         take: COMMISSION_INTEREST_DISPLAY_LIMIT,
         select: {

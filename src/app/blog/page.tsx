@@ -14,6 +14,7 @@ import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { safeJsonLd } from "@/lib/json-ld";
 import { truncateText, truncateTextWithEllipsis } from "@/lib/sanitize";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { getPopularBlogTagRows } from "@/lib/popularBlogTags";
 
 const BLOG_TITLE = "Stories from the Workshop";
 const BLOG_DESCRIPTION = "Maker spotlights, build guides, wood education, and gift guides from the Grainline community.";
@@ -201,33 +202,7 @@ export default async function BlogIndexPage({
   // Tag cloud — only when no active search
   let tagCloud: Array<{ tag: string; count: number }> = [];
   if (!q && tagsFilter.length === 0) {
-    const rows = await prisma.$queryRaw<Array<{ tag: string; count: bigint }>>`
-      SELECT tag, COUNT(*) as count
-      FROM "BlogPost" bp
-      INNER JOIN "User" u ON u.id = bp."authorId"
-      LEFT JOIN "SellerProfile" sp ON sp.id = bp."sellerProfileId"
-      LEFT JOIN "User" seller_user ON seller_user.id = sp."userId",
-      unnest(bp.tags) as tag
-      WHERE bp.status = 'PUBLISHED'
-        AND bp."publishedAt" IS NOT NULL
-        AND bp."publishedAt" <= NOW()
-        AND u.banned = false
-        AND u."deletedAt" IS NULL
-        AND (
-          bp."sellerProfileId" IS NULL
-          OR (
-            sp."chargesEnabled" = true
-            AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
-            AND sp."vacationMode" = false
-            AND seller_user.banned = false
-            AND seller_user."deletedAt" IS NULL
-          )
-        )
-      GROUP BY tag
-      ORDER BY count DESC, tag ASC
-      LIMIT 20
-    `;
-    tagCloud = rows.map((r) => ({ tag: r.tag, count: Number(r.count) }));
+    tagCloud = await getPopularBlogTagRows(20);
   }
 
   // Saved set for logged-in users

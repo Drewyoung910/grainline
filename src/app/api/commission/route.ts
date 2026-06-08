@@ -17,7 +17,7 @@ import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 import { containsProfanity } from "@/lib/profanity";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { commissionExpiresAt, openCommissionWhere } from "@/lib/commissionExpiry";
-import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
+import { publicCommissionInterestWhere, resolvedInterestedCount } from "@/lib/commissionInterestCount";
 import { filterFirstPartyMediaUrlsForUser, isFirstPartyMediaUrl } from "@/lib/urlValidation";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
       referenceImageUrls: true,
       status: true,
       interestedCount: true,
-      _count: { select: { interests: true } },
+      _count: { select: { interests: { where: publicCommissionInterestWhere() } } },
       expiresAt: true,
       createdAt: true,
       buyer: { select: { name: true, imageUrl: true } },

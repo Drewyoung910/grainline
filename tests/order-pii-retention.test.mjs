@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+
+function source(path) {
+  return readFileSync(path, "utf8");
+}
 
 const {
   ORDER_BUYER_PII_RETENTION_DAYS,
@@ -24,5 +29,19 @@ describe("order buyer PII retention helpers", () => {
       orderBuyerPiiRetentionCutoff({ now, retentionDays: 7 }).toISOString(),
       "2026-04-21T12:00:00.000Z",
     );
+  });
+
+  it("does not prune fulfilled-order buyer PII while review or active case holds remain", () => {
+    const retention = source("src/lib/orderPiiRetention.ts");
+    const candidateStart = retention.indexOf("WITH pii_candidates AS (");
+    const candidateEnd = retention.indexOf("ORDER BY COALESCE", candidateStart);
+    const candidateSql = retention.slice(candidateStart, candidateEnd);
+
+    assert.ok(candidateStart >= 0 && candidateEnd > candidateStart);
+    assert.match(candidateSql, /"reviewNeeded" = false/);
+    assert.match(candidateSql, /NOT EXISTS \(/);
+    assert.match(candidateSql, /FROM "Case" c/);
+    assert.match(candidateSql, /c\."orderId" = "Order"\.id/);
+    assert.match(candidateSql, /c\.status IN \('OPEN', 'IN_DISCUSSION', 'PENDING_CLOSE', 'UNDER_REVIEW'\)/);
   });
 });

@@ -86,6 +86,43 @@ describe("payment and fulfillment side-effect observability", () => {
     );
   });
 
+  it("co-writes local refund ledger and system audit evidence for first-party refunds", () => {
+    const sellerRoute = source("src/app/api/orders/[id]/refund/route.ts");
+    const caseRoute = source("src/app/api/cases/[id]/resolve/route.ts");
+    const webhookRoute = source("src/app/api/stripe/webhook/route.ts");
+    const helper = source("src/lib/localRefundEvidence.ts");
+
+    assert.match(helper, /client\.orderPaymentEvent\.upsert/);
+    assert.match(helper, /eventType: "REFUND"/);
+    assert.match(helper, /logSystemActionOrThrow/);
+    assert.match(helper, /localRefundEvidenceEventId\(action, refundId\)/);
+
+    for (const [route, action] of [
+      [sellerRoute, "SELLER_REFUND_RECORDED"],
+      [caseRoute, "CASE_REFUND_RECORDED"],
+      [webhookRoute, "BLOCKED_CHECKOUT_REFUND_RECORDED"],
+    ]) {
+      assert.match(route, /recordLocalRefundEvidence\(tx, \{/);
+      assert.match(route, new RegExp(`action: "${action}"`));
+    }
+
+    assert.ok(
+      sellerRoute.indexOf("const refundWrite = await prisma.$transaction") <
+        sellerRoute.indexOf('action: "SELLER_REFUND_RECORDED"'),
+      "seller refund evidence should be recorded in the final transaction",
+    );
+    assert.ok(
+      caseRoute.indexOf("const caseWrite = await prisma.$transaction") <
+        caseRoute.indexOf('action: "CASE_REFUND_RECORDED"'),
+      "case refund evidence should be recorded in the final transaction",
+    );
+    assert.ok(
+      webhookRoute.indexOf("const stockStatusRestoredCount = await prisma.$transaction") <
+        webhookRoute.indexOf('action: "BLOCKED_CHECKOUT_REFUND_RECORDED"'),
+      "blocked-checkout refund evidence should be recorded in the final transaction",
+    );
+  });
+
   it("keeps refund and label-purchase locks aligned", () => {
     const sellerRoute = source("src/app/api/orders/[id]/refund/route.ts");
     const caseRoute = source("src/app/api/cases/[id]/resolve/route.ts");

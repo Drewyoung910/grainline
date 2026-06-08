@@ -11,7 +11,7 @@ import { getBlockedUserIdsFor } from "@/lib/blocks";
 import { MapPin } from "@/components/icons";
 import { safeJsonLd } from "@/lib/json-ld";
 import { openCommissionWhere } from "@/lib/commissionExpiry";
-import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
+import { publicCommissionInterestWhere, resolvedInterestedCount } from "@/lib/commissionInterestCount";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 
 export const metadata: Metadata = {
@@ -156,11 +156,18 @@ export default async function CommissionPage({
         END AS distance_m
       FROM "CommissionRequest" cr
       JOIN "User" u ON u.id = cr."buyerId"
-      LEFT JOIN (
-        SELECT "commissionRequestId", COUNT(*)::int AS "interestCount"
-        FROM "CommissionInterest"
-        GROUP BY "commissionRequestId"
-      ) ci ON ci."commissionRequestId" = cr.id
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*)::int AS "interestCount"
+        FROM "CommissionInterest" ci
+        INNER JOIN "SellerProfile" isp ON isp.id = ci."sellerProfileId"
+        INNER JOIN "User" iu ON iu.id = isp."userId"
+        WHERE ci."commissionRequestId" = cr.id
+          AND isp."chargesEnabled" = true
+          AND (isp."stripeAccountVersion" IS NULL OR isp."stripeAccountVersion" = 'v2')
+          AND isp."vacationMode" = false
+          AND iu.banned = false
+          AND iu."deletedAt" IS NULL
+      ) ci ON true
       WHERE cr.status = 'OPEN'
         AND (cr."expiresAt" IS NULL OR cr."expiresAt" > NOW())
         AND u.banned = false
@@ -245,7 +252,7 @@ export default async function CommissionPage({
         timeline: true,
         referenceImageUrls: true,
         interestedCount: true,
-        _count: { select: { interests: true } },
+        _count: { select: { interests: { where: publicCommissionInterestWhere() } } },
         createdAt: true,
         lat: true,
         lng: true,

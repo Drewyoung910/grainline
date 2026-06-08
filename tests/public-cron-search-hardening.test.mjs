@@ -158,8 +158,7 @@ describe("cron and public route hardening", () => {
 
     assert.match(blogPage, /"BlogPost"\."publishedAt" IS NOT NULL/);
     assert.match(blogPage, /"BlogPost"\."publishedAt" <= NOW\(\)/);
-    assert.match(blogPage, /bp\."publishedAt" IS NOT NULL/);
-    assert.match(blogPage, /bp\."publishedAt" <= NOW\(\)/);
+    assert.match(blogPage, /getPopularBlogTagRows\(20\)/);
     assert.match(popularBlogTags, /bp\."publishedAt" IS NOT NULL/);
     assert.match(popularBlogTags, /bp\."publishedAt" <= NOW\(\)/);
 

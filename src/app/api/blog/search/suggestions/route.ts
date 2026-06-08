@@ -8,6 +8,7 @@ import {
   normalizeSearchSuggestionQuery,
 } from "@/lib/searchSuggestionState";
 import { normalizeDisplayNameForLookup } from "@/lib/sanitize";
+import { getPopularBlogTags } from "@/lib/popularBlogTags";
 
 export type BlogSuggestion = {
   type: "post" | "tag" | "author";
@@ -24,6 +25,7 @@ export async function GET(req: NextRequest) {
   const q = normalizeSearchSuggestionQuery(req.nextUrl.searchParams.get("bq"));
   if (q.length < 2) return NextResponse.json({ suggestions: [] });
   const normalizedDisplayNameQuery = normalizeDisplayNameForLookup(q);
+  const qLower = q.toLowerCase();
 
   const [postRows, tagRows, authorRows] = await Promise.all([
     // Fuzzy title matches
@@ -54,32 +56,12 @@ export async function GET(req: NextRequest) {
     `,
 
     // Tag partial matches
-    prisma.$queryRaw<Array<{ tag: string }>>`
-      SELECT DISTINCT tag
-      FROM "BlogPost" bp
-      INNER JOIN "User" u ON u.id = bp."authorId"
-      LEFT JOIN "SellerProfile" sp ON sp.id = bp."sellerProfileId"
-      LEFT JOIN "User" seller_user ON seller_user.id = sp."userId",
-           unnest(bp.tags) AS tag
-      WHERE bp.status = 'PUBLISHED'
-        AND bp."publishedAt" IS NOT NULL
-        AND bp."publishedAt" <= NOW()
-        AND u.banned = false
-        AND u."deletedAt" IS NULL
-        AND (
-          bp."sellerProfileId" IS NULL
-          OR (
-            sp."chargesEnabled" = true
-            AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
-            AND sp."vacationMode" = false
-            AND seller_user.banned = false
-            AND seller_user."deletedAt" IS NULL
-          )
-        )
-        AND tag ILIKE ${`%${q}%`}
-      ORDER BY tag ASC
-      LIMIT 5
-    `,
+    getPopularBlogTags(200).then((tags) =>
+      tags
+        .filter((tag) => tag.toLowerCase().includes(qLower))
+        .slice(0, 5)
+        .map((tag) => ({ tag }))
+    ),
 
     // Author / seller display name matches
     prisma.sellerProfile.findMany({

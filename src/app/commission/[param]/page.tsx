@@ -19,7 +19,7 @@ import { ImageLightbox } from "@/components/ImageLightbox";
 import { isMetroSlug } from "@/lib/geo-metro";
 import { safeJsonLd } from "@/lib/json-ld";
 import { commissionIsExpired, openCommissionWhere } from "@/lib/commissionExpiry";
-import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
+import { publicCommissionInterestWhere, resolvedInterestedCount } from "@/lib/commissionInterestCount";
 import { publicSellerPath } from "@/lib/publicPaths";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 
@@ -89,7 +89,7 @@ export async function generateMetadata({
       budgetMinCents: true,
       budgetMaxCents: true,
       interestedCount: true,
-      _count: { select: { interests: true } },
+      _count: { select: { interests: { where: publicCommissionInterestWhere() } } },
       status: true,
       expiresAt: true,
       buyer: { select: { banned: true, deletedAt: true, sellerProfile: { select: { city: true, state: true } } } },
@@ -162,7 +162,7 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
       budgetMaxCents: true,
       timeline: true,
       interestedCount: true,
-      _count: { select: { interests: true } },
+      _count: { select: { interests: { where: publicCommissionInterestWhere() } } },
       createdAt: true,
       referenceImageUrls: true,
       buyer: { select: { name: true, imageUrl: true } },
@@ -356,7 +356,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
       referenceImageUrls: true,
       status: true,
       interestedCount: true,
-      _count: { select: { interests: true } },
+      _count: { select: { interests: { where: publicCommissionInterestWhere() } } },
       isNational: true,
       expiresAt: true,
       createdAt: true,

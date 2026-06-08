@@ -1,8 +1,14 @@
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/db";
+import { POPULAR_BLOG_TAGS_CACHE_TAG } from "@/lib/searchCache";
 
-export const getPopularBlogTags = unstable_cache(
-  async (limit = 8): Promise<string[]> => {
+export type PopularBlogTag = {
+  tag: string;
+  count: number;
+};
+
+export const getPopularBlogTagRows = unstable_cache(
+  async (limit = 8): Promise<PopularBlogTag[]> => {
     const tags = await prisma.$queryRaw<Array<{ tag: string; count: bigint }>>`
       SELECT tag, COUNT(*) as count
       FROM "BlogPost" bp
@@ -30,8 +36,12 @@ export const getPopularBlogTags = unstable_cache(
       LIMIT ${limit}
     `;
 
-    return tags.map((r) => r.tag);
+    return tags.map((r) => ({ tag: r.tag, count: Number(r.count) }));
   },
-  ["popular-blog-tags"],
-  { revalidate: 3600, tags: ["popular-blog-tags"] },
+  ["popular-blog-tag-rows"],
+  { revalidate: 3600, tags: [POPULAR_BLOG_TAGS_CACHE_TAG] },
 );
+
+export async function getPopularBlogTags(limit = 8): Promise<string[]> {
+  return (await getPopularBlogTagRows(limit)).map((r) => r.tag);
+}

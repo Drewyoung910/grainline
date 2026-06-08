@@ -136,8 +136,20 @@ describe("public query determinism", () => {
   it("orders equal-count public tag caps by tag", () => {
     assert.match(source("src/lib/popularTags.ts"), /ORDER BY count DESC, tag ASC/);
     assert.match(source("src/lib/popularBlogTags.ts"), /ORDER BY count DESC, tag ASC/);
-    assert.match(source("src/app/blog/page.tsx"), /ORDER BY count DESC, tag ASC/);
     assert.match(source("src/app/seller/[id]/page.tsx"), /ORDER BY COUNT\(\*\) DESC, tag ASC/);
+  });
+
+  it("reuses cached popular blog tag rows outside full blog search", () => {
+    const popularBlogTags = source("src/lib/popularBlogTags.ts");
+    const blogPage = source("src/app/blog/page.tsx");
+    const blogSuggestions = source("src/app/api/blog/search/suggestions/route.ts");
+
+    assert.match(popularBlogTags, /export const getPopularBlogTagRows = unstable_cache/);
+    assert.match(popularBlogTags, /tags: \[POPULAR_BLOG_TAGS_CACHE_TAG\]/);
+    assert.match(blogPage, /getPopularBlogTagRows\(20\)/);
+    assert.doesNotMatch(blogPage, /unnest\(bp\.tags\) as tag/);
+    assert.match(blogSuggestions, /getPopularBlogTags\(200\)/);
+    assert.doesNotMatch(blogSuggestions, /unnest\(bp\.tags\) AS tag/);
   });
 
   it("keeps public search suggestion caps stable on ties", () => {
@@ -150,7 +162,7 @@ describe("public query determinism", () => {
     assert.match(searchSuggestions, /ORDER BY similarity\(bp\.title, \$\{q\}\) DESC, bp\."publishedAt" DESC, bp\.id DESC\s*LIMIT 3/);
 
     assert.match(blogSuggestions, /ORDER BY similarity\(bp\.title, \$\{q\}\) DESC, bp\."publishedAt" DESC, bp\.id DESC\s*LIMIT 5/);
-    assert.match(blogSuggestions, /ORDER BY tag ASC\s*LIMIT 5/);
+    assert.match(blogSuggestions, /getPopularBlogTags\(200\)[\s\S]*\.slice\(0, 5\)/);
     assert.match(blogSuggestions, /orderBy: \[\{ displayNameNormalized: "asc" \}, \{ id: "asc" \}\]/);
   });
 

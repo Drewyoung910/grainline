@@ -7,6 +7,7 @@ import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCaseResolved } from "@/lib/email";
 import { createMarketplaceRefund, refundIdempotencyKeyBase } from "@/lib/marketplaceRefunds";
+import { recordLocalRefundEvidence } from "@/lib/localRefundEvidence";
 import { formatCurrencyCents } from "@/lib/money";
 import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { REFUND_LOCK_SENTINEL, releaseStaleRefundLocks } from "@/lib/refundLocks";
@@ -182,6 +183,8 @@ export async function POST(
     let stripeRefundIds: string[] = [];
     let refundNote: string | null = null;
     let refundRequiresManualTransferReconciliation = false;
+    let refundRequiresManualFollowUp = false;
+    let stripeRefundStatuses: Array<string | null> = [];
     const refundAmountForOrder = refundAmountForResolution(resolution, caseRecord.order, refundAmountCents);
     const persistedRefundAmountCents = refunding ? refundAmountForOrder : null;
 
@@ -243,7 +246,9 @@ export async function POST(
         });
         stripeRefundId = refund.primaryRefundId;
         stripeRefundIds = refund.refundIds;
+        stripeRefundStatuses = refund.refundStatuses;
         refundRequiresManualTransferReconciliation = refund.requiresManualTransferReconciliation;
+        refundRequiresManualFollowUp = refund.requiresManualFollowUp;
         refundNote = [
           stripeRefundIds.length > 1
             ? `Stripe refunds ${stripeRefundIds.join(", ")}`
@@ -323,6 +328,27 @@ export async function POST(
           });
           if (orderUpdate.count !== 1) {
             throw new Error("CASE_REFUND_LOCK_LOST");
+          }
+          if (stripeRefundId) {
+            await recordLocalRefundEvidence(tx, {
+              action: "CASE_REFUND_RECORDED",
+              actorType: "staff",
+              actorId: me.id,
+              orderId: caseRecord.orderId,
+              refundId: stripeRefundId,
+              refundIds: stripeRefundIds,
+              amountCents: refundAmountForOrder!,
+              currency: caseRecord.order.currency,
+              status: stripeRefundStatuses[0] ?? null,
+              reason: "case_resolution_refund",
+              description: resolutionNote,
+              metadata: {
+                caseId: id,
+                resolution,
+                requiresManualTransferReconciliation: refundRequiresManualTransferReconciliation,
+                requiresManualFollowUp: refundRequiresManualFollowUp,
+              },
+            });
           }
         } else {
           await tx.order.update({

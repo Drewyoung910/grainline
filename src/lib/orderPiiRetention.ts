@@ -36,9 +36,16 @@ export async function purgeOldFulfilledOrderBuyerPii({
         SELECT id
         FROM "Order"
         WHERE "buyerDataPurgedAt" IS NULL
+          AND "reviewNeeded" = false
           AND "fulfillmentStatus" IN ('DELIVERED', 'PICKED_UP')
           AND COALESCE("deliveredAt", "pickedUpAt") IS NOT NULL
           AND COALESCE("deliveredAt", "pickedUpAt") < ${cutoff}
+          AND NOT EXISTS (
+            SELECT 1
+            FROM "Case" c
+            WHERE c."orderId" = "Order".id
+              AND c.status IN ('OPEN', 'IN_DISCUSSION', 'PENDING_CLOSE', 'UNDER_REVIEW')
+          )
           AND (
             "buyerEmail" IS NOT NULL OR
             "buyerName" IS NOT NULL OR

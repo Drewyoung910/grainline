@@ -44,6 +44,7 @@ import { blockingRefundLedgerWhere, blockingRefundOrDisputeLedgerWhere, orderHas
 import { blockingRefundOrLatestOpenDisputeLedgerExistsSql } from "@/lib/refundLedgerSql";
 import { REFUND_LOCK_SENTINEL, isStaleRefundLock } from "@/lib/refundLockState";
 import { createMarketplaceRefund, refundIdempotencyKeyBase } from "@/lib/marketplaceRefunds";
+import { recordLocalRefundEvidence } from "@/lib/localRefundEvidence";
 import { stripeWebhookCreatedSeconds } from "@/lib/stripeConnectV2";
 import { revalidateListingSearchCaches, revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
 import { DEAUTHORIZED_SELLER_REVIEW_NOTE } from "@/lib/orderReviewHolds";
@@ -990,6 +991,7 @@ export async function POST(req: Request) {
             const statusNote = refund.requiresManualFollowUp
               ? ` Stripe refund status requires manual follow-up: ${refund.refundStatuses.filter(Boolean).join(", ") || "provider pending"}.`
               : "";
+            const issuedRefundAmountCents = refundAmountCents;
 
             const stockStatusRestoredCount = await prisma.$transaction(async (tx) => {
               const restoredCount = await restoreReservedStockItems(tx, restorableStockItemsFromLineItems(input.lineItems));
@@ -1005,6 +1007,28 @@ export async function POST(req: Request) {
               });
               if (orderUpdate.count !== 1) {
                 throw new Error("Blocked checkout refund lock was no longer held while recording Stripe refund.");
+              }
+              if (refundId) {
+                await recordLocalRefundEvidence(tx, {
+                  action: "BLOCKED_CHECKOUT_REFUND_RECORDED",
+                  actorType: "webhook",
+                  actorId: event.id,
+                  orderId: input.orderId,
+                  refundId,
+                  refundIds,
+                  amountCents: issuedRefundAmountCents,
+                  currency,
+                  status: refund.refundStatuses[0] ?? null,
+                  reason: input.reason,
+                  description: `${reviewPrefix} Automatic refund issued because the maker account was not eligible to accept this order.`,
+                  metadata: {
+                    stripeSessionId: sessionId,
+                    stripeEventType: event.type,
+                    checkoutReason: input.reason,
+                    requiresManualTransferReconciliation: refund.requiresManualTransferReconciliation,
+                    requiresManualFollowUp: refund.requiresManualFollowUp,
+                  },
+                });
               }
               return restoredCount;
             });

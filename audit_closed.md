@@ -5095,9 +5095,55 @@ Last updated: 2026-06-06
      `tests/public-query-determinism.test.mjs`,
      `tests/round9-account-deletion-pii-guardrails.test.mjs`, and
      `tests/message-case-policy-guardrails.test.mjs`.
+394. **Public query, retention, and refund-evidence follow-up pass** -
+     parent/agent-reviewed source fixes for verified current-code defects plus
+     stale/deferred classifications in the same public-query, commission,
+     privacy-retention, and refund-accounting slices. Blog topic discovery now
+     uses the cached `popular-blog-tags` helper consistently: `/blog` tag cloud
+     reads `getPopularBlogTagRows(20)`, and blog suggestions filter
+     `getPopularBlogTags(200)` instead of repeating per-request `BlogPost x
+     unnest(tags)` scans. The public popular-blog-tags API double-cache
+     allegation was rechecked as stale because the route is already
+     `force-dynamic` and delegates to the tagged helper.
 
-**Running tally after this pass:** verified fixed/reduced: 631 findings;
-verified stale/false-positive: 447 findings; product/design/ops decisions
+     Public commission interest counts now use `publicCommissionInterestWhere()`
+     so inactive, disconnected, vacationing, banned, or deleted sellers do not
+     inflate the visible interested-maker count in `/api/commission`,
+     `/api/commission/[id]`, `/commission`, and `/commission/[param]`.
+     Commission Near Me raw SQL now counts interests with a row-local
+     `LEFT JOIN LATERAL` that applies the same active-maker filters instead of
+     pre-aggregating every `CommissionInterest` row before the page
+     `LIMIT/OFFSET`.
+
+     Fulfilled-order buyer PII pruning now skips `reviewNeeded` orders and
+     active cases (`OPEN`, `IN_DISCUSSION`, `PENDING_CLOSE`, `UNDER_REVIEW`) so
+     dispute/reconciliation holds retain buyer/order evidence until staff or
+     case workflows clear them. Seller refunds, staff case refunds, and
+     blocked-checkout auto-refunds now call `recordLocalRefundEvidence()` inside
+     the same transaction that records final order refund state, co-writing a
+     bounded local `OrderPaymentEvent` refund row plus `SystemAuditLog` evidence
+     for first-party refunds. Stripe `charge.refunded` webhooks may still add
+     separate provider-event evidence later.
+
+     Agent/parent rechecks classified Stripe refund `usedPlatformOnly` tax-only
+     semantics (#219) as already fixed/current, and the "many small partial
+     refunds on one order" chain (#355) as stale/overstated because current
+     seller/staff refund routes allow only one blocking refund per order.
+     Stripe partial-refund economics under the manual-transfer model (#217),
+     browse geo pre-pass boundedness, and trigram planner index usage remain
+     runtime/EXPLAIN proof items rather than source-fixed claims. Guardrails:
+     `tests/payment-side-effect-observability.test.mjs`,
+     `tests/commission-interest-count.test.mjs`,
+     `tests/public-query-determinism.test.mjs`,
+     `tests/public-cron-search-hardening.test.mjs`,
+     `tests/cache-invalidation-guardrails.test.mjs`,
+     `tests/order-pii-retention.test.mjs`,
+     `tests/round9-account-deletion-pii-guardrails.test.mjs`,
+     `tests/marketplace-refunds.test.mjs`, and
+     `tests/stripe-webhook-state.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 637 findings;
+verified stale/false-positive: 450 findings; product/design/ops decisions
 deferred: 74 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
 export/deletion residue. Entry 361 removes the remaining Resend webhook
@@ -5291,7 +5337,15 @@ thread link visibility, shared capped message polling, and metro favorite-query
 scoping. Three approximate raw-category decrements are counted because the
 Stripe webhook, message/privacy, and public-query fixes overlap remaining raw
 categories; already-closed rate-limit rechecks did not increase the stale tally.
-Deferred stays flat.
+Entry 394 adds six fixed/reduced current-code issues across cached blog tag
+reuse, public commission interest-count filtering/query shape, fulfilled-order
+PII retention holds, and first-party refund local evidence. It also adds three
+stale/false-positive classifications for the already-dynamic popular-blog-tags
+route and already-fixed/overstated Stripe refund allegations #219/#355. Six
+approximate raw-category decrements are counted because several fixes were
+hidden adjacent findings found by parent/agent review inside remaining
+public-query, privacy-retention, and refund-accounting categories. Deferred
+stays flat.
 Remaining major categories: Stripe webhook subscription dashboard evidence,
 Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -5311,4 +5365,4 @@ submission decision, residual lower-risk HTTP-status constants outside the
 high-signal helpers, Vercel Analytics/Speed Insights product/ops decision,
 remaining homepage runtime a11y proof, and residual
 agent/worktree verification process hygiene. Approximate raw allegations left
-to verify from current max #1120: 130.
+to verify from current max #1120: 124.
