@@ -95,16 +95,27 @@ describe("public query determinism", () => {
     assert.match(makersMetro, /orderBy: \[\{ profileViews: "desc" \}, \{ id: "asc" \}\]/);
     assert.match(makersMetro, /listings: \{[\s\S]*orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: 1/);
     assert.match(makersMetro, /orderBy: \[\{ name: "asc" \}, \{ slug: "asc" \}\]/);
+    assert.match(makersMetro, /getBlockedSellerProfileIdsFor\(meDbId\)/);
+    assert.match(makersMetro, /const sellerWhere = activeSellerProfileWhere\(\{\s*\.\.\.blockedSellerWhere/);
+    assert.match(makersMetro, /const visibleSellerWhere = activeSellerProfileWhere\(blockedSellerWhere\)/);
+    assert.match(makersMetro, /sellerProfiles: \{ some: visibleSellerWhere \}/);
+    assert.match(makersMetro, /sellerCityProfiles: \{ some: visibleSellerWhere \}/);
 
     assert.match(similar, /l\."createdAt" DESC,\s*l\.id DESC/);
     assert.match(similar, /b\.createdAt\.getTime\(\) - a\.createdAt\.getTime\(\)/);
     assert.match(similar, /b\.id\.localeCompare\(a\.id\)/);
 
+    assert.match(sellersMap, /getBlockedSellerProfileIdsFor\(meDbId\)/);
+    assert.match(sellersMap, /\.\.\.\(blockedSellerIds\.length > 0 \? \{ id: \{ notIn: blockedSellerIds \} \} : \{\}\)/);
     assert.ok(
       sellersMap.indexOf('orderBy: { id: "asc" }') < sellersMap.indexOf("take: 500"),
       "sellers map should order before the cap",
     );
     assert.match(publicMap, /const MAP_SELLER_POINT_LIMIT = 500/);
+    assert.match(publicMap, /const visibleSellerWhere = activeSellerProfileWhere\(/);
+    assert.match(publicMap, /sellerProfiles: \{\s*some: visibleSellerWhere/);
+    assert.match(publicMap, /sellerCityProfiles: \{\s*some: visibleSellerWhere/);
+    assert.match(publicMap, /\.\.\.visibleSellerWhere/);
     assert.ok(
       publicMap.indexOf('orderBy: { id: "asc" }') < publicMap.indexOf("take: MAP_SELLER_POINT_LIMIT"),
       "public map should order before the cap",
@@ -244,6 +255,7 @@ describe("public query determinism", () => {
     const commissionPage = source("src/app/commission/page.tsx");
     const commissionDetail = source("src/app/commission/[param]/page.tsx");
     const commissionApi = source("src/app/api/commission/route.ts");
+    const commissionDetailApi = source("src/app/api/commission/[id]/route.ts");
 
     assert.match(browse, /const relevantPage = Math\.min\(Math\.max\(pageNum, 1\), relevantTotalPages\)/);
     assert.match(browse, /const standardPage = Math\.min\(Math\.max\(pageNum, 1\), standardTotalPages\)/);
@@ -281,5 +293,8 @@ describe("public query determinism", () => {
     assert.match(commissionApi, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "asc" \}\]/);
     assert.match(commissionApi, /skip: \(currentPage - 1\) \* pageSize/);
     assert.match(commissionApi, /page: currentPage/);
+
+    assert.match(commissionDetailApi, /orderBy: \[\{ createdAt: "asc" \}, \{ id: "asc" \}\]/);
+    assert.doesNotMatch(commissionDetailApi, /orderBy: \{ createdAt: "asc" \}/);
   });
 });

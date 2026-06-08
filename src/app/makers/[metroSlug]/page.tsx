@@ -5,12 +5,14 @@ import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
+import { auth } from "@clerk/nextjs/server";
 import GuildBadge from "@/components/GuildBadge";
 import type { GuildLevelValue } from "@/components/GuildBadge";
 import { safeJsonLd } from "@/lib/json-ld";
 import { publicSellerPath } from "@/lib/publicPaths";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
+import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 
 const BASE_URL = "https://thegrainline.com";
 
@@ -85,11 +87,21 @@ export default async function MakersMetroPage({
 
   const isMajorMetro = !metro.parentMetroId;
   const cityName = `${metro.name}, ${metro.state}`;
+  const { userId } = await auth();
+  let meDbId: string | null = null;
+  if (userId) {
+    const meRow = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+    meDbId = meRow?.id ?? null;
+  }
+  const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
+  const blockedSellerWhere = blockedSellerIds.length > 0 ? { id: { notIn: blockedSellerIds } } : {};
 
   const sellerWhere = activeSellerProfileWhere({
+    ...blockedSellerWhere,
     listings: { some: publicListingWhere() },
     ...(isMajorMetro ? { metroId: metro.id } : { cityMetroId: metro.id }),
   });
+  const visibleSellerWhere = activeSellerProfileWhere(blockedSellerWhere);
 
   const sellers = await prisma.sellerProfile.findMany({
     where: sellerWhere,
@@ -135,8 +147,8 @@ export default async function MakersMetroPage({
           id: { in: nearbyIds },
           isActive: true,
           OR: [
-            { sellerProfiles: { some: activeSellerProfileWhere() } },
-            { sellerCityProfiles: { some: activeSellerProfileWhere() } },
+            { sellerProfiles: { some: visibleSellerWhere } },
+            { sellerCityProfiles: { some: visibleSellerWhere } },
           ],
         },
         select: { id: true, slug: true, name: true },

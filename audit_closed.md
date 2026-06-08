@@ -5142,7 +5142,28 @@ Last updated: 2026-06-06
      `tests/marketplace-refunds.test.mjs`, and
      `tests/stripe-webhook-state.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 637 findings;
+395. **Public seller-shop tag and map block-filter follow-up pass** -
+     parent/agent-reviewed source fixes for verified current-code defects in
+     the residual public discovery/query slice. Seller profile tag chips now
+     lead to working `/seller/[id]/shop?tag=` filters instead of a no-op query
+     param: the seller shop normalizes `tag`, applies it to category counts and
+     owner/public listing queries, preserves it through sort/category/status/page
+     links, and renders an explicit clear control.
+
+     Public map and metro maker discovery now carry viewer block exclusions
+     through the remaining public seller surfaces in this slice.
+     `/makers/[metroSlug]` applies `getBlockedSellerProfileIdsFor()` to the
+     seller list and the nearby-city content check, `/sellers/map` filters
+     exact-pin seller rows before the 500-row cap, and `/map` uses the same
+     visible-seller predicate for both exact pins and city-link content so
+     blocked-only metros are not exposed to the signed-in viewer. The public
+     commission detail API now orders capped interests by `createdAt asc, id
+     asc`, matching the page guardrail and avoiding unstable equal-timestamp
+     windows. Guardrails: `tests/public-query-determinism.test.mjs`,
+     `tests/seller-page-performance.test.mjs`, and
+     `tests/query-param-state.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 642 findings;
 verified stale/false-positive: 450 findings; product/design/ops decisions
 deferred: 74 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
@@ -5345,6 +5366,12 @@ route and already-fixed/overstated Stripe refund allegations #219/#355. Six
 approximate raw-category decrements are counted because several fixes were
 hidden adjacent findings found by parent/agent review inside remaining
 public-query, privacy-retention, and refund-accounting categories. Deferred
+stays flat. Entry 395 adds five fixed/reduced current-code issues across
+seller-shop tag filtering, public commission detail API interest ordering,
+metro maker block filtering, exact-pin sellers-map block filtering, and public
+map city-link block filtering. Five approximate raw-category decrements are
+counted because these fixes overlap the remaining public-discovery/query
+category and adjacent hidden issues found during parent/agent review. Deferred
 stays flat.
 Remaining major categories: Stripe webhook subscription dashboard evidence,
 Stripe Connect v2 loss-liability ops/legal decision, stale
@@ -5365,4 +5392,4 @@ submission decision, residual lower-risk HTTP-status constants outside the
 high-signal helpers, Vercel Analytics/Speed Insights product/ops decision,
 remaining homepage runtime a11y proof, and residual
 agent/worktree verification process hygiene. Approximate raw allegations left
-to verify from current max #1120: 124.
+to verify from current max #1120: 119.

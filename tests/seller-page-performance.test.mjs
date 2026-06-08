@@ -47,6 +47,22 @@ describe("seller public page query guardrails", () => {
     assert.doesNotMatch(sellerPage, /listings\.filter\(\(l\) => l\.status === "ACTIVE" && !l\.isPrivate\)\.length/);
   });
 
+  it("keeps seller profile tag-filter links wired to the seller shop query", () => {
+    const sellerPage = source("src/app/seller/[id]/page.tsx");
+    const sellerShopPage = source("src/app/seller/[id]/shop/page.tsx");
+    const sortSelect = source("src/app/seller/[id]/shop/SortSelect.tsx");
+
+    assert.match(sellerPage, /publicSellerShopPath\(seller\.id, seller\.displayName\)\}\?tag=\$\{encodeURIComponent\(tag\)\}/);
+    assert.match(sellerShopPage, /import \{ normalizeTag \} from "@\/lib\/tags"/);
+    assert.match(sellerShopPage, /const tag = normalizeTag\(sp\.tag\)/);
+    assert.match(sellerShopPage, /const tagFilter = tag \? \{ tags: \{ has: tag \} \} : \{\}/);
+    assert.match(sellerShopPage, /publicListingWhere\(\{ sellerId, \.\.\.categoryFilter, \.\.\.tagFilter \}\)/);
+    assert.match(sellerShopPage, /if \(t\) params\.set\("tag", t\)/);
+    assert.match(sellerShopPage, /Tagged: \{tag\.replace/);
+    assert.match(sortSelect, /tag: string \| null/);
+    assert.match(sortSelect, /if \(tag\) params\.set\("tag", tag\)/);
+  });
+
   it("keeps public sold and shipping-speed stats behind a cross-request cache", () => {
     const sellerPage = source("src/app/seller/[id]/page.tsx");
     const publicSellerStats = source("src/lib/publicSellerStats.ts");

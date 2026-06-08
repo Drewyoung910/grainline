@@ -19,6 +19,7 @@ import { publicListingWhere } from "@/lib/listingVisibility";
 import { isSupportedStripeAccountVersion } from "@/lib/sellerVisibility";
 import { extractRouteId, publicListingPath, publicSellerPath, publicSellerShopPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { normalizeTag } from "@/lib/tags";
 
 const PAGE_SIZE = 20;
 
@@ -38,6 +39,7 @@ type ShopSearch = {
   sort?: string;
   page?: string;
   status?: string;
+  tag?: string;
 };
 
 const getSellerProfileForShopPage = cache(async (sellerId: string) =>
@@ -115,6 +117,7 @@ export default async function SellerShopPage({
     ? (categoryRaw as Category)
     : null;
   const statusRaw = sp.status ?? "";
+  const tag = normalizeTag(sp.tag);
 
   const seller = await getSellerProfileForShopPage(sellerId);
 
@@ -143,6 +146,7 @@ export default async function SellerShopPage({
   if (id !== routeSegmentWithSlug(seller.id, seller.displayName, "maker")) {
     const canonicalParams = new URLSearchParams();
     if (category) canonicalParams.set("category", category);
+    if (tag) canonicalParams.set("tag", tag);
     if (sort !== "newest") canonicalParams.set("sort", sort);
     if (page > 1) canonicalParams.set("page", String(page));
     if (statusFilter) canonicalParams.set("status", statusFilter);
@@ -166,9 +170,10 @@ export default async function SellerShopPage({
     ? {
         sellerId,
         category: { not: null },
+        ...(tag ? { tags: { has: tag } } : {}),
         ...(statusFilter ? { status: statusFilter as "ACTIVE" | "DRAFT" | "HIDDEN" | "SOLD" | "SOLD_OUT" | "PENDING_REVIEW" | "REJECTED" } : {}),
       }
-    : publicListingWhere({ sellerId, category: { not: null } });
+    : publicListingWhere({ sellerId, category: { not: null }, ...(tag ? { tags: { has: tag } } : {}) });
 
   const categoryGroups = await prisma.listing.groupBy({
     by: ["category"],
@@ -182,12 +187,13 @@ export default async function SellerShopPage({
 
   // Build where clause — owner sees all listings (filtered by status); buyers see ACTIVE + chargesEnabled only
   const categoryFilter = category ? { category } : {};
+  const tagFilter = tag ? { tags: { has: tag } } : {};
   const ownerStatusFilter = statusFilter
     ? { status: statusFilter as "ACTIVE" | "DRAFT" | "HIDDEN" | "SOLD" | "SOLD_OUT" | "PENDING_REVIEW" | "REJECTED" }
     : {};
   const where = isOwner
-    ? { sellerId, ...ownerStatusFilter, ...categoryFilter }
-    : publicListingWhere({ sellerId, ...categoryFilter });
+    ? { sellerId, ...ownerStatusFilter, ...categoryFilter, ...tagFilter }
+    : publicListingWhere({ sellerId, ...categoryFilter, ...tagFilter });
 
   // Build orderBy
   const orderBy: Prisma.ListingOrderByWithRelationInput[] =
@@ -234,13 +240,15 @@ export default async function SellerShopPage({
   }
 
   // URL helpers
-  function shopUrl(overrides: { category?: string | null; sort?: string; page?: number; status?: string | null }) {
+  function shopUrl(overrides: { category?: string | null; sort?: string; page?: number; status?: string | null; tag?: string | null }) {
     const params = new URLSearchParams();
     const c = "category" in overrides ? overrides.category : categoryRaw;
+    const t = "tag" in overrides ? overrides.tag : tag;
     const s = overrides.sort ?? sort;
     const p = overrides.page ?? 1;
     const st = "status" in overrides ? overrides.status : statusFilter;
     if (c) params.set("category", c);
+    if (t) params.set("tag", t);
     if (s && s !== "newest") params.set("sort", s);
     if (p > 1) params.set("page", String(p));
     if (st) params.set("status", st);
@@ -348,8 +356,19 @@ export default async function SellerShopPage({
         </div>
 
         {/* Sort */}
-        <SortSelect currentSort={sort} sellerId={seller.id} sellerName={seller.displayName} category={category} />
+        <SortSelect currentSort={sort} sellerId={seller.id} sellerName={seller.displayName} category={category} tag={tag || null} />
       </div>
+
+      {tag && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-neutral-600">
+          <span className="rounded-full bg-stone-100 px-3 py-1">
+            Tagged: {tag.replace(/[-_]/g, " ")}
+          </span>
+          <Link href={shopUrl({ tag: null, page: 1 })} className="text-amber-700 hover:underline">
+            Clear tag
+          </Link>
+        </div>
+      )}
 
       {/* ── Status tabs (owner only) ────────────────────────────────── */}
       {isOwner && (

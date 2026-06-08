@@ -7,17 +7,20 @@ export default function SortSelect({
   sellerId,
   sellerName,
   category,
+  tag,
 }: {
   currentSort: string;
   sellerId: string;
   sellerName: string | null;
   category: string | null;
+  tag: string | null;
 }) {
   const router = useRouter();
 
   const onChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const params = new URLSearchParams();
     if (category) params.set("category", category);
+    if (tag) params.set("tag", tag);
     params.set("sort", e.target.value);
     router.push(`${publicSellerShopPath(sellerId, sellerName)}?${params.toString()}`);
   };

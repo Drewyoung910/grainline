@@ -44,6 +44,9 @@ export default async function AllSellersMapPage({
     meDbId = meRow?.id ?? null;
   }
   const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
+  const visibleSellerWhere = activeSellerProfileWhere(
+    blockedSellerIds.length > 0 ? { id: { notIn: blockedSellerIds } } : {},
+  );
 
   let initialCenter: { lat: number; lng: number } | null = null;
   let initialZoom = 3;
@@ -67,12 +70,12 @@ export default async function AllSellersMapPage({
       OR: [
         {
           sellerProfiles: {
-            some: activeSellerProfileWhere(),
+            some: visibleSellerWhere,
           },
         },
         {
           sellerCityProfiles: {
-            some: activeSellerProfileWhere(),
+            some: visibleSellerWhere,
           },
         },
       ],
@@ -94,11 +97,10 @@ export default async function AllSellersMapPage({
   const sellers = await prisma.sellerProfile.findMany({
     where: {
       publicMapOptIn: true,
-      ...activeSellerProfileWhere(),
+      ...visibleSellerWhere,
       lat: { not: null },
       lng: { not: null },
       OR: [{ radiusMeters: null }, { radiusMeters: 0 }],
-      ...(blockedSellerIds.length > 0 ? { id: { notIn: blockedSellerIds } } : {}),
     },
     select: {
       id: true,
