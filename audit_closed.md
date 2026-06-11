@@ -5184,7 +5184,28 @@ Last updated: 2026-06-06
      `tests/retention-and-ops-followups.test.mjs`, and
      `tests/stripe-connect-v2.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 645 findings;
+397. **Seller operations Fable follow-up pass** - parent-reviewed code/docs/test
+     fixes for verified Fable #1121, #1122, and #1125 plus adjacent source
+     review. `POST /api/seller/broadcast` now uses a short
+     `broadcastAttemptRatelimit` before bounded JSON parsing, but consumes the
+     weekly `broadcastRatelimit` token only after body/schema validation,
+     first-party media ownership validation, profanity telemetry, the DB
+     7-day cooldown check, and follower fanout preparation, immediately before
+     creating the broadcast. This preserves the cheap abuse guard while
+     avoiding malformed requests burning the one-per-week send token and keeps
+     the DB `nextAvailableAt` cooldown response reachable when Redis is
+     healthy.
+
+     `POST /api/seller/vacation` now accepts only native `YYYY-MM-DD` return
+     dates, rejects impossible calendar dates instead of falling back to
+     JavaScript's permissive `new Date(string)` parser, and rejects past return
+     dates when vacation mode is being enabled. Seller broadcast history and
+     recent-sales capped lists now add deterministic `id desc` tie-breakers
+     after their timestamp sorts. Guardrails:
+     `tests/seller-ops-hardening.test.mjs` and
+     `tests/vacation-mode-followups.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 649 findings;
 verified stale/false-positive: 450 findings; product/design/ops decisions
 deferred: 74 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
@@ -5398,8 +5419,13 @@ admin PIN local fallback mismatch, Clerk dashboard evidence wording, and Stripe
 Connect v2 responsibility-setting legal evidence. No approximate raw-category
 decrement is counted because the Clerk/Connect items remain external
 evidence/legal decision categories, and the admin PIN fix was adjacent
-source-doc hygiene rather than a separately numbered raw allegation. Deferred
-stays flat.
+source-doc hygiene rather than a separately numbered raw allegation. Entry 397
+adds four fixed/reduced current-code issues across seller broadcast send-token
+placement, strict vacation return-date parsing/past-date rejection, seller
+broadcast history deterministic ordering, and recent-sales deterministic
+ordering. Three approximate raw-category decrements are counted for verified
+Fable #1121, #1122, and #1125; Fable #1123, #1124, and #1126 remain open for
+later verification/fix or classification. Deferred stays flat.
 Remaining major categories: Stripe webhook subscription dashboard evidence,
 Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -5418,5 +5444,6 @@ Cloudflare R2 ListBucket/public-bucket dashboard evidence, HSTS preload
 submission decision, residual lower-risk HTTP-status constants outside the
 high-signal helpers, Vercel Analytics/Speed Insights product/ops decision,
 remaining homepage runtime a11y proof, and residual
+seller API follow-ups from Fable #1123/#1124/#1126 plus residual
 agent/worktree verification process hygiene. Approximate raw allegations left
-to verify from current max #1120: 119.
+to verify from current max #1126: 122.

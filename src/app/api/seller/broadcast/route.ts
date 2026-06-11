@@ -11,6 +11,7 @@ import { renderSellerBroadcastEmail } from "@/lib/email";
 import { enqueueEmailOutbox } from "@/lib/emailOutbox";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import {
+  broadcastAttemptRatelimit,
   broadcastRatelimit,
   rateLimitResponse,
   safeRateLimit,
@@ -79,13 +80,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { success: rlOk, reset } = await safeRateLimit(
-    broadcastRatelimit,
+  const { success: attemptOk, reset: attemptReset } = await safeRateLimit(
+    broadcastAttemptRatelimit,
     seller.id,
   );
-  if (!rlOk)
+  if (!attemptOk)
     return privateResponse(
-      rateLimitResponse(reset, "You can send one broadcast per week."),
+      rateLimitResponse(
+        attemptReset,
+        "Too many broadcast attempts. Please try again soon.",
+      ),
     );
 
   let broadcastParsed;
@@ -198,6 +202,15 @@ export async function POST(req: NextRequest) {
         "EMAIL_SELLER_BROADCAST",
       ),
   );
+
+  const { success: rlOk, reset } = await safeRateLimit(
+    broadcastRatelimit,
+    seller.id,
+  );
+  if (!rlOk)
+    return privateResponse(
+      rateLimitResponse(reset, "You can send one broadcast per week."),
+    );
 
   // Create broadcast record
   const broadcast = await prisma.sellerBroadcast.create({
@@ -322,7 +335,7 @@ export async function GET(req: NextRequest) {
   const [broadcasts, total] = await Promise.all([
     prisma.sellerBroadcast.findMany({
       where: { sellerProfileId: seller.id },
-      orderBy: { sentAt: "desc" },
+      orderBy: [{ sentAt: "desc" }, { id: "desc" }],
       skip: (page - 1) * pageSize,
       take: pageSize,
       select: {

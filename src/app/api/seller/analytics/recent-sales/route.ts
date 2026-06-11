@@ -48,7 +48,7 @@ export async function GET() {
         sellerRefundId: null,
         paymentEvents: { none: blockingRefundLedgerWhere() },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: 10,
       select: {
         id: true,

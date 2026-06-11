@@ -236,7 +236,14 @@ export const profileViewRatelimit = new Ratelimit({
   prefix: "rl:profile_view",
 });
 
-// Broadcast — Redis layer on top of DB 7-day check
+// Broadcast — short attempt limiter before parse; weekly send limiter after validation/DB cooldown.
+export const broadcastAttemptRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, "10 m"),
+  analytics: true,
+  prefix: "rl:broadcast_attempt",
+});
+
 export const broadcastRatelimit = new Ratelimit({
   redis,
   limiter: Ratelimit.slidingWindow(1, "7 d"),

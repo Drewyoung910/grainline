@@ -11,7 +11,9 @@ describe("vacation mode follow-up guardrails", () => {
     const route = source("src/app/api/seller/vacation/route.ts");
 
     assert.match(route, /vacationReturnDate: z\.string\(\)\.max\(40\)\.optional\(\)\.nullable\(\)/);
-    assert.match(route, /new Date\(`\$\{trimmed\}T12:00:00\.000Z`\)/);
+    assert.match(route, /Date\.UTC\(year, month - 1, day, 12, 0, 0, 0\)/);
+    assert.doesNotMatch(route, /new Date\(trimmed\)/);
+    assert.match(route, /Return date cannot be in the past/);
     assert.match(route, /import \{ sanitizeText, truncateText \} from "@\/lib\/sanitize"/);
     assert.match(route, /truncateText\(sanitizeText\(vacParsed\.vacationMessage\), 200\)/);
     assert.doesNotMatch(route, /vacationMessage = vacParsed\.vacationMessage\?\.trim\(\)/);

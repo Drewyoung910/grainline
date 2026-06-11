@@ -23,14 +23,36 @@ const VacationSchema = z.object({
 
 export const runtime = "nodejs";
 const SELLER_VACATION_BODY_MAX_BYTES = 16 * 1024;
+const VACATION_RETURN_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 function parseVacationReturnDate(value: string | null | undefined) {
   const trimmed = value?.trim();
   if (!trimmed) return null;
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(trimmed)
-    ? new Date(`${trimmed}T12:00:00.000Z`)
-    : new Date(trimmed);
-  return Number.isNaN(date.getTime()) ? null : date;
+  const match = VACATION_RETURN_DATE_RE.exec(trimmed);
+  if (!match) return null;
+
+  const [, yearRaw, monthRaw, dayRaw] = match;
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  const day = Number(dayRaw);
+  const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return date;
+}
+
+function isPastVacationReturnDate(date: Date, now = new Date()) {
+  const todayNoonUtc = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 12, 0, 0, 0),
+  );
+  // Native date inputs carry no timezone; allow one UTC day of cushion for local "today".
+  const earliestAllowedNoonUtc = new Date(todayNoonUtc.getTime() - 24 * 60 * 60 * 1000);
+  return date.getTime() < earliestAllowedNoonUtc.getTime();
 }
 
 export async function POST(req: Request) {
@@ -62,6 +84,9 @@ export async function POST(req: Request) {
     const vacationReturnDate = parseVacationReturnDate(vacParsed.vacationReturnDate);
     if (vacParsed.vacationReturnDate && !vacationReturnDate) {
       return NextResponse.json({ error: "Invalid return date" }, { status: 400 });
+    }
+    if (vacationMode && vacationReturnDate && isPastVacationReturnDate(vacationReturnDate)) {
+      return NextResponse.json({ error: "Return date cannot be in the past" }, { status: 400 });
     }
     const vacationMessage = vacParsed.vacationMessage
       ? truncateText(sanitizeText(vacParsed.vacationMessage), 200) || null

@@ -25,9 +25,17 @@ describe("seller operational route hardening", () => {
     assert.match(route, /vacationReturnDate: z\.string\(\)\.max\(40\)\.optional\(\)\.nullable\(\)/);
     assert.doesNotMatch(route, /\.datetime\(\)/);
     assert.match(route, /function parseVacationReturnDate/);
-    assert.match(route, /\^\\d\{4\}-\\d\{2\}-\\d\{2\}\$/);
-    assert.match(route, /T12:00:00\.000Z/);
+    assert.match(route, /VACATION_RETURN_DATE_RE = \/\^\(\\d\{4\}\)-\(\\d\{2\}\)-\(\\d\{2\}\)\$\//);
+    assert.match(route, /VACATION_RETURN_DATE_RE\.exec\(trimmed\)/);
+    assert.match(route, /Date\.UTC\(year, month - 1, day, 12, 0, 0, 0\)/);
+    assert.match(route, /date\.getUTCFullYear\(\) !== year/);
+    assert.doesNotMatch(route, /new Date\(trimmed\)/);
     assert.match(route, /return NextResponse\.json\(\{ error: "Invalid return date" \}, \{ status: 400 \}\)/);
+    assert.match(route, /function isPastVacationReturnDate/);
+    assert.match(route, /Native date inputs carry no timezone/);
+    assert.match(route, /todayNoonUtc\.getTime\(\) - 24 \* 60 \* 60 \* 1000/);
+    assert.match(route, /vacationMode && vacationReturnDate && isPastVacationReturnDate\(vacationReturnDate\)/);
+    assert.match(route, /return NextResponse\.json\(\{ error: "Return date cannot be in the past" \}, \{ status: 400 \}\)/);
     assert.match(route, /source: "seller_vacation_update"/);
     assert.match(route, /expireOpenCheckoutSessionsForSeller/);
     assert.match(route, /source: "seller_vacation"/);
@@ -63,6 +71,7 @@ describe("seller operational route hardening", () => {
 
     assert.match(route, /parseBoundedPositiveIntParam\(\s*url\.searchParams\.get\("page"\),\s*1,\s*1000,\s*\)/s);
     assert.match(route, /where: \{ sellerProfileId: seller\.id \}/);
+    assert.match(route, /orderBy: \[\{ sentAt: "desc" \}, \{ id: "desc" \}\]/);
   });
 
   it("keeps seller broadcast writes gated to orderable sellers and first-party media", () => {
@@ -72,6 +81,7 @@ describe("seller operational route hardening", () => {
     assert.match(route, /!seller\.chargesEnabled \|\| seller\.vacationMode/);
     assert.match(route, /isFirstPartyMediaUrl\(u\)/);
     assert.match(route, /isFirstPartyMediaUrlForUser\(imageUrl, userId/);
+    assert.match(route, /safeRateLimit\(\s*broadcastAttemptRatelimit,\s*seller\.id,\s*\)/s);
     assert.match(route, /safeRateLimit\(\s*broadcastRatelimit,\s*seller\.id,\s*\)/s);
     assert.match(route, /dedupScope: broadcast\.id/);
     assert.match(route, /link: `\/account\/feed\?broadcast=\$\{broadcast\.id\}`/);
@@ -85,6 +95,37 @@ describe("seller operational route hardening", () => {
     assert.match(composer, /function broadcastErrorMessage/);
     assert.match(composer, /new Date\(data\.nextAvailableAt\)/);
     assert.match(composer, /next\.toLocaleDateString\("en-US"/);
+
+    const attemptLimiter = route.indexOf("broadcastAttemptRatelimit,\n    seller.id");
+    const bodyRead = route.indexOf("readBoundedJson(req, BROADCAST_BODY_MAX_BYTES)");
+    const schemaParse = route.indexOf("BroadcastSchema.parse");
+    const firstPartyMedia = route.indexOf("isFirstPartyMediaUrlForUser(imageUrl, userId");
+    const cooldownCheck = route.indexOf("prisma.sellerBroadcast.findFirst");
+    const weeklyLimiter = route.indexOf("broadcastRatelimit,\n    seller.id");
+    const createBroadcast = route.indexOf("prisma.sellerBroadcast.create");
+
+    assert.ok(attemptLimiter !== -1, "broadcast attempt limiter should exist");
+    assert.ok(weeklyLimiter !== -1, "weekly broadcast limiter should exist");
+    assert.ok(
+      attemptLimiter < bodyRead,
+      "cheap attempt limiter should run before parsing request bodies",
+    );
+    assert.ok(
+      schemaParse < weeklyLimiter,
+      "weekly broadcast token should not be consumed before schema validation",
+    );
+    assert.ok(
+      firstPartyMedia < weeklyLimiter,
+      "weekly broadcast token should not be consumed before media ownership validation",
+    );
+    assert.ok(
+      cooldownCheck < weeklyLimiter,
+      "DB cooldown should run before weekly Redis token consumption",
+    );
+    assert.ok(
+      weeklyLimiter < createBroadcast,
+      "weekly broadcast limiter should run before creating the broadcast",
+    );
   });
 
   it("keeps seller analytics scoped to the current seller profile", () => {
@@ -102,6 +143,7 @@ describe("seller operational route hardening", () => {
     assert.match(recentSales, /every: \{ listing: \{ sellerId: sellerProfile\.id \} \}/);
     assert.match(recentSales, /sellerRefundId: null/);
     assert.match(recentSales, /paymentEvents: \{ none: blockingRefundLedgerWhere\(\) \}/);
+    assert.match(recentSales, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(recentSales, /accountAccessErrorResponse\(err\)/);
   });
 
