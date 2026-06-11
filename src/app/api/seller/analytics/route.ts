@@ -48,7 +48,7 @@ function getRangeDates(
     }
     case "last30": {
       const s = new Date(todayStart);
-      s.setUTCDate(s.getUTCDate() - 30);
+      s.setUTCDate(s.getUTCDate() - 29);
       return { startDate: s, endDate: now, chartGrouping: "day" };
     }
     case "year": {
@@ -57,7 +57,7 @@ function getRangeDates(
     }
     case "last365": {
       const s = new Date(todayStart);
-      s.setUTCDate(s.getUTCDate() - 365);
+      s.setUTCDate(s.getUTCDate() - 364);
       return { startDate: s, endDate: now, chartGrouping: "month" };
     }
     case "alltime":

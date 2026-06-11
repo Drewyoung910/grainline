@@ -15,6 +15,7 @@ import {
   broadcastRatelimit,
   rateLimitResponse,
   safeRateLimit,
+  sellerBroadcastReadRatelimit,
 } from "@/lib/ratelimit";
 import {
   sanitizeText,
@@ -308,6 +309,15 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
+
+  const { success, reset } = await safeRateLimit(
+    sellerBroadcastReadRatelimit,
+    userId,
+  );
+  if (!success)
+    return privateResponse(
+      rateLimitResponse(reset, "Too many broadcast history requests."),
+    );
 
   const me = await prisma.user.findUnique({
     where: { clerkId: userId },

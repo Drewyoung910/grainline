@@ -23,6 +23,7 @@ describe("API read route rate-limit sweep", () => {
       ["messageListRatelimit", "rl:message_list"],
       ["notificationReadRatelimit", "rl:notification-read"],
       ["sellerAnalyticsRatelimit", "rl:seller-analytics"],
+      ["sellerBroadcastReadRatelimit", "rl:seller-broadcast-read"],
     ]) {
       assert.match(text, new RegExp(`export const ${name} = new Ratelimit`));
       assert.match(text, new RegExp(`prefix: "${prefix}"`));
@@ -36,8 +37,12 @@ describe("API read route rate-limit sweep", () => {
       ["src/app/api/notifications/route.ts", "safeRateLimit(notificationReadRatelimit, userId)", "pruneReadNotificationsHourly();"],
       ["src/app/api/seller/analytics/route.ts", "safeRateLimit(sellerAnalyticsRatelimit, userId)", "prisma.sellerProfile.findUnique"],
       ["src/app/api/seller/analytics/recent-sales/route.ts", "safeRateLimit(sellerAnalyticsRatelimit, userId)", "prisma.sellerProfile.findUnique"],
+      ["src/app/api/seller/broadcast/route.ts", "safeRateLimit(\n    sellerBroadcastReadRatelimit,\n    userId,\n  )", "prisma.user.findUnique"],
     ]) {
-      const text = source(path);
+      const file = source(path);
+      const text = path === "src/app/api/seller/broadcast/route.ts"
+        ? file.slice(file.indexOf("export async function GET"))
+        : file;
       assert.match(text, new RegExp(limiter.replace(/[()]/g, "\\$&")));
       assert.doesNotMatch(text, /safeRateLimitOpen\(/);
       assertBefore(text, limiter, dbNeedle, path);

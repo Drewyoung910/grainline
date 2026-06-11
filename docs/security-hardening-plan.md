@@ -22,6 +22,8 @@ Grainline currently relies on application-layer authorization, not database Row 
 
 RLS is a possible defense-in-depth project, not an emergency switch. With Prisma and pooled Neon connections, RLS must be designed around connection roles/session context. A broad last-minute RLS rollout could break production or create false security. The recommended path is targeted RLS feasibility after the application-layer authorization audit is complete.
 
+A least-privilege runtime database role is useful before any RLS rollout and should be evaluated as post-launch hardening on a staging clone. Keep `DATABASE_URL` on a pooled runtime role with only the privileges normal app traffic, crons, and webhooks require, and keep `DIRECT_URL` on the migration owner role for migrations and restore operations. Do not swap production roles until route tests, cron jobs, webhooks, account deletion, and retention-prune paths pass against the restricted runtime role.
+
 ## External Marketplace Benchmarks
 
 This section records the public, source-backed controls used by mature marketplaces and commerce platforms. It is a benchmark, not a requirement list. Grainline should copy the controls that reduce real risk at this stage, and defer controls that create launch friction without proportional benefit.

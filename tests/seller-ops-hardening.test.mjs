@@ -68,10 +68,17 @@ describe("seller operational route hardening", () => {
 
   it("keeps seller broadcast history pagination bounded", () => {
     const route = source("src/app/api/seller/broadcast/route.ts");
+    const getRoute = route.slice(route.indexOf("export async function GET"));
 
-    assert.match(route, /parseBoundedPositiveIntParam\(\s*url\.searchParams\.get\("page"\),\s*1,\s*1000,\s*\)/s);
-    assert.match(route, /where: \{ sellerProfileId: seller\.id \}/);
-    assert.match(route, /orderBy: \[\{ sentAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(getRoute, /parseBoundedPositiveIntParam\(\s*url\.searchParams\.get\("page"\),\s*1,\s*1000,\s*\)/s);
+    assert.match(getRoute, /safeRateLimit\(\s*sellerBroadcastReadRatelimit,\s*userId,\s*\)/s);
+    assert.match(getRoute, /where: \{ sellerProfileId: seller\.id \}/);
+    assert.match(getRoute, /orderBy: \[\{ sentAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.ok(
+      getRoute.indexOf("sellerBroadcastReadRatelimit,\n    userId") <
+        getRoute.indexOf("prisma.user.findUnique"),
+      "broadcast history GET should rate-limit before Prisma reads",
+    );
   });
 
   it("keeps seller broadcast writes gated to orderable sellers and first-party media", () => {
@@ -156,6 +163,10 @@ describe("seller operational route hardening", () => {
     assert.match(page, /label: "Last 7 UTC days"/);
     assert.doesNotMatch(page, /label: "Today"/);
     assert.doesNotMatch(page, /label: "Yesterday"/);
+
+    const analytics = source("src/app/api/seller/analytics/route.ts");
+    assert.match(analytics, /case "last30":[\s\S]*?setUTCDate\(s\.getUTCDate\(\) - 29\)/);
+    assert.match(analytics, /case "last365":[\s\S]*?setUTCDate\(s\.getUTCDate\(\) - 364\)/);
   });
 
   it("keeps listing stock updates owner-scoped in the final mutation", () => {

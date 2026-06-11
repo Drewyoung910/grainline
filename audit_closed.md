@@ -5205,7 +5205,27 @@ Last updated: 2026-06-06
      `tests/seller-ops-hardening.test.mjs` and
      `tests/vacation-mode-followups.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 649 findings;
+398. **Fable architecture and seller-read follow-up pass** - parent-reviewed
+     code/docs/test fixes for source-backed Fable architecture notes plus
+     verified seller API leftovers. `GET /api/seller/broadcast` now uses the
+     fail-closed `sellerBroadcastReadRatelimit` before its first Prisma read,
+     closing verified Fable #1126. Seller analytics rolling-window ranges now
+     use `last30 = today - 29 days` and `last365 = today - 364 days`, matching
+     the inclusive UTC labels and closing the real part of verified Fable
+     #1124 while keeping the already-fixed UTC-label complaint classified as
+     current behavior.
+
+     Architecture docs now record the Vercel geo-header trust boundary, the
+     launch checklist includes `DIRECT_URL`, and the security-hardening plan
+     explicitly stages a least-privilege pooled runtime database role as
+     post-launch hardening before any RLS rollout. The read-only subagent was
+     used only to verify remaining seller API allegations; parent review
+     confirmed and implemented the accepted fixes. Guardrails:
+     `tests/api-read-rate-limit-sweep.test.mjs`,
+     `tests/seller-ops-hardening.test.mjs`, and
+     `tests/public-security-config.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 654 findings;
 verified stale/false-positive: 450 findings; product/design/ops decisions
 deferred: 74 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
@@ -5425,7 +5445,13 @@ placement, strict vacation return-date parsing/past-date rejection, seller
 broadcast history deterministic ordering, and recent-sales deterministic
 ordering. Three approximate raw-category decrements are counted for verified
 Fable #1121, #1122, and #1125; Fable #1123, #1124, and #1126 remain open for
-later verification/fix or classification. Deferred stays flat.
+later verification/fix or classification. Entry 398 adds five fixed/reduced
+code/docs issues across seller broadcast history read limiting, seller
+analytics inclusive rolling-window ranges, `DIRECT_URL` launch evidence,
+Vercel geo-header trust-boundary docs, and least-privilege runtime database
+role/RLS staging docs. Two approximate raw-category decrements are counted for
+verified Fable #1124 and #1126; #1123 remains a low-priority seller analytics
+performance slice rather than a source defect fixed here. Deferred stays flat.
 Remaining major categories: Stripe webhook subscription dashboard evidence,
 Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -5444,6 +5470,6 @@ Cloudflare R2 ListBucket/public-bucket dashboard evidence, HSTS preload
 submission decision, residual lower-risk HTTP-status constants outside the
 high-signal helpers, Vercel Analytics/Speed Insights product/ops decision,
 remaining homepage runtime a11y proof, and residual
-seller API follow-ups from Fable #1123/#1124/#1126 plus residual
+seller analytics performance follow-up from Fable #1123 plus residual
 agent/worktree verification process hygiene. Approximate raw allegations left
-to verify from current max #1126: 122.
+to verify from current max #1126: 120.

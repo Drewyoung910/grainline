@@ -138,6 +138,13 @@ export const sellerAnalyticsRatelimit = new Ratelimit({
   prefix: "rl:seller-analytics",
 });
 
+export const sellerBroadcastReadRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(120, "10 m"),
+  analytics: true,
+  prefix: "rl:seller-broadcast-read",
+});
+
 export const sellerProfileRatelimit = new Ratelimit({
   redis,
   limiter: Ratelimit.slidingWindow(30, "10 m"),

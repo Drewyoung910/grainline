@@ -36,6 +36,7 @@ Grainline is a US-only woodworking marketplace. It supports public browsing, sel
 Grainline does not use database-level Row Level Security today. The current security model is application-layer authorization:
 
 - `src/middleware.ts` enforces signed-out redirects, API 401s, terms acceptance, suspended/deleted account blocks, admin role/PIN checks, cron auth, geo-blocking, and request IDs.
+- Geo-blocking uses Vercel's `x-vercel-ip-country` header and trusts it only behind Vercel managed ingress. A future hosting or proxy migration must replace that header with a trusted geo source or revisit the US-only gate before accepting traffic.
 - Each private route handler or server action must still verify ownership or staff role before reading or mutating data.
 - Public routes must use shared visibility predicates (`publicListingWhere`, `publicListingDetailWhere`, `visibleSellerProfileWhere`, `activeSellerProfileWhere`, `publicBlogPostWhere`) rather than ad hoc filters.
 - Webhooks and cron routes are middleware-public only because they authenticate with provider signatures or shared secrets inside the route.

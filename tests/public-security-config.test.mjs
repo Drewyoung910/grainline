@@ -43,6 +43,7 @@ describe("public security configuration guardrails", () => {
 
   it("keeps production env documentation aligned with required runtime secrets", () => {
     const docs = source("CLAUDE.md");
+    const launch = source("docs/launch-checklist.md");
 
     for (const name of [
       "NEXT_PUBLIC_APP_URL",
@@ -56,7 +57,23 @@ describe("public security configuration guardrails", () => {
       "SENTRY_AUTH_TOKEN",
     ]) {
       assert.match(docs, new RegExp(`\`${name}\``));
+      assert.match(launch, new RegExp(`- \`${name}\``));
     }
+  });
+
+  it("documents Vercel geo header trust and staged database-role hardening", () => {
+    const architecture = source("docs/architecture.md");
+    const middleware = source("src/middleware.ts");
+    const hardeningPlan = source("docs/security-hardening-plan.md");
+
+    assert.match(middleware, /x-vercel-ip-country/);
+    assert.match(middleware, /only trusted behind\s+\/\/ Vercel's managed ingress/);
+    assert.match(architecture, /`x-vercel-ip-country`/);
+    assert.match(architecture, /Vercel managed ingress/);
+    assert.match(hardeningPlan, /least-privilege runtime database role/);
+    assert.match(hardeningPlan, /post-launch hardening/);
+    assert.match(hardeningPlan, /Keep `DATABASE_URL` on a pooled runtime role/);
+    assert.match(hardeningPlan, /keep `DIRECT_URL` on the migration owner role/);
   });
 
   it("keeps refund panel docs on the current orderTotalCents prop", () => {

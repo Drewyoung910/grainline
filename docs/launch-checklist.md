@@ -8,6 +8,7 @@ Confirm production and preview values in Vercel:
 
 - `NEXT_PUBLIC_APP_URL`
 - `DATABASE_URL`
+- `DIRECT_URL`
 - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
 - `CLERK_SECRET_KEY`
 - `CLERK_WEBHOOK_SECRET`
