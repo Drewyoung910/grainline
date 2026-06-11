@@ -1,10 +1,14 @@
 // src/app/api/seller/analytics/route.ts
 import { auth } from "@clerk/nextjs/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
-import { calculateSellerMetrics, meetsGuildMasterRequirements } from "@/lib/metrics";
-import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
+import {
+  calculateSellerMetrics,
+  meetsGuildMasterRequirements,
+  type SellerMetricsResult,
+} from "@/lib/metrics";
 import { rateLimitResponse, safeRateLimit, sellerAnalyticsRatelimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { logServerError } from "@/lib/serverErrorLogger";
@@ -182,41 +186,272 @@ export async function GET(req: Request) {
     const range = validRanges.includes(rangeParam as RangeKey) ? (rangeParam as RangeKey) : "last30";
 
     const { startDate, endDate, chartGrouping } = getRangeDates(range, new Date(sellerProfile.createdAt));
+    const dateEndFilter = range === "yesterday" ? { lt: endDate } : { lte: endDate };
+    const analyticsDateRange = { gte: startDate, ...dateEndFilter };
+    const rangeEndSql = range === "yesterday" ? Prisma.sql`< ${endDate}` : Prisma.sql`<= ${endDate}`;
 
-    // ── Queries in parallel ─────────────────────────────────────────────────────
+    // ── Start independent reads before awaiting broad analytics work ───────────
 
-    // Overview: revenue + orders in range
     type OverviewRow = { total_revenue: bigint | null; total_orders: bigint };
-    const [overviewRows, activeListingCount] = await Promise.all([
-      prisma.$queryRaw<OverviewRow[]>`
+    type CountRow = { count: bigint };
+    const overviewRowsPromise = prisma.$queryRaw<OverviewRow[]>`
+      SELECT
+        SUM(oi."priceCents" * oi.quantity) AS total_revenue,
+        COUNT(DISTINCT o.id) AS total_orders
+      FROM "OrderItem" oi
+      JOIN "Listing" l ON l.id = oi."listingId"
+      JOIN "Order" o ON o.id = oi."orderId"
+      WHERE l."sellerId" = ${sellerId}
+        AND o."paidAt" IS NOT NULL
+        AND o."sellerRefundId" IS NULL
+        ${BLOCKING_REFUND_LEDGER_SQL}
+        AND o."createdAt" >= ${startDate}
+        AND o."createdAt" ${rangeEndSql}
+    `;
+    const activeListingCountPromise = prisma.listing.count({
+      where: { sellerId, status: "ACTIVE" },
+    });
+    const rangeViewAggPromise = prisma.listingViewDaily.aggregate({
+      where: { sellerProfileId: sellerId, date: analyticsDateRange },
+      _sum: { views: true, clicks: true },
+    });
+    const favoritesCountPromise = prisma.favorite.count({
+      where: { listing: { sellerId }, createdAt: analyticsDateRange },
+    });
+    const stockNotificationSubsPromise = prisma.stockNotification.count({
+      where: { listing: { sellerId }, createdAt: analyticsDateRange },
+    });
+    const cartAbandonmentPromise = prisma.$queryRaw<CountRow[]>`
+      SELECT COUNT(*)::bigint AS count
+      FROM "CartItem" ci
+      JOIN "Listing" l ON l.id = ci."listingId"
+      WHERE l."sellerId" = ${sellerId}
+        AND ci."createdAt" >= ${startDate}
+        AND ci."createdAt" ${rangeEndSql}
+        AND NOT EXISTS (
+          SELECT 1
+          FROM "OrderItem" oi
+          JOIN "Order" o ON o.id = oi."orderId"
+          WHERE oi."listingId" = ci."listingId"
+            AND o."paidAt" IS NOT NULL
+            AND o."sellerRefundId" IS NULL
+            ${BLOCKING_REFUND_LEDGER_SQL}
+            AND o."createdAt" >= ${startDate}
+            AND o."createdAt" ${rangeEndSql}
+        )
+    `;
+
+    type RepeatRow = { buyer_id: string; cnt: bigint };
+    const buyerRowsPromise = prisma.$queryRaw<RepeatRow[]>`
+      SELECT o."buyerId" AS buyer_id, COUNT(DISTINCT o.id) AS cnt
+      FROM "Order" o
+      JOIN "OrderItem" oi ON oi."orderId" = o.id
+      JOIN "Listing" l ON l.id = oi."listingId"
+      WHERE l."sellerId" = ${sellerId}
+        AND o."paidAt" IS NOT NULL
+        AND o."sellerRefundId" IS NULL
+        ${BLOCKING_REFUND_LEDGER_SQL}
+      GROUP BY o."buyerId"
+    `;
+
+    type ProcessingRow = { avg_hours: number | null };
+    const processingRowsPromise = prisma.$queryRaw<ProcessingRow[]>`
+      SELECT AVG(EXTRACT(EPOCH FROM (o."shippedAt" - o."createdAt")) / 3600) AS avg_hours
+      FROM "Order" o
+      JOIN "OrderItem" oi ON oi."orderId" = o.id
+      JOIN "Listing" l ON l.id = oi."listingId"
+      WHERE l."sellerId" = ${sellerId}
+        AND o."shippedAt" IS NOT NULL
+        AND o."paidAt" IS NOT NULL
+        AND o."sellerRefundId" IS NULL
+        ${BLOCKING_REFUND_LEDGER_SQL}
+        AND o."createdAt" >= ${startDate}
+        AND o."createdAt" ${rangeEndSql}
+    `;
+    const dailyViewDataPromise = prisma.listingViewDaily.findMany({
+      where: { sellerProfileId: sellerId, date: analyticsDateRange },
+      select: { date: true, views: true, clicks: true },
+    });
+    const chartOrderRowsPromise: Promise<
+      OrderRowHour[] | OrderRowDay[] | OrderRowMonth[] | OrderRowYear[]
+    > = chartGrouping === "hour"
+      ? prisma.$queryRaw<OrderRowHour[]>`
         SELECT
-          SUM(oi."priceCents" * oi.quantity) AS total_revenue,
-          COUNT(DISTINCT o.id) AS total_orders
-        FROM "OrderItem" oi
+          EXTRACT(HOUR FROM o."createdAt" AT TIME ZONE 'UTC')::int AS bucket,
+          COALESCE(SUM(oi."priceCents" * oi.quantity), 0) AS revenue,
+          COUNT(DISTINCT o.id) AS orders
+        FROM "Order" o
+        JOIN "OrderItem" oi ON oi."orderId" = o.id
         JOIN "Listing" l ON l.id = oi."listingId"
-        JOIN "Order" o ON o.id = oi."orderId"
         WHERE l."sellerId" = ${sellerId}
           AND o."paidAt" IS NOT NULL
           AND o."sellerRefundId" IS NULL
           ${BLOCKING_REFUND_LEDGER_SQL}
           AND o."createdAt" >= ${startDate}
-          AND o."createdAt" <= ${endDate}
-      `,
-      prisma.listing.count({ where: { sellerId, status: "ACTIVE" } }),
+          AND o."createdAt" ${rangeEndSql}
+        GROUP BY bucket
+        ORDER BY bucket
+      `
+      : chartGrouping === "day"
+        ? prisma.$queryRaw<OrderRowDay[]>`
+        SELECT
+          DATE_TRUNC('day', o."createdAt" AT TIME ZONE 'UTC') AS bucket,
+          COALESCE(SUM(oi."priceCents" * oi.quantity), 0) AS revenue,
+          COUNT(DISTINCT o.id) AS orders
+        FROM "Order" o
+        JOIN "OrderItem" oi ON oi."orderId" = o.id
+        JOIN "Listing" l ON l.id = oi."listingId"
+        WHERE l."sellerId" = ${sellerId}
+          AND o."paidAt" IS NOT NULL
+          AND o."sellerRefundId" IS NULL
+          ${BLOCKING_REFUND_LEDGER_SQL}
+          AND o."createdAt" >= ${startDate}
+          AND o."createdAt" ${rangeEndSql}
+        GROUP BY bucket
+        ORDER BY bucket
+      `
+        : chartGrouping === "month"
+          ? prisma.$queryRaw<OrderRowMonth[]>`
+        SELECT
+          DATE_TRUNC('month', o."createdAt" AT TIME ZONE 'UTC') AS bucket,
+          COALESCE(SUM(oi."priceCents" * oi.quantity), 0) AS revenue,
+          COUNT(DISTINCT o.id) AS orders
+        FROM "Order" o
+        JOIN "OrderItem" oi ON oi."orderId" = o.id
+        JOIN "Listing" l ON l.id = oi."listingId"
+        WHERE l."sellerId" = ${sellerId}
+          AND o."paidAt" IS NOT NULL
+          AND o."sellerRefundId" IS NULL
+          ${BLOCKING_REFUND_LEDGER_SQL}
+          AND o."createdAt" >= ${startDate}
+          AND o."createdAt" ${rangeEndSql}
+        GROUP BY bucket
+        ORDER BY bucket
+      `
+          : prisma.$queryRaw<OrderRowYear[]>`
+        SELECT
+          DATE_TRUNC('year', o."createdAt" AT TIME ZONE 'UTC') AS bucket,
+          COALESCE(SUM(oi."priceCents" * oi.quantity), 0) AS revenue,
+          COUNT(DISTINCT o.id) AS orders
+        FROM "Order" o
+        JOIN "OrderItem" oi ON oi."orderId" = o.id
+        JOIN "Listing" l ON l.id = oi."listingId"
+        WHERE l."sellerId" = ${sellerId}
+          AND o."paidAt" IS NOT NULL
+          AND o."sellerRefundId" IS NULL
+          ${BLOCKING_REFUND_LEDGER_SQL}
+          AND o."createdAt" >= ${startDate}
+          AND o."createdAt" ${rangeEndSql}
+        GROUP BY bucket
+        ORDER BY bucket
+      `;
+
+    type TopListingRow = {
+      id: string;
+      title: string;
+      image_url: string | null;
+      total_revenue: bigint;
+      units_sold: bigint;
+      avg_price: bigint;
+      view_count: number;
+      click_count: number;
+      favorite_count: bigint;
+      stock_notification_count: bigint;
+      created_at: Date;
+    };
+
+    const topListingRowsPromise = prisma.$queryRaw<TopListingRow[]>`
+      SELECT
+        l.id,
+        l.title,
+        (SELECT p.url FROM "Photo" p WHERE p."listingId" = l.id ORDER BY p."sortOrder" ASC LIMIT 1) AS image_url,
+        COALESCE(SUM(CASE WHEN o.id IS NOT NULL THEN oi."priceCents" * oi.quantity ELSE 0 END), 0) AS total_revenue,
+        COALESCE(SUM(CASE WHEN o.id IS NOT NULL THEN oi.quantity ELSE 0 END), 0) AS units_sold,
+        COALESCE(
+          SUM(CASE WHEN o.id IS NOT NULL THEN oi."priceCents" * oi.quantity ELSE 0 END)
+          / NULLIF(SUM(CASE WHEN o.id IS NOT NULL THEN oi.quantity ELSE 0 END), 0),
+          0
+        ) AS avg_price,
+        l."viewCount" AS view_count,
+        l."clickCount" AS click_count,
+        (SELECT COUNT(*)::bigint FROM "Favorite" f WHERE f."listingId" = l.id) AS favorite_count,
+        (SELECT COUNT(*)::bigint FROM "StockNotification" sn WHERE sn."listingId" = l.id) AS stock_notification_count,
+        l."createdAt" AS created_at
+      FROM "Listing" l
+      LEFT JOIN "OrderItem" oi ON oi."listingId" = l.id
+      LEFT JOIN "Order" o ON o.id = oi."orderId"
+        AND o."paidAt" IS NOT NULL
+        AND o."sellerRefundId" IS NULL
+        ${BLOCKING_REFUND_LEDGER_SQL}
+      WHERE l."sellerId" = ${sellerId}
+      GROUP BY l.id, l.title, l."viewCount", l."clickCount", l."createdAt"
+      ORDER BY total_revenue DESC
+      LIMIT 8
+    `;
+
+    type RatingRow = { bucket: Date; avg_rating: number; review_count: bigint };
+    const ratingRowsPromise = prisma.$queryRaw<RatingRow[]>`
+      SELECT
+        DATE_TRUNC('month', r."createdAt" AT TIME ZONE 'UTC') AS bucket,
+        AVG(r."ratingX2") / 2.0 AS avg_rating,
+        COUNT(*) AS review_count
+      FROM "Review" r
+      JOIN "Listing" l ON l.id = r."listingId"
+      WHERE l."sellerId" = ${sellerId}
+      GROUP BY bucket
+      ORDER BY bucket ASC
+    `;
+    const existingMetricsPromise = prisma.sellerMetrics.findUnique({
+      where: { sellerProfileId: sellerId },
+      select: {
+        sellerProfileId: true,
+        calculatedAt: true,
+        periodMonths: true,
+        averageRating: true,
+        reviewCount: true,
+        onTimeShippingRate: true,
+        responseRate: true,
+        totalSalesCents: true,
+        completedOrderCount: true,
+        activeCaseCount: true,
+        accountAgeDays: true,
+      },
+    });
+
+    const [
+      overviewRows,
+      activeListingCount,
+      rangeViewAgg,
+      favoritesCount,
+      stockNotificationSubs,
+      cartAbandonmentRows,
+      buyerRows,
+      processingRows,
+      dailyViewData,
+      chartOrderRows,
+      topListingRows,
+      ratingRows,
+      existingMetrics,
+    ] = await Promise.all([
+      overviewRowsPromise,
+      activeListingCountPromise,
+      rangeViewAggPromise,
+      favoritesCountPromise,
+      stockNotificationSubsPromise,
+      cartAbandonmentPromise,
+      buyerRowsPromise,
+      processingRowsPromise,
+      dailyViewDataPromise,
+      chartOrderRowsPromise,
+      topListingRowsPromise,
+      ratingRowsPromise,
+      existingMetricsPromise,
     ]);
 
     const totalRevenueCents = Number(overviewRows[0]?.total_revenue ?? 0);
     const totalOrders = Number(overviewRows[0]?.total_orders ?? 0);
     const avgOrderValueCents = totalOrders > 0 ? Math.round(totalRevenueCents / totalOrders) : 0;
 
-    // Engagement: range-aware views/clicks from daily aggregates
-    const [rangeViewAgg, listingIds] = await Promise.all([
-      prisma.listingViewDaily.aggregate({
-        where: { sellerProfileId: sellerId, date: { gte: startDate, lte: endDate } },
-        _sum: { views: true, clicks: true },
-      }),
-      prisma.listing.findMany({ where: { sellerId }, select: { id: true } }).then((ls) => ls.map((l) => l.id)),
-    ]);
     const totalViews = rangeViewAgg._sum.views ?? 0;
     const totalClicks = rangeViewAgg._sum.clicks ?? 0;
     // Conversion rate: null when no view data but orders exist (ListingViewDaily tracking wasn't active yet)
@@ -232,87 +467,21 @@ export async function GET(req: Request) {
         ? totalClicks === 0 ? 0 : null
         : Math.min((totalClicks / totalViews) * 100, 100);
 
-    const [favoritesCount, stockNotificationSubs] = await Promise.all([
-      listingIds.length > 0 ? prisma.favorite.count({ where: { listingId: { in: listingIds }, createdAt: { gte: startDate, lte: endDate } } }) : 0,
-      listingIds.length > 0 ? prisma.stockNotification.count({ where: { listingId: { in: listingIds }, createdAt: { gte: startDate, lte: endDate } } }) : 0,
-    ]);
+    const cartAbandonment = Number(cartAbandonmentRows[0]?.count ?? 0);
 
-    // Cart abandonment — range-aware: cart items in range whose listing was not purchased in the same range
-    let cartAbandonment = 0;
-    if (listingIds.length > 0) {
-      const [cartItemsInRange, orderItemsInRange] = await Promise.all([
-        prisma.cartItem.findMany({
-          where: { listing: { sellerId }, createdAt: { gte: startDate, lte: endDate } },
-          select: { listingId: true },
-        }),
-        prisma.orderItem.findMany({
-          where: {
-            listing: { sellerId },
-            order: {
-              paidAt: { not: null },
-              sellerRefundId: null,
-              paymentEvents: { none: blockingRefundLedgerWhere() },
-              createdAt: { gte: startDate, lte: endDate },
-            },
-          },
-          select: { listingId: true },
-        }),
-      ]);
-      const purchasedInRange = new Set(orderItemsInRange.map((oi) => oi.listingId));
-      cartAbandonment = cartItemsInRange.filter((ci) => !purchasedInRange.has(ci.listingId)).length;
-    }
-
-    // Repeat buyer rate (all time)
-    type RepeatRow = { buyer_id: string; cnt: bigint };
-    const buyerRows = await prisma.$queryRaw<RepeatRow[]>`
-      SELECT o."buyerId" AS buyer_id, COUNT(DISTINCT o.id) AS cnt
-      FROM "Order" o
-      JOIN "OrderItem" oi ON oi."orderId" = o.id
-      JOIN "Listing" l ON l.id = oi."listingId"
-      WHERE l."sellerId" = ${sellerId}
-        AND o."paidAt" IS NOT NULL
-        AND o."sellerRefundId" IS NULL
-        ${BLOCKING_REFUND_LEDGER_SQL}
-      GROUP BY o."buyerId"
-    `;
     const totalBuyers = buyerRows.length;
     const repeatBuyers = buyerRows.filter((r) => Number(r.cnt) > 1).length;
     const repeatBuyerRate = totalBuyers > 0 ? (repeatBuyers / totalBuyers) * 100 : 0;
 
-    // Avg processing time in hours
-    type ProcessingRow = { avg_hours: number | null };
-    const processingRows = await prisma.$queryRaw<ProcessingRow[]>`
-      SELECT AVG(EXTRACT(EPOCH FROM (o."shippedAt" - o."createdAt")) / 3600) AS avg_hours
-      FROM "Order" o
-      JOIN "OrderItem" oi ON oi."orderId" = o.id
-      JOIN "Listing" l ON l.id = oi."listingId"
-      WHERE l."sellerId" = ${sellerId}
-        AND o."shippedAt" IS NOT NULL
-        AND o."paidAt" IS NOT NULL
-        AND o."sellerRefundId" IS NULL
-        ${BLOCKING_REFUND_LEDGER_SQL}
-        AND o."createdAt" >= ${startDate}
-        AND o."createdAt" <= ${endDate}
-    `;
     const avgProcessingHours: number | null =
       processingRows[0]?.avg_hours != null ? Number(processingRows[0].avg_hours) : null;
 
-    // ── Daily view/click data for chart ────────────────────────────────────────
-
-    const dailyViewData = await prisma.listingViewDaily.findMany({
-      where: { sellerProfileId: sellerId, date: { gte: startDate, lte: endDate } },
-      select: { date: true, views: true, clicks: true },
-    });
-
-    // Build map keyed by YYYY-MM-DD for fast lookup
     const dailyMap = new Map<string, { views: number; clicks: number }>();
     for (const dv of dailyViewData) {
       const key = new Date(dv.date).toISOString().slice(0, 10);
       const existing = dailyMap.get(key) ?? { views: 0, clicks: 0 };
       dailyMap.set(key, { views: existing.views + dv.views, clicks: existing.clicks + dv.clicks });
     }
-
-    // ── Chart data ──────────────────────────────────────────────────────────────
 
     let chartData: Array<{
       label: string;
@@ -324,23 +493,7 @@ export async function GET(req: Request) {
     }> = [];
 
     if (chartGrouping === "hour") {
-      const dbRows = await prisma.$queryRaw<OrderRowHour[]>`
-        SELECT
-          EXTRACT(HOUR FROM o."createdAt" AT TIME ZONE 'UTC')::int AS bucket,
-          COALESCE(SUM(oi."priceCents" * oi.quantity), 0) AS revenue,
-          COUNT(DISTINCT o.id) AS orders
-        FROM "Order" o
-        JOIN "OrderItem" oi ON oi."orderId" = o.id
-        JOIN "Listing" l ON l.id = oi."listingId"
-        WHERE l."sellerId" = ${sellerId}
-          AND o."paidAt" IS NOT NULL
-          AND o."sellerRefundId" IS NULL
-          ${BLOCKING_REFUND_LEDGER_SQL}
-          AND o."createdAt" >= ${startDate}
-          AND o."createdAt" <= ${endDate}
-        GROUP BY bucket
-        ORDER BY bucket
-      `;
+      const dbRows = chartOrderRows as OrderRowHour[];
       const byHour = new Map<number, { revenue: number; orders: number }>();
       for (const r of dbRows) {
         byHour.set(Number(r.bucket), { revenue: Number(r.revenue), orders: Number(r.orders) });
@@ -361,23 +514,7 @@ export async function GET(req: Request) {
         return { ...b, revenue: d.revenue, orders: d.orders, views, clicks };
       });
     } else if (chartGrouping === "day") {
-      const dbRows = await prisma.$queryRaw<OrderRowDay[]>`
-        SELECT
-          DATE_TRUNC('day', o."createdAt" AT TIME ZONE 'UTC') AS bucket,
-          COALESCE(SUM(oi."priceCents" * oi.quantity), 0) AS revenue,
-          COUNT(DISTINCT o.id) AS orders
-        FROM "Order" o
-        JOIN "OrderItem" oi ON oi."orderId" = o.id
-        JOIN "Listing" l ON l.id = oi."listingId"
-        WHERE l."sellerId" = ${sellerId}
-          AND o."paidAt" IS NOT NULL
-          AND o."sellerRefundId" IS NULL
-          ${BLOCKING_REFUND_LEDGER_SQL}
-          AND o."createdAt" >= ${startDate}
-          AND o."createdAt" <= ${endDate}
-        GROUP BY bucket
-        ORDER BY bucket
-      `;
+      const dbRows = chartOrderRows as OrderRowDay[];
       const byDay = new Map<string, { revenue: number; orders: number }>();
       for (const r of dbRows) {
         const key = new Date(r.bucket).toISOString().slice(0, 10);
@@ -393,23 +530,7 @@ export async function GET(req: Request) {
         return { ...b, revenue: d.revenue, orders: d.orders, views: vc.views, clicks: vc.clicks };
       });
     } else if (chartGrouping === "month") {
-      const dbRows = await prisma.$queryRaw<OrderRowMonth[]>`
-        SELECT
-          DATE_TRUNC('month', o."createdAt" AT TIME ZONE 'UTC') AS bucket,
-          COALESCE(SUM(oi."priceCents" * oi.quantity), 0) AS revenue,
-          COUNT(DISTINCT o.id) AS orders
-        FROM "Order" o
-        JOIN "OrderItem" oi ON oi."orderId" = o.id
-        JOIN "Listing" l ON l.id = oi."listingId"
-        WHERE l."sellerId" = ${sellerId}
-          AND o."paidAt" IS NOT NULL
-          AND o."sellerRefundId" IS NULL
-          ${BLOCKING_REFUND_LEDGER_SQL}
-          AND o."createdAt" >= ${startDate}
-          AND o."createdAt" <= ${endDate}
-        GROUP BY bucket
-        ORDER BY bucket
-      `;
+      const dbRows = chartOrderRows as OrderRowMonth[];
       const byMonth = new Map<string, { revenue: number; orders: number }>();
       for (const r of dbRows) {
         const key = new Date(r.bucket).toISOString().slice(0, 7); // YYYY-MM
@@ -430,24 +551,7 @@ export async function GET(req: Request) {
         return { ...b, revenue: d.revenue, orders: d.orders, views: vc.views, clicks: vc.clicks };
       });
     } else {
-      // year grouping (alltime)
-      const dbRows = await prisma.$queryRaw<OrderRowYear[]>`
-        SELECT
-          DATE_TRUNC('year', o."createdAt" AT TIME ZONE 'UTC') AS bucket,
-          COALESCE(SUM(oi."priceCents" * oi.quantity), 0) AS revenue,
-          COUNT(DISTINCT o.id) AS orders
-        FROM "Order" o
-        JOIN "OrderItem" oi ON oi."orderId" = o.id
-        JOIN "Listing" l ON l.id = oi."listingId"
-        WHERE l."sellerId" = ${sellerId}
-          AND o."paidAt" IS NOT NULL
-          AND o."sellerRefundId" IS NULL
-          ${BLOCKING_REFUND_LEDGER_SQL}
-          AND o."createdAt" >= ${startDate}
-          AND o."createdAt" <= ${endDate}
-        GROUP BY bucket
-        ORDER BY bucket
-      `;
+      const dbRows = chartOrderRows as OrderRowYear[];
       const byYear = new Map<string, { revenue: number; orders: number }>();
       for (const r of dbRows) {
         const key = new Date(r.bucket).toISOString().slice(0, 4); // YYYY
@@ -469,67 +573,6 @@ export async function GET(req: Request) {
       });
     }
 
-    // ── Top listings (all time) ─────────────────────────────────────────────────
-
-    type TopListingRow = {
-      id: string;
-      title: string;
-      image_url: string | null;
-      total_revenue: bigint;
-      units_sold: bigint;
-      avg_price: bigint;
-      view_count: number;
-      click_count: number;
-      created_at: Date;
-    };
-
-    const topListingRows = await prisma.$queryRaw<TopListingRow[]>`
-      SELECT
-        l.id,
-        l.title,
-        (SELECT p.url FROM "Photo" p WHERE p."listingId" = l.id ORDER BY p."sortOrder" ASC LIMIT 1) AS image_url,
-        COALESCE(SUM(CASE WHEN o.id IS NOT NULL THEN oi."priceCents" * oi.quantity ELSE 0 END), 0) AS total_revenue,
-        COALESCE(SUM(CASE WHEN o.id IS NOT NULL THEN oi.quantity ELSE 0 END), 0) AS units_sold,
-        COALESCE(
-          SUM(CASE WHEN o.id IS NOT NULL THEN oi."priceCents" * oi.quantity ELSE 0 END)
-          / NULLIF(SUM(CASE WHEN o.id IS NOT NULL THEN oi.quantity ELSE 0 END), 0),
-          0
-        ) AS avg_price,
-        l."viewCount" AS view_count,
-        l."clickCount" AS click_count,
-        l."createdAt" AS created_at
-      FROM "Listing" l
-      LEFT JOIN "OrderItem" oi ON oi."listingId" = l.id
-      LEFT JOIN "Order" o ON o.id = oi."orderId"
-        AND o."paidAt" IS NOT NULL
-        AND o."sellerRefundId" IS NULL
-        ${BLOCKING_REFUND_LEDGER_SQL}
-      WHERE l."sellerId" = ${sellerId}
-      GROUP BY l.id, l.title, l."viewCount", l."clickCount", l."createdAt"
-      ORDER BY total_revenue DESC
-      LIMIT 8
-    `;
-
-    const topListingIds = topListingRows.map((r) => r.id);
-    const [topFavsRows, topStockRows] = await Promise.all([
-      topListingIds.length > 0
-        ? prisma.favorite.groupBy({
-            by: ["listingId"],
-            where: { listingId: { in: topListingIds } },
-            _count: { _all: true },
-          })
-        : [],
-      topListingIds.length > 0
-        ? prisma.stockNotification.groupBy({
-            by: ["listingId"],
-            where: { listingId: { in: topListingIds } },
-            _count: { _all: true },
-          })
-        : [],
-    ]);
-    const topFavsMap = new Map(topFavsRows.map((r) => [r.listingId, r._count._all]));
-    const topStockMap = new Map(topStockRows.map((r) => [r.listingId, r._count._all]));
-
     const topListings = topListingRows.map((r) => {
       const daysSinceCreated = Math.max(
         1,
@@ -544,26 +587,11 @@ export async function GET(req: Request) {
         avgPriceCents: Number(r.avg_price),
         viewCount: Number(r.view_count),
         clickCount: Number(r.click_count),
-        favoritesCount: topFavsMap.get(r.id) ?? 0,
-        stockNotificationCount: topStockMap.get(r.id) ?? 0,
+        favoritesCount: Number(r.favorite_count),
+        stockNotificationCount: Number(r.stock_notification_count),
         revenuePerActiveDayCents: Math.round(Number(r.total_revenue) / daysSinceCreated),
       };
     });
-
-    // ── Rating over time (monthly) ──────────────────────────────────────────────
-
-    type RatingRow = { bucket: Date; avg_rating: number; review_count: bigint };
-    const ratingRows = await prisma.$queryRaw<RatingRow[]>`
-      SELECT
-        DATE_TRUNC('month', r."createdAt" AT TIME ZONE 'UTC') AS bucket,
-        AVG(r."ratingX2") / 2.0 AS avg_rating,
-        COUNT(*) AS review_count
-      FROM "Review" r
-      JOIN "Listing" l ON l.id = r."listingId"
-      WHERE l."sellerId" = ${sellerId}
-      GROUP BY bucket
-      ORDER BY bucket ASC
-    `;
 
     const ratingOverTime = ratingRows.map((r) => ({
       label: new Date(r.bucket).toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" }),
@@ -573,16 +601,12 @@ export async function GET(req: Request) {
 
     // ── Guild metrics ───────────────────────────────────────────────────────────
 
-    const existingMetrics = await prisma.sellerMetrics.findUnique({
-      where: { sellerProfileId: sellerId },
-      select: { calculatedAt: true },
-    });
     const isStale =
       !existingMetrics ||
       Date.now() - new Date(existingMetrics.calculatedAt).getTime() > 24 * 60 * 60 * 1000;
-    const metrics = isStale
+    const metrics: SellerMetricsResult = isStale
       ? await calculateSellerMetrics(sellerId)
-      : (await prisma.sellerMetrics.findUnique({ where: { sellerProfileId: sellerId } }))!;
+      : existingMetrics!;
 
     const guildCriteria = meetsGuildMasterRequirements(metrics);
     const failingKeys = Object.entries(guildCriteria)

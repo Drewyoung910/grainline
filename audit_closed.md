@@ -5225,7 +5225,36 @@ Last updated: 2026-06-06
      `tests/seller-ops-hardening.test.mjs`, and
      `tests/public-security-config.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 654 findings;
+399. **Seller analytics performance and UTC bucket follow-up pass** -
+     parent-reviewed code/docs/test fixes for verified Fable #1123 plus
+     adjacent source issues found during sidecar review. `GET
+     /api/seller/analytics` now starts overview, active-listing count,
+     engagement, cart-abandonment, repeat-buyer, processing-time, chart,
+     top-listing, rating, and cached-metrics reads before one broad
+     `Promise.all` await. Favorites and stock-notification counts now use
+     seller-scoped relation filters instead of a separate seller listing-id
+     prefetch, cart abandonment uses SQL `NOT EXISTS` against paid
+     non-refunded orders in the same range, and top-listing favorite/watcher
+     counts are returned by the top-listing SQL instead of follow-up `groupBy`
+     queries.
+
+     Parent review accepted one read-only subagent finding as real:
+     `yesterday` is a closed UTC calendar range, but `ListingViewDaily.date`
+     rows are stored at midnight UTC, so inclusive `lte: todayStart` could
+     include today's daily aggregate row in yesterday totals. Seller analytics
+     now uses a half-open end bound for `yesterday` (`< todayStart`) while
+     preserving inclusive `<= now` behavior for ongoing ranges. Fresh cached
+     Guild metrics now reuse the already-fetched `SellerMetrics` row instead
+     of issuing a second read, and `CLAUDE.md` now records the query-shape,
+     half-open `yesterday`, cached-metrics, and CTR behavior contracts. The
+     stale Guild-metrics recalculation inside GET remains a lower-risk
+     analytics refresh performance/design follow-up rather than a blocking
+     correctness or privacy defect. Guardrails:
+     `tests/seller-ops-hardening.test.mjs`,
+     `tests/seller-analytics-refund-guardrails.test.mjs`, and
+     `tests/metrics-cache.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 658 findings;
 verified stale/false-positive: 450 findings; product/design/ops decisions
 deferred: 74 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
@@ -5451,7 +5480,13 @@ analytics inclusive rolling-window ranges, `DIRECT_URL` launch evidence,
 Vercel geo-header trust-boundary docs, and least-privilege runtime database
 role/RLS staging docs. Two approximate raw-category decrements are counted for
 verified Fable #1124 and #1126; #1123 remains a low-priority seller analytics
-performance slice rather than a source defect fixed here. Deferred stays flat.
+performance slice rather than a source defect fixed here. Entry 399 adds four
+fixed/reduced code/docs issues across verified Fable #1123 seller analytics
+query-wave reduction, the adjacent `yesterday` UTC daily-bucket half-open
+range fix, fresh cached Guild metrics duplicate-read removal, and CTR/query
+shape docs drift. One approximate raw-category decrement is counted for Fable
+#1123; the remaining fixes were hidden adjacent issues found during
+parent/subagent review. Deferred stays flat.
 Remaining major categories: Stripe webhook subscription dashboard evidence,
 Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -5469,7 +5504,7 @@ Founding Maker live DB concurrency proof, Sentry cron alert evidence,
 Cloudflare R2 ListBucket/public-bucket dashboard evidence, HSTS preload
 submission decision, residual lower-risk HTTP-status constants outside the
 high-signal helpers, Vercel Analytics/Speed Insights product/ops decision,
-remaining homepage runtime a11y proof, and residual
-seller analytics performance follow-up from Fable #1123 plus residual
+remaining homepage runtime a11y proof, residual lower-risk analytics
+metrics-refresh performance follow-up, and residual
 agent/worktree verification process hygiene. Approximate raw allegations left
-to verify from current max #1126: 120.
+to verify from current max #1126: 119.

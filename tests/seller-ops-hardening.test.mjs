@@ -167,6 +167,70 @@ describe("seller operational route hardening", () => {
     const analytics = source("src/app/api/seller/analytics/route.ts");
     assert.match(analytics, /case "last30":[\s\S]*?setUTCDate\(s\.getUTCDate\(\) - 29\)/);
     assert.match(analytics, /case "last365":[\s\S]*?setUTCDate\(s\.getUTCDate\(\) - 364\)/);
+    assert.match(analytics, /const dateEndFilter = range === "yesterday" \? \{ lt: endDate \} : \{ lte: endDate \}/);
+    assert.match(analytics, /const analyticsDateRange = \{ gte: startDate, \.\.\.dateEndFilter \}/);
+    assert.match(
+      analytics,
+      /const rangeEndSql = range === "yesterday" \? Prisma\.sql`< \$\{endDate\}` : Prisma\.sql`<= \$\{endDate\}`/,
+    );
+    assert.doesNotMatch(analytics, /date: \{ gte: startDate, lte: endDate \}/);
+    assert.doesNotMatch(analytics, /createdAt: \{ gte: startDate, lte: endDate \}/);
+    assert.doesNotMatch(analytics, /"createdAt" <= \$\{endDate\}/);
+  });
+
+  it("keeps seller analytics independent reads parallelized and avoids listing-id prefetches", () => {
+    const analytics = source("src/app/api/seller/analytics/route.ts");
+    const promiseAllIndex = analytics.indexOf("] = await Promise.all([");
+
+    assert.ok(promiseAllIndex > -1, "seller analytics should await a broad Promise.all block");
+
+    for (const promiseName of [
+      "overviewRowsPromise",
+      "activeListingCountPromise",
+      "rangeViewAggPromise",
+      "favoritesCountPromise",
+      "stockNotificationSubsPromise",
+      "cartAbandonmentPromise",
+      "buyerRowsPromise",
+      "processingRowsPromise",
+      "dailyViewDataPromise",
+      "chartOrderRowsPromise",
+      "topListingRowsPromise",
+      "ratingRowsPromise",
+      "existingMetricsPromise",
+    ]) {
+      const declarationIndex = analytics.indexOf(`const ${promiseName}`);
+      assert.ok(declarationIndex > -1, `${promiseName} should be declared`);
+      assert.ok(
+        declarationIndex < promiseAllIndex,
+        `${promiseName} should start before the broad Promise.all await`,
+      );
+      assert.match(analytics.slice(promiseAllIndex), new RegExp(`${promiseName},`));
+    }
+
+    assert.doesNotMatch(
+      analytics,
+      /prisma\.listing\.findMany\(\{\s*where: \{ sellerId \},\s*select: \{ id: true \}/s,
+    );
+    assert.doesNotMatch(analytics, /listingIds = listings\.map/);
+    assert.doesNotMatch(analytics, /listingId: \{ in: listingIds \}/);
+    assert.match(analytics, /prisma\.favorite\.count\(\{\s*where: \{ listing: \{ sellerId \}/s);
+    assert.match(analytics, /prisma\.stockNotification\.count\(\{\s*where: \{ listing: \{ sellerId \}/s);
+    assert.match(analytics, /const cartAbandonmentPromise = prisma\.\$queryRaw<CountRow\[]>/);
+    assert.match(analytics, /NOT EXISTS \(\s*SELECT 1\s*FROM "OrderItem" oi/s);
+    assert.match(
+      analytics,
+      /\(SELECT COUNT\(\*\)::bigint FROM "Favorite" f WHERE f\."listingId" = l\.id\) AS favorite_count/,
+    );
+    assert.match(
+      analytics,
+      /\(SELECT COUNT\(\*\)::bigint FROM "StockNotification" sn WHERE sn\."listingId" = l\.id\) AS stock_notification_count/,
+    );
+    assert.match(analytics, /const existingMetricsPromise = prisma\.sellerMetrics\.findUnique\(\{[\s\S]*?averageRating: true[\s\S]*?accountAgeDays: true/s);
+    assert.match(analytics, /const metrics: SellerMetricsResult = isStale[\s\S]*?: existingMetrics!/);
+    assert.doesNotMatch(analytics, /const topFavsRows/);
+    assert.doesNotMatch(analytics, /const topStockRows/);
+    assert.doesNotMatch(analytics, /await prisma\.sellerMetrics\.findUnique\(\{ where: \{ sellerProfileId: sellerId \} \}\)/);
   });
 
   it("keeps listing stock updates owner-scoped in the final mutation", () => {
