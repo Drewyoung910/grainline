@@ -57,6 +57,15 @@ describe("Stripe Connect v2 migration guardrails", () => {
     });
   });
 
+  it("keeps legal risk docs tied to the current Connect v2 responsibility settings", () => {
+    const legalRisk = source("docs/legal-risk-register.md");
+
+    assert.match(legalRisk, /defaults\.responsibilities\.fees_collector: "application"/);
+    assert.match(legalRisk, /defaults\.responsibilities\.losses_collector: "application"/);
+    assert.match(legalRisk, /dashboard:express\|fees:application\|losses:application\|requirements:stripe/);
+    assert.match(legalRisk, /counsel\/accounting sign-off or exception/);
+  });
+
   it("normalizes country and omits blank contact email", () => {
     assert.deepEqual(
       buildStripeConnectV2AccountCreateParams({ email: " ", country: "bad" }).identity,

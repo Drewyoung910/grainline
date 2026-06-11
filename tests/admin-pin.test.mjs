@@ -30,6 +30,14 @@ describe("admin PIN cookie secret configuration", () => {
     assert.doesNotThrow(() => assertAdminPinCookieSecretConfigured({}));
   });
 
+  it("uses an ephemeral per-process local fallback when no dev cookie secret is configured", () => {
+    const source = readFileSync("src/lib/adminPin.ts", "utf8");
+
+    assert.match(source, /ADMIN_PIN_COOKIE_SECRET_DEV/);
+    assert.match(source, /crypto\.randomUUID\(\)/);
+    assert.doesNotMatch(source, /process\.env\.ADMIN_PIN_COOKIE_SECRET_DEV \|\| "grainline-local-dev-admin-pin-cookie-secret"/);
+  });
+
   it("allows Next production builds to collect page data before runtime env injection", () => {
     assert.doesNotThrow(() =>
       assertAdminPinCookieSecretConfigured({

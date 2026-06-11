@@ -3,7 +3,7 @@ export const ADMIN_PIN_MAX_AGE_SECONDS = 60 * 60 * 4;
 
 const encoder = new TextEncoder();
 const DEV_ADMIN_PIN_COOKIE_SECRET =
-  process.env.ADMIN_PIN_COOKIE_SECRET_DEV || "grainline-local-dev-admin-pin-cookie-secret";
+  process.env.ADMIN_PIN_COOKIE_SECRET_DEV || `grainline-local-dev-admin-pin-cookie-secret-${crypto.randomUUID()}`;
 const ADMIN_PIN_COOKIE_SECRET_ERROR = "ADMIN_PIN_COOKIE_SECRET is required in production";
 
 export function assertAdminPinCookieSecretConfigured(env: NodeJS.ProcessEnv = process.env) {

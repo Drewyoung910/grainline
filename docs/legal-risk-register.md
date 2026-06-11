@@ -31,8 +31,10 @@ For each issue, track:
 
 - Product behavior: Stripe Checkout, Stripe Connect, platform fee, seller transfers, refunds, disputes, tax handling.
 - Current technical mitigation: Stripe Connect marketplace model, destination-charge accounting, explicit refund/transfer reversal helpers.
-- Legal questions: agent-of-payee/money-transmitter position, refund liability, negative balance responsibility, dispute handling.
-- Status: counsel/accounting review required.
+- Source responsibility setting: Accounts v2 creation currently sets `dashboard: "express"`, `defaults.responsibilities.fees_collector: "application"`, and `defaults.responsibilities.losses_collector: "application"` in `src/lib/stripeConnectV2State.ts`, with `STRIPE_CONNECT_CONTROLLER_SUMMARY = "dashboard:express|fees:application|losses:application|requirements:stripe"`.
+- Legal questions: agent-of-payee/money-transmitter position, platform acceptance of Stripe fee responsibility, platform acceptance of payment-loss/negative-balance responsibility, refund liability, dispute handling.
+- Evidence to retain: counsel/accounting sign-off or exception that explicitly accepts or changes the `fees_collector` and `losses_collector` responsibility settings before live seller onboarding.
+- Status: counsel/accounting review required before closing the Stripe Connect v2 loss-liability item.
 
 ### Sales Tax And Marketplace Facilitator Duties
 

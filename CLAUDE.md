@@ -2823,14 +2823,11 @@ Price: ≥ $0, ≤ $100,000 · Stock: non-negative · Processing time: min ≤ m
 
 Migration `20260331205748_charges_enabled`: `chargesEnabled Boolean @default(false)` on `SellerProfile`. Browse, homepage Fresh/Favorites, similar items, and seller shop all filter `seller.chargesEnabled: true`. Dashboard shows amber "Connect Stripe" warning when false. Stripe Connect callback (`api/stripe/connect/create`) sets `chargesEnabled = account.charges_enabled`. All 7 existing sellers backfilled to `true` via `scripts/backfill-charges-enabled.ts`.
 
-### Clerk security settings (configured in Clerk dashboard)
+### Clerk security dashboard evidence (external)
 
-- Bot protection via Cloudflare Turnstile — enabled
+- Required before launch: bot protection via Cloudflare Turnstile, disposable email blocking, email subaddress blocking, strict user enumeration protection, account lockout policy, staff/admin MFA or a documented enforcement plan, breached-password protection if available on the active Clerk plan, and multi-account/spam controls if available on the active Clerk plan.
+- Do not close audit items for these settings from source review alone; record current Clerk Dashboard screenshots/exported evidence or an explicit plan/exception in launch records.
 - Clerk Turnstile requires `https://challenges.cloudflare.com` in `script-src`, `script-src-elem`, `frame-src`, and `connect-src`; do not remove it from CSP or Clerk signup CAPTCHA can fail, especially in Safari.
-- Disposable email blocking — enabled
-- Email subaddress blocking — enabled
-- Strict user enumeration protection — enabled
-- Account lockout policy — enabled
 
 ## PWA Setup (complete — 2026-03-31)
 
@@ -3439,9 +3436,9 @@ Real pagination (PAGE_SIZE + Prev/Next) should be added per page as row counts g
 
 **NEVER put secrets in CLAUDE.md or any tracked file.** This includes passwords, API keys, tokens, DSNs, connection strings, and secret values — even old/rotated ones. Referencing env var *names* (e.g. `SHIPPING_RATE_SECRET`) is fine; referencing their *values* is not. If a secret needs to be documented, write `[REDACTED]` and describe where to find it (e.g. "in Vercel env vars" or "in Neon dashboard"). This rule applies to all Claude Code output — never echo, log, grep for, or display credential values in conversation responses.
 
-**Set-and-forget infrastructure** (already done — do not touch unless there's a breach):
+**Set-and-forget infrastructure** (already done in source; external dashboard items still need launch evidence):
 - Upstash Redis rate limiters — `safeRateLimit` (fail-closed, used for mutations) vs `safeRateLimitOpen` (fail-open, used for analytics)
-- Clerk security settings: bot protection, disposable email blocking, email subaddress blocking, strict enumeration protection, lockout policy
+- Clerk security dashboard settings only after current launch evidence is recorded: bot protection, disposable email blocking, email subaddress blocking, strict enumeration protection, lockout policy, and any staff MFA/breached-password/spam controls available on the active plan
 - `chargesEnabled` filter on all public listing queries — prevents ghost sellers
 - Stripe `account.updated` and `account.application.deauthorized` webhook handlers
 
@@ -4391,7 +4388,7 @@ This section summarizes architecture-level changes from the reconciliation/audit
 - **Transactional email subjects**: built-in subject lines should stay plain ASCII during sender-domain warmup; keep visual/celebratory copy in bodies, not subjects.
 - **Case resolution copy**: admin case resolution notifications and emails must use `caseResolutionCopy()` so `REFUND_FULL`, `REFUND_PARTIAL`, and `DISMISSED` stay distinct for buyers.
 - **Health check behavior**: anonymous `/api/health` returns only `{ ok }` and is rate-limited/cached. Detailed dependency output requires `HEALTH_CHECK_TOKEN`, and the supplied token must be compared through a constant-time SHA-256 digest check (`timingSafeEqual`) rather than string equality. The R2 dependency check is intentionally a cheap `HeadBucketCommand` reachability probe only; do not claim it proves upload writes, public custom-domain delivery, CORS, bucket-level object-size controls, or public ListBucket/bucket-listing posture. After R2 credential, CORS, public-domain, or bucket-policy changes, run real processed-image and direct upload/verify smoke tests.
-- **Admin PIN behavior**: production runtime throws when `ADMIN_PIN_COOKIE_SECRET` is missing. Next production build phase is exempt so env injection can happen at runtime; local/dev may use `ADMIN_PIN_COOKIE_SECRET_DEV`. Admin PIN cookies must be session-bound (`userId + sessionId + expiry`) so a stolen PIN cookie cannot be replayed from another Clerk session for the same user.
+- **Admin PIN behavior**: production runtime throws when `ADMIN_PIN_COOKIE_SECRET` is missing. Next production build phase is exempt so env injection can happen at runtime; local/dev may use `ADMIN_PIN_COOKIE_SECRET_DEV` for stable sessions or an ephemeral per-process fallback when that dev secret is absent. Admin PIN cookies must be session-bound (`userId + sessionId + expiry`) so a stolen PIN cookie cannot be replayed from another Clerk session for the same user.
 - **Admin auth behavior**: admin pages, admin APIs, and admin server actions must re-check the required `EMPLOYEE | ADMIN` or `ADMIN` role plus suspended/deleted account state at the local access point, not rely only on middleware or the admin layout. Middleware still enforces admin role plus signed Admin PIN for admin API calls and admin server-action POSTs, but page/API/action-level checks are the defense-in-depth guardrail future refactors must preserve. New admin pages should call `requireAdminPageAccess()` from `src/lib/adminPageAccess.ts` before page-level Prisma reads; admin server actions may keep action-specific rate-limited helpers.
 - **Admin moderation observability behavior**: staff listing removal must call `expireOpenCheckoutSessionsForListing({ source: "admin_listing_remove" })` after making the listing unavailable. Admin listing-review notifications, Founding Maker grants, custom-order ready emails, admin review rating/photo cleanup, admin email send/notification/audit side effects, and admin verification emails must leave Sentry evidence keyed only by bounded IDs or hashed emails. Do not put admin email bodies, report details, review comments, rejection notes, full media URLs, or raw recipient emails in Sentry extras/tags.
 - **Admin listing approval behavior**: approving a `PENDING_REVIEW` listing must re-check seller orderability (`chargesEnabled`, not vacationing, user not banned/deleted) before and inside the final `updateMany` predicate. If the seller became unsellable during review, keep the listing pending and return 409; do not mark it ACTIVE or grant Founding Maker.

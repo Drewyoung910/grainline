@@ -5163,7 +5163,28 @@ Last updated: 2026-06-06
      `tests/seller-page-performance.test.mjs`, and
      `tests/query-param-state.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 642 findings;
+396. **Ops evidence wording and admin PIN dev fallback pass** -
+     parent-reviewed source/docs/test fixes for verified current mismatches in
+     the ops/evidence slice. `src/lib/adminPin.ts` now uses
+     `ADMIN_PIN_COOKIE_SECRET_DEV` when supplied, otherwise an ephemeral
+     per-process local fallback, matching the existing behavior contract while
+     preserving the production `ADMIN_PIN_COOKIE_SECRET` requirement and
+     session-bound cookie signing.
+
+     Clerk dashboard controls are no longer described in `CLAUDE.md` as
+     source-verifiable configured facts; the docs now require launch evidence
+     for bot protection, disposable/subaddress blocking, enumeration protection,
+     account lockout, staff/admin MFA or enforcement plan, breached-password
+     protection, and multi-account/spam controls where available. The Stripe
+     Connect v2 legal risk register now names the concrete Accounts v2
+     responsibility settings (`fees_collector: "application"` and
+     `losses_collector: "application"`) and requires counsel/accounting
+     sign-off or an exception before closing the liability decision. Guardrails:
+     `tests/admin-pin.test.mjs`,
+     `tests/retention-and-ops-followups.test.mjs`, and
+     `tests/stripe-connect-v2.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 645 findings;
 verified stale/false-positive: 450 findings; product/design/ops decisions
 deferred: 74 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
@@ -5372,6 +5393,12 @@ metro maker block filtering, exact-pin sellers-map block filtering, and public
 map city-link block filtering. Five approximate raw-category decrements are
 counted because these fixes overlap the remaining public-discovery/query
 category and adjacent hidden issues found during parent/agent review. Deferred
+stays flat. Entry 396 adds three fixed/reduced source/docs issues for the
+admin PIN local fallback mismatch, Clerk dashboard evidence wording, and Stripe
+Connect v2 responsibility-setting legal evidence. No approximate raw-category
+decrement is counted because the Clerk/Connect items remain external
+evidence/legal decision categories, and the admin PIN fix was adjacent
+source-doc hygiene rather than a separately numbered raw allegation. Deferred
 stays flat.
 Remaining major categories: Stripe webhook subscription dashboard evidence,
 Stripe Connect v2 loss-liability ops/legal decision, stale

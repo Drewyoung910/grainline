@@ -146,6 +146,19 @@ describe("retention and ops-health follow-ups", () => {
     assert.match(launch, /webhook failure spike/);
   });
 
+  it("keeps Clerk dashboard settings as external launch evidence, not source-proven claims", () => {
+    const claude = readFileSync("CLAUDE.md", "utf8");
+    const launch = readFileSync("docs/launch-checklist.md", "utf8");
+
+    assert.match(claude, /Clerk security dashboard evidence \(external\)/);
+    assert.match(claude, /Do not close audit items for these settings from source review alone/);
+    assert.match(claude, /breached-password protection/);
+    assert.match(launch, /Clerk production security settings evidence/);
+    assert.match(launch, /staff\/admin MFA or enforcement plan/);
+    assert.match(launch, /multi-account\/spam controls/);
+    assert.doesNotMatch(claude, /### Clerk security settings \(configured in Clerk dashboard\)/);
+  });
+
   it("keeps R2 health limitations and launch evidence explicit", () => {
     const health = readFileSync("src/app/api/health/route.ts", "utf8");
     const runbook = readFileSync("docs/runbook.md", "utf8");

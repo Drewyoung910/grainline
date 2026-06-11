@@ -42,9 +42,10 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
 ## Vendor Setup
 
 - Clerk: production domain configured.
-- Clerk: bot protection, disposable email blocking, enumeration protection, and account lockout enabled.
+- Clerk: bot protection, disposable email blocking, email subaddress blocking, enumeration protection, and account lockout enabled, with current dashboard evidence retained.
 - Clerk/GitHub/Stripe/Vercel/Neon/Cloudflare/Resend/Sentry/Shippo/OpenAI/domain registrar: owner/admin credentials protected by hardware MFA, with one offline backup key stored separately.
 - Clerk: seller MFA requirement or documented enforcement plan at the Stripe-Connect-completed boundary.
+- Clerk: breached-password protection and multi-account/spam controls enabled when available on the active plan, or a documented exception retained with launch evidence.
 - Clerk: webhook endpoint registered at `https://thegrainline.com/api/clerk/webhook` for `user.created`, `user.updated`, and `user.deleted`.
 - Stripe: Connect live mode enabled and identity verification complete.
 - Stripe: live snapshot webhook endpoint registered at `https://thegrainline.com/api/stripe/webhook` with exactly the current handled event set: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.expired`, `checkout.session.async_payment_failed`, `account.updated`, `account.application.deauthorized`, `charge.refunded`, `charge.dispute.created`, `charge.dispute.updated`, `charge.dispute.closed`, `charge.dispute.funds_withdrawn`, `charge.dispute.funds_reinstated`, and `payout.failed`. Do not subscribe this endpoint to `payment_intent.*` events while Checkout Sessions are card-only and order creation is driven by Checkout events.
@@ -111,7 +112,7 @@ Record links/screenshots/dates for:
 - Stripe PCI SAQ A completion.
 - GitHub code-security settings.
 - Cloudflare WAF/Bot/TLS settings.
-- Clerk production security settings.
+- Clerk production security settings evidence: bot protection, disposable email blocking, email subaddress blocking, enumeration protection, account lockout, staff/admin MFA or enforcement plan, breached-password protection, and multi-account/spam controls where available.
 - Stripe snapshot webhook and Connect v2 thin webhook delivery, including screenshots of the exact event subscriptions listed above.
 - Clerk and Resend webhook delivery.
 - Cloudflare R2 public bucket-listing/ListBucket posture, bucket-level max object-size setting, CORS/public-domain settings, and upload smoke-test result.
