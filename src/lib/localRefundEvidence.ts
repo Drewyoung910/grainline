@@ -57,10 +57,8 @@ export async function recordLocalRefundEvidence(
   };
   const normalizedCurrency = (currency ?? DEFAULT_CURRENCY).toLowerCase();
 
-  await client.orderPaymentEvent.upsert({
-    where: { stripeEventId: localRefundEvidenceEventId(action, refundId) },
-    update: {},
-    create: {
+  const ledgerWrite = await client.orderPaymentEvent.createMany({
+    data: {
       orderId,
       stripeEventId: localRefundEvidenceEventId(action, refundId),
       stripeObjectId: refundId,
@@ -73,7 +71,9 @@ export async function recordLocalRefundEvidence(
       description: safeDescription,
       metadata: ledgerMetadata,
     },
+    skipDuplicates: true,
   });
+  if (ledgerWrite.count === 0) return;
 
   await logSystemActionOrThrow({
     client,

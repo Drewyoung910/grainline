@@ -6,31 +6,12 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 
 export const runtime = "nodejs";
 
-function pruneReadNotificationsHourly() {
-  const now = new Date();
-  if (now.getMinutes() !== 0) return;
-
-  const cutoff = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-  void prisma.notification
-    .deleteMany({
-      where: {
-        read: true,
-        createdAt: { lt: cutoff },
-      },
-    })
-    .catch((error) => {
-      console.error("[notifications] prune failed:", error);
-    });
-}
-
 export async function GET() {
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
   const { success, reset } = await safeRateLimit(notificationReadRatelimit, userId);
   if (!success) return privateResponse(rateLimitResponse(reset, "Too many notification reads."));
-
-  pruneReadNotificationsHourly();
 
   let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
   try {

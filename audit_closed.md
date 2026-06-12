@@ -5282,7 +5282,46 @@ Last updated: 2026-06-06
      `tests/metrics-cache.test.mjs`, `tests/guild-metrics-state.test.mjs`,
      and `tests/retention-and-ops-followups.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 659 findings;
+401. **Retention polling, homepage motion, and Stripe audit-idempotency
+     pass** - parent-reviewed code/docs/test fixes from a parallel
+     read-only agent audit plus adjacent local verification. `GET
+     /api/notifications` no longer performs hourly read-notification cleanup
+     writes; bounded read/unread notification deletion stays owned by
+     `/api/cron/notification-prune`, matching the existing cleanup contract and
+     reducing write work on ordinary polling. The homepage scroll indicator now
+     pairs `animate-bounce` with `motion-reduce:animate-none`, closing the
+     source-level reduced-motion gap while leaving the separate runtime a11y
+     smoke-proof item open.
+
+     Stripe `charge.refunded` and `charge.dispute.*` handlers now insert
+     `OrderPaymentEvent` ledger rows with duplicate skipping and write
+     `STRIPE_REFUND_RECORDED` / `STRIPE_DISPUTE_RECORDED` system audit rows
+     only when the ledger row is newly inserted. This reduces duplicate audit
+     evidence if the refund/dispute transaction commits but marking the Stripe
+     webhook event processed fails and Stripe retries. `recordLocalRefundEvidence`
+     now uses the same duplicate-skip gate before writing first-party
+     refund-evidence audit rows. `CLAUDE.md` records the durable motion and
+     Stripe refund/dispute audit-idempotency contracts.
+
+     Agent and parent rechecks also verified current source behavior without
+     increasing stale/deferred tallies: account export/deletion coverage,
+     support/legal durable request rows, notification/email/webhook retention
+     cron scope, Stripe webhook event-age/retry handling, refund accounting,
+     double-refund locks, card-only checkout webhook subscription source scope,
+     shared HTTP/log helpers, trigram threshold constants, and Guild
+     `ListingViewDaily` prune audit evidence were stale/current/already-closed
+     as broad allegations. Provider-side privacy work, Stripe dashboard
+     subscription evidence, Stripe Connect v2 loss-liability/legal scope,
+     partial-refund runtime reconciliation proof, EXPLAIN-dependent query-plan
+     proof, homepage runtime a11y proof, and stale agent/worktree hygiene remain
+     deferred/manual categories. Guardrails:
+     `tests/api-read-rate-limit-sweep.test.mjs`,
+     `tests/accessibility-followups.test.mjs`,
+     `tests/system-audit-log.test.mjs`,
+     `tests/payment-side-effect-observability.test.mjs`, and
+     `tests/stripe-webhook-state.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 663 findings;
 verified stale/false-positive: 453 findings; product/design/ops decisions
 deferred: 74 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
@@ -5521,7 +5560,14 @@ concurrency, and intentional lifetime active-dispute Guild Master blocking.
 Four approximate raw-category decrements are counted; already-closed
 metrics-period, active-case-window, response-rate, revocation-recheck, and
 legacy `viewToClickRatio` rechecks did not inflate the tally. Deferred stays
-flat.
+flat. Entry 401 adds four fixed/reduced code issues across notification
+polling retention writes, homepage reduced-motion scroll-cue behavior, Stripe
+refund/dispute webhook audit-row dedupe, and first-party refund-evidence audit
+dedupe. Two approximate raw-category decrements are counted for the remaining
+notification-retention and homepage-motion source slices; the Stripe/local
+refund audit dedupe work was a hidden adjacent issue found during agent/parent
+review, and already-closed stale/current rechecks did not inflate the
+stale/deferred tallies.
 Remaining major categories: Stripe webhook subscription dashboard evidence,
 Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -5542,4 +5588,4 @@ high-signal helpers, Vercel Analytics/Speed Insights product/ops decision,
 remaining homepage runtime a11y proof, residual lower-risk analytics
 metrics-refresh locking/performance follow-up, and residual agent/worktree
 verification process hygiene. Approximate raw allegations left to verify from
-current max #1126: 115.
+current max #1126: 113.

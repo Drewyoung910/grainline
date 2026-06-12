@@ -92,7 +92,9 @@ describe("payment and fulfillment side-effect observability", () => {
     const webhookRoute = source("src/app/api/stripe/webhook/route.ts");
     const helper = source("src/lib/localRefundEvidence.ts");
 
-    assert.match(helper, /client\.orderPaymentEvent\.upsert/);
+    assert.match(helper, /client\.orderPaymentEvent\.createMany/);
+    assert.match(helper, /skipDuplicates: true/);
+    assert.match(helper, /if \(ledgerWrite\.count === 0\) return/);
     assert.match(helper, /eventType: "REFUND"/);
     assert.match(helper, /logSystemActionOrThrow/);
     assert.match(helper, /localRefundEvidenceEventId\(action, refundId\)/);

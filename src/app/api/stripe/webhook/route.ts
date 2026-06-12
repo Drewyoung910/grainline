@@ -352,7 +352,7 @@ export async function POST(req: Request) {
 
   type OrderPaymentEventClient = {
     orderPaymentEvent: {
-      upsert: (args: Prisma.OrderPaymentEventUpsertArgs) => Promise<unknown>;
+      createMany: (args: Prisma.OrderPaymentEventCreateManyArgs) => Promise<Prisma.BatchPayload>;
     };
   };
 
@@ -368,11 +368,9 @@ export async function POST(req: Request) {
     reason?: string | null;
     description?: string | null;
     metadata?: Prisma.InputJsonObject;
-  }, db: OrderPaymentEventClient = prisma) {
-    await db.orderPaymentEvent.upsert({
-      where: { stripeEventId: data.stripeEventId },
-      update: {},
-      create: {
+  }, db: OrderPaymentEventClient = prisma): Promise<boolean> {
+    const result = await db.orderPaymentEvent.createMany({
+      data: {
         orderId: data.orderId,
         stripeEventId: data.stripeEventId,
         stripeObjectId: data.stripeObjectId ?? null,
@@ -385,7 +383,9 @@ export async function POST(req: Request) {
         description: paymentEventDescription(data.description),
         metadata: data.metadata ?? undefined,
       },
+      skipDuplicates: true,
     });
+    return result.count > 0;
   }
 
   async function enqueueOrderPostPaymentSideEffects(
@@ -1892,7 +1892,7 @@ export async function POST(req: Request) {
               order: existingOrder,
             });
 
-            await recordOrderPaymentEvent({
+            const refundLedgerCreated = await recordOrderPaymentEvent({
               orderId: existingOrder.id,
               stripeEventId: event.id,
               stripeObjectId: refundLedger.ledger.stripeObjectId,
@@ -1912,24 +1912,26 @@ export async function POST(req: Request) {
                 data: refundLedger.orderUpdate,
               });
             }
-            await logSystemActionOrThrow({
-              client: tx,
-              actorType: "webhook",
-              actorId: event.id,
-              action: "STRIPE_REFUND_RECORDED",
-              targetType: "ORDER",
-              targetId: existingOrder.id,
-              reason: refundLedger.ledger.reason ?? null,
-              metadata: {
-                stripeEventType: event.type,
-                stripeChargeId: charge.id!,
-                stripeRefundId: refundLedger.ledger.stripeObjectId,
-                amountCents: refundLedger.ledger.amountCents,
-                currency: refundLedger.ledger.currency,
-                status: refundLedger.ledger.status,
-                hasOrderUpdate: Boolean(refundLedger.orderUpdate),
-              },
-            });
+            if (refundLedgerCreated) {
+              await logSystemActionOrThrow({
+                client: tx,
+                actorType: "webhook",
+                actorId: event.id,
+                action: "STRIPE_REFUND_RECORDED",
+                targetType: "ORDER",
+                targetId: existingOrder.id,
+                reason: refundLedger.ledger.reason ?? null,
+                metadata: {
+                  stripeEventType: event.type,
+                  stripeChargeId: charge.id!,
+                  stripeRefundId: refundLedger.ledger.stripeObjectId,
+                  amountCents: refundLedger.ledger.amountCents,
+                  currency: refundLedger.ledger.currency,
+                  status: refundLedger.ledger.status,
+                  hasOrderUpdate: Boolean(refundLedger.orderUpdate),
+                },
+              });
+            }
           });
         }
         return NextResponse.json({ received: true });
@@ -1983,7 +1985,7 @@ export async function POST(req: Request) {
               dispute,
               orderCurrency: order.currency,
             });
-            await recordOrderPaymentEvent({
+            const disputeLedgerCreated = await recordOrderPaymentEvent({
               orderId: order.id,
               stripeEventId: event.id,
               stripeObjectId: disputeLedger.ledger.stripeObjectId,
@@ -2038,25 +2040,27 @@ export async function POST(req: Request) {
                 });
               }
             }
-            await logSystemActionOrThrow({
-              client: tx,
-              actorType: "webhook",
-              actorId: event.id,
-              action: "STRIPE_DISPUTE_RECORDED",
-              targetType: "ORDER",
-              targetId: order.id,
-              reason: disputeLedger.ledger.reason ?? null,
-              metadata: {
-                stripeEventType: event.type,
-                stripeChargeId: chargeId,
-                stripeDisputeId: disputeLedger.ledger.stripeObjectId,
-                amountCents: disputeLedger.ledger.amountCents,
-                currency: disputeLedger.ledger.currency,
-                status: disputeLedger.ledger.status,
-                caseAction: disputeCaseActionName,
-                hasOrderUpdate: Object.keys(orderUpdate).length > 0,
-              },
-            });
+            if (disputeLedgerCreated) {
+              await logSystemActionOrThrow({
+                client: tx,
+                actorType: "webhook",
+                actorId: event.id,
+                action: "STRIPE_DISPUTE_RECORDED",
+                targetType: "ORDER",
+                targetId: order.id,
+                reason: disputeLedger.ledger.reason ?? null,
+                metadata: {
+                  stripeEventType: event.type,
+                  stripeChargeId: chargeId,
+                  stripeDisputeId: disputeLedger.ledger.stripeObjectId,
+                  amountCents: disputeLedger.ledger.amountCents,
+                  currency: disputeLedger.ledger.currency,
+                  status: disputeLedger.ledger.status,
+                  caseAction: disputeCaseActionName,
+                  hasOrderUpdate: Object.keys(orderUpdate).length > 0,
+                },
+              });
+            }
             return event.type === "charge.dispute.created" && sellerUserId
               ? { sellerUserId, orderId: order.id }
               : null;

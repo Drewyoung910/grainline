@@ -343,6 +343,7 @@ describe("accessibility follow-ups", () => {
     assert.match(heroMosaic, /motion-reduce:animate-none/);
     assert.match(heroMosaic, /motion-reduce:blur-none/);
     assert.match(heroMosaic, /motion-reduce:scale-100/);
+    assert.match(home, /animate-bounce motion-reduce:animate-none/);
     assert.match(globals, /@media \(prefers-reduced-motion: reduce\)/);
     assert.match(globals, /\.animate-scroll-left,[\s\S]*\.animate-slide-down \{[\s\S]*animation: none !important/);
     assert.match(globals, /transition-duration: 0\.01ms !important/);

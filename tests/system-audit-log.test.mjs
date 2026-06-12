@@ -82,4 +82,35 @@ describe("system audit logging", () => {
       assert.match(block, /metadata: \{/);
     }
   });
+
+  it("deduplicates Stripe refund and dispute audit rows through payment ledger writes", () => {
+    const webhook = source("src/app/api/stripe/webhook/route.ts");
+    const refundStart = webhook.indexOf('if (event.type === "charge.refunded")');
+    const disputeStart = webhook.indexOf("if (STRIPE_DISPUTE_EVENT_TYPES.has(event.type))");
+    const payoutStart = webhook.indexOf('if (event.type === "payout.failed")');
+
+    assert.ok(refundStart >= 0, "charge.refunded branch should exist");
+    assert.ok(disputeStart > refundStart, "dispute branch should follow refund branch");
+    assert.ok(payoutStart > disputeStart, "payout branch should follow dispute branch");
+
+    const helperStart = webhook.indexOf("async function recordOrderPaymentEvent");
+    const helper = webhook.slice(helperStart, refundStart);
+    assert.match(helper, /orderPaymentEvent\.createMany/);
+    assert.match(helper, /skipDuplicates: true/);
+    assert.match(helper, /return result\.count > 0/);
+
+    const refundBranch = webhook.slice(refundStart, disputeStart);
+    assert.match(refundBranch, /const refundLedgerCreated = await recordOrderPaymentEvent/);
+    assert.match(
+      refundBranch,
+      /if \(refundLedgerCreated\) \{\s+await logSystemActionOrThrow\(\{[\s\S]*action: "STRIPE_REFUND_RECORDED"/,
+    );
+
+    const disputeBranch = webhook.slice(disputeStart, payoutStart);
+    assert.match(disputeBranch, /const disputeLedgerCreated = await recordOrderPaymentEvent/);
+    assert.match(
+      disputeBranch,
+      /if \(disputeLedgerCreated\) \{\s+await logSystemActionOrThrow\(\{[\s\S]*action: "STRIPE_DISPUTE_RECORDED"/,
+    );
+  });
 });

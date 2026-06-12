@@ -34,7 +34,7 @@ describe("API read route rate-limit sweep", () => {
     for (const [path, limiter, dbNeedle] of [
       ["src/app/api/cart/route.ts", "safeRateLimit(cartReadRatelimit, userId)", "prisma.cart.findUnique"],
       ["src/app/api/messages/[id]/list/route.ts", "safeRateLimit(messageListRatelimit, userId)", "prisma.conversation.findFirst"],
-      ["src/app/api/notifications/route.ts", "safeRateLimit(notificationReadRatelimit, userId)", "pruneReadNotificationsHourly();"],
+      ["src/app/api/notifications/route.ts", "safeRateLimit(notificationReadRatelimit, userId)", "prisma.notification.findMany"],
       ["src/app/api/seller/analytics/route.ts", "safeRateLimit(sellerAnalyticsRatelimit, userId)", "prisma.sellerProfile.findUnique"],
       ["src/app/api/seller/analytics/recent-sales/route.ts", "safeRateLimit(sellerAnalyticsRatelimit, userId)", "prisma.sellerProfile.findUnique"],
       ["src/app/api/seller/broadcast/route.ts", "safeRateLimit(\n    sellerBroadcastReadRatelimit,\n    userId,\n  )", "prisma.user.findUnique"],
@@ -47,6 +47,20 @@ describe("API read route rate-limit sweep", () => {
       assert.doesNotMatch(text, /safeRateLimitOpen\(/);
       assertBefore(text, limiter, dbNeedle, path);
     }
+  });
+
+  it("keeps notification polling read-only after rate limiting", () => {
+    const route = source("src/app/api/notifications/route.ts");
+    const cron = source("src/app/api/cron/notification-prune/route.ts");
+
+    assert.doesNotMatch(route, /pruneReadNotificationsHourly/);
+    assert.doesNotMatch(route, /deleteMany|DELETE FROM "Notification"/);
+    assert.match(route, /prisma\.notification\.findMany/);
+    assert.match(route, /prisma\.notification\.count/);
+
+    assert.match(cron, /pruneReadNotifications\(readCutoff\)/);
+    assert.match(cron, /pruneUnreadNotifications\(unreadCutoff\)/);
+    assert.match(cron, /DELETE FROM "Notification"/);
   });
 
   it("rate-limits optional-public GET routes before public Prisma work", () => {
