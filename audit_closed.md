@@ -5254,8 +5254,36 @@ Last updated: 2026-06-06
      `tests/seller-analytics-refund-guardrails.test.mjs`, and
      `tests/metrics-cache.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 658 findings;
-verified stale/false-positive: 450 findings; product/design/ops decisions
+400. **Seller analytics metrics-freshness and raw recheck pass** -
+     parent-reviewed code/docs/test fix for the residual lower-risk analytics
+     metrics-refresh performance slice plus read-only subagent rechecks of
+     related raw allegations. `GET /api/seller/analytics` now uses the shared
+     `isSellerMetricsFresh()` helper instead of a route-local 24-hour
+     staleness threshold, aligning seller analytics with the seven-day cached
+     Guild metrics freshness window already used by admin verification. This
+     reduces read-path recalculation pressure and narrows the still-possible
+     analytics-vs-cron `SellerMetrics.upsert` race to missing/stale cache
+     cases rather than ordinary daily reads; full cross-path calculation
+     locking remains a lower-risk performance design follow-up.
+
+     Source rechecks classified the Round 23 admin-verification live-metrics
+     claim stale: the admin page imports `meetsGuildMasterRequirements`, blocks
+     approval when cached metrics are missing/stale, and no longer calls live
+     `calculateSellerMetrics()` per pending applicant render. The Round 21
+     `calculateSellerMetrics x5 concurrent` claim is stale as written because
+     the Guild metrics cron now uses `SELLER_PROCESS_CONCURRENCY = 3`. The
+     long-open-case Guild Master ineligibility complaint is current behavior
+     but not a source defect: `CLAUDE.md` and `meetsGuildMasterRequirements()`
+     intentionally require zero active unresolved disputes, regardless of when
+     the case opened. Rechecks of raw #853/#854/#855/#127 and the legacy
+     `viewToClickRatio` allegation were already covered by entries 134,
+     211/212, and earlier raw fixed notes, so they did not change the tally.
+     Guardrails: `tests/seller-ops-hardening.test.mjs`,
+     `tests/metrics-cache.test.mjs`, `tests/guild-metrics-state.test.mjs`,
+     and `tests/retention-and-ops-followups.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 659 findings;
+verified stale/false-positive: 453 findings; product/design/ops decisions
 deferred: 74 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
 export/deletion residue. Entry 361 removes the remaining Resend webhook
@@ -5486,7 +5514,14 @@ query-wave reduction, the adjacent `yesterday` UTC daily-bucket half-open
 range fix, fresh cached Guild metrics duplicate-read removal, and CTR/query
 shape docs drift. One approximate raw-category decrement is counted for Fable
 #1123; the remaining fixes were hidden adjacent issues found during
-parent/subagent review. Deferred stays flat.
+parent/subagent review. Entry 400 adds one fixed/reduced code/docs issue for
+seller analytics shared Guild metrics freshness and three stale/current-policy
+classifications for admin verification live metrics, old Guild cron x5
+concurrency, and intentional lifetime active-dispute Guild Master blocking.
+Four approximate raw-category decrements are counted; already-closed
+metrics-period, active-case-window, response-rate, revocation-recheck, and
+legacy `viewToClickRatio` rechecks did not inflate the tally. Deferred stays
+flat.
 Remaining major categories: Stripe webhook subscription dashboard evidence,
 Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -5505,6 +5540,6 @@ Cloudflare R2 ListBucket/public-bucket dashboard evidence, HSTS preload
 submission decision, residual lower-risk HTTP-status constants outside the
 high-signal helpers, Vercel Analytics/Speed Insights product/ops decision,
 remaining homepage runtime a11y proof, residual lower-risk analytics
-metrics-refresh performance follow-up, and residual
-agent/worktree verification process hygiene. Approximate raw allegations left
-to verify from current max #1126: 119.
+metrics-refresh locking/performance follow-up, and residual agent/worktree
+verification process hygiene. Approximate raw allegations left to verify from
+current max #1126: 115.

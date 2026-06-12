@@ -227,7 +227,10 @@ describe("seller operational route hardening", () => {
       /\(SELECT COUNT\(\*\)::bigint FROM "StockNotification" sn WHERE sn\."listingId" = l\.id\) AS stock_notification_count/,
     );
     assert.match(analytics, /const existingMetricsPromise = prisma\.sellerMetrics\.findUnique\(\{[\s\S]*?averageRating: true[\s\S]*?accountAgeDays: true/s);
+    assert.match(analytics, /import \{ isSellerMetricsFresh \} from "@\/lib\/metricsFreshness"/);
+    assert.match(analytics, /const isStale = !existingMetrics \|\| !isSellerMetricsFresh\(existingMetrics\)/);
     assert.match(analytics, /const metrics: SellerMetricsResult = isStale[\s\S]*?: existingMetrics!/);
+    assert.doesNotMatch(analytics, /24 \* 60 \* 60 \* 1000/);
     assert.doesNotMatch(analytics, /const topFavsRows/);
     assert.doesNotMatch(analytics, /const topStockRows/);
     assert.doesNotMatch(analytics, /await prisma\.sellerMetrics\.findUnique\(\{ where: \{ sellerProfileId: sellerId \} \}\)/);

@@ -9,6 +9,7 @@ import {
   meetsGuildMasterRequirements,
   type SellerMetricsResult,
 } from "@/lib/metrics";
+import { isSellerMetricsFresh } from "@/lib/metricsFreshness";
 import { rateLimitResponse, safeRateLimit, sellerAnalyticsRatelimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { logServerError } from "@/lib/serverErrorLogger";
@@ -601,9 +602,7 @@ export async function GET(req: Request) {
 
     // ── Guild metrics ───────────────────────────────────────────────────────────
 
-    const isStale =
-      !existingMetrics ||
-      Date.now() - new Date(existingMetrics.calculatedAt).getTime() > 24 * 60 * 60 * 1000;
+    const isStale = !existingMetrics || !isSellerMetricsFresh(existingMetrics);
     const metrics: SellerMetricsResult = isStale
       ? await calculateSellerMetrics(sellerId)
       : existingMetrics!;
