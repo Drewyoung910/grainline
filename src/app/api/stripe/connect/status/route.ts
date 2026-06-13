@@ -7,10 +7,11 @@ import { isSupportedStripeConnectAccountVersion } from "@/lib/stripeConnectV2";
 import { rateLimitResponse, safeRateLimit, stripeConnectRatelimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 export async function GET() {
   const { userId } = await auth();
-  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
   const { success: rlOk, reset } = await safeRateLimit(stripeConnectRatelimit, userId);
   if (!rlOk) return privateResponse(rateLimitResponse(reset, "Too many Stripe status checks."));
@@ -34,7 +35,7 @@ export async function GET() {
   if (!isSupportedStripeConnectAccountVersion(seller.stripeAccountVersion)) {
     return privateJson(
       { error: "Reconnect Stripe payouts before checking status." },
-      { status: 409 },
+      { status: HTTP_STATUS.CONFLICT },
     );
   }
 

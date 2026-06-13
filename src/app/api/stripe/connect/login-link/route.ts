@@ -7,10 +7,11 @@ import { stripeLoginLinkRatelimit, rateLimitResponse, safeRateLimit } from "@/li
 import { isSupportedStripeConnectAccountVersion } from "@/lib/stripeConnectV2";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 export async function POST() {
   const { userId } = await auth();
-  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
   const { success, reset } = await safeRateLimit(stripeLoginLinkRatelimit, userId);
   if (!success) return privateResponse(rateLimitResponse(reset, "Too many requests. Try again in a few minutes."));
@@ -30,10 +31,10 @@ export async function POST() {
   });
   const stripeAccountId = seller?.stripeAccountId;
   if (!stripeAccountId) {
-    return privateJson({ error: "No Stripe account connected" }, { status: 400 });
+    return privateJson({ error: "No Stripe account connected" }, { status: HTTP_STATUS.BAD_REQUEST });
   }
   if (!isSupportedStripeConnectAccountVersion(seller.stripeAccountVersion)) {
-    return privateJson({ error: "Reconnect Stripe payouts before opening the dashboard." }, { status: 409 });
+    return privateJson({ error: "Reconnect Stripe payouts before opening the dashboard." }, { status: HTTP_STATUS.CONFLICT });
   }
 
   try {
@@ -44,6 +45,6 @@ export async function POST() {
       source: "stripe_connect_login_link",
       extra: { stripeAccountVersion: seller.stripeAccountVersion ?? "legacy" },
     });
-    return privateJson({ error: "Failed to generate Stripe link" }, { status: 500 });
+    return privateJson({ error: "Failed to generate Stripe link" }, { status: HTTP_STATUS.INTERNAL_SERVER_ERROR });
   }
 }

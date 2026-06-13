@@ -5321,7 +5321,62 @@ Last updated: 2026-06-06
      `tests/payment-side-effect-observability.test.mjs`, and
      `tests/stripe-webhook-state.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 663 findings;
+402. **Stripe charge refs, account privacy, and browse-tag normalization
+     pass** - parent-reviewed code/docs/test fixes from parallel read-only
+     agent audit plus local verification. The completed-checkout webhook now
+     retrieves/expands `payment_intent.latest_charge` instead of the legacy
+     `payment_intent.charges.data` shape, and `checkoutSessionPaymentIntentRefs`
+     retrieves string-only PaymentIntent/Charge refs when needed before order
+     creation. This reduces the risk of new paid orders missing
+     `stripeChargeId`/`stripeTransferId`, which later refund/dispute webhooks
+     and label clawback logic need for matching.
+
+     `POST /api/account/delete` no longer enqueues the route-level
+     `LOCAL_ANONYMIZE` retry row before Clerk deletion succeeds. If Clerk
+     deletion fails, the route releases the Redis deletion lock and returns the
+     retryable private 503 without leaving a claimable local anonymization job;
+     after Clerk deletion succeeds it still enqueues the local recovery row
+     before calling `anonymizeUserAccount(..., { lockAlreadyAcquired: true })`.
+     `/api/account/export` now selects current user-configured seller profile
+     and listing fields that had drifted behind the schema, including rich
+     profile story/social/policy/gift/default-package/onboarding/Guild/founding
+     fields and listing fulfillment/package/custom-order/SEO/product-detail
+     fields. Calculated analytics tables remain a separate privacy/product
+     scope decision rather than a source fix here. `/api/account/shipping-address`
+     now normalizes required address fields before validating/storing them, so a
+     raw nonempty value that sanitizes to empty is rejected instead of persisted
+     as an empty required address field.
+
+     Public browse `tag=` params now flow through `normalizeTags(..., 10)` on
+     the server query path and in both desktop/mobile filter components before
+     Prisma `hasSome` filters or hidden-input preservation. The tag helper was
+     split onto lightweight `textNormalization.ts` so client browse filters do
+     not import `sanitize-html` through `sanitize.ts`. The account deletion,
+     account export, saved-address, and Stripe Connect routes touched in this
+     slice also moved local response codes onto `HTTP_STATUS`, adding
+     `METHOD_NOT_ALLOWED` to the shared constants.
+
+     Parent review treated the broad old account-export analytics/Guild promise
+     allegation (#754) as stale as written against current privacy copy but
+     current as a narrower user-configured shop/listing export drift fixed
+     above. Rechecks of account route rate limits, saved-address GET rate-limit
+     ordering, account feed access, card-only `payment_intent.payment_failed`
+     scope, Stripe Dashboard subscription source scope, Connect v2 webhook
+     source scope, refund accounting, and commission raw-SQL safety were
+     stale/current/already-closed and did not increase stale/deferred tallies.
+     Counterparty-content export policy, provider-side privacy actions, Stripe
+     Dashboard endpoint subscription evidence, Stripe Connect loss-liability
+     legal scope, EXPLAIN/runtime query proof, and calculated seller analytics
+     export scope remain deferred/manual. Guardrails:
+     `tests/stripe-webhook-state.test.mjs`,
+     `tests/account-deletion-side-effects.test.mjs`,
+     `tests/account-deletion-timeout-fix.test.mjs`,
+     `tests/account-export-privacy.test.mjs`,
+     `tests/user-text-normalization-followups.test.mjs`,
+     `tests/public-query-determinism.test.mjs`,
+     `tests/tags.test.mjs`, and `tests/http-status-constants.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 669 findings;
 verified stale/false-positive: 453 findings; product/design/ops decisions
 deferred: 74 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
@@ -5567,7 +5622,15 @@ dedupe. Two approximate raw-category decrements are counted for the remaining
 notification-retention and homepage-motion source slices; the Stripe/local
 refund audit dedupe work was a hidden adjacent issue found during agent/parent
 review, and already-closed stale/current rechecks did not inflate the
-stale/deferred tallies.
+stale/deferred tallies. Entry 402 adds six fixed/reduced source/code-hygiene
+issues across Stripe checkout charge/transfer ref extraction, account-deletion
+side-effect ordering, automated account export field drift, saved-address
+post-sanitization validation, public browse tag normalization, and named
+account/Stripe Connect route statuses. Five approximate raw-category
+decrements are counted because the Stripe webhook, account privacy/export,
+saved-address, and public-tag-query fixes overlap remaining raw categories;
+the named-status work was consistency hardening inside an already-open
+observability/status bucket. Deferred stays flat.
 Remaining major categories: Stripe webhook subscription dashboard evidence,
 Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -5588,4 +5651,4 @@ high-signal helpers, Vercel Analytics/Speed Insights product/ops decision,
 remaining homepage runtime a11y proof, residual lower-risk analytics
 metrics-refresh locking/performance follow-up, and residual agent/worktree
 verification process hygiene. Approximate raw allegations left to verify from
-current max #1126: 113.
+current max #1126: 108.

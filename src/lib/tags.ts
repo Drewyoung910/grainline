@@ -1,4 +1,4 @@
-import { normalizeUserText, stripBidiControls } from "./sanitize.ts";
+import { normalizeUserText, stripBidiControls } from "./textNormalization.ts";
 
 export const MAX_TAG_LENGTH = 24;
 export const DEFAULT_MAX_TAGS = 10;

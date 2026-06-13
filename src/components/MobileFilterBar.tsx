@@ -6,6 +6,7 @@ import Link from "next/link";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import { Filter } from "@/components/icons";
 import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
+import { normalizeTags } from "@/lib/tags";
 
 const SORT_LABELS: Record<string, string> = {
   relevant: "Relevant",
@@ -19,7 +20,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
   const searchParams = useSearchParams();
   const baseId = React.useId();
   const q = searchParams.get("q") ?? "";
-  const selectedTags = searchParams.getAll("tag");
+  const selectedTags = normalizeTags(searchParams.getAll("tag"), 10);
   const view = searchParams.get("view") ?? "grid";
 
   const [mobileOpen, setMobileOpen] = React.useState(false);

@@ -76,6 +76,85 @@ describe("account export privacy coverage", () => {
     }
   });
 
+  it("exports current user-configured seller profile and listing fields", () => {
+    const schema = source("prisma/schema.prisma");
+    const route = source("src/app/api/account/export/route.ts");
+    const sellerSelectStart = route.indexOf("const sellerProfile = await prisma.sellerProfile.findUnique");
+    const sellerSelectEnd = route.indexOf("const [", sellerSelectStart);
+    const sellerSelect = route.slice(sellerSelectStart, sellerSelectEnd);
+    const listingSelectStart = route.indexOf("sellerProfile\n      ? prisma.listing.findMany");
+    const listingSelectEnd = route.indexOf("photos: { orderBy", listingSelectStart);
+    const listingSelect = route.slice(listingSelectStart, listingSelectEnd);
+
+    for (const field of [
+      "defaultPkgWeightGrams",
+      "defaultPkgLengthCm",
+      "defaultPkgWidthCm",
+      "defaultPkgHeightCm",
+      "storyTitle",
+      "storyBody",
+      "instagramUrl",
+      "facebookUrl",
+      "pinterestUrl",
+      "tiktokUrl",
+      "websiteUrl",
+      "yearsInBusiness",
+      "acceptsCustomOrders",
+      "acceptingNewOrders",
+      "customOrderTurnaroundDays",
+      "offersGiftWrapping",
+      "giftWrappingPriceCents",
+      "returnPolicy",
+      "customOrderPolicy",
+      "shippingPolicy",
+      "featuredListingIds",
+      "galleryImageUrls",
+      "galleryAltTexts",
+      "isVerifiedMaker",
+      "verifiedAt",
+      "guildLevel",
+      "guildMemberApprovedAt",
+      "guildMasterApprovedAt",
+      "guildMasterAppliedAt",
+      "guildMasterReviewNotes",
+      "consecutiveMetricFailures",
+      "lastMetricCheckAt",
+      "metricWarningSentAt",
+      "listingsBelowThresholdSince",
+      "onboardingStep",
+      "onboardingComplete",
+      "vacationReturnDate",
+      "isFoundingMaker",
+      "foundingMakerNumber",
+      "foundingMakerAt",
+    ]) {
+      assert.match(schema, new RegExp(`\\b${field}\\b`), `schema must retain ${field}`);
+      assert.match(sellerSelect, new RegExp(`${field}: true`), `account export must select ${field}`);
+    }
+
+    for (const field of [
+      "priceVersion",
+      "videoUrl",
+      "processingTimeMinDays",
+      "processingTimeMaxDays",
+      "shipsWithinDays",
+      "packagedWeightGrams",
+      "packagedLengthCm",
+      "packagedWidthCm",
+      "packagedHeightCm",
+      "reservedForUserId",
+      "customOrderConversationId",
+      "metaDescription",
+      "materials",
+      "productLengthIn",
+      "productWidthIn",
+      "productHeightIn",
+    ]) {
+      assert.match(schema, new RegExp(`\\b${field}\\b`), `schema must retain ${field}`);
+      assert.match(listingSelect, new RegExp(`${field}: true`), `account export must select ${field}`);
+    }
+  });
+
   it("exports support and data-request records by stable account link with email fallback", () => {
     const schema = source("prisma/schema.prisma");
     const route = source("src/app/api/account/export/route.ts");
@@ -171,7 +250,7 @@ describe("account export privacy coverage", () => {
     assert.match(route, /getExplicitCrossOriginPostRejection\(req\)/);
     assert.match(route, /hasFreshAccountExportSession\(session\.factorVerificationAge\)/);
     assert.match(route, /reverificationErrorResponse\(ACCOUNT_EXPORT_REVERIFICATION\)/);
-    assert.match(route, /export async function GET\(\) \{[\s\S]*status: 405[\s\S]*Allow: "POST"/);
+    assert.match(route, /export async function GET\(\) \{[\s\S]*status: HTTP_STATUS\.METHOD_NOT_ALLOWED[\s\S]*Allow: "POST"/);
     assert.match(route, /export async function POST\(req: Request\)/);
     assert.doesNotMatch(route, /handleExport\("GET"\)/);
 

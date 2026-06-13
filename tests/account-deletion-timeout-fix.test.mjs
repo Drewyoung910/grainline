@@ -100,9 +100,14 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     );
     assert.match(route, /releaseAccountDeletionLock\(deletionLock\)/);
     assert.match(route, /enqueueAccountDeletionLocalAnonymizeSideEffect\(prisma, me\.id\)/);
+    assert.ok(
+      route.indexOf("users.deleteUser(clerkId)") <
+        route.indexOf("enqueueAccountDeletionLocalAnonymizeSideEffect(prisma, me.id)"),
+      "account deletion route must not enqueue local anonymization until Clerk deletion succeeds",
+    );
     assert.match(route, /anonymizeUserAccount\(me\.id, \{ lockAlreadyAcquired: true \}\)/);
     assert.match(route, /"inProgress" in anonymized && anonymized\.inProgress/);
-    assert.match(route, /status: 409/);
+    assert.match(route, /status: HTTP_STATUS\.CONFLICT/);
   });
 
   it("treats post-Clerk anonymization failures as terminal for the client", () => {

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const { normalizeTag, normalizeTags } = await import("../src/lib/tags.ts");
@@ -25,5 +26,12 @@ describe("tag normalization", () => {
 
   it("dedupes tags after normalization and respects the max", () => {
     assert.deepEqual(normalizeTags(["Café", "cafe", "家具", "Oak"], 3), ["cafe", "家具", "oak"]);
+  });
+
+  it("keeps tag normalization on lightweight browser-safe text helpers", () => {
+    const source = readFileSync("src/lib/tags.ts", "utf8");
+
+    assert.match(source, /from "\.\/textNormalization\.ts"/);
+    assert.doesNotMatch(source, /from "\.\/sanitize\.ts"/);
   });
 });

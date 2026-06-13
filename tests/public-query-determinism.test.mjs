@@ -297,4 +297,21 @@ describe("public query determinism", () => {
     assert.match(commissionDetailApi, /orderBy: \[\{ createdAt: "asc" \}, \{ id: "asc" \}\]/);
     assert.doesNotMatch(commissionDetailApi, /orderBy: \{ createdAt: "asc" \}/);
   });
+
+  it("normalizes public browse tag query params before filtering and preserving them", () => {
+    const browse = source("src/app/browse/page.tsx");
+    const filterSidebar = source("src/components/FilterSidebar.tsx");
+    const mobileFilterBar = source("src/components/MobileFilterBar.tsx");
+
+    assert.match(browse, /import \{ normalizeTags \} from "@\/lib\/tags"/);
+    assert.match(browse, /const selectedTags = normalizeTags\(\s*rawTag == null \? \[\] : Array\.isArray\(rawTag\) \? rawTag : \[rawTag\],\s*10,\s*\)/);
+    assert.match(browse, /where\.tags = \{ hasSome: selectedTags \}/);
+    assert.doesNotMatch(browse, /selectedTags\.map\(\(t\) => t\.toLowerCase\(\)\)/);
+
+    for (const component of [filterSidebar, mobileFilterBar]) {
+      assert.match(component, /import \{ normalizeTags \} from "@\/lib\/tags"/);
+      assert.match(component, /const selectedTags = normalizeTags\(searchParams\.getAll\("tag"\), 10\)/);
+      assert.doesNotMatch(component, /const selectedTags = searchParams\.getAll\("tag"\)/);
+    }
+  });
 });

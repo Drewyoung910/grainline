@@ -3,12 +3,13 @@ import * as React from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
+import { normalizeTags } from "@/lib/tags";
 
 export default function FilterSidebar({ popularTags }: { popularTags: string[] }) {
   const searchParams = useSearchParams();
   const baseId = React.useId();
   const q = searchParams.get("q") ?? "";
-  const selectedTags = searchParams.getAll("tag");
+  const selectedTags = normalizeTags(searchParams.getAll("tag"), 10);
   const view = searchParams.get("view") ?? "grid";
 
   const [geoLat, setGeoLat] = React.useState(searchParams.get("lat") ?? "");

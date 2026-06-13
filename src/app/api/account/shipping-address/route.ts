@@ -10,6 +10,7 @@ import {
   isRequestBodyTooLargeError,
   readBoundedJson,
 } from "@/lib/requestBody";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 import { z } from "zod";
 
 const US_STATE_CODES = new Set([
@@ -20,20 +21,41 @@ const US_STATE_CODES = new Set([
   "SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"
 ]);
 
+const RawAddressSchema = z.object({
+  name: z.string().max(100),
+  line1: z.string().max(200),
+  line2: z.string().max(200).optional().nullable(),
+  city: z.string().max(100),
+  state: z.string().max(50),
+  postalCode: z.string().max(20),
+  phone: z.string().max(20).optional().nullable(),
+});
 const AddressSchema = z.object({
   name: z.string().min(1).max(100),
   line1: z.string().min(1).max(200),
-  line2: z.string().max(200).optional().nullable(),
+  line2: z.string().max(200).nullable(),
   city: z.string().min(1).max(100),
-  state: z.string().length(2).refine(s => US_STATE_CODES.has(s.toUpperCase()), { message: "Invalid US state code" }),
+  state: z.string().length(2).refine(s => US_STATE_CODES.has(s), { message: "Invalid US state code" }),
   postalCode: z.string().regex(/^\d{5}(-\d{4})?$/),
-  phone: z.string().max(20).optional().nullable(),
+  phone: z.string().max(20).nullable(),
 });
 const SHIPPING_ADDRESS_BODY_MAX_BYTES = 24 * 1024;
 
+function normalizeShippingAddressInput(raw: z.infer<typeof RawAddressSchema>) {
+  return {
+    name: sanitizeAddressName(raw.name),
+    line1: sanitizeAddressField(raw.line1, 200),
+    line2: sanitizeOptionalAddressField(raw.line2, 200),
+    city: sanitizeAddressField(raw.city, 100),
+    state: sanitizeAddressField(raw.state, 2).toUpperCase(),
+    postalCode: sanitizeAddressField(raw.postalCode, 20),
+    phone: sanitizeOptionalAddressField(raw.phone, 20),
+  };
+}
+
 export async function GET() {
   const { userId } = await auth();
-  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
   let user: Awaited<ReturnType<typeof ensureUserByClerkId>>;
   try {
     user = await ensureUserByClerkId(userId);
@@ -58,7 +80,7 @@ export async function GET() {
       shippingPhone: true,
     },
   });
-  if (!me) return privateJson({ error: "User not found" }, { status: 404 });
+  if (!me) return privateJson({ error: "User not found" }, { status: HTTP_STATUS.NOT_FOUND });
 
   return privateJson({
     name: me.shippingName ?? null,
@@ -73,7 +95,7 @@ export async function GET() {
 
 export async function PUT(req: Request) {
   const { userId } = await auth();
-  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
   let user: Awaited<ReturnType<typeof ensureUserByClerkId>>;
   try {
     user = await ensureUserByClerkId(userId);
@@ -88,16 +110,18 @@ export async function PUT(req: Request) {
 
   let body;
   try {
-    body = AddressSchema.parse(await readBoundedJson(req, SHIPPING_ADDRESS_BODY_MAX_BYTES));
+    body = AddressSchema.parse(normalizeShippingAddressInput(
+      RawAddressSchema.parse(await readBoundedJson(req, SHIPPING_ADDRESS_BODY_MAX_BYTES)),
+    ));
   } catch (e) {
     if (isRequestBodyTooLargeError(e)) {
-      return privateJson({ error: "Request body too large" }, { status: 413 });
+      return privateJson({ error: "Request body too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
     }
     if (isInvalidJsonBodyError(e)) {
-      return privateJson({ error: "Invalid JSON" }, { status: 400 });
+      return privateJson({ error: "Invalid JSON" }, { status: HTTP_STATUS.BAD_REQUEST });
     }
     if (e instanceof z.ZodError) {
-      return privateJson({ error: "Invalid input", details: e.issues }, { status: 400 });
+      return privateJson({ error: "Invalid input", details: e.issues }, { status: HTTP_STATUS.BAD_REQUEST });
     }
     throw e;
   }
@@ -105,13 +129,13 @@ export async function PUT(req: Request) {
   await prisma.user.update({
     where: { id: user.id },
     data: {
-      shippingName: sanitizeAddressName(body.name),
-      shippingLine1: sanitizeAddressField(body.line1, 200),
-      shippingLine2: sanitizeOptionalAddressField(body.line2, 200),
-      shippingCity: sanitizeAddressField(body.city, 100),
-      shippingState: body.state.toUpperCase(),
+      shippingName: body.name,
+      shippingLine1: body.line1,
+      shippingLine2: body.line2,
+      shippingCity: body.city,
+      shippingState: body.state,
       shippingPostalCode: body.postalCode,
-      shippingPhone: sanitizeOptionalAddressField(body.phone, 20),
+      shippingPhone: body.phone,
     },
   });
 

@@ -73,7 +73,15 @@ describe("user text normalization followups", () => {
       },
     );
 
-    assert.match(route, /shippingLine1: sanitizeAddressField\(body\.line1, 200\)/);
+    assert.match(route, /const RawAddressSchema = z\.object/);
+    assert.match(route, /function normalizeShippingAddressInput/);
+    assert.match(route, /body = AddressSchema\.parse\(normalizeShippingAddressInput\(\s*RawAddressSchema\.parse/s);
+    assert.match(route, /name: sanitizeAddressName\(raw\.name\)/);
+    assert.match(route, /line1: sanitizeAddressField\(raw\.line1, 200\)/);
+    assert.match(route, /city: sanitizeAddressField\(raw\.city, 100\)/);
+    assert.match(route, /state: sanitizeAddressField\(raw\.state, 2\)\.toUpperCase\(\)/);
+    assert.match(route, /shippingName: body\.name/);
+    assert.match(route, /shippingLine1: body\.line1/);
     assert.match(seller, /shipFromLine1[\s\S]*sanitizeAddressField\(rawShipFromLine1, 200\)/);
     assert.match(checkoutSeller, /const shippingAddress = normalizeCheckoutShippingAddress\(body\.shippingAddress\)/);
     assert.match(checkoutSingle, /const shippingAddress = normalizeCheckoutShippingAddress\(body\.shippingAddress\)/);

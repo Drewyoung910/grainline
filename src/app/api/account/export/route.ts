@@ -21,6 +21,7 @@ import {
   hasFreshAccountExportSession,
 } from "@/lib/accountExportReverification";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 export const runtime = "nodejs";
 
@@ -60,6 +61,10 @@ async function buildExport(user: NonNullable<ExportableUser>) {
       allowLocalPickup: true,
       useCalculatedShipping: true,
       preferredCarriers: true,
+      defaultPkgWeightGrams: true,
+      defaultPkgLengthCm: true,
+      defaultPkgWidthCm: true,
+      defaultPkgHeightCm: true,
       shipFromName: true,
       shipFromLine1: true,
       shipFromLine2: true,
@@ -71,8 +76,44 @@ async function buildExport(user: NonNullable<ExportableUser>) {
       bannerImageUrl: true,
       avatarImageUrl: true,
       workshopImageUrl: true,
+      storyTitle: true,
+      storyBody: true,
+      instagramUrl: true,
+      facebookUrl: true,
+      pinterestUrl: true,
+      tiktokUrl: true,
+      websiteUrl: true,
+      yearsInBusiness: true,
+      acceptsCustomOrders: true,
+      acceptingNewOrders: true,
+      customOrderTurnaroundDays: true,
+      offersGiftWrapping: true,
+      giftWrappingPriceCents: true,
+      returnPolicy: true,
+      customOrderPolicy: true,
+      shippingPolicy: true,
+      featuredListingIds: true,
+      galleryImageUrls: true,
+      galleryAltTexts: true,
+      isVerifiedMaker: true,
+      verifiedAt: true,
+      guildLevel: true,
+      guildMemberApprovedAt: true,
+      guildMasterApprovedAt: true,
+      guildMasterAppliedAt: true,
+      guildMasterReviewNotes: true,
+      consecutiveMetricFailures: true,
+      lastMetricCheckAt: true,
+      metricWarningSentAt: true,
+      listingsBelowThresholdSince: true,
+      onboardingStep: true,
+      onboardingComplete: true,
       vacationMode: true,
+      vacationReturnDate: true,
       vacationMessage: true,
+      isFoundingMaker: true,
+      foundingMakerNumber: true,
+      foundingMakerAt: true,
       createdAt: true,
       updatedAt: true,
     },
@@ -119,13 +160,29 @@ async function buildExport(user: NonNullable<ExportableUser>) {
             title: true,
             description: true,
             priceCents: true,
+            priceVersion: true,
             currency: true,
             status: true,
+            videoUrl: true,
             isPrivate: true,
             listingType: true,
             stockQuantity: true,
+            processingTimeMinDays: true,
+            processingTimeMaxDays: true,
+            shipsWithinDays: true,
             category: true,
             tags: true,
+            packagedWeightGrams: true,
+            packagedLengthCm: true,
+            packagedWidthCm: true,
+            packagedHeightCm: true,
+            reservedForUserId: true,
+            customOrderConversationId: true,
+            metaDescription: true,
+            materials: true,
+            productLengthIn: true,
+            productWidthIn: true,
+            productHeightIn: true,
             createdAt: true,
             updatedAt: true,
             photos: { orderBy: { sortOrder: "asc" }, select: { url: true, originalUrl: true, altText: true, sortOrder: true } },
@@ -599,17 +656,20 @@ async function handleExport(req: Request) {
   try {
     const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
     if (crossOriginRejection) {
-      return privateJson({ error: "Cross-origin account export requests are not allowed." }, { status: 403 });
+      return privateJson(
+        { error: "Cross-origin account export requests are not allowed." },
+        { status: HTTP_STATUS.FORBIDDEN },
+      );
     }
 
     const session = await auth();
-    if (!session.userId) return privateJson({ error: "Sign in required" }, { status: 401 });
+    if (!session.userId) return privateJson({ error: "Sign in required" }, { status: HTTP_STATUS.UNAUTHORIZED });
     if (!hasFreshAccountExportSession(session.factorVerificationAge)) {
       return privateResponse(reverificationErrorResponse(ACCOUNT_EXPORT_REVERIFICATION));
     }
 
     const user = await ensureUser();
-    if (!user) return privateJson({ error: "Sign in required" }, { status: 401 });
+    if (!user) return privateJson({ error: "Sign in required" }, { status: HTTP_STATUS.UNAUTHORIZED });
     exportUserId = user.id;
 
     const rate = await safeRateLimit(accountExportRatelimit, user.id);
@@ -632,7 +692,7 @@ async function handleExport(req: Request) {
       });
       return privateJson(
         { error: "Could not record account export audit trail. Please try again." },
-        { status: 503 },
+        { status: HTTP_STATUS.SERVICE_UNAVAILABLE },
       );
     }
 
@@ -646,12 +706,15 @@ async function handleExport(req: Request) {
       level: "warning",
       extra: { userId: exportUserId, method },
     });
-    return privateJson({ error: "Could not generate account export" }, { status: 500 });
+    return privateJson({ error: "Could not generate account export" }, { status: HTTP_STATUS.INTERNAL_SERVER_ERROR });
   }
 }
 
 export async function GET() {
-  return privateJson({ error: "Use POST to download account data." }, { status: 405, headers: { Allow: "POST" } });
+  return privateJson(
+    { error: "Use POST to download account data." },
+    { status: HTTP_STATUS.METHOD_NOT_ALLOWED, headers: { Allow: "POST" } },
+  );
 }
 
 export async function POST(req: Request) {

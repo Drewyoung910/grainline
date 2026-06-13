@@ -109,25 +109,37 @@ function stripeObjectId(value: unknown): string | null {
   return typeof record?.id === "string" ? record.id : null;
 }
 
-function checkoutSessionPaymentIntentRefs(session: Stripe.Checkout.Session) {
+async function checkoutSessionPaymentIntentRefs(session: Stripe.Checkout.Session) {
   const paymentIntent = session.payment_intent;
+  let paymentIntentId = stripeObjectId(paymentIntent);
+  let charge: Record<string, unknown> | null = null;
+
   if (typeof paymentIntent === "string") {
-    return {
-      paymentIntentId: paymentIntent,
-      stripeChargeId: null,
-      stripeApplicationFeeId: null,
-      stripeTransferId: null,
-    };
+    const retrieved = await stripe.paymentIntents.retrieve(paymentIntent, {
+      expand: ["latest_charge"],
+    });
+    paymentIntentId = retrieved.id;
+    const latestCharge = retrieved.latest_charge;
+    charge = typeof latestCharge === "string"
+      ? objectRecord(await stripe.charges.retrieve(latestCharge))
+      : objectRecord(latestCharge);
+  } else {
+    const paymentIntentRecord = objectRecord(paymentIntent);
+    const latestCharge = paymentIntentRecord?.latest_charge;
+    charge = typeof latestCharge === "string"
+      ? objectRecord(await stripe.charges.retrieve(latestCharge))
+      : objectRecord(latestCharge);
+
+    if (!charge) {
+      const chargesRecord = objectRecord(paymentIntentRecord?.charges);
+      charge = Array.isArray(chargesRecord?.data)
+        ? objectRecord(chargesRecord.data[0])
+        : null;
+    }
   }
 
-  const paymentIntentRecord = objectRecord(paymentIntent);
-  const chargesRecord = objectRecord(paymentIntentRecord?.charges);
-  const charge = Array.isArray(chargesRecord?.data)
-    ? objectRecord(chargesRecord.data[0])
-    : null;
-
   return {
-    paymentIntentId: stripeObjectId(paymentIntent),
+    paymentIntentId,
     stripeChargeId: stripeObjectId(charge),
     stripeApplicationFeeId: stripeObjectId(charge?.application_fee),
     stripeTransferId: stripeObjectId(charge?.transfer),
@@ -724,7 +736,7 @@ export async function POST(req: Request) {
 
       // Retrieve with expansions (line_items needed to derive quantities at payment time)
       const s = await stripe.checkout.sessions.retrieve(sessionId, {
-        expand: ["payment_intent.charges.data", "shipping_cost.shipping_rate", "line_items.data.price.product"],
+        expand: ["payment_intent.latest_charge", "shipping_cost.shipping_rate", "line_items.data.price.product"],
       });
       const sessionMeta = (s.metadata ?? {}) as Record<string, string | undefined>;
       checkoutLockKey = sessionMeta.checkoutLockKey ?? checkoutLockKey;
@@ -767,7 +779,7 @@ export async function POST(req: Request) {
         stripeChargeId,
         stripeApplicationFeeId,
         stripeTransferId,
-      } = checkoutSessionPaymentIntentRefs(s);
+      } = await checkoutSessionPaymentIntentRefs(s);
 
       const buyerId: string | undefined = sessionMeta.buyerId;
       // Quoted snapshot from metadata (typed on-site)

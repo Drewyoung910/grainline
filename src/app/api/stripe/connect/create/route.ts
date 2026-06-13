@@ -17,6 +17,7 @@ import { revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
 import { APP_BASE_URL } from "@/lib/appBaseUrl";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 const ConnectCreateSchema = z.object({
   returnUrl: z.string().min(1).max(500).optional().nullable(),
@@ -27,7 +28,7 @@ const STRIPE_CONNECT_CREATE_BODY_MAX_BYTES = 8 * 1024;
 
 export async function POST(req: Request) {
   const { userId } = await auth();
-  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
   const { success: rlOk, reset } = await safeRateLimit(stripeConnectRatelimit, userId);
   if (!rlOk) return privateResponse(rateLimitResponse(reset, "Too many requests."));
@@ -52,7 +53,7 @@ export async function POST(req: Request) {
       user: { select: { email: true } },
     },
   });
-  if (!seller) return privateJson({ error: "Seller profile not found" }, { status: 404 });
+  if (!seller) return privateJson({ error: "Seller profile not found" }, { status: HTTP_STATUS.NOT_FOUND });
 
   // Optional custom return URL (used by onboarding wizard)
   let customReturnUrl: string | undefined;
@@ -61,7 +62,7 @@ export async function POST(req: Request) {
     customReturnUrl = safeInternalReturnUrl(body.returnUrl, APP_URL) ?? undefined;
   } catch (error) {
     if (isRequestBodyTooLargeError(error)) {
-      return privateJson({ error: "Request body too large" }, { status: 413 });
+      return privateJson({ error: "Request body too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
     }
     // no body or invalid JSON — use default
   }
@@ -90,7 +91,7 @@ export async function POST(req: Request) {
   } else if (!isSupportedStripeConnectAccountVersion(seller.stripeAccountVersion)) {
     return privateJson(
       { error: "This Stripe account was created with an older onboarding flow. Contact support to reconnect payouts." },
-      { status: 409 },
+      { status: HTTP_STATUS.CONFLICT },
     );
   } else {
     // Refresh charges_enabled status from Stripe

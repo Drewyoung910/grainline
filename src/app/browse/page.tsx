@@ -22,6 +22,7 @@ import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { normalizeDisplayNameForLookup, truncateText } from "@/lib/sanitize";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { parseBoundedDecimalParam, parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { normalizeTags } from "@/lib/tags";
 
 const PAGE_SIZE = 24;
 const MAX_SHIPS_WITHIN_DAYS = 365;
@@ -43,10 +44,6 @@ type Search = {
   radius?: string;
   view?: string;
 };
-
-function uniq<T>(arr: T[]): T[] {
-  return Array.from(new Set(arr));
-}
 
 function StarsInline({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
@@ -236,11 +233,10 @@ export default async function BrowsePage({
   const view = sp.view === "list" ? "list" : "grid";
 
   const rawTag = sp.tag;
-  const selectedTags = rawTag == null
-    ? []
-    : Array.isArray(rawTag)
-    ? uniq(rawTag.filter(Boolean).map((t) => t.trim()).slice(0, 10))
-    : [rawTag.trim()].filter(Boolean);
+  const selectedTags = normalizeTags(
+    rawTag == null ? [] : Array.isArray(rawTag) ? rawTag : [rawTag],
+    10,
+  );
 
   const pageNum = parseBoundedPositiveIntParam(sp.page, 1, 500);
 
@@ -358,7 +354,7 @@ export default async function BrowsePage({
     ];
   }
   if (Object.keys(priceFilter).length > 0) where.priceCents = priceFilter;
-  if (selectedTags.length > 0) where.tags = { hasSome: selectedTags.map((t) => t.toLowerCase()) };
+  if (selectedTags.length > 0) where.tags = { hasSome: selectedTags };
   if (categoryFilter) where.category = categoryFilter;
   if (typeFilter) where.listingType = typeFilter;
   if (shipsFilter && Number.isFinite(shipsFilter)) {

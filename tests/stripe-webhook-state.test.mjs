@@ -49,10 +49,15 @@ describe("Stripe webhook state helpers", () => {
   it("keeps expanded checkout payment-intent extraction behind a runtime-narrowing helper", () => {
     const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
 
-    assert.match(source, /function checkoutSessionPaymentIntentRefs\(session: Stripe\.Checkout\.Session\)/);
+    assert.match(source, /async function checkoutSessionPaymentIntentRefs\(session: Stripe\.Checkout\.Session\)/);
     assert.match(source, /function objectRecord\(value: unknown\)/);
     assert.match(source, /function stripeObjectId\(value: unknown\)/);
-    assert.match(source, /checkoutSessionPaymentIntentRefs\(s\)/);
+    assert.match(source, /await checkoutSessionPaymentIntentRefs\(s\)/);
+    assert.match(source, /expand: \["payment_intent\.latest_charge", "shipping_cost\.shipping_rate", "line_items\.data\.price\.product"\]/);
+    assert.match(source, /stripe\.paymentIntents\.retrieve\(paymentIntent, \{\s*expand: \["latest_charge"\]/s);
+    assert.match(source, /stripe\.charges\.retrieve\(latestCharge\)/);
+    assert.match(source, /paymentIntentRecord\?\.latest_charge/);
+    assert.doesNotMatch(source, /payment_intent\.charges\.data/);
     assert.equal((source.match(/as unknown as ExpandedPI/g) ?? []).length, 0);
     assert.doesNotMatch(source, /type ExpandedPI/);
   });

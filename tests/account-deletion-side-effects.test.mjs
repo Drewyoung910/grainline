@@ -20,14 +20,19 @@ describe("account deletion side-effect retries", () => {
     assert.match(migration, /CREATE UNIQUE INDEX "AccountDeletionSideEffect_dedupKey_key"/);
   });
 
-  it("records local anonymization before Clerk deletion and marks it done only after the DB transaction", () => {
+  it("records local anonymization only after Clerk deletion and marks it done after the DB transaction", () => {
     const route = source("src/app/api/account/delete/route.ts");
     const deletion = source("src/lib/accountDeletion.ts");
 
     assert.ok(
+      route.indexOf("users.deleteUser(clerkId)") <
+        route.indexOf("enqueueAccountDeletionLocalAnonymizeSideEffect(prisma, me.id)"),
+      "route must not leave a claimable local anonymization job when Clerk deletion fails",
+    );
+    assert.ok(
       route.indexOf("enqueueAccountDeletionLocalAnonymizeSideEffect(prisma, me.id)") <
-        route.indexOf("users.deleteUser(clerkId)"),
-      "local recovery row must exist before Clerk is deleted",
+        route.indexOf("anonymizeUserAccount(me.id, { lockAlreadyAcquired: true })"),
+      "local recovery row must exist before route-level anonymization begins after Clerk deletion",
     );
     assert.ok(
       deletion.indexOf("enqueueAccountDeletionLocalAnonymizeSideEffect(prisma, userId)", deletion.indexOf("export async function anonymizeUserAccount")) <
