@@ -34,6 +34,7 @@ import {
   readBoundedJson,
 } from "@/lib/requestBody";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
@@ -60,11 +61,11 @@ export async function POST(
     const { id } = await params;
 
     const { userId } = await auth();
-    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
     const me = await ensureUserByClerkId(userId);
 
     if (me.role !== "EMPLOYEE" && me.role !== "ADMIN") {
-      return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+      return NextResponse.json({ error: "Forbidden." }, { status: HTTP_STATUS.FORBIDDEN });
     }
 
     const { success, reset } = await safeRateLimit(refundRatelimit, `case-resolve:${userId}`);
@@ -77,13 +78,13 @@ export async function POST(
       parsed = CaseResolveSchema.parse(await readBoundedJson(req, CASE_RESOLVE_BODY_MAX_BYTES));
     } catch (e) {
       if (isRequestBodyTooLargeError(e)) {
-        return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+        return NextResponse.json({ error: "Request body too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
       }
       if (isInvalidJsonBodyError(e)) {
-        return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+        return NextResponse.json({ error: "Invalid JSON" }, { status: HTTP_STATUS.BAD_REQUEST });
       }
       if (e instanceof z.ZodError) {
-        return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+        return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: HTTP_STATUS.BAD_REQUEST });
       }
       throw e;
     }
@@ -93,14 +94,14 @@ export async function POST(
     if (resolution !== "REFUND_PARTIAL" && requestedStockRestores.length > 0) {
       return NextResponse.json(
         { error: "Stock restoration is only available for partial case refunds." },
-        { status: 400 },
+        { status: HTTP_STATUS.BAD_REQUEST },
       );
     }
 
     if (partialRefundInputError(resolution, refundAmountCents)) {
       return NextResponse.json(
         { error: "refundAmountCents is required and must be positive for REFUND_PARTIAL." },
-        { status: 400 }
+        { status: HTTP_STATUS.BAD_REQUEST }
       );
     }
 
@@ -128,10 +129,10 @@ export async function POST(
         },
       },
     });
-    if (!caseRecord) return NextResponse.json({ error: "Case not found." }, { status: 404 });
+    if (!caseRecord) return NextResponse.json({ error: "Case not found." }, { status: HTTP_STATUS.NOT_FOUND });
 
     if (caseRecord.status === "RESOLVED" || caseRecord.status === "CLOSED") {
-      return NextResponse.json({ error: "Case is already resolved." }, { status: 400 });
+      return NextResponse.json({ error: "Case is already resolved." }, { status: HTTP_STATUS.BAD_REQUEST });
     }
 
     const refunding = resolution === "REFUND_FULL" || resolution === "REFUND_PARTIAL";
@@ -141,7 +142,7 @@ export async function POST(
       if (!refundMayRestoreStock(caseRecord.order)) {
         return NextResponse.json(
           { error: "Stock cannot be restored after this order has shipped or been picked up." },
-          { status: 400 },
+          { status: HTTP_STATUS.BAD_REQUEST },
         );
       }
       const restoreValidation = requestedRefundStockRestoreQuantities(
@@ -149,7 +150,7 @@ export async function POST(
         requestedStockRestores,
       );
       if (!restoreValidation.ok) {
-        return NextResponse.json({ error: restoreValidation.error }, { status: 400 });
+        return NextResponse.json({ error: restoreValidation.error }, { status: HTTP_STATUS.BAD_REQUEST });
       }
       partialStockRestores = restoreValidation.restores;
     }
@@ -164,19 +165,19 @@ export async function POST(
         );
       }
       if (orderHasRefundLedger(caseRecord.order)) {
-        return NextResponse.json({ error: "A refund has already been issued for this order." }, { status: 400 });
+        return NextResponse.json({ error: "A refund has already been issued for this order." }, { status: HTTP_STATUS.BAD_REQUEST });
       }
       if (orderHasPurchasedLabel(caseRecord.order)) {
         return NextResponse.json(
           { error: "Cannot refund this order after a shipping label has been purchased. Void or resolve the label first." },
-          { status: 409 },
+          { status: HTTP_STATUS.CONFLICT },
         );
       }
     }
 
     // Partial refund amount cap
     if (partialRefundExceedsOrderTotal(resolution, refundAmountCents, caseRecord.order)) {
-      return NextResponse.json({ error: "Refund amount exceeds order total." }, { status: 400 });
+      return NextResponse.json({ error: "Refund amount exceeds order total." }, { status: HTTP_STATUS.BAD_REQUEST });
     }
 
     let stripeRefundId: string | null = null;
@@ -193,7 +194,7 @@ export async function POST(
       if (!paymentIntentId) {
         return NextResponse.json(
           { error: "Order has no Stripe payment intent ID. Refund must be processed manually." },
-          { status: 400 }
+          { status: HTTP_STATUS.BAD_REQUEST }
         );
       }
 
@@ -436,13 +437,13 @@ export async function POST(
       if (txErr instanceof Error && txErr.message === "CASE_RESOLUTION_CONFLICT") {
         return NextResponse.json(
           { error: "Case status changed before this resolution could be saved. Refresh and try again." },
-          { status: 409 },
+          { status: HTTP_STATUS.CONFLICT },
         );
       }
       if (txErr instanceof Error && txErr.message === "CASE_REFUND_LOCK_LOST") {
         return NextResponse.json(
           { error: "Refund state changed after Stripe accepted the refund. Staff must reconcile this order before retrying." },
-          { status: 409 },
+          { status: HTTP_STATUS.CONFLICT },
         );
       }
       throw txErr;
@@ -517,6 +518,6 @@ export async function POST(
     if (accountResponse) return accountResponse;
 
     logServerError(err, { source: "case_resolve_route" });
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return NextResponse.json({ error: "Server error" }, { status: HTTP_STATUS.INTERNAL_SERVER_ERROR });
   }
 }

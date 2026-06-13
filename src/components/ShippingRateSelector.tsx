@@ -2,11 +2,13 @@
 
 import { useState, useEffect, useRef } from "react";
 import { readApiErrorMessage } from "@/lib/apiError";
+import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import type { ShippingAddress, SelectedShippingRate } from "@/types/checkout";
 
 type QuoteRate = {
   label: string;
   amountCents: number;
+  currency?: string;
   carrier: string;
   service: string;
   estDays: number | null;
@@ -31,6 +33,7 @@ function toSelectedRate(r: QuoteRate, index: number): SelectedShippingRate {
   return {
     objectId: r.objectId ?? `${r.carrier}-${r.service}-${index}`,
     amountCents: r.amountCents,
+    currency: (r.currency ?? DEFAULT_CURRENCY).toLowerCase(),
     displayName: r.label,
     carrier: r.carrier,
     estDays: r.estDays,
@@ -191,7 +194,7 @@ export default function ShippingRateSelector({
             <span className="text-sm font-medium text-neutral-900">
               {rate.amountCents === 0
                 ? "Free"
-                : `$${(rate.amountCents / 100).toFixed(2)}`}
+                : formatCurrencyCents(rate.amountCents, rate.currency)}
             </span>
           </label>
         );

@@ -194,6 +194,7 @@ export default function ListingPurchasePanel({
               sellerName={sellerName}
               sellerId={sellerId}
               priceCents={totalPriceCents}
+              currency={currency ?? DEFAULT_CURRENCY}
               offersGiftWrapping={offersGiftWrapping}
               giftWrappingPriceCents={giftWrappingPriceCents}
               selectedVariantOptionIds={selectedOptionIds}

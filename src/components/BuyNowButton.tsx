@@ -5,6 +5,7 @@ import { useUser } from "@clerk/nextjs";
 import dynamic from "next/dynamic";
 import { useToast } from "@/components/Toast";
 import { signUpPathForRedirect } from "@/lib/internalReturnUrl";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 
 const BuyNowCheckoutModal = dynamic(() => import("./BuyNowCheckoutModal"), {
   ssr: false,
@@ -17,6 +18,7 @@ type Props = {
   sellerName: string;
   sellerId: string;
   priceCents: number;
+  currency?: string | null;
   quantity?: number;
   offersGiftWrapping?: boolean;
   giftWrappingPriceCents?: number | null;
@@ -34,6 +36,7 @@ export default function BuyNowButton({
   sellerName,
   sellerId,
   priceCents,
+  currency = DEFAULT_CURRENCY,
   quantity = 1,
   offersGiftWrapping = false,
   giftWrappingPriceCents = null,
@@ -90,6 +93,7 @@ export default function BuyNowButton({
           sellerName={sellerName}
           sellerId={sellerId}
           priceCents={priceCents}
+          currency={currency}
           quantity={quantity}
           offersGiftWrapping={offersGiftWrapping}
           giftWrappingPriceCents={giftWrappingPriceCents}

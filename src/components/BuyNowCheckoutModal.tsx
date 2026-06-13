@@ -11,6 +11,7 @@ import type {
   SelectedShippingRate,
 } from "@/types/checkout";
 import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
+import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 
 const EmbeddedCheckoutPanel = dynamic(() => import("./EmbeddedCheckoutPanel"), {
   ssr: false,
@@ -30,6 +31,7 @@ type Props = {
   sellerName: string;
   sellerId: string;
   priceCents: number;
+  currency?: string | null;
   quantity: number;
   offersGiftWrapping: boolean;
   giftWrappingPriceCents: number | null;
@@ -65,6 +67,7 @@ export default function BuyNowCheckoutModal({
   sellerName,
   sellerId,
   priceCents,
+  currency = DEFAULT_CURRENCY,
   quantity,
   offersGiftWrapping,
   giftWrappingPriceCents,
@@ -204,6 +207,7 @@ export default function BuyNowCheckoutModal({
   if (!isOpen) return null;
 
   const giftWrapAmountCents = giftWrapping ? (giftWrappingPriceCents ?? 0) : 0;
+  const displayCurrency = currency ?? DEFAULT_CURRENCY;
 
   return (
     <div
@@ -237,7 +241,7 @@ export default function BuyNowCheckoutModal({
                 {listingTitle}
               </p>
               <p className="text-xs text-neutral-500">
-                ${(priceCents / 100).toFixed(2)}
+                {formatCurrencyCents(priceCents, displayCurrency)}
                 {quantity > 1 && ` × ${quantity}`}
               </p>
             </div>
@@ -357,7 +361,7 @@ export default function BuyNowCheckoutModal({
               <div className="border border-neutral-200 rounded-lg p-4 space-y-2 text-sm bg-neutral-50">
                 <div className="flex justify-between text-neutral-600">
                   <span>Items</span>
-                  <span>${((priceCents * quantity) / 100).toFixed(2)}</span>
+                  <span>{formatCurrencyCents(priceCents * quantity, displayCurrency)}</span>
                 </div>
                 <div className="flex justify-between text-neutral-600">
                   <span>Shipping</span>
@@ -366,7 +370,7 @@ export default function BuyNowCheckoutModal({
                       selectedRate.amountCents === 0 ? (
                         "Free"
                       ) : (
-                        `$${(selectedRate.amountCents / 100).toFixed(2)}`
+                        formatCurrencyCents(selectedRate.amountCents, selectedRate.currency)
                       )
                     ) : (
                       <span className="text-neutral-500 text-xs italic">
@@ -378,7 +382,7 @@ export default function BuyNowCheckoutModal({
                 {giftWrapAmountCents > 0 && (
                   <div className="flex justify-between text-neutral-600">
                     <span>Gift wrapping</span>
-                    <span>${(giftWrapAmountCents / 100).toFixed(2)}</span>
+                    <span>{formatCurrencyCents(giftWrapAmountCents, displayCurrency)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-xs text-neutral-500">
@@ -389,11 +393,10 @@ export default function BuyNowCheckoutModal({
                   <div className="flex justify-between font-medium text-neutral-900 pt-2 border-t border-neutral-200 text-sm">
                     <span>Estimated total</span>
                     <span>
-                      $
-                      {(
-                        (priceCents * quantity + selectedRate.amountCents + giftWrapAmountCents) /
-                        100
-                      ).toFixed(2)}
+                      {formatCurrencyCents(
+                        priceCents * quantity + selectedRate.amountCents + giftWrapAmountCents,
+                        displayCurrency,
+                      )}
                       +
                     </span>
                   </div>

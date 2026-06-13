@@ -18,18 +18,12 @@ export type BlogSuggestion = {
   sellerProfileId?: string;
 };
 
-export async function GET(req: NextRequest) {
-  const rl = await safeRateLimit(searchRatelimit, getIP(req));
-  if (!rl.success) return rateLimitResponse(rl.reset, "Too many blog searches.");
-
-  const q = normalizeSearchSuggestionQuery(req.nextUrl.searchParams.get("bq"));
-  if (q.length < 2) return NextResponse.json({ suggestions: [] });
-  const normalizedDisplayNameQuery = normalizeDisplayNameForLookup(q);
-  const qLower = q.toLowerCase();
-
-  const [postRows, tagRows, authorRows] = await Promise.all([
-    // Fuzzy title matches
-    prisma.$queryRaw<Array<{ slug: string; title: string }>>`
+async function blogFuzzySuggestionRows(q: string) {
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`
+      SELECT set_config('pg_trgm.similarity_threshold', ${String(BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY)}, true)
+    `;
+    return tx.$queryRaw<Array<{ slug: string; title: string }>>`
       SELECT bp.slug, bp.title
       FROM "BlogPost" bp
       INNER JOIN "User" u ON u.id = bp."authorId"
@@ -50,10 +44,26 @@ export async function GET(req: NextRequest) {
             AND seller_user."deletedAt" IS NULL
           )
         )
+        AND bp.title % ${q}
         AND similarity(bp.title, ${q}) > ${BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY}
       ORDER BY similarity(bp.title, ${q}) DESC, bp."publishedAt" DESC, bp.id DESC
       LIMIT 5
-    `,
+    `;
+  });
+}
+
+export async function GET(req: NextRequest) {
+  const rl = await safeRateLimit(searchRatelimit, getIP(req));
+  if (!rl.success) return rateLimitResponse(rl.reset, "Too many blog searches.");
+
+  const q = normalizeSearchSuggestionQuery(req.nextUrl.searchParams.get("bq"));
+  if (q.length < 2) return NextResponse.json({ suggestions: [] });
+  const normalizedDisplayNameQuery = normalizeDisplayNameForLookup(q);
+  const qLower = q.toLowerCase();
+
+  const [postRows, tagRows, authorRows] = await Promise.all([
+    // Fuzzy title matches
+    blogFuzzySuggestionRows(q),
 
     // Tag partial matches
     getPopularBlogTags(200).then((tags) =>

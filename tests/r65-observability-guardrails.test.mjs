@@ -34,7 +34,7 @@ describe("R65 observability guardrails", () => {
     const checkout = source("src/app/api/cart/checkout/single/route.ts");
     assert.match(checkout, /logSecurityEvent\("token_rejected"/);
     assert.match(checkout, /reason: "invalid shipping rate token"/);
-    assert.match(checkout, /rateVerification\.status === 400/);
+    assert.match(checkout, /rateVerification\.status === HTTP_STATUS\.BAD_REQUEST/);
     assert.match(checkout, /tokenLength: body\.selectedRate\.token\.length/);
     assert.doesNotMatch(checkout, /token: body\.selectedRate\.token/);
 

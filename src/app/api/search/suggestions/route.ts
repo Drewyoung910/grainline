@@ -17,6 +17,114 @@ import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { normalizeDisplayNameForLookup } from "@/lib/sanitize";
 
+async function listingFuzzySuggestionRows(q: string, blockedSellerIds: string[]) {
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`
+      SELECT set_config('pg_trgm.similarity_threshold', ${String(LISTING_FUZZY_SUGGESTION_MIN_SIMILARITY)}, true)
+    `;
+    return blockedSellerIds.length > 0
+      ? tx.$queryRaw<Array<{ title: string; sim: number }>>`
+          SELECT l.title, similarity(l.title, ${q}) as sim, MAX(l."createdAt") as latest_created_at, MAX(l.id) as latest_id
+          FROM "Listing" l
+          INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
+          INNER JOIN "User" u ON u.id = sp."userId"
+          WHERE l.status = 'ACTIVE' AND l."isPrivate" = false
+            AND sp."chargesEnabled" = true
+            AND sp."vacationMode" = false
+            AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
+            AND u.banned = false
+            AND u."deletedAt" IS NULL
+            AND l.title % ${q}
+            AND similarity(l.title, ${q}) > ${LISTING_FUZZY_SUGGESTION_MIN_SIMILARITY}
+            AND l.title NOT ILIKE ${`%${q}%`}
+            AND l."sellerId" != ALL(${blockedSellerIds})
+          GROUP BY l.title
+          ORDER BY sim DESC, latest_created_at DESC, latest_id DESC
+          LIMIT 2
+        `
+      : tx.$queryRaw<Array<{ title: string; sim: number }>>`
+          SELECT l.title, similarity(l.title, ${q}) as sim, MAX(l."createdAt") as latest_created_at, MAX(l.id) as latest_id
+          FROM "Listing" l
+          INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
+          INNER JOIN "User" u ON u.id = sp."userId"
+          WHERE l.status = 'ACTIVE' AND l."isPrivate" = false
+            AND sp."chargesEnabled" = true
+            AND sp."vacationMode" = false
+            AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
+            AND u.banned = false
+            AND u."deletedAt" IS NULL
+            AND l.title % ${q}
+            AND similarity(l.title, ${q}) > ${LISTING_FUZZY_SUGGESTION_MIN_SIMILARITY}
+            AND l.title NOT ILIKE ${`%${q}%`}
+          GROUP BY l.title
+          ORDER BY sim DESC, latest_created_at DESC, latest_id DESC
+          LIMIT 2
+        `;
+  });
+}
+
+async function blogFuzzySuggestionRows(q: string, blockedSellerIds: string[]) {
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`
+      SELECT set_config('pg_trgm.similarity_threshold', ${String(BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY)}, true)
+    `;
+    return blockedSellerIds.length > 0
+      ? tx.$queryRaw<Array<{ slug: string; title: string }>>`
+          SELECT bp.slug, bp.title
+          FROM "BlogPost" bp
+          INNER JOIN "User" u ON u.id = bp."authorId"
+          LEFT JOIN "SellerProfile" sp ON sp.id = bp."sellerProfileId"
+          LEFT JOIN "User" seller_user ON seller_user.id = sp."userId"
+          WHERE bp.status = 'PUBLISHED'
+            AND bp."publishedAt" IS NOT NULL
+            AND bp."publishedAt" <= NOW()
+            AND u.banned = false
+            AND u."deletedAt" IS NULL
+            AND (
+              bp."sellerProfileId" IS NULL
+              OR (
+                sp."chargesEnabled" = true
+                AND sp."vacationMode" = false
+                AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
+                AND seller_user.banned = false
+                AND seller_user."deletedAt" IS NULL
+              )
+            )
+            AND (bp."sellerProfileId" IS NULL OR bp."sellerProfileId" != ALL(${blockedSellerIds}))
+            AND bp.title % ${q}
+            AND similarity(bp.title, ${q}) > ${BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY}
+          ORDER BY similarity(bp.title, ${q}) DESC, bp."publishedAt" DESC, bp.id DESC
+          LIMIT 3
+        `
+      : tx.$queryRaw<Array<{ slug: string; title: string }>>`
+          SELECT bp.slug, bp.title
+          FROM "BlogPost" bp
+          INNER JOIN "User" u ON u.id = bp."authorId"
+          LEFT JOIN "SellerProfile" sp ON sp.id = bp."sellerProfileId"
+          LEFT JOIN "User" seller_user ON seller_user.id = sp."userId"
+          WHERE bp.status = 'PUBLISHED'
+            AND bp."publishedAt" IS NOT NULL
+            AND bp."publishedAt" <= NOW()
+            AND u.banned = false
+            AND u."deletedAt" IS NULL
+            AND (
+              bp."sellerProfileId" IS NULL
+              OR (
+                sp."chargesEnabled" = true
+                AND sp."vacationMode" = false
+                AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
+                AND seller_user.banned = false
+                AND seller_user."deletedAt" IS NULL
+              )
+            )
+            AND bp.title % ${q}
+            AND similarity(bp.title, ${q}) > ${BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY}
+          ORDER BY similarity(bp.title, ${q}) DESC, bp."publishedAt" DESC, bp.id DESC
+          LIMIT 3
+        `;
+  });
+}
+
 export async function GET(req: NextRequest) {
   const { success, reset } = await safeRateLimit(searchRatelimit, getIP(req));
   if (!success) {
@@ -77,42 +185,7 @@ export async function GET(req: NextRequest) {
 
     // Fuzzy title suggestions via pg_trgm. Keep threshold conservative to avoid
     // surfacing weak visual/homograph matches as marketplace suggestions.
-    blockedSellerIds.length > 0
-      ? prisma.$queryRaw<Array<{ title: string; sim: number }>>`
-          SELECT l.title, similarity(l.title, ${q}) as sim, MAX(l."createdAt") as latest_created_at, MAX(l.id) as latest_id
-          FROM "Listing" l
-          INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
-          INNER JOIN "User" u ON u.id = sp."userId"
-          WHERE l.status = 'ACTIVE' AND l."isPrivate" = false
-            AND sp."chargesEnabled" = true
-            AND sp."vacationMode" = false
-            AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
-            AND u.banned = false
-            AND u."deletedAt" IS NULL
-            AND similarity(l.title, ${q}) > ${LISTING_FUZZY_SUGGESTION_MIN_SIMILARITY}
-            AND l.title NOT ILIKE ${`%${q}%`}
-            AND l."sellerId" != ALL(${blockedSellerIds})
-          GROUP BY l.title
-          ORDER BY sim DESC, latest_created_at DESC, latest_id DESC
-          LIMIT 2
-        `
-      : prisma.$queryRaw<Array<{ title: string; sim: number }>>`
-          SELECT l.title, similarity(l.title, ${q}) as sim, MAX(l."createdAt") as latest_created_at, MAX(l.id) as latest_id
-          FROM "Listing" l
-          INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
-          INNER JOIN "User" u ON u.id = sp."userId"
-          WHERE l.status = 'ACTIVE' AND l."isPrivate" = false
-            AND sp."chargesEnabled" = true
-            AND sp."vacationMode" = false
-            AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
-            AND u.banned = false
-            AND u."deletedAt" IS NULL
-            AND similarity(l.title, ${q}) > ${LISTING_FUZZY_SUGGESTION_MIN_SIMILARITY}
-            AND l.title NOT ILIKE ${`%${q}%`}
-          GROUP BY l.title
-          ORDER BY sim DESC, latest_created_at DESC, latest_id DESC
-          LIMIT 2
-        `,
+    listingFuzzySuggestionRows(q, blockedSellerIds),
   ]);
 
   // Category suggestions: if query matches a category label, include the label
@@ -124,58 +197,7 @@ export async function GET(req: NextRequest) {
   // Blog post title suggestions. Keep this raw SQL predicate equivalent to
   // publicBlogPostWhere() so global search never suggests a slug that the
   // public blog page will hide.
-  const blogRows = blockedSellerIds.length > 0
-    ? await prisma.$queryRaw<Array<{ slug: string; title: string }>>`
-        SELECT bp.slug, bp.title
-        FROM "BlogPost" bp
-        INNER JOIN "User" u ON u.id = bp."authorId"
-        LEFT JOIN "SellerProfile" sp ON sp.id = bp."sellerProfileId"
-        LEFT JOIN "User" seller_user ON seller_user.id = sp."userId"
-        WHERE bp.status = 'PUBLISHED'
-          AND bp."publishedAt" IS NOT NULL
-          AND bp."publishedAt" <= NOW()
-          AND u.banned = false
-          AND u."deletedAt" IS NULL
-          AND (
-            bp."sellerProfileId" IS NULL
-            OR (
-              sp."chargesEnabled" = true
-              AND sp."vacationMode" = false
-              AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
-              AND seller_user.banned = false
-              AND seller_user."deletedAt" IS NULL
-            )
-          )
-          AND (bp."sellerProfileId" IS NULL OR bp."sellerProfileId" != ALL(${blockedSellerIds}))
-          AND similarity(bp.title, ${q}) > ${BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY}
-        ORDER BY similarity(bp.title, ${q}) DESC, bp."publishedAt" DESC, bp.id DESC
-        LIMIT 3
-      `
-    : await prisma.$queryRaw<Array<{ slug: string; title: string }>>`
-        SELECT bp.slug, bp.title
-        FROM "BlogPost" bp
-        INNER JOIN "User" u ON u.id = bp."authorId"
-        LEFT JOIN "SellerProfile" sp ON sp.id = bp."sellerProfileId"
-        LEFT JOIN "User" seller_user ON seller_user.id = sp."userId"
-        WHERE bp.status = 'PUBLISHED'
-          AND bp."publishedAt" IS NOT NULL
-          AND bp."publishedAt" <= NOW()
-          AND u.banned = false
-          AND u."deletedAt" IS NULL
-          AND (
-            bp."sellerProfileId" IS NULL
-            OR (
-              sp."chargesEnabled" = true
-              AND sp."vacationMode" = false
-              AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
-              AND seller_user.banned = false
-              AND seller_user."deletedAt" IS NULL
-            )
-          )
-          AND similarity(bp.title, ${q}) > ${BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY}
-        ORDER BY similarity(bp.title, ${q}) DESC, bp."publishedAt" DESC, bp.id DESC
-        LIMIT 3
-      `;
+  const blogRows = await blogFuzzySuggestionRows(q, blockedSellerIds);
 
   const seen = new Set<string>();
   const suggestions: string[] = [];

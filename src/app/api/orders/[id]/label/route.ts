@@ -177,7 +177,7 @@ export async function POST(
     const { id } = await params;
 
     const { userId } = await auth();
-    if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
+    if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
     const { success, reset } = await safeRateLimit(
       labelPurchaseRatelimit,
@@ -189,7 +189,7 @@ export async function POST(
       );
 
     const authz = await ensureSellerOwnsOrder(userId, id);
-    if (!authz) return privateJson({ error: "Forbidden" }, { status: 403 });
+    if (!authz) return privateJson({ error: "Forbidden" }, { status: HTTP_STATUS.FORBIDDEN });
 
     const { order, seller } = authz;
 
@@ -203,16 +203,16 @@ export async function POST(
       if (isRequestBodyTooLargeError(e)) {
         return privateJson(
           { error: "Request body too large" },
-          { status: 413 },
+          { status: HTTP_STATUS.PAYLOAD_TOO_LARGE },
         );
       }
       if (isInvalidJsonBodyError(e)) {
-        return privateJson({ error: "Invalid JSON" }, { status: 400 });
+        return privateJson({ error: "Invalid JSON" }, { status: HTTP_STATUS.BAD_REQUEST });
       }
       if (e instanceof z.ZodError) {
         return privateJson(
           { error: "Invalid input", details: e.issues },
-          { status: 400 },
+          { status: HTTP_STATUS.BAD_REQUEST },
         );
       }
       // empty body is fine — treat as no rateObjectId
@@ -224,26 +224,26 @@ export async function POST(
     if (order.labelStatus === ("PURCHASED" as LabelStatus)) {
       return privateJson(
         { error: "Label already purchased for this order." },
-        { status: 400 },
+        { status: HTTP_STATUS.BAD_REQUEST },
       );
     }
     // Block label purchase if order has been refunded or has an open case
     if (orderHasRefundLedger(order)) {
       return privateJson(
         { error: "Cannot purchase label - order has been refunded." },
-        { status: 400 },
+        { status: HTTP_STATUS.BAD_REQUEST },
       );
     }
     if (order.sellerRefundLockedAt) {
       return privateJson(
         { error: "Cannot purchase label while a refund is being processed." },
-        { status: 409 },
+        { status: HTTP_STATUS.CONFLICT },
       );
     }
     if (order.fulfillmentMethod === "PICKUP") {
       return privateJson(
         { error: "Cannot purchase a shipping label for a pickup order." },
-        { status: 400 },
+        { status: HTTP_STATUS.BAD_REQUEST },
       );
     }
     if (order.case && ACTIVE_CASE_STATUSES.has(order.case.status)) {
@@ -251,13 +251,13 @@ export async function POST(
         {
           error: "Cannot purchase a label while this order has an active case.",
         },
-        { status: 400 },
+        { status: HTTP_STATUS.BAD_REQUEST },
       );
     }
     if (orderHasDeauthorizedSellerReviewHold(order)) {
       return privateJson(
         { error: DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE },
-        { status: 409 },
+        { status: HTTP_STATUS.CONFLICT },
       );
     }
     const terminalStatuses: FulfillmentStatus[] = [
@@ -268,7 +268,7 @@ export async function POST(
     if (terminalStatuses.includes(order.fulfillmentStatus)) {
       return privateJson(
         { error: `Order is already in ${order.fulfillmentStatus} status.` },
-        { status: 400 },
+        { status: HTTP_STATUS.BAD_REQUEST },
       );
     }
 
@@ -288,7 +288,7 @@ export async function POST(
       if (!isPurchasableRateObjectId(bodyRateObjectId)) {
         return privateJson(
           { error: "Invalid shipping rate selected." },
-          { status: 400 },
+          { status: HTTP_STATUS.BAD_REQUEST },
         );
       }
       if (storedRateUsable && bodyRateObjectId === order.shippoRateObjectId) {
@@ -305,7 +305,7 @@ export async function POST(
               error:
                 "Shipping rate expired. Re-quote before purchasing a label.",
             },
-            { status: 400 },
+            { status: HTTP_STATUS.BAD_REQUEST },
           );
         }
         effectiveRateObjectId = bodyRateObjectId;
@@ -326,7 +326,7 @@ export async function POST(
             error:
               "Order is missing shipping address fields required for re-quoting.",
           },
-          { status: 400 },
+          { status: HTTP_STATUS.BAD_REQUEST },
         );
       }
       if (
@@ -340,7 +340,7 @@ export async function POST(
             error:
               "Seller ship-from address is incomplete. Update it in seller settings.",
           },
-          { status: 400 },
+          { status: HTTP_STATUS.BAD_REQUEST },
         );
       }
 
@@ -475,7 +475,7 @@ export async function POST(
     if (labelLockResult === 0) {
       return privateJson(
         { error: "Label already purchased or order status changed." },
-        { status: 400 },
+        { status: HTTP_STATUS.BAD_REQUEST },
       );
     }
 
@@ -703,6 +703,6 @@ export async function POST(
     }
   } catch (err) {
     logServerError(err, { source: "label_purchase_route" });
-    return privateJson({ error: "Server error" }, { status: 500 });
+    return privateJson({ error: "Server error" }, { status: HTTP_STATUS.INTERNAL_SERVER_ERROR });
   }
 }

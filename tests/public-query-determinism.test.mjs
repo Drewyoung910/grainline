@@ -177,6 +177,22 @@ describe("public query determinism", () => {
     assert.match(blogSuggestions, /orderBy: \[\{ displayNameNormalized: "asc" \}, \{ id: "asc" \}\]/);
   });
 
+  it("keeps public fuzzy suggestions on indexable trigram predicates", () => {
+    const searchSuggestions = source("src/app/api/search/suggestions/route.ts");
+    const blogSuggestions = source("src/app/api/blog/search/suggestions/route.ts");
+
+    for (const text of [searchSuggestions, blogSuggestions]) {
+      assert.match(text, /set_config\('pg_trgm\.similarity_threshold'/);
+      assert.match(text, /true\)/, "trigram threshold setting should be transaction-local");
+      assert.match(text, /bp\.title % \$\{q\}/);
+      assert.match(text, /similarity\(bp\.title, \$\{q\}\) > \$\{BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY\}/);
+      assert.doesNotMatch(text, /SET\s+pg_trgm\.similarity_threshold/i);
+    }
+
+    assert.match(searchSuggestions, /l\.title % \$\{q\}/);
+    assert.match(searchSuggestions, /similarity\(l\.title, \$\{q\}\) > \$\{LISTING_FUZZY_SUGGESTION_MIN_SIMILARITY\}/);
+  });
+
   it("keeps public blog pagination stable on standard sorts", () => {
     const blogPage = source("src/app/blog/page.tsx");
     const blogSearch = source("src/app/api/blog/search/route.ts");

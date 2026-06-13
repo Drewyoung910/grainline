@@ -9,6 +9,7 @@ const { shippingRateExpiresAtIsTooFarFuture, signRate, verifyRate } = await impo
 const fields = {
   objectId: "rate_123",
   amountCents: 1299,
+  currency: "usd",
   displayName: "Ground",
   carrier: "USPS",
   estDays: 3,
@@ -33,11 +34,15 @@ describe("shipping rate tokens", () => {
     );
   });
 
-  it("rejects tampered amount, context, and postal-code fields", () => {
+  it("rejects tampered amount, currency, context, and postal-code fields", () => {
     const signed = signRate(fields, 60);
 
     assert.equal(
       verifyRate({ ...fields, amountCents: 1300 }, signed.token, signed.expiresAt).ok,
+      false,
+    );
+    assert.equal(
+      verifyRate({ ...fields, currency: "eur" }, signed.token, signed.expiresAt).ok,
       false,
     );
     assert.equal(
@@ -57,6 +62,7 @@ describe("shipping rate tokens", () => {
     assert.deepEqual(verifyRate({ ...fields, displayName: "Ground: Priority" }, signed.token, signed.expiresAt), { ok: true });
     assert.equal(verifyRate({ ...fields, displayName: "Ground" }, signed.token, signed.expiresAt).ok, false);
     assert.match(source, /JSON\.stringify\(\[/);
+    assert.match(source, /currency\.toLowerCase\(\)/);
     assert.doesNotMatch(source, /\.join\(":"\)/);
   });
 
@@ -98,5 +104,26 @@ describe("shipping rate tokens", () => {
       assert.match(source, /expiresAt: z\.number\(\)\.int\(\)\.min\(0\)\.refine/);
       assert.doesNotMatch(source, /expiresAt: z\.number\(\)\.int\(\)\.min\(0\),/);
     }
+  });
+
+  it("binds checkout shipping rates to the server-derived listing currency", () => {
+    const sellerCheckout = readFileSync("src/app/api/cart/checkout-seller/route.ts", "utf8");
+    const singleCheckout = readFileSync("src/app/api/cart/checkout/single/route.ts", "utf8");
+    const quoteRoute = readFileSync("src/app/api/shipping/quote/route.ts", "utf8");
+    const selector = readFileSync("src/components/ShippingRateSelector.tsx", "utf8");
+
+    for (const source of [sellerCheckout, singleCheckout]) {
+      assert.match(source, /currency: z\.string\(\)\.length\(3\)/);
+      assert.match(source, /body\.selectedRate\.currency\.toLowerCase\(\) !== currency/);
+      assert.match(source, /currency,/);
+      assert.doesNotMatch(source, /body\.selectedRate\.currency,/);
+    }
+
+    assert.match(quoteRoute, /let currency = DEFAULT_CURRENCY/);
+    assert.match(quoteRoute, /currency = \(cart\.items\[0\]\.listing\.currency \|\| DEFAULT_CURRENCY\)\.toLowerCase\(\)/);
+    assert.match(quoteRoute, /currency = \(listing\.currency \|\| DEFAULT_CURRENCY\)\.toLowerCase\(\)/);
+    assert.match(quoteRoute, /mixedCurrencyItem/);
+    assert.doesNotMatch(quoteRoute, /const currency = \(body\.currency/);
+    assert.match(selector, /currency: \(r\.currency \?\? DEFAULT_CURRENCY\)\.toLowerCase\(\)/);
   });
 });

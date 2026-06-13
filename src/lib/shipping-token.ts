@@ -27,6 +27,7 @@ function getSecret(): string {
 function canonicalInput(
   objectId: string,
   amountCents: number,
+  currency: string,
   displayName: string,
   carrier: string,
   estDays: number | null,
@@ -38,6 +39,7 @@ function canonicalInput(
   return JSON.stringify([
     objectId,
     amountCents,
+    currency.toLowerCase(),
     displayName,
     carrier,
     estDays,
@@ -51,6 +53,7 @@ function canonicalInput(
 export type SignedRateFields = {
   objectId: string;
   amountCents: number;
+  currency: string;
   displayName: string;
   carrier: string;
   estDays: number | null;
@@ -67,6 +70,7 @@ export function signRate(
   const input = canonicalInput(
     fields.objectId,
     fields.amountCents,
+    fields.currency,
     fields.displayName,
     fields.carrier,
     fields.estDays,
@@ -119,6 +123,7 @@ export function verifyRate(
   const expected = canonicalInput(
     fields.objectId,
     fields.amountCents,
+    fields.currency,
     fields.displayName,
     fields.carrier,
     fields.estDays,

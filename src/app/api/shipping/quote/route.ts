@@ -22,6 +22,7 @@ import {
 } from "@/lib/requestBody";
 import { z } from "zod";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 const ShippingQuoteSchema = z.object({
   mode: z.enum(["cart", "single"]).optional(),
@@ -29,7 +30,6 @@ const ShippingQuoteSchema = z.object({
   sellerId: z.string().min(1).optional().nullable(),
   listingId: z.string().min(1).optional().nullable(),
   quantity: z.number().int().min(1).max(99).optional().nullable(),
-  currency: z.string().max(3).optional().nullable(),
   // toPostal is required — it's signed into the HMAC and must match
   // what the buyer's checkout address submits. A default here would
   // cause every signature to mismatch on verification.
@@ -49,11 +49,13 @@ const SHIPPING_QUOTE_BODY_MAX_BYTES = 32 * 1024;
 
 function fallbackRate({
   amountCents,
+  currency,
   contextId,
   buyerId,
   buyerPostal,
 }: {
   amountCents: number;
+  currency: string;
   contextId: string;
   buyerId: string;
   buyerPostal: string;
@@ -62,6 +64,7 @@ function fallbackRate({
   const { token, expiresAt } = signRate({
     objectId: "fallback",
     amountCents,
+    currency,
     displayName: label,
     carrier: "fallback",
     estDays: null,
@@ -73,6 +76,7 @@ function fallbackRate({
   return {
     label,
     amountCents,
+    currency,
     carrier: "fallback",
     service: "fallback",
     estDays: null,
@@ -84,10 +88,12 @@ function fallbackRate({
 }
 
 function pickupRate({
+  currency,
   contextId,
   buyerId,
   buyerPostal,
 }: {
+  currency: string;
   contextId: string;
   buyerId: string;
   buyerPostal: string;
@@ -96,6 +102,7 @@ function pickupRate({
   const { token, expiresAt } = signRate({
     objectId: "pickup",
     amountCents: 0,
+    currency,
     displayName: label,
     carrier: "pickup",
     estDays: null,
@@ -107,6 +114,7 @@ function pickupRate({
   return {
     label,
     amountCents: 0,
+    currency,
     carrier: "pickup",
     service: "pickup",
     estDays: null,
@@ -118,39 +126,41 @@ function pickupRate({
 }
 
 function pickupOnlyResponse({
+  currency,
   contextId,
   buyerId,
   buyerPostal,
 }: {
+  currency: string;
   contextId: string;
   buyerId: string;
   buyerPostal: string;
 }) {
   return privateJson({
-    rates: [pickupRate({ contextId, buyerId, buyerPostal })],
+    rates: [pickupRate({ currency, contextId, buyerId, buyerPostal })],
     pickupOnly: true,
     warning: "This maker only has local pickup available for this address. Choose it only if you can pick up the order in person; no shipping label will be created.",
   });
 }
 
-function quoteBlockedResponse(error: string, status = 400) {
+function quoteBlockedResponse(error: string, status = HTTP_STATUS.BAD_REQUEST) {
   return privateJson({ rates: [], error }, { status });
 }
 
 /**
  * POST /api/shipping/quote
  * Body:
- *   { mode: "cart", cartId: string, sellerId?: string, currency?: string, toPostal?, toState?, toCity?, toCountry? }
+ *   { mode: "cart", cartId: string, sellerId?: string, toPostal?, toState?, toCity?, toCountry? }
  *   OR
- *   { mode: "single", listingId: string, quantity?: number, currency?: string, toPostal?, toState?, toCity?, toCountry? }
+ *   { mode: "single", listingId: string, quantity?: number, toPostal?, toState?, toCity?, toCountry? }
  *
  * Response:
- *   { rates: [{ label, amountCents, carrier?, service?, estDays?, taxBehavior? }] }
+ *   { rates: [{ label, amountCents, currency, carrier?, service?, estDays?, taxBehavior? }] }
  */
 export async function POST(req: Request) {
   try {
     const { userId } = await auth();
-    if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
+    if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
     const { success: rlOk, reset } = await safeRateLimit(shippingQuoteRatelimit, userId);
     if (!rlOk) return privateResponse(rateLimitResponse(reset, "Too many shipping quote requests."));
@@ -163,18 +173,18 @@ export async function POST(req: Request) {
       body = ShippingQuoteSchema.parse(await readBoundedJson(req, SHIPPING_QUOTE_BODY_MAX_BYTES));
     } catch (e) {
       if (isRequestBodyTooLargeError(e)) {
-        return privateJson({ error: "Request body too large" }, { status: 413 });
+        return privateJson({ error: "Request body too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
       }
       if (isInvalidJsonBodyError(e)) {
-        return privateJson({ error: "Invalid JSON" }, { status: 400 });
+        return privateJson({ error: "Invalid JSON" }, { status: HTTP_STATUS.BAD_REQUEST });
       }
       if (e instanceof z.ZodError) {
-        return privateJson({ error: "Invalid input", details: e.issues }, { status: 400 });
+        return privateJson({ error: "Invalid input", details: e.issues }, { status: HTTP_STATUS.BAD_REQUEST });
       }
       throw e;
     }
     const mode = body.mode ?? "cart";
-    const currency = (body.currency ?? DEFAULT_CURRENCY).toLowerCase();
+    let currency = DEFAULT_CURRENCY;
 
     let sellerId: string | null = null;
     let sellerAllowsPickup = false;
@@ -237,12 +247,12 @@ export async function POST(req: Request) {
           },
         });
         if (cart && cart.userId !== me.id) {
-          return privateJson({ error: "Forbidden" }, { status: 403 });
+          return privateJson({ error: "Forbidden" }, { status: HTTP_STATUS.FORBIDDEN });
         }
         if (cart && body.sellerId) {
           const sellerInCart = cart.items.some((item) => item.listing.sellerId === body.sellerId);
           if (!sellerInCart) {
-            return privateJson({ error: "sellerId not in cart" }, { status: 400 });
+            return privateJson({ error: "sellerId not in cart" }, { status: HTTP_STATUS.BAD_REQUEST });
           }
         }
       } else {
@@ -266,6 +276,14 @@ export async function POST(req: Request) {
         return privateJson({ rates: [] });
       }
       sellerId = cart.items[0].listing.sellerId;
+      currency = (cart.items[0].listing.currency || DEFAULT_CURRENCY).toLowerCase();
+
+      const mixedCurrencyItem = cart.items.find(
+        (item) => (item.listing.currency || DEFAULT_CURRENCY).toLowerCase() !== currency,
+      );
+      if (mixedCurrencyItem) {
+        return quoteBlockedResponse("Items with different currencies cannot be checked out together.");
+      }
 
       const sellerBlockedItem = cart.items.find((it) => sellerOrderBlockReason(it.listing.seller));
       if (sellerBlockedItem) {
@@ -381,6 +399,7 @@ export async function POST(req: Request) {
       if (!listing) return privateJson({ rates: [] });
 
       sellerId = listing.sellerId;
+      currency = (listing.currency || DEFAULT_CURRENCY).toLowerCase();
       const qty = Math.max(1, body.quantity ?? 1);
 
       if (listing.status !== "ACTIVE") {
@@ -462,7 +481,7 @@ export async function POST(req: Request) {
       widthCm = wi;
       heightCm = h;
     } else {
-      return privateJson({ error: "Bad mode" }, { status: 400 });
+      return privateJson({ error: "Bad mode" }, { status: HTTP_STATUS.BAD_REQUEST });
     }
 
     // contextId ties the HMAC signature to either the seller (cart)
@@ -482,13 +501,13 @@ export async function POST(req: Request) {
       !shipFrom.country
     ) {
       if (sellerAllowsPickup) {
-        return pickupOnlyResponse({ contextId, buyerId: me.id, buyerPostal: shipTo.postal });
+        return pickupOnlyResponse({ currency, contextId, buyerId: me.id, buyerPostal: shipTo.postal });
       }
       return privateJson({ rates: [] });
     }
     if (!totalWeightGrams || !lengthCm || !widthCm || !heightCm) {
       if (sellerAllowsPickup) {
-        return pickupOnlyResponse({ contextId, buyerId: me.id, buyerPostal: shipTo.postal });
+        return pickupOnlyResponse({ currency, contextId, buyerId: me.id, buyerPostal: shipTo.postal });
       }
       return privateJson({ rates: [] });
     }
@@ -555,6 +574,7 @@ export async function POST(req: Request) {
         rates: [
           fallbackRate({
             amountCents: safeFallbackShippingCents(fallbackShippingCents),
+            currency,
             contextId,
             buyerId: me.id,
             buyerPostal: shipTo.postal,
@@ -573,7 +593,7 @@ export async function POST(req: Request) {
     });
     if (filtered.blockedByCarrierPreference) {
       if (sellerAllowsPickup) {
-        return pickupOnlyResponse({ contextId, buyerId: me.id, buyerPostal: shipTo.postal });
+        return pickupOnlyResponse({ currency, contextId, buyerId: me.id, buyerPostal: shipTo.postal });
       }
       return privateJson({
         rates: [],
@@ -596,6 +616,7 @@ export async function POST(req: Request) {
         const { token, expiresAt } = signRate({
           objectId: objectId ?? "",
           amountCents,
+          currency,
           displayName: label,
           carrier,
           estDays,
@@ -607,6 +628,7 @@ export async function POST(req: Request) {
         return {
           label,
           amountCents,
+          currency,
           carrier,
           service,
           estDays,
@@ -634,6 +656,7 @@ export async function POST(req: Request) {
       out.push(
         fallbackRate({
           amountCents: safeFallbackShippingCents(fallbackShippingCents),
+          currency,
           contextId,
           buyerId: me.id,
           buyerPostal: shipTo.postal,
@@ -645,7 +668,7 @@ export async function POST(req: Request) {
 
     // Local pickup option — injected as a synthetic rate if seller allows it
     if (sellerAllowsPickup) {
-      out.unshift(pickupRate({ contextId, buyerId: me.id, buyerPostal: shipTo.postal }));
+      out.unshift(pickupRate({ currency, contextId, buyerId: me.id, buyerPostal: shipTo.postal }));
     }
 
     return privateJson({

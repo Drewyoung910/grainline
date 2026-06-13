@@ -126,7 +126,7 @@ describe("authenticated JSON mutation body bounds", () => {
       assert.match(text, new RegExp(`const ${route.maxBytesConst} = `));
       assert.match(text, new RegExp(`readBoundedJson\\(${route.requestName}, ${route.maxBytesConst}\\)`));
       assert.match(text, /isRequestBodyTooLargeError/);
-      assert.match(text, /status: 413/);
+      assert.match(text, /status: (?:413|HTTP_STATUS\.PAYLOAD_TOO_LARGE)/);
       assert.doesNotMatch(text, /await (?:req|request)\.json\(\)(?:\.catch)?/);
     });
   }

@@ -7,7 +7,7 @@ describe("seller refund route source-order guardrails", () => {
     const source = readFileSync("src/app/api/orders/[id]/refund/route.ts", "utf8");
 
     const ownershipCheck = source.search(
-      /if \(!allItemsBelongToSeller\)\s*return privateJson\(\{ error: "Forbidden\." \}, \{ status: 403 \}\);/,
+      /if \(!allItemsBelongToSeller\)\s*return privateJson\(\{ error: "Forbidden\." \}, \{ status: HTTP_STATUS\.FORBIDDEN \}\);/,
     );
     const lockRelease = "const staleLocksReleased = await releaseStaleRefundLocks(orderId);";
     const disputeCheck = "const latestDispute = await prisma.orderPaymentEvent.findFirst";

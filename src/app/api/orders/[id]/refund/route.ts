@@ -48,6 +48,7 @@ import {
 } from "@/lib/requestBody";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
@@ -79,7 +80,7 @@ export async function POST(
     const { id: orderId } = await params;
 
     const { userId } = await auth();
-    if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
+    if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
     const { success, reset } = await safeRateLimit(refundRatelimit, userId);
     if (!success)
@@ -98,16 +99,16 @@ export async function POST(
       if (isRequestBodyTooLargeError(e)) {
         return privateJson(
           { error: "Request body too large" },
-          { status: 413 },
+          { status: HTTP_STATUS.PAYLOAD_TOO_LARGE },
         );
       }
       if (isInvalidJsonBodyError(e)) {
-        return privateJson({ error: "Invalid JSON" }, { status: 400 });
+        return privateJson({ error: "Invalid JSON" }, { status: HTTP_STATUS.BAD_REQUEST });
       }
       if (e instanceof z.ZodError) {
         return privateJson(
           { error: "Invalid input", details: e.issues },
-          { status: 400 },
+          { status: HTTP_STATUS.BAD_REQUEST },
         );
       }
       throw e;
@@ -124,7 +125,7 @@ export async function POST(
           error:
             "Full refunds restore eligible stock automatically. Use restoreStock only for partial refunds.",
         },
-        { status: 400 },
+        { status: HTTP_STATUS.BAD_REQUEST },
       );
     }
 
@@ -134,7 +135,7 @@ export async function POST(
           error:
             "amountCents is required and must be positive for PARTIAL refunds.",
         },
-        { status: 400 },
+        { status: HTTP_STATUS.BAD_REQUEST },
       );
     }
 
@@ -143,7 +144,7 @@ export async function POST(
       where: { userId: me.id },
       select: { id: true, stripeAccountId: true },
     });
-    if (!seller) return privateJson({ error: "Forbidden." }, { status: 403 });
+    if (!seller) return privateJson({ error: "Forbidden." }, { status: HTTP_STATUS.FORBIDDEN });
 
     const order = await prisma.order.findUnique({
       where: { id: orderId },
@@ -169,13 +170,13 @@ export async function POST(
       },
     });
     if (!order)
-      return privateJson({ error: "Order not found." }, { status: 404 });
+      return privateJson({ error: "Order not found." }, { status: HTTP_STATUS.NOT_FOUND });
 
     const allItemsBelongToSeller =
       order.items.length > 0 &&
       order.items.every((it) => it.listing.sellerId === seller.id);
     if (!allItemsBelongToSeller)
-      return privateJson({ error: "Forbidden." }, { status: 403 });
+      return privateJson({ error: "Forbidden." }, { status: HTTP_STATUS.FORBIDDEN });
     const myItems = order.items;
 
     let partialStockRestores: Array<{ listingId: string; quantity: number }> =
@@ -187,7 +188,7 @@ export async function POST(
             error:
               "Stock cannot be restored after this order has shipped or been picked up.",
           },
-          { status: 400 },
+          { status: HTTP_STATUS.BAD_REQUEST },
         );
       }
       const restoreValidation = requestedRefundStockRestoreQuantities(
@@ -195,7 +196,7 @@ export async function POST(
         requestedStockRestores,
       );
       if (!restoreValidation.ok) {
-        return privateJson({ error: restoreValidation.error }, { status: 400 });
+        return privateJson({ error: restoreValidation.error }, { status: HTTP_STATUS.BAD_REQUEST });
       }
       partialStockRestores = restoreValidation.restores;
     }
@@ -220,7 +221,7 @@ export async function POST(
           error:
             "This payment has an open Stripe dispute. Resolve the dispute before issuing a seller refund.",
         },
-        { status: 409 },
+        { status: HTTP_STATUS.CONFLICT },
       );
     }
 
@@ -236,7 +237,7 @@ export async function POST(
     if (orderHasRefundLedger(orderForRefundState)) {
       return privateJson(
         { error: "A refund has already been issued for this order." },
-        { status: 400 },
+        { status: HTTP_STATUS.BAD_REQUEST },
       );
     }
     if (orderHasPurchasedLabel(order)) {
@@ -245,7 +246,7 @@ export async function POST(
           error:
             "Cannot refund this order after a shipping label has been purchased. Void or resolve the label first.",
         },
-        { status: 409 },
+        { status: HTTP_STATUS.CONFLICT },
       );
     }
 
@@ -255,7 +256,7 @@ export async function POST(
           error:
             "Order has no Stripe payment intent. Refund must be processed manually.",
         },
-        { status: 400 },
+        { status: HTTP_STATUS.BAD_REQUEST },
       );
     }
 
@@ -270,13 +271,13 @@ export async function POST(
           error:
             "amountCents is required and must be positive for PARTIAL refunds.",
         },
-        { status: 400 },
+        { status: HTTP_STATUS.BAD_REQUEST },
       );
     }
     if (partialRefundExceedsOrderTotal(type, amountCents, order)) {
       return privateJson(
         { error: "Refund amount exceeds order total." },
-        { status: 400 },
+        { status: HTTP_STATUS.BAD_REQUEST },
       );
     }
     const refundAmountDisplay = formatCurrencyCents(
@@ -548,6 +549,6 @@ export async function POST(
     if (accountResponse) return accountResponse;
 
     logServerError(err, { source: "seller_refund_route" });
-    return privateJson({ error: "Server error" }, { status: 500 });
+    return privateJson({ error: "Server error" }, { status: HTTP_STATUS.INTERNAL_SERVER_ERROR });
   }
 }

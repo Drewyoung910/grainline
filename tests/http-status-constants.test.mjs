@@ -69,4 +69,30 @@ describe("HTTP status constants", () => {
     assert.match(source("src/app/api/stripe/connect/dashboard/route.ts"), /HTTP_STATUS\.INTERNAL_SERVER_ERROR/);
     assert.match(source("src/app/api/stripe/connect/status/route.ts"), /HTTP_STATUS\.CONFLICT/);
   });
+
+  it("keeps high-signal checkout, refund, label, case, and shipping routes on named statuses", () => {
+    for (const path of [
+      "src/app/api/cart/checkout/single/route.ts",
+      "src/app/api/cart/checkout-seller/route.ts",
+      "src/app/api/orders/[id]/refund/route.ts",
+      "src/app/api/orders/[id]/label/route.ts",
+      "src/app/api/cases/[id]/resolve/route.ts",
+      "src/app/api/shipping/quote/route.ts",
+    ]) {
+      const text = source(path);
+      assert.match(text, /import \{ HTTP_STATUS \} from "@\/lib\/httpStatus"/, `${path} should import HTTP_STATUS`);
+      assert.doesNotMatch(
+        text,
+        /status: (400|401|403|404|409|413|500|502)\b|status = (400|401|403|404|409|413|500|502)\b|=== (400|401|403|404|409|413|500|502)\b/,
+        `${path} should use named statuses for local high-signal responses`,
+      );
+    }
+
+    assert.match(source("src/app/api/cart/checkout/single/route.ts"), /HTTP_STATUS\.CONFLICT/);
+    assert.match(source("src/app/api/cart/checkout-seller/route.ts"), /HTTP_STATUS\.CONFLICT/);
+    assert.match(source("src/app/api/orders/[id]/refund/route.ts"), /HTTP_STATUS\.PAYLOAD_TOO_LARGE/);
+    assert.match(source("src/app/api/orders/[id]/label/route.ts"), /HTTP_STATUS\.BAD_GATEWAY/);
+    assert.match(source("src/app/api/cases/[id]/resolve/route.ts"), /HTTP_STATUS\.INTERNAL_SERVER_ERROR/);
+    assert.match(source("src/app/api/shipping/quote/route.ts"), /HTTP_STATUS\.FORBIDDEN/);
+  });
 });

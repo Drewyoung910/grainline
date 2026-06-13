@@ -5376,7 +5376,50 @@ Last updated: 2026-06-06
      `tests/public-query-determinism.test.mjs`,
      `tests/tags.test.mjs`, and `tests/http-status-constants.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 669 findings;
+403. **Shipping-rate currency, fuzzy suggestions, and payment-status constants
+     pass** - parent-reviewed code/test/docs fixes from parallel read-only
+     agent audit plus local verification. Signed shipping-rate tokens now bind
+     `currency` in the HMAC. `/api/shipping/quote` derives that currency from
+     current cart/listing rows instead of trusting `body.currency`, rejects
+     mixed-currency seller carts before signing rates, returns currency on
+     provider/fallback/pickup rates, and both checkout routes compare the
+     selected rate currency to the server-derived listing/cart currency before
+     verifying the HMAC and creating a Stripe Checkout Session. Buy Now and
+     shipping-rate UI displays now format selected shipping rates through the
+     signed/server-derived currency instead of hard-coded dollar formatting.
+     Historical live-data reconciliation for any preexisting non-USD
+     shipping-rate/order rows remains a separate runtime evidence item.
+
+     Public listing/blog fuzzy suggestions now set
+     `pg_trgm.similarity_threshold` transaction-locally with
+     `set_config(..., true)`, add the indexable `title % q` predicate, and
+     keep the existing explicit `similarity(title, q) > threshold` filter plus
+     deterministic tie-breakers. This reduces public autocomplete query-plan
+     risk without leaking a session setting through pooled connections or
+     raising the intentionally lower blog suggestion threshold. Broader
+     EXPLAIN-dependent proof for other public joins/sorts remains open.
+
+     The checkout, seller-checkout, seller-refund, label-purchase,
+     staff-case-refund, and shipping-quote routes now use shared `HTTP_STATUS`
+     constants for local high-signal responses, extending the existing account
+     and Stripe Connect status guardrails. Read-only agents also rechecked
+     ops/security-evidence and privacy/export/retention slices:
+     Stripe/Clerk/Sentry/R2/HSTS dashboard evidence, Connect v2 loss-liability
+     sign-off, provider-side privacy actions, buyer-deletion replay proof,
+     Founding Maker live concurrency proof, public newsletter-only resubscribe
+     policy, and Vercel Analytics/Speed Insights remain external evidence,
+     runtime proof, or product/ops/legal decisions rather than current source
+     defects. Guardrails: `tests/shipping-token.test.mjs`,
+     `tests/shipping-quote-state.test.mjs`,
+     `tests/public-query-determinism.test.mjs`,
+     `tests/http-status-constants.test.mjs`,
+     `tests/authenticated-json-body-bounds.test.mjs`,
+     `tests/r65-observability-guardrails.test.mjs`,
+     `tests/refund-route-source-order.test.mjs`,
+     `tests/public-cron-search-hardening.test.mjs`, and
+     `tests/verified-audit-followups.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 673 findings;
 verified stale/false-positive: 453 findings; product/design/ops decisions
 deferred: 74 findings. Entries 361-367 add twelve fixed/reduced current-code
 or ops-documentation mismatches across webhook monitoring and email
@@ -5630,25 +5673,32 @@ account/Stripe Connect route statuses. Five approximate raw-category
 decrements are counted because the Stripe webhook, account privacy/export,
 saved-address, and public-tag-query fixes overlap remaining raw categories;
 the named-status work was consistency hardening inside an already-open
-observability/status bucket. Deferred stays flat.
+observability/status bucket. Deferred stays flat. Entry 403 adds four
+fixed/reduced current-code issues across signed shipping-rate currency binding,
+indexable fuzzy-suggestion trigram predicates, selected-rate currency UI
+formatting, and named high-signal payment/fulfillment statuses. Two
+approximate raw-category decrements are counted because shipping-rate currency
+and public-suggestion query-shape fixes overlap remaining raw categories; UI
+formatting/status constants were adjacent consistency hardening. Deferred stays
+flat.
 Remaining major categories: Stripe webhook subscription dashboard evidence,
 Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
-product designs, EXPLAIN-dependent query-plan/index validation, Stripe
-partial-refund runtime reconciliation proof, founding-maker
-permanence policy, remaining privacy/legal retention scope, remaining privacy/export
-retention decisions, cross-seller AI
-duplicate-detection product design, public/newsletter-only resubscribe policy if support wants a
-self-service path, legacy enum cleanup/data-migration decisions, partial multi-seller
-checkout continuation design, deliberate BigInt money-column modeling, live-data
-reconciliation for historical seller shipping-rate currency drift, Clerk staff
-MFA and breached-password dashboard evidence, Clerk multi-account spam dashboard
-evidence, buyer-deletion runtime replay proof,
-Founding Maker live DB concurrency proof, Sentry cron alert evidence,
-Cloudflare R2 ListBucket/public-bucket dashboard evidence, HSTS preload
-submission decision, residual lower-risk HTTP-status constants outside the
-high-signal helpers, Vercel Analytics/Speed Insights product/ops decision,
+product designs, remaining EXPLAIN-dependent query-plan/index validation
+beyond fuzzy suggestions, Stripe partial-refund runtime reconciliation proof,
+founding-maker permanence policy, remaining privacy/legal retention scope,
+remaining privacy/export retention decisions, cross-seller AI
+duplicate-detection product design, public/newsletter-only resubscribe policy
+if support wants a self-service path, legacy enum cleanup/data-migration
+decisions, partial multi-seller checkout continuation design, deliberate BigInt
+money-column modeling, live-data reconciliation for historical seller
+shipping-rate currency drift, Clerk staff MFA and breached-password dashboard
+evidence, Clerk multi-account spam dashboard evidence, buyer-deletion runtime
+replay proof, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public-bucket dashboard evidence, HSTS
+preload submission decision, residual lower-risk HTTP-status constants outside
+the high-signal helpers, Vercel Analytics/Speed Insights product/ops decision,
 remaining homepage runtime a11y proof, residual lower-risk analytics
 metrics-refresh locking/performance follow-up, and residual agent/worktree
 verification process hygiene. Approximate raw allegations left to verify from
-current max #1126: 108.
+current max #1126: 106.

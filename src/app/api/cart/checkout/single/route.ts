@@ -41,6 +41,7 @@ import { z } from "zod";
 import { APP_BASE_URL } from "@/lib/appBaseUrl";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 const CheckoutSingleSchema = z.object({
   listingId: z.string().min(1),
@@ -57,6 +58,7 @@ const CheckoutSingleSchema = z.object({
   selectedRate: z.object({
     objectId: z.string().min(1),
     amountCents: z.number().int().min(0),
+    currency: z.string().length(3),
     displayName: z.string().min(1).max(100),
     carrier: z.string().max(100),
     estDays: z.number().int().min(1).max(SHIPPING_ESTIMATED_DAYS_MAX).nullable(),
@@ -84,7 +86,7 @@ export async function POST(req: Request) {
 
   try {
     const { userId } = await auth();
-    if (!userId) return privateJson({ error: "Sign in required" }, { status: 401 });
+    if (!userId) return privateJson({ error: "Sign in required" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
     const { success, reset } = await safeRateLimit(checkoutRatelimit, userId);
     if (!success) return privateResponse(rateLimitResponse(reset, "Too many checkout attempts."));
@@ -96,19 +98,19 @@ export async function POST(req: Request) {
       body = CheckoutSingleSchema.parse(await readBoundedJson(req, CHECKOUT_BODY_MAX_BYTES));
     } catch (e) {
       if (isRequestBodyTooLargeError(e)) {
-        return privateJson({ error: "Request body too large" }, { status: 413 });
+        return privateJson({ error: "Request body too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
       }
       if (isInvalidJsonBodyError(e)) {
-        return privateJson({ error: "Invalid JSON" }, { status: 400 });
+        return privateJson({ error: "Invalid JSON" }, { status: HTTP_STATUS.BAD_REQUEST });
       }
       if (e instanceof z.ZodError) {
-        return privateJson({ error: "Invalid input", details: e.issues }, { status: 400 });
+        return privateJson({ error: "Invalid input", details: e.issues }, { status: HTTP_STATUS.BAD_REQUEST });
       }
       throw e;
     }
     const shippingAddress = normalizeCheckoutShippingAddress(body.shippingAddress);
     if (!shippingAddress.name || !shippingAddress.line1 || !shippingAddress.city) {
-      return privateJson({ error: "Shipping address is incomplete." }, { status: 400 });
+      return privateJson({ error: "Shipping address is incomplete." }, { status: HTTP_STATUS.BAD_REQUEST });
     }
 
     const listing = await prisma.listing.findUnique({
@@ -132,14 +134,14 @@ export async function POST(req: Request) {
         variantGroups: { include: { options: true } },
       },
     });
-    if (!listing) return privateJson({ error: "Listing not found" }, { status: 404 });
+    if (!listing) return privateJson({ error: "Listing not found" }, { status: HTTP_STATUS.NOT_FOUND });
 
     // Only ACTIVE listings are purchasable.
     // Blocks DRAFT, SOLD, SOLD_OUT, HIDDEN, PENDING_REVIEW, REJECTED.
     if (listing.status !== "ACTIVE") {
       return privateJson(
         { error: "This listing is not currently available." },
-        { status: 400 },
+        { status: HTTP_STATUS.BAD_REQUEST },
       );
     }
 
@@ -147,39 +149,42 @@ export async function POST(req: Request) {
     if (listing.isPrivate && listing.reservedForUserId !== me.id) {
       return privateJson(
         { error: "This listing is not available for purchase." },
-        { status: 400 },
+        { status: HTTP_STATUS.BAD_REQUEST },
       );
     }
 
     if (listing.seller.userId === me.id) {
-      return privateJson({ error: "You cannot buy your own listing." }, { status: 400 });
+      return privateJson({ error: "You cannot buy your own listing." }, { status: HTTP_STATUS.BAD_REQUEST });
     }
 
     const sellerBlockReason = sellerOrderBlockReason(listing.seller);
     if (sellerBlockReason) {
       return privateJson(
         { error: sellerOrderBlockMessage(sellerBlockReason) },
-        { status: 400 },
+        { status: HTTP_STATUS.BAD_REQUEST },
       );
     }
 
     if (listing.listingType === "MADE_TO_ORDER" && body.quantity > 1) {
       return privateJson(
         { error: "Made-to-order items can only be ordered one at a time." },
-        { status: 400 },
+        { status: HTTP_STATUS.BAD_REQUEST },
       );
     }
     if (listing.listingType === "IN_STOCK") {
       const available = listing.stockQuantity ?? 0;
       if (available <= 0) {
-        return privateJson({ error: "This item is currently out of stock." }, { status: 400 });
+        return privateJson({ error: "This item is currently out of stock." }, { status: HTTP_STATUS.BAD_REQUEST });
       }
       if (body.quantity > available) {
-        return privateJson({ error: `Only ${available} available.` }, { status: 400 });
+        return privateJson({ error: `Only ${available} available.` }, { status: HTTP_STATUS.BAD_REQUEST });
       }
     }
 
     const currency = (listing.currency || DEFAULT_CURRENCY).toLowerCase();
+    if (body.selectedRate.currency.toLowerCase() !== currency) {
+      return privateJson({ error: "Invalid shipping rate currency." }, { status: HTTP_STATUS.BAD_REQUEST });
+    }
     const sellerStripeAccountId = listing.seller.stripeAccountId || null;
     const sp = listing.seller;
 
@@ -187,7 +192,7 @@ export async function POST(req: Request) {
     if (!sellerStripeAccountId || !sp.chargesEnabled) {
       return privateJson(
         { error: "This seller is not currently accepting orders. Please try again later." },
-        { status: 400 },
+        { status: HTTP_STATUS.BAD_REQUEST },
       );
     }
 
@@ -195,7 +200,7 @@ export async function POST(req: Request) {
     if (body.giftWrapping && !listing.seller.offersGiftWrapping) {
       return privateJson(
         { error: "This seller does not offer gift wrapping." },
-        { status: 400 },
+        { status: HTTP_STATUS.BAD_REQUEST },
       );
     }
 
@@ -206,6 +211,7 @@ export async function POST(req: Request) {
       {
         objectId: body.selectedRate.objectId,
         amountCents: body.selectedRate.amountCents,
+        currency,
         displayName: body.selectedRate.displayName,
         carrier: body.selectedRate.carrier,
         estDays: body.selectedRate.estDays,
@@ -218,7 +224,7 @@ export async function POST(req: Request) {
     );
 
     if (!rateVerification.ok) {
-      if (rateVerification.status === 400) {
+      if (rateVerification.status === HTTP_STATUS.BAD_REQUEST) {
         logSecurityEvent("token_rejected", {
           userId: me.id,
           route: "/api/cart/checkout/single",
@@ -241,14 +247,14 @@ export async function POST(req: Request) {
       body.selectedVariantOptionIds,
     );
     if (!variantResolution.ok) {
-      return privateJson({ error: variantResolution.error }, { status: 400 });
+      return privateJson({ error: variantResolution.error }, { status: HTTP_STATUS.BAD_REQUEST });
     }
 
     const selectedVariantLabels = variantResolution.selectedVariantLabels;
     const selectedVariantsSnapshot = variantResolution.selectedVariantsSnapshot;
     const unitPriceCents = listing.priceCents + variantResolution.variantAdjustCents;
     if (unitPriceCents < 1) {
-      return privateJson({ error: "Variant selection results in an invalid price." }, { status: 400 });
+      return privateJson({ error: "Variant selection results in an invalid price." }, { status: HTTP_STATUS.BAD_REQUEST });
     }
 
     // Resolve shipping amount from the signed selected rate.
@@ -276,7 +282,7 @@ export async function POST(req: Request) {
     if (checkoutAmounts.belowMinimumSellerTransfer) {
       return privateJson(
         { error: "Order total is too low after fees. Minimum effective order is approximately $2." },
-        { status: 400 },
+        { status: HTTP_STATUS.BAD_REQUEST },
       );
     }
 
@@ -291,6 +297,7 @@ export async function POST(req: Request) {
       selectedRate: {
         objectId: body.selectedRate.objectId,
         amountCents: shippingAmountCents,
+        currency,
         estDays: body.selectedRate.estDays,
       },
       giftWrapping: body.giftWrapping === true,
@@ -313,7 +320,7 @@ export async function POST(req: Request) {
       }
       return privateJson(
         { error: "A checkout session is already open for this listing. Complete payment in the Stripe tab or wait up to 31 minutes for the reservation to expire." },
-        { status: 409 },
+        { status: HTTP_STATUS.CONFLICT },
       );
     }
 
@@ -334,7 +341,7 @@ export async function POST(req: Request) {
       }
       return privateJson(
         { error: "A checkout session is already being prepared. Please try again in a moment." },
-        { status: 409 },
+        { status: HTTP_STATUS.CONFLICT },
       );
     }
 
@@ -361,7 +368,7 @@ export async function POST(req: Request) {
       if (reservationError instanceof CheckoutStockReservationStockError) {
         return privateJson(
           { error: "Not enough stock available for this item." },
-          { status: 400 },
+          { status: HTTP_STATUS.BAD_REQUEST },
         );
       }
       throw reservationError;
@@ -538,7 +545,7 @@ export async function POST(req: Request) {
         }
         return privateJson(
           { error: "Checkout state changed. Please try again." },
-          { status: 409 },
+          { status: HTTP_STATUS.CONFLICT },
         );
       }
     }
@@ -572,7 +579,7 @@ export async function POST(req: Request) {
         }
         return privateJson(
           { error: "Checkout state changed. Please try again." },
-          { status: 409 },
+          { status: HTTP_STATUS.CONFLICT },
         );
       }
     } catch (lockErr) {
@@ -612,6 +619,6 @@ export async function POST(req: Request) {
       await releaseCheckoutLock(checkoutLockKeyValue);
     }
 
-    return privateJson({ error: "Server error creating checkout session" }, { status: 500 });
+    return privateJson({ error: "Server error creating checkout session" }, { status: HTTP_STATUS.INTERNAL_SERVER_ERROR });
   }
 }

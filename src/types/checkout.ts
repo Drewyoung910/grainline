@@ -11,6 +11,7 @@ export type ShippingAddress = {
 export type SelectedShippingRate = {
   objectId: string
   amountCents: number
+  currency: string
   displayName: string
   carrier: string
   estDays: number | null
