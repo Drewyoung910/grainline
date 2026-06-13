@@ -7,7 +7,7 @@ import LocalDate from "@/components/LocalDate";
 import { ensureUserForPage } from "@/lib/pageAuth";
 import { checkoutSuccessSessionIds } from "@/lib/checkoutSuccessState";
 import { publicListingPath } from "@/lib/publicPaths";
-import { DEFAULT_CURRENCY } from "@/lib/money";
+import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { orderItemsSubtotalCents, orderTotalCents as calculateOrderTotalCents } from "@/lib/orderTotals";
 import type { Metadata } from "next";
 
@@ -17,10 +17,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 function fmtMoney(cents: number, currency = DEFAULT_CURRENCY) {
-  return (cents / 100).toLocaleString("en-US", {
-    style: "currency",
-    currency: currency.toUpperCase(),
-  });
+  return formatCurrencyCents(cents, currency);
 }
 
 export default async function CheckoutSuccessPage({

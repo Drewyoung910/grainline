@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { DEFAULT_CURRENCY } from "@/lib/money";
+import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 
 type Rate = {
   label: string;
@@ -24,10 +24,7 @@ export type LabelSectionProps = {
 };
 
 function fmtMoney(cents: number, currency = DEFAULT_CURRENCY) {
-  return (cents / 100).toLocaleString("en-US", {
-    style: "currency",
-    currency: currency.toUpperCase(),
-  });
+  return formatCurrencyCents(cents, currency);
 }
 
 const TERMINAL_STATUSES = ["SHIPPED", "DELIVERED", "PICKED_UP"];

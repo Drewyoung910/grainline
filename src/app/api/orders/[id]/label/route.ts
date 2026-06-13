@@ -583,6 +583,7 @@ export async function POST(
             orderId: id,
             existingReviewNote: updated.reviewNote,
             amountCents: labelCostCents,
+            currency: order.currency,
             reason: "missing_transfer",
             shippoTransactionId: txn.object_id,
           });
@@ -624,6 +625,7 @@ export async function POST(
               orderId: id,
               existingReviewNote: updated.reviewNote,
               amountCents: labelCostCents,
+              currency: order.currency,
               reason: "stripe_reversal_failed",
               shippoTransactionId: txn.object_id,
               stripeTransferId: order.stripeTransferId,

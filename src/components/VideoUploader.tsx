@@ -3,6 +3,7 @@
 import { useState } from "react";
 import UploadButton from "@/components/R2UploadButton";
 import { emitToast } from "@/components/Toast";
+import { uploadMaxSizeMb } from "@/lib/uploadRules";
 import { uploadedFileUrl } from "@/lib/uploadedFileUrl";
 
 export default function VideoUploader({ name = "videoUrl" }: { name?: string }) {
@@ -24,7 +25,7 @@ export default function VideoUploader({ name = "videoUrl" }: { name?: string }) 
           emitToast(e.message, "error");
         }}
       />
-      <p className="text-xs text-gray-500">Optional video (max 100MB).</p>
+      <p className="text-xs text-gray-500">Optional video (max {uploadMaxSizeMb("listingVideo")}MB).</p>
 
       {url && <video src={url} controls className="w-full max-h-64 rounded border" />}
 

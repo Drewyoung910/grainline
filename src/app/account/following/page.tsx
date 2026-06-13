@@ -9,6 +9,7 @@ import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { visibleSellerProfileWhere } from "@/lib/sellerVisibility";
 import { avatarInitial } from "@/lib/avatarInitials";
+import { formatCurrencyCents } from "@/lib/money";
 
 export const metadata: Metadata = {
   title: "Makers You Follow",
@@ -135,7 +136,7 @@ export default async function FollowingPage() {
                       <div className="min-w-0">
                         <p className="text-xs font-medium text-neutral-800 truncate group-hover:underline">{s.listings[0].title}</p>
                         <p className="text-xs text-neutral-500">
-                          {(s.listings[0].priceCents / 100).toLocaleString("en-US", { style: "currency", currency: s.listings[0].currency })}
+                          {formatCurrencyCents(s.listings[0].priceCents, s.listings[0].currency)}
                         </p>
                       </div>
                     </Link>

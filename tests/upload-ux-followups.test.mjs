@@ -13,6 +13,8 @@ describe("upload UX follow-ups", () => {
     assert.equal(rules.UPLOAD_MAX_SIZES.bannerImage, 15 * 1024 * 1024);
     assert.equal(rules.UPLOAD_MAX_SIZES.blogImage, 8 * 1024 * 1024);
     assert.equal(rules.uploadMaxSizeMb("bannerImage"), "15");
+    assert.equal(rules.uploadMaxSizeMb("listingImage"), "12");
+    assert.equal(rules.uploadMaxSizeMb("listingVideo"), "128");
     assert.equal(rules.uploadMaxSizeMb("blogImage"), "8");
     assert.match(
       rules.uploadTooLargeMessage("bannerImage", 12.4 * 1024 * 1024),
@@ -46,6 +48,13 @@ describe("upload UX follow-ups", () => {
       () => rules.validateUploadFile("bannerImage", { size: 16 * 1024 * 1024, type: "image/jpeg" }, 0),
       /Shop banner must be under 15 MB/,
     );
+
+    const sellerHandbook = source("src/app/seller-handbook/page.tsx");
+    assert.match(sellerHandbook, /banner photo \(3:1, 15MB max\)/);
+    assert.doesNotMatch(sellerHandbook, /~12MB max/);
+
+    assert.match(source("src/components/ImageUploadField.tsx"), /uploadMaxSizeMb\("listingImage"\)/);
+    assert.match(source("src/components/VideoUploader.tsx"), /uploadMaxSizeMb\("listingVideo"\)/);
   });
 
   it("uses the shared upload rules on client and server upload paths", () => {

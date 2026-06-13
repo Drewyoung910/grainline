@@ -27,17 +27,14 @@ import {
   unavailableCaseMessageRecipientReason,
   unavailableCaseRecipientMessage,
 } from "@/lib/caseMessagingState";
-import { DEFAULT_CURRENCY } from "@/lib/money";
+import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import type { CaseStatus } from "@prisma/client";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 function fmtMoney(cents: number, currency = DEFAULT_CURRENCY) {
-  return (cents / 100).toLocaleString("en-US", {
-    style: "currency",
-    currency: currency.toUpperCase(),
-  });
+  return formatCurrencyCents(cents, currency);
 }
 
 function Badge({ children }: { children: React.ReactNode }) {

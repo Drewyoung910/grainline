@@ -26,6 +26,7 @@ import {
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { publicBlogAuthorPath, publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { extractBlogVideoEmbed } from "@/lib/blogVideo";
+import { formatCurrencyCents } from "@/lib/money";
 
 function visibleBlogCommentWhere(blockedUserIds: string[]) {
   return {
@@ -369,7 +370,7 @@ export default async function BlogPostPage({
                   <div className="p-3">
                     <div className="font-medium text-sm line-clamp-1">{l.title}</div>
                     <div className="text-xs text-neutral-500">
-                      {(l.priceCents / 100).toLocaleString("en-US", { style: "currency", currency: l.currency })}
+                      {formatCurrencyCents(l.priceCents, l.currency)}
                     </div>
                     <div className="text-xs text-neutral-500">{l.seller.displayName}</div>
                   </div>

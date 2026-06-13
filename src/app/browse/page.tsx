@@ -20,7 +20,7 @@ import { getPopularListingTags } from "@/lib/popularTags";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { normalizeDisplayNameForLookup, truncateText } from "@/lib/sanitize";
-import { parseMoneyInputToCents } from "@/lib/money";
+import { formatCurrencyCents, parseMoneyInputToCents } from "@/lib/money";
 import { parseBoundedDecimalParam, parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { normalizeTags } from "@/lib/tags";
 
@@ -635,7 +635,7 @@ export default async function BrowsePage({
             <Link href={publicListingPath(l.id, l.title)} className="font-medium hover:underline leading-snug">
               {l.title}
             </Link>
-            <div className="shrink-0 font-medium">${(l.priceCents / 100).toFixed(2)}</div>
+            <div className="shrink-0 font-medium">{formatCurrencyCents(l.priceCents, l.currency)}</div>
           </div>
 
           <div className="flex items-center flex-wrap gap-1.5 mt-0.5">

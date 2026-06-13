@@ -1,4 +1,5 @@
 import { sanitizeEmailOutboxError } from "./emailOutboxSanitize.ts";
+import { DEFAULT_CURRENCY, formatCurrencyCents } from "./money.ts";
 
 export type LabelClawbackFailureReason = "missing_transfer" | "stripe_reversal_failed";
 export type LabelClawbackStatus = "RETRY_PENDING" | "RETRYING" | "REVERSED" | "MANUAL_REVIEW";
@@ -14,8 +15,8 @@ const RETRY_BACKOFF_MS = [
   24 * 60 * 60 * 1000,
 ] as const;
 
-function fmtCents(cents: number) {
-  return `$${(cents / 100).toFixed(2)}`;
+function fmtCents(cents: number, currency: string | null | undefined = DEFAULT_CURRENCY) {
+  return formatCurrencyCents(cents, currency);
 }
 
 function boundedText(value: string, maxChars: number) {
@@ -32,13 +33,14 @@ export function labelClawbackErrorMessage(error: unknown) {
 
 export function labelClawbackReviewNote(opts: {
   amountCents: number;
+  currency?: string | null;
   reason: LabelClawbackFailureReason;
   shippoTransactionId?: string | null;
   stripeTransferId?: string | null;
   errorMessage?: string | null;
 }) {
   const labelRef = opts.shippoTransactionId ? `Shippo label ${opts.shippoTransactionId}` : "The purchased Shippo label";
-  const amount = fmtCents(opts.amountCents);
+  const amount = fmtCents(opts.amountCents, opts.currency);
   if (opts.reason === "missing_transfer") {
     return `${labelRef} cost ${amount}, but the order has no Stripe transfer ID. Staff must manually reconcile the label-cost deduction with the seller payout.`;
   }

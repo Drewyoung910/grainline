@@ -344,6 +344,14 @@ describe("accessibility follow-ups", () => {
     assert.match(heroMosaic, /motion-reduce:blur-none/);
     assert.match(heroMosaic, /motion-reduce:scale-100/);
     assert.match(home, /animate-bounce motion-reduce:animate-none/);
+    assert.match(home, /const hasHeroMosaic = mosaicPhotos\.length >= 12/);
+    assert.match(home, /<SearchBar variant=\{hasHeroMosaic \? "glass" : "default"\} \/>/);
+    const heroSearchStart = home.indexOf("<div className={`max-w-xl mx-auto");
+    const heroSearchEnd = home.indexOf("<Suspense>", heroSearchStart);
+    const heroSearchWrapper = home.slice(heroSearchStart, heroSearchEnd);
+    assert.match(heroSearchWrapper, /hasHeroMosaic \? "\[&_input\]:bg-white\/20/);
+    assert.match(heroSearchWrapper, /" : ""/);
+    assert.doesNotMatch(home, /className="max-w-xl mx-auto \[&_input\]:bg-white\/20/);
     assert.match(globals, /@media \(prefers-reduced-motion: reduce\)/);
     assert.match(globals, /\.animate-scroll-left,[\s\S]*\.animate-slide-down \{[\s\S]*animation: none !important/);
     assert.match(globals, /transition-duration: 0\.01ms !important/);

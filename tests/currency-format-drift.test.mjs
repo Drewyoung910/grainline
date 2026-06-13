@@ -34,4 +34,47 @@ describe("currency formatting drift guardrails", () => {
     assert.match(threadMessages, /formatCurrencyCents\(link\.priceCents, link\.currency \?\? DEFAULT_CURRENCY\)/);
     assert.doesNotMatch(threadMessages, /link\.priceCents \/ 100|toFixed\(2\)/);
   });
+
+  it("uses shared currency formatting on cart, listing, and public listing surfaces", () => {
+    const files = [
+      "src/app/cart/page.tsx",
+      "src/components/ListingPurchasePanel.tsx",
+      "src/components/VariantSelector.tsx",
+      "src/components/GiftNoteSection.tsx",
+      "src/components/BuyNowCheckoutModal.tsx",
+      "src/app/browse/page.tsx",
+      "src/app/page.tsx",
+      "src/app/blog/[slug]/page.tsx",
+      "src/app/account/following/page.tsx",
+      "src/app/checkout/success/page.tsx",
+      "src/app/dashboard/orders/[id]/page.tsx",
+      "src/app/dashboard/sales/[orderId]/page.tsx",
+      "src/components/SellerRefundPanel.tsx",
+      "src/components/LabelSection.tsx",
+      "src/app/admin/orders/page.tsx",
+    ];
+
+    for (const path of files) {
+      const text = source(path);
+      assert.match(text, /formatCurrencyCents/, path);
+      assert.doesNotMatch(text, /\/ 100\)\.(toFixed\(2\)|toLocaleString\("en-US", \{ style: "currency")/, path);
+      assert.doesNotMatch(text, /priceCents \/ 100|subtotalCents \/ 100|grandTotal \/ 100/, path);
+    }
+
+    assert.match(source("src/components/ListingPurchasePanel.tsx"), /<VariantSelector[\s\S]*?currency=\{displayCurrency\}/);
+    assert.match(source("src/components/BuyNowCheckoutModal.tsx"), /<GiftNoteSection[\s\S]*?currency=\{displayCurrency\}/);
+    assert.match(source("src/app/cart/page.tsx"), /<GiftNoteSection[\s\S]*?currency=\{g\.currency\}/);
+  });
+
+  it("keeps label clawback reconciliation notes on shared currency formatting", () => {
+    const state = source("src/lib/labelClawbackState.ts");
+    const retry = source("src/lib/labelClawbackRetry.ts");
+    const route = source("src/app/api/orders/[id]/label/route.ts");
+
+    assert.match(state, /import \{ DEFAULT_CURRENCY, formatCurrencyCents \} from "\.\/money\.ts"/);
+    assert.match(state, /formatCurrencyCents\(cents, currency\)/);
+    assert.doesNotMatch(state, /cents \/ 100|toFixed\(2\)/);
+    assert.match(retry, /currency: order\.currency/);
+    assert.match(route, /currency: order\.currency/);
+  });
 });

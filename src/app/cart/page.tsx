@@ -25,7 +25,7 @@ import { mergeAnonymousCartItemsToAccount } from "@/lib/anonymousCartMerge";
 import { notifyCartUpdated } from "@/lib/cartEvents";
 import { signInPathForRedirect } from "@/lib/internalReturnUrl";
 import { publicListingPath } from "@/lib/publicPaths";
-import { DEFAULT_CURRENCY } from "@/lib/money";
+import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { ShoppingBag } from "@/components/icons";
 
 function CartLoadingSkeleton() {
@@ -114,6 +114,7 @@ type CartItem = {
 type Group = {
   sellerId: string;
   sellerName: string;
+  currency: string;
   items: CartItem[];
   subtotalCents: number;
 };
@@ -466,6 +467,7 @@ function CartPage() {
         acc[key] = {
           sellerId: key,
           sellerName: it.listing.sellerName || "Maker",
+          currency: it.listing.currency || DEFAULT_CURRENCY,
           items: [],
           subtotalCents: 0,
         };
@@ -487,6 +489,7 @@ function CartPage() {
   const hasVariantUnavailable = items.some((i) => i.variantUnavailable);
   const hasStockExceeded = items.some((i) => i.stockExceeded);
   const hasMixedCurrencies = new Set(items.map((i) => (i.listing.currency || DEFAULT_CURRENCY).toLowerCase())).size > 1;
+  const cartCurrency = items[0]?.listing.currency || DEFAULT_CURRENCY;
   const hasBlockingCartChange = hasUnavailable || hasPriceChanged || hasVariantUnavailable || hasStockExceeded || hasMixedCurrencies;
 
   // Render seller item list (used in review and shipping steps)
@@ -499,7 +502,7 @@ function CartPage() {
             <span className="font-medium">{g.sellerName}</span>
           </div>
           <div className="text-sm">
-            Subtotal: <span className="font-semibold">${(g.subtotalCents / 100).toFixed(2)}</span>
+            Subtotal: <span className="font-semibold">{formatCurrencyCents(g.subtotalCents, g.currency)}</span>
           </div>
         </header>
 
@@ -555,10 +558,10 @@ function CartPage() {
                   )}
 
                   <div className="mt-1 flex items-center gap-2 flex-wrap text-sm text-neutral-700">
-                    <span className="shrink-0">${(unitPriceCents / 100).toFixed(2)} each</span>
+                    <span className="shrink-0">{formatCurrencyCents(unitPriceCents, i.listing.currency)} each</span>
                     {i.priceChanged && !i.variantUnavailable && (
                       <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-800">
-                        Updated from ${(i.priceCents / 100).toFixed(2)}
+                        Updated from {formatCurrencyCents(i.priceCents, i.listing.currency)}
                       </span>
                     )}
 
@@ -610,7 +613,7 @@ function CartPage() {
                 </div>
 
                 <div className="text-sm font-medium shrink-0">
-                  ${(lineCents / 100).toFixed(2)}
+                  {formatCurrencyCents(lineCents, i.listing.currency)}
                 </div>
               </li>
             );
@@ -624,6 +627,7 @@ function CartPage() {
             giftWrappingPriceCents={g.items[0]?.listing.giftWrappingPriceCents ?? null}
             giftNote={giftBySeller[g.sellerId]?.giftNote ?? ""}
             giftWrapping={giftBySeller[g.sellerId]?.giftWrapping ?? false}
+            currency={g.currency}
             onChange={(note, wrapping) =>
               setGiftBySeller((prev) => ({
                 ...prev,
@@ -777,7 +781,7 @@ function CartPage() {
 
             <div className="flex items-center justify-end gap-4">
               <div className="text-sm text-neutral-600">Subtotal (items only)</div>
-              <div className="text-lg font-semibold">${(grandTotal / 100).toFixed(2)}</div>
+              <div className="text-lg font-semibold">{formatCurrencyCents(grandTotal, cartCurrency)}</div>
             </div>
 
             {hasUnavailable && (
@@ -920,13 +924,13 @@ function CartPage() {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-neutral-600">Items</span>
-                  <span className="font-medium">${(grandTotal / 100).toFixed(2)}</span>
+                  <span className="font-medium">{formatCurrencyCents(grandTotal, cartCurrency)}</span>
                 </div>
                 {groups.some((g) => giftBySeller[g.sellerId]?.giftWrapping) && (
                   <div className="flex justify-between text-sm text-neutral-600">
                     <span>Gift wrapping</span>
                     <span>
-                      ${(totalGiftWrappingCents / 100).toFixed(2)}
+                      {formatCurrencyCents(totalGiftWrappingCents, cartCurrency)}
                     </span>
                   </div>
                 )}
@@ -934,7 +938,7 @@ function CartPage() {
                   <span className="text-neutral-600">Shipping</span>
                   <span className="font-medium">
                     {allRatesSelected
-                      ? `$${(totalShippingCents / 100).toFixed(2)}`
+                      ? formatCurrencyCents(totalShippingCents, cartCurrency)
                       : "Selecting..."}
                   </span>
                 </div>
@@ -947,8 +951,8 @@ function CartPage() {
                   <span className="text-neutral-900">Estimated total</span>
                   <span className="font-semibold">
                     {allRatesSelected
-                      ? `$${((grandTotal + totalShippingCents + totalGiftWrappingCents) / 100).toFixed(2)}`
-                      : `$${((grandTotal + totalGiftWrappingCents) / 100).toFixed(2)}+`}
+                      ? formatCurrencyCents(grandTotal + totalShippingCents + totalGiftWrappingCents, cartCurrency)
+                      : `${formatCurrencyCents(grandTotal + totalGiftWrappingCents, cartCurrency)}+`}
                   </span>
                 </div>
               </div>

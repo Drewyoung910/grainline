@@ -27,6 +27,7 @@ export async function markLabelClawbackForReview(opts: {
   orderId: string;
   existingReviewNote?: string | null;
   amountCents: number;
+  currency?: string | null;
   reason: LabelClawbackFailureReason;
   shippoTransactionId?: string | null;
   stripeTransferId?: string | null;
@@ -112,6 +113,7 @@ export async function processLabelClawbackRetryBatch(opts: {
       labelCostCents: true,
       labelClawbackStatus: true,
       labelClawbackRetryCount: true,
+      currency: true,
     },
   });
 
@@ -179,6 +181,7 @@ export async function processLabelClawbackRetryBatch(opts: {
         order.reviewNote,
         labelClawbackReviewNote({
           amountCents: order.labelCostCents,
+          currency: order.currency,
           reason: "stripe_reversal_failed",
           shippoTransactionId: order.shippoTransactionId,
           stripeTransferId: order.stripeTransferId,

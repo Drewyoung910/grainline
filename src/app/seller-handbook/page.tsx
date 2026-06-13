@@ -66,7 +66,7 @@ export default function SellerHandbookPage() {
             <li>A Grainline account. Sign up at <Link href="/sign-up">/sign-up</Link>.</li>
             <li>A connected Stripe account. We use Stripe Connect for all payouts. Connect it from{" "}
               <Link href="/dashboard/seller">Shop Settings</Link>. Verification typically clears in 2 to 3 business days.</li>
-            <li>A shop profile. Add a display name, tagline, a banner photo (3:1, ~12MB max), and an avatar.
+            <li>A shop profile. Add a display name, tagline, a banner photo (3:1, 15MB max), and an avatar.
               Sellers with complete profiles get up to 3× more views than those without.</li>
           </ol>
           <p>

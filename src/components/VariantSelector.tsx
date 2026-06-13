@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState, useCallback } from "react";
+import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 
 export type VariantGroupForSelector = {
   id: string;
@@ -16,11 +17,13 @@ export type VariantGroupForSelector = {
 export default function VariantSelector({
   groups,
   basePriceCents,
+  currency = DEFAULT_CURRENCY,
   onSelectionChange,
   initialSelectedOptionIds = [],
 }: {
   groups: VariantGroupForSelector[];
   basePriceCents: number;
+  currency?: string | null;
   onSelectionChange: (selectedOptionIds: string[], totalPriceCents: number) => void;
   initialSelectedOptionIds?: string[];
 }) {
@@ -127,8 +130,8 @@ export default function VariantSelector({
                   {opt.label}
                   {opt.priceAdjustCents !== 0 && (
                     <span className="ml-1 text-xs opacity-70">
-                      {opt.priceAdjustCents > 0 ? "+" : ""}
-                      ${(opt.priceAdjustCents / 100).toFixed(2)}
+                      {opt.priceAdjustCents > 0 ? "+" : "-"}
+                      {formatCurrencyCents(Math.abs(opt.priceAdjustCents), currency)}
                     </span>
                   )}
                 </button>

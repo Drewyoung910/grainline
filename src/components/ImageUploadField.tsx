@@ -4,6 +4,7 @@
 import { useState } from "react";
 import UploadButton from "@/components/R2UploadButton";
 import { emitToast } from "@/components/Toast";
+import { uploadMaxSizeMb } from "@/lib/uploadRules";
 import { uploadedFileUrl } from "@/lib/uploadedFileUrl";
 
 export default function ImageUploadField({
@@ -49,7 +50,7 @@ export default function ImageUploadField({
 
       {!url && (
         <p className="text-xs text-gray-500 mt-1">
-          Upload an image (max 8MB). After upload finishes, a preview appears.
+          Upload an image (max {uploadMaxSizeMb("listingImage")}MB). After upload finishes, a preview appears.
         </p>
       )}
     </div>

@@ -76,6 +76,18 @@ describe("public security configuration guardrails", () => {
     assert.match(hardeningPlan, /keep `DIRECT_URL` on the migration owner role/);
   });
 
+  it("keeps durable security docs aligned with current geo, CSP, and Stripe status", () => {
+    const docs = source("CLAUDE.md");
+    const config = source("next.config.ts");
+
+    assert.match(docs, /`x-vercel-ip-country`/);
+    assert.match(docs, /Do not reintroduce an all-`\/api` bypass/);
+    assert.doesNotMatch(docs, /request\.geo\?\.country/);
+    assert.match(docs, /Apple Pay domain registration is complete/);
+    assert.match(docs, /legacy UploadThing\/UTFS origins/);
+    assert.match(config, /media-src 'self' \$\{r2PublicOrigins\} \$\{r2ApiOrigin\} https:\/\/utfs\.io/);
+  });
+
   it("keeps refund panel docs on the current orderTotalCents prop", () => {
     const docs = source("CLAUDE.md");
 

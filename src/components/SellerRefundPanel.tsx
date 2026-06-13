@@ -1,7 +1,7 @@
 // src/components/SellerRefundPanel.tsx
 "use client";
 import * as React from "react";
-import { DEFAULT_CURRENCY, parseMoneyInputToCents } from "@/lib/money";
+import { DEFAULT_CURRENCY, formatCurrencyCents, parseMoneyInputToCents } from "@/lib/money";
 
 type Props = {
   orderId: string;
@@ -22,10 +22,7 @@ type RestorableRefundItem = {
 };
 
 function fmtMoney(cents: number, currency = DEFAULT_CURRENCY) {
-  return (cents / 100).toLocaleString("en-US", {
-    style: "currency",
-    currency: currency.toUpperCase(),
-  });
+  return formatCurrencyCents(cents, currency);
 }
 
 function parseRestoreQuantity(value: string) {

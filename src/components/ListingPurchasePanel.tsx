@@ -10,7 +10,7 @@ import { Gift } from "./icons";
 import { publicListingPath } from "@/lib/publicPaths";
 import { signUpPathForRedirect } from "@/lib/internalReturnUrl";
 import { useToast } from "@/components/Toast";
-import { DEFAULT_CURRENCY } from "@/lib/money";
+import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 
 function selectedOptionIdsFromIntent(groups: VariantGroupForSelector[], rawValue: string | null) {
   if (!rawValue) return [];
@@ -95,6 +95,7 @@ export default function ListingPurchasePanel({
   const variantRequired = hasVariants;
   const variantSelectionComplete = !variantRequired || selectedOptionIds.length === variantGroups.length;
   const canPurchase = canBuy && sellerAcceptingNewOrders;
+  const displayCurrency = currency ?? DEFAULT_CURRENCY;
   const selectedVariantLabels = useMemo(() => {
     const selected = new Set(selectedOptionIds);
     return variantGroups.flatMap((group) => {
@@ -126,10 +127,10 @@ export default function ListingPurchasePanel({
       {/* Price + rating */}
       <div className="flex min-w-0 flex-wrap items-center gap-3">
         <div className="min-w-0 text-3xl font-semibold">
-          ${(totalPriceCents / 100).toFixed(2)}
+          {formatCurrencyCents(totalPriceCents, displayCurrency)}
           {hasVariants && totalPriceCents !== basePriceCents && (
             <span className="text-base font-normal text-neutral-500 ml-2 line-through">
-              ${(basePriceCents / 100).toFixed(2)}
+              {formatCurrencyCents(basePriceCents, displayCurrency)}
             </span>
           )}
         </div>
@@ -147,6 +148,7 @@ export default function ListingPurchasePanel({
         <VariantSelector
           groups={variantGroups}
           basePriceCents={basePriceCents}
+          currency={displayCurrency}
           onSelectionChange={handleSelectionChange}
           initialSelectedOptionIds={intentSelectedOptionIds}
         />
@@ -194,7 +196,7 @@ export default function ListingPurchasePanel({
               sellerName={sellerName}
               sellerId={sellerId}
               priceCents={totalPriceCents}
-              currency={currency ?? DEFAULT_CURRENCY}
+              currency={displayCurrency}
               offersGiftWrapping={offersGiftWrapping}
               giftWrappingPriceCents={giftWrappingPriceCents}
               selectedVariantOptionIds={selectedOptionIds}
@@ -233,7 +235,7 @@ export default function ListingPurchasePanel({
               imageUrl: listingImageUrl ?? null,
               variantLabels: selectedVariantLabels,
               listingType,
-              currency: currency ?? DEFAULT_CURRENCY,
+              currency: displayCurrency,
               maxQuantity: listingType === "MADE_TO_ORDER" ? 1 : stockQuantity,
               offersGiftWrapping,
               giftWrappingPriceCents,
@@ -248,7 +250,7 @@ export default function ListingPurchasePanel({
         <p className="text-xs text-neutral-500 flex items-center gap-1">
           <Gift size={13} className="text-neutral-500" /> Gift wrapping available
           {giftWrappingPriceCents
-            ? ` · $${(giftWrappingPriceCents / 100).toFixed(2)}`
+            ? ` · ${formatCurrencyCents(giftWrappingPriceCents, displayCurrency)}`
             : ""}
         </p>
       )}

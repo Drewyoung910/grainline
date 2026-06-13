@@ -27,13 +27,15 @@ describe("label clawback reconciliation state", () => {
   it("builds a bounded staff-visible note for failed Stripe reversals", () => {
     const note = labelClawbackReviewNote({
       amountCents: 2500,
+      currency: "jpy",
       reason: "stripe_reversal_failed",
       shippoTransactionId: "shippo_txn_2",
       stripeTransferId: "tr_123",
       errorMessage: "Stripe rejected the reversal",
     });
 
-    assert.match(note, /Shippo label shippo_txn_2 cost \$25\.00/);
+    assert.match(note, /Shippo label shippo_txn_2 cost ¥2,500/);
+    assert.doesNotMatch(note, /\$25\.00/);
     assert.match(note, /transfer tr_123/);
     assert.match(note, /Stripe rejected the reversal/);
     assert.match(note, /retry or manually reconcile/);

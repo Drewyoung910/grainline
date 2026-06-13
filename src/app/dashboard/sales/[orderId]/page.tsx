@@ -23,7 +23,7 @@ import { caseEscalationAvailable } from "@/lib/caseActionState";
 import { publicListingPath } from "@/lib/publicPaths";
 import { blockingRefundLedgerWhere, latestRefundLedgerEvent, orderHasRefundLedger, refundMayRestoreStock } from "@/lib/refundRouteState";
 import { orderTotalCents } from "@/lib/orderTotals";
-import { DEFAULT_CURRENCY } from "@/lib/money";
+import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import {
   DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE,
   orderHasDeauthorizedSellerReviewHold,
@@ -34,10 +34,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 function fmtMoney(cents: number, currency = DEFAULT_CURRENCY) {
-  return (cents / 100).toLocaleString("en-US", {
-    style: "currency",
-    currency: currency.toUpperCase(),
-  });
+  return formatCurrencyCents(cents, currency);
 }
 
 function Badge({ children }: { children: React.ReactNode }) {

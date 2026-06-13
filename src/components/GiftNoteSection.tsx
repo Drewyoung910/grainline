@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { truncateText } from "@/lib/sanitize";
 
 export default function GiftNoteSection({
@@ -7,12 +8,14 @@ export default function GiftNoteSection({
   giftWrappingPriceCents,
   giftNote,
   giftWrapping,
+  currency = DEFAULT_CURRENCY,
   onChange,
 }: {
   offersGiftWrapping: boolean;
   giftWrappingPriceCents: number | null;
   giftNote: string;
   giftWrapping: boolean;
+  currency?: string | null;
   onChange: (note: string, wrapping: boolean) => void;
 }) {
   const [isGift, setIsGift] = useState(giftNote !== "" || giftWrapping);
@@ -59,7 +62,7 @@ export default function GiftNoteSection({
               <span>
                 Add gift wrapping
                 {giftWrappingPriceCents != null && giftWrappingPriceCents > 0
-                  ? ` (+$${(giftWrappingPriceCents / 100).toFixed(2)})`
+                  ? ` (+${formatCurrencyCents(giftWrappingPriceCents, currency)})`
                   : " (free)"}
               </span>
             </label>

@@ -5697,9 +5697,62 @@ customer-photo sitemap/customer-photo visibility, and old static-sitemap
 decrements are counted because the notification/dedup and verification-scope
 fixes overlap old raw #190/#200/H76-style allegations; the blog/review/SEO
 items were adjacent hidden findings found during parent/agent review. Deferred
-stays flat. Current running tally after Entry 404: verified fixed/reduced 679,
-verified stale/false-positive/current 461, deferred product/design/ops/legal
-74, approximate raw allegations left from current max #1126: 103.
+stays flat.
+Entry 405 adds fifteen fixed/reduced source/docs issues from the upload-image,
+homepage accessibility, money-formatting, and agent-reviewed follow-up pass.
+The durable `CLAUDE.md` crop contract now matches current `ImageCropModal`
+behavior: max 2400px long edge and JPEG quality 0.95. The seller handbook shop-profile
+checklist now states the actual 15MB banner-image limit instead of the stale
+12MB-ish copy, and `ImageUploadField` plus `VideoUploader` now derive their
+displayed listing-image and listing-video limits from `uploadRules.ts` instead
+of stale hardcoded copy. The homepage fallback hero no longer applies the dark
+mosaic hero's white search-input overrides when it renders
+`SearchBar variant="default"` on the light amber fallback background.
+
+The money-formatting sidecar found residual display-only paths that still
+hand-built USD-style strings despite existing currency fields. Listing purchase
+price, variant adjustment, and gift-wrap copy now use `formatCurrencyCents()`
+with the listing currency. Cart item, seller-subtotal, gift-wrap, shipping, and
+estimated-total rows now use the active cart/group currency while preserving
+the existing mixed-currency checkout blocker. Browse list view, homepage
+followed-maker listings, blog related listings, and account following preview
+prices now use the shared formatter. Checkout success, buyer order detail,
+seller sales detail, seller refund, label purchase, and admin orders keep their
+local `fmtMoney()` call sites but delegate to `formatCurrencyCents()`. Durable
+label-clawback review notes and retry notes now carry order currency into the
+shared formatter, including zero-decimal currencies. The sidecar reverified raw
+#1004, #1097, and #1102 as already closed/stale/current in earlier entries, so
+these hidden adjacent money-display fixes do not add stale tally or raw
+decrement.
+
+Parent verification rechecked raw #1095, #1096, #1099/#615, and #748 against current
+`main`: image uploads are bounded at 16MB before multipart parsing, `sharp()`
+uses an explicit 50MP `limitInputPixels`, and processed image uploads reject
+mismatched signatures before Sharp. Those upload allegations were already
+recorded as stale/fixed in Entry 384, so this pass does not inflate the stale
+tally or raw decrement. The ops/evidence sidecar rechecked Stripe webhook
+subscriptions, Stripe Connect v2 loss liability, Clerk/Sentry/R2 dashboard
+evidence, HSTS preload, and Vercel Analytics/Web Vitals as still external
+evidence, legal, or product/ops decisions, so deferred stays flat. The same
+ops/docs review found five stale durable `CLAUDE.md` contracts and aligned them
+with current source/docs: geo-blocking now documents `x-vercel-ip-country` and
+explicit API allowlists, notification cleanup states the 365-day unread prune
+window, Phase 7 no longer lists Apple Pay domain registration as deferred,
+legacy attachment-phishing notes point to the shared first-party URL validation
+boundary, and the CSP summary's `media-src` row now matches the R2/CDN plus
+legacy UploadThing/UTFS source configuration.
+
+Guardrails:
+`tests/form-data-body-bounds.test.mjs`, `tests/upload-ux-followups.test.mjs`,
+`tests/pr-i-media-upload-unsubscribe-followups.test.mjs`,
+`tests/accessibility-followups.test.mjs`,
+`tests/currency-format-drift.test.mjs`, `tests/money.test.mjs`,
+`tests/label-clawback-state.test.mjs`,
+`tests/public-security-config.test.mjs`, and
+`tests/retention-and-ops-followups.test.mjs`.
+Current running tally after Entry 405: verified fixed/reduced 694, verified
+stale/false-positive/current 461, deferred product/design/ops/legal 74,
+approximate raw allegations left from current max #1126: 103.
 Remaining major categories: Stripe webhook subscription dashboard evidence,
 Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine

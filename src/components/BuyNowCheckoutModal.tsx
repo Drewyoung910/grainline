@@ -349,6 +349,7 @@ export default function BuyNowCheckoutModal({
                     giftWrappingPriceCents={giftWrappingPriceCents}
                     giftNote={giftNote}
                     giftWrapping={giftWrapping}
+                    currency={displayCurrency}
                     onChange={(note, wrapping) => {
                       setGiftNote(note);
                       setGiftWrapping(wrapping);

@@ -31,6 +31,7 @@ import { publicListingPath, publicSellerPath, publicTagPath } from "@/lib/public
 import { avatarInitial } from "@/lib/avatarInitials";
 import { HOME_FEATURED_MAKER_CACHE_TAG } from "@/lib/searchCache";
 import { compareAccountFeedItemsDesc } from "@/lib/accountFeedCursor";
+import { formatCurrencyCents } from "@/lib/money";
 
 function StarsInline({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
@@ -385,6 +386,7 @@ export default async function HomePage() {
     .filter(l => l.photos.length > 0)
     .map(l => ({ url: l.photos[0].url, listingId: l.id, title: l.title }))
     .filter(item => isTrustedMediaUrl(item.url));
+  const hasHeroMosaic = mosaicPhotos.length >= 12;
 
   const mapPoints = mapRows
     .map((r) => ({
@@ -541,16 +543,16 @@ export default async function HomePage() {
 
       {/* ── Hero ───────────────────────────────────��─────────────────────── */}
       <section className={`relative flex flex-col justify-center min-h-[60vh] ${
-        mosaicPhotos.length >= 12
+        hasHeroMosaic
           ? "bg-[#1C1C1A]"
           : "bg-gradient-to-br from-amber-100 via-amber-50 to-stone-50"
       }`}>
-        {mosaicPhotos.length >= 12 && <HeroMosaic photos={mosaicPhotos} />}
+        {hasHeroMosaic && <HeroMosaic photos={mosaicPhotos} />}
         <div className="relative z-20 max-w-3xl mx-auto px-4 sm:px-6 py-16 sm:py-20 text-center space-y-6 w-full">
           <div className="flex justify-center">
             <span
               className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-medium uppercase tracking-wider ${
-                mosaicPhotos.length >= 12
+                hasHeroMosaic
                   ? "bg-white/15 text-white/90 backdrop-blur-sm ring-1 ring-white/30"
                   : "bg-white text-amber-800 ring-1 ring-amber-200"
               }`}
@@ -559,25 +561,25 @@ export default async function HomePage() {
               Made in the USA · Built in Texas
             </span>
           </div>
-          <h1 className={`text-display font-display ${mosaicPhotos.length >= 12 ? "text-white" : "text-neutral-900"}`}>
+          <h1 className={`text-display font-display ${hasHeroMosaic ? "text-white" : "text-neutral-900"}`}>
             Buy handmade.<br />Buy local. Buy quality.
           </h1>
 
-          <div className="max-w-xl mx-auto [&_input]:bg-white/20 [&_input]:backdrop-blur-sm [&_input]:border-white/30 [&_input]:text-white [&_input]:placeholder-white/60">
+          <div className={`max-w-xl mx-auto ${hasHeroMosaic ? "[&_input]:bg-white/20 [&_input]:backdrop-blur-sm [&_input]:border-white/30 [&_input]:text-white [&_input]:placeholder-white/60" : ""}`}>
             <Suspense>
-              <SearchBar variant={mosaicPhotos.length >= 12 ? "glass" : "default"} />
+              <SearchBar variant={hasHeroMosaic ? "glass" : "default"} />
             </Suspense>
           </div>
 
           {trendingTags.length > 0 && (
             <div className="flex flex-wrap justify-center gap-2 pt-1">
-              <span className={`text-xs self-center ${mosaicPhotos.length >= 12 ? "text-white/60" : "text-neutral-500"}`}>Trending:</span>
+              <span className={`text-xs self-center ${hasHeroMosaic ? "text-white/60" : "text-neutral-500"}`}>Trending:</span>
               {trendingTags.map((tag) => (
                 <Link
                   key={tag}
                   href={publicTagPath(tag)}
                   className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                    mosaicPhotos.length >= 12
+                    hasHeroMosaic
                       ? "border-white/40 bg-white/10 text-white hover:bg-white/20"
                       : "border-amber-200 bg-white text-neutral-700 hover:bg-amber-50"
                   }`}
@@ -598,7 +600,7 @@ export default async function HomePage() {
             <Link
               href="/map"
               className={`inline-flex items-center rounded-full border-2 px-6 py-3 text-sm font-medium transition-colors ${
-                mosaicPhotos.length >= 12
+                hasHeroMosaic
                   ? "border-white text-white hover:bg-white hover:text-neutral-900"
                   : "border-[#2C1F1A] bg-transparent text-[#2C1F1A] hover:bg-[#2C1F1A] hover:text-white"
               }`}
@@ -609,7 +611,7 @@ export default async function HomePage() {
         </div>
 
         {/* Scroll indicator */}
-        <div className={`absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce motion-reduce:animate-none ${mosaicPhotos.length >= 12 ? "text-white/60" : "text-neutral-500"}`}>
+        <div className={`absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce motion-reduce:animate-none ${hasHeroMosaic ? "text-white/60" : "text-neutral-500"}`}>
           <svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <path d="M6 9l6 6 6-6" />
           </svg>
@@ -684,7 +686,7 @@ export default async function HomePage() {
                       <div className="p-2">
                         <p className="text-xs font-medium text-neutral-900 truncate">{item.title}</p>
                         <p className="text-xs text-neutral-500">
-                          {(item.priceCents / 100).toLocaleString("en-US", { style: "currency", currency: item.currency })}
+                          {formatCurrencyCents(item.priceCents, item.currency)}
                         </p>
                         <p className="text-xs text-neutral-500 truncate">{item.sellerName}</p>
                       </div>
