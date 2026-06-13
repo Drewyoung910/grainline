@@ -30,6 +30,34 @@ describe("public visibility follow-ups", () => {
     assert.match(listingPage, /prisma\.listing\.findMany\(\{\s*where: publicListingWhere\(\{\s*sellerId: listing\.sellerId,\s*id: \{ not: listing\.id \},\s*\}\),/);
   });
 
+  it("applies viewer block filters to public blog comment reads", () => {
+    const blogPage = read("src/app/blog/[slug]/page.tsx");
+    const commentsRoute = read("src/app/api/blog/[slug]/comments/route.ts");
+
+    for (const [path, source] of [
+      ["blog page", blogPage],
+      ["blog comments API", commentsRoute],
+    ]) {
+      assert.match(source, /import \{ getBlockedUserIdsFor \} from "@\/lib\/blocks"/, `${path} must load viewer block state`);
+      assert.match(source, /function visibleBlogCommentWhere\(blockedUserIds: string\[\]\)/, `${path} must share comment visibility filters`);
+      assert.match(source, /author: \{ banned: false, deletedAt: null \}/, `${path} must filter inactive comment authors`);
+      assert.match(source, /authorId: \{ notIn: blockedUserIds \}/, `${path} must filter blocked comment authors`);
+      assert.match(source, /where: \{ \.\.\.commentVisibilityWhere,/, `${path} must apply comment visibility to top-level reads`);
+      assert.match(source, /where: commentVisibilityWhere/, `${path} must apply comment visibility to reply reads`);
+    }
+
+    assert.match(commentsRoute, /post\.authorId && blockedUserIds\.includes\(post\.authorId\)/);
+  });
+
+  it("keeps listing review aggregates aligned with visible review filters", () => {
+    const reviewsSection = read("src/components/ReviewsSection.tsx");
+
+    assert.match(reviewsSection, /const blockedReviewerFilter: Prisma\.ReviewWhereInput =/);
+    assert.match(reviewsSection, /const visibleReviewWhere: Prisma\.ReviewWhereInput = \{[\s\S]*listingId,[\s\S]*reviewer: \{ banned: false, deletedAt: null \},[\s\S]*\.\.\.blockedReviewerFilter,[\s\S]*\};/);
+    assert.match(reviewsSection, /prisma\.review\.aggregate\(\{\s*where: visibleReviewWhere,/);
+    assert.match(reviewsSection, /prisma\.review\.findMany\(\{\s*where: \{\s*\.\.\.visibleReviewWhere,/);
+  });
+
   it("keeps public listing-card queries on top-level select allowlists", () => {
     const browsePage = read("src/app/browse/page.tsx");
     const listingPage = read("src/app/listing/[id]/page.tsx");

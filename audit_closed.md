@@ -5681,6 +5681,25 @@ approximate raw-category decrements are counted because shipping-rate currency
 and public-suggestion query-shape fixes overlap remaining raw categories; UI
 formatting/status constants were adjacent consistency hardening. Deferred stays
 flat.
+Entry 404 adds six fixed/reduced current-code/docs issues across durable
+source/action notification deduplication, Guild verification notification
+scopes, public blog comment viewer-block filtering on page and API reads,
+listing review aggregate/list visibility alignment, and route-specific legal
+sitemap lastmod values. It also records eight stale/current-source
+classifications from parent/agent rechecks: blog republish fanout spam is
+blocked by first-publish semantics and stale write guards; listing republish
+fanout is 30-day gated; admin blog comment approval already uses one-shot
+approval plus comment-scoped dedup; verification application/support intake
+are rate-limited and body-bounded; banned/deleted users are blocked from the
+reviewed follow/favorite/report/message mutations; seller JSON-LD geo,
+customer-photo sitemap/customer-photo visibility, and old static-sitemap
+`new Date()` claims are already fixed/current. Three approximate raw-category
+decrements are counted because the notification/dedup and verification-scope
+fixes overlap old raw #190/#200/H76-style allegations; the blog/review/SEO
+items were adjacent hidden findings found during parent/agent review. Deferred
+stays flat. Current running tally after Entry 404: verified fixed/reduced 679,
+verified stale/false-positive/current 461, deferred product/design/ops/legal
+74, approximate raw allegations left from current max #1126: 103.
 Remaining major categories: Stripe webhook subscription dashboard evidence,
 Stripe Connect v2 loss-liability ops/legal decision, stale
 remote branch and old git author hygiene, Round 10 deferred cache/state-machine
@@ -5700,5 +5719,4 @@ preload submission decision, residual lower-risk HTTP-status constants outside
 the high-signal helpers, Vercel Analytics/Speed Insights product/ops decision,
 remaining homepage runtime a11y proof, residual lower-risk analytics
 metrics-refresh locking/performance follow-up, and residual agent/worktree
-verification process hygiene. Approximate raw allegations left to verify from
-current max #1126: 106.
+verification process hygiene.

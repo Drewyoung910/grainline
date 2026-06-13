@@ -13,9 +13,9 @@ export function notificationDedupKey({
   dedupScope?: string | null;
   date?: Date;
 }) {
-  const bucket = date.toISOString().slice(0, 10);
-  const parts = [bucket, userId, type, link ?? ""];
-  if (dedupScope) parts.push(dedupScope);
+  const parts = dedupScope
+    ? [userId, type, link ?? "", dedupScope]
+    : [date.toISOString().slice(0, 10), userId, type, link ?? ""];
 
   return createHash("sha256")
     .update(parts.join("\u001f"))

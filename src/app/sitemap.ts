@@ -19,6 +19,8 @@ import { sitemapSourceCounts } from "@/lib/sitemapSourceCounts";
 
 const BASE_URL = "https://thegrainline.com";
 const STATIC_ROUTE_LAST_MODIFIED = new Date("2026-04-30T00:00:00.000Z");
+const TERMS_ROUTE_LAST_MODIFIED = new Date("2026-06-04T00:00:00.000Z");
+const PRIVACY_ROUTE_LAST_MODIFIED = new Date("2026-04-24T00:00:00.000Z");
 const TAG_LANDING_SITEMAP_LIMIT = 100;
 const BLOG_AUTHOR_LANDING_SITEMAP_LIMIT = 100;
 const BLOG_AUTHOR_LANDING_SOURCE_LIMIT = 500;
@@ -162,8 +164,8 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
     { url: `${BASE_URL}/help/shipping-and-returns`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.5 },
     { url: `${BASE_URL}/help/trust-and-safety`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.5 },
     { url: `${BASE_URL}/become-a-maker`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.6 },
-    { url: `${BASE_URL}/terms`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.3 },
-    { url: `${BASE_URL}/privacy`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.3 },
+    { url: `${BASE_URL}/terms`, lastModified: TERMS_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.3 },
+    { url: `${BASE_URL}/privacy`, lastModified: PRIVACY_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.3 },
     { url: `${BASE_URL}/map`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "weekly", priority: 0.5 },
   ];
 

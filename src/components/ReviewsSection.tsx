@@ -87,10 +87,19 @@ export default async function ReviewsSection({
   // permanentRedirected (which strips query params + drops the sort).
   const basePath = publicListingPath(listingId, listingTitle ?? null);
   const sort = initialSort;
+  const blockedReviewerFilter: Prisma.ReviewWhereInput =
+    blockedUserIds && blockedUserIds.length > 0
+      ? { reviewerId: { notIn: blockedUserIds } }
+      : {};
+  const visibleReviewWhere: Prisma.ReviewWhereInput = {
+    listingId,
+    reviewer: { banned: false, deletedAt: null },
+    ...blockedReviewerFilter,
+  };
 
   // Aggregate
   const agg = await prisma.review.aggregate({
-    where: { listingId },
+    where: visibleReviewWhere,
     _avg: { ratingX2: true },
     _count: { _all: true },
   });
@@ -133,9 +142,8 @@ export default async function ReviewsSection({
   // Other visible reviews, bounded and ordered in the database.
   const others = await prisma.review.findMany({
     where: {
-      listingId,
+      ...visibleReviewWhere,
       ...(mine ? { id: { not: mine.id } } : {}),
-      ...(blockedUserIds && blockedUserIds.length > 0 ? { reviewerId: { notIn: blockedUserIds } } : {}),
     },
     orderBy: reviewOrderByForSort(sort),
     take: LISTING_REVIEW_DISPLAY_LIMIT,

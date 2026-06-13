@@ -17,6 +17,7 @@ import {
   isRequestBodyTooLargeError,
   readBoundedJson,
 } from "@/lib/requestBody";
+import { getBlockedUserIdsFor } from "@/lib/blocks";
 import { z } from "zod";
 
 const AUTHOR_SELECT = {
@@ -35,6 +36,14 @@ const BLOG_COMMENT_BODY_MAX_BYTES = 24 * 1024;
 
 export const runtime = "nodejs";
 
+function visibleBlogCommentWhere(blockedUserIds: string[]) {
+  return {
+    approved: true,
+    author: { banned: false, deletedAt: null },
+    ...(blockedUserIds.length > 0 ? { authorId: { notIn: blockedUserIds } } : {}),
+  };
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
@@ -44,11 +53,28 @@ export async function GET(
   const { success, reset } = await safeRateLimit(searchRatelimit, getIP(req));
   if (!success) return rateLimitResponse(reset, "Too many comment reads.");
 
-  const post = await prisma.blogPost.findFirst({ where: publicBlogPostWhere({ slug }), select: { id: true } });
+  const post = await prisma.blogPost.findFirst({
+    where: publicBlogPostWhere({ slug }),
+    select: { id: true, authorId: true },
+  });
   if (!post) return NextResponse.json({ comments: [] });
 
+  const { userId } = await auth();
+  let blockedUserIds: string[] = [];
+  if (userId) {
+    const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+    if (me) {
+      blockedUserIds = [...await getBlockedUserIdsFor(me.id)];
+      if (post.authorId && blockedUserIds.includes(post.authorId)) {
+        return NextResponse.json({ comments: [] });
+      }
+    }
+  }
+
+  const commentVisibilityWhere = visibleBlogCommentWhere(blockedUserIds);
+
   const comments = await prisma.blogComment.findMany({
-    where: { postId: post.id, approved: true, parentId: null, author: { banned: false, deletedAt: null } },
+    where: { ...commentVisibilityWhere, postId: post.id, parentId: null },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     take: TOP_LEVEL_BLOG_COMMENT_LIMIT,
     select: {
@@ -57,7 +83,7 @@ export async function GET(
       createdAt: true,
       author: { select: AUTHOR_SELECT },
       replies: {
-        where: { approved: true, author: { banned: false, deletedAt: null } },
+        where: commentVisibilityWhere,
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         take: BLOG_REPLY_COMMENT_LIMIT,
         select: {
@@ -66,7 +92,7 @@ export async function GET(
           createdAt: true,
           author: { select: AUTHOR_SELECT },
           replies: {
-            where: { approved: true, author: { banned: false, deletedAt: null } },
+            where: commentVisibilityWhere,
             orderBy: [{ createdAt: "asc" }, { id: "asc" }],
             take: BLOG_NESTED_REPLY_COMMENT_LIMIT,
             select: {

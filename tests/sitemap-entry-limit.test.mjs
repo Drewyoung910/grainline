@@ -5,6 +5,18 @@ import { describe, it } from "node:test";
 const source = readFileSync("src/app/sitemap.ts", "utf8");
 
 describe("sitemap entry limit guardrails", () => {
+  it("keeps legal-page sitemap lastmod values aligned to visible legal dates", () => {
+    const terms = readFileSync("src/app/terms/page.tsx", "utf8");
+    const privacy = readFileSync("src/app/privacy/page.tsx", "utf8");
+
+    assert.match(terms, /Last Updated: June 4, 2026/);
+    assert.match(privacy, /Last Updated: April 24, 2026/);
+    assert.match(source, /const TERMS_ROUTE_LAST_MODIFIED = new Date\("2026-06-04T00:00:00\.000Z"\)/);
+    assert.match(source, /const PRIVACY_ROUTE_LAST_MODIFIED = new Date\("2026-04-24T00:00:00\.000Z"\)/);
+    assert.match(source, /url: `\$\{BASE_URL\}\/terms`, lastModified: TERMS_ROUTE_LAST_MODIFIED/);
+    assert.match(source, /url: `\$\{BASE_URL\}\/privacy`, lastModified: PRIVACY_ROUTE_LAST_MODIFIED/);
+  });
+
   it("keeps the static base chunk bounded without packing dynamic row sources into it", () => {
     assert.match(source, /SITEMAP_ENTRY_LIMIT/);
     assert.match(source, /function assertSitemapEntryLimit/);

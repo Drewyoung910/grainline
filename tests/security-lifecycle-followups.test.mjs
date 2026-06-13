@@ -44,6 +44,26 @@ describe("security lifecycle follow-ups", () => {
     assert.match(reinstateBody, /publicSellerPath\(sellerProfileId, reinstatedSeller\.displayName\)/);
   });
 
+  it("keeps Guild verification notifications scoped to the source action", () => {
+    const page = source("src/app/admin/verification/page.tsx");
+
+    for (const [action, scope] of [
+      ["approveGuildMember", "guild-member-approve:${verificationId}"],
+      ["rejectGuildMember", "guild-member-reject:${verificationId}"],
+      ["revokeMember", "guild-member-revoke:${sellerProfileId}"],
+      ["approveGuildMaster", "guild-master-approve:${verificationId}"],
+      ["rejectGuildMaster", "guild-master-reject:${verificationId}"],
+      ["revokeMaster", "guild-master-revoke:${sellerProfileId}"],
+      ["reinstateGuildMember", "guild-member-reinstate:${sellerProfileId}"],
+    ]) {
+      assert.match(
+        functionBody(page, action),
+        new RegExp(`dedupScope: \`${scope.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\``),
+        `${action} must keep verification notifications source/action scoped`,
+      );
+    }
+  });
+
   it("surfaces stale Guild revoke and reinstatement races to admins", () => {
     const page = source("src/app/admin/verification/page.tsx");
 

@@ -27,6 +27,14 @@ import { publicListingWhere } from "@/lib/listingVisibility";
 import { publicBlogAuthorPath, publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { extractBlogVideoEmbed } from "@/lib/blogVideo";
 
+function visibleBlogCommentWhere(blockedUserIds: string[]) {
+  return {
+    approved: true,
+    author: { banned: false, deletedAt: null },
+    ...(blockedUserIds.length > 0 ? { authorId: { notIn: blockedUserIds } } : {}),
+  };
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -67,6 +75,20 @@ export default async function BlogPostPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  const { userId } = await auth();
+  let meId: string | null = null;
+  let blockedUserIdSet = new Set<string>();
+
+  if (userId) {
+    const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+    meId = me?.id ?? null;
+    if (meId) {
+      blockedUserIdSet = await getBlockedUserIdsFor(meId);
+    }
+  }
+
+  const blockedUserIds = [...blockedUserIdSet];
+  const commentVisibilityWhere = visibleBlogCommentWhere(blockedUserIds);
 
   const post = await prisma.blogPost.findFirst({
     where: publicBlogPostWhere({ slug }),
@@ -74,7 +96,7 @@ export default async function BlogPostPage({
       author: { select: { id: true, name: true, imageUrl: true, banned: true, deletedAt: true, sellerProfile: { select: { avatarImageUrl: true, displayName: true } } } },
       sellerProfile: { select: { id: true, displayName: true, avatarImageUrl: true, user: { select: { imageUrl: true } } } },
       comments: {
-        where: { approved: true, parentId: null, author: { banned: false, deletedAt: null } },
+        where: { ...commentVisibilityWhere, parentId: null },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         take: TOP_LEVEL_BLOG_COMMENT_LIMIT,
         select: {
@@ -83,7 +105,7 @@ export default async function BlogPostPage({
           createdAt: true,
           author: { select: { id: true, name: true, imageUrl: true, sellerProfile: { select: { avatarImageUrl: true } } } },
           replies: {
-            where: { approved: true, author: { banned: false, deletedAt: null } },
+            where: commentVisibilityWhere,
             orderBy: [{ createdAt: "asc" }, { id: "asc" }],
             take: BLOG_REPLY_COMMENT_LIMIT,
             select: {
@@ -92,7 +114,7 @@ export default async function BlogPostPage({
               createdAt: true,
               author: { select: { id: true, name: true, imageUrl: true, sellerProfile: { select: { avatarImageUrl: true } } } },
               replies: {
-                where: { approved: true, author: { banned: false, deletedAt: null } },
+                where: commentVisibilityWhere,
                 orderBy: [{ createdAt: "asc" }, { id: "asc" }],
                 take: BLOG_NESTED_REPLY_COMMENT_LIMIT,
                 select: {
@@ -110,22 +132,14 @@ export default async function BlogPostPage({
   });
   if (!post) return notFound();
 
-  // Auth
-  const { userId } = await auth();
-  let meId: string | null = null;
   let isSaved = false;
-  if (userId) {
-    const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
-    meId = me?.id ?? null;
-    if (meId) {
-      const blockedUserIds = await getBlockedUserIdsFor(meId);
-      if (post.author && blockedUserIds.has(post.author.id)) return notFound();
-      const savedRow = await prisma.savedBlogPost.findUnique({
-        where: { userId_blogPostId: { userId: meId, blogPostId: post.id } },
-        select: { id: true },
-      });
-      isSaved = !!savedRow;
-    }
+  if (meId) {
+    if (post.author && blockedUserIdSet.has(post.author.id)) return notFound();
+    const savedRow = await prisma.savedBlogPost.findUnique({
+      where: { userId_blogPostId: { userId: meId, blogPostId: post.id } },
+      select: { id: true },
+    });
+    isSaved = !!savedRow;
   }
 
   const htmlBody = renderBlogMarkdown(post.body);

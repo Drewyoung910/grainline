@@ -261,6 +261,7 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
     title: "You are now a Guild Member!",
     body: "Your Guild Member badge is now live on your profile",
     link: publicSellerPath(verification.sellerProfile.id, verification.sellerProfile.displayName),
+    dedupScope: `guild-member-approve:${verificationId}`,
   });
 
   if (
@@ -334,6 +335,7 @@ async function rejectGuildMember(formData: FormData) {
       title: "Guild Member application update",
       body: reviewNotes ?? "Please review your application",
       link: "/dashboard/verification",
+      dedupScope: `guild-member-reject:${verificationId}`,
     });
   }
 
@@ -423,6 +425,7 @@ async function revokeMember(_prevState: unknown, formData: FormData): Promise<Ac
       title: "Guild Member badge revoked",
       body: "Your Guild Member badge was revoked by Grainline staff.",
       link: "/dashboard/verification",
+      dedupScope: `guild-member-revoke:${sellerProfileId}`,
     });
   }
   if (
@@ -543,6 +546,7 @@ async function approveGuildMaster(_prevState: unknown, formData: FormData): Prom
     title: "You are now a Guild Master!",
     body: "Your Guild Master badge is now live on your profile",
     link: publicSellerPath(verification.sellerProfile.id, verification.sellerProfile.displayName),
+    dedupScope: `guild-master-approve:${verificationId}`,
   });
 
   if (
@@ -617,6 +621,7 @@ async function rejectGuildMaster(formData: FormData) {
       title: "Guild Master application update",
       body: reviewNotes ?? "Please review your application",
       link: "/dashboard/verification",
+      dedupScope: `guild-master-reject:${verificationId}`,
     });
   }
 
@@ -687,6 +692,7 @@ async function revokeMaster(_prevState: unknown, formData: FormData): Promise<Ac
       title: "Guild Master badge revoked",
       body: "Your Guild Master badge was revoked. Your Guild Member badge remains active.",
       link: "/dashboard/verification",
+      dedupScope: `guild-master-revoke:${sellerProfileId}`,
     });
   }
   if (
@@ -802,6 +808,7 @@ async function reinstateGuildMember(_prevState: unknown, formData: FormData): Pr
     title: "Guild Member badge reinstated",
     body: "Your Guild Member badge is live again on your profile.",
     link: publicSellerPath(sellerProfileId, reinstatedSeller.displayName),
+    dedupScope: `guild-member-reinstate:${sellerProfileId}`,
   });
 
   revalidatePath("/admin/verification");
