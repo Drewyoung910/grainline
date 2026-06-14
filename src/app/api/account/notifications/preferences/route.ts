@@ -15,6 +15,7 @@ import {
   isRequestBodyTooLargeError,
   readBoundedJson,
 } from "@/lib/requestBody";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 import { z } from "zod";
 
 const PreferencesSchema = z.object({
@@ -25,7 +26,7 @@ const NOTIFICATION_PREFERENCE_BODY_MAX_BYTES = 8 * 1024;
 
 export async function POST(request: NextRequest) {
   const { userId } = await auth();
-  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
   let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
   try {
     me = await ensureUserByClerkId(userId);
@@ -42,13 +43,13 @@ export async function POST(request: NextRequest) {
     body = PreferencesSchema.parse(await readBoundedJson(request, NOTIFICATION_PREFERENCE_BODY_MAX_BYTES));
   } catch (e) {
     if (isRequestBodyTooLargeError(e)) {
-      return privateJson({ error: "Request body too large" }, { status: 413 });
+      return privateJson({ error: "Request body too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
     }
     if (isInvalidJsonBodyError(e)) {
-      return privateJson({ error: "Invalid JSON" }, { status: 400 });
+      return privateJson({ error: "Invalid JSON" }, { status: HTTP_STATUS.BAD_REQUEST });
     }
     if (e instanceof z.ZodError) {
-      return privateJson({ error: "Invalid input", details: e.issues }, { status: 400 });
+      return privateJson({ error: "Invalid input", details: e.issues }, { status: HTTP_STATUS.BAD_REQUEST });
     }
     throw e;
   }

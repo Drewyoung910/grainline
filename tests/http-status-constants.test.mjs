@@ -11,6 +11,8 @@ describe("HTTP status constants", () => {
     const helper = source("src/lib/httpStatus.ts");
 
     for (const [name, code] of [
+      ["OK", 200],
+      ["ACCEPTED", 202],
       ["BAD_REQUEST", 400],
       ["UNAUTHORIZED", 401],
       ["FORBIDDEN", 403],
@@ -94,5 +96,28 @@ describe("HTTP status constants", () => {
     assert.match(source("src/app/api/orders/[id]/label/route.ts"), /HTTP_STATUS\.BAD_GATEWAY/);
     assert.match(source("src/app/api/cases/[id]/resolve/route.ts"), /HTTP_STATUS\.INTERNAL_SERVER_ERROR/);
     assert.match(source("src/app/api/shipping/quote/route.ts"), /HTTP_STATUS\.FORBIDDEN/);
+  });
+
+  it("keeps health and touched account routes on named statuses", () => {
+    for (const path of [
+      "src/app/api/health/route.ts",
+      "src/app/api/account/accept-terms/route.ts",
+      "src/app/api/account/feed/route.ts",
+      "src/app/api/account/notifications/preferences/route.ts",
+    ]) {
+      const text = source(path);
+      assert.match(text, /import \{ HTTP_STATUS \} from "@\/lib\/httpStatus"/, `${path} should import HTTP_STATUS`);
+      assert.doesNotMatch(
+        text,
+        /status: (200|400|401|403|404|405|409|413|429|500|502|503)\b/,
+        `${path} should use named statuses for local responses`,
+      );
+    }
+
+    assert.match(source("src/app/api/health/route.ts"), /HTTP_STATUS\.OK/);
+    assert.match(source("src/app/api/health/route.ts"), /HTTP_STATUS\.SERVICE_UNAVAILABLE/);
+    assert.match(source("src/app/api/account/accept-terms/route.ts"), /HTTP_STATUS\.PAYLOAD_TOO_LARGE/);
+    assert.match(source("src/app/api/account/notifications/preferences/route.ts"), /HTTP_STATUS\.BAD_REQUEST/);
+    assert.match(source("src/app/api/account/feed/route.ts"), /HTTP_STATUS\.UNAUTHORIZED/);
   });
 });

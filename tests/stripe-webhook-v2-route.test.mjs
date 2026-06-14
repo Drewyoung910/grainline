@@ -16,6 +16,8 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
     assert.match(route, /status: HTTP_STATUS\.INTERNAL_SERVER_ERROR/);
     assert.match(route, /return NextResponse\.json\(\{ error: "Missing Stripe signature" \}, \{ status: HTTP_STATUS\.BAD_REQUEST \}\)/);
     assert.match(route, /return NextResponse\.json\(\{ error: "Invalid signature" \}, \{ status: HTTP_STATUS\.BAD_REQUEST \}\)/);
+    assert.match(route, /sanitizeEmailOutboxError\(err\)/);
+    assert.doesNotMatch(route, /\(err as \{ message\?: string \}\)\?\.message/);
     assert.match(route, /readBoundedText\(req, STRIPE_V2_WEBHOOK_BODY_MAX_BYTES\)/);
     assert.match(route, /stripe\.parseEventNotification\(body, signature, secret\)/);
     assert.doesNotMatch(route, /STRIPE_WEBHOOK_SECRET/);

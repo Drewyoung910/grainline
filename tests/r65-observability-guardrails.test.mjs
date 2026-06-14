@@ -74,7 +74,9 @@ describe("R65 observability guardrails", () => {
 
     assert.match(signatureCatch, /Sentry\.captureException\(err, \{ tags: \{ source: "stripe_webhook_signature" \} \}\)/);
     assert.match(signatureCatch, /recordWebhookFailureSpike\(\{ webhook: "stripe", kind: "signature", status: HTTP_STATUS\.BAD_REQUEST \}\)/);
+    assert.match(signatureCatch, /sanitizeEmailOutboxError\(err\)/);
     assert.doesNotMatch(signatureCatch, /Sentry\.captureMessage\("Stripe webhook signature verification failed"/);
+    assert.doesNotMatch(signatureCatch, /\(err as \{ message\?: string \}\)\?\.message/);
   });
 
   it("feeds Resend webhook edge and handler failures into failure-spike accounting", () => {

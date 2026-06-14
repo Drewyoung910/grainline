@@ -211,9 +211,11 @@ describe("payment and fulfillment side-effect observability", () => {
 
   it("sanitizes Stripe webhook console error output before logging", () => {
     const route = source("src/app/api/stripe/webhook/route.ts");
+    const v2Route = source("src/app/api/stripe/webhook/v2/route.ts");
 
     assert.match(route, /sanitizeEmailOutboxError\(retrieveErr\)/);
     assert.match(route, /sanitizeEmailOutboxError\(err\)/);
+    assert.match(v2Route, /sanitizeEmailOutboxError\(err\)/);
     assert.doesNotMatch(
       route,
       /console\.error\("Webhook: failed to retrieve full event:", retrieveErr\)/,
@@ -221,6 +223,14 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.doesNotMatch(
       route,
       /console\.error\("Stripe webhook handler error:", err\)/,
+    );
+    assert.doesNotMatch(
+      route,
+      /console\.error\("Stripe webhook signature verification failed:", \(err as \{ message\?: string \}\)\?\.message\)/,
+    );
+    assert.doesNotMatch(
+      v2Route,
+      /console\.error\("Stripe v2 webhook signature verification failed:", \(err as \{ message\?: string \}\)\?\.message\)/,
     );
   });
 

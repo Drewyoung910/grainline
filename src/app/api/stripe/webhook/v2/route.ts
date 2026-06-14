@@ -18,6 +18,7 @@ import {
 } from "@/lib/stripeConnectV2";
 import { isStaleStripeEvent } from "@/lib/stripeWebhookState";
 import { mirrorStripeChargesEnabled } from "@/lib/stripeWebhookMirror";
+import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -80,7 +81,7 @@ export async function POST(req: Request) {
   try {
     notification = stripe.parseEventNotification(body, signature, secret) as StripeConnectV2NotificationEnvelope;
   } catch (err: unknown) {
-    console.error("Stripe v2 webhook signature verification failed:", (err as { message?: string })?.message);
+    console.error("Stripe v2 webhook signature verification failed:", sanitizeEmailOutboxError(err));
     Sentry.captureException(err, { tags: { source: "stripe_v2_webhook_signature" } });
     await recordWebhookFailureSpike({ webhook: "stripe_v2", kind: "signature", status: HTTP_STATUS.BAD_REQUEST });
     return NextResponse.json({ error: "Invalid signature" }, { status: HTTP_STATUS.BAD_REQUEST });

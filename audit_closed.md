@@ -5838,3 +5838,85 @@ the high-signal helpers, Vercel Analytics/Speed Insights product/ops decision,
 remaining homepage runtime a11y proof, residual lower-risk analytics
 metrics-refresh locking/performance follow-up, and residual agent/worktree
 verification process hygiene.
+
+Entry 407 adds eight fixed/reduced current-code/docs issues from the
+observability/status, fee-policy, and seller-analytics/Guild follow-up pass.
+Anonymous `/api/health` now uses `HTTP_STATUS.OK` /
+`HTTP_STATUS.SERVICE_UNAVAILABLE`, and the touched account-state routes
+(`accept-terms`, account feed, notification preferences) use named status
+constants for their local responses. Stripe snapshot and Stripe Connect v2
+webhook signature-failure console output now passes through
+`sanitizeEmailOutboxError()` instead of logging raw provider `.message` text,
+while preserving the existing Sentry exception and webhook failure-spike
+accounting.
+
+The public Terms gift-wrapping paragraph contradicted checkout math and the
+documented payout model by saying gift wrapping used the same platform-fee base
+as item revenue. Terms sections 4.5, 4.13, and 6.2 now state that the 5%
+platform fee applies to the item subtotal and excludes shipping, gift wrapping,
+and taxes. The visible Terms date, `CURRENT_TERMS_VERSION`, and Terms sitemap
+lastmod were bumped to 2026-06-14 so the public legal page and durable
+acceptance gate stay aligned. The new-listing publish flow now syncs
+`listingsBelowThresholdSince` when an AI-approved listing actually becomes
+ACTIVE, so a Guild Member who recovers above the active-public-listing
+threshold does not keep a stale below-threshold timestamp until another later
+listing mutation. Seller analytics cart-abandonment counts now suppress a cart
+item only when the same cart owner bought the same listing in the measured
+range; another buyer's purchase no longer hides a still-abandoned cart.
+Repeat-buyer rate now ignores retained/anonymized orders where `buyerId` is
+null instead of grouping all null buyers into one synthetic repeat-buyer bucket.
+
+The EXPLAIN/index sidecar found no source-only verified missing-index defect:
+old explicit browse/search/schema index allegations are current or already
+closed, while public-map, browse-radius, maker-metro, message-inbox,
+seller-sales, admin-case, similar-listing, seller-name-search, and commission
+near-me candidates still need production/staging EXPLAIN evidence before any
+index migration. The refund sidecar confirmed same-order repeated partial
+refund drain allegations are stale under the current single-refund lock/ledger
+guards and that the old full-refund tax reverse-transfer bug remains fixed, but
+actual partial-refund transfer-reversal amounts still need Stripe test-mode
+runtime proof before adding any new reconciliation record. The analytics
+sidecar also found a broader Guild metrics refresh-lock design gap; that remains
+in the existing residual metrics-refresh/performance follow-up category rather
+than being patched ad hoc in this pass.
+
+Guardrails:
+`tests/http-status-constants.test.mjs`,
+`tests/public-cron-search-hardening.test.mjs`,
+`tests/r65-observability-guardrails.test.mjs`,
+`tests/payment-side-effect-observability.test.mjs`,
+`tests/stripe-webhook-v2-route.test.mjs`,
+`tests/public-fee-policy-copy.test.mjs`,
+`tests/sitemap-entry-limit.test.mjs`,
+`tests/guild-listing-edit-followups.test.mjs`,
+`tests/seller-ops-hardening.test.mjs`,
+`tests/checkout-amounts.test.mjs`,
+`tests/marketplace-refunds.test.mjs`,
+`tests/seller-analytics-refund-guardrails.test.mjs`,
+`tests/terms-acceptance-state.test.mjs`, and
+`tests/terms-acceptance-enforcement.test.mjs`.
+Current running tally after Entry 407: verified fixed/reduced 707, verified
+stale/false-positive/current 461, deferred product/design/ops/legal 74,
+approximate raw allegations left from current max #1126: 103. No approximate
+raw-category decrement is counted because these fixes were hidden adjacent
+issues or partial reductions inside already-open categories, and the agent
+rechecks kept EXPLAIN/runtime-proof items open rather than closing them.
+Remaining major categories: Stripe webhook subscription dashboard evidence,
+Stripe Connect v2 loss-liability ops/legal decision, stale remote branch and
+old git author hygiene, Round 10 deferred cache/state-machine product designs,
+remaining EXPLAIN-dependent query-plan/index validation, Stripe partial-refund
+runtime reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope, remaining privacy/export retention decisions,
+cross-seller AI duplicate-detection product design, public/newsletter-only
+resubscribe policy if support wants a self-service path, legacy enum
+cleanup/data-migration decisions, partial multi-seller checkout continuation
+design, deliberate BigInt money-column modeling, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket dashboard evidence, HSTS preload submission decision,
+residual lower-risk HTTP-status constants outside touched/high-signal routes,
+Vercel Analytics/Speed Insights product/ops decision, remaining homepage
+runtime a11y proof, residual Guild metrics refresh-lock/performance design,
+and residual agent/worktree verification process hygiene.

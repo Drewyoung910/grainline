@@ -7,6 +7,7 @@ import {
   isVerboseHealthRequest,
   type HealthCheckResult,
 } from "@/lib/healthState";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 10;
@@ -60,6 +61,6 @@ export async function GET(req: Request) {
 
   return NextResponse.json(
     healthResponsePayload(cachedHealth!, verbose, cached),
-    { status: cachedHealth!.ok ? 200 : 503 },
+    { status: cachedHealth!.ok ? HTTP_STATUS.OK : HTTP_STATUS.SERVICE_UNAVAILABLE },
   );
 }

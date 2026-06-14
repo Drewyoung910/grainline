@@ -17,6 +17,7 @@ import { accountFeedRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ra
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 const MAX_FOLLOWED_SELLERS_FOR_FEED = 1000;
 
@@ -49,7 +50,7 @@ export type FeedItem = {
 
 export async function GET(req: NextRequest) {
   const { userId } = await auth();
-  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
   let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
   try {

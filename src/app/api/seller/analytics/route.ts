@@ -226,6 +226,7 @@ export async function GET(req: Request) {
     const cartAbandonmentPromise = prisma.$queryRaw<CountRow[]>`
       SELECT COUNT(*)::bigint AS count
       FROM "CartItem" ci
+      JOIN "Cart" c ON c.id = ci."cartId"
       JOIN "Listing" l ON l.id = ci."listingId"
       WHERE l."sellerId" = ${sellerId}
         AND ci."createdAt" >= ${startDate}
@@ -235,6 +236,7 @@ export async function GET(req: Request) {
           FROM "OrderItem" oi
           JOIN "Order" o ON o.id = oi."orderId"
           WHERE oi."listingId" = ci."listingId"
+            AND o."buyerId" = c."userId"
             AND o."paidAt" IS NOT NULL
             AND o."sellerRefundId" IS NULL
             ${BLOCKING_REFUND_LEDGER_SQL}
@@ -250,6 +252,7 @@ export async function GET(req: Request) {
       JOIN "OrderItem" oi ON oi."orderId" = o.id
       JOIN "Listing" l ON l.id = oi."listingId"
       WHERE l."sellerId" = ${sellerId}
+        AND o."buyerId" IS NOT NULL
         AND o."paidAt" IS NOT NULL
         AND o."sellerRefundId" IS NULL
         ${BLOCKING_REFUND_LEDGER_SQL}

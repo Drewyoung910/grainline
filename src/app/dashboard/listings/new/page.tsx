@@ -35,6 +35,7 @@ import { revalidateListingSearchCaches } from "@/lib/searchCache";
 import { revalidateFooterMetrosCache } from "@/lib/footerMetros";
 import { backfillEmptyAltTexts } from "@/lib/photoAltTextBackfill";
 import { MAX_MANUAL_STOCK_QUANTITY } from "@/lib/stockMutationState";
+import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -421,6 +422,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
     select: { status: true },
   });
   if (finalListing?.status === "ACTIVE") {
+    await syncGuildMemberListingThreshold(seller.id);
     revalidateListingSearchCaches();
     revalidateFooterMetrosCache();
     // First active listing might earn this seller the Founding Maker badge.

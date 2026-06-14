@@ -54,10 +54,10 @@ export default function TermsPage() {
       <div className="mb-10">
         <p className="text-sm text-neutral-500 mb-2">Legal</p>
         <h1 className="text-4xl font-bold mb-2">Terms of Service</h1>
-        <p className="text-sm text-neutral-500">Last Updated: June 4, 2026</p>
+        <p className="text-sm text-neutral-500">Last Updated: June 14, 2026</p>
 
         <div className="mt-6 rounded border border-red-300 bg-red-50 px-5 py-4 text-sm text-red-900">
-          <strong>DRAFT — Under Attorney Review.</strong> Last reviewed June 4, 2026. This document
+          <strong>DRAFT — Under Attorney Review.</strong> Last reviewed June 14, 2026. This document
           is a draft and has not been finalized by legal counsel. Do not rely on this document as
           final legal advice. Consult a qualified attorney for legal advice specific to your situation.
         </div>
@@ -237,7 +237,7 @@ export default function TermsPage() {
           <h3 className="text-base font-semibold mt-6 mb-2">4.5 Fees</h3>
           <p>
             Grainline charges a platform fee of <strong>5% of the item subtotal</strong>{" "}
-            (excluding shipping and taxes). This fee is deducted before your payout via Stripe Connect.
+            (excluding shipping, gift wrapping, and taxes). This fee is deducted before your payout via Stripe Connect.
             Under Grainline&apos;s current payout model, Stripe&apos;s standard payment processing fees are
             paid by Grainline and are not separately deducted from Maker payouts. Grainline reserves the right to
             adjust its fee structure upon 30 days&apos; written notice. Fee changes apply to orders
@@ -314,8 +314,8 @@ export default function TermsPage() {
           <p>
             Makers offering gift wrapping services are solely responsible for the quality of gift
             wrapping provided. Grainline makes no representations about gift wrapping quality.
-            Gift wrapping pricing is set by and paid to the Maker and is subject to the same platform
-            fee as the underlying item.
+            Gift wrapping pricing is set by and paid to the Maker. Under Grainline&apos;s current payout
+            model, gift wrapping is not included in the platform-fee base.
           </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">4.14 Stripe Connect</h3>
@@ -565,7 +565,7 @@ export default function TermsPage() {
           <h3 className="text-base font-semibold mt-6 mb-2">6.2 Platform Fee</h3>
           <p>
             Grainline charges Makers a <strong>5% platform fee</strong> on each completed transaction
-            (calculated on the item subtotal, excluding shipping and taxes). This fee is automatically
+            (calculated on the item subtotal, excluding shipping, gift wrapping, and taxes). This fee is automatically
             deducted from the Maker&apos;s payout before transfer via Stripe Connect. Buyers are not
             charged this fee separately. Grainline reserves the right to change platform fees with
             <strong> 30 days written notice</strong> to affected Makers.

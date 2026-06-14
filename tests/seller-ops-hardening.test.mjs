@@ -217,7 +217,10 @@ describe("seller operational route hardening", () => {
     assert.match(analytics, /prisma\.favorite\.count\(\{\s*where: \{ listing: \{ sellerId \}/s);
     assert.match(analytics, /prisma\.stockNotification\.count\(\{\s*where: \{ listing: \{ sellerId \}/s);
     assert.match(analytics, /const cartAbandonmentPromise = prisma\.\$queryRaw<CountRow\[]>/);
+    assert.match(analytics, /JOIN "Cart" c ON c\.id = ci\."cartId"/);
     assert.match(analytics, /NOT EXISTS \(\s*SELECT 1\s*FROM "OrderItem" oi/s);
+    assert.match(analytics, /AND o\."buyerId" = c\."userId"/);
+    assert.match(analytics, /AND o\."buyerId" IS NOT NULL/);
     assert.match(
       analytics,
       /\(SELECT COUNT\(\*\)::bigint FROM "Favorite" f WHERE f\."listingId" = l\.id\) AS favorite_count/,

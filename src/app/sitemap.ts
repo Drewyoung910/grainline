@@ -19,7 +19,7 @@ import { sitemapSourceCounts } from "@/lib/sitemapSourceCounts";
 
 const BASE_URL = "https://thegrainline.com";
 const STATIC_ROUTE_LAST_MODIFIED = new Date("2026-04-30T00:00:00.000Z");
-const TERMS_ROUTE_LAST_MODIFIED = new Date("2026-06-04T00:00:00.000Z");
+const TERMS_ROUTE_LAST_MODIFIED = new Date("2026-06-14T00:00:00.000Z");
 const PRIVACY_ROUTE_LAST_MODIFIED = new Date("2026-04-24T00:00:00.000Z");
 const TAG_LANDING_SITEMAP_LIMIT = 100;
 const BLOG_AUTHOR_LANDING_SITEMAP_LIMIT = 100;

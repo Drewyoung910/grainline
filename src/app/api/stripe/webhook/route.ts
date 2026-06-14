@@ -215,7 +215,7 @@ export async function POST(req: Request) {
   try {
     event = stripe.webhooks.constructEvent(body, signature, secret);
   } catch (err: unknown) {
-    console.error("Stripe webhook signature verification failed:", (err as { message?: string })?.message);
+    console.error("Stripe webhook signature verification failed:", sanitizeEmailOutboxError(err));
     Sentry.captureException(err, { tags: { source: "stripe_webhook_signature" } });
     await recordWebhookFailureSpike({ webhook: "stripe", kind: "signature", status: HTTP_STATUS.BAD_REQUEST });
     return NextResponse.json({ error: "Invalid signature" }, { status: HTTP_STATUS.BAD_REQUEST });

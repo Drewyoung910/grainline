@@ -66,6 +66,7 @@ describe("guild and listing-edit audit follow-ups", () => {
 
   it("syncs Guild listing threshold from a single SQL statement", () => {
     const helper = source("src/lib/guildListingThreshold.ts");
+    const newListing = source("src/app/dashboard/listings/new/page.tsx");
     const dashboard = source("src/app/dashboard/page.tsx");
     const shopActions = source("src/app/seller/[id]/shop/actions.ts");
     const stockRoute = source("src/app/api/listings/[id]/stock/route.ts");
@@ -76,6 +77,8 @@ describe("guild and listing-edit audit follow-ups", () => {
     assert.match(helper, /COUNT\(\*\)[\s\S]*FROM "Listing" l/);
     assert.match(helper, /l\."isPrivate" = false/);
     assert.match(helper, /COALESCE\(sp\."listingsBelowThresholdSince", NOW\(\)\)/);
+    assert.match(newListing, /finalListing\?\.status === "ACTIVE"/);
+    assert.match(newListing, /syncGuildMemberListingThreshold\(seller\.id\)/);
     assert.match(dashboard, /syncGuildMemberListingThreshold\(listing\.sellerId\)/);
     assert.match(shopActions, /syncGuildMemberListingThreshold\(sellerId\)/);
     assert.match(shopActions, /syncGuildMemberListingThreshold\(listing\.sellerId\)/);
