@@ -7,6 +7,7 @@ import { truncateTextWithEllipsis } from "@/lib/sanitize";
 import type { Metadata } from "next";
 import { CATEGORY_LABELS } from "@/lib/categories";
 import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
+import { formatCommissionBudgetRange } from "@/lib/commissionBudget";
 import type { CommissionStatus } from "@prisma/client";
 
 export const metadata: Metadata = { title: "My Commission Requests", robots: { index: false, follow: false } };
@@ -118,14 +119,8 @@ export default async function MyCommissionsPage() {
 
               <div className="flex flex-wrap items-center gap-3 text-xs text-neutral-500">
                 {r.category && <span>{CATEGORY_LABELS[r.category]}</span>}
-                {(r.budgetMinCents || r.budgetMaxCents) && (
-                  <span>
-                    {r.budgetMinCents && r.budgetMaxCents
-                      ? `$${(r.budgetMinCents / 100).toFixed(0)}–$${(r.budgetMaxCents / 100).toFixed(0)}`
-                      : r.budgetMinCents
-                      ? `From $${(r.budgetMinCents / 100).toFixed(0)}`
-                      : `Up to $${(r.budgetMaxCents! / 100).toFixed(0)}`}
-                  </span>
+                {formatCommissionBudgetRange(r.budgetMinCents, r.budgetMaxCents) && (
+                  <span>{formatCommissionBudgetRange(r.budgetMinCents, r.budgetMaxCents)}</span>
                 )}
                 <span>
                   {new Date(r.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}

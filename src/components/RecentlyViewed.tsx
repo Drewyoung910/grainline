@@ -4,6 +4,7 @@ import Link from "next/link";
 import { getRecentlyViewed } from "@/lib/recentlyViewed";
 import { useToast } from "@/components/Toast";
 import { publicListingPath } from "@/lib/publicPaths";
+import { formatCurrencyCents } from "@/lib/money";
 
 type RecentListing = {
   id: string;
@@ -96,10 +97,7 @@ export default function RecentlyViewed() {
                 <div className="mt-2 px-0.5 space-y-0.5">
                   <div className="font-medium text-sm line-clamp-1 text-neutral-900">{l.title}</div>
                   <div className="text-sm text-neutral-500">
-                    {(l.priceCents / 100).toLocaleString("en-US", {
-                      style: "currency",
-                      currency: l.currency,
-                    })}
+                    {formatCurrencyCents(l.priceCents, l.currency)}
                   </div>
                   <div className="text-xs text-neutral-500 truncate">{l.sellerDisplayName}</div>
                 </div>

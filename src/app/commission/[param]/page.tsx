@@ -22,6 +22,8 @@ import { commissionIsExpired, openCommissionWhere } from "@/lib/commissionExpiry
 import { publicCommissionInterestWhere, resolvedInterestedCount } from "@/lib/commissionInterestCount";
 import { publicSellerPath } from "@/lib/publicPaths";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
+import { formatCurrencyMinorUnitAmount } from "@/lib/money";
+import { formatCommissionBudgetRange } from "@/lib/commissionBudget";
 
 const COMMISSION_INTEREST_DISPLAY_LIMIT = 100;
 
@@ -104,15 +106,8 @@ export async function generateMetadata({
   const title = `${req.title} — ${location} | Custom Woodworking Commission`;
 
   const budgetParts: string[] = [];
-  if (req.budgetMinCents || req.budgetMaxCents) {
-    if (req.budgetMinCents && req.budgetMaxCents) {
-      budgetParts.push(`Budget: $${(req.budgetMinCents / 100).toFixed(0)}–$${(req.budgetMaxCents / 100).toFixed(0)}`);
-    } else if (req.budgetMinCents) {
-      budgetParts.push(`Budget from $${(req.budgetMinCents / 100).toFixed(0)}`);
-    } else {
-      budgetParts.push(`Budget up to $${(req.budgetMaxCents! / 100).toFixed(0)}`);
-    }
-  }
+  const metadataBudgetRange = formatCommissionBudgetRange(req.budgetMinCents, req.budgetMaxCents);
+  if (metadataBudgetRange) budgetParts.push(`Budget: ${metadataBudgetRange}`);
   const interestedCount = resolvedInterestedCount(req);
   const interested = interestedCount > 0 ? `${interestedCount} maker${interestedCount !== 1 ? "s" : ""} interested.` : "";
   const description = [truncateText(req.description, 120), ...budgetParts, interested]
@@ -275,14 +270,8 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
                       <p className="text-sm text-neutral-600 line-clamp-2 mb-2">{c.description}</p>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-500">
                         {c.category && <span>{CATEGORY_LABELS[c.category]}</span>}
-                        {(c.budgetMinCents || c.budgetMaxCents) && (
-                          <span>
-                            {c.budgetMinCents && c.budgetMaxCents
-                              ? `$${(c.budgetMinCents / 100).toFixed(0)}–$${(c.budgetMaxCents / 100).toFixed(0)}`
-                              : c.budgetMinCents
-                              ? `From $${(c.budgetMinCents / 100).toFixed(0)}`
-                              : `Up to $${(c.budgetMaxCents! / 100).toFixed(0)}`}
-                          </span>
+                        {formatCommissionBudgetRange(c.budgetMinCents, c.budgetMaxCents) && (
+                          <span>{formatCommissionBudgetRange(c.budgetMinCents, c.budgetMaxCents)}</span>
                         )}
                         {c.timeline && <span>{c.timeline}</span>}
                         <span>by {buyerName}</span>
@@ -445,8 +434,8 @@ async function CommissionDetailPage({ id }: { id: string }) {
     "priceCurrency": "USD",
     "offerCount": interestedCount,
   };
-  if (request.budgetMinCents) offerData.lowPrice = (request.budgetMinCents / 100).toFixed(2);
-  if (request.budgetMaxCents) offerData.highPrice = (request.budgetMaxCents / 100).toFixed(2);
+  if (request.budgetMinCents) offerData.lowPrice = formatCurrencyMinorUnitAmount(request.budgetMinCents);
+  if (request.budgetMaxCents) offerData.highPrice = formatCurrencyMinorUnitAmount(request.budgetMaxCents);
   if (request.budgetMinCents || request.budgetMaxCents) jsonLd.offers = offerData;
 
   return (
@@ -492,11 +481,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
         {(request.budgetMinCents || request.budgetMaxCents) && (
           <span>
             Budget:{" "}
-            {request.budgetMinCents && request.budgetMaxCents
-              ? `$${(request.budgetMinCents / 100).toFixed(0)}–$${(request.budgetMaxCents / 100).toFixed(0)}`
-              : request.budgetMinCents
-              ? `From $${(request.budgetMinCents / 100).toFixed(0)}`
-              : `Up to $${(request.budgetMaxCents! / 100).toFixed(0)}`}
+            {formatCommissionBudgetRange(request.budgetMinCents, request.budgetMaxCents)}
           </span>
         )}
         {request.timeline && <span>Timeline: {request.timeline}</span>}

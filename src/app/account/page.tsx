@@ -8,6 +8,7 @@ import { publicListingPath } from "@/lib/publicPaths";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import { savedListingFavoriteWhere } from "@/lib/savedListingVisibility";
+import { formatCurrencyCents } from "@/lib/money";
 
 export const metadata: Metadata = {
   title: "My Account",
@@ -191,10 +192,7 @@ export default async function AccountPage() {
                     </p>
                     <p className="text-xs text-neutral-500 mt-0.5">
                       {new Date(order.createdAt).toLocaleDateString("en-US")} ·{" "}
-                      {(total / 100).toLocaleString("en-US", {
-                        style: "currency",
-                        currency: order.currency,
-                      })}
+                      {formatCurrencyCents(total, order.currency)}
                     </p>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
@@ -244,10 +242,7 @@ export default async function AccountPage() {
                     <div className="p-2 bg-white border-t border-neutral-100">
                       <p className="text-xs font-medium truncate">{listing.title}</p>
                       <p className="text-xs text-neutral-500">
-                        {(listing.priceCents / 100).toLocaleString("en-US", {
-                          style: "currency",
-                          currency: listing.currency,
-                        })}
+                        {formatCurrencyCents(listing.priceCents, listing.currency)}
                       </p>
                     </div>
                   </Link>

@@ -5,7 +5,7 @@ import AdminOrderActions from "./AdminOrderActions";
 import { publicListingPath } from "@/lib/publicPaths";
 import { latestRefundLedgerEvent } from "@/lib/refundRouteState";
 import { orderTotalCents } from "@/lib/orderTotals";
-import { DEFAULT_CURRENCY } from "@/lib/money";
+import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import { fulfillmentStatusLabel } from "@/lib/fulfillmentLabels";
 import { caseResolutionLabel } from "@/lib/caseLabels";
@@ -13,10 +13,7 @@ import { orderPaymentEventTypeLabel } from "@/lib/orderPaymentEventLabels";
 
 function fmtMoney(cents: number | null | undefined, currency = DEFAULT_CURRENCY) {
   if (cents == null) return "—";
-  return (cents / 100).toLocaleString("en-US", {
-    style: "currency",
-    currency: currency.toUpperCase(),
-  });
+  return formatCurrencyCents(cents, currency);
 }
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {

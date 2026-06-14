@@ -12,6 +12,7 @@ import {
 import { guildMemberApplicationBlockReason } from "@/lib/guildApplicationState";
 import { normalizePublicHttpsUrl } from "@/lib/urlValidation";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { formatCurrencyCents } from "@/lib/money";
 import { z } from "zod";
 import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
@@ -116,9 +117,9 @@ export async function POST(req: Request) {
       );
     }
     if (totalSalesCents < REQUIRED_SALES_CENTS) {
-      const needed = ((REQUIRED_SALES_CENTS - totalSalesCents) / 100).toFixed(2);
+      const needed = formatCurrencyCents(REQUIRED_SALES_CENTS - totalSalesCents);
       return privateJson(
-        { error: `You need $250 in completed sales. You need $${needed} more.` },
+        { error: `You need $250 in completed sales. You need ${needed} more.` },
         { status: 400 }
       );
     }

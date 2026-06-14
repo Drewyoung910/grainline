@@ -31,6 +31,7 @@ import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import { normalizePublicHttpsUrl } from "@/lib/urlValidation";
 import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
+import { formatCurrencyCents } from "@/lib/money";
 
 type ActionState = { ok: boolean; error?: string };
 
@@ -64,7 +65,7 @@ function cachedMetricsToResult(sellerProfileId: string, metrics: CachedSellerMet
 }
 
 function formatUsd(cents: number) {
-  return (cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" });
+  return formatCurrencyCents(cents);
 }
 
 function PortfolioUrlReviewLink({ url }: { url: string }) {
@@ -203,7 +204,7 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
     accountAgeDays < 30 ? `${accountAgeDays}/30 account age days` : null,
     longCaseCount > 0 ? `${longCaseCount} unresolved case${longCaseCount === 1 ? "" : "s"} older than 60 days` : null,
     !adminOverride && totalSalesCents < 25_000
-      ? `${(totalSalesCents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" })}/$250 completed non-refunded sales`
+      ? `${formatUsd(totalSalesCents)}/$250 completed non-refunded sales`
       : null,
   ].filter(Boolean);
 

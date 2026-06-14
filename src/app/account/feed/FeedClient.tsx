@@ -6,6 +6,7 @@ import type { FeedItem } from "@/app/api/account/feed/route";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import FavoriteButton from "@/components/FavoriteButton";
 import SaveBlogButton from "@/components/SaveBlogButton";
+import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 
 export default function FeedClient() {
   const [items, setItems] = useState<FeedItem[]>([]);
@@ -202,10 +203,7 @@ function FeedCard({ item }: { item: FeedItem }) {
               <p className="font-medium text-neutral-900">{item.title}</p>
               {item.priceCents != null && (
                 <p className="text-sm text-neutral-600 mt-1">
-                  {(item.priceCents / 100).toLocaleString("en-US", {
-                    style: "currency",
-                    currency: item.currency ?? "USD",
-                  })}
+                  {formatCurrencyCents(item.priceCents, item.currency ?? DEFAULT_CURRENCY)}
                 </p>
               )}
             </div>

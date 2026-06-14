@@ -13,6 +13,7 @@ import { safeJsonLd } from "@/lib/json-ld";
 import { openCommissionWhere } from "@/lib/commissionExpiry";
 import { publicCommissionInterestWhere, resolvedInterestedCount } from "@/lib/commissionInterestCount";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { formatCommissionBudgetRange } from "@/lib/commissionBudget";
 
 export const metadata: Metadata = {
   title: "Custom Woodworking Commissions — Find a Maker | Grainline",
@@ -456,13 +457,9 @@ export default async function CommissionPage({
                     </div>
 
                     {/* Budget — most prominent element */}
-                    {(r.budgetMinCents || r.budgetMaxCents) && (
+                    {formatCommissionBudgetRange(r.budgetMinCents, r.budgetMaxCents) && (
                       <div className="font-semibold text-lg text-amber-700 mb-1">
-                        {r.budgetMinCents && r.budgetMaxCents
-                          ? `$${(r.budgetMinCents / 100).toFixed(0)}–$${(r.budgetMaxCents / 100).toFixed(0)}`
-                          : r.budgetMinCents
-                          ? `From $${(r.budgetMinCents / 100).toFixed(0)}`
-                          : `Up to $${(r.budgetMaxCents! / 100).toFixed(0)}`}
+                        {formatCommissionBudgetRange(r.budgetMinCents, r.budgetMaxCents)}
                       </div>
                     )}
 

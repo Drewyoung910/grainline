@@ -14,6 +14,7 @@ import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import { safeJsonLd } from "@/lib/json-ld";
 import { publicListingPath } from "@/lib/publicPaths";
 import { publicListingWhere } from "@/lib/listingVisibility";
+import { formatCurrencyMinorUnitAmount } from "@/lib/money";
 
 const BASE_URL = "https://thegrainline.com";
 
@@ -172,7 +173,7 @@ export default async function BrowseMetroCategoryPage({
       "name": l.title,
       "url": `${BASE_URL}${publicListingPath(l.id, l.title)}`,
       "image": l.photos[0]?.url,
-      "offers": { "@type": "Offer", "priceCurrency": l.currency.toUpperCase(), "price": (l.priceCents / 100).toFixed(2) },
+      "offers": { "@type": "Offer", "priceCurrency": l.currency.toUpperCase(), "price": formatCurrencyMinorUnitAmount(l.priceCents, l.currency) },
     })),
   };
 

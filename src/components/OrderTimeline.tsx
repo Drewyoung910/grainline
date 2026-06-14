@@ -1,5 +1,7 @@
 "use client";
 
+import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
+
 type Step = {
   label: string;
   date?: string | Date | null;
@@ -21,6 +23,7 @@ type Props = {
   trackingCarrier?: string | null;
   refundedAt?: string | Date | null;
   refundAmountCents?: number | null;
+  currency?: string | null;
   estimatedDeliveryDate?: string | Date | null;
   processingTimeMinDays?: number | null;
   processingTimeMaxDays?: number | null;
@@ -61,11 +64,8 @@ function fmtDateOnly(d: string | Date): string {
   });
 }
 
-function fmtMoney(cents: number) {
-  return (cents / 100).toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-  });
+function fmtMoney(cents: number, currency = DEFAULT_CURRENCY) {
+  return formatCurrencyCents(cents, currency);
 }
 
 function processingWindowDetail(min?: number | null, max?: number | null): string | null {
@@ -88,6 +88,7 @@ function buildSteps(props: Props): Step[] {
     fulfillmentStatus,
     refundedAt,
     refundAmountCents,
+    currency,
     estimatedDeliveryDate,
     processingTimeMinDays,
     processingTimeMaxDays,
@@ -158,7 +159,7 @@ function buildSteps(props: Props): Step[] {
     const refundStep: Step = {
       label: "Refund issued",
       date: null,
-      detail: refundAmountCents != null ? fmtMoney(refundAmountCents) : null,
+      detail: refundAmountCents != null ? fmtMoney(refundAmountCents, currency ?? DEFAULT_CURRENCY) : null,
       completed: true,
       current: false,
       isRefund: true,

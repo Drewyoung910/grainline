@@ -224,6 +224,16 @@ describe("payment and fulfillment side-effect observability", () => {
     );
   });
 
+  it("sanitizes label clawback Stripe errors before console logging", () => {
+    const route = source("src/app/api/orders/[id]/label/route.ts");
+
+    assert.match(route, /labelClawbackErrorMessage\(stripeErr\)/);
+    assert.doesNotMatch(
+      route,
+      /console\.warn\(\s*`Stripe label cost clawback failed for order \$\{id\}:`,\s*stripeErr,?\s*\)/,
+    );
+  });
+
   it("persists Stripe order emails to the outbox before any direct send", () => {
     const route = source("src/app/api/stripe/webhook/route.ts");
 

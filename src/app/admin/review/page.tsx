@@ -5,6 +5,7 @@ import { ReviewListingButtons } from "@/components/ReviewListingButtons";
 import { DeleteListingButton } from "@/components/admin/DeleteListingButton";
 import Link from "next/link";
 import { publicListingPath } from "@/lib/publicPaths";
+import { formatCurrencyCents } from "@/lib/money";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Review Queue — Admin" };
@@ -89,7 +90,7 @@ export default async function AdminReviewPage() {
                     </div>
                     <div className="text-sm text-neutral-500 mt-0.5">
                       by {listing.seller.displayName} ·{" "}
-                      ${(listing.priceCents / 100).toFixed(2)} ·{" "}
+                      {formatCurrencyCents(listing.priceCents, listing.currency)} ·{" "}
                       {new Date(listing.createdAt).toLocaleDateString("en-US")}
                     </div>
                     {listing.aiReviewFlags.length > 0 && (

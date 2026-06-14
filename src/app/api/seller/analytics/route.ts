@@ -14,6 +14,7 @@ import { rateLimitResponse, safeRateLimit, sellerAnalyticsRatelimit } from "@/li
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
+import { formatCurrencyCents } from "@/lib/money";
 
 export const runtime = "nodejs";
 
@@ -618,7 +619,7 @@ export async function GET(req: Request) {
       shippingMet: `On-time shipping < 95% (currently ${(metrics.onTimeShippingRate * 100).toFixed(1)}%)`,
       responseMet: `Response rate < 90% (currently ${(metrics.responseRate * 100).toFixed(1)}%)`,
       ageMet: `Account age < 180 days (currently ${metrics.accountAgeDays} days)`,
-      salesMet: `Sales < $1,000 (currently $${(metrics.totalSalesCents / 100).toFixed(0)})`,
+      salesMet: `Sales < $1,000 (currently ${formatCurrencyCents(metrics.totalSalesCents)})`,
       casesMet: `Open cases: ${metrics.activeCaseCount}`,
     };
 

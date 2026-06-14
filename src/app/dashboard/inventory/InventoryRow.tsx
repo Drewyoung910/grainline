@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, Heart, Bell } from "@/components/icons";
 import { publicListingPath } from "@/lib/publicPaths";
+import { formatCurrencyCents } from "@/lib/money";
 
 type Listing = {
   id: string;
@@ -91,10 +92,7 @@ export default function InventoryRow({ listing }: { listing: Listing }) {
           {listing.title}
         </Link>
         <div className="text-xs text-neutral-500">
-          {(listing.priceCents / 100).toLocaleString("en-US", {
-            style: "currency",
-            currency: listing.currency,
-          })}
+          {formatCurrencyCents(listing.priceCents, listing.currency)}
           {listing.status === "SOLD_OUT" && (
             <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-red-700">
               Out of stock

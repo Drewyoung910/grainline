@@ -7,7 +7,7 @@ import CaseReplyBox from "@/components/CaseReplyBox";
 import CaseInitialSummary from "@/components/CaseInitialSummary";
 import LocalDate from "@/components/LocalDate";
 import { orderTotalCents } from "@/lib/orderTotals";
-import { DEFAULT_CURRENCY } from "@/lib/money";
+import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import { refundMayRestoreStock } from "@/lib/refundRouteState";
 import { caseStatusLabel } from "@/lib/caseLabels";
@@ -15,10 +15,7 @@ import type { CaseStatus } from "@prisma/client";
 
 function fmtMoney(cents: number | null | undefined, currency = DEFAULT_CURRENCY) {
   if (cents == null) return "—";
-  return (cents / 100).toLocaleString("en-US", {
-    style: "currency",
-    currency: currency.toUpperCase(),
-  });
+  return formatCurrencyCents(cents, currency);
 }
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {

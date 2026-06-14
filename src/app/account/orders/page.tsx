@@ -7,6 +7,7 @@ import { publicListingPath } from "@/lib/publicPaths";
 import { blockingRefundLedgerWhere, latestRefundLedgerEvent } from "@/lib/refundRouteState";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { formatCurrencyCents } from "@/lib/money";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -165,10 +166,7 @@ export default async function AccountOrdersPage({
                           </Link>
                           <p className="text-xs text-neutral-500 mt-0.5">
                             Qty {item.quantity} ·{" "}
-                            {(item.priceCents / 100).toLocaleString("en-US", {
-                              style: "currency",
-                              currency: order.currency,
-                            })} each
+                            {formatCurrencyCents(item.priceCents, order.currency)} each
                           </p>
                         </div>
                       </li>
@@ -181,17 +179,11 @@ export default async function AccountOrdersPage({
                   <div className="text-sm">
                     <span className="text-neutral-500">Total: </span>
                     <span className="font-semibold">
-                      {(total / 100).toLocaleString("en-US", {
-                        style: "currency",
-                        currency: order.currency,
-                      })}
+                      {formatCurrencyCents(total, order.currency)}
                     </span>
                     {(refundAmountCents ?? 0) > 0 && (
                       <span className="text-sm text-red-600 ml-2">
-                        (Refund: -{(refundAmountCents! / 100).toLocaleString("en-US", {
-                          style: "currency",
-                          currency: order.currency,
-                        })})
+                        (Refund: -{formatCurrencyCents(refundAmountCents!, order.currency)})
                       </span>
                     )}
                   </div>

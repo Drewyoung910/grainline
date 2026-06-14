@@ -254,6 +254,7 @@ export default async function SellerOrderDetailPage({
         processingTimeMinDays={processingMins.length > 0 ? Math.min(...processingMins) : null}
         processingTimeMaxDays={processingMaxes.length > 0 ? Math.max(...processingMaxes) : null}
         refundAmountCents={hasRefund ? refundCents : null}
+        currency={currency}
       />
 
       {deauthorizedReviewHold ? (

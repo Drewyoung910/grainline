@@ -611,7 +611,7 @@ export async function POST(
           } catch (stripeErr) {
             console.warn(
               `Stripe label cost clawback failed for order ${id}:`,
-              stripeErr,
+              labelClawbackErrorMessage(stripeErr),
             );
             Sentry.captureException(stripeErr, {
               tags: { source: "label_cost_clawback" },

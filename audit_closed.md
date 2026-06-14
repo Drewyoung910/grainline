@@ -5773,3 +5773,68 @@ the high-signal helpers, Vercel Analytics/Speed Insights product/ops decision,
 remaining homepage runtime a11y proof, residual lower-risk analytics
 metrics-refresh locking/performance follow-up, and residual agent/worktree
 verification process hygiene.
+
+Entry 406 adds five fixed/reduced current-code/docs issues from the residual
+money-formatting and observability follow-up pass. Public/account/admin
+minor-unit display paths that still divided by 100 now delegate to
+`formatCurrencyCents()`: account overview/order history, seller dashboard
+listing rows, seller inventory rows, account feed/recently viewed cards,
+message-thread listing context, admin listing review, order/sales/admin helper
+money renderers, seller analytics/Guild verification copy, and the
+verification-apply deficit response. `OrderTimeline` now receives the order
+currency so refund timeline text is not hard-coded to USD. Metro browse and
+metro-category JSON-LD Offer prices plus commission detail AggregateOffer
+prices now use `formatCurrencyMinorUnitAmount()`. Repeated commission budget
+copy now routes through `formatCommissionBudgetRange()` instead of per-surface
+`$... / 100` string construction. `CLAUDE.md` now records the durable
+structured-data/public-admin-account money-formatting contract. The label
+purchase route no longer writes the raw Stripe reversal error object to
+console when label-cost clawback fails; it logs the same bounded sanitized
+message used for the durable staff review note while keeping the Sentry
+exception for operational evidence.
+
+The newsletter/unsubscribe consent-epoch sidecar rechecked public newsletter
+signup, confirmation, unsubscribe, suppression clearing, signed-in preference
+opt-in, and Resend webhook behavior. It found the public newsletter-only
+resubscribe path is still a product/design decision, not a verified source bug;
+double opt-in, one-click render-only GET, old-token epoch rejection, signed-in
+manual resubscribe, and hard bounce/complaint/account-deletion suppression
+boundaries are current. The privacy/legal-retention sidecar found account
+deletion, export, support/data-request, and provider-retention source behavior
+current with remaining provider-held copies/legal retention periods still
+deferred/manual. The HTTP/observability sidecar found the fixed label-clawback
+raw console log plus lower-risk status-constant cleanup candidates; ops-health
+and high-signal checkout/refund/label/case/shipping/Stripe Connect status
+paths remain current.
+
+Guardrails:
+`tests/currency-format-drift.test.mjs`,
+`tests/payment-side-effect-observability.test.mjs`,
+`tests/money.test.mjs`, and `tests/label-clawback-state.test.mjs`.
+Current running tally after Entry 406: verified fixed/reduced 699, verified
+stale/false-positive/current 461, deferred product/design/ops/legal 74,
+approximate raw allegations left from current max #1126: 103. No approximate
+raw-category decrement is counted because these were hidden adjacent
+money-formatting/observability issues inside already-open categories, and the
+agent rechecks were current/deferred classifications already represented in
+earlier tallies.
+Remaining major categories: Stripe webhook subscription dashboard evidence,
+Stripe Connect v2 loss-liability ops/legal decision, stale remote branch and
+old git author hygiene, Round 10 deferred cache/state-machine product designs,
+remaining EXPLAIN-dependent query-plan/index validation beyond fuzzy
+suggestions, Stripe partial-refund runtime reconciliation proof,
+founding-maker permanence policy, remaining privacy/legal retention scope,
+remaining privacy/export retention decisions, cross-seller AI
+duplicate-detection product design, public/newsletter-only resubscribe policy
+if support wants a self-service path, legacy enum cleanup/data-migration
+decisions, partial multi-seller checkout continuation design, deliberate BigInt
+money-column modeling, live-data reconciliation for historical seller
+shipping-rate currency drift, Clerk staff MFA and breached-password dashboard
+evidence, Clerk multi-account spam dashboard evidence, buyer-deletion runtime
+replay proof, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public-bucket dashboard evidence, HSTS
+preload submission decision, residual lower-risk HTTP-status constants outside
+the high-signal helpers, Vercel Analytics/Speed Insights product/ops decision,
+remaining homepage runtime a11y proof, residual lower-risk analytics
+metrics-refresh locking/performance follow-up, and residual agent/worktree
+verification process hygiene.

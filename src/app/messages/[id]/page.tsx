@@ -23,6 +23,7 @@ import { canViewListingDetail } from "@/lib/listingVisibility";
 import { isSupportedStripeAccountVersion } from "@/lib/sellerVisibility";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
+import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import * as Sentry from "@sentry/nextjs";
 
 export default async function ThreadPage({
@@ -513,10 +514,7 @@ export default async function ThreadPage({
               <div className="min-w-0">
                 <div className="truncate font-medium">{ctx.title}</div>
                 <div className="text-sm text-neutral-600">
-                  {(ctx.priceCents / 100).toLocaleString("en-US", {
-                    style: "currency",
-                    currency: ctx.currency ?? "USD",
-                  })}
+                  {formatCurrencyCents(ctx.priceCents, ctx.currency ?? DEFAULT_CURRENCY)}
                 </div>
               </div>
               <div className="ml-auto text-sm text-amber-700 shrink-0">View listing →</div>
@@ -530,10 +528,7 @@ export default async function ThreadPage({
               <div className="min-w-0">
                 <div className="truncate font-medium">{ctx.title}</div>
                 <div className="text-sm text-neutral-600">
-                  {(ctx.priceCents / 100).toLocaleString("en-US", {
-                    style: "currency",
-                    currency: ctx.currency ?? "USD",
-                  })}
+                  {formatCurrencyCents(ctx.priceCents, ctx.currency ?? DEFAULT_CURRENCY)}
                 </div>
               </div>
             </div>

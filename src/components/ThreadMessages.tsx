@@ -13,6 +13,7 @@ import {
 import { isTerminalMessageStreamStatus, messageStreamStatusMessage } from "@/lib/messageStreamState";
 import { publicListingPath } from "@/lib/publicPaths";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
+import { formatCommissionBudgetRange } from "@/lib/commissionBudget";
 import { isTrustedMediaUrl } from "@/lib/urlValidation";
 
 type Msg = {
@@ -325,11 +326,7 @@ export default function ThreadMessages({
                   {(card.budgetMinCents || card.budgetMaxCents) && (
                     <p className="text-xs text-neutral-500">
                       Budget:{" "}
-                      {card.budgetMinCents && card.budgetMaxCents
-                        ? `$${(card.budgetMinCents / 100).toFixed(0)}–$${(card.budgetMaxCents / 100).toFixed(0)}`
-                        : card.budgetMinCents
-                        ? `From $${(card.budgetMinCents / 100).toFixed(0)}`
-                        : `Up to $${(card.budgetMaxCents! / 100).toFixed(0)}`}
+                      {formatCommissionBudgetRange(card.budgetMinCents, card.budgetMaxCents)}
                     </p>
                   )}
                   {card.timeline && (

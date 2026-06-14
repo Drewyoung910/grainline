@@ -17,6 +17,7 @@ import { publicListingPath, publicSellerShopPath } from "@/lib/publicPaths";
 import { revalidateListingSearchCaches } from "@/lib/searchCache";
 import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { formatCurrencyCents, formatCurrencyMinorUnitAmount } from "@/lib/money";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -566,10 +567,7 @@ export default async function DashboardPage({
                         ) : l.title}
                       </h3>
                       <span className="text-sm text-neutral-500 shrink-0">
-                        {(l.priceCents / 100).toLocaleString("en-US", {
-                          style: "currency",
-                          currency: l.currency,
-                        })}
+                        {formatCurrencyCents(l.priceCents, l.currency)}
                       </span>
                     </div>
 
@@ -694,8 +692,8 @@ export default async function DashboardPage({
               if (s.listingType) parts.push(s.listingType === "IN_STOCK" ? "In stock" : "Made to order");
               if (s.shipsWithinDays != null) parts.push(`ships within ${s.shipsWithinDays}d`);
               if (s.minRating != null) parts.push(`${s.minRating}★+`);
-              if (s.minPrice != null) parts.push(`$${(s.minPrice / 100).toFixed(0)}+`);
-              if (s.maxPrice != null) parts.push(`up to $${(s.maxPrice / 100).toFixed(0)}`);
+              if (s.minPrice != null) parts.push(`${formatCurrencyCents(s.minPrice)}+`);
+              if (s.maxPrice != null) parts.push(`up to ${formatCurrencyCents(s.maxPrice)}`);
               if (s.lat != null && s.lng != null && s.radiusMiles != null) parts.push(`within ${s.radiusMiles} mi`);
               if (s.tags.length > 0) parts.push(s.tags.map((t) => `#${t}`).join(" "));
 
@@ -712,8 +710,8 @@ export default async function DashboardPage({
                   p.set("radius", String(s.radiusMiles));
                 }
                 if (s.sort) p.set("sort", s.sort);
-                if (s.minPrice != null) p.set("min", (s.minPrice / 100).toFixed(2));
-                if (s.maxPrice != null) p.set("max", (s.maxPrice / 100).toFixed(2));
+                if (s.minPrice != null) p.set("min", formatCurrencyMinorUnitAmount(s.minPrice));
+                if (s.maxPrice != null) p.set("max", formatCurrencyMinorUnitAmount(s.maxPrice));
                 for (const t of s.tags) p.append("tag", t);
                 return `/browse?${p.toString()}`;
               })();

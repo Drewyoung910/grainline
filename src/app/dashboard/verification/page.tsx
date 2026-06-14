@@ -17,6 +17,7 @@ import {
   isGuildVerificationTransitionConflict,
 } from "@/lib/guildVerificationState";
 import { normalizePublicHttpsUrl } from "@/lib/urlValidation";
+import { formatCurrencyCents } from "@/lib/money";
 import type { Metadata } from "next";
 import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
 
@@ -416,7 +417,7 @@ export default async function VerificationPage() {
                   <span className={criteriaSalesMet ? "text-green-800" : "text-neutral-700"}>
                     Completed sales:{" "}
                     <span className="font-medium">
-                      {(totalSalesCents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" })}
+                      {formatCurrencyCents(totalSalesCents)}
                     </span> /{" "}
                     <span className="text-neutral-500">$250 required</span>
                   </span>
@@ -588,7 +589,7 @@ export default async function VerificationPage() {
                   <span className={masterCriteria.salesMet ? "text-green-800" : "text-neutral-700"}>
                     Completed sales:{" "}
                     <span className="font-medium">
-                      {(masterMetrics.totalSalesCents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" })}
+                      {formatCurrencyCents(masterMetrics.totalSalesCents)}
                     </span>
                     {" "}/ <span className="text-neutral-500">$1,000 required</span>
                   </span>
