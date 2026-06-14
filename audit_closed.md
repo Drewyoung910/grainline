@@ -5920,3 +5920,78 @@ residual lower-risk HTTP-status constants outside touched/high-signal routes,
 Vercel Analytics/Speed Insights product/ops decision, remaining homepage
 runtime a11y proof, residual Guild metrics refresh-lock/performance design,
 and residual agent/worktree verification process hygiene.
+
+Entry 408 adds five fixed/reduced current-code/docs issues from the
+privacy/email/public-visibility follow-up pass. `package.json` and the root
+package-lock dependency declaration now pin the declared Next.js floor to
+`^16.2.6`, matching the resolved patched runtime and the existing security-doc
+guardrail instead of leaving the manifest range at the older `^16.2.4`. Admin
+direct-email HTML now imports `UNSUBSCRIBE_HREF_PLACEHOLDER` from
+`src/lib/email.ts` for its visible footer unsubscribe link, so
+`sendRenderedEmail()` injects the recipient-specific one-click URL into both the
+visible footer and the `List-Unsubscribe` headers instead of showing the generic
+`/unsubscribe` landing URL.
+
+The Clerk `user.deleted` webhook now leaves local anonymization races retryable:
+when `anonymizeUserAccountByClerkId()` returns `inProgress` because the
+user-initiated deletion lock is still held, the route marks the
+`ClerkWebhookEvent` failed/reclaimable, records bounded Sentry/webhook-failure
+evidence, and returns 503 with `Retry-After` rather than marking the Svix event
+processed. `canViewListingDetail()` now treats banned or deleted viewers as
+inactive before owner/reserved/staff/public detail checks, reducing reliance on
+middleware as the only suspended-session boundary for hidden/private/pending
+listing preview logic. `CLAUDE.md` records the reusable contracts for custom
+email unsubscribe placeholders, retryable Clerk deletion races, and suspended
+viewer visibility-helper behavior. The same `CLAUDE.md` update also removes an
+older contradictory account-deletion sentence that claimed the route-level
+`LOCAL_ANONYMIZE` side-effect row is written before Clerk deletion; the current
+and tested contract is that the route takes the deletion lock before the
+external delete, then writes the retry row only after Clerk deletion succeeds.
+
+Agent/parent rechecks kept the external-evidence categories classified as
+deferred rather than source bugs: Stripe snapshot/v2 webhook subscription
+screenshots, Stripe Connect v2 loss-liability legal/accounting sign-off, Clerk
+staff MFA/breached-password/multi-account dashboard evidence, Sentry cron alert
+routing, Cloudflare R2 public ListBucket posture, HSTS preload status, and the
+Vercel Analytics/Speed Insights product/privacy decision still need dashboard,
+legal, or product evidence before closure. A suggested direct-upload token
+failure cleanup was rejected after parent review because deleting an object after
+a failed token check would let a same-account request delete a known existing
+key before proving a fresh signed upload attempt.
+
+Guardrails:
+`tests/email-delivery-guardrails.test.mjs`,
+`tests/admin-moderation-observability.test.mjs`,
+`tests/verified-audit-followups.test.mjs`,
+`tests/account-privacy-observability.test.mjs`,
+`tests/listing-visibility.test.mjs`,
+`tests/account-deletion-blocker-refund-state.test.mjs`,
+`tests/account-deletion-timeout-fix.test.mjs`,
+`tests/upload-verification-token.test.mjs`, and
+`tests/upload-ux-followups.test.mjs`.
+Current running tally after Entry 408: verified fixed/reduced 712, verified
+stale/false-positive/current 461, deferred product/design/ops/legal 74,
+approximate raw allegations left from current max #1126: 102. One approximate
+raw-category decrement is counted for the residual Next.js version-floor drift
+overlap; the other fixes were hidden adjacent issues found by parent/agent
+review, and repeated external-evidence rechecks were already represented in the
+deferred tally.
+Remaining major categories: Stripe webhook subscription dashboard evidence,
+Stripe Connect v2 loss-liability ops/legal decision, stale remote branch and
+old git author hygiene, Round 10 deferred cache/state-machine product designs,
+remaining EXPLAIN-dependent query-plan/index validation, Stripe partial-refund
+runtime reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope, remaining privacy/export retention decisions,
+cross-seller AI duplicate-detection product design, public/newsletter-only
+resubscribe policy if support wants a self-service path, legacy enum
+cleanup/data-migration decisions, partial multi-seller checkout continuation
+design, deliberate BigInt money-column modeling, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket dashboard evidence, HSTS preload submission decision,
+residual lower-risk HTTP-status constants outside touched/high-signal routes,
+Vercel Analytics/Speed Insights product/ops decision, remaining homepage
+runtime a11y proof, residual Guild metrics refresh-lock/performance design,
+and residual agent/worktree verification process hygiene.

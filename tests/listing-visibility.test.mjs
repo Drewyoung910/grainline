@@ -139,6 +139,21 @@ describe("listing visibility", () => {
       true,
     );
     assert.equal(
+      canViewListingDetail(listing({ status: ListingStatus.HIDDEN }), { dbUserId: "user_1", banned: true }),
+      false,
+    );
+    assert.equal(
+      canViewListingDetail(
+        listing({ status: ListingStatus.HIDDEN }),
+        { dbUserId: "user_1", deletedAt: new Date("2026-06-14T00:00:00.000Z") },
+      ),
+      false,
+    );
+    assert.equal(
+      canViewListingDetail(listing(), { dbUserId: "user_1", banned: true }),
+      false,
+    );
+    assert.equal(
       canViewListingDetail(
         listing({ isPrivate: true, reservedForUserId: "buyer_1" }),
         { dbUserId: "buyer_1" },
@@ -153,6 +168,13 @@ describe("listing visibility", () => {
           seller: { ...listing().seller, user: { ...listing().seller.user, banned: true } },
         }),
         { dbUserId: "buyer_1" },
+      ),
+      false,
+    );
+    assert.equal(
+      canViewListingDetail(
+        listing({ isPrivate: true, reservedForUserId: "buyer_1" }),
+        { dbUserId: "buyer_1", banned: true },
       ),
       false,
     );

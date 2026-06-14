@@ -493,6 +493,28 @@ describe("account and privacy route observability guardrails", () => {
     assert.doesNotMatch(inProgressBlock, /ok: true/);
   });
 
+  it("keeps Clerk user.deleted retryable when local anonymization is already in progress", () => {
+    const route = source("src/app/api/clerk/webhook/route.ts");
+    const userDeletedStart = route.indexOf('event.type === "user.deleted"');
+    const userDeletedBlock = route.slice(
+      userDeletedStart,
+      route.indexOf('if (event.type !== "user.created"', userDeletedStart),
+    );
+
+    assert.match(userDeletedBlock, /const anonymized = await anonymizeUserAccountByClerkId\(event\.data\.id\)/);
+    assert.match(userDeletedBlock, /"inProgress" in anonymized && anonymized\.inProgress/);
+    assert.match(userDeletedBlock, /markClerkWebhookFailed\(svixId, retryError\)/);
+    assert.match(userDeletedBlock, /source: "clerk_webhook_user_deleted_in_progress"/);
+    assert.match(userDeletedBlock, /status: HTTP_STATUS\.SERVICE_UNAVAILABLE/);
+    assert.match(userDeletedBlock, /"Retry-After": String\(CLERK_WEBHOOK_RETRY_AFTER_SECONDS\)/);
+    assert.ok(
+      userDeletedBlock.indexOf("markClerkWebhookFailed(svixId, retryError)") <
+        userDeletedBlock.indexOf("return NextResponse.json"),
+      "in-progress local anonymization should leave the Clerk event retryable before returning 503",
+    );
+    assert.doesNotMatch(userDeletedBlock, /await markClerkWebhookProcessed\(svixId\);\s*return NextResponse\.json\(\s*\{ ok: true \}\s*\);[\s\S]*inProgress/);
+  });
+
   it("captures each Resend recipient task failure before retrying the webhook", () => {
     const route = source("src/app/api/resend/webhook/route.ts");
 

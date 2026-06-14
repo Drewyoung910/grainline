@@ -127,6 +127,8 @@ describe("verified audit follow-up guardrails", () => {
     const lock = JSON.parse(source("package-lock.json"));
     const resolvedNext = lock.packages?.["node_modules/next"]?.version;
     assert.equal(resolvedNext, "16.2.6");
+    assert.match(source("package.json"), /"next": "\^16\.2\.6"/);
+    assert.match(lock.packages?.[""]?.dependencies?.next ?? "", /^\^16\.2\.6$/);
     assert.match(source("CLAUDE.md"), /Next\.js 16\.2\.6/);
     assert.doesNotMatch(source("CLAUDE.md"), /Next\.js 16\.2\.4/);
 

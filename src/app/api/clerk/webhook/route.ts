@@ -231,7 +231,31 @@ export async function POST(req: Request) {
 
   try {
     if (event.type === "user.deleted") {
-      await anonymizeUserAccountByClerkId(event.data.id);
+      const anonymized = await anonymizeUserAccountByClerkId(event.data.id);
+      if ("inProgress" in anonymized && anonymized.inProgress) {
+        const retryError = new Error("Clerk user.deleted local anonymization is already in progress");
+        await markClerkWebhookFailed(svixId, retryError).catch((markError) => {
+          Sentry.captureException(markError, {
+            tags: { source: "clerk_webhook_mark_failed" },
+            extra: { svixId, eventType: event.type },
+          });
+        });
+        Sentry.captureMessage("Clerk user.deleted local anonymization is already in progress", {
+          level: "warning",
+          tags: { source: "clerk_webhook_user_deleted_in_progress" },
+          extra: { svixId, clerkId: event.data.id },
+        });
+        await recordWebhookFailureSpike({
+          webhook: "clerk",
+          kind: "handler",
+          status: HTTP_STATUS.SERVICE_UNAVAILABLE,
+          extra: { svixId, eventType: event.type },
+        });
+        return NextResponse.json(
+          { ok: false, status: "in_progress" },
+          { status: HTTP_STATUS.SERVICE_UNAVAILABLE, headers: { "Retry-After": String(CLERK_WEBHOOK_RETRY_AFTER_SECONDS) } },
+        );
+      }
       await markClerkWebhookProcessed(svixId);
       return NextResponse.json({ ok: true });
     }

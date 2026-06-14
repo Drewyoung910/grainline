@@ -96,14 +96,16 @@ export function canViewListingDetail(
     deletedAt?: Date | string | null;
   },
 ) {
+  const viewerAccountActive = !viewer.banned && !viewer.deletedAt;
   if (
     viewer.staffPreview &&
-    !viewer.banned &&
-    !viewer.deletedAt &&
+    viewerAccountActive &&
     (viewer.role === "ADMIN" || viewer.role === "EMPLOYEE")
   ) {
     return true;
   }
+
+  if (!viewerAccountActive) return false;
 
   const isOwner =
     (!!viewer.dbUserId && listing.seller.userId === viewer.dbUserId) ||

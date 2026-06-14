@@ -76,6 +76,8 @@ describe("admin moderation hardening follow-ups", () => {
     const verificationPage = source("src/app/admin/verification/page.tsx");
 
     assert.match(emailRoute, /hashEmailForTelemetry/);
+    assert.match(emailRoute, /UNSUBSCRIBE_HREF_PLACEHOLDER/);
+    assert.doesNotMatch(emailRoute, /href="\$\{APP_URL\}\/unsubscribe"/);
     assert.match(emailRoute, /source: "admin_email_send"/);
     assert.match(emailRoute, /source: "admin_email_notification"/);
     assert.match(emailRoute, /source: "admin_email_audit_log"/);

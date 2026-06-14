@@ -56,6 +56,7 @@ describe("account deletion blocker refund state", () => {
       "Clerk provider deletion must check Grainline blockers before anonymization",
     );
 
-    assert.match(webhook, /if \(event\.type === "user\.deleted"\) \{\s*await anonymizeUserAccountByClerkId\(event\.data\.id\);/s);
+    assert.match(webhook, /if \(event\.type === "user\.deleted"\) \{\s*const anonymized = await anonymizeUserAccountByClerkId\(event\.data\.id\);/s);
+    assert.match(webhook, /"inProgress" in anonymized && anonymized\.inProgress/);
   });
 });

@@ -23,7 +23,7 @@ const resend = HAS_RESEND ? new Resend(process.env.RESEND_API_KEY) : null;
 const APP_URL = EMAIL_APP_URL;
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "support@thegrainline.com";
 const EMAIL_REPLY_TO = normalizeEmailAddress(process.env.EMAIL_REPLY_TO || SUPPORT_EMAIL) ?? SUPPORT_EMAIL;
-const UNSUBSCRIBE_HREF_PLACEHOLDER = "https://grainline.invalid/unsubscribe-placeholder-75f8c4d9";
+export const UNSUBSCRIBE_HREF_PLACEHOLDER = "https://grainline.invalid/unsubscribe-placeholder-75f8c4d9";
 
 if (!process.env.RESEND_API_KEY) {
   console.warn("[email] RESEND_API_KEY is not set. Emails will be logged but not sent.");
