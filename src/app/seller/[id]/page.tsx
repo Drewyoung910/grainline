@@ -321,7 +321,10 @@ export default async function SellerPublicPage({
   }
 
   // ── Seller-wide rating (across ALL their listings, including private) ───────
-  const listingIds = listings.map((l) => l.id);
+  const listingIds = Array.from(new Set([
+    ...listings.map((l) => l.id),
+    ...featuredListings.map((l) => l.id),
+  ]));
 
   // Saved set for current viewer
   const savedSet = new Set<string>();

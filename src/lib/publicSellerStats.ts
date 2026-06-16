@@ -1,5 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/db";
+import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 export const PUBLIC_SELLER_STATS_REVALIDATE_SECONDS = 5 * 60;
@@ -15,10 +16,17 @@ async function loadPublicSellerStats(sellerProfileId: string): Promise<PublicSel
     Date.now() - PUBLIC_SELLER_RECENT_SHIPPING_STATS_DAYS * MS_PER_DAY,
   );
 
-  const [soldCount, shippingRows] = await Promise.all([
-    prisma.orderItem.count({
-      where: { listing: { sellerId: sellerProfileId }, order: { paidAt: { not: null } } },
-    }),
+  const [soldRows, shippingRows] = await Promise.all([
+    prisma.$queryRaw<Array<{ soldCount: bigint | null }>>`
+      SELECT COALESCE(SUM(oi.quantity), 0)::bigint AS "soldCount"
+      FROM "OrderItem" oi
+      JOIN "Listing" l ON l.id = oi."listingId"
+      JOIN "Order" o ON o.id = oi."orderId"
+      WHERE l."sellerId" = ${sellerProfileId}
+        AND o."paidAt" IS NOT NULL
+        AND o."sellerRefundId" IS NULL
+        ${BLOCKING_REFUND_LEDGER_SQL}
+    `,
     prisma.$queryRaw<Array<{ shippedCount: bigint; avgShipDays: number | null }>>`
       SELECT
         COUNT(*)::bigint AS "shippedCount",
@@ -28,6 +36,8 @@ async function loadPublicSellerStats(sellerProfileId: string): Promise<PublicSel
         FROM "Order" o
         WHERE o."paidAt" IS NOT NULL
           AND o."shippedAt" IS NOT NULL
+          AND o."sellerRefundId" IS NULL
+          ${BLOCKING_REFUND_LEDGER_SQL}
           AND o."shippedAt" >= ${recentShippingCutoff}
           AND EXISTS (
             SELECT 1
@@ -49,6 +59,7 @@ async function loadPublicSellerStats(sellerProfileId: string): Promise<PublicSel
     `,
   ]);
 
+  const soldCount = Number(soldRows[0]?.soldCount ?? 0);
   const shippingStats = shippingRows[0];
   const shippedCount = Number(shippingStats?.shippedCount ?? 0);
   const rawAvgShipDays =

@@ -75,9 +75,24 @@ describe("seller public page query guardrails", () => {
     assert.match(publicSellerStats, /PUBLIC_SELLER_RECENT_SHIPPING_STATS_DAYS = 180/);
     assert.match(publicSellerStats, /PUBLIC_SELLER_STATS_REVALIDATE_SECONDS = 5 \* 60/);
     assert.match(publicSellerStats, /export const getCachedPublicSellerStats = unstable_cache\(/);
-    assert.match(publicSellerStats, /prisma\.orderItem\.count/);
+    assert.match(publicSellerStats, /import \{ BLOCKING_REFUND_LEDGER_SQL \} from "@\/lib\/refundLedgerSql"/);
+    assert.match(publicSellerStats, /SUM\(oi\.quantity\)/);
+    assert.match(publicSellerStats, /o\."sellerRefundId" IS NULL/);
+    assert.match(publicSellerStats, /\$\{BLOCKING_REFUND_LEDGER_SQL\}/);
     assert.match(publicSellerStats, /ORDER BY o\."shippedAt" DESC/);
     assert.match(publicSellerStats, /LIMIT 30/);
+  });
+
+  it("includes curated featured listings in saved-state hydration", () => {
+    const sellerPage = source("src/app/seller/[id]/page.tsx");
+
+    assert.match(
+      sellerPage,
+      /const listingIds = Array\.from\(new Set\(\[\s*\.\.\.listings\.map\(\(l\) => l\.id\),\s*\.\.\.featuredListings\.map\(\(l\) => l\.id\),\s*\]\)\)/,
+    );
+    assert.match(sellerPage, /where: \{ userId: meId, listingId: \{ in: listingIds \} \}/);
+    assert.match(sellerPage, /initialSaved=\{savedSet\.has\(hero\.id\)\}/);
+    assert.match(sellerPage, /initialSaved=\{savedSet\.has\(l\.id\)\}/);
   });
 
   it("shares seller loaders on public seller subroutes and avoids duplicate visibility queries", () => {

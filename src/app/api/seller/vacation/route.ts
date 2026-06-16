@@ -1,6 +1,5 @@
 import { after, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
@@ -14,6 +13,8 @@ import {
   readBoundedJson,
 } from "@/lib/requestBody";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
+import { HTTP_STATUS } from "@/lib/httpStatus";
+import { logServerError } from "@/lib/serverErrorLogger";
 
 const VacationSchema = z.object({
   vacationMode: z.boolean(),
@@ -58,7 +59,7 @@ function isPastVacationReturnDate(date: Date, now = new Date()) {
 export async function POST(req: Request) {
   try {
     const { userId } = await auth();
-    if (!userId) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+    if (!userId) return NextResponse.json({ error: "Sign in required" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
     const { success, reset } = await safeRateLimit(vacationRatelimit, userId);
     if (!success) return rateLimitResponse(reset, "Too many vacation mode updates.");
@@ -70,23 +71,23 @@ export async function POST(req: Request) {
       vacParsed = VacationSchema.parse(await readBoundedJson(req, SELLER_VACATION_BODY_MAX_BYTES));
     } catch (e) {
       if (isRequestBodyTooLargeError(e)) {
-        return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+        return NextResponse.json({ error: "Request body too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
       }
       if (isInvalidJsonBodyError(e)) {
-        return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+        return NextResponse.json({ error: "Invalid JSON" }, { status: HTTP_STATUS.BAD_REQUEST });
       }
       if (e instanceof z.ZodError) {
-        return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+        return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: HTTP_STATUS.BAD_REQUEST });
       }
       throw e;
     }
     const vacationMode = vacParsed.vacationMode;
     const vacationReturnDate = parseVacationReturnDate(vacParsed.vacationReturnDate);
     if (vacParsed.vacationReturnDate && !vacationReturnDate) {
-      return NextResponse.json({ error: "Invalid return date" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid return date" }, { status: HTTP_STATUS.BAD_REQUEST });
     }
     if (vacationMode && vacationReturnDate && isPastVacationReturnDate(vacationReturnDate)) {
-      return NextResponse.json({ error: "Return date cannot be in the past" }, { status: 400 });
+      return NextResponse.json({ error: "Return date cannot be in the past" }, { status: HTTP_STATUS.BAD_REQUEST });
     }
     const vacationMessage = vacParsed.vacationMessage
       ? truncateText(sanitizeText(vacParsed.vacationMessage), 200) || null
@@ -113,11 +114,11 @@ export async function POST(req: Request) {
     const accountResponse = accountAccessErrorResponse(err);
     if (accountResponse) return accountResponse;
 
-    console.error("POST /api/seller/vacation error:", err);
-    Sentry.captureException(err, {
+    logServerError(err, {
       level: "warning",
-      tags: { source: "seller_vacation_update" },
+      source: "seller_vacation_update",
+      extra: { route: "/api/seller/vacation" },
     });
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return NextResponse.json({ error: "Server error" }, { status: HTTP_STATUS.INTERNAL_SERVER_ERROR });
   }
 }

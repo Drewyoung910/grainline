@@ -5921,6 +5921,85 @@ Vercel Analytics/Speed Insights product/ops decision, remaining homepage
 runtime a11y proof, residual Guild metrics refresh-lock/performance design,
 and residual agent/worktree verification process hygiene.
 
+Entry 409 adds five fixed/reduced issues and seven stale/current
+classifications from the Round 13/14 upload/env/observability/seller-page pass.
+The raw upload/env allegations #1095, #1096, #1099, and #1108 are stale on
+current main: image multipart uploads are capped at 16 MiB before form parsing,
+banner images remain capped at 15 MiB by endpoint validation, Sharp uses
+`limitInputPixels: 50_000_000`, image uploads reject mismatched JPEG/PNG/WebP
+signatures before processing, and the cited runtime env reads use
+`requiredProductionEnv()` with guardrail tests for named `process.env` non-null
+assertions. The raw seller-page performance allegations #1109, #1110, and
+#1111 are also stale/current: seller, seller-shop, customer-photo, and listing
+detail pages already use React `cache()` loaders where metadata and page render
+share non-viewer-specific resources, and `/seller/[id]` already batches the
+independent broadcast/blog/listing/rating/stats/photo reads in one
+`Promise.all`.
+
+The remaining committed-main observability residue from #1098 was real on the
+seller vacation route: the final catch logged the raw error object directly and
+still used route-local numeric response statuses. `/api/seller/vacation` now
+uses `logServerError()` with bounded route context and named `HTTP_STATUS`
+constants for local responses. Two adjacent seller-profile issues found during
+the same pass were also fixed. `getCachedPublicSellerStats()` now treats public
+"pieces sold" as the sum of purchased `OrderItem.quantity`, not the count of
+order-item rows, and excludes seller-refunded or blocking-refund-ledger orders
+from public sold/shipping stats. Seller-profile favorite hydration now queries
+saved state for the union of normal preview listing IDs and seller-curated
+featured listing IDs, so older featured cards do not render stale unsaved heart
+state for signed-in users. The same verification pass found fresh moderate
+transitive package advisories in the dependency audit. `npm audit fix` refreshed
+only `package-lock.json`, lifting the Sentry/OpenTelemetry, Babel, `js-yaml`,
+and `markdown-it` transitive chains without changing `package.json`; the audit
+now reports zero vulnerabilities at the moderate threshold.
+
+Parent review deferred two broader items rather than patching them ad hoc. A
+strict missing-`Content-Length` multipart rejection could reduce oversized
+headerless form-data buffering risk, but it needs ingress/client evidence
+before applying broadly to image upload, fulfillment, newsletter confirmation,
+and unsubscribe form-data fallbacks. The residual Guild metrics refresh-lock
+stampede remains a design/performance category: analytics, verification-page,
+application-submit, and cron paths still need a centralized seller-scoped
+refresh helper/lock rather than isolated page-level edits.
+
+Guardrails:
+`tests/seller-page-performance.test.mjs`,
+`tests/order-seller-route-ownership.test.mjs`,
+`tests/public-query-determinism.test.mjs`,
+`tests/seller-ops-hardening.test.mjs`,
+`tests/http-status-constants.test.mjs`,
+`tests/form-data-body-bounds.test.mjs`,
+`tests/env-validation.test.mjs`,
+`tests/r65-observability-guardrails.test.mjs`, and
+`npm audit --audit-level=moderate`.
+Current running tally after Entry 409: verified fixed/reduced 717, verified
+stale/false-positive/current 468, deferred product/design/ops/legal 75,
+approximate raw allegations left from current max #1126: 94. Eight approximate
+raw-category decrements are counted for #1095, #1096, #1098, #1099, #1108,
+#1109, #1110, and #1111; the public sold-count and featured saved-heart fixes
+were hidden adjacent issues found during the same source pass. The dependency
+audit fix is not counted as a raw-category decrement.
+Remaining major categories: Stripe webhook subscription dashboard evidence,
+Stripe Connect v2 loss-liability ops/legal decision, stale remote branch and
+old git author hygiene, Round 10 deferred cache/state-machine product designs,
+remaining EXPLAIN-dependent query-plan/index validation, Stripe partial-refund
+runtime reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope, remaining privacy/export retention decisions,
+cross-seller AI duplicate-detection product design, public/newsletter-only
+resubscribe policy if support wants a self-service path, legacy enum
+cleanup/data-migration decisions, partial multi-seller checkout continuation
+design, deliberate BigInt money-column modeling, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket dashboard evidence, HSTS preload submission decision,
+residual lower-risk HTTP-status/logging hygiene outside touched/high-signal
+routes, Vercel Analytics/Speed Insights product/ops decision, remaining
+homepage runtime a11y proof, residual Guild metrics refresh-lock/performance
+design, strict multipart missing-length ingress/runtime proof, and residual
+agent/worktree verification process hygiene.
+
 Entry 408 adds five fixed/reduced current-code/docs issues from the
 privacy/email/public-visibility follow-up pass. `package.json` and the root
 package-lock dependency declaration now pin the declared Next.js floor to
