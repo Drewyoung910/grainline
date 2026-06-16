@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { getIP, newsletterRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { assertContentLengthUnder, isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
 import { hashNewsletterConfirmationToken, safeEqualNewsletterTokenHash } from "@/lib/newsletterConfirmation";
+import { logServerError } from "@/lib/serverErrorLogger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -176,10 +176,9 @@ export async function POST(req: NextRequest) {
     if (mode === "html") return htmlResponse("Subscription confirmed", "You're on the Grainline newsletter list.");
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error("Newsletter confirmation failed:", error);
-    Sentry.captureException(error, {
+    logServerError(error, {
       level: "warning",
-      tags: { source: "newsletter_confirm" },
+      source: "newsletter_confirm",
       extra: { tokenHashPrefix: "tokenHash" in validated ? validated.tokenHash.slice(0, 8) : undefined },
     });
     if (mode === "html") return htmlResponse("Confirmation failed", "We could not confirm this subscription. Please try again later.", 500);

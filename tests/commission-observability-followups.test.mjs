@@ -11,13 +11,17 @@ describe("commission route observability follow-ups", () => {
     const createRoute = source("src/app/api/commission/route.ts");
     const patchRoute = source("src/app/api/commission/[id]/route.ts");
     const interestRoute = source("src/app/api/commission/[id]/interest/route.ts");
+    const geoMetro = source("src/lib/geo-metro.ts");
 
     assert.match(createRoute, /source: "commission_geo_assignment"/);
     assert.match(createRoute, /extra: \{ commissionRequestId: request\.id \}/);
+    assert.match(geoMetro, /source: "geo_metro_find_or_create"/);
+    assert.match(geoMetro, /logServerError\(error, \{/);
     assert.match(patchRoute, /source: "commission_status_notification"/);
     assert.match(patchRoute, /commissionRequestId: id/);
     assert.match(interestRoute, /source: "commission_interest_side_effects"/);
     assert.match(interestRoute, /conversationId: finalConversationId/);
+    assert.doesNotMatch(geoMetro, /catch \{\s*return \{ metroId: null, cityMetroId: null \};\s*\}/);
     assert.doesNotMatch(patchRoute, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
     assert.doesNotMatch(interestRoute, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
   });

@@ -35,6 +35,13 @@ describe("account and privacy route observability guardrails", () => {
     assert.match(route, /hashEmailForTelemetry\(email\)/);
     assert.match(route, /source: "newsletter_subscribe"/);
     assert.match(route, /extra: \{ emailHash \}/);
+    assert.match(
+      route,
+      /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/,
+    );
+    assert.match(route, /logServerError\(err, \{/);
+    assert.doesNotMatch(route, /Sentry\.captureException\(err/);
+    assert.doesNotMatch(route, /console\.error\("POST \/api\/newsletter error:", err\)/);
     assert.match(route, /isEmailSuppressed\(email\)/);
     assert.match(route, /confirmationRequired: true/);
     assert.match(route, /sendNewsletterConfirmationEmail/);
@@ -118,17 +125,41 @@ describe("account and privacy route observability guardrails", () => {
     const newsletterRoute = source("src/app/api/newsletter/route.ts");
     const adminEmailRoute = source("src/app/api/admin/email/route.ts");
 
-    for (const route of [newsletterRoute, adminEmailRoute]) {
-      assert.match(
-        route,
-        /import \{ sanitizeEmailOutboxError \} from "@\/lib\/emailOutboxSanitize"/,
-      );
-      assert.match(
-        route,
-        /console\.error\([^,\n]+,\s*sanitizeEmailOutboxError\(err\)\)/,
-      );
-      assert.doesNotMatch(route, /console\.error\([^,\n]+,\s*err\)/);
-    }
+    assert.match(
+      newsletterRoute,
+      /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/,
+    );
+    assert.match(newsletterRoute, /logServerError\(err, \{/);
+    assert.doesNotMatch(newsletterRoute, /Sentry\.captureException\(err/);
+    assert.doesNotMatch(newsletterRoute, /console\.error\([^,\n]+,\s*err\)/);
+
+    assert.match(
+      adminEmailRoute,
+      /import \{ sanitizeEmailOutboxError \} from "@\/lib\/emailOutboxSanitize"/,
+    );
+    assert.match(
+      adminEmailRoute,
+      /console\.error\([^,\n]+,\s*sanitizeEmailOutboxError\(err\)\)/,
+    );
+    assert.doesNotMatch(adminEmailRoute, /console\.error\([^,\n]+,\s*err\)/);
+  });
+
+  it("sanitizes newsletter confirmation failure telemetry", () => {
+    const route = source("src/app/api/newsletter/confirm/route.ts");
+
+    assert.match(
+      route,
+      /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/,
+    );
+    assert.match(route, /logServerError\(error, \{/);
+    assert.match(route, /source: "newsletter_confirm"/);
+    assert.match(route, /level: "warning"/);
+    assert.match(route, /tokenHashPrefix: "tokenHash" in validated \? validated\.tokenHash\.slice\(0, 8\) : undefined/);
+    assert.doesNotMatch(route, /Sentry\.captureException\(error/);
+    assert.doesNotMatch(
+      route,
+      /console\.error\("Newsletter confirmation failed:", error\)/,
+    );
   });
 
   it("lets signed-in email preference opt-in clear only one-click manual suppression", () => {
@@ -435,6 +466,11 @@ describe("account and privacy route observability guardrails", () => {
     assert.match(email, /source: "email_inactive_account_lookup"/);
     assert.match(email, /source: "email_send_retry"/);
     assert.match(email, /source: "email_send"/);
+    assert.match(email, /function sanitizedEmailSentryError\(error: unknown\)/);
+    assert.match(email, /sanitizeEmailOutboxError\(error\.stack\)/);
+    assert.match(email, /Sentry\.captureException\(sanitizedEmailSentryError\(err\), \{/);
+    assert.doesNotMatch(email, /Sentry\.captureException\(err, \{[\s\S]*source: "email_send_retry"/);
+    assert.doesNotMatch(email, /Sentry\.captureException\(err, \{[\s\S]*source: "email_send"/);
     assert.doesNotMatch(
       email,
       /console\.log\("\[email:dev\]", \{ to: recipient/,

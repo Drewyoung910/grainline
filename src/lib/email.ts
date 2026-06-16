@@ -70,6 +70,16 @@ function unsubscribeFallbackUrl() {
   return new URL("/unsubscribe", APP_URL).toString();
 }
 
+function sanitizedEmailSentryError(error: unknown) {
+  const sanitizedMessage = sanitizeEmailOutboxError(error);
+  const sentryError = new Error(sanitizedMessage || "Email send failed");
+  if (error instanceof Error) {
+    sentryError.name = error.name;
+    sentryError.stack = error.stack ? sanitizeEmailOutboxError(error.stack) : sentryError.stack;
+  }
+  return sentryError;
+}
+
 function injectUnsubscribeHref(html: string, unsubscribeUrl: string) {
   return html.replaceAll(
     `href="${UNSUBSCRIBE_HREF_PLACEHOLDER}"`,
@@ -225,7 +235,7 @@ async function findInactiveEmailAccount(recipient: string, subject: string) {
     } catch (err) {
       if (attempt === 2) {
         console.error("[email] inactive-account lookup failed; skipping send:", sanitizeEmailOutboxError(err));
-        Sentry.captureException(err, {
+        Sentry.captureException(sanitizedEmailSentryError(err), {
           level: "warning",
           tags: { source: "email_inactive_account_lookup" },
           extra: { emailHash, subjectLength: subject.length },
@@ -264,7 +274,7 @@ async function send(to: string, subject: string, html: string, opts: EmailSendOp
   }
   if (!unsubscribeUrl) {
     const err = new Error("One-click unsubscribe URL unavailable for configured email send");
-    Sentry.captureException(err, {
+    Sentry.captureException(sanitizedEmailSentryError(err), {
       level: "error",
       tags: { source: "email_send", reason: "missing_one_click_unsubscribe" },
       extra: { emailHash, subjectLength: sanitizedSubject.length },
@@ -304,7 +314,7 @@ async function send(to: string, subject: string, html: string, opts: EmailSendOp
         ),
       {
         onRetry: (err, attempt, delayMs) => {
-          Sentry.captureException(err, {
+          Sentry.captureException(sanitizedEmailSentryError(err), {
             level: "warning",
             tags: { source: "email_send_retry" },
             extra: { emailHash, subjectLength: sanitizedSubject.length, attempt, delayMs },
@@ -314,7 +324,7 @@ async function send(to: string, subject: string, html: string, opts: EmailSendOp
     );
   } catch (err) {
     console.error("[email] send failed:", sanitizeEmailOutboxError(err));
-    Sentry.captureException(err, {
+    Sentry.captureException(sanitizedEmailSentryError(err), {
       tags: { source: "email_send" },
       extra: { emailHash, subjectLength: sanitizedSubject.length },
     });

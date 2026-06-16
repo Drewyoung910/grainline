@@ -6074,3 +6074,77 @@ residual lower-risk HTTP-status constants outside touched/high-signal routes,
 Vercel Analytics/Speed Insights product/ops decision, remaining homepage
 runtime a11y proof, residual Guild metrics refresh-lock/performance design,
 and residual agent/worktree verification process hygiene.
+
+Entry 410 adds six fixed/reduced adjacent issues from the cart, checkout,
+Stripe webhook, newsletter/email telemetry, and commission geo-observability
+pass. `/api/cart/update` now takes the same cart-row transaction lock used by
+cart additions, re-reads the target cart item under that lock, and calculates
+the 200-total-quantity cap before updating or deleting with scoped
+`updateMany`/`deleteMany`. The route also uses named `HTTP_STATUS` constants
+and `logServerError()` for its final unexpected-failure path. Stripe
+`charge.dispute.created` seller notifications now carry a stable
+`dedupScope` keyed to the Stripe dispute/event id so webhook retries do not
+create a fresh daily notification bucket on a later UTC day.
+
+Checkout lock telemetry no longer sends the composite Redis lock key to
+Sentry; the lock-ready rejection path reports `checkoutLockKeyHash` via
+`hashIdentifierForTelemetry()` while preserving the raw metadata key only where
+Stripe/webhook restoration requires it. Newsletter subscribe and confirmation
+failure paths now route through `logServerError()` with only hashed email or
+token-prefix context instead of raw route-level Sentry captures. The central
+email helper now wraps inactive-account lookup, one-click URL, provider retry,
+and final send failures in a sanitized Sentry `Error` whose message/stack pass
+through `sanitizeEmailOutboxError()`. `findOrCreateMetro()` no longer swallows
+reverse-geocode/upsert failures silently; it emits warning-level
+`geo_metro_find_or_create` evidence without raw coordinates before returning
+the existing null mapping fallback.
+
+Parent review rejected broadening these into raw-category closures. The #1120
+Buy Now rollback/expired-session stock-restoration allegation remains current
+and already classified in earlier entries: rollback is buyer-scoped,
+rate-limited, skips paid sessions, expires open sessions, and restores stock
+idempotently through the durable checkout reservation/lock flow. The
+privacy/legal retention source pass found no new code bug; provider-held copies
+and dashboard/evidence items remain product/ops/legal follow-ups. Cron monitor
+5xx behavior for failed cron work remained current. The commission-expire
+partial-record alerting question remains an ops policy item rather than a
+source fix in this pass.
+
+Guardrails:
+`tests/order-state-followups.test.mjs`,
+`tests/public-cron-search-hardening.test.mjs`,
+`tests/r65-observability-guardrails.test.mjs`,
+`tests/private-json-cache-headers.test.mjs`,
+`tests/payment-side-effect-observability.test.mjs`,
+`tests/checkout-lock-state.test.mjs`,
+`tests/account-privacy-observability.test.mjs`, and
+`tests/commission-observability-followups.test.mjs`, plus
+`tests/listing-variants.test.mjs` for the cart snapshot mutation ordering
+guardrail.
+Current running tally after Entry 410: verified fixed/reduced 723, verified
+stale/false-positive/current 468, deferred product/design/ops/legal 75,
+approximate raw allegations left from current max #1126: 94. No approximate
+raw-category decrement is counted because the fixes were hidden adjacent
+issues or already-classified overlap, and the rechecked provider/dashboard
+evidence items remain open/deferred rather than source bugs.
+Remaining major categories: Stripe webhook subscription dashboard evidence,
+Stripe Connect v2 loss-liability ops/legal decision, stale remote branch and
+old git author hygiene, Round 10 deferred cache/state-machine product designs,
+remaining EXPLAIN-dependent query-plan/index validation, Stripe partial-refund
+runtime reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope, remaining privacy/export retention decisions,
+cross-seller AI duplicate-detection product design, public/newsletter-only
+resubscribe policy if support wants a self-service path, legacy enum
+cleanup/data-migration decisions, partial multi-seller checkout continuation
+design, deliberate BigInt money-column modeling, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket dashboard evidence, HSTS preload submission decision,
+residual lower-risk HTTP-status/logging hygiene outside touched/high-signal
+routes, Vercel Analytics/Speed Insights product/ops decision, remaining
+homepage runtime a11y proof, residual Guild metrics refresh-lock/performance
+design, strict multipart missing-length ingress/runtime proof,
+commission-expire partial-record alerting policy, and residual agent/worktree
+verification process hygiene.

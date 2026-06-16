@@ -1,6 +1,5 @@
 // src/app/api/newsletter/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { sendNewsletterConfirmationEmail } from "@/lib/email";
 import { getIP, newsletterRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
@@ -14,7 +13,7 @@ import {
 } from "@/lib/newsletterConfirmation";
 import { sanitizeUserName } from "@/lib/sanitize";
 import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
-import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
+import { logServerError } from "@/lib/serverErrorLogger";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -130,10 +129,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(NEWSLETTER_CONFIRMATION_RESPONSE);
   } catch (err) {
-    console.error("POST /api/newsletter error:", sanitizeEmailOutboxError(err));
-    Sentry.captureException(err, {
+    logServerError(err, {
       level: "warning",
-      tags: { source: "newsletter_subscribe" },
+      source: "newsletter_subscribe",
       extra: { emailHash },
     });
     return NextResponse.json({ error: "Server error" }, { status: 500 });

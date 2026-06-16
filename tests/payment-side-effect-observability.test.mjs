@@ -333,6 +333,18 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(route, /delete orderUpdate\.sellerRefundLockedAt/);
   });
 
+  it("deduplicates seller dispute notifications across webhook retries", () => {
+    const route = source("src/app/api/stripe/webhook/route.ts");
+    const disputeNotificationStart = route.indexOf('type: "PAYMENT_DISPUTE"');
+    assert.ok(disputeNotificationStart > 0, "Stripe dispute branch should notify the seller");
+    const disputeNotification = route.slice(
+      disputeNotificationStart,
+      route.indexOf("});", disputeNotificationStart),
+    );
+
+    assert.match(disputeNotification, /dedupScope: `stripe-dispute:\$\{dispute\.id \?\? event\.id\}:created`/);
+  });
+
   it("keeps shipping-label orphan paths observable without full label URLs", () => {
     const route = source("src/app/api/orders/[id]/label/route.ts");
 

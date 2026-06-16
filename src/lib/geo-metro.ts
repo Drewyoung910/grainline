@@ -4,6 +4,7 @@
 import { prisma } from "@/lib/db";
 import { reverseGeocode } from "@/lib/reverse-geocode";
 import { revalidateFooterMetrosCache } from "@/lib/footerMetros";
+import { logServerError } from "@/lib/serverErrorLogger";
 
 // ---------------------------------------------------------------------------
 // Haversine distance in miles between two lat/lng points
@@ -146,7 +147,11 @@ export async function findOrCreateMetro(
     console.log("[geo-metro] Auto-created metro");
 
     return { metroId: metro.id, cityMetroId: null };
-  } catch {
+  } catch (error) {
+    logServerError(error, {
+      level: "warning",
+      source: "geo_metro_find_or_create",
+    });
     return { metroId: null, cityMetroId: null };
   }
 }

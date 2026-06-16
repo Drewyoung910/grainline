@@ -42,6 +42,7 @@ import { APP_BASE_URL } from "@/lib/appBaseUrl";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { hashIdentifierForTelemetry } from "@/lib/privacyTelemetry";
 
 const CheckoutSingleSchema = z.object({
   listingId: z.string().min(1),
@@ -561,7 +562,10 @@ export async function POST(req: Request) {
         Sentry.captureMessage("Checkout lock ready transition rejected", {
           level: "warning",
           tags: { source: "checkout_lock_ready", route: "single_checkout" },
-          extra: { checkoutLockKey: checkoutLockKeyValue, stripeSessionId: session.id },
+          extra: {
+            checkoutLockKeyHash: hashIdentifierForTelemetry(checkoutLockKeyValue),
+            stripeSessionId: session.id,
+          },
         });
         let staleSessionExpired = false;
         await stripe.checkout.sessions.expire(session.id).then(() => {

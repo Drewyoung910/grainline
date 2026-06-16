@@ -115,7 +115,7 @@ describe("listing variant selection", () => {
       cartUpdate.indexOf("if (livePriceCents < 1)") > cartUpdate.indexOf("livePriceCents = listing.priceCents + variantResolution.variantAdjustCents"),
     );
     assert.ok(
-      cartUpdate.indexOf("if (livePriceCents < 1)") < cartUpdate.indexOf("prisma.cartItem.updateMany"),
+      cartUpdate.indexOf("if (livePriceCents < 1)") < cartUpdate.indexOf("tx.cartItem.updateMany"),
     );
 
     const checkoutSeller = source("src/app/api/cart/checkout-seller/route.ts");

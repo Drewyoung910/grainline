@@ -35,9 +35,9 @@ describe("order-state audit follow-up guardrails", () => {
     assert.match(cartUpdate, /stripeAccountVersion: true/);
     assert.match(cartUpdate, /sellerOrderBlockReason\(listing\.seller\)/);
     assert.match(cartUpdate, /sellerOrderBlockMessage\(sellerBlockReason\)/);
-    assert.match(cartUpdate, /cartItem\.deleteMany\(\{ where: \{ id: item\.id, cartId: item\.cartId \} \}\)/);
-    assert.match(cartUpdate, /cartItem\.updateMany\(\{\s*where: \{ id: item\.id, cartId: item\.cartId \}/s);
-    assert.match(cartUpdate, /status: 409/);
+    assert.match(cartUpdate, /tx\.cartItem\.deleteMany\(\{ where: \{ id: lockedItem\.id, cartId: lockedItem\.cartId \} \}\)/);
+    assert.match(cartUpdate, /tx\.cartItem\.updateMany\(\{\s*where: \{ id: lockedItem\.id, cartId: lockedItem\.cartId \}/s);
+    assert.match(cartUpdate, /status: HTTP_STATUS\.CONFLICT/);
 
     const singleCheckout = source("src/app/api/cart/checkout/single/route.ts");
     assert.match(singleCheckout, /acceptingNewOrders: true/);
@@ -88,11 +88,20 @@ describe("order-state audit follow-up guardrails", () => {
   it("keeps cart quantity updates under the cart-wide total item cap", () => {
     const text = source("src/app/api/cart/update/route.ts");
     assert.match(text, /MAX_CART_TOTAL_QUANTITY = 200/);
-    assert.match(text, /prisma\.cartItem\.aggregate\(\{\s*where: \{ cartId: cart\.id \},\s*_sum: \{ quantity: true \},\s*\}\)/s);
-    assert.match(text, /\(cartStats\._sum\.quantity \?\? 0\) - item\.quantity \+ quantity/);
+    assert.match(text, /import \{ HTTP_STATUS \} from "@\/lib\/httpStatus"/);
+    assert.match(text, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
+    assert.match(text, /prisma\.\$transaction\(async \(tx\) =>/);
+    assert.match(text, /SELECT id FROM "Cart" WHERE id = \$\{cart\.id\} FOR UPDATE/);
+    assert.match(text, /const lockedItem = await tx\.cartItem\.findFirst/);
+    assert.match(text, /tx\.cartItem\.aggregate\(\{\s*where: \{ cartId: cart\.id \},\s*_sum: \{ quantity: true \},\s*\}\)/s);
+    assert.match(text, /\(cartStats\._sum\.quantity \?\? 0\) - lockedItem\.quantity \+ quantity/);
     assert.match(text, /projectedTotalQuantity > MAX_CART_TOTAL_QUANTITY/);
+    assert.match(text, /tx\.cartItem\.updateMany\(\{\s*where: \{ id: lockedItem\.id, cartId: lockedItem\.cartId \}/s);
+    assert.match(text, /tx\.cartItem\.deleteMany\(\{ where: \{ id: lockedItem\.id, cartId: lockedItem\.cartId \} \}\)/);
     assert.match(text, /quantity > \(listing\.stockQuantity \?\? 0\)/);
     assert.match(text, /Only \$\{listing\.stockQuantity \?\? 0\} available/);
+    assert.match(text, /logServerError\(err, \{[\s\S]*source: "cart_update_route"/);
+    assert.doesNotMatch(text, /console\.error\("POST \/api\/cart\/update error:", err\)/);
   });
 
   it("keeps checkout stock reservation tied to live active listing ownership", () => {

@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const { checkoutLockCanMarkReady, checkoutLockCanRelease } = await import("../src/lib/checkoutLockState.ts");
+
+function source(path) {
+  return readFileSync(path, "utf8");
+}
 
 describe("checkout lock state guards", () => {
   it("only marks preparing locks with the same payload hash as ready", () => {
@@ -37,5 +42,30 @@ describe("checkout lock state guards", () => {
   it("keeps manual releases available for pre-session failure cleanup", () => {
     assert.equal(checkoutLockCanRelease(null), true);
     assert.equal(checkoutLockCanRelease({ state: "preparing", payloadHash: "hash-a", createdAt: 1 }), true);
+  });
+
+  it("hashes checkout lock keys before Sentry telemetry", () => {
+    for (const path of [
+      "src/app/api/cart/checkout/single/route.ts",
+      "src/app/api/cart/checkout-seller/route.ts",
+    ]) {
+      const route = source(path);
+      const captureStart = route.indexOf('Sentry.captureMessage("Checkout lock ready transition rejected"');
+      assert.notEqual(captureStart, -1);
+      const captureBlock = route.slice(
+        captureStart,
+        route.indexOf("});", captureStart),
+      );
+
+      assert.match(
+        route,
+        /import \{ hashIdentifierForTelemetry \} from "@\/lib\/privacyTelemetry"/,
+      );
+      assert.match(
+        captureBlock,
+        /checkoutLockKeyHash: hashIdentifierForTelemetry\(checkoutLockKeyValue\)/,
+      );
+      assert.doesNotMatch(captureBlock, /checkoutLockKey: checkoutLockKeyValue/);
+    }
   });
 });

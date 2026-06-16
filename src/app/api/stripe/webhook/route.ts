@@ -2084,6 +2084,7 @@ export async function POST(req: Request) {
               title: "Payment dispute opened",
               body: `Stripe reported a dispute for order ${notifySellerUserId.orderId}.`,
               link: `/dashboard/sales/${notifySellerUserId.orderId}`,
+              dedupScope: `stripe-dispute:${dispute.id ?? event.id}:created`,
             });
             Sentry.captureMessage("Stripe dispute opened", {
               level: "warning",
