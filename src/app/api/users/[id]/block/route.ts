@@ -1,10 +1,10 @@
 import { auth } from "@clerk/nextjs/server";
-import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { ensureUser } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { blockRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { logServerError } from "@/lib/serverErrorLogger";
 
 export async function POST(
   _req: Request,
@@ -54,10 +54,9 @@ export async function POST(
       await prisma.follow.deleteMany({ where: { followerId: blockedId, sellerProfileId: mySeller.id } });
     }
   } catch (error) {
-    console.error("Failed to remove follow rows after block:", error);
-    Sentry.captureException(error, {
+    logServerError(error, {
+      source: "block_follow_cleanup",
       level: "warning",
-      tags: { source: "block_follow_cleanup" },
       extra: { blockerId: me.id, blockedId },
     });
   }

@@ -1,6 +1,5 @@
 // src/app/dashboard/listings/new/page.tsx
 import { auth } from "@clerk/nextjs/server";
-import * as Sentry from "@sentry/nextjs";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -36,6 +35,7 @@ import { revalidateFooterMetrosCache } from "@/lib/footerMetros";
 import { backfillEmptyAltTexts } from "@/lib/photoAltTextBackfill";
 import { MAX_MANUAL_STOCK_QUANTITY } from "@/lib/stockMutationState";
 import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
+import { logServerError } from "@/lib/serverErrorLogger";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -289,7 +289,11 @@ async function createListing(_prevState: unknown, formData: FormData) {
       }
     }
   } catch (e) {
-    console.error("[geo-metro] Failed to assign metro to listing:", e);
+    logServerError(e, {
+      source: "listing_create_geo_metro_assignment",
+      level: "warning",
+      extra: { listingId: created.id, sellerProfileId: seller.id },
+    });
   }
 
   // 4. Draft: redirect to preview so seller can see what it looks like
@@ -393,10 +397,9 @@ async function createListing(_prevState: unknown, formData: FormData) {
     // Backfill AI-generated alt text through the shared non-fatal helper.
     await backfillEmptyAltTexts(created.id, aiResult.altTexts);
   } catch (error) {
-    console.error("[listing-create] AI review failed:", error);
-    Sentry.captureException(error, {
+    logServerError(error, {
+      source: "listing_create_ai_review",
       level: "warning",
-      tags: { source: "listing_create_ai_review" },
       extra: { listingId: created.id, sellerProfileId: seller.id },
     });
     await prisma.listing.updateMany({
@@ -407,10 +410,9 @@ async function createListing(_prevState: unknown, formData: FormData) {
         aiReviewScore: 0,
       },
     }).catch((updateError) => {
-      console.error("[listing-create] failed to mark AI review error:", updateError);
-      Sentry.captureException(updateError, {
+      logServerError(updateError, {
+        source: "listing_create_ai_error_mark_failed",
         level: "error",
-        tags: { source: "listing_create_ai_error_mark_failed" },
         extra: { listingId: created.id, sellerProfileId: seller.id },
       });
     });
@@ -437,9 +439,9 @@ async function createListing(_prevState: unknown, formData: FormData) {
           emailDedupKey: (followerId) => `followed-listing:${created.id}:${followerId}`,
         });
       } catch (error) {
-        Sentry.captureException(error, {
+        logServerError(error, {
+          source: "listing_create_follower_fanout",
           level: "warning",
-          tags: { source: "listing_create_follower_fanout" },
           extra: { listingId: created.id, sellerProfileId: seller.id },
         });
       }

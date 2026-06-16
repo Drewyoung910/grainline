@@ -51,6 +51,12 @@ describe("R56-R67 small audit follow-up guardrails", () => {
     assert.match(editPage, /deleteR2ObjectByUrl\(url\)\.catch/);
     assert.match(editPage, /source: "listing_photo_conflict_cleanup"/);
     assert.match(editPage, /source: "listing_photo_save_cleanup"/);
+    assert.match(editPage, /source: "listing_update_ai_re_review"/);
+    assert.match(editPage, /logServerError\(cleanupError, \{/);
+    assert.match(editPage, /logServerError\(error, \{/);
+    assert.match(editPage, /logServerError\(err, \{/);
+    assert.doesNotMatch(editPage, /console\.error\("\[listing photo/);
+    assert.doesNotMatch(editPage, /console\.error\("\[listing-update\]/);
     assert.match(editPage, /return \{ ok: false, error: error\.message \}/);
   });
 

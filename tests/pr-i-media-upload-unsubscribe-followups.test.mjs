@@ -71,7 +71,10 @@ describe("PR I media, upload, and unsubscribe follow-ups", () => {
     const route = source("src/app/api/upload/image/route.ts");
     assert.match(route, /DeleteObjectCommand/);
     assert.match(route, /deleteUploadedImageObject\(key\)/);
+    assert.match(route, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
+    assert.match(route, /logServerError\(deleteError, \{/);
     assert.match(route, /source: "upload_image_cleanup"/);
+    assert.doesNotMatch(route, /console\.error\("\[upload image\]/);
     assert.match(route, /assertPublicMediaAvailable\(publicUrl\)/);
   });
 

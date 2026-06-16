@@ -40,6 +40,11 @@ describe("server action hardening guardrails", () => {
     assert.match(createPage, /source: "listing_create_ai_review"/);
     assert.match(createPage, /source: "listing_create_ai_error_mark_failed"/);
     assert.match(createPage, /source: "listing_create_follower_fanout"/);
+    assert.match(createPage, /source: "listing_create_geo_metro_assignment"/);
+    assert.match(createPage, /logServerError\(error, \{/);
+    assert.match(createPage, /logServerError\(updateError, \{/);
+    assert.match(createPage, /logServerError\(e, \{/);
+    assert.doesNotMatch(createPage, /console\.error\("\[listing-create\]/);
     assert.match(createPage, /updateMany\(\{\s*where: \{ id: created\.id, status: ListingStatus\.PENDING_REVIEW \}/s);
     const createFanoutBlock = createPage.slice(createPage.lastIndexOf("fanOutListingToFollowers"));
     assert.doesNotMatch(createFanoutBlock, /catch \{ \/\* non-fatal \*\/ \}/);

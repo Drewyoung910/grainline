@@ -97,10 +97,13 @@ describe("upload UX follow-ups", () => {
   it("keeps direct upload verification cleanup observable", () => {
     const verifyRoute = source("src/app/api/upload/verify/route.ts");
 
+    assert.match(verifyRoute, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
+    assert.match(verifyRoute, /logServerError\((error|cleanupError), \{/);
     assert.match(verifyRoute, /source: "upload_verify_cleanup"/);
     assert.match(verifyRoute, /level: "warning"/);
-    assert.match(verifyRoute, /tags: \{ source: "upload_verify_cleanup", endpoint \}/);
+    assert.match(verifyRoute, /tags: \{ endpoint \}/);
     assert.match(verifyRoute, /uploadTelemetryKeyHash\(key\)/);
+    assert.doesNotMatch(verifyRoute, /console\.error\("\[upload verify\]/);
     assert.doesNotMatch(verifyRoute, /extra: \{ key \}/);
   });
 

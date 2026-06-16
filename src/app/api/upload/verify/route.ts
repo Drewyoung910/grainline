@@ -21,6 +21,7 @@ import {
 import { DIRECT_UPLOAD_ENDPOINTS, UPLOAD_MAX_SIZES } from "@/lib/uploadRules";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { uploadTelemetryKeyHash } from "@/lib/uploadTelemetry";
+import { logServerError } from "@/lib/serverErrorLogger";
 
 export const maxDuration = 60;
 
@@ -114,10 +115,10 @@ export async function POST(req: Request) {
   });
   if (verificationError) {
     await deleteObject(key).catch((error) => {
-      console.error("[upload verify] failed to delete invalid object:", error);
-      Sentry.captureException(error, {
+      logServerError(error, {
+        source: "upload_verify_cleanup",
         level: "warning",
-        tags: { source: "upload_verify_cleanup", endpoint },
+        tags: { endpoint },
         extra: { keyHash: uploadTelemetryKeyHash(key) },
       });
     });
@@ -129,10 +130,10 @@ export async function POST(req: Request) {
     prefixBytes = await objectPrefixBytes(key);
   } catch (error) {
     await deleteObject(key).catch((cleanupError) => {
-      console.error("[upload verify] failed to delete unverifiable object:", cleanupError);
-      Sentry.captureException(cleanupError, {
+      logServerError(cleanupError, {
+        source: "upload_verify_cleanup",
         level: "warning",
-        tags: { source: "upload_verify_cleanup", endpoint },
+        tags: { endpoint },
         extra: { keyHash: uploadTelemetryKeyHash(key) },
       });
     });
@@ -146,10 +147,10 @@ export async function POST(req: Request) {
 
   if (!uploadFileSignatureMatches(prefixBytes, contentType)) {
     await deleteObject(key).catch((error) => {
-      console.error("[upload verify] failed to delete invalid object:", error);
-      Sentry.captureException(error, {
+      logServerError(error, {
+        source: "upload_verify_cleanup",
         level: "warning",
-        tags: { source: "upload_verify_cleanup", endpoint },
+        tags: { endpoint },
         extra: { keyHash: uploadTelemetryKeyHash(key) },
       });
     });

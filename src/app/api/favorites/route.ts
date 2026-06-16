@@ -1,6 +1,5 @@
 // src/app/api/favorites/route.ts
 import { auth } from "@clerk/nextjs/server";
-import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { ensureUser } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
@@ -14,6 +13,8 @@ import {
   isRequestBodyTooLargeError,
   readBoundedJson,
 } from "@/lib/requestBody";
+import { HTTP_STATUS } from "@/lib/httpStatus";
+import { logServerError } from "@/lib/serverErrorLogger";
 import { z } from "zod";
 
 const FavoriteSchema = z.object({
@@ -23,7 +24,7 @@ const FAVORITE_BODY_MAX_BYTES = 8 * 1024;
 
 export async function POST(req: Request) {
   const { userId } = await auth();
-  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
   const { success: rlOk, reset } = await safeRateLimit(saveRatelimit, userId);
   if (!rlOk) return privateResponse(rateLimitResponse(reset, "Too many save actions."));
@@ -34,13 +35,13 @@ export async function POST(req: Request) {
     listingId = parsed.listingId;
   } catch (e) {
     if (isRequestBodyTooLargeError(e)) {
-      return privateJson({ error: "Request body too large" }, { status: 413 });
+      return privateJson({ error: "Request body too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
     }
     if (isInvalidJsonBodyError(e)) {
-      return privateJson({ error: "Invalid JSON" }, { status: 400 });
+      return privateJson({ error: "Invalid JSON" }, { status: HTTP_STATUS.BAD_REQUEST });
     }
     if (e instanceof z.ZodError) {
-      return privateJson({ error: "Invalid input", details: e.issues }, { status: 400 });
+      return privateJson({ error: "Invalid input", details: e.issues }, { status: HTTP_STATUS.BAD_REQUEST });
     }
     throw e;
   }
@@ -52,18 +53,21 @@ export async function POST(req: Request) {
     const accountResponse = accountAccessErrorResponse(e);
     if (accountResponse) return accountResponse;
 
-    console.error("POST /api/favorites ensureUser error:", { error: (e as Error).message });
-    return privateJson({ error: "Unauthorized" }, { status: 401 });
+    logServerError(e, {
+      source: "favorite_ensure_user",
+      level: "warning",
+    });
+    return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
   }
-  if (!me) return privateJson({ error: "Unauthorized" }, { status: 401 });
+  if (!me) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
   const listing = await prisma.listing.findFirst({
     where: publicListingDetailWhere({ id: listingId }),
     select: { title: true, seller: { select: { userId: true } } },
   });
-  if (!listing) return privateJson({ error: "Listing not found." }, { status: 404 });
+  if (!listing) return privateJson({ error: "Listing not found." }, { status: HTTP_STATUS.NOT_FOUND });
   if (listing.seller.userId === me.id) {
-    return privateJson({ error: "Cannot favorite your own listing." }, { status: 400 });
+    return privateJson({ error: "Cannot favorite your own listing." }, { status: HTTP_STATUS.BAD_REQUEST });
   }
   const blockExists = await prisma.block.findFirst({
     where: {
@@ -74,7 +78,7 @@ export async function POST(req: Request) {
     },
     select: { id: true },
   });
-  if (blockExists) return privateJson({ error: "Blocked" }, { status: 403 });
+  if (blockExists) return privateJson({ error: "Blocked" }, { status: HTTP_STATUS.FORBIDDEN });
 
   try {
     await prisma.favorite.upsert({
@@ -83,16 +87,11 @@ export async function POST(req: Request) {
       create: { userId: me.id, listingId },
     });
   } catch (e) {
-    console.error("POST /api/favorites upsert error:", {
-      message: (e as Error).message,
-      listingId,
-      dbUserId: me.id,
-    });
-    Sentry.captureException(e, {
-      tags: { source: "favorite_upsert" },
+    logServerError(e, {
+      source: "favorite_upsert",
       extra: { listingId, dbUserId: me.id },
     });
-    return privateJson({ error: "DB error" }, { status: 500 });
+    return privateJson({ error: "DB error" }, { status: HTTP_STATUS.INTERNAL_SERVER_ERROR });
   }
 
   // Notify listing owner (non-fatal; createNotification handles exact duplicate suppression)
@@ -110,10 +109,9 @@ export async function POST(req: Request) {
       });
     }
   } catch (e) {
-    console.error("POST /api/favorites notification error (non-fatal):", (e as Error).message);
-    Sentry.captureException(e, {
+    logServerError(e, {
+      source: "favorite_notification",
       level: "warning",
-      tags: { source: "favorite_notification" },
       extra: { listingId, dbUserId: me.id, sellerUserId: listing.seller.userId },
     });
   }

@@ -255,7 +255,7 @@ model SellerProfile {
 
   // Founding Maker badge — auto-granted to the first 250 sellers
   isFoundingMaker     Boolean   @default(false)
-  foundingMakerNumber Int?      // 1..250 when granted; null otherwise
+  foundingMakerNumber Int?      @unique // 1..250 when granted; null otherwise
   foundingMakerAt     DateTime?
 
   // Metro geography (set automatically from lat/lng)

@@ -4,17 +4,18 @@
 // Schedule: 10 5 * * * (05:10 UTC daily)
 
 import { NextResponse } from "next/server";
-import * as Sentry from "@sentry/nextjs";
 import { recalculateAllQualityScores } from "@/lib/quality-score";
 import { verifyCronRequest } from "@/lib/cronAuth";
 import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
+import { HTTP_STATUS } from "@/lib/httpStatus";
+import { logServerError } from "@/lib/serverErrorLogger";
 
 export const maxDuration = 300;
 
 export async function GET(request: Request) {
   if (!verifyCronRequest(request)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
   }
 
   return withSentryCronMonitor("quality-score", { value: "10 5 * * *", maxRuntimeMinutes: 5 }, async () => {
@@ -32,11 +33,10 @@ export async function GET(request: Request) {
       return NextResponse.json(response);
     } catch (error) {
       await failCronRun(cronRun, error);
-      console.error("[quality-score cron] Error:", error);
-      Sentry.captureException(error, { tags: { source: "cron_quality_score" } });
+      logServerError(error, { source: "cron_quality_score" });
       return NextResponse.json(
         { error: "Internal server error" },
-        { status: 500 }
+        { status: HTTP_STATUS.INTERNAL_SERVER_ERROR }
       );
     }
   });

@@ -20,11 +20,13 @@ describe("rate-limit failure policy", () => {
     assert.match(ratelimitSource, /limitWithFailurePolicy\(limiter, key, true/);
   });
 
-  it("captures Redis limiter failures to Sentry with policy context", () => {
-    assert.match(ratelimitPolicySource, /Sentry\.captureException\?\.\(error/);
+  it("captures Redis limiter failures through the sanitized server logger with policy context", () => {
+    assert.match(ratelimitPolicySource, /import \{ logServerError \} from "\.\/serverErrorLogger\.ts"/);
+    assert.match(ratelimitPolicySource, /logServerError\(error, \{/);
     assert.match(ratelimitPolicySource, /source: "ratelimit_failure_policy"/);
     assert.match(ratelimitPolicySource, /failurePolicy: failOpen \? "fail_open" : "fail_closed"/);
     assert.match(ratelimitPolicySource, /keyLength: key\.length/);
+    assert.doesNotMatch(ratelimitPolicySource, /console\.error\(logMessage, error\)/);
   });
 
   it("hashes provider keys before handing identifiers to Upstash-compatible limiters", async () => {

@@ -39,8 +39,10 @@ describe("social interaction route hardening", () => {
     const route = source("src/app/api/follow/[sellerId]/route.ts");
     const notifications = source("src/lib/notifications.ts");
 
+    assert.match(route, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
+    assert.match(route, /logServerError\(error, \{/);
     assert.match(route, /source: "follow_notification"/);
-    assert.match(route, /Failed to create follow notification/);
+    assert.doesNotMatch(route, /console\.error\("Failed to create follow notification:/);
     assert.match(route, /return privateJson\(\{ following: true, followerCount \}\)/);
     assert.match(notifications, /function isNotificationDedupError/);
     assert.match(notifications, /err\?\.code === "P2002"/);

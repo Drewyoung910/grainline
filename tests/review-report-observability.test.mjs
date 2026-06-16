@@ -46,9 +46,13 @@ describe("review/report/favorite observability hardening", () => {
 
     assert.match(reportRoute, /source: "user_report_listing_notification"/);
     assert.doesNotMatch(reportRoute, /\.catch\(\(\) => \{\}\)/);
+    assert.match(favoriteRoute, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
     assert.match(favoriteRoute, /source: "favorite_upsert"/);
     assert.match(favoriteRoute, /source: "favorite_notification"/);
+    assert.doesNotMatch(favoriteRoute, /console\.error\("POST \/api\/favorites/);
+    assert.match(blockRoute, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
     assert.match(blockRoute, /source: "block_follow_cleanup"/);
+    assert.doesNotMatch(blockRoute, /console\.error\("Failed to remove follow rows after block:/);
   });
 
   it("captures remaining AI and seller analytics failures with Sentry context", () => {

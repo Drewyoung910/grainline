@@ -2,7 +2,6 @@
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
-import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
@@ -30,6 +29,7 @@ import { isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
 import { expireOpenCheckoutSessionsForListing } from "@/lib/checkoutSessionExpiry";
 import { listingMutationRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { MAX_MANUAL_STOCK_QUANTITY } from "@/lib/stockMutationState";
+import { logServerError } from "@/lib/serverErrorLogger";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -459,10 +459,9 @@ async function updateListing(
       await Promise.all(
         Array.from(submittedNewPhotoUrls).map((url) =>
           deleteR2ObjectByUrl(url).catch((cleanupError) => {
-            console.error("[listing photo conflict] R2 cleanup failed:", cleanupError);
-            Sentry.captureException(cleanupError, {
+            logServerError(cleanupError, {
+              source: "listing_photo_conflict_cleanup",
               level: "warning",
-              tags: { source: "listing_photo_conflict_cleanup" },
               extra: { listingId, sellerId: listing.sellerId },
             });
           }),
@@ -553,7 +552,11 @@ async function updateListing(
         }
       }
     } catch (err) {
-      console.error("[listing-update] AI re-review failed:", err);
+      logServerError(err, {
+        source: "listing_update_ai_re_review",
+        level: "warning",
+        extra: { listingId, sellerId: listing.sellerId },
+      });
       // AI infrastructure error — flip to PENDING_REVIEW conservatively so
       // staff can review the new content.
       const pendingResult = await prisma.listing.updateMany({
@@ -607,10 +610,9 @@ async function updateListing(
   await Promise.all(
     Array.from(r2CleanupUrls).map((url) =>
       deleteR2ObjectByUrl(url).catch((error) => {
-        console.error("[listing photo save] R2 cleanup failed:", error);
-        Sentry.captureException(error, {
+        logServerError(error, {
+          source: "listing_photo_save_cleanup",
           level: "warning",
-          tags: { source: "listing_photo_save_cleanup" },
           extra: { listingId, sellerId: listing.sellerId },
         });
       }),

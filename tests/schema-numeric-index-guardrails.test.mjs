@@ -69,6 +69,17 @@ describe("schema numeric and index guardrails", () => {
     assert.doesNotMatch(migration, /Order_platformFeeCents/);
   });
 
+  it("mirrors raw-managed Founding Maker uniqueness in the Prisma schema", () => {
+    const schema = source("prisma/schema.prisma");
+    const foundingMigration = source("prisma/migrations/20260511232729_add_founding_maker/migration.sql");
+
+    assert.match(modelBlock(schema, "SellerProfile"), /foundingMakerNumber\s+Int\?\s+@unique/);
+    assert.match(
+      foundingMigration,
+      /CREATE UNIQUE INDEX "SellerProfile_foundingMakerNumber_key"[\s\S]*ON "SellerProfile" \("foundingMakerNumber"\)/,
+    );
+  });
+
   it("keeps verified hot-path indexes visible in schema and migration history", () => {
     const schema = source("prisma/schema.prisma");
     const migration = [

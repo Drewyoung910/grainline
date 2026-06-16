@@ -1,7 +1,6 @@
 // src/app/api/follow/[sellerId]/route.ts
 import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import {
@@ -20,6 +19,7 @@ import {
 import { logSecurityEvent } from "@/lib/security";
 import { visibleSellerProfileWhere } from "@/lib/sellerVisibility";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { logServerError } from "@/lib/serverErrorLogger";
 
 async function getFollowerCount(sellerProfileId: string) {
   return prisma.follow.count({ where: { sellerProfileId } });
@@ -184,10 +184,9 @@ export async function POST(
         dedupScope: me.id,
       });
     } catch (error) {
-      console.error("Failed to create follow notification:", error);
-      Sentry.captureException(error, {
+      logServerError(error, {
+        source: "follow_notification",
         level: "warning",
-        tags: { source: "follow_notification" },
         extra: {
           followerId: me.id,
           sellerProfileId: sellerProfile.id,

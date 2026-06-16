@@ -1,5 +1,5 @@
-import * as Sentry from "@sentry/nextjs";
 import { createHash } from "node:crypto";
+import { logServerError } from "./serverErrorLogger.ts";
 
 export type RateLimitResult = {
   success: boolean;
@@ -24,13 +24,13 @@ export async function limitWithFailurePolicy(
     const result = await limiter.limit(providerRateLimitKey(key));
     return { success: result.success, reset: result.reset };
   } catch (error) {
-    console.error(logMessage, error);
-    Sentry.captureException?.(error, {
+    logServerError(error, {
+      source: "ratelimit_failure_policy",
+      level: "warning",
       tags: {
-        source: "ratelimit_failure_policy",
         failurePolicy: failOpen ? "fail_open" : "fail_closed",
       },
-      extra: { keyLength: key.length },
+      extra: { keyLength: key.length, message: logMessage },
     });
     return { success: failOpen, reset: Date.now() + 60000 };
   }

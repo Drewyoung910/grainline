@@ -6233,3 +6233,88 @@ residual lower-risk HTTP-status/logging hygiene outside touched/high-signal
 routes, Vercel Analytics/Speed Insights product/ops decision, remaining
 homepage runtime a11y proof, strict multipart missing-length ingress/runtime
 proof, and residual agent/worktree verification process hygiene.
+
+Entry 412 reduces seven verified source-level hygiene issues from the residual
+logging/status/schema pass. Parent Codex used two read-only explorer agents for
+sidecar scans, then re-read the cited source locally before changing code. The
+old #737-#739 fulfillment fraud chain and email-preference drift allegations
+were rechecked and remain already-closed/stale on current `main`; no duplicate
+stale tally increase is counted for those rechecks.
+
+First, `POST /api/favorites`, `POST /api/commission`, and the quality-score
+cron route now use `HTTP_STATUS` constants for local JSON responses touched in
+this pass. Their non-blocking or unexpected server-side failures also route
+through `logServerError()` where applicable: favorite ensure-user/upsert/owner
+notification, commission geo assignment, and quality-score cron failure.
+
+Second, raw console logging was removed from several server catch paths that
+already had bounded IDs available. Rate-limit provider failures, upload image
+cleanup failures, direct-upload verification cleanup failures, new-listing
+geo/AI/follower side effects, edit-listing photo cleanup and AI re-review
+fallbacks, follow notifications, and block follow-cleanup now use the shared
+sanitized logger with existing safe source names and bounded IDs/hashes instead
+of printing raw provider/Prisma/SDK error objects to server logs. The shared
+logger now treats `Sentry.captureException` as optional so local tests or
+stubbed Sentry environments do not turn a telemetry attempt into the primary
+failure.
+
+Third, the Founding Maker source pass verified the old race allegations are
+source-fixed by the advisory transaction lock, max-number assignment, final
+`isFoundingMaker: false` update guard, unique DB index, and range CHECK. The
+remaining live Postgres concurrency proof is still external/runtime evidence,
+not a helper rewrite. The small real schema drift was that the existing
+`SellerProfile_foundingMakerNumber_key` unique index from migration
+`20260511232729_add_founding_maker` was not mirrored in `schema.prisma`;
+`SellerProfile.foundingMakerNumber` now carries `@unique`, with a guardrail
+against future drift.
+
+Guardrails:
+`tests/ratelimit-policy.test.mjs`,
+`tests/upload-ux-followups.test.mjs`,
+`tests/pr-i-media-upload-unsubscribe-followups.test.mjs`,
+`tests/social-interaction-hardening.test.mjs`,
+`tests/review-report-observability.test.mjs`,
+`tests/commission-observability-followups.test.mjs`,
+`tests/server-action-hardening.test.mjs`,
+`tests/r56-r67-small-fixes.test.mjs`,
+`tests/http-status-constants.test.mjs`,
+`tests/server-error-logger.test.mjs`,
+`tests/schema-numeric-index-guardrails.test.mjs`, and
+`tests/post-launch-ui-followups.test.mjs`, plus `npx prisma validate`.
+Full verification also reran `npm test` (1297/1297 passing),
+`npx tsc --noEmit`, `npm run lint`, `npm audit --audit-level=moderate`,
+`git diff --check`, and `npm run build`.
+
+Current running tally after Entry 412: verified fixed/reduced 735, verified
+stale/false-positive/current 468, deferred product/design/ops/legal 74,
+approximate raw allegations left from current max #1126: 92. The fixed count
+increases by seven for lower-risk named-status cleanup, favorite/commission/
+quality-score sanitized failure paths, rate-limit provider failure logging,
+upload cleanup logging, listing create/edit side-effect logging, follow/block
+side-effect logging, and the Founding Maker schema unique mirror. The shared
+logger optional-Sentry robustness is included in the logging cleanup rather
+than counted as a separate category. No approximate raw-category decrement is
+counted because residual lower-risk logging/status hygiene remains open outside
+these touched routes, and the Founding Maker live concurrency proof remains a
+runtime-evidence item rather than a source defect.
+
+Remaining major categories: Stripe webhook subscription dashboard evidence,
+Stripe Connect v2 loss-liability ops/legal decision, stale remote branch and
+old git author hygiene, Round 10 deferred cache/state-machine product designs,
+remaining EXPLAIN-dependent query-plan/index validation, Stripe partial-refund
+runtime reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope, remaining privacy/export retention decisions,
+cross-seller AI duplicate-detection product design, public/newsletter-only
+resubscribe policy if support wants a self-service path, legacy enum
+cleanup/data-migration decisions, partial multi-seller checkout continuation
+design, deliberate BigInt money-column modeling, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket dashboard evidence, HSTS preload submission decision,
+residual lower-risk HTTP-status/logging hygiene outside touched routes, Vercel
+Analytics/Speed Insights product/ops decision, remaining homepage runtime a11y
+proof, strict multipart missing-length ingress/runtime proof, new-listing
+vacation-mode publish parity review, and residual agent/worktree verification
+process hygiene.

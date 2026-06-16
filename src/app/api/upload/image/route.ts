@@ -26,6 +26,7 @@ import {
 } from "@/lib/uploadRules";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { uploadTelemetryKeyHash } from "@/lib/uploadTelemetry";
+import { logServerError } from "@/lib/serverErrorLogger";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -167,10 +168,10 @@ export async function POST(req: Request) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Uploaded media is not publicly available.";
     await deleteUploadedImageObject(key).catch((deleteError) => {
-      console.error("[upload image] failed to delete unavailable object:", deleteError);
-      Sentry.captureException(deleteError, {
+      logServerError(deleteError, {
+        source: "upload_image_cleanup",
         level: "warning",
-        tags: { source: "upload_image_cleanup", endpoint },
+        tags: { endpoint },
         extra: { keyHash: uploadTelemetryKeyHash(key) },
       });
     });

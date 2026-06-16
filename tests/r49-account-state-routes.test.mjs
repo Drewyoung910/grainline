@@ -34,9 +34,11 @@ describe("R49 account-state route guardrails", () => {
     assert.match(text, /if \(listing\?\.seller\.userId && !listing\.seller\.user\.banned && !listing\.seller\.user\.deletedAt\)/);
   });
 
-  it("logs block follow-cleanup failures instead of swallowing them silently", () => {
+  it("logs block follow-cleanup failures through the shared server logger", () => {
     const text = source("src/app/api/users/[id]/block/route.ts");
-    assert.match(text, /console\.error\("Failed to remove follow rows after block:", error\)/);
+    assert.match(text, /logServerError\(error, \{/);
+    assert.match(text, /source: "block_follow_cleanup"/);
+    assert.doesNotMatch(text, /console\.error\("Failed to remove follow rows after block:/);
     assert.equal(text.includes("catch { /* non-fatal */ }"), false);
   });
 

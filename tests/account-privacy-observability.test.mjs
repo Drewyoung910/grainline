@@ -433,18 +433,13 @@ describe("account and privacy route observability guardrails", () => {
     );
   });
 
-  it("keeps Clerk user ids out of favorites route console telemetry", () => {
+  it("keeps Clerk user ids out of favorites route telemetry", () => {
     const route = source("src/app/api/favorites/route.ts");
-    const match = route.match(
-      /console\.error\("POST \/api\/favorites ensureUser error:", (?<payload>\{[^}]+\})\);/,
-    );
 
-    assert.ok(
-      match?.groups?.payload,
-      "favorites ensureUser catch should keep explicit telemetry payload",
-    );
-    assert.equal(match.groups.payload, "{ error: (e as Error).message }");
-    assert.doesNotMatch(match.groups.payload, /userId/);
+    assert.match(route, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
+    assert.match(route, /source: "favorite_ensure_user"/);
+    assert.doesNotMatch(route, /console\.error\("POST \/api\/favorites ensureUser error:/);
+    assert.doesNotMatch(route, /source: "favorite_ensure_user"[\s\S]{0,160}userId/);
   });
 
   it("keeps central email failure telemetry off raw recipient emails", () => {

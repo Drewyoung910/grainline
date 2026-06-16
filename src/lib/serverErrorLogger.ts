@@ -54,7 +54,7 @@ function sentryErrorFrom(error: unknown, sanitizedMessage: string) {
 export function logServerError(error: unknown, context: ServerErrorLogContext) {
   const sanitizedMessage = sanitizeServerErrorMessage(error);
   console.error(`[${context.source}]`, sanitizedMessage);
-  Sentry.captureException(sentryErrorFrom(error, sanitizedMessage), {
+  Sentry.captureException?.(sentryErrorFrom(error, sanitizedMessage), {
     level: context.level,
     tags: {
       source: context.source,

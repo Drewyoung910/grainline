@@ -14,7 +14,9 @@ describe("commission route observability follow-ups", () => {
     const geoMetro = source("src/lib/geo-metro.ts");
 
     assert.match(createRoute, /source: "commission_geo_assignment"/);
+    assert.match(createRoute, /logServerError\(e, \{/);
     assert.match(createRoute, /extra: \{ commissionRequestId: request\.id \}/);
+    assert.doesNotMatch(createRoute, /console\.error\("\[geo-metro\] Failed to assign metro to commission:/);
     assert.match(geoMetro, /source: "geo_metro_find_or_create"/);
     assert.match(geoMetro, /logServerError\(error, \{/);
     assert.match(patchRoute, /source: "commission_status_notification"/);
