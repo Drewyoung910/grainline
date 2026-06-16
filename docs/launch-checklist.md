@@ -66,7 +66,7 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
 - Cloudflare: WAF managed rules and bot protection mode enabled only after provider/webhook/API smoke tests confirm Stripe, Clerk, Resend, Shippo, Vercel health checks, and uptime checks are not challenged.
 - Upstash: production Redis database configured.
 - Sentry: production project receiving errors and source maps.
-- Sentry: cron monitors configured for every `vercel.json` cron; alert routing verified for `source=cron_ops_health` warnings, including `AccountDeletionSideEffect` cleanup issues, and webhook failure spike messages.
+- Sentry: cron monitors configured for every `vercel.json` cron; alert routing verified for `source=cron_ops_health` warnings, including completed-cron partial record failures, `AccountDeletionSideEffect` cleanup issues, and webhook failure spike messages.
 - UptimeRobot: monitoring `https://thegrainline.com/api/health`.
 - GitHub: branch protection on `main`, required CI, Dependabot alerts/updates, secret scanning/push protection where available, and CodeQL/code scanning where available.
 - Security disclosure: `/security` and `/.well-known/security.txt` are live; `security@thegrainline.com` mailbox routing verified.
@@ -118,7 +118,7 @@ Record links/screenshots/dates for:
 - Clerk and Resend webhook delivery.
 - Cloudflare R2 public bucket-listing/ListBucket posture, bucket-level max object-size setting, CORS/public-domain settings, and upload smoke-test result.
 - Neon backup/PITR setting and most recent restore drill.
-- Sentry alert rules for CSP/script/frame violations, production error spikes, Sentry cron monitors, `source=cron_ops_health` warnings including `AccountDeletionSideEffect` cleanup issues, and webhook failure spike messages.
+- Sentry alert rules for CSP/script/frame violations, production error spikes, Sentry cron monitors, `source=cron_ops_health` warnings including completed-cron partial record failures and `AccountDeletionSideEffect` cleanup issues, and webhook failure spike messages.
 
 ## Business And Legal
 

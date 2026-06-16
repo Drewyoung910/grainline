@@ -130,6 +130,12 @@ export async function POST(req: Request) {
       return privateJson({ error: "Invalid image file" }, { status: 400 });
     }
     processed = await stripMetadata(input, file.type);
+    if (processed.byteLength > UPLOAD_MAX_SIZES[uploadEndpoint]) {
+      return privateJson(
+        { error: uploadTooLargeMessage(uploadEndpoint, processed.byteLength) },
+        { status: 400 },
+      );
+    }
   } catch {
     return privateJson({ error: "Image processing failed" }, { status: 400 });
   }

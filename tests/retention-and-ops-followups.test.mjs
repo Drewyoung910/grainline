@@ -107,6 +107,11 @@ describe("retention and ops-health follow-ups", () => {
     assert.match(source, /staleStripeWebhookBefore/);
     assert.match(source, /staleSvixWebhookBefore/);
     assert.match(source, /staleAccountDeletionSideEffectBefore/);
+    assert.match(source, /RECENT_COMPLETED_CRON_RUN_SCAN_LIMIT = 50/);
+    assert.match(source, /cronRunPartialIssueSummary\(run\.result\)/);
+    assert.match(source, /partialFailureCronRunCount/);
+    assert.match(source, /partialCronRunIssueCount/);
+    assert.match(source, /partialFailureCronRuns/);
     assert.match(source, /stripeWebhookFailureCount/);
     assert.match(source, /resendWebhookFailureCount/);
     assert.match(source, /clerkWebhookFailureCount/);
@@ -124,6 +129,8 @@ describe("retention and ops-health follow-ups", () => {
     assert.match(warningCondition, /issues\.resendWebhookFailureCount > 0/);
     assert.match(warningCondition, /issues\.clerkWebhookFailureCount > 0/);
     assert.match(warningCondition, /issues\.accountDeletionSideEffectFailureCount > 0/);
+    assert.match(warningCondition, /issues\.partialFailureCronRunCount > 0/);
+    assert.match(warningCondition, /issues\.partialCronRunIssueCount > 0/);
     assert.match(source, /response\.ok \? HTTP_STATUS\.OK : HTTP_STATUS\.SERVICE_UNAVAILABLE/);
   });
 
@@ -136,6 +143,7 @@ describe("retention and ops-health follow-ups", () => {
     assert.match(runbook, /ResendWebhookEvent/);
     assert.match(runbook, /ClerkWebhookEvent/);
     assert.match(runbook, /AccountDeletionSideEffect/);
+    assert.match(runbook, /partial record failures/);
     assert.match(runbook, /webhook failure spike/);
 
     assert.match(launch, /HEALTH_CHECK_TOKEN/);
@@ -143,6 +151,7 @@ describe("retention and ops-health follow-ups", () => {
     assert.match(launch, /Sentry cron monitors/);
     assert.match(launch, /source=cron_ops_health/);
     assert.match(launch, /AccountDeletionSideEffect/);
+    assert.match(launch, /partial record failures/);
     assert.match(launch, /webhook failure spike/);
   });
 

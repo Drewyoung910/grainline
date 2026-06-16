@@ -6148,3 +6148,88 @@ homepage runtime a11y proof, residual Guild metrics refresh-lock/performance
 design, strict multipart missing-length ingress/runtime proof,
 commission-expire partial-record alerting policy, and residual agent/worktree
 verification process hygiene.
+
+Entry 411 closes/reduces five source-verifiable issues from the cron/ops,
+Guild metrics, upload, seller analytics, and dependency-audit slice. Parent Codex used two
+read-only explorer agents for disjoint source scans, then re-read the cited
+code locally before making any changes.
+
+First, `/api/cron/ops-health` now scans recent completed `CronRun` rows for
+bounded partial-record issue arrays (`failures` or `errors`) and treats those
+completed runs as actionable for 24 hours. This preserves per-record isolation
+for jobs such as `commission-expire`, `case-auto-close`, `guild-metrics`, and
+`guild-member-check`, but prevents a completed cron with record failures from
+looking operationally green. The Sentry warning and JSON response now include
+`partialFailureCronRunCount` and `partialCronRunIssueCount`, and the route still
+returns 503 after completing its own `CronRun` when any actionable issue exists.
+Runbook and launch checklist entries now mention completed-cron partial record
+failures as `source=cron_ops_health` evidence; external Sentry alert routing
+still remains a launch-evidence item.
+
+Second, `calculateSellerMetrics()` now computes and upserts `SellerMetrics`
+inside a seller-scoped PostgreSQL advisory transaction lock. This serializes
+analytics, verification, and monthly cron metric refreshes for the same seller
+so an older calculation cannot overwrite a newer cached row. The selected
+metrics window and active-case semantics are unchanged. In the same seller
+analytics area, the `ratingOverTime` SQL now applies the selected analytics
+range bounds instead of grouping every historical review on each request.
+
+Third, the processed-image upload route now checks Sharp's output buffer size
+against the endpoint's `UPLOAD_MAX_SIZES` cap before any R2 `PutObjectCommand`.
+The existing source sweep also reverified that all current API `formData()`
+routes with practical caps call `assertContentLengthUnder()` before parsing:
+processed image upload, order fulfillment form fallback, unsubscribe form
+fallback, and newsletter confirmation form fallback. The residual
+missing-`Content-Length` multipart question remains external/runtime ingress
+evidence rather than a source-proven defect because `formData()` cannot stream
+cap a headerless multipart body in app code before the runtime parses it.
+
+Fourth, `npm audit --audit-level=moderate` surfaced a high-severity `hono`
+transitive advisory through Prisma dev tooling. `package-lock.json` now
+resolves `hono` to 4.12.25 and `package.json` has an explicit `hono` override
+alongside the existing `@hono/node-server` override so future lock regeneration
+does not drift back into the vulnerable range.
+
+Guardrails:
+`tests/cron-run.test.mjs`,
+`tests/public-cron-search-hardening.test.mjs`,
+`tests/retention-and-ops-followups.test.mjs`,
+`tests/form-data-body-bounds.test.mjs`,
+`tests/metrics-cache.test.mjs`,
+`tests/seller-ops-hardening.test.mjs`, and
+`tests/guild-metrics-state.test.mjs`, plus
+`npm audit --audit-level=moderate`.
+
+Current running tally after Entry 411: verified fixed/reduced 728, verified
+stale/false-positive/current 468, deferred product/design/ops/legal 74,
+approximate raw allegations left from current max #1126: 92. The fixed count
+increases by five for the ops-health partial-cron signal, seller-metrics refresh
+lock, processed-upload output cap, seller analytics range filter, and `hono`
+transitive advisory fix. The
+deferred count decreases by one because commission-expire partial-record
+alerting now has a source-level ops-health signal; the separate Sentry cron
+alert configuration remains external evidence. The approximate raw count drops
+by two for the Guild metrics refresh-lock/performance category and the
+commission-expire partial-record alerting category. No stale tally increase is
+counted because the strict multipart source prechecks were verified current but
+the headerless/chunked runtime proof remains open.
+
+Remaining major categories: Stripe webhook subscription dashboard evidence,
+Stripe Connect v2 loss-liability ops/legal decision, stale remote branch and
+old git author hygiene, Round 10 deferred cache/state-machine product designs,
+remaining EXPLAIN-dependent query-plan/index validation, Stripe partial-refund
+runtime reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope, remaining privacy/export retention decisions,
+cross-seller AI duplicate-detection product design, public/newsletter-only
+resubscribe policy if support wants a self-service path, legacy enum
+cleanup/data-migration decisions, partial multi-seller checkout continuation
+design, deliberate BigInt money-column modeling, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket dashboard evidence, HSTS preload submission decision,
+residual lower-risk HTTP-status/logging hygiene outside touched/high-signal
+routes, Vercel Analytics/Speed Insights product/ops decision, remaining
+homepage runtime a11y proof, strict multipart missing-length ingress/runtime
+proof, and residual agent/worktree verification process hygiene.

@@ -27,13 +27,20 @@ describe("form-data body bounds", () => {
     assert.match(route, /sharp\(input, \{ failOn: "error", limitInputPixels: IMAGE_UPLOAD_LIMIT_INPUT_PIXELS \}\)/);
     assert.match(route, /uploadFileSignatureMatches\(input, file\.type\)/);
     assert.match(route, /return privateJson\(\{ error: "Invalid image file" \}, \{ status: 400 \}\)/);
+    assert.match(route, /processed\.byteLength > UPLOAD_MAX_SIZES\[uploadEndpoint\]/);
+    assert.match(route, /uploadTooLargeMessage\(uploadEndpoint, processed\.byteLength\)/);
     assert.match(route, /uploadTelemetryKeyHash\(key\)/);
     assert.doesNotMatch(route, /extra: \{ key \}/);
+    assert.ok(
+      route.indexOf("processed.byteLength > UPLOAD_MAX_SIZES[uploadEndpoint]") <
+        route.indexOf("new PutObjectCommand"),
+    );
   });
 
-  it("bounds order fulfillment and unsubscribe form fallbacks before formData parsing", () => {
+  it("bounds order fulfillment and email form fallbacks before formData parsing", () => {
     const fulfillment = source("src/app/api/orders/[id]/fulfillment/route.ts");
     const unsubscribe = source("src/app/api/email/unsubscribe/route.ts");
+    const newsletterConfirm = source("src/app/api/newsletter/confirm/route.ts");
 
     assert.match(fulfillment, /assertContentLengthUnder\(req, FULFILLMENT_FORM_BODY_MAX_BYTES\)/);
     assert.ok(
@@ -45,6 +52,12 @@ describe("form-data body bounds", () => {
     assert.ok(
       unsubscribe.indexOf("assertContentLengthUnder(req, UNSUBSCRIBE_FORM_BODY_MAX_BYTES)") <
         unsubscribe.indexOf("await req.formData()"),
+    );
+
+    assert.match(newsletterConfirm, /assertContentLengthUnder\(req, NEWSLETTER_CONFIRM_FORM_BODY_MAX_BYTES\)/);
+    assert.ok(
+      newsletterConfirm.indexOf("assertContentLengthUnder(req, NEWSLETTER_CONFIRM_FORM_BODY_MAX_BYTES)") <
+        newsletterConfirm.indexOf("await req.formData()"),
     );
   });
 });

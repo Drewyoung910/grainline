@@ -56,7 +56,8 @@ describe("guild and listing-edit audit follow-ups", () => {
     assert.doesNotMatch(metrics, /status: \{ notIn: \["RESOLVED", "CLOSED"\] \},\s*createdAt: \{ gte: periodStart \}/);
     assert.match(metrics, /from "@\/lib\/metricsState"/);
     assert.match(metricsState, /export const METRICS_PERIOD_DAYS_PER_MONTH = 30/);
-    assert.match(metrics, /metricsPeriodStart\(new Date\(\), periodMonths\)/);
+    assert.match(metrics, /const now = new Date\(\)/);
+    assert.match(metrics, /metricsPeriodStart\(now, periodMonths\)/);
     assert.doesNotMatch(metricsState, /setMonth\(/);
     assert.match(revocationState, /CaseStatus\.UNDER_REVIEW/);
     assert.match(adminVerification, /guildMemberRevocationCaseWhere/);

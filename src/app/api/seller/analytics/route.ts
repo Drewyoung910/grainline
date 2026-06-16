@@ -403,6 +403,8 @@ export async function GET(req: Request) {
       FROM "Review" r
       JOIN "Listing" l ON l.id = r."listingId"
       WHERE l."sellerId" = ${sellerId}
+        AND r."createdAt" >= ${startDate}
+        AND r."createdAt" ${rangeEndSql}
       GROUP BY bucket
       ORDER BY bucket ASC
     `;

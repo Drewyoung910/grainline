@@ -238,6 +238,8 @@ describe("seller operational route hardening", () => {
     assert.match(analytics, /import \{ isSellerMetricsFresh \} from "@\/lib\/metricsFreshness"/);
     assert.match(analytics, /const isStale = !existingMetrics \|\| !isSellerMetricsFresh\(existingMetrics\)/);
     assert.match(analytics, /const metrics: SellerMetricsResult = isStale[\s\S]*?: existingMetrics!/);
+    assert.match(analytics, /AND r\."createdAt" >= \$\{startDate\}/);
+    assert.match(analytics, /AND r\."createdAt" \$\{rangeEndSql\}/);
     assert.doesNotMatch(analytics, /24 \* 60 \* 60 \* 1000/);
     assert.doesNotMatch(analytics, /const topFavsRows/);
     assert.doesNotMatch(analytics, /const topStockRows/);

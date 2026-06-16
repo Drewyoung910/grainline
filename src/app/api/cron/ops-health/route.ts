@@ -10,6 +10,7 @@ import {
   ACCOUNT_DELETION_SIDE_EFFECT_STATUS,
 } from "@/lib/accountDeletionSideEffects";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { cronRunPartialIssueSummary } from "@/lib/cronRunPartialIssues";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -18,6 +19,7 @@ const FAILED_CRON_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 const STALE_CRON_RUNNING_MS = 30 * 60 * 1000;
 const STALE_EMAIL_OUTBOX_MS = 30 * 60 * 1000;
 const STALE_SVIX_WEBHOOK_PROCESSING_MS = 5 * 60 * 1000;
+const RECENT_COMPLETED_CRON_RUN_SCAN_LIMIT = 50;
 
 export async function GET(request: Request) {
   if (!verifyCronRequest(request)) {
@@ -40,6 +42,7 @@ export async function GET(request: Request) {
       const [
         failedCronRuns,
         staleRunningCronRuns,
+        recentCompletedCronRuns,
         staleEmailOutboxCount,
         deadEmailOutboxCount,
         overdueSupportRequestCount,
@@ -67,6 +70,16 @@ export async function GET(request: Request) {
           orderBy: { startedAt: "asc" },
           take: 25,
           select: { id: true, jobName: true, bucket: true, startedAt: true },
+        }),
+        prisma.cronRun.findMany({
+          where: {
+            status: "COMPLETED",
+            startedAt: { gte: failedCronSince },
+            jobName: { not: "ops-health" },
+          },
+          orderBy: { startedAt: "desc" },
+          take: RECENT_COMPLETED_CRON_RUN_SCAN_LIMIT,
+          select: { id: true, jobName: true, bucket: true, startedAt: true, result: true },
         }),
         prisma.emailOutbox.count({
           where: {
@@ -134,9 +147,29 @@ export async function GET(request: Request) {
         }),
       ]);
 
+      const partialFailureCronRuns = recentCompletedCronRuns
+        .map((run) => {
+          const summary = cronRunPartialIssueSummary(run.result);
+          return {
+            id: run.id,
+            jobName: run.jobName,
+            bucket: run.bucket,
+            startedAt: run.startedAt,
+            partialIssueCount: summary.count,
+            partialIssueKeys: summary.keys,
+          };
+        })
+        .filter((run) => run.partialIssueCount > 0);
+      const partialCronRunIssueCount = partialFailureCronRuns.reduce(
+        (total, run) => total + run.partialIssueCount,
+        0,
+      );
+
       const issues = {
         failedCronRunCount: failedCronRuns.length,
         staleRunningCronRunCount: staleRunningCronRuns.length,
+        partialFailureCronRunCount: partialFailureCronRuns.length,
+        partialCronRunIssueCount,
         staleEmailOutboxCount,
         deadEmailOutboxCount,
         overdueSupportRequestCount,
@@ -149,6 +182,8 @@ export async function GET(request: Request) {
       if (
         issues.failedCronRunCount > 0 ||
         issues.staleRunningCronRunCount > 0 ||
+        issues.partialFailureCronRunCount > 0 ||
+        issues.partialCronRunIssueCount > 0 ||
         issues.staleEmailOutboxCount > 0 ||
         issues.deadEmailOutboxCount > 0 ||
         issues.overdueSupportRequestCount > 0 ||
@@ -173,6 +208,14 @@ export async function GET(request: Request) {
               jobName: run.jobName,
               bucket: run.bucket,
               startedAt: run.startedAt.toISOString(),
+            })),
+            partialFailureCronRuns: partialFailureCronRuns.map((run) => ({
+              id: run.id,
+              jobName: run.jobName,
+              bucket: run.bucket,
+              startedAt: run.startedAt.toISOString(),
+              partialIssueCount: run.partialIssueCount,
+              partialIssueKeys: run.partialIssueKeys,
             })),
           },
         });

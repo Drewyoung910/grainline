@@ -7,6 +7,7 @@ const {
   cronUtcHourBucket,
   shouldReclaimFailedCronRun,
 } = await import("../src/lib/cronRunState.ts");
+const { cronRunPartialIssueSummary } = await import("../src/lib/cronRunPartialIssues.ts");
 
 describe("cron run idempotency helpers", () => {
   it("uses UTC hour buckets for deterministic cron run IDs", () => {
@@ -36,5 +37,25 @@ describe("cron run idempotency helpers", () => {
 
     assert.equal(message, "Failed for [email] at [url] with [token]");
     assert.equal(cronRunErrorMessage({ raw: "object" }), "Unknown error");
+  });
+
+  it("summarizes bounded partial issue arrays from completed cron results", () => {
+    assert.deepEqual(
+      cronRunPartialIssueSummary({
+        failures: [{ requestId: "commission_1", code: "P2002" }],
+        errors: [
+          { sellerId: "seller_1", code: "TIMEOUT" },
+          { sellerId: "seller_2", code: "UNKNOWN" },
+        ],
+        ignored: [{ id: "not_a_partial_failure_key" }],
+      }),
+      { count: 3, keys: ["failures", "errors"] },
+    );
+
+    assert.deepEqual(cronRunPartialIssueSummary({ failures: [], errors: "not-array" }), {
+      count: 0,
+      keys: [],
+    });
+    assert.deepEqual(cronRunPartialIssueSummary(null), { count: 0, keys: [] });
   });
 });

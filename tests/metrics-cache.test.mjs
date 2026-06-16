@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const { SELLER_METRICS_MAX_AGE_MS, isSellerMetricsFresh } = await import("../src/lib/metricsFreshness.ts");
@@ -19,5 +20,16 @@ describe("seller metrics cache freshness", () => {
     assert.equal(isSellerMetricsFresh({ calculatedAt: stale }, now), false);
     assert.equal(isSellerMetricsFresh({ calculatedAt: farFuture }, now), false);
     assert.equal(isSellerMetricsFresh({ calculatedAt: new Date("not-a-date") }, now), false);
+  });
+
+  it("serializes stale seller metric refreshes with a seller-scoped transaction lock", () => {
+    const source = readFileSync("src/lib/metrics.ts", "utf8");
+
+    assert.match(source, /const SELLER_METRICS_LOCK_NAMESPACE = 913344/);
+    assert.match(source, /return prisma\.\$transaction\(/);
+    assert.match(source, /calculateSellerMetricsInTransaction\(sellerProfileId, periodMonths, tx\)/);
+    assert.match(source, /SELECT pg_advisory_xact_lock\(\$\{SELLER_METRICS_LOCK_NAMESPACE\}, hashtext\(\$\{sellerProfileId\}\)\)/);
+    assert.match(source, /await db\.sellerMetrics\.upsert/);
+    assert.doesNotMatch(source, /await prisma\.sellerMetrics\.upsert/);
   });
 });

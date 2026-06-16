@@ -1,10 +1,13 @@
 // src/lib/metrics.ts
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import {
   metricsPeriodStart,
   type SellerMetricsResult,
 } from "@/lib/metricsState";
 import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
+
+const SELLER_METRICS_LOCK_NAMESPACE = 913344;
 
 export {
   GUILD_MASTER_REQUIREMENTS,
@@ -20,16 +23,32 @@ export async function calculateSellerMetrics(
   sellerProfileId: string,
   periodMonths = 3
 ): Promise<SellerMetricsResult> {
-  const periodStart = metricsPeriodStart(new Date(), periodMonths);
+  return prisma.$transaction(
+    (tx) => calculateSellerMetricsInTransaction(sellerProfileId, periodMonths, tx),
+    { maxWait: 10_000, timeout: 30_000 },
+  );
+}
 
-  const seller = await prisma.sellerProfile.findUnique({
+async function calculateSellerMetricsInTransaction(
+  sellerProfileId: string,
+  periodMonths: number,
+  db: Prisma.TransactionClient,
+): Promise<SellerMetricsResult> {
+  const now = new Date();
+  const periodStart = metricsPeriodStart(now, periodMonths);
+
+  await db.$executeRaw`
+    SELECT pg_advisory_xact_lock(${SELLER_METRICS_LOCK_NAMESPACE}, hashtext(${sellerProfileId}))
+  `;
+
+  const seller = await db.sellerProfile.findUnique({
     where: { id: sellerProfileId },
     select: { userId: true, createdAt: true },
   });
   if (!seller) throw new Error(`SellerProfile not found: ${sellerProfileId}`);
 
   const accountAgeDays = Math.floor(
-    (Date.now() - new Date(seller.createdAt).getTime()) / (1000 * 60 * 60 * 24)
+    (now.getTime() - new Date(seller.createdAt).getTime()) / (1000 * 60 * 60 * 24)
   );
 
   // Keep metrics aggregation in the database. Loading full order/review/message
@@ -37,13 +56,13 @@ export async function calculateSellerMetrics(
   // metrics become most important.
   const [reviewAgg, completedSalesRows, shippingRows, activeCaseCount, responseRows] =
     await Promise.all([
-      prisma.review.aggregate({
+      db.review.aggregate({
         where: { listing: { sellerId: sellerProfileId } },
         _avg: { ratingX2: true },
         _count: { _all: true },
       }),
 
-      prisma.$queryRaw<Array<{ completedOrderCount: bigint; totalSalesCents: bigint | null }>>`
+      db.$queryRaw<Array<{ completedOrderCount: bigint; totalSalesCents: bigint | null }>>`
         SELECT
           COUNT(DISTINCT o.id)::bigint AS "completedOrderCount",
           COALESCE(SUM(oi."priceCents" * oi.quantity), 0)::bigint AS "totalSalesCents"
@@ -56,7 +75,7 @@ export async function calculateSellerMetrics(
           ${BLOCKING_REFUND_LEDGER_SQL}
       `,
 
-      prisma.$queryRaw<Array<{ shippedCount: bigint; onTimeCount: bigint }>>`
+      db.$queryRaw<Array<{ shippedCount: bigint; onTimeCount: bigint }>>`
         SELECT
           COUNT(*)::bigint AS "shippedCount",
           COUNT(*) FILTER (WHERE o."shippedAt" <= o."processingDeadline")::bigint AS "onTimeCount"
@@ -76,14 +95,14 @@ export async function calculateSellerMetrics(
       `,
 
       // Active (open) cases
-      prisma.case.count({
+      db.case.count({
         where: {
           sellerId: seller.userId,
           status: { notIn: ["RESOLVED", "CLOSED"] },
         },
       }),
 
-      prisma.$queryRaw<Array<{ buyerInitiatedCount: bigint; sellerRespondedCount: bigint }>>`
+      db.$queryRaw<Array<{ buyerInitiatedCount: bigint; sellerRespondedCount: bigint }>>`
         WITH seller_conversations AS (
           SELECT c.id
           FROM "Conversation" c
@@ -159,7 +178,7 @@ export async function calculateSellerMetrics(
 
   const result: SellerMetricsResult = {
     sellerProfileId,
-    calculatedAt: new Date(),
+    calculatedAt: now,
     periodMonths,
     averageRating,
     reviewCount,
@@ -184,7 +203,7 @@ export async function calculateSellerMetrics(
     activeCaseCount: result.activeCaseCount,
     accountAgeDays: result.accountAgeDays,
   };
-  await prisma.sellerMetrics.upsert({
+  await db.sellerMetrics.upsert({
     where: { sellerProfileId },
     create: { sellerProfileId, ...dbPayload },
     update: dbPayload,
