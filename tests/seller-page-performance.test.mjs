@@ -29,6 +29,11 @@ describe("seller public page query guardrails", () => {
     assert.match(sellerPage, /prisma\.sellerBroadcast\.findFirst/);
     assert.match(sellerPage, /prisma\.blogPost\.findMany/);
     assert.match(sellerPage, /prisma\.listing\.findMany/);
+    assert.match(sellerPage, /featuredRows,/);
+    assert.match(
+      sellerPage,
+      /seller\.featuredListingIds && seller\.featuredListingIds\.length > 0\s*\?\s*prisma\.listing\.findMany\(\{/,
+    );
     assert.match(sellerPage, /getSellerRatingMap\(\[seller\.id\]\)/);
     assert.match(sellerPage, /getCachedPublicSellerStats\(seller\.id\)/);
   });
@@ -39,7 +44,7 @@ describe("seller public page query guardrails", () => {
     assert.match(sellerPage, /const SELLER_PROFILE_LISTING_PREVIEW_SIZE = 9/);
     assert.match(sellerPage, /take: SELLER_PROFILE_LISTING_PREVIEW_SIZE/);
     assert.match(sellerPage, /prisma\.listing\.count\(\{ where: publicListingWhere\(\{ sellerId: seller\.id \}\) \}\)/);
-    assert.match(sellerPage, /const featuredRows = await prisma\.listing\.findMany\(\{/);
+    assert.doesNotMatch(sellerPage, /const featuredRows = await prisma\.listing\.findMany\(\{/);
     assert.match(sellerPage, /where: publicListingWhere\(\{ sellerId: seller\.id, id: \{ in: seller\.featuredListingIds \} \}\)/);
     assert.match(sellerPage, /See all \{activePublicListingCount\}/);
     assert.doesNotMatch(sellerPage, /take: 100/);

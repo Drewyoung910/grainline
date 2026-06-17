@@ -229,6 +229,7 @@ export default async function SellerPublicPage({
     latestBroadcast,
     sellerBlogPosts,
     listings,
+    featuredRows,
     activePublicListingCount,
     sellerRatingMap,
     publicSellerStats,
@@ -262,6 +263,12 @@ export default async function SellerPublicPage({
       orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
       take: SELLER_PROFILE_LISTING_PREVIEW_SIZE,
     }),
+    seller.featuredListingIds && seller.featuredListingIds.length > 0
+      ? prisma.listing.findMany({
+          where: publicListingWhere({ sellerId: seller.id, id: { in: seller.featuredListingIds } }),
+          select: sellerProfileListingCardSelect,
+        })
+      : Promise.resolve([]),
     prisma.listing.count({ where: publicListingWhere({ sellerId: seller.id }) }),
     getSellerRatingMap([seller.id]),
     getCachedPublicSellerStats(seller.id),
@@ -310,10 +317,6 @@ export default async function SellerPublicPage({
   // Fetch featured listings in order
   let featuredListings: typeof listings = [];
   if (seller.featuredListingIds && seller.featuredListingIds.length > 0) {
-    const featuredRows = await prisma.listing.findMany({
-      where: publicListingWhere({ sellerId: seller.id, id: { in: seller.featuredListingIds } }),
-      select: sellerProfileListingCardSelect,
-    });
     const featuredById = new Map(featuredRows.map((l) => [l.id, l]));
     featuredListings = seller.featuredListingIds
       .map((fid) => featuredById.get(fid))

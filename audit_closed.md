@@ -6621,3 +6621,48 @@ residual lower-risk HTTP-status/logging hygiene outside touched routes, Vercel
 Analytics/Speed Insights product/ops decision, remaining homepage runtime a11y
 proof, strict multipart missing-length ingress/runtime proof, and residual
 agent/worktree verification process hygiene.
+
+Entry 417 reduces one residual public seller-page query waterfall from the
+already-classified seller performance category. Parent verification confirmed
+the broad #1111 allegation was already counted in Entry 409 because the main
+seller page batches broadcast, blog, listing preview, rating, stats, tags, and
+customer-photo reads. The remaining source-verifiable residue was narrower:
+curated featured listing rows were still fetched by a separate post-batch
+`await` even though `featuredListingIds` is already available on the cached
+seller profile.
+
+`/seller/[id]` now includes the optional curated-featured listing query inside
+the existing independent `Promise.all` batch and only preserves seller-defined
+ordering after the batch returns. The saved-state hydration still runs after
+the listing ID union is known, preserving the Entry 409/371 guardrail that
+featured cards and preview cards share favorite state correctly.
+
+Guardrail:
+`tests/seller-page-performance.test.mjs`.
+
+Current running tally after Entry 417: verified fixed/reduced 751, verified
+stale/false-positive/current 468, deferred product/design/ops/legal 73,
+approximate raw allegations left from current max #1126: 86. The fixed count
+increases by one for the residual featured-listing query waterfall reduction.
+No stale/current, deferred, or approximate raw count changes are counted
+because #1111 was already classified and decremented in Entry 409.
+
+Remaining major categories: Stripe webhook subscription dashboard evidence,
+Stripe Connect v2 loss-liability ops/legal decision, stale remote branch and
+old git author hygiene, Round 10 deferred cache/state-machine product designs
+that require product decisions rather than source guardrails, remaining
+EXPLAIN-dependent query-plan/index validation, Stripe partial-refund runtime
+reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope, remaining privacy/export retention decisions,
+cross-seller AI duplicate-detection product design, legacy enum
+cleanup/data-migration decisions, partial multi-seller checkout continuation
+design, deliberate BigInt money-column modeling, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket dashboard evidence, HSTS preload submission decision,
+residual lower-risk HTTP-status/logging hygiene outside touched routes, Vercel
+Analytics/Speed Insights product/ops decision, remaining homepage runtime a11y
+proof, strict multipart missing-length ingress/runtime proof, and residual
+agent/worktree verification process hygiene.
