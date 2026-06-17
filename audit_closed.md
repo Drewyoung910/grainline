@@ -6563,3 +6563,61 @@ residual lower-risk HTTP-status/logging hygiene outside touched routes, Vercel
 Analytics/Speed Insights product/ops decision, remaining homepage runtime a11y
 proof, strict multipart missing-length ingress/runtime proof, and residual
 agent/worktree verification process hygiene.
+
+Entry 416 adds one refund/Guild-sales regression guardrail after a parent-only
+source recheck of the remaining refund/accounting cluster. The read-only
+privacy/export and refund sidecar agents were spawned for parallel review, but
+both errored before returning usable evidence and were closed; no agent
+conclusions were relied on for this pass.
+
+Parent verification rechecked raw #159 against current source. The current
+Guild Member application route, dashboard verification page, and admin
+approval action all exclude locally stamped `sellerRefundId` orders and also
+use the shared status-aware `BLOCKING_REFUND_LEDGER_SQL` predicate, so a
+first-party partial refund does not count as clean completed sales. Seller
+self-service refunds, staff case refunds, and blocked-checkout auto-refunds
+co-write bounded `OrderPaymentEvent` refund evidence through
+`recordLocalRefundEvidence()` in the same transaction that records final order
+refund state. This keeps #159 stale/current as previously classified in Entry
+297, but the new guardrail ties that classification to the current
+first-party refund evidence paths so the behavior is harder to regress.
+
+The same parent pass rechecked #635/#105/#106 and #217 without changing their
+classification. Partial-refund stock restoration is already source-fixed for
+seller and staff case paths through explicit bounded `restoreStock` quantities
+validated against purchased `IN_STOCK` order items and blocked after shipped,
+delivered, or picked-up handoff states. The Stripe partial-refund economics
+question remains a Stripe test-mode/runtime reconciliation proof item under
+the current manual-transfer model, not a source-proven exploit on current
+`main`; the app still allows at most one blocking refund per order.
+
+Guardrail:
+`tests/seller-analytics-refund-guardrails.test.mjs`.
+
+Current running tally after Entry 416: verified fixed/reduced 750, verified
+stale/false-positive/current 468, deferred product/design/ops/legal 73,
+approximate raw allegations left from current max #1126: 86. The fixed count
+increases by one for the new first-party partial-refund-to-Guild-sales
+guardrail. Stale/current, deferred, and approximate raw counts stay flat
+because #159, #635/#105/#106, and #217 were already classified in earlier
+entries.
+
+Remaining major categories: Stripe webhook subscription dashboard evidence,
+Stripe Connect v2 loss-liability ops/legal decision, stale remote branch and
+old git author hygiene, Round 10 deferred cache/state-machine product designs
+that require product decisions rather than source guardrails, remaining
+EXPLAIN-dependent query-plan/index validation, Stripe partial-refund runtime
+reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope, remaining privacy/export retention decisions,
+cross-seller AI duplicate-detection product design, legacy enum
+cleanup/data-migration decisions, partial multi-seller checkout continuation
+design, deliberate BigInt money-column modeling, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket dashboard evidence, HSTS preload submission decision,
+residual lower-risk HTTP-status/logging hygiene outside touched routes, Vercel
+Analytics/Speed Insights product/ops decision, remaining homepage runtime a11y
+proof, strict multipart missing-length ingress/runtime proof, and residual
+agent/worktree verification process hygiene.

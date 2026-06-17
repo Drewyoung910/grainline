@@ -38,4 +38,29 @@ describe("seller analytics refund guardrails", () => {
     assert.match(recentSales, /paymentEvents: \{ none: blockingRefundLedgerWhere\(\) \}/);
     assert.doesNotMatch(recentSales, /OrderPaymentEvent/);
   });
+
+  it("keeps first-party partial refunds visible to Guild sales filters", () => {
+    const helper = source("src/lib/localRefundEvidence.ts");
+    const sellerRefundRoute = source("src/app/api/orders/[id]/refund/route.ts");
+    const caseResolveRoute = source("src/app/api/cases/[id]/resolve/route.ts");
+    const verificationApplyRoute = source("src/app/api/verification/apply/route.ts");
+    const dashboardVerification = source("src/app/dashboard/verification/page.tsx");
+    const adminVerification = source("src/app/admin/verification/page.tsx");
+
+    assert.match(helper, /eventType: "REFUND"/);
+    assert.match(helper, /amountCents/);
+
+    assert.match(sellerRefundRoute, /sellerRefundAmountCents: refundAmountCents/);
+    assert.match(sellerRefundRoute, /action: "SELLER_REFUND_RECORDED"/);
+    assert.match(sellerRefundRoute, /amountCents: refundAmountCents/);
+
+    assert.match(caseResolveRoute, /sellerRefundAmountCents: refundAmountForOrder/);
+    assert.match(caseResolveRoute, /action: "CASE_REFUND_RECORDED"/);
+    assert.match(caseResolveRoute, /amountCents: refundAmountForOrder!/);
+
+    for (const text of [verificationApplyRoute, dashboardVerification, adminVerification]) {
+      assert.match(text, /o\."sellerRefundId" IS NULL/);
+      assert.match(text, /BLOCKING_REFUND_LEDGER_SQL/);
+    }
+  });
 });
