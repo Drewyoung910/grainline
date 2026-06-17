@@ -143,6 +143,19 @@ export async function unsubscribeTokenSuperseded(
   `);
   if (newerAccountClaim) return true;
 
+  const [newerCurrentEmailClaim] = await prisma.$queryRaw<{ firstSeenAt: Date }[]>(Prisma.sql`
+    SELECT uea."firstSeenAt"
+    FROM "UserEmailAddress" uea
+    INNER JOIN "User" u ON u."id" = uea."userId"
+    WHERE ${emailSuppressionMatchWhereSql(lookup, Prisma.sql`uea."email"`)}
+      AND uea."isCurrent" = true
+      AND u."deletedAt" IS NULL
+      AND uea."firstSeenAt" > ${new Date(issuedAt)}
+    ORDER BY uea."firstSeenAt" DESC
+    LIMIT 1
+  `);
+  if (newerCurrentEmailClaim) return true;
+
   const [user] = await prisma.$queryRaw<{ emailPreferenceOptInAt: Date | null }[]>(Prisma.sql`
     SELECT "emailPreferenceOptInAt"
     FROM "User"

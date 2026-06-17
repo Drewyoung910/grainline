@@ -22,6 +22,25 @@ export async function isEmailSuppressed(email: string | null | undefined): Promi
   return !!suppression;
 }
 
+export async function isEmailSuppressedForNewsletterSignup(email: string | null | undefined): Promise<boolean> {
+  const emails = emailSuppressionAddressKeys(email);
+  if (emails.length === 0) return true;
+
+  const suppression = await prisma.emailSuppression.findFirst({
+    where: {
+      email: { in: emails },
+      OR: [
+        { reason: { in: [EmailSuppressionReason.BOUNCE, EmailSuppressionReason.COMPLAINT] } },
+        { source: "account_deletion" },
+        { reason: EmailSuppressionReason.MANUAL, source: null },
+        { reason: EmailSuppressionReason.MANUAL, source: { not: "one_click_unsubscribe" } },
+      ],
+    },
+    select: { id: true },
+  });
+  return !!suppression;
+}
+
 export async function isEmailDeliverySuppressed(email: string | null | undefined): Promise<boolean> {
   const emails = emailSuppressionAddressKeys(email);
   if (emails.length === 0) return true;

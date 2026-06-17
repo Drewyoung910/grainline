@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { getIP, newsletterRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { assertContentLengthUnder, isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
+import { clearOneClickEmailSuppression } from "@/lib/emailSuppression";
 import { hashNewsletterConfirmationToken, safeEqualNewsletterTokenHash } from "@/lib/newsletterConfirmation";
 import { logServerError } from "@/lib/serverErrorLogger";
 
@@ -138,7 +139,7 @@ export async function POST(req: NextRequest) {
         active: false,
         confirmationExpiresAt: { gt: new Date() },
       },
-      select: { id: true, confirmationTokenHash: true },
+      select: { id: true, email: true, confirmationTokenHash: true },
     });
 
     if (!subscriber?.confirmationTokenHash || !safeEqualNewsletterTokenHash(subscriber.confirmationTokenHash, validated.tokenHash)) {
@@ -149,24 +150,29 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date();
-    const updated = await prisma.newsletterSubscriber.updateMany({
-      where: {
-        id: subscriber.id,
-        active: false,
-        confirmationTokenHash: validated.tokenHash,
-        confirmationExpiresAt: { gt: now },
-      },
-      data: {
-        active: true,
-        confirmedAt: now,
-        subscribedAt: now,
-        confirmationTokenHash: null,
-        confirmationExpiresAt: null,
-        confirmationSentAt: null,
-      },
+    const confirmed = await prisma.$transaction(async (tx) => {
+      const updated = await tx.newsletterSubscriber.updateMany({
+        where: {
+          id: subscriber.id,
+          active: false,
+          confirmationTokenHash: validated.tokenHash,
+          confirmationExpiresAt: { gt: now },
+        },
+        data: {
+          active: true,
+          confirmedAt: now,
+          subscribedAt: now,
+          confirmationTokenHash: null,
+          confirmationExpiresAt: null,
+          confirmationSentAt: null,
+        },
+      });
+      if (updated.count !== 1) return false;
+      await clearOneClickEmailSuppression(subscriber.email, tx);
+      return true;
     });
 
-    if (updated.count !== 1) {
+    if (!confirmed) {
       if (mode === "html") {
         return htmlResponse("Invalid confirmation link", "This confirmation link is invalid or has expired.", 400);
       }

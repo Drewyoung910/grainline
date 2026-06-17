@@ -6421,3 +6421,145 @@ residual lower-risk HTTP-status/logging hygiene outside touched routes, Vercel
 Analytics/Speed Insights product/ops decision, remaining homepage runtime a11y
 proof, strict multipart missing-length ingress/runtime proof, and residual
 agent/worktree verification process hygiene.
+
+Entry 415 reduces three email-consent issues found by the read-only
+unsubscribe/newsletter sidecar and parent-verified locally before patching.
+First, `/api/email/unsubscribe` now treats an unsubscribe token as superseded
+when a non-deleted account's current `UserEmailAddress` first claimed the same
+suppression-key email after the token was issued. The existing
+`User.createdAt`, signed-in preference opt-in, and newsletter confirmation
+epoch checks remain, but this closes the recycled-email/account-email-change
+case that `User.createdAt` alone did not cover.
+
+Second, the previously deferred public newsletter-only resubscribe policy is
+now resolved in source. Public signup uses
+`isEmailSuppressedForNewsletterSignup()`, which still blocks bounce,
+complaint, account-deletion, and other manual suppressions, but allows a prior
+`one_click_unsubscribe` manual suppression to proceed through double opt-in.
+`POST /api/newsletter/confirm` clears only one-click manual suppression after
+the confirmation token is consumed inside the same transaction that activates
+the subscriber; it does not clear hard provider/account-deletion suppressions.
+
+Third, newsletter confirmation signup now reserves `confirmationSentAt` before
+sending the confirmation email and uses the resend cooldown in the
+`updateMany` predicate for existing inactive rows. Parallel signup requests for
+the same pending address now race on that reservation instead of sending
+multiple tokens and invalidating earlier emails. If the send fails, the route
+attempts to clear only the reserved token/hash/sent timestamp and logs cleanup
+failure with hashed email telemetry.
+
+The same sidecar rechecked stale/current unsubscribe and newsletter claims:
+one-click unsubscribe remains public and geo-allowed, token generation uses the
+dedicated unsubscribe secret only, tokens expire and are rate-limited, GET
+unsubscribe and GET newsletter confirmation are render-only, newsletter signup
+is double opt-in, and public responses still avoid suppression-history
+enumeration. Those stale/current points were already counted in earlier
+entries, so this pass does not inflate the stale tally.
+
+Guardrails:
+`tests/account-privacy-observability.test.mjs`,
+`tests/newsletter-double-opt-in.test.mjs`, and
+`tests/pr-i-media-upload-unsubscribe-followups.test.mjs`.
+Focused verification also reran `npx tsc --noEmit`.
+
+Current running tally after Entry 415: verified fixed/reduced 749, verified
+stale/false-positive/current 468, deferred product/design/ops/legal 73,
+approximate raw allegations left from current max #1126: 86. The fixed count
+increases by three for recycled/current email-claim unsubscribe token
+supersession, public double-opt-in recovery from one-click newsletter
+suppression, and newsletter confirmation send reservation. Deferred decreases
+by one and the approximate raw count drops by one because the public
+newsletter-only resubscribe policy is no longer deferred. The current-email
+claim and confirmation-send race were adjacent source findings rather than
+separate raw-category decrements.
+
+Remaining major categories: Stripe webhook subscription dashboard evidence,
+Stripe Connect v2 loss-liability ops/legal decision, stale remote branch and
+old git author hygiene, Round 10 deferred cache/state-machine product designs
+that require product decisions rather than source guardrails, remaining
+EXPLAIN-dependent query-plan/index validation, Stripe partial-refund runtime
+reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope, remaining privacy/export retention decisions,
+cross-seller AI duplicate-detection product design, legacy enum
+cleanup/data-migration decisions, partial multi-seller checkout continuation
+design, deliberate BigInt money-column modeling, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket dashboard evidence, HSTS preload submission decision,
+residual lower-risk HTTP-status/logging hygiene outside touched routes, Vercel
+Analytics/Speed Insights product/ops decision, remaining homepage runtime a11y
+proof, strict multipart missing-length ingress/runtime proof, and residual
+agent/worktree verification process hygiene.
+
+Entry 414 adds two fixed/reduced regression guardrails from a focused
+upload/media/AI source-verification pass. Parent verification rechecked the
+current upload routes against the raw Image/Photo/AI allegations rather than
+trusting the old line references. The current processed-image route already
+uses a 16 MiB multipart precheck for the 15 MiB banner path, rejects mismatched
+JPEG/PNG/WebP signatures before Sharp, sets `limitInputPixels: 50_000_000`,
+and checks the processed output size before writing to R2. The current direct
+upload route already rejects image content types, allowlists PDF/MP4/MOV/QT
+extensions for direct uploads, signs the expected size/content type/key into a
+short-lived verification token, and `/api/upload/verify` confirms the stored
+R2 object's actual size/content type/signature with `HeadObjectCommand` and a
+prefix read before the client can attach the URL to product or message state.
+
+The pass also rechecked the `fileIndex` allegation in context. `fileIndex`
+remains a per-selection UX/count check, not the durable authorization boundary,
+but both direct presign and processed-image upload routes are per-user
+rate-limited by short and hourly upload limiters, direct verification is also
+hourly-limited, and final write paths cap/filter attached URLs by endpoint and
+current uploader before persisting listing, review, commission, profile, or
+message media. That verifies current behavior for the storage-churn concern
+without claiming Cloudflare dashboard guarantees; public R2 ListBucket posture,
+bucket-level object-size policy, and strict missing-`Content-Length` ingress
+behavior remain external/runtime evidence items.
+
+The same pass rechecked adjacent AI/media claims: wildcard `*.r2.dev` media
+origins are rejected, GIF is not an accepted processed-image or direct-upload
+type, arbitrary direct-upload extensions are rejected through the per-content
+type extension allowlist, message-body media rendering is behind trusted media
+origins, and listing moderation sends seller content as redacted, delimited
+user data under a system prompt that says not to follow seller-provided
+commands. `CLAUDE.md` already carries the durable upload and AI-review behavior
+contracts, so this pass did not add new future-agent rules.
+
+Guardrails:
+`tests/upload-ux-followups.test.mjs`,
+`tests/ai-review-safety.test.mjs`,
+`tests/upload-verification-token.test.mjs`,
+`tests/form-data-body-bounds.test.mjs`, and `tests/media-url.test.mjs`.
+Focused verification ran those five test files directly.
+
+Current running tally after Entry 414: verified fixed/reduced 746, verified
+stale/false-positive/current 468, deferred product/design/ops/legal 74,
+approximate raw allegations left from current max #1126: 87. The fixed count
+increases by two for the new direct-upload metadata/file-count guardrail and
+AI-review delimited-data guardrail. The stale/current count and approximate
+raw count stay flat because the rechecked upload findings #1095/#1096/#1099
+and AI prompt-injection redaction categories were already counted in earlier
+entries; this pass added narrower regression coverage and parent-reviewed the
+remaining adjacent wording.
+
+Remaining major categories: Stripe webhook subscription dashboard evidence,
+Stripe Connect v2 loss-liability ops/legal decision, stale remote branch and
+old git author hygiene, Round 10 deferred cache/state-machine product designs
+that require product decisions rather than source guardrails, remaining
+EXPLAIN-dependent query-plan/index validation, Stripe partial-refund runtime
+reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope, remaining privacy/export retention decisions,
+cross-seller AI duplicate-detection product design, public/newsletter-only
+resubscribe policy if support wants a self-service path, legacy enum
+cleanup/data-migration decisions, partial multi-seller checkout continuation
+design, deliberate BigInt money-column modeling, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket dashboard evidence, HSTS preload submission decision,
+residual lower-risk HTTP-status/logging hygiene outside touched routes, Vercel
+Analytics/Speed Insights product/ops decision, remaining homepage runtime a11y
+proof, strict multipart missing-length ingress/runtime proof, and residual
+agent/worktree verification process hygiene.

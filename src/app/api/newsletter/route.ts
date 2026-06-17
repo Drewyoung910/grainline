@@ -3,12 +3,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { sendNewsletterConfirmationEmail } from "@/lib/email";
 import { getIP, newsletterRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
-import { isEmailSuppressed, normalizeEmailAddress } from "@/lib/emailSuppression";
+import { isEmailSuppressedForNewsletterSignup, normalizeEmailAddress } from "@/lib/emailSuppression";
 import {
   buildNewsletterConfirmationUrl,
   canSendNewsletterConfirmation,
   createNewsletterConfirmationToken,
   hashNewsletterConfirmationToken,
+  NEWSLETTER_CONFIRMATION_RESEND_COOLDOWN_MS,
   newsletterConfirmationExpiresAt,
 } from "@/lib/newsletterConfirmation";
 import { sanitizeUserName } from "@/lib/sanitize";
@@ -31,6 +32,23 @@ const NewsletterSchema = z.object({
 
 function isUniqueConstraintError(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && (error as { code?: unknown }).code === "P2002";
+}
+
+async function clearReservedNewsletterConfirmation(email: string, tokenHash: string, emailHash: string | null) {
+  await prisma.newsletterSubscriber.updateMany({
+    where: { email, active: false, confirmationTokenHash: tokenHash },
+    data: {
+      confirmationTokenHash: null,
+      confirmationExpiresAt: null,
+      confirmationSentAt: null,
+    },
+  }).catch((error) => {
+    logServerError(error, {
+      level: "warning",
+      source: "newsletter_confirmation_reservation_cleanup",
+      extra: { emailHash },
+    });
+  });
 }
 
 export const runtime = "nodejs";
@@ -66,7 +84,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Valid email required" }, { status: 400 });
     }
 
-    if (await isEmailSuppressed(email)) {
+    if (await isEmailSuppressedForNewsletterSignup(email)) {
       return NextResponse.json(NEWSLETTER_CONFIRMATION_RESPONSE);
     }
 
@@ -83,15 +101,24 @@ export async function POST(req: NextRequest) {
     const tokenHash = hashNewsletterConfirmationToken(token);
     const confirmationUrl = buildNewsletterConfirmationUrl(token);
     const expiresAt = newsletterConfirmationExpiresAt();
+    const reservedSentAt = new Date();
+    const resendCutoff = new Date(reservedSentAt.getTime() - NEWSLETTER_CONFIRMATION_RESEND_COOLDOWN_MS);
 
     if (existing) {
       const pendingUpdate = await prisma.newsletterSubscriber.updateMany({
-        where: { email, active: false },
+        where: {
+          email,
+          active: false,
+          OR: [
+            { confirmationSentAt: null },
+            { confirmationSentAt: { lte: resendCutoff } },
+          ],
+        },
         data: {
           name: name ?? undefined,
           confirmationTokenHash: tokenHash,
           confirmationExpiresAt: expiresAt,
-          confirmationSentAt: null,
+          confirmationSentAt: reservedSentAt,
           confirmedAt: null,
         },
       });
@@ -108,7 +135,7 @@ export async function POST(req: NextRequest) {
             active: false,
             confirmationTokenHash: tokenHash,
             confirmationExpiresAt: expiresAt,
-            confirmationSentAt: null,
+            confirmationSentAt: reservedSentAt,
             confirmedAt: null,
           },
         });
@@ -120,12 +147,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    await sendNewsletterConfirmationEmail({ email, confirmationUrl }, { throwOnFailure: true });
-
-    await prisma.newsletterSubscriber.updateMany({
-      where: { email, confirmationTokenHash: tokenHash, active: false },
-      data: { confirmationSentAt: new Date() },
-    });
+    try {
+      await sendNewsletterConfirmationEmail({ email, confirmationUrl }, { throwOnFailure: true });
+    } catch (error) {
+      await clearReservedNewsletterConfirmation(email, tokenHash, emailHash);
+      throw error;
+    }
 
     return NextResponse.json(NEWSLETTER_CONFIRMATION_RESPONSE);
   } catch (err) {

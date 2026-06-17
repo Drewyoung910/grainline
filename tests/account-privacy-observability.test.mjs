@@ -42,7 +42,8 @@ describe("account and privacy route observability guardrails", () => {
     assert.match(route, /logServerError\(err, \{/);
     assert.doesNotMatch(route, /Sentry\.captureException\(err/);
     assert.doesNotMatch(route, /console\.error\("POST \/api\/newsletter error:", err\)/);
-    assert.match(route, /isEmailSuppressed\(email\)/);
+    assert.match(route, /isEmailSuppressedForNewsletterSignup\(email\)/);
+    assert.doesNotMatch(route, /isEmailSuppressed\(email\)/);
     assert.match(route, /confirmationRequired: true/);
     assert.match(route, /sendNewsletterConfirmationEmail/);
     assert.match(route, /active: false/);
@@ -225,7 +226,12 @@ describe("account and privacy route observability guardrails", () => {
     assert.match(deliveryHelper, /source: "account_deletion"/);
     assert.doesNotMatch(deliveryHelper, /source: "one_click_unsubscribe"/);
 
-    assert.match(newsletterRoute, /isEmailSuppressed\(email\)/);
+    assert.match(newsletterRoute, /isEmailSuppressedForNewsletterSignup\(email\)/);
+    assert.doesNotMatch(newsletterRoute, /isEmailSuppressed\(email\)/);
+    assert.match(suppression, /export async function isEmailSuppressedForNewsletterSignup/);
+    assert.match(suppression, /source: "account_deletion"/);
+    assert.match(suppression, /reason: EmailSuppressionReason\.MANUAL, source: null/);
+    assert.match(suppression, /reason: EmailSuppressionReason\.MANUAL, source: \{ not: "one_click_unsubscribe" \}/);
     assert.match(
       adminEmailRoute,
       /isEmailSuppressed\(normalizedRecipientEmail\)/,
@@ -369,6 +375,13 @@ describe("account and privacy route observability guardrails", () => {
     );
     assert.match(unsubscribe, /ORDER BY "createdAt" DESC/);
     assert.match(unsubscribe, /if \(newerAccountClaim\) return true/);
+    assert.match(unsubscribe, /FROM "UserEmailAddress" uea/);
+    assert.match(unsubscribe, /INNER JOIN "User" u ON u\."id" = uea\."userId"/);
+    assert.match(unsubscribe, /emailSuppressionMatchWhereSql\(lookup, Prisma\.sql`uea\."email"`\)/);
+    assert.match(unsubscribe, /AND uea\."isCurrent" = true/);
+    assert.match(unsubscribe, /AND uea\."firstSeenAt" > \$\{new Date\(issuedAt\)\}/);
+    assert.match(unsubscribe, /ORDER BY uea\."firstSeenAt" DESC/);
+    assert.match(unsubscribe, /if \(newerCurrentEmailClaim\) return true/);
     assert.match(
       unsubscribe,
       /AND "emailPreferenceOptInAt" IS NOT NULL/,

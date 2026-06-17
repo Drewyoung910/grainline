@@ -107,6 +107,36 @@ describe("upload UX follow-ups", () => {
     assert.doesNotMatch(verifyRoute, /extra: \{ key \}/);
   });
 
+  it("keeps direct upload metadata spoofing and file-count churn bounded", () => {
+    const presignRoute = source("src/app/api/upload/presign/route.ts");
+    const imageRoute = source("src/app/api/upload/image/route.ts");
+    const verifyRoute = source("src/app/api/upload/verify/route.ts");
+
+    assert.match(presignRoute, /safeRateLimit\(uploadRatelimit, userId\)/);
+    assert.match(presignRoute, /safeRateLimit\(uploadHourlyRatelimit, userId\)/);
+    assert.match(imageRoute, /safeRateLimit\(uploadRatelimit, userId\)/);
+    assert.match(imageRoute, /safeRateLimit\(uploadHourlyRatelimit, userId\)/);
+    assert.match(verifyRoute, /safeRateLimit\(uploadHourlyRatelimit, userId\)/);
+
+    assert.match(presignRoute, /ContentLength: size/);
+    assert.match(presignRoute, /expectedSize: size/);
+    assert.match(presignRoute, /verificationToken/);
+    assert.match(verifyRoute, /new HeadObjectCommand/);
+    assert.match(verifyRoute, /actualSize/);
+    assert.match(verifyRoute, /uploadedObjectVerificationError\(\{/);
+    assert.match(verifyRoute, /actualSize,\s*expectedSize,\s*maxSize/s);
+    assert.match(verifyRoute, /deleteObject\(key\)/);
+
+    assert.match(presignRoute, /ALLOWED_EXTENSIONS/);
+    assert.match(presignRoute, /allowedExtensions\.includes\(ext\)/);
+    assert.match(presignRoute, /uploadExtensionMessage/);
+
+    assert.match(source("src/app/dashboard/listings/new/page.tsx"), /filterFirstPartyMediaUrlsForUser\(imageUrls, 10, userId, \["listingImage"\]\)/);
+    assert.match(source("src/app/dashboard/listings/custom/page.tsx"), /filterFirstPartyMediaUrlsForUser\(imageUrls, 10, userId, \["listingImage"\]\)/);
+    assert.match(source("src/app/api/reviews/route.ts"), /filterFirstPartyMediaUrlsForUser\(photoUrls \?\? \[\], 6, userId, \["reviewPhoto"\]\)/);
+    assert.match(source("src/app/api/commission/route.ts"), /filterFirstPartyMediaUrlsForUser\(referenceImageUrls \?\? \[\], 3, userId, \["messageImage"\]\)/);
+  });
+
   it("prevalidates before upload and reports progress with XMLHttpRequest", () => {
     const hook = source("src/hooks/useR2Upload.ts");
     const button = source("src/components/R2UploadButton.tsx");

@@ -23,10 +23,14 @@ describe("newsletter double opt-in guardrails", () => {
 
     assert.match(route, /sendNewsletterConfirmationEmail\(\{ email, confirmationUrl \}, \{ throwOnFailure: true \}\)/);
     assert.match(route, /active: false/);
-    assert.match(route, /where: \{ email, active: false \}/);
+    assert.match(route, /NEWSLETTER_CONFIRMATION_RESEND_COOLDOWN_MS/);
+    assert.match(route, /const reservedSentAt = new Date\(\)/);
+    assert.match(route, /confirmationSentAt: \{ lte: resendCutoff \}/);
     assert.match(route, /confirmationTokenHash: tokenHash/);
+    assert.match(route, /confirmationSentAt: reservedSentAt/);
     assert.match(route, /confirmationRequired: true/);
     assert.match(route, /isUniqueConstraintError/);
+    assert.match(route, /clearReservedNewsletterConfirmation\(email, tokenHash, emailHash\)/);
     assert.doesNotMatch(route, /newsletterSubscriber\.upsert/);
     assert.doesNotMatch(route, /create: \{ email, name, active: true \}/);
     assert.doesNotMatch(route, /update: \{ name: name \?\? undefined, active: true \}/);
@@ -46,7 +50,11 @@ describe("newsletter double opt-in guardrails", () => {
     assert.match(route, /getExplicitCrossOriginPostRejection\(req\)/);
     assert.match(route, /safeRateLimit\(newsletterRatelimit, `newsletter-confirm:\$\{getIP\(req\)\}`\)/);
     assert.match(route, /assertContentLengthUnder\(req, NEWSLETTER_CONFIRM_FORM_BODY_MAX_BYTES\)/);
+    assert.match(route, /import \{ clearOneClickEmailSuppression \} from "@\/lib\/emailSuppression"/);
+    assert.match(route, /select: \{ id: true, email: true, confirmationTokenHash: true \}/);
+    assert.match(route, /prisma\.\$transaction\(async \(tx\) =>/);
     assert.match(route, /updateMany\(\{[\s\S]*?active: true,[\s\S]*?confirmedAt: now,[\s\S]*?confirmationTokenHash: null,[\s\S]*?confirmationExpiresAt: null,[\s\S]*?confirmationSentAt: null,/);
+    assert.match(route, /clearOneClickEmailSuppression\(subscriber\.email, tx\)/);
     assert.doesNotMatch(route, /token:\s*validated\.token/);
   });
 
