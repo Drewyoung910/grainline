@@ -1,3 +1,4 @@
+import type { CaseStatus } from "@prisma/client";
 import { DEFAULT_CURRENCY } from "./money.ts";
 import { REFUND_LOCK_SENTINEL, isStaleRefundLock } from "./refundLockState.ts";
 
@@ -129,7 +130,7 @@ export type ChargeDisputeLedgerState = {
 
 export type DisputeCaseAction =
   | { action: "none" }
-  | { action: "update"; caseId: string; status: "UNDER_REVIEW" }
+  | { action: "update"; caseId: string; expectedStatus: CaseStatus; status: "UNDER_REVIEW" }
   | { action: "create"; status: "UNDER_REVIEW"; sellerRespondBy: Date; description: string };
 
 export type StripePayoutFailureLike = {
@@ -533,14 +534,18 @@ export function disputeCaseAction({
   now = new Date(),
 }: {
   eventType: string;
-  existingCase?: { id: string; status: string } | null;
+  existingCase?: { id: string; status: CaseStatus } | null;
   dispute: StripeDisputeLike;
   now?: Date;
 }): DisputeCaseAction {
   if (eventType !== "charge.dispute.created") return { action: "none" };
   if (existingCase) {
-    if (existingCase.status === "RESOLVED" || existingCase.status === "CLOSED") return { action: "none" };
-    return { action: "update", caseId: existingCase.id, status: "UNDER_REVIEW" };
+    return {
+      action: "update",
+      caseId: existingCase.id,
+      expectedStatus: existingCase.status,
+      status: "UNDER_REVIEW",
+    };
   }
   return {
     action: "create",

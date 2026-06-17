@@ -35,8 +35,8 @@ export function stockStatusAfterManualUpdate({
   isPrivate?: boolean | null | undefined;
   nextQuantity: number;
 }) {
-  if (nextQuantity <= 0) return "SOLD_OUT";
-  if (previousStatus === "SOLD_OUT" && isPrivate !== true) return "ACTIVE";
+  if (previousStatus === "ACTIVE" && nextQuantity <= 0) return "SOLD_OUT";
+  if (previousStatus === "SOLD_OUT" && nextQuantity > 0 && isPrivate !== true) return "ACTIVE";
   return previousStatus ?? "SOLD_OUT";
 }
 

@@ -167,12 +167,14 @@ describe("verified audit follow-up guardrails", () => {
     assert.match(wizard, /font-display/);
   });
 
-  it("keeps disconnected sellers from losing new-listing form data on publish", () => {
+  it("keeps unavailable sellers from losing new-listing form data on publish", () => {
     const page = source("src/app/dashboard/listings/new/page.tsx");
     assert.match(page, /PUBLISH_REQUIRES_STRIPE_MESSAGE/);
+    assert.match(page, /PUBLISH_REQUIRES_ACTIVE_SHOP_MESSAGE/);
     assert.match(page, /return \{ ok: false, error: PUBLISH_REQUIRES_STRIPE_MESSAGE \}/);
+    assert.match(page, /return \{ ok: false, error: PUBLISH_REQUIRES_ACTIVE_SHOP_MESSAGE \}/);
     assert.doesNotMatch(page, /redirect\("\/dashboard\/listings\/new\?error=stripe"\)/);
-    assert.match(page, /disabled=\{!chargesEnabled\}/);
+    assert.match(page, /disabled=\{Boolean\(publishBlockedMessage\)\}/);
     assert.match(page, /Save as Draft/);
   });
 

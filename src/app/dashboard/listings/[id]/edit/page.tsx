@@ -24,7 +24,7 @@ import {
   normalizeVariantPriceAdjustCents,
   validateVariantGroupsForBasePrice,
 } from "@/lib/listingVariants";
-import { revalidateListingSearchCaches } from "@/lib/searchCache";
+import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import { isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
 import { expireOpenCheckoutSessionsForListing } from "@/lib/checkoutSessionExpiry";
 import { listingMutationRatelimit, safeRateLimit } from "@/lib/ratelimit";
@@ -357,12 +357,21 @@ async function updateListing(
     }))
   );
   const variantsChanged = JSON.stringify(previousVariantGroups) !== JSON.stringify(nextVariantGroups);
-  // Save on an ACTIVE listing triggers AI re-review of the new content.
+  // Save on an ACTIVE or SOLD_OUT public listing triggers AI re-review of the
+  // new content before that content can remain public or be restocked to ACTIVE.
   // Photo upload alone does NOT (that was the original "kick-out" bug —
   // photos route used to flip status mid-edit). The seller controls
   // when review runs by clicking Save. Bypassing review by skipping
   // Save isn't possible because Save is the only way to commit edits.
-  const wasActive = listing.status === ListingStatus.ACTIVE;
+  const needsPublicContentReview =
+    listing.status === ListingStatus.ACTIVE ||
+    listing.status === ListingStatus.SOLD_OUT;
+  const approvedPublicStatus =
+    listing.status === ListingStatus.ACTIVE &&
+    listingType === "IN_STOCK" &&
+    (stockQuantity ?? 0) <= 0
+      ? ListingStatus.SOLD_OUT
+      : listing.status;
 
   let updatedListing: { title: string; updatedAt: Date };
   try {
@@ -390,6 +399,7 @@ async function updateListing(
           shipsWithinDays,
           processingTimeMinDays,
           processingTimeMaxDays,
+          ...(needsPublicContentReview ? { status: ListingStatus.PENDING_REVIEW } : {}),
         },
         select: { title: true, updatedAt: true },
       });
@@ -454,6 +464,9 @@ async function updateListing(
 
       return updated;
     });
+    if (needsPublicContentReview && listing.status === ListingStatus.ACTIVE) {
+      queueCheckoutSessionExpiryForListing(listingId, listing.sellerId, "listing_edit_pending_review");
+    }
   } catch (error) {
     if (error instanceof ListingPhotoConflictError) {
       await Promise.all(
@@ -472,15 +485,16 @@ async function updateListing(
     throw error;
   }
 
-  // Save on an ACTIVE listing routes edited text/price/variant/photo content
-  // through AI re-review. Photo changes are staged in the edit form and are
-  // committed here, so upload/re-crop/reorder/delete cannot kick the seller
-  // into review before they press Save.
-  // - If AI approves: listing stays ACTIVE, new content is live.
+  // Save on an ACTIVE or SOLD_OUT listing commits edited content into
+  // PENDING_REVIEW first, then restores the public status only after AI approval.
+  // Photo changes are staged in the edit form and committed here, so
+  // upload/re-crop/reorder/delete cannot kick the seller into review before they
+  // press Save.
+  // - If AI approves: listing stays in its public status, new content is live.
   // - If AI flags or errors: listing flips to PENDING_REVIEW. The seller
   //   stays on the edit page (?saved=pending banner) instead of being
   //   redirected to a 404'd public listing path.
-  if (wasActive) {
+  if (needsPublicContentReview) {
     try {
       const seller = await prisma.sellerProfile.findFirst({
         where: { listings: { some: { id: listingId } } },
@@ -521,7 +535,7 @@ async function updateListing(
           !aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8;
         if (shouldHold) {
           const holdResult = await prisma.listing.updateMany({
-            where: { id: listingId, sellerId: listing.sellerId, status: ListingStatus.ACTIVE, updatedAt: updatedListing.updatedAt },
+            where: { id: listingId, sellerId: listing.sellerId, status: ListingStatus.PENDING_REVIEW, updatedAt: updatedListing.updatedAt },
             data: {
               status: ListingStatus.PENDING_REVIEW,
               aiReviewFlags: aiResult.flags,
@@ -532,10 +546,11 @@ async function updateListing(
             queueCheckoutSessionExpiryForListing(listingId, seller.id, "listing_edit_ai_hold");
           }
         } else {
-          // Stays ACTIVE; refresh AI metadata to reflect this review pass.
+          // Stays in the current public status; refresh AI metadata for this pass.
           await prisma.listing.updateMany({
-            where: { id: listingId, sellerId: listing.sellerId, status: ListingStatus.ACTIVE, updatedAt: updatedListing.updatedAt },
+            where: { id: listingId, sellerId: listing.sellerId, status: ListingStatus.PENDING_REVIEW, updatedAt: updatedListing.updatedAt },
             data: {
+              status: approvedPublicStatus,
               aiReviewFlags: aiResult.flags,
               aiReviewScore: aiResult.confidence,
             },
@@ -544,7 +559,7 @@ async function updateListing(
       } else {
         // Seller lost chargesEnabled mid-edit: send the listing to draft.
         const draftResult = await prisma.listing.updateMany({
-          where: { id: listingId, sellerId: listing.sellerId, status: ListingStatus.ACTIVE, updatedAt: updatedListing.updatedAt },
+          where: { id: listingId, sellerId: listing.sellerId, status: ListingStatus.PENDING_REVIEW, updatedAt: updatedListing.updatedAt },
           data: { status: ListingStatus.DRAFT },
         });
         if (draftResult.count > 0 && seller) {
@@ -560,7 +575,7 @@ async function updateListing(
       // AI infrastructure error — flip to PENDING_REVIEW conservatively so
       // staff can review the new content.
       const pendingResult = await prisma.listing.updateMany({
-        where: { id: listingId, sellerId: listing.sellerId, status: ListingStatus.ACTIVE, updatedAt: updatedListing.updatedAt },
+        where: { id: listingId, sellerId: listing.sellerId, status: ListingStatus.PENDING_REVIEW, updatedAt: updatedListing.updatedAt },
         data: {
           status: ListingStatus.PENDING_REVIEW,
           aiReviewFlags: ["AI review error"],
@@ -575,9 +590,9 @@ async function updateListing(
 
   // Publish-on-save: if the user clicked the Publish button on the edit form
   // (only shown for DRAFT/HIDDEN/REJECTED — these are not-yet-public statuses
-  // that need the publish flow to transition to ACTIVE). For ACTIVE source
-  // listings the Save branch above already runs AI re-review, so no Publish
-  // button is shown on ACTIVE.
+  // that need the publish flow to transition to ACTIVE). For ACTIVE/SOLD_OUT
+  // source listings the Save branch above already runs AI re-review, so no
+  // Publish button is shown on those statuses.
   const wantsPublish = formData.get("publish") === "true";
   if (wantsPublish) {
     const current = await prisma.listing.findUnique({
@@ -606,6 +621,7 @@ async function updateListing(
   revalidatePath("/dashboard");
   revalidatePath("/browse");
   revalidateListingSearchCaches();
+  revalidateFeaturedMakerCaches();
 
   await Promise.all(
     Array.from(r2CleanupUrls).map((url) =>

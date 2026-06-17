@@ -6318,3 +6318,106 @@ Analytics/Speed Insights product/ops decision, remaining homepage runtime a11y
 proof, strict multipart missing-length ingress/runtime proof, new-listing
 vacation-mode publish parity review, and residual agent/worktree verification
 process hygiene.
+
+Entry 413 reduces nine verified source-level listing state/cache/dispute issues
+from the next multi-agent pass. Parent Codex used read-only explorer agents for
+sidecar scans, re-read the cited source locally, and also audited adjacent
+listing status and cache paths beyond the raw Claude allegations before
+changing code.
+
+First, new-listing creation now keeps publish/orderability parity with
+`publishListingAction()`: non-draft creation blocks vacation-mode sellers before
+AI review or activation, while Save as Draft remains available. The create page
+loads `chargesEnabled` and `vacationMode`, exposes the specific publish-blocked
+message in the UI, and keeps the server-side guard authoritative.
+
+Second, manual stock updates no longer provide a publish/review bypass. The
+stock helper and raw SQL route only auto-flip current `ACTIVE -> SOLD_OUT` when
+stock reaches zero, and only public `SOLD_OUT -> ACTIVE` when stock becomes
+positive. DRAFT, HIDDEN, REJECTED, PENDING_REVIEW, and SOLD listings keep their
+status regardless of quantity, so two forged stock PATCHes cannot move an
+unreviewed listing public.
+
+Third, the adjacent SOLD_OUT edit/restock bypass is reduced. Saving an ACTIVE or
+SOLD_OUT public listing now writes changed content into PENDING_REVIEW in the
+same transaction before AI review runs, then restores the approved public status
+only after AI approval. ACTIVE listings that become in-stock zero during edit
+approval resolve to SOLD_OUT rather than remaining buyer-orderable ACTIVE.
+
+Fourth, admin listing approval now mirrors the seller publish zero-stock
+defense. Approving a PENDING_REVIEW in-stock listing first moves it through
+ACTIVE, then immediately corrects zero-quantity in-stock listings to SOLD_OUT in
+the same transaction. Founding Maker grants, custom-order ready links, and
+follower fanout only run for final ACTIVE approvals; zero-stock approvals get
+approval notification copy that asks the seller to add stock.
+
+Fifth, Stripe dispute webhooks now reopen existing RESOLVED or CLOSED cases
+when a new `charge.dispute.created` arrives. The webhook uses the existing case
+status as a compare-and-swap predicate, moves the case back to UNDER_REVIEW,
+and clears stale resolution fields and buyer/seller resolved flags so the case
+queue reflects the active external dispute.
+
+Sixth, public cache invalidation was tightened around visibility changes.
+Direct Stripe-return refreshes in `/dashboard/seller` and `/dashboard/onboarding`
+now call `revalidatePublicSellerVisibilityCaches()` when `chargesEnabled`
+changes. Admin hard removal and admin audit undo now invalidate listing-search
+and featured-maker caches after removing/restoring public listing or seller
+visibility. Dashboard listing status/archive, new listing activation, edit
+re-review outcomes, checkout sellout, blocked-checkout stock restoration,
+seller/staff refund stock restoration, case refund stock restoration, checkout
+reservation restoration, and manual stock flips now clear featured-maker caches
+alongside listing-search caches where their state can affect homepage
+eligibility.
+
+Guardrails:
+`tests/onboarding-incomplete-dashboard-access.test.mjs`,
+`tests/stock-mutation-state.test.mjs`,
+`tests/admin-moderation-observability.test.mjs`,
+`tests/cache-invalidation-guardrails.test.mjs`,
+`tests/stripe-webhook-state.test.mjs`,
+`tests/round10-state-machine-guardrails.test.mjs`,
+`tests/seller-ops-hardening.test.mjs`,
+`tests/verified-audit-followups.test.mjs`,
+`tests/post-launch-ui-followups.test.mjs`, and
+`tests/checkout-session-expiry.test.mjs`.
+Full verification also reran `npx tsc --noEmit`, `npm test` (1299/1299
+passing), `npm run lint` (exit 0; existing jsx-ast-utils TSNonNullExpression
+resolver warning), `npm audit --audit-level=moderate` (0 vulnerabilities),
+`git diff --check`, and `npm run build`.
+
+Current running tally after Entry 413: verified fixed/reduced 744, verified
+stale/false-positive/current 468, deferred product/design/ops/legal 74,
+approximate raw allegations left from current max #1126: 87. The fixed count
+increases by nine for new-listing vacation-mode publish parity, manual stock
+publish/review bypass closure, SOLD_OUT edit/restock review closure, admin
+approval zero-stock correction, Stripe dispute case reopening, direct
+Stripe-return seller visibility cache invalidation, admin remove/undo cache
+invalidation, featured-maker cache invalidation on stock/listing visibility
+flips, and seller public-edit review/cache behavior. The approximate raw count
+drops by five for the raw-covered vacation-mode publish parity, Stripe dispute
+case reopen, direct Stripe-return cache invalidation, admin remove/undo cache
+invalidation, and featured-maker/listing visibility cache categories. The stock
+bypass, SOLD_OUT edit/restock bypass, and admin zero-stock approval correction
+were adjacent source findings from this pass rather than counted as raw
+allegation decrements.
+
+Remaining major categories: Stripe webhook subscription dashboard evidence,
+Stripe Connect v2 loss-liability ops/legal decision, stale remote branch and
+old git author hygiene, Round 10 deferred cache/state-machine product designs
+that require product decisions rather than source guardrails, remaining
+EXPLAIN-dependent query-plan/index validation, Stripe partial-refund runtime
+reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope, remaining privacy/export retention decisions,
+cross-seller AI duplicate-detection product design, public/newsletter-only
+resubscribe policy if support wants a self-service path, legacy enum
+cleanup/data-migration decisions, partial multi-seller checkout continuation
+design, deliberate BigInt money-column modeling, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket dashboard evidence, HSTS preload submission decision,
+residual lower-risk HTTP-status/logging hygiene outside touched routes, Vercel
+Analytics/Speed Insights product/ops decision, remaining homepage runtime a11y
+proof, strict multipart missing-length ingress/runtime proof, and residual
+agent/worktree verification process hygiene.

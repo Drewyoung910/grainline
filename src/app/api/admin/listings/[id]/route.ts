@@ -1,12 +1,14 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { after } from "next/server";
+import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { logAdminActionOrThrow } from "@/lib/audit";
 import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { expireOpenCheckoutSessionsForListing } from "@/lib/checkoutSessionExpiry";
 import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
+import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 
 export async function DELETE(
   _request: Request,
@@ -71,6 +73,13 @@ export async function DELETE(
       extra: { listingId: id, sellerId: listing.sellerId },
     });
   });
+
+  revalidatePath("/browse");
+  revalidatePath(`/listing/${id}`);
+  revalidatePath(`/seller/${listing.sellerId}`);
+  revalidatePath(`/seller/${listing.sellerId}/shop`);
+  revalidateListingSearchCaches();
+  revalidateFeaturedMakerCaches();
 
   after(async () => {
     await expireOpenCheckoutSessionsForListing({

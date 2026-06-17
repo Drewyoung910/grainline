@@ -14,7 +14,7 @@ import DismissibleBanner from "@/components/DismissibleBanner";
 import ResubmitButton from "@/components/ResubmitButton";
 import { listingMutationRatelimit, safeRateLimit, savedSearchRatelimit } from "@/lib/ratelimit";
 import { publicListingPath, publicSellerShopPath } from "@/lib/publicPaths";
-import { revalidateListingSearchCaches } from "@/lib/searchCache";
+import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { formatCurrencyCents, formatCurrencyMinorUnitAmount } from "@/lib/money";
@@ -84,6 +84,7 @@ async function setStatus(
   revalidatePath(`/seller/${listing.sellerId}`);
   revalidatePath(`/seller/${listing.sellerId}/shop`);
   revalidateListingSearchCaches();
+  revalidateFeaturedMakerCaches();
 
   return { ok: true };
 }
@@ -129,6 +130,7 @@ async function deleteListing(
   revalidatePath("/dashboard");
   revalidatePath("/browse");
   revalidateListingSearchCaches();
+  revalidateFeaturedMakerCaches();
 
   return { ok: true };
 }

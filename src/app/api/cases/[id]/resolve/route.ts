@@ -13,7 +13,7 @@ import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelim
 import { REFUND_LOCK_SENTINEL, releaseStaleRefundLocks } from "@/lib/refundLocks";
 import { blockingRefundOrLatestOpenDisputeLedgerExistsSql } from "@/lib/refundLedgerSql";
 import { caseResolutionCopy } from "@/lib/caseResolutionCopy";
-import { revalidateListingSearchCaches } from "@/lib/searchCache";
+import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import {
   blockingRefundLedgerWhere,
   blockingRefundOrDisputeLedgerWhere,
@@ -450,6 +450,7 @@ export async function POST(
     }
     if (stockStatusRestoredCount > 0) {
       revalidateListingSearchCaches();
+      revalidateFeaturedMakerCaches();
     }
 
     const resolutionCopy = caseResolutionCopy(

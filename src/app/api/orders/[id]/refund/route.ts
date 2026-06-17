@@ -24,7 +24,7 @@ import {
   releaseStaleRefundLocks,
 } from "@/lib/refundLocks";
 import { blockingRefundOrLatestOpenDisputeLedgerExistsSql } from "@/lib/refundLedgerSql";
-import { revalidateListingSearchCaches } from "@/lib/searchCache";
+import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import {
   blockingRefundLedgerWhere,
   blockingRefundOrDisputeLedgerWhere,
@@ -452,6 +452,7 @@ export async function POST(
       });
       if (refundWrite.stockStatusRestoredCount > 0) {
         revalidateListingSearchCaches();
+        revalidateFeaturedMakerCaches();
       }
     } catch (err) {
       if (refundId) {

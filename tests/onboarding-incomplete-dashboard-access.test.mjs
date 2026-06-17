@@ -54,10 +54,13 @@ describe("onboarding-incomplete dashboard access", () => {
     assert.match(analyticsPage, /Connect Stripe to start accepting orders/);
   });
 
-  it("keeps publish-state mutations gated by chargesEnabled while drafts remain allowed", () => {
+  it("keeps publish-state mutations gated by seller orderability while drafts remain allowed", () => {
     const newListing = source("src/app/dashboard/listings/new/page.tsx");
     assert.match(newListing, /if \(!saveAsDraft && !seller\.chargesEnabled\)/);
-    assert.match(newListing, /disabled=\{!chargesEnabled\}/);
+    assert.match(newListing, /if \(!saveAsDraft && seller\.vacationMode\)/);
+    assert.match(newListing, /select: \{ chargesEnabled: true, vacationMode: true \}/);
+    assert.match(newListing, /disabled=\{Boolean\(publishBlockedMessage\)\}/);
+    assert.match(newListing, /Save as Draft/);
 
     const shopActions = source("src/app/seller/[id]/shop/actions.ts");
     assert.match(shopActions, /select: \{ chargesEnabled: true, vacationMode: true \}/);

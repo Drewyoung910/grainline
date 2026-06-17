@@ -19,7 +19,7 @@ import {
   normalizeManualStockQuantity,
   stockAlertBody,
 } from "@/lib/stockMutationState";
-import { revalidateListingSearchCaches } from "@/lib/searchCache";
+import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
 import {
   isInvalidJsonBodyError,
@@ -91,8 +91,9 @@ export async function PATCH(
     const applyDelta = expectedQuantity != null;
     const stockDelta = applyDelta ? quantity - expectedQuantity : 0;
 
-    // Restocking public SOLD_OUT listings promotes them to ACTIVE. Private
-    // listings stay private/SOLD_OUT so restock cannot publish a reserved item.
+    // Only public ACTIVE listings can sell out automatically, and only public
+    // SOLD_OUT listings can return to ACTIVE. Draft/rejected/review states
+    // must keep using the publish flow so stock edits cannot bypass review.
     const updatedRows = await prisma.$queryRaw<Array<{
       id: string;
       title: string;
@@ -106,13 +107,18 @@ export async function PATCH(
           ELSE ${quantity}
         END,
         status = CASE
-          WHEN (
+          WHEN status = 'ACTIVE'::"ListingStatus" AND (
             CASE
               WHEN ${applyDelta} THEN GREATEST(0, COALESCE("stockQuantity", 0) + ${stockDelta})
               ELSE ${quantity}
             END
           ) <= 0 THEN 'SOLD_OUT'::"ListingStatus"
-          WHEN status = 'SOLD_OUT'::"ListingStatus" AND NOT "isPrivate" THEN 'ACTIVE'::"ListingStatus"
+          WHEN status = 'SOLD_OUT'::"ListingStatus" AND NOT "isPrivate" AND (
+            CASE
+              WHEN ${applyDelta} THEN GREATEST(0, COALESCE("stockQuantity", 0) + ${stockDelta})
+              ELSE ${quantity}
+            END
+          ) > 0 THEN 'ACTIVE'::"ListingStatus"
           ELSE status
         END,
         "updatedAt" = NOW()
@@ -127,6 +133,7 @@ export async function PATCH(
     await syncGuildMemberListingThreshold(listing.seller.id);
     if (listing.status !== updated.status) {
       revalidateListingSearchCaches();
+      revalidateFeaturedMakerCaches();
     }
 
     // If stock is low (1–2), notify the seller

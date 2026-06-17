@@ -63,12 +63,63 @@ describe("stock mutation state", () => {
 
   it("derives listing status from actual post-update stock and prior visibility", () => {
     assert.equal(stockStatusAfterManualUpdate({ previousStatus: "ACTIVE", nextQuantity: 0 }), "SOLD_OUT");
+    assert.equal(stockStatusAfterManualUpdate({ previousStatus: "ACTIVE", nextQuantity: 3 }), "ACTIVE");
+    assert.equal(stockStatusAfterManualUpdate({ previousStatus: "SOLD_OUT", nextQuantity: 0 }), "SOLD_OUT");
     assert.equal(stockStatusAfterManualUpdate({ previousStatus: "SOLD_OUT", nextQuantity: 3 }), "ACTIVE");
     assert.equal(
       stockStatusAfterManualUpdate({ previousStatus: "SOLD_OUT", nextQuantity: 3, isPrivate: true }),
       "SOLD_OUT",
     );
-    assert.equal(stockStatusAfterManualUpdate({ previousStatus: "HIDDEN", nextQuantity: 3 }), "HIDDEN");
+    for (const status of ["DRAFT", "PENDING_REVIEW", "REJECTED", "HIDDEN", "SOLD"]) {
+      assert.equal(stockStatusAfterManualUpdate({ previousStatus: status, nextQuantity: 0 }), status);
+      assert.equal(stockStatusAfterManualUpdate({ previousStatus: status, nextQuantity: 3 }), status);
+    }
+  });
+
+  it("keeps manual stock SQL status flips constrained to active and sold-out listings", () => {
+    const stockRoute = source("src/app/api/listings/[id]/stock/route.ts");
+    const statusCase = stockRoute.slice(
+      stockRoute.indexOf("status = CASE"),
+      stockRoute.indexOf("\"updatedAt\" = NOW()"),
+    );
+
+    const soldOutTransition = statusCase.slice(
+      statusCase.indexOf("THEN 'SOLD_OUT'::\"ListingStatus\"") - 240,
+      statusCase.indexOf("THEN 'SOLD_OUT'::\"ListingStatus\"") + 40,
+    );
+    const activeTransition = statusCase.slice(
+      statusCase.indexOf("THEN 'ACTIVE'::\"ListingStatus\"") - 320,
+      statusCase.indexOf("THEN 'ACTIVE'::\"ListingStatus\"") + 40,
+    );
+
+    assert.match(soldOutTransition, /WHEN status = 'ACTIVE'::"ListingStatus" AND/);
+    assert.match(soldOutTransition, /\) <= 0 THEN 'SOLD_OUT'::"ListingStatus"/);
+    assert.match(activeTransition, /WHEN status = 'SOLD_OUT'::"ListingStatus" AND NOT "isPrivate" AND/);
+    assert.match(activeTransition, /\) > 0 THEN 'ACTIVE'::"ListingStatus"/);
+    assert.match(stockRoute, /revalidateListingSearchCaches\(\);[\s\S]*revalidateFeaturedMakerCaches\(\);/);
+  });
+
+  it("keeps sold-out listing edits in review before restock can reactivate them", () => {
+    const editListing = source("src/app/dashboard/listings/[id]/edit/page.tsx");
+
+    assert.match(
+      editListing,
+      /const needsPublicContentReview =[\s\S]*listing\.status === ListingStatus\.ACTIVE \|\|[\s\S]*listing\.status === ListingStatus\.SOLD_OUT/,
+    );
+    assert.match(editListing, /if \(needsPublicContentReview\) \{/);
+    assert.match(
+      editListing,
+      /\.\.\.\(needsPublicContentReview \? \{ status: ListingStatus\.PENDING_REVIEW \} : \{\}\)/,
+    );
+    assert.match(
+      editListing,
+      /where: \{ id: listingId, sellerId: listing\.sellerId, status: ListingStatus\.PENDING_REVIEW, updatedAt: updatedListing\.updatedAt \}/,
+    );
+    assert.match(
+      editListing,
+      /data: \{[\s\S]*status: approvedPublicStatus,[\s\S]*aiReviewFlags: aiResult\.flags/,
+    );
+    assert.doesNotMatch(editListing, /const wasActive = listing\.status === ListingStatus\.ACTIVE/);
   });
 
   it("keeps cart stock overage checks tied to live stock at render/checkout time", () => {

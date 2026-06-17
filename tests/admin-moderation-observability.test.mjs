@@ -35,9 +35,14 @@ describe("admin moderation hardening follow-ups", () => {
     assert.match(reviewRoute, /vacationMode: false/);
     assert.match(reviewRoute, /user: \{ banned: false, deletedAt: null \}/);
     assert.match(reviewRoute, /status: 'PENDING_REVIEW'/);
+    assert.match(reviewRoute, /SET status = 'SOLD_OUT'/);
+    assert.match(reviewRoute, /"listingType" = 'IN_STOCK'/);
+    assert.match(reviewRoute, /COALESCE\("stockQuantity", 0\) <= 0/);
+    assert.match(reviewRoute, /finalStatus: Number\(soldOutCount\) > 0 \? 'SOLD_OUT' : 'ACTIVE'/);
     assert.match(reviewRoute, /return NextResponse\.json\(\{ error: unavailableReason \}, \{ status: 409 \}\)/);
     assert.match(reviewRoute, /return NextResponse\.json\(\{ error: currentUnavailableReason \}, \{ status: 409 \}\)/);
     assert.match(reviewRoute, /currentListing\.status === 'ACTIVE' &&\s*!\s*currentUnavailableReason/s);
+    assert.match(reviewRoute, /if \(approved\.finalStatus === 'ACTIVE'\) \{/);
     assert.ok(
       reviewRoute.indexOf("const unavailableReason = sellerUnavailableReason(listing.seller)") <
         reviewRoute.indexOf("const approved = await prisma.$transaction"),

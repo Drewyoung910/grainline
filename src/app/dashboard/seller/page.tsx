@@ -24,6 +24,7 @@ import { parseMoneyInputToCents } from "@/lib/money";
 import { safeRateLimit, sellerProfileRatelimit } from "@/lib/ratelimit";
 import { revalidateFooterMetrosCache } from "@/lib/footerMetros";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
 
 const inputClass =
   "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300";
@@ -207,6 +208,7 @@ export default async function SellerSettingsPage({
           where: { id: seller.id },
           data: { chargesEnabled },
         });
+        revalidatePublicSellerVisibilityCaches();
         currentRow = { ...currentRow, chargesEnabled };
       }
     } catch (error) {

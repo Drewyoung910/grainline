@@ -506,14 +506,14 @@ describe("Stripe webhook state helpers", () => {
     });
   });
 
-  it("updates only active existing cases for new Stripe disputes", () => {
+  it("moves existing cases back under review for new Stripe disputes", () => {
     assert.deepEqual(
       disputeCaseAction({
         eventType: "charge.dispute.created",
         existingCase: { id: "case_1", status: "OPEN" },
         dispute: { id: "dp_1" },
       }),
-      { action: "update", caseId: "case_1", status: "UNDER_REVIEW" },
+      { action: "update", caseId: "case_1", expectedStatus: "OPEN", status: "UNDER_REVIEW" },
     );
     assert.deepEqual(
       disputeCaseAction({
@@ -521,7 +521,7 @@ describe("Stripe webhook state helpers", () => {
         existingCase: { id: "case_1", status: "PENDING_CLOSE" },
         dispute: { id: "dp_1" },
       }),
-      { action: "update", caseId: "case_1", status: "UNDER_REVIEW" },
+      { action: "update", caseId: "case_1", expectedStatus: "PENDING_CLOSE", status: "UNDER_REVIEW" },
     );
     assert.deepEqual(
       disputeCaseAction({
@@ -529,7 +529,15 @@ describe("Stripe webhook state helpers", () => {
         existingCase: { id: "case_1", status: "RESOLVED" },
         dispute: { id: "dp_1" },
       }),
-      { action: "none" },
+      { action: "update", caseId: "case_1", expectedStatus: "RESOLVED", status: "UNDER_REVIEW" },
+    );
+    assert.deepEqual(
+      disputeCaseAction({
+        eventType: "charge.dispute.created",
+        existingCase: { id: "case_1", status: "CLOSED" },
+        dispute: { id: "dp_1" },
+      }),
+      { action: "update", caseId: "case_1", expectedStatus: "CLOSED", status: "UNDER_REVIEW" },
     );
     assert.deepEqual(
       disputeCaseAction({

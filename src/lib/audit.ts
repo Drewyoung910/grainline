@@ -9,6 +9,11 @@ import { unbanClerkUser } from './clerkUserLifecycle'
 import { sanitizeText, truncateText } from './sanitize'
 import { invalidateAccountStateCache } from './accountStateCache'
 import { sanitizeEmailOutboxError } from './emailOutboxSanitize'
+import {
+  revalidateFeaturedMakerCaches,
+  revalidateListingSearchCaches,
+  revalidatePublicSellerVisibilityCaches,
+} from './searchCache'
 
 export const UNDOABLE_ADMIN_ACTIONS = ['BAN_USER', 'REMOVE_LISTING', 'HOLD_LISTING'] as const
 
@@ -369,6 +374,13 @@ export async function undoAdminAction({
       },
     })
   })
+
+  if (log.action === 'BAN_USER') {
+    revalidatePublicSellerVisibilityCaches()
+  } else if (log.action === 'REMOVE_LISTING' || log.action === 'HOLD_LISTING') {
+    revalidateListingSearchCaches()
+    revalidateFeaturedMakerCaches()
+  }
 
   if (log.action === 'BAN_USER' && clerkUnbanTarget?.clerkId) {
     await invalidateAccountStateCache(clerkUnbanTarget.clerkId, 'admin_undo_ban_account_state_cache_invalidate')

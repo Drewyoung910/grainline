@@ -46,7 +46,11 @@ import { REFUND_LOCK_SENTINEL, isStaleRefundLock } from "@/lib/refundLockState";
 import { createMarketplaceRefund, refundIdempotencyKeyBase } from "@/lib/marketplaceRefunds";
 import { recordLocalRefundEvidence } from "@/lib/localRefundEvidence";
 import { stripeWebhookCreatedSeconds } from "@/lib/stripeConnectV2";
-import { revalidateListingSearchCaches, revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
+import {
+  revalidateFeaturedMakerCaches,
+  revalidateListingSearchCaches,
+  revalidatePublicSellerVisibilityCaches,
+} from "@/lib/searchCache";
 import { DEAUTHORIZED_SELLER_REVIEW_NOTE } from "@/lib/orderReviewHolds";
 import {
   blockedCheckoutDisputeState,
@@ -1046,6 +1050,7 @@ export async function POST(req: Request) {
             });
             if (stockStatusRestoredCount > 0) {
               revalidateListingSearchCaches();
+              revalidateFeaturedMakerCaches();
             }
 
             if (input.buyerUserId) {
@@ -1513,6 +1518,7 @@ export async function POST(req: Request) {
         if (!createdCartOrder) return NextResponse.json({ ok: true });
         if (createdCartOrder.listingSearchCacheInvalidationNeeded) {
           revalidateListingSearchCaches();
+          revalidateFeaturedMakerCaches();
         }
 
         if (createdCartOrder.invalidReason) {
@@ -1808,6 +1814,7 @@ export async function POST(req: Request) {
         if (!createdSingleOrder) return NextResponse.json({ ok: true });
         if (createdSingleOrder.listingSearchCacheInvalidationNeeded) {
           revalidateListingSearchCaches();
+          revalidateFeaturedMakerCaches();
         }
 
         if (createdSingleOrder.invalidReason) {
@@ -2035,8 +2042,15 @@ export async function POST(req: Request) {
               disputeCaseActionName = caseAction.action;
               if (caseAction.action === "update") {
                 await tx.case.updateMany({
-                  where: { id: caseAction.caseId, status: { notIn: ["RESOLVED", "CLOSED"] } },
-                  data: { status: caseAction.status },
+                  where: { id: caseAction.caseId, status: caseAction.expectedStatus },
+                  data: {
+                    status: caseAction.status,
+                    resolution: null,
+                    resolvedAt: null,
+                    resolvedById: null,
+                    buyerMarkedResolved: false,
+                    sellerMarkedResolved: false,
+                  },
                 });
               } else if (caseAction.action === "create") {
                 await tx.case.create({

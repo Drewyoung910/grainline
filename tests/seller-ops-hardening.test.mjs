@@ -264,7 +264,8 @@ describe("seller operational route hardening", () => {
     assert.match(shopActions, /WHERE id = \$\{listingId\}\s+AND "sellerId" = \$\{listing\.sellerId\}/);
     assert.match(createListing, /WHERE id = \$\{created\.id\}\s+AND "sellerId" = \$\{seller\.id\}/);
     assert.match(customListing, /WHERE id = \$\{created\.id\}\s+AND "sellerId" = \$\{seller\.id\}/);
-    assert.match(editListing, /where: \{ id: listingId, sellerId: listing\.sellerId, status: ListingStatus\.ACTIVE, updatedAt: updatedListing\.updatedAt \}/);
+    assert.match(editListing, /where: \{ id: listingId, sellerId: listing\.sellerId, status: ListingStatus\.PENDING_REVIEW, updatedAt: updatedListing\.updatedAt \}/);
+    assert.match(editListing, /status: approvedPublicStatus/);
   });
 
   it("rate-limits seller listing server actions before owner mutation work", () => {

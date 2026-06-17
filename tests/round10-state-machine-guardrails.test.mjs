@@ -147,7 +147,11 @@ describe("Round 10 state-machine guardrails", () => {
     assert.match(autoClose, /staleDiscussionEscalated\+\+/);
     assert.match(escalate, /status: "IN_DISCUSSION", escalateUnlocksAt: \{ lt: now \}/);
     assert.match(refund, /tx\.case\.updateMany\(\{\s*where: \{\s*id: existingCase\.id,\s*status: \{ notIn: \["RESOLVED", "CLOSED"\] \},\s*\}/s);
-    assert.match(webhook, /tx\.case\.updateMany\(\{\s*where: \{ id: caseAction\.caseId, status: \{ notIn: \["RESOLVED", "CLOSED"\] \} \}/s);
+    assert.match(webhook, /tx\.case\.updateMany\(\{\s*where: \{ id: caseAction\.caseId, status: caseAction\.expectedStatus \}/s);
+    assert.match(webhook, /resolvedAt: null/);
+    assert.match(webhook, /resolvedById: null/);
+    assert.match(webhook, /buyerMarkedResolved: false/);
+    assert.match(webhook, /sellerMarkedResolved: false/);
   });
 
   it("surfaces stored case descriptions when dispute-created cases have no messages", () => {

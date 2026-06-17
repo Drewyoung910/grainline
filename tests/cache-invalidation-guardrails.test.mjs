@@ -40,6 +40,8 @@ describe("public cache invalidation guardrails", () => {
     const status = source("src/app/api/stripe/connect/status/route.ts");
     const create = source("src/app/api/stripe/connect/create/route.ts");
     const vacation = source("src/app/api/seller/vacation/route.ts");
+    const sellerSettings = source("src/app/dashboard/seller/page.tsx");
+    const onboarding = source("src/app/dashboard/onboarding/page.tsx");
 
     assert.match(ban, /revalidatePublicSellerVisibilityCaches\(\)/);
     assert.match(deletion, /revalidatePublicSellerVisibilityCaches\(\)/);
@@ -48,17 +50,30 @@ describe("public cache invalidation guardrails", () => {
     assert.match(status, /chargesEnabled !== seller\.chargesEnabled[\s\S]*revalidatePublicSellerVisibilityCaches\(\)/);
     assert.match(create, /chargesEnabled !== seller\.chargesEnabled[\s\S]*revalidatePublicSellerVisibilityCaches\(\)/);
     assert.match(vacation, /data: \{ vacationMode, vacationReturnDate, vacationMessage \}[\s\S]*revalidatePublicSellerVisibilityCaches\(\)/);
+    assert.match(sellerSettings, /chargesEnabled !== currentRow\.chargesEnabled[\s\S]*revalidatePublicSellerVisibilityCaches\(\)/);
+    assert.match(onboarding, /chargesEnabled !== sp\.chargesEnabled[\s\S]*revalidatePublicSellerVisibilityCaches\(\)/);
   });
 
   it("invalidates featured-maker caches when listing visibility or guild level changes", () => {
     const sellerShop = source("src/app/seller/[id]/shop/actions.ts");
     const adminReview = source("src/app/api/admin/listings/[id]/review/route.ts");
+    const adminRemove = source("src/app/api/admin/listings/[id]/route.ts");
+    const adminUndo = source("src/lib/audit.ts");
+    const dashboard = source("src/app/dashboard/page.tsx");
+    const newListing = source("src/app/dashboard/listings/new/page.tsx");
+    const editListing = source("src/app/dashboard/listings/[id]/edit/page.tsx");
     const memberCron = source("src/app/api/cron/guild-member-check/route.ts");
     const metricsCron = source("src/app/api/cron/guild-metrics/route.ts");
 
     assert.match(sellerShop, /function revalidateListingSurfaces[\s\S]*revalidateListingSearchCaches\(\)/);
     assert.match(sellerShop, /function revalidateListingSurfaces[\s\S]*revalidateFeaturedMakerCaches\(\)/);
     assert.match(adminReview, /revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
+    assert.match(adminRemove, /status: "REJECTED"[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
+    assert.match(adminUndo, /log\.action === 'BAN_USER'[\s\S]*revalidatePublicSellerVisibilityCaches\(\)/);
+    assert.match(adminUndo, /log\.action === 'REMOVE_LISTING' \|\| log\.action === 'HOLD_LISTING'[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
+    assert.match(dashboard, /revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
+    assert.match(newListing, /finalListing\?\.status === "ACTIVE"[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
+    assert.match(editListing, /revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
     assert.match(memberCron, /if \(!revoked\) return 0;[\s\S]*revalidateFeaturedMakerCaches\(\)/);
     assert.match(metricsCron, /if \(!revoked\) return \{ processed: 1, warned: 0, revokedMaster: 0 \};[\s\S]*revalidateFeaturedMakerCaches\(\)/);
   });
@@ -91,23 +106,27 @@ describe("public cache invalidation guardrails", () => {
     const refund = source("src/app/api/orders/[id]/refund/route.ts");
     const caseResolve = source("src/app/api/cases/[id]/resolve/route.ts");
     const stockRestore = source("src/lib/checkoutStockRestore.ts");
+    const stockRoute = source("src/app/api/listings/[id]/stock/route.ts");
 
-    assert.match(webhook, /import \{ revalidateListingSearchCaches, revalidatePublicSellerVisibilityCaches \}/);
+    assert.match(webhook, /revalidateFeaturedMakerCaches,[\s\S]*revalidateListingSearchCaches,[\s\S]*revalidatePublicSellerVisibilityCaches,/);
     assert.match(webhook, /const soldOutCount = await tx\.\$executeRaw`[\s\S]*SET status = 'SOLD_OUT'/);
     assert.match(webhook, /listingSearchCacheInvalidationNeeded = Number\(soldOutCount\) > 0/);
-    assert.match(webhook, /createdCartOrder\.listingSearchCacheInvalidationNeeded[\s\S]*revalidateListingSearchCaches\(\)/);
-    assert.match(webhook, /createdSingleOrder\.listingSearchCacheInvalidationNeeded[\s\S]*revalidateListingSearchCaches\(\)/);
+    assert.match(webhook, /createdCartOrder\.listingSearchCacheInvalidationNeeded[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
+    assert.match(webhook, /createdSingleOrder\.listingSearchCacheInvalidationNeeded[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
 
     assert.match(refund, /const refundWrite = await prisma\.\$transaction/);
     assert.match(refund, /const stockStatusUpdate = await tx\.listing\.updateMany/);
-    assert.match(refund, /refundWrite\.stockStatusRestoredCount > 0[\s\S]*revalidateListingSearchCaches\(\)/);
+    assert.match(refund, /refundWrite\.stockStatusRestoredCount > 0[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
 
     assert.match(caseResolve, /const caseWrite = await prisma\.\$transaction/);
     assert.match(caseResolve, /const stockStatusUpdate = await tx\.listing\.updateMany/);
-    assert.match(caseResolve, /stockStatusRestoredCount > 0[\s\S]*revalidateListingSearchCaches\(\)/);
+    assert.match(caseResolve, /stockStatusRestoredCount > 0[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
 
-    assert.match(stockRestore, /import \{ revalidateListingSearchCaches \}/);
+    assert.match(stockRestore, /import \{ revalidateFeaturedMakerCaches, revalidateListingSearchCaches \}/);
     assert.match(stockRestore, /return restoreReservedStockItems\(tx, items\)/);
-    assert.match(stockRestore, /stockStatusRestoredCount > 0[\s\S]*revalidateListingSearchCaches\(\)/);
+    assert.match(stockRestore, /stockStatusRestoredCount > 0[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
+
+    assert.match(stockRoute, /import \{ revalidateFeaturedMakerCaches, revalidateListingSearchCaches \}/);
+    assert.match(stockRoute, /listing\.status !== updated\.status[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
   });
 });

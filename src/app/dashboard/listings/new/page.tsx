@@ -30,7 +30,7 @@ import {
   normalizeVariantPriceAdjustCents,
   validateVariantGroupsForBasePrice,
 } from "@/lib/listingVariants";
-import { revalidateListingSearchCaches } from "@/lib/searchCache";
+import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import { revalidateFooterMetrosCache } from "@/lib/footerMetros";
 import { backfillEmptyAltTexts } from "@/lib/photoAltTextBackfill";
 import { MAX_MANUAL_STOCK_QUANTITY } from "@/lib/stockMutationState";
@@ -40,6 +40,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 const PUBLISH_REQUIRES_STRIPE_MESSAGE = "Connect Stripe payouts before publishing. Save as Draft is still available.";
+const PUBLISH_REQUIRES_ACTIVE_SHOP_MESSAGE = "Turn off vacation mode before publishing. Save as Draft is still available.";
 
 // unit converters
 const inToCm = (v: number) => Math.round((v * 2.54 + Number.EPSILON) * 100) / 100;
@@ -62,6 +63,9 @@ async function createListing(_prevState: unknown, formData: FormData) {
   // 2. Check chargesEnabled for publish (not for draft)
   if (!saveAsDraft && !seller.chargesEnabled) {
     return { ok: false, error: PUBLISH_REQUIRES_STRIPE_MESSAGE };
+  }
+  if (!saveAsDraft && seller.vacationMode) {
+    return { ok: false, error: PUBLISH_REQUIRES_ACTIVE_SHOP_MESSAGE };
   }
 
   const title = truncateText(sanitizeText(String(formData.get("title") ?? "").trim()), 150);
@@ -426,6 +430,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
   if (finalListing?.status === "ACTIVE") {
     await syncGuildMemberListingThreshold(seller.id);
     revalidateListingSearchCaches();
+    revalidateFeaturedMakerCaches();
     revalidateFooterMetrosCache();
     // First active listing might earn this seller the Founding Maker badge.
     await maybeGrantFoundingMaker(seller.id);
@@ -470,9 +475,15 @@ export default async function NewListingPage({
   const { seller } = await ensureSeller();
   const sellerData = await prisma.sellerProfile.findUnique({
     where: { id: seller.id },
-    select: { chargesEnabled: true },
+    select: { chargesEnabled: true, vacationMode: true },
   });
   const chargesEnabled = sellerData?.chargesEnabled ?? false;
+  const vacationMode = sellerData?.vacationMode ?? false;
+  const publishBlockedMessage = !chargesEnabled
+    ? PUBLISH_REQUIRES_STRIPE_MESSAGE
+    : vacationMode
+      ? PUBLISH_REQUIRES_ACTIVE_SHOP_MESSAGE
+      : undefined;
 
   const sp = await searchParams;
   const errorMessage = sp.error === "stripe"
@@ -486,6 +497,13 @@ export default async function NewListingPage({
           Connect your bank account in{" "}
           <Link href="/dashboard/seller" className="underline font-medium">Shop Settings</Link>{" "}
           to publish. You can still save drafts — they won&apos;t be visible to buyers until published.
+        </div>
+      )}
+      {vacationMode && (
+        <div className="mb-6 bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900 rounded">
+          Turn off vacation mode in{" "}
+          <Link href="/dashboard/seller" className="underline font-medium">Shop Settings</Link>{" "}
+          before publishing. You can still save drafts.
         </div>
       )}
 
@@ -602,14 +620,14 @@ export default async function NewListingPage({
         )}
 
         <div className="flex flex-col sm:flex-row gap-3 pt-2">
-          <span className="flex-1" title={!chargesEnabled ? PUBLISH_REQUIRES_STRIPE_MESSAGE : undefined}>
+          <span className="flex-1" title={publishBlockedMessage}>
             <SubmitButton
               name="saveAsDraft"
               value="false"
-              disabled={!chargesEnabled}
-              title={!chargesEnabled ? PUBLISH_REQUIRES_STRIPE_MESSAGE : undefined}
+              disabled={Boolean(publishBlockedMessage)}
+              title={publishBlockedMessage}
               pendingLabel="Publishing…"
-              aria-describedby={!chargesEnabled ? "publish-stripe-required" : undefined}
+              aria-describedby={publishBlockedMessage ? "publish-blocked-reason" : undefined}
               className="w-full rounded-md px-4 py-2.5 bg-neutral-900 text-white text-sm font-medium hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Publish
@@ -624,9 +642,9 @@ export default async function NewListingPage({
             Save as Draft
           </SubmitButton>
         </div>
-        {!chargesEnabled && (
-          <p id="publish-stripe-required" className="sr-only">
-            {PUBLISH_REQUIRES_STRIPE_MESSAGE}
+        {publishBlockedMessage && (
+          <p id="publish-blocked-reason" className="sr-only">
+            {publishBlockedMessage}
           </p>
         )}
       </ActionForm>

@@ -2,7 +2,7 @@ import * as Sentry from "@sentry/nextjs";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { releaseCheckoutLock } from "@/lib/checkoutSessionLock";
-import { revalidateListingSearchCaches } from "@/lib/searchCache";
+import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import { parsePositiveInt } from "@/lib/stripeWebhookState";
 import { stripe } from "@/lib/stripe";
 import { checkoutStockReservationRepairAction } from "@/lib/checkoutStockReservationRepairState";
@@ -364,6 +364,7 @@ export async function restoreCheckoutStockReservationOnce(input: {
 
   if (result.stockStatusRestoredCount > 0) {
     revalidateListingSearchCaches();
+    revalidateFeaturedMakerCaches();
   }
 
   return result;
@@ -602,5 +603,6 @@ export async function restoreUnorderedCheckoutStockOnce(input: {
 
   if (stockStatusRestoredCount > 0) {
     revalidateListingSearchCaches();
+    revalidateFeaturedMakerCaches();
   }
 }

@@ -142,7 +142,16 @@ export async function PATCH(
         },
         data: { status: 'ACTIVE', reviewedByAdmin: true, reviewedAt: new Date(), rejectionReason: null }
       })
-      if (updated.count === 0) return updated
+      if (updated.count === 0) return { count: 0, finalStatus: null as 'ACTIVE' | 'SOLD_OUT' | null }
+      const soldOutCount = await tx.$executeRaw`
+        UPDATE "Listing"
+        SET status = 'SOLD_OUT'
+        WHERE id = ${id}
+          AND "sellerId" = ${listing.sellerId}
+          AND "listingType" = 'IN_STOCK'
+          AND COALESCE("stockQuantity", 0) <= 0
+          AND status = 'ACTIVE'
+      `
       await logAdminActionOrThrow({
         client: tx,
         adminId: admin.id,
@@ -151,7 +160,10 @@ export async function PATCH(
         targetId: id,
         reason: reason || 'Approved',
       })
-      return updated
+      return {
+        count: updated.count,
+        finalStatus: Number(soldOutCount) > 0 ? 'SOLD_OUT' : 'ACTIVE',
+      }
     })
     if (approved.count === 0) {
       const currentListing = await prisma.listing.findUnique({
@@ -192,21 +204,36 @@ export async function PATCH(
     revalidateListingSearchCaches()
     revalidateFeaturedMakerCaches()
     await syncGuildThresholdAfterAdminReview(id, listing.sellerId, 'admin_listing_approve_guild_threshold')
-    // First active listing for this seller might earn the Founding Maker badge.
-    try {
-      await maybeGrantFoundingMaker(listing.sellerId)
-    } catch (error) {
-      Sentry.captureException(error, {
-        level: 'warning',
-        tags: { source: 'admin_listing_review_founding_maker' },
-        extra: { listingId: id, sellerId: listing.sellerId },
-      })
+    if (approved.finalStatus === 'ACTIVE') {
+      // First active listing for this seller might earn the Founding Maker badge.
+      try {
+        await maybeGrantFoundingMaker(listing.sellerId)
+      } catch (error) {
+        Sentry.captureException(error, {
+          level: 'warning',
+          tags: { source: 'admin_listing_review_founding_maker' },
+          extra: { listingId: id, sellerId: listing.sellerId },
+        })
+      }
+      queueAdminApprovedListingFollowerFanout(listing)
+      if (listing.customOrderConversationId && listing.reservedForUserId) {
+        await sendCustomOrderReadyLink({
+          conversationId: listing.customOrderConversationId,
+          sellerUserId: listing.seller.userId,
+          buyerUserId: listing.reservedForUserId,
+          sellerName: listing.seller.displayName,
+          listing,
+        })
+      }
     }
+    const notificationBody = approved.finalStatus === 'SOLD_OUT'
+      ? `Your listing "${listing.title}" has been approved. Add stock to make it available to buyers.`
+      : `Your listing "${listing.title}" has been approved and is now live!`
     await createNotification({
       userId: listing.seller.userId,
       type: 'LISTING_APPROVED',
       title: 'Listing approved',
-      body: `Your listing "${listing.title}" has been approved and is now live!`,
+      body: notificationBody,
       link: publicListingPath(id, listing.title),
     }).catch((error) => {
       Sentry.captureException(error, {
@@ -215,16 +242,6 @@ export async function PATCH(
         extra: { listingId: id, sellerUserId: listing.seller.userId, action },
       })
     })
-    queueAdminApprovedListingFollowerFanout(listing)
-    if (listing.customOrderConversationId && listing.reservedForUserId) {
-      await sendCustomOrderReadyLink({
-        conversationId: listing.customOrderConversationId,
-        sellerUserId: listing.seller.userId,
-        buyerUserId: listing.reservedForUserId,
-        sellerName: listing.seller.displayName,
-        listing,
-      })
-    }
   } else if (action === 'reject') {
     if (!reason?.trim()) return NextResponse.json({ error: 'Reason required for rejection' }, { status: 400 })
     const rejected = await prisma.$transaction(async (tx) => {
