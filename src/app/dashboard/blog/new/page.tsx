@@ -212,6 +212,8 @@ export default async function NewBlogPostPage() {
               title: `New post from ${sellerDisplay}`,
               body: newPost.title,
               link: `/blog/${newPost.slug}`,
+              sourceType: "followed_maker_new_blog",
+              sourceId: newPost.id,
             }),
           );
         } catch (error) {

@@ -55,6 +55,8 @@ export async function createNotification({
   body,
   link,
   dedupScope,
+  sourceType,
+  sourceId,
 }: {
   userId: string;
   type: NotificationType;
@@ -62,6 +64,8 @@ export async function createNotification({
   body: string;
   link?: string;
   dedupScope?: string;
+  sourceType?: string;
+  sourceId?: string;
 }) {
   try {
     // Check notification preferences — if explicitly disabled, skip
@@ -78,6 +82,12 @@ export async function createNotification({
     const notificationLink = link
       ? limitNotificationText(link, NOTIFICATION_LINK_MAX_LENGTH)
       : undefined;
+    const notificationSourceType = sourceType
+      ? limitNotificationText(sourceType, 80)
+      : undefined;
+    const notificationSourceId = sourceId
+      ? limitNotificationText(sourceId, 191)
+      : undefined;
     const dedupKey = notificationDedupKey({ userId, type, link: notificationLink, dedupScope });
 
     try {
@@ -88,6 +98,8 @@ export async function createNotification({
           title: notificationTitle,
           body: notificationBody,
           link: notificationLink,
+          sourceType: notificationSourceType,
+          sourceId: notificationSourceId,
           dedupKey,
         },
       });

@@ -260,15 +260,24 @@ describe("account export privacy coverage", () => {
     const route = source("src/app/api/account/export/route.ts");
     const payload = source("src/lib/accountExportPayload.ts");
 
+    const notificationStart = route.indexOf("prisma.notification.findMany");
     const outboxStart = route.indexOf("prisma.emailOutbox.findMany");
     const failureStart = route.indexOf("prisma.emailFailureCount.findMany");
+    const notificationBlock = route.slice(notificationStart, route.indexOf("prisma.block.findMany", notificationStart));
     const outboxBlock = route.slice(outboxStart, failureStart);
     const failureBlock = route.slice(failureStart, route.indexOf("prisma.stockNotification.findMany", failureStart));
+
+    assert.ok(notificationStart >= 0, "account export must query Notification");
+    assert.match(notificationBlock, /where: \{ userId: user\.id \}/);
+    assert.match(notificationBlock, /sourceType: true/);
+    assert.match(notificationBlock, /sourceId: true/);
 
     assert.ok(outboxStart >= 0, "account export must query EmailOutbox");
     assert.match(outboxBlock, /OR: \[\{ userId: user\.id \}, \{ recipientEmail: \{ in: accountEmailSuppressionKeys \} \}\]/);
     assert.match(outboxBlock, /recipientEmail: true/);
     assert.match(outboxBlock, /templateName: true/);
+    assert.match(outboxBlock, /sourceType: true/);
+    assert.match(outboxBlock, /sourceId: true/);
     assert.match(outboxBlock, /subject: true/);
     assert.match(outboxBlock, /lastError: true/);
     assert.doesNotMatch(outboxBlock, /html: true/);

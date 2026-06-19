@@ -492,7 +492,17 @@ async function buildExport(user: NonNullable<ExportableUser>) {
     prisma.notification.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: "desc" },
-      select: { id: true, type: true, title: true, body: true, link: true, read: true, createdAt: true },
+      select: {
+        id: true,
+        type: true,
+        title: true,
+        body: true,
+        link: true,
+        sourceType: true,
+        sourceId: true,
+        read: true,
+        createdAt: true,
+      },
     }),
     prisma.block.findMany({
       where: { OR: [{ blockerId: user.id }, { blockedId: user.id }] },
@@ -572,6 +582,8 @@ async function buildExport(user: NonNullable<ExportableUser>) {
         preferenceKey: true,
         templateName: true,
         templateVersion: true,
+        sourceType: true,
+        sourceId: true,
         subject: true,
         status: true,
         attempts: true,

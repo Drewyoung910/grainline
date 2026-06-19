@@ -226,6 +226,27 @@ export async function POST(req: NextRequest) {
   // Send notifications after response; avoids losing work on function teardown.
   after(async () => {
     try {
+      const currentBroadcast = await prisma.sellerBroadcast.findUnique({
+        where: { id: broadcast.id },
+        select: {
+          sellerProfile: {
+            select: {
+              chargesEnabled: true,
+              vacationMode: true,
+              user: { select: { banned: true, deletedAt: true } },
+            },
+          },
+        },
+      });
+      if (
+        !currentBroadcast ||
+        !currentBroadcast.sellerProfile.chargesEnabled ||
+        currentBroadcast.sellerProfile.vacationMode ||
+        currentBroadcast.sellerProfile.user.banned ||
+        currentBroadcast.sellerProfile.user.deletedAt
+      ) {
+        return;
+      }
       const sellerName = seller.displayName ?? "A maker you follow";
       const results = await mapWithConcurrency(notificationFollowers, 10, (f) =>
         createNotification({
@@ -235,6 +256,8 @@ export async function POST(req: NextRequest) {
           body: truncateTextWithEllipsis(message, 100),
           link: `/account/feed?broadcast=${broadcast.id}`,
           dedupScope: broadcast.id,
+          sourceType: "seller_broadcast",
+          sourceId: broadcast.id,
         }),
       );
       results.forEach((result, index) => {
@@ -276,6 +299,8 @@ export async function POST(req: NextRequest) {
             templateName: "seller_broadcast",
             userId: f.followerId,
             preferenceKey: "EMAIL_SELLER_BROADCAST",
+            sourceType: "seller_broadcast",
+            sourceId: broadcast.id,
           });
         },
       );

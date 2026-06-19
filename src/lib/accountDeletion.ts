@@ -76,6 +76,14 @@ type AccountDeletionMediaDb = Pick<
   "sellerProfile" | "reviewPhoto" | "commissionRequest" | "message" | "blogPost"
 >;
 
+function chunks<T>(items: T[], size = ACCOUNT_DELETION_REDACTION_BATCH_SIZE) {
+  const result: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    result.push(items.slice(index, index + size));
+  }
+  return result;
+}
+
 function accountDeletionLockKey(userId: string) {
   return `account-delete:${userId}`;
 }
@@ -194,6 +202,16 @@ function bodyTextMatchSql(value: string) {
 
   const pattern = `(^|[^[:alnum:]])${escapePostgresRegex(normalized)}([^[:alnum:]]|$)`;
   return Prisma.sql`lower(body) ~ ${pattern}`;
+}
+
+function supportClosureEvidenceTextMatchSql(value: string) {
+  const normalized = value.toLowerCase();
+  if (Array.from(normalized).length >= 3) {
+    return Prisma.sql`position(${normalized} in lower(COALESCE("closureEvidence", ''))) > 0`;
+  }
+
+  const pattern = `(^|[^[:alnum:]])${escapePostgresRegex(normalized)}([^[:alnum:]]|$)`;
+  return Prisma.sql`lower(COALESCE("closureEvidence", '')) ~ ${pattern}`;
 }
 
 function auditMetadataTextMatchSql(value: string) {
@@ -388,6 +406,145 @@ async function redactNotificationsAboutDeletedAccount(
   }
 }
 
+async function deleteNotificationSourceRows(
+  tx: Prisma.TransactionClient,
+  sourceType: string,
+  sourceIds: string[],
+) {
+  for (const sourceIdChunk of chunks(sourceIds)) {
+    await tx.notification.deleteMany({
+      where: { sourceType, sourceId: { in: sourceIdChunk } },
+    });
+  }
+}
+
+async function deleteNotificationLinkRows(
+  tx: Prisma.TransactionClient,
+  whereInputs: Prisma.NotificationWhereInput[],
+) {
+  for (const whereChunk of chunks(whereInputs, 100)) {
+    await tx.notification.deleteMany({ where: { OR: whereChunk } });
+  }
+}
+
+async function redactEmailOutboxRowsForDeletedMaker(
+  tx: Prisma.TransactionClient,
+  whereInputs: Prisma.EmailOutboxWhereInput[],
+  now: Date,
+) {
+  for (const whereChunk of chunks(whereInputs, 100)) {
+    const where = { OR: whereChunk };
+    await tx.emailOutbox.updateMany({
+      where: {
+        ...where,
+        sentAt: null,
+        status: { in: ["PENDING", "PROCESSING", "FAILED", "DEAD"] },
+      },
+      data: {
+        status: "SKIPPED",
+        nextAttemptAt: null,
+        sentAt: now,
+        lastError: "Skipped because the source maker account was deleted.",
+      },
+    });
+    await tx.emailOutbox.updateMany({
+      where,
+      data: {
+        subject: "Email removed after maker deletion",
+        html: "[Email removed after maker deletion]",
+      },
+    });
+  }
+}
+
+async function cleanupDeletedSellerFanoutRows(
+  tx: Prisma.TransactionClient,
+  sellerProfileId: string,
+  now: Date,
+) {
+  const [broadcasts, listings, blogPosts] = await Promise.all([
+    tx.sellerBroadcast.findMany({
+      where: { sellerProfileId },
+      select: { id: true },
+    }),
+    tx.listing.findMany({
+      where: { sellerId: sellerProfileId },
+      select: { id: true },
+    }),
+    tx.blogPost.findMany({
+      where: { sellerProfileId },
+      select: { id: true, slug: true },
+    }),
+  ]);
+
+  const broadcastIds = broadcasts.map((broadcast) => broadcast.id);
+  const listingIds = listings.map((listing) => listing.id);
+  const blogPostIds = blogPosts.map((post) => post.id);
+  const blogPostLinks = blogPosts.map((post) => `/blog/${post.slug}`);
+
+  await deleteNotificationSourceRows(tx, "seller_broadcast", broadcastIds);
+  await deleteNotificationSourceRows(tx, "followed_maker_new_listing", listingIds);
+  await deleteNotificationSourceRows(tx, "followed_maker_new_blog", blogPostIds);
+
+  await deleteNotificationLinkRows(tx, [
+    ...broadcastIds.map((id) => ({
+      type: "SELLER_BROADCAST" as const,
+      link: `/account/feed?broadcast=${id}`,
+    })),
+    ...listingIds.map((id) => ({
+      type: "FOLLOWED_MAKER_NEW_LISTING" as const,
+      link: { startsWith: `/listing/${id}--` },
+    })),
+    ...listingIds.map((id) => ({
+      type: "FOLLOWED_MAKER_NEW_LISTING" as const,
+      link: `/listing/${id}`,
+    })),
+    ...blogPostLinks.map((link) => ({
+      type: "FOLLOWED_MAKER_NEW_BLOG" as const,
+      link,
+    })),
+  ]);
+
+  await redactEmailOutboxRowsForDeletedMaker(
+    tx,
+    [
+      ...broadcastIds.flatMap((id) => [
+        {
+          sourceType: "seller_broadcast",
+          sourceId: id,
+        },
+        {
+          templateName: "seller_broadcast",
+          preferenceKey: "EMAIL_SELLER_BROADCAST",
+          dedupKey: { startsWith: `seller-broadcast:${id}:` },
+        },
+      ]),
+      ...listingIds.flatMap((id) => [
+        {
+          sourceType: "followed_maker_new_listing",
+          sourceId: id,
+        },
+        {
+          templateName: "followed_maker_new_listing",
+          preferenceKey: "EMAIL_FOLLOWED_MAKER_NEW_LISTING",
+          dedupKey: { startsWith: `followed-listing:${id}:` },
+        },
+        {
+          templateName: "followed_maker_new_listing",
+          preferenceKey: "EMAIL_FOLLOWED_MAKER_NEW_LISTING",
+          dedupKey: { startsWith: `admin-approved-listing:${id}:` },
+        },
+        {
+          templateName: "followed_maker_new_listing",
+          preferenceKey: "EMAIL_FOLLOWED_MAKER_NEW_LISTING",
+          dedupKey: { startsWith: `followed-listing-active:${id}:` },
+        },
+      ]),
+    ],
+    now,
+  );
+}
+
 async function collectMessagesBySensitiveText(
   tx: Prisma.TransactionClient,
   deletedUserId: string,
@@ -574,6 +731,65 @@ async function redactSupportRequestsForDeletedAccount(
     if (requests.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
     cursor = requests[requests.length - 1]?.id;
     if (!cursor) break;
+  }
+}
+
+async function redactSupportClosureEvidenceByDeletedAccount(
+  tx: Prisma.TransactionClient,
+  deletedUserId: string,
+  sensitiveValues: string[],
+) {
+  await tx.supportRequest.updateMany({
+    where: { closureEvidenceById: deletedUserId },
+    data: { closureEvidenceById: null },
+  });
+
+  const requests = new Map<string, { closureEvidence: string }>();
+
+  for (const value of sensitiveValues.filter((item) => Array.from(item).length >= 2)) {
+    const textMatchSql = supportClosureEvidenceTextMatchSql(value);
+    let cursor: string | null = null;
+
+    for (;;) {
+      const query: Prisma.Sql = cursor
+        ? Prisma.sql`
+          SELECT id, "closureEvidence"
+          FROM "SupportRequest"
+          WHERE id > ${cursor}
+            AND "closureEvidence" IS NOT NULL
+            AND ${textMatchSql}
+          ORDER BY id ASC
+          LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
+        `
+        : Prisma.sql`
+          SELECT id, "closureEvidence"
+          FROM "SupportRequest"
+          WHERE "closureEvidence" IS NOT NULL
+            AND ${textMatchSql}
+          ORDER BY id ASC
+          LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
+        `;
+      const matches: { id: string; closureEvidence: string }[] = await tx.$queryRaw(query);
+      matches.forEach((request) => {
+        if (!requests.has(request.id)) {
+          requests.set(request.id, { closureEvidence: request.closureEvidence });
+        }
+      });
+
+      if (matches.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
+      cursor = matches[matches.length - 1]?.id ?? null;
+      if (!cursor) break;
+    }
+  }
+
+  for (const [id, request] of requests) {
+    const closureEvidence = redactAccountDeletionText(request.closureEvidence, sensitiveValues);
+    if (!closureEvidence.changed) continue;
+
+    await tx.supportRequest.update({
+      where: { id },
+      data: { closureEvidence: closureEvidence.text },
+    });
   }
 }
 
@@ -1122,6 +1338,7 @@ export async function anonymizeUserAccount(
         resolutionNote: "Auto-resolved after the reported account was deleted.",
       },
     });
+    await redactSupportClosureEvidenceByDeletedAccount(tx, user.id, accountSensitiveValues);
     await redactSupportRequestsForDeletedAccount(tx, user.id, accountEmails, accountSensitiveValues);
     await tx.emailOutbox.updateMany({
       where: {
@@ -1214,6 +1431,7 @@ export async function anonymizeUserAccount(
       await tx.sellerRatingSummary.deleteMany({
         where: { sellerProfileId: user.sellerProfile.id },
       });
+      await cleanupDeletedSellerFanoutRows(tx, user.sellerProfile.id, now);
       await tx.review.updateMany({
         where: { listing: { sellerId: user.sellerProfile.id } },
         data: { sellerReply: null, sellerReplyAt: null },

@@ -6808,3 +6808,82 @@ Analytics/Speed Insights product/privacy decision, remaining homepage runtime
 a11y proof, strict multipart missing-length ingress/runtime proof, seller
 fanout notification/outbox deletion source-id design, and residual
 agent/worktree verification process hygiene.
+
+Entry 420 closes verified seller-fanout and support-closure privacy/deletion
+residue after parent review plus two read-only sidecar scans focused on
+`Notification`, `EmailOutbox`, seller broadcasts, followed-maker fanout, and
+support/data-request closure records.
+
+First, maker fanout rows now carry source metadata. `Notification` and
+`EmailOutbox` have nullable `sourceType` and `sourceId` columns with source
+indexes. Seller broadcasts write `seller_broadcast/{broadcastId}`, followed
+listing fanout writes `followed_maker_new_listing/{listingId}`, and followed
+blog fanout writes `followed_maker_new_blog/{blogPostId}`. The account export
+selects those fields for a user's own notifications and local outbox rows, so
+the new locally stored metadata is visible in the JSON export without exposing
+email HTML bodies.
+
+Second, account deletion now cleans seller-authored fanout residue before the
+seller's broadcasts/listings/blog posts are deleted, hidden, or archived.
+Deletion removes source-matched follower notifications by the new metadata and
+uses legacy exact fallbacks that are safe from current source shape:
+`/account/feed?broadcast={id}`, `/listing/{id}--...`, exact legacy
+`/listing/{id}`, `/blog/{slug}`, and the existing short outbox dedup prefixes
+for seller broadcasts, seller-created listing fanout, admin-approved listing
+fanout, and public-shop listing activation fanout. Source-matched unsent local
+outbox rows are marked `SKIPPED`; all matched local outbox rows have
+source-authored subject/html scrubbed. The cleanup does not search free-form
+notification bodies or email HTML, avoiding broad false matches.
+
+Third, the seller broadcast deferred fanout callback now re-reads the broadcast
+and seller account/orderability state before creating follower notifications
+or email outbox jobs. If the source broadcast was deleted, or the seller became
+suspended, deleted, disconnected, or vacationing before the `after()` callback
+runs, the callback returns without creating new fanout rows after deletion
+cleanup.
+
+Fourth, account deletion now clears `SupportRequest.closureEvidenceById` when
+the deleted account was the staff/admin closer and redacts the deleted
+account's sensitive values from `SupportRequest.closureEvidence` even when the
+deleted account was not the requester. Existing requester-linked support/data
+request contact/message redaction remains in place.
+
+Guardrails:
+`tests/account-state-residue-followups.test.mjs`,
+`tests/account-export-privacy.test.mjs`,
+`tests/seller-ops-hardening.test.mjs`,
+`tests/round9-account-deletion-pii-guardrails.test.mjs`,
+`tests/admin-action-guardrails.test.mjs`,
+`tests/notification-dedup.test.mjs`, and
+`tests/email-outbox-versioning.test.mjs`.
+
+Current running tally after Entry 420: verified fixed/reduced 766, verified
+stale/false-positive/current 468, deferred product/design/ops/legal 73,
+approximate raw allegations left from current max #1126: 86. The fixed count
+increases by four for maker fanout source metadata/export coverage,
+seller-deletion cleanup of source-identifiable follower fanout residue,
+seller-broadcast post-deletion fanout race reduction, and support closure
+staff-link/closure-evidence redaction. Stale/current, deferred, and
+approximate raw counts stay flat because these were hidden residues inside the
+already-open privacy/export/deletion categories rather than new numbered raw
+allegations.
+
+Remaining major categories: Stripe webhook subscription dashboard evidence,
+Stripe Connect v2 loss-liability ops/legal decision, stale remote branch and
+old git author hygiene, Round 10 deferred cache/state-machine product designs
+that require product decisions rather than source guardrails, remaining
+EXPLAIN-dependent query-plan/index validation, Stripe partial-refund runtime
+reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope, remaining privacy/export retention decisions,
+cross-seller AI duplicate-detection product design, legacy enum
+cleanup/data-migration decisions, partial multi-seller checkout continuation
+design, deliberate BigInt money-column modeling, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket dashboard evidence, HSTS preload submission decision,
+residual lower-risk HTTP-status/logging hygiene outside touched routes, Vercel
+Analytics/Speed Insights product/privacy decision, remaining homepage runtime
+a11y proof, strict multipart missing-length ingress/runtime proof, and
+residual agent/worktree verification process hygiene.

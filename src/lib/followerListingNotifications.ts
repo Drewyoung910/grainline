@@ -65,6 +65,8 @@ export async function fanOutListingToFollowers({
         title: `New listing from ${sellerDisplay}`,
         body: listing.title,
         link: listingPath,
+        sourceType: "followed_maker_new_listing",
+        sourceId: listing.id,
       }),
     );
 
@@ -83,6 +85,8 @@ export async function fanOutListingToFollowers({
           templateName: "followed_maker_new_listing",
           userId: f.followerId,
           preferenceKey: "EMAIL_FOLLOWED_MAKER_NEW_LISTING",
+          sourceType: "followed_maker_new_listing",
+          sourceId: listing.id,
         });
       }
     });

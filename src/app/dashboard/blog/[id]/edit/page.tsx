@@ -182,7 +182,7 @@ export default async function EditBlogPostPage({
       if (claimed.count === 0) return null;
       return tx.blogPost.findUnique({
         where: { id },
-        select: { slug: true, sellerProfileId: true, sellerProfile: { select: { displayName: true, userId: true } } },
+        select: { id: true, slug: true, sellerProfileId: true, sellerProfile: { select: { displayName: true, userId: true } } },
       });
     });
     if (!updated) return { ok: false, error: "Post changed while saving. Refresh and try again." };
@@ -219,6 +219,8 @@ export default async function EditBlogPostPage({
                 title: `New post from ${sellerName}`,
                 body: title,
                 link: `/blog/${updated.slug}`,
+                sourceType: "followed_maker_new_blog",
+                sourceId: updated.id,
               }),
             );
           }

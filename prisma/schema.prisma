@@ -1148,6 +1148,8 @@ model EmailOutbox {
   preferenceKey   String?   @db.VarChar(80)
   templateName    String    @default("unknown") @db.VarChar(80)
   templateVersion Int       @default(1)
+  sourceType      String?   @db.VarChar(80)
+  sourceId        String?   @db.VarChar(191)
   subject         String    @db.VarChar(300)
   html            String    @db.VarChar(200000)
   dedupKey        String    @unique @db.VarChar(128)
@@ -1165,6 +1167,7 @@ model EmailOutbox {
   @@index([userId, preferenceKey])
   @@index([recipientEmail, createdAt])
   @@index([templateName, createdAt])
+  @@index([sourceType, sourceId])
 }
 
 model AccountDeletionSideEffect {
@@ -1316,6 +1319,8 @@ model Notification {
   title     String           @db.VarChar(200)
   body      String           @db.VarChar(1000)
   link      String?          @db.VarChar(2048)
+  sourceType String?         @db.VarChar(80)
+  sourceId   String?         @db.VarChar(191)
   dedupKey  String           @default(dbgenerated("md5(random()::text || clock_timestamp()::text)")) @db.VarChar(64)
   read      Boolean          @default(false)
   createdAt DateTime         @default(now())
@@ -1325,6 +1330,7 @@ model Notification {
   @@index([userId, read, createdAt])
   @@index([userId, createdAt])
   @@index([read, createdAt])
+  @@index([sourceType, sourceId])
 }
 
 model ListingViewDaily {

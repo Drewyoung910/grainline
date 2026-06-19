@@ -50,6 +50,8 @@ export type QueuedEmail = {
   templateVersion?: number;
   userId?: string;
   preferenceKey?: string;
+  sourceType?: string;
+  sourceId?: string;
 };
 
 export type EnqueueEmailOutboxResult = {
@@ -154,6 +156,8 @@ export async function enqueueEmailOutboxOnce(email: QueuedEmail): Promise<Enqueu
         preferenceKey: email.preferenceKey,
         templateName: email.templateName,
         templateVersion: normalizeTemplateVersion(email.templateVersion),
+        sourceType: email.sourceType ? truncateText(email.sourceType, 80) : undefined,
+        sourceId: email.sourceId ? truncateText(email.sourceId, 191) : undefined,
         subject: email.subject.slice(0, 300),
         html: truncateText(email.html, EMAIL_OUTBOX_HTML_MAX_CHARS),
         dedupKey,
