@@ -30,12 +30,12 @@ describe("seller operational route hardening", () => {
     assert.match(route, /Date\.UTC\(year, month - 1, day, 12, 0, 0, 0\)/);
     assert.match(route, /date\.getUTCFullYear\(\) !== year/);
     assert.doesNotMatch(route, /new Date\(trimmed\)/);
-    assert.match(route, /return NextResponse\.json\(\{ error: "Invalid return date" \}, \{ status: HTTP_STATUS\.BAD_REQUEST \}\)/);
+    assert.match(route, /return privateJson\(\{ error: "Invalid return date" \}, \{ status: HTTP_STATUS\.BAD_REQUEST \}\)/);
     assert.match(route, /function isPastVacationReturnDate/);
     assert.match(route, /Native date inputs carry no timezone/);
     assert.match(route, /todayNoonUtc\.getTime\(\) - 24 \* 60 \* 60 \* 1000/);
     assert.match(route, /vacationMode && vacationReturnDate && isPastVacationReturnDate\(vacationReturnDate\)/);
-    assert.match(route, /return NextResponse\.json\(\{ error: "Return date cannot be in the past" \}, \{ status: HTTP_STATUS\.BAD_REQUEST \}\)/);
+    assert.match(route, /return privateJson\(\{ error: "Return date cannot be in the past" \}, \{ status: HTTP_STATUS\.BAD_REQUEST \}\)/);
     assert.match(route, /import \{ HTTP_STATUS \} from "@\/lib\/httpStatus"/);
     assert.match(route, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
     assert.match(route, /logServerError\(err, \{[\s\S]*source: "seller_vacation_update"[\s\S]*route: "\/api\/seller\/vacation"/);

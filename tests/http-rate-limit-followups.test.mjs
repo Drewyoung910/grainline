@@ -13,11 +13,14 @@ describe("HTTP rate-limit response followups", () => {
     const report = source("src/app/api/users/[id]/report/route.ts");
     const stream = source("src/app/api/messages/[id]/stream/route.ts");
 
-    for (const route of [blogSearch, blogSuggestions, report]) {
+    for (const route of [blogSearch, blogSuggestions]) {
       assert.match(route, /rateLimitResponse/);
       assert.match(route, /return rateLimitResponse\(rl\.reset,/);
       assert.doesNotMatch(route, /status:\s*429/);
     }
+    assert.match(report, /rateLimitResponse/);
+    assert.match(report, /return privateResponse\(rateLimitResponse\(rl\.reset, "Too many reports\."\)\)/);
+    assert.doesNotMatch(report, /status:\s*429/);
 
     assert.match(stream, /const \{ success, reset \} = await safeRateLimit\(messageStreamRatelimit, userId\)/);
     assert.match(stream, /return privateResponse\(rateLimitResponse\(reset, "Too many message update requests\."\)\)/);

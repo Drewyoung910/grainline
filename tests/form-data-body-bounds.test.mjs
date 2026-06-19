@@ -37,27 +37,26 @@ describe("form-data body bounds", () => {
     );
   });
 
-  it("bounds order fulfillment and email form fallbacks before formData parsing", () => {
+  it("bounds order fulfillment form fallback before formData parsing", () => {
     const fulfillment = source("src/app/api/orders/[id]/fulfillment/route.ts");
-    const unsubscribe = source("src/app/api/email/unsubscribe/route.ts");
-    const newsletterConfirm = source("src/app/api/newsletter/confirm/route.ts");
 
     assert.match(fulfillment, /assertContentLengthUnder\(req, FULFILLMENT_FORM_BODY_MAX_BYTES\)/);
     assert.ok(
       fulfillment.indexOf("assertContentLengthUnder(req, FULFILLMENT_FORM_BODY_MAX_BYTES)") <
         fulfillment.indexOf("await req.formData()"),
     );
+  });
 
-    assert.match(unsubscribe, /assertContentLengthUnder\(req, UNSUBSCRIBE_FORM_BODY_MAX_BYTES\)/);
-    assert.ok(
-      unsubscribe.indexOf("assertContentLengthUnder(req, UNSUBSCRIBE_FORM_BODY_MAX_BYTES)") <
-        unsubscribe.indexOf("await req.formData()"),
-    );
+  it("streams public email form fallbacks through bounded text parsing", () => {
+    const unsubscribe = source("src/app/api/email/unsubscribe/route.ts");
+    const newsletterConfirm = source("src/app/api/newsletter/confirm/route.ts");
 
-    assert.match(newsletterConfirm, /assertContentLengthUnder\(req, NEWSLETTER_CONFIRM_FORM_BODY_MAX_BYTES\)/);
-    assert.ok(
-      newsletterConfirm.indexOf("assertContentLengthUnder(req, NEWSLETTER_CONFIRM_FORM_BODY_MAX_BYTES)") <
-        newsletterConfirm.indexOf("await req.formData()"),
-    );
+    assert.match(unsubscribe, /readBoundedText\(req, UNSUBSCRIBE_FORM_BODY_MAX_BYTES\)/);
+    assert.match(unsubscribe, /new URLSearchParams\(await readBoundedText\(req, UNSUBSCRIBE_FORM_BODY_MAX_BYTES\)\)/);
+    assert.doesNotMatch(unsubscribe, /await req\.formData\(\)/);
+
+    assert.match(newsletterConfirm, /readBoundedText\(req, NEWSLETTER_CONFIRM_FORM_BODY_MAX_BYTES\)/);
+    assert.match(newsletterConfirm, /new URLSearchParams\(await readBoundedText\(req, NEWSLETTER_CONFIRM_FORM_BODY_MAX_BYTES\)\)/);
+    assert.doesNotMatch(newsletterConfirm, /await req\.formData\(\)/);
   });
 });

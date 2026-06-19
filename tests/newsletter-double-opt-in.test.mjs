@@ -49,7 +49,9 @@ describe("newsletter double opt-in guardrails", () => {
     assert.doesNotMatch(getHandler, /active: true/);
     assert.match(route, /getExplicitCrossOriginPostRejection\(req\)/);
     assert.match(route, /safeRateLimit\(newsletterRatelimit, `newsletter-confirm:\$\{getIP\(req\)\}`\)/);
-    assert.match(route, /assertContentLengthUnder\(req, NEWSLETTER_CONFIRM_FORM_BODY_MAX_BYTES\)/);
+    assert.match(route, /readBoundedText\(req, NEWSLETTER_CONFIRM_FORM_BODY_MAX_BYTES\)/);
+    assert.match(route, /new URLSearchParams\(await readBoundedText\(req, NEWSLETTER_CONFIRM_FORM_BODY_MAX_BYTES\)\)/);
+    assert.doesNotMatch(route, /await req\.formData\(\)/);
     assert.match(route, /import \{ clearOneClickEmailSuppression \} from "@\/lib\/emailSuppression"/);
     assert.match(route, /select: \{ id: true, email: true, confirmationTokenHash: true \}/);
     assert.match(route, /prisma\.\$transaction\(async \(tx\) =>/);

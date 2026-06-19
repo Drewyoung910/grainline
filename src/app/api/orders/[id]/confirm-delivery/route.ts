@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { CaseStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { fulfillmentRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { blockingRefundLedgerWhere, orderHasRefundLedger } from "@/lib/refundRouteState";
 import { logServerError } from "@/lib/serverErrorLogger";
@@ -23,20 +24,20 @@ export async function POST(
 ) {
   try {
     const { userId: clerkId } = await auth();
-    if (!clerkId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!clerkId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
     let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
     try {
       me = await ensureUserByClerkId(clerkId);
     } catch (error) {
       if (isAccountAccessError(error)) {
-        return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
+        return privateJson({ error: error.message, code: error.code }, { status: error.status });
       }
       throw error;
     }
 
     const { success, reset } = await safeRateLimit(fulfillmentRatelimit, `confirm-delivery:${me.id}`);
-    if (!success) return rateLimitResponse(reset, "Too many delivery confirmations.");
+    if (!success) return privateResponse(rateLimitResponse(reset, "Too many delivery confirmations."));
 
     const { id } = await params;
     const order = await prisma.order.findUnique({
@@ -55,22 +56,22 @@ export async function POST(
       },
     });
 
-    if (!order) return NextResponse.json({ error: "Order not found." }, { status: 404 });
-    if (order.buyerId !== me.id) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+    if (!order) return privateJson({ error: "Order not found." }, { status: 404 });
+    if (order.buyerId !== me.id) return privateJson({ error: "Forbidden." }, { status: 403 });
     if (order.case && ACTIVE_CASE_STATUS_SET.has(order.case.status)) {
-      return NextResponse.json(
+      return privateJson(
         { error: "Resolve the open case before confirming delivery." },
         { status: 409 },
       );
     }
     if (orderHasRefundLedger(order)) {
-      return NextResponse.json({ error: "Refunded orders cannot be confirmed delivered." }, { status: 400 });
+      return privateJson({ error: "Refunded orders cannot be confirmed delivered." }, { status: 400 });
     }
     if ((order.fulfillmentMethod ?? "SHIPPING") !== "SHIPPING") {
-      return NextResponse.json({ error: "Only shipped orders can be confirmed delivered." }, { status: 400 });
+      return privateJson({ error: "Only shipped orders can be confirmed delivered." }, { status: 400 });
     }
     if (order.fulfillmentStatus !== "SHIPPED") {
-      return NextResponse.json({ error: "Only shipped orders can be confirmed delivered." }, { status: 400 });
+      return privateJson({ error: "Only shipped orders can be confirmed delivered." }, { status: 400 });
     }
 
     const updated = await prisma.order.updateMany({
@@ -103,13 +104,13 @@ export async function POST(
     });
 
     if (updated.count === 0) {
-      return NextResponse.json({ error: "Order status changed. Refresh and try again." }, { status: 409 });
+      return privateJson({ error: "Order status changed. Refresh and try again." }, { status: 409 });
     }
 
     const origin = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
     return NextResponse.redirect(new URL(`/dashboard/orders/${id}`, origin), { status: 303 });
   } catch (error) {
     logServerError(error, { source: "buyer_confirm_delivery_route" });
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return privateJson({ error: "Server error" }, { status: 500 });
   }
 }

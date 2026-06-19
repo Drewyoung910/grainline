@@ -1,9 +1,10 @@
 // src/app/api/reviews/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
 import { sendNewReviewEmail } from "@/lib/email";
@@ -44,11 +45,11 @@ const REVIEW_BODY_MAX_BYTES = 24 * 1024;
 
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
   const { success, reset } = await safeRateLimit(reviewRatelimit, userId);
   if (!success) {
-    return rateLimitResponse(reset, "Too many review submissions.");
+    return privateResponse(rateLimitResponse(reset, "Too many review submissions."));
   }
 
   let parsed;
@@ -56,13 +57,13 @@ export async function POST(req: NextRequest) {
     parsed = ReviewSchema.parse(await readBoundedJson(req, REVIEW_BODY_MAX_BYTES));
   } catch (e) {
     if (isRequestBodyTooLargeError(e)) {
-      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      return privateJson({ error: "Request body too large" }, { status: 413 });
     }
     if (isInvalidJsonBodyError(e)) {
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      return privateJson({ error: "Invalid JSON" }, { status: 400 });
     }
     if (e instanceof z.ZodError) {
-      return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+      return privateJson({ error: "Invalid input", details: e.issues }, { status: 400 });
     }
     throw e;
   }
@@ -105,7 +106,7 @@ export async function POST(req: NextRequest) {
   });
   if (listingForOwnerCheck?.seller?.userId === me.id) {
     logSecurityEvent("spam_attempt", { userId: me.id, route: "/api/reviews", reason: "self-review attempt" });
-    return NextResponse.json({ error: "Cannot review your own listing" }, { status: 403 });
+    return privateJson({ error: "Cannot review your own listing" }, { status: 403 });
   }
   if (listingForOwnerCheck?.seller?.user.banned || listingForOwnerCheck?.seller?.user.deletedAt) {
     logSecurityEvent("account_state_violation", {
@@ -116,7 +117,7 @@ export async function POST(req: NextRequest) {
         : "review target seller deleted",
       listingId,
     });
-    return NextResponse.json(
+    return privateJson(
       { error: "Reviews are unavailable for this maker." },
       { status: 403 },
     );
@@ -127,7 +128,7 @@ export async function POST(req: NextRequest) {
     where: { listingId, reviewerId: me.id },
     select: { id: true, listing: { select: { sellerId: true } } },
   });
-  if (exists) return NextResponse.json({ error: "Already reviewed" }, { status: 409 });
+  if (exists) return privateJson({ error: "Already reviewed" }, { status: 409 });
 
   // Gate: must have a PAID + DELIVERED/PICKED_UP order for this listing within 90 days
   const since = new Date(Date.now() - REVIEW_WINDOW_DAYS * 24 * 60 * 60 * 1000);
@@ -146,7 +147,7 @@ export async function POST(req: NextRequest) {
     select: { id: true, listing: { select: { sellerId: true } } },
   });
   if (!orderItem) {
-    return NextResponse.json({ error: "You can leave a review after your order has been delivered." }, { status: 403 });
+    return privateJson({ error: "You can leave a review after your order has been delivered." }, { status: 403 });
   }
 
   const urls = filterFirstPartyMediaUrlsForUser(photoUrls ?? [], 6, userId, ["reviewPhoto"]);
@@ -179,7 +180,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     if ((error as { code?: string }).code === "P2002") {
-      return NextResponse.json({ error: "Already reviewed" }, { status: 409 });
+      return privateJson({ error: "Already reviewed" }, { status: 409 });
     }
     throw error;
   }
@@ -249,5 +250,5 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true, id: created.id });
+  return privateJson({ ok: true, id: created.id });
 }

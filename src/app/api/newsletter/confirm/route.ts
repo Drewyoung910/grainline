@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getIP, newsletterRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
-import { assertContentLengthUnder, isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
+import { isRequestBodyTooLargeError, readBoundedText, readOptionalBoundedJson } from "@/lib/requestBody";
 import { clearOneClickEmailSuppression } from "@/lib/emailSuppression";
 import { hashNewsletterConfirmationToken, safeEqualNewsletterTokenHash } from "@/lib/newsletterConfirmation";
 import { logServerError } from "@/lib/serverErrorLogger";
@@ -61,9 +61,8 @@ async function readConfirmationToken(req: NextRequest): Promise<string | null> {
     } | null;
     token = typeof body?.token === "string" ? body.token : null;
   } else {
-    assertContentLengthUnder(req, NEWSLETTER_CONFIRM_FORM_BODY_MAX_BYTES);
-    const formData = await req.formData().catch(() => null);
-    token = typeof formData?.get("token") === "string" ? String(formData.get("token")) : null;
+    const formData = new URLSearchParams(await readBoundedText(req, NEWSLETTER_CONFIRM_FORM_BODY_MAX_BYTES));
+    token = formData.get("token");
   }
 
   return token;

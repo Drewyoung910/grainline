@@ -1,9 +1,9 @@
 import { auth } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { ensureUser } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { createNotification } from "@/lib/notifications";
 import { canViewListingDetail } from "@/lib/listingVisibility";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
@@ -40,7 +40,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
   let me: Awaited<ReturnType<typeof ensureUser>>;
   try {
@@ -50,20 +50,20 @@ export async function POST(
     if (accountResponse) return accountResponse;
     throw err;
   }
-  if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!me) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
   const rl = await safeRateLimit(reportRatelimit, me.id);
-  if (!rl.success) return rateLimitResponse(rl.reset, "Too many reports.");
+  if (!rl.success) return privateResponse(rateLimitResponse(rl.reset, "Too many reports."));
 
   const { id: reportedId } = await params;
-  if (reportedId === me.id) return NextResponse.json({ error: "Cannot report yourself" }, { status: 400 });
+  if (reportedId === me.id) return privateJson({ error: "Cannot report yourself" }, { status: 400 });
 
   const reportedUser = await prisma.user.findUnique({
     where: { id: reportedId },
     select: { id: true, deletedAt: true },
   });
   if (!reportedUser || reportedUser.deletedAt) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
+    return privateJson({ error: "User not found" }, { status: 404 });
   }
 
   let body;
@@ -71,16 +71,16 @@ export async function POST(
     body = Schema.parse(await readBoundedJson(req, USER_REPORT_BODY_MAX_BYTES));
   } catch (error) {
     if (isRequestBodyTooLargeError(error)) {
-      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      return privateJson({ error: "Request body too large" }, { status: 413 });
     }
     if (isInvalidJsonBodyError(error) || error instanceof z.ZodError) {
-      return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+      return privateJson({ error: "Invalid input" }, { status: 400 });
     }
     throw error;
   }
 
   if ((body.targetType && !body.targetId) || (!body.targetType && body.targetId)) {
-    return NextResponse.json({ error: "targetType and targetId must be provided together" }, { status: 400 });
+    return privateJson({ error: "targetType and targetId must be provided together" }, { status: 400 });
   }
 
   if (body.targetType && body.targetId) {
@@ -210,7 +210,7 @@ export async function POST(
         break;
     }
     if (!exists || !reporterCanAccess) {
-      return NextResponse.json({ error: "Invalid report target" }, { status: 400 });
+      return privateJson({ error: "Invalid report target" }, { status: 400 });
     }
   }
 
@@ -235,5 +235,5 @@ export async function POST(
     });
   }
 
-  return NextResponse.json({ ok: true });
+  return privateJson({ ok: true });
 }

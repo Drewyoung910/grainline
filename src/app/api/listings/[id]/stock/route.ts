@@ -1,10 +1,9 @@
-// src/app/api/listings/[id]/stock/route.ts
-import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { after } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { renderBackInStockEmail } from "@/lib/email";
 import { enqueueEmailOutbox } from "@/lib/emailOutbox";
@@ -46,9 +45,9 @@ export async function PATCH(
   try {
     const { id } = await params;
     const { userId } = await auth();
-    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
     const { success, reset } = await safeRateLimit(listingMutationRatelimit, userId);
-    if (!success) return rateLimitResponse(reset, "Too many listing updates.");
+    if (!success) return privateResponse(rateLimitResponse(reset, "Too many listing updates."));
     const me = await ensureUserByClerkId(userId);
 
     let stockParsed;
@@ -56,13 +55,13 @@ export async function PATCH(
       stockParsed = StockPatchSchema.parse(await readBoundedJson(req, LISTING_STOCK_BODY_MAX_BYTES));
     } catch (e) {
       if (isRequestBodyTooLargeError(e)) {
-        return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+        return privateJson({ error: "Request body too large" }, { status: 413 });
       }
       if (isInvalidJsonBodyError(e)) {
-        return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+        return privateJson({ error: "Invalid JSON" }, { status: 400 });
       }
       if (e instanceof z.ZodError) {
-        return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+        return privateJson({ error: "Invalid input", details: e.issues }, { status: 400 });
       }
       throw e;
     }
@@ -83,9 +82,9 @@ export async function PATCH(
         seller: { select: { id: true, userId: true } },
       },
     });
-    if (!listing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (!listing) return privateJson({ error: "Not found" }, { status: 404 });
     if (listing.listingType !== "IN_STOCK") {
-      return NextResponse.json({ error: "Only IN_STOCK listings have quantity" }, { status: 400 });
+      return privateJson({ error: "Only IN_STOCK listings have quantity" }, { status: 400 });
     }
 
     const applyDelta = expectedQuantity != null;
@@ -127,7 +126,7 @@ export async function PATCH(
       RETURNING id, title, "stockQuantity", status::text AS status
     `;
     const updated = updatedRows[0];
-    if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (!updated) return privateJson({ error: "Not found" }, { status: 404 });
 
     // Track listingsBelowThresholdSince for Guild Member revocation check
     await syncGuildMemberListingThreshold(listing.seller.id);
@@ -242,12 +241,12 @@ export async function PATCH(
       });
     }
 
-    return NextResponse.json(updated);
+    return privateJson(updated);
   } catch (err) {
     const accountResponse = accountAccessErrorResponse(err);
     if (accountResponse) return accountResponse;
 
     logServerError(err, { source: "listing_stock_route" });
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return privateJson({ error: "Server error" }, { status: 500 });
   }
 }

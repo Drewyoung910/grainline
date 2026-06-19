@@ -6666,3 +6666,68 @@ residual lower-risk HTTP-status/logging hygiene outside touched routes, Vercel
 Analytics/Speed Insights product/ops decision, remaining homepage runtime a11y
 proof, strict multipart missing-length ingress/runtime proof, and residual
 agent/worktree verification process hygiene.
+
+Entry 418 fixes two hidden source-verifiable response/body-bound issues found
+while reviewing the remaining lower-risk HTTP/cache and request-body hygiene
+areas. Read-only sidecars helped scan disjoint surfaces, but parent
+verification re-read each touched route before patching.
+
+First, several authenticated mutation routes still returned bare JSON or bare
+rate-limit responses even though their bodies vary by Clerk cookie, ownership,
+or order/case/review state. `POST /api/cases/[id]/resolve`,
+`POST /api/cases/[id]/escalate`, `POST /api/cases/[id]/mark-resolved`,
+`POST /api/reviews`, `POST /api/reviews/[id]/vote`, `POST /api/commission`,
+`PATCH /api/commission/[id]`, `PATCH /api/listings/[id]/stock`,
+`POST /api/seller/vacation`, `POST /api/users/[id]/report`,
+`POST /api/orders/[id]/fulfillment`, and
+`POST /api/orders/[id]/confirm-delivery` now return user-varying JSON through
+`privateJson()` and wrap rate-limit responses with `privateResponse()`. Public
+commission GET handlers and successful 303 order redirects stay on their
+existing public/redirect responses.
+
+Second, the public HTML form fallbacks for `POST /api/newsletter/confirm` and
+`POST /api/email/unsubscribe` no longer rely only on a `Content-Length`
+precheck before `req.formData()`. Those branches now stream through
+`readBoundedText()` and parse the built-in `application/x-www-form-urlencoded`
+HTML forms with `URLSearchParams`, so missing or misleading `Content-Length`
+headers cannot bypass the 8 KiB app-layer cap on those public form fallbacks.
+
+Guardrails:
+`tests/private-json-cache-headers.test.mjs`,
+`tests/form-data-body-bounds.test.mjs`,
+`tests/newsletter-double-opt-in.test.mjs`,
+`tests/request-origin-guard.test.mjs`,
+`tests/round10-state-machine-guardrails.test.mjs`,
+`tests/server-error-logger.test.mjs`,
+`tests/http-status-constants.test.mjs`, and
+`tests/authenticated-json-body-bounds.test.mjs`, plus existing stale-pattern
+guardrails updated in `tests/http-rate-limit-followups.test.mjs` and
+`tests/seller-ops-hardening.test.mjs`.
+
+Current running tally after Entry 418: verified fixed/reduced 753, verified
+stale/false-positive/current 468, deferred product/design/ops/legal 73,
+approximate raw allegations left from current max #1126: 86. The fixed count
+increases by two for the private-response route hardening and the public
+form-fallback streaming body-bound fix. Stale, deferred, and approximate raw
+counts stay flat because these were hidden residuals rather than distinct
+numbered raw allegations.
+
+Remaining major categories: Stripe webhook subscription dashboard evidence,
+Stripe Connect v2 loss-liability ops/legal decision, stale remote branch and
+old git author hygiene, Round 10 deferred cache/state-machine product designs
+that require product decisions rather than source guardrails, remaining
+EXPLAIN-dependent query-plan/index validation, Stripe partial-refund runtime
+reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope, remaining privacy/export retention decisions,
+cross-seller AI duplicate-detection product design, legacy enum
+cleanup/data-migration decisions, partial multi-seller checkout continuation
+design, deliberate BigInt money-column modeling, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket dashboard evidence, HSTS preload submission decision,
+residual lower-risk HTTP-status/logging hygiene outside touched routes, Vercel
+Analytics/Speed Insights product/ops decision, remaining homepage runtime a11y
+proof, strict multipart missing-length ingress/runtime proof, and residual
+agent/worktree verification process hygiene.

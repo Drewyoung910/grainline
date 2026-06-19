@@ -13,15 +13,19 @@ function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
-function getHandlerSource(path) {
+function getMethodSource(path, method) {
   const text = source(path);
-  const start = text.indexOf("export async function GET");
-  assert.notEqual(start, -1, `${path} must define GET`);
+  const start = text.indexOf(`export async function ${method}`);
+  assert.notEqual(start, -1, `${path} must define ${method}`);
   const rest = text.slice(start);
   const nextMethod = rest.search(
-    /\nexport async function (POST|PUT|PATCH|DELETE)\b/,
+    /\nexport async function (GET|POST|PUT|PATCH|DELETE)\b/,
   );
   return nextMethod === -1 ? rest : rest.slice(0, nextMethod);
+}
+
+function getHandlerSource(path) {
+  return getMethodSource(path, "GET");
 }
 
 describe("private JSON cache headers", () => {
@@ -124,9 +128,19 @@ describe("private JSON cache headers", () => {
       "src/app/api/verification/apply/route.ts",
       "src/app/api/cases/route.ts",
       "src/app/api/cases/[id]/messages/route.ts",
+      "src/app/api/cases/[id]/escalate/route.ts",
+      "src/app/api/cases/[id]/mark-resolved/route.ts",
+      "src/app/api/cases/[id]/resolve/route.ts",
       "src/app/api/commission/[id]/interest/route.ts",
       "src/app/api/orders/[id]/refund/route.ts",
       "src/app/api/orders/[id]/label/route.ts",
+      "src/app/api/reviews/route.ts",
+      "src/app/api/reviews/[id]/vote/route.ts",
+      "src/app/api/listings/[id]/stock/route.ts",
+      "src/app/api/seller/vacation/route.ts",
+      "src/app/api/users/[id]/report/route.ts",
+      "src/app/api/orders/[id]/fulfillment/route.ts",
+      "src/app/api/orders/[id]/confirm-delivery/route.ts",
       "src/app/api/follow/[sellerId]/route.ts",
       "src/app/api/seller/broadcast/route.ts",
       "src/app/api/cart/checkout/rollback/route.ts",
@@ -174,9 +188,19 @@ describe("private JSON cache headers", () => {
       "src/app/api/verification/apply/route.ts",
       "src/app/api/cases/route.ts",
       "src/app/api/cases/[id]/messages/route.ts",
+      "src/app/api/cases/[id]/escalate/route.ts",
+      "src/app/api/cases/[id]/mark-resolved/route.ts",
+      "src/app/api/cases/[id]/resolve/route.ts",
       "src/app/api/commission/[id]/interest/route.ts",
       "src/app/api/orders/[id]/refund/route.ts",
       "src/app/api/orders/[id]/label/route.ts",
+      "src/app/api/reviews/route.ts",
+      "src/app/api/reviews/[id]/vote/route.ts",
+      "src/app/api/listings/[id]/stock/route.ts",
+      "src/app/api/seller/vacation/route.ts",
+      "src/app/api/users/[id]/report/route.ts",
+      "src/app/api/orders/[id]/fulfillment/route.ts",
+      "src/app/api/orders/[id]/confirm-delivery/route.ts",
       "src/app/api/follow/[sellerId]/route.ts",
       "src/app/api/seller/broadcast/route.ts",
       "src/app/api/cart/checkout/rollback/route.ts",
@@ -205,6 +229,23 @@ describe("private JSON cache headers", () => {
         `${route} should not return bare rate-limit JSON`,
       );
     }
+  });
+
+  it("keeps auth mutation methods private when the same route file also has public handlers", () => {
+    const commissionCreate = getMethodSource("src/app/api/commission/route.ts", "POST");
+    const commissionStatus = getMethodSource("src/app/api/commission/[id]/route.ts", "PATCH");
+
+    for (const methodSource of [commissionCreate, commissionStatus]) {
+      assert.match(methodSource, /privateJson/);
+      assert.match(methodSource, /privateResponse\(\s*rateLimitResponse\(/);
+      assert.doesNotMatch(methodSource, /\b(?:NextResponse|Response)\.json\(/);
+      assert.doesNotMatch(methodSource, /return rateLimitResponse\(/);
+    }
+
+    const commissionList = getMethodSource("src/app/api/commission/route.ts", "GET");
+    const commissionDetail = getMethodSource("src/app/api/commission/[id]/route.ts", "GET");
+    assert.match(commissionList, /NextResponse\.json/);
+    assert.match(commissionDetail, /NextResponse\.json/);
   });
 
   it("keeps auth-varying GET handlers private even when other methods stay unchanged", () => {

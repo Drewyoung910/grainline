@@ -5,6 +5,7 @@ import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import { sendOrderShipped, sendReadyForPickup } from "@/lib/email";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { fulfillmentRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { blockingRefundLedgerWhere, orderHasRefundLedger } from "@/lib/refundRouteState";
 import { assertContentLengthUnder, isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
@@ -102,19 +103,19 @@ export async function POST(
   try {
     const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
     if (crossOriginRejection) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return privateJson({ error: "Forbidden" }, { status: 403 });
     }
 
     const { id } = await params;
 
     const { userId } = await auth();
-    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
     const { success, reset } = await safeRateLimit(fulfillmentRatelimit, userId);
-    if (!success) return rateLimitResponse(reset, "Too many fulfillment updates.");
+    if (!success) return privateResponse(rateLimitResponse(reset, "Too many fulfillment updates."));
 
     const authz = await ensureSellerOwnsOrder(userId, id);
-    if (!authz) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!authz) return privateJson({ error: "Forbidden" }, { status: 403 });
 
     let rawPayload: Record<string, unknown> = {};
     const contentType = req.headers.get("content-type") || "";
@@ -123,7 +124,7 @@ export async function POST(
         rawPayload = (await readOptionalBoundedJson(req, FULFILLMENT_JSON_BODY_MAX_BYTES, {})) as Record<string, unknown>;
       } catch (error) {
         if (isRequestBodyTooLargeError(error)) {
-          return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+          return privateJson({ error: "Request body too large" }, { status: 413 });
         }
         throw error;
       }
@@ -132,7 +133,7 @@ export async function POST(
         assertContentLengthUnder(req, FULFILLMENT_FORM_BODY_MAX_BYTES);
       } catch (error) {
         if (isRequestBodyTooLargeError(error)) {
-          return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+          return privateJson({ error: "Request body too large" }, { status: 413 });
         }
         throw error;
       }
@@ -145,32 +146,32 @@ export async function POST(
       payload = FulfillmentSchema.parse(rawPayload);
     } catch (e) {
       if (e instanceof z.ZodError) {
-        return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+        return privateJson({ error: "Invalid input", details: e.issues }, { status: 400 });
       }
-      return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+      return privateJson({ error: "Invalid input" }, { status: 400 });
     }
 
     const action = payload.action;
     if (action !== "update_notes" && authz.order.case && ACTIVE_CASE_STATUS_SET.has(authz.order.case.status)) {
-      return NextResponse.json(
+      return privateJson(
         { error: "Resolve the open case before changing fulfillment." },
         { status: 409 },
       );
     }
     if (action !== "update_notes" && orderHasRefundLedger(authz.order)) {
-      return NextResponse.json(
+      return privateJson(
         { error: "Refunded orders cannot be fulfilled." },
         { status: 400 },
       );
     }
     if (action !== "update_notes" && orderHasDeauthorizedSellerReviewHold(authz.order)) {
-      return NextResponse.json(
+      return privateJson(
         { error: DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE },
         { status: 409 },
       );
     }
     if (action === "shipped" && authz.order.labelStatus === "PURCHASED") {
-      return NextResponse.json(
+      return privateJson(
         { error: "A Grainline shipping label has already been purchased for this order." },
         { status: 409 },
       );
@@ -185,7 +186,7 @@ export async function POST(
     };
     const allowed = validTransitions[action];
     if (allowed && !allowed.includes(authz.order.fulfillmentStatus ?? "PENDING")) {
-      return NextResponse.json(
+      return privateJson(
         { error: `Cannot transition from ${authz.order.fulfillmentStatus ?? "PENDING"} to ${action}.` },
         { status: 400 },
       );
@@ -194,19 +195,19 @@ export async function POST(
     // Guard: shipping orders can only use shipped/delivered actions, not pickup
     const currentMethod = authz.order.fulfillmentMethod ?? "SHIPPING";
     if ((action === "ready_for_pickup" || action === "picked_up") && currentMethod === "SHIPPING") {
-      return NextResponse.json(
+      return privateJson(
         { error: "Cannot use pickup actions on a shipping order." },
         { status: 400 },
       );
     }
     if ((action === "shipped" || action === "delivered") && currentMethod === "PICKUP") {
-      return NextResponse.json(
+      return privateJson(
         { error: "Cannot use shipping actions on a pickup order." },
         { status: 400 },
       );
     }
     if (action === "delivered") {
-      return NextResponse.json(
+      return privateJson(
         { error: BUYER_DELIVERY_CONFIRMATION_ERROR },
         { status: 400 },
       );
@@ -230,16 +231,16 @@ export async function POST(
         const trackingCarrier = payload.trackingCarrier?.trim() ?? "";
         const trackingNumber = payload.trackingNumber?.trim() ?? "";
         if (!trackingCarrier) {
-          return NextResponse.json({ error: "Tracking carrier is required." }, { status: 400 });
+          return privateJson({ error: "Tracking carrier is required." }, { status: 400 });
         }
         if (!VALID_TRACKING_CARRIERS.has(trackingCarrier)) {
-          return NextResponse.json({ error: "Unsupported tracking carrier." }, { status: 400 });
+          return privateJson({ error: "Unsupported tracking carrier." }, { status: 400 });
         }
         if (!trackingNumber) {
-          return NextResponse.json({ error: "Tracking number is required." }, { status: 400 });
+          return privateJson({ error: "Tracking number is required." }, { status: 400 });
         }
         if (!TRACKING_NUMBER_RE.test(trackingNumber)) {
-          return NextResponse.json({ error: "Invalid tracking number." }, { status: 400 });
+          return privateJson({ error: "Invalid tracking number." }, { status: 400 });
         }
         data.fulfillmentMethod = "SHIPPING";
         data.fulfillmentStatus = "SHIPPED";
@@ -252,7 +253,7 @@ export async function POST(
         data.sellerNotes = payload.sellerNotes ? truncateText(sanitizeText(payload.sellerNotes), 2000) || null : null;
         break;
       default:
-        return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+        return privateJson({ error: "Unknown action" }, { status: 400 });
     }
 
     const orderWhereAnd: Prisma.OrderWhereInput[] = [];
@@ -282,7 +283,7 @@ export async function POST(
       data,
     });
     if (updatedCount.count === 0) {
-      return NextResponse.json({ error: "Order status changed. Refresh and try again." }, { status: 409 });
+      return privateJson({ error: "Order status changed. Refresh and try again." }, { status: 409 });
     }
 
     const updated = await prisma.order.findUniqueOrThrow({
@@ -372,6 +373,6 @@ export async function POST(
     );
   } catch (err) {
     logServerError(err, { source: "order_fulfillment_route" });
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return privateJson({ error: "Server error" }, { status: 500 });
   }
 }

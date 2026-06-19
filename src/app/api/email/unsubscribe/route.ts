@@ -9,7 +9,7 @@ import {
 } from "@/lib/ratelimit";
 import { logSecurityEvent } from "@/lib/security";
 import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
-import { assertContentLengthUnder, isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
+import { isRequestBodyTooLargeError, readBoundedText, readOptionalBoundedJson } from "@/lib/requestBody";
 import { logServerError } from "@/lib/serverErrorLogger";
 
 export const runtime = "nodejs";
@@ -113,11 +113,10 @@ async function readUnsubscribeParams(req: NextRequest): Promise<UnsubscribeParam
         issuedAt ??
         (typeof body?.issuedAt === "string" || typeof body?.issuedAt === "number" ? String(body.issuedAt) : null);
     } else {
-      assertContentLengthUnder(req, UNSUBSCRIBE_FORM_BODY_MAX_BYTES);
-      const formData = await req.formData().catch(() => null);
-      email = email ?? (typeof formData?.get("email") === "string" ? String(formData.get("email")) : null);
-      token = token ?? (typeof formData?.get("token") === "string" ? String(formData.get("token")) : null);
-      issuedAt = issuedAt ?? (typeof formData?.get("issuedAt") === "string" ? String(formData.get("issuedAt")) : null);
+      const formData = new URLSearchParams(await readBoundedText(req, UNSUBSCRIBE_FORM_BODY_MAX_BYTES));
+      email = email ?? formData.get("email");
+      token = token ?? formData.get("token");
+      issuedAt = issuedAt ?? formData.get("issuedAt");
     }
   }
 

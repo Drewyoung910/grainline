@@ -5,6 +5,7 @@ import { after } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { CommissionStatus } from "@prisma/client";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { createNotification } from "@/lib/notifications";
 import { commissionIsExpired } from "@/lib/commissionExpiry";
 import { publicCommissionInterestWhere, resolvedInterestedCount } from "@/lib/commissionInterestCount";
@@ -97,17 +98,17 @@ export async function PATCH(
 ) {
   const { id } = await params;
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
   const { success, reset } = await safeRateLimit(commissionStatusRatelimit, userId);
-  if (!success) return rateLimitResponse(reset, "Too many commission status updates.");
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many commission status updates."));
 
   const me = await prisma.user.findUnique({
     where: { clerkId: userId },
     select: { id: true, banned: true, deletedAt: true },
   });
-  if (!me) return NextResponse.json({ error: "User not found" }, { status: 401 });
-  if (me.banned || me.deletedAt) return NextResponse.json({ error: "Account is suspended" }, { status: 403 });
+  if (!me) return privateJson({ error: "User not found" }, { status: 401 });
+  if (me.banned || me.deletedAt) return privateJson({ error: "Account is suspended" }, { status: 403 });
 
   const request = await prisma.commissionRequest.findUnique({
     where: { id },
@@ -129,13 +130,13 @@ export async function PATCH(
       },
     },
   });
-  if (!request) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (request.buyerId !== me.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!request) return privateJson({ error: "Not found" }, { status: 404 });
+  if (request.buyerId !== me.id) return privateJson({ error: "Forbidden" }, { status: 403 });
   if (request.status !== CommissionStatus.OPEN) {
-    return NextResponse.json({ error: "Commission request is no longer open" }, { status: 400 });
+    return privateJson({ error: "Commission request is no longer open" }, { status: 400 });
   }
   if (commissionIsExpired(request)) {
-    return NextResponse.json({ error: "Commission request has expired" }, { status: 400 });
+    return privateJson({ error: "Commission request has expired" }, { status: 400 });
   }
 
   let patchParsed;
@@ -143,19 +144,19 @@ export async function PATCH(
     patchParsed = CommissionPatchSchema.parse(await readBoundedJson(req, COMMISSION_STATUS_BODY_MAX_BYTES));
   } catch (e) {
     if (isRequestBodyTooLargeError(e)) {
-      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      return privateJson({ error: "Request body too large" }, { status: 413 });
     }
     if (isInvalidJsonBodyError(e)) {
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      return privateJson({ error: "Invalid JSON" }, { status: 400 });
     }
     if (e instanceof z.ZodError) {
-      return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+      return privateJson({ error: "Invalid input", details: e.issues }, { status: 400 });
     }
     throw e;
   }
   const { status } = patchParsed;
   if ((status as CommissionStatus) === CommissionStatus.FULFILLED && request.interests.length === 0) {
-    return NextResponse.json({ error: "A commission request needs at least one interested maker before it can be fulfilled." }, { status: 400 });
+    return privateJson({ error: "A commission request needs at least one interested maker before it can be fulfilled." }, { status: 400 });
   }
 
   const result = await prisma.commissionRequest.updateMany({
@@ -163,7 +164,7 @@ export async function PATCH(
     data: { status: status as CommissionStatus },
   });
   if (result.count === 0) {
-    return NextResponse.json({ error: "Commission request is no longer open" }, { status: 409 });
+    return privateJson({ error: "Commission request is no longer open" }, { status: 409 });
   }
   const updated = { id, status: status as CommissionStatus };
 
@@ -199,5 +200,5 @@ export async function PATCH(
     }
   });
 
-  return NextResponse.json(updated);
+  return privateJson(updated);
 }

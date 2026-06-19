@@ -4,11 +4,11 @@
 //   - Staff / CRON_SECRET bearer: always allowed
 //   - Buyer or seller: allowed if escalateUnlocksAt is in the past, or if
 //     the counterparty account is unavailable.
-import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { caseActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { verifyCronRequest } from "@/lib/cronAuth";
 import { isEscalatableCaseStatus } from "@/lib/caseActionState";
@@ -32,10 +32,10 @@ export async function POST(
 
     if (!validCron) {
       const { userId } = await auth();
-      if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
       me = await ensureUserByClerkId(userId);
       const { success, reset } = await safeRateLimit(caseActionRatelimit, me.id);
-      if (!success) return rateLimitResponse(reset, "Too many case actions.");
+      if (!success) return privateResponse(rateLimitResponse(reset, "Too many case actions."));
     }
 
     const isStaff = me?.role === "EMPLOYEE" || me?.role === "ADMIN";
@@ -46,7 +46,7 @@ export async function POST(
     if (id === "all") {
       // Bulk escalation: staff/cron only
       if (!validCron && !isStaff) {
-        return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+        return privateJson({ error: "Forbidden." }, { status: 403 });
       }
 
       // Escalate cases whose response/discussion windows have expired.
@@ -93,10 +93,10 @@ export async function POST(
           seller: { select: { id: true, banned: true, deletedAt: true } },
         },
       });
-      if (!caseRecord) return NextResponse.json({ error: "Case not found." }, { status: 404 });
+      if (!caseRecord) return privateJson({ error: "Case not found." }, { status: 404 });
 
       if (!isEscalatableCaseStatus(caseRecord.status)) {
-        return NextResponse.json(
+        return privateJson(
           { error: "Only OPEN or IN_DISCUSSION cases can be escalated." },
           { status: 400 }
         );
@@ -105,7 +105,7 @@ export async function POST(
       if (!validCron && !isStaff) {
         // User-triggered: must be a party to the case
         const isParty = me!.id === caseRecord.buyerId || me!.id === caseRecord.sellerId;
-        if (!isParty) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+        if (!isParty) return privateJson({ error: "Forbidden." }, { status: 403 });
 
         const counterpartyUnavailable = unavailableCaseMessageRecipientReason({
           senderId: me!.id,
@@ -117,7 +117,7 @@ export async function POST(
         // Escalation is available after 48 hours, or immediately if the other
         // party cannot participate because their account is unavailable.
         if (!counterpartyUnavailable && (!caseRecord.escalateUnlocksAt || caseRecord.escalateUnlocksAt > now)) {
-          return NextResponse.json(
+          return privateJson(
             { error: "Escalation not yet available. You can escalate after 48 hours of discussion." },
             { status: 400 }
           );
@@ -155,7 +155,7 @@ export async function POST(
               data: { status: "UNDER_REVIEW" },
             });
       if (result.count === 0) {
-        return NextResponse.json(
+        return privateJson(
           { error: "Case status changed before escalation could be saved. Refresh and try again." },
           { status: 409 },
         );
@@ -163,12 +163,12 @@ export async function POST(
       escalated = result.count;
     }
 
-    return NextResponse.json({ ok: true, escalated });
+    return privateJson({ ok: true, escalated });
   } catch (err) {
     const accountResponse = accountAccessErrorResponse(err);
     if (accountResponse) return accountResponse;
 
     logServerError(err, { source: "case_escalate_route" });
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return privateJson({ error: "Server error" }, { status: 500 });
   }
 }

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { Category } from "@prisma/client";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import {
   commissionCreateRatelimit,
@@ -98,30 +99,30 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
   const { success: rlOk, reset } = await safeRateLimit(commissionCreateRatelimit, userId);
-  if (!rlOk) return rateLimitResponse(reset, "You can post up to 5 commission requests per day.");
+  if (!rlOk) return privateResponse(rateLimitResponse(reset, "You can post up to 5 commission requests per day."));
 
   const me = await prisma.user.findUnique({
     where: { clerkId: userId },
     select: { id: true, banned: true, deletedAt: true, sellerProfile: { select: { lat: true, lng: true } } },
   });
-  if (!me) return NextResponse.json({ error: "User not found" }, { status: HTTP_STATUS.UNAUTHORIZED });
-  if (me.banned || me.deletedAt) return NextResponse.json({ error: "Account is suspended" }, { status: HTTP_STATUS.FORBIDDEN });
+  if (!me) return privateJson({ error: "User not found" }, { status: HTTP_STATUS.UNAUTHORIZED });
+  if (me.banned || me.deletedAt) return privateJson({ error: "Account is suspended" }, { status: HTTP_STATUS.FORBIDDEN });
 
   let parsed;
   try {
     parsed = CommissionCreateSchema.parse(await readBoundedJson(req, COMMISSION_CREATE_BODY_MAX_BYTES));
   } catch (e) {
     if (isRequestBodyTooLargeError(e)) {
-      return NextResponse.json({ error: "Request body too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
+      return privateJson({ error: "Request body too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
     }
     if (isInvalidJsonBodyError(e)) {
-      return NextResponse.json({ error: "Invalid JSON" }, { status: HTTP_STATUS.BAD_REQUEST });
+      return privateJson({ error: "Invalid JSON" }, { status: HTTP_STATUS.BAD_REQUEST });
     }
     if (e instanceof z.ZodError) {
-      return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: HTTP_STATUS.BAD_REQUEST });
+      return privateJson({ error: "Invalid input", details: e.issues }, { status: HTTP_STATUS.BAD_REQUEST });
     }
     throw e;
   }
@@ -132,7 +133,7 @@ export async function POST(req: NextRequest) {
       getIP(req),
     );
     if (!imageIpOk) {
-      return rateLimitResponse(imageIpReset, "Too many commission requests with reference images from this network.");
+      return privateResponse(rateLimitResponse(imageIpReset, "Too many commission requests with reference images from this network."));
     }
   }
 
@@ -153,11 +154,11 @@ export async function POST(req: NextRequest) {
   const budgetMaxCents = budgetMax != null ? parseMoneyInputToCents(budgetMax) : null;
   const images = filterFirstPartyMediaUrlsForUser(referenceImageUrls ?? [], 3, userId, ["messageImage"]);
 
-  if (budgetMin != null && budgetMinCents === null) return NextResponse.json({ error: "Minimum budget must be a valid dollar amount." }, { status: HTTP_STATUS.BAD_REQUEST });
-  if (budgetMax != null && budgetMaxCents === null) return NextResponse.json({ error: "Maximum budget must be a valid dollar amount." }, { status: HTTP_STATUS.BAD_REQUEST });
-  if (budgetMinCents !== null && budgetMinCents > 10_000_000) return NextResponse.json({ error: "Minimum budget cannot exceed $100,000." }, { status: HTTP_STATUS.BAD_REQUEST });
-  if (budgetMaxCents !== null && budgetMaxCents > 10_000_000) return NextResponse.json({ error: "Maximum budget cannot exceed $100,000." }, { status: HTTP_STATUS.BAD_REQUEST });
-  if (budgetMaxCents !== null && budgetMinCents !== null && budgetMaxCents < budgetMinCents) return NextResponse.json({ error: "Maximum budget must be greater than minimum." }, { status: HTTP_STATUS.BAD_REQUEST });
+  if (budgetMin != null && budgetMinCents === null) return privateJson({ error: "Minimum budget must be a valid dollar amount." }, { status: HTTP_STATUS.BAD_REQUEST });
+  if (budgetMax != null && budgetMaxCents === null) return privateJson({ error: "Maximum budget must be a valid dollar amount." }, { status: HTTP_STATUS.BAD_REQUEST });
+  if (budgetMinCents !== null && budgetMinCents > 10_000_000) return privateJson({ error: "Minimum budget cannot exceed $100,000." }, { status: HTTP_STATUS.BAD_REQUEST });
+  if (budgetMaxCents !== null && budgetMaxCents > 10_000_000) return privateJson({ error: "Maximum budget cannot exceed $100,000." }, { status: HTTP_STATUS.BAD_REQUEST });
+  if (budgetMaxCents !== null && budgetMinCents !== null && budgetMaxCents < budgetMinCents) return privateJson({ error: "Maximum budget must be greater than minimum." }, { status: HTTP_STATUS.BAD_REQUEST });
 
   // Resolve location for local scope
   const wantsLocal = isNational === false;
@@ -169,7 +170,7 @@ export async function POST(req: NextRequest) {
     const sellerLat = me.sellerProfile?.lat;
     const sellerLng = me.sellerProfile?.lng;
     if (sellerLat == null || sellerLng == null) {
-      return NextResponse.json(
+      return privateJson(
         { error: "Please set your location in your seller profile before posting a local request" },
         { status: HTTP_STATUS.BAD_REQUEST }
       );
@@ -213,5 +214,5 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ id: request.id });
+  return privateJson({ id: request.id });
 }

@@ -1,19 +1,18 @@
-// src/app/api/reviews/[id]/vote/route.ts
-import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUser } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { rateLimitResponse, reviewVoteRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { canViewListingDetail } from "@/lib/listingVisibility";
 
 export async function POST(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params; // review id
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
   const { success, reset } = await safeRateLimit(reviewVoteRatelimit, userId);
-  if (!success) return rateLimitResponse(reset, "Too many review votes.");
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many review votes."));
 
   let me: Awaited<ReturnType<typeof ensureUser>>;
   try {
@@ -23,7 +22,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
     if (accountResponse) return accountResponse;
     throw err;
   }
-  if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!me) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
   const review = await prisma.review.findUnique({
     where: { id },
@@ -49,19 +48,19 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
       },
     },
   });
-  if (!review) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!review) return privateJson({ error: "Not found" }, { status: 404 });
   if (!canViewListingDetail(review.listing, { dbUserId: me.id })) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return privateJson({ error: "Not found" }, { status: 404 });
   }
 
   // Don't allow voting on your own review
   if (review.reviewerId === me.id) {
-    return NextResponse.json({ error: "Cannot vote own review" }, { status: 400 });
+    return privateJson({ error: "Cannot vote own review" }, { status: 400 });
   }
   // Don't allow the seller to vote helpful on reviews of their own listing
   // (would let sellers boost their best reviews).
   if (review.listing.seller.userId === me.id) {
-    return NextResponse.json({ error: "Cannot vote on your own listing" }, { status: 400 });
+    return privateJson({ error: "Cannot vote on your own listing" }, { status: 400 });
   }
 
   let updated: { helpfulCount: number; voted: boolean };
@@ -104,10 +103,10 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
         where: { id },
         select: { helpfulCount: true },
       });
-      return NextResponse.json({ ok: true, helpfulCount: current?.helpfulCount ?? review.helpfulCount, voted: true });
+      return privateJson({ ok: true, helpfulCount: current?.helpfulCount ?? review.helpfulCount, voted: true });
     }
     throw error;
   }
 
-  return NextResponse.json({ ok: true, helpfulCount: updated.helpfulCount, voted: updated.voted });
+  return privateJson({ ok: true, helpfulCount: updated.helpfulCount, voted: updated.voted });
 }
