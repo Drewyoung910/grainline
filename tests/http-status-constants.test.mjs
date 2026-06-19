@@ -12,6 +12,7 @@ describe("HTTP status constants", () => {
 
     for (const [name, code] of [
       ["OK", 200],
+      ["CREATED", 201],
       ["ACCEPTED", 202],
       ["BAD_REQUEST", 400],
       ["UNAUTHORIZED", 401],
@@ -173,5 +174,36 @@ describe("HTTP status constants", () => {
     assert.match(source("src/app/api/admin/verify-pin/route.ts"), /HTTP_STATUS\.SERVICE_UNAVAILABLE/);
     assert.match(source("src/app/api/cart/add/route.ts"), /HTTP_STATUS\.INTERNAL_SERVER_ERROR/);
     assert.match(source("src/app/api/cron/case-auto-close/route.ts"), /HTTP_STATUS\.INTERNAL_SERVER_ERROR/);
+  });
+
+  it("keeps cron auth and failure statuses named across cron routes", () => {
+    for (const path of [
+      "src/app/api/cron/account-deletion-side-effects/route.ts",
+      "src/app/api/cron/ban-side-effects/route.ts",
+      "src/app/api/cron/case-auto-close/route.ts",
+      "src/app/api/cron/checkout-stock-reservations/route.ts",
+      "src/app/api/cron/commission-expire/route.ts",
+      "src/app/api/cron/email-outbox/route.ts",
+      "src/app/api/cron/guild-member-check/route.ts",
+      "src/app/api/cron/guild-metrics/route.ts",
+      "src/app/api/cron/label-clawback-retry/route.ts",
+      "src/app/api/cron/notification-prune/route.ts",
+      "src/app/api/cron/ops-health/route.ts",
+      "src/app/api/cron/order-pii-prune/route.ts",
+      "src/app/api/cron/quality-score/route.ts",
+      "src/app/api/cron/site-metrics-snapshot/route.ts",
+    ]) {
+      const text = source(path);
+      assert.match(text, /import \{ HTTP_STATUS \} from "@\/lib\/httpStatus"/, `${path} should import HTTP_STATUS`);
+      assert.doesNotMatch(
+        text,
+        /status: (401|500)\b/,
+        `${path} should use named statuses for shared cron auth/failure responses`,
+      );
+      assert.match(text, /HTTP_STATUS\.UNAUTHORIZED/);
+    }
+
+    assert.match(source("src/app/api/cron/account-deletion-side-effects/route.ts"), /HTTP_STATUS\.INTERNAL_SERVER_ERROR/);
+    assert.match(source("src/app/api/cron/site-metrics-snapshot/route.ts"), /HTTP_STATUS\.INTERNAL_SERVER_ERROR/);
   });
 });

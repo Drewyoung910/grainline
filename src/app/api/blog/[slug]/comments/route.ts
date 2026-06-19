@@ -17,6 +17,8 @@ import {
   isRequestBodyTooLargeError,
   readBoundedJson,
 } from "@/lib/requestBody";
+import { HTTP_STATUS } from "@/lib/httpStatus";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
 import { z } from "zod";
 
@@ -129,41 +131,41 @@ export async function POST(
 ) {
   const { slug } = await params;
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
   const me = await prisma.user.findUnique({
     where: { clerkId: userId },
     select: { id: true, name: true, email: true, banned: true, deletedAt: true },
   });
-  if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (me.banned || me.deletedAt) return NextResponse.json({ error: "Account is suspended" }, { status: 403 });
+  if (!me) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
+  if (me.banned || me.deletedAt) return privateJson({ error: "Account is suspended" }, { status: HTTP_STATUS.FORBIDDEN });
 
   const { success: rlOk, reset } = await safeRateLimit(blogCommentRatelimit, me.id);
-  if (!rlOk) return rateLimitResponse(reset, "Too many comments.");
+  if (!rlOk) return privateResponse(rateLimitResponse(reset, "Too many comments."));
 
   const post = await prisma.blogPost.findFirst({
     where: publicBlogPostWhere({ slug }),
     select: { id: true, authorId: true, title: true },
   });
-  if (!post) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!post) return privateJson({ error: "Not found" }, { status: HTTP_STATUS.NOT_FOUND });
 
   let parsed;
   try {
     parsed = CommentSchema.parse(await readBoundedJson(req, BLOG_COMMENT_BODY_MAX_BYTES));
   } catch (e) {
     if (isRequestBodyTooLargeError(e)) {
-      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      return privateJson({ error: "Request body too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
     }
     if (isInvalidJsonBodyError(e)) {
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      return privateJson({ error: "Invalid JSON" }, { status: HTTP_STATUS.BAD_REQUEST });
     }
     if (e instanceof z.ZodError) {
-      return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+      return privateJson({ error: "Invalid input", details: e.issues }, { status: HTTP_STATUS.BAD_REQUEST });
     }
     throw e;
   }
   const text = sanitizeText(parsed.body.trim());
-  if (!text) return NextResponse.json({ error: "Comment is empty" }, { status: 400 });
+  if (!text) return privateJson({ error: "Comment is empty" }, { status: HTTP_STATUS.BAD_REQUEST });
   const { parentId } = parsed;
 
   // Profanity check (log-only — does not block submission)
@@ -199,7 +201,7 @@ export async function POST(
       parent.author.banned ||
       parent.author.deletedAt
     ) {
-      return NextResponse.json({ error: "Invalid parent comment" }, { status: 400 });
+      return privateJson({ error: "Invalid parent comment" }, { status: HTTP_STATUS.BAD_REQUEST });
     }
 
     if (parent.parentId === null) {
@@ -224,7 +226,7 @@ export async function POST(
         grandparent.author.banned ||
         grandparent.author.deletedAt
       ) {
-        return NextResponse.json({ error: "Invalid parent comment" }, { status: 400 });
+        return privateJson({ error: "Invalid parent comment" }, { status: HTTP_STATUS.BAD_REQUEST });
       }
       if (grandparent.parentId === null) {
         // Grandparent is level 1, parent is level 2 → new comment becomes level 3
@@ -244,5 +246,5 @@ export async function POST(
   // Notifications are sent when the comment is approved by admin (see admin/blog/page.tsx),
   // not here — unapproved comments should not trigger notifications.
 
-  return NextResponse.json({ comment }, { status: 201 });
+  return privateJson({ comment }, { status: HTTP_STATUS.CREATED });
 }

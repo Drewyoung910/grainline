@@ -9,6 +9,7 @@ import {
 } from "./aiReviewSafety.ts";
 import { normalizeAIReviewResult, type AIReviewResult } from "./aiReviewResultState.ts";
 import { formatCurrencyCents } from "./money.ts";
+import { logServerError } from "./serverErrorLogger.ts";
 import { isR2PublicUrl } from "./urlValidation.ts";
 
 export type { AIReviewResult } from "./aiReviewResultState";
@@ -146,10 +147,9 @@ export async function reviewListingWithAI(listing: {
       }
     }
   } catch (error) {
-    console.error('Duplicate check failed:', error instanceof Error ? error.message : error)
-    Sentry.captureException?.(error, {
+    logServerError(error, {
+      source: "ai_review_duplicate_check",
       level: "warning",
-      tags: { source: "ai_review_duplicate_check" },
       extra: { sellerId: listing.sellerId },
     });
     // Non-fatal — continue to AI review
@@ -315,8 +315,10 @@ USER_LISTING_DATA_${delimiterId}_END`
       response = await requestReview();
     } catch (error) {
       if (!isRetryableAIReviewError(error)) throw error;
-      Sentry.captureException?.(error, {
-        tags: { source: "ai_review", retrying: "true" },
+      logServerError(error, {
+        source: "ai_review",
+        level: "warning",
+        tags: { retrying: "true" },
         extra: { sellerId: listing.sellerId },
       });
       await wait(500);
@@ -332,9 +334,8 @@ USER_LISTING_DATA_${delimiterId}_END`
     }
     return result
   } catch (error) {
-    console.error('AI review failed:', error instanceof Error ? error.message : error)
-    Sentry.captureException?.(error, {
-      tags: { source: "ai_review" },
+    logServerError(error, {
+      source: "ai_review",
       extra: { sellerId: listing.sellerId },
     });
     return {
@@ -393,9 +394,9 @@ export async function generateAltText(imageUrl: string): Promise<string | null> 
     if (!text) return null;
     return sanitizeAIAltText(text) || null;
   } catch (error) {
-    Sentry.captureException?.(error, {
+    logServerError(error, {
+      source: "ai_alt_text_generate",
       level: "warning",
-      tags: { source: "ai_alt_text_generate" },
     });
     return null;
   }

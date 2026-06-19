@@ -186,6 +186,7 @@ describe("private JSON cache headers", () => {
       "src/app/api/favorites/route.ts",
       "src/app/api/favorites/[listingId]/route.ts",
       "src/app/api/listings/[id]/notify/route.ts",
+      "src/app/api/listings/[id]/photos/route.ts",
       "src/app/api/messages/[id]/read/route.ts",
       "src/app/api/messages/custom-order-request/route.ts",
       "src/app/api/cart/checkout/single/route.ts",
@@ -262,8 +263,9 @@ describe("private JSON cache headers", () => {
   it("keeps auth mutation methods private when the same route file also has public handlers", () => {
     const commissionCreate = getMethodSource("src/app/api/commission/route.ts", "POST");
     const commissionStatus = getMethodSource("src/app/api/commission/[id]/route.ts", "PATCH");
+    const blogCommentCreate = getMethodSource("src/app/api/blog/[slug]/comments/route.ts", "POST");
 
-    for (const methodSource of [commissionCreate, commissionStatus]) {
+    for (const methodSource of [commissionCreate, commissionStatus, blogCommentCreate]) {
       assert.match(methodSource, /privateJson/);
       assert.match(methodSource, /privateResponse\(\s*rateLimitResponse\(/);
       assert.doesNotMatch(methodSource, /\b(?:NextResponse|Response)\.json\(/);
@@ -272,8 +274,10 @@ describe("private JSON cache headers", () => {
 
     const commissionList = getMethodSource("src/app/api/commission/route.ts", "GET");
     const commissionDetail = getMethodSource("src/app/api/commission/[id]/route.ts", "GET");
+    const blogCommentList = getMethodSource("src/app/api/blog/[slug]/comments/route.ts", "GET");
     assert.match(commissionList, /NextResponse\.json/);
     assert.match(commissionDetail, /NextResponse\.json/);
+    assert.match(blogCommentList, /NextResponse\.json/);
   });
 
   it("keeps auth-varying GET handlers private even when other methods stay unchanged", () => {

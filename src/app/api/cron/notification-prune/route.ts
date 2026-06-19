@@ -9,13 +9,14 @@ import { pruneEmailOutboxRetention } from "@/lib/emailOutboxRetention";
 import { notificationRetentionCutoffs, NOTIFICATION_RETENTION_BATCH_SIZE, NOTIFICATION_RETENTION_TIME_BUDGET_MS } from "@/lib/notificationRetentionState";
 import { pruneWebhookEventRetention } from "@/lib/webhookEventRetention";
 import { runBoundedDeletionBatches } from "@/lib/cronBatchState";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
   if (!verifyCronRequest(request)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
   }
 
   return withSentryCronMonitor("notification-prune", { value: "10 11 * * *", maxRuntimeMinutes: 1 }, async () => {
@@ -50,7 +51,7 @@ export async function GET(request: NextRequest) {
     } catch (error) {
       await failCronRun(cronRun, error);
       Sentry.captureException(error, { tags: { source: "cron_notification_prune" } });
-      return NextResponse.json({ error: "Prune failed" }, { status: 500 });
+      return NextResponse.json({ error: "Prune failed" }, { status: HTTP_STATUS.INTERNAL_SERVER_ERROR });
     }
   });
 }

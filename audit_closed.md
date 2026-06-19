@@ -6991,3 +6991,84 @@ preload submission decision, residual lower-risk HTTP-status/logging hygiene
 outside touched routes, Vercel Analytics/Speed Insights product/privacy
 decision, remaining homepage runtime a11y proof, and residual
 agent/worktree verification process hygiene.
+
+Entry 422 closes a source-verified residual AI-review observability,
+private-response, and cron-status pass with two read-only sidecar scans plus
+parent review. The agents were used only for disjoint source scans and were
+closed after parent verification.
+
+First, AI review failure logging now consistently routes through the shared
+sanitized logger. `reviewListingWithAI()` no longer writes raw non-`Error`
+thrown values to `console.error()` or sends raw caught values directly to
+Sentry for duplicate-check, retry/provider, parse/schema, or generated alt-text
+failures. Public-shop publish/re-publish AI-review wrapper catches now use the
+same `logServerError()` path for review failures, follow-up failures, and
+failure-marking failures while keeping the fail-closed `PENDING_REVIEW`
+behavior. The alt-text backfill helper also uses `logServerError()` with a
+bounded listing ID instead of direct raw Sentry capture plus non-production raw
+console output.
+
+Second, the remaining source-proven auth-only private response gaps in this
+slice are reduced. `POST /api/blog/[slug]/comments` now returns private
+`no-store`/`Vary: Cookie` JSON for auth, account-state, rate-limit, validation,
+not-found, parent-comment, and successful pending-comment responses; the public
+`GET` comment reader remains unchanged. The deprecated
+`POST /api/listings/[id]/photos` 401 and 410 responses now use `privateJson()`
+and named statuses, preserving the disabled Save-boundary behavior while
+avoiding bare auth-only JSON responses.
+
+Third, the shared cron auth/failure response contract now uses named
+`HTTP_STATUS` constants across the remaining cron routes with local `401`/`500`
+literals: account-deletion side effects, ban side effects, checkout stock
+reservations, email outbox, Guild Member check, Guild metrics, label-clawback
+retry, notification prune, order PII prune, and site metrics snapshot.
+`HTTP_STATUS.CREATED` was added for the private blog-comment creation response.
+
+Parent verification also rechecked raw #1097 and #796 as already
+closed/current in earlier entries: AI review prompt prices already use
+`formatCurrencyCents()`, and new-listing AI review already calls
+`backfillEmptyAltTexts()`. Raw body-reader allegations remain current-clean
+after Entry 421 because the only remaining `formData()` readers are the two
+known-length guarded routes. These rechecks do not add stale tally or decrement
+raw allegations again because those numbered items were already classified in
+earlier entries.
+
+Guardrails:
+`tests/ai-review-safety.test.mjs`,
+`tests/ai-review-outer-failclosed.test.mjs`,
+`tests/post-launch-ui-followups.test.mjs`,
+`tests/server-action-hardening.test.mjs`,
+`tests/private-json-cache-headers.test.mjs`,
+`tests/http-status-constants.test.mjs`,
+`tests/review-report-observability.test.mjs`, and
+`tests/server-error-logger.test.mjs`.
+
+Current running tally after Entry 422: verified fixed/reduced 779, verified
+stale/false-positive/current 473, deferred product/design/ops/legal 73,
+approximate raw allegations left from current max #1126: 79. The fixed count
+increases by six for core AI-review sanitized logging, public-shop AI-review
+wrapper sanitized logging, alt-text backfill sanitized logging, blog-comment
+POST private responses, deprecated listing-photo POST private responses, and
+cron auth/failure status-constant parity. Stale/current, deferred, and
+approximate raw counts stay flat because these were hidden adjacent residues
+inside already-open categories or rechecks already counted in earlier entries.
+
+Remaining major categories: Stripe webhook subscription dashboard evidence,
+Stripe Connect v2 loss-liability ops/legal decision, stale remote branch and
+old git author hygiene, Round 10 deferred cache/state-machine product designs
+that require product decisions rather than source guardrails, remaining
+EXPLAIN-dependent query-plan/index validation, Stripe partial-refund runtime
+reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope, remaining privacy/export retention decisions,
+cross-seller AI duplicate-detection product design, legacy enum
+cleanup/data-migration decisions, partial multi-seller checkout continuation
+design, deliberate BigInt money-column modeling, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket/dashboard/direct-upload enforcement evidence, HSTS
+preload submission decision, residual lower-risk HTTP-status/logging hygiene
+outside touched routes, Vercel Analytics/Speed Insights product/privacy
+decision, remaining homepage runtime a11y proof, and residual
+agent/worktree verification process hygiene.

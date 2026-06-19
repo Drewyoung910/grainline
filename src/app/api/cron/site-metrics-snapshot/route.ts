@@ -4,13 +4,14 @@ import { verifyCronRequest } from "@/lib/cronAuth";
 import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 import { calculateSiteMetricsSnapshot } from "@/lib/site-metrics-snapshot";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
 export async function GET(request: Request) {
   if (!verifyCronRequest(request)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
   }
 
   return withSentryCronMonitor("site-metrics-snapshot", { value: "40 6 * * *", maxRuntimeMinutes: 5 }, async () => {
@@ -31,7 +32,7 @@ export async function GET(request: Request) {
     } catch (error) {
       await failCronRun(cronRun, error);
       Sentry.captureException(error, { tags: { source: "cron_site_metrics_snapshot" } });
-      return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+      return NextResponse.json({ error: "Internal server error" }, { status: HTTP_STATUS.INTERNAL_SERVER_ERROR });
     }
   });
 }

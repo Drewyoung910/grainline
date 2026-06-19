@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { planPhotoAltTextBackfill } from "@/lib/photoAltTextBackfillState";
-import * as Sentry from "@sentry/nextjs";
+import { logServerError } from "@/lib/serverErrorLogger";
 
 export {
   planPhotoAltTextBackfill,
@@ -14,8 +14,8 @@ export {
  * altTexts[i] is paired with photos[i] in `sortOrder` ascending order, matching the
  * order reviewListingWithAI received the image URLs.
  *
- * Failures are non-fatal and logged in non-production. Callers can ignore the
- * returned promise's resolved value.
+ * Failures are non-fatal and logged with sanitized operational context. Callers
+ * can ignore the returned promise's resolved value.
  */
 export async function backfillEmptyAltTexts(
   listingId: string,
@@ -35,14 +35,11 @@ export async function backfillEmptyAltTexts(
       }),
     );
     await Promise.all(updates);
-  } catch (e) {
-    Sentry.captureException(e, {
+  } catch (error) {
+    logServerError(error, {
+      source: "photo_alt_text_backfill",
       level: "warning",
-      tags: { source: "photo_alt_text_backfill" },
       extra: { listingId },
     });
-    if (process.env.NODE_ENV !== "production") {
-      console.error("[ai-alt-text] Backfill failed:", e instanceof Error ? e.message : e);
-    }
   }
 }

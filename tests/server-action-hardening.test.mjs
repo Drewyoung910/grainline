@@ -36,6 +36,20 @@ describe("server action hardening guardrails", () => {
     assert.match(shopActions, /source: "listing_publish_ai_review"/);
     assert.match(shopActions, /source: "listing_publish_ai_review_followup"/);
     assert.match(shopActions, /source: "listing_publish_ai_error_mark_failed"/);
+    assert.match(shopActions, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
+    assert.match(shopActions, /logServerError\(error, \{/);
+    assert.match(shopActions, /logServerError\(updateError, \{/);
+    for (const sourceTag of [
+      "listing_publish_ai_review",
+      "listing_publish_ai_review_followup",
+      "listing_publish_ai_error_mark_failed",
+    ]) {
+      const sourceIndex = shopActions.indexOf(`source: "${sourceTag}"`);
+      const blockStart = shopActions.lastIndexOf("catch", sourceIndex);
+      const block = shopActions.slice(blockStart, sourceIndex + 160);
+      assert.match(block, /logServerError\((error|updateError), \{/);
+      assert.doesNotMatch(block, /Sentry\.captureException\((error|updateError), \{/);
+    }
 
     assert.match(createPage, /source: "listing_create_ai_review"/);
     assert.match(createPage, /source: "listing_create_ai_error_mark_failed"/);

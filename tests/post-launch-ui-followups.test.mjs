@@ -300,6 +300,10 @@ describe("post-launch UI follow-ups", () => {
     assert.match(helper, /planPhotoAltTextBackfill\(photos, altTexts\)/);
     assert.match(helper, /data: \{ altText: update\.altText \}/);
     assert.match(helper, /\.findMany\(/);
+    assert.match(helper, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
+    assert.match(helper, /source: "photo_alt_text_backfill"/);
+    assert.doesNotMatch(helper, /Sentry\.captureException/);
+    assert.doesNotMatch(helper, /console\.error\(/);
     assert.match(publishActions, /import \{ backfillEmptyAltTexts \}/);
     assert.match(publishActions, /backfillEmptyAltTexts\(listing\.id, aiResult\.altTexts\)/);
     // Edit page intentionally runs AI re-review on Save for ACTIVE listings.
@@ -318,7 +322,7 @@ describe("post-launch UI follow-ups", () => {
     assert.doesNotMatch(addPhotosRoute, /listingPhotoAiRatelimit/);
     assert.doesNotMatch(addPhotosRoute, /status: ListingStatus\.PENDING_REVIEW/);
     assert.doesNotMatch(addPhotosRoute, /prisma\.photo\.createMany/);
-    assert.match(addPhotosRoute, /status: 410/);
+    assert.match(addPhotosRoute, /status: HTTP_STATUS\.GONE/);
     // Catch returns now include altTexts so TypeScript can union the success
     // type without a property-missing error.
     const editAltTextsInCatch = editPage.match(/altTexts: \[\] as string\[\]/g) ?? [];

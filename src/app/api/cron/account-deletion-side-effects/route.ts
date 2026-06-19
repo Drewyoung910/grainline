@@ -4,6 +4,7 @@ import { verifyCronRequest } from "@/lib/cronAuth";
 import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 import { processAccountDeletionSideEffectBatch } from "@/lib/accountDeletionSideEffects";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -15,7 +16,7 @@ function halfHourBucket(date = new Date()) {
 
 export async function GET(request: NextRequest) {
   if (!verifyCronRequest(request)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
   }
 
   return withSentryCronMonitor("account-deletion-side-effects", { value: "10,40 * * * *", maxRuntimeMinutes: 1 }, async () => {
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
     } catch (error) {
       await failCronRun(cronRun, error);
       Sentry.captureException(error, { tags: { source: "cron_account_deletion_side_effects" } });
-      return NextResponse.json({ error: "Account deletion side-effect retry failed" }, { status: 500 });
+      return NextResponse.json({ error: "Account deletion side-effect retry failed" }, { status: HTTP_STATUS.INTERNAL_SERVER_ERROR });
     }
   });
 }

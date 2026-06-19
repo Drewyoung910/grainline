@@ -22,6 +22,7 @@ import { expireOpenCheckoutSessionsForListing } from "@/lib/checkoutSessionExpir
 import { listingMutationRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
+import { logServerError } from "@/lib/serverErrorLogger";
 
 const REPUBLISH_NOTIFY_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -286,9 +287,9 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       listingCount,
       imageUrls: photos.map((p) => p.url),
     }).catch((error) => {
-      Sentry.captureException(error, {
+      logServerError(error, {
+        source: "listing_publish_ai_review",
         level: "warning",
-        tags: { source: "listing_publish_ai_review" },
         extra: { listingId: listing.id, sellerProfileId: listing.sellerId },
       });
       return {
@@ -377,9 +378,9 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       return { status: "ACTIVE" };
     }
   } catch (error) {
-    Sentry.captureException(error, {
+    logServerError(error, {
+      source: "listing_publish_ai_review_followup",
       level: "warning",
-      tags: { source: "listing_publish_ai_review_followup" },
       extra: { listingId, sellerProfileId: listing.sellerId },
     });
     // Fail closed: AI review error → send to admin review (not ACTIVE)
@@ -398,9 +399,9 @@ export async function publishListingAction(listingId: string): Promise<{ status:
         rejectionReason: null,
       },
     }).catch((updateError) => {
-      Sentry.captureException(updateError, {
+      logServerError(updateError, {
+        source: "listing_publish_ai_error_mark_failed",
         level: "error",
-        tags: { source: "listing_publish_ai_error_mark_failed" },
         extra: { listingId, sellerProfileId: listing.sellerId },
       });
       return { count: 0 };

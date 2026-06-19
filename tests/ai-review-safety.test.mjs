@@ -82,6 +82,21 @@ describe("AI review safety helpers", () => {
     assert.match(text, /altTexts: \[\]/);
   });
 
+  it("routes AI review failures through the shared sanitized logger", () => {
+    const text = readFileSync("src/lib/ai-review.ts", "utf8");
+
+    assert.match(text, /import \{ logServerError \} from "\.\/serverErrorLogger\.ts";/);
+    for (const source of [
+      "ai_review_duplicate_check",
+      "ai_review",
+      "ai_alt_text_generate",
+    ]) {
+      assert.match(text, new RegExp(`source: "${source}"`));
+    }
+    assert.doesNotMatch(text, /console\.error\(/);
+    assert.doesNotMatch(text, /Sentry\.captureException/);
+  });
+
   it("sanitizes generated alt text before persistence", () => {
     assert.equal(
       sanitizeAIAltText("<img src=x onerror=alert(1)> walnut bowl\u202E data:text/html"),

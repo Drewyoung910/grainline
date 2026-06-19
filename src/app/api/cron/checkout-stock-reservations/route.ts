@@ -7,6 +7,7 @@ import {
   CHECKOUT_STOCK_RESERVATION_STALE_BATCH_SIZE,
   restoreStaleCheckoutStockReservations,
 } from "@/lib/checkoutStockRestore";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -18,7 +19,7 @@ function quarterHourBucket(date = new Date()) {
 
 export async function GET(request: Request) {
   if (!verifyCronRequest(request)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
   }
 
   return withSentryCronMonitor("checkout-stock-reservations", { value: "*/15 * * * *", maxRuntimeMinutes: 1 }, async () => {
@@ -34,7 +35,7 @@ export async function GET(request: Request) {
     } catch (error) {
       await failCronRun(cronRun, error);
       Sentry.captureException(error, { tags: { source: "cron_checkout_stock_reservations" } });
-      return NextResponse.json({ error: "Checkout stock reservation repair failed" }, { status: 500 });
+      return NextResponse.json({ error: "Checkout stock reservation repair failed" }, { status: HTTP_STATUS.INTERNAL_SERVER_ERROR });
     }
   });
 }

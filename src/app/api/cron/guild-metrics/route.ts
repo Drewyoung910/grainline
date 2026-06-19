@@ -29,6 +29,7 @@ import {
   isGuildVerificationTransitionConflict,
 } from "@/lib/guildVerificationState";
 import { runBoundedDeletionBatches, runCronCursorPages } from "@/lib/cronBatchState";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // 5-minute limit for large seller sets
@@ -41,7 +42,7 @@ const GUILD_MASTER_WARNING_GRACE_MS = 30 * 24 * 60 * 60 * 1000;
 
 export async function GET(request: NextRequest) {
   if (!verifyCronRequest(request)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
   }
 
   return withSentryCronMonitor("guild-metrics", { value: "40 15 1 * *", maxRuntimeMinutes: 5 }, async () => {
@@ -55,7 +56,7 @@ export async function GET(request: NextRequest) {
     } catch (error) {
       await failCronRun(cronRun, error);
       Sentry.captureException(error, { tags: { source: "cron_guild_metrics" } });
-      return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+      return NextResponse.json({ error: "Internal server error" }, { status: HTTP_STATUS.INTERNAL_SERVER_ERROR });
     }
   });
 }
