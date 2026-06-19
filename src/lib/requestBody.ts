@@ -20,6 +20,26 @@ export class InvalidJsonBodyError extends Error {
   }
 }
 
+export class MissingContentLengthError extends Error {
+  readonly status = HTTP_STATUS.LENGTH_REQUIRED;
+  readonly maxBytes: number;
+
+  constructor(maxBytes: number) {
+    super("Content-Length header is required");
+    this.name = "MissingContentLengthError";
+    this.maxBytes = maxBytes;
+  }
+}
+
+export class InvalidContentLengthError extends Error {
+  readonly status = HTTP_STATUS.BAD_REQUEST;
+
+  constructor() {
+    super("Invalid Content-Length header");
+    this.name = "InvalidContentLengthError";
+  }
+}
+
 export function isRequestBodyTooLargeError(error: unknown): error is RequestBodyTooLargeError {
   return error instanceof RequestBodyTooLargeError;
 }
@@ -28,12 +48,35 @@ export function isInvalidJsonBodyError(error: unknown): error is InvalidJsonBody
   return error instanceof InvalidJsonBodyError;
 }
 
+export function isMissingContentLengthError(error: unknown): error is MissingContentLengthError {
+  return error instanceof MissingContentLengthError;
+}
+
+export function isInvalidContentLengthError(error: unknown): error is InvalidContentLengthError {
+  return error instanceof InvalidContentLengthError;
+}
+
 export function assertContentLengthUnder(request: Request, maxBytes: number): void {
   const contentLength = request.headers.get("content-length");
   if (!contentLength) return;
 
   const parsedLength = Number.parseInt(contentLength, 10);
   if (Number.isFinite(parsedLength) && parsedLength > maxBytes) {
+    throw new RequestBodyTooLargeError(maxBytes);
+  }
+}
+
+export function assertKnownContentLengthUnder(request: Request, maxBytes: number): void {
+  const contentLength = request.headers.get("content-length");
+  if (!contentLength) {
+    throw new MissingContentLengthError(maxBytes);
+  }
+  if (!/^\d+$/.test(contentLength)) {
+    throw new InvalidContentLengthError();
+  }
+
+  const parsedLength = Number.parseInt(contentLength, 10);
+  if (parsedLength > maxBytes) {
     throw new RequestBodyTooLargeError(maxBytes);
   }
 }

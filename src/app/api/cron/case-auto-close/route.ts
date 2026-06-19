@@ -7,6 +7,8 @@ import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { logSystemActionOrThrow } from "@/lib/systemAudit";
+import { logServerError } from "@/lib/serverErrorLogger";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -29,7 +31,7 @@ function cronErrorCode(error: unknown) {
 
 export async function GET(req: Request) {
   if (!verifyCronRequest(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
   }
 
   return withSentryCronMonitor("case-auto-close", { value: "10 8 * * *", maxRuntimeMinutes: 1 }, async () => {
@@ -328,9 +330,8 @@ export async function GET(req: Request) {
     return NextResponse.json(response);
   } catch (error) {
     await failCronRun(cronRun, error);
-    console.error("[case-auto-close cron] Error:", error);
-    Sentry.captureException(error, { tags: { source: "cron_case_auto_close" } });
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    logServerError(error, { source: "cron_case_auto_close" });
+    return NextResponse.json({ error: "Internal server error" }, { status: HTTP_STATUS.INTERNAL_SERVER_ERROR });
   }
   });
 }

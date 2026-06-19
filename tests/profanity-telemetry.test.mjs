@@ -16,6 +16,7 @@ describe("profanity moderation telemetry", () => {
       "src/app/api/commission/route.ts",
       "src/app/api/blog/[slug]/comments/route.ts",
       "src/app/api/reviews/route.ts",
+      "src/app/api/reviews/[id]/route.ts",
       "src/app/api/reviews/[id]/reply/route.ts",
     ];
 

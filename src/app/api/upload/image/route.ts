@@ -13,7 +13,13 @@ import { rateLimitResponse, safeRateLimit, uploadHourlyRatelimit, uploadRatelimi
 import { uploadServiceFailure } from "@/lib/uploadServiceFailure";
 import { uploadKeyUserSegment } from "@/lib/uploadKey";
 import { uploadFileSignatureMatches } from "@/lib/uploadVerificationToken";
-import { assertContentLengthUnder, isRequestBodyTooLargeError } from "@/lib/requestBody";
+import {
+  assertKnownContentLengthUnder,
+  isInvalidContentLengthError,
+  isMissingContentLengthError,
+  isRequestBodyTooLargeError,
+} from "@/lib/requestBody";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 import {
   IMAGE_UPLOAD_ENDPOINTS,
   IMAGE_UPLOAD_TYPES,
@@ -77,11 +83,17 @@ export async function POST(req: Request) {
 
   let form: FormData;
   try {
-    assertContentLengthUnder(req, IMAGE_UPLOAD_MULTIPART_BODY_MAX_BYTES);
+    assertKnownContentLengthUnder(req, IMAGE_UPLOAD_MULTIPART_BODY_MAX_BYTES);
     form = await req.formData();
   } catch (error) {
     if (isRequestBodyTooLargeError(error)) {
-      return privateJson({ error: "Request body too large" }, { status: 413 });
+      return privateJson({ error: "Request body too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
+    }
+    if (isMissingContentLengthError(error)) {
+      return privateJson({ error: "Content-Length header is required" }, { status: HTTP_STATUS.LENGTH_REQUIRED });
+    }
+    if (isInvalidContentLengthError(error)) {
+      return privateJson({ error: "Invalid Content-Length header" }, { status: HTTP_STATUS.BAD_REQUEST });
     }
     throw error;
   }

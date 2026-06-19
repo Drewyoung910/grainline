@@ -135,6 +135,8 @@ describe("private JSON cache headers", () => {
       "src/app/api/orders/[id]/refund/route.ts",
       "src/app/api/orders/[id]/label/route.ts",
       "src/app/api/reviews/route.ts",
+      "src/app/api/reviews/[id]/route.ts",
+      "src/app/api/reviews/[id]/reply/route.ts",
       "src/app/api/reviews/[id]/vote/route.ts",
       "src/app/api/listings/[id]/stock/route.ts",
       "src/app/api/seller/vacation/route.ts",
@@ -144,6 +146,13 @@ describe("private JSON cache headers", () => {
       "src/app/api/follow/[sellerId]/route.ts",
       "src/app/api/seller/broadcast/route.ts",
       "src/app/api/cart/checkout/rollback/route.ts",
+      "src/app/api/admin/users/[id]/ban/route.ts",
+      "src/app/api/admin/audit/[id]/undo/route.ts",
+      "src/app/api/admin/email/route.ts",
+      "src/app/api/admin/listings/[id]/review/route.ts",
+      "src/app/api/admin/listings/[id]/route.ts",
+      "src/app/api/admin/reports/[id]/resolve/route.ts",
+      "src/app/api/admin/reviews/[id]/route.ts",
     ]) {
       const text = source(route);
 
@@ -195,6 +204,8 @@ describe("private JSON cache headers", () => {
       "src/app/api/orders/[id]/refund/route.ts",
       "src/app/api/orders/[id]/label/route.ts",
       "src/app/api/reviews/route.ts",
+      "src/app/api/reviews/[id]/route.ts",
+      "src/app/api/reviews/[id]/reply/route.ts",
       "src/app/api/reviews/[id]/vote/route.ts",
       "src/app/api/listings/[id]/stock/route.ts",
       "src/app/api/seller/vacation/route.ts",
@@ -204,6 +215,13 @@ describe("private JSON cache headers", () => {
       "src/app/api/follow/[sellerId]/route.ts",
       "src/app/api/seller/broadcast/route.ts",
       "src/app/api/cart/checkout/rollback/route.ts",
+      "src/app/api/admin/users/[id]/ban/route.ts",
+      "src/app/api/admin/audit/[id]/undo/route.ts",
+      "src/app/api/admin/email/route.ts",
+      "src/app/api/admin/listings/[id]/review/route.ts",
+      "src/app/api/admin/listings/[id]/route.ts",
+      "src/app/api/admin/reports/[id]/resolve/route.ts",
+      "src/app/api/admin/reviews/[id]/route.ts",
     ];
 
     for (const route of routes) {
@@ -229,6 +247,16 @@ describe("private JSON cache headers", () => {
         `${route} should not return bare rate-limit JSON`,
       );
     }
+  });
+
+  it("marks admin PIN verification responses private while preserving cookie writes", () => {
+    const verifyPin = source("src/app/api/admin/verify-pin/route.ts");
+
+    assert.match(verifyPin, /import \{ privateJson, privateResponse \} from "@\/lib\/privateResponse"/);
+    assert.match(verifyPin, /privateResponse\(rateLimitResponse\(/);
+    assert.match(verifyPin, /privateResponse\(NextResponse\.json\(\{ ok: true \}\)\)/);
+    assert.match(verifyPin, /privateJson\(\{\}, \{ status: HTTP_STATUS\.UNAUTHORIZED \}\)/);
+    assert.doesNotMatch(verifyPin, /return rateLimitResponse\(/);
   });
 
   it("keeps auth mutation methods private when the same route file also has public handlers", () => {

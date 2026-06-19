@@ -24,7 +24,7 @@ import { isSupportedStripeAccountVersion } from "@/lib/sellerVisibility";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
-import * as Sentry from "@sentry/nextjs";
+import { logServerError } from "@/lib/serverErrorLogger";
 
 export default async function ThreadPage({
   params,
@@ -292,10 +292,9 @@ export default async function ThreadPage({
         }
       }
     } catch (e) {
-      console.error("Failed to send message notification email:", e);
-      Sentry.captureException(e, {
+      logServerError(e, {
+        source: "message_thread_email",
         level: "warning",
-        tags: { source: "message_thread_email" },
         extra: { conversationId: id, recipientId },
       });
     }

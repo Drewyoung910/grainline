@@ -1,5 +1,4 @@
 import { auth } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
@@ -18,7 +17,8 @@ import {
   readBoundedJson,
 } from "@/lib/requestBody";
 import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
-import { privateResponse } from "@/lib/privateResponse";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 const APP_URL = EMAIL_APP_URL;
 const ADMIN_EMAIL_BODY_MAX_BYTES = 64 * 1024;
@@ -41,14 +41,14 @@ function safeSubject(subject: string) {
 
 export async function POST(request: Request) {
   const { userId: clerkId } = await auth();
-  if (!clerkId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!clerkId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
   const admin = await prisma.user.findUnique({
     where: { clerkId },
     select: { id: true, role: true, banned: true, deletedAt: true },
   });
   if (!admin || admin.banned || admin.deletedAt || admin.role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden — ADMIN only" }, { status: 403 });
+    return privateJson({ error: "Forbidden — ADMIN only" }, { status: HTTP_STATUS.FORBIDDEN });
   }
 
   const rl = await safeRateLimit(adminEmailRatelimit, admin.id);
@@ -59,10 +59,10 @@ export async function POST(request: Request) {
     body = Schema.parse(await readBoundedJson(request, ADMIN_EMAIL_BODY_MAX_BYTES));
   } catch (error) {
     if (isRequestBodyTooLargeError(error)) {
-      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      return privateJson({ error: "Request body too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
     }
     if (isInvalidJsonBodyError(error) || error instanceof z.ZodError) {
-      return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+      return privateJson({ error: "Invalid input" }, { status: HTTP_STATUS.BAD_REQUEST });
     }
     throw error;
   }
@@ -76,44 +76,44 @@ export async function POST(request: Request) {
       select: { email: true, name: true, banned: true, deletedAt: true },
     });
     if (!recipient?.email) {
-      return NextResponse.json({ error: "User not found or no email" }, { status: 404 });
+      return privateJson({ error: "User not found or no email" }, { status: HTTP_STATUS.NOT_FOUND });
     }
     const inactiveReason = inactiveAdminEmailRecipientReason(recipient);
     if (inactiveReason) {
-      return NextResponse.json({ error: inactiveReason }, { status: 409 });
+      return privateJson({ error: inactiveReason }, { status: HTTP_STATUS.CONFLICT });
     }
     recipientEmail = recipient.email;
   } else if (body.email) {
     const normalizedInputEmail = normalizeEmailAddress(body.email);
     if (!normalizedInputEmail) {
-      return NextResponse.json({ error: "Invalid recipient email" }, { status: 400 });
+      return privateJson({ error: "Invalid recipient email" }, { status: HTTP_STATUS.BAD_REQUEST });
     }
     const recipient = await prisma.user.findUnique({
       where: { email: normalizedInputEmail },
       select: { id: true, email: true, name: true, banned: true, deletedAt: true },
     });
     if (!recipient?.email) {
-      return NextResponse.json(
+      return privateJson(
         { error: "Admin email can only be sent to an existing Grainline user." },
-        { status: 404 },
+        { status: HTTP_STATUS.NOT_FOUND },
       );
     }
     const inactiveReason = inactiveAdminEmailRecipientReason(recipient);
     if (inactiveReason) {
-      return NextResponse.json({ error: inactiveReason }, { status: 409 });
+      return privateJson({ error: inactiveReason }, { status: HTTP_STATUS.CONFLICT });
     }
     recipientEmail = recipient.email;
     recipientUserId = recipient.id;
   } else {
-    return NextResponse.json({ error: "Either userId or email is required" }, { status: 400 });
+    return privateJson({ error: "Either userId or email is required" }, { status: HTTP_STATUS.BAD_REQUEST });
   }
 
   const normalizedRecipientEmail = normalizeEmailAddress(recipientEmail);
   if (!normalizedRecipientEmail) {
-    return NextResponse.json({ error: "Invalid recipient email" }, { status: 400 });
+    return privateJson({ error: "Invalid recipient email" }, { status: HTTP_STATUS.BAD_REQUEST });
   }
   if (await isEmailSuppressed(normalizedRecipientEmail)) {
-    return NextResponse.json({ error: "Recipient email is suppressed or unsubscribed" }, { status: 409 });
+    return privateJson({ error: "Recipient email is suppressed or unsubscribed" }, { status: HTTP_STATUS.CONFLICT });
   }
 
   const recipientAccount = await prisma.user.findUnique({
@@ -122,7 +122,7 @@ export async function POST(request: Request) {
   });
   const inactiveReason = inactiveAdminEmailRecipientReason(recipientAccount);
   if (inactiveReason) {
-    return NextResponse.json({ error: inactiveReason }, { status: 409 });
+    return privateJson({ error: inactiveReason }, { status: HTTP_STATUS.CONFLICT });
   }
 
   const sanitizedBody = normalizeUserText(body.body);
@@ -162,7 +162,7 @@ export async function POST(request: Request) {
       tags: { source: "admin_email_send" },
       extra: { targetUserId: recipientUserId, emailHash: hashEmailForTelemetry(normalizedRecipientEmail) },
     });
-    return NextResponse.json({ error: "Email send failed" }, { status: 500 });
+    return privateJson({ error: "Email send failed" }, { status: HTTP_STATUS.INTERNAL_SERVER_ERROR });
   }
 
   if (recipientUserId) {
@@ -200,5 +200,5 @@ export async function POST(request: Request) {
     });
   }
 
-  return NextResponse.json({ ok: true, skipped: !emailConfigured });
+  return privateJson({ ok: true, skipped: !emailConfigured });
 }

@@ -19,6 +19,7 @@ describe("HTTP status constants", () => {
       ["NOT_FOUND", 404],
       ["METHOD_NOT_ALLOWED", 405],
       ["PAYLOAD_TOO_LARGE", 413],
+      ["LENGTH_REQUIRED", 411],
       ["TOO_MANY_REQUESTS", 429],
       ["INTERNAL_SERVER_ERROR", 500],
       ["BAD_GATEWAY", 502],
@@ -40,6 +41,7 @@ describe("HTTP status constants", () => {
 
     assert.match(source("src/lib/requestBody.ts"), /readonly status = HTTP_STATUS\.PAYLOAD_TOO_LARGE/);
     assert.match(source("src/lib/requestBody.ts"), /readonly status = HTTP_STATUS\.BAD_REQUEST/);
+    assert.match(source("src/lib/requestBody.ts"), /readonly status = HTTP_STATUS\.LENGTH_REQUIRED/);
     assert.match(source("src/lib/accountAccessError.ts"), /status = HTTP_STATUS\.FORBIDDEN/);
     assert.match(source("src/lib/ratelimit.ts"), /status: HTTP_STATUS\.TOO_MANY_REQUESTS/);
   });
@@ -139,5 +141,37 @@ describe("HTTP status constants", () => {
     assert.match(source("src/app/api/favorites/route.ts"), /HTTP_STATUS\.PAYLOAD_TOO_LARGE/);
     assert.match(source("src/app/api/commission/route.ts"), /HTTP_STATUS\.FORBIDDEN/);
     assert.match(source("src/app/api/cron/quality-score/route.ts"), /HTTP_STATUS\.INTERNAL_SERVER_ERROR/);
+  });
+
+  it("keeps touched review and admin mutation routes on named statuses", () => {
+    for (const path of [
+      "src/app/api/reviews/[id]/route.ts",
+      "src/app/api/reviews/[id]/reply/route.ts",
+      "src/app/api/admin/verify-pin/route.ts",
+      "src/app/api/admin/users/[id]/ban/route.ts",
+      "src/app/api/admin/audit/[id]/undo/route.ts",
+      "src/app/api/admin/email/route.ts",
+      "src/app/api/admin/listings/[id]/review/route.ts",
+      "src/app/api/admin/listings/[id]/route.ts",
+      "src/app/api/admin/reports/[id]/resolve/route.ts",
+      "src/app/api/admin/reviews/[id]/route.ts",
+      "src/app/api/cart/route.ts",
+      "src/app/api/cart/add/route.ts",
+      "src/app/api/cron/commission-expire/route.ts",
+      "src/app/api/cron/case-auto-close/route.ts",
+    ]) {
+      const text = source(path);
+      assert.match(text, /import \{ HTTP_STATUS \} from "@\/lib\/httpStatus"|import \{ HTTP_STATUS \} from '@\/lib\/httpStatus'/, `${path} should import HTTP_STATUS`);
+      assert.doesNotMatch(
+        text,
+        /status: (400|401|403|404|409|411|413|500|503)\b|status = (400|401|403|404|409|411|413|500|503)\b|=== (400|401|403|404|409|411|413|500|503)\b/,
+        `${path} should use named statuses for local touched responses`,
+      );
+    }
+
+    assert.match(source("src/app/api/reviews/[id]/route.ts"), /HTTP_STATUS\.PAYLOAD_TOO_LARGE/);
+    assert.match(source("src/app/api/admin/verify-pin/route.ts"), /HTTP_STATUS\.SERVICE_UNAVAILABLE/);
+    assert.match(source("src/app/api/cart/add/route.ts"), /HTTP_STATUS\.INTERNAL_SERVER_ERROR/);
+    assert.match(source("src/app/api/cron/case-auto-close/route.ts"), /HTTP_STATUS\.INTERNAL_SERVER_ERROR/);
   });
 });

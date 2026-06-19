@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   InvalidJsonBodyError,
+  InvalidContentLengthError,
+  MissingContentLengthError,
   RequestBodyTooLargeError,
   assertContentLengthUnder,
+  assertKnownContentLengthUnder,
   readBoundedJson,
   readBoundedText,
   readOptionalBoundedJson,
@@ -30,6 +33,21 @@ describe("bounded request body helpers", () => {
   it("shares the content-length pre-check with non-JSON body readers", () => {
     assert.throws(
       () => assertContentLengthUnder(requestWithBody("", { "content-length": "999" }), 8),
+      (error) => error instanceof RequestBodyTooLargeError && error.maxBytes === 8,
+    );
+  });
+
+  it("requires a valid content-length before unstreamed platform body parsing", () => {
+    assert.throws(
+      () => assertKnownContentLengthUnder(requestWithBody(""), 8),
+      (error) => error instanceof MissingContentLengthError && error.status === 411,
+    );
+    assert.throws(
+      () => assertKnownContentLengthUnder(requestWithBody("", { "content-length": "8x" }), 8),
+      (error) => error instanceof InvalidContentLengthError && error.status === 400,
+    );
+    assert.throws(
+      () => assertKnownContentLengthUnder(requestWithBody("", { "content-length": "999" }), 8),
       (error) => error instanceof RequestBodyTooLargeError && error.maxBytes === 8,
     );
   });

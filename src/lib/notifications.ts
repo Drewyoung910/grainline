@@ -11,6 +11,7 @@ import {
 import { isInAppNotificationEnabled } from "@/lib/notificationDeliveryPreferences";
 import { isEmailNotificationEnabled } from "@/lib/notificationEmailPreferences";
 import { emailPreferenceLookupFailureAllowsSend } from "./notificationPreferenceState.ts";
+import { logServerError } from "@/lib/serverErrorLogger";
 
 export {
   VALID_EMAIL_PREFERENCE_KEYS,
@@ -39,9 +40,9 @@ export async function shouldSendEmail(userId: string, prefKey: string): Promise<
     if (!user || user.banned || user.deletedAt) return false; // don't email suspended/deleted users
     return isEmailNotificationEnabled(user.notificationPreferences, prefKey);
   } catch (e) {
-    console.error("Failed to check email preference:", e);
-    Sentry.captureException(e, {
-      tags: { source: "email_preference_check" },
+    logServerError(e, {
+      source: "email_preference_check",
+      level: "warning",
       extra: { userId, prefKey, failClosed: true },
     });
     return emailPreferenceLookupFailureAllowsSend();

@@ -1,5 +1,5 @@
 import { auth } from '@clerk/nextjs/server'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
 import { BanUserPolicyError, banUser, unbanUser } from '@/lib/ban'
 import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from '@/lib/ratelimit'
@@ -8,6 +8,8 @@ import {
   isRequestBodyTooLargeError,
   readBoundedJson,
 } from '@/lib/requestBody'
+import { privateJson, privateResponse } from '@/lib/privateResponse'
+import { HTTP_STATUS } from '@/lib/httpStatus'
 import { z } from 'zod'
 
 const BanSchema = z.object({
@@ -27,40 +29,40 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { userId } = await auth()
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!userId) return privateJson({ error: 'Unauthorized' }, { status: HTTP_STATUS.UNAUTHORIZED })
   const admin = await getAdmin(userId)
-  if (!admin || admin.banned || admin.deletedAt || admin.role !== 'ADMIN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!admin || admin.banned || admin.deletedAt || admin.role !== 'ADMIN') return privateJson({ error: 'Forbidden' }, { status: HTTP_STATUS.FORBIDDEN })
   const { success, reset } = await safeRateLimit(adminActionRatelimit, admin.id)
-  if (!success) return rateLimitResponse(reset, 'Too many admin actions.')
+  if (!success) return privateResponse(rateLimitResponse(reset, 'Too many admin actions.'))
   const { id } = await params
   let body
   try {
     body = BanSchema.parse(await readBoundedJson(request, ADMIN_USER_BAN_BODY_MAX_BYTES))
   } catch (e) {
     if (isRequestBodyTooLargeError(e)) {
-      return NextResponse.json({ error: 'Request body too large' }, { status: 413 })
+      return privateJson({ error: 'Request body too large' }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE })
     }
     if (isInvalidJsonBodyError(e)) {
-      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+      return privateJson({ error: 'Invalid JSON' }, { status: HTTP_STATUS.BAD_REQUEST })
     }
     if (e instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Invalid input', details: e.issues }, { status: 400 })
+      return privateJson({ error: 'Invalid input', details: e.issues }, { status: HTTP_STATUS.BAD_REQUEST })
     }
     throw e
   }
   const { reason } = body
-  if (id === admin.id) return NextResponse.json({ error: 'Cannot ban yourself' }, { status: 400 })
+  if (id === admin.id) return privateJson({ error: 'Cannot ban yourself' }, { status: HTTP_STATUS.BAD_REQUEST })
   const target = await prisma.user.findUnique({ where: { id }, select: { role: true } })
-  if (target?.role === 'ADMIN') return NextResponse.json({ error: 'Cannot ban admin accounts' }, { status: 400 })
+  if (target?.role === 'ADMIN') return privateJson({ error: 'Cannot ban admin accounts' }, { status: HTTP_STATUS.BAD_REQUEST })
   try {
     await banUser({ userId: id, adminId: admin.id, reason })
   } catch (error) {
     if (error instanceof BanUserPolicyError) {
-      return NextResponse.json({ error: error.message }, { status: error.status })
+      return privateJson({ error: error.message }, { status: error.status })
     }
     throw error
   }
-  return NextResponse.json({ ok: true })
+  return privateJson({ ok: true })
 }
 
 export async function DELETE(
@@ -68,34 +70,34 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { userId } = await auth()
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!userId) return privateJson({ error: 'Unauthorized' }, { status: HTTP_STATUS.UNAUTHORIZED })
   const admin = await getAdmin(userId)
-  if (!admin || admin.banned || admin.deletedAt || admin.role !== 'ADMIN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!admin || admin.banned || admin.deletedAt || admin.role !== 'ADMIN') return privateJson({ error: 'Forbidden' }, { status: HTTP_STATUS.FORBIDDEN })
   const { success, reset } = await safeRateLimit(adminActionRatelimit, admin.id)
-  if (!success) return rateLimitResponse(reset, 'Too many admin actions.')
+  if (!success) return privateResponse(rateLimitResponse(reset, 'Too many admin actions.'))
   const { id } = await params
   let unbanBody
   try {
     unbanBody = BanSchema.parse(await readBoundedJson(request, ADMIN_USER_BAN_BODY_MAX_BYTES))
   } catch (e) {
     if (isRequestBodyTooLargeError(e)) {
-      return NextResponse.json({ error: 'Request body too large' }, { status: 413 })
+      return privateJson({ error: 'Request body too large' }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE })
     }
     if (isInvalidJsonBodyError(e)) {
-      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+      return privateJson({ error: 'Invalid JSON' }, { status: HTTP_STATUS.BAD_REQUEST })
     }
     if (e instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Invalid input', details: e.issues }, { status: 400 })
+      return privateJson({ error: 'Invalid input', details: e.issues }, { status: HTTP_STATUS.BAD_REQUEST })
     }
     throw e
   }
   const { reason } = unbanBody
   try {
     const result = await unbanUser({ userId: id, adminId: admin.id, reason })
-    return NextResponse.json({ ok: true, warning: result.sellerRestoreWarning ?? undefined })
+    return privateJson({ ok: true, warning: result.sellerRestoreWarning ?? undefined })
   } catch (error) {
     if (error instanceof BanUserPolicyError) {
-      return NextResponse.json({ error: error.message }, { status: error.status })
+      return privateJson({ error: error.message }, { status: error.status })
     }
     throw error
   }

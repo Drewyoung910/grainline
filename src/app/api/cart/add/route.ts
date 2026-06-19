@@ -13,6 +13,8 @@ import {
 import * as Sentry from "@sentry/nextjs";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
+import { logServerError } from "@/lib/serverErrorLogger";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 const CartAddSchema = z.object({
   listingId: z.string().min(1),
@@ -32,7 +34,7 @@ function isUniqueConstraintError(err: unknown) {
 class CartAddError extends Error {
   status: number;
 
-  constructor(message: string, status = 400) {
+  constructor(message: string, status = HTTP_STATUS.BAD_REQUEST) {
     super(message);
     this.name = "CartAddError";
     this.status = status;
@@ -54,7 +56,7 @@ function isTransientPrismaError(err: unknown): boolean {
 export async function POST(req: Request) {
   try {
     const { userId } = await auth();
-    if (!userId) return privateJson({ error: "Sign in required" }, { status: 401 });
+    if (!userId) return privateJson({ error: "Sign in required" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
     const me = await ensureUserByClerkId(userId);
     const { success, reset } = await safeRateLimit(cartMutationRatelimit, me.id);
@@ -65,13 +67,13 @@ export async function POST(req: Request) {
       parsed = CartAddSchema.parse(await readBoundedJson(req, CART_ADD_BODY_MAX_BYTES));
     } catch (e) {
       if (isRequestBodyTooLargeError(e)) {
-        return privateJson({ error: "Request body too large" }, { status: 413 });
+        return privateJson({ error: "Request body too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
       }
       if (isInvalidJsonBodyError(e)) {
-        return privateJson({ error: "Invalid JSON" }, { status: 400 });
+        return privateJson({ error: "Invalid JSON" }, { status: HTTP_STATUS.BAD_REQUEST });
       }
       if (e instanceof z.ZodError) {
-        return privateJson({ error: "Invalid input", details: e.issues }, { status: 400 });
+        return privateJson({ error: "Invalid input", details: e.issues }, { status: HTTP_STATUS.BAD_REQUEST });
       }
       throw e;
     }
@@ -87,34 +89,34 @@ export async function POST(req: Request) {
         variantGroups: { include: { options: true } },
       },
     });
-    if (!listing) return privateJson({ error: "Listing not found" }, { status: 404 });
+    if (!listing) return privateJson({ error: "Listing not found" }, { status: HTTP_STATUS.NOT_FOUND });
 
     if (listing.status !== "ACTIVE") {
-      return privateJson({ error: "This listing is not available." }, { status: 400 });
+      return privateJson({ error: "This listing is not available." }, { status: HTTP_STATUS.BAD_REQUEST });
     }
 
     // prevent adding your own listing
     if (listing.seller.userId === me.id) {
-      return privateJson({ error: "You cannot add your own listing to cart." }, { status: 400 });
+      return privateJson({ error: "You cannot add your own listing to cart." }, { status: HTTP_STATUS.BAD_REQUEST });
     }
 
     if (!listing.seller.chargesEnabled || !listing.seller.stripeAccountId) {
-      return privateJson({ error: "This seller is not currently accepting orders." }, { status: 400 });
+      return privateJson({ error: "This seller is not currently accepting orders." }, { status: HTTP_STATUS.BAD_REQUEST });
     }
 
     const sellerBlockReason = sellerOrderBlockReason(listing.seller);
     if (sellerBlockReason) {
-      return privateJson({ error: sellerOrderBlockMessage(sellerBlockReason) }, { status: 400 });
+      return privateJson({ error: sellerOrderBlockMessage(sellerBlockReason) }, { status: HTTP_STATUS.BAD_REQUEST });
     }
 
     // Block private/reserved listings
     if (listing.isPrivate && listing.reservedForUserId !== me.id) {
-      return privateJson({ error: "This listing is not available." }, { status: 400 });
+      return privateJson({ error: "This listing is not available." }, { status: HTTP_STATUS.BAD_REQUEST });
     }
 
     // Cap made-to-order quantity at 1
     if (listing.listingType === "MADE_TO_ORDER" && quantity > 1) {
-      return privateJson({ error: "Made-to-order items can only be ordered one at a time." }, { status: 400 });
+      return privateJson({ error: "Made-to-order items can only be ordered one at a time." }, { status: HTTP_STATUS.BAD_REQUEST });
     }
 
     const variantResolution = resolveListingVariantSelection(
@@ -122,12 +124,12 @@ export async function POST(req: Request) {
       selectedVariantOptionIds,
     );
     if (!variantResolution.ok) {
-      return privateJson({ error: variantResolution.error }, { status: 400 });
+      return privateJson({ error: variantResolution.error }, { status: HTTP_STATUS.BAD_REQUEST });
     }
 
     const totalPriceCents = listing.priceCents + variantResolution.variantAdjustCents;
     if (totalPriceCents < 1) {
-      return privateJson({ error: "Variant selection results in an invalid price." }, { status: 400 });
+      return privateJson({ error: "Variant selection results in an invalid price." }, { status: HTTP_STATUS.BAD_REQUEST });
     }
 
     const variantKey = variantResolution.variantKey;
@@ -268,7 +270,7 @@ export async function POST(req: Request) {
     }
 
     if (!item) {
-      return privateJson({ error: "Cart quantity cannot exceed 99." }, { status: 400 });
+      return privateJson({ error: "Cart quantity cannot exceed 99." }, { status: HTTP_STATUS.BAD_REQUEST });
     }
 
     return privateJson({ ok: true, item });
@@ -276,13 +278,10 @@ export async function POST(req: Request) {
     if (isAccountAccessError(err)) {
       return privateJson({ error: err.message, code: err.code }, { status: err.status });
     }
-    console.error("POST /api/cart/add error:", err);
     const errCode = err instanceof Prisma.PrismaClientKnownRequestError ? err.code : null;
-    Sentry.captureException(err, {
-      tags: {
-        source: "cart_add_route",
-        route: "/api/cart/add",
-      },
+    logServerError(err, {
+      source: "cart_add_route",
+      tags: { route: "/api/cart/add" },
       extra: { prismaErrorCode: errCode ?? "(none)" },
     });
     // The previous generic 500 left buyers staring at "Server error adding to
@@ -290,7 +289,7 @@ export async function POST(req: Request) {
     // so the user knows it wasn't a duplicate-add or validation problem.
     return privateJson(
       { error: "We couldn't add this to your cart. Please try again in a moment." },
-      { status: 500 },
+      { status: HTTP_STATUS.INTERNAL_SERVER_ERROR },
     );
   }
 }

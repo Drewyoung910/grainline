@@ -1,6 +1,6 @@
 import { auth } from '@clerk/nextjs/server'
 import * as Sentry from '@sentry/nextjs'
-import { after, NextRequest, NextResponse } from 'next/server'
+import { after, NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
 import { logAdminActionOrThrow } from '@/lib/audit'
 import { createNotification } from '@/lib/notifications'
@@ -16,6 +16,8 @@ import {
   isRequestBodyTooLargeError,
   readBoundedJson,
 } from '@/lib/requestBody'
+import { privateJson, privateResponse } from '@/lib/privateResponse'
+import { HTTP_STATUS } from '@/lib/httpStatus'
 import { z } from 'zod'
 
 const ReviewActionSchema = z.object({
@@ -79,15 +81,15 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { userId } = await auth()
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!userId) return privateJson({ error: 'Unauthorized' }, { status: HTTP_STATUS.UNAUTHORIZED })
   const { success, reset } = await safeRateLimit(adminActionRatelimit, userId)
-  if (!success) return rateLimitResponse(reset, 'Too many admin actions.')
+  if (!success) return privateResponse(rateLimitResponse(reset, 'Too many admin actions.'))
   const admin = await prisma.user.findUnique({
     where: { clerkId: userId },
     select: { id: true, role: true, banned: true, deletedAt: true }
   })
   if (!admin || admin.banned || admin.deletedAt || (admin.role !== 'ADMIN' && admin.role !== 'EMPLOYEE')) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    return privateJson({ error: 'Forbidden' }, { status: HTTP_STATUS.FORBIDDEN })
   }
   const { id } = await params
   let body
@@ -95,13 +97,13 @@ export async function PATCH(
     body = ReviewActionSchema.parse(await readBoundedJson(request, ADMIN_LISTING_REVIEW_BODY_MAX_BYTES))
   } catch (e) {
     if (isRequestBodyTooLargeError(e)) {
-      return NextResponse.json({ error: 'Request body too large' }, { status: 413 })
+      return privateJson({ error: 'Request body too large' }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE })
     }
     if (isInvalidJsonBodyError(e)) {
-      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+      return privateJson({ error: 'Invalid JSON' }, { status: HTTP_STATUS.BAD_REQUEST })
     }
     if (e instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Invalid input', details: e.issues }, { status: 400 })
+      return privateJson({ error: 'Invalid input', details: e.issues }, { status: HTTP_STATUS.BAD_REQUEST })
     }
     throw e
   }
@@ -121,12 +123,12 @@ export async function PATCH(
       },
     },
   })
-  if (!listing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!listing) return privateJson({ error: 'Not found' }, { status: HTTP_STATUS.NOT_FOUND })
 
   if (action === 'approve') {
     const unavailableReason = sellerUnavailableReason(listing.seller)
     if (unavailableReason) {
-      return NextResponse.json({ error: unavailableReason }, { status: 409 })
+      return privateJson({ error: unavailableReason }, { status: HTTP_STATUS.CONFLICT })
     }
 
     const approved = await prisma.$transaction(async (tx) => {
@@ -180,10 +182,10 @@ export async function PATCH(
           },
         },
       })
-      if (!currentListing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      if (!currentListing) return privateJson({ error: 'Not found' }, { status: HTTP_STATUS.NOT_FOUND })
       const currentUnavailableReason = sellerUnavailableReason(currentListing.seller)
       if (currentListing.status === 'PENDING_REVIEW' && currentUnavailableReason) {
-        return NextResponse.json({ error: currentUnavailableReason }, { status: 409 })
+        return privateJson({ error: currentUnavailableReason }, { status: HTTP_STATUS.CONFLICT })
       }
       if (
         currentListing.status === 'ACTIVE' &&
@@ -199,7 +201,7 @@ export async function PATCH(
           listing: currentListing,
         })
       }
-      return NextResponse.json({ ok: true, skipped: true, reason: 'Listing is no longer pending review.' })
+      return privateJson({ ok: true, skipped: true, reason: 'Listing is no longer pending review.' })
     }
     revalidateListingSearchCaches()
     revalidateFeaturedMakerCaches()
@@ -243,7 +245,7 @@ export async function PATCH(
       })
     })
   } else if (action === 'reject') {
-    if (!reason?.trim()) return NextResponse.json({ error: 'Reason required for rejection' }, { status: 400 })
+    if (!reason?.trim()) return privateJson({ error: 'Reason required for rejection' }, { status: HTTP_STATUS.BAD_REQUEST })
     const rejected = await prisma.$transaction(async (tx) => {
       const updated = await tx.listing.updateMany({
         where: { id, status: 'PENDING_REVIEW' },
@@ -261,7 +263,7 @@ export async function PATCH(
       return updated
     })
     if (rejected.count === 0) {
-      return NextResponse.json({ ok: true, skipped: true, reason: 'Listing is no longer pending review.' })
+      return privateJson({ ok: true, skipped: true, reason: 'Listing is no longer pending review.' })
     }
     revalidateListingSearchCaches()
     revalidateFeaturedMakerCaches()
@@ -280,8 +282,8 @@ export async function PATCH(
       })
     })
   } else {
-    return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
+    return privateJson({ error: 'Invalid action' }, { status: HTTP_STATUS.BAD_REQUEST })
   }
 
-  return NextResponse.json({ ok: true })
+  return privateJson({ ok: true })
 }

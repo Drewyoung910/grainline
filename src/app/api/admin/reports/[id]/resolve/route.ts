@@ -1,5 +1,4 @@
 import { auth } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { logAdminActionOrThrow } from "@/lib/audit";
 import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
@@ -9,6 +8,8 @@ import {
   readBoundedJson,
 } from "@/lib/requestBody";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 import { z } from "zod";
 
 const ReportResolveSchema = z.object({
@@ -21,18 +22,18 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
   const admin = await prisma.user.findUnique({
     where: { clerkId: userId },
     select: { id: true, role: true, banned: true, deletedAt: true },
   });
   if (!admin || admin.banned || admin.deletedAt || (admin.role !== "ADMIN" && admin.role !== "EMPLOYEE")) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return privateJson({ error: "Forbidden" }, { status: HTTP_STATUS.FORBIDDEN });
   }
 
   const { success, reset } = await safeRateLimit(adminActionRatelimit, admin.id);
-  if (!success) return rateLimitResponse(reset, "Too many admin actions. Try again shortly.");
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many admin actions. Try again shortly."));
 
   const { id } = await params;
   let body;
@@ -40,19 +41,19 @@ export async function POST(
     body = ReportResolveSchema.parse(await readBoundedJson(req, ADMIN_REPORT_RESOLVE_BODY_MAX_BYTES));
   } catch (error) {
     if (isRequestBodyTooLargeError(error)) {
-      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      return privateJson({ error: "Request body too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
     }
     if (isInvalidJsonBodyError(error)) {
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      return privateJson({ error: "Invalid JSON" }, { status: HTTP_STATUS.BAD_REQUEST });
     }
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: "Invalid input", details: error.issues }, { status: 400 });
+      return privateJson({ error: "Invalid input", details: error.issues }, { status: HTTP_STATUS.BAD_REQUEST });
     }
     throw error;
   }
   const resolutionNote = truncateText(sanitizeText(body.reason), 500);
   if (!resolutionNote) {
-    return NextResponse.json({ error: "Resolution reason is required." }, { status: 400 });
+    return privateJson({ error: "Resolution reason is required." }, { status: HTTP_STATUS.BAD_REQUEST });
   }
 
   const updated = await prisma.$transaction(async (tx) => {
@@ -75,8 +76,8 @@ export async function POST(
     return result;
   });
   if (updated.count === 0) {
-    return NextResponse.json({ error: "Report is already resolved or no longer exists." }, { status: 404 });
+    return privateJson({ error: "Report is already resolved or no longer exists." }, { status: HTTP_STATUS.NOT_FOUND });
   }
 
-  return NextResponse.json({ ok: true });
+  return privateJson({ ok: true });
 }

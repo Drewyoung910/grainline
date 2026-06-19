@@ -39,6 +39,17 @@ describe("review/report/favorite observability hardening", () => {
     assert.doesNotMatch(editRoute, /extra:\s*\{[^}]*url/s);
   });
 
+  it("keeps review edits observable and allows buyers to clear comments", () => {
+    const editRoute = source("src/app/api/reviews/[id]/route.ts");
+
+    assert.match(editRoute, /source: "review_edit"/);
+    assert.match(editRoute, /captureProfanityFlag\(\{/);
+    assert.match(editRoute, /matchCount: profanityResult\.matches\.length/);
+    assert.match(editRoute, /hasCommentUpdate/);
+    assert.match(editRoute, /comment == null \|\| comment\.trim\(\) === "" \? null : sanitizeRichText\(comment\)/);
+    assert.doesNotMatch(editRoute, /comment: comment \? sanitizeRichText\(comment\) : undefined/);
+  });
+
   it("captures report, favorite, and block cleanup failures instead of swallowing them", () => {
     const reportRoute = source("src/app/api/users/[id]/report/route.ts");
     const favoriteRoute = source("src/app/api/favorites/route.ts");

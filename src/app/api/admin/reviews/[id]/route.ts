@@ -1,5 +1,4 @@
 import { auth } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { logAdminActionOrThrow } from "@/lib/audit";
@@ -7,6 +6,8 @@ import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 import { deleteR2ObjectByUrl } from "@/lib/r2";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 function mediaUrlHost(url: string) {
   try {
@@ -50,17 +51,17 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
   const admin = await prisma.user.findUnique({
     where: { clerkId: userId },
     select: { id: true, role: true, banned: true, deletedAt: true },
   });
   if (!admin || admin.banned || admin.deletedAt || admin.role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return privateJson({ error: "Forbidden" }, { status: HTTP_STATUS.FORBIDDEN });
   }
   const { success, reset } = await safeRateLimit(adminActionRatelimit, admin.id);
-  if (!success) return rateLimitResponse(reset, "Too many admin actions.");
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many admin actions."));
 
   const { id } = await params;
   const review = await prisma.review.findUnique({
@@ -72,7 +73,7 @@ export async function DELETE(
       listing: { select: { sellerId: true } },
     },
   });
-  if (!review) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!review) return privateJson({ error: "Not found" }, { status: HTTP_STATUS.NOT_FOUND });
 
   const photos = await prisma.reviewPhoto.findMany({
     where: { reviewId: id },
@@ -94,5 +95,5 @@ export async function DELETE(
   const cleanupResults = await mapWithConcurrency(photos, 5, (photo) => deleteR2ObjectByUrl(photo.url));
   captureAdminReviewPhotoCleanupFailures({ results: cleanupResults, photos, reviewId: id });
 
-  return NextResponse.json({ ok: true });
+  return privateJson({ ok: true });
 }

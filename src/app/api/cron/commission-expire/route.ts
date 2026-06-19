@@ -8,6 +8,8 @@ import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { truncateText } from "@/lib/sanitize";
+import { logServerError } from "@/lib/serverErrorLogger";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -24,7 +26,7 @@ function cronErrorCode(error: unknown) {
 
 export async function GET(req: Request) {
   if (!verifyCronRequest(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
   }
 
   return withSentryCronMonitor("commission-expire", { value: "40 9 * * *", maxRuntimeMinutes: 1 }, async () => {
@@ -138,9 +140,8 @@ export async function GET(req: Request) {
     return NextResponse.json(response);
   } catch (error) {
     await failCronRun(cronRun, error);
-    console.error("[commission-expire cron] Error:", error);
-    Sentry.captureException(error, { tags: { source: "cron_commission_expire" } });
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    logServerError(error, { source: "cron_commission_expire" });
+    return NextResponse.json({ error: "Internal server error" }, { status: HTTP_STATUS.INTERNAL_SERVER_ERROR });
   }
   });
 }

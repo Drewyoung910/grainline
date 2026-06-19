@@ -92,6 +92,10 @@ describe("server error logger", () => {
       ["src/app/api/seller/analytics/recent-sales/route.ts", "seller_analytics_recent_sales"],
       ["src/app/api/stripe/connect/dashboard/route.ts", "stripe_connect_dashboard_link"],
       ["src/app/api/stripe/connect/login-link/route.ts", "stripe_connect_login_link"],
+      ["src/app/api/cart/route.ts", "cart_route"],
+      ["src/app/api/cart/add/route.ts", "cart_add_route"],
+      ["src/app/api/cron/commission-expire/route.ts", "cron_commission_expire"],
+      ["src/app/api/cron/case-auto-close/route.ts", "cron_case_auto_close"],
     ];
 
     for (const [path, sourceTag] of routes) {
@@ -116,5 +120,19 @@ describe("server error logger", () => {
     assert.match(adminUndo, /safeMessage === 'This action cannot be undone\.'/);
     assert.match(adminUndo, /source: 'admin_audit_undo_route'/);
     assert.doesNotMatch(adminUndo, /console\.error\('Admin undo failed:', error\)/);
+  });
+
+  it("sanitizes notification preference and message email side-effect failures", () => {
+    const notifications = source("src/lib/notifications.ts");
+    const messageThread = source("src/app/messages/[id]/page.tsx");
+
+    assert.match(notifications, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
+    assert.match(notifications, /source: "email_preference_check"/);
+    assert.match(notifications, /failClosed: true/);
+    assert.doesNotMatch(notifications, /console\.error\("Failed to check email preference:", e\)/);
+
+    assert.match(messageThread, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
+    assert.match(messageThread, /source: "message_thread_email"/);
+    assert.doesNotMatch(messageThread, /console\.error\("Failed to send message notification email:", e\)/);
   });
 });

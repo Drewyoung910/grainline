@@ -1,5 +1,3 @@
-// src/app/api/reviews/[id]/reply/route.ts
-import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
@@ -12,6 +10,8 @@ import {
   isRequestBodyTooLargeError,
   readBoundedJson,
 } from "@/lib/requestBody";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 const ReplySchema = z.object({
   text: z.string().min(1).max(2000),
@@ -21,29 +21,29 @@ const REVIEW_REPLY_BODY_MAX_BYTES = 24 * 1024;
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params; // review id
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
   const { success, reset } = await safeRateLimit(reviewRatelimit, userId);
-  if (!success) return rateLimitResponse(reset, "Too many review replies.");
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many review replies."));
 
   let replyParsed;
   try {
     replyParsed = ReplySchema.parse(await readBoundedJson(req, REVIEW_REPLY_BODY_MAX_BYTES));
   } catch (e) {
     if (isRequestBodyTooLargeError(e)) {
-      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      return privateJson({ error: "Request body too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
     }
     if (isInvalidJsonBodyError(e)) {
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      return privateJson({ error: "Invalid JSON" }, { status: HTTP_STATUS.BAD_REQUEST });
     }
     if (e instanceof z.ZodError) {
-      return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+      return privateJson({ error: "Invalid input", details: e.issues }, { status: HTTP_STATUS.BAD_REQUEST });
     }
     throw e;
   }
   const rawBody = truncateText(replyParsed.text.trim(), 2000);
   const body = sanitizeRichText(rawBody);
-  if (!body) return NextResponse.json({ error: "Empty reply" }, { status: 400 });
+  if (!body) return privateJson({ error: "Empty reply" }, { status: HTTP_STATUS.BAD_REQUEST });
 
   // Profanity check (log-only — does not block submission)
   {
@@ -73,19 +73,19 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       },
     },
   });
-  if (!review) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!review) return privateJson({ error: "Not found" }, { status: HTTP_STATUS.NOT_FOUND });
 
   const sellerUserId = review.listing.seller.user.clerkId;
   if (sellerUserId !== userId) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return privateJson({ error: "Forbidden" }, { status: HTTP_STATUS.FORBIDDEN });
   }
   if (review.listing.seller.user.banned || review.listing.seller.user.deletedAt) {
-    return NextResponse.json({ error: "Account is suspended" }, { status: 403 });
+    return privateJson({ error: "Account is suspended" }, { status: HTTP_STATUS.FORBIDDEN });
   }
 
   if (review.sellerReply) {
     // one reply; edit by seller could be added later
-    return NextResponse.json({ error: "Reply already posted" }, { status: 400 });
+    return privateJson({ error: "Reply already posted" }, { status: HTTP_STATUS.BAD_REQUEST });
   }
 
   await prisma.review.update({
@@ -93,5 +93,5 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     data: { sellerReply: body, sellerReplyAt: new Date() },
   });
 
-  return NextResponse.json({ ok: true });
+  return privateJson({ ok: true });
 }

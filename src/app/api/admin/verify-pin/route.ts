@@ -15,6 +15,8 @@ import { getIP } from "@/lib/ratelimit";
 import { logSecurityEvent } from "@/lib/security";
 import { isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
 import { hashIdentifierForTelemetry } from "@/lib/privacyTelemetry";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 import { createHash, timingSafeEqual } from "crypto";
 
 // 5 attempts per 15 minutes per user — fail closed for compromised sessions.
@@ -63,7 +65,7 @@ async function logAdminPinAttempt({
 
 export async function POST(req: Request) {
   const { userId, sessionId } = await auth();
-  if (!userId) return NextResponse.json({}, { status: 401 });
+  if (!userId) return privateJson({}, { status: HTTP_STATUS.UNAUTHORIZED });
 
   // Verify user is allowed into the admin surface.
   const user = await prisma.user.findUnique({
@@ -71,7 +73,7 @@ export async function POST(req: Request) {
     select: { id: true, role: true, banned: true, deletedAt: true },
   });
   if (!user || user.banned || user.deletedAt || (user.role !== "ADMIN" && user.role !== "EMPLOYEE")) {
-    return NextResponse.json({}, { status: 403 });
+    return privateJson({}, { status: HTTP_STATUS.FORBIDDEN });
   }
 
   // Rate limit by both account and source IP. A compromised admin session
@@ -110,10 +112,10 @@ export async function POST(req: Request) {
         ipLimitReset: ipLimit.reset,
       },
     });
-    return rateLimitResponse(
+    return privateResponse(rateLimitResponse(
       Math.max(userLimit.reset, ipLimit.reset),
       "Too many admin PIN attempts.",
-    );
+    ));
   }
 
   let body: unknown;
@@ -121,7 +123,7 @@ export async function POST(req: Request) {
     body = await readOptionalBoundedJson(req, ADMIN_PIN_BODY_MAX_BYTES, {});
   } catch (error) {
     if (isRequestBodyTooLargeError(error)) {
-      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      return privateJson({ error: "Request body too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
     }
     throw error;
   }
@@ -134,12 +136,12 @@ export async function POST(req: Request) {
       process.env.NODE_ENV === "production" ||
       process.env.ALLOW_DEV_ADMIN_PIN_BYPASS !== "true"
     ) {
-      return NextResponse.json({ error: "Admin PIN is not configured" }, { status: 503 });
+      return privateJson({ error: "Admin PIN is not configured" }, { status: HTTP_STATUS.SERVICE_UNAVAILABLE });
     }
 
     const cookieValue = await createAdminPinSessionCookieValue(userId, sessionId);
     if (!cookieValue) {
-      return NextResponse.json({ error: "Admin PIN cookie could not be signed" }, { status: 503 });
+      return privateJson({ error: "Admin PIN cookie could not be signed" }, { status: HTTP_STATUS.SERVICE_UNAVAILABLE });
     }
 
     await logAdminPinAttempt({
@@ -150,7 +152,7 @@ export async function POST(req: Request) {
       metadata: { devBypass: true },
     });
 
-    const devRes = NextResponse.json({ ok: true });
+    const devRes = privateResponse(NextResponse.json({ ok: true }));
     devRes.cookies.set(ADMIN_PIN_COOKIE_NAME, cookieValue, {
       httpOnly: true,
       secure: false,
@@ -178,13 +180,13 @@ export async function POST(req: Request) {
       route: "/api/admin/verify-pin",
       reason: "invalid admin pin",
     });
-    return NextResponse.json({}, { status: 401 });
+    return privateJson({}, { status: HTTP_STATUS.UNAUTHORIZED });
   }
 
   // Set httpOnly cookie so admin APIs can verify PIN server-side
   const cookieValue = await createAdminPinSessionCookieValue(userId, sessionId);
   if (!cookieValue) {
-    return NextResponse.json({ error: "Admin PIN cookie could not be signed" }, { status: 503 });
+    return privateJson({ error: "Admin PIN cookie could not be signed" }, { status: HTTP_STATUS.SERVICE_UNAVAILABLE });
   }
 
   await logAdminPinAttempt({
@@ -194,7 +196,7 @@ export async function POST(req: Request) {
     clerkUserIdHash,
   });
 
-  const res = NextResponse.json({ ok: true });
+  const res = privateResponse(NextResponse.json({ ok: true }));
   res.cookies.set(ADMIN_PIN_COOKIE_NAME, cookieValue, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

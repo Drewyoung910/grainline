@@ -10,12 +10,13 @@ describe("form-data body bounds", () => {
   it("bounds multipart image uploads before parsing form data", () => {
     const route = source("src/app/api/upload/image/route.ts");
     assert.match(route, /IMAGE_UPLOAD_MULTIPART_BODY_MAX_BYTES = 16 \* 1024 \* 1024/);
-    assert.match(route, /assertContentLengthUnder\(req, IMAGE_UPLOAD_MULTIPART_BODY_MAX_BYTES\)/);
+    assert.match(route, /assertKnownContentLengthUnder\(req, IMAGE_UPLOAD_MULTIPART_BODY_MAX_BYTES\)/);
     assert.match(route, /await req\.formData\(\)/);
     assert.match(route, /isRequestBodyTooLargeError/);
-    assert.match(route, /status: 413/);
+    assert.match(route, /isMissingContentLengthError/);
+    assert.match(route, /HTTP_STATUS\.LENGTH_REQUIRED/);
     assert.ok(
-      route.indexOf("assertContentLengthUnder(req, IMAGE_UPLOAD_MULTIPART_BODY_MAX_BYTES)") <
+      route.indexOf("assertKnownContentLengthUnder(req, IMAGE_UPLOAD_MULTIPART_BODY_MAX_BYTES)") <
         route.indexOf("await req.formData()"),
     );
   });
@@ -40,9 +41,11 @@ describe("form-data body bounds", () => {
   it("bounds order fulfillment form fallback before formData parsing", () => {
     const fulfillment = source("src/app/api/orders/[id]/fulfillment/route.ts");
 
-    assert.match(fulfillment, /assertContentLengthUnder\(req, FULFILLMENT_FORM_BODY_MAX_BYTES\)/);
+    assert.match(fulfillment, /assertKnownContentLengthUnder\(req, FULFILLMENT_FORM_BODY_MAX_BYTES\)/);
+    assert.match(fulfillment, /isMissingContentLengthError/);
+    assert.match(fulfillment, /HTTP_STATUS\.LENGTH_REQUIRED/);
     assert.ok(
-      fulfillment.indexOf("assertContentLengthUnder(req, FULFILLMENT_FORM_BODY_MAX_BYTES)") <
+      fulfillment.indexOf("assertKnownContentLengthUnder(req, FULFILLMENT_FORM_BODY_MAX_BYTES)") <
         fulfillment.indexOf("await req.formData()"),
     );
   });

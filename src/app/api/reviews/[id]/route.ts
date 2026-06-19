@@ -1,17 +1,19 @@
-// src/app/api/reviews/[id]/route.ts
-import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { sanitizeRichText } from "@/lib/sanitize";
+import { containsProfanity } from "@/lib/profanity";
+import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
 import { rateLimitResponse, reviewRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { deleteR2ObjectByUrl } from "@/lib/r2";
 import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -73,36 +75,47 @@ export async function PATCH(
 ) {
   const { id } = await params;
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
   const { success, reset } = await safeRateLimit(reviewRatelimit, userId);
-  if (!success) return rateLimitResponse(reset, "Too many review edits.");
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many review edits."));
 
   let reviewPatchParsed;
   try {
     reviewPatchParsed = ReviewPatchSchema.parse(await readBoundedJson(req, REVIEW_PATCH_BODY_MAX_BYTES));
   } catch (e) {
     if (isRequestBodyTooLargeError(e)) {
-      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      return privateJson({ error: "Request body too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
     }
     if (isInvalidJsonBodyError(e)) {
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      return privateJson({ error: "Invalid JSON" }, { status: HTTP_STATUS.BAD_REQUEST });
     }
     if (e instanceof z.ZodError) {
-      return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+      return privateJson({ error: "Invalid input", details: e.issues }, { status: HTTP_STATUS.BAD_REQUEST });
     }
     throw e;
   }
   const { ratingX2, comment } = reviewPatchParsed;
   const photos = reviewPatchParsed.photos ?? reviewPatchParsed.photoUrls ?? [];
+  const hasCommentUpdate = Object.prototype.hasOwnProperty.call(reviewPatchParsed, "comment");
+  if (typeof comment === "string" && comment.trim()) {
+    const profanityResult = containsProfanity(comment);
+    if (profanityResult.flagged) {
+      captureProfanityFlag({
+        source: "review_edit",
+        matchCount: profanityResult.matches.length,
+        extra: { reviewId: id },
+      });
+    }
+  }
 
   // ensure owner & editable
   const me = await prisma.user.findUnique({
     where: { clerkId: userId },
     select: { id: true, banned: true, deletedAt: true },
   });
-  if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (me.banned || me.deletedAt) return NextResponse.json({ error: "Account is suspended" }, { status: 403 });
+  if (!me) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
+  if (me.banned || me.deletedAt) return privateJson({ error: "Account is suspended" }, { status: HTTP_STATUS.FORBIDDEN });
 
   const r = await prisma.review.findUnique({
     where: { id },
@@ -116,14 +129,14 @@ export async function PATCH(
     },
   });
   if (!r || r.reviewerId !== me.id) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return privateJson({ error: "Not found" }, { status: HTTP_STATUS.NOT_FOUND });
   }
   if (r.sellerReplyAt) {
-    return NextResponse.json({ error: "Locked: seller has replied" }, { status: 403 });
+    return privateJson({ error: "Locked: seller has replied" }, { status: HTTP_STATUS.FORBIDDEN });
   }
   const days = (Date.now() - new Date(r.createdAt).getTime()) / (1000 * 60 * 60 * 24);
   if (days > 90) {
-    return NextResponse.json({ error: "Edit window expired" }, { status: 403 });
+    return privateJson({ error: "Edit window expired" }, { status: HTTP_STATUS.FORBIDDEN });
   }
 
   const oldPhotos = await prisma.reviewPhoto.findMany({
@@ -132,13 +145,16 @@ export async function PATCH(
   });
   const oldPhotoUrls = new Set(oldPhotos.map((photo) => photo.url));
   if (photos.some((url) => !oldPhotoUrls.has(url) && !isFirstPartyMediaUrlForUser(url, userId, ["reviewPhoto"]))) {
-    return NextResponse.json({ error: "Use uploaded Grainline images only." }, { status: 400 });
+    return privateJson({ error: "Use uploaded Grainline images only." }, { status: HTTP_STATUS.BAD_REQUEST });
   }
 
   await prisma.$transaction(async (tx) => {
+    const commentUpdate = hasCommentUpdate
+      ? { comment: comment == null || comment.trim() === "" ? null : sanitizeRichText(comment) }
+      : {};
     await tx.review.update({
       where: { id },
-      data: { ratingX2, comment: comment ? sanitizeRichText(comment) : undefined },
+      data: { ratingX2, ...commentUpdate },
     });
 
     // Replace photos
@@ -171,7 +187,7 @@ export async function PATCH(
   // revalidate listing page
   revalidateFeaturedMakerCaches();
   revalidatePath(`/listing/${r.listingId}`);
-  return NextResponse.json({ ok: true });
+  return privateJson({ ok: true });
 }
 
 export async function DELETE(
@@ -180,17 +196,17 @@ export async function DELETE(
 ) {
   const { id } = await params;
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
   const { success, reset } = await safeRateLimit(reviewRatelimit, userId);
-  if (!success) return rateLimitResponse(reset, "Too many review updates.");
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many review updates."));
 
   const me = await prisma.user.findUnique({
     where: { clerkId: userId },
     select: { id: true, banned: true, deletedAt: true },
   });
-  if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (me.banned || me.deletedAt) return NextResponse.json({ error: "Account is suspended" }, { status: 403 });
+  if (!me) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
+  if (me.banned || me.deletedAt) return privateJson({ error: "Account is suspended" }, { status: HTTP_STATUS.FORBIDDEN });
 
   const review = await prisma.review.findUnique({
     where: { id },
@@ -202,7 +218,7 @@ export async function DELETE(
     },
   });
   if (!review || review.reviewerId !== me.id) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return privateJson({ error: "Not found" }, { status: HTTP_STATUS.NOT_FOUND });
   }
 
   const photos = await prisma.reviewPhoto.findMany({
@@ -225,5 +241,5 @@ export async function DELETE(
   revalidateFeaturedMakerCaches();
   revalidatePath(`/listing/${review.listingId}`);
   revalidatePath("/account/reviews");
-  return NextResponse.json({ ok: true });
+  return privateJson({ ok: true });
 }

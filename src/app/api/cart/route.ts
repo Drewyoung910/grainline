@@ -7,14 +7,15 @@ import { cartItemExceedsLiveStock } from "@/lib/stockMutationState";
 import { cartReadRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { DEFAULT_CURRENCY } from "@/lib/money";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
-import * as Sentry from "@sentry/nextjs";
+import { logServerError } from "@/lib/serverErrorLogger";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 export const runtime = "nodejs";
 
 export async function GET() {
   try {
     const { userId } = await auth();
-    if (!userId) return privateJson({ error: "Sign in required" }, { status: 401 });
+    if (!userId) return privateJson({ error: "Sign in required" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
     const { success, reset } = await safeRateLimit(cartReadRatelimit, userId);
     if (!success) return privateResponse(rateLimitResponse(reset, "Too many cart reads."));
@@ -142,8 +143,7 @@ export async function GET() {
     if (isAccountAccessError(err)) {
       return privateJson({ error: err.message, code: err.code }, { status: err.status });
     }
-    console.error("GET /api/cart error:", err);
-    Sentry.captureException(err, { tags: { source: "cart_route", route: "/api/cart" } });
-    return privateJson({ error: "Server error" }, { status: 500 });
+    logServerError(err, { source: "cart_route", tags: { route: "/api/cart" } });
+    return privateJson({ error: "Server error" }, { status: HTTP_STATUS.INTERNAL_SERVER_ERROR });
   }
 }

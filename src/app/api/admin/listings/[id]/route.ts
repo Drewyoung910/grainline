@@ -1,5 +1,4 @@
 import { auth } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
 import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
@@ -9,31 +8,33 @@ import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ra
 import { expireOpenCheckoutSessionsForListing } from "@/lib/checkoutSessionExpiry";
 import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
   const admin = await prisma.user.findUnique({
     where: { clerkId: userId },
     select: { id: true, role: true, banned: true, deletedAt: true },
   });
   if (!admin || admin.banned || admin.deletedAt || admin.role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return privateJson({ error: "Forbidden" }, { status: HTTP_STATUS.FORBIDDEN });
   }
 
   const { success, reset } = await safeRateLimit(adminActionRatelimit, admin.id);
-  if (!success) return rateLimitResponse(reset, "Too many admin actions. Try again shortly.");
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many admin actions. Try again shortly."));
 
   const { id } = await params;
   const listing = await prisma.listing.findUnique({
     where: { id },
     select: { id: true, title: true, sellerId: true, status: true, isPrivate: true, rejectionReason: true },
   });
-  if (!listing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!listing) return privateJson({ error: "Not found" }, { status: HTTP_STATUS.NOT_FOUND });
 
   // Staff removal should not be reversible by the seller. Use REJECTED rather
   // than HIDDEN, and clear buyer-facing references that would otherwise point
@@ -89,5 +90,5 @@ export async function DELETE(
     });
   });
 
-  return NextResponse.json({ ok: true });
+  return privateJson({ ok: true });
 }

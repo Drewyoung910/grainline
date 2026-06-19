@@ -8,7 +8,14 @@ import { sendOrderShipped, sendReadyForPickup } from "@/lib/email";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { fulfillmentRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { blockingRefundLedgerWhere, orderHasRefundLedger } from "@/lib/refundRouteState";
-import { assertContentLengthUnder, isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
+import {
+  assertKnownContentLengthUnder,
+  isInvalidContentLengthError,
+  isMissingContentLengthError,
+  isRequestBodyTooLargeError,
+  readOptionalBoundedJson,
+} from "@/lib/requestBody";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { CaseStatus, LabelStatus, type FulfillmentStatus, type Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -130,10 +137,16 @@ export async function POST(
       }
     } else {
       try {
-        assertContentLengthUnder(req, FULFILLMENT_FORM_BODY_MAX_BYTES);
+        assertKnownContentLengthUnder(req, FULFILLMENT_FORM_BODY_MAX_BYTES);
       } catch (error) {
         if (isRequestBodyTooLargeError(error)) {
-          return privateJson({ error: "Request body too large" }, { status: 413 });
+          return privateJson({ error: "Request body too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
+        }
+        if (isMissingContentLengthError(error)) {
+          return privateJson({ error: "Content-Length header is required" }, { status: HTTP_STATUS.LENGTH_REQUIRED });
+        }
+        if (isInvalidContentLengthError(error)) {
+          return privateJson({ error: "Invalid Content-Length header" }, { status: HTTP_STATUS.BAD_REQUEST });
         }
         throw error;
       }

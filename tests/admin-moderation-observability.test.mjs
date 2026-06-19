@@ -39,8 +39,8 @@ describe("admin moderation hardening follow-ups", () => {
     assert.match(reviewRoute, /"listingType" = 'IN_STOCK'/);
     assert.match(reviewRoute, /COALESCE\("stockQuantity", 0\) <= 0/);
     assert.match(reviewRoute, /finalStatus: Number\(soldOutCount\) > 0 \? 'SOLD_OUT' : 'ACTIVE'/);
-    assert.match(reviewRoute, /return NextResponse\.json\(\{ error: unavailableReason \}, \{ status: 409 \}\)/);
-    assert.match(reviewRoute, /return NextResponse\.json\(\{ error: currentUnavailableReason \}, \{ status: 409 \}\)/);
+    assert.match(reviewRoute, /return privateJson\(\{ error: unavailableReason \}, \{ status: HTTP_STATUS\.CONFLICT \}\)/);
+    assert.match(reviewRoute, /return privateJson\(\{ error: currentUnavailableReason \}, \{ status: HTTP_STATUS\.CONFLICT \}\)/);
     assert.match(reviewRoute, /currentListing\.status === 'ACTIVE' &&\s*!\s*currentUnavailableReason/s);
     assert.match(reviewRoute, /if \(approved\.finalStatus === 'ACTIVE'\) \{/);
     assert.ok(

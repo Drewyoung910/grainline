@@ -40,7 +40,7 @@ describe("PR H account deletion, analytics, and email follow-ups", () => {
 
     assert.equal(emailPreferenceLookupFailureAllowsSend(), false);
     assert.match(notifications, /failClosed: true/);
-    assert.match(notifications, /Sentry\.captureException\(e, \{\s*tags: \{ source: "email_preference_check" \}/);
+    assert.match(notifications, /logServerError\(e, \{\s*source: "email_preference_check"/);
     assert.match(notifications, /extra: \{ userId, prefKey, failClosed: true \}/);
     assert.match(notifications, /return emailPreferenceLookupFailureAllowsSend\(\)/);
     assert.match(notifications, /select: \{ notificationPreferences: true, banned: true, deletedAt: true \}/);

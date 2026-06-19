@@ -6887,3 +6887,107 @@ residual lower-risk HTTP-status/logging hygiene outside touched routes, Vercel
 Analytics/Speed Insights product/privacy decision, remaining homepage runtime
 a11y proof, strict multipart missing-length ingress/runtime proof, and
 residual agent/worktree verification process hygiene.
+
+Entry 421 closes a broader source-verified response/logging/body-bound review
+pass with two read-only sidecar scans plus parent verification across review
+mutations, admin mutations, cart/message/notification observability, cron
+final catches, and the remaining `formData()` body-bound surface.
+
+First, review edit/delete/reply routes now follow the same private response
+contract as review create/vote. `PATCH`/`DELETE /api/reviews/[id]` and
+`POST /api/reviews/[id]/reply` return through `privateJson()` or
+`privateResponse(rateLimitResponse(...))`, use `HTTP_STATUS` constants for
+local responses, and have guardrails in the private-response and status tests.
+The review edit path also restores moderation telemetry parity by running the
+bounded profanity telemetry helper on edited comments, and it now lets buyers
+clear a previously written comment by writing `null` when an explicit empty or
+null comment update is submitted.
+
+Second, admin mutation routes with authenticated/admin-only JSON responses now
+use the same private response and named-status pattern:
+`/api/admin/users/[id]/ban`, `/api/admin/audit/[id]/undo`,
+`/api/admin/email`, `/api/admin/listings/[id]/review`,
+`/api/admin/listings/[id]`, `/api/admin/reports/[id]/resolve`, and
+`/api/admin/reviews/[id]`. `/api/admin/verify-pin` preserves its
+`NextResponse` cookie writes but wraps those success responses with
+`privateResponse()` and returns all non-cookie JSON through `privateJson()`.
+
+Third, raw error-object console logging was reduced in the cart, message email,
+notification email-preference, and cron final-catch paths. `/api/cart`,
+`/api/cart/add`, `src/app/messages/[id]/page.tsx`,
+`src/lib/notifications.ts`, `/api/cron/commission-expire`, and
+`/api/cron/case-auto-close` now route those unexpected failures through
+`logServerError()`, which sanitizes messages, stack traces, tags, and extra
+context before console/Sentry output. Existing record-level cron failure
+telemetry remains unchanged.
+
+Fourth, the remaining source-proven `formData()` missing-`Content-Length` gap
+is reduced. `assertKnownContentLengthUnder()` now rejects missing or invalid
+`Content-Length` before unstreamed platform body parsing. The image-upload
+multipart route and seller fulfillment form fallback use that stricter helper
+before `req.formData()`, returning 411 for missing length, 400 for invalid
+length, and 413 for oversized declared bodies. Public JSON/text routes and
+public form-url-encoded fallbacks were rechecked as stale/current-clean because
+they already stream through `readBoundedJson()`/`readBoundedText()`.
+
+Parent verification also rechecked review-adjacent raw allegations: the
+ReviewPhoto and ReviewVote cascade concern is stale because both relations use
+`onDelete: Cascade`; the review rating-summary race was already reduced by the
+transactional/advisory-lock helper; and the "attach another listing's R2
+photo" claim is stale as written because current review edit/create paths
+require the current user's `reviewPhoto` upload namespace, not arbitrary
+first-party media.
+
+Guardrails:
+`tests/private-json-cache-headers.test.mjs`,
+`tests/http-status-constants.test.mjs`,
+`tests/request-body-bounds.test.mjs`,
+`tests/form-data-body-bounds.test.mjs`,
+`tests/authenticated-json-body-bounds.test.mjs`,
+`tests/server-error-logger.test.mjs`,
+`tests/r65-observability-guardrails.test.mjs`,
+`tests/profanity-telemetry.test.mjs`,
+`tests/review-report-observability.test.mjs`,
+`tests/admin-action-guardrails.test.mjs`,
+`tests/admin-pin.test.mjs`,
+`tests/admin-moderation-observability.test.mjs`,
+`tests/mutation-rate-limit-sweep.test.mjs`,
+`tests/account-privacy-observability.test.mjs`,
+`tests/pr-h-deletion-analytics-email-followups.test.mjs`,
+`tests/pr-i-media-upload-unsubscribe-followups.test.mjs`, and
+`tests/upload-ux-followups.test.mjs`.
+
+Current running tally after Entry 421: verified fixed/reduced 773, verified
+stale/false-positive/current 473, deferred product/design/ops/legal 73,
+approximate raw allegations left from current max #1126: 79. The fixed count
+increases by seven for review private-response/status parity, admin
+private-response/status parity, sanitized cart/message/notification/cron
+failure logging, review edit profanity telemetry parity, review comment
+clearing, strict image-upload `formData()` known-length rejection, and strict
+fulfillment form known-length rejection. The stale/current count increases by
+five for ReviewPhoto/ReviewVote cascade, review rating-summary transaction
+state, review media ownership as written, public JSON/text body bounds, and
+public URL-encoded form fallback body bounds. Deferred count stays flat; the
+R2 direct-upload Content-Length enforcement smoke test remains under the
+existing Cloudflare R2 runtime evidence category rather than being treated as a
+source-proven code defect.
+
+Remaining major categories: Stripe webhook subscription dashboard evidence,
+Stripe Connect v2 loss-liability ops/legal decision, stale remote branch and
+old git author hygiene, Round 10 deferred cache/state-machine product designs
+that require product decisions rather than source guardrails, remaining
+EXPLAIN-dependent query-plan/index validation, Stripe partial-refund runtime
+reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope, remaining privacy/export retention decisions,
+cross-seller AI duplicate-detection product design, legacy enum
+cleanup/data-migration decisions, partial multi-seller checkout continuation
+design, deliberate BigInt money-column modeling, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket/dashboard/direct-upload enforcement evidence, HSTS
+preload submission decision, residual lower-risk HTTP-status/logging hygiene
+outside touched routes, Vercel Analytics/Speed Insights product/privacy
+decision, remaining homepage runtime a11y proof, and residual
+agent/worktree verification process hygiene.
