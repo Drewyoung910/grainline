@@ -8,6 +8,23 @@ import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 
 export const metadata: Metadata = { title: "Reports — Admin" };
 
+type ReportUserLabel = {
+  name: string | null;
+  email: string | null;
+  deletedAt: Date | null;
+};
+
+function reportUserLabel(user: ReportUserLabel | null | undefined) {
+  if (!user) return "Unknown";
+  if (user.deletedAt) return "Deleted user";
+  return user.name ?? user.email ?? "Unknown";
+}
+
+function reportUserSearchValue(user: ReportUserLabel | null | undefined) {
+  if (!user || user.deletedAt) return "";
+  return user.email ?? user.name ?? "";
+}
+
 export default async function AdminReportsPage() {
   const { userId } = await auth();
   if (!userId) redirect("/");
@@ -29,8 +46,8 @@ export default async function AdminReportsPage() {
       targetType: true,
       targetId: true,
       createdAt: true,
-      reporter: { select: { name: true, email: true } },
-      reported: { select: { name: true, email: true } },
+      reporter: { select: { name: true, email: true, deletedAt: true } },
+      reported: { select: { name: true, email: true, deletedAt: true } },
     },
   });
 
@@ -104,7 +121,7 @@ export default async function AdminReportsPage() {
   const reporterUsers = topReporters.length > 0
     ? await prisma.user.findMany({
         where: { id: { in: topReporters.map((r) => r.reporterId) } },
-        select: { id: true, name: true, email: true },
+        select: { id: true, name: true, email: true, deletedAt: true },
       })
     : [];
   const reporterMap = new Map(reporterUsers.map((u) => [u.id, u]));
@@ -122,7 +139,7 @@ export default async function AdminReportsPage() {
               const u = reporterMap.get(tr.reporterId);
               return (
                 <div key={tr.reporterId} className="text-xs text-neutral-600">
-                  <span className="font-medium">{u?.name ?? u?.email ?? "Unknown"}</span>
+                  <span className="font-medium">{reportUserLabel(u)}</span>
                   {" "}
                   <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${tr._count.id >= 10 ? "bg-red-100 text-red-700" : tr._count.id >= 5 ? "bg-amber-100 text-amber-700" : "bg-neutral-100 text-neutral-600"}`}>
                     {tr._count.id} reports
@@ -140,9 +157,9 @@ export default async function AdminReportsPage() {
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-1">
                 <div className="text-sm">
-                  <span className="font-medium">{r.reporter.name ?? r.reporter.email ?? "Unknown"}</span>
+                  <span className="font-medium">{reportUserLabel(r.reporter)}</span>
                   <span className="text-neutral-500"> reported </span>
-                  <Link href={`/admin/users?q=${encodeURIComponent(r.reported.email ?? r.reported.name ?? "")}`} className="font-medium hover:underline">{r.reported.name ?? r.reported.email ?? "Unknown"}</Link>
+                  <Link href={`/admin/users?q=${encodeURIComponent(reportUserSearchValue(r.reported))}`} className="font-medium hover:underline">{reportUserLabel(r.reported)}</Link>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs bg-red-50 text-red-700 border border-red-200 rounded-full px-2 py-0.5">

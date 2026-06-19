@@ -6731,3 +6731,80 @@ residual lower-risk HTTP-status/logging hygiene outside touched routes, Vercel
 Analytics/Speed Insights product/ops decision, remaining homepage runtime a11y
 proof, strict multipart missing-length ingress/runtime proof, and residual
 agent/worktree verification process hygiene.
+
+Entry 419 reduces verified privacy/export/deletion residue after a parent
+review plus two read-only sidecar scans of account export and account
+deletion/anonymization surfaces.
+
+First, `/api/account/export` now exports the remaining source-verifiable
+seller/order support ledgers that were already stored locally but not exposed
+in the JSON download. The export now includes `SellerPayoutEvent` rows for the
+seller profile, full stored `OrderPaymentEvent` identifiers/object fields on
+buyer and seller order exports, nested `OrderShippingRateQuote` rows, support
+and data-request `emailLastError`, `EmailSuppression.id` and `eventId`, and
+non-note Stripe Connect diagnostics (`stripeAccountId`,
+`stripeAccountVersion`, `stripeControllerType`, and
+`manualStripeReconciliationNeeded`). `manualStripeReconciliationNote` remains
+out of scope pending privacy/internal-evidence policy because it can contain
+staff/system reconciliation evidence rather than user-configured data.
+
+Second, account deletion now clears retained seller trust and discovery
+residue on the anonymized `SellerProfile`: verification badge state, Guild
+level and timestamps/notes, Guild metric warning state, profile views,
+admin-featured status, and metro/city-metro links. Deletion also removes
+retained `SellerFaq` rows for the seller, which held user-authored public FAQ
+text even though current public seller visibility already blocks deleted
+sellers.
+
+Third, the admin reports page no longer renders generated deleted-account
+email placeholders for deleted reporters or reported users. The query now
+selects `deletedAt`, shared local label helpers render "Deleted user", and the
+admin user search link does not use the generated deleted email as the query.
+
+Guardrails:
+`tests/account-export-payload.test.mjs`,
+`tests/account-export-privacy.test.mjs`,
+`tests/account-state-residue-followups.test.mjs`,
+`tests/account-deletion-timeout-fix.test.mjs`, and
+`tests/stripe-connect-v2.test.mjs`.
+
+Parent review did not close the broader seller-broadcast/followed-listing
+fanout residue found by the deletion sidecar. Existing `Notification` rows can
+be targeted by links for some cases, but `EmailOutbox.dedupKey` is hashed and
+current outbox rows do not carry a reliable source id tying
+`seller_broadcast` or `followed_maker_new_listing` jobs back to a deleted
+seller/listing. That needs a separate source-id design or migration before it
+can be repaired without risking unrelated follower emails. It remains under
+the existing privacy/deletion retention follow-up scope rather than being
+claimed fixed here.
+
+Current running tally after Entry 419: verified fixed/reduced 762, verified
+stale/false-positive/current 468, deferred product/design/ops/legal 73,
+approximate raw allegations left from current max #1126: 86. The fixed count
+increases by nine for seller payout export, fuller order payment event export,
+shipping-rate quote export, support delivery-error export, suppression
+event-id export, non-note Stripe Connect diagnostic export, seller trust/geo
+deletion reset, seller FAQ deletion, and admin report deleted-user labeling.
+Stale/current, deferred, and approximate raw counts stay flat because these
+were hidden residues inside already-open privacy/export/deletion categories.
+
+Remaining major categories: Stripe webhook subscription dashboard evidence,
+Stripe Connect v2 loss-liability ops/legal decision, stale remote branch and
+old git author hygiene, Round 10 deferred cache/state-machine product designs
+that require product decisions rather than source guardrails, remaining
+EXPLAIN-dependent query-plan/index validation, Stripe partial-refund runtime
+reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope, remaining privacy/export retention decisions,
+cross-seller AI duplicate-detection product design, legacy enum
+cleanup/data-migration decisions, partial multi-seller checkout continuation
+design, deliberate BigInt money-column modeling, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket dashboard evidence, HSTS preload submission decision,
+residual lower-risk HTTP-status/logging hygiene outside touched routes, Vercel
+Analytics/Speed Insights product/privacy decision, remaining homepage runtime
+a11y proof, strict multipart missing-length ingress/runtime proof, seller
+fanout notification/outbox deletion source-id design, and residual
+agent/worktree verification process hygiene.

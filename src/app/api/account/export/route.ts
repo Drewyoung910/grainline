@@ -56,6 +56,10 @@ async function buildExport(user: NonNullable<ExportableUser>) {
       radiusMeters: true,
       publicMapOptIn: true,
       chargesEnabled: true,
+      stripeAccountId: true,
+      stripeAccountVersion: true,
+      stripeControllerType: true,
+      manualStripeReconciliationNeeded: true,
       shippingFlatRateCents: true,
       freeShippingOverCents: true,
       allowLocalPickup: true,
@@ -149,6 +153,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
     sellerFaqs,
     newsletterSubscriptions,
     sellerBroadcasts,
+    sellerPayoutEvents,
     reviewVotes,
   ] = await Promise.all([
     sellerProfile
@@ -242,6 +247,11 @@ async function buildExport(user: NonNullable<ExportableUser>) {
         paymentEvents: {
           orderBy: { createdAt: "desc" },
           select: {
+            id: true,
+            orderId: true,
+            stripeEventId: true,
+            stripeObjectId: true,
+            stripeObjectType: true,
             eventType: true,
             amountCents: true,
             currency: true,
@@ -250,6 +260,19 @@ async function buildExport(user: NonNullable<ExportableUser>) {
             description: true,
             metadata: true,
             createdAt: true,
+            updatedAt: true,
+          },
+        },
+        shippingRateQuotes: {
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            orderId: true,
+            shipmentId: true,
+            rates: true,
+            expiresAt: true,
+            createdAt: true,
+            updatedAt: true,
           },
         },
       },
@@ -294,6 +317,11 @@ async function buildExport(user: NonNullable<ExportableUser>) {
             paymentEvents: {
               orderBy: { createdAt: "desc" },
               select: {
+                id: true,
+                orderId: true,
+                stripeEventId: true,
+                stripeObjectId: true,
+                stripeObjectType: true,
                 eventType: true,
                 amountCents: true,
                 currency: true,
@@ -302,6 +330,19 @@ async function buildExport(user: NonNullable<ExportableUser>) {
                 description: true,
                 metadata: true,
                 createdAt: true,
+                updatedAt: true,
+              },
+            },
+            shippingRateQuotes: {
+              orderBy: { createdAt: "desc" },
+              select: {
+                id: true,
+                orderId: true,
+                shipmentId: true,
+                rates: true,
+                expiresAt: true,
+                createdAt: true,
+                updatedAt: true,
               },
             },
           },
@@ -503,6 +544,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
         message: true,
         slaDueAt: true,
         emailSentAt: true,
+        emailLastError: true,
         closedAt: true,
         closureEvidence: true,
         closureEvidenceAt: true,
@@ -514,7 +556,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
       ? prisma.emailSuppression.findMany({
           where: { email: { in: accountEmailSuppressionKeys } },
           orderBy: { createdAt: "desc" },
-          select: { email: true, reason: true, source: true, details: true, createdAt: true, updatedAt: true },
+          select: { id: true, email: true, reason: true, source: true, eventId: true, details: true, createdAt: true, updatedAt: true },
         })
       : [],
     prisma.emailOutbox.findMany({
@@ -600,6 +642,25 @@ async function buildExport(user: NonNullable<ExportableUser>) {
           select: { id: true, message: true, imageUrl: true, sentAt: true, recipientCount: true },
         })
       : [],
+    sellerProfile
+      ? prisma.sellerPayoutEvent.findMany({
+          where: { sellerProfileId: sellerProfile.id },
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            sellerProfileId: true,
+            stripePayoutId: true,
+            status: true,
+            amountCents: true,
+            currency: true,
+            failureCode: true,
+            failureMessage: true,
+            stripeEventId: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        })
+      : [],
     prisma.reviewVote.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: "desc" },
@@ -646,6 +707,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
     sellerFaqs,
     newsletterSubscriptions,
     sellerBroadcasts,
+    sellerPayoutEvents,
     reviewVotes,
   });
 }

@@ -6,12 +6,71 @@ function source(path) {
   return readFileSync(path, "utf8");
 }
 
+function orderExportBlocks(route) {
+  const buyerStart = route.indexOf("prisma.order.findMany({\n      where: { buyerId: user.id }");
+  const sellerStart = route.indexOf("sellerProfile\n      ? prisma.order.findMany({", buyerStart);
+  assert.ok(buyerStart >= 0, "account export must query buyer orders");
+  assert.ok(sellerStart >= 0, "account export must query seller orders");
+
+  return [
+    route.slice(buyerStart, sellerStart),
+    route.slice(sellerStart, route.indexOf("prisma.message.findMany", sellerStart)),
+  ];
+}
+
 describe("account export privacy coverage", () => {
-  it("exports owned listing photo originals and payment event metadata", () => {
+  it("exports owned listing photo originals and full order event ledgers", () => {
     const route = source("src/app/api/account/export/route.ts");
 
     assert.match(route, /photos: \{ orderBy: \{ sortOrder: "asc" \}, select: \{ url: true, originalUrl: true/);
-    assert.match(route, /paymentEvents: \{[\s\S]*metadata: true[\s\S]*createdAt: true/);
+    for (const orderBlock of orderExportBlocks(route)) {
+      const paymentStart = orderBlock.indexOf("paymentEvents: {");
+      const shippingQuoteStart = orderBlock.indexOf("shippingRateQuotes: {");
+      const paymentBlock = orderBlock.slice(paymentStart, shippingQuoteStart);
+      const shippingQuoteBlock = orderBlock.slice(shippingQuoteStart);
+
+      assert.ok(paymentStart >= 0, "order export must include payment events");
+      assert.ok(shippingQuoteStart >= 0, "order export must include shipping rate quotes");
+      for (const field of [
+        "id",
+        "orderId",
+        "stripeEventId",
+        "stripeObjectId",
+        "stripeObjectType",
+        "eventType",
+        "amountCents",
+        "currency",
+        "status",
+        "reason",
+        "description",
+        "metadata",
+        "createdAt",
+        "updatedAt",
+      ]) {
+        assert.match(paymentBlock, new RegExp(`${field}: true`), `payment event export must select ${field}`);
+      }
+      for (const field of ["id", "orderId", "shipmentId", "rates", "expiresAt", "createdAt", "updatedAt"]) {
+        assert.match(shippingQuoteBlock, new RegExp(`${field}: true`), `shipping quote export must select ${field}`);
+      }
+    }
+  });
+
+  it("exports non-note Stripe Connect diagnostics for sellers", () => {
+    const schema = source("prisma/schema.prisma");
+    const route = source("src/app/api/account/export/route.ts");
+    const sellerSelectStart = route.indexOf("const sellerProfile = await prisma.sellerProfile.findUnique");
+    const sellerSelectEnd = route.indexOf("const [", sellerSelectStart);
+    const sellerSelect = route.slice(sellerSelectStart, sellerSelectEnd);
+
+    for (const field of [
+      "stripeAccountId",
+      "stripeAccountVersion",
+      "stripeControllerType",
+      "manualStripeReconciliationNeeded",
+    ]) {
+      assert.match(schema, new RegExp(`\\b${field}\\b`), `schema must retain ${field}`);
+      assert.match(sellerSelect, new RegExp(`${field}: true`), `account export must select ${field}`);
+    }
   });
 
   it("keeps explicit export collections for common user-owned records", () => {
@@ -30,6 +89,7 @@ describe("account export privacy coverage", () => {
       "sellerFaq",
       "newsletterSubscriber",
       "sellerBroadcast",
+      "sellerPayoutEvent",
       "reviewVote",
     ]) {
       assert.match(route, new RegExp(`prisma\\.${model}`), `account export must query ${model}`);
@@ -49,6 +109,7 @@ describe("account export privacy coverage", () => {
       "sellerFaqs",
       "newsletterSubscriptions",
       "sellerBroadcasts",
+      "sellerPayoutEvents",
       "reviewVotes",
     ]) {
       assert.match(payload, new RegExp(`${key}: data\\.${key}`), `payload must expose ${key}`);
@@ -170,6 +231,7 @@ describe("account export privacy coverage", () => {
     assert.match(supportBlock, /supportRequestAccountExportWhere\(user\.id, accountEmails\)/);
     assert.match(supportBlock, /orderId: true/);
     assert.match(supportBlock, /listingId: true/);
+    assert.match(supportBlock, /emailLastError: true/);
     assert.match(supportBlock, /closureEvidence: true/);
     assert.match(supportBlock, /closureEvidenceAt: true/);
     assert.doesNotMatch(supportBlock, /closureEvidenceById: true/);
@@ -189,6 +251,8 @@ describe("account export privacy coverage", () => {
     assert.match(route, /emails: accountEmailState\.emails/);
     assert.match(route, /const accountEmailSuppressionKeys = accountEmailSuppressionKeysForEmails\(accountEmails\)/);
     assert.match(suppressionBlock, /where: \{ email: \{ in: accountEmailSuppressionKeys \} \}/);
+    assert.match(suppressionBlock, /id: true/);
+    assert.match(suppressionBlock, /eventId: true/);
     assert.doesNotMatch(suppressionBlock, /where: \{ email: accountEmail \}/);
   });
 
@@ -239,6 +303,38 @@ describe("account export privacy coverage", () => {
     assert.match(payload, /accountEmailAddresses: data\.accountEmailAddresses/);
     assert.match(newsletterBlock, /where: \{ email: \{ in: accountEmailSuppressionKeys \} \}/);
     assert.doesNotMatch(newsletterBlock, /where: \{ email: accountEmail \}/);
+  });
+
+  it("exports seller payout event ledger rows for the seller profile", () => {
+    const schema = source("prisma/schema.prisma");
+    const route = source("src/app/api/account/export/route.ts");
+    const payload = source("src/lib/accountExportPayload.ts");
+    const payoutStart = route.indexOf("prisma.sellerPayoutEvent.findMany");
+    const payoutEnd = route.indexOf("prisma.reviewVote.findMany", payoutStart);
+    const payoutBlock = route.slice(payoutStart, payoutEnd);
+
+    assert.match(schema, /model SellerPayoutEvent \{/);
+    assert.match(schema, /sellerProfile\s+SellerProfile\s+@relation\(fields: \[sellerProfileId\], references: \[id\], onDelete: Restrict\)/);
+    assert.ok(payoutStart >= 0, "account export must query SellerPayoutEvent");
+    assert.match(payoutBlock, /where: \{ sellerProfileId: sellerProfile\.id \}/);
+    assert.match(payoutBlock, /orderBy: \{ createdAt: "desc" \}/);
+    for (const field of [
+      "sellerProfileId",
+      "stripePayoutId",
+      "status",
+      "amountCents",
+      "currency",
+      "failureCode",
+      "failureMessage",
+      "stripeEventId",
+      "createdAt",
+      "updatedAt",
+    ]) {
+      assert.match(payoutBlock, new RegExp(`${field}: true`), `account export must select ${field}`);
+    }
+    assert.match(route, /sellerPayoutEvents,/);
+    assert.match(payload, /sellerPayoutEvents: unknown\[\]/);
+    assert.match(payload, /sellerPayoutEvents: data\.sellerPayoutEvents/);
   });
 
   it("keeps account export behind POST, same-origin, and fresh session checks", () => {

@@ -46,6 +46,62 @@ describe("account-state residue hardening", () => {
     assert.match(blogIndex, /revalidateBlogSearchCaches\(\)/);
   });
 
+  it("clears deleted seller trust, feature, and geo residue during anonymization", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+    const updateStart = deletion.indexOf("await tx.sellerProfile.update({\n        where: { id: user.sellerProfile.id }");
+    const updateBlock = deletion.slice(updateStart, deletion.indexOf("      });", updateStart));
+
+    assert.ok(updateStart >= 0, "account deletion should update the deleted seller profile");
+    for (const [field, valuePattern] of [
+      ["isVerifiedMaker", "false"],
+      ["verifiedAt", "null"],
+      ["guildLevel", '"NONE"'],
+      ["guildMemberApprovedAt", "null"],
+      ["guildMasterApprovedAt", "null"],
+      ["guildMasterAppliedAt", "null"],
+      ["guildMasterReviewNotes", "null"],
+      ["consecutiveMetricFailures", "0"],
+      ["lastMetricCheckAt", "null"],
+      ["metricWarningSentAt", "null"],
+      ["listingsBelowThresholdSince", "null"],
+      ["profileViews", "0"],
+      ["featuredUntil", "null"],
+      ["metroId", "null"],
+      ["cityMetroId", "null"],
+    ]) {
+      assert.match(
+        updateBlock,
+        new RegExp(`${field}: ${valuePattern}`),
+        `account deletion should reset ${field}`,
+      );
+    }
+  });
+
+  it("removes deleted seller FAQs from retained seller profiles", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+    const faqDelete = deletion.indexOf("await tx.sellerFaq.deleteMany");
+    const profileUpdate = deletion.indexOf("await tx.sellerProfile.update({\n        where: { id: user.sellerProfile.id }");
+
+    assert.ok(faqDelete >= 0, "account deletion should remove seller FAQs");
+    assert.match(deletion.slice(faqDelete, profileUpdate), /where: \{ sellerProfileId: user\.sellerProfile\.id \}/);
+    assert.ok(faqDelete < profileUpdate, "FAQ deletion should happen before the retained seller profile is anonymized");
+  });
+
+  it("hides generated deleted-account emails in the admin reports page", () => {
+    const reportsPage = source("src/app/admin/reports/page.tsx");
+
+    assert.match(reportsPage, /function reportUserLabel/);
+    assert.match(reportsPage, /if \(user\.deletedAt\) return "Deleted user"/);
+    assert.match(reportsPage, /function reportUserSearchValue/);
+    assert.match(reportsPage, /if \(!user \|\| user\.deletedAt\) return ""/);
+    assert.match(reportsPage, /reporter: \{ select: \{ name: true, email: true, deletedAt: true \} \}/);
+    assert.match(reportsPage, /reported: \{ select: \{ name: true, email: true, deletedAt: true \} \}/);
+    assert.match(reportsPage, /select: \{ id: true, name: true, email: true, deletedAt: true \}/);
+    assert.match(reportsPage, /reportUserLabel\(r\.reporter\)/);
+    assert.match(reportsPage, /reportUserLabel\(r\.reported\)/);
+    assert.doesNotMatch(reportsPage, /r\.reported\.email \?\? r\.reported\.name/);
+  });
+
   it("rechecks outbox recipient account state even without a preference key", () => {
     const outbox = source("src/lib/emailOutbox.ts");
 

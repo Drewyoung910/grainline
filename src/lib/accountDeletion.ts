@@ -1262,6 +1262,9 @@ export async function anonymizeUserAccount(
       await tx.sellerBroadcast.deleteMany({
         where: { sellerProfileId: user.sellerProfile.id },
       });
+      await tx.sellerFaq.deleteMany({
+        where: { sellerProfileId: user.sellerProfile.id },
+      });
       await tx.order.updateMany({
         where: {
           items: {
@@ -1330,6 +1333,21 @@ export async function anonymizeUserAccount(
           featuredListingIds: [],
           galleryImageUrls: [],
           galleryAltTexts: [],
+          isVerifiedMaker: false,
+          verifiedAt: null,
+          guildLevel: "NONE",
+          guildMemberApprovedAt: null,
+          guildMasterApprovedAt: null,
+          guildMasterAppliedAt: null,
+          guildMasterReviewNotes: null,
+          consecutiveMetricFailures: 0,
+          lastMetricCheckAt: null,
+          metricWarningSentAt: null,
+          listingsBelowThresholdSince: null,
+          profileViews: 0,
+          featuredUntil: null,
+          metroId: null,
+          cityMetroId: null,
           vacationMode: true,
           vacationReturnDate: null,
           vacationMessage: null,
