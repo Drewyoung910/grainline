@@ -8,6 +8,7 @@ import { rateLimitResponse, safeRateLimit, stripeConnectRatelimit } from "@/lib/
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { logServerError } from "@/lib/serverErrorLogger";
 
 export async function GET() {
   const { userId } = await auth();
@@ -39,15 +40,33 @@ export async function GET() {
     );
   }
 
-  const account = await stripe.accounts.retrieve(seller.stripeAccountId);
-  const chargesEnabled = account.charges_enabled ?? false;
-  if (chargesEnabled !== seller.chargesEnabled) {
-    await prisma.sellerProfile.update({
-      where: { id: seller.id },
-      data: { chargesEnabled },
-    });
-    revalidatePublicSellerVisibilityCaches();
-  }
+  try {
+    const account = await stripe.accounts.retrieve(seller.stripeAccountId);
+    const chargesEnabled = account.charges_enabled ?? false;
+    if (chargesEnabled !== seller.chargesEnabled) {
+      await prisma.sellerProfile.update({
+        where: { id: seller.id },
+        data: { chargesEnabled },
+      });
+      revalidatePublicSellerVisibilityCaches();
+    }
 
-  return privateJson({ hasStripeAccount: true, chargesEnabled });
+    return privateJson({ hasStripeAccount: true, chargesEnabled });
+  } catch (error) {
+    logServerError(error, {
+      source: "stripe_connect_status_refresh",
+      extra: {
+        stripeAccountVersion: seller.stripeAccountVersion ?? "legacy",
+        previousChargesEnabled: seller.chargesEnabled,
+      },
+    });
+    return privateJson(
+      {
+        hasStripeAccount: true,
+        chargesEnabled: seller.chargesEnabled,
+        refreshUnavailable: true,
+      },
+      { status: HTTP_STATUS.SERVICE_UNAVAILABLE },
+    );
+  }
 }

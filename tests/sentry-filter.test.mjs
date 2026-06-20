@@ -62,6 +62,23 @@ describe("Sentry beforeSend filtering", () => {
     assert.deepEqual(event.user, { id: "user_123" });
   });
 
+  it("redacts address autocomplete query text from request context", () => {
+    const event = beforeSend({
+      transaction: "GET /api/address/autocomplete?q=123%20Main%20St&safe=1",
+      request: {
+        query_string: "q=123%20Main%20St%20Apt%204&safe=1",
+        url: "https://thegrainline.com/api/address/autocomplete?q=123%20Main%20St%20Apt%204&safe=1",
+      },
+    });
+
+    assert.equal(event.transaction, "GET /api/address/autocomplete?q=[redacted]&safe=1");
+    assert.equal(event.request.query_string, "q=[redacted]&safe=1");
+    assert.equal(
+      event.request.url,
+      "https://thegrainline.com/api/address/autocomplete?q=[redacted]&safe=1",
+    );
+  });
+
   it("redacts nested extra/context/tag payloads", () => {
     const event = beforeSend({
       extra: {

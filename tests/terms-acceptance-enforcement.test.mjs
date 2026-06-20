@@ -55,7 +55,8 @@ describe("terms acceptance enforcement", () => {
 
     assert.match(middleware, /signInPathForRedirect/);
     assert.match(middleware, /function signInRequiredFor/);
-    assert.match(middleware, /NextResponse\.json\(\{ error: "Unauthorized" \}, \{ status: 401 \}\)/);
+    assert.match(middleware, /privateApiJson\(\{ error: "Unauthorized" \}, \{ status: HTTP_STATUS\.UNAUTHORIZED \}, requestId\)/);
+    assert.match(middleware, /import \{ privateResponse \} from "@\/lib\/privateResponse"/);
     assert.match(middleware, /if \(!userId && !isPublic\(req\)\) \{/);
     assert.doesNotMatch(middleware, /auth\.protect\(/);
 

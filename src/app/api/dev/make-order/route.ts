@@ -1,5 +1,4 @@
 // src/app/api/dev/make-order/route.ts
-import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import {
@@ -7,6 +6,8 @@ import {
   isRequestBodyTooLargeError,
   readBoundedJson,
 } from "@/lib/requestBody";
+import { privateJson } from "@/lib/privateResponse";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 import { z } from "zod";
 
 const DevOrderSchema = z.object({
@@ -25,37 +26,37 @@ function devFixturesEnabled() {
 
 export async function POST(req: Request) {
   if (!devFixturesEnabled()) {
-    return NextResponse.json({ error: "Disabled" }, { status: 404 });
+    return privateJson({ error: "Disabled" }, { status: HTTP_STATUS.NOT_FOUND });
   }
 
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
   const me = await prisma.user.findUnique({
     where: { clerkId: userId },
     select: { id: true, banned: true, deletedAt: true },
   });
-  if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (me.banned || me.deletedAt) return NextResponse.json({ error: "Account is suspended" }, { status: 403 });
+  if (!me) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
+  if (me.banned || me.deletedAt) return privateJson({ error: "Account is suspended" }, { status: HTTP_STATUS.FORBIDDEN });
 
   let devParsed;
   try {
     devParsed = DevOrderSchema.parse(await readBoundedJson(req, DEV_MAKE_ORDER_BODY_MAX_BYTES));
   } catch (e) {
     if (isRequestBodyTooLargeError(e)) {
-      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      return privateJson({ error: "Request body too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
     }
     if (isInvalidJsonBodyError(e)) {
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      return privateJson({ error: "Invalid JSON" }, { status: HTTP_STATUS.BAD_REQUEST });
     }
     if (e instanceof z.ZodError) {
-      return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+      return privateJson({ error: "Invalid input", details: e.issues }, { status: HTTP_STATUS.BAD_REQUEST });
     }
     throw e;
   }
   const { listingId } = devParsed;
 
   const listing = await prisma.listing.findUnique({ where: { id: listingId } });
-  if (!listing) return NextResponse.json({ error: "Listing not found" }, { status: 404 });
+  if (!listing) return privateJson({ error: "Listing not found" }, { status: HTTP_STATUS.NOT_FOUND });
 
   const order = await prisma.order.create({
     data: {
@@ -72,5 +73,5 @@ export async function POST(req: Request) {
     include: { items: true },
   });
 
-  return NextResponse.json({ ok: true, orderId: order.id, items: order.items });
+  return privateJson({ ok: true, orderId: order.id, items: order.items });
 }

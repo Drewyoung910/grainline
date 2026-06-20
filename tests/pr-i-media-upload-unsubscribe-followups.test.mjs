@@ -116,7 +116,7 @@ describe("PR I media, upload, and unsubscribe follow-ups", () => {
     assert.match(route, /if \(!originHeader && !refererHeader\) return null/);
     assert.match(postHandler, /getExplicitCrossOriginPostRejection\(req\)/);
     assert.match(postHandler, /logSecurityEvent\("origin_rejected"/);
-    assert.match(postHandler, /status: 403/);
+    assert.match(postHandler, /status: HTTP_STATUS\.FORBIDDEN/);
     assert.match(security, /origin_rejected/);
   });
 });

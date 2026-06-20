@@ -328,7 +328,7 @@ async function send(to: string, subject: string, html: string, opts: EmailSendOp
       tags: { source: "email_send" },
       extra: { emailHash, subjectLength: sanitizedSubject.length },
     });
-    if (opts.throwOnFailure) throw err;
+    if (opts.throwOnFailure) throw sanitizedEmailSentryError(err);
   }
 }
 

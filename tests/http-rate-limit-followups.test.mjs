@@ -32,9 +32,15 @@ describe("HTTP rate-limit response followups", () => {
     const view = source("src/app/api/listings/[id]/view/route.ts");
     const sellerView = source("src/app/api/seller/[id]/view/route.ts");
 
-    assert.match(click, /if \(!success\) return NextResponse\.json\(\{ ok: true, skipped: true \}\)/);
-    assert.match(view, /if \(!globalOk\) return NextResponse\.json\(\{ ok: true \}\)/);
-    assert.match(sellerView, /if \(!globalOk\) return NextResponse\.json\(\{ ok: true, skipped: true \}\)/);
+    for (const route of [click, view, sellerView]) {
+      assert.match(route, /import \{ privateResponse \} from "@\/lib\/privateResponse"/);
+      assert.match(route, /function telemetryJson\(body: Record<string, unknown>\)/);
+      assert.match(route, /privateResponse\(NextResponse\.json\(body\)\)/);
+    }
+
+    assert.match(click, /if \(!success\) return telemetryJson\(\{ ok: true, skipped: true \}\)/);
+    assert.match(view, /if \(!globalOk\) return telemetryJson\(\{ ok: true \}\)/);
+    assert.match(sellerView, /if \(!globalOk\) return telemetryJson\(\{ ok: true, skipped: true \}\)/);
     assert.doesNotMatch(click, /status:\s*429/);
   });
 

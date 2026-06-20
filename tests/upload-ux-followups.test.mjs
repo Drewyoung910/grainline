@@ -107,6 +107,17 @@ describe("upload UX follow-ups", () => {
     assert.doesNotMatch(verifyRoute, /extra: \{ key \}/);
   });
 
+  it("keeps processed-image public availability diagnostics server-side only", () => {
+    const imageRoute = source("src/app/api/upload/image/route.ts");
+
+    assert.match(imageRoute, /source: "upload_image_public_availability"/);
+    assert.match(imageRoute, /uploadTelemetryKeyHash\(key\)/);
+    assert.match(imageRoute, /error: "Uploaded media is not publicly available yet\."/);
+    assert.match(imageRoute, /status: HTTP_STATUS\.BAD_GATEWAY/);
+    assert.doesNotMatch(imageRoute, /const message = err instanceof Error \? err\.message/);
+    assert.doesNotMatch(imageRoute, /privateJson\(\{ error: message \}/);
+  });
+
   it("keeps direct upload metadata spoofing and file-count churn bounded", () => {
     const presignRoute = source("src/app/api/upload/presign/route.ts");
     const imageRoute = source("src/app/api/upload/image/route.ts");

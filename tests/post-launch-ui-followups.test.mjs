@@ -482,8 +482,11 @@ describe("post-launch UI follow-ups", () => {
     assert.match(founding, /_max: \{ foundingMakerNumber: true \}/);
     assert.match(founding, /stillEligible/);
     assert.match(founding, /maxWait: 5000, timeout: 10000/);
-    assert.match(founding, /Sentry\.captureException\(err/);
+    assert.match(founding, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
+    assert.match(founding, /logServerError\(err, \{/);
     assert.match(founding, /source: "founding_maker_grant"/);
+    assert.doesNotMatch(founding, /Sentry\.captureException\(err/);
+    assert.doesNotMatch(founding, /console\.error\("\[founding-maker\] grant failed", err\)/);
     assert.doesNotMatch(founding, /FOUNDING_MAKER_GRANT_ATTEMPTS/);
     assert.doesNotMatch(founding, /isUniqueConstraintError\(err\)/);
     assert.doesNotMatch(founding, /currentCount \+ 1/);

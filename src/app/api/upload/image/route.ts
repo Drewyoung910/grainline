@@ -178,7 +178,12 @@ export async function POST(req: Request) {
   try {
     await assertPublicMediaAvailable(publicUrl);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Uploaded media is not publicly available.";
+    logServerError(err, {
+      source: "upload_image_public_availability",
+      level: "warning",
+      tags: { endpoint },
+      extra: { keyHash: uploadTelemetryKeyHash(key) },
+    });
     await deleteUploadedImageObject(key).catch((deleteError) => {
       logServerError(deleteError, {
         source: "upload_image_cleanup",
@@ -187,7 +192,10 @@ export async function POST(req: Request) {
         extra: { keyHash: uploadTelemetryKeyHash(key) },
       });
     });
-    return privateJson({ error: message }, { status: 502 });
+    return privateJson(
+      { error: "Uploaded media is not publicly available yet." },
+      { status: HTTP_STATUS.BAD_GATEWAY },
+    );
   }
 
   return privateJson({

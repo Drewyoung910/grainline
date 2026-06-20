@@ -322,6 +322,13 @@ describe("seller operational route hardening", () => {
       "FAQ delete should rate-limit before seller lookup",
     );
     assert.ok(
+      profile.indexOf("safeRateLimit(sellerProfileRatelimit, userId)", profile.indexOf("async function removeSellerAvatar")) <
+        profile.indexOf("const { seller } = await ensureSeller()", profile.indexOf("async function removeSellerAvatar")),
+      "avatar removal should rate-limit before seller lookup",
+    );
+    assert.match(profile.slice(profile.indexOf("async function removeSellerAvatar")), /where: \{ id: seller\.id \}/);
+    assert.doesNotMatch(profile.slice(profile.indexOf("async function removeSellerAvatar")), /prisma\.user\.findUnique/);
+    assert.ok(
       profile.indexOf("safeRateLimit(sellerProfileRatelimit, userId)", profile.indexOf("async function toggleFeaturedListing")) <
         profile.indexOf("const { seller } = await ensureSeller()", profile.indexOf("async function toggleFeaturedListing")),
       "featured-listing toggle should rate-limit before seller lookup",

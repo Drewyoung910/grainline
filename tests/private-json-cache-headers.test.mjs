@@ -260,6 +260,61 @@ describe("private JSON cache headers", () => {
     assert.doesNotMatch(verifyPin, /return rateLimitResponse\(/);
   });
 
+  it("marks tokenized email confirmation and unsubscribe responses no-store", () => {
+    for (const route of [
+      "src/app/api/email/unsubscribe/route.ts",
+      "src/app/api/newsletter/confirm/route.ts",
+    ]) {
+      const text = source(route);
+
+      assert.match(text, /import \{ privateJson, privateResponse \} from "@\/lib\/privateResponse"/);
+      assert.match(text, /privateResponse\(new NextResponse\(/);
+      assert.match(text, /privateResponse\(rateLimitResponse\(/);
+      assert.match(text, /privateJson\(/);
+      assert.doesNotMatch(text, /return rateLimitResponse\(/);
+      assert.doesNotMatch(text, /\bNextResponse\.json\(/);
+    }
+  });
+
+  it("marks optional-auth telemetry JSON responses private while preserving NextResponse cookies", () => {
+    for (const route of [
+      "src/app/api/listings/[id]/click/route.ts",
+      "src/app/api/listings/[id]/view/route.ts",
+      "src/app/api/seller/[id]/view/route.ts",
+    ]) {
+      const text = source(route);
+
+      assert.match(text, /import \{ privateResponse \} from "@\/lib\/privateResponse"/);
+      assert.match(text, /function telemetryJson\(body: Record<string, unknown>\)/);
+      assert.match(text, /privateResponse\(NextResponse\.json\(body\)\)/);
+      assert.match(text, /setTrackingCookie\(res\.cookies/);
+    }
+  });
+
+  it("keeps the local dev order fixture private when explicitly enabled", () => {
+    const devOrder = source("src/app/api/dev/make-order/route.ts");
+
+    assert.match(devOrder, /import \{ privateJson \} from "@\/lib\/privateResponse"/);
+    assert.match(devOrder, /import \{ HTTP_STATUS \} from "@\/lib\/httpStatus"/);
+    assert.match(devOrder, /privateJson\(\{ ok: true, orderId: order\.id, items: order\.items \}\)/);
+    assert.doesNotMatch(devOrder, /\bNextResponse\.json\(/);
+    assert.doesNotMatch(devOrder, /status: (400|401|403|404|413)\b/);
+  });
+
+  it("keeps middleware API auth, account-state, terms, and admin rejects private", () => {
+    const middleware = source("src/middleware.ts");
+
+    assert.match(middleware, /import \{ privateResponse \} from "@\/lib\/privateResponse"/);
+    assert.match(middleware, /function privateApiJson\(body: Record<string, unknown>, init: ResponseInit, requestId: string\)/);
+    assert.match(middleware, /privateResponse\(NextResponse\.json\(body, init\)\)/);
+    assert.match(middleware, /privateApiJson\(\{ error: "Forbidden" \}, \{ status: HTTP_STATUS\.FORBIDDEN \}, requestId\)/);
+    assert.match(middleware, /privateApiJson\(\{ error: "Unauthorized" \}, \{ status: HTTP_STATUS\.UNAUTHORIZED \}, requestId\)/);
+    assert.match(middleware, /code: "TERMS_NOT_ACCEPTED"/);
+    assert.match(middleware, /status: HTTP_STATUS\.PRECONDITION_REQUIRED/);
+    assert.match(middleware, /code: account\.deletedAt \? "ACCOUNT_DELETED" : "ACCOUNT_SUSPENDED"/);
+    assert.match(middleware, /privateApiJson\(\{ error: "Admin PIN required" \}, \{ status: HTTP_STATUS\.FORBIDDEN \}, requestId\)/);
+  });
+
   it("keeps auth mutation methods private when the same route file also has public handlers", () => {
     const commissionCreate = getMethodSource("src/app/api/commission/route.ts", "POST");
     const commissionStatus = getMethodSource("src/app/api/commission/[id]/route.ts", "PATCH");

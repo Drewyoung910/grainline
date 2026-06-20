@@ -6992,6 +6992,92 @@ outside touched routes, Vercel Analytics/Speed Insights product/privacy
 decision, remaining homepage runtime a11y proof, and residual
 agent/worktree verification process hygiene.
 
+Entry 423 closes a parent-verified hidden-residue pass across private response
+headers, account-state action checks, provider-error telemetry, and Sentry
+redaction. Three read-only sidecar scans were used for disjoint source
+inventory, and each finding below was reviewed against current code before
+patching.
+
+First, several auth-, cookie-, or token-varying responses now use the shared
+private response contract. Middleware API rejects for auth/account-state/terms
+and Admin PIN now wrap `NextResponse.json()` with `privateResponse()` while
+preserving `x-request-id`; `HTTP_STATUS.PRECONDITION_REQUIRED` names the terms
+gate. Tokenized `/api/email/unsubscribe` and `/api/newsletter/confirm` HTML
+and JSON responses now set `Cache-Control: private, no-store, max-age=0` and
+`Vary: Cookie` through `privateResponse()` / `privateJson()`. Optional-auth
+listing/seller analytics telemetry keeps the silent 200/no-op behavior but
+also wraps JSON responses with `privateResponse()` because those handlers read
+Clerk state and tracking cookies. The local-only dev order fixture now returns
+private JSON and named statuses when explicitly enabled.
+
+Second, source-proven account-state and provider-error residues were reduced.
+`removeSellerAvatar()` now rate-limits first, then uses `ensureSeller()` and
+updates by seller profile id, so banned/deleted account checks match the other
+profile actions. Processed image upload public-availability probe failures now
+log the detailed R2/CDN diagnostic through `logServerError()` with endpoint and
+hashed object-key context, then return generic 502 copy to the uploader instead
+of echoing provider/config details. `sendRenderedEmail(..., { throwOnFailure:
+true })` provider-send failures now rethrow a sanitized error from the central
+email helper so downstream duplicate captures cannot persist raw Resend/network
+messages or stacks.
+
+Third, remaining observability gaps in adjacent source were reduced. Founding
+Maker grant failures now use `logServerError()` with bounded seller-profile
+context instead of direct raw Sentry capture and non-production raw console
+logging. Stripe Connect status refresh failures now log
+`stripe_connect_status_refresh` with bounded account-version/prior-state
+context and return private generic 503 with stale local status plus
+`refreshUnavailable: true`. Sentry `beforeSend` now redacts the typed
+`q` parameter for `/api/address/autocomplete` request URL/query context.
+
+Guardrails:
+`tests/private-json-cache-headers.test.mjs`,
+`tests/http-rate-limit-followups.test.mjs`,
+`tests/public-api-auth-inventory.test.mjs`,
+`tests/pr-h-deletion-analytics-email-followups.test.mjs`,
+`tests/pr-i-media-upload-unsubscribe-followups.test.mjs`,
+`tests/post-launch-ui-followups.test.mjs`,
+`tests/terms-acceptance-enforcement.test.mjs`,
+`tests/upload-ux-followups.test.mjs`,
+`tests/seller-ops-hardening.test.mjs`,
+`tests/account-privacy-observability.test.mjs`,
+`tests/sentry-filter.test.mjs`,
+`tests/stripe-connect-v2.test.mjs`, and
+`tests/http-status-constants.test.mjs`.
+
+Current running tally after Entry 423: verified fixed/reduced 789, verified
+stale/false-positive/current 473, deferred product/design/ops/legal 73,
+approximate raw allegations left from current max #1126: 79. The fixed count
+increases by ten for middleware private API rejects, tokenized email route
+private/no-store responses, optional-auth telemetry private responses, dev order
+fixture private responses/status naming, seller avatar removal account-state
+enforcement, processed-image public-availability generic client errors plus
+bounded telemetry, central email sanitized provider rethrow, Founding Maker
+sanitized failure logging, Stripe Connect status refresh sanitized telemetry,
+and address-autocomplete Sentry `q` redaction. Stale/current, deferred, and
+approximate raw counts stay flat because this was a source-discovered residue
+pass inside already-open categories rather than newly numbered raw findings.
+
+Remaining major categories: Stripe webhook subscription dashboard evidence,
+Stripe Connect v2 loss-liability ops/legal decision, stale remote branch and
+old git author hygiene, Round 10 deferred cache/state-machine product designs
+that require product decisions rather than source guardrails, remaining
+EXPLAIN-dependent query-plan/index validation, Stripe partial-refund runtime
+reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope, remaining privacy/export retention decisions,
+cross-seller AI duplicate-detection product design, legacy enum
+cleanup/data-migration decisions, partial multi-seller checkout continuation
+design, deliberate BigInt money-column modeling, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket/dashboard/direct-upload enforcement evidence, HSTS
+preload submission decision, residual lower-risk HTTP-status/logging hygiene
+outside touched routes, Vercel Analytics/Speed Insights product/privacy
+decision, remaining homepage runtime a11y proof, and residual
+agent/worktree verification process hygiene.
+
 Entry 422 closes a source-verified residual AI-review observability,
 private-response, and cron-status pass with two read-only sidecar scans plus
 parent review. The agents were used only for disjoint source scans and were

@@ -11,6 +11,8 @@ import { logSecurityEvent } from "@/lib/security";
 import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
 import { isRequestBodyTooLargeError, readBoundedText, readOptionalBoundedJson } from "@/lib/requestBody";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,14 +31,14 @@ function escapeHtml(value: string): string {
     .replaceAll("'", "&#039;");
 }
 
-function htmlDocument(title: string, bodyHtml: string, status = 200) {
-  return new NextResponse(
+function htmlDocument(title: string, bodyHtml: string, status: number = HTTP_STATUS.OK) {
+  return privateResponse(new NextResponse(
     `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title></head><body style="margin:0;background:#fafaf8;color:#1c1c1a;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;"><main style="max-width:520px;margin:12vh auto;padding:0 24px;"><h1 style="font-size:24px;line-height:1.2;margin:0 0 12px;">${escapeHtml(title)}</h1>${bodyHtml}<p style="margin:24px 0 0;"><a href="/" style="color:#1c1c1a;">Return to Grainline</a></p></main></body></html>`,
     { status, headers: { "Content-Type": "text/html; charset=utf-8" } }
-  );
+  ));
 }
 
-function htmlResponse(title: string, message: string, status = 200) {
+function htmlResponse(title: string, message: string, status: number = HTTP_STATUS.OK) {
   return htmlDocument(
     title,
     `<p style="font-size:15px;line-height:1.6;color:#55514a;margin:0;">${escapeHtml(message)}</p>`,
@@ -127,9 +129,9 @@ async function validateUnsubscribeRequest(req: NextRequest, mode: "json" | "html
   const rate = await safeRateLimit(unsubscribeRatelimit, getIP(req));
   if (!rate.success) {
     if (mode === "html") {
-      return { response: htmlResponse("Too many requests", "Please wait a few minutes before trying this unsubscribe link again.", 429) };
+      return { response: htmlResponse("Too many requests", "Please wait a few minutes before trying this unsubscribe link again.", HTTP_STATUS.TOO_MANY_REQUESTS) };
     }
-    return { response: rateLimitResponse(rate.reset, "Too many unsubscribe attempts.") };
+    return { response: privateResponse(rateLimitResponse(rate.reset, "Too many unsubscribe attempts.")) };
   }
 
   const { email, token, issuedAt } = await readUnsubscribeParams(req);
@@ -145,9 +147,9 @@ async function validateUnsubscribeRequest(req: NextRequest, mode: "json" | "html
       tokenLength: token?.length ?? 0,
     });
     if (mode === "html") {
-      return { response: htmlResponse("Invalid unsubscribe link", "This unsubscribe link is invalid or has expired.", 400) };
+      return { response: htmlResponse("Invalid unsubscribe link", "This unsubscribe link is invalid or has expired.", HTTP_STATUS.BAD_REQUEST) };
     }
-    return { response: NextResponse.json({ ok: false, error: "Invalid unsubscribe link" }, { status: 400 }) };
+    return { response: privateJson({ ok: false, error: "Invalid unsubscribe link" }, { status: HTTP_STATUS.BAD_REQUEST }) };
   }
 
   if (await unsubscribeTokenSuperseded(email, issuedAt)) {
@@ -162,9 +164,9 @@ async function validateUnsubscribeRequest(req: NextRequest, mode: "json" | "html
       tokenLength: token.length,
     });
     if (mode === "html") {
-      return { response: htmlResponse("Invalid unsubscribe link", "This unsubscribe link is invalid or has expired.", 400) };
+      return { response: htmlResponse("Invalid unsubscribe link", "This unsubscribe link is invalid or has expired.", HTTP_STATUS.BAD_REQUEST) };
     }
-    return { response: NextResponse.json({ ok: false, error: "Invalid unsubscribe link" }, { status: 400 }) };
+    return { response: privateJson({ ok: false, error: "Invalid unsubscribe link" }, { status: HTTP_STATUS.BAD_REQUEST }) };
   }
 
   return { email, token, issuedAt };
@@ -184,9 +186,9 @@ async function handlePost(req: NextRequest) {
       expectedOrigin: crossOriginRejection.expectedOrigin,
     });
     if (mode === "html") {
-      return htmlResponse("Invalid unsubscribe request", "This unsubscribe request could not be verified.", 403);
+      return htmlResponse("Invalid unsubscribe request", "This unsubscribe request could not be verified.", HTTP_STATUS.FORBIDDEN);
     }
-    return NextResponse.json({ ok: false, error: "Invalid unsubscribe request" }, { status: 403 });
+    return privateJson({ ok: false, error: "Invalid unsubscribe request" }, { status: HTTP_STATUS.FORBIDDEN });
   }
 
   let validated: Awaited<ReturnType<typeof validateUnsubscribeRequest>>;
@@ -195,9 +197,9 @@ async function handlePost(req: NextRequest) {
   } catch (error) {
     if (isRequestBodyTooLargeError(error)) {
       if (mode === "html") {
-        return htmlResponse("Request too large", "This unsubscribe request is too large.", 413);
+        return htmlResponse("Request too large", "This unsubscribe request is too large.", HTTP_STATUS.PAYLOAD_TOO_LARGE);
       }
-      return NextResponse.json({ ok: false, error: "Request body too large" }, { status: 413 });
+      return privateJson({ ok: false, error: "Request body too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
     }
     throw error;
   }
@@ -211,17 +213,17 @@ async function handlePost(req: NextRequest) {
       return htmlResponse(
         "Too many requests",
         "Please wait a moment before trying this unsubscribe link again.",
-        429,
+        HTTP_STATUS.TOO_MANY_REQUESTS,
       );
     }
-    return rateLimitResponse(emailRate.reset, "Too many unsubscribe attempts for this email.");
+    return privateResponse(rateLimitResponse(emailRate.reset, "Too many unsubscribe attempts for this email."));
   }
 
   try {
     const result = await unsubscribeEmail(email);
     if (!result.ok) {
-      if (mode === "html") return htmlResponse("Invalid email address", "We could not process that email address.", 400);
-      return NextResponse.json({ ok: false, error: "Invalid email address" }, { status: 400 });
+      if (mode === "html") return htmlResponse("Invalid email address", "We could not process that email address.", HTTP_STATUS.BAD_REQUEST);
+      return privateJson({ ok: false, error: "Invalid email address" }, { status: HTTP_STATUS.BAD_REQUEST });
     }
   } catch (error) {
     logServerError(error, {
@@ -229,14 +231,14 @@ async function handlePost(req: NextRequest) {
       level: "warning",
       extra: { emailHash: hashEmailForTelemetry(email) },
     });
-    if (mode === "html") return htmlResponse("Unsubscribe failed", "We could not process this request. Please try again later.", 500);
-    return NextResponse.json({ ok: false, error: "Unsubscribe failed" }, { status: 500 });
+    if (mode === "html") return htmlResponse("Unsubscribe failed", "We could not process this request. Please try again later.", HTTP_STATUS.INTERNAL_SERVER_ERROR);
+    return privateJson({ ok: false, error: "Unsubscribe failed" }, { status: HTTP_STATUS.INTERNAL_SERVER_ERROR });
   }
 
   if (mode === "html") {
     return htmlResponse("You're unsubscribed", "We have turned off Grainline email notifications and removed this email from newsletter sends.");
   }
-  return NextResponse.json({ ok: true });
+  return privateJson({ ok: true });
 }
 
 export async function POST(req: NextRequest) {

@@ -21,6 +21,7 @@ describe("HTTP status constants", () => {
       ["METHOD_NOT_ALLOWED", 405],
       ["PAYLOAD_TOO_LARGE", 413],
       ["LENGTH_REQUIRED", 411],
+      ["PRECONDITION_REQUIRED", 428],
       ["TOO_MANY_REQUESTS", 429],
       ["INTERNAL_SERVER_ERROR", 500],
       ["BAD_GATEWAY", 502],

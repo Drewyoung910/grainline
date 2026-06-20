@@ -15,6 +15,8 @@ const SECRET_KEY_PATTERN = /(authorization|cookie|set-cookie|email|ip[_-]?addres
 const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 const URL_PATTERN = /https?:\/\/[^\s"'<>]+/gi;
 const TOKEN_QUERY_PATTERN = /(^|[?&\s])((?:token|signature|sig|code|session_id|client_secret)=)[^&\s,]+/gi;
+const ADDRESS_AUTOCOMPLETE_PATH_PATTERN = /\/api\/address\/autocomplete\b/i;
+const ADDRESS_AUTOCOMPLETE_QUERY_PATTERN = /(^|[?&])q=[^&#\s]*/gi;
 const PROVIDER_TOKEN_PATTERN = /\b(?:acct_|ch_|cs_|cu_|evt_|in_|pi_|po_|re_|rk_|seti_|sk_|pk_|tr_|txn_|whsec_|svix_|v1_|eyJ)[A-Za-z0-9._~+/=-]{12,}\b/g;
 const CUID_PATTERN = /\bc[a-z0-9]{24,}\b/g;
 const LONG_HEX_PATTERN = /\b[a-f0-9]{32,}\b/gi;
@@ -64,6 +66,14 @@ function scrubString(value: string, opts: { redactUrls?: boolean } = {}) {
     .replace(LONG_HEX_PATTERN, "[redacted-token]");
 }
 
+function isAddressAutocompleteValue(value: unknown) {
+  return typeof value === "string" && ADDRESS_AUTOCOMPLETE_PATH_PATTERN.test(value);
+}
+
+function scrubAddressAutocompleteQuery(value: string) {
+  return value.replace(ADDRESS_AUTOCOMPLETE_QUERY_PATTERN, "$1q=[redacted]");
+}
+
 function scrubValue(value: unknown, depth = 0): unknown {
   if (depth > 8) return "[redacted-depth]";
   if (typeof value === "string") return scrubString(value, { redactUrls: true });
@@ -96,21 +106,39 @@ export function beforeSend(event: ErrorEvent, hint?: EventHint): ErrorEvent | nu
   if (NOISY_PATTERNS.some((pattern) => pattern.test(text))) return null;
 
   if (typeof event.message === "string") event.message = scrubString(event.message, { redactUrls: true });
-  if (typeof event.transaction === "string") event.transaction = scrubString(event.transaction, { redactUrls: true });
+  const isAddressAutocompleteRequest =
+    isAddressAutocompleteValue(event.request?.url) ||
+    isAddressAutocompleteValue(event.transaction);
+  if (typeof event.transaction === "string") {
+    const transaction = scrubString(event.transaction, { redactUrls: true });
+    event.transaction = isAddressAutocompleteValue(transaction)
+      ? scrubAddressAutocompleteQuery(transaction)
+      : transaction;
+  }
   if (event.exception) event.exception = scrubValue(event.exception) as ErrorEvent["exception"];
 
   if (event.request) {
     if (event.request.headers) event.request.headers = scrubHeaders(event.request.headers);
     if (event.request.cookies) event.request.cookies = {};
     if (typeof event.request.query_string === "string") {
-      event.request.query_string = scrubString(event.request.query_string);
+      const queryString = scrubString(event.request.query_string);
+      event.request.query_string = isAddressAutocompleteRequest
+        ? scrubAddressAutocompleteQuery(queryString)
+        : queryString;
     } else if (Array.isArray(event.request.query_string)) {
       event.request.query_string = event.request.query_string.map(([key, value]) => [
         key,
-        SECRET_KEY_PATTERN.test(key) ? "[redacted]" : scrubString(value),
+        SECRET_KEY_PATTERN.test(key) || (isAddressAutocompleteRequest && key === "q")
+          ? "[redacted]"
+          : scrubString(value),
       ]);
     }
-    if (typeof event.request.url === "string") event.request.url = scrubString(event.request.url);
+    if (typeof event.request.url === "string") {
+      const url = scrubString(event.request.url);
+      event.request.url = isAddressAutocompleteValue(url)
+        ? scrubAddressAutocompleteQuery(url)
+        : url;
+    }
   }
 
   if (event.user) {

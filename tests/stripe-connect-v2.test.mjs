@@ -173,6 +173,12 @@ describe("Stripe Connect v2 migration guardrails", () => {
     assert.match(statusRoute, /rateLimitResponse\(reset, "Too many Stripe status checks\."\)/);
     assert.match(statusRoute, /ensureUserByClerkId\(userId\)/);
     assert.match(statusRoute, /accountAccessErrorResponse\(err\)/);
+    assert.match(statusRoute, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
+    assert.match(statusRoute, /source: "stripe_connect_status_refresh"/);
+    assert.match(statusRoute, /previousChargesEnabled: seller\.chargesEnabled/);
+    assert.match(statusRoute, /refreshUnavailable: true/);
+    assert.match(statusRoute, /status: HTTP_STATUS\.SERVICE_UNAVAILABLE/);
+    assert.doesNotMatch(statusRoute, /Sentry\.captureException|console\.error\(/);
 
     const webhook = source("src/app/api/stripe/webhook/route.ts");
     assert.match(webhook, /event\.type === "account\.updated"/);

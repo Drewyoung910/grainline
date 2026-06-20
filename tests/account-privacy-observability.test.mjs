@@ -477,6 +477,9 @@ describe("account and privacy route observability guardrails", () => {
     assert.match(email, /function sanitizedEmailSentryError\(error: unknown\)/);
     assert.match(email, /sanitizeEmailOutboxError\(error\.stack\)/);
     assert.match(email, /Sentry\.captureException\(sanitizedEmailSentryError\(err\), \{/);
+    const sendFailureCatch = email.slice(email.indexOf('console.error("[email] send failed:'));
+    assert.match(sendFailureCatch, /if \(opts\.throwOnFailure\) throw sanitizedEmailSentryError\(err\);/);
+    assert.doesNotMatch(sendFailureCatch, /if \(opts\.throwOnFailure\) throw err;/);
     assert.doesNotMatch(email, /Sentry\.captureException\(err, \{[\s\S]*source: "email_send_retry"/);
     assert.doesNotMatch(email, /Sentry\.captureException\(err, \{[\s\S]*source: "email_send"/);
     assert.doesNotMatch(

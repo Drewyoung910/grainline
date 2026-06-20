@@ -10,6 +10,8 @@ import { signInPathForRedirect } from "@/lib/internalReturnUrl";
 import { normalizeRequestId, requestHeadersWithRequestId, REQUEST_ID_HEADER } from "@/lib/requestId";
 import { shouldRequireTermsAcceptance } from "@/lib/termsAcceptance";
 import { getCachedAccountStateForMiddleware } from "@/lib/accountStateCache";
+import { privateResponse } from "@/lib/privateResponse";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 const isPublic = createRouteMatcher([
   "/",
@@ -139,10 +141,14 @@ function withRequestId<T extends NextResponse>(response: T, requestId: string): 
   return response;
 }
 
+function privateApiJson(body: Record<string, unknown>, init: ResponseInit, requestId: string) {
+  return withRequestId(privateResponse(NextResponse.json(body, init)), requestId);
+}
+
 function forbiddenFor(req: Request, requestId: string) {
   const url = new URL(req.url);
   if (url.pathname.startsWith("/api/")) {
-    return withRequestId(NextResponse.json({ error: "Forbidden" }, { status: 403 }), requestId);
+    return privateApiJson({ error: "Forbidden" }, { status: HTTP_STATUS.FORBIDDEN }, requestId);
   }
   return withRequestId(NextResponse.redirect(new URL("/", req.url)), requestId);
 }
@@ -150,7 +156,7 @@ function forbiddenFor(req: Request, requestId: string) {
 function signInRequiredFor(req: Request, requestId: string) {
   const url = new URL(req.url);
   if (url.pathname.startsWith("/api/")) {
-    return withRequestId(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), requestId);
+    return privateApiJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED }, requestId);
   }
 
   return withRequestId(
@@ -162,13 +168,14 @@ function signInRequiredFor(req: Request, requestId: string) {
 function termsRequiredFor(req: Request, requestId: string) {
   const url = new URL(req.url);
   if (url.pathname.startsWith("/api/")) {
-    return withRequestId(NextResponse.json(
+    return privateApiJson(
       {
         error: "You must accept Grainline's Terms of Service and confirm your age before continuing.",
         code: "TERMS_NOT_ACCEPTED",
       },
-      { status: 428 },
-    ), requestId);
+      { status: HTTP_STATUS.PRECONDITION_REQUIRED },
+      requestId,
+    );
   }
 
   const acceptUrl = new URL("/accept-terms", req.url);
@@ -236,7 +243,7 @@ export default clerkMiddleware(async (auth, req) => {
   }
 
   if (isCronPath(req.nextUrl.pathname) && !verifyCronRequest(req)) {
-    return withRequestId(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), requestId);
+    return privateApiJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED }, requestId);
   }
 
   const { userId, sessionId } = await auth();
@@ -276,15 +283,16 @@ export default clerkMiddleware(async (auth, req) => {
   if (userId && !isSuspendedAccountAllowed(req)) {
     if (account?.banned || account?.deletedAt) {
       if (req.nextUrl.pathname.startsWith("/api/")) {
-        return withRequestId(NextResponse.json(
+        return privateApiJson(
           {
             error: account.deletedAt
               ? "This account has been deleted. Contact support@thegrainline.com"
               : "Your account has been suspended. Contact support@thegrainline.com",
             code: account.deletedAt ? "ACCOUNT_DELETED" : "ACCOUNT_SUSPENDED",
           },
-          { status: 403 },
-        ), requestId);
+          { status: HTTP_STATUS.FORBIDDEN },
+          requestId,
+        );
       }
       return withRequestId(NextResponse.redirect(new URL("/banned", req.url)), requestId);
     }
@@ -321,7 +329,7 @@ export default clerkMiddleware(async (auth, req) => {
         sessionId,
       );
       if (!pinVerified) {
-        return withRequestId(NextResponse.json({ error: "Admin PIN required" }, { status: 403 }), requestId);
+        return privateApiJson({ error: "Admin PIN required" }, { status: HTTP_STATUS.FORBIDDEN }, requestId);
       }
     }
   }

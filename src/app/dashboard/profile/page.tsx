@@ -260,10 +260,10 @@ async function removeSellerAvatar() {
   if (!userId) return;
   const { success } = await safeRateLimit(sellerProfileRatelimit, userId);
   if (!success) return;
-  const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
-  if (!me) return;
-  await prisma.sellerProfile.update({ where: { userId: me.id }, data: { avatarImageUrl: null } });
+  const { seller } = await ensureSeller();
+  await prisma.sellerProfile.update({ where: { id: seller.id }, data: { avatarImageUrl: null } });
   revalidatePath("/dashboard/profile");
+  revalidatePath(`/seller/${seller.id}`);
 }
 
 async function toggleFeaturedListing(listingId: string) {

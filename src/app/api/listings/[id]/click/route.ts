@@ -12,8 +12,13 @@ import {
 import { hasTrackingCookie, setTrackingCookie } from "@/lib/listingTrackingCookies";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { isLikelyBotUserAgent } from "@/lib/botUserAgent";
+import { privateResponse } from "@/lib/privateResponse";
 
 const CLICKED_LISTING_IDS_COOKIE = "clicked_listing_ids";
+
+function telemetryJson(body: Record<string, unknown>) {
+  return privateResponse(NextResponse.json(body));
+}
 
 function todayUtcBucket() {
   const today = new Date();
@@ -26,18 +31,18 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const userAgent = req.headers.get("user-agent") ?? "";
-  if (isLikelyBotUserAgent(userAgent)) return NextResponse.json({ ok: true, skipped: true });
+  if (isLikelyBotUserAgent(userAgent)) return telemetryJson({ ok: true, skipped: true });
 
   const ip = getIP(req);
   const { success } = await safeRateLimitOpen(clickRatelimit, ip);
-  if (!success) return NextResponse.json({ ok: true, skipped: true });
+  if (!success) return telemetryJson({ ok: true, skipped: true });
 
   const { id } = await params;
   const { userId } = await auth();
 
   // Per-IP+listing dedup (24h) — silently skip if already counted
   const { success: perClickOk } = await safeRateLimitOpen(clickDedupRatelimit, `${ip}:${id}`);
-  if (!perClickOk) return NextResponse.json({ ok: true, skipped: true });
+  if (!perClickOk) return telemetryJson({ ok: true, skipped: true });
   const cookieStore = await cookies();
   const legacyCookieName = `clicked_${id}`;
   const tracking = hasTrackingCookie(
@@ -48,7 +53,7 @@ export async function POST(
   );
 
   if (tracking.hasTracked) {
-    const res = NextResponse.json({ ok: true, skipped: true });
+    const res = telemetryJson({ ok: true, skipped: true });
     if (tracking.hasLegacyCookie) {
       setTrackingCookie(
         res.cookies,
@@ -62,7 +67,7 @@ export async function POST(
   }
 
   const dailyCapOk = await claimListingAnalyticsDailyCap("click", id);
-  if (!dailyCapOk) return NextResponse.json({ ok: true, skipped: true });
+  if (!dailyCapOk) return telemetryJson({ ok: true, skipped: true });
 
   const tracked = await prisma.$transaction(async (tx) => {
     const updated = await tx.listing.updateMany({
@@ -88,9 +93,9 @@ export async function POST(
     });
     return true;
   });
-  if (!tracked) return NextResponse.json({ ok: true, skipped: true });
+  if (!tracked) return telemetryJson({ ok: true, skipped: true });
 
-  const res = NextResponse.json({ ok: true });
+  const res = telemetryJson({ ok: true });
   setTrackingCookie(res.cookies, CLICKED_LISTING_IDS_COOKIE, tracking.aggregateIds, id);
   return res;
 }

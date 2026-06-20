@@ -6,6 +6,8 @@ import { isRequestBodyTooLargeError, readBoundedText, readOptionalBoundedJson } 
 import { clearOneClickEmailSuppression } from "@/lib/emailSuppression";
 import { hashNewsletterConfirmationToken, safeEqualNewsletterTokenHash } from "@/lib/newsletterConfirmation";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,14 +24,14 @@ function escapeHtml(value: string): string {
     .replaceAll("'", "&#039;");
 }
 
-function htmlDocument(title: string, bodyHtml: string, status = 200) {
-  return new NextResponse(
+function htmlDocument(title: string, bodyHtml: string, status: number = HTTP_STATUS.OK) {
+  return privateResponse(new NextResponse(
     `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title></head><body style="margin:0;background:#fafaf8;color:#1c1c1a;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;"><main style="max-width:520px;margin:12vh auto;padding:0 24px;"><h1 style="font-size:24px;line-height:1.2;margin:0 0 12px;">${escapeHtml(title)}</h1>${bodyHtml}<p style="margin:24px 0 0;"><a href="/" style="color:#1c1c1a;">Return to Grainline</a></p></main></body></html>`,
     { status, headers: { "Content-Type": "text/html; charset=utf-8" } },
-  );
+  ));
 }
 
-function htmlResponse(title: string, message: string, status = 200) {
+function htmlResponse(title: string, message: string, status: number = HTTP_STATUS.OK) {
   return htmlDocument(
     title,
     `<p style="font-size:15px;line-height:1.6;color:#55514a;margin:0;">${escapeHtml(message)}</p>`,
@@ -72,17 +74,17 @@ async function validateConfirmationToken(req: NextRequest, mode: "json" | "html"
   const rate = await safeRateLimit(newsletterRatelimit, `newsletter-confirm:${getIP(req)}`);
   if (!rate.success) {
     if (mode === "html") {
-      return { response: htmlResponse("Too many requests", "Please wait a few minutes before trying this confirmation link again.", 429) };
+      return { response: htmlResponse("Too many requests", "Please wait a few minutes before trying this confirmation link again.", HTTP_STATUS.TOO_MANY_REQUESTS) };
     }
-    return { response: rateLimitResponse(rate.reset, "Too many newsletter confirmation attempts.") };
+    return { response: privateResponse(rateLimitResponse(rate.reset, "Too many newsletter confirmation attempts.")) };
   }
 
   const token = await readConfirmationToken(req);
   if (!token) {
     if (mode === "html") {
-      return { response: htmlResponse("Invalid confirmation link", "This confirmation link is invalid or has expired.", 400) };
+      return { response: htmlResponse("Invalid confirmation link", "This confirmation link is invalid or has expired.", HTTP_STATUS.BAD_REQUEST) };
     }
-    return { response: NextResponse.json({ ok: false, error: "Invalid confirmation link" }, { status: 400 }) };
+    return { response: privateJson({ ok: false, error: "Invalid confirmation link" }, { status: HTTP_STATUS.BAD_REQUEST }) };
   }
 
   const tokenHash = hashNewsletterConfirmationToken(token);
@@ -103,7 +105,7 @@ export async function GET(req: NextRequest) {
   });
 
   if (!subscriber?.confirmationTokenHash || !safeEqualNewsletterTokenHash(subscriber.confirmationTokenHash, validated.tokenHash)) {
-    return htmlResponse("Invalid confirmation link", "This confirmation link is invalid or has expired.", 400);
+    return htmlResponse("Invalid confirmation link", "This confirmation link is invalid or has expired.", HTTP_STATUS.BAD_REQUEST);
   }
 
   return confirmationResponse(validated.token);
@@ -114,9 +116,9 @@ export async function POST(req: NextRequest) {
   const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
   if (crossOriginRejection) {
     if (mode === "html") {
-      return htmlResponse("Invalid confirmation request", "This confirmation request could not be verified.", 403);
+      return htmlResponse("Invalid confirmation request", "This confirmation request could not be verified.", HTTP_STATUS.FORBIDDEN);
     }
-    return NextResponse.json({ ok: false, error: "Invalid confirmation request" }, { status: 403 });
+    return privateJson({ ok: false, error: "Invalid confirmation request" }, { status: HTTP_STATUS.FORBIDDEN });
   }
 
   let validated: Awaited<ReturnType<typeof validateConfirmationToken>>;
@@ -124,8 +126,8 @@ export async function POST(req: NextRequest) {
     validated = await validateConfirmationToken(req, mode);
   } catch (error) {
     if (isRequestBodyTooLargeError(error)) {
-      if (mode === "html") return htmlResponse("Request too large", "This confirmation request is too large.", 413);
-      return NextResponse.json({ ok: false, error: "Request body too large" }, { status: 413 });
+      if (mode === "html") return htmlResponse("Request too large", "This confirmation request is too large.", HTTP_STATUS.PAYLOAD_TOO_LARGE);
+      return privateJson({ ok: false, error: "Request body too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
     }
     throw error;
   }
@@ -143,9 +145,9 @@ export async function POST(req: NextRequest) {
 
     if (!subscriber?.confirmationTokenHash || !safeEqualNewsletterTokenHash(subscriber.confirmationTokenHash, validated.tokenHash)) {
       if (mode === "html") {
-        return htmlResponse("Invalid confirmation link", "This confirmation link is invalid or has expired.", 400);
+        return htmlResponse("Invalid confirmation link", "This confirmation link is invalid or has expired.", HTTP_STATUS.BAD_REQUEST);
       }
-      return NextResponse.json({ ok: false, error: "Invalid confirmation link" }, { status: 400 });
+      return privateJson({ ok: false, error: "Invalid confirmation link" }, { status: HTTP_STATUS.BAD_REQUEST });
     }
 
     const now = new Date();
@@ -173,20 +175,20 @@ export async function POST(req: NextRequest) {
 
     if (!confirmed) {
       if (mode === "html") {
-        return htmlResponse("Invalid confirmation link", "This confirmation link is invalid or has expired.", 400);
+        return htmlResponse("Invalid confirmation link", "This confirmation link is invalid or has expired.", HTTP_STATUS.BAD_REQUEST);
       }
-      return NextResponse.json({ ok: false, error: "Invalid confirmation link" }, { status: 400 });
+      return privateJson({ ok: false, error: "Invalid confirmation link" }, { status: HTTP_STATUS.BAD_REQUEST });
     }
 
     if (mode === "html") return htmlResponse("Subscription confirmed", "You're on the Grainline newsletter list.");
-    return NextResponse.json({ ok: true });
+    return privateJson({ ok: true });
   } catch (error) {
     logServerError(error, {
       level: "warning",
       source: "newsletter_confirm",
       extra: { tokenHashPrefix: "tokenHash" in validated ? validated.tokenHash.slice(0, 8) : undefined },
     });
-    if (mode === "html") return htmlResponse("Confirmation failed", "We could not confirm this subscription. Please try again later.", 500);
-    return NextResponse.json({ ok: false, error: "Confirmation failed" }, { status: 500 });
+    if (mode === "html") return htmlResponse("Confirmation failed", "We could not confirm this subscription. Please try again later.", HTTP_STATUS.INTERNAL_SERVER_ERROR);
+    return privateJson({ ok: false, error: "Confirmation failed" }, { status: HTTP_STATUS.INTERNAL_SERVER_ERROR });
   }
 }

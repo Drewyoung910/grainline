@@ -65,7 +65,8 @@ describe("public API auth inventory", () => {
       assert.match(route, /const \{ userId \} = await auth\(\)/);
       assert.doesNotMatch(route, /if \s*\(!userId\)/);
       assert.doesNotMatch(route, /ensureUser|ensureSeller|verifyCronRequest/);
-      assert.match(route, /NextResponse\.json\(\{ ok: true/);
+      assert.match(route, /telemetryJson\(\{ ok: true/);
+      assert.match(route, /privateResponse\(NextResponse\.json\(body\)\)/);
     }
   });
 

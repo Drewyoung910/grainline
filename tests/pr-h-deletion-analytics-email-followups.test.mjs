@@ -30,7 +30,8 @@ describe("PR H account deletion, analytics, and email follow-ups", () => {
     ]) {
       const text = source(path);
       assert.match(text, /isLikelyBotUserAgent/);
-      assert.match(text, /return NextResponse\.json\(\{ ok: true, skipped: true \}\)/);
+      assert.match(text, /return telemetryJson\(\{ ok: true, skipped: true \}\)/);
+      assert.match(text, /privateResponse\(NextResponse\.json\(body\)\)/);
     }
   });
 

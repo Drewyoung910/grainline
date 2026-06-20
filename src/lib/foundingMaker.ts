@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import * as Sentry from "@sentry/nextjs";
+import { logServerError } from "@/lib/serverErrorLogger";
 
 const FOUNDING_MAKER_CAP = 250;
 const FOUNDING_MAKER_LOCK_NAMESPACE = 913337;
@@ -74,13 +74,10 @@ export async function maybeGrantFoundingMaker(sellerProfileId: string): Promise<
     }, { maxWait: 5000, timeout: 10000 });
   } catch (err) {
     // Non-fatal: the listing transition is the primary work, the badge is a bonus.
-    Sentry.captureException(err, {
+    logServerError(err, {
       level: "warning",
-      tags: { source: "founding_maker_grant" },
+      source: "founding_maker_grant",
       extra: { sellerProfileId },
     });
-    if (process.env.NODE_ENV !== "production") {
-      console.error("[founding-maker] grant failed", err);
-    }
   }
 }
