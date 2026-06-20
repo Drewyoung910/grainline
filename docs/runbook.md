@@ -7,7 +7,7 @@ This runbook covers the minimum operational steps for production incidents, depl
 ## Incident Triage
 
 1. Check `/api/health` for anonymous uptime status.
-2. Check verbose health with `HEALTH_CHECK_TOKEN` when backend dependency details are needed.
+2. Check verbose health with `Authorization: Bearer $HEALTH_CHECK_TOKEN` when backend dependency details are needed. Do not put the token in the URL.
 3. Check Sentry for the current deploy SHA, request IDs, and recent error spikes.
 4. Check Vercel deployment logs for failed middleware, route-handler, or build errors.
 5. Check Stripe Dashboard for payment, webhook, dispute, and Connect-account alerts.
@@ -175,8 +175,9 @@ Production migration rules:
 2. Check `/api/cron/*` logs in Vercel for route-level failures.
 3. Check `CronRun` rows with `status = FAILED` in the last 24 hours.
 4. Check Sentry for cron route exceptions and failed cron check-ins.
-5. For email delays, inspect `EmailOutbox` rows by `status`, `nextAttemptAt`, `attempts`, `dedupKey`, and `lastError`. Retryable provider sends use `dedupKey` as the Resend idempotency key, so check the Resend dashboard before manually resending a stuck `PROCESSING` row. `SENT`, `SKIPPED`, and `DEAD` rows are pruned after 30 days by the daily notification-prune cron.
-6. Keep outbox draining at bounded concurrency; do not manually send large batches outside the quota guard.
+5. For abandoned direct uploads, inspect `DirectUpload` rows by `status`, `cleanupAfter`, `attempts`, `endpoint`, and `lastError`. `/api/cron/direct-upload-cleanup` deletes expired unclaimed direct-upload keys from R2 and reports per-row failures in `CronRun.result.failures`; investigate repeated `DELETE_FAILED` rows before manually deleting objects.
+6. For email delays, inspect `EmailOutbox` rows by `status`, `nextAttemptAt`, `attempts`, `dedupKey`, and `lastError`. Retryable provider sends use `dedupKey` as the Resend idempotency key, so check the Resend dashboard before manually resending a stuck `PROCESSING` row. `SENT`, `SKIPPED`, and `DEAD` rows are pruned after 30 days by the daily notification-prune cron.
+7. Keep outbox draining at bounded concurrency; do not manually send large batches outside the quota guard.
 
 ## Support and Legal Requests
 

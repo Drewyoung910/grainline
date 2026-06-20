@@ -57,9 +57,13 @@ export function extractR2KeyFromUrl(url: string): string | null {
   }
 }
 
+export async function deleteR2ObjectByKey(key: string) {
+  await r2.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: key }));
+}
+
 export async function deleteR2ObjectByUrl(url: string) {
   const key = extractR2KeyFromUrl(url);
   if (!key) return false;
-  await r2.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: key }));
+  await deleteR2ObjectByKey(key);
   return true;
 }

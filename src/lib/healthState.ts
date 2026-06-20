@@ -17,16 +17,25 @@ export function isFreshHealthResult(
   return Boolean(result && now - result.timestamp < HEALTH_CACHE_MS);
 }
 
-export function isVerboseHealthRequest(url: string, configuredToken: string | null | undefined) {
+type VerboseHealthRequest = Pick<Request, "headers">;
+
+function verboseHealthTokenFromHeaders(headers: Headers) {
+  const authorization = headers.get("authorization")?.trim();
+  const bearerMatch = authorization?.match(/^Bearer\s+(.+)$/i);
+  if (bearerMatch?.[1]?.trim()) return bearerMatch[1].trim();
+
+  const healthHeader = headers.get("x-health-check-token")?.trim();
+  return healthHeader || null;
+}
+
+export function isVerboseHealthRequest(
+  request: VerboseHealthRequest,
+  configuredToken: string | null | undefined,
+) {
   const token = configuredToken?.trim();
   if (!token) return false;
 
-  let supplied: string | null = null;
-  try {
-    supplied = new URL(url).searchParams.get("token");
-  } catch {
-    return false;
-  }
+  const supplied = verboseHealthTokenFromHeaders(request.headers);
   if (!supplied) return false;
   return timingSafeEqual(sha256(supplied), sha256(token));
 }

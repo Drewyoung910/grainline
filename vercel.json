@@ -38,6 +38,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/cron/direct-upload-cleanup",
+      "schedule": "50 * * * *"
+    },
+    {
       "path": "/api/cron/checkout-stock-reservations",
       "schedule": "*/15 * * * *"
     },

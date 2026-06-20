@@ -1112,6 +1112,31 @@ model CronRun {
   @@index([status, startedAt])
 }
 
+model DirectUpload {
+  id            String    @id @default(cuid())
+  key           String    @unique @db.VarChar(500)
+  endpoint      String    @db.VarChar(40)
+  userId        String    @db.VarChar(191)
+  publicUrl     String    @db.VarChar(2048)
+  contentType   String    @db.VarChar(100)
+  expectedSize  Int
+  status        String    @default("PRESIGNED") @db.VarChar(20)
+  cleanupAfter  DateTime?
+  verifiedAt    DateTime?
+  claimedAt     DateTime?
+  claimedByType String?   @db.VarChar(80)
+  claimedById   String?   @db.VarChar(191)
+  deletedAt     DateTime?
+  attempts      Int       @default(0)
+  lastError     String?   @db.VarChar(1000)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status, cleanupAfter])
+  @@index([userId, endpoint])
+  @@index([claimedByType, claimedById])
+}
+
 model SystemAuditLog {
   id         String   @id @default(cuid())
   actorType  String   @db.VarChar(40)

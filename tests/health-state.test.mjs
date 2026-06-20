@@ -17,10 +17,38 @@ describe("health route state helpers", () => {
   });
 
   it("requires the configured token before returning verbose health details", () => {
-    assert.equal(isVerboseHealthRequest("https://example.test/api/health?token=secret", "secret"), true);
-    assert.equal(isVerboseHealthRequest("https://example.test/api/health?token=wrong", "secret"), false);
-    assert.equal(isVerboseHealthRequest("https://example.test/api/health?token=secret", ""), false);
-    assert.equal(isVerboseHealthRequest("not a url", "secret"), false);
+    assert.equal(
+      isVerboseHealthRequest(
+        new Request("https://example.test/api/health", { headers: { authorization: "Bearer secret" } }),
+        "secret",
+      ),
+      true,
+    );
+    assert.equal(
+      isVerboseHealthRequest(
+        new Request("https://example.test/api/health", { headers: { "x-health-check-token": "secret" } }),
+        "secret",
+      ),
+      true,
+    );
+    assert.equal(
+      isVerboseHealthRequest(
+        new Request("https://example.test/api/health", { headers: { authorization: "Bearer wrong" } }),
+        "secret",
+      ),
+      false,
+    );
+    assert.equal(
+      isVerboseHealthRequest(
+        new Request("https://example.test/api/health", { headers: { authorization: "Bearer secret" } }),
+        "",
+      ),
+      false,
+    );
+    assert.equal(
+      isVerboseHealthRequest(new Request("https://example.test/api/health?token=secret"), "secret"),
+      false,
+    );
   });
 
   it("compares verbose health tokens with a constant-time digest check", () => {

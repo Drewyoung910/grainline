@@ -23,6 +23,7 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { uploadTelemetryKeyHash } from "@/lib/uploadTelemetry";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { assertPublicMediaAvailable } from "@/lib/publicMediaAvailability";
+import { markDirectUploadVerified } from "@/lib/directUploadLifecycle";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 
 export const maxDuration = 60;
@@ -54,8 +55,9 @@ async function objectPrefixBytes(key: string) {
 export async function POST(req: Request) {
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
+  let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
   try {
-    await ensureUserByClerkId(userId);
+    me = await ensureUserByClerkId(userId);
   } catch (err) {
     const accountResponse = accountAccessErrorResponse(err);
     if (accountResponse) return accountResponse;
@@ -180,6 +182,26 @@ export async function POST(req: Request) {
     return privateJson(
       { error: "Uploaded media is not publicly available yet." },
       { status: HTTP_STATUS.BAD_GATEWAY },
+    );
+  }
+
+  const lifecycleUpdated = await markDirectUploadVerified({
+    key,
+    endpoint,
+    userId: me.id,
+  });
+  if (!lifecycleUpdated) {
+    await deleteObject(key).catch((cleanupError) => {
+      logServerError(cleanupError, {
+        source: "upload_verify_lifecycle_missing_cleanup",
+        level: "warning",
+        tags: { endpoint },
+        extra: { keyHash: uploadTelemetryKeyHash(key) },
+      });
+    });
+    return privateJson(
+      { error: "Upload verification state expired. Re-upload the file and try again." },
+      { status: HTTP_STATUS.CONFLICT },
     );
   }
 

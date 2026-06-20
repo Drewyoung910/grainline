@@ -142,11 +142,13 @@ describe("upload UX follow-ups", () => {
     assert.match(presignRoute, /ContentLength: size/);
     assert.match(presignRoute, /expectedSize: size/);
     assert.match(presignRoute, /verificationToken/);
+    assert.match(presignRoute, /recordDirectUploadPresigned/);
     assert.match(verifyRoute, /new HeadObjectCommand/);
     assert.match(verifyRoute, /actualSize/);
     assert.match(verifyRoute, /uploadedObjectVerificationError\(\{/);
     assert.match(verifyRoute, /actualSize,\s*expectedSize,\s*maxSize/s);
     assert.match(verifyRoute, /deleteObject\(key\)/);
+    assert.match(verifyRoute, /markDirectUploadVerified/);
 
     const persistenceHelper = source("src/lib/uploadPersistenceVerification.ts");
     assert.match(persistenceHelper, /new HeadObjectCommand/);

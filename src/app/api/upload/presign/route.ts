@@ -11,6 +11,7 @@ import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { prisma } from "@/lib/db";
 import { rateLimitResponse, safeRateLimit, uploadHourlyRatelimit, uploadRatelimit } from "@/lib/ratelimit";
 import { uploadServiceFailure } from "@/lib/uploadServiceFailure";
+import { recordDirectUploadPresigned } from "@/lib/directUploadLifecycle";
 import { createUploadVerificationToken } from "@/lib/uploadVerificationToken";
 import { uploadKeyUserSegment } from "@/lib/uploadKey";
 import {
@@ -159,6 +160,15 @@ export async function POST(req: NextRequest) {
   if (!verification) {
     return privateJson({ error: "Upload verification is not configured" }, { status: 500 });
   }
+
+  await recordDirectUploadPresigned({
+    key,
+    endpoint,
+    userId: me.id,
+    publicUrl,
+    contentType,
+    expectedSize: size,
+  });
 
   return privateJson({
     presignedUrl,

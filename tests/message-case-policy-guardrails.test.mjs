@@ -68,12 +68,18 @@ describe("message and case policy guardrails", () => {
     const helper = source("src/lib/uploadPersistenceVerification.ts");
 
     assert.match(threadPage, /verifyFirstPartyUploadForPersistence/);
+    assert.match(threadPage, /claimDirectUploadForUrl/);
     assert.match(threadPage, /MESSAGE_ATTACHMENT_CONTENT_TYPES/);
     assert.match(threadPage, /endpoint: "messageAny"/);
     assert.ok(
       threadPage.indexOf("verifyFirstPartyUploadForPersistence") <
-        threadPage.indexOf("await prisma.message.create"),
+        threadPage.indexOf("await tx.message.create"),
       "message attachments must be verified before message rows are created",
+    );
+    assert.ok(
+      threadPage.indexOf("claimDirectUploadForUrl") <
+        threadPage.indexOf("await tx.message.create"),
+      "tracked direct uploads must be claimed before attachment rows are created",
     );
     assert.match(helper, /export const MESSAGE_ATTACHMENT_CONTENT_TYPES/);
     assert.match(helper, /"application\/pdf"/);

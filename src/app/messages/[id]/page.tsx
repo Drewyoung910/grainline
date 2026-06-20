@@ -29,6 +29,7 @@ import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { claimDirectUploadForUrl, DirectUploadClaimError } from "@/lib/directUploadLifecycle";
 
 export default async function ThreadPage({
   params,
@@ -232,47 +233,70 @@ export default async function ThreadPage({
       }
     }
 
-    // 1) attachments -> each as its own message (JSON payload in body)
-    for (const a of atts) {
-      const payload = JSON.stringify({
-        kind: "file",
-        url: a.url,
-        name: a.name,
-        type: a.type,
-      });
-      await prisma.message.create({
-        data: { conversationId: id, senderId: me.id, recipientId, body: payload },
-      });
-    }
-
-    // 2) text message if present
-    if (body) {
-      await prisma.message.create({
-        data: { conversationId: id, senderId: me.id, recipientId, body },
-      });
-    }
-
     const hasMessageContent = atts.length > 0 || !!body;
 
-    // bump thread; set firstResponseAt if this is the first reply from the other side
     const messageSentAt = new Date();
-    if (!c.firstResponseAt && hasMessageContent) {
-      // Check if the other person has sent a prior message (this is a response, not an opener)
-      const priorFromOther = await prisma.message.findFirst({
-        where: { conversationId: id, senderId: { not: me.id } },
-        select: { id: true },
-      });
-      if (priorFromOther) {
-        await prisma.conversation.updateMany({
-          where: { id, firstResponseAt: null },
-          data: { firstResponseAt: messageSentAt },
+    try {
+      await prisma.$transaction(async (tx) => {
+        // 1) attachments -> each as its own message (JSON payload in body)
+        for (const a of atts) {
+          await claimDirectUploadForUrl({
+            client: tx,
+            url: a.url,
+            userId: me.id,
+            claimedByType: "Message",
+          });
+          const payload = JSON.stringify({
+            kind: "file",
+            url: a.url,
+            name: a.name,
+            type: a.type,
+          });
+          const createdAttachment = await tx.message.create({
+            data: { conversationId: id, senderId: me.id, recipientId, body: payload },
+            select: { id: true },
+          });
+          await claimDirectUploadForUrl({
+            client: tx,
+            url: a.url,
+            userId: me.id,
+            claimedByType: "Message",
+            claimedById: createdAttachment.id,
+          });
+        }
+
+        // 2) text message if present
+        if (body) {
+          await tx.message.create({
+            data: { conversationId: id, senderId: me.id, recipientId, body },
+          });
+        }
+
+        // bump thread; set firstResponseAt if this is the first reply from the other side
+        if (!c.firstResponseAt && hasMessageContent) {
+          // Check if the other person has sent a prior message (this is a response, not an opener)
+          const priorFromOther = await tx.message.findFirst({
+            where: { conversationId: id, senderId: { not: me.id } },
+            select: { id: true },
+          });
+          if (priorFromOther) {
+            await tx.conversation.updateMany({
+              where: { id, firstResponseAt: null },
+              data: { firstResponseAt: messageSentAt },
+            });
+          }
+        }
+        await tx.conversation.update({
+          where: { id },
+          data: { updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null },
         });
+      });
+    } catch (error) {
+      if (error instanceof DirectUploadClaimError) {
+        return { ok: false, error: error.message };
       }
+      throw error;
     }
-    await prisma.conversation.update({
-      where: { id },
-      data: { updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null },
-    });
 
     // Notify recipient
     if (hasMessageContent) {

@@ -60,9 +60,11 @@ describe("cron and public route hardening", () => {
     assert.match(cspReportState, /checkout_surface/);
 
     assert.match(health, /safeRateLimitOpen\(healthRatelimit, getIP\(req\)\)/);
-    assert.match(health, /isVerboseHealthRequest\(req\.url, process\.env\.HEALTH_CHECK_TOKEN\)/);
+    assert.match(health, /isVerboseHealthRequest\(req, process\.env\.HEALTH_CHECK_TOKEN\)/);
     assert.match(health, /healthResponsePayload\(cachedHealth!, verbose, cached\)/);
     assert.match(health, /status: cachedHealth!\.ok \? HTTP_STATUS\.OK : HTTP_STATUS\.SERVICE_UNAVAILABLE/);
+    assert.match(health, /"Cache-Control": "private, no-store, max-age=0"/);
+    assert.match(health, /Vary: "Authorization, X-Health-Check-Token"/);
   });
 
   it("marks ops-health cron check-ins unhealthy when actionable issues exist", () => {

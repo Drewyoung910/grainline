@@ -190,6 +190,9 @@ describe("retention and ops-health follow-ups", () => {
     const source = readFileSync("src/lib/healthState.ts", "utf8");
 
     assert.match(source, /timingSafeEqual\(sha256\(supplied\), sha256\(token\)\)/);
+    assert.match(source, /headers\.get\("authorization"\)/);
+    assert.match(source, /headers\.get\("x-health-check-token"\)/);
+    assert.doesNotMatch(source, /searchParams\.get\("token"\)/);
     assert.doesNotMatch(source, /supplied\s*===\s*token/);
   });
 });

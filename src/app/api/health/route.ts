@@ -53,7 +53,7 @@ export async function GET(req: Request) {
   const { success, reset } = await safeRateLimitOpen(healthRatelimit, getIP(req));
   if (!success) return rateLimitResponse(reset, "Too many health checks.");
 
-  const verbose = isVerboseHealthRequest(req.url, process.env.HEALTH_CHECK_TOKEN);
+  const verbose = isVerboseHealthRequest(req, process.env.HEALTH_CHECK_TOKEN);
   const cached = isFreshHealthResult(cachedHealth);
   if (!cached) {
     cachedHealth = await runHealthChecks();
@@ -61,6 +61,12 @@ export async function GET(req: Request) {
 
   return NextResponse.json(
     healthResponsePayload(cachedHealth!, verbose, cached),
-    { status: cachedHealth!.ok ? HTTP_STATUS.OK : HTTP_STATUS.SERVICE_UNAVAILABLE },
+    {
+      status: cachedHealth!.ok ? HTTP_STATUS.OK : HTTP_STATUS.SERVICE_UNAVAILABLE,
+      headers: {
+        "Cache-Control": "private, no-store, max-age=0",
+        Vary: "Authorization, X-Health-Check-Token",
+      },
+    },
   );
 }

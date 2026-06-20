@@ -7761,3 +7761,108 @@ health-check token transport, HSTS preload submission decision, residual
 lower-risk HTTP-status/logging hygiene outside touched routes, Vercel
 Analytics/Speed Insights product/privacy decision, remaining homepage runtime
 a11y proof, and residual agent/worktree verification process hygiene.
+
+Entry 431 closes a parent-verified health-token transport and direct-upload
+lifecycle pass. Three read-only agents were used as source scanners only:
+health-token/ops-health, R2/direct-upload lifecycle, and a follow-up direct
+upload persistence inventory. All three were closed, and every conclusion used
+here was rechecked locally against current source before edits.
+
+The first source-proven gap was verbose health-token transport. Current
+anonymous health output was already minimal and the token comparison was
+already constant-time from earlier work, but verbose mode still accepted the
+secret through `?token=...`, which can leak through browser history, link
+sharing, proxy logs, and monitoring URLs. `/api/health` now accepts verbose
+dependency output only through `Authorization: Bearer $HEALTH_CHECK_TOKEN` or
+`X-Health-Check-Token`, never through query parameters. Health responses now
+also set `Cache-Control: private, no-store, max-age=0` and
+`Vary: Authorization, X-Health-Check-Token` so auth-dependent verbose
+dependency output is not left to framework/proxy cache defaults. The runbook
+and launch checklist were updated to use the header form and to verify those
+headers after deploy.
+
+The second source-proven gap was successful direct-to-R2 uploads with no
+durable lifecycle record. `/api/upload/presign` returned a live presigned PUT
+URL for direct endpoints (`listingVideo`, `messageFile`, and `messageAny`
+PDFs), the browser wrote directly to R2, and `/api/upload/verify` deleted bad
+objects on failed verification, but a successful object had no durable
+pending/verified/claimed state. Closing the tab, removing a verified attachment
+from local message state, skipping verify after PUT, or hitting a later message
+save failure could leave public R2 objects with no app-owned cleanup path.
+
+Direct uploads now create a `DirectUpload` row before the presigned URL is
+returned, move that row to `VERIFIED` only after `/api/upload/verify` completes
+object HEAD, size/type, signature, and public-availability checks, and move
+tracked URLs to `CLAIMED` inside the same transaction that persists attachment
+messages. The new hourly `/api/cron/direct-upload-cleanup` route deletes
+expired unclaimed direct-upload keys from R2 using stored keys, not bucket
+listing, and reports row-level cleanup failures through `CronRun.result.failures`
+so existing ops-health partial-cron checks can alert. The route is registered
+in `vercel.json`, has an explicit `maxDuration`, uses shared cron auth/run
+state/Sentry monitor wrappers, and documents the operator triage path in the
+runbook. `CLAUDE.md` and `docs/architecture.md` now record the durable rule:
+tracked direct-upload URLs must be claimed in the same database transaction as
+the app row that references them.
+
+This pass also rechecked adjacent R2 items without overclaiming. Public R2
+ListBucket/bucket-listing posture, bucket object-size settings, CORS/public
+domain behavior, and production processed/direct upload smoke tests remain
+external evidence items. The public media availability helper still proves only
+that the configured public URL responds successfully for the requested path; it
+does not replace production CDN/R2 smoke evidence.
+
+Guardrails:
+`tests/direct-upload-lifecycle.test.mjs`,
+`tests/upload-ux-followups.test.mjs`,
+`tests/message-case-policy-guardrails.test.mjs`,
+`tests/upload-verification-token.test.mjs`,
+`tests/health-state.test.mjs`,
+`tests/public-cron-search-hardening.test.mjs`,
+`tests/retention-and-ops-followups.test.mjs`,
+`tests/cron-schedule-guardrails.test.mjs`,
+`tests/route-max-duration-guardrails.test.mjs`,
+`tests/schema-drift-followups.test.mjs`, and
+`tests/schema-numeric-index-guardrails.test.mjs`.
+
+Verification:
+`npx prisma generate`,
+focused `node --test` passes over the upload/health/cron/schema guardrails
+listed above,
+`npx tsc --noEmit`,
+`npm run lint` (exit 0; existing JSX AST utility warning emitted),
+`npm test` (1345/1345 tests passing across 254 suites),
+`npm audit --audit-level=moderate` (0 vulnerabilities), and
+`git diff --check`. Local `npm run build` regenerated Prisma and compiled
+successfully, then hung in `runAfterProductionCompile` until interrupted, which
+matches the previously observed local post-compile hook behavior; CI/Vercel
+production build remains the authoritative build signal after push.
+
+Current running tally after Entry 431: verified fixed/reduced 831, verified
+stale/false-positive/current 473, deferred product/design/ops/legal 73,
+approximate raw allegations left from current max #1126: 79. The fixed count
+increases by three for header-only verbose health-token transport, explicit
+auth-varying health no-store headers, and durable direct-upload lifecycle plus
+cleanup. Stale/current, deferred, and approximate raw counts stay flat because
+these fixes are source-discovered residues inside already-classified
+health/upload/R2 categories rather than new unclassified raw-number closures.
+
+Remaining major categories: Stripe refund runtime/orphan reconciliation
+proof and backfill design, Stripe webhook subscription dashboard evidence,
+Stripe Connect v2 loss-liability ops/legal decision, stale remote branch and
+old git author hygiene, Round 10 deferred cache/state-machine product designs
+that require product decisions rather than source guardrails, remaining
+EXPLAIN-dependent query-plan/index validation, Stripe partial-refund runtime
+reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope, remaining privacy/export retention decisions,
+cross-seller AI duplicate-detection product design, legacy enum
+cleanup/data-migration decisions, partial multi-seller checkout continuation
+design, deliberate BigInt money-column modeling, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket/dashboard posture plus production smoke evidence and
+public-availability proof, HSTS preload submission decision, residual
+lower-risk HTTP-status/logging hygiene outside touched routes, Vercel
+Analytics/Speed Insights product/privacy decision, remaining homepage runtime
+a11y proof, and residual agent/worktree verification process hygiene.
