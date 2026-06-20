@@ -90,7 +90,7 @@ export default async function EditBlogPostPage({
     let coverImageUrl: string | null = null;
     let videoUrl: string | null = null;
     try {
-      coverImageUrl = normalizeBlogCoverImageUrl(formData.get("coverImageUrl"), uid, existing.coverImageUrl);
+      coverImageUrl = await normalizeBlogCoverImageUrl(formData.get("coverImageUrl"), uid, existing.coverImageUrl);
       videoUrl = normalizeBlogVideoUrl(formData.get("videoUrl"));
     } catch (error) {
       return {

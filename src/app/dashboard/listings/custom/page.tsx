@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
-import { filterFirstPartyMediaUrlsForUser } from "@/lib/urlValidation";
+import { filterVerifiedFirstPartyMediaUrlsForUser } from "@/lib/uploadPersistenceVerification";
 import { sanitizeRichText, sanitizeText, truncateText } from "@/lib/sanitize";
 import { sendCustomOrderReadyLink } from "@/lib/customOrderReadyLink";
 import { sellerFacingUserLabel } from "@/lib/sellerFacingUser";
@@ -89,7 +89,12 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
   if (imageUrls.length === 0) {
     imageUrls = formData.getAll("imageUrls").map(String).filter(Boolean);
   }
-  imageUrls = filterFirstPartyMediaUrlsForUser(imageUrls, 10, userId, ["listingImage"]);
+  imageUrls = await filterVerifiedFirstPartyMediaUrlsForUser({
+    urls: imageUrls,
+    max: 10,
+    clerkUserId: userId,
+    allowedEndpoints: ["listingImage"],
+  });
 
   // Original (pre-crop) URLs paired by index with imageUrls — same
   // validation, used so the seller can re-crop from the full original.
@@ -101,7 +106,12 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
   } else {
     console.warn("[custom-listing] invalid imageOriginalUrlsJson:", imageOriginalUrlsResult.error);
   }
-  imageOriginalUrls = filterFirstPartyMediaUrlsForUser(imageOriginalUrls, 10, userId, ["listingImage"]);
+  imageOriginalUrls = await filterVerifiedFirstPartyMediaUrlsForUser({
+    urls: imageOriginalUrls,
+    max: 10,
+    clerkUserId: userId,
+    allowedEndpoints: ["listingImage"],
+  });
 
   let imageAltTexts: string[] = [];
   const altJson = formData.get("imageAltTextsJson");

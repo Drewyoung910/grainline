@@ -26,6 +26,7 @@ import {
 } from "@/lib/listingVariants";
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import { isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
+import { filterVerifiedFirstPartyMediaUrlsForUser } from "@/lib/uploadPersistenceVerification";
 import { expireOpenCheckoutSessionsForListing } from "@/lib/checkoutSessionExpiry";
 import { listingMutationRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { MAX_MANUAL_STOCK_QUANTITY } from "@/lib/stockMutationState";
@@ -318,6 +319,17 @@ async function updateListing(
   for (const photo of photoManifest.photos) {
     for (const url of [photo.url, photo.originalUrl].filter((value): value is string => Boolean(value))) {
       if (!existingPhotoUrls.has(url)) submittedNewPhotoUrls.add(url);
+    }
+  }
+  if (submittedNewPhotoUrls.size > 0) {
+    const verifiedNewPhotoUrls = new Set(await filterVerifiedFirstPartyMediaUrlsForUser({
+      urls: [...submittedNewPhotoUrls],
+      max: submittedNewPhotoUrls.size,
+      clerkUserId: userId,
+      allowedEndpoints: ["listingImage"],
+    }));
+    if (verifiedNewPhotoUrls.size !== submittedNewPhotoUrls.size) {
+      return { ok: false, error: "Invalid photo URL. Re-upload the photo and try again." };
     }
   }
   const r2CleanupUrls = new Set<string>();

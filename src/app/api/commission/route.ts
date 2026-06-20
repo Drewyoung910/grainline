@@ -19,7 +19,8 @@ import { containsProfanity } from "@/lib/profanity";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { commissionExpiresAt, openCommissionWhere } from "@/lib/commissionExpiry";
 import { publicCommissionInterestWhere, resolvedInterestedCount } from "@/lib/commissionInterestCount";
-import { filterFirstPartyMediaUrlsForUser, isFirstPartyMediaUrl } from "@/lib/urlValidation";
+import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
+import { filterVerifiedFirstPartyMediaUrlsForUser } from "@/lib/uploadPersistenceVerification";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import {
@@ -165,7 +166,12 @@ export async function POST(req: NextRequest) {
   const categoryValid = category && CATEGORY_VALUES.includes(category as Category);
   const budgetMinCents = budgetMin != null ? parseMoneyInputToCents(budgetMin) : null;
   const budgetMaxCents = budgetMax != null ? parseMoneyInputToCents(budgetMax) : null;
-  const images = filterFirstPartyMediaUrlsForUser(referenceImageUrls ?? [], 3, userId, ["messageImage"]);
+  const images = await filterVerifiedFirstPartyMediaUrlsForUser({
+    urls: referenceImageUrls ?? [],
+    max: 3,
+    clerkUserId: userId,
+    allowedEndpoints: ["messageImage"],
+  });
 
   if (budgetMin != null && budgetMinCents === null) return privateJson({ error: "Minimum budget must be a valid dollar amount." }, { status: HTTP_STATUS.BAD_REQUEST });
   if (budgetMax != null && budgetMaxCents === null) return privateJson({ error: "Maximum budget must be a valid dollar amount." }, { status: HTTP_STATUS.BAD_REQUEST });

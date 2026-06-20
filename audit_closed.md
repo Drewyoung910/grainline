@@ -7182,6 +7182,88 @@ outside touched routes, Vercel Analytics/Speed Insights product/privacy
 decision, remaining homepage runtime a11y proof, and residual
 agent/worktree verification process hygiene.
 
+Entry 427 closes a parent-verified R2 upload and media-persistence integrity
+pass with two read-only sidecar scans plus local verification. Both agents were
+closed before this entry. Sidecar Stripe findings were reviewed and remain
+open for a separate webhook-focused pass because they touch the large checkout
+webhook retry/refund path.
+
+First, direct upload verification now checks that the final public R2 URL is
+reachable before returning success. `/api/upload/verify` already HEAD/range
+checked the private R2 object, expected size, signed token, content type, and
+file signature; it now also calls `assertPublicMediaAvailable()` on the
+returned public URL. If the CDN/custom-domain probe fails, the route logs only
+bounded diagnostics with `uploadTelemetryKeyHash(key)`, attempts to delete the
+object, and returns generic 502 copy so clients do not persist a URL that only
+exists through the private S3 API.
+
+Second, new media persistence writes no longer trust first-party URL shape
+alone. `src/lib/uploadPersistenceVerification.ts` now exposes
+`verifyFirstPartyMediaUrlForPersistence()` and
+`filterVerifiedFirstPartyMediaUrlsForUser()`, which combine current-user
+endpoint scoping with R2 HEAD, endpoint size cap, range-read, and signature
+verification. Message attachments already used the underlying verifier; the
+same guard now covers new and custom listing photos, newly submitted listing
+edit photos, profile banner/avatar/workshop/gallery media, onboarding avatar
+media, blog cover images, review create/edit photos, commission reference
+images, and seller broadcast images. Existing DB-owned media may still be
+preserved by exact field/row match during edits.
+
+`CLAUDE.md` now records the reusable rule: shape/ownership helpers alone are
+not sufficient for newly submitted media persistence writes, and direct upload
+verification must also probe the final public R2 URL after private object
+checks.
+
+Remaining sidecar-confirmed items not closed here: authenticated users can
+still create direct-upload R2 orphans by completing a presigned PUT and never
+calling verify, so lifecycle/reservation cleanup remains an ops/source design
+item; direct upload source behavior is now guarded, but production
+Cloudflare/R2 public-domain smoke evidence remains manual; health-check token
+transport remains a lower-risk hardening item; blocked-checkout webhook
+retry/refund idempotency and refund-orphan reconciliation remain open Stripe
+webhook work.
+
+Guardrails:
+`tests/upload-ux-followups.test.mjs`,
+`tests/pr-i-media-upload-unsubscribe-followups.test.mjs`,
+`tests/seller-ops-hardening.test.mjs`,
+`tests/server-action-hardening.test.mjs`, and
+`tests/message-case-policy-guardrails.test.mjs`.
+
+Current running tally after Entry 427: verified fixed/reduced 819, verified
+stale/false-positive/current 473, deferred product/design/ops/legal 73,
+approximate raw allegations left from current max #1126: 79. The fixed count
+increases by seven for direct-upload public-availability verification,
+listing-photo persistence verification, profile/onboarding media persistence
+verification, blog cover persistence verification, review-photo persistence
+verification, commission reference-image persistence verification, and seller
+broadcast image persistence verification. Stale/current, deferred, and
+approximate raw counts stay flat because these were sidecar/source-discovered
+residues inside already-open upload/media categories rather than a new numbered
+raw batch.
+
+Remaining major categories: Stripe webhook blocked-checkout retry/refund
+idempotency and refund-orphan reconciliation, Stripe webhook subscription
+dashboard evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
+remote branch and old git author hygiene, Round 10 deferred
+cache/state-machine product designs that require product decisions rather than
+source guardrails, remaining EXPLAIN-dependent query-plan/index validation,
+Stripe partial-refund runtime reconciliation proof, founding-maker permanence
+policy, remaining privacy/legal retention scope, remaining privacy/export
+retention decisions, cross-seller AI duplicate-detection product design,
+legacy enum cleanup/data-migration decisions, partial multi-seller checkout
+continuation design, deliberate BigInt money-column modeling, live-data
+reconciliation for historical seller shipping-rate currency drift, Clerk staff
+MFA and breached-password dashboard evidence, Clerk multi-account spam
+dashboard evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket/dashboard posture plus direct-upload lifecycle/orphan
+cleanup and production smoke evidence, health-check token transport, HSTS
+preload submission decision, residual lower-risk HTTP-status/logging hygiene
+outside touched routes, Vercel Analytics/Speed Insights product/privacy
+decision, remaining homepage runtime a11y proof, and residual
+agent/worktree verification process hygiene.
+
 Entry 423 closes a parent-verified hidden-residue pass across private response
 headers, account-state action checks, provider-error telemetry, and Sentry
 redaction. Three read-only sidecar scans were used for disjoint source

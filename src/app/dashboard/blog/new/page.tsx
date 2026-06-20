@@ -66,7 +66,7 @@ export default async function NewBlogPostPage() {
     let coverImageUrl: string | null = null;
     let videoUrl: string | null = null;
     try {
-      coverImageUrl = normalizeBlogCoverImageUrl(formData.get("coverImageUrl"), uid);
+      coverImageUrl = await normalizeBlogCoverImageUrl(formData.get("coverImageUrl"), uid);
       videoUrl = normalizeBlogVideoUrl(formData.get("videoUrl"));
     } catch (error) {
       return {

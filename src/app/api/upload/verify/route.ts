@@ -4,7 +4,7 @@ import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
-import { R2_BUCKET, r2 } from "@/lib/r2";
+import { R2_BUCKET, R2_PUBLIC_URL, r2 } from "@/lib/r2";
 import { rateLimitResponse, safeRateLimit, uploadHourlyRatelimit } from "@/lib/ratelimit";
 import {
   isInvalidJsonBodyError,
@@ -22,6 +22,8 @@ import { DIRECT_UPLOAD_ENDPOINTS, UPLOAD_MAX_SIZES } from "@/lib/uploadRules";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { uploadTelemetryKeyHash } from "@/lib/uploadTelemetry";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { assertPublicMediaAvailable } from "@/lib/publicMediaAvailability";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 export const maxDuration = 60;
 
@@ -155,6 +157,30 @@ export async function POST(req: Request) {
       });
     });
     return privateJson({ error: "Uploaded file content did not match the signed file type." }, { status: 400 });
+  }
+
+  const publicUrl = `${R2_PUBLIC_URL}/${key}`;
+  try {
+    await assertPublicMediaAvailable(publicUrl);
+  } catch (error) {
+    logServerError(error, {
+      source: "upload_verify_public_availability",
+      level: "warning",
+      tags: { endpoint },
+      extra: { keyHash: uploadTelemetryKeyHash(key) },
+    });
+    await deleteObject(key).catch((cleanupError) => {
+      logServerError(cleanupError, {
+        source: "upload_verify_cleanup",
+        level: "warning",
+        tags: { endpoint },
+        extra: { keyHash: uploadTelemetryKeyHash(key) },
+      });
+    });
+    return privateJson(
+      { error: "Uploaded media is not publicly available yet." },
+      { status: HTTP_STATUS.BAD_GATEWAY },
+    );
   }
 
   return privateJson({ ok: true, size: actualSize });

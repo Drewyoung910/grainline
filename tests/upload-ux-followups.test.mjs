@@ -109,6 +109,7 @@ describe("upload UX follow-ups", () => {
 
   it("keeps processed-image public availability diagnostics server-side only", () => {
     const imageRoute = source("src/app/api/upload/image/route.ts");
+    const verifyRoute = source("src/app/api/upload/verify/route.ts");
 
     assert.match(imageRoute, /source: "upload_image_public_availability"/);
     assert.match(imageRoute, /uploadTelemetryKeyHash\(key\)/);
@@ -116,6 +117,15 @@ describe("upload UX follow-ups", () => {
     assert.match(imageRoute, /status: HTTP_STATUS\.BAD_GATEWAY/);
     assert.doesNotMatch(imageRoute, /const message = err instanceof Error \? err\.message/);
     assert.doesNotMatch(imageRoute, /privateJson\(\{ error: message \}/);
+
+    assert.match(verifyRoute, /assertPublicMediaAvailable\(publicUrl\)/);
+    assert.match(verifyRoute, /source: "upload_verify_public_availability"/);
+    assert.match(verifyRoute, /uploadTelemetryKeyHash\(key\)/);
+    assert.match(verifyRoute, /deleteObject\(key\)/);
+    assert.match(verifyRoute, /error: "Uploaded media is not publicly available yet\."/);
+    assert.match(verifyRoute, /status: HTTP_STATUS\.BAD_GATEWAY/);
+    assert.doesNotMatch(verifyRoute, /const message = error instanceof Error \? error\.message/);
+    assert.doesNotMatch(verifyRoute, /privateJson\(\{ error: message \}/);
   });
 
   it("keeps direct upload metadata spoofing and file-count churn bounded", () => {
@@ -143,15 +153,23 @@ describe("upload UX follow-ups", () => {
     assert.match(persistenceHelper, /new GetObjectCommand/);
     assert.match(persistenceHelper, /uploadKeyBelongsToUser\(key, endpoint, clerkUserId\)/);
     assert.match(persistenceHelper, /uploadFileSignatureMatches\(prefixBytes, matchedContentType\)/);
+    assert.match(persistenceHelper, /verifyFirstPartyMediaUrlForPersistence/);
+    assert.match(persistenceHelper, /filterVerifiedFirstPartyMediaUrlsForUser/);
+    assert.match(persistenceHelper, /existingUrlSet\.has\(url\)/);
 
     assert.match(presignRoute, /ALLOWED_EXTENSIONS/);
     assert.match(presignRoute, /allowedExtensions\.includes\(ext\)/);
     assert.match(presignRoute, /uploadExtensionMessage/);
 
-    assert.match(source("src/app/dashboard/listings/new/page.tsx"), /filterFirstPartyMediaUrlsForUser\(imageUrls, 10, userId, \["listingImage"\]\)/);
-    assert.match(source("src/app/dashboard/listings/custom/page.tsx"), /filterFirstPartyMediaUrlsForUser\(imageUrls, 10, userId, \["listingImage"\]\)/);
-    assert.match(source("src/app/api/reviews/route.ts"), /filterFirstPartyMediaUrlsForUser\(photoUrls \?\? \[\], 6, userId, \["reviewPhoto"\]\)/);
-    assert.match(source("src/app/api/commission/route.ts"), /filterFirstPartyMediaUrlsForUser\(referenceImageUrls \?\? \[\], 3, userId, \["messageImage"\]\)/);
+    assert.match(source("src/app/dashboard/listings/new/page.tsx"), /filterVerifiedFirstPartyMediaUrlsForUser\(\{[\s\S]*allowedEndpoints: \["listingImage"\]/);
+    assert.match(source("src/app/dashboard/listings/custom/page.tsx"), /filterVerifiedFirstPartyMediaUrlsForUser\(\{[\s\S]*allowedEndpoints: \["listingImage"\]/);
+    assert.match(source("src/app/dashboard/listings/[id]/edit/page.tsx"), /filterVerifiedFirstPartyMediaUrlsForUser\(\{[\s\S]*allowedEndpoints: \["listingImage"\]/);
+    assert.match(source("src/app/api/reviews/route.ts"), /filterVerifiedFirstPartyMediaUrlsForUser\(\{[\s\S]*allowedEndpoints: \["reviewPhoto"\]/);
+    assert.match(source("src/app/api/reviews/[id]/route.ts"), /filterVerifiedFirstPartyMediaUrlsForUser\(\{[\s\S]*existingUrls: \[\.\.\.oldPhotoUrls\]/);
+    assert.match(source("src/app/api/commission/route.ts"), /filterVerifiedFirstPartyMediaUrlsForUser\(\{[\s\S]*allowedEndpoints: \["messageImage"\]/);
+    assert.match(source("src/lib/blogInput.ts"), /verifyFirstPartyMediaUrlForPersistence\(\{[\s\S]*allowedEndpoints: \["galleryImage", "blogImage"\]/);
+    assert.match(source("src/app/dashboard/profile/page.tsx"), /verifyFirstPartyMediaUrlForPersistence\(\{[\s\S]*allowedEndpoints: \[endpoint\]/);
+    assert.match(source("src/app/api/seller/broadcast/route.ts"), /verifyFirstPartyMediaUrlForPersistence\(\{[\s\S]*allowedEndpoints: \[[\s\S]*"listingImage"[\s\S]*"bannerImage"[\s\S]*"galleryImage"/);
   });
 
   it("prevalidates before upload and reports progress with XMLHttpRequest", () => {

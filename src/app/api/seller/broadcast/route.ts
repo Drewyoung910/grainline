@@ -24,8 +24,9 @@ import {
 } from "@/lib/sanitize";
 import {
   isFirstPartyMediaUrl,
-  isFirstPartyMediaUrlForUser,
 } from "@/lib/urlValidation";
+import { verifyFirstPartyMediaUrlForPersistence } from "@/lib/uploadPersistenceVerification";
+import { IMAGE_UPLOAD_TYPES } from "@/lib/uploadRules";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import {
@@ -122,18 +123,23 @@ export async function POST(req: NextRequest) {
 
   if (!message)
     return privateJson({ error: "Message is required" }, { status: 400 });
-  if (
-    imageUrl &&
-    !isFirstPartyMediaUrlForUser(imageUrl, userId, [
-      "listingImage",
-      "bannerImage",
-      "galleryImage",
-    ])
-  ) {
-    return privateJson(
-      { error: "Use an uploaded Grainline image for this update." },
-      { status: 400 },
-    );
+  if (imageUrl) {
+    const verification = await verifyFirstPartyMediaUrlForPersistence({
+      url: imageUrl,
+      allowedEndpoints: [
+        "listingImage",
+        "bannerImage",
+        "galleryImage",
+      ],
+      clerkUserId: userId,
+      allowedContentTypes: IMAGE_UPLOAD_TYPES,
+    });
+    if (!verification.ok) {
+      return privateJson(
+        { error: "Use an uploaded Grainline image for this update." },
+        { status: 400 },
+      );
+    }
   }
 
   // Profanity check (log-only)

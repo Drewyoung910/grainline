@@ -6,7 +6,7 @@ import { z } from "zod";
 import { sanitizeRichText } from "@/lib/sanitize";
 import { containsProfanity } from "@/lib/profanity";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
-import { isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
+import { filterVerifiedFirstPartyMediaUrlsForUser } from "@/lib/uploadPersistenceVerification";
 import { rateLimitResponse, reviewRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { deleteR2ObjectByUrl } from "@/lib/r2";
 import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
@@ -144,7 +144,14 @@ export async function PATCH(
     select: { url: true },
   });
   const oldPhotoUrls = new Set(oldPhotos.map((photo) => photo.url));
-  if (photos.some((url) => !oldPhotoUrls.has(url) && !isFirstPartyMediaUrlForUser(url, userId, ["reviewPhoto"]))) {
+  const verifiedPhotos = await filterVerifiedFirstPartyMediaUrlsForUser({
+    urls: photos,
+    max: 6,
+    clerkUserId: userId,
+    allowedEndpoints: ["reviewPhoto"],
+    existingUrls: [...oldPhotoUrls],
+  });
+  if (verifiedPhotos.length !== photos.length) {
     return privateJson({ error: "Use uploaded Grainline images only." }, { status: HTTP_STATUS.BAD_REQUEST });
   }
 
@@ -160,7 +167,7 @@ export async function PATCH(
     // Replace photos
     await tx.reviewPhoto.deleteMany({ where: { reviewId: id } });
     await tx.reviewPhoto.createMany({
-      data: photos.slice(0, 6).map((url, i) => ({
+      data: verifiedPhotos.map((url, i) => ({
         reviewId: id,
         url,
         sortOrder: i,
@@ -170,7 +177,7 @@ export async function PATCH(
     await refreshSellerRatingSummary(r.listing.sellerId, tx);
   });
 
-  const retainedUrls = new Set(photos);
+  const retainedUrls = new Set(verifiedPhotos);
   const removedPhotos = oldPhotos.filter((photo) => !retainedUrls.has(photo.url));
   const cleanupResults = await mapWithConcurrency(
     removedPhotos,

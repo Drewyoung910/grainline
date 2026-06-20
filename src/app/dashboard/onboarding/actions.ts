@@ -5,7 +5,8 @@ import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { normalizeDisplayNameForLookup, sanitizeText, sanitizeUserName, truncateText } from "@/lib/sanitize";
-import { isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
+import { verifyFirstPartyMediaUrlForPersistence } from "@/lib/uploadPersistenceVerification";
+import { IMAGE_UPLOAD_TYPES } from "@/lib/uploadRules";
 import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/sellerProfileText";
 import { safeRateLimit, sellerProfileRatelimit } from "@/lib/ratelimit";
 import { logServerError } from "@/lib/serverErrorLogger";
@@ -64,8 +65,16 @@ export async function saveStep1(formData: FormData): Promise<ActionResult> {
     const taglineRaw = truncateText(String(formData.get("tagline") || "").trim(), 100);
     const tagline = taglineRaw ? sanitizeText(taglineRaw) : null;
     const avatarImageUrl = String(formData.get("avatarImageUrl") || "").trim() || null;
-    if (avatarImageUrl && !isFirstPartyMediaUrlForUser(avatarImageUrl, seller.clerkUserId, ["galleryImage"])) {
-      return { ok: false, error: "Use an uploaded Grainline image for your profile photo." };
+    if (avatarImageUrl) {
+      const verification = await verifyFirstPartyMediaUrlForPersistence({
+        url: avatarImageUrl,
+        allowedEndpoints: ["galleryImage"],
+        clerkUserId: seller.clerkUserId,
+        allowedContentTypes: IMAGE_UPLOAD_TYPES,
+      });
+      if (!verification.ok) {
+        return { ok: false, error: "Use an uploaded Grainline image for your profile photo." };
+      }
     }
 
     await prisma.sellerProfile.update({

@@ -16,7 +16,11 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 import CharCounter from "@/components/CharCounter";
 import RemoveAvatarButton from "./RemoveAvatarButton";
 import { normalizeDisplayNameForLookup, sanitizeText, sanitizeRichText, sanitizeUserName, truncateText } from "@/lib/sanitize";
-import { isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
+import {
+  filterVerifiedFirstPartyMediaUrlsForUser,
+  verifyFirstPartyMediaUrlForPersistence,
+} from "@/lib/uploadPersistenceVerification";
+import { IMAGE_UPLOAD_TYPES } from "@/lib/uploadRules";
 import { publicSellerPath } from "@/lib/publicPaths";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/sellerProfileText";
@@ -84,11 +88,11 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
     parsed.hash = "";
     return parsed.toString();
   }
-  function normalizeOwnedImageUrl(
+  async function normalizeOwnedImageUrl(
     v: FormDataEntryValue | null,
     endpoint: "bannerImage" | "galleryImage",
     existingUrl?: string | null,
-  ): string | null {
+  ): Promise<string | null> {
     const raw = toNull(v);
     if (raw === null) return null;
     if (raw === "") return null;
@@ -98,7 +102,13 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
     if (raw === existingUrl) {
       return raw;
     }
-    if (!isFirstPartyMediaUrlForUser(raw, clerkUserId, [endpoint])) {
+    const verification = await verifyFirstPartyMediaUrlForPersistence({
+      url: raw,
+      allowedEndpoints: [endpoint],
+      clerkUserId,
+      allowedContentTypes: IMAGE_UPLOAD_TYPES,
+    });
+    if (!verification.ok) {
       redirect("/dashboard/profile?warning=invalid-url");
     }
     return raw;
@@ -118,15 +128,17 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   const storyBody = cleanSellerProfileRichText(formData.get("storyBody"), SELLER_PROFILE_TEXT_LIMITS.storyBody);
   const yearsInBusiness = toInt(formData.get("yearsInBusiness"));
 
-  const bannerImageUrl = normalizeOwnedImageUrl(formData.get("bannerImageUrl"), "bannerImage", seller.bannerImageUrl);
-  const avatarImageUrl = normalizeOwnedImageUrl(formData.get("avatarImageUrl"), "galleryImage", seller.avatarImageUrl);
-  const workshopImageUrl = normalizeOwnedImageUrl(formData.get("workshopImageUrl"), "galleryImage", seller.workshopImageUrl);
+  const bannerImageUrl = await normalizeOwnedImageUrl(formData.get("bannerImageUrl"), "bannerImage", seller.bannerImageUrl);
+  const avatarImageUrl = await normalizeOwnedImageUrl(formData.get("avatarImageUrl"), "galleryImage", seller.avatarImageUrl);
+  const workshopImageUrl = await normalizeOwnedImageUrl(formData.get("workshopImageUrl"), "galleryImage", seller.workshopImageUrl);
   const galleryImageUrlsTouched = formData.get("galleryImageUrlsTouched") === "1";
-  const existingGalleryUrls = new Set(seller.galleryImageUrls ?? []);
-  const galleryImageUrls = formData.getAll("galleryImageUrls")
-    .map(String)
-    .filter((url) => existingGalleryUrls.has(url) || isFirstPartyMediaUrlForUser(url, clerkUserId, ["galleryImage"]))
-    .slice(0, 10);
+  const galleryImageUrls = await filterVerifiedFirstPartyMediaUrlsForUser({
+    urls: formData.getAll("galleryImageUrls").map(String),
+    max: 10,
+    clerkUserId,
+    allowedEndpoints: ["galleryImage"],
+    existingUrls: seller.galleryImageUrls ?? [],
+  });
   const galleryAltTexts = galleryImageUrls.map((_, index) => {
     const raw = formData.getAll("galleryAltTexts")[index];
     return truncateText(sanitizeText(String(raw ?? "")), 240);

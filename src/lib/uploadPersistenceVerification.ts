@@ -1,6 +1,11 @@
 import { GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { r2, R2_BUCKET } from "@/lib/r2";
-import { IMAGE_UPLOAD_TYPES, UPLOAD_MAX_SIZES, type UploadEndpoint } from "@/lib/uploadRules";
+import {
+  IMAGE_UPLOAD_TYPES,
+  UPLOAD_ENDPOINTS,
+  UPLOAD_MAX_SIZES,
+  type UploadEndpoint,
+} from "@/lib/uploadRules";
 import { firstPartyMediaKey } from "@/lib/urlValidation";
 import {
   uploadContentTypeMatches,
@@ -41,6 +46,14 @@ function matchingContentType(
   return allowedContentTypes.find((expected) =>
     uploadContentTypeMatches(actualContentType, expected),
   ) ?? null;
+}
+
+function uploadEndpointFromKey(key: string): UploadEndpoint | null {
+  const endpoint = key.split("/")[0];
+  if (UPLOAD_ENDPOINTS.includes(endpoint as UploadEndpoint)) {
+    return endpoint as UploadEndpoint;
+  }
+  return null;
 }
 
 export async function verifyFirstPartyUploadForPersistence({
@@ -87,4 +100,69 @@ export async function verifyFirstPartyUploadForPersistence({
   }
 
   return { ok: true };
+}
+
+export async function verifyFirstPartyMediaUrlForPersistence({
+  url,
+  allowedEndpoints,
+  clerkUserId,
+  allowedContentTypes,
+}: {
+  url: string;
+  allowedEndpoints: readonly UploadEndpoint[];
+  clerkUserId: string;
+  allowedContentTypes: readonly string[];
+}): Promise<UploadPersistenceVerificationResult> {
+  const key = firstPartyMediaKey(url);
+  if (!key) {
+    return { ok: false, error: "Upload is not valid for this account." };
+  }
+  const endpoint = uploadEndpointFromKey(key);
+  if (!endpoint || !allowedEndpoints.includes(endpoint)) {
+    return { ok: false, error: "Upload is not valid for this account." };
+  }
+  return verifyFirstPartyUploadForPersistence({
+    url,
+    endpoint,
+    clerkUserId,
+    allowedContentTypes,
+  });
+}
+
+export async function filterVerifiedFirstPartyMediaUrlsForUser({
+  urls,
+  max,
+  clerkUserId,
+  allowedEndpoints,
+  allowedContentTypes = IMAGE_UPLOAD_TYPES,
+  existingUrls = [],
+}: {
+  urls: string[];
+  max: number;
+  clerkUserId: string;
+  allowedEndpoints: readonly UploadEndpoint[];
+  allowedContentTypes?: readonly string[];
+  existingUrls?: readonly (string | null | undefined)[];
+}): Promise<string[]> {
+  const existingUrlSet = new Set(existingUrls.filter((url): url is string => Boolean(url)));
+  const verified: string[] = [];
+
+  for (const url of urls) {
+    if (verified.length >= max) break;
+    if (existingUrlSet.has(url)) {
+      verified.push(url);
+      continue;
+    }
+    const result = await verifyFirstPartyMediaUrlForPersistence({
+      url,
+      allowedEndpoints,
+      clerkUserId,
+      allowedContentTypes,
+    });
+    if (result.ok) {
+      verified.push(url);
+    }
+  }
+
+  return verified;
 }

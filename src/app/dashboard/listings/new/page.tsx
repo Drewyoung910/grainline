@@ -10,7 +10,7 @@ import { renderFirstListingCongratsEmail } from "@/lib/email";
 import { enqueueEmailOutbox } from "@/lib/emailOutbox";
 import { listingCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText, sanitizeRichText, truncateText } from "@/lib/sanitize";
-import { filterFirstPartyMediaUrlsForUser } from "@/lib/urlValidation";
+import { filterVerifiedFirstPartyMediaUrlsForUser } from "@/lib/uploadPersistenceVerification";
 import { fanOutListingToFollowers } from "@/lib/followerListingNotifications";
 import { maybeGrantFoundingMaker } from "@/lib/foundingMaker";
 import PhotoManager from "@/components/PhotoManager";
@@ -84,7 +84,12 @@ async function createListing(_prevState: unknown, formData: FormData) {
   if (imageUrls.length === 0) {
     imageUrls = formData.getAll("imageUrls").map(String).filter(Boolean);
   }
-  imageUrls = filterFirstPartyMediaUrlsForUser(imageUrls, 10, userId, ["listingImage"]);
+  imageUrls = await filterVerifiedFirstPartyMediaUrlsForUser({
+    urls: imageUrls,
+    max: 10,
+    clerkUserId: userId,
+    allowedEndpoints: ["listingImage"],
+  });
 
   // Original (pre-crop) URLs from PhotoManager. Aligned by index with
   // imageUrls. For new uploads these equal imageUrls (no crop applied
@@ -100,7 +105,12 @@ async function createListing(_prevState: unknown, formData: FormData) {
   } else {
     console.warn("[listing-create] invalid imageOriginalUrlsJson:", imageOriginalUrlsResult.error);
   }
-  imageOriginalUrls = filterFirstPartyMediaUrlsForUser(imageOriginalUrls, 10, userId, ["listingImage"]);
+  imageOriginalUrls = await filterVerifiedFirstPartyMediaUrlsForUser({
+    urls: imageOriginalUrls,
+    max: 10,
+    clerkUserId: userId,
+    allowedEndpoints: ["listingImage"],
+  });
 
   // Alt texts (from PhotoManager hidden input)
   let imageAltTexts: string[] = [];

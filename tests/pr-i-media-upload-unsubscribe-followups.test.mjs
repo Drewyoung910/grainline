@@ -16,6 +16,7 @@ describe("PR I media, upload, and unsubscribe follow-ups", () => {
       "src/app/messages/[id]/page.tsx",
       "src/app/dashboard/listings/new/page.tsx",
       "src/app/dashboard/listings/custom/page.tsx",
+      "src/app/dashboard/listings/[id]/edit/page.tsx",
       "src/app/dashboard/profile/page.tsx",
       "src/app/dashboard/onboarding/actions.ts",
       "src/lib/blogInput.ts",
@@ -23,7 +24,11 @@ describe("PR I media, upload, and unsubscribe follow-ups", () => {
 
     for (const path of writePathFiles) {
       const text = source(path);
-      assert.match(text, /isFirstPartyMediaUrl|filterFirstPartyMediaUrls/, path);
+      assert.match(
+        text,
+        /isFirstPartyMediaUrl|filterFirstPartyMediaUrls|verifyFirstPartyMediaUrlForPersistence|filterVerifiedFirstPartyMediaUrlsForUser/,
+        path,
+      );
       assert.doesNotMatch(text, /isR2PublicUrl|filterR2PublicUrls/, path);
     }
 
@@ -43,26 +48,34 @@ describe("PR I media, upload, and unsubscribe follow-ups", () => {
       "src/app/dashboard/onboarding/actions.ts",
       "src/app/api/commission/route.ts",
       "src/app/api/reviews/route.ts",
+      "src/app/api/reviews/[id]/route.ts",
+      "src/app/api/seller/broadcast/route.ts",
       "src/lib/blogInput.ts",
     ];
 
     for (const path of currentUserWritePaths) {
-      assert.match(source(path), /isFirstPartyMediaUrlForUser|filterFirstPartyMediaUrlsForUser/, path);
+      assert.match(
+        source(path),
+        /isFirstPartyMediaUrlForUser|verifyFirstPartyMediaUrlForPersistence|filterVerifiedFirstPartyMediaUrlsForUser/,
+        path,
+      );
     }
 
     const listingEdit = source("src/app/dashboard/listings/[id]/edit/page.tsx");
     assert.match(listingEdit, /isExistingUrl/);
     assert.match(listingEdit, /isFirstPartyMediaUrlForUser\(url, clerkUserId, \["listingImage"\]\)/);
+    assert.match(listingEdit, /filterVerifiedFirstPartyMediaUrlsForUser\(\{/);
+    assert.match(listingEdit, /submittedNewPhotoUrls/);
 
     const profile = source("src/app/dashboard/profile/page.tsx");
     assert.match(profile, /normalizeOwnedImageUrl/);
-    assert.match(profile, /isFirstPartyMediaUrlForUser\(raw, clerkUserId, \[endpoint\]\)/);
-    assert.match(profile, /existingGalleryUrls\.has\(url\)/);
+    assert.match(profile, /verifyFirstPartyMediaUrlForPersistence\(\{/);
+    assert.match(profile, /existingUrls: seller\.galleryImageUrls \?\? \[\]/);
 
     const commissionRoute = source("src/app/api/commission/route.ts");
     const commissionPage = source("src/app/commission/new/page.tsx");
-    assert.match(commissionRoute, /isFirstPartyMediaUrlForUser|filterFirstPartyMediaUrlsForUser/);
-    assert.match(commissionRoute, /filterFirstPartyMediaUrlsForUser\(referenceImageUrls \?\? \[\], 3, userId, \["messageImage"\]\)/);
+    assert.match(commissionRoute, /filterVerifiedFirstPartyMediaUrlsForUser\(\{/);
+    assert.match(commissionRoute, /allowedEndpoints: \["messageImage"\]/);
     assert.match(commissionPage, /endpoint="messageImage"/);
     assert.doesNotMatch(commissionPage, /endpoint="listingImage"/);
   });
