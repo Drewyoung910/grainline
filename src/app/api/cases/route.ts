@@ -214,13 +214,21 @@ export async function POST(req: Request) {
       metadata: { orderId, sellerId, reason },
     });
 
-    await createNotification({
-      userId: sellerId,
-      type: "CASE_OPENED",
-      title: `${me.name ?? "A buyer"} opened a case`,
-      body: truncateText(description, 60),
-      link: `/dashboard/sales/${orderId}`,
-    });
+    try {
+      await createNotification({
+        userId: sellerId,
+        type: "CASE_OPENED",
+        title: `${me.name ?? "A buyer"} opened a case`,
+        body: truncateText(description, 60),
+        link: `/dashboard/sales/${orderId}`,
+      });
+    } catch (notificationError) {
+      Sentry.captureException(notificationError, {
+        level: "warning",
+        tags: { source: "case_open_notification" },
+        extra: { caseId: newCase.id, orderId, sellerId },
+      });
+    }
 
     try {
       if (await shouldSendEmail(sellerId, "EMAIL_CASE_OPENED")) {

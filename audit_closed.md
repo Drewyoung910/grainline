@@ -6992,6 +6992,101 @@ outside touched routes, Vercel Analytics/Speed Insights product/privacy
 decision, remaining homepage runtime a11y proof, and residual
 agent/worktree verification process hygiene.
 
+Entry 425 closes a parent-verified case side-effect, auth-varying public JSON,
+and message-upload persistence pass. Two completed read-only sidecar scans were
+used: the public/API sidecar found the auth-varying cache-response residue, and
+the ops/storage sidecar found the direct-upload persistence boundary gap plus
+manual dashboard evidence items. A Stripe/refund sidecar was started for a
+disjoint read-only scan but was closed without output, so no finding in this
+entry relies on it. Every code change below was verified locally before
+patching.
+
+First, case notification side effects no longer make successful case mutations
+look failed to callers. Opening a case, posting buyer/seller/staff case
+messages, and staff resolving a case now wrap post-mutation
+`createNotification()` calls in warning-level Sentry capture with bounded
+case/order/user IDs. Email side effects and audit/remediation paths were
+already non-blocking; `CLAUDE.md` now records that case notification side
+effects are in the same observable/non-blocking bucket.
+
+Second, public JSON APIs that vary by optional signed-in block state now return
+private no-store responses. `/api/blog/search/suggestions`,
+`GET /api/blog/[slug]/comments`, `GET /api/commission`, and
+`GET /api/commission/[id]` all apply current-viewer block filters when a Clerk
+cookie is present, so their success, not-found/empty, and rate-limit responses
+now use `privateJson()` or `privateResponse(rateLimitResponse(...))`. This
+preserves the signed-out public behavior while adding `Cache-Control: private,
+no-store, max-age=0` and `Vary: Cookie` so shared caches do not mix
+block-filtered rows or counts between viewers. `CLAUDE.md` now calls out
+optional-auth public discovery reads with block filters as auth-varying API
+responses.
+
+Third, message attachments no longer trust first-party URL shape alone at the
+message persistence boundary. The ordinary client still calls
+`/api/upload/verify` after direct R2 PUTs, but forged server-action posts could
+previously submit a user-scoped `messageAny` URL without proving that the object
+passed HEAD/content-type/size/signature verification. `sendMessage()` now calls
+`verifyFirstPartyUploadForPersistence()` before writing attachment `Message`
+rows. The helper extracts the first-party R2 key, confirms the key belongs to
+the current Clerk user and endpoint, checks object size/content type, and reads
+the first bytes for the same JPEG/PNG/WebP/PDF signature checks used by upload
+verification. This reduces unchecked-media persistence risk without introducing
+client-side receipt fields as a new trust boundary.
+
+The ops/storage sidecar also rechecked Clerk security settings, Sentry cron
+alert routing, R2 ListBucket/public-bucket/dashboard evidence, HSTS preload,
+and Vercel Analytics/Speed Insights. Those remain dashboard/product/manual
+evidence items rather than source-proven app defects in this pass. Existing
+source already has local admin role/PIN gates, Sentry cron check-in and
+ops-health warning emission, R2 HeadBucket health wording, HSTS header config,
+and no installed Vercel Analytics/Speed Insights package; none of those
+external-evidence categories gets a duplicate tally movement here.
+
+Guardrails:
+`tests/payment-side-effect-observability.test.mjs`,
+`tests/private-json-cache-headers.test.mjs`,
+`tests/public-cron-search-hardening.test.mjs`,
+`tests/public-api-auth-inventory.test.mjs`,
+`tests/public-visibility-followups.test.mjs`,
+`tests/commission-interest-count.test.mjs`,
+`tests/http-rate-limit-followups.test.mjs`,
+`tests/message-case-policy-guardrails.test.mjs`,
+`tests/upload-ux-followups.test.mjs`, and
+`tests/upload-verification-token.test.mjs`.
+
+Current running tally after Entry 425: verified fixed/reduced 804, verified
+stale/false-positive/current 473, deferred product/design/ops/legal 73,
+approximate raw allegations left from current max #1126: 79. The fixed count
+increases by eight for case-open notification non-blocking observability,
+case-message notification non-blocking observability, case-resolution
+notification non-blocking observability, blog-suggestion private auth-varying
+responses, blog-comment private auth-varying responses, commission-list private
+auth-varying responses, commission-detail private auth-varying responses, and
+message-attachment persistence-time upload verification. Stale/current,
+deferred, and approximate raw counts stay flat because the manual evidence
+items were already deferred and the source fixes were hidden adjacent residues
+inside already-open categories.
+
+Remaining major categories: Stripe webhook subscription dashboard evidence,
+Stripe Connect v2 loss-liability ops/legal decision, stale remote branch and
+old git author hygiene, Round 10 deferred cache/state-machine product designs
+that require product decisions rather than source guardrails, remaining
+EXPLAIN-dependent query-plan/index validation, Stripe partial-refund runtime
+reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope, remaining privacy/export retention decisions,
+cross-seller AI duplicate-detection product design, legacy enum
+cleanup/data-migration decisions, partial multi-seller checkout continuation
+design, deliberate BigInt money-column modeling, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket/dashboard/direct-upload enforcement evidence, HSTS
+preload submission decision, residual lower-risk HTTP-status/logging hygiene
+outside touched routes, Vercel Analytics/Speed Insights product/privacy
+decision, remaining homepage runtime a11y proof, and residual
+agent/worktree verification process hygiene.
+
 Entry 423 closes a parent-verified hidden-residue pass across private response
 headers, account-state action checks, provider-error telemetry, and Sentry
 redaction. Three read-only sidecar scans were used for disjoint source

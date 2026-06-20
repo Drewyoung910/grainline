@@ -18,6 +18,10 @@ import BlockReportButton from "@/components/BlockReportButton";
 import { normalizeMessageAttachments } from "@/lib/messageAttachments";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
+import {
+  MESSAGE_ATTACHMENT_CONTENT_TYPES,
+  verifyFirstPartyUploadForPersistence,
+} from "@/lib/uploadPersistenceVerification";
 import { messagingUnavailableReason } from "@/lib/messageRecipientState";
 import { canViewListingDetail } from "@/lib/listingVisibility";
 import { isSupportedStripeAccountVersion } from "@/lib/sellerVisibility";
@@ -210,6 +214,23 @@ export default async function ThreadPage({
       select: { id: true },
     });
     if (blockExists) return { ok: false, error: "blocked" };
+
+    if (atts.length > 0) {
+      const attachmentVerifications = await Promise.all(
+        atts.map((attachment) =>
+          verifyFirstPartyUploadForPersistence({
+            url: attachment.url,
+            endpoint: "messageAny",
+            clerkUserId: userId,
+            allowedContentTypes: MESSAGE_ATTACHMENT_CONTENT_TYPES,
+          }),
+        ),
+      );
+      const failedAttachment = attachmentVerifications.find((result) => !result.ok);
+      if (failedAttachment && !failedAttachment.ok) {
+        return { ok: false, error: failedAttachment.error };
+      }
+    }
 
     // 1) attachments -> each as its own message (JSON payload in body)
     for (const a of atts) {

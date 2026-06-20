@@ -1,5 +1,5 @@
 // src/app/api/blog/search/suggestions/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
@@ -14,6 +14,7 @@ import {
 } from "@/lib/searchSuggestionState";
 import { normalizeDisplayNameForLookup } from "@/lib/sanitize";
 import { getPopularBlogTags } from "@/lib/popularBlogTags";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 
 export type BlogSuggestion = {
   type: "post" | "tag" | "author";
@@ -67,10 +68,10 @@ async function blogFuzzySuggestionRows(q: string, blockedUserIds: string[], bloc
 
 export async function GET(req: NextRequest) {
   const rl = await safeRateLimit(searchRatelimit, getIP(req));
-  if (!rl.success) return rateLimitResponse(rl.reset, "Too many blog searches.");
+  if (!rl.success) return privateResponse(rateLimitResponse(rl.reset, "Too many blog searches."));
 
   const q = normalizeSearchSuggestionQuery(req.nextUrl.searchParams.get("bq"));
-  if (q.length < 2) return NextResponse.json({ suggestions: [] });
+  if (q.length < 2) return privateJson({ suggestions: [] });
   const { userId } = await auth();
   let meDbId: string | null = null;
   if (userId) {
@@ -144,5 +145,5 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ suggestions: suggestions.slice(0, 8) });
+  return privateJson({ suggestions: suggestions.slice(0, 8) });
 }

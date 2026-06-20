@@ -26,6 +26,35 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.doesNotMatch(route, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
   });
 
+  it("keeps case resolution responses from being masked by notification or email failures", () => {
+    const route = source("src/app/api/cases/[id]/resolve/route.ts");
+
+    assert.match(route, /source: "case_resolved_notification"/);
+    assert.match(route, /source: "case_resolved_email"/);
+    assert.match(route, /notificationError/);
+    assert.match(route, /buyerId: caseRecord\.buyerId/);
+    assert.doesNotMatch(route, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
+  });
+
+  it("keeps case create and message responses from being masked by notification failures", () => {
+    const createRoute = source("src/app/api/cases/route.ts");
+    const messageRoute = source("src/app/api/cases/[id]/messages/route.ts");
+
+    assert.match(createRoute, /source: "case_open_notification"/);
+    assert.match(createRoute, /source: "case_open_email"/);
+    assert.match(createRoute, /notificationError/);
+
+    assert.match(messageRoute, /source: "case_staff_message_notification"/);
+    assert.match(messageRoute, /source: "case_party_message_notification"/);
+    assert.match(messageRoute, /source: "case_staff_message_email"/);
+    assert.match(messageRoute, /source: "case_party_message_email"/);
+    assert.match(messageRoute, /Promise\.all\(notifications\)/);
+
+    for (const route of [createRoute, messageRoute]) {
+      assert.doesNotMatch(route, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
+    }
+  });
+
   it("records seller refunds only while the refund lock is still held", () => {
     const route = source("src/app/api/orders/[id]/refund/route.ts");
 

@@ -459,13 +459,26 @@ export async function POST(
     );
 
     if (caseRecord.buyerId) {
-      await createNotification({
-        userId: caseRecord.buyerId,
-        type: refunding ? "REFUND_ISSUED" : "CASE_RESOLVED",
-        title: resolutionCopy.notificationTitle,
-        body: resolutionCopy.body,
-        link: `/dashboard/orders/${caseRecord.orderId}`,
-      });
+      try {
+        await createNotification({
+          userId: caseRecord.buyerId,
+          type: refunding ? "REFUND_ISSUED" : "CASE_RESOLVED",
+          title: resolutionCopy.notificationTitle,
+          body: resolutionCopy.body,
+          link: `/dashboard/orders/${caseRecord.orderId}`,
+        });
+      } catch (notificationError) {
+        Sentry.captureException(notificationError, {
+          level: "warning",
+          tags: { source: "case_resolved_notification" },
+          extra: {
+            caseId: id,
+            orderId: caseRecord.orderId,
+            buyerId: caseRecord.buyerId,
+            resolution,
+          },
+        });
+      }
     }
 
     try {

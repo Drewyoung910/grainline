@@ -204,22 +204,41 @@ export async function POST(
 
     if (isStaff && !isParty) {
       // Staff message — notify both buyer and seller
-      if (caseRecord.buyerId) {
-        await createNotification({
-          userId: caseRecord.buyerId,
-          type: "CASE_MESSAGE",
-          title: "Grainline Staff sent a message in your case",
-          body: truncateText(messageBody, 60),
-          link: `/dashboard/orders/${caseRecord.orderId}`,
+      try {
+        const notifications: Promise<unknown>[] = [];
+        if (caseRecord.buyerId) {
+          notifications.push(
+            createNotification({
+              userId: caseRecord.buyerId,
+              type: "CASE_MESSAGE",
+              title: "Grainline Staff sent a message in your case",
+              body: truncateText(messageBody, 60),
+              link: `/dashboard/orders/${caseRecord.orderId}`,
+            }),
+          );
+        }
+        notifications.push(
+          createNotification({
+            userId: caseRecord.sellerId,
+            type: "CASE_MESSAGE",
+            title: "Grainline Staff sent a message in your case",
+            body: truncateText(messageBody, 60),
+            link: `/dashboard/sales/${caseRecord.orderId}`,
+          }),
+        );
+        await Promise.all(notifications);
+      } catch (notificationError) {
+        Sentry.captureException(notificationError, {
+          level: "warning",
+          tags: { source: "case_staff_message_notification" },
+          extra: {
+            caseId: id,
+            orderId: caseRecord.orderId,
+            buyerId: caseRecord.buyerId,
+            sellerId: caseRecord.sellerId,
+          },
         });
       }
-      await createNotification({
-        userId: caseRecord.sellerId,
-        type: "CASE_MESSAGE",
-        title: "Grainline Staff sent a message in your case",
-        body: truncateText(messageBody, 60),
-        link: `/dashboard/sales/${caseRecord.orderId}`,
-      });
 
       // Send emails to both parties
       try {
@@ -277,13 +296,21 @@ export async function POST(
           : `/dashboard/orders/${caseRecord.orderId}`;
 
       if (recipientId) {
-        await createNotification({
-          userId: recipientId,
-          type: "CASE_MESSAGE",
-          title: `${senderName} sent a message in your case`,
-          body: truncateText(messageBody, 60),
-          link: caseLink,
-        });
+        try {
+          await createNotification({
+            userId: recipientId,
+            type: "CASE_MESSAGE",
+            title: `${senderName} sent a message in your case`,
+            body: truncateText(messageBody, 60),
+            link: caseLink,
+          });
+        } catch (notificationError) {
+          Sentry.captureException(notificationError, {
+            level: "warning",
+            tags: { source: "case_party_message_notification" },
+            extra: { caseId: id, orderId: caseRecord.orderId, recipientId },
+          });
+        }
 
         try {
           if (await shouldSendEmail(recipientId, "EMAIL_CASE_MESSAGE")) {

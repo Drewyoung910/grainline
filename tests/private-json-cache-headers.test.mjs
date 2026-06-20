@@ -315,24 +315,31 @@ describe("private JSON cache headers", () => {
     assert.match(middleware, /privateApiJson\(\{ error: "Admin PIN required" \}, \{ status: HTTP_STATUS\.FORBIDDEN \}, requestId\)/);
   });
 
-  it("keeps auth mutation methods private when the same route file also has public handlers", () => {
+  it("keeps auth-varying commission and blog handlers private", () => {
     const commissionCreate = getMethodSource("src/app/api/commission/route.ts", "POST");
     const commissionStatus = getMethodSource("src/app/api/commission/[id]/route.ts", "PATCH");
     const blogCommentCreate = getMethodSource("src/app/api/blog/[slug]/comments/route.ts", "POST");
-
-    for (const methodSource of [commissionCreate, commissionStatus, blogCommentCreate]) {
-      assert.match(methodSource, /privateJson/);
-      assert.match(methodSource, /privateResponse\(\s*rateLimitResponse\(/);
-      assert.doesNotMatch(methodSource, /\b(?:NextResponse|Response)\.json\(/);
-      assert.doesNotMatch(methodSource, /return rateLimitResponse\(/);
-    }
-
     const commissionList = getMethodSource("src/app/api/commission/route.ts", "GET");
     const commissionDetail = getMethodSource("src/app/api/commission/[id]/route.ts", "GET");
     const blogCommentList = getMethodSource("src/app/api/blog/[slug]/comments/route.ts", "GET");
-    assert.match(commissionList, /NextResponse\.json/);
-    assert.match(commissionDetail, /NextResponse\.json/);
-    assert.match(blogCommentList, /NextResponse\.json/);
+    const blogSuggestions = getMethodSource("src/app/api/blog/search/suggestions/route.ts", "GET");
+
+    for (const methodSource of [
+      commissionCreate,
+      commissionStatus,
+      blogCommentCreate,
+      commissionList,
+      commissionDetail,
+      blogCommentList,
+      blogSuggestions,
+    ]) {
+      assert.match(methodSource, /privateJson/);
+      assert.doesNotMatch(methodSource, /\b(?:NextResponse|Response)\.json\(/);
+      assert.doesNotMatch(methodSource, /return rateLimitResponse\(/);
+    }
+    for (const methodSource of [commissionCreate, commissionStatus, blogCommentCreate, commissionList, commissionDetail, blogCommentList, blogSuggestions]) {
+      assert.match(methodSource, /privateResponse\(\s*rateLimitResponse\(/);
+    }
   });
 
   it("keeps auth-varying GET handlers private even when other methods stay unchanged", () => {

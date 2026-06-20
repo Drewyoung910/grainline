@@ -1,5 +1,5 @@
 // src/app/api/commission/[id]/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { after } from "next/server";
 import * as Sentry from "@sentry/nextjs";
@@ -35,7 +35,7 @@ export async function GET(
   const { id } = await params;
 
   const { success, reset } = await safeRateLimit(searchRatelimit, getIP(req));
-  if (!success) return rateLimitResponse(reset, "Too many commission reads.");
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many commission reads."));
 
   const { userId } = await auth();
   let meId: string | null = null;
@@ -87,10 +87,10 @@ export async function GET(
     },
   });
 
-  if (!request) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!request) return privateJson({ error: "Not found" }, { status: 404 });
 
   const { _count, buyer, interests, ...requestBody } = request;
-  return NextResponse.json({
+  return privateJson({
     ...requestBody,
     interestedCount: resolvedInterestedCount({
       interestedCount: request.interestedCount,

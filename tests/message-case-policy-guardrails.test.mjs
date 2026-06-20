@@ -63,6 +63,23 @@ describe("message and case policy guardrails", () => {
     assert.match(customOrderRequest, /data: \{ updatedAt: new Date\(\), archivedAAt: null, archivedBAt: null \}/);
   });
 
+  it("verifies uploaded message attachments at persistence time before creating messages", () => {
+    const threadPage = source("src/app/messages/[id]/page.tsx");
+    const helper = source("src/lib/uploadPersistenceVerification.ts");
+
+    assert.match(threadPage, /verifyFirstPartyUploadForPersistence/);
+    assert.match(threadPage, /MESSAGE_ATTACHMENT_CONTENT_TYPES/);
+    assert.match(threadPage, /endpoint: "messageAny"/);
+    assert.ok(
+      threadPage.indexOf("verifyFirstPartyUploadForPersistence") <
+        threadPage.indexOf("await prisma.message.create"),
+      "message attachments must be verified before message rows are created",
+    );
+    assert.match(helper, /export const MESSAGE_ATTACHMENT_CONTENT_TYPES/);
+    assert.match(helper, /"application\/pdf"/);
+    assert.match(helper, /IMAGE_UPLOAD_TYPES/);
+  });
+
   it("keeps staff reported-thread review from starting participant-only live fetches", () => {
     const thread = source("src/components/ThreadMessages.tsx");
     const page = source("src/app/messages/[id]/page.tsx");

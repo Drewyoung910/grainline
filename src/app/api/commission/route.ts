@@ -1,5 +1,5 @@
 // src/app/api/commission/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { Category } from "@prisma/client";
@@ -50,7 +50,7 @@ const COMMISSION_CREATE_BODY_MAX_BYTES = 24 * 1024;
 
 export async function GET(req: NextRequest) {
   const rate = await safeRateLimit(searchRatelimit, getIP(req));
-  if (!rate.success) return rateLimitResponse(rate.reset, "Too many commission requests.");
+  if (!rate.success) return privateResponse(rateLimitResponse(rate.reset, "Too many commission requests."));
 
   const url = new URL(req.url);
   const page = parseBoundedPositiveIntParam(url.searchParams.get("page"), 1, 1000);
@@ -107,7 +107,7 @@ export async function GET(req: NextRequest) {
     }),
   }));
 
-  return NextResponse.json({ requests, total, page: currentPage, totalPages: Math.ceil(total / pageSize) });
+  return privateJson({ requests, total, page: currentPage, totalPages: Math.ceil(total / pageSize) });
 }
 
 export async function POST(req: NextRequest) {

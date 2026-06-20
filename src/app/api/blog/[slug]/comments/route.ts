@@ -1,5 +1,5 @@
 // src/app/api/blog/[slug]/comments/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { auth } from "@clerk/nextjs/server";
 import { blogCommentRatelimit, getIP, safeRateLimit, rateLimitResponse, searchRatelimit } from "@/lib/ratelimit";
@@ -53,13 +53,13 @@ export async function GET(
   const { slug } = await params;
 
   const { success, reset } = await safeRateLimit(searchRatelimit, getIP(req));
-  if (!success) return rateLimitResponse(reset, "Too many comment reads.");
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many comment reads."));
 
   const post = await prisma.blogPost.findFirst({
     where: publicBlogPostWhere({ slug }),
     select: { id: true, authorId: true },
   });
-  if (!post) return NextResponse.json({ comments: [] });
+  if (!post) return privateJson({ comments: [] });
 
   const { userId } = await auth();
   let blockedUserIds: string[] = [];
@@ -68,7 +68,7 @@ export async function GET(
     if (me) {
       blockedUserIds = [...await getBlockedUserIdsFor(me.id)];
       if (post.authorId && blockedUserIds.includes(post.authorId)) {
-        return NextResponse.json({ comments: [] });
+        return privateJson({ comments: [] });
       }
     }
   }
@@ -122,7 +122,7 @@ export async function GET(
     })),
   }));
 
-  return NextResponse.json({ comments: mapped });
+  return privateJson({ comments: mapped });
 }
 
 export async function POST(

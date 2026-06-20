@@ -138,6 +138,12 @@ describe("upload UX follow-ups", () => {
     assert.match(verifyRoute, /actualSize,\s*expectedSize,\s*maxSize/s);
     assert.match(verifyRoute, /deleteObject\(key\)/);
 
+    const persistenceHelper = source("src/lib/uploadPersistenceVerification.ts");
+    assert.match(persistenceHelper, /new HeadObjectCommand/);
+    assert.match(persistenceHelper, /new GetObjectCommand/);
+    assert.match(persistenceHelper, /uploadKeyBelongsToUser\(key, endpoint, clerkUserId\)/);
+    assert.match(persistenceHelper, /uploadFileSignatureMatches\(prefixBytes, matchedContentType\)/);
+
     assert.match(presignRoute, /ALLOWED_EXTENSIONS/);
     assert.match(presignRoute, /allowedExtensions\.includes\(ext\)/);
     assert.match(presignRoute, /uploadExtensionMessage/);
