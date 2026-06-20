@@ -301,9 +301,13 @@ describe("payment and fulfillment side-effect observability", () => {
 
     assert.match(route, /function orderPostPaymentSideEffectsBlocked/);
     assert.match(route, /function blockedCheckoutReviewPrefix/);
+    assert.match(route, /function blockedCheckoutReviewReason/);
+    assert.match(route, /function blockedCheckoutRefundRetryReason/);
+    assert.match(route, /function blockedCheckoutRefundStillInProgress/);
     assert.match(route, /orderHasRefundLedger\(order\)/);
     assert.match(route, /BLOCKED_CHECKOUT_REVIEW_MARKER/);
     assert.match(route, /sellerRefundId: true/);
+    assert.match(route, /sellerRefundLockedAt: true/);
     assert.match(route, /reviewNeeded: true/);
     assert.match(
       route,
@@ -316,12 +320,31 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(existingOrderBranch, /reviewNeeded: true/);
     assert.match(existingOrderBranch, /reviewNote: true/);
     assert.match(existingOrderBranch, /blockingRefundLedgerWhere\(\)/);
+    assert.match(existingOrderBranch, /const retryReason = blockedCheckoutRefundRetryReason\(already\)/);
+    assert.match(existingOrderBranch, /buyerId: already\.buyerId/);
+    assert.match(existingOrderBranch, /sellerUserIds: \[/);
+    assert.match(existingOrderBranch, /blockedCheckoutRefundStillInProgress\(already\)/);
+    assert.match(existingOrderBranch, /throw new Error\("Blocked checkout automatic refund is still in progress\."\)/);
     assert.match(existingOrderBranch, /if \(!orderPostPaymentSideEffectsBlocked\(already\)\) \{/);
     assert.ok(
       existingOrderBranch.indexOf("orderPostPaymentSideEffectsBlocked(already)") <
         existingOrderBranch.indexOf("enqueueOrderPostPaymentSideEffects(already.id"),
       "existing-order retries must block side effects for marked blocked checkouts",
     );
+    assert.ok(
+      route.indexOf("blockedCheckoutRefundRetryReason(already)") <
+        route.indexOf("stripe.checkout.sessions.retrieve"),
+      "existing blocked-checkout retries should be detected before retrieving Stripe session details",
+    );
+    const existingRetryBranch = route.slice(
+      route.indexOf("if (existingBlockedCheckoutRetry)"),
+      route.indexOf("// CART CHECKOUT"),
+    );
+    assert.match(existingRetryBranch, /await releaseCheckoutLock\(checkoutLockKey, sessionId\)/);
+    assert.match(existingRetryBranch, /await refundBlockedCheckout\(\{/);
+    assert.match(existingRetryBranch, /reason: existingBlockedCheckoutRetry\.retryReason/);
+    assert.match(existingRetryBranch, /lineItems: checkoutLineItems/);
+    assert.match(existingRetryBranch, /return NextResponse\.json\(\{ ok: true \}\)/);
     assert.match(route, /reviewNote: cartInvalidState\.reason[\s\S]*blockedCheckoutReviewPrefix\(cartInvalidState\.reason\)/);
     assert.match(route, /reviewNote: singleInvalidState\.reason[\s\S]*blockedCheckoutReviewPrefix\(singleInvalidState\.reason\)/);
     assert.match(route, /const reviewPrefix = blockedCheckoutReviewPrefix\(input\.reason\)/);
@@ -344,6 +367,7 @@ describe("payment and fulfillment side-effect observability", () => {
     const route = source("src/app/api/stripe/webhook/route.ts");
 
     assert.match(route, /sellerRefundId: REFUND_LOCK_SENTINEL/);
+    assert.match(route, /releaseStaleRefundLocks\(input\.orderId\)/);
     assert.match(
       route,
       /await prisma\.\$executeRaw`[\s\S]*"sellerRefundId" IS NULL[\s\S]*blockingRefundOrLatestOpenDisputeLedgerExistsSql/,

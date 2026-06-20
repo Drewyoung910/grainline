@@ -7585,3 +7585,81 @@ preload submission decision, residual lower-risk HTTP-status/logging hygiene
 outside touched routes, Vercel Analytics/Speed Insights product/privacy
 decision, remaining homepage runtime a11y proof, and residual
 agent/worktree verification process hygiene.
+
+Entry 429 closes a parent-verified blocked-checkout refund retry pass. Two
+read-only sidecar agents were attempted for parallel verification but both hit
+the usage limit before producing work; they were closed and no conclusion here
+relies on agent output.
+
+The previous pass stopped normal order-confirmed side effects for marked
+blocked checkouts, but the existing-order idempotency branch still returned
+without retrying the automatic refund when an earlier delivery had already
+created the blocked order. A crash after `Order.create` but before
+`refundBlockedCheckout()` could therefore leave the order held for staff review
+with no local refund attempt until manual intervention. A second related source
+gap existed after the refund lock was set: Stripe webhook event reservations
+are reclaimable after two minutes, while local refund locks are intentionally
+fresh for fifteen minutes. A reclaimed checkout event that saw a fresh
+`sellerRefundId = "pending"` marker would previously return ok, mark the
+webhook processed, and leave the pending refund lock for cron/manual cleanup
+rather than preserving Stripe's retry path.
+
+Existing-order checkout retries now parse the blocked-checkout review marker,
+distinguish real refund evidence from fresh or stale pending locks, and select
+the buyer plus seller user ids needed for retry side effects. If a marked
+blocked checkout has no blocking refund ledger and no active local refund id,
+the handler retrieves the Stripe session, releases the checkout lock, and
+re-enters `refundBlockedCheckout()` with the original session line items and
+the same `blocked-checkout-refund:{sessionId}:FULL:{amount}` idempotency base.
+If the order still has a fresh pending blocked-checkout refund lock, the
+handler throws so the webhook reservation stays retryable instead of being
+marked processed. `refundBlockedCheckout()` also releases stale pending locks
+for the order before re-reading refund state, allowing old crashed attempts to
+be retried without widening the fresh-lock window.
+
+`CLAUDE.md` now records that marked blocked-checkout existing-order retries
+must either retry the automatic refund, respect completed refund evidence, or
+fail retryably while a fresh local refund lock is still in progress.
+
+This pass does not close the larger orphan-reconciliation item where Stripe has
+already created a refund but all follow-up local DB writes fail and later
+`charge.refunded` recovery/backfill semantics need broader design/runtime
+proof.
+
+Guardrails:
+`tests/payment-side-effect-observability.test.mjs`,
+`tests/stripe-webhook-state.test.mjs`,
+`tests/marketplace-refunds.test.mjs`,
+`tests/refund-route-state.test.mjs`,
+`tests/refund-lock-state.test.mjs`, and
+`tests/stripe-webhook-event-state.test.mjs`.
+
+Current running tally after Entry 429: verified fixed/reduced 822, verified
+stale/false-positive/current 473, deferred product/design/ops/legal 73,
+approximate raw allegations left from current max #1126: 79. The fixed count
+increases by two for existing blocked-checkout order refund retry and fresh
+pending blocked-checkout refund-lock retryability. Stale/current, deferred,
+and approximate raw counts stay flat because this was a source-discovered
+residue inside the already-open Stripe webhook retry/refund category rather
+than a new raw-number closure.
+
+Remaining major categories: Stripe webhook refund-orphan reconciliation,
+Stripe webhook subscription dashboard evidence, Stripe Connect v2
+loss-liability ops/legal decision, stale remote branch and old git author
+hygiene, Round 10 deferred cache/state-machine product designs that require
+product decisions rather than source guardrails, remaining EXPLAIN-dependent
+query-plan/index validation, Stripe partial-refund runtime reconciliation
+proof, founding-maker permanence policy, remaining privacy/legal retention
+scope, remaining privacy/export retention decisions, cross-seller AI
+duplicate-detection product design, legacy enum cleanup/data-migration
+decisions, partial multi-seller checkout continuation design, deliberate BigInt
+money-column modeling, live-data reconciliation for historical seller
+shipping-rate currency drift, Clerk staff MFA and breached-password dashboard
+evidence, Clerk multi-account spam dashboard evidence, buyer-deletion runtime
+replay proof, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public-bucket/dashboard posture plus
+direct-upload lifecycle/orphan cleanup and production smoke evidence,
+health-check token transport, HSTS preload submission decision, residual
+lower-risk HTTP-status/logging hygiene outside touched routes, Vercel
+Analytics/Speed Insights product/privacy decision, remaining homepage runtime
+a11y proof, and residual agent/worktree verification process hygiene.
