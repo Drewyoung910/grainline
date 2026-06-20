@@ -7514,3 +7514,74 @@ preload submission decision, residual lower-risk HTTP-status/logging hygiene
 outside touched routes, Vercel Analytics/Speed Insights product/privacy
 decision, remaining homepage runtime a11y proof, and residual
 agent/worktree verification process hygiene.
+
+Entry 428 closes a parent-verified blocked-checkout webhook side-effect race
+pass with one read-only sidecar verifier plus local review. The sidecar was
+closed before this entry. This entry intentionally fixes only the source-proven
+post-payment side-effect race; retrying automatic refunds for already-created
+blocked orders with no refund ledger and refund-orphan reconciliation remain
+separate larger webhook work.
+
+Previously, an invalid paid checkout order was created with `reviewNeeded`
+and the raw invalid reason, but the blocked-checkout marker used by
+`orderPostPaymentSideEffectsBlocked()` was not stamped until
+`refundBlockedCheckout()` later acquired the local refund lock. If the webhook
+committed `Order.create` and then crashed or timed out before that later update,
+a Stripe retry could hit the existing-order idempotency branch, select only the
+order id, and enqueue normal order-confirmed notifications/emails for a blocked
+checkout.
+
+The webhook now uses one `blockedCheckoutReviewPrefix()` helper for both the
+invalid `Order.create` review note and the automatic refund helper. Cart and
+single-listing invalid paid checkouts stamp the blocked-checkout marker in the
+same transaction that creates the order. The existing-order retry branch now
+selects `sellerRefundId`, `reviewNeeded`, `reviewNote`, and blocking refund
+ledger rows, then calls `orderPostPaymentSideEffectsBlocked()` before any
+post-payment fanout. Retried blocked checkout events therefore release the
+checkout lock and return without normal order-confirmed side effects.
+
+`CLAUDE.md` now records the durable rule: blocked-checkout orders must be
+marked at creation time, and existing-order webhook retries must re-run the
+side-effect blocker before enqueueing order-confirmed notifications or emails.
+
+Remaining sidecar-confirmed items not closed here: the existing-order retry
+branch still does not re-enter `refundBlockedCheckout()` for an already-created
+marker order with no refund ledger, so refund retry/manual reconciliation
+semantics remain open; the orphaned-after-Stripe-refund path still needs a
+separate reconciliation job/backfill if Drew wants that made self-healing
+beyond current observability and partial `charge.refunded` recovery.
+
+Guardrails:
+`tests/payment-side-effect-observability.test.mjs`,
+`tests/stripe-webhook-state.test.mjs`, and
+`tests/marketplace-refunds.test.mjs`.
+
+Current running tally after Entry 428: verified fixed/reduced 820, verified
+stale/false-positive/current 473, deferred product/design/ops/legal 73,
+approximate raw allegations left from current max #1126: 79. The fixed count
+increases by one for the blocked-checkout existing-order retry side-effect
+race. Stale/current, deferred, and approximate raw counts stay flat because the
+remaining webhook refund retry/reconciliation work stays open and this was a
+source-discovered residue inside an already-open Stripe webhook category.
+
+Remaining major categories: Stripe webhook blocked-checkout refund retry and
+refund-orphan reconciliation, Stripe webhook subscription dashboard evidence,
+Stripe Connect v2 loss-liability ops/legal decision, stale remote branch and
+old git author hygiene, Round 10 deferred cache/state-machine product designs
+that require product decisions rather than source guardrails, remaining
+EXPLAIN-dependent query-plan/index validation, Stripe partial-refund runtime
+reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope, remaining privacy/export retention decisions,
+cross-seller AI duplicate-detection product design, legacy enum
+cleanup/data-migration decisions, partial multi-seller checkout continuation
+design, deliberate BigInt money-column modeling, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket/dashboard posture plus direct-upload lifecycle/orphan
+cleanup and production smoke evidence, health-check token transport, HSTS
+preload submission decision, residual lower-risk HTTP-status/logging hygiene
+outside touched routes, Vercel Analytics/Speed Insights product/privacy
+decision, remaining homepage runtime a11y proof, and residual
+agent/worktree verification process hygiene.

@@ -160,6 +160,10 @@ const STRIPE_DISPUTE_EVENT_TYPES = new Set([
 ]);
 const BLOCKED_CHECKOUT_REVIEW_MARKER = "Order was held for staff review.";
 
+function blockedCheckoutReviewPrefix(reason: string) {
+  return `${reason} ${BLOCKED_CHECKOUT_REVIEW_MARKER}`;
+}
+
 function orderPostPaymentSideEffectsBlocked(order: {
   sellerRefundId?: string | null;
   reviewNeeded?: boolean | null;
@@ -729,13 +733,25 @@ export async function POST(req: Request) {
       // Idempotency
       const already = await prisma.order.findFirst({
         where: { stripeSessionId: sessionId },
-        select: { id: true },
+        select: {
+          id: true,
+          sellerRefundId: true,
+          reviewNeeded: true,
+          reviewNote: true,
+          paymentEvents: {
+            where: blockingRefundLedgerWhere(),
+            take: 1,
+            select: { eventType: true, status: true },
+          },
+        },
       });
       if (already) {
         await releaseCheckoutLock(checkoutLockKey, sessionId);
-        await enqueueOrderPostPaymentSideEffects(already.id, {
-          multiSellerCheckout: initialMultiSellerCheckout,
-        });
+        if (!orderPostPaymentSideEffectsBlocked(already)) {
+          await enqueueOrderPostPaymentSideEffects(already.id, {
+            multiSellerCheckout: initialMultiSellerCheckout,
+          });
+        }
         return NextResponse.json({ ok: true });
       }
 
@@ -862,7 +878,7 @@ export async function POST(req: Request) {
         sellerUserIds: string[];
         buyerUserId: string | null;
       }) {
-        const reviewPrefix = `${input.reason} ${BLOCKED_CHECKOUT_REVIEW_MARKER}`;
+        const reviewPrefix = blockedCheckoutReviewPrefix(input.reason);
         const { logSecurityEvent } = await import("@/lib/security");
         for (const sellerUserId of input.sellerUserIds) {
           logSecurityEvent("ownership_violation", {
@@ -1400,7 +1416,7 @@ export async function POST(req: Request) {
 
               reviewNeeded: reviewNeeded || !!cartInvalidState.reason,
               reviewNote: cartInvalidState.reason
-                ? cartInvalidState.reason
+                ? blockedCheckoutReviewPrefix(cartInvalidState.reason)
                 : reviewNeeded
                   ? "Address and/or quoted amount changed at Checkout."
                   : null,
@@ -1764,7 +1780,7 @@ export async function POST(req: Request) {
 
               reviewNeeded: reviewNeeded || !!singleInvalidState.reason,
               reviewNote: singleInvalidState.reason
-                ? singleInvalidState.reason
+                ? blockedCheckoutReviewPrefix(singleInvalidState.reason)
                 : reviewNeeded
                   ? "Address and/or quoted amount changed at Checkout."
                   : null,

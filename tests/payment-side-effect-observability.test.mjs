@@ -300,6 +300,7 @@ describe("payment and fulfillment side-effect observability", () => {
     const route = source("src/app/api/stripe/webhook/route.ts");
 
     assert.match(route, /function orderPostPaymentSideEffectsBlocked/);
+    assert.match(route, /function blockedCheckoutReviewPrefix/);
     assert.match(route, /orderHasRefundLedger\(order\)/);
     assert.match(route, /BLOCKED_CHECKOUT_REVIEW_MARKER/);
     assert.match(route, /sellerRefundId: true/);
@@ -308,6 +309,35 @@ describe("payment and fulfillment side-effect observability", () => {
       route,
       /if \(orderPostPaymentSideEffectsBlocked\(order\)\) return/,
     );
+    const existingOrderBranch = route.slice(
+      route.indexOf("const already = await prisma.order.findFirst"),
+      route.indexOf("// Retrieve with expansions"),
+    );
+    assert.match(existingOrderBranch, /reviewNeeded: true/);
+    assert.match(existingOrderBranch, /reviewNote: true/);
+    assert.match(existingOrderBranch, /blockingRefundLedgerWhere\(\)/);
+    assert.match(existingOrderBranch, /if \(!orderPostPaymentSideEffectsBlocked\(already\)\) \{/);
+    assert.ok(
+      existingOrderBranch.indexOf("orderPostPaymentSideEffectsBlocked(already)") <
+        existingOrderBranch.indexOf("enqueueOrderPostPaymentSideEffects(already.id"),
+      "existing-order retries must block side effects for marked blocked checkouts",
+    );
+    assert.match(route, /reviewNote: cartInvalidState\.reason[\s\S]*blockedCheckoutReviewPrefix\(cartInvalidState\.reason\)/);
+    assert.match(route, /reviewNote: singleInvalidState\.reason[\s\S]*blockedCheckoutReviewPrefix\(singleInvalidState\.reason\)/);
+    assert.match(route, /const reviewPrefix = blockedCheckoutReviewPrefix\(input\.reason\)/);
+
+    const cartInvalidBranch = route.slice(
+      route.indexOf("if (createdCartOrder.invalidReason)"),
+      route.indexOf("await enqueueOrderPostPaymentSideEffects(createdCartOrder.id"),
+    );
+    const singleInvalidBranch = route.slice(
+      route.indexOf("if (createdSingleOrder.invalidReason)"),
+      route.indexOf("await enqueueOrderPostPaymentSideEffects(createdSingleOrder.id"),
+    );
+    assert.match(cartInvalidBranch, /await refundBlockedCheckout\(\{/);
+    assert.match(cartInvalidBranch, /return NextResponse\.json\(\{ ok: true \}\)/);
+    assert.match(singleInvalidBranch, /await refundBlockedCheckout\(\{/);
+    assert.match(singleInvalidBranch, /return NextResponse\.json\(\{ ok: true \}\)/);
   });
 
   it("uses the refund sentinel lock before issuing automatic blocked-checkout refunds", () => {
