@@ -522,6 +522,7 @@ export async function POST(req: Request) {
       quotedToCountry: "US",
       quotedToPhone: shippingAddress.phone ?? "",
       quotedShippingAmountCents: String(shippingAmountCents),
+      itemsSubtotalCents: String(itemsSubtotalCents),
       giftNote: giftNote ?? "",
       giftWrapping: giftWrapping ? "true" : "false",
       giftWrappingPriceCents: giftWrapping && giftWrappingPriceCents > 0 ? String(giftWrappingPriceCents) : "",

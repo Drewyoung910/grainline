@@ -6,6 +6,7 @@ const {
   blockedCheckoutDisputeState,
   chargeDisputeLedgerState,
   chargeRefundLedgerState,
+  checkoutItemsSubtotalCents,
   checkoutInvalidReasonState,
   checkoutPriceDriftState,
   disputeCaseAction,
@@ -181,6 +182,63 @@ describe("Stripe webhook state helpers", () => {
     assert.equal(parseOptionalNonNegativeInt(""), null);
     assert.equal(parseOptionalNonNegativeInt("-1"), null);
     assert.equal(parseOptionalNonNegativeInt("1.25"), null);
+  });
+
+  it("derives checkout item subtotal from listing line items before gift-wrap fallback", () => {
+    assert.equal(
+      checkoutItemsSubtotalCents({
+        checkoutAmountSubtotalCents: 10_300,
+        giftWrappingPriceCents: 300,
+        lineItems: [
+          {
+            amount_subtotal: 10_000,
+            quantity: 2,
+            price: {
+              unit_amount: 5_000,
+              product: { metadata: { listingId: "listing_1" } },
+            },
+          },
+          {
+            amount_subtotal: 300,
+            quantity: 1,
+            price: {
+              unit_amount: 300,
+              product: { metadata: {} },
+            },
+          },
+        ],
+      }),
+      10_000,
+    );
+
+    assert.equal(
+      checkoutItemsSubtotalCents({
+        checkoutAmountSubtotalCents: 10_300,
+        metadataItemsSubtotalCents: 10_000,
+        giftWrappingPriceCents: 300,
+        lineItems: [],
+      }),
+      10_000,
+    );
+
+    assert.equal(
+      checkoutItemsSubtotalCents({
+        checkoutAmountSubtotalCents: 10_300,
+        giftWrappingPriceCents: 300,
+        lineItems: [],
+      }),
+      10_000,
+    );
+  });
+
+  it("persists checkout order item subtotals without reusing Stripe subtotal directly", () => {
+    const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+
+    assert.match(source, /const checkoutLineItems: CheckoutLineItem\[\] =/);
+    assert.match(source, /const itemsSubtotalCents = checkoutItemsSubtotalCents\(\{/);
+    assert.match(source, /metadataItemsSubtotalCents: parseOptionalNonNegativeInt\(sessionMeta\.itemsSubtotalCents\)/);
+    assert.match(source, /checkoutAmountSubtotalCents: s\.amount_subtotal \?\? null/);
+    assert.doesNotMatch(source, /const itemsSubtotalCents: number = s\.amount_subtotal \?\? 0/);
   });
 
   it("detects checkout price drift without changing Stripe-authoritative order data", () => {

@@ -34,11 +34,13 @@ describe("public visibility follow-ups", () => {
     const blogPage = read("src/app/blog/[slug]/page.tsx");
     const commentsRoute = read("src/app/api/blog/[slug]/comments/route.ts");
 
+    assert.match(blogPage, /import \{ getBlockedIdsFor \} from "@\/lib\/blocks"/);
+    assert.match(commentsRoute, /import \{ getBlockedUserIdsFor \} from "@\/lib\/blocks"/);
+
     for (const [path, source] of [
       ["blog page", blogPage],
       ["blog comments API", commentsRoute],
     ]) {
-      assert.match(source, /import \{ getBlockedUserIdsFor \} from "@\/lib\/blocks"/, `${path} must load viewer block state`);
       assert.match(source, /function visibleBlogCommentWhere\(blockedUserIds: string\[\]\)/, `${path} must share comment visibility filters`);
       assert.match(source, /author: \{ banned: false, deletedAt: null \}/, `${path} must filter inactive comment authors`);
       assert.match(source, /authorId: \{ notIn: blockedUserIds \}/, `${path} must filter blocked comment authors`);
@@ -47,6 +49,18 @@ describe("public visibility follow-ups", () => {
     }
 
     assert.match(commentsRoute, /post\.authorId && blockedUserIds\.includes\(post\.authorId\)/);
+  });
+
+  it("filters blocked makers from blog detail related surfaces", () => {
+    const blogPage = read("src/app/blog/[slug]/page.tsx");
+
+    assert.match(blogPage, /const \{ blockedUserIds, blockedSellerIds: blockedSellerIdList \} = await getBlockedIdsFor\(meId\)/);
+    assert.match(blogPage, /const viewerBlogPostWhere = \(extra: Prisma\.BlogPostWhereInput = \{\}\) =>/);
+    assert.match(blogPage, /authorId: \{ notIn: blockedUserIds \}/);
+    assert.match(blogPage, /sellerProfileId: \{ notIn: blockedSellerIds \}/);
+    assert.match(blogPage, /const featuredSellerFilter: Prisma\.ListingWhereInput =/);
+    assert.match(blogPage, /sellerId: \{ notIn: blockedSellerIds \}/);
+    assert.match(blogPage, /where: viewerBlogPostWhere\(\{\s*id: \{ not: post\.id \}/);
   });
 
   it("keeps listing review aggregates aligned with visible review filters", () => {
@@ -89,6 +103,8 @@ describe("public visibility follow-ups", () => {
       assert.doesNotMatch(source, /clerkId: true/);
       assert.match(source, /const isOwner = !!meId && seller\.userId === meId/);
     }
+    assert.match(sellerShopPage, /const blockedUserIds = await getBlockedUserIdsFor\(meId\)/);
+    assert.match(sellerShopPage, /!isOwner && blockedUserIds\.has\(seller\.userId\)/);
     assert.match(visibility, /listing\.seller\.userId === viewer\.dbUserId/);
   });
 

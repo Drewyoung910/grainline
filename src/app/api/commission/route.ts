@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { Category } from "@prisma/client";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { getBlockedIdsFor } from "@/lib/blocks";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import {
   commissionCreateRatelimit,
@@ -58,9 +59,21 @@ export async function GET(req: NextRequest) {
 
   const categoryValid = category && CATEGORY_VALUES.includes(category as Category);
 
+  const { userId } = await auth();
+  let meId: string | null = null;
+  if (userId) {
+    const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+    meId = me?.id ?? null;
+  }
+  const { blockedUserIds, blockedSellerIds } = await getBlockedIdsFor(meId);
+
   const where = openCommissionWhere({
     ...(categoryValid ? { category: category as Category } : {}),
+    ...(blockedUserIds.size > 0 ? { buyerId: { notIn: [...blockedUserIds] } } : {}),
   });
+  const visibleInterestWhere = publicCommissionInterestWhere(
+    blockedSellerIds.length > 0 ? { sellerProfileId: { notIn: blockedSellerIds } } : {},
+  );
 
   const total = await prisma.commissionRequest.count({ where });
   const currentPage = Math.min(page, Math.max(1, Math.ceil(total / pageSize)));
@@ -80,7 +93,7 @@ export async function GET(req: NextRequest) {
       referenceImageUrls: true,
       status: true,
       interestedCount: true,
-      _count: { select: { interests: { where: publicCommissionInterestWhere() } } },
+      _count: { select: { interests: { where: visibleInterestWhere } } },
       expiresAt: true,
       createdAt: true,
       buyer: { select: { name: true, imageUrl: true } },

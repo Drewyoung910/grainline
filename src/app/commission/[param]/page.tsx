@@ -18,10 +18,10 @@ import MarkStatusButtons from "./MarkStatusButtons";
 import { ImageLightbox } from "@/components/ImageLightbox";
 import { isMetroSlug } from "@/lib/geo-metro";
 import { safeJsonLd } from "@/lib/json-ld";
-import { commissionIsExpired, openCommissionWhere } from "@/lib/commissionExpiry";
+import { openCommissionWhere } from "@/lib/commissionExpiry";
 import { publicCommissionInterestWhere, resolvedInterestedCount } from "@/lib/commissionInterestCount";
 import { publicSellerPath } from "@/lib/publicPaths";
-import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
+import { getBlockedIdsFor } from "@/lib/blocks";
 import { formatCurrencyMinorUnitAmount } from "@/lib/money";
 import { formatCommissionBudgetRange } from "@/lib/commissionBudget";
 
@@ -82,8 +82,8 @@ export async function generateMetadata({
   }
 
   // Commission detail metadata (original logic)
-  const req = await prisma.commissionRequest.findUnique({
-    where: { id: param },
+  const req = await prisma.commissionRequest.findFirst({
+    where: openCommissionWhere({ id: param }),
     select: {
       title: true,
       description: true,
@@ -92,12 +92,10 @@ export async function generateMetadata({
       budgetMaxCents: true,
       interestedCount: true,
       _count: { select: { interests: { where: publicCommissionInterestWhere() } } },
-      status: true,
-      expiresAt: true,
-      buyer: { select: { banned: true, deletedAt: true, sellerProfile: { select: { city: true, state: true } } } },
+      buyer: { select: { sellerProfile: { select: { city: true, state: true } } } },
     },
   });
-  if (!req || req.buyer.banned || req.buyer.deletedAt || commissionIsExpired(req)) notFound();
+  if (!req) notFound();
 
   const location = req.isNational
     ? "Ships Anywhere"
@@ -139,10 +137,26 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
   if (!metro) return notFound();
 
   const isMajorMetro = !metro.parentMetroId;
+  const { userId } = await auth();
+  let meId: string | null = null;
+  if (userId) {
+    const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+    meId = me?.id ?? null;
+  }
+  const { blockedUserIds, blockedSellerIds } = await getBlockedIdsFor(meId);
 
   const commissionWhere = isMajorMetro
-    ? openCommissionWhere({ metroId: metro.id })
-    : openCommissionWhere({ cityMetroId: metro.id });
+    ? openCommissionWhere({
+        metroId: metro.id,
+        ...(blockedUserIds.size > 0 ? { buyerId: { notIn: [...blockedUserIds] } } : {}),
+      })
+    : openCommissionWhere({
+        cityMetroId: metro.id,
+        ...(blockedUserIds.size > 0 ? { buyerId: { notIn: [...blockedUserIds] } } : {}),
+      });
+  const visibleInterestWhere = publicCommissionInterestWhere(
+    blockedSellerIds.length > 0 ? { sellerProfileId: { notIn: blockedSellerIds } } : {},
+  );
 
   const rawCommissions = await prisma.commissionRequest.findMany({
     where: commissionWhere,
@@ -157,7 +171,7 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
       budgetMaxCents: true,
       timeline: true,
       interestedCount: true,
-      _count: { select: { interests: { where: publicCommissionInterestWhere() } } },
+      _count: { select: { interests: { where: visibleInterestWhere } } },
       createdAt: true,
       referenceImageUrls: true,
       buyer: { select: { name: true, imageUrl: true } },
@@ -332,8 +346,32 @@ function timeAgo(dateStr: Date | string): string {
 }
 
 async function CommissionDetailPage({ id }: { id: string }) {
-  const request = await prisma.commissionRequest.findUnique({
-    where: { id },
+  const { userId } = await auth();
+  let meId: string | null = null;
+  let sellerProfileId: string | null = null;
+  let alreadyInterested = false;
+
+  if (userId) {
+    const me = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { id: true, sellerProfile: { select: { id: true } } },
+    });
+    if (me) {
+      meId = me.id;
+      sellerProfileId = me.sellerProfile?.id ?? null;
+    }
+  }
+
+  const { blockedUserIds, blockedSellerIds } = await getBlockedIdsFor(meId);
+  const visibleInterestWhere = publicCommissionInterestWhere(
+    blockedSellerIds.length > 0 ? { sellerProfileId: { notIn: blockedSellerIds } } : {},
+  );
+
+  const request = await prisma.commissionRequest.findFirst({
+    where: openCommissionWhere({
+      id,
+      ...(blockedUserIds.size > 0 ? { buyerId: { notIn: [...blockedUserIds] } } : {}),
+    }),
     select: {
       id: true,
       title: true,
@@ -345,7 +383,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
       referenceImageUrls: true,
       status: true,
       interestedCount: true,
-      _count: { select: { interests: { where: publicCommissionInterestWhere() } } },
+      _count: { select: { interests: { where: visibleInterestWhere } } },
       isNational: true,
       expiresAt: true,
       createdAt: true,
@@ -364,9 +402,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
         },
       },
       interests: {
-        where: {
-          sellerProfile: activeSellerProfileWhere(),
-        },
+        where: visibleInterestWhere,
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         take: COMMISSION_INTEREST_DISPLAY_LIMIT,
         select: {
@@ -386,29 +422,14 @@ async function CommissionDetailPage({ id }: { id: string }) {
     },
   });
 
-  if (!request || request.buyer.banned || request.buyer.deletedAt || commissionIsExpired(request)) return notFound();
+  if (!request) return notFound();
   const interestedCount = resolvedInterestedCount(request);
 
-  const { userId } = await auth();
-  let meId: string | null = null;
-  let sellerProfileId: string | null = null;
-  let alreadyInterested = false;
-
-  if (userId) {
-    const me = await prisma.user.findUnique({
-      where: { clerkId: userId },
-      select: { id: true, sellerProfile: { select: { id: true } } },
+  if (sellerProfileId) {
+    const interest = await prisma.commissionInterest.findUnique({
+      where: { commissionRequestId_sellerProfileId: { commissionRequestId: id, sellerProfileId } },
     });
-    if (me) {
-      meId = me.id;
-      sellerProfileId = me.sellerProfile?.id ?? null;
-      if (sellerProfileId) {
-        const interest = await prisma.commissionInterest.findUnique({
-          where: { commissionRequestId_sellerProfileId: { commissionRequestId: id, sellerProfileId } },
-        });
-        alreadyInterested = !!interest;
-      }
-    }
+    alreadyInterested = !!interest;
   }
 
   const isOwner = meId === request.buyerId;

@@ -16,6 +16,7 @@ import ShopListingActions from "./ShopListingActions";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import SortSelect from "./SortSelect";
 import { publicListingWhere } from "@/lib/listingVisibility";
+import { getBlockedUserIdsFor } from "@/lib/blocks";
 import { isSupportedStripeAccountVersion } from "@/lib/sellerVisibility";
 import { extractRouteId, publicListingPath, publicSellerPath, publicSellerShopPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
@@ -137,6 +138,8 @@ export default async function SellerShopPage({
     return notFound();
   }
   if (!isOwner && !sellerShopIsPubliclyVisible(seller)) return notFound();
+  const blockedUserIds = await getBlockedUserIdsFor(meId);
+  if (!isOwner && blockedUserIds.has(seller.userId)) return notFound();
 
   const validStatuses = STATUS_TABS.map((t) => t.value).filter(Boolean);
   const statusFilter = isOwner && validStatuses.includes(statusRaw as typeof validStatuses[number])

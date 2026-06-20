@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import type { Metadata } from "next";
+import type { Prisma } from "@prisma/client";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
 import NewsletterSignup from "@/components/NewsletterSignup";
 import BlogCommentForm from "@/components/BlogCommentForm";
@@ -13,7 +14,7 @@ import SaveBlogButton from "@/components/SaveBlogButton";
 import CoverLightbox from "@/components/CoverLightbox";
 import MediaImage from "@/components/MediaImage";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
-import { getBlockedUserIdsFor } from "@/lib/blocks";
+import { getBlockedIdsFor } from "@/lib/blocks";
 import BlockReportButton from "@/components/BlockReportButton";
 import { safeJsonLd } from "@/lib/json-ld";
 import { renderBlogMarkdown } from "@/lib/blogMarkdown";
@@ -79,20 +80,31 @@ export default async function BlogPostPage({
   const { userId } = await auth();
   let meId: string | null = null;
   let blockedUserIdSet = new Set<string>();
+  let blockedSellerIds: string[] = [];
 
   if (userId) {
     const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
     meId = me?.id ?? null;
     if (meId) {
-      blockedUserIdSet = await getBlockedUserIdsFor(meId);
+      const { blockedUserIds, blockedSellerIds: blockedSellerIdList } = await getBlockedIdsFor(meId);
+      blockedUserIdSet = blockedUserIds;
+      blockedSellerIds = blockedSellerIdList;
     }
   }
 
   const blockedUserIds = [...blockedUserIdSet];
   const commentVisibilityWhere = visibleBlogCommentWhere(blockedUserIds);
+  const viewerBlogPostWhere = (extra: Prisma.BlogPostWhereInput = {}) => {
+    const blockFilters: Prisma.BlogPostWhereInput[] = [];
+    if (blockedUserIds.length > 0) blockFilters.push({ authorId: { notIn: blockedUserIds } });
+    if (blockedSellerIds.length > 0) {
+      blockFilters.push({ OR: [{ sellerProfileId: null }, { sellerProfileId: { notIn: blockedSellerIds } }] });
+    }
+    return publicBlogPostWhere(blockFilters.length > 0 ? { AND: [extra, ...blockFilters] } : extra);
+  };
 
   const post = await prisma.blogPost.findFirst({
-    where: publicBlogPostWhere({ slug }),
+    where: viewerBlogPostWhere({ slug }),
     include: {
       author: { select: { id: true, name: true, imageUrl: true, banned: true, deletedAt: true, sellerProfile: { select: { avatarImageUrl: true, displayName: true } } } },
       sellerProfile: { select: { id: true, displayName: true, avatarImageUrl: true, user: { select: { imageUrl: true } } } },
@@ -151,10 +163,17 @@ export default async function BlogPostPage({
     photos: Array<{ url: string }>; seller: { displayName: string };
   }> = [];
   if (post.featuredListingIds.length > 0) {
+    const featuredSellerFilter: Prisma.ListingWhereInput = post.sellerProfile?.id
+      ? {
+          sellerId: blockedSellerIds.length > 0
+            ? { equals: post.sellerProfile.id, notIn: blockedSellerIds }
+            : post.sellerProfile.id,
+        }
+      : (blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {});
     featuredListings = await prisma.listing.findMany({
       where: publicListingWhere({
         id: { in: post.featuredListingIds },
-        ...(post.sellerProfile?.id ? { sellerId: post.sellerProfile.id } : {}),
+        ...featuredSellerFilter,
       }),
       select: {
         id: true, title: true, priceCents: true, currency: true,
@@ -169,7 +188,7 @@ export default async function BlogPostPage({
 
   // Related posts
   const related = await prisma.blogPost.findMany({
-    where: publicBlogPostWhere({
+    where: viewerBlogPostWhere({
       id: { not: post.id },
       OR: [
         { type: post.type },

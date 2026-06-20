@@ -216,6 +216,61 @@ export function parseOptionalNonNegativeInt(value: string | number | null | unde
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
 }
 
+type CheckoutSubtotalLineItem = {
+  amount_subtotal?: number | null;
+  quantity?: number | null;
+  price?: {
+    unit_amount?: number | null;
+    product?: { metadata?: Record<string, string | undefined> | null } | string | null;
+  } | null;
+};
+
+function checkoutListingLineItemsSubtotalCents(lineItems: CheckoutSubtotalLineItem[]): number | null {
+  let subtotalCents = 0;
+  let foundListingLineItem = false;
+
+  for (const lineItem of lineItems) {
+    const product = typeof lineItem.price?.product === "object" ? lineItem.price.product : null;
+    if (!product?.metadata?.listingId) continue;
+    foundListingLineItem = true;
+
+    const amountSubtotalCents = parseOptionalNonNegativeInt(lineItem.amount_subtotal);
+    if (amountSubtotalCents != null) {
+      subtotalCents += amountSubtotalCents;
+      continue;
+    }
+
+    const unitAmountCents = parseOptionalNonNegativeInt(lineItem.price?.unit_amount);
+    const quantity = parseOptionalNonNegativeInt(lineItem.quantity);
+    if (unitAmountCents == null || quantity == null || quantity <= 0) return null;
+    subtotalCents += unitAmountCents * quantity;
+  }
+
+  return foundListingLineItem ? subtotalCents : null;
+}
+
+export function checkoutItemsSubtotalCents({
+  lineItems,
+  metadataItemsSubtotalCents,
+  checkoutAmountSubtotalCents,
+  giftWrappingPriceCents,
+}: {
+  lineItems: CheckoutSubtotalLineItem[];
+  metadataItemsSubtotalCents?: number | null;
+  checkoutAmountSubtotalCents?: number | null;
+  giftWrappingPriceCents?: number | null;
+}): number {
+  const listingLineSubtotalCents = checkoutListingLineItemsSubtotalCents(lineItems);
+  if (listingLineSubtotalCents != null) return listingLineSubtotalCents;
+
+  if (metadataItemsSubtotalCents != null) return metadataItemsSubtotalCents;
+
+  const checkoutSubtotalCents = parseOptionalNonNegativeInt(checkoutAmountSubtotalCents);
+  if (checkoutSubtotalCents == null) return 0;
+
+  return Math.max(0, checkoutSubtotalCents - (giftWrappingPriceCents ?? 0));
+}
+
 export function normalizeShippoRateObjectId(value: string | null | undefined): string | null {
   if (!value) return null;
   const normalized = value.trim().toLowerCase();

@@ -49,11 +49,20 @@ describe("commission interest counts", () => {
       "src/app/commission/page.tsx",
     ]) {
       const routeSource = source(path);
-      assert.match(routeSource, /_count: \{ select: \{ interests: \{ where: publicCommissionInterestWhere\(\) \} \} \}/);
+      assert.match(routeSource, /publicCommissionInterestWhere\(/);
       assert.doesNotMatch(routeSource, /_count: \{ select: \{ interests: true \} \}/);
     }
 
-    assert.match(source("src/app/api/commission/[id]/route.ts"), /sellerProfile: activeSellerProfileWhere\(\)/);
+    for (const path of [
+      "src/app/api/commission/[id]/route.ts",
+      "src/app/commission/[param]/page.tsx",
+    ]) {
+      const routeSource = source(path);
+      assert.match(routeSource, /const visibleInterestWhere = publicCommissionInterestWhere\(/);
+      assert.match(routeSource, /_count: \{ select: \{ interests: \{ where: visibleInterestWhere \} \} \}/);
+      assert.match(routeSource, /interests: \{\s*where: visibleInterestWhere,/);
+      assert.doesNotMatch(routeSource, /sellerProfile: activeSellerProfileWhere\(\)/);
+    }
   });
 
   it("keeps Near Me commission interest counts row-local and active-maker filtered", () => {

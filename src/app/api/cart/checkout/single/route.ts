@@ -451,6 +451,7 @@ export async function POST(req: Request) {
       quotedToCountry: "US",
       quotedToPhone: shippingAddress.phone ?? "",
       quotedShippingAmountCents: String(shippingAmountCents),
+      itemsSubtotalCents: String(itemsSubtotalCents),
       giftNote: body.giftNote ? truncateText(sanitizeText(body.giftNote), 200) : "",
       giftWrapping: body.giftWrapping ? "true" : "false",
       giftWrappingPriceCents: body.giftWrapping ? String(giftWrapCents) : "",

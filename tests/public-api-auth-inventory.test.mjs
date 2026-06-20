@@ -17,7 +17,6 @@ const intentionalNoAuthPublicRoutes = new Set([
   "src/app/api/address/autocomplete/route.ts",
   "src/app/api/blog/route.ts",
   "src/app/api/blog/search/route.ts",
-  "src/app/api/blog/search/suggestions/route.ts",
   "src/app/api/csp-report/route.ts",
   "src/app/api/email/unsubscribe/route.ts",
   "src/app/api/health/route.ts",
@@ -34,9 +33,14 @@ const intentionalOptionalAuthPublicRoutes = new Set([
   "src/app/api/listings/[id]/view/route.ts",
 ]);
 
+const intentionalOptionalAccountAuthPublicRoutes = new Set([
+  "src/app/api/blog/search/suggestions/route.ts",
+]);
+
 const intentionalPublicRoutes = new Set([
   ...intentionalNoAuthPublicRoutes,
   ...intentionalOptionalAuthPublicRoutes,
+  ...intentionalOptionalAccountAuthPublicRoutes,
 ]);
 
 describe("public API auth inventory", () => {
@@ -67,6 +71,19 @@ describe("public API auth inventory", () => {
       assert.doesNotMatch(route, /ensureUser|ensureSeller|verifyCronRequest/);
       assert.match(route, /telemetryJson\(\{ ok: true/);
       assert.match(route, /privateResponse\(NextResponse\.json\(body\)\)/);
+    }
+  });
+
+  it("keeps optional account-auth public routes limited to signed-in visibility filters", () => {
+    for (const path of intentionalOptionalAccountAuthPublicRoutes) {
+      const route = source(path);
+
+      assert.match(route, /const \{ userId \} = await auth\(\)/);
+      assert.doesNotMatch(route, /if \s*\(!userId\)/);
+      assert.match(route, /ensureUserByClerkId\(userId\)/);
+      assert.match(route, /accountAccessErrorResponse\(err\)/);
+      assert.match(route, /getBlockedIdsFor\(meDbId\)/);
+      assert.doesNotMatch(route, /ensureSeller|verifyCronRequest/);
     }
   });
 

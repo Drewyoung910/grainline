@@ -6,10 +6,10 @@ import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { CommissionStatus } from "@prisma/client";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { getBlockedIdsFor } from "@/lib/blocks";
 import { createNotification } from "@/lib/notifications";
-import { commissionIsExpired } from "@/lib/commissionExpiry";
+import { commissionIsExpired, openCommissionWhere } from "@/lib/commissionExpiry";
 import { publicCommissionInterestWhere, resolvedInterestedCount } from "@/lib/commissionInterestCount";
-import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { openCommissionMutationWhere } from "@/lib/commissionState";
 import { commissionStatusRatelimit, getIP, rateLimitResponse, safeRateLimit, searchRatelimit } from "@/lib/ratelimit";
@@ -37,8 +37,22 @@ export async function GET(
   const { success, reset } = await safeRateLimit(searchRatelimit, getIP(req));
   if (!success) return rateLimitResponse(reset, "Too many commission reads.");
 
-  const request = await prisma.commissionRequest.findUnique({
-    where: { id },
+  const { userId } = await auth();
+  let meId: string | null = null;
+  if (userId) {
+    const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+    meId = me?.id ?? null;
+  }
+  const { blockedUserIds, blockedSellerIds } = await getBlockedIdsFor(meId);
+  const visibleInterestWhere = publicCommissionInterestWhere(
+    blockedSellerIds.length > 0 ? { sellerProfileId: { notIn: blockedSellerIds } } : {},
+  );
+
+  const request = await prisma.commissionRequest.findFirst({
+    where: openCommissionWhere({
+      id,
+      ...(blockedUserIds.size > 0 ? { buyerId: { notIn: [...blockedUserIds] } } : {}),
+    }),
     select: {
       id: true,
       title: true,
@@ -50,18 +64,14 @@ export async function GET(
       referenceImageUrls: true,
       status: true,
       interestedCount: true,
-      _count: { select: { interests: { where: publicCommissionInterestWhere() } } },
+      _count: { select: { interests: { where: visibleInterestWhere } } },
       expiresAt: true,
       createdAt: true,
-      buyerId: true,
-      buyer: { select: { name: true, imageUrl: true, banned: true, deletedAt: true } },
+      buyer: { select: { name: true, imageUrl: true } },
       interests: {
-        where: {
-          sellerProfile: activeSellerProfileWhere(),
-        },
+        where: visibleInterestWhere,
         take: COMMISSION_INTEREST_DISPLAY_LIMIT,
         select: {
-          id: true,
           createdAt: true,
           sellerProfile: {
             select: {
@@ -78,17 +88,19 @@ export async function GET(
   });
 
   if (!request) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (request.buyer.banned || request.buyer.deletedAt) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (commissionIsExpired(request)) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const { _count, ...requestBody } = request;
+  const { _count, buyer, interests, ...requestBody } = request;
   return NextResponse.json({
     ...requestBody,
     interestedCount: resolvedInterestedCount({
       interestedCount: request.interestedCount,
       _count,
     }),
-    buyer: { name: request.buyer.name, imageUrl: request.buyer.imageUrl },
+    buyer: { name: buyer.name, imageUrl: buyer.imageUrl },
+    interests: interests.map((interest) => ({
+      createdAt: interest.createdAt,
+      sellerProfile: interest.sellerProfile,
+    })),
   });
 }
 

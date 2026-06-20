@@ -1,8 +1,13 @@
 // src/app/api/blog/search/suggestions/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getIP, rateLimitResponse, searchRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
+import { getBlockedIdsFor } from "@/lib/blocks";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
+import { ensureUserByClerkId } from "@/lib/ensureUser";
 import {
   BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY,
   normalizeSearchSuggestionQuery,
@@ -18,12 +23,18 @@ export type BlogSuggestion = {
   sellerProfileId?: string;
 };
 
-async function blogFuzzySuggestionRows(q: string) {
+async function blogFuzzySuggestionRows(q: string, blockedUserIds: string[], blockedSellerIds: string[]) {
   return prisma.$transaction(async (tx) => {
     await tx.$queryRaw`
       SELECT set_config('pg_trgm.similarity_threshold', ${String(BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY)}, true)
     `;
-    return tx.$queryRaw<Array<{ slug: string; title: string }>>`
+    const blockedAuthorPredicate = blockedUserIds.length > 0
+      ? Prisma.sql`AND bp."authorId" != ALL(${blockedUserIds})`
+      : Prisma.empty;
+    const blockedSellerPredicate = blockedSellerIds.length > 0
+      ? Prisma.sql`AND (bp."sellerProfileId" IS NULL OR bp."sellerProfileId" != ALL(${blockedSellerIds}))`
+      : Prisma.empty;
+    return tx.$queryRaw<Array<{ slug: string; title: string }>>(Prisma.sql`
       SELECT bp.slug, bp.title
       FROM "BlogPost" bp
       INNER JOIN "User" u ON u.id = bp."authorId"
@@ -44,11 +55,13 @@ async function blogFuzzySuggestionRows(q: string) {
             AND seller_user."deletedAt" IS NULL
           )
         )
+        ${blockedAuthorPredicate}
+        ${blockedSellerPredicate}
         AND bp.title % ${q}
         AND similarity(bp.title, ${q}) > ${BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY}
       ORDER BY similarity(bp.title, ${q}) DESC, bp."publishedAt" DESC, bp.id DESC
       LIMIT 5
-    `;
+    `);
   });
 }
 
@@ -58,12 +71,26 @@ export async function GET(req: NextRequest) {
 
   const q = normalizeSearchSuggestionQuery(req.nextUrl.searchParams.get("bq"));
   if (q.length < 2) return NextResponse.json({ suggestions: [] });
+  const { userId } = await auth();
+  let meDbId: string | null = null;
+  if (userId) {
+    try {
+      const me = await ensureUserByClerkId(userId);
+      meDbId = me.id;
+    } catch (err) {
+      const accountResponse = accountAccessErrorResponse(err);
+      if (accountResponse) return accountResponse;
+      throw err;
+    }
+  }
+  const { blockedUserIds, blockedSellerIds } = await getBlockedIdsFor(meDbId);
+  const blockedUserIdList = [...blockedUserIds];
   const normalizedDisplayNameQuery = normalizeDisplayNameForLookup(q);
   const qLower = q.toLowerCase();
 
   const [postRows, tagRows, authorRows] = await Promise.all([
     // Fuzzy title matches
-    blogFuzzySuggestionRows(q),
+    blogFuzzySuggestionRows(q, blockedUserIdList, blockedSellerIds),
 
     // Tag partial matches
     getPopularBlogTags(200).then((tags) =>
@@ -82,6 +109,7 @@ export async function GET(req: NextRequest) {
             ? [{ displayNameNormalized: { contains: normalizedDisplayNameQuery, mode: "insensitive" as const } }]
             : []),
         ],
+        ...(blockedSellerIds.length > 0 ? { id: { notIn: blockedSellerIds } } : {}),
       }),
       select: { id: true, displayName: true },
       take: 3,

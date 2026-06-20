@@ -46,4 +46,16 @@ describe("checkout payment method guardrails", () => {
     assert.match(sellerCheckout, /sellerItems\[0\]\.listing\.seller\.giftWrappingPriceCents \?\? 0/);
     assert.match(singleCheckout, /listing\.seller\.giftWrappingPriceCents \?\? 0/);
   });
+
+  it("sends server-computed item subtotal metadata for webhook refund totals", () => {
+    for (const path of [
+      "src/app/api/cart/checkout-seller/route.ts",
+      "src/app/api/cart/checkout/single/route.ts",
+    ]) {
+      const route = source(path);
+
+      assert.match(route, /const itemsSubtotalCents =/);
+      assert.match(route, /itemsSubtotalCents: String\(itemsSubtotalCents\)/);
+    }
+  });
 });

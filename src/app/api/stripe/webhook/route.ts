@@ -56,6 +56,7 @@ import {
   blockedCheckoutDisputeState,
   chargeDisputeLedgerState,
   chargeRefundLedgerState,
+  checkoutItemsSubtotalCents,
   checkoutInvalidReasonState,
   checkoutPriceDriftState,
   disputeCaseAction,
@@ -744,17 +745,16 @@ export async function POST(req: Request) {
       });
       const sessionMeta = (s.metadata ?? {}) as Record<string, string | undefined>;
       checkoutLockKey = sessionMeta.checkoutLockKey ?? checkoutLockKey;
+      const checkoutLineItems: CheckoutLineItem[] = (s as { line_items?: { data?: CheckoutLineItem[] } }).line_items?.data ?? [];
 
       // Only process paid sessions — skip async/pending payments
       if (s.payment_status !== "paid") {
-        const lineItems = (s as { line_items?: { data?: CheckoutLineItem[] } }).line_items?.data ?? [];
-        await restoreUnorderedCheckoutStockOnce({ sessionId, metadata: sessionMeta, lineItems });
+        await restoreUnorderedCheckoutStockOnce({ sessionId, metadata: sessionMeta, lineItems: checkoutLineItems });
         return NextResponse.json({ ok: true });
       }
 
       // Stripe snapshots
       const currency: string = (s.currency || DEFAULT_CURRENCY).toLowerCase();
-      const itemsSubtotalCents: number = s.amount_subtotal ?? 0;
       const shippingAmountCents: number = s.shipping_cost?.amount_subtotal ?? 0;
       const shippingRateObj = (s.shipping_cost?.shipping_rate || null) as {
         display_name?: string;
@@ -797,8 +797,13 @@ export async function POST(req: Request) {
       // Gift options from metadata
       const giftNote: string | null = sessionMeta.giftNote || null;
       const giftWrapping: boolean = sessionMeta.giftWrapping === "true";
-      const giftWrappingPriceCentsRaw = sessionMeta.giftWrappingPriceCents ? parseInt(sessionMeta.giftWrappingPriceCents, 10) : null;
-      const giftWrappingPriceCents: number | null = giftWrappingPriceCentsRaw != null && Number.isFinite(giftWrappingPriceCentsRaw) ? giftWrappingPriceCentsRaw : null;
+      const giftWrappingPriceCents = parseOptionalNonNegativeInt(sessionMeta.giftWrappingPriceCents);
+      const itemsSubtotalCents = checkoutItemsSubtotalCents({
+        lineItems: checkoutLineItems,
+        metadataItemsSubtotalCents: parseOptionalNonNegativeInt(sessionMeta.itemsSubtotalCents),
+        checkoutAmountSubtotalCents: s.amount_subtotal ?? null,
+        giftWrappingPriceCents,
+      });
       const cartSellerCount = parseOptionalNonNegativeInt(sessionMeta.cartSellerCount) ?? 0;
       const multiSellerCheckout = sessionMeta.multiSellerCheckout === "true" || cartSellerCount > 1;
 

@@ -7078,6 +7078,90 @@ outside touched routes, Vercel Analytics/Speed Insights product/privacy
 decision, remaining homepage runtime a11y proof, and residual
 agent/worktree verification process hygiene.
 
+Entry 424 closes a parent-verified refund-accounting and public visibility
+block-parity pass. Three read-only sidecar scans were used for disjoint
+source review: one found no source-proven account/privacy defects beyond
+deferred legal/ops decisions, one found the gift-wrap refund subtotal defect,
+and one found public discovery block-filter gaps. Every issue below was
+verified locally before patching.
+
+First, gift-wrap orders no longer risk inflated app-calculated full-refund
+amounts. Checkout already creates paid gift wrapping as a separate Stripe line
+item and stores `giftWrappingPriceCents` separately on `Order`; the webhook
+previously persisted `itemsSubtotalCents` from Stripe Checkout
+`amount_subtotal`, which includes the gift-wrap line item. The webhook now
+derives `itemsSubtotalCents` from expanded listing line items, falls back to
+server-written product-subtotal metadata from both checkout routes, and only
+then falls back to subtracting gift wrap from the Checkout subtotal. Refund
+totals still add product subtotal + gift wrap + shipping + tax, so gift wrap is
+counted once.
+
+Second, public commission reads now mirror viewer block visibility more
+closely. `GET /api/commission`, `GET /api/commission/[id]`,
+`/commission/[metroSlug]`, and `/commission/[id]` resolve optional signed-in
+viewer block state before their public reads. They exclude blocked buyers from
+commission rows and exclude blocked sellers from visible interested-maker
+counts/rows. The detail API also uses `openCommissionWhere()` for the read
+predicate and no longer returns the commission `buyerId` or commission-interest
+row IDs in the public JSON response.
+
+Third, adjacent public discovery surfaces now respect the same block contract.
+The seller shop page checks mutual block state before canonical redirects and
+public listing queries, matching seller profile and customer-photo behavior.
+Blog detail pages now filter blocked sellers/authors from the current post
+read, featured listing section, and related-post section. The dedicated blog
+suggestion endpoint now resolves signed-in account state, excludes blocked
+authors/seller profiles from fuzzy post suggestions, and excludes blocked
+seller profiles from author suggestions.
+
+`CLAUDE.md` now records the reusable contracts: `Order.itemsSubtotalCents` is
+product/listing subtotal only when gift wrap is a separate Checkout line item,
+and public commission/blog/seller-shop discovery surfaces must apply
+viewer-block filters at the query/count level.
+
+Guardrails:
+`tests/stripe-webhook-state.test.mjs`,
+`tests/checkout-payment-methods.test.mjs`,
+`tests/refund-route-state.test.mjs`,
+`tests/marketplace-refunds.test.mjs`,
+`tests/public-cron-search-hardening.test.mjs`,
+`tests/public-query-determinism.test.mjs`,
+`tests/public-visibility-followups.test.mjs`,
+`tests/commission-interest-count.test.mjs`, and
+`tests/commission-state.test.mjs`.
+
+Current running tally after Entry 424: verified fixed/reduced 796, verified
+stale/false-positive/current 473, deferred product/design/ops/legal 73,
+approximate raw allegations left from current max #1126: 79. The fixed count
+increases by seven for gift-wrap product-subtotal persistence, commission list
+API block/visible-interest filtering, commission detail API open/block/no
+internal relation-id response, commission metro/detail page block/visible
+interest filtering, seller shop block parity, blog detail featured/related
+block filtering, and blog suggestions block/account-state filtering. Stale,
+deferred, and approximate raw counts stay flat because this was a
+source-discovered residue pass inside already-open categories rather than a
+new numbered raw batch.
+
+Remaining major categories: Stripe webhook subscription dashboard evidence,
+Stripe Connect v2 loss-liability ops/legal decision, stale remote branch and
+old git author hygiene, Round 10 deferred cache/state-machine product designs
+that require product decisions rather than source guardrails, remaining
+EXPLAIN-dependent query-plan/index validation, Stripe partial-refund runtime
+reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope, remaining privacy/export retention decisions,
+cross-seller AI duplicate-detection product design, legacy enum
+cleanup/data-migration decisions, partial multi-seller checkout continuation
+design, deliberate BigInt money-column modeling, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket/dashboard/direct-upload enforcement evidence, HSTS
+preload submission decision, residual lower-risk HTTP-status/logging hygiene
+outside touched routes, Vercel Analytics/Speed Insights product/privacy
+decision, remaining homepage runtime a11y proof, and residual
+agent/worktree verification process hygiene.
+
 Entry 422 closes a source-verified residual AI-review observability,
 private-response, and cron-status pass with two read-only sidecar scans plus
 parent review. The agents were used only for disjoint source scans and were

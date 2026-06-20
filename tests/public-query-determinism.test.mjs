@@ -6,6 +6,15 @@ function source(path) {
   return readFileSync(path, "utf8");
 }
 
+function getMethodSource(path, method) {
+  const text = source(path);
+  const start = text.indexOf(`export async function ${method}`);
+  assert.notEqual(start, -1, `${path} must define ${method}`);
+  const rest = text.slice(start);
+  const nextMethod = rest.search(/\nexport async function (GET|POST|PUT|PATCH|DELETE)\b/);
+  return nextMethod === -1 ? rest : rest.slice(0, nextMethod);
+}
+
 describe("public query determinism", () => {
   it("applies blog relevant-search filters before the raw ranked cap", () => {
     const blogPage = source("src/app/blog/page.tsx");
@@ -271,7 +280,7 @@ describe("public query determinism", () => {
     const commissionPage = source("src/app/commission/page.tsx");
     const commissionDetail = source("src/app/commission/[param]/page.tsx");
     const commissionApi = source("src/app/api/commission/route.ts");
-    const commissionDetailApi = source("src/app/api/commission/[id]/route.ts");
+    const commissionDetailApi = getMethodSource("src/app/api/commission/[id]/route.ts", "GET");
 
     assert.match(browse, /const relevantPage = Math\.min\(Math\.max\(pageNum, 1\), relevantTotalPages\)/);
     assert.match(browse, /const standardPage = Math\.min\(Math\.max\(pageNum, 1\), standardTotalPages\)/);
@@ -301,7 +310,8 @@ describe("public query determinism", () => {
 
     assert.match(commissionDetail, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\],\s*take: 500/);
     assert.match(commissionDetail, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\],\s*take: 20/);
-    assert.match(commissionDetail, /sellerProfile: activeSellerProfileWhere\(\)/);
+    assert.match(commissionDetail, /const visibleInterestWhere = publicCommissionInterestWhere\(/);
+    assert.match(commissionDetail, /interests: \{\s*where: visibleInterestWhere,/);
     assert.match(commissionDetail, /orderBy: \[\{ createdAt: "asc" \}, \{ id: "asc" \}\],\s*take: COMMISSION_INTEREST_DISPLAY_LIMIT/);
     assert.doesNotMatch(commissionDetail, /sellerProfile: \{\s*chargesEnabled: true,\s*vacationMode: false,\s*user: \{ banned: false, deletedAt: null \}/s);
 
@@ -310,6 +320,11 @@ describe("public query determinism", () => {
     assert.match(commissionApi, /skip: \(currentPage - 1\) \* pageSize/);
     assert.match(commissionApi, /page: currentPage/);
 
+    assert.match(commissionDetailApi, /prisma\.commissionRequest\.findFirst\(\{/);
+    assert.match(commissionDetailApi, /where: openCommissionWhere\(\{[\s\S]*id,[\s\S]*buyerId: \{ notIn: \[\.\.\.blockedUserIds\] \}/);
+    assert.doesNotMatch(commissionDetailApi, /prisma\.commissionRequest\.findUnique\(\{\s*where: \{ id \}/);
+    assert.doesNotMatch(commissionDetailApi, /request\.buyer\.banned \|\| request\.buyer\.deletedAt/);
+    assert.match(commissionDetailApi, /interests: interests\.map\(\(interest\) => \(\{/);
     assert.match(commissionDetailApi, /orderBy: \[\{ createdAt: "asc" \}, \{ id: "asc" \}\]/);
     assert.doesNotMatch(commissionDetailApi, /orderBy: \{ createdAt: "asc" \}/);
   });

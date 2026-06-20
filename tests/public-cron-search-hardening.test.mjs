@@ -7,6 +7,15 @@ function source(path) {
   return readFileSync(path, "utf8");
 }
 
+function getMethodSource(path, method) {
+  const text = source(path);
+  const start = text.indexOf(`export async function ${method}`);
+  assert.notEqual(start, -1, `${path} must define ${method}`);
+  const rest = text.slice(start);
+  const nextMethod = rest.search(/\nexport async function (GET|POST|PUT|PATCH|DELETE)\b/);
+  return nextMethod === -1 ? rest : rest.slice(0, nextMethod);
+}
+
 function cronRoutes() {
   return execFileSync("find", ["src/app/api/cron", "-type", "f", "-name", "route.ts"], {
     encoding: "utf8",
@@ -178,6 +187,7 @@ describe("cron and public route hardening", () => {
 
   it("keeps public commission reads bounded and rate-limited", () => {
     const commission = source("src/app/api/commission/route.ts");
+    const commissionDetail = getMethodSource("src/app/api/commission/[id]/route.ts", "GET");
 
     assert.match(commission, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
     assert.match(commission, /rateLimitResponse\(rate\.reset, "Too many commission requests\."\)/);
@@ -186,6 +196,20 @@ describe("cron and public route hardening", () => {
     assert.match(commission, /const currentPage = Math\.min\(page, Math\.max\(1, Math\.ceil\(total \/ pageSize\)\)\)/);
     assert.match(commission, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "asc" \}\]/);
     assert.match(commission, /skip: \(currentPage - 1\) \* pageSize/);
+    assert.match(commissionDetail, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
+    assert.match(commissionDetail, /rateLimitResponse\(reset, "Too many commission reads\."\)/);
+    assert.match(commissionDetail, /where: openCommissionWhere\(\{[\s\S]*id,[\s\S]*buyerId: \{ notIn: \[\.\.\.blockedUserIds\] \}/);
+    assert.doesNotMatch(commissionDetail, /prisma\.commissionRequest\.findUnique\(\{\s*where: \{ id \}/);
+  });
+
+  it("keeps blog suggestions filtered by viewer block state", () => {
+    const blogSuggestions = source("src/app/api/blog/search/suggestions/route.ts");
+
+    assert.match(blogSuggestions, /ensureUserByClerkId\(userId\)/);
+    assert.match(blogSuggestions, /getBlockedIdsFor\(meDbId\)/);
+    assert.match(blogSuggestions, /bp\."authorId" != ALL\(\$\{blockedUserIds\}\)/);
+    assert.match(blogSuggestions, /bp\."sellerProfileId" != ALL\(\$\{blockedSellerIds\}\)/);
+    assert.match(blogSuggestions, /id: \{ notIn: blockedSellerIds \}/);
   });
 
   it("keeps checkout rollback scoped to the signed-in buyer and idempotent stock restore", () => {
