@@ -989,6 +989,10 @@ export async function POST(req: Request) {
           return;
         }
 
+        let refundId: string | null = null;
+        let refundAmountCents: number | null = null;
+        let refundIds: string[] = [];
+        let retryBlockedCheckoutRefund = false;
         try {
           await releaseStaleRefundLocks(input.orderId);
           const currentOrder = await prisma.order.findUnique({
@@ -1084,9 +1088,6 @@ export async function POST(req: Request) {
             return;
           }
 
-          let refundId: string | null = null;
-          let refundAmountCents: number | null = null;
-          let refundIds: string[] = [];
           try {
             refundAmountCents = s.amount_total ?? itemsSubtotalCents + shippingAmountCents + (giftWrappingPriceCents ?? 0) + taxAmountCents;
             const refund = await createMarketplaceRefund({
@@ -1161,13 +1162,25 @@ export async function POST(req: Request) {
             }
 
             if (input.buyerUserId) {
-              await createNotification({
-                userId: input.buyerUserId,
-                type: "NEW_ORDER",
-                title: "Payment refunded",
-                body: "This payment was refunded because the checkout was no longer eligible to complete.",
-                link: `/dashboard/orders/${input.orderId}`,
-              });
+              try {
+                await createNotification({
+                  userId: input.buyerUserId,
+                  type: "NEW_ORDER",
+                  title: "Payment refunded",
+                  body: "This payment was refunded because the checkout was no longer eligible to complete.",
+                  link: `/dashboard/orders/${input.orderId}`,
+                });
+              } catch (notificationError) {
+                Sentry.captureException(notificationError, {
+                  level: "warning",
+                  tags: { source: "stripe_webhook_blocked_checkout_refund_notification" },
+                  extra: {
+                    stripeSessionId: sessionId,
+                    orderId: input.orderId,
+                    buyerUserId: input.buyerUserId,
+                  },
+                });
+              }
             }
           } catch (refundError) {
             if (refundId) {
@@ -1182,43 +1195,57 @@ export async function POST(req: Request) {
                   refundAmountCents,
                 },
               });
-              await prisma.order.updateMany({
-                where: { id: input.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
-                data: {
-                  sellerRefundId: refundId,
-                  sellerRefundAmountCents: refundAmountCents,
-                  sellerRefundLockedAt: null,
-                  reviewNeeded: true,
-                  reviewNote: `${reviewPrefix} ORPHANED REFUND: Stripe refund(s) ${refundIds.join(", ")} were created, but follow-up DB work failed. Manual reconciliation required.`,
-                },
-              }).catch((dbError) => {
+              try {
+                const orphanRecord = await prisma.order.updateMany({
+                  where: { id: input.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
+                  data: {
+                    sellerRefundId: refundId,
+                    sellerRefundAmountCents: refundAmountCents,
+                    sellerRefundLockedAt: null,
+                    reviewNeeded: true,
+                    reviewNote: `${reviewPrefix} ORPHANED REFUND: Stripe refund(s) ${refundIds.join(", ")} were created, but follow-up DB work failed. Manual reconciliation required.`,
+                  },
+                });
+                if (orphanRecord.count !== 1) {
+                  throw new Error("Blocked checkout orphan refund record was not written.");
+                }
+              } catch (dbError) {
                 Sentry.captureException(dbError, {
                   tags: { source: "stripe_webhook_blocked_checkout_orphan_record_failed" },
                   extra: { stripeSessionId: sessionId, orderId: input.orderId, reason: input.reason, refundId, refundIds },
                 });
-              });
+                throw dbError;
+              }
             } else {
-              await prisma.order.updateMany({
-                where: { id: input.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
-                data: {
-                  sellerRefundId: null,
-                  sellerRefundLockedAt: null,
-                  reviewNeeded: true,
-                  reviewNote: `${reviewPrefix} Automatic refund failed; staff must reconcile this payment manually.`,
-                },
-              }).catch((dbError) => {
+              retryBlockedCheckoutRefund = true;
+              try {
+                await prisma.order.updateMany({
+                  where: { id: input.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
+                  data: {
+                    sellerRefundId: null,
+                    sellerRefundLockedAt: null,
+                    reviewNeeded: true,
+                    reviewNote: `${reviewPrefix} Automatic refund failed; staff must reconcile this payment manually.`,
+                  },
+                });
+              } catch (dbError) {
                 Sentry.captureException(dbError, {
                   tags: { source: "stripe_webhook_blocked_checkout_refund_lock_release_failed" },
                   extra: { stripeSessionId: sessionId, orderId: input.orderId, reason: input.reason },
                 });
-              });
+                throw dbError;
+              }
               Sentry.captureException(refundError, {
                 tags: { source: "stripe_webhook_blocked_checkout_refund" },
                 extra: { stripeSessionId: sessionId, orderId: input.orderId, reason: input.reason },
               });
+              throw refundError;
             }
           }
         } catch (refundError) {
+          if (refundId || retryBlockedCheckoutRefund) {
+            throw refundError;
+          }
           await prisma.order.update({
             where: { id: input.orderId },
             data: {
@@ -2179,7 +2206,7 @@ export async function POST(req: Request) {
               });
               disputeCaseActionName = caseAction.action;
               if (caseAction.action === "update") {
-                await tx.case.updateMany({
+                const caseUpdate = await tx.case.updateMany({
                   where: { id: caseAction.caseId, status: caseAction.expectedStatus },
                   data: {
                     status: caseAction.status,
@@ -2190,6 +2217,9 @@ export async function POST(req: Request) {
                     sellerMarkedResolved: false,
                   },
                 });
+                if (caseUpdate.count !== 1) {
+                  throw new Error("STRIPE_DISPUTE_CASE_UPDATE_CONFLICT");
+                }
               } else if (caseAction.action === "create") {
                 await tx.case.create({
                   data: {

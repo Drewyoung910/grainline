@@ -411,7 +411,7 @@ export async function POST(
         }
 
         if (existingCase) {
-          await tx.case.updateMany({
+          const caseUpdate = await tx.case.updateMany({
             where: {
               id: existingCase.id,
               status: { notIn: ["RESOLVED", "CLOSED"] },
@@ -425,6 +425,14 @@ export async function POST(
               resolvedById: me.id,
             },
           });
+          if (caseUpdate.count !== 1) {
+            await tx.order.update({
+              where: { id: orderId },
+              data: {
+                reviewNote: `${reviewNote} Case auto-resolution did not update because case state changed; staff must reconcile the case manually.`,
+              },
+            });
+          }
         }
 
         for (const restore of stockRestores) {

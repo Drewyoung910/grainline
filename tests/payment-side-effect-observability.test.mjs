@@ -65,6 +65,9 @@ describe("payment and fulfillment side-effect observability", () => {
     );
     assert.match(route, /if \(orderUpdate\.count !== 1\)/);
     assert.match(route, /manualStripeReconciliationNeeded: true/);
+    assert.match(route, /const caseUpdate = await tx\.case\.updateMany/);
+    assert.match(route, /if \(caseUpdate\.count !== 1\)/);
+    assert.match(route, /Case auto-resolution did not update because case state changed/);
   });
 
   it("records staff case refunds only while the refund lock is still held", () => {
@@ -82,6 +85,26 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(route, /if \(orderUpdate\.count !== 1\)/);
     assert.match(route, /CASE_REFUND_LOCK_LOST/);
     assert.match(route, /manualStripeReconciliationNeeded: true/);
+  });
+
+  it("serializes staff case refunds and dismissals before Stripe moves money", () => {
+    const route = source("src/app/api/cases/[id]/resolve/route.ts");
+
+    const refundLockStart = route.indexOf('SET "sellerRefundId" = ${REFUND_LOCK_SENTINEL}');
+    const caseRecheckStart = route.indexOf("const caseStatusBeforeRefund = await prisma.case.findUnique");
+    const stripeRefundStart = route.indexOf("const refund = await createMarketplaceRefund({");
+    assert.ok(refundLockStart >= 0, "case refunds must acquire the order refund sentinel");
+    assert.ok(caseRecheckStart > refundLockStart, "case status should be rechecked after the refund sentinel is held");
+    assert.ok(stripeRefundStart > caseRecheckStart, "Stripe refunds should happen only after the post-lock case recheck");
+    assert.match(route, /Case status changed before this refund could be issued/);
+
+    const caseWriteStart = route.indexOf("const caseWrite = await prisma.$transaction");
+    const nonRefundGuardStart = route.indexOf("const orderResolutionGuard = await tx.order.updateMany", caseWriteStart);
+    const caseUpdateStart = route.indexOf("const caseUpdate = await tx.case.updateMany", caseWriteStart);
+    assert.ok(nonRefundGuardStart > caseWriteStart, "non-refund case resolutions should check order refund state");
+    assert.ok(caseUpdateStart > nonRefundGuardStart, "non-refund case resolution guard should run before the case update");
+    assert.match(route, /sellerRefundId: \{ not: REFUND_LOCK_SENTINEL \}/);
+    assert.match(route, /CASE_RESOLUTION_REFUND_IN_PROGRESS/);
   });
 
   it("keeps seller and staff refund entrypoints single-refund per order", () => {
@@ -396,6 +419,57 @@ describe("payment and fulfillment side-effect observability", () => {
     );
   });
 
+  it("keeps blocked-checkout refund recovery retryable until local state is durable", () => {
+    const route = source("src/app/api/stripe/webhook/route.ts");
+    const notificationSource = 'source: "stripe_webhook_blocked_checkout_refund_notification"';
+    const orphanedSource = 'source: "stripe_webhook_blocked_checkout_orphaned_after_stripe"';
+    const orphanRecordSource = 'source: "stripe_webhook_blocked_checkout_orphan_record_failed"';
+    const lockReleaseSource = 'source: "stripe_webhook_blocked_checkout_refund_lock_release_failed"';
+
+    const notificationStart = route.indexOf(notificationSource);
+    const orphanedStart = route.indexOf(orphanedSource);
+    assert.ok(notificationStart > 0, "blocked-checkout refund notification failures should be observable");
+    assert.ok(orphanedStart > notificationStart, "notification failure handling should not enter the refund-orphan catch");
+
+    const notificationBlock = route.slice(
+      route.lastIndexOf("if (input.buyerUserId)", notificationStart),
+      orphanedStart,
+    );
+    assert.match(notificationBlock, /try \{[\s\S]*await createNotification\(\{/);
+    assert.match(notificationBlock, /catch \(notificationError\)/);
+
+    const orphanRecordStart = route.indexOf(orphanRecordSource);
+    const orphanRecordBlock = route.slice(
+      route.lastIndexOf("try {", orphanRecordStart),
+      route.indexOf("} else {", orphanRecordStart),
+    );
+    assert.match(orphanRecordBlock, /const orphanRecord = await prisma\.order\.updateMany/);
+    assert.match(orphanRecordBlock, /if \(orphanRecord\.count !== 1\)/);
+    assert.match(orphanRecordBlock, /Blocked checkout orphan refund record was not written/);
+    assert.match(orphanRecordBlock, /Sentry\.captureException\(dbError/);
+    assert.match(orphanRecordBlock, /throw dbError/);
+
+    const lockReleaseStart = route.indexOf(lockReleaseSource);
+    const noRefundIdBranch = route.slice(
+      route.lastIndexOf("} else {", lockReleaseStart),
+      route.indexOf("} catch (refundError) {", lockReleaseStart),
+    );
+    const lockReleaseBlock = route.slice(
+      route.lastIndexOf("try {", lockReleaseStart),
+      route.indexOf("Sentry.captureException(refundError", lockReleaseStart),
+    );
+    assert.match(lockReleaseBlock, /Sentry\.captureException\(dbError/);
+    assert.match(lockReleaseBlock, /throw dbError/);
+    assert.match(noRefundIdBranch, /retryBlockedCheckoutRefund = true/);
+    assert.match(noRefundIdBranch, /throw refundError/);
+
+    const outerCatch = route.slice(
+      route.indexOf("} catch (refundError) {", lockReleaseStart),
+      route.indexOf("await prisma.order.update({", lockReleaseStart),
+    );
+    assert.match(outerCatch, /if \(refundId \|\| retryBlockedCheckoutRefund\) \{\s*throw refundError;\s*\}/);
+  });
+
   it("does not tag ordinary staff case refunds as fraudulent Stripe refunds", () => {
     const route = source("src/app/api/cases/[id]/resolve/route.ts");
     const refundStart = route.indexOf("const refund = await createMarketplaceRefund({");
@@ -414,6 +488,19 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(route, /order\.sellerRefundId === REFUND_LOCK_SENTINEL/);
     assert.match(route, /!isStaleRefundLock\(/);
     assert.match(route, /delete orderUpdate\.sellerRefundLockedAt/);
+  });
+
+  it("keeps Stripe dispute case promotion retryable on stale case status", () => {
+    const route = source("src/app/api/stripe/webhook/route.ts");
+    const disputeBranch = route.slice(
+      route.indexOf("if (STRIPE_DISPUTE_EVENT_TYPES.has(event.type))"),
+      route.indexOf('if (event.type === "payout.failed")'),
+    );
+
+    assert.match(disputeBranch, /const caseUpdate = await tx\.case\.updateMany/);
+    assert.match(disputeBranch, /where: \{ id: caseAction\.caseId, status: caseAction\.expectedStatus \}/);
+    assert.match(disputeBranch, /if \(caseUpdate\.count !== 1\)/);
+    assert.match(disputeBranch, /throw new Error\("STRIPE_DISPUTE_CASE_UPDATE_CONFLICT"\)/);
   });
 
   it("deduplicates seller dispute notifications across webhook retries", () => {

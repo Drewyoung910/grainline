@@ -187,6 +187,12 @@ export async function POST(
     let stripeRefundStatuses: Array<string | null> = [];
     const refundAmountForOrder = refundAmountForResolution(resolution, caseRecord.order, refundAmountCents);
     const persistedRefundAmountCents = refunding ? refundAmountForOrder : null;
+    const releaseCaseRefundLock = async () => {
+      await prisma.order.updateMany({
+        where: { id: caseRecord.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
+        data: { sellerRefundId: null, sellerRefundLockedAt: null },
+      });
+    };
 
     if (refunding) {
       const paymentIntentId = caseRecord.order.stripePaymentIntentId;
@@ -226,6 +232,28 @@ export async function POST(
         );
       }
 
+      const caseStatusBeforeRefund = await prisma.case.findUnique({
+        where: { id },
+        select: { status: true, resolvedAt: true },
+      });
+      if (
+        !caseStatusBeforeRefund ||
+        caseStatusBeforeRefund.resolvedAt ||
+        caseStatusBeforeRefund.status === "RESOLVED" ||
+        caseStatusBeforeRefund.status === "CLOSED"
+      ) {
+        await releaseCaseRefundLock().catch((dbError) => {
+          Sentry.captureException(dbError, {
+            tags: { source: "case_refund_lock_release_failed" },
+            extra: { caseId: id, orderId: caseRecord.orderId },
+          });
+        });
+        return privateJson(
+          { error: "Case status changed before this refund could be issued. Refresh and try again." },
+          { status: HTTP_STATUS.CONFLICT },
+        );
+      }
+
       try {
         const refund = await createMarketplaceRefund({
           paymentIntentId,
@@ -259,10 +287,7 @@ export async function POST(
             : null,
         ].filter(Boolean).join("; ");
       } catch (stripeErr) {
-        await prisma.order.updateMany({
-          where: { id: caseRecord.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
-          data: { sellerRefundId: null, sellerRefundLockedAt: null },
-        }).catch((dbError) => {
+        await releaseCaseRefundLock().catch((dbError) => {
           Sentry.captureException(dbError, {
             tags: { source: "case_refund_lock_release_failed" },
             extra: { caseId: id, orderId: caseRecord.orderId },
@@ -297,6 +322,25 @@ export async function POST(
     let stockStatusRestoredCount = 0;
     try {
       const caseWrite = await prisma.$transaction(async (tx) => {
+        if (!refunding) {
+          const orderResolutionGuard = await tx.order.updateMany({
+            where: {
+              id: caseRecord.orderId,
+              OR: [
+                { sellerRefundId: null },
+                { sellerRefundId: { not: REFUND_LOCK_SENTINEL } },
+              ],
+            },
+            data: {
+              reviewNeeded: true,
+              reviewNote: resolutionNote,
+            },
+          });
+          if (orderResolutionGuard.count !== 1) {
+            throw new Error("CASE_RESOLUTION_REFUND_IN_PROGRESS");
+          }
+        }
+
         const caseUpdate = await tx.case.updateMany({
           where: {
             id,
@@ -350,14 +394,6 @@ export async function POST(
               },
             });
           }
-        } else {
-          await tx.order.update({
-            where: { id: caseRecord.orderId },
-            data: {
-              reviewNeeded: true,
-              reviewNote: resolutionNote,
-            },
-          });
         }
         if (refundRequiresManualTransferReconciliation && caseRecord.seller.sellerProfile?.id) {
           await tx.sellerProfile.update({
@@ -436,6 +472,12 @@ export async function POST(
       if (txErr instanceof Error && txErr.message === "CASE_RESOLUTION_CONFLICT") {
         return privateJson(
           { error: "Case status changed before this resolution could be saved. Refresh and try again." },
+          { status: HTTP_STATUS.CONFLICT },
+        );
+      }
+      if (txErr instanceof Error && txErr.message === "CASE_RESOLUTION_REFUND_IN_PROGRESS") {
+        return privateJson(
+          { error: "A refund is already being processed for this order. Refresh and try again." },
           { status: HTTP_STATUS.CONFLICT },
         );
       }

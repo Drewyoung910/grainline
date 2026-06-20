@@ -131,6 +131,8 @@ Stripe:
 5. In Stripe Dashboard, filter failed events and replay after the app is healthy.
 6. Verify `StripeWebhookEvent` rows show processed state for replayed events.
 7. For checkout or refund incidents, compare Stripe charge/payment/refund IDs against `OrderPaymentEvent`.
+8. If a blocked-checkout refund was accepted by Stripe, confirm the refund ID is durably recorded on the `Order`, in `OrderPaymentEvent`, and in the related `SystemAuditLog` entry. If the Stripe webhook delivery is still failed, replay it rather than issuing another manual refund first; the refund idempotency key is session-scoped.
+9. For blocked-checkout refund recovery incidents, check Sentry tags `stripe_webhook_blocked_checkout_orphaned_after_stripe`, `stripe_webhook_blocked_checkout_orphan_record_failed`, `stripe_webhook_blocked_checkout_refund`, and `stripe_webhook_blocked_checkout_refund_notification`. Notification failures are warning telemetry. `stripe_webhook_blocked_checkout_refund` without a Stripe refund ID means the local sentinel was released and the checkout webhook should remain failed/retryable so Stripe can retry the refund attempt; orphan-record failures mean local refund evidence may be incomplete and the failed webhook should stay retryable until the refund ID is recorded.
 
 Clerk:
 

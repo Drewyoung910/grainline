@@ -7663,3 +7663,101 @@ health-check token transport, HSTS preload submission decision, residual
 lower-risk HTTP-status/logging hygiene outside touched routes, Vercel
 Analytics/Speed Insights product/privacy decision, remaining homepage runtime
 a11y proof, and residual agent/worktree verification process hygiene.
+
+Entry 430 closes a parent-verified Stripe refund/dispute reconciliation race
+pass with two read-only agents used only as source scanners. Agent conclusions
+were rechecked against current source before code changes, and both agents
+were closed. The pass also re-reviewed all Markdown files in the repository:
+small docs were read fully, and the large ledgers/raw import were read at the
+relevant heads/tails plus targeted sections before any edit.
+
+The first source-proven gap was in blocked-checkout automatic refunds after
+Stripe had already accepted a refund. The prior orphan fallback attempted to
+write the refund ID back to the order, but a zero-row update or DB write
+failure could be captured only as Sentry telemetry while the checkout webhook
+delivery still completed. That left a narrow path where Stripe had a refund ID
+and local durable refund evidence was not guaranteed by the processed webhook
+state. `refundBlockedCheckout()` now tracks the accepted refund ID outside the
+inner refund block, treats buyer refund-notification failures as non-blocking
+warning telemetry, requires the orphan fallback `Order.updateMany` to update
+exactly one row, and rethrows orphan-record DB/zero-row failures so the Stripe
+webhook event remains retryable until the refund ID is recorded locally.
+
+The same blocked-checkout review found a second retry gap before Stripe returns
+a refund ID. If `createMarketplaceRefund()` failed before assigning a refund
+ID, the old path released the refund sentinel, recorded a manual review note,
+and let the checkout webhook finish as processed. Transient Stripe/network
+failures in that window now release the local sentinel for a future attempt,
+record bounded review evidence, and rethrow so the webhook stays retryable
+instead of relying only on manual reconciliation.
+
+Another source-proven race was between staff case refund and dismiss actions.
+Refunding resolutions already acquired the order refund sentinel before
+calling Stripe, but non-refunding dismissals did not check that sentinel, and
+the refund path did not recheck case state after the sentinel was held. A
+concurrent dismiss could therefore win the case compare-and-swap after Stripe
+accepted a refund, leaving an orphaned refund path. Staff case refunds now
+recheck active case state after acquiring the sentinel and before calling
+Stripe, while non-refund staff resolutions update the order under a guard that
+fails on an in-flight refund sentinel before the case row is resolved.
+
+The next source-proven gap was a Stripe dispute case-promotion race. The
+dispute webhook already used the previously-read case status as a
+compare-and-swap predicate, but it ignored the `updateMany` count. A concurrent
+case status change could therefore record the dispute ledger while silently not
+moving the case to `UNDER_REVIEW`. The webhook now throws
+`STRIPE_DISPUTE_CASE_UPDATE_CONFLICT` if the final case update count is not
+one, preserving retryability instead of acknowledging a partial state change.
+
+The final source-proven gap was in seller refund case auto-resolution. The
+seller refund route should not roll back an already issued seller refund merely
+because a secondary case row changed, but the old ignored `updateMany` count
+also left no durable staff-visible clue. The route now records a bounded order
+review note if the case auto-resolution update races a terminal case state, so
+staff can reconcile the case manually while the primary refund remains
+recorded.
+
+`CLAUDE.md` now records durable behavior contracts for staff case refund/dismiss
+serialization, blocked-checkout refund retryability before and after Stripe
+returns a refund ID, and Stripe dispute case compare-and-swap updates.
+`docs/runbook.md` now tells operators to compare Stripe refund IDs against
+`Order`, `OrderPaymentEvent`, and `SystemAuditLog` before issuing a manual
+refund, and calls out the Sentry tags that distinguish pre-refund-ID retryable
+failures, orphan-record failures, and non-blocking buyer notification failures.
+
+Guardrails:
+`tests/payment-side-effect-observability.test.mjs`.
+
+Current running tally after Entry 430: verified fixed/reduced 828, verified
+stale/false-positive/current 473, deferred product/design/ops/legal 73,
+approximate raw allegations left from current max #1126: 79. The fixed count
+increases by six for blocked-checkout refund orphan fallback retryability,
+blocked-checkout pre-refund-ID retryability, blocked-checkout refund
+notification isolation, staff case refund/dismiss serialization, Stripe
+dispute case-promotion retryability, and seller refund case-race review
+evidence. Stale/current, deferred, and approximate raw counts stay flat
+because the related raw allegations had already been classified in earlier
+passes and this pass fixed
+source-discovered residues inside the same Stripe refund/dispute categories.
+
+Remaining major categories: Stripe refund runtime/orphan reconciliation
+proof and backfill design, Stripe webhook subscription dashboard evidence,
+Stripe Connect v2 loss-liability ops/legal decision, stale remote branch and
+old git author hygiene, Round 10 deferred cache/state-machine product designs
+that require product decisions rather than source guardrails, remaining
+EXPLAIN-dependent query-plan/index validation, Stripe partial-refund runtime
+reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope, remaining privacy/export retention decisions,
+cross-seller AI duplicate-detection product design, legacy enum
+cleanup/data-migration decisions, partial multi-seller checkout continuation
+design, deliberate BigInt
+money-column modeling, live-data reconciliation for historical seller
+shipping-rate currency drift, Clerk staff MFA and breached-password dashboard
+evidence, Clerk multi-account spam dashboard evidence, buyer-deletion runtime
+replay proof, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public-bucket/dashboard posture plus
+direct-upload lifecycle/orphan cleanup and production smoke evidence,
+health-check token transport, HSTS preload submission decision, residual
+lower-risk HTTP-status/logging hygiene outside touched routes, Vercel
+Analytics/Speed Insights product/privacy decision, remaining homepage runtime
+a11y proof, and residual agent/worktree verification process hygiene.
