@@ -56,10 +56,14 @@ describe("account and privacy route observability guardrails", () => {
     const dataRequest = source("src/app/api/legal/data-request/route.ts");
 
     for (const route of [support, dataRequest]) {
+      assert.match(route, /privateResponse\(rateLimitResponse\(/);
+      assert.match(route, /privateJson\(/);
       assert.match(route, /readBoundedJson\(req, [A-Z_]+_BODY_MAX_BYTES\)/);
       assert.match(route, /isRequestBodyTooLargeError/);
       assert.match(route, /Request body too large/);
       assert.doesNotMatch(route, /body = await req\.json\(\)/);
+      assert.doesNotMatch(route, /return rateLimitResponse\(/);
+      assert.doesNotMatch(route, /NextResponse\.json/);
     }
   });
 

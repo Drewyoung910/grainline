@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { sendRenderedEmail } from "@/lib/email";
 import { prisma } from "@/lib/db";
@@ -20,26 +19,28 @@ import {
   supportRequestSubject,
 } from "@/lib/supportRequest";
 import { currentSupportRequestUserId } from "@/lib/supportRequestAccount";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 const DATA_REQUEST_BODY_MAX_BYTES = 24 * 1024;
 
 export async function POST(req: Request) {
   const rate = await safeRateLimit(dataRequestRatelimit, getIP(req));
-  if (!rate.success) return rateLimitResponse(rate.reset, "Too many data requests.");
+  if (!rate.success) return privateResponse(rateLimitResponse(rate.reset, "Too many data requests."));
 
   let body: unknown;
   try {
     body = await readBoundedJson(req, DATA_REQUEST_BODY_MAX_BYTES);
   } catch (error) {
     if (isRequestBodyTooLargeError(error)) {
-      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      return privateJson({ error: "Request body too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
     }
     if (!isInvalidJsonBodyError(error)) throw error;
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return privateJson({ error: "Invalid JSON" }, { status: HTTP_STATUS.BAD_REQUEST });
   }
 
   const normalized = normalizeSupportRequest("data_request", body as Record<string, unknown>);
-  if (!normalized.ok) return NextResponse.json({ error: normalized.error }, { status: 400 });
+  if (!normalized.ok) return privateJson({ error: normalized.error }, { status: HTTP_STATUS.BAD_REQUEST });
 
   const slaDueAt = supportRequestSlaDueAt();
   const emailHash = hashEmailForTelemetry(normalized.request.email);
@@ -66,7 +67,10 @@ export async function POST(req: Request) {
       tags: { source: "data_request_create" },
       extra: { topic: normalized.request.topic, emailHash },
     });
-    return NextResponse.json({ error: "Data request could not be saved. Please email legal@thegrainline.com." }, { status: 503 });
+    return privateJson(
+      { error: "Data request could not be saved. Please email legal@thegrainline.com." },
+      { status: HTTP_STATUS.SERVICE_UNAVAILABLE },
+    );
   }
 
   try {
@@ -90,9 +94,9 @@ export async function POST(req: Request) {
       tags: { source: "data_request" },
       extra: { supportRequestId: record.id, topic: normalized.request.topic, emailHash },
     });
-    return NextResponse.json(
+    return privateJson(
       { ok: true, requestId: record.id, slaDueAt: record.slaDueAt.toISOString() },
-      { status: 202 },
+      { status: HTTP_STATUS.ACCEPTED },
     );
   }
 
@@ -108,8 +112,8 @@ export async function POST(req: Request) {
     });
   }
 
-  return NextResponse.json(
+  return privateJson(
     { ok: true, requestId: record.id, slaDueAt: record.slaDueAt.toISOString() },
-    { status: 202 },
+    { status: HTTP_STATUS.ACCEPTED },
   );
 }

@@ -7087,6 +7087,101 @@ outside touched routes, Vercel Analytics/Speed Insights product/privacy
 decision, remaining homepage runtime a11y proof, and residual
 agent/worktree verification process hygiene.
 
+Entry 426 closes a parent-verified support/legal intake, public-search limiter,
+shipping-label response, and paid-checkout webhook integrity pass. Three
+read-only sidecar scans were used for disjoint source review and all agents
+were closed before this entry; each patched finding below was rechecked locally
+before editing. Sidecar-only findings that were not patched here are not counted
+as closed.
+
+First, the public support and legal data-request intake routes now keep
+request-specific responses private. Both routes are intentionally public and may
+optionally link a signed-in local account, but their request-id/SLA success
+payloads and validation/error/rate-limit responses now flow through
+`privateJson()` or `privateResponse(rateLimitResponse(...))`. This preserves
+public intake semantics while reducing accidental shared-cache replay risk for
+request IDs and optional-auth behavior. `CLAUDE.md` records that durable
+support/legal request IDs must be returned through private no-store JSON.
+
+Second, the uncached public popular-tag APIs now use the shared fail-closed
+search limiter before cached raw-SQL helper work. `/api/search/popular-tags`
+and `/api/search/popular-blog-tags` still rely on their underlying cache tags
+for freshness and keep `dynamic = "force-dynamic"`, but anonymous callers now
+hit `safeRateLimit(searchRatelimit, getIP(req))` before invoking
+`getPopularListingTags(8)` or `getPopularBlogTags(8)`.
+
+Third, shipping-label purchase client responses no longer expose avoidable
+provider/order detail. Shippo transaction failure `messages[].text` now passes
+through `sanitizeShippoProviderErrorBody()` before being returned to the seller.
+Successful label-purchase and label-clawback helper updates use
+`labelClawbackOrderSelect` and return only a bounded label/fulfillment snapshot
+instead of a full `Order` row containing buyer PII, Stripe references, and
+review internals. `CLAUDE.md` records both the label response shape and the
+provider-message sanitization contract.
+
+Fourth, paid checkout webhooks no longer silently accept two inconsistent paid
+session states. Cart checkout now fails the webhook before `Order.create` when
+expanded Stripe listing line items cannot all be resolved to current cart or
+listing snapshots, avoiding partial order rows whose totals include paid items
+that were not represented as `OrderItem`s. Paid checkout completions with
+missing cart/buy-now routing metadata now throw after Sentry evidence, leaving
+the Stripe idempotency row failed/retryable for ops triage instead of marking
+the event processed with no order, refund, or durable ledger.
+
+The broader sidecar findings for blocked-checkout retry/refund idempotency, R2
+direct-upload public-availability verification, R2 direct-upload lifecycle
+cleanup, remaining listing/profile/blog/review media persistence verification,
+and health-check token transport were not closed in this entry and remain
+follow-up work. Manual/dashboard-only evidence items for Clerk staff MFA,
+Sentry alert routing, HSTS preload, R2 dashboard posture, and Vercel
+Analytics/Speed Insights remain deferred/manual evidence categories without
+duplicate tally movement.
+
+Guardrails:
+`tests/private-json-cache-headers.test.mjs`,
+`tests/account-privacy-observability.test.mjs`,
+`tests/support-request.test.mjs`,
+`tests/public-cron-search-hardening.test.mjs`,
+`tests/api-read-rate-limit-sweep.test.mjs`,
+`tests/payment-side-effect-observability.test.mjs`,
+`tests/stripe-webhook-state.test.mjs`, and
+`tests/shippo-error-sanitization.test.mjs`.
+
+Current running tally after Entry 426: verified fixed/reduced 812, verified
+stale/false-positive/current 473, deferred product/design/ops/legal 73,
+approximate raw allegations left from current max #1126: 79. The fixed count
+increases by eight for support intake private request-id responses, legal
+data-request private request-id responses, listing popular-tag fail-closed
+public read limiting, blog popular-tag fail-closed public read limiting, Shippo
+label transaction-message sanitization, narrowed label-purchase/clawback order
+response selection, paid-cart partial line-resolution webhook failure, and
+paid-checkout missing-routing-metadata webhook failure. Stale/current,
+deferred, and approximate raw counts stay flat because the closed items were
+source-discovered residues inside already-open categories and the unpatched
+sidecar findings remain open.
+
+Remaining major categories: Stripe webhook blocked-checkout retry/refund
+idempotency, Stripe webhook subscription dashboard evidence, Stripe Connect v2
+loss-liability ops/legal decision, stale remote branch and old git author
+hygiene, Round 10 deferred cache/state-machine product designs that require
+product decisions rather than source guardrails, remaining EXPLAIN-dependent
+query-plan/index validation, Stripe partial-refund runtime reconciliation
+proof, founding-maker permanence policy, remaining privacy/legal retention
+scope, remaining privacy/export retention decisions, cross-seller AI
+duplicate-detection product design, legacy enum cleanup/data-migration
+decisions, partial multi-seller checkout continuation design, deliberate BigInt
+money-column modeling, live-data reconciliation for historical seller
+shipping-rate currency drift, Clerk staff MFA and breached-password dashboard
+evidence, Clerk multi-account spam dashboard evidence, buyer-deletion runtime
+replay proof, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public-bucket/dashboard/direct-upload
+enforcement evidence, R2 direct-upload public-availability/lifecycle and
+remaining media persistence verification, health-check token transport, HSTS
+preload submission decision, residual lower-risk HTTP-status/logging hygiene
+outside touched routes, Vercel Analytics/Speed Insights product/privacy
+decision, remaining homepage runtime a11y proof, and residual
+agent/worktree verification process hygiene.
+
 Entry 423 closes a parent-verified hidden-residue pass across private response
 headers, account-state action checks, provider-error telemetry, and Sentry
 redaction. Three read-only sidecar scans were used for disjoint source

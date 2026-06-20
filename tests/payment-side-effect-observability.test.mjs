@@ -374,10 +374,31 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(disputeNotification, /dedupScope: `stripe-dispute:\$\{dispute\.id \?\? event\.id\}:created`/);
   });
 
+  it("fails paid checkout webhooks instead of creating partial or unrouted orders", () => {
+    const route = source("src/app/api/stripe/webhook/route.ts");
+
+    const partialResolutionStart = route.indexOf("stripe_webhook_cart_partial_line_item_resolution");
+    const orderCreateStart = route.indexOf("const order = await tx.order.create", partialResolutionStart);
+    assert.ok(partialResolutionStart > 0, "cart checkout must guard partial paid line resolution");
+    assert.ok(orderCreateStart > partialResolutionStart, "partial paid line guard must run before order creation");
+    assert.match(
+      route,
+      /if \(checkoutItems\.length !== paidItems\.length\) \{[\s\S]*throw new Error\("Paid cart checkout could not resolve all listing records"\);[\s\S]*\}/,
+    );
+
+    const metadataStart = route.indexOf("Stripe checkout completion missing routing metadata");
+    const metadataBranch = route.slice(metadataStart, route.indexOf("}, async () => {", metadataStart));
+    assert.match(metadataBranch, /level: "error"/);
+    assert.match(metadataBranch, /throw new Error\("Stripe checkout completion missing routing metadata"\)/);
+    assert.doesNotMatch(metadataBranch, /return NextResponse\.json\(\{ ok: true \}\)/);
+  });
+
   it("keeps shipping-label orphan paths observable without full label URLs", () => {
     const route = source("src/app/api/orders/[id]/label/route.ts");
+    const labelClawback = source("src/lib/labelClawbackRetry.ts");
 
     assert.match(route, /import \{ HTTP_STATUS \} from "@\/lib\/httpStatus"/);
+    assert.match(route, /sanitizeShippoProviderErrorBody/);
     assert.match(route, /status: HTTP_STATUS\.ACCEPTED/);
     assert.match(route, /status: HTTP_STATUS\.BAD_GATEWAY/);
     assert.match(route, /source: "label_lock_revert_failed"/);
@@ -399,6 +420,12 @@ describe("payment and fulfillment side-effect observability", () => {
       route,
       /source: "shippo_label_orphan_record_failed"[\s\S]*labelUrl: purchasedLabelDetails/s,
     );
+    assert.doesNotMatch(route, /Shippo label purchase failed: \$\{msgs/);
+    assert.doesNotMatch(route, /order:\s*updated/);
+    assert.match(route, /order: labelPurchaseOrderResponse\(updated\)/);
+    assert.match(route, /select: labelClawbackOrderSelect/);
+    assert.match(labelClawback, /export const labelClawbackOrderSelect/);
+    assert.match(labelClawback, /select: labelClawbackOrderSelect/);
   });
 
   it("captures best-effort checkout stock restoration failures", () => {

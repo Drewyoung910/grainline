@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { stripe as defaultStripe } from "@/lib/stripe";
 import {
@@ -22,6 +23,25 @@ type StripeTransferReversalClient = {
 };
 
 const LABEL_CLAWBACK_RETRY_STALE_MS = 30 * 60 * 1000;
+
+export const labelClawbackOrderSelect = {
+  id: true,
+  reviewNote: true,
+  labelUrl: true,
+  labelCarrier: true,
+  labelTrackingNumber: true,
+  labelCostCents: true,
+  labelStatus: true,
+  labelPurchasedAt: true,
+  fulfillmentStatus: true,
+  shippedAt: true,
+  trackingNumber: true,
+  trackingCarrier: true,
+} as const satisfies Prisma.OrderSelect;
+
+export type LabelClawbackOrder = Prisma.OrderGetPayload<{
+  select: typeof labelClawbackOrderSelect;
+}>;
 
 export async function markLabelClawbackForReview(opts: {
   orderId: string;
@@ -57,6 +77,7 @@ export async function markLabelClawbackForReview(opts: {
       labelClawbackResolvedAt: null,
       labelClawbackReversalId: null,
     },
+    select: labelClawbackOrderSelect,
   });
 }
 
@@ -75,6 +96,7 @@ export async function recordSuccessfulLabelClawback(opts: {
       labelClawbackResolvedAt: now,
       labelClawbackNextAttemptAt: null,
     },
+    select: labelClawbackOrderSelect,
   });
 }
 

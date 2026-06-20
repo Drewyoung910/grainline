@@ -1274,6 +1274,25 @@ export async function POST(req: Request) {
           await releaseCheckoutLock(checkoutLockKey, sessionId);
           throw new Error("Paid cart checkout could not resolve listing records");
         }
+        if (checkoutItems.length !== paidItems.length) {
+          const resolvedListingIds = new Set(checkoutItems.map((item) => item.paid.listingId));
+          const unresolvedListingIds = paidItems
+            .map((item) => item.listingId)
+            .filter((listingId) => !resolvedListingIds.has(listingId));
+          Sentry.captureMessage("Paid cart checkout resolved only part of the charged line items", {
+            level: "error",
+            tags: { source: "stripe_webhook_cart_partial_line_item_resolution" },
+            extra: {
+              stripeSessionId: sessionId,
+              cartId,
+              sellerIdFromMeta,
+              paidItemCount: paidItems.length,
+              resolvedItemCount: checkoutItems.length,
+              unresolvedListingIds: unresolvedListingIds.slice(0, 10),
+            },
+          });
+          throw new Error("Paid cart checkout could not resolve all listing records");
+        }
 
         const maxProcessingDaysCart = Math.max(
           3,
@@ -1839,7 +1858,7 @@ export async function POST(req: Request) {
       }
 
       Sentry.captureMessage("Stripe checkout completion missing routing metadata", {
-        level: "warning",
+        level: "error",
         tags: { source: "stripe_webhook_checkout_metadata" },
         extra: {
           stripeSessionId: sessionId,
@@ -1849,7 +1868,7 @@ export async function POST(req: Request) {
           listingId: listingId ?? null,
         },
       });
-      return NextResponse.json({ ok: true });
+      throw new Error("Stripe checkout completion missing routing metadata");
       }, async () => {
         await releaseCheckoutLock(checkoutLockKey, sessionId);
       });

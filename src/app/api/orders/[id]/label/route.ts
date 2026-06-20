@@ -19,8 +19,10 @@ import {
   labelClawbackIdempotencyKey,
 } from "@/lib/labelClawbackState";
 import {
+  labelClawbackOrderSelect,
   markLabelClawbackForReview,
   recordSuccessfulLabelClawback,
+  type LabelClawbackOrder,
 } from "@/lib/labelClawbackRetry";
 import {
   isInvalidJsonBodyError,
@@ -38,6 +40,7 @@ import {
   DEAUTHORIZED_SELLER_REVIEW_NOTE_SQL_PATTERN,
   orderHasDeauthorizedSellerReviewHold,
 } from "@/lib/orderReviewHolds";
+import { sanitizeShippoProviderErrorBody } from "@/lib/shippoErrorSanitize";
 
 const LabelSchema = z.object({
   rateObjectId: z.string().min(1).optional().nullable(),
@@ -64,6 +67,22 @@ const ACTIVE_CASE_STATUSES = new Set([
 ]);
 const LABEL_RATE_QUOTE_TTL_MS = 30 * 60 * 1000;
 const LABEL_PURCHASE_BODY_MAX_BYTES = 16 * 1024;
+
+function labelPurchaseOrderResponse(order: LabelClawbackOrder) {
+  return {
+    id: order.id,
+    labelStatus: order.labelStatus,
+    labelUrl: order.labelUrl,
+    labelCarrier: order.labelCarrier,
+    labelTrackingNumber: order.labelTrackingNumber,
+    labelCostCents: order.labelCostCents,
+    labelPurchasedAt: order.labelPurchasedAt?.toISOString() ?? null,
+    fulfillmentStatus: order.fulfillmentStatus,
+    shippedAt: order.shippedAt?.toISOString() ?? null,
+    trackingNumber: order.trackingNumber,
+    trackingCarrier: order.trackingCarrier,
+  };
+}
 
 function isPurchasableRateObjectId(
   rateObjectId: string | null | undefined,
@@ -523,9 +542,10 @@ export async function POST(
       if (txn.status !== "SUCCESS") {
         // Revert lock — label purchase did not succeed
         await revertLabelLock();
-        const msgs = (txn.messages || []).map((m) => m.text).join("; ");
+        const messageText = (txn.messages || []).map((m) => m.text).filter(Boolean).join("; ");
+        const detail = sanitizeShippoProviderErrorBody(messageText || txn.status);
         return privateJson(
-          { error: `Shippo label purchase failed: ${msgs || txn.status}` },
+          { error: `Shippo label purchase failed: ${detail || "provider rejected the transaction"}` },
           { status: HTTP_STATUS.BAD_GATEWAY },
         );
       }
@@ -556,6 +576,7 @@ export async function POST(
           trackingNumber: txn.tracking_number ?? null,
           trackingCarrier: txn.rate?.provider ?? null,
         },
+        select: labelClawbackOrderSelect,
       });
 
       // Best-effort: claw back label cost by reversing part of the seller's transfer
@@ -638,7 +659,7 @@ export async function POST(
       return privateJson({
         ok: true,
         labelUrl: updated.labelUrl,
-        order: updated,
+        order: labelPurchaseOrderResponse(updated),
       });
     } catch (labelErr) {
       if (!shippoPurchaseSucceeded) {

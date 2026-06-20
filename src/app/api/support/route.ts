@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { sendRenderedEmail } from "@/lib/email";
 import { prisma } from "@/lib/db";
@@ -20,26 +19,28 @@ import {
   supportRequestSubject,
 } from "@/lib/supportRequest";
 import { currentSupportRequestUserId } from "@/lib/supportRequestAccount";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 const SUPPORT_REQUEST_BODY_MAX_BYTES = 24 * 1024;
 
 export async function POST(req: Request) {
   const rate = await safeRateLimit(supportRequestRatelimit, getIP(req));
-  if (!rate.success) return rateLimitResponse(rate.reset, "Too many support requests.");
+  if (!rate.success) return privateResponse(rateLimitResponse(rate.reset, "Too many support requests."));
 
   let body: unknown;
   try {
     body = await readBoundedJson(req, SUPPORT_REQUEST_BODY_MAX_BYTES);
   } catch (error) {
     if (isRequestBodyTooLargeError(error)) {
-      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      return privateJson({ error: "Request body too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
     }
     if (!isInvalidJsonBodyError(error)) throw error;
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return privateJson({ error: "Invalid JSON" }, { status: HTTP_STATUS.BAD_REQUEST });
   }
 
   const normalized = normalizeSupportRequest("support", body as Record<string, unknown>);
-  if (!normalized.ok) return NextResponse.json({ error: normalized.error }, { status: 400 });
+  if (!normalized.ok) return privateJson({ error: normalized.error }, { status: HTTP_STATUS.BAD_REQUEST });
 
   const slaDueAt = supportRequestSlaDueAt();
   const emailHash = hashEmailForTelemetry(normalized.request.email);
@@ -66,7 +67,10 @@ export async function POST(req: Request) {
       tags: { source: "support_request_create" },
       extra: { topic: normalized.request.topic, emailHash },
     });
-    return NextResponse.json({ error: "Support request could not be saved. Please email support@thegrainline.com." }, { status: 503 });
+    return privateJson(
+      { error: "Support request could not be saved. Please email support@thegrainline.com." },
+      { status: HTTP_STATUS.SERVICE_UNAVAILABLE },
+    );
   }
 
   try {
@@ -90,9 +94,9 @@ export async function POST(req: Request) {
       tags: { source: "support_request" },
       extra: { supportRequestId: record.id, topic: normalized.request.topic, emailHash },
     });
-    return NextResponse.json(
+    return privateJson(
       { ok: true, requestId: record.id, slaDueAt: record.slaDueAt.toISOString() },
-      { status: 202 },
+      { status: HTTP_STATUS.ACCEPTED },
     );
   }
 
@@ -108,8 +112,8 @@ export async function POST(req: Request) {
     });
   }
 
-  return NextResponse.json(
+  return privateJson(
     { ok: true, requestId: record.id, slaDueAt: record.slaDueAt.toISOString() },
-    { status: 202 },
+    { status: HTTP_STATUS.ACCEPTED },
   );
 }

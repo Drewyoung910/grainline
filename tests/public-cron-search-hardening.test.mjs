@@ -133,6 +133,8 @@ describe("cron and public route hardening", () => {
     const blogSuggestions = source("src/app/api/blog/search/suggestions/route.ts");
     const globalSuggestions = source("src/app/api/search/suggestions/route.ts");
     const blogPage = source("src/app/blog/page.tsx");
+    const popularTagsRoute = source("src/app/api/search/popular-tags/route.ts");
+    const popularBlogTagsRoute = source("src/app/api/search/popular-blog-tags/route.ts");
     const popularBlogTags = source("src/lib/popularBlogTags.ts");
     const similarListings = source("src/app/api/listings/[id]/similar/route.ts");
 
@@ -169,6 +171,13 @@ describe("cron and public route hardening", () => {
     assert.match(globalSuggestions, /activeSellerProfileWhere/);
     assert.match(globalSuggestions, /bp\."publishedAt" IS NOT NULL/);
     assert.match(globalSuggestions, /bp\."publishedAt" <= NOW\(\)/);
+
+    for (const route of [popularTagsRoute, popularBlogTagsRoute]) {
+      assert.match(route, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
+      assert.doesNotMatch(route, /safeRateLimitOpen\(searchRatelimit/);
+    }
+    assert.match(popularTagsRoute, /rateLimitResponse\(reset, "Too many popular-search requests\."\)/);
+    assert.match(popularBlogTagsRoute, /rateLimitResponse\(reset, "Too many popular-blog-topic requests\."\)/);
 
     assert.match(blogPage, /"BlogPost"\."publishedAt" IS NOT NULL/);
     assert.match(blogPage, /"BlogPost"\."publishedAt" <= NOW\(\)/);

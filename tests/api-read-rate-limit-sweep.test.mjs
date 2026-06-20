@@ -68,6 +68,8 @@ describe("API read route rate-limit sweep", () => {
       ["src/app/api/blog/[slug]/comments/route.ts", "prisma.blogPost.findFirst"],
       ["src/app/api/commission/[id]/route.ts", "prisma.commissionRequest.findUnique"],
       ["src/app/api/follow/[sellerId]/route.ts", "prisma.sellerProfile.findFirst"],
+      ["src/app/api/search/popular-tags/route.ts", "getPopularListingTags(8)"],
+      ["src/app/api/search/popular-blog-tags/route.ts", "getPopularBlogTags(8)"],
     ]) {
       const text = source(path);
       assert.match(text, /searchRatelimit/);

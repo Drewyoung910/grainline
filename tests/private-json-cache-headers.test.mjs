@@ -276,6 +276,21 @@ describe("private JSON cache headers", () => {
     }
   });
 
+  it("marks public support and legal intake request-id responses private", () => {
+    for (const route of [
+      "src/app/api/support/route.ts",
+      "src/app/api/legal/data-request/route.ts",
+    ]) {
+      const text = source(route);
+
+      assert.match(text, /import \{ privateJson, privateResponse \} from "@\/lib\/privateResponse"/);
+      assert.match(text, /privateResponse\(rateLimitResponse\(/);
+      assert.match(text, /privateJson\(\s*\{ ok: true, requestId: record\.id, slaDueAt: record\.slaDueAt\.toISOString\(\) \}/s);
+      assert.doesNotMatch(text, /return rateLimitResponse\(/);
+      assert.doesNotMatch(text, /\bNextResponse\.json\(/);
+    }
+  });
+
   it("marks optional-auth telemetry JSON responses private while preserving NextResponse cookies", () => {
     for (const route of [
       "src/app/api/listings/[id]/click/route.ts",
