@@ -16,6 +16,7 @@ import { containsProfanity } from "@/lib/profanity";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
 import { filterVerifiedFirstPartyMediaUrlsForUser } from "@/lib/uploadPersistenceVerification";
+import { claimDirectUploadsForUrls } from "@/lib/directUploadLifecycle";
 import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 import { publicListingPath } from "@/lib/publicPaths";
 import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
@@ -155,6 +156,7 @@ export async function POST(req: NextRequest) {
     urls: photoUrls ?? [],
     max: 6,
     clerkUserId: userId,
+    accountUserId: me.id,
     allowedEndpoints: ["reviewPhoto"],
   });
 
@@ -178,6 +180,13 @@ export async function POST(req: NextRequest) {
             url,
             sortOrder: i,
           })),
+        });
+        await claimDirectUploadsForUrls({
+          client: tx,
+          urls,
+          userId: me.id,
+          claimedByType: "Review",
+          claimedById: r.id,
         });
       }
 

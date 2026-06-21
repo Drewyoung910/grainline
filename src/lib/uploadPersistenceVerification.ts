@@ -12,6 +12,8 @@ import {
   uploadFileSignatureMatches,
   uploadKeyBelongsToUser,
 } from "@/lib/uploadVerificationToken";
+import { DIRECT_UPLOAD_STATUS } from "@/lib/directUploadLifecycleState";
+import { prisma } from "@/lib/db";
 
 const PREFIX_BYTE_RANGE = "bytes=0-511";
 
@@ -60,11 +62,13 @@ export async function verifyFirstPartyUploadForPersistence({
   url,
   endpoint,
   clerkUserId,
+  accountUserId,
   allowedContentTypes,
 }: {
   url: string;
   endpoint: UploadEndpoint;
   clerkUserId: string;
+  accountUserId?: string;
   allowedContentTypes: readonly string[];
 }): Promise<UploadPersistenceVerificationResult> {
   const key = firstPartyMediaKey(url);
@@ -99,6 +103,28 @@ export async function verifyFirstPartyUploadForPersistence({
     return { ok: false, error: "Attachment upload could not be verified. Re-upload the file and try again." };
   }
 
+  const lifecycle = await prisma.directUpload.findUnique({
+    where: { key },
+    select: {
+      userId: true,
+      status: true,
+      expectedSize: true,
+      contentType: true,
+    },
+  });
+  if (lifecycle) {
+    const lifecycleStatusCanPersist =
+      lifecycle.status === DIRECT_UPLOAD_STATUS.VERIFIED ||
+      lifecycle.status === DIRECT_UPLOAD_STATUS.CLAIMED;
+    const trackedUploadMatches =
+      (!accountUserId || lifecycle.userId === accountUserId) &&
+      lifecycle.expectedSize === size &&
+      uploadContentTypeMatches(head.ContentType, lifecycle.contentType);
+    if (!trackedUploadMatches || !lifecycleStatusCanPersist) {
+      return { ok: false, error: "Attachment upload could not be verified. Re-upload the file and try again." };
+    }
+  }
+
   return { ok: true };
 }
 
@@ -106,11 +132,13 @@ export async function verifyFirstPartyMediaUrlForPersistence({
   url,
   allowedEndpoints,
   clerkUserId,
+  accountUserId,
   allowedContentTypes,
 }: {
   url: string;
   allowedEndpoints: readonly UploadEndpoint[];
   clerkUserId: string;
+  accountUserId?: string;
   allowedContentTypes: readonly string[];
 }): Promise<UploadPersistenceVerificationResult> {
   const key = firstPartyMediaKey(url);
@@ -125,6 +153,7 @@ export async function verifyFirstPartyMediaUrlForPersistence({
     url,
     endpoint,
     clerkUserId,
+    accountUserId,
     allowedContentTypes,
   });
 }
@@ -133,6 +162,7 @@ export async function filterVerifiedFirstPartyMediaUrlsForUser({
   urls,
   max,
   clerkUserId,
+  accountUserId,
   allowedEndpoints,
   allowedContentTypes = IMAGE_UPLOAD_TYPES,
   existingUrls = [],
@@ -140,6 +170,7 @@ export async function filterVerifiedFirstPartyMediaUrlsForUser({
   urls: string[];
   max: number;
   clerkUserId: string;
+  accountUserId?: string;
   allowedEndpoints: readonly UploadEndpoint[];
   allowedContentTypes?: readonly string[];
   existingUrls?: readonly (string | null | undefined)[];
@@ -157,6 +188,7 @@ export async function filterVerifiedFirstPartyMediaUrlsForUser({
       url,
       allowedEndpoints,
       clerkUserId,
+      accountUserId,
       allowedContentTypes,
     });
     if (result.ok) {

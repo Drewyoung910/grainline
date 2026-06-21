@@ -27,6 +27,7 @@ import {
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import { isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
 import { filterVerifiedFirstPartyMediaUrlsForUser } from "@/lib/uploadPersistenceVerification";
+import { claimDirectUploadsForUrls } from "@/lib/directUploadLifecycle";
 import { expireOpenCheckoutSessionsForListing } from "@/lib/checkoutSessionExpiry";
 import { listingMutationRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { MAX_MANUAL_STOCK_QUANTITY } from "@/lib/stockMutationState";
@@ -288,6 +289,7 @@ async function updateListing(
   const listing = await prisma.listing.findFirst({
     where: { id: listingId, seller: { user: { clerkId: userId } } },
     include: {
+      seller: { select: { userId: true } },
       photos: { orderBy: { sortOrder: "asc" } },
       variantGroups: {
         orderBy: { sortOrder: "asc" },
@@ -326,6 +328,7 @@ async function updateListing(
       urls: [...submittedNewPhotoUrls],
       max: submittedNewPhotoUrls.size,
       clerkUserId: userId,
+      accountUserId: listing.seller.userId,
       allowedEndpoints: ["listingImage"],
     }));
     if (verifiedNewPhotoUrls.size !== submittedNewPhotoUrls.size) {
@@ -473,6 +476,13 @@ async function updateListing(
           });
         }
       }
+      await claimDirectUploadsForUrls({
+        client: tx,
+        urls: [...submittedNewPhotoUrls],
+        userId: listing.seller.userId,
+        claimedByType: "Listing",
+        claimedById: listingId,
+      });
 
       return updated;
     });

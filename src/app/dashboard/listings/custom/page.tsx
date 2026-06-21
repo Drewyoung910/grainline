@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { filterVerifiedFirstPartyMediaUrlsForUser } from "@/lib/uploadPersistenceVerification";
+import { claimDirectUploadsForUrls } from "@/lib/directUploadLifecycle";
 import { sanitizeRichText, sanitizeText, truncateText } from "@/lib/sanitize";
 import { sendCustomOrderReadyLink } from "@/lib/customOrderReadyLink";
 import { sellerFacingUserLabel } from "@/lib/sellerFacingUser";
@@ -93,6 +94,7 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
     urls: imageUrls,
     max: 10,
     clerkUserId: userId,
+    accountUserId: seller.userId,
     allowedEndpoints: ["listingImage"],
   });
 
@@ -110,6 +112,7 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
     urls: imageOriginalUrls,
     max: 10,
     clerkUserId: userId,
+    accountUserId: seller.userId,
     allowedEndpoints: ["listingImage"],
   });
 
@@ -163,32 +166,42 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
       ? maxDaysRaw
       : null;
 
-  const created = await prisma.listing.create({
-    data: {
-      sellerId: seller.id,
-      title,
-      description,
-      priceCents,
-      status: ListingStatus.PENDING_REVIEW,
-      isPrivate: true,
-      reservedForUserId,
-      customOrderConversationId: conversationId,
-      listingType,
-      stockQuantity,
-      shipsWithinDays,
-      processingTimeMinDays,
-      processingTimeMaxDays,
-      packagedLengthCm,
-      packagedWidthCm,
-      packagedHeightCm,
-      packagedWeightGrams,
-      photos: { create: imageUrls.map((url, i) => ({
-        url,
-        originalUrl: imageOriginalUrls[i] ?? url,
-        sortOrder: i,
-        altText: imageAltTexts[i] ? truncateText(sanitizeText(imageAltTexts[i].trim()), 200) || null : null,
-      })) },
-    },
+  const created = await prisma.$transaction(async (tx) => {
+    const listing = await tx.listing.create({
+      data: {
+        sellerId: seller.id,
+        title,
+        description,
+        priceCents,
+        status: ListingStatus.PENDING_REVIEW,
+        isPrivate: true,
+        reservedForUserId,
+        customOrderConversationId: conversationId,
+        listingType,
+        stockQuantity,
+        shipsWithinDays,
+        processingTimeMinDays,
+        processingTimeMaxDays,
+        packagedLengthCm,
+        packagedWidthCm,
+        packagedHeightCm,
+        packagedWeightGrams,
+        photos: { create: imageUrls.map((url, i) => ({
+          url,
+          originalUrl: imageOriginalUrls[i] ?? url,
+          sortOrder: i,
+          altText: imageAltTexts[i] ? truncateText(sanitizeText(imageAltTexts[i].trim()), 200) || null : null,
+        })) },
+      },
+    });
+    await claimDirectUploadsForUrls({
+      client: tx,
+      urls: [...imageUrls, ...imageOriginalUrls],
+      userId: seller.userId,
+      claimedByType: "Listing",
+      claimedById: listing.id,
+    });
+    return listing;
   });
 
   const sellerInfo = await prisma.sellerProfile.findUnique({

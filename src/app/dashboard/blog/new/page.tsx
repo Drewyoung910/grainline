@@ -10,6 +10,7 @@ import BlogPostForm from "@/components/BlogPostForm";
 import { createNotification } from "@/lib/notifications";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { normalizeBlogCoverImageUrl, normalizeBlogVideoUrl } from "@/lib/blogInput";
+import { claimDirectUploadsForUrls } from "@/lib/directUploadLifecycle";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { normalizeTags } from "@/lib/tags";
 import { revalidateBlogSearchCaches } from "@/lib/searchCache";
@@ -66,7 +67,7 @@ export default async function NewBlogPostPage() {
     let coverImageUrl: string | null = null;
     let videoUrl: string | null = null;
     try {
-      coverImageUrl = await normalizeBlogCoverImageUrl(formData.get("coverImageUrl"), uid);
+      coverImageUrl = await normalizeBlogCoverImageUrl(formData.get("coverImageUrl"), uid, undefined, author.id);
       videoUrl = normalizeBlogVideoUrl(formData.get("videoUrl"));
     } catch (error) {
       return {
@@ -140,26 +141,38 @@ export default async function NewBlogPostPage() {
     let newPost;
     for (let createAttempt = 0; createAttempt < 5; createAttempt += 1) {
       try {
-        newPost = await prisma.blogPost.create({
-          data: {
-            slug,
-            title,
-            body,
-            materialDisclosure,
-            excerpt,
-            metaDescription,
-            coverImageUrl,
-            videoUrl,
-            type,
-            status,
-            tags,
-            featuredListingIds: verifiedFeaturedListingIds,
-            readingTimeMinutes,
-            authorType,
-            authorId: author.id,
-            sellerProfileId,
-            publishedAt: status === "PUBLISHED" ? new Date() : null,
-          },
+        newPost = await prisma.$transaction(async (tx) => {
+          const created = await tx.blogPost.create({
+            data: {
+              slug,
+              title,
+              body,
+              materialDisclosure,
+              excerpt,
+              metaDescription,
+              coverImageUrl,
+              videoUrl,
+              type,
+              status,
+              tags,
+              featuredListingIds: verifiedFeaturedListingIds,
+              readingTimeMinutes,
+              authorType,
+              authorId: author.id,
+              sellerProfileId,
+              publishedAt: status === "PUBLISHED" ? new Date() : null,
+            },
+          });
+          if (coverImageUrl) {
+            await claimDirectUploadsForUrls({
+              client: tx,
+              urls: [coverImageUrl],
+              userId: author.id,
+              claimedByType: "BlogPost",
+              claimedById: created.id,
+            });
+          }
+          return created;
         });
         break;
       } catch (error) {

@@ -8870,6 +8870,102 @@ public-availability proof, HSTS preload submission decision, Vercel
 Analytics/Speed Insights product/privacy decision, and remaining homepage
 browser a11y/runtime proof beyond source fallback.
 
+Entry 443 closes two hidden R2 upload-lifecycle defects found by read-only
+sidecar scan and accepted after parent source review. Parent Codex also
+spot-checked the parallel Stripe sidecar's no-fix report but did not accept new
+Stripe tally movement in this entry; Stripe runtime/evidence items remain in
+the existing remaining categories.
+
+Verified fixed/reduced:
+
+- Processed image uploads no longer return successful public URLs without a
+  cleanup-addressable lifecycle row. After `POST /api/upload/image` writes the
+  Sharp-processed object and verifies public availability, it now creates a
+  `DirectUpload` row in `VERIFIED` state with the processed size/content type
+  and normal verified-upload cleanup TTL. If lifecycle recording fails, the
+  route attempts to delete the just-written R2 object and returns retryable
+  upload failure copy.
+- Tracked upload URLs can no longer skip `/api/upload/verify` by being claimed
+  while still `PRESIGNED`. `directUploadStatusIsClaimable()` now allows only
+  `VERIFIED`; `claimDirectUploadForUrl()` updates only `VERIFIED` rows; and the
+  persistence verifier rejects tracked rows unless the local account id, stored
+  expected size, content type, and lifecycle state match `VERIFIED` or already
+  `CLAIMED`.
+- Durable media save paths now claim newly persisted tracked uploads in the
+  same database persistence flow: listing create/custom/edit photos, review
+  create/edit photos, commission reference images, seller profile/onboarding
+  media, seller broadcast images, blog cover images, and message attachments.
+  Legacy untracked first-party URLs still pass through the existing R2 HEAD,
+  range-read, signature, endpoint, and user-path checks.
+
+Verified current/stale/duplicate during the same pass:
+
+- The older raw content-length/fileIndex/upload allegations remain
+  already-classified in prior entries: current presign signs expected size and
+  content type, `/api/upload/verify` checks the actual R2 HEAD/range/signature
+  before verification, processed images are decoded/re-encoded by Sharp with
+  output-size checks, and final write paths cap/filter submitted media by
+  endpoint and uploader before persistence.
+- The Stripe sidecar's scoped claims did not produce an accepted code change in
+  this entry. Parent spot checks confirmed current source still keeps Checkout
+  card-only, handles `checkout.session.async_payment_failed` for stock
+  restoration, uses the shared `createMarketplaceRefund()` reverse-transfer
+  refund path, and keeps label-clawback retry/manual-review state. Runtime
+  refund reconciliation and payment-ops evidence remain separate remaining
+  categories.
+
+Guardrails:
+`tests/direct-upload-lifecycle.test.mjs`,
+`tests/upload-ux-followups.test.mjs`,
+`tests/upload-verification-token.test.mjs`,
+`tests/account-deletion-media.test.mjs`,
+`tests/message-case-policy-guardrails.test.mjs`,
+`tests/pr-i-media-upload-unsubscribe-followups.test.mjs`,
+`tests/seller-ops-hardening.test.mjs`,
+`tests/server-action-hardening.test.mjs`, and
+`tests/account-export-privacy.test.mjs`.
+
+Verification:
+expanded focused `node --test tests/direct-upload-lifecycle.test.mjs tests/upload-ux-followups.test.mjs tests/upload-verification-token.test.mjs tests/account-deletion-media.test.mjs tests/message-case-policy-guardrails.test.mjs tests/pr-i-media-upload-unsubscribe-followups.test.mjs tests/seller-ops-hardening.test.mjs tests/server-action-hardening.test.mjs tests/account-export-privacy.test.mjs`
+(79/79 tests passing across 9 suites),
+`npx tsc --noEmit`,
+`git diff --check`,
+`npm run lint` (exit 0; existing JSX AST utility warning only),
+`npm audit --audit-level=moderate` (0 vulnerabilities),
+`npm test` (1374/1374 tests passing across 255 suites), and
+`npm run build` passed.
+
+Current running tally after Entry 443: verified fixed/reduced 883, verified
+stale/false-positive/current 504, deferred product/design/ops/legal 82,
+approximate raw allegations left from current max #1126: 35. Fixed/reduced
+increases by two for the newly verified processed-image lifecycle tracking fix
+and the verified-state-only claim/persistence fix. Stale/current, deferred, and
+raw-left counts do not change because the adjacent raw upload allegations were
+already classified in earlier entries and the Stripe sidecar report was treated
+as local triage rather than a new closure batch.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger, label clawback policy/runtime proof,
+Stripe webhook subscription dashboard evidence, Stripe Connect v2
+loss-liability ops/legal decision, stale remote branch and old git author
+hygiene, Round 10 deferred cache/state-machine product designs that require
+product decisions rather than source guardrails, remaining EXPLAIN-dependent
+query-plan/index validation, Stripe partial-refund runtime reconciliation proof,
+founding-maker permanence policy, remaining privacy/legal retention scope,
+remaining privacy/export retention decisions, shipping quote PII-minimization
+provider smoke/product decision, cross-seller AI duplicate-detection product
+design, legacy enum cleanup/data-migration decisions, partial multi-seller
+checkout continuation design, deliberate BigInt money-column modeling,
+variant-adjusted unit-price floor policy, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket/dashboard posture plus production smoke evidence,
+HSTS preload submission decision, Vercel Analytics/Speed Insights
+product/privacy decision, and remaining homepage browser a11y/runtime proof
+beyond source fallback.
+
 Entry 442 closes a hidden account-deletion side-effect retention issue found by
 read-only sidecar scan and parent source review. Parent Codex also reverified
 the adjacent Round 9 account-deletion/export/test-quality raw clusters before

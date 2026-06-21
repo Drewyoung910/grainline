@@ -7,6 +7,7 @@ import { sanitizeRichText } from "@/lib/sanitize";
 import { containsProfanity } from "@/lib/profanity";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { filterVerifiedFirstPartyMediaUrlsForUser } from "@/lib/uploadPersistenceVerification";
+import { claimDirectUploadsForUrls } from "@/lib/directUploadLifecycle";
 import { rateLimitResponse, reviewRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { deleteR2ObjectByUrl } from "@/lib/r2";
 import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
@@ -148,6 +149,7 @@ export async function PATCH(
     urls: photos,
     max: 6,
     clerkUserId: userId,
+    accountUserId: r.reviewerId,
     allowedEndpoints: ["reviewPhoto"],
     existingUrls: [...oldPhotoUrls],
   });
@@ -172,6 +174,13 @@ export async function PATCH(
         url,
         sortOrder: i,
       })),
+    });
+    await claimDirectUploadsForUrls({
+      client: tx,
+      urls: verifiedPhotos.filter((url) => !oldPhotoUrls.has(url)),
+      userId: r.reviewerId,
+      claimedByType: "Review",
+      claimedById: id,
     });
 
     await refreshSellerRatingSummary(r.listing.sellerId, tx);

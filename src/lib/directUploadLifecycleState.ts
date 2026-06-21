@@ -35,7 +35,7 @@ export function directUploadRetryCleanupAfter(now = new Date()) {
 }
 
 export function directUploadStatusIsClaimable(status: string) {
-  return status === DIRECT_UPLOAD_STATUS.PRESIGNED || status === DIRECT_UPLOAD_STATUS.VERIFIED;
+  return status === DIRECT_UPLOAD_STATUS.VERIFIED;
 }
 
 export function directUploadErrorMessage(error: unknown) {

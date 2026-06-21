@@ -10,6 +10,7 @@ import BlogPostForm from "@/components/BlogPostForm";
 import { createNotification } from "@/lib/notifications";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { normalizeBlogCoverImageUrl, normalizeBlogVideoUrl } from "@/lib/blogInput";
+import { claimDirectUploadsForUrls } from "@/lib/directUploadLifecycle";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { normalizeTags } from "@/lib/tags";
 import { revalidateBlogSearchCaches } from "@/lib/searchCache";
@@ -90,7 +91,7 @@ export default async function EditBlogPostPage({
     let coverImageUrl: string | null = null;
     let videoUrl: string | null = null;
     try {
-      coverImageUrl = await normalizeBlogCoverImageUrl(formData.get("coverImageUrl"), uid, existing.coverImageUrl);
+      coverImageUrl = await normalizeBlogCoverImageUrl(formData.get("coverImageUrl"), uid, existing.coverImageUrl, author.id);
       videoUrl = normalizeBlogVideoUrl(formData.get("videoUrl"));
     } catch (error) {
       return {
@@ -180,6 +181,15 @@ export default async function EditBlogPostPage({
         },
       });
       if (claimed.count === 0) return null;
+      if (coverImageUrl && coverImageUrl !== existing.coverImageUrl) {
+        await claimDirectUploadsForUrls({
+          client: tx,
+          urls: [coverImageUrl],
+          userId: author.id,
+          claimedByType: "BlogPost",
+          claimedById: id,
+        });
+      }
       return tx.blogPost.findUnique({
         where: { id },
         select: { id: true, slug: true, sellerProfileId: true, sellerProfile: { select: { displayName: true, userId: true } } },

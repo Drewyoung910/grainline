@@ -35,7 +35,7 @@ describe("direct upload lifecycle", () => {
       DIRECT_UPLOAD_CLEANUP_RETRY_MS,
     );
 
-    assert.equal(directUploadStatusIsClaimable(DIRECT_UPLOAD_STATUS.PRESIGNED), true);
+    assert.equal(directUploadStatusIsClaimable(DIRECT_UPLOAD_STATUS.PRESIGNED), false);
     assert.equal(directUploadStatusIsClaimable(DIRECT_UPLOAD_STATUS.VERIFIED), true);
     assert.equal(directUploadStatusIsClaimable(DIRECT_UPLOAD_STATUS.DELETING), false);
     assert.equal(directUploadStatusIsClaimable(DIRECT_UPLOAD_STATUS.DELETED), false);
@@ -68,6 +68,7 @@ describe("direct upload lifecycle", () => {
   it("records presigned direct uploads and verifies lifecycle state before accepting them", () => {
     const presign = source("src/app/api/upload/presign/route.ts");
     const verify = source("src/app/api/upload/verify/route.ts");
+    const imageRoute = source("src/app/api/upload/image/route.ts");
 
     assert.match(presign, /recordDirectUploadPresigned/);
     assert.match(presign, /userId: me\.id/);
@@ -85,6 +86,63 @@ describe("direct upload lifecycle", () => {
         verify.indexOf("return privateJson({ ok: true, size: actualSize })"),
       "verify must mark lifecycle state before accepting the upload",
     );
+
+    assert.match(imageRoute, /recordDirectUploadVerified/);
+    assert.ok(
+      imageRoute.indexOf("await assertPublicMediaAvailable(publicUrl)") <
+        imageRoute.indexOf("await recordDirectUploadVerified"),
+      "processed image uploads must be publicly reachable before they become verified lifecycle rows",
+    );
+    assert.ok(
+      imageRoute.indexOf("await recordDirectUploadVerified") <
+        imageRoute.indexOf("return privateJson({\n    publicUrl"),
+      "processed image uploads must create cleanup-addressable lifecycle rows before returning",
+    );
+  });
+
+  it("requires tracked uploads to pass verification before persistence can claim them", () => {
+    const lifecycle = source("src/lib/directUploadLifecycle.ts");
+    const verifier = source("src/lib/uploadPersistenceVerification.ts");
+    const claimStart = lifecycle.indexOf("export async function claimDirectUploadForUrl");
+    const batchClaimStart = lifecycle.indexOf("export async function claimDirectUploadsForUrls", claimStart);
+    const claimBlock = lifecycle.slice(claimStart, batchClaimStart);
+
+    assert.match(lifecycle, /directUploadStatusIsClaimable\(existing\.status\)/);
+    assert.match(claimBlock, /status: DIRECT_UPLOAD_STATUS\.VERIFIED/);
+    assert.doesNotMatch(claimBlock, /DIRECT_UPLOAD_STATUS\.PRESIGNED/);
+    assert.match(verifier, /accountUserId/);
+    assert.match(verifier, /prisma\.directUpload\.findUnique\(\{/);
+    assert.match(verifier, /lifecycle\.status === DIRECT_UPLOAD_STATUS\.VERIFIED/);
+    assert.match(verifier, /lifecycle\.status === DIRECT_UPLOAD_STATUS\.CLAIMED/);
+    assert.match(verifier, /lifecycle\.expectedSize === size/);
+    assert.match(verifier, /uploadContentTypeMatches\(head\.ContentType, lifecycle\.contentType\)/);
+  });
+
+  it("claims newly persisted uploaded media so cleanup only deletes abandoned rows", () => {
+    const checked = [
+      ["src/app/dashboard/listings/new/page.tsx", /claimedByType: "Listing"/],
+      ["src/app/dashboard/listings/custom/page.tsx", /claimedByType: "Listing"/],
+      ["src/app/dashboard/listings/[id]/edit/page.tsx", /claimedByType: "Listing"/],
+      ["src/app/api/reviews/route.ts", /claimedByType: "Review"/],
+      ["src/app/api/reviews/[id]/route.ts", /claimedByType: "Review"/],
+      ["src/app/api/commission/route.ts", /claimedByType: "CommissionRequest"/],
+      ["src/app/dashboard/profile/page.tsx", /claimedByType: "SellerProfile"/],
+      ["src/app/dashboard/onboarding/actions.ts", /claimedByType: "SellerProfile"/],
+      ["src/app/api/seller/broadcast/route.ts", /claimedByType: "SellerBroadcast"/],
+      ["src/app/dashboard/blog/new/page.tsx", /claimedByType: "BlogPost"/],
+      ["src/app/dashboard/blog/[id]/edit/page.tsx", /claimedByType: "BlogPost"/],
+    ];
+
+    for (const [path, claimedByTypePattern] of checked) {
+      const text = source(path);
+      assert.match(text, /claimDirectUploadsForUrls/, path);
+      if (path.startsWith("src/app/dashboard/blog/")) {
+        assert.match(text, /normalizeBlogCoverImageUrl\([\s\S]*author\.id/, path);
+      } else {
+        assert.match(text, /accountUserId:/, path);
+      }
+      assert.match(text, claimedByTypePattern, path);
+    }
   });
 
   it("claims tracked direct uploads in the same transaction that persists message attachments", () => {

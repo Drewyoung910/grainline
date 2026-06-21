@@ -33,6 +33,7 @@ import {
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { uploadTelemetryKeyHash } from "@/lib/uploadTelemetry";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { recordDirectUploadVerified } from "@/lib/directUploadLifecycle";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -196,6 +197,34 @@ export async function POST(req: Request) {
       { error: "Uploaded media is not publicly available yet." },
       { status: HTTP_STATUS.BAD_GATEWAY },
     );
+  }
+
+  try {
+    await recordDirectUploadVerified({
+      key,
+      endpoint,
+      userId: me.id,
+      publicUrl,
+      contentType: output.contentType,
+      expectedSize: processed.byteLength,
+    });
+  } catch (error) {
+    logServerError(error, {
+      source: "upload_image_lifecycle_record",
+      level: "warning",
+      tags: { endpoint },
+      extra: { keyHash: uploadTelemetryKeyHash(key) },
+    });
+    await deleteUploadedImageObject(key).catch((deleteError) => {
+      logServerError(deleteError, {
+        source: "upload_image_lifecycle_cleanup",
+        level: "warning",
+        tags: { endpoint },
+        extra: { keyHash: uploadTelemetryKeyHash(key) },
+      });
+    });
+    const failure = uploadServiceFailure("object-write");
+    return privateJson(failure.body, failure.init);
   }
 
   return privateJson({

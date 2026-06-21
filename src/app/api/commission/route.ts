@@ -21,6 +21,7 @@ import { commissionExpiresAt, openCommissionWhere } from "@/lib/commissionExpiry
 import { publicCommissionInterestWhere, resolvedInterestedCount } from "@/lib/commissionInterestCount";
 import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
 import { filterVerifiedFirstPartyMediaUrlsForUser } from "@/lib/uploadPersistenceVerification";
+import { claimDirectUploadsForUrls } from "@/lib/directUploadLifecycle";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import {
@@ -170,6 +171,7 @@ export async function POST(req: NextRequest) {
     urls: referenceImageUrls ?? [],
     max: 3,
     clerkUserId: userId,
+    accountUserId: me.id,
     allowedEndpoints: ["messageImage"],
   });
 
@@ -199,21 +201,31 @@ export async function POST(req: NextRequest) {
     reqIsNational = false;
   }
 
-  const request = await prisma.commissionRequest.create({
-    data: {
-      buyerId: me.id,
-      title: sanitizeText(title.trim()),
-      description: sanitizeRichText(description.trim()),
-      category: categoryValid ? (category as Category) : null,
-      budgetMinCents,
-      budgetMaxCents,
-      timeline: timeline ? sanitizeText(timeline.trim()) || null : null,
-      referenceImageUrls: images,
-      expiresAt: commissionExpiresAt(),
-      isNational: reqIsNational,
-      lat: reqLat,
-      lng: reqLng,
-    },
+  const request = await prisma.$transaction(async (tx) => {
+    const created = await tx.commissionRequest.create({
+      data: {
+        buyerId: me.id,
+        title: sanitizeText(title.trim()),
+        description: sanitizeRichText(description.trim()),
+        category: categoryValid ? (category as Category) : null,
+        budgetMinCents,
+        budgetMaxCents,
+        timeline: timeline ? sanitizeText(timeline.trim()) || null : null,
+        referenceImageUrls: images,
+        expiresAt: commissionExpiresAt(),
+        isNational: reqIsNational,
+        lat: reqLat,
+        lng: reqLng,
+      },
+    });
+    await claimDirectUploadsForUrls({
+      client: tx,
+      urls: images,
+      userId: me.id,
+      claimedByType: "CommissionRequest",
+      claimedById: created.id,
+    });
+    return created;
   });
 
   // Assign metro geography — non-fatal

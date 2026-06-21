@@ -11,6 +11,7 @@ export async function normalizeBlogCoverImageUrl(
   raw: FormDataEntryValue | string | null | undefined,
   clerkUserId: string,
   existingUrl?: string | null,
+  accountUserId?: string,
 ): Promise<string | null> {
   const value = trimmed(raw);
   if (!value) return null;
@@ -21,6 +22,7 @@ export async function normalizeBlogCoverImageUrl(
     url: value,
     allowedEndpoints: ["galleryImage", "blogImage"],
     clerkUserId,
+    accountUserId,
     allowedContentTypes: IMAGE_UPLOAD_TYPES,
   });
   if (!verification.ok) {

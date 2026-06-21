@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { normalizeDisplayNameForLookup, sanitizeText, sanitizeUserName, truncateText } from "@/lib/sanitize";
 import { verifyFirstPartyMediaUrlForPersistence } from "@/lib/uploadPersistenceVerification";
+import { claimDirectUploadsForUrls } from "@/lib/directUploadLifecycle";
 import { IMAGE_UPLOAD_TYPES } from "@/lib/uploadRules";
 import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/sellerProfileText";
 import { safeRateLimit, sellerProfileRatelimit } from "@/lib/ratelimit";
@@ -25,6 +26,7 @@ function actionError(error: unknown): ActionResult {
 
 async function getSeller(): Promise<{
   id: string;
+  userId: string;
   onboardingStep: number;
   chargesEnabled: boolean;
   listingCount: number;
@@ -40,6 +42,7 @@ async function getSeller(): Promise<{
     where: { user: { clerkId: userId } },
     select: {
       id: true,
+      userId: true,
       onboardingStep: true,
       chargesEnabled: true,
       _count: { select: { listings: true } },
@@ -50,6 +53,7 @@ async function getSeller(): Promise<{
   if (seller.user.banned || seller.user.deletedAt) throw new Error("Account suspended");
   return {
     id: seller.id,
+    userId: seller.userId,
     onboardingStep: seller.onboardingStep,
     chargesEnabled: seller.chargesEnabled,
     listingCount: seller._count.listings,
@@ -70,6 +74,7 @@ export async function saveStep1(formData: FormData): Promise<ActionResult> {
         url: avatarImageUrl,
         allowedEndpoints: ["galleryImage"],
         clerkUserId: seller.clerkUserId,
+        accountUserId: seller.userId,
         allowedContentTypes: IMAGE_UPLOAD_TYPES,
       });
       if (!verification.ok) {
@@ -77,15 +82,26 @@ export async function saveStep1(formData: FormData): Promise<ActionResult> {
       }
     }
 
-    await prisma.sellerProfile.update({
-      where: { id: seller.id },
-      data: {
-        ...(displayName ? { displayName, displayNameNormalized: normalizeDisplayNameForLookup(displayName) } : {}),
-        bio,
-        tagline,
-        avatarImageUrl,
-        onboardingStep: 2,
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.sellerProfile.update({
+        where: { id: seller.id },
+        data: {
+          ...(displayName ? { displayName, displayNameNormalized: normalizeDisplayNameForLookup(displayName) } : {}),
+          bio,
+          tagline,
+          avatarImageUrl,
+          onboardingStep: 2,
+        },
+      });
+      if (avatarImageUrl) {
+        await claimDirectUploadsForUrls({
+          client: tx,
+          urls: [avatarImageUrl],
+          userId: seller.userId,
+          claimedByType: "SellerProfile",
+          claimedById: seller.id,
+        });
+      }
     });
     revalidatePath("/dashboard/onboarding");
     return { ok: true };

@@ -223,6 +223,7 @@ export default async function ThreadPage({
             url: attachment.url,
             endpoint: "messageAny",
             clerkUserId: userId,
+            accountUserId: me.id,
             allowedContentTypes: MESSAGE_ATTACHMENT_CONTENT_TYPES,
           }),
         ),

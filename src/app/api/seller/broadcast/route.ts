@@ -26,6 +26,7 @@ import {
   isFirstPartyMediaUrl,
 } from "@/lib/urlValidation";
 import { verifyFirstPartyMediaUrlForPersistence } from "@/lib/uploadPersistenceVerification";
+import { claimDirectUploadsForUrls } from "@/lib/directUploadLifecycle";
 import { IMAGE_UPLOAD_TYPES } from "@/lib/uploadRules";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
@@ -132,6 +133,7 @@ export async function POST(req: NextRequest) {
         "galleryImage",
       ],
       clerkUserId: userId,
+      accountUserId: me.id,
       allowedContentTypes: IMAGE_UPLOAD_TYPES,
     });
     if (!verification.ok) {
@@ -220,13 +222,25 @@ export async function POST(req: NextRequest) {
     );
 
   // Create broadcast record
-  const broadcast = await prisma.sellerBroadcast.create({
-    data: {
-      sellerProfileId: seller.id,
-      message,
-      imageUrl,
-      recipientCount: notificationFollowers.length,
-    },
+  const broadcast = await prisma.$transaction(async (tx) => {
+    const created = await tx.sellerBroadcast.create({
+      data: {
+        sellerProfileId: seller.id,
+        message,
+        imageUrl,
+        recipientCount: notificationFollowers.length,
+      },
+    });
+    if (imageUrl) {
+      await claimDirectUploadsForUrls({
+        client: tx,
+        urls: [imageUrl],
+        userId: me.id,
+        claimedByType: "SellerBroadcast",
+        claimedById: created.id,
+      });
+    }
+    return created;
   });
 
   // Send notifications after response; avoids losing work on function teardown.

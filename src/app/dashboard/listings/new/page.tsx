@@ -11,6 +11,7 @@ import { enqueueEmailOutbox } from "@/lib/emailOutbox";
 import { listingCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText, sanitizeRichText, truncateText } from "@/lib/sanitize";
 import { filterVerifiedFirstPartyMediaUrlsForUser } from "@/lib/uploadPersistenceVerification";
+import { claimDirectUploadsForUrls } from "@/lib/directUploadLifecycle";
 import { fanOutListingToFollowers } from "@/lib/followerListingNotifications";
 import { maybeGrantFoundingMaker } from "@/lib/foundingMaker";
 import PhotoManager from "@/components/PhotoManager";
@@ -88,6 +89,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
     urls: imageUrls,
     max: 10,
     clerkUserId: userId,
+    accountUserId: seller.userId,
     allowedEndpoints: ["listingImage"],
   });
 
@@ -109,6 +111,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
     urls: imageOriginalUrls,
     max: 10,
     clerkUserId: userId,
+    accountUserId: seller.userId,
     allowedEndpoints: ["listingImage"],
   });
 
@@ -235,55 +238,65 @@ async function createListing(_prevState: unknown, formData: FormData) {
   }
 
   // 3. Create listing with status based on saveAsDraft
-  const created = await prisma.listing.create({
-    data: {
-      sellerId: seller.id,
-      title,
-      description,
-      priceCents,
-      tags,
-      metaDescription,
-      materials,
-      productLengthIn,
-      productWidthIn,
-      productHeightIn,
-      packagedLengthCm,
-      packagedWidthCm,
-      packagedHeightCm,
-      packagedWeightGrams,
-      category,
-      listingType,
-      stockQuantity,
-      shipsWithinDays,
-      processingTimeMinDays,
-      processingTimeMaxDays,
-      status: saveAsDraft ? ListingStatus.DRAFT : ListingStatus.PENDING_REVIEW,
-      photos: { create: imageUrls.map((url, i) => ({
-        url,
-        // originalUrl is paired with `url` by index. If the form didn't send
-        // a paired value (legacy client, length mismatch), default to `url`
-        // since uploads currently don't crop — `url` IS the original at
-        // creation time. Re-crop on the edit page is what causes them to
-        // diverge later.
-        originalUrl: imageOriginalUrls[i] ?? url,
-        sortOrder: i,
-        altText: imageAltTexts[i] ? truncateText(sanitizeText(imageAltTexts[i].trim()), 200) || null : null,
-      })) },
-      variantGroups: variantGroups.length > 0 ? {
-        create: variantGroups.map((g, gi) => ({
-          name: g.name,
-          sortOrder: gi,
-          options: {
-            create: g.options.filter((o) => o.label).map((o, oi) => ({
-              label: o.label,
-              priceAdjustCents: o.priceAdjustCents,
-              sortOrder: oi,
-              inStock: o.inStock,
-            })),
-          },
-        })),
-      } : undefined,
-    },
+  const created = await prisma.$transaction(async (tx) => {
+    const listing = await tx.listing.create({
+      data: {
+        sellerId: seller.id,
+        title,
+        description,
+        priceCents,
+        tags,
+        metaDescription,
+        materials,
+        productLengthIn,
+        productWidthIn,
+        productHeightIn,
+        packagedLengthCm,
+        packagedWidthCm,
+        packagedHeightCm,
+        packagedWeightGrams,
+        category,
+        listingType,
+        stockQuantity,
+        shipsWithinDays,
+        processingTimeMinDays,
+        processingTimeMaxDays,
+        status: saveAsDraft ? ListingStatus.DRAFT : ListingStatus.PENDING_REVIEW,
+        photos: { create: imageUrls.map((url, i) => ({
+          url,
+          // originalUrl is paired with `url` by index. If the form didn't send
+          // a paired value (legacy client, length mismatch), default to `url`
+          // since uploads currently don't crop — `url` IS the original at
+          // creation time. Re-crop on the edit page is what causes them to
+          // diverge later.
+          originalUrl: imageOriginalUrls[i] ?? url,
+          sortOrder: i,
+          altText: imageAltTexts[i] ? truncateText(sanitizeText(imageAltTexts[i].trim()), 200) || null : null,
+        })) },
+        variantGroups: variantGroups.length > 0 ? {
+          create: variantGroups.map((g, gi) => ({
+            name: g.name,
+            sortOrder: gi,
+            options: {
+              create: g.options.filter((o) => o.label).map((o, oi) => ({
+                label: o.label,
+                priceAdjustCents: o.priceAdjustCents,
+                sortOrder: oi,
+                inStock: o.inStock,
+              })),
+            },
+          })),
+        } : undefined,
+      },
+    });
+    await claimDirectUploadsForUrls({
+      client: tx,
+      urls: [...imageUrls, ...imageOriginalUrls],
+      userId: seller.userId,
+      claimedByType: "Listing",
+      claimedById: listing.id,
+    });
+    return listing;
   });
 
   revalidatePath("/browse");

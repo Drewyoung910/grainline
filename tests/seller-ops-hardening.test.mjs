@@ -93,6 +93,7 @@ describe("seller operational route hardening", () => {
     assert.match(route, /!seller\.chargesEnabled \|\| seller\.vacationMode/);
     assert.match(route, /isFirstPartyMediaUrl\(u\)/);
     assert.match(route, /verifyFirstPartyMediaUrlForPersistence\(\{/);
+    assert.match(route, /claimDirectUploadsForUrls\(\{/);
     assert.match(route, /allowedEndpoints: \[\s*"listingImage",\s*"bannerImage",\s*"galleryImage",\s*\]/s);
     assert.match(route, /safeRateLimit\(\s*broadcastAttemptRatelimit,\s*seller\.id,\s*\)/s);
     assert.match(route, /safeRateLimit\(\s*broadcastRatelimit,\s*seller\.id,\s*\)/s);
@@ -117,7 +118,7 @@ describe("seller operational route hardening", () => {
     const firstPartyMedia = route.indexOf("verifyFirstPartyMediaUrlForPersistence({");
     const cooldownCheck = route.indexOf("prisma.sellerBroadcast.findFirst");
     const weeklyLimiter = route.indexOf("broadcastRatelimit,\n    seller.id");
-    const createBroadcast = route.indexOf("prisma.sellerBroadcast.create");
+    const createBroadcast = route.indexOf("tx.sellerBroadcast.create");
 
     assert.ok(attemptLimiter !== -1, "broadcast attempt limiter should exist");
     assert.ok(weeklyLimiter !== -1, "weekly broadcast limiter should exist");

@@ -145,6 +145,8 @@ describe("upload UX follow-ups", () => {
     assert.match(presignRoute, /Sentry\.captureMessage\("Upload verification token creation failed"/);
     assert.match(presignRoute, /source: "upload_presign_verification_config"/);
     assert.match(presignRoute, /recordDirectUploadPresigned/);
+    assert.match(imageRoute, /recordDirectUploadVerified/);
+    assert.match(imageRoute, /source: "upload_image_lifecycle_record"/);
     assert.match(verifyRoute, /new HeadObjectCommand/);
     assert.match(verifyRoute, /actualSize/);
     assert.match(verifyRoute, /uploadedObjectVerificationError\(\{/);
@@ -157,6 +159,8 @@ describe("upload UX follow-ups", () => {
     assert.match(persistenceHelper, /new GetObjectCommand/);
     assert.match(persistenceHelper, /uploadKeyBelongsToUser\(key, endpoint, clerkUserId\)/);
     assert.match(persistenceHelper, /uploadFileSignatureMatches\(prefixBytes, matchedContentType\)/);
+    assert.match(persistenceHelper, /prisma\.directUpload\.findUnique/);
+    assert.match(persistenceHelper, /accountUserId/);
     assert.match(persistenceHelper, /verifyFirstPartyMediaUrlForPersistence/);
     assert.match(persistenceHelper, /filterVerifiedFirstPartyMediaUrlsForUser/);
     assert.match(persistenceHelper, /existingUrlSet\.has\(url\)/);

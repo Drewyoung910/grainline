@@ -55,6 +55,38 @@ export async function recordDirectUploadPresigned({
   });
 }
 
+export async function recordDirectUploadVerified({
+  key,
+  endpoint,
+  userId,
+  publicUrl,
+  contentType,
+  expectedSize,
+  now = new Date(),
+}: {
+  key: string;
+  endpoint: string;
+  userId: string;
+  publicUrl: string;
+  contentType: string;
+  expectedSize: number;
+  now?: Date;
+}) {
+  await prisma.directUpload.create({
+    data: {
+      key,
+      endpoint,
+      userId,
+      publicUrl,
+      contentType,
+      expectedSize,
+      status: DIRECT_UPLOAD_STATUS.VERIFIED,
+      verifiedAt: now,
+      cleanupAfter: directUploadVerifiedCleanupAfter(now),
+    },
+  });
+}
+
 export async function markDirectUploadVerified({
   key,
   endpoint,
@@ -132,7 +164,7 @@ export async function claimDirectUploadForUrl({
   const claimed = await client.directUpload.updateMany({
     where: {
       id: existing.id,
-      status: { in: [DIRECT_UPLOAD_STATUS.PRESIGNED, DIRECT_UPLOAD_STATUS.VERIFIED] },
+      status: DIRECT_UPLOAD_STATUS.VERIFIED,
     },
     data: {
       status: DIRECT_UPLOAD_STATUS.CLAIMED,
@@ -148,6 +180,34 @@ export async function claimDirectUploadForUrl({
   }
 
   return { tracked: true, claimed: true };
+}
+
+export async function claimDirectUploadsForUrls({
+  client = prisma,
+  urls,
+  userId,
+  claimedByType,
+  claimedById = null,
+  now = new Date(),
+}: {
+  client?: DirectUploadClient;
+  urls: readonly string[];
+  userId: string;
+  claimedByType: string;
+  claimedById?: string | null;
+  now?: Date;
+}) {
+  const uniqueUrls = [...new Set(urls.filter(Boolean))];
+  for (const url of uniqueUrls) {
+    await claimDirectUploadForUrl({
+      client,
+      url,
+      userId,
+      claimedByType,
+      claimedById,
+      now,
+    });
+  }
 }
 
 export async function processExpiredDirectUploadBatch({

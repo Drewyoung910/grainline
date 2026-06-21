@@ -20,6 +20,7 @@ import {
   filterVerifiedFirstPartyMediaUrlsForUser,
   verifyFirstPartyMediaUrlForPersistence,
 } from "@/lib/uploadPersistenceVerification";
+import { claimDirectUploadsForUrls } from "@/lib/directUploadLifecycle";
 import { IMAGE_UPLOAD_TYPES } from "@/lib/uploadRules";
 import { publicSellerPath } from "@/lib/publicPaths";
 import { parseMoneyInputToCents } from "@/lib/money";
@@ -106,6 +107,7 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
       url: raw,
       allowedEndpoints: [endpoint],
       clerkUserId,
+      accountUserId: seller.userId,
       allowedContentTypes: IMAGE_UPLOAD_TYPES,
     });
     if (!verification.ok) {
@@ -136,6 +138,7 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
     urls: formData.getAll("galleryImageUrls").map(String),
     max: 10,
     clerkUserId,
+    accountUserId: seller.userId,
     allowedEndpoints: ["galleryImage"],
     existingUrls: seller.galleryImageUrls ?? [],
   });
@@ -177,34 +180,48 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
     select: { id: true },
   });
 
-  await prisma.sellerProfile.update({
-    where: { id: seller.id },
-    data: {
-      displayName,
-      displayNameNormalized,
-      tagline,
-      bio,
-      storyTitle,
-      storyBody,
-      yearsInBusiness,
-      bannerImageUrl,
-      avatarImageUrl,
-      workshopImageUrl,
-      ...(galleryImageUrlsTouched ? { galleryImageUrls, galleryAltTexts } : {}),
-      instagramUrl,
-      facebookUrl,
-      pinterestUrl,
-      tiktokUrl,
-      websiteUrl,
-      returnPolicy,
-      customOrderPolicy,
-      shippingPolicy,
-      acceptsCustomOrders,
-      acceptingNewOrders,
-      customOrderTurnaroundDays,
-      offersGiftWrapping,
-      giftWrappingPriceCents: offersGiftWrapping ? giftWrappingPriceCents : null,
-    },
+  await prisma.$transaction(async (tx) => {
+    await tx.sellerProfile.update({
+      where: { id: seller.id },
+      data: {
+        displayName,
+        displayNameNormalized,
+        tagline,
+        bio,
+        storyTitle,
+        storyBody,
+        yearsInBusiness,
+        bannerImageUrl,
+        avatarImageUrl,
+        workshopImageUrl,
+        ...(galleryImageUrlsTouched ? { galleryImageUrls, galleryAltTexts } : {}),
+        instagramUrl,
+        facebookUrl,
+        pinterestUrl,
+        tiktokUrl,
+        websiteUrl,
+        returnPolicy,
+        customOrderPolicy,
+        shippingPolicy,
+        acceptsCustomOrders,
+        acceptingNewOrders,
+        customOrderTurnaroundDays,
+        offersGiftWrapping,
+        giftWrappingPriceCents: offersGiftWrapping ? giftWrappingPriceCents : null,
+      },
+    });
+    await claimDirectUploadsForUrls({
+      client: tx,
+      urls: [
+        bannerImageUrl,
+        avatarImageUrl,
+        workshopImageUrl,
+        ...(galleryImageUrlsTouched ? galleryImageUrls : []),
+      ].filter((url): url is string => Boolean(url)),
+      userId: seller.userId,
+      claimedByType: "SellerProfile",
+      claimedById: seller.id,
+    });
   });
 
   revalidatePath("/dashboard/profile");
