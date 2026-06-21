@@ -8248,3 +8248,89 @@ submission decision, residual lower-risk HTTP-status/logging hygiene outside
 touched routes, Vercel Analytics/Speed Insights product/privacy decision,
 remaining homepage runtime a11y proof, and residual agent/worktree verification
 process hygiene.
+
+Entry 436 closes a parent-verified first-party refund orphan-ledger pass. Two
+read-only agents were used as source scanners for the orphan refund ledger
+residue and adjacent refund-ledger consumers. Both agents were closed, and
+parent Codex rechecked the source before classifying or editing. This entry
+follows the Entry 435 running tally; the existing out-of-order Entry 434 tail is
+historical.
+
+The source-proven gap was that first-party refund orphan recovery could still
+leave local evidence split after Stripe accepted a refund. Seller self-service
+refunds, staff case refunds, and blocked-checkout auto-refunds all wrote normal
+`OrderPaymentEvent` plus `SystemAuditLog` evidence in their happy-path final
+transactions, but their fallback branches could stamp the `Order` orphan marker
+without co-writing the local refund evidence ledger. If the later
+`charge.refunded` webhook was delayed, failed, or not replayed yet, staff could
+see an order-level refund marker without the same local audit surfaces used by
+normal first-party refunds.
+
+Seller, case, and blocked-checkout orphan recovery now wrap the pending-lock
+`Order` refund marker and `recordLocalRefundEvidence()` in the same transaction.
+The orphan evidence writes use the same action names as the normal first-party
+paths, include `orphanRecovery: true`, preserve refund statuses/manual-follow-up
+metadata when available, and keep the request/webhook retryable if the durable
+local evidence cannot be recorded. Case and blocked-checkout orphan recovery
+also fail before recording partial local proof if the accepted refund amount is
+unavailable. `CLAUDE.md` now records this reusable behavior contract, and
+`docs/runbook.md` tells ops to verify `Order`, `OrderPaymentEvent`, and
+`SystemAuditLog` evidence for seller, case, and blocked-checkout refund
+incidents.
+
+Parent verification did not change account deletion blocker semantics. The
+agent-flagged ledger-only waiver idea conflicts with the current retention
+contract in `CLAUDE.md`: account deletion blockers are waived only when the
+order row proves a non-pending full refund at or above order total. The
+provider `charge.refunded` webhook writes external refund ledger evidence and
+the order refund marker in the same transaction, so a raw ledger row alone is
+not treated as sufficient proof to scrub order/shipping/case PII. No tally
+change is recorded for that current-behavior verification.
+
+Guardrails:
+`tests/payment-side-effect-observability.test.mjs`,
+`tests/seller-analytics-refund-guardrails.test.mjs`,
+`tests/system-audit-log.test.mjs`, and
+`tests/server-error-logger.test.mjs`.
+
+Verification:
+focused `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/payment-side-effect-observability.test.mjs tests/seller-analytics-refund-guardrails.test.mjs tests/system-audit-log.test.mjs`
+(33/33 tests passing across 3 suites),
+focused `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/server-error-logger.test.mjs`
+(4/4 tests passing),
+`npx tsc --noEmit`,
+`npm run lint` (exit 0; existing JSX AST utility warning emitted),
+`npm audit --audit-level=moderate` (0 vulnerabilities),
+`npm test` (1351/1351 tests passing across 254 suites), and
+`npm run build`.
+
+Current running tally after Entry 436: verified fixed/reduced 848, verified
+stale/false-positive/current 473, deferred product/design/ops/legal 73,
+approximate raw allegations left from current max #1126: 79. The fixed count
+increases by three for seller self-service refund orphan evidence, staff case
+refund orphan evidence, and blocked-checkout refund orphan evidence. Stale,
+deferred, and approximate raw counts stay flat because this pass closes a
+source-discovered residue inside the already-open Stripe refund runtime/orphan
+reconciliation category, and the account deletion check verified current
+behavior rather than closing a new raw allegation.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger paths, Stripe webhook subscription dashboard
+evidence, Stripe Connect v2 loss-liability ops/legal decision, stale remote
+branch and old git author hygiene, Round 10 deferred cache/state-machine product
+designs that require product decisions rather than source guardrails, remaining
+EXPLAIN-dependent query-plan/index validation, Stripe partial-refund runtime
+reconciliation proof, founding-maker permanence policy, remaining privacy/legal
+retention scope, remaining privacy/export retention decisions, cross-seller AI
+duplicate-detection product design, legacy enum cleanup/data-migration
+decisions, partial multi-seller checkout continuation design, deliberate BigInt
+money-column modeling, live-data reconciliation for historical seller
+shipping-rate currency drift, Clerk staff MFA and breached-password dashboard
+evidence, Clerk multi-account spam dashboard evidence, buyer-deletion runtime
+replay proof, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public-bucket/dashboard posture plus
+production smoke evidence and public-availability proof, HSTS preload
+submission decision, residual lower-risk HTTP-status/logging hygiene outside
+touched routes, Vercel Analytics/Speed Insights product/privacy decision,
+remaining homepage runtime a11y proof, and residual agent/worktree verification
+process hygiene.

@@ -110,7 +110,7 @@ describe("server error logger", () => {
     assert.match(caseResolve, /refundCount: stripeRefundIds\.length/);
     const orphanedRefundTelemetry = caseResolve.slice(
       caseResolve.indexOf('source: "case_refund_orphaned_after_stripe"'),
-      caseResolve.indexOf("await prisma.order.updateMany", caseResolve.indexOf('source: "case_refund_orphaned_after_stripe"')),
+      caseResolve.indexOf("await prisma.$transaction", caseResolve.indexOf('source: "case_refund_orphaned_after_stripe"')),
     );
     assert.doesNotMatch(orphanedRefundTelemetry, /stripeRefundId[:,]/);
     assert.doesNotMatch(orphanedRefundTelemetry, /stripeRefundIds[:,]/);

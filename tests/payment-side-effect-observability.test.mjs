@@ -97,10 +97,14 @@ describe("payment and fulfillment side-effect observability", () => {
       sellerRoute.lastIndexOf("try {", sellerOrphanStart),
       sellerRoute.indexOf("} else {", sellerOrphanStart),
     );
-    assert.match(sellerOrphanBlock, /const orphanRecord = await prisma\.order\.updateMany/);
+    assert.match(sellerOrphanBlock, /await prisma\.\$transaction\(async \(tx\) => \{/);
+    assert.match(sellerOrphanBlock, /const orphanRecord = await tx\.order\.updateMany/);
     assert.match(sellerOrphanBlock, /where: \{ id: orderId, sellerRefundId: REFUND_LOCK_SENTINEL \}/);
     assert.match(sellerOrphanBlock, /if \(orphanRecord\.count !== 1\)/);
     assert.match(sellerOrphanBlock, /Seller refund orphan record was not written/);
+    assert.match(sellerOrphanBlock, /recordLocalRefundEvidence\(tx, \{/);
+    assert.match(sellerOrphanBlock, /action: "SELLER_REFUND_RECORDED"/);
+    assert.match(sellerOrphanBlock, /orphanRecovery: true/);
     assert.match(sellerOrphanBlock, /Sentry\.captureException\(dbError/);
     assert.match(sellerOrphanBlock, /throw dbError/);
 
@@ -110,10 +114,15 @@ describe("payment and fulfillment side-effect observability", () => {
       caseRoute.lastIndexOf("try {", caseOrphanStart),
       caseRoute.indexOf("} else if (refunding)", caseOrphanStart),
     );
-    assert.match(caseOrphanBlock, /const orphanRecord = await prisma\.order\.updateMany/);
+    assert.match(caseOrphanBlock, /await prisma\.\$transaction\(async \(tx\) => \{/);
+    assert.match(caseOrphanBlock, /const orphanRecord = await tx\.order\.updateMany/);
     assert.match(caseOrphanBlock, /where: \{ id: caseRecord\.orderId, sellerRefundId: REFUND_LOCK_SENTINEL \}/);
     assert.match(caseOrphanBlock, /if \(orphanRecord\.count !== 1\)/);
     assert.match(caseOrphanBlock, /Case refund orphan record was not written/);
+    assert.match(caseOrphanBlock, /recordLocalRefundEvidence\(tx, \{/);
+    assert.match(caseOrphanBlock, /action: "CASE_REFUND_RECORDED"/);
+    assert.match(caseOrphanBlock, /orphanRecovery: true/);
+    assert.match(caseOrphanBlock, /Case refund orphan amount was unavailable/);
     assert.match(caseOrphanBlock, /Sentry\.captureException\(reviewUpdateError/);
     assert.match(caseOrphanBlock, /throw reviewUpdateError/);
   });
@@ -474,9 +483,14 @@ describe("payment and fulfillment side-effect observability", () => {
       route.lastIndexOf("try {", orphanRecordStart),
       route.indexOf("} else {", orphanRecordStart),
     );
-    assert.match(orphanRecordBlock, /const orphanRecord = await prisma\.order\.updateMany/);
+    assert.match(orphanRecordBlock, /await prisma\.\$transaction\(async \(tx\) => \{/);
+    assert.match(orphanRecordBlock, /const orphanRecord = await tx\.order\.updateMany/);
     assert.match(orphanRecordBlock, /if \(orphanRecord\.count !== 1\)/);
     assert.match(orphanRecordBlock, /Blocked checkout orphan refund record was not written/);
+    assert.match(orphanRecordBlock, /recordLocalRefundEvidence\(tx, \{/);
+    assert.match(orphanRecordBlock, /action: "BLOCKED_CHECKOUT_REFUND_RECORDED"/);
+    assert.match(orphanRecordBlock, /orphanRecovery: true/);
+    assert.match(orphanRecordBlock, /Blocked checkout orphan refund amount was unavailable/);
     assert.match(orphanRecordBlock, /Sentry\.captureException\(dbError/);
     assert.match(orphanRecordBlock, /throw dbError/);
 

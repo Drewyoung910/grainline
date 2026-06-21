@@ -992,6 +992,9 @@ export async function POST(req: Request) {
         let refundId: string | null = null;
         let refundAmountCents: number | null = null;
         let refundIds: string[] = [];
+        let refundStatuses: Array<string | null> = [];
+        let refundRequiresManualTransferReconciliation = false;
+        let refundRequiresManualFollowUp = false;
         let retryBlockedCheckoutRefund = false;
         try {
           await releaseStaleRefundLocks(input.orderId);
@@ -1108,6 +1111,9 @@ export async function POST(req: Request) {
             });
             refundId = refund.primaryRefundId;
             refundIds = refund.refundIds;
+            refundStatuses = refund.refundStatuses;
+            refundRequiresManualTransferReconciliation = refund.requiresManualTransferReconciliation;
+            refundRequiresManualFollowUp = refund.requiresManualFollowUp;
 
             const transferNote = refund.requiresManualTransferReconciliation
               ? " Seller transfer reversal requires manual reconciliation."
@@ -1196,19 +1202,48 @@ export async function POST(req: Request) {
                 },
               });
               try {
-                const orphanRecord = await prisma.order.updateMany({
-                  where: { id: input.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
-                  data: {
-                    sellerRefundId: refundId,
-                    sellerRefundAmountCents: refundAmountCents,
-                    sellerRefundLockedAt: null,
-                    reviewNeeded: true,
-                    reviewNote: `${reviewPrefix} ORPHANED REFUND: Stripe refund(s) ${refundIds.join(", ")} were created, but follow-up DB work failed. Manual reconciliation required.`,
-                  },
-                });
-                if (orphanRecord.count !== 1) {
-                  throw new Error("Blocked checkout orphan refund record was not written.");
+                if (refundAmountCents == null) {
+                  throw new Error("Blocked checkout orphan refund amount was unavailable.");
                 }
+                const orphanRefundId = refundId;
+                const orphanReviewNote = `${reviewPrefix} ORPHANED REFUND: Stripe refund(s) ${refundIds.join(", ")} were created, but follow-up DB work failed. Manual reconciliation required.`;
+                const orphanRefundAmountCents = refundAmountCents;
+                await prisma.$transaction(async (tx) => {
+                  const orphanRecord = await tx.order.updateMany({
+                    where: { id: input.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
+                    data: {
+                      sellerRefundId: orphanRefundId,
+                      sellerRefundAmountCents: orphanRefundAmountCents,
+                      sellerRefundLockedAt: null,
+                      reviewNeeded: true,
+                      reviewNote: orphanReviewNote,
+                    },
+                  });
+                  if (orphanRecord.count !== 1) {
+                    throw new Error("Blocked checkout orphan refund record was not written.");
+                  }
+                  await recordLocalRefundEvidence(tx, {
+                    action: "BLOCKED_CHECKOUT_REFUND_RECORDED",
+                    actorType: "webhook",
+                    actorId: event.id,
+                    orderId: input.orderId,
+                    refundId: orphanRefundId,
+                    refundIds,
+                    amountCents: orphanRefundAmountCents,
+                    currency,
+                    status: refundStatuses[0] ?? null,
+                    reason: input.reason,
+                    description: orphanReviewNote,
+                    metadata: {
+                      stripeSessionId: sessionId,
+                      stripeEventType: event.type,
+                      checkoutReason: input.reason,
+                      orphanRecovery: true,
+                      requiresManualTransferReconciliation: refundRequiresManualTransferReconciliation,
+                      requiresManualFollowUp: refundRequiresManualFollowUp,
+                    },
+                  });
+                });
               } catch (dbError) {
                 Sentry.captureException(dbError, {
                   tags: { source: "stripe_webhook_blocked_checkout_orphan_record_failed" },

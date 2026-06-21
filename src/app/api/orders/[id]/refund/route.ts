@@ -317,6 +317,9 @@ export async function POST(
 
     let refundId: string | null = null;
     let refundIds: string[] = [];
+    let refundStatuses: Array<string | null> = [];
+    let refundRequiresManualTransferReconciliation = false;
+    let refundRequiresManualFollowUp = false;
     try {
       const refund = await createMarketplaceRefund({
         paymentIntentId: order.stripePaymentIntentId,
@@ -336,6 +339,9 @@ export async function POST(
       });
       refundId = refund.primaryRefundId;
       refundIds = refund.refundIds;
+      refundStatuses = refund.refundStatuses;
+      refundRequiresManualTransferReconciliation = refund.requiresManualTransferReconciliation;
+      refundRequiresManualFollowUp = refund.requiresManualFollowUp;
 
       const stockRestores =
         type === "FULL" && refundMayRestoreStock(order)
@@ -469,19 +475,52 @@ export async function POST(
           extra: { orderId, refundId, refundIds, refundAmountCents },
         });
         try {
-          const orphanRecord = await prisma.order.updateMany({
-            where: { id: orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
-            data: {
-              sellerRefundId: refundId,
-              sellerRefundAmountCents: refundAmountCents,
-              sellerRefundLockedAt: null,
-              reviewNeeded: true,
-              reviewNote: `ORPHANED REFUND: Stripe refund(s) ${refundIds.join(", ")} were created, but follow-up DB work failed. Manual reconciliation required.`,
-            },
+          const orphanRefundId = refundId;
+          const orphanReviewNote = `ORPHANED REFUND: Stripe refund(s) ${refundIds.join(", ")} were created, but follow-up DB work failed. Manual reconciliation required.`;
+          await prisma.$transaction(async (tx) => {
+            const orphanRecord = await tx.order.updateMany({
+              where: { id: orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
+              data: {
+                sellerRefundId: orphanRefundId,
+                sellerRefundAmountCents: refundAmountCents,
+                sellerRefundLockedAt: null,
+                reviewNeeded: true,
+                reviewNote: orphanReviewNote,
+              },
+            });
+            if (orphanRecord.count !== 1) {
+              throw new Error("Seller refund orphan record was not written.");
+            }
+            await recordLocalRefundEvidence(tx, {
+              action: "SELLER_REFUND_RECORDED",
+              actorType: "system",
+              actorId: me.id,
+              orderId,
+              refundId: orphanRefundId,
+              refundIds,
+              amountCents: refundAmountCents,
+              currency: order.currency,
+              status: refundStatuses[0] ?? null,
+              reason: "seller_refund",
+              description: orphanReviewNote,
+              metadata: {
+                refundType: type,
+                orphanRecovery: true,
+                requiresManualTransferReconciliation: refundRequiresManualTransferReconciliation,
+                requiresManualFollowUp: refundRequiresManualFollowUp,
+              },
+            });
+            if (refundRequiresManualTransferReconciliation) {
+              await tx.sellerProfile.update({
+                where: { id: seller.id },
+                data: {
+                  manualStripeReconciliationNeeded: true,
+                  manualStripeReconciliationNote:
+                    "Seller refund used a platform-only Stripe refund because the connected account transfer could not be reversed. Staff must reconcile the seller transfer manually.",
+                },
+              });
+            }
           });
-          if (orphanRecord.count !== 1) {
-            throw new Error("Seller refund orphan record was not written.");
-          }
         } catch (dbError) {
           Sentry.captureException(dbError, {
             tags: { source: "seller_refund_orphan_record_failed" },

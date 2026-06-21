@@ -444,19 +444,56 @@ export async function POST(
           },
         });
         try {
-          const orphanRecord = await prisma.order.updateMany({
-            where: { id: caseRecord.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
-            data: {
-              sellerRefundId: stripeRefundId,
-              sellerRefundAmountCents: refundAmountForOrder,
-              sellerRefundLockedAt: null,
-              reviewNeeded: true,
-              reviewNote: `ORPHANED REFUND: Stripe refund(s) ${stripeRefundIds.join(", ")} were created, but case resolution DB work failed. Manual reconciliation required.`,
-            },
-          });
-          if (orphanRecord.count !== 1) {
-            throw new Error("Case refund orphan record was not written.");
+          if (refundAmountForOrder == null) {
+            throw new Error("Case refund orphan amount was unavailable.");
           }
+          const orphanRefundId = stripeRefundId;
+          const orphanRefundAmountCents = refundAmountForOrder;
+          const orphanReviewNote = `ORPHANED REFUND: Stripe refund(s) ${stripeRefundIds.join(", ")} were created, but case resolution DB work failed. Manual reconciliation required.`;
+          await prisma.$transaction(async (tx) => {
+            const orphanRecord = await tx.order.updateMany({
+              where: { id: caseRecord.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
+              data: {
+                sellerRefundId: orphanRefundId,
+                sellerRefundAmountCents: orphanRefundAmountCents,
+                sellerRefundLockedAt: null,
+                reviewNeeded: true,
+                reviewNote: orphanReviewNote,
+              },
+            });
+            if (orphanRecord.count !== 1) {
+              throw new Error("Case refund orphan record was not written.");
+            }
+            await recordLocalRefundEvidence(tx, {
+              action: "CASE_REFUND_RECORDED",
+              actorType: "staff",
+              actorId: me.id,
+              orderId: caseRecord.orderId,
+              refundId: orphanRefundId,
+              refundIds: stripeRefundIds,
+              amountCents: orphanRefundAmountCents,
+              currency: caseRecord.order.currency,
+              status: stripeRefundStatuses[0] ?? null,
+              reason: "case_resolution_refund",
+              description: orphanReviewNote,
+              metadata: {
+                caseId: id,
+                resolution,
+                orphanRecovery: true,
+                requiresManualTransferReconciliation: refundRequiresManualTransferReconciliation,
+                requiresManualFollowUp: refundRequiresManualFollowUp,
+              },
+            });
+            if (refundRequiresManualTransferReconciliation && caseRecord.seller.sellerProfile?.id) {
+              await tx.sellerProfile.update({
+                where: { id: caseRecord.seller.sellerProfile.id },
+                data: {
+                  manualStripeReconciliationNeeded: true,
+                  manualStripeReconciliationNote: "Staff case refund used a platform-only Stripe refund because the connected account transfer could not be reversed. Staff must reconcile the seller transfer manually.",
+                },
+              });
+            }
+          });
         } catch (reviewUpdateError) {
           Sentry.captureException(reviewUpdateError, {
             tags: { source: "case_refund_orphaned_review_update_failed" },
