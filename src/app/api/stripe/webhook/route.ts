@@ -2065,11 +2065,12 @@ export async function POST(req: Request) {
         if (account.id) {
           // Stripe separates the ability to accept charges from payout and
           // verification state. Only mirror charges_enabled into Grainline's
-          // buyer-facing purchase gate; payout/requirements problems are
-          // operational issues that should be surfaced separately.
+          // buyer-facing purchase gate. Retrieve the live account first so
+          // delayed snapshot events cannot restore stale checkout availability.
+          const currentAccount = await stripe.accounts.retrieve(account.id);
           await mirrorStripeChargesEnabled({
             accountId: account.id,
-            chargesEnabled: Boolean(account.charges_enabled),
+            chargesEnabled: Boolean(currentAccount.charges_enabled),
             actorType: "webhook",
             actorId: event.id,
           });

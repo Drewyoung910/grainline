@@ -8759,3 +8759,113 @@ ListBucket/public-bucket/dashboard posture plus production smoke evidence and
 public-availability proof, HSTS preload submission decision, Vercel
 Analytics/Speed Insights product/privacy decision, and remaining homepage
 browser a11y/runtime proof beyond source fallback.
+
+Entry 441 closes a parent-reviewed Stripe Connect, newsletter/CSP, shipping,
+refund, case, and commission follow-up batch. Two read-only agents were used as
+sidecar scanners; parent Codex re-read the cited source and reran focused
+guardrails before accepting classifications.
+
+Verified fixed/reduced:
+
+- Legacy snapshot `account.updated` webhooks now retrieve the live Stripe
+  connected account before calling `mirrorStripeChargesEnabled()`. This matches
+  the Connect v2 thin-webhook and scheduled reconciliation paths, reducing the
+  chance that delayed snapshot events restore stale checkout availability.
+- The legacy `/api/stripe/connect/dashboard` login-link endpoint now uses the
+  same `stripeLoginLinkRatelimit` bucket and retry copy as the canonical
+  `/api/stripe/connect/login-link` endpoint. The route still preserves its
+  existing auth, account-state, private-response, and supported-account-version
+  checks.
+
+Verified current/stale/duplicate during the same pass:
+
+- Raw #24 is stale: `/api/cart/update` rechecks `sellerOrderBlockReason()`,
+  including `acceptingNewOrders`, before preserving a nonzero cart quantity.
+- Raw #27 and #29-#31/#33-#36 are stale or duplicate: Stripe dashboard login
+  links block banned/deleted accounts, newsletter signup normalizes/suppresses
+  uniformly with double opt-in and fail-closed rate limiting, CSP reports use
+  bounded reads and sanitized Sentry payloads, and Resend webhook failed rows
+  clear `processingStartedAt` for retry.
+- Raw #41-#44, #46-#50, #53, #55-#63, and #66-#68 are stale or duplicate:
+  refund stock restoration is state-gated, seller refunds require whole-order
+  seller ownership and capped positive amounts, label purchase reserves
+  `labelStatus = PURCHASED` before Shippo, Stripe status/create/checkout quote
+  guardrails are present, shipping HMAC/fallback/cart binding is intact,
+  case/commission text and mutation guards are current, and case partial-refund
+  caps use shared refund math.
+
+Deferred product/runtime decisions:
+
+- Raw #28 remains deferred: current checkout creation is card-only, so the
+  unpaid `checkout.session.completed` async-payment branch is not reachable
+  under current payment methods. Add runtime/webhook tests before enabling
+  async or non-card payment methods.
+- Raw #45 remains a label-clawback policy/ops decision: current behavior leaves
+  Sentry evidence plus durable retry/manual-review state after Stripe clawback
+  failure. Changing this to a different provider-idempotency or exception policy
+  needs a payment-ops decision.
+- Raw #52 remains a privacy/runtime decision: `/api/shipping/quote` forwards
+  recipient name and street fields to Shippo for quote requests. Minimizing
+  quote payloads to city/state/postal/country should be tested against Shippo
+  before changing checkout quote behavior.
+- Raw #54 remains the documented zip-based quote tradeoff: missing city/state
+  default to New York/New York and the signed rate binds postal code, not
+  city/state.
+- Raw #64 remains tied to the current one-seller-order invariant: case open
+  derives the seller from the first order item. Add an all-items seller
+  invariant before any future multi-seller `Order` model.
+- Raw #65 remains a case-policy decision: immediate escalation when a
+  counterparty is unavailable is explicit, rate-limited behavior.
+
+Guardrails:
+`tests/stripe-connect-v2.test.mjs`,
+`tests/stripe-webhook-v2-route.test.mjs`,
+`tests/private-json-cache-headers.test.mjs`, and
+`tests/server-error-logger.test.mjs`.
+
+Verification:
+focused `node --test tests/stripe-connect-v2.test.mjs tests/stripe-webhook-v2-route.test.mjs tests/private-json-cache-headers.test.mjs tests/server-error-logger.test.mjs`
+(36/36 tests passing across 4 suites),
+`npx tsc --noEmit`,
+`git diff --check`,
+`npm run lint` (exit 0; existing JSX AST utility warning only),
+`npm audit --audit-level=moderate` (0 vulnerabilities),
+`npm test` (1371/1371 tests passing across 255 suites), and
+`npm run build` passed. Read-only sidecar agents also ran focused
+newsletter/CSP/Stripe and refund/shipping/case/commission guardrail subsets
+successfully; parent Codex performed source-review sweeps over the cited files
+before accepting their classifications.
+
+Current running tally after Entry 441: verified fixed/reduced 880, verified
+stale/false-positive/current 504, deferred product/design/ops/legal 82,
+approximate raw allegations left from current max #1126: 35. Fixed/reduced
+increases by two for the live Stripe account refresh in legacy snapshot
+webhooks and the legacy/canonical Stripe dashboard login-link limiter
+alignment. Stale/current increases by thirty-one for the verified stale or
+already-closed raw #24, #27, #29-#31, #33-#36, #41-#44, #46-#50, #53, #55-#63,
+and #66-#68 allegations. Deferred increases by six for raw #28, #45, #52, #54,
+#64, and #65. Raw-left decreases by thirty-nine for the newly classified raw
+#24, #27-#36, and #41-#68 batch, excluding raw #25 which was already classified
+in Entry 440.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger, label clawback policy/runtime proof,
+Stripe webhook subscription dashboard evidence, Stripe Connect v2
+loss-liability ops/legal decision, stale remote branch and old git author
+hygiene, Round 10 deferred cache/state-machine product designs that require
+product decisions rather than source guardrails, remaining EXPLAIN-dependent
+query-plan/index validation, Stripe partial-refund runtime reconciliation proof,
+founding-maker permanence policy, remaining privacy/legal retention scope,
+remaining privacy/export retention decisions, shipping quote PII-minimization
+provider smoke/product decision, cross-seller AI duplicate-detection product
+design, legacy enum cleanup/data-migration decisions, partial multi-seller
+checkout continuation design, deliberate BigInt money-column modeling,
+variant-adjusted unit-price floor policy, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket/dashboard posture plus production smoke evidence and
+public-availability proof, HSTS preload submission decision, Vercel
+Analytics/Speed Insights product/privacy decision, and remaining homepage
+browser a11y/runtime proof beyond source fallback.

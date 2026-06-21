@@ -135,6 +135,8 @@ describe("Stripe Connect v2 migration guardrails", () => {
     assert.doesNotMatch(loginLinkRoute, /Sentry\.captureException|console\.error\(/);
     assert.doesNotMatch(loginLinkRoute, /NextResponse\.json/);
     assert.match(dashboardRoute, /createLoginLink\(seller\.stripeAccountId\)/);
+    assert.match(dashboardRoute, /stripeLoginLinkRatelimit/);
+    assert.doesNotMatch(dashboardRoute, /stripeConnectRatelimit/);
     assert.match(dashboardRoute, /isSupportedStripeConnectAccountVersion\(seller\.stripeAccountVersion\)/);
     assert.match(dashboardRoute, /ensureUserByClerkId\(userId\)/);
     assert.match(dashboardRoute, /accountAccessErrorResponse\(err\)/);
@@ -187,7 +189,14 @@ describe("Stripe Connect v2 migration guardrails", () => {
     const webhook = source("src/app/api/stripe/webhook/route.ts");
     assert.match(webhook, /event\.type === "account\.updated"/);
     assert.match(webhook, /charges_enabled\?: boolean/);
+    assert.match(webhook, /const currentAccount = await stripe\.accounts\.retrieve\(account\.id\)/);
+    assert.match(webhook, /chargesEnabled: Boolean\(currentAccount\.charges_enabled\)/);
     assert.match(webhook, /mirrorStripeChargesEnabled/);
+    assert.ok(
+      webhook.indexOf("const currentAccount = await stripe.accounts.retrieve(account.id)") <
+        webhook.indexOf("await mirrorStripeChargesEnabled({", webhook.indexOf('event.type === "account.updated"')),
+      "legacy account.updated snapshots should retrieve live account state before mirroring charges_enabled",
+    );
     assert.doesNotMatch(webhook, /parseEventNotification/);
     assert.doesNotMatch(webhook, /STRIPE_V2_WEBHOOK_SECRET/);
 

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
-import { stripeConnectRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
+import { stripeLoginLinkRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
 import { isSupportedStripeConnectAccountVersion } from "@/lib/stripeConnectV2";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
@@ -13,8 +13,8 @@ export async function POST() {
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
-  const { success: rlOk, reset } = await safeRateLimit(stripeConnectRatelimit, userId);
-  if (!rlOk) return privateResponse(rateLimitResponse(reset, "Too many requests."));
+  const { success: rlOk, reset } = await safeRateLimit(stripeLoginLinkRatelimit, userId);
+  if (!rlOk) return privateResponse(rateLimitResponse(reset, "Too many requests. Try again in a few minutes."));
 
   let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
   try {
