@@ -60,7 +60,11 @@ describe("email normalization follow-ups", () => {
     assert.match(normalization, /export function normalizeEmailSuppressionAddress/);
     assert.match(normalization, /export function emailSuppressionAddressKeys/);
     assert.match(normalization, /export function emailSuppressionLookupForEmails/);
-    assert.match(suppression, /where: \{ email: \{ in: emails \} \}/);
+    assert.match(suppression, /emailSuppressionLookupForEmails\(\[email\]\)/);
+    assert.match(suppression, /function emailSuppressionMatchWhereSql/);
+    assert.match(suppression, /lower\(split_part\(\$\{emailColumn\}, '@', 2\)\) IN \('gmail\.com', 'googlemail\.com'\)/);
+    assert.match(suppression, /replace\(split_part\(lower\(split_part\(\$\{emailColumn\}, '@', 1\)\), '\+', 1\), '\.', ''\) IN/);
+    assert.match(suppression, /WHERE \$\{emailSuppressionMatchWhereSql\(lookup\)\}/);
     assert.match(suppression, /const email = normalizeEmailSuppressionAddress\(opts\.email\)/);
   });
 });

@@ -142,6 +142,8 @@ describe("upload UX follow-ups", () => {
     assert.match(presignRoute, /ContentLength: size/);
     assert.match(presignRoute, /expectedSize: size/);
     assert.match(presignRoute, /verificationToken/);
+    assert.match(presignRoute, /Sentry\.captureMessage\("Upload verification token creation failed"/);
+    assert.match(presignRoute, /source: "upload_presign_verification_config"/);
     assert.match(presignRoute, /recordDirectUploadPresigned/);
     assert.match(verifyRoute, /new HeadObjectCommand/);
     assert.match(verifyRoute, /actualSize/);

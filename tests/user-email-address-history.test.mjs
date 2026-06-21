@@ -5,6 +5,7 @@ import { describe, it } from "node:test";
 const {
   accountEmailFallbackEmailsForUser,
   accountEmailSuppressionKeysForEmails,
+  syncUserEmailAddressHistory,
   uniqueAccountEmailAddresses,
 } = await import("../src/lib/userEmailAddresses.ts");
 
@@ -106,6 +107,7 @@ describe("user email address history", () => {
 
     assert.match(schema, /emailAddresses UserEmailAddress\[\]/);
     assert.match(schema, /model UserEmailAddress \{/);
+    assert.match(schema, /currentSinceAt\s+DateTime\s+@default\(now\(\)\)/);
     assert.match(schema, /@@unique\(\[userId, email\]\)/);
     assert.match(schema, /@@index\(\[email\]\)/);
     assert.match(schema, /@@index\(\[userId, isCurrent\]\)/);
@@ -116,6 +118,91 @@ describe("user email address history", () => {
     assert.match(migration, /WHERE e\."userId" IS NOT NULL/);
     assert.doesNotMatch(migration, /FROM "EmailSuppression"/);
     assert.doesNotMatch(migration, /FROM "NewsletterSubscriber"/);
+
+    const claimEpochMigration = source(
+      "prisma/migrations/20260621051000_email_claim_epoch_and_suppression_keys/migration.sql",
+    );
+    assert.match(claimEpochMigration, /ADD COLUMN "currentSinceAt" TIMESTAMP\(3\)/);
+    assert.match(claimEpochMigration, /WHEN "isCurrent" THEN "firstSeenAt"/);
+    assert.match(claimEpochMigration, /ALTER COLUMN "currentSinceAt" SET NOT NULL/);
+  });
+
+  it("stamps currentSinceAt only when an email becomes current again", async () => {
+    const rows = new Map();
+    const keyFor = (where) => `${where.userId_email.userId}:${where.userId_email.email}`;
+    const client = {
+      userEmailAddress: {
+        updateMany: async ({ where, data }) => {
+          let count = 0;
+          for (const row of rows.values()) {
+            const emailMatches =
+              where.email?.not !== undefined
+                ? row.email !== where.email.not
+                : where.email === undefined || row.email === where.email;
+            const currentMatches =
+              where.isCurrent === undefined || row.isCurrent === where.isCurrent;
+            if (row.userId === where.userId && emailMatches && currentMatches) {
+              Object.assign(row, data);
+              count += 1;
+            }
+          }
+          return { count };
+        },
+        upsert: async ({ where, create, update }) => {
+          const key = keyFor(where);
+          const existing = rows.get(key);
+          if (existing) Object.assign(existing, update);
+          else rows.set(key, { ...create });
+          return rows.get(key);
+        },
+        findUnique: async ({ where, select }) => {
+          const row = rows.get(keyFor(where));
+          if (!row) return null;
+          return Object.fromEntries(Object.keys(select).map((field) => [field, row[field]]));
+        },
+        update: async ({ where, data }) => {
+          const row = rows.get(keyFor(where));
+          assert.ok(row);
+          Object.assign(row, data);
+          return row;
+        },
+        create: async ({ data }) => {
+          rows.set(`${data.userId}:${data.email}`, { ...data });
+          return data;
+        },
+      },
+    };
+
+    const first = new Date("2026-06-01T00:00:00.000Z");
+    const second = new Date("2026-06-02T00:00:00.000Z");
+    const third = new Date("2026-06-03T00:00:00.000Z");
+
+    await syncUserEmailAddressHistory(client, {
+      userId: "user_1",
+      currentEmail: "a@example.com",
+      source: "test",
+      now: first,
+    });
+    await syncUserEmailAddressHistory(client, {
+      userId: "user_1",
+      previousEmail: "a@example.com",
+      currentEmail: "b@example.com",
+      source: "test",
+      now: second,
+    });
+    await syncUserEmailAddressHistory(client, {
+      userId: "user_1",
+      previousEmail: "b@example.com",
+      currentEmail: "a@example.com",
+      source: "test",
+      now: third,
+    });
+
+    assert.equal(rows.get("user_1:a@example.com").isCurrent, true);
+    assert.equal(rows.get("user_1:a@example.com").firstSeenAt.toISOString(), first.toISOString());
+    assert.equal(rows.get("user_1:a@example.com").lastSeenAt.toISOString(), third.toISOString());
+    assert.equal(rows.get("user_1:a@example.com").currentSinceAt.toISOString(), third.toISOString());
+    assert.equal(rows.get("user_1:b@example.com").isCurrent, false);
   });
 
   it("captures current and previous emails when Clerk refreshes account state", () => {

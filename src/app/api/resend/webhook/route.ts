@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { Resend, type WebhookEventPayload } from "resend";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
-import { normalizeEmailAddress, suppressEmail } from "@/lib/emailSuppression";
+import { normalizeEmailSuppressionAddress, suppressEmail } from "@/lib/emailSuppression";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
 import { resolveResendWebhookConfig } from "@/lib/resendWebhookConfig";
@@ -144,7 +144,7 @@ async function recordTransientFailure(
   eventId: string,
   details: Prisma.InputJsonValue,
 ): Promise<boolean> {
-  const normalized = normalizeEmailAddress(email);
+  const normalized = normalizeEmailSuppressionAddress(email);
   if (!normalized) return false;
 
   const now = new Date();

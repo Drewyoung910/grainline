@@ -192,10 +192,12 @@ describe("account and privacy route observability guardrails", () => {
       "preference opt-in should write the preference before clearing one-click suppression",
     );
 
-    assert.match(clearHelper, /emailSuppressionAddressKeys\(email\)/);
-    assert.match(clearHelper, /reason: EmailSuppressionReason\.MANUAL/);
-    assert.match(clearHelper, /source: "one_click_unsubscribe"/);
-    assert.doesNotMatch(clearHelper, /source: "account_deletion"/);
+    assert.match(clearHelper, /emailSuppressionLookupForEmails\(\[email\]\)/);
+    assert.match(clearHelper, /DELETE FROM "EmailSuppression"/);
+    assert.match(clearHelper, /emailSuppressionMatchWhereSql\(lookup\)/);
+    assert.match(clearHelper, /EmailSuppressionReason\.MANUAL/);
+    assert.match(clearHelper, /one_click_unsubscribe/);
+    assert.doesNotMatch(clearHelper, /account_deletion/);
     assert.doesNotMatch(
       clearHelper,
       /reason: EmailSuppressionReason\.BOUNCE|reason: EmailSuppressionReason\.COMPLAINT/,
@@ -227,15 +229,15 @@ describe("account and privacy route observability guardrails", () => {
 
     assert.match(deliveryHelper, /EmailSuppressionReason\.BOUNCE/);
     assert.match(deliveryHelper, /EmailSuppressionReason\.COMPLAINT/);
-    assert.match(deliveryHelper, /source: "account_deletion"/);
+    assert.match(deliveryHelper, /"source" = 'account_deletion'/);
     assert.doesNotMatch(deliveryHelper, /source: "one_click_unsubscribe"/);
 
     assert.match(newsletterRoute, /isEmailSuppressedForNewsletterSignup\(email\)/);
     assert.doesNotMatch(newsletterRoute, /isEmailSuppressed\(email\)/);
     assert.match(suppression, /export async function isEmailSuppressedForNewsletterSignup/);
-    assert.match(suppression, /source: "account_deletion"/);
-    assert.match(suppression, /reason: EmailSuppressionReason\.MANUAL, source: null/);
-    assert.match(suppression, /reason: EmailSuppressionReason\.MANUAL, source: \{ not: "one_click_unsubscribe" \}/);
+    assert.match(suppression, /"source" = 'account_deletion'/);
+    assert.match(suppression, /"reason"::text = \$\{EmailSuppressionReason\.MANUAL\} AND "source" IS NULL/);
+    assert.match(suppression, /"reason"::text = \$\{EmailSuppressionReason\.MANUAL\} AND "source" <> 'one_click_unsubscribe'/);
     assert.match(
       adminEmailRoute,
       /isEmailSuppressed\(normalizedRecipientEmail\)/,
@@ -383,8 +385,8 @@ describe("account and privacy route observability guardrails", () => {
     assert.match(unsubscribe, /INNER JOIN "User" u ON u\."id" = uea\."userId"/);
     assert.match(unsubscribe, /emailSuppressionMatchWhereSql\(lookup, Prisma\.sql`uea\."email"`\)/);
     assert.match(unsubscribe, /AND uea\."isCurrent" = true/);
-    assert.match(unsubscribe, /AND uea\."firstSeenAt" > \$\{new Date\(issuedAt\)\}/);
-    assert.match(unsubscribe, /ORDER BY uea\."firstSeenAt" DESC/);
+    assert.match(unsubscribe, /AND uea\."currentSinceAt" > \$\{new Date\(issuedAt\)\}/);
+    assert.match(unsubscribe, /ORDER BY uea\."currentSinceAt" DESC/);
     assert.match(unsubscribe, /if \(newerCurrentEmailClaim\) return true/);
     assert.match(
       unsubscribe,
@@ -510,6 +512,7 @@ describe("account and privacy route observability guardrails", () => {
     assert.match(route, /safeResendWebhookDetails\(event, id, emails\)/);
     assert.match(route, /const TRANSIENT_FAILURE_SUPPRESSION_THRESHOLD = 5/);
     assert.match(route, /return type === "email\.failed"/);
+    assert.match(route, /normalizeEmailSuppressionAddress\(email\)/);
     assert.match(route, /INSERT INTO "EmailFailureCount"/);
     assert.match(route, /ON CONFLICT \(email\) DO UPDATE SET/);
     assert.match(

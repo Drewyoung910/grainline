@@ -158,6 +158,10 @@ export async function POST(req: NextRequest) {
     contentType,
   });
   if (!verification) {
+    Sentry.captureMessage("Upload verification token creation failed", {
+      level: "error",
+      tags: { source: "upload_presign_verification_config", endpoint },
+    });
     return privateJson({ error: "Upload verification is not configured" }, { status: 500 });
   }
 

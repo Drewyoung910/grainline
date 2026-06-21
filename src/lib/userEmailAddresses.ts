@@ -10,6 +10,7 @@ export type UserEmailAddressExportRow = {
   isCurrent: boolean;
   firstSeenAt: Date;
   lastSeenAt: Date;
+  currentSinceAt: Date;
 };
 
 function normalizedExactEmail(email: string | null | undefined) {
@@ -101,24 +102,38 @@ export async function syncUserEmailAddressHistory(
         isCurrent: false,
         firstSeenAt: now,
         lastSeenAt: now,
+        currentSinceAt: now,
       },
       update: { isCurrent: false, lastSeenAt: now },
     });
   }
 
   if (currentEmail) {
-    await client.userEmailAddress.upsert({
-      where: { userId_email: { userId: input.userId, email: currentEmail } },
-      create: {
-        userId: input.userId,
-        email: currentEmail,
-        source,
-        isCurrent: true,
-        firstSeenAt: now,
-        lastSeenAt: now,
-      },
-      update: { isCurrent: true, source, lastSeenAt: now },
+    const reactivated = await client.userEmailAddress.updateMany({
+      where: { userId: input.userId, email: currentEmail, isCurrent: false },
+      data: { isCurrent: true, source, lastSeenAt: now, currentSinceAt: now },
     });
+    if (reactivated.count === 0) {
+      const refreshed = await client.userEmailAddress.updateMany({
+        where: { userId: input.userId, email: currentEmail, isCurrent: true },
+        data: { source, lastSeenAt: now },
+      });
+      if (refreshed.count === 0) {
+        await client.userEmailAddress.upsert({
+          where: { userId_email: { userId: input.userId, email: currentEmail } },
+          create: {
+            userId: input.userId,
+            email: currentEmail,
+            source,
+            isCurrent: true,
+            firstSeenAt: now,
+            lastSeenAt: now,
+            currentSinceAt: now,
+          },
+          update: { isCurrent: true, source, lastSeenAt: now, currentSinceAt: now },
+        });
+      }
+    }
   }
 
   return uniqueAccountEmailAddresses([previousEmail, currentEmail]);
@@ -137,6 +152,7 @@ export async function userAccountEmailAddressState(
       isCurrent: true,
       firstSeenAt: true,
       lastSeenAt: true,
+      currentSinceAt: true,
     },
   });
   const emails = uniqueAccountEmailAddresses([input.currentEmail, ...rows.map((row) => row.email)]);

@@ -7956,3 +7956,97 @@ public-availability proof, HSTS preload submission decision, residual
 lower-risk HTTP-status/logging hygiene outside touched routes, Vercel
 Analytics/Speed Insights product/privacy decision, remaining homepage runtime
 a11y proof, and residual agent/worktree verification process hygiene.
+
+Entry 433 closes a parent-verified email-consent/suppression and upload-config
+observability pass. Three read-only agents were used only as source scanners
+for email consent, privacy/export/deletion, and deferred evidence/source-fixable
+items. All three were closed, and parent Codex rechecked the cited source before
+classifying or editing. The existing out-of-order Entry 431/432 tail is
+historical; this entry follows the Entry 432 running tally.
+
+The first source-proven email gap was unsubscribe-token replay after an email
+address is removed and later made current again on the same account. The code
+previously used `UserEmailAddress.firstSeenAt` as the current-email claim
+boundary, but a historical row keeps its original first-seen timestamp when the
+email becomes current again. `UserEmailAddress.currentSinceAt` now records the
+current claim epoch, backfilled from `firstSeenAt` for current rows and
+`lastSeenAt` for non-current rows, and `syncUserEmailAddressHistory()` updates
+it only when an address becomes current from a non-current or absent state.
+`/api/email/unsubscribe` supersession checks now reject tokens issued before a
+later matching current-email claim, reducing recycled-address and renewed-consent
+replay risk.
+
+The second source-proven email gap was legacy exact Gmail/Googlemail suppression
+rows. New suppression writes already canonicalize Gmail and Googlemail aliases,
+but old exact rows such as dotted or plus-tagged Gmail variants could be missed
+by suppression reads and one-click suppression clearing. Suppression checks and
+one-click manual-clear now use folded SQL predicates for Gmail/Googlemail alias
+local parts while keeping durable account identity exact-normalized only. Resend
+transient-failure counters also now use `normalizeEmailSuppressionAddress()` so
+Gmail/Googlemail aliases share the five-failure threshold before durable
+suppression.
+
+The upload/deferred-evidence slice found one source-level observability gap:
+when presigned upload token creation failed because `UPLOAD_VERIFICATION_SECRET`
+or related token config was unavailable, `/api/upload/presign` already failed
+closed but left no Sentry configuration evidence. That branch now emits bounded
+Sentry evidence with source `upload_presign_verification_config` before
+returning the existing private 500. The privacy/export/deletion agent found no
+additional source-proven current privacy defect in the reviewed account/export
+area. Dormant `listingVideo` remains a future product-media caution rather than
+a current persistence bug because current listing create/edit paths do not mount
+`VideoUploader` or persist submitted video URLs; the existing direct-upload
+claim contract still applies if videos are reintroduced.
+
+Guardrails:
+`tests/user-email-address-history.test.mjs`,
+`tests/account-privacy-observability.test.mjs`,
+`tests/account-export-privacy.test.mjs`,
+`tests/email-normalization-followups.test.mjs`,
+`tests/upload-ux-followups.test.mjs`,
+`tests/upload-verification-token.test.mjs`, and
+`tests/newsletter-double-opt-in.test.mjs`.
+
+Verification:
+`npx prisma format`,
+`npx prisma generate`,
+focused `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/email-normalization-followups.test.mjs tests/user-email-address-history.test.mjs tests/account-privacy-observability.test.mjs tests/account-export-privacy.test.mjs tests/upload-ux-followups.test.mjs tests/upload-verification-token.test.mjs tests/newsletter-double-opt-in.test.mjs`
+(64/64 tests passing across 7 suites),
+`npx tsc --noEmit`,
+`npm run lint` (exit 0; existing JSX AST utility warning emitted),
+`npm audit --audit-level=moderate` (0 vulnerabilities),
+`git diff --check`,
+full `node --test` suite rerun after updating a stale source-assertion guardrail
+(1349/1349 tests passing across 254 suites), and
+`npm run build`.
+
+Current running tally after Entry 433: verified fixed/reduced 838, verified
+stale/false-positive/current 473, deferred product/design/ops/legal 73,
+approximate raw allegations left from current max #1126: 79. The fixed count
+increases by four for current-email claim epochs, folded legacy Gmail/Googlemail
+suppression lookup/clear behavior, suppression-key Resend transient failure
+counting, and upload verification-token config telemetry. Stale/current,
+deferred, and approximate raw counts stay flat because these are
+source-discovered residues inside already-classified email/upload/privacy
+categories rather than newly closed raw-number allegations.
+
+Remaining major categories: Stripe refund runtime/orphan reconciliation proof
+and backfill design, Stripe webhook subscription dashboard evidence, Stripe
+Connect v2 loss-liability ops/legal decision, stale remote branch and old git
+author hygiene, Round 10 deferred cache/state-machine product designs that
+require product decisions rather than source guardrails, remaining
+EXPLAIN-dependent query-plan/index validation, Stripe partial-refund runtime
+reconciliation proof, founding-maker permanence policy, remaining privacy/legal
+retention scope, remaining privacy/export retention decisions, cross-seller AI
+duplicate-detection product design, legacy enum cleanup/data-migration
+decisions, partial multi-seller checkout continuation design, deliberate BigInt
+money-column modeling, live-data reconciliation for historical seller
+shipping-rate currency drift, Clerk staff MFA and breached-password dashboard
+evidence, Clerk multi-account spam dashboard evidence, buyer-deletion runtime
+replay proof, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public-bucket/dashboard posture plus
+production smoke evidence and public-availability proof, HSTS preload
+submission decision, residual lower-risk HTTP-status/logging hygiene outside
+touched routes, Vercel Analytics/Speed Insights product/privacy decision,
+remaining homepage runtime a11y proof, and residual agent/worktree verification
+process hygiene.

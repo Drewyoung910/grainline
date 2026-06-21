@@ -144,6 +144,7 @@ model UserEmailAddress {
   isCurrent   Boolean  @default(false)
   firstSeenAt DateTime @default(now())
   lastSeenAt  DateTime @default(now())
+  currentSinceAt DateTime @default(now())
 
   @@unique([userId, email])
   @@index([email])

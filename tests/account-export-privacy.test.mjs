@@ -306,6 +306,7 @@ describe("account export privacy coverage", () => {
 
     assert.match(historyBlock, /userId: user\.id/);
     assert.match(historyBlock, /currentEmail: accountEmail/);
+    assert.match(source("src/lib/userEmailAddresses.ts"), /currentSinceAt: true/);
     assert.match(historyBlock, /accountEmailFallbackEmailsForUser\(prisma/);
     assert.match(historyBlock, /emails: accountEmailState\.emails/);
     assert.match(route, /const accountEmailAddresses = accountEmailState\.rows/);
