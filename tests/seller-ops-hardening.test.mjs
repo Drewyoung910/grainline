@@ -237,10 +237,11 @@ describe("seller operational route hardening", () => {
       analytics,
       /\(SELECT COUNT\(\*\)::bigint FROM "StockNotification" sn WHERE sn\."listingId" = l\.id\) AS stock_notification_count/,
     );
-    assert.match(analytics, /const existingMetricsPromise = prisma\.sellerMetrics\.findUnique\(\{[\s\S]*?averageRating: true[\s\S]*?accountAgeDays: true/s);
-    assert.match(analytics, /import \{ isSellerMetricsFresh \} from "@\/lib\/metricsFreshness"/);
-    assert.match(analytics, /const isStale = !existingMetrics \|\| !isSellerMetricsFresh\(existingMetrics\)/);
-    assert.match(analytics, /const metrics: SellerMetricsResult = isStale[\s\S]*?: existingMetrics!/);
+    assert.match(analytics, /import \{[\s\S]*getFreshSellerMetrics[\s\S]*SELLER_METRICS_SELECT[\s\S]*\} from "@\/lib\/metrics"/);
+    assert.match(analytics, /const existingMetricsPromise = prisma\.sellerMetrics\.findUnique\(\{[\s\S]*?select: SELLER_METRICS_SELECT/s);
+    assert.match(analytics, /const metrics = await getFreshSellerMetrics\(sellerId, 3, existingMetrics\);/);
+    assert.doesNotMatch(analytics, /import \{ isSellerMetricsFresh \} from "@\/lib\/metricsFreshness"/);
+    assert.doesNotMatch(analytics, /const isStale = !existingMetrics/);
     assert.match(analytics, /AND r\."createdAt" >= \$\{startDate\}/);
     assert.match(analytics, /AND r\."createdAt" \$\{rangeEndSql\}/);
     assert.doesNotMatch(analytics, /24 \* 60 \* 60 \* 1000/);

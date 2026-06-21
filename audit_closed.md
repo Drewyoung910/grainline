@@ -8667,3 +8667,95 @@ public-availability proof, HSTS preload submission decision, Vercel
 Analytics/Speed Insights product/privacy decision, remaining homepage browser
 a11y/runtime proof beyond source fallback, and seller verification Guild metrics
 refresh-lock performance optimization.
+
+Entry 440 closes a parent-reviewed seller verification and Guild metrics cache
+pass. Two read-only agents were used as sidecar scanners; parent Codex re-read
+the cited source before accepting or deferring any finding.
+
+Verified fixed/reduced:
+
+- Seller verification no longer recalculates Guild Master metrics on ordinary
+  page render when a fresh cached `SellerMetrics` row is already available.
+  `/dashboard/verification` now uses `getFreshSellerMetrics()` for the read-only
+  Section B checklist, while the Guild Master application server action still
+  calls live `calculateSellerMetrics()` immediately before changing application
+  state.
+- `getFreshSellerMetrics()` now centralizes the cached-metrics selector and
+  freshness decision for dashboard and analytics read paths. Cached rows are
+  reused only when the seller id matches, `periodMonths` matches, and
+  `isSellerMetricsFresh()` passes.
+- Stale cached read-path refreshes are now coalesced after waiting on the same
+  seller-scoped advisory lock used by live metric calculations. If another
+  waiting request already refreshed the row, the queued request re-reads
+  `SellerMetrics` and returns that fresh row instead of running the aggregate
+  queries again.
+- The Guild Master application form no longer unlocks when metric calculation
+  fails or is unavailable. The form renders only when `masterCriteria?.allMet`
+  is explicitly true; unavailable metrics fall back to the static requirements
+  display and the server action still rechecks live metrics on submit.
+- Seller analytics now imports the shared `SELLER_METRICS_SELECT` and
+  `getFreshSellerMetrics()` helper instead of carrying a route-local metrics
+  freshness query shape.
+
+Verified current/stale/deferred during the same pass:
+
+- The earlier "dashboard always recalculates metrics on render" allegation is
+  now stale on the final tree. Current source uses `getFreshSellerMetrics()` on
+  the dashboard verification render path and seller analytics path, with
+  focused source guardrails.
+- The agent-identified `SellerMetrics.totalSalesCents` / order-count `Int`
+  overflow concern remains the already-tracked deliberate BigInt money-column
+  modeling decision rather than this pass's source fix.
+- Raw #25, variant-adjusted one-cent unit prices, is classified as a deferred
+  product/pricing-floor decision. Current checkout still blocks below-minimum
+  seller transfer payouts, so this is not a money leakage bug, but product
+  should decide whether variant-adjusted orderable unit prices should have a
+  higher central floor than one cent.
+
+Guardrails:
+`tests/metrics-cache.test.mjs`,
+`tests/seller-ops-hardening.test.mjs`,
+`tests/guild-listing-edit-followups.test.mjs`,
+`tests/retention-and-ops-followups.test.mjs`, and
+`tests/cache-invalidation-guardrails.test.mjs`.
+
+Verification:
+focused `node --test tests/metrics-cache.test.mjs tests/seller-ops-hardening.test.mjs tests/guild-listing-edit-followups.test.mjs tests/retention-and-ops-followups.test.mjs tests/cache-invalidation-guardrails.test.mjs`
+(43/43 tests passing across 5 suites),
+`npx tsc --noEmit`,
+`git diff --check`,
+`npm run lint` (exit 0; existing JSX AST utility warning only),
+`npm audit --audit-level=moderate` (0 vulnerabilities),
+`npm test` (1371/1371 tests passing across 255 suites), and
+`npm run build` passed.
+
+Current running tally after Entry 440: verified fixed/reduced 878, verified
+stale/false-positive/current 473, deferred product/design/ops/legal 76,
+approximate raw allegations left from current max #1126: 74. Fixed/reduced
+increases by five for the dashboard cached-metrics read path, shared
+seller-metrics selector/freshness helper, post-lock cache-miss coalescing,
+strict Guild Master form unlock, and seller analytics helper reuse. Deferred
+increases by one for raw #25's variant-adjusted unit-price floor product
+decision. Raw-left decreases by two for the seller-verification metrics
+refresh-lock residual and raw #25's classification.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger, label clawback, and route guard paths,
+Stripe webhook subscription dashboard evidence, Stripe Connect v2
+loss-liability ops/legal decision, stale remote branch and old git author
+hygiene, Round 10 deferred cache/state-machine product designs that require
+product decisions rather than source guardrails, remaining EXPLAIN-dependent
+query-plan/index validation, Stripe partial-refund runtime reconciliation proof,
+founding-maker permanence policy, remaining privacy/legal retention scope,
+remaining privacy/export retention decisions, cross-seller AI duplicate-detection
+product design, legacy enum cleanup/data-migration decisions, partial
+multi-seller checkout continuation design, deliberate BigInt money-column
+modeling, variant-adjusted unit-price floor policy, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket/dashboard posture plus production smoke evidence and
+public-availability proof, HSTS preload submission decision, Vercel
+Analytics/Speed Insights product/privacy decision, and remaining homepage
+browser a11y/runtime proof beyond source fallback.

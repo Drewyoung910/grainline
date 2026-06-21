@@ -4,7 +4,12 @@ import { redirect } from "next/navigation";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { prisma } from "@/lib/db";
 import GuildBadge from "@/components/GuildBadge";
-import { calculateSellerMetrics, meetsGuildMasterRequirements, GUILD_MASTER_REQUIREMENTS } from "@/lib/metrics";
+import {
+  calculateSellerMetrics,
+  getFreshSellerMetrics,
+  meetsGuildMasterRequirements,
+  GUILD_MASTER_REQUIREMENTS,
+} from "@/lib/metrics";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { safeRateLimit, verificationApplyRatelimit } from "@/lib/ratelimit";
 import {
@@ -147,7 +152,7 @@ export default async function VerificationPage() {
   let masterCriteria = null;
   if (showSectionB && !isMasterActive) {
     try {
-      masterMetrics = await calculateSellerMetrics(seller.id);
+      masterMetrics = await getFreshSellerMetrics(seller.id);
       masterCriteria = meetsGuildMasterRequirements(masterMetrics);
     } catch {
       // metrics unavailable — don't block rendering
@@ -732,7 +737,7 @@ export default async function VerificationPage() {
 
               {masterCriteria && !masterCriteria.allMet && null /* form hidden until requirements met */}
 
-              {(!masterCriteria || masterCriteria.allMet) && !masterApplicationBlockReason && (
+              {masterCriteria?.allMet === true && !masterApplicationBlockReason && (
               <form action={applyForGuildMaster} className="space-y-5 card-section p-6">
                 <div className="space-y-1.5">
                   <label htmlFor="craftBusiness" className="block text-sm font-medium">

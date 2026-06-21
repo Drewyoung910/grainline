@@ -5,9 +5,28 @@ import {
   metricsPeriodStart,
   type SellerMetricsResult,
 } from "@/lib/metricsState";
+import { isSellerMetricsFresh } from "@/lib/metricsFreshness";
 import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
 
 const SELLER_METRICS_LOCK_NAMESPACE = 913344;
+
+export const SELLER_METRICS_SELECT = {
+  sellerProfileId: true,
+  calculatedAt: true,
+  periodMonths: true,
+  averageRating: true,
+  reviewCount: true,
+  onTimeShippingRate: true,
+  responseRate: true,
+  totalSalesCents: true,
+  completedOrderCount: true,
+  activeCaseCount: true,
+  accountAgeDays: true,
+} satisfies Prisma.SellerMetricsSelect;
+
+export type CachedSellerMetrics = Prisma.SellerMetricsGetPayload<{
+  select: typeof SELLER_METRICS_SELECT;
+}>;
 
 export {
   GUILD_MASTER_REQUIREMENTS,
@@ -29,17 +48,99 @@ export async function calculateSellerMetrics(
   );
 }
 
+export function cachedSellerMetricsToResult(metrics: CachedSellerMetrics): SellerMetricsResult {
+  return {
+    sellerProfileId: metrics.sellerProfileId,
+    calculatedAt: new Date(metrics.calculatedAt),
+    periodMonths: metrics.periodMonths,
+    averageRating: metrics.averageRating,
+    reviewCount: metrics.reviewCount,
+    onTimeShippingRate: metrics.onTimeShippingRate,
+    responseRate: metrics.responseRate,
+    totalSalesCents: metrics.totalSalesCents,
+    completedOrderCount: metrics.completedOrderCount,
+    activeCaseCount: metrics.activeCaseCount,
+    accountAgeDays: metrics.accountAgeDays,
+  };
+}
+
+export async function getFreshSellerMetrics(
+  sellerProfileId: string,
+  periodMonths = 3,
+  existingMetrics?: CachedSellerMetrics | null,
+): Promise<SellerMetricsResult> {
+  const metrics = existingMetrics === undefined
+    ? await prisma.sellerMetrics.findUnique({
+        where: { sellerProfileId },
+        select: SELLER_METRICS_SELECT,
+      })
+    : existingMetrics;
+
+  if (
+    metrics &&
+    metrics.sellerProfileId === sellerProfileId &&
+    metrics.periodMonths === periodMonths &&
+    isSellerMetricsFresh(metrics)
+  ) {
+    return cachedSellerMetricsToResult(metrics);
+  }
+
+  return refreshSellerMetricsAfterCacheMiss(sellerProfileId, periodMonths);
+}
+
+async function refreshSellerMetricsAfterCacheMiss(
+  sellerProfileId: string,
+  periodMonths: number,
+): Promise<SellerMetricsResult> {
+  return prisma.$transaction(
+    async (tx) => {
+      await lockSellerMetricsRefresh(tx, sellerProfileId);
+
+      const metrics = await tx.sellerMetrics.findUnique({
+        where: { sellerProfileId },
+        select: SELLER_METRICS_SELECT,
+      });
+
+      if (
+        metrics &&
+        metrics.sellerProfileId === sellerProfileId &&
+        metrics.periodMonths === periodMonths &&
+        isSellerMetricsFresh(metrics)
+      ) {
+        return cachedSellerMetricsToResult(metrics);
+      }
+
+      return calculateSellerMetricsWithoutLock(sellerProfileId, periodMonths, tx);
+    },
+    { maxWait: 10_000, timeout: 30_000 },
+  );
+}
+
+async function lockSellerMetricsRefresh(
+  db: Prisma.TransactionClient,
+  sellerProfileId: string,
+) {
+  await db.$executeRaw`
+    SELECT pg_advisory_xact_lock(${SELLER_METRICS_LOCK_NAMESPACE}, hashtext(${sellerProfileId}))
+  `;
+}
+
 async function calculateSellerMetricsInTransaction(
+  sellerProfileId: string,
+  periodMonths: number,
+  db: Prisma.TransactionClient,
+): Promise<SellerMetricsResult> {
+  await lockSellerMetricsRefresh(db, sellerProfileId);
+  return calculateSellerMetricsWithoutLock(sellerProfileId, periodMonths, db);
+}
+
+async function calculateSellerMetricsWithoutLock(
   sellerProfileId: string,
   periodMonths: number,
   db: Prisma.TransactionClient,
 ): Promise<SellerMetricsResult> {
   const now = new Date();
   const periodStart = metricsPeriodStart(now, periodMonths);
-
-  await db.$executeRaw`
-    SELECT pg_advisory_xact_lock(${SELLER_METRICS_LOCK_NAMESPACE}, hashtext(${sellerProfileId}))
-  `;
 
   const seller = await db.sellerProfile.findUnique({
     where: { id: sellerProfileId },

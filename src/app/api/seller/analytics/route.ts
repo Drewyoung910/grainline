@@ -5,11 +5,10 @@ import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import {
-  calculateSellerMetrics,
+  getFreshSellerMetrics,
   meetsGuildMasterRequirements,
-  type SellerMetricsResult,
+  SELLER_METRICS_SELECT,
 } from "@/lib/metrics";
-import { isSellerMetricsFresh } from "@/lib/metricsFreshness";
 import { rateLimitResponse, safeRateLimit, sellerAnalyticsRatelimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { logServerError } from "@/lib/serverErrorLogger";
@@ -410,19 +409,7 @@ export async function GET(req: Request) {
     `;
     const existingMetricsPromise = prisma.sellerMetrics.findUnique({
       where: { sellerProfileId: sellerId },
-      select: {
-        sellerProfileId: true,
-        calculatedAt: true,
-        periodMonths: true,
-        averageRating: true,
-        reviewCount: true,
-        onTimeShippingRate: true,
-        responseRate: true,
-        totalSalesCents: true,
-        completedOrderCount: true,
-        activeCaseCount: true,
-        accountAgeDays: true,
-      },
+      select: SELLER_METRICS_SELECT,
     });
 
     const [
@@ -608,10 +595,7 @@ export async function GET(req: Request) {
 
     // ── Guild metrics ───────────────────────────────────────────────────────────
 
-    const isStale = !existingMetrics || !isSellerMetricsFresh(existingMetrics);
-    const metrics: SellerMetricsResult = isStale
-      ? await calculateSellerMetrics(sellerId)
-      : existingMetrics!;
+    const metrics = await getFreshSellerMetrics(sellerId, 3, existingMetrics);
 
     const guildCriteria = meetsGuildMasterRequirements(metrics);
     const failingKeys = Object.entries(guildCriteria)

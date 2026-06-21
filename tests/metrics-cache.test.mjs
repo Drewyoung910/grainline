@@ -32,4 +32,40 @@ describe("seller metrics cache freshness", () => {
     assert.match(source, /await db\.sellerMetrics\.upsert/);
     assert.doesNotMatch(source, /await prisma\.sellerMetrics\.upsert/);
   });
+
+  it("reuses fresh cached seller metrics before taking the advisory lock", () => {
+    const metrics = readFileSync("src/lib/metrics.ts", "utf8");
+    const dashboardVerification = readFileSync("src/app/dashboard/verification/page.tsx", "utf8");
+
+    assert.match(metrics, /export const SELLER_METRICS_SELECT = \{[\s\S]*sellerProfileId: true[\s\S]*accountAgeDays: true/s);
+    assert.match(metrics, /existingMetrics === undefined[\s\S]*prisma\.sellerMetrics\.findUnique\(\{[\s\S]*select: SELLER_METRICS_SELECT/s);
+    assert.match(metrics, /metrics\.sellerProfileId === sellerProfileId[\s\S]*metrics\.periodMonths === periodMonths[\s\S]*isSellerMetricsFresh\(metrics\)[\s\S]*return cachedSellerMetricsToResult\(metrics\);/s);
+    assert.match(metrics, /return refreshSellerMetricsAfterCacheMiss\(sellerProfileId, periodMonths\);/);
+    assert.match(metrics, /async function refreshSellerMetricsAfterCacheMiss/);
+    assert.match(metrics, /async function calculateSellerMetricsWithoutLock/);
+
+    const refreshStart = metrics.indexOf("async function refreshSellerMetricsAfterCacheMiss");
+    const refreshEnd = metrics.indexOf("async function lockSellerMetricsRefresh", refreshStart);
+    const refreshBlock = metrics.slice(refreshStart, refreshEnd);
+    assert.ok(
+      refreshBlock.indexOf("await lockSellerMetricsRefresh(tx, sellerProfileId)") <
+        refreshBlock.indexOf("await tx.sellerMetrics.findUnique"),
+      "cache-miss refresh should wait on the seller lock before re-reading cached metrics",
+    );
+    assert.ok(
+      refreshBlock.indexOf("await tx.sellerMetrics.findUnique") <
+        refreshBlock.indexOf("return calculateSellerMetricsWithoutLock"),
+      "cache-miss refresh should reuse another request's fresh row before recomputing aggregates",
+    );
+
+    assert.match(dashboardVerification, /masterMetrics = await getFreshSellerMetrics\(seller\.id\);/);
+    assert.match(dashboardVerification, /const metrics = await calculateSellerMetrics\(s\.id\);/);
+    assert.match(dashboardVerification, /masterCriteria\?\.allMet === true && !masterApplicationBlockReason/);
+    assert.doesNotMatch(dashboardVerification, /!masterCriteria \|\| masterCriteria\.allMet/);
+    assert.ok(
+      dashboardVerification.indexOf("masterMetrics = await getFreshSellerMetrics(seller.id);") <
+        dashboardVerification.indexOf("const metrics = await calculateSellerMetrics(s.id);"),
+      "dashboard render should use the cached freshness helper while the application action still recalculates live metrics",
+    );
+  });
 });
