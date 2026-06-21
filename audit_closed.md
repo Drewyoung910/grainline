@@ -8050,3 +8050,91 @@ submission decision, residual lower-risk HTTP-status/logging hygiene outside
 touched routes, Vercel Analytics/Speed Insights product/privacy decision,
 remaining homepage runtime a11y proof, and residual agent/worktree verification
 process hygiene.
+
+Entry 434 closes a parent-verified env-script and refund-orphan durability
+pass. Three read-only agents were used as source scanners for Stripe
+refund/webhook/reconciliation, ops/security evidence, and privacy/legal
+retention scope. All three were closed, and parent Codex rechecked source
+before classifying or editing. The Stripe integration edits were reviewed
+against the local Stripe payments/Connect guidance before changing refund
+paths.
+
+The Round 14 env allegation was stale for the main app runtime because
+`src/lib/db.ts`, `src/lib/r2.ts`, `src/lib/shippo.ts`, `src/lib/ratelimit.ts`,
+and `src/lib/email.ts` already route critical production env reads through
+`requiredProductionEnv()` or domain-specific runtime behavior. A hidden adjacent
+script residue was real: `scripts/backfill-metros.ts` still used
+`process.env.DATABASE_URL!`. The backfill now uses `requiredScriptEnv()` and
+fails immediately with an explicit missing-env error. The env guardrail now
+scans `scripts/` as well as `src/` and `prisma/` for named `process.env.*`
+non-null assertions. `CLAUDE.md` now states the durable rule as
+seed/backfill/manual data scripts, not just seed scripts.
+
+The source-proven Stripe refund gap was local orphan-marker durability after
+Stripe accepts a first-party refund. Seller refunds and staff case refunds
+already used refund sentinel locks and already wrote Sentry evidence if the
+post-Stripe database transaction failed, but their fallback
+`prisma.order.updateMany()` marker did not check that exactly one pending-lock
+order was updated. If that fallback matched zero rows, the route could surface
+only the original transaction failure while failing to prove that the local
+manual-reconciliation marker landed. Both seller and case refund orphan paths
+now mirror the stricter blocked-checkout refund behavior: write the orphan
+marker into the pending-lock order, require `orphanRecord.count === 1`, capture
+marker failures with the existing source tags, and rethrow the marker failure so
+the missing durable local evidence is not silently treated as recorded.
+
+Parent verification treated the agents' remaining ops/privacy findings as
+external evidence or untracked-doc drift, not source defects. Stripe dashboard
+event subscriptions, Connect live-mode/loss-liability decisions, Sentry alert
+routing, Cloudflare R2 bucket posture/smoke proof, Clerk MFA/breached-password
+and multi-account spam settings, GitHub dashboard controls, legal counsel sign-
+off, provider-side privacy checks, and HSTS preload-list status remain manual
+or legal/dashboard evidence items. `AGENTS.md` contains stale duplicate text in
+several of those areas, but it is an untracked local file in this worktree and
+was not edited, staged, or committed.
+
+Guardrails:
+`tests/env-validation.test.mjs` and
+`tests/payment-side-effect-observability.test.mjs`.
+
+Verification:
+focused `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/env-validation.test.mjs tests/payment-side-effect-observability.test.mjs`
+(29/29 tests passing across 2 suites),
+`npx tsc --noEmit`,
+`npm run lint` (exit 0; existing JSX AST utility warning emitted),
+`npm audit --audit-level=moderate` (0 vulnerabilities),
+`git diff --check`,
+`npm test` (1350/1350 tests passing across 254 suites), and
+`npm run build`.
+
+Current running tally after Entry 434: verified fixed/reduced 841, verified
+stale/false-positive/current 473, deferred product/design/ops/legal 73,
+approximate raw allegations left from current max #1126: 79. The fixed count
+increases by three for explicit metro-backfill script env validation, seller
+refund orphan-marker count enforcement, and staff case refund orphan-marker
+count enforcement. Stale/current, deferred, and approximate raw counts stay flat
+because the Round 14 app-env/performance/upload items and the reviewed
+ops/privacy evidence items were already classified earlier or remain
+source-discovered residues inside existing categories rather than newly closed
+raw-number allegations.
+
+Remaining major categories: Stripe refund runtime/orphan reconciliation proof
+and backfill design, Stripe webhook subscription dashboard evidence, Stripe
+Connect v2 loss-liability ops/legal decision, stale remote branch and old git
+author hygiene, Round 10 deferred cache/state-machine product designs that
+require product decisions rather than source guardrails, remaining
+EXPLAIN-dependent query-plan/index validation, Stripe partial-refund runtime
+reconciliation proof, founding-maker permanence policy, remaining privacy/legal
+retention scope, remaining privacy/export retention decisions, cross-seller AI
+duplicate-detection product design, legacy enum cleanup/data-migration
+decisions, partial multi-seller checkout continuation design, deliberate BigInt
+money-column modeling, live-data reconciliation for historical seller
+shipping-rate currency drift, Clerk staff MFA and breached-password dashboard
+evidence, Clerk multi-account spam dashboard evidence, buyer-deletion runtime
+replay proof, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public-bucket/dashboard posture plus
+production smoke evidence and public-availability proof, HSTS preload
+submission decision, residual lower-risk HTTP-status/logging hygiene outside
+touched routes, Vercel Analytics/Speed Insights product/privacy decision,
+remaining homepage runtime a11y proof, and residual agent/worktree verification
+process hygiene.

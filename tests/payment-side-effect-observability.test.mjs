@@ -87,6 +87,37 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(route, /manualStripeReconciliationNeeded: true/);
   });
 
+  it("keeps seller and case orphan refund markers retryable until local state is durable", () => {
+    const sellerRoute = source("src/app/api/orders/[id]/refund/route.ts");
+    const caseRoute = source("src/app/api/cases/[id]/resolve/route.ts");
+
+    const sellerOrphanStart = sellerRoute.indexOf('source: "seller_refund_orphan_record_failed"');
+    assert.ok(sellerOrphanStart > 0, "seller refund orphan marker failures should be observable");
+    const sellerOrphanBlock = sellerRoute.slice(
+      sellerRoute.lastIndexOf("try {", sellerOrphanStart),
+      sellerRoute.indexOf("} else {", sellerOrphanStart),
+    );
+    assert.match(sellerOrphanBlock, /const orphanRecord = await prisma\.order\.updateMany/);
+    assert.match(sellerOrphanBlock, /where: \{ id: orderId, sellerRefundId: REFUND_LOCK_SENTINEL \}/);
+    assert.match(sellerOrphanBlock, /if \(orphanRecord\.count !== 1\)/);
+    assert.match(sellerOrphanBlock, /Seller refund orphan record was not written/);
+    assert.match(sellerOrphanBlock, /Sentry\.captureException\(dbError/);
+    assert.match(sellerOrphanBlock, /throw dbError/);
+
+    const caseOrphanStart = caseRoute.indexOf('source: "case_refund_orphaned_review_update_failed"');
+    assert.ok(caseOrphanStart > 0, "case refund orphan marker failures should be observable");
+    const caseOrphanBlock = caseRoute.slice(
+      caseRoute.lastIndexOf("try {", caseOrphanStart),
+      caseRoute.indexOf("} else if (refunding)", caseOrphanStart),
+    );
+    assert.match(caseOrphanBlock, /const orphanRecord = await prisma\.order\.updateMany/);
+    assert.match(caseOrphanBlock, /where: \{ id: caseRecord\.orderId, sellerRefundId: REFUND_LOCK_SENTINEL \}/);
+    assert.match(caseOrphanBlock, /if \(orphanRecord\.count !== 1\)/);
+    assert.match(caseOrphanBlock, /Case refund orphan record was not written/);
+    assert.match(caseOrphanBlock, /Sentry\.captureException\(reviewUpdateError/);
+    assert.match(caseOrphanBlock, /throw reviewUpdateError/);
+  });
+
   it("serializes staff case refunds and dismissals before Stripe moves money", () => {
     const route = source("src/app/api/cases/[id]/resolve/route.ts");
 

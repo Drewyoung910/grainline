@@ -43,6 +43,7 @@ describe("production env validation", () => {
   it("keeps remaining runtime and seed env lookups explicit instead of non-null assertions", () => {
     const providers = readFileSync(new URL("../src/components/Providers.tsx", import.meta.url), "utf8");
     const metroSeed = readFileSync(new URL("../prisma/seeds/metros.ts", import.meta.url), "utf8");
+    const metroBackfill = readFileSync(new URL("../scripts/backfill-metros.ts", import.meta.url), "utf8");
 
     assert.match(providers, /resolveClerkPublishableKey/);
     assert.match(providers, /NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY env var is required in production/);
@@ -50,11 +51,15 @@ describe("production env validation", () => {
 
     assert.match(metroSeed, /requiredSeedEnv\("DATABASE_URL"\)/);
     assert.doesNotMatch(metroSeed, /process\.env\.DATABASE_URL!/);
+
+    assert.match(metroBackfill, /requiredScriptEnv\("DATABASE_URL"\)/);
+    assert.match(metroBackfill, /env var is required to run scripts\/backfill-metros\.ts/);
+    assert.doesNotMatch(metroBackfill, /process\.env\.DATABASE_URL!/);
   });
 
   it("does not use non-null assertions on named process.env variables", () => {
     const offenders = [];
-    for (const file of sourceFiles(["src", "prisma"])) {
+    for (const file of sourceFiles(["src", "prisma", "scripts"])) {
       const text = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
       if (/process\.env\.[A-Z0-9_]+!/.test(text)) offenders.push(file);
     }

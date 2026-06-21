@@ -8,7 +8,13 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
+function requiredScriptEnv(name: string) {
+  const value = process.env[name];
+  if (typeof value === "string" && value.trim().length > 0) return value;
+  throw new Error(`${name} env var is required to run scripts/backfill-metros.ts.`);
+}
+
+const adapter = new PrismaPg({ connectionString: requiredScriptEnv("DATABASE_URL") });
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const prisma = new PrismaClient({ adapter } as any);
 

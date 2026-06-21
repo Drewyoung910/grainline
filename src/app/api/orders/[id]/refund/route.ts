@@ -468,8 +468,8 @@ export async function POST(
           tags: { source: "seller_refund_orphaned_after_stripe" },
           extra: { orderId, refundId, refundIds, refundAmountCents },
         });
-        await prisma.order
-          .updateMany({
+        try {
+          const orphanRecord = await prisma.order.updateMany({
             where: { id: orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
             data: {
               sellerRefundId: refundId,
@@ -478,13 +478,17 @@ export async function POST(
               reviewNeeded: true,
               reviewNote: `ORPHANED REFUND: Stripe refund(s) ${refundIds.join(", ")} were created, but follow-up DB work failed. Manual reconciliation required.`,
             },
-          })
-          .catch((dbError) => {
-            Sentry.captureException(dbError, {
-              tags: { source: "seller_refund_orphan_record_failed" },
-              extra: { orderId, refundId, refundIds, refundAmountCents },
-            });
           });
+          if (orphanRecord.count !== 1) {
+            throw new Error("Seller refund orphan record was not written.");
+          }
+        } catch (dbError) {
+          Sentry.captureException(dbError, {
+            tags: { source: "seller_refund_orphan_record_failed" },
+            extra: { orderId, refundId, refundIds, refundAmountCents },
+          });
+          throw dbError;
+        }
       } else {
         await prisma.order
           .updateMany({

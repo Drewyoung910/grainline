@@ -443,21 +443,27 @@ export async function POST(
             refundAmountForOrder,
           },
         });
-        await prisma.order.updateMany({
-          where: { id: caseRecord.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
-          data: {
-            sellerRefundId: stripeRefundId,
-            sellerRefundAmountCents: refundAmountForOrder,
-            sellerRefundLockedAt: null,
-            reviewNeeded: true,
-            reviewNote: `ORPHANED REFUND: Stripe refund(s) ${stripeRefundIds.join(", ")} were created, but case resolution DB work failed. Manual reconciliation required.`,
-          },
-        }).catch((reviewUpdateError) => {
+        try {
+          const orphanRecord = await prisma.order.updateMany({
+            where: { id: caseRecord.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
+            data: {
+              sellerRefundId: stripeRefundId,
+              sellerRefundAmountCents: refundAmountForOrder,
+              sellerRefundLockedAt: null,
+              reviewNeeded: true,
+              reviewNote: `ORPHANED REFUND: Stripe refund(s) ${stripeRefundIds.join(", ")} were created, but case resolution DB work failed. Manual reconciliation required.`,
+            },
+          });
+          if (orphanRecord.count !== 1) {
+            throw new Error("Case refund orphan record was not written.");
+          }
+        } catch (reviewUpdateError) {
           Sentry.captureException(reviewUpdateError, {
             tags: { source: "case_refund_orphaned_review_update_failed" },
             extra: { caseId: id, orderId: caseRecord.orderId, stripeRefundId, stripeRefundIds },
           });
-        });
+          throw reviewUpdateError;
+        }
       } else if (refunding) {
         await prisma.order.updateMany({
           where: { id: caseRecord.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
