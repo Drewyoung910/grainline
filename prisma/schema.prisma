@@ -1211,6 +1211,7 @@ model AccountDeletionSideEffect {
   updatedAt     DateTime  @updatedAt
 
   @@index([status, nextAttemptAt])
+  @@index([status, processedAt])
   @@index([userId, kind])
 }
 

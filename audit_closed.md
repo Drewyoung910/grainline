@@ -8869,3 +8869,106 @@ ListBucket/public-bucket/dashboard posture plus production smoke evidence and
 public-availability proof, HSTS preload submission decision, Vercel
 Analytics/Speed Insights product/privacy decision, and remaining homepage
 browser a11y/runtime proof beyond source fallback.
+
+Entry 442 closes a hidden account-deletion side-effect retention issue found by
+read-only sidecar scan and parent source review. Parent Codex also reverified
+the adjacent Round 9 account-deletion/export/test-quality raw clusters before
+accepting classifications; no raw audit import was staged.
+
+Verified fixed/reduced:
+
+- Completed `AccountDeletionSideEffect` rows no longer retain deleted-user ids
+  in `userId` and raw-user-id-prefixed `dedupKey` indefinitely after recovery
+  is complete. `DONE` rows already clear `payload`; they are now pruned after
+  a 90-day retention window by the existing half-hour
+  `/api/cron/account-deletion-side-effects` job.
+- The prune path is bounded and limited to rows with `status = DONE` and
+  non-null `processedAt` older than the cutoff, so `PENDING`, `PROCESSING`, and
+  `FAILED` recovery evidence remains available for retry/manual follow-up.
+- Added `@@index([status, processedAt])` plus migration
+  `20260621233500_account_deletion_side_effect_retention` for the terminal-row
+  retention query.
+
+Verified current/stale/duplicate during the same pass:
+
+- Raw #866, #869, and #870 remain stale/current on current `main`: buyer
+  account deletion and fulfilled-order PII pruning clear retained city/state/
+  postal/country address snapshots, tracking fields, Shippo shipment/rate/
+  transaction ids, label URL/carrier/tracking values, gift notes, seller notes,
+  and shipping-rate quote rows.
+- Raw #867 is an intentional current retention boundary, not a source defect:
+  account deletion removes blocks created by the deleted user while preserving
+  incoming block rows for the other user's moderation controls; block filters
+  ignore deleted-account edges through `deletedAt: null` joins.
+- Raw #868 and #873-#879 remain already fixed/current: account export includes
+  the previously missing portability sections, order payment-event metadata,
+  listing photo originals, and seller broadcasts; account deletion clears
+  gallery alt text, seller-owned retained fulfillment artifacts, queued outbox
+  content, and audit reasons where applicable.
+- Raw #881 and #882 are stale under current test names: `safeJsonLd()` breakout
+  escaping is covered by `tests/rendering-security.test.mjs`, and centralized
+  blog markdown sanitization is covered by
+  `tests/blog-markdown-sanitization.test.mjs`. The adjacent #884/#885/#887/
+  #889/#890/#893/#894 quality, Guild, AI fail-closed, anonymous-cart,
+  currency, API-error, and alt-text guardrails also remain current in tests.
+
+Guardrails:
+`tests/account-deletion-side-effects.test.mjs`,
+`tests/retention-and-ops-followups.test.mjs`,
+`tests/round9-account-deletion-pii-guardrails.test.mjs`,
+`tests/account-export-privacy.test.mjs`,
+`tests/account-export-payload.test.mjs`,
+`tests/rendering-security.test.mjs`,
+`tests/blog-markdown-sanitization.test.mjs`,
+`tests/quality-score-state.test.mjs`,
+`tests/guild-metrics-state.test.mjs`,
+`tests/ai-review-outer-failclosed.test.mjs`,
+`tests/anonymous-cart-merge.test.mjs`,
+`tests/currency-format-drift.test.mjs`,
+`tests/photo-alt-text-backfill.test.mjs`, and
+`tests/api-error.test.mjs`.
+
+Verification:
+focused `node --test tests/account-deletion-side-effects.test.mjs tests/retention-and-ops-followups.test.mjs`
+(19/19 tests passing across 2 suites),
+expanded `node --test tests/round9-account-deletion-pii-guardrails.test.mjs tests/account-export-privacy.test.mjs tests/account-export-payload.test.mjs tests/quality-score-state.test.mjs tests/guild-metrics-state.test.mjs tests/ai-review-outer-failclosed.test.mjs tests/anonymous-cart-merge.test.mjs tests/currency-format-drift.test.mjs tests/photo-alt-text-backfill.test.mjs tests/api-error.test.mjs`
+(69/69 tests passing across 10 suites),
+rendering `node --test tests/rendering-security.test.mjs tests/blog-markdown-sanitization.test.mjs`
+(10/10 tests passing across 2 suites),
+`npx tsc --noEmit`,
+`git diff --check`,
+`npm run lint` (exit 0; existing JSX AST utility warning only),
+`npm audit --audit-level=moderate` (0 vulnerabilities),
+`npm test` (1372/1372 tests passing across 255 suites), and
+`npm run build` passed.
+
+Current running tally after Entry 442: verified fixed/reduced 881, verified
+stale/false-positive/current 504, deferred product/design/ops/legal 82,
+approximate raw allegations left from current max #1126: 35. Fixed/reduced
+increases by one for the hidden completed account-deletion side-effect
+retention fix. Stale/current and deferred counts do not increase because the
+rechecked raw #866-#894 items were already classified in prior entries; this
+pass records parent reverification and the new hidden issue without raw tally
+inflation. Raw-left remains unchanged for the same reason.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger, label clawback policy/runtime proof,
+Stripe webhook subscription dashboard evidence, Stripe Connect v2
+loss-liability ops/legal decision, stale remote branch and old git author
+hygiene, Round 10 deferred cache/state-machine product designs that require
+product decisions rather than source guardrails, remaining EXPLAIN-dependent
+query-plan/index validation, Stripe partial-refund runtime reconciliation proof,
+founding-maker permanence policy, remaining privacy/legal retention scope,
+remaining privacy/export retention decisions, shipping quote PII-minimization
+provider smoke/product decision, cross-seller AI duplicate-detection product
+design, legacy enum cleanup/data-migration decisions, partial multi-seller
+checkout continuation design, deliberate BigInt money-column modeling,
+variant-adjusted unit-price floor policy, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket/dashboard posture plus production smoke evidence and
+public-availability proof, HSTS preload submission decision, Vercel
+Analytics/Speed Insights product/privacy decision, and remaining homepage
+browser a11y/runtime proof beyond source fallback.

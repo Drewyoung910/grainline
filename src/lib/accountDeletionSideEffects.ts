@@ -4,6 +4,12 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { deleteR2ObjectByUrl } from "@/lib/r2";
+import { runBoundedDeletionBatches } from "@/lib/cronBatchState";
+import {
+  ACCOUNT_DELETION_SIDE_EFFECT_DONE_RETENTION_BATCH_SIZE,
+  ACCOUNT_DELETION_SIDE_EFFECT_DONE_RETENTION_TIME_BUDGET_MS,
+  accountDeletionSideEffectDoneRetentionCutoff,
+} from "@/lib/accountDeletionSideEffectRetentionState";
 
 export const ACCOUNT_DELETION_SIDE_EFFECT_STATUS = {
   PENDING: "PENDING",
@@ -379,4 +385,33 @@ export async function processAccountDeletionSideEffectBatch({ take = 20 } = {}) 
     else failed += 1;
   }
   return { processed, failed, total: effects.length };
+}
+
+export async function pruneCompletedAccountDeletionSideEffects({
+  now = new Date(),
+  batchSize = ACCOUNT_DELETION_SIDE_EFFECT_DONE_RETENTION_BATCH_SIZE,
+  timeBudgetMs = ACCOUNT_DELETION_SIDE_EFFECT_DONE_RETENTION_TIME_BUDGET_MS,
+}: {
+  now?: Date;
+  batchSize?: number;
+  timeBudgetMs?: number;
+} = {}) {
+  const cutoff = accountDeletionSideEffectDoneRetentionCutoff(now);
+
+  return runBoundedDeletionBatches({
+    batchSize,
+    timeBudgetMs,
+    deleteBatch: async () => prisma.$executeRaw<number>`
+      DELETE FROM "AccountDeletionSideEffect"
+      WHERE id IN (
+        SELECT id
+        FROM "AccountDeletionSideEffect"
+        WHERE status = ${ACCOUNT_DELETION_SIDE_EFFECT_STATUS.DONE}
+          AND "processedAt" IS NOT NULL
+          AND "processedAt" < ${cutoff}
+        ORDER BY "processedAt" ASC
+        LIMIT ${batchSize}
+      )
+    `,
+  });
 }

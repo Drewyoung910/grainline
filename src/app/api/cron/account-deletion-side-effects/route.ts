@@ -3,7 +3,10 @@ import * as Sentry from "@sentry/nextjs";
 import { verifyCronRequest } from "@/lib/cronAuth";
 import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
-import { processAccountDeletionSideEffectBatch } from "@/lib/accountDeletionSideEffects";
+import {
+  processAccountDeletionSideEffectBatch,
+  pruneCompletedAccountDeletionSideEffects,
+} from "@/lib/accountDeletionSideEffects";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 
 export const runtime = "nodejs";
@@ -24,7 +27,15 @@ export async function GET(request: NextRequest) {
     if (!cronRun.acquired) return NextResponse.json(skippedCronRunResponse(cronRun));
 
     try {
-      const result = await processAccountDeletionSideEffectBatch({ take: 20 });
+      const [retryResult, pruneResult] = await Promise.all([
+        processAccountDeletionSideEffectBatch({ take: 20 }),
+        pruneCompletedAccountDeletionSideEffects(),
+      ]);
+      const result = {
+        ...retryResult,
+        completedPruned: pruneResult.count,
+        completedPruneComplete: pruneResult.complete,
+      };
       await completeCronRun(cronRun, result);
       return NextResponse.json(result);
     } catch (error) {
