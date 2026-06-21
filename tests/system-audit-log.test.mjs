@@ -58,6 +58,8 @@ describe("system audit logging", () => {
 
   it("audits Stripe webhook financial state transitions through SystemAuditLog", () => {
     const webhook = source("src/app/api/stripe/webhook/route.ts");
+    const mirror = source("src/lib/stripeWebhookMirror.ts");
+    const v2Webhook = source("src/app/api/stripe/webhook/v2/route.ts");
 
     assert.match(webhook, /import \{ logSystemActionOrThrow \} from "@\/lib\/systemAudit"/);
     assert.match(webhook, /action: "STRIPE_CHECKOUT_ORDER_CREATED"/);
@@ -65,8 +67,26 @@ describe("system audit logging", () => {
     assert.match(webhook, /checkoutMode: "single"/);
     assert.match(webhook, /action: "STRIPE_REFUND_RECORDED"/);
     assert.match(webhook, /action: "STRIPE_DISPUTE_RECORDED"/);
+    assert.match(webhook, /action: "STRIPE_ACCOUNT_DEAUTHORIZED"/);
     assert.match(webhook, /actorType: "webhook"/);
     assert.match(webhook, /actorId: event\.id/);
+
+    assert.match(mirror, /import \{ logSystemActionOrThrow \} from "@\/lib\/systemAudit"/);
+    assert.match(mirror, /prisma\.\$transaction\(async \(tx\) => \{/);
+    assert.match(mirror, /action: "STRIPE_ACCOUNT_CHARGES_UPDATED"/);
+    assert.match(mirror, /targetType: "SELLER_PROFILE"/);
+    assert.match(mirror, /targetId: seller\.id/);
+    assert.match(mirror, /actorType: auditActorType/);
+    assert.match(mirror, /actorId: actorId \?\? null/);
+    assert.match(mirror, /previousChargesEnabled: seller\.chargesEnabled/);
+    assert.match(mirror, /chargesEnabled: effectiveChargesEnabled/);
+    assert.match(mirror, /stripeChargesEnabled: chargesEnabled/);
+
+    assert.match(webhook, /actorType: "webhook",\s*actorId: event\.id,[\s\S]*action: "STRIPE_ACCOUNT_DEAUTHORIZED"/);
+    assert.match(webhook, /previousChargesEnabled: seller\.chargesEnabled/);
+    assert.match(webhook, /stripeAccountCleared: true/);
+    assert.match(v2Webhook, /actorType: "webhook"/);
+    assert.match(v2Webhook, /actorId: stripeEventId/);
 
     for (const action of [
       "STRIPE_CHECKOUT_ORDER_CREATED",

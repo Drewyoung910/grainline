@@ -151,6 +151,8 @@ describe("Stripe Connect v2 migration guardrails", () => {
     assert.match(createRoute, /privateJson\(\{ url: link\.url \}\)/);
     assert.match(createRoute, /privateResponse\(rateLimitResponse\(/);
     assert.doesNotMatch(createRoute, /NextResponse\.json/);
+    assert.match(createRoute, /import \{ mirrorStripeChargesEnabled \} from "@\/lib\/stripeWebhookMirror"/);
+    assert.match(createRoute, /mirrorStripeChargesEnabled\(\{\s*accountId,[\s\S]*route: "\/api\/stripe\/connect\/create"/);
     assert.match(createRoute, /catch \(error\) \{[\s\S]*source: "stripe_connect_create_status_refresh"/);
     const refreshTelemetryStart = createRoute.indexOf('source: "stripe_connect_create_status_refresh"');
     const refreshTelemetryBlock = createRoute.slice(refreshTelemetryStart, createRoute.indexOf("// Non-fatal", refreshTelemetryStart));
@@ -174,6 +176,8 @@ describe("Stripe Connect v2 migration guardrails", () => {
     assert.match(statusRoute, /ensureUserByClerkId\(userId\)/);
     assert.match(statusRoute, /accountAccessErrorResponse\(err\)/);
     assert.match(statusRoute, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
+    assert.match(statusRoute, /import \{ mirrorStripeChargesEnabled \} from "@\/lib\/stripeWebhookMirror"/);
+    assert.match(statusRoute, /mirrorStripeChargesEnabled\(\{\s*accountId: seller\.stripeAccountId,[\s\S]*route: "\/api\/stripe\/connect\/status"/);
     assert.match(statusRoute, /source: "stripe_connect_status_refresh"/);
     assert.match(statusRoute, /previousChargesEnabled: seller\.chargesEnabled/);
     assert.match(statusRoute, /refreshUnavailable: true/);
@@ -202,6 +206,41 @@ describe("Stripe Connect v2 migration guardrails", () => {
     assert.match(middleware, /pathname === "\/api\/stripe\/webhook\/v2"/);
 
     assert.match(webhook, /event\.type === "account\.application\.deauthorized"/);
+  });
+
+  it("runs scheduled Connect account-state reconciliation through the shared mirror helper", () => {
+    const route = source("src/app/api/cron/stripe-connect-reconcile/route.ts");
+    const helper = source("src/lib/stripeConnectReconcile.ts");
+    const mirror = source("src/lib/stripeWebhookMirror.ts");
+    const vercel = source("vercel.json");
+
+    assert.match(vercel, /"path": "\/api\/cron\/stripe-connect-reconcile"[\s\S]*"schedule": "17 \*\/6 \* \* \*"/);
+    assert.match(route, /verifyCronRequest\(request\)/);
+    assert.match(route, /withSentryCronMonitor\("stripe-connect-reconcile", \{ value: "17 \*\/6 \* \* \*"/);
+    assert.match(route, /beginCronRun\("stripe-connect-reconcile"\)/);
+    assert.match(route, /processStripeConnectAccountReconciliationBatch\(\)/);
+    assert.match(route, /completeCronRun\(cronRun, result\)/);
+    assert.match(route, /failCronRun\(cronRun, error\)/);
+    assert.match(route, /source: "cron_stripe_connect_reconcile"/);
+
+    assert.match(helper, /STRIPE_CONNECT_RECONCILE_BATCH_SIZE = 200/);
+    assert.match(helper, /runCronCursorPages\(\{/);
+    assert.match(helper, /pageSize: batchSize/);
+    assert.match(helper, /stripeAccountId: \{ not: null \}/);
+    assert.match(helper, /cursor: \{ id: cursorId \}, skip: 1/);
+    assert.match(helper, /orderBy: \{ id: "asc" \}/);
+    assert.match(helper, /getCursor: \(seller\) => seller\.id/);
+    assert.match(helper, /result\.pagesFetched = pageResult\.pagesFetched/);
+    assert.match(helper, /isSupportedStripeConnectAccountVersion\(seller\.stripeAccountVersion\)/);
+    assert.match(helper, /stripeClient\.accounts\.retrieve\(seller\.stripeAccountId\)/);
+    assert.match(helper, /mirrorStripeChargesEnabled\(\{[\s\S]*route: "\/api\/cron\/stripe-connect-reconcile"/);
+    assert.match(helper, /logServerError\(error, \{[\s\S]*source: "stripe_connect_reconcile_account"/);
+    assert.match(helper, /failures: \[\]/);
+
+    assert.match(mirror, /return \{ matched: false as const \}/);
+    assert.match(mirror, /changed: seller\.chargesEnabled !== effectiveChargesEnabled/);
+    assert.match(mirror, /return result/);
+    assert.match(mirror, /expireOpenCheckoutSessionsForSeller/);
   });
 
   it("preserves destination-charge accounting and full-refund transfer reversal behavior", () => {

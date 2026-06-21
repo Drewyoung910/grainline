@@ -52,6 +52,16 @@ describe("cron run idempotency helpers", () => {
       { count: 3, keys: ["failures", "errors"] },
     );
 
+    assert.deepEqual(
+      cronRunPartialIssueSummary({
+        failed: 1,
+        manualReview: 2,
+        partialIssueCount: 3,
+        skipped: 5,
+      }),
+      { count: 6, keys: ["failed", "manualReview", "partialIssueCount"] },
+    );
+
     assert.deepEqual(cronRunPartialIssueSummary({ failures: [], errors: "not-array" }), {
       count: 0,
       keys: [],

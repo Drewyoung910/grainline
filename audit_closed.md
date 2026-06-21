@@ -8051,6 +8051,116 @@ touched routes, Vercel Analytics/Speed Insights product/privacy decision,
 remaining homepage runtime a11y proof, and residual agent/worktree verification
 process hygiene.
 
+Entry 435 closes a parent-verified Stripe Connect account-state and
+completed-cron partial-failure observability pass. Two read-only agents scanned
+the same Stripe/ops area for missed source residues. Both agents were closed,
+and parent Codex rechecked source before editing or classifying. The Stripe
+Connect changes were reviewed against local Stripe payments/Connect guidance
+before implementation.
+
+The first source-proven gap was that Stripe account orderability refreshes were
+still purely event/seller-action driven. Stripe snapshot `account.updated`,
+Connect v2 account notifications, and seller-triggered status refreshes existed,
+but no scheduled source-of-truth comparison caught missed/exhausted account
+events. `/api/cron/stripe-connect-reconcile` now runs every six hours, pages
+seller profiles with a Stripe account id through `runCronCursorPages()`,
+retrieves each supported Stripe account, and sends the observed
+`charges_enabled` value through `mirrorStripeChargesEnabled()`. The cron uses
+`verifyCronRequest()`, `beginCronRun`/`completeCronRun`/`failCronRun`,
+`withSentryCronMonitor`, bounded per-page concurrency, per-account Sentry
+evidence, and `CronRun.result.failures` for partial reconcile failures. This is
+a missed-event backstop, not a replacement for Stripe Dashboard webhook
+subscription evidence.
+
+The second source-proven gap was direct seller-triggered Connect status writes.
+`/api/stripe/connect/status` and the existing-account refresh path in
+`/api/stripe/connect/create` now use the shared mirror helper instead of direct
+`SellerProfile.chargesEnabled` writes, so local banned/deleted-account
+suppression, public seller/listing cache invalidation, checkout-session expiry
+on disable, and account-state audit evidence stay centralized.
+
+The third source-proven gap was durable audit evidence for automated Stripe
+account-state transitions. `mirrorStripeChargesEnabled()` now co-commits
+`STRIPE_ACCOUNT_CHARGES_UPDATED` `SystemAuditLog` rows with the state change,
+including previous/effective state, Stripe account id, route, actor type, and
+webhook/cron actor id where available. `account.application.deauthorized` now
+clears local Stripe account state inside a transaction that writes
+`STRIPE_ACCOUNT_DEAUTHORIZED` audit rows before cache invalidation, open-order
+review holds, and checkout-session expiry run.
+
+The fourth source-proven gap was completed cron partial failures with scalar
+result fields. `/api/cron/ops-health` already checked completed `CronRun` rows
+for non-empty `failures` and `errors` arrays, but it missed successful HTTP
+cron runs that reported positive scalar counters such as `failed` or
+`manualReview`. `cronRunPartialIssueSummary()` now counts positive finite
+`failed`, `manualReview`, and `partialIssueCount` values in addition to array
+failures, so those completed cron runs can surface through the existing
+ops-health signal.
+
+Parent verification intentionally did not close the adjacent orphan-refund
+ledger residue found during this pass. Seller, case, and blocked-checkout
+orphan-marker paths now require durable local order markers after Stripe accepts
+a refund, but the fallback branches still need a separate refund-accounting
+pass to decide and test whether orphan recovery should also write
+`OrderPaymentEvent` plus `SystemAuditLog` refund ledger rows. That remains
+inside the Stripe refund runtime/orphan reconciliation category rather than
+being silently marked fixed here.
+
+Guardrails:
+`tests/stripe-connect-v2.test.mjs`,
+`tests/stripe-webhook-v2-route.test.mjs`,
+`tests/cache-invalidation-guardrails.test.mjs`,
+`tests/cron-run.test.mjs`,
+`tests/cron-schedule-guardrails.test.mjs`,
+`tests/route-max-duration-guardrails.test.mjs`,
+`tests/public-cron-search-hardening.test.mjs`,
+`tests/system-audit-log.test.mjs`, and
+`tests/post-launch-ui-followups.test.mjs`.
+
+Verification:
+focused `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/stripe-connect-v2.test.mjs tests/stripe-webhook-v2-route.test.mjs tests/cache-invalidation-guardrails.test.mjs tests/cron-run.test.mjs tests/cron-schedule-guardrails.test.mjs tests/route-max-duration-guardrails.test.mjs tests/public-cron-search-hardening.test.mjs tests/system-audit-log.test.mjs`
+(46/46 tests passing across 8 suites),
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/post-launch-ui-followups.test.mjs`
+(38/38 tests passing),
+`npx tsc --noEmit`,
+`npm run lint` (exit 0; existing JSX AST utility warning emitted),
+`npm audit --audit-level=moderate` (0 vulnerabilities),
+`git diff --check`,
+`npm test` (1351/1351 tests passing across 254 suites), and
+`npm run build`.
+
+Current running tally after Entry 435: verified fixed/reduced 845, verified
+stale/false-positive/current 473, deferred product/design/ops/legal 73,
+approximate raw allegations left from current max #1126: 79. The fixed count
+increases by four for scheduled Stripe Connect account-state reconciliation,
+seller-triggered Connect status refresh centralization through the shared mirror,
+durable `SystemAuditLog` evidence for Stripe account-state changes and
+deauthorization, and scalar completed-cron partial-failure detection. Stale,
+deferred, and approximate raw counts stay flat because these are
+source-discovered residues inside already-classified Stripe/ops categories, not
+newly closed raw-number allegations.
+
+Remaining major categories: Stripe refund runtime/orphan reconciliation proof
+and backfill design, including the orphan-refund ledger residue noted above,
+Stripe webhook subscription dashboard evidence, Stripe Connect v2 loss-liability
+ops/legal decision, stale remote branch and old git author hygiene, Round 10
+deferred cache/state-machine product designs that require product decisions
+rather than source guardrails, remaining EXPLAIN-dependent query-plan/index
+validation, Stripe partial-refund runtime reconciliation proof, founding-maker
+permanence policy, remaining privacy/legal retention scope, remaining
+privacy/export retention decisions, cross-seller AI duplicate-detection product
+design, legacy enum cleanup/data-migration decisions, partial multi-seller
+checkout continuation design, deliberate BigInt money-column modeling,
+live-data reconciliation for historical seller shipping-rate currency drift,
+Clerk staff MFA and breached-password dashboard evidence, Clerk multi-account
+spam dashboard evidence, buyer-deletion runtime replay proof, Founding Maker
+live DB concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket/dashboard posture plus production smoke evidence and
+public-availability proof, HSTS preload submission decision, residual
+lower-risk HTTP-status/logging hygiene outside touched routes, Vercel
+Analytics/Speed Insights product/privacy decision, remaining homepage runtime
+a11y proof, and residual agent/worktree verification process hygiene.
+
 Entry 434 closes a parent-verified env-script and refund-orphan durability
 pass. Three read-only agents were used as source scanners for Stripe
 refund/webhook/reconciliation, ops/security evidence, and privacy/legal

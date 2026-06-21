@@ -23,7 +23,8 @@ describe("post-launch UI follow-ups", () => {
     assert.match(wizard, /stripe_return=1/);
     assert.match(sellerButton, /\/dashboard\/seller\?stripe_return=1/);
     assert.match(statusRoute, /stripe\.accounts\.retrieve/);
-    assert.match(statusRoute, /data: \{ chargesEnabled \}/);
+    assert.match(statusRoute, /mirrorStripeChargesEnabled/);
+    assert.match(statusRoute, /route: "\/api\/stripe\/connect\/status"/);
   });
 
   it("keeps shop identity and workshop gallery canonical on the shop profile page", () => {

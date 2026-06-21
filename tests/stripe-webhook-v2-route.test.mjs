@@ -44,14 +44,18 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
     assert.match(route, /isStripeConnectV2AccountEvent\(stripeEventType\)/);
     assert.match(route, /stripeConnectV2AccountIdFromNotification\(notification\)/);
     assert.match(route, /stripe\.accounts\.retrieve\(accountId\)/);
-    assert.match(route, /mirrorStripeChargesEnabled\(\{\s*accountId,\s*chargesEnabled: Boolean\(account\.charges_enabled\),\s*route: "\/api\/stripe\/webhook\/v2",\s*\}\)/s);
+    assert.match(
+      route,
+      /mirrorStripeChargesEnabled\(\{\s*accountId,\s*chargesEnabled: Boolean\(account\.charges_enabled\),\s*route: "\/api\/stripe\/webhook\/v2",\s*actorType: "webhook",\s*actorId: stripeEventId,\s*\}\)/s,
+    );
 
     assert.match(mirror, /export async function mirrorStripeChargesEnabled/);
     assert.match(mirror, /where: \{ stripeAccountId: accountId \}/);
     assert.match(mirror, /user: \{ select: \{ id: true, banned: true, deletedAt: true \} \}/);
     assert.match(mirror, /const localAccountActive = !seller\.user\.banned && !seller\.user\.deletedAt/);
     assert.match(mirror, /const effectiveChargesEnabled = chargesEnabled && localAccountActive/);
-    assert.match(mirror, /seller\.chargesEnabled === effectiveChargesEnabled/);
+    assert.match(mirror, /changed: seller\.chargesEnabled !== effectiveChargesEnabled/);
+    assert.match(mirror, /action: "STRIPE_ACCOUNT_CHARGES_UPDATED"/);
     assert.match(mirror, /data: \{ chargesEnabled: effectiveChargesEnabled \}/);
     assert.match(mirror, /logSecurityEvent\("ownership_violation"/);
     assert.match(mirror, /expireOpenCheckoutSessionsForSeller/);

@@ -2032,6 +2032,8 @@ export async function POST(req: Request) {
           await mirrorStripeChargesEnabled({
             accountId: account.id,
             chargesEnabled: Boolean(account.charges_enabled),
+            actorType: "webhook",
+            actorId: event.id,
           });
         }
         return NextResponse.json({ received: true });
@@ -2320,15 +2322,34 @@ export async function POST(req: Request) {
         if (deauthAccount.id) {
           const affectedSellers = await prisma.sellerProfile.findMany({
             where: { stripeAccountId: deauthAccount.id },
-            select: { id: true },
+            select: { id: true, chargesEnabled: true },
           });
           const affectedSellerIds = affectedSellers.map((seller) => seller.id);
-          await prisma.sellerProfile.updateMany({
-            where: { stripeAccountId: deauthAccount.id },
-            data: {
-              chargesEnabled: false,
-              stripeAccountId: null,
-            },
+          await prisma.$transaction(async (tx) => {
+            await tx.sellerProfile.updateMany({
+              where: { stripeAccountId: deauthAccount.id },
+              data: {
+                chargesEnabled: false,
+                stripeAccountId: null,
+              },
+            });
+            for (const seller of affectedSellers) {
+              await logSystemActionOrThrow({
+                client: tx,
+                actorType: "webhook",
+                actorId: event.id,
+                action: "STRIPE_ACCOUNT_DEAUTHORIZED",
+                targetType: "SELLER_PROFILE",
+                targetId: seller.id,
+                metadata: {
+                  stripeEventType: event.type,
+                  stripeAccountId: deauthAccount.id,
+                  previousChargesEnabled: seller.chargesEnabled,
+                  chargesEnabled: false,
+                  stripeAccountCleared: true,
+                },
+              });
+            }
           });
           if (affectedSellerIds.length > 0) {
             revalidatePublicSellerVisibilityCaches();

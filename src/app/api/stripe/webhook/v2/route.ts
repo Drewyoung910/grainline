@@ -183,6 +183,8 @@ export async function POST(req: Request) {
           accountId,
           chargesEnabled: Boolean(account.charges_enabled),
           route: "/api/stripe/webhook/v2",
+          actorType: "webhook",
+          actorId: stripeEventId,
         });
       }
 

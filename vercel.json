@@ -58,6 +58,10 @@
       "schedule": "*/30 * * * *"
     },
     {
+      "path": "/api/cron/stripe-connect-reconcile",
+      "schedule": "17 */6 * * *"
+    },
+    {
       "path": "/api/cron/order-pii-prune",
       "schedule": "40 12 * * *"
     }

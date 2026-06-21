@@ -4,9 +4,9 @@ import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { isSupportedStripeConnectAccountVersion } from "@/lib/stripeConnectV2";
+import { mirrorStripeChargesEnabled } from "@/lib/stripeWebhookMirror";
 import { rateLimitResponse, safeRateLimit, stripeConnectRatelimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
-import { revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { logServerError } from "@/lib/serverErrorLogger";
 
@@ -43,15 +43,16 @@ export async function GET() {
   try {
     const account = await stripe.accounts.retrieve(seller.stripeAccountId);
     const chargesEnabled = account.charges_enabled ?? false;
-    if (chargesEnabled !== seller.chargesEnabled) {
-      await prisma.sellerProfile.update({
-        where: { id: seller.id },
-        data: { chargesEnabled },
-      });
-      revalidatePublicSellerVisibilityCaches();
-    }
+    const mirrorResult = await mirrorStripeChargesEnabled({
+      accountId: seller.stripeAccountId,
+      chargesEnabled,
+      route: "/api/stripe/connect/status",
+    });
 
-    return privateJson({ hasStripeAccount: true, chargesEnabled });
+    return privateJson({
+      hasStripeAccount: true,
+      chargesEnabled: mirrorResult.matched ? mirrorResult.chargesEnabled : chargesEnabled,
+    });
   } catch (error) {
     logServerError(error, {
       source: "stripe_connect_status_refresh",

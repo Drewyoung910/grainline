@@ -11,6 +11,7 @@ import {
   STRIPE_CONNECT_CONTROLLER_SUMMARY,
   isSupportedStripeConnectAccountVersion,
 } from "@/lib/stripeConnectV2";
+import { mirrorStripeChargesEnabled } from "@/lib/stripeWebhookMirror";
 import { isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
 import { z } from "zod";
 import { revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
@@ -98,13 +99,11 @@ export async function POST(req: Request) {
     try {
       const account = await stripe.accounts.retrieve(accountId);
       const chargesEnabled = account.charges_enabled ?? false;
-      if (chargesEnabled !== seller.chargesEnabled) {
-        await prisma.sellerProfile.update({
-          where: { id: seller.id },
-          data: { chargesEnabled },
-        });
-        revalidatePublicSellerVisibilityCaches();
-      }
+      await mirrorStripeChargesEnabled({
+        accountId,
+        chargesEnabled,
+        route: "/api/stripe/connect/create",
+      });
     } catch (error) {
       logServerError(error, {
         source: "stripe_connect_create_status_refresh",

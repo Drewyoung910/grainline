@@ -133,6 +133,7 @@ Stripe:
 7. For checkout or refund incidents, compare Stripe charge/payment/refund IDs against `OrderPaymentEvent`.
 8. If a blocked-checkout refund was accepted by Stripe, confirm the refund ID is durably recorded on the `Order`, in `OrderPaymentEvent`, and in the related `SystemAuditLog` entry. If the Stripe webhook delivery is still failed, replay it rather than issuing another manual refund first; the refund idempotency key is session-scoped.
 9. For blocked-checkout refund recovery incidents, check Sentry tags `stripe_webhook_blocked_checkout_orphaned_after_stripe`, `stripe_webhook_blocked_checkout_orphan_record_failed`, `stripe_webhook_blocked_checkout_refund`, and `stripe_webhook_blocked_checkout_refund_notification`. Notification failures are warning telemetry. `stripe_webhook_blocked_checkout_refund` without a Stripe refund ID means the local sentinel was released and the checkout webhook should remain failed/retryable so Stripe can retry the refund attempt; orphan-record failures mean local refund evidence may be incomplete and the failed webhook should stay retryable until the refund ID is recorded.
+10. For Stripe Connect orderability drift, check recent `SystemAuditLog` rows for `STRIPE_ACCOUNT_CHARGES_UPDATED` or `STRIPE_ACCOUNT_DEAUTHORIZED`, then check the latest `CronRun` for `stripe-connect-reconcile`. The six-hour reconciliation cron is a backstop for missed account-state events, not a substitute for replaying failed Stripe webhook deliveries.
 
 Clerk:
 
@@ -171,7 +172,7 @@ Production migration rules:
 
 ## Cron and Email Outbox
 
-1. Check the hourly `/api/cron/ops-health` Sentry warning first; it polls failed `CronRun` rows from the last 24 hours, completed cron rows with partial record failures, stale `RUNNING` cron rows, stale email outbox jobs, dead email outbox jobs, overdue support requests, failed or stale unprocessed `StripeWebhookEvent`, `ResendWebhookEvent`, and `ClerkWebhookEvent` rows, and failed or stale `AccountDeletionSideEffect` rows. Also check webhook failure spike alerts for repeated provider edge failures.
+1. Check the hourly `/api/cron/ops-health` Sentry warning first; it polls failed `CronRun` rows from the last 24 hours, completed cron rows with partial record failures, stale `RUNNING` cron rows, stale email outbox jobs, dead email outbox jobs, overdue support requests, failed or stale unprocessed `StripeWebhookEvent`, `ResendWebhookEvent`, and `ClerkWebhookEvent` rows, and failed or stale `AccountDeletionSideEffect` rows. Completed cron partial failures include non-empty `failures`/`errors` arrays plus positive scalar `failed`, `manualReview`, or `partialIssueCount` counters. Also check webhook failure spike alerts for repeated provider edge failures.
 2. Check `/api/cron/*` logs in Vercel for route-level failures.
 3. Check `CronRun` rows with `status = FAILED` in the last 24 hours.
 4. Check Sentry for cron route exceptions and failed cron check-ins.

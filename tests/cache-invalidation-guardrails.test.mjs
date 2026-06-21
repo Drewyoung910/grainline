@@ -46,9 +46,10 @@ describe("public cache invalidation guardrails", () => {
     assert.match(ban, /revalidatePublicSellerVisibilityCaches\(\)/);
     assert.match(deletion, /revalidatePublicSellerVisibilityCaches\(\)/);
     assert.match(mirror, /revalidatePublicSellerVisibilityCaches\(\)/);
+    assert.match(mirror, /expireOpenCheckoutSessionsForSeller/);
     assert.match(webhook, /account\.application\.deauthorized[\s\S]*revalidatePublicSellerVisibilityCaches\(\)/);
-    assert.match(status, /chargesEnabled !== seller\.chargesEnabled[\s\S]*revalidatePublicSellerVisibilityCaches\(\)/);
-    assert.match(create, /chargesEnabled !== seller\.chargesEnabled[\s\S]*revalidatePublicSellerVisibilityCaches\(\)/);
+    assert.match(status, /mirrorStripeChargesEnabled\(\{[\s\S]*route: "\/api\/stripe\/connect\/status"/);
+    assert.match(create, /mirrorStripeChargesEnabled\(\{[\s\S]*route: "\/api\/stripe\/connect\/create"/);
     assert.match(vacation, /data: \{ vacationMode, vacationReturnDate, vacationMessage \}[\s\S]*revalidatePublicSellerVisibilityCaches\(\)/);
     assert.match(sellerSettings, /chargesEnabled !== currentRow\.chargesEnabled[\s\S]*revalidatePublicSellerVisibilityCaches\(\)/);
     assert.match(onboarding, /chargesEnabled !== sp\.chargesEnabled[\s\S]*revalidatePublicSellerVisibilityCaches\(\)/);

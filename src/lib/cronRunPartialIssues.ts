@@ -1,4 +1,5 @@
 export const CRON_RUN_PARTIAL_ISSUE_KEYS = ["failures", "errors"] as const;
+export const CRON_RUN_PARTIAL_ISSUE_NUMERIC_KEYS = ["failed", "manualReview", "partialIssueCount"] as const;
 
 export type CronRunPartialIssueSummary = {
   count: number;
@@ -19,6 +20,12 @@ export function cronRunPartialIssueSummary(result: unknown): CronRunPartialIssue
     const value = result[key];
     if (!Array.isArray(value) || value.length === 0) continue;
     count += value.length;
+    keys.push(key);
+  }
+  for (const key of CRON_RUN_PARTIAL_ISSUE_NUMERIC_KEYS) {
+    const value = result[key];
+    if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) continue;
+    count += Math.trunc(value);
     keys.push(key);
   }
 
