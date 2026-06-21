@@ -51,7 +51,8 @@ describe("public cache invalidation guardrails", () => {
     assert.match(status, /mirrorStripeChargesEnabled\(\{[\s\S]*route: "\/api\/stripe\/connect\/status"/);
     assert.match(create, /mirrorStripeChargesEnabled\(\{[\s\S]*route: "\/api\/stripe\/connect\/create"/);
     assert.match(vacation, /data: \{ vacationMode, vacationReturnDate, vacationMessage \}[\s\S]*revalidatePublicSellerVisibilityCaches\(\)/);
-    assert.match(sellerSettings, /chargesEnabled !== currentRow\.chargesEnabled[\s\S]*revalidatePublicSellerVisibilityCaches\(\)/);
+    assert.match(sellerSettings, /mirrorStripeChargesEnabled\(\{[\s\S]*route: "\/dashboard\/seller"/);
+    assert.doesNotMatch(sellerSettings, /data: \{ chargesEnabled \}/);
     assert.match(onboarding, /chargesEnabled !== sp\.chargesEnabled[\s\S]*revalidatePublicSellerVisibilityCaches\(\)/);
   });
 

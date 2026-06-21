@@ -749,7 +749,13 @@ export default async function SellerOrderDetailPage({
       {/* Seller notes */}
       <section className="card-section p-4 space-y-3">
         <div className="font-medium">Seller notes</div>
-        <SellerNotesForm orderId={order.id} initialNotes={order.sellerNotes ?? ""} />
+        {order.buyerDataPurgedAt ? (
+          <p className="text-sm text-neutral-500">
+            Seller notes were removed under the retention policy.
+          </p>
+        ) : (
+          <SellerNotesForm orderId={order.id} initialNotes={order.sellerNotes ?? ""} />
+        )}
       </section>
 
       <div className="flex gap-3">

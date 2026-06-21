@@ -102,6 +102,33 @@ describe("Stripe webhook state helpers", () => {
     assert.match(disputeBranch, /await prisma\.\$transaction\(async \(tx\) => \{\s+await lockChargeMutation\(tx, chargeId\)/);
   });
 
+  it("treats prevented Stripe disputes as closed across webhook helpers", () => {
+    assert.equal(
+      blockedCheckoutDisputeState({
+        latestDispute: { status: "prevented", stripeObjectId: "dp_1" },
+        reviewPrefix: "Checkout blocked.",
+      }),
+      null,
+    );
+
+    const state = chargeDisputeLedgerState({
+      chargeId: "ch_1",
+      eventType: "charge.dispute.updated",
+      stripeEventCreated: 1_777_777_777,
+      dispute: {
+        id: "dp_1",
+        amount: 500,
+        currency: "usd",
+        status: "prevented",
+        reason: "fraudulent",
+      },
+      orderCurrency: "usd",
+    });
+
+    assert.equal(state.orderUpdate.sellerRefundLockedAt, null);
+    assert.equal(state.ledger.status, "prevented");
+  });
+
   it("keeps unmatched charge refund and dispute webhooks retryable", () => {
     const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
     const refundStart = source.indexOf('if (event.type === "charge.refunded")');

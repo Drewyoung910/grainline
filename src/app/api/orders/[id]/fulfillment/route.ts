@@ -243,6 +243,7 @@ export async function POST(
     }
 
     const data: Record<string, unknown> = {};
+    let notesWriteRequiresUnpurgedOrder = false;
     const now = new Date();
 
     switch (action) {
@@ -278,9 +279,18 @@ export async function POST(
         data.trackingNumber = trackingNumber;
         break;
       }
-      case "update_notes":
-        data.sellerNotes = payload.sellerNotes ? truncateText(sanitizeText(payload.sellerNotes), 2000) || null : null;
+      case "update_notes": {
+        const sellerNotes = payload.sellerNotes ? truncateText(sanitizeText(payload.sellerNotes), 2000) || null : null;
+        if (sellerNotes && authz.order.buyerDataPurgedAt) {
+          return privateJson(
+            { error: "Seller notes are unavailable after buyer data is purged." },
+            { status: HTTP_STATUS.CONFLICT },
+          );
+        }
+        notesWriteRequiresUnpurgedOrder = sellerNotes !== null;
+        data.sellerNotes = sellerNotes;
         break;
+      }
       default:
         return privateJson({ error: "Unknown action" }, { status: 400 });
     }
@@ -292,6 +302,7 @@ export async function POST(
           id,
           sellerRefundId: null,
           paymentEvents: { none: blockingRefundLedgerWhere() },
+          ...(notesWriteRequiresUnpurgedOrder ? { buyerDataPurgedAt: null } : {}),
         },
         data,
       });

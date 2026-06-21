@@ -36,7 +36,8 @@ describe("user text normalization followups", () => {
     assert.match(sellerCheckout, /const giftNote = body\.giftNote \? truncateText\(sanitizeText\(body\.giftNote\), 200\) : ""/);
     assert.match(singleCheckout, /giftNote: body\.giftNote \? truncateText\(sanitizeText\(body\.giftNote\), 200\) : ""/);
     assert.match(report, /const details = body\.details \? truncateText\(sanitizeText\(body\.details\), 500\) \|\| null : null/);
-    assert.match(fulfillment, /data\.sellerNotes = payload\.sellerNotes \? truncateText\(sanitizeText\(payload\.sellerNotes\), 2000\) \|\| null : null/);
+    assert.match(fulfillment, /const sellerNotes = payload\.sellerNotes \? truncateText\(sanitizeText\(payload\.sellerNotes\), 2000\) \|\| null : null/);
+    assert.match(fulfillment, /data\.sellerNotes = sellerNotes/);
     assert.match(audit, /export function sanitizeAdminAuditReason/);
     assert.match(audit, /truncateText\(sanitizeText\(reason\), 500\) \|\| null/);
     assert.match(audit, /reason: sanitizeAdminAuditReason\(reason\)/);

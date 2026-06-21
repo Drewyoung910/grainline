@@ -35,8 +35,7 @@ export async function purgeOldFulfilledOrderBuyerPii({
       WITH pii_candidates AS (
         SELECT id
         FROM "Order"
-        WHERE "buyerDataPurgedAt" IS NULL
-          AND "reviewNeeded" = false
+        WHERE "reviewNeeded" = false
           AND "fulfillmentStatus" IN ('DELIVERED', 'PICKED_UP')
           AND COALESCE("deliveredAt", "pickedUpAt") IS NOT NULL
           AND COALESCE("deliveredAt", "pickedUpAt") < ${cutoff}

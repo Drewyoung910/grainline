@@ -735,6 +735,26 @@ export async function POST(
             ...(typeof purchasedLabelDetails?.labelCostCents === "number"
               ? { labelCostCents: purchasedLabelDetails.labelCostCents }
               : {}),
+            ...(typeof purchasedLabelDetails?.labelCostCents === "number" &&
+            purchasedLabelDetails.labelCostCents > 0
+              ? order.stripeTransferId
+                ? {
+                    labelClawbackStatus: "RETRY_PENDING" as const,
+                    labelClawbackRetryCount: 0,
+                    labelClawbackLastAttemptAt: null,
+                    labelClawbackNextAttemptAt: new Date(),
+                    labelClawbackResolvedAt: null,
+                    labelClawbackReversalId: null,
+                  }
+                : {
+                    labelClawbackStatus: "MANUAL_REVIEW" as const,
+                    labelClawbackRetryCount: 0,
+                    labelClawbackLastAttemptAt: null,
+                    labelClawbackNextAttemptAt: null,
+                    labelClawbackResolvedAt: null,
+                    labelClawbackReversalId: null,
+                  }
+              : {}),
           },
         })
         .catch((updateError) => {

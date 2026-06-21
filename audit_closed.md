@@ -8453,3 +8453,98 @@ ListBucket/public-bucket/dashboard posture plus production smoke evidence and
 public-availability proof, HSTS preload submission decision, Vercel
 Analytics/Speed Insights product/privacy decision, remaining homepage runtime
 a11y proof, and residual agent/worktree verification process hygiene.
+
+Entry 438 closes a wider parent-verified Stripe label/dispute, Stripe Connect
+mirror, and retained-order-PII pass. Three read-only agents were used as sidecar
+source scanners across ops evidence, privacy/retention, and Stripe/refund/Shippo
+areas. All agents were closed, and parent Codex rechecked the cited source
+before editing or classifying anything.
+
+Verified fixed/reduced:
+
+- Post-purchase Shippo label orphan fallback now preserves durable clawback
+  state. If Shippo has already purchased a paid label and follow-up DB work
+  fails, the fallback update records the label fields and also queues
+  `labelClawbackStatus = RETRY_PENDING` with a due retry when the order has a
+  historical transfer ID. If no transfer exists, it records `MANUAL_REVIEW`
+  instead of leaving only a free-text review note.
+- Stripe dispute status handling now uses the canonical
+  `STRIPE_DISPUTE_CLOSED_STATUSES` set in webhook state helpers as well as
+  refund-route/ledger SQL. `prevented` disputes are treated as terminal for
+  blocked-checkout refund decisions and stale refund-lock clearing.
+- Seller Stripe-return refresh on `/dashboard/seller` now routes through
+  `mirrorStripeChargesEnabled()` instead of directly writing
+  `SellerProfile.chargesEnabled`, preserving local account-active guards,
+  system audit evidence, public-visibility cache invalidation, security
+  telemetry, and checkout-session expiry behavior.
+- Retained order seller notes can no longer reintroduce buyer/order PII after
+  the 90-day prune. Non-empty seller-note writes are rejected once
+  `buyerDataPurgedAt` is set, the final write predicate prevents races with the
+  prune, the seller sales page hides the notes form for purged orders, and the
+  retention prune no longer permanently skips already-purged rows if any
+  retained PII field is reintroduced.
+
+Verified current/stale/deferred during the same pass:
+
+- Ops/dashboard evidence allegations around Stripe webhook subscriptions,
+  Stripe Connect v2 loss-liability, Clerk MFA/breached-password/spam controls,
+  Sentry cron alerts, R2 ListBucket/public-bucket posture, HSTS preload, and
+  Vercel Analytics/Speed Insights remain evidence/product/legal items rather
+  than source fixes. Source checks confirmed current app-side handlers and docs,
+  but provider dashboard evidence is still required where noted in the runbook
+  and launch checklist.
+- Broader account export/deletion, support/legal intake, Sentry PII filtering,
+  and unsubscribe/suppression allegations were rechecked as current/stale after
+  Entry 437's fixes. Long-term transaction/message/case/report/provider
+  retention remains a legal/product policy decision unless counsel changes the
+  policy.
+- Partial-refund runtime reconciliation remains a Stripe test-mode/live-evidence
+  item. Static source still intentionally uses a single partial
+  `reverse_transfer` refund under the current manual transfer model.
+
+Guardrails:
+`tests/payment-side-effect-observability.test.mjs`,
+`tests/stripe-webhook-state.test.mjs`,
+`tests/cache-invalidation-guardrails.test.mjs`,
+`tests/round9-account-deletion-pii-guardrails.test.mjs`, and
+`tests/user-text-normalization-followups.test.mjs`.
+
+Verification:
+focused `node --test tests/payment-side-effect-observability.test.mjs tests/stripe-webhook-state.test.mjs tests/cache-invalidation-guardrails.test.mjs tests/round9-account-deletion-pii-guardrails.test.mjs tests/user-text-normalization-followups.test.mjs`
+(92/92 tests passing across 5 suites),
+`npx tsc --noEmit`,
+`git diff --check`,
+`npm run lint` (exit 0; existing JSX AST utility warning only),
+`npm audit --audit-level=moderate` (0 vulnerabilities),
+`npm test` (1363/1363 tests passing across 254 suites), and
+`npm run build` passed.
+
+Current running tally after Entry 438: verified fixed/reduced 866, verified
+stale/false-positive/current 473, deferred product/design/ops/legal 75,
+approximate raw allegations left from current max #1126: 79. Fixed/reduced
+increases by four for the label orphan clawback retry, canonical prevented
+dispute status, seller Stripe-return mirror, and retained seller-note PII
+reintroduction fixes. Stale/current, deferred, and raw-left counts stay flat
+because the source changes close hidden/adjoining residues inside already-open
+Stripe/refund/retention categories rather than newly numbered raw allegations,
+and the ops/provider items remain dashboard-evidence or policy decisions.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger, label clawback, and route guard paths,
+Stripe webhook subscription dashboard evidence, Stripe Connect v2
+loss-liability ops/legal decision, stale remote branch and old git author
+hygiene, Round 10 deferred cache/state-machine product designs that require
+product decisions rather than source guardrails, remaining EXPLAIN-dependent
+query-plan/index validation, Stripe partial-refund runtime reconciliation proof,
+founding-maker permanence policy, remaining privacy/legal retention scope,
+remaining privacy/export retention decisions, cross-seller AI duplicate-detection
+product design, legacy enum cleanup/data-migration decisions, partial
+multi-seller checkout continuation design, deliberate BigInt money-column
+modeling, live-data reconciliation for historical seller shipping-rate currency
+drift, Clerk staff MFA and breached-password dashboard evidence, Clerk
+multi-account spam dashboard evidence, buyer-deletion runtime replay proof,
+Founding Maker live DB concurrency proof, Sentry cron alert evidence, Cloudflare
+R2 ListBucket/public-bucket/dashboard posture plus production smoke evidence and
+public-availability proof, HSTS preload submission decision, Vercel
+Analytics/Speed Insights product/privacy decision, and remaining homepage
+runtime a11y proof.

@@ -24,7 +24,7 @@ import { parseMoneyInputToCents } from "@/lib/money";
 import { safeRateLimit, sellerProfileRatelimit } from "@/lib/ratelimit";
 import { revalidateFooterMetrosCache } from "@/lib/footerMetros";
 import { logServerError } from "@/lib/serverErrorLogger";
-import { revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
+import { mirrorStripeChargesEnabled } from "@/lib/stripeWebhookMirror";
 
 const inputClass =
   "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300";
@@ -203,13 +203,13 @@ export default async function SellerSettingsPage({
       const { stripe } = await import("@/lib/stripe");
       const account = await stripe.accounts.retrieve(currentRow.stripeAccountId);
       const chargesEnabled = account.charges_enabled ?? false;
-      if (chargesEnabled !== currentRow.chargesEnabled) {
-        await prisma.sellerProfile.update({
-          where: { id: seller.id },
-          data: { chargesEnabled },
-        });
-        revalidatePublicSellerVisibilityCaches();
-        currentRow = { ...currentRow, chargesEnabled };
+      const mirrorResult = await mirrorStripeChargesEnabled({
+        accountId: currentRow.stripeAccountId,
+        chargesEnabled,
+        route: "/dashboard/seller",
+      });
+      if (mirrorResult.matched) {
+        currentRow = { ...currentRow, chargesEnabled: mirrorResult.chargesEnabled };
       }
     } catch (error) {
       logServerError(error, {

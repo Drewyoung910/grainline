@@ -1,6 +1,7 @@
 import type { CaseStatus } from "@prisma/client";
 import { DEFAULT_CURRENCY } from "./money.ts";
 import { REFUND_LOCK_SENTINEL, isStaleRefundLock } from "./refundLockState.ts";
+import { STRIPE_DISPUTE_CLOSED_STATUSES } from "./refundRouteState.ts";
 
 export type StripeRefundLike = {
   id?: string;
@@ -176,7 +177,6 @@ export type StripeEventEnvelope = {
   data?: { object?: unknown };
 };
 
-const STRIPE_DISPUTE_CLOSED_STATUSES = new Set(["won", "lost", "warning_closed"]);
 const THIN_STRIPE_EVENT_OBJECT_KEYS = new Set(["id", "object", "livemode"]);
 
 function isOpenDisputeStatus(status: string | null | undefined) {

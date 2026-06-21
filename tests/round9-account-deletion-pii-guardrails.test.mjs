@@ -48,6 +48,22 @@ describe("Round 9 account deletion PII guardrails", () => {
     assert.match(retention, /WHERE quote\."orderId" = pii_candidates\.id/);
   });
 
+  it("prevents seller notes from reintroducing retained order PII after prune", () => {
+    const retention = source("src/lib/orderPiiRetention.ts");
+    const fulfillment = source("src/app/api/orders/[id]/fulfillment/route.ts");
+    const salesPage = source("src/app/dashboard/sales/[orderId]/page.tsx");
+
+    assert.doesNotMatch(retention, /WHERE "buyerDataPurgedAt" IS NULL/);
+    assert.match(fulfillment, /const sellerNotes = payload\.sellerNotes \? truncateText\(sanitizeText\(payload\.sellerNotes\), 2000\) \|\| null : null/);
+    assert.match(fulfillment, /if \(sellerNotes && authz\.order\.buyerDataPurgedAt\)/);
+    assert.match(fulfillment, /notesWriteRequiresUnpurgedOrder = sellerNotes !== null/);
+    assert.match(fulfillment, /\.\.\.\(notesWriteRequiresUnpurgedOrder \? \{ buyerDataPurgedAt: null \} : \{\}\)/);
+    assert.ok(
+      salesPage.indexOf("order.buyerDataPurgedAt ?") < salesPage.indexOf("<SellerNotesForm"),
+      "seller notes form should only render before buyer data is purged",
+    );
+  });
+
   it("scrubs seller-owned retained order fulfillment artifacts on seller deletion", () => {
     const deletion = source("src/lib/accountDeletion.ts");
     const sellerOrderStart = deletion.indexOf(
