@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { getRecentlyViewed } from "@/lib/recentlyViewed";
+import { getRecentlyViewed, setRecentlyViewed } from "@/lib/recentlyViewed";
 import { useToast } from "@/components/Toast";
 import { publicListingPath } from "@/lib/publicPaths";
 import { formatCurrencyCents } from "@/lib/money";
@@ -42,6 +42,7 @@ export default function RecentlyViewed() {
       .then((data) => {
         if (!active || controller.signal.aborted) return;
         const nextListings = (data.listings ?? []).slice(0, 6);
+        setRecentlyViewed(Array.isArray(data.ids) ? data.ids : nextListings.map((listing: RecentListing) => listing.id));
         setListings(nextListings);
       })
       .catch((error) => {

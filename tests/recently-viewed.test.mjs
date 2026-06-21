@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const {
@@ -6,6 +7,8 @@ const {
   recentlyViewedAuthTransition,
   recentlyViewedCookieAttributes,
 } = await import("../src/lib/recentlyViewed.ts");
+
+const recentlyViewedComponent = readFileSync("src/components/RecentlyViewed.tsx", "utf8");
 
 describe("recently viewed cookie helpers", () => {
   it("keeps only unique non-empty string listing ids", () => {
@@ -41,5 +44,13 @@ describe("recently viewed cookie helpers", () => {
   it("marks recently viewed cookies Secure on HTTPS while preserving local HTTP development", () => {
     assert.equal(recentlyViewedCookieAttributes("https:"), "path=/; SameSite=Lax; Secure");
     assert.equal(recentlyViewedCookieAttributes("http:"), "path=/; SameSite=Lax");
+  });
+
+  it("persists server-filtered recently viewed IDs after loading listings", () => {
+    assert.match(
+      recentlyViewedComponent,
+      /import \{ getRecentlyViewed, setRecentlyViewed \} from "@\/lib\/recentlyViewed"/,
+    );
+    assert.match(recentlyViewedComponent, /setRecentlyViewed\(Array\.isArray\(data\.ids\) \? data\.ids/);
   });
 });

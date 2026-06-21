@@ -149,17 +149,19 @@ export async function generateMetadata({
     seller.tagline ||
     `Shop handmade woodworking pieces by ${name} on Grainline`;
 
-  const firstPhoto = await prisma.listing.findFirst({
-    where: publicListingWhere({ sellerId }),
-    select: { photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } } },
-    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
-  });
-  const img =
+  let img =
     seller.bannerImageUrl ||
     seller.avatarImageUrl ||
     seller.user?.imageUrl ||
-    firstPhoto?.photos[0]?.url ||
     null;
+  if (!img) {
+    const firstPhoto = await prisma.listing.findFirst({
+      where: publicListingWhere({ sellerId }),
+      select: { photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } } },
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+    });
+    img = firstPhoto?.photos[0]?.url ?? null;
+  }
 
   return {
     title: { absolute: title },

@@ -19,7 +19,18 @@ describe("runtime database URL normalization", () => {
     );
   });
 
-  it("leaves explicit, absent, and invalid modes unchanged", () => {
+  it("pins missing SSL modes to verify-full", () => {
+    assert.equal(
+      normalizeRuntimeDatabaseUrl("postgresql://u:p@example.test/db"),
+      "postgresql://u:p@example.test/db?sslmode=verify-full",
+    );
+    assert.equal(
+      normalizeRuntimeDatabaseUrl("postgresql://u:p@example.test/db?connection_limit=5"),
+      "postgresql://u:p@example.test/db?connection_limit=5&sslmode=verify-full",
+    );
+  });
+
+  it("leaves explicit and invalid modes unchanged", () => {
     assert.equal(
       normalizeRuntimeDatabaseUrl("postgresql://u:p@example.test/db?sslmode=verify-full"),
       "postgresql://u:p@example.test/db?sslmode=verify-full",
@@ -27,10 +38,6 @@ describe("runtime database URL normalization", () => {
     assert.equal(
       normalizeRuntimeDatabaseUrl("postgresql://u:p@example.test/db?sslmode=disable"),
       "postgresql://u:p@example.test/db?sslmode=disable",
-    );
-    assert.equal(
-      normalizeRuntimeDatabaseUrl("postgresql://u:p@example.test/db"),
-      "postgresql://u:p@example.test/db",
     );
     assert.equal(normalizeRuntimeDatabaseUrl("not a url"), "not a url");
   });

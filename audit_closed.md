@@ -8548,3 +8548,122 @@ R2 ListBucket/public-bucket/dashboard posture plus production smoke evidence and
 public-availability proof, HSTS preload submission decision, Vercel
 Analytics/Speed Insights product/privacy decision, and remaining homepage
 runtime a11y proof.
+
+Entry 439 closes a parent-verified helper, checkout pickup, privacy-cookie,
+runtime-a11y, and public-performance pass. Three read-only agents were used as
+sidecar source scanners across Founding Maker/custom-order/recently-viewed,
+performance/index/a11y, and residual raw-source allegations. All agents were
+closed, and parent Codex rechecked cited source before editing or classifying
+anything.
+
+Verified fixed/reduced:
+
+- Checkout now rechecks current seller local-pickup state for signed synthetic
+  pickup rates. Both single-listing checkout and seller-cart checkout reject a
+  stale `objectId = "pickup"` rate if the seller has disabled
+  `allowLocalPickup` after quote issuance, while keeping the signed-rate token
+  verification intact.
+- Runtime database URL normalization now appends `sslmode=verify-full` when no
+  `sslmode` query parameter is present. Ambiguous `prefer`, `require`, and
+  `verify-ca` still pin to `verify-full`; explicit values such as
+  `sslmode=disable` remain unchanged for intentional non-TLS/local cases.
+- `normalizeUsState()` no longer invents two-letter state codes from unknown
+  region names. Unknown values now normalize to blank, leaving address
+  autocomplete and checkout validation to reject or let the user correct the
+  state instead of silently producing non-US pseudo-codes such as `QU`.
+- The recently-viewed client now writes the server-filtered recently-viewed ID
+  list back to the `rv` cookie after a successful private API refresh. Public
+  visibility/block/deletion filtering already happened server-side; this change
+  prunes stale, private, blocked, or deleted IDs from the client-readable cookie
+  instead of only hiding them from render.
+- Public seller metadata generation now avoids the fallback listing-photo query
+  when the seller already has a banner, seller avatar, or Clerk image available
+  for OpenGraph/Twitter images.
+- `useInView()` now makes `ScrollSection` content visible when
+  `IntersectionObserver` is unavailable, reducing the risk of homepage sections
+  staying visually hidden in unsupported browser/webview environments.
+- Raw-managed listing search indexes now have schema-drift guardrail coverage
+  for `Listing_title_trgm_active_idx`, `Listing_tags_gin_idx`, and
+  `Listing_description_trgm_active_idx`, reducing the risk of later
+  Prisma-generated migrations silently dropping browse/search performance
+  indexes.
+
+Verified current/stale/deferred during the same pass:
+
+- Founding Maker allocation race allegations, custom-order ready-link duplicate
+  message allegations, and the recently-viewed Secure-cookie allegation are
+  stale on current `main`; current source has advisory locks/final predicates
+  or HTTPS `Secure` cookie attributes with existing tests. The remaining
+  Founding Maker live DB concurrency proof stays runtime evidence rather than a
+  source defect.
+- Reverse-geocode Redis/throttle fallback, quality-score finite bounds,
+  email-outbox quota deferrals, follower notification block filtering/currency
+  formatting, bot user-agent filtering, API error text handling, trusted
+  message attachments, case-resolution copy, support email normalization,
+  internal return URL decoding, tag normalization, listing tracking cookies,
+  and public route-id hashing were rechecked as current/stale.
+- Tag and blog-author landing routes, sitemap chunking, and private response
+  `Cache-Control`/`Vary: Cookie` raw allegations are stale duplicates of
+  already-closed work. Tax behavior, raw image migration, polymorphic report
+  target modeling, and seller gallery/featured-list arrays remain
+  product/refactor or ops/legal backlog rather than this pass's source fixes.
+- Guild metrics refresh-lock behavior on the seller verification page remains a
+  source-fixable performance optimization, but it needs an explicit seller-facing
+  freshness contract and was left for a separate performance pass.
+
+Guardrails:
+`tests/shipping-token.test.mjs`,
+`tests/shipping-quote-state.test.mjs`,
+`tests/stripe-webhook-state.test.mjs`,
+`tests/database-url.test.mjs`,
+`tests/us-states.test.mjs`,
+`tests/address-autocomplete-state.test.mjs`,
+`tests/recently-viewed.test.mjs`,
+`tests/client-async-guardrails.test.mjs`,
+`tests/accessibility-followups.test.mjs`,
+`tests/schema-drift-followups.test.mjs`, and
+`tests/public-visibility-followups.test.mjs`.
+
+Verification:
+focused `node --test tests/shipping-token.test.mjs tests/shipping-quote-state.test.mjs tests/stripe-webhook-state.test.mjs tests/accessibility-followups.test.mjs tests/schema-drift-followups.test.mjs tests/recently-viewed.test.mjs tests/client-async-guardrails.test.mjs tests/database-url.test.mjs tests/us-states.test.mjs tests/address-autocomplete-state.test.mjs tests/public-visibility-followups.test.mjs`
+(127/127 tests passing across 11 suites),
+`npx tsc --noEmit`,
+`git diff --check`,
+`npm run lint` (exit 0; existing JSX AST utility warning only),
+`npm audit --audit-level=moderate` (0 vulnerabilities),
+`npm run build`, and
+`npm test` rerun (1370/1370 tests passing across 255 suites) passed. An
+immediate prior `npm test` run reported one non-reproduced failure (1359/1360
+passing across 254 suites); the clean rerun completed the full expanded suite.
+
+Current running tally after Entry 439: verified fixed/reduced 873, verified
+stale/false-positive/current 473, deferred product/design/ops/legal 75,
+approximate raw allegations left from current max #1126: 76. Fixed/reduced
+increases by seven for the pickup checkout recheck, missing DB `sslmode`
+pinning, US-state unknown fallback removal, recently-viewed cookie pruning,
+seller metadata fallback-query reduction, scroll-reveal unsupported-browser
+fallback, and raw listing search-index drift guardrails. Raw-left decreases by
+three for the newly closed raw #49, #247, and #250 allegations. Stale/current
+and deferred counts stay flat because the stale/deferred confirmations above
+were already closed, duplicate, or backlog-classified in prior entries.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger, label clawback, and route guard paths,
+Stripe webhook subscription dashboard evidence, Stripe Connect v2
+loss-liability ops/legal decision, stale remote branch and old git author
+hygiene, Round 10 deferred cache/state-machine product designs that require
+product decisions rather than source guardrails, remaining EXPLAIN-dependent
+query-plan/index validation, Stripe partial-refund runtime reconciliation proof,
+founding-maker permanence policy, remaining privacy/legal retention scope,
+remaining privacy/export retention decisions, cross-seller AI duplicate-detection
+product design, legacy enum cleanup/data-migration decisions, partial
+multi-seller checkout continuation design, deliberate BigInt money-column
+modeling, live-data reconciliation for historical seller shipping-rate currency
+drift, Clerk staff MFA and breached-password dashboard evidence, Clerk
+multi-account spam dashboard evidence, buyer-deletion runtime replay proof,
+Founding Maker live DB concurrency proof, Sentry cron alert evidence, Cloudflare
+R2 ListBucket/public-bucket/dashboard posture plus production smoke evidence and
+public-availability proof, HSTS preload submission decision, Vercel
+Analytics/Speed Insights product/privacy decision, remaining homepage browser
+a11y/runtime proof beyond source fallback, and seller verification Guild metrics
+refresh-lock performance optimization.

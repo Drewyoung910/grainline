@@ -128,6 +128,40 @@ describe("schema drift follow-ups", () => {
     assert.equal(events.at(-1)?.name, "20260521154500_schema_drift_and_raw_index_followups");
   });
 
+  it("protects raw-managed listing search GIN and trigram indexes", () => {
+    const expectedIndexes = [
+      {
+        name: "Listing_title_trgm_active_idx",
+        create:
+          /CREATE INDEX(?: CONCURRENTLY)? IF NOT EXISTS "Listing_title_trgm_active_idx"[\s\S]*ON "Listing" USING GIN \("title" gin_trgm_ops\)[\s\S]*WHERE "status" = 'ACTIVE' AND "isPrivate" = false/,
+      },
+      {
+        name: "Listing_tags_gin_idx",
+        create:
+          /CREATE INDEX(?: CONCURRENTLY)? IF NOT EXISTS "Listing_tags_gin_idx"[\s\S]*ON "Listing" USING GIN \("tags"\)/,
+      },
+      {
+        name: "Listing_description_trgm_active_idx",
+        create:
+          /CREATE INDEX(?: CONCURRENTLY)? IF NOT EXISTS "Listing_description_trgm_active_idx"[\s\S]*ON "Listing" USING GIN \("description" gin_trgm_ops\)[\s\S]*WHERE "status" = 'ACTIVE' AND "isPrivate" = false/,
+      },
+    ];
+
+    for (const expected of expectedIndexes) {
+      const events = [];
+      for (const { name, sql } of migrationFiles()) {
+        if (new RegExp(`DROP INDEX[\\s\\S]*"${expected.name}"`).test(sql)) {
+          events.push({ name, type: "drop" });
+        }
+        if (expected.create.test(sql)) {
+          events.push({ name, type: "create" });
+        }
+      }
+
+      assert.equal(events.at(-1)?.type, "create", `${expected.name} should not be dropped after its final create`);
+    }
+  });
+
   it("validates listing check constraints after the NOT VALID migration", () => {
     const migration = source(
       "prisma/migrations/20260521154500_schema_drift_and_raw_index_followups/migration.sql",

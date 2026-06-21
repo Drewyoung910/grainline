@@ -126,4 +126,22 @@ describe("shipping rate tokens", () => {
     assert.doesNotMatch(quoteRoute, /const currency = \(body\.currency/);
     assert.match(selector, /currency: \(r\.currency \?\? DEFAULT_CURRENCY\)\.toLowerCase\(\)/);
   });
+
+  it("rechecks local pickup availability at checkout after token verification", () => {
+    const sellerCheckout = readFileSync("src/app/api/cart/checkout-seller/route.ts", "utf8");
+    const singleCheckout = readFileSync("src/app/api/cart/checkout/single/route.ts", "utf8");
+    const shippingState = readFileSync("src/lib/shippingQuoteState.ts", "utf8");
+
+    assert.match(shippingState, /export const PICKUP_RATE_OBJECT_ID = "pickup"/);
+    assert.match(shippingState, /export function isPickupRateObjectId/);
+
+    for (const source of [sellerCheckout, singleCheckout]) {
+      assert.match(source, /import \{ isPickupRateObjectId \} from "@\/lib\/shippingQuoteState"/);
+      assert.match(source, /if \(isPickupRateObjectId\(body\.selectedRate\.objectId\) && !/);
+      assert.match(source, /Local pickup is no longer available for this seller/);
+    }
+
+    assert.match(singleCheckout, /allowLocalPickup: true/);
+    assert.match(sellerCheckout, /sellerItems\[0\]\.listing\.seller\.allowLocalPickup/);
+  });
 });

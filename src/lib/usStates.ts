@@ -59,5 +59,5 @@ export function normalizeUsState(value: string | null | undefined): string {
   const upper = raw.toUpperCase();
   if (STATE_CODES.has(upper as typeof US_STATES[number]["code"])) return upper;
   const match = US_STATES.find((state) => state.name.toLowerCase() === raw.toLowerCase());
-  return match?.code ?? upper.slice(0, 2);
+  return match?.code ?? "";
 }

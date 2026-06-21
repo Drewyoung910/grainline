@@ -356,4 +356,13 @@ describe("accessibility follow-ups", () => {
     assert.match(globals, /\.animate-scroll-left,[\s\S]*\.animate-slide-down \{[\s\S]*animation: none !important/);
     assert.match(globals, /transition-duration: 0\.01ms !important/);
   });
+
+  it("keeps scroll reveal content visible when IntersectionObserver is unavailable", () => {
+    const hook = source("src/hooks/useInView.ts");
+    const section = source("src/components/ScrollSection.tsx");
+
+    assert.match(hook, /typeof IntersectionObserver === "undefined"/);
+    assert.match(hook, /setInView\(true\)/);
+    assert.match(section, /inView \? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"/);
+  });
 });

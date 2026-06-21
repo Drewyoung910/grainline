@@ -28,6 +28,7 @@ import {
 import { logSecurityEvent } from "@/lib/security";
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
 import { DEFAULT_CURRENCY } from "@/lib/money";
+import { isPickupRateObjectId } from "@/lib/shippingQuoteState";
 import { SHIPPING_ESTIMATED_DAYS_MAX } from "@/lib/stripeWebhookState";
 import { normalizeCheckoutShippingAddress } from "@/lib/addressFields";
 import {
@@ -345,6 +346,13 @@ export async function POST(req: Request) {
       return privateJson(
         { error: rateVerification.error },
         { status: rateVerification.status },
+      );
+    }
+
+    if (isPickupRateObjectId(body.selectedRate.objectId) && !sellerItems[0].listing.seller.allowLocalPickup) {
+      return privateJson(
+        { error: "Local pickup is no longer available for this seller. Please re-select a shipping option." },
+        { status: HTTP_STATUS.BAD_REQUEST },
       );
     }
 
