@@ -127,6 +127,7 @@ describe("Round 9 account deletion PII guardrails", () => {
     assert.match(deletion, /tx\.emailFailureCount\.deleteMany\(\{\s*where: \{ email: \{ in: suppressionEmailMatches \} \},\s*\}\)/s);
     assert.match(deletion, /tx\.newsletterSubscriber\.deleteMany\(\{\s*where: \{ email: \{ in: suppressionEmailMatches \} \},\s*\}\)/s);
     assert.match(deletion, /tx\.userEmailAddress\.deleteMany\(\{\s*where: \{ userId: user\.id \},\s*\}\)/s);
+    assert.match(deletion, /tx\.directUpload\.deleteMany\(\{\s*where: \{ userId: user\.id \}\s*,?\s*\}\)/s);
   });
 
   it("scrubs account-linked support and data-request contact fields on account deletion", () => {

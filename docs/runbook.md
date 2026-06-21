@@ -79,7 +79,7 @@ Rotate one dependency at a time and verify before moving to the next one.
 Recommended cadence:
 
 - Rotate hot HMAC/application secrets every 90 days:
-  `ADMIN_PIN_COOKIE_SECRET`, `UPLOAD_VERIFICATION_SECRET`,
+  `ADMIN_PIN`, `ADMIN_PIN_COOKIE_SECRET`, `UPLOAD_VERIFICATION_SECRET`,
   `UNSUBSCRIBE_SECRET`, `SHIPPING_RATE_SECRET`, `CRON_SECRET`, and
   `HEALTH_CHECK_TOKEN`.
 - Rotate provider API keys at least annually or immediately after any suspected
@@ -108,7 +108,7 @@ High-risk secrets:
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and Connect-related Stripe settings.
 - `RESEND_API_KEY`, `EMAIL_FROM`, and `RESEND_WEBHOOK_SECRET`.
 - `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`.
-- `ADMIN_PIN_COOKIE_SECRET`, `UPLOAD_VERIFICATION_SECRET`, `UNSUBSCRIBE_SECRET`, and `HEALTH_CHECK_TOKEN`.
+- `ADMIN_PIN`, `ADMIN_PIN_COOKIE_SECRET`, `UPLOAD_VERIFICATION_SECRET`, `UNSUBSCRIBE_SECRET`, and `HEALTH_CHECK_TOKEN`.
 - `SENTRY_AUTH_TOKEN`, `SENTRY_DSN`, and `NEXT_PUBLIC_SENTRY_DSN`.
 
 ## Webhook Recovery

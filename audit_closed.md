@@ -7762,6 +7762,96 @@ lower-risk HTTP-status/logging hygiene outside touched routes, Vercel
 Analytics/Speed Insights product/privacy decision, remaining homepage runtime
 a11y proof, and residual agent/worktree verification process hygiene.
 
+Entry 432 closes a parent-verified DirectUpload privacy/export follow-up and
+admin-PIN env-contract alignment pass. One read-only privacy sidecar was
+blocked by platform filtering and closed without use. One read-only Stripe
+sidecar completed and was closed; parent verification rechecked the cited
+source/docs before using any conclusion. The Stripe best-practices skill was
+also read for the Connect/event-set slice before changing Stripe-adjacent docs.
+
+The source-proven privacy gap was introduced by the new `DirectUpload`
+lifecycle table from Entry 431. The table stores user-owned upload metadata and
+public media URLs, but account export and account deletion still reflected the
+pre-DirectUpload table set. Account export now includes the current user's
+`DirectUpload` lifecycle rows, including key, endpoint, public URL, content
+type, expected size, status, claim/delete timestamps, retry count, and bounded
+last error. Account deletion now collects account-owned `DirectUpload.publicUrl`
+values into the existing ownership-filtered R2 media cleanup flow and deletes
+the user's `DirectUpload` rows only after durable media-delete side effects are
+queued inside the anonymization transaction. This keeps cleanup retry evidence
+for owned media without retaining the lifecycle rows after local account
+deletion.
+
+The same upload follow-up checked the adjacent direct-upload claim contract.
+`listingVideo` remains a direct-upload endpoint, but current listing create/edit
+forms do not mount `VideoUploader` or persist submitted `videoUrl` values.
+Current blog video input accepts only normalized YouTube/Vimeo URLs through
+`normalizeBlogVideoUrl()`, so no additional `claimDirectUploadForUrl()` call was
+needed in current blog/listing source. The existing durable rule in `CLAUDE.md`
+still stands: if a future write path persists a tracked direct-upload URL, it
+must claim the row in the same transaction as the durable app record.
+
+The Stripe sidecar found no source-proven webhook handler or Connect v2 event
+defect. Parent verification confirmed that the remaining Stripe snapshot
+subscription set, Connect v2 thin endpoint, live-mode webhook screenshots,
+Apple Pay/payment-domain evidence, PCI SAQ A evidence, and Connect
+fees/losses responsibility sign-off are still external dashboard/legal
+evidence items rather than source closures. It did find one source-proven docs
+inconsistency: production `/api/admin/verify-pin` fails closed with 503 when
+`ADMIN_PIN` is missing, and `.env.example` plus the launch checklist already
+list `ADMIN_PIN`, but the production env summary omitted it. `CLAUDE.md` now
+lists `ADMIN_PIN` as required and clarifies that required production env reads
+may use startup validation or explicit fail-closed handler guards when
+build-time env injection requires runtime lookup. `docs/runbook.md` now treats
+`ADMIN_PIN` as a high-risk application secret to rotate alongside the admin PIN
+cookie secret.
+
+Guardrails:
+`tests/account-export-payload.test.mjs`,
+`tests/account-export-privacy.test.mjs`,
+`tests/account-deletion-media.test.mjs`,
+`tests/round9-account-deletion-pii-guardrails.test.mjs`,
+`tests/direct-upload-lifecycle.test.mjs`, and
+`tests/admin-pin.test.mjs`.
+
+Verification:
+focused `node --test tests/account-export-payload.test.mjs tests/account-export-privacy.test.mjs`
+(15/15 tests passing), focused `node --test tests/account-export-privacy.test.mjs tests/account-deletion-media.test.mjs tests/round9-account-deletion-pii-guardrails.test.mjs tests/direct-upload-lifecycle.test.mjs tests/admin-pin.test.mjs`
+(45/45 tests passing), `npx tsc --noEmit`, `npm run lint` (exit 0; existing
+JSX AST utility warning emitted), `npm audit --audit-level=moderate` (0
+vulnerabilities), `npm test`/Node test runner full suite (1348/1348 tests
+passing across 254 suites), `npm run build`, and `git diff --check`.
+
+Current running tally after Entry 432: verified fixed/reduced 834, verified
+stale/false-positive/current 473, deferred product/design/ops/legal 73,
+approximate raw allegations left from current max #1126: 79. The fixed count
+increases by three for DirectUpload account-export coverage, DirectUpload
+account-deletion media/lifecycle cleanup, and admin-PIN env-contract alignment.
+Stale/current, deferred, and approximate raw counts stay flat because these are
+source-discovered residues inside already-classified privacy/upload/admin-env
+and Stripe evidence categories rather than newly closed raw-number allegations.
+
+Remaining major categories: Stripe refund runtime/orphan reconciliation
+proof and backfill design, Stripe webhook subscription dashboard evidence,
+Stripe Connect v2 loss-liability ops/legal decision, stale remote branch and
+old git author hygiene, Round 10 deferred cache/state-machine product designs
+that require product decisions rather than source guardrails, remaining
+EXPLAIN-dependent query-plan/index validation, Stripe partial-refund runtime
+reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope, remaining privacy/export retention decisions,
+cross-seller AI duplicate-detection product design, legacy enum
+cleanup/data-migration decisions, partial multi-seller checkout continuation
+design, deliberate BigInt money-column modeling, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket/dashboard posture plus production smoke evidence and
+public-availability proof, HSTS preload submission decision, residual
+lower-risk HTTP-status/logging hygiene outside touched routes, Vercel
+Analytics/Speed Insights product/privacy decision, remaining homepage runtime
+a11y proof, and residual agent/worktree verification process hygiene.
+
 Entry 431 closes a parent-verified health-token transport and direct-upload
 lifecycle pass. Three read-only agents were used as source scanners only:
 health-token/ops-health, R2/direct-upload lifecycle, and a follow-up direct

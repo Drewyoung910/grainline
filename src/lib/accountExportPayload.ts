@@ -52,6 +52,7 @@ type AccountExportCollections = {
   newsletterSubscriptions: unknown[];
   sellerBroadcasts: unknown[];
   sellerPayoutEvents: unknown[];
+  directUploads: unknown[];
   reviewVotes: unknown[];
 };
 
@@ -114,6 +115,7 @@ export function buildAccountExportPayload(
     newsletterSubscriptions: data.newsletterSubscriptions,
     sellerBroadcasts: data.sellerBroadcasts,
     sellerPayoutEvents: data.sellerPayoutEvents,
+    directUploads: data.directUploads,
     reviewVotes: data.reviewVotes,
   };
 }

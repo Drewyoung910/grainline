@@ -69,6 +69,24 @@ describe("admin PIN cookie secret configuration", () => {
     assert.match(route, /user: \{ id: user\.id \}/);
   });
 
+  it("keeps production ADMIN_PIN env requirements aligned across docs and examples", () => {
+    const route = readFileSync("src/app/api/admin/verify-pin/route.ts", "utf8");
+    const claude = readFileSync("CLAUDE.md", "utf8");
+    const launch = readFileSync("docs/launch-checklist.md", "utf8");
+    const runbook = readFileSync("docs/runbook.md", "utf8");
+    const envExample = readFileSync(".env.example", "utf8");
+    const requiredEnvStart = claude.indexOf("### Production environment variables");
+    const requiredEnv = claude.slice(requiredEnvStart, claude.indexOf("### Remaining architectural risks", requiredEnvStart));
+
+    assert.match(route, /const adminPin = process\.env\.ADMIN_PIN/);
+    assert.match(route, /Admin PIN is not configured/);
+    assert.match(requiredEnv, /`ADMIN_PIN`/);
+    assert.match(requiredEnv, /explicit handler guard that fails closed in production/);
+    assert.match(launch, /- `ADMIN_PIN`/);
+    assert.match(runbook, /`ADMIN_PIN`, `ADMIN_PIN_COOKIE_SECRET`/);
+    assert.match(envExample, /^ADMIN_PIN=change-me/m);
+  });
+
   it("binds admin PIN cookies to the active Clerk session", async () => {
     const now = Date.parse("2026-05-29T00:00:00Z");
     const cookie = await createAdminPinSessionCookieValue("user_1", "sess_1", now);

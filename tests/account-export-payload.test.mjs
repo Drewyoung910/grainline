@@ -61,6 +61,7 @@ function collections(overrides = {}) {
     newsletterSubscriptions: [],
     sellerBroadcasts: [],
     sellerPayoutEvents: [],
+    directUploads: [],
     reviewVotes: [],
     ...overrides,
   };
@@ -113,6 +114,7 @@ describe("account export payload", () => {
       "newsletterSubscriptions",
       "sellerBroadcasts",
       "sellerPayoutEvents",
+      "directUploads",
       "reviewVotes",
     ]);
     assert.equal(payload.generatedAt, "2026-04-28T12:00:00.000Z");
@@ -162,5 +164,6 @@ describe("account export payload", () => {
     assert.deepEqual(payload.savedSearches, []);
     assert.deepEqual(payload.sellerBroadcasts, []);
     assert.deepEqual(payload.sellerPayoutEvents, []);
+    assert.deepEqual(payload.directUploads, []);
   });
 });

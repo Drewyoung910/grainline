@@ -73,7 +73,7 @@ type BodyRedactionCandidate = {
 type AuditLogRedactionDb = Pick<Prisma.TransactionClient, "$queryRaw" | "adminAuditLog">;
 type AccountDeletionMediaDb = Pick<
   Prisma.TransactionClient,
-  "sellerProfile" | "reviewPhoto" | "commissionRequest" | "message" | "blogPost"
+  "sellerProfile" | "reviewPhoto" | "commissionRequest" | "message" | "blogPost" | "directUpload"
 >;
 
 function chunks<T>(items: T[], size = ACCOUNT_DELETION_REDACTION_BATCH_SIZE) {
@@ -976,7 +976,7 @@ async function collectAccountDeletionMediaUrls(
   clerkUserId: string,
 ): Promise<string[]> {
   const urls = new Set<string>();
-  const [sellerProfile, reviewPhotos, commissionRequests, messages, blogPosts] = await Promise.all([
+  const [sellerProfile, reviewPhotos, commissionRequests, messages, blogPosts, directUploads] = await Promise.all([
     db.sellerProfile.findUnique({
       where: { userId },
       select: {
@@ -1007,6 +1007,10 @@ async function collectAccountDeletionMediaUrls(
     db.blogPost.findMany({
       where: { OR: [{ authorId: userId }, { sellerProfile: { userId } }] },
       select: { coverImageUrl: true, videoUrl: true, body: true },
+    }),
+    db.directUpload.findMany({
+      where: { userId },
+      select: { publicUrl: true },
     }),
   ]);
 
@@ -1039,6 +1043,7 @@ async function collectAccountDeletionMediaUrls(
     if (post.videoUrl) urls.add(post.videoUrl);
     markdownImageUrls(post.body).forEach((url) => urls.add(url));
   });
+  directUploads.forEach((upload) => urls.add(upload.publicUrl));
 
   return accountDeletionMediaUrlsForCleanup(urls, clerkUserId);
 }
@@ -1212,6 +1217,7 @@ export async function anonymizeUserAccount(
     ]);
     const mediaUrls = await collectAccountDeletionMediaUrls(tx, user.id, user.clerkId);
     await enqueueAccountDeletionMediaDeleteSideEffects(tx, user.id, mediaUrls);
+    await tx.directUpload.deleteMany({ where: { userId: user.id } });
 
     await tx.adminAuditLog.create({
       data: {

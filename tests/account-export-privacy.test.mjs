@@ -90,6 +90,7 @@ describe("account export privacy coverage", () => {
       "newsletterSubscriber",
       "sellerBroadcast",
       "sellerPayoutEvent",
+      "directUpload",
       "reviewVote",
     ]) {
       assert.match(route, new RegExp(`prisma\\.${model}`), `account export must query ${model}`);
@@ -110,6 +111,7 @@ describe("account export privacy coverage", () => {
       "newsletterSubscriptions",
       "sellerBroadcasts",
       "sellerPayoutEvents",
+      "directUploads",
       "reviewVotes",
     ]) {
       assert.match(payload, new RegExp(`${key}: data\\.${key}`), `payload must expose ${key}`);
@@ -344,6 +346,44 @@ describe("account export privacy coverage", () => {
     assert.match(route, /sellerPayoutEvents,/);
     assert.match(payload, /sellerPayoutEvents: unknown\[\]/);
     assert.match(payload, /sellerPayoutEvents: data\.sellerPayoutEvents/);
+  });
+
+  it("exports direct upload lifecycle rows owned by the account", () => {
+    const schema = source("prisma/schema.prisma");
+    const route = source("src/app/api/account/export/route.ts");
+    const payload = source("src/lib/accountExportPayload.ts");
+    const uploadStart = route.indexOf("prisma.directUpload.findMany");
+    const uploadEnd = route.indexOf("prisma.reviewVote.findMany", uploadStart);
+    const uploadBlock = route.slice(uploadStart, uploadEnd);
+
+    assert.match(schema, /model DirectUpload \{/);
+    assert.ok(uploadStart >= 0, "account export must query DirectUpload");
+    assert.match(uploadBlock, /where: \{ userId: user\.id \}/);
+    assert.match(uploadBlock, /orderBy: \{ createdAt: "desc" \}/);
+    for (const field of [
+      "id",
+      "key",
+      "endpoint",
+      "publicUrl",
+      "contentType",
+      "expectedSize",
+      "status",
+      "cleanupAfter",
+      "verifiedAt",
+      "claimedAt",
+      "claimedByType",
+      "claimedById",
+      "deletedAt",
+      "attempts",
+      "lastError",
+      "createdAt",
+      "updatedAt",
+    ]) {
+      assert.match(uploadBlock, new RegExp(`${field}: true`), `account export must select ${field}`);
+    }
+    assert.match(route, /directUploads,/);
+    assert.match(payload, /directUploads: unknown\[\]/);
+    assert.match(payload, /directUploads: data\.directUploads/);
   });
 
   it("keeps account export behind POST, same-origin, and fresh session checks", () => {

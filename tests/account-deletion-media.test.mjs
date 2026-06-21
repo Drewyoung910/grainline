@@ -55,4 +55,21 @@ describe("account deletion media cleanup scoping", () => {
       "listing photo originals must be ownership-filtered before deletion",
     );
   });
+
+  it("collects direct-upload lifecycle URLs before deleting account-owned lifecycle rows", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+    const collectStart = deletion.indexOf("async function collectAccountDeletionMediaUrls");
+    const collectEnd = deletion.indexOf("function revalidateDeletedAccountSearchCaches", collectStart);
+    const collect = deletion.slice(collectStart, collectEnd);
+    const collectCall = deletion.indexOf("const mediaUrls = await collectAccountDeletionMediaUrls(tx, user.id, user.clerkId)");
+    const enqueueCall = deletion.indexOf("await enqueueAccountDeletionMediaDeleteSideEffects(tx, user.id, mediaUrls)");
+    const deleteRows = deletion.indexOf("await tx.directUpload.deleteMany({ where: { userId: user.id } })");
+
+    assert.match(deletion, /"sellerProfile" \| "reviewPhoto" \| "commissionRequest" \| "message" \| "blogPost" \| "directUpload"/);
+    assert.match(collect, /db\.directUpload\.findMany\(\{\s*where: \{ userId \},\s*select: \{ publicUrl: true \},\s*\}\)/s);
+    assert.match(collect, /directUploads\.forEach\(\(upload\) => urls\.add\(upload\.publicUrl\)\)/);
+    assert.ok(collectCall >= 0, "account deletion must collect media URLs");
+    assert.ok(enqueueCall > collectCall, "media deletion side effects must be enqueued after collection");
+    assert.ok(deleteRows > enqueueCall, "DirectUpload rows should be deleted only after durable media cleanup side effects are queued");
+  });
 });
