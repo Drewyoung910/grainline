@@ -23,12 +23,14 @@ import {
   REFUND_LOCK_SENTINEL,
   releaseStaleRefundLocks,
 } from "@/lib/refundLocks";
-import { blockingRefundOrLatestOpenDisputeLedgerExistsSql } from "@/lib/refundLedgerSql";
+import {
+  blockingRefundOrLatestOpenDisputeLedgerExistsSql,
+  latestOpenDisputeLedgerExistsSql,
+} from "@/lib/refundLedgerSql";
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import {
   blockingRefundLedgerWhere,
   blockingRefundOrDisputeLedgerWhere,
-  isOpenStripeDisputeStatus,
   orderHasPurchasedLabel,
   orderHasRefundLedger,
   partialRefundExceedsOrderTotal,
@@ -142,7 +144,7 @@ export async function POST(
     // Verify seller owns this order (has a seller profile with items in it)
     const seller = await prisma.sellerProfile.findUnique({
       where: { userId: me.id },
-      select: { id: true, stripeAccountId: true },
+      select: { id: true },
     });
     if (!seller) return privateJson({ error: "Forbidden." }, { status: HTTP_STATUS.FORBIDDEN });
 
@@ -210,12 +212,11 @@ export async function POST(
       ),
     };
 
-    const latestDispute = await prisma.orderPaymentEvent.findFirst({
-      where: { orderId, eventType: "DISPUTE" },
-      orderBy: { createdAt: "desc" },
-      select: { status: true },
-    });
-    if (latestDispute && isOpenStripeDisputeStatus(latestDispute.status)) {
+    const [{ hasOpenDispute } = { hasOpenDispute: false }] =
+      await prisma.$queryRaw<Array<{ hasOpenDispute: boolean }>>`
+        SELECT ${latestOpenDisputeLedgerExistsSql(Prisma.sql`${orderId}`)} AS "hasOpenDispute"
+      `;
+    if (hasOpenDispute) {
       return privateJson(
         {
           error:
@@ -329,7 +330,7 @@ export async function POST(
         shippingAmountCents: order.shippingAmountCents,
         giftWrappingPriceCents: order.giftWrappingPriceCents,
         taxAmountCents: order.taxAmountCents,
-        canReverseTransfer: Boolean(seller.stripeAccountId),
+        canReverseTransfer: Boolean(order.stripeTransferId),
         idempotencyKeyBase: refundIdempotencyKeyBase({
           scope: "seller-refund",
           id: orderId,

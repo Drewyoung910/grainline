@@ -18,18 +18,29 @@ export function blockingRefundLedgerExistsSql(orderIdSql: Prisma.Sql) {
 
 export function latestOpenDisputeLedgerExistsSql(orderIdSql: Prisma.Sql) {
   return Prisma.sql`EXISTS (
-    SELECT 1
+    ${latestOpenDisputeLedgerRowsSql(orderIdSql)}
+  )`;
+}
+
+export function latestOpenDisputeLedgerRowsSql(orderIdSql: Prisma.Sql) {
+  return Prisma.sql`
+    SELECT latest_dispute."status", latest_dispute."stripeObjectId"
     FROM (
       SELECT DISTINCT ON (COALESCE(ope."stripeObjectId", ope.id))
-        ope."status"
+        ope."status",
+        ope."stripeObjectId"
       FROM "OrderPaymentEvent" ope
       WHERE ope."orderId" = ${orderIdSql}
         AND ope."eventType" = 'DISPUTE'
-      ORDER BY COALESCE(ope."stripeObjectId", ope.id), ope."createdAt" DESC, ope.id DESC
+      ORDER BY
+        COALESCE(ope."stripeObjectId", ope.id),
+        COALESCE(NULLIF(ope."metadata"->>'stripeEventCreated', '')::bigint, EXTRACT(EPOCH FROM ope."createdAt")::bigint) DESC,
+        ope."createdAt" DESC,
+        ope.id DESC
     ) latest_dispute
     WHERE latest_dispute."status" IS NULL
       OR lower(latest_dispute."status") NOT IN (${Prisma.join([...STRIPE_DISPUTE_CLOSED_STATUSES])})
-  )`;
+  `;
 }
 
 export function blockingRefundOrLatestOpenDisputeLedgerExistsSql(orderIdSql: Prisma.Sql) {

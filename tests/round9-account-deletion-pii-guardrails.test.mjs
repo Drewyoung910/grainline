@@ -48,6 +48,33 @@ describe("Round 9 account deletion PII guardrails", () => {
     assert.match(retention, /WHERE quote\."orderId" = pii_candidates\.id/);
   });
 
+  it("scrubs seller-owned retained order fulfillment artifacts on seller deletion", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+    const sellerOrderStart = deletion.indexOf(
+      "await tx.order.updateMany({",
+      deletion.indexOf("await tx.sellerFaq.deleteMany"),
+    );
+    const sellerOrderEnd = deletion.indexOf("await tx.sellerProfile.update", sellerOrderStart);
+    const sellerOrderUpdate = deletion.slice(sellerOrderStart, sellerOrderEnd);
+
+    assert.ok(sellerOrderStart > -1, "seller deletion must update seller-owned retained orders");
+    assert.match(sellerOrderUpdate, /some: \{ listing: \{ sellerId: user\.sellerProfile\.id \} \}/);
+    assert.match(sellerOrderUpdate, /every: \{ listing: \{ sellerId: user\.sellerProfile\.id \} \}/);
+    for (const field of [
+      "trackingCarrier",
+      "trackingNumber",
+      "sellerNotes",
+      "shippoShipmentId",
+      "shippoRateObjectId",
+      "shippoTransactionId",
+      "labelUrl",
+      "labelCarrier",
+      "labelTrackingNumber",
+    ]) {
+      assert.match(sellerOrderUpdate, new RegExp(`${field}: null`), `seller deletion must clear ${field}`);
+    }
+  });
+
   it("removes only deleted-user-created blocks and keeps media cleanup scoped to the deleted sender", () => {
     const deletion = source("src/lib/accountDeletion.ts");
 
@@ -61,10 +88,13 @@ describe("Round 9 account deletion PII guardrails", () => {
     const deletion = source("src/lib/accountDeletion.ts");
 
     assert.match(deletion, /function bodyTextMatchSql\(value: string\)/);
+    assert.match(deletion, /function caseDescriptionTextMatchSql\(value: string\)/);
     assert.match(deletion, /FROM "Message"[\s\S]*"senderId" <> \$\{deletedUserId\}[\s\S]*"recipientId" = \$\{deletedUserId\}/);
     assert.match(deletion, /FROM "CaseMessage"[\s\S]*"authorId" <> \$\{deletedUserId\}[\s\S]*"caseId" IN \([\s\S]*FROM "Case"[\s\S]*"buyerId" = \$\{deletedUserId\}[\s\S]*OR "sellerId" = \$\{deletedUserId\}/);
+    assert.match(deletion, /FROM "Case"[\s\S]*\("buyerId" = \$\{deletedUserId\} OR "sellerId" = \$\{deletedUserId\}\)/);
     assert.match(deletion, /redactMessagesAboutDeletedAccount\(tx, user\.id, accountSensitiveValues\)/);
     assert.match(deletion, /redactCaseMessagesAboutDeletedAccount\(tx, user\.id, accountSensitiveValues\)/);
+    assert.match(deletion, /redactCasesAboutDeletedAccount\(tx, user\.id, accountSensitiveValues\)/);
   });
 
   it("preserves conversations without deleted-account email fallbacks", () => {
@@ -102,6 +132,33 @@ describe("Round 9 account deletion PII guardrails", () => {
       "shippingPhone",
     ]) {
       assert.match(deletion, new RegExp(`user\\.${field}`), `sensitive values must include ${field}`);
+    }
+  });
+
+  it("uses seller contact, address, and profile URLs as deletion redaction needles", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+    const userSelectStart = deletion.indexOf("const user = await tx.user.findUnique");
+    const userSelectEnd = deletion.indexOf("if (!user) return", userSelectStart);
+    const userSelect = deletion.slice(userSelectStart, userSelectEnd);
+    const sensitiveStart = deletion.indexOf("const accountSensitiveValues = normalizedSensitiveValues");
+    const sensitiveEnd = deletion.indexOf("]);", sensitiveStart);
+    const sensitiveBlock = deletion.slice(sensitiveStart, sensitiveEnd);
+
+    for (const field of [
+      "shipFromName",
+      "shipFromLine1",
+      "shipFromLine2",
+      "shipFromCity",
+      "shipFromState",
+      "shipFromPostal",
+      "instagramUrl",
+      "facebookUrl",
+      "pinterestUrl",
+      "tiktokUrl",
+      "websiteUrl",
+    ]) {
+      assert.match(userSelect, new RegExp(`${field}: true`), `seller profile select must include ${field}`);
+      assert.match(sensitiveBlock, new RegExp(`user\\.sellerProfile\\?\\.${field}`), `sensitive values must include ${field}`);
     }
   });
 
@@ -224,12 +281,15 @@ describe("Round 9 account deletion PII guardrails", () => {
 
   it("allocates collision-safe deleted-account blog archive slugs", () => {
     const deletion = source("src/lib/accountDeletion.ts");
+    const exportRoute = source("src/app/api/account/export/route.ts");
 
     assert.match(deletion, /function deletedAccountBlogSlug\(postId: string, collisionIndex = 0\)/);
     assert.match(deletion, /`deleted-\$\{postId\}-\$\{collisionIndex\}`/);
     assert.match(deletion, /async function deletedAccountAvailableBlogSlug\(postId: string\)/);
     assert.match(deletion, /tx\.blogPost\.findUnique\(\{\s*where: \{ slug \}/s);
     assert.match(deletion, /const archivedSlug = await deletedAccountAvailableBlogSlug\(post\.id\)/);
+    assert.match(deletion, /materialDisclosure: null/);
+    assert.match(exportRoute, /materialDisclosure: true/);
     assert.doesNotMatch(deletion, /slug: `deleted-\$\{post\.id\}`/);
   });
 });

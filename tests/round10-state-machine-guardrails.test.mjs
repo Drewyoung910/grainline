@@ -175,7 +175,7 @@ describe("Round 10 state-machine guardrails", () => {
     const markResolved = source("src/app/api/cases/[id]/mark-resolved/route.ts");
 
     assert.match(fulfillment, /authz\.order\.labelStatus === "PURCHASED"/);
-    assert.match(fulfillment, /labelStatus: \{ not: LabelStatus\.PURCHASED \}/);
+    assert.match(fulfillment, /"labelStatus" IS NULL OR "labelStatus" != 'PURCHASED'::"LabelStatus"/);
     assert.match(adminReview, /fanOutListingToFollowers/);
     assert.match(adminReview, /admin-approved-listing:\$\{listing\.id\}:\$\{followerId\}/);
     assert.match(adminReview, /source: 'admin_listing_review_follower_fanout'/);

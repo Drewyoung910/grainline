@@ -406,6 +406,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
         title: true,
         excerpt: true,
         body: true,
+        materialDisclosure: true,
         coverImageUrl: true,
         videoUrl: true,
         authorType: true,

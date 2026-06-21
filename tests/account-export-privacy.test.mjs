@@ -73,6 +73,17 @@ describe("account export privacy coverage", () => {
     }
   });
 
+  it("exports user-authored blog material disclosures", () => {
+    const route = source("src/app/api/account/export/route.ts");
+    const blogStart = route.indexOf("prisma.blogPost.findMany({");
+    const blogEnd = route.indexOf("prisma.blogComment.findMany", blogStart);
+    const blogBlock = route.slice(blogStart, blogEnd);
+
+    assert.ok(blogStart >= 0, "account export must query authored blog posts");
+    assert.ok(blogEnd > blogStart, "blog post export block must stay bounded");
+    assert.match(blogBlock, /materialDisclosure: true/);
+  });
+
   it("keeps explicit export collections for common user-owned records", () => {
     const route = source("src/app/api/account/export/route.ts");
     const payload = source("src/lib/accountExportPayload.ts");

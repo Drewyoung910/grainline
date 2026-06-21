@@ -75,8 +75,10 @@ describe("payment and fulfillment side-effect observability", () => {
 
     assert.match(
       route,
-      /sellerProfile: \{ select: \{ id: true, stripeAccountId: true \} \}/,
+      /sellerProfile: \{ select: \{ id: true \} \}/,
     );
+    assert.match(route, /canReverseTransfer: Boolean\(caseRecord\.order\.stripeTransferId\)/);
+    assert.doesNotMatch(route, /Boolean\(caseRecord\.seller\.sellerProfile\?\.stripeAccountId\)/);
     assert.match(route, /refundMayRestoreStock\(caseRecord\.order\)/);
     assert.match(
       route,
@@ -125,6 +127,19 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(caseOrphanBlock, /Case refund orphan amount was unavailable/);
     assert.match(caseOrphanBlock, /Sentry\.captureException\(reviewUpdateError/);
     assert.match(caseOrphanBlock, /throw reviewUpdateError/);
+  });
+
+  it("derives first-party refund reversal eligibility from the order transfer", () => {
+    const sellerRoute = source("src/app/api/orders/[id]/refund/route.ts");
+    const caseRoute = source("src/app/api/cases/[id]/resolve/route.ts");
+
+    assert.match(sellerRoute, /canReverseTransfer: Boolean\(order\.stripeTransferId\)/);
+    assert.match(caseRoute, /canReverseTransfer: Boolean\(caseRecord\.order\.stripeTransferId\)/);
+
+    assert.doesNotMatch(sellerRoute, /stripeAccountId: true/);
+    assert.doesNotMatch(sellerRoute, /Boolean\(seller\.stripeAccountId\)/);
+    assert.doesNotMatch(caseRoute, /stripeAccountId: true/);
+    assert.doesNotMatch(caseRoute, /Boolean\(caseRecord\.seller\.sellerProfile\?\.stripeAccountId\)/);
   });
 
   it("serializes staff case refunds and dismissals before Stripe moves money", () => {
@@ -237,12 +252,30 @@ describe("payment and fulfillment side-effect observability", () => {
 
     assert.match(labelRoute, /"sellerRefundId" IS NULL/);
     assert.match(labelRoute, /"sellerRefundLockedAt" IS NULL/);
+    assert.match(labelRoute, /releaseStaleRefundLocks\(id\)/);
+    assert.match(labelRoute, /staleLocksReleased\.count > 0/);
+    assert.ok(
+      labelRoute.indexOf("releaseStaleRefundLocks(id)") <
+        labelRoute.indexOf("if (order.labelStatus ==="),
+      "label route should release stale refund locks before label/refund guards",
+    );
     assert.match(labelRoute, /SELECT 1 FROM "Case" c/);
     assert.match(labelRoute, /c\."status"::text IN \(\$\{Prisma\.join\(\[\.\.\.ACTIVE_CASE_STATUSES\]\)\}\)/);
     assert.match(labelRoute, /ope\."status" IS NULL/);
     assert.match(labelRoute, /lower\(ope\."status"\) NOT IN \(\$\{Prisma\.join\(NON_BLOCKING_REFUND_LEDGER_STATUSES\)\}\)/);
     assert.match(labelRoute, /latestOpenDisputeLedgerExistsSql/);
     assert.match(labelRoute, /latestOpenDisputeLedgerExistsSql\(Prisma\.sql`"Order"\.id`\)/);
+  });
+
+  it("blocks fulfillment state changes on latest open Stripe dispute ledgers", () => {
+    const route = source("src/app/api/orders/[id]/fulfillment/route.ts");
+
+    assert.match(route, /latestOpenDisputeLedgerExistsSql/);
+    assert.match(route, /SELECT \$\{latestOpenDisputeLedgerExistsSql\(Prisma\.sql`\$\{id\}`\)\} AS "hasOpenDispute"/);
+    assert.match(route, /Resolve the open Stripe dispute before changing fulfillment/);
+    assert.match(route, /UPDATE "Order"[\s\S]*blockingRefundLedgerExistsSql\(Prisma\.sql`"Order"\.id`\)[\s\S]*latestOpenDisputeLedgerExistsSql\(Prisma\.sql`"Order"\.id`\)/);
+    assert.match(route, /"fulfillmentStatus"::text IN \(\$\{Prisma\.join\(allowed\)\}\)/);
+    assert.doesNotMatch(route, /id:\s*\{\s*in: Prisma\.sql/);
   });
 
   it("allows seller partial refunds to restore only explicitly requested purchased stock", () => {
@@ -588,6 +621,8 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(route, /status: HTTP_STATUS\.ACCEPTED/);
     assert.match(route, /status: HTTP_STATUS\.BAD_GATEWAY/);
     assert.match(route, /source: "label_lock_revert_failed"/);
+    assert.match(route, /source: "shippo_label_purchase_ambiguous"/);
+    assert.match(route, /source: "shippo_label_ambiguous_record_failed"/);
     assert.match(route, /source: "shippo_label_post_purchase_db_update"/);
     assert.match(route, /source: "shippo_label_orphan_record_failed"/);
     assert.match(
@@ -607,6 +642,13 @@ describe("payment and fulfillment side-effect observability", () => {
       /source: "shippo_label_orphan_record_failed"[\s\S]*labelUrl: purchasedLabelDetails/s,
     );
     assert.doesNotMatch(route, /Shippo label purchase failed: \$\{msgs/);
+    const ambiguousStart = route.indexOf("source: \"shippo_label_purchase_ambiguous\"");
+    const orphanStart = route.indexOf("source: \"shippo_label_post_purchase_db_update\"", ambiguousStart);
+    const ambiguousBlock = route.slice(ambiguousStart, orphanStart);
+    assert.ok(ambiguousStart >= 0, "ambiguous Shippo label branch must be present");
+    assert.ok(orphanStart > ambiguousStart, "orphan label branch must follow ambiguous branch");
+    assert.match(ambiguousBlock, /AMBIGUOUS LABEL/);
+    assert.doesNotMatch(ambiguousBlock, /revertLabelLock\(\)/);
     assert.doesNotMatch(route, /order:\s*updated/);
     assert.match(route, /order: labelPurchaseOrderResponse\(updated\)/);
     assert.match(route, /select: labelClawbackOrderSelect/);

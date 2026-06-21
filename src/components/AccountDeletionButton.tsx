@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useClerk } from "@clerk/nextjs";
+import { useClerk, useReverification } from "@clerk/nextjs";
+import { isReverificationCancelledError } from "@clerk/nextjs/errors";
 import { useToast } from "@/components/Toast";
 import { clearSignedOutLocalAccountState } from "@/lib/localAccountState";
 
@@ -11,12 +12,67 @@ type Blocker = {
   message: string;
 };
 
+type AccountDeletionResult =
+  | {
+      ok: true;
+      warning?: string;
+    }
+  | {
+      ok: false;
+      error: string;
+      clerkSessionDeleted?: boolean;
+      blockers?: Blocker[];
+    }
+  | {
+      ok: false;
+      clerk_error: unknown;
+      error: string;
+    };
+
+async function requestAccountDeletion(confirmText: string): Promise<AccountDeletionResult> {
+  const res = await fetch("/api/account/delete", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ confirmText }),
+  });
+  const data = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    error?: string;
+    warning?: string;
+    clerk_error?: unknown;
+    clerkSessionDeleted?: boolean;
+    blockers?: Blocker[];
+  };
+
+  if (data.clerk_error) {
+    return {
+      ok: false,
+      clerk_error: data.clerk_error,
+      error: "Account verification required.",
+    };
+  }
+  if (!res.ok) {
+    return {
+      ok: false,
+      error: data.error ?? "Account deletion failed.",
+      clerkSessionDeleted: data.clerkSessionDeleted,
+      blockers: data.blockers,
+    };
+  }
+  return { ok: true, warning: data.warning };
+}
+
 export function AccountDeletionButton() {
   const { signOut } = useClerk();
   const { toast } = useToast();
   const [confirmText, setConfirmText] = useState("");
   const [pending, setPending] = useState(false);
   const [blockers, setBlockers] = useState<Blocker[]>([]);
+  const deleteAccountWithReverification = useReverification(requestAccountDeletion);
 
   async function deleteAccount() {
     if (confirmText !== "DELETE") {
@@ -27,16 +83,9 @@ export function AccountDeletionButton() {
     setPending(true);
     setBlockers([]);
     try {
-      const res = await fetch("/api/account/delete", { method: "POST" });
-      const data = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        error?: string;
-        warning?: string;
-        clerkSessionDeleted?: boolean;
-        blockers?: Blocker[];
-      };
+      const data = await deleteAccountWithReverification(confirmText);
 
-      if (!res.ok) {
+      if (!data.ok) {
         setBlockers(data.blockers ?? []);
         if (data.clerkSessionDeleted) {
           toast(data.error ?? "Account deletion needs manual support follow-up.", "error");
@@ -51,7 +100,11 @@ export function AccountDeletionButton() {
       toast(data.warning ?? "Account deleted.", data.warning ? "info" : "success");
       clearSignedOutLocalAccountState();
       await signOut({ redirectUrl: "/account/deleted" });
-    } catch {
+    } catch (error) {
+      if (isReverificationCancelledError(error)) {
+        toast("Account verification was cancelled.", "info");
+        return;
+      }
       toast("Network error. Please try again.", "error");
     } finally {
       setPending(false);

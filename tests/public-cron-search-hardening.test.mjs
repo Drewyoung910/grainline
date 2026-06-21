@@ -57,6 +57,8 @@ describe("cron and public route hardening", () => {
     assert.match(cspReport, /readBoundedText\(request, CSP_REPORT_BODY_MAX_BYTES\)/);
     assert.match(cspReport, /sanitizeCspReportForSentry/);
     assert.match(cspReport, /cspReportBreadcrumbData\(report\)/);
+    assert.match(cspReport, /JSON\.stringify\(sanitizeCspReportForSentry\(report\), null, 2\)/);
+    assert.doesNotMatch(cspReport, /JSON\.stringify\(report, null, 2\)/);
     assert.match(cspReportState, /checkout_surface/);
 
     assert.match(health, /safeRateLimitOpen\(healthRatelimit, getIP\(req\)\)/);

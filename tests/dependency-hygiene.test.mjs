@@ -32,6 +32,21 @@ describe("dependency hygiene guardrails", () => {
     assert.equal(lock.packages?.[""]?.engines?.node, ">=22");
   });
 
+  it("keeps direct Prisma packages on the same minor version", () => {
+    const pkg = json("package.json");
+    const lock = json("package-lock.json");
+    const expected = "^7.8.0";
+    const expectedLockVersion = "7.8.0";
+
+    assert.equal(pkg.dependencies?.["@prisma/client"], expected);
+    assert.equal(pkg.dependencies?.["@prisma/adapter-pg"], expected);
+    assert.equal(pkg.devDependencies?.prisma, expected);
+
+    assert.equal(lock.packages?.["node_modules/@prisma/client"]?.version, expectedLockVersion);
+    assert.equal(lock.packages?.["node_modules/@prisma/adapter-pg"]?.version, expectedLockVersion);
+    assert.equal(lock.packages?.["node_modules/prisma"]?.version, expectedLockVersion);
+  });
+
   it("does not reintroduce stale marked ambient types", () => {
     const pkg = json("package.json");
     const lock = source("package-lock.json");

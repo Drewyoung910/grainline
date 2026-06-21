@@ -10,7 +10,7 @@ describe("seller refund route source-order guardrails", () => {
       /if \(!allItemsBelongToSeller\)\s*return privateJson\(\{ error: "Forbidden\." \}, \{ status: HTTP_STATUS\.FORBIDDEN \}\);/,
     );
     const lockRelease = "const staleLocksReleased = await releaseStaleRefundLocks(orderId);";
-    const disputeCheck = "const latestDispute = await prisma.orderPaymentEvent.findFirst";
+    const disputeCheck = "const [{ hasOpenDispute } = { hasOpenDispute: false }]";
 
     assert.match(source, /order\.items\.every\(\(it\) => it\.listing\.sellerId === seller\.id\)/);
     assert.notEqual(ownershipCheck, -1);

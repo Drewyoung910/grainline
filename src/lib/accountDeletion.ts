@@ -204,6 +204,16 @@ function bodyTextMatchSql(value: string) {
   return Prisma.sql`lower(body) ~ ${pattern}`;
 }
 
+function caseDescriptionTextMatchSql(value: string) {
+  const normalized = value.toLowerCase();
+  if (Array.from(normalized).length >= 3) {
+    return Prisma.sql`position(${normalized} in lower(COALESCE("description", ''))) > 0`;
+  }
+
+  const pattern = `(^|[^[:alnum:]])${escapePostgresRegex(normalized)}([^[:alnum:]]|$)`;
+  return Prisma.sql`lower(COALESCE("description", '')) ~ ${pattern}`;
+}
+
 function supportClosureEvidenceTextMatchSql(value: string) {
   const normalized = value.toLowerCase();
   if (Array.from(normalized).length >= 3) {
@@ -687,6 +697,71 @@ async function redactCaseMessagesAboutDeletedAccount(
   }
 }
 
+async function collectCasesBySensitiveDescriptionText(
+  tx: Prisma.TransactionClient,
+  deletedUserId: string,
+  sensitiveValues: string[],
+) {
+  const cases = new Map<string, { description: string | null }>();
+
+  for (const value of sensitiveValues.filter((item) => Array.from(item).length >= 2)) {
+    const textMatchSql = caseDescriptionTextMatchSql(value);
+    let cursor: string | null = null;
+
+    for (;;) {
+      const query: Prisma.Sql = cursor
+        ? Prisma.sql`
+          SELECT id, description
+          FROM "Case"
+          WHERE id > ${cursor}
+            AND ("buyerId" = ${deletedUserId} OR "sellerId" = ${deletedUserId})
+            AND ${textMatchSql}
+          ORDER BY id ASC
+          LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
+        `
+        : Prisma.sql`
+          SELECT id, description
+          FROM "Case"
+          WHERE ("buyerId" = ${deletedUserId} OR "sellerId" = ${deletedUserId})
+            AND ${textMatchSql}
+          ORDER BY id ASC
+          LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
+        `;
+      const matches: { id: string; description: string | null }[] = await tx.$queryRaw(query);
+      matches.forEach((caseRecord) => {
+        if (!cases.has(caseRecord.id)) {
+          cases.set(caseRecord.id, { description: caseRecord.description });
+        }
+      });
+
+      if (matches.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
+      cursor = matches[matches.length - 1]?.id ?? null;
+      if (!cursor) break;
+    }
+  }
+
+  return cases;
+}
+
+async function redactCasesAboutDeletedAccount(
+  tx: Prisma.TransactionClient,
+  deletedUserId: string,
+  sensitiveValues: string[],
+) {
+  const cases = await collectCasesBySensitiveDescriptionText(tx, deletedUserId, sensitiveValues);
+
+  for (const [id, caseRecord] of cases) {
+    if (caseRecord.description === null) continue;
+    const description = redactAccountDeletionText(caseRecord.description, sensitiveValues);
+    if (!description.changed) continue;
+
+    await tx.case.update({
+      where: { id },
+      data: { description: description.text },
+    });
+  }
+}
+
 async function redactSupportRequestsForDeletedAccount(
   tx: Prisma.TransactionClient,
   deletedUserId: string,
@@ -840,6 +915,7 @@ async function archiveBlogPostsForDeletedAccount(
           title: "Deleted blog post",
           excerpt: null,
           body: "[Post removed]",
+          materialDisclosure: null,
           coverImageUrl: null,
           videoUrl: null,
           authorId: null,
@@ -1174,7 +1250,31 @@ export async function anonymizeUserAccount(
   const result = await prisma.$transaction(async (tx) => {
     const user = await tx.user.findUnique({
       where: { id: userId },
-      include: { sellerProfile: { select: { id: true, displayName: true } } },
+      include: {
+        sellerProfile: {
+          select: {
+            id: true,
+            displayName: true,
+            city: true,
+            state: true,
+            shipFromName: true,
+            shipFromLine1: true,
+            shipFromLine2: true,
+            shipFromCity: true,
+            shipFromState: true,
+            shipFromPostal: true,
+            tagline: true,
+            bannerImageUrl: true,
+            avatarImageUrl: true,
+            workshopImageUrl: true,
+            instagramUrl: true,
+            facebookUrl: true,
+            pinterestUrl: true,
+            tiktokUrl: true,
+            websiteUrl: true,
+          },
+        },
+      },
     });
 
     if (!user) return { ok: true, alreadyDeleted: true, auditTargetIds: [], accountSensitiveValues: [] };
@@ -1214,6 +1314,23 @@ export async function anonymizeUserAccount(
       user.shippingPhone,
       user.sellerProfile?.id,
       user.sellerProfile?.displayName,
+      user.sellerProfile?.city,
+      user.sellerProfile?.state,
+      user.sellerProfile?.shipFromName,
+      user.sellerProfile?.shipFromLine1,
+      user.sellerProfile?.shipFromLine2,
+      user.sellerProfile?.shipFromCity,
+      user.sellerProfile?.shipFromState,
+      user.sellerProfile?.shipFromPostal,
+      user.sellerProfile?.tagline,
+      user.sellerProfile?.bannerImageUrl,
+      user.sellerProfile?.avatarImageUrl,
+      user.sellerProfile?.workshopImageUrl,
+      user.sellerProfile?.instagramUrl,
+      user.sellerProfile?.facebookUrl,
+      user.sellerProfile?.pinterestUrl,
+      user.sellerProfile?.tiktokUrl,
+      user.sellerProfile?.websiteUrl,
     ]);
     const mediaUrls = await collectAccountDeletionMediaUrls(tx, user.id, user.clerkId);
     await enqueueAccountDeletionMediaDeleteSideEffects(tx, user.id, mediaUrls);
@@ -1263,6 +1380,7 @@ export async function anonymizeUserAccount(
       where: { buyerId: user.id },
       data: { description: "[Case description deleted]" },
     });
+    await redactCasesAboutDeletedAccount(tx, user.id, accountSensitiveValues);
     await tx.review.updateMany({
       where: { reviewerId: user.id },
       data: { comment: null },
@@ -1496,7 +1614,17 @@ export async function anonymizeUserAccount(
             every: { listing: { sellerId: user.sellerProfile.id } },
           },
         },
-        data: { sellerNotes: null },
+        data: {
+          trackingCarrier: null,
+          trackingNumber: null,
+          sellerNotes: null,
+          shippoShipmentId: null,
+          shippoRateObjectId: null,
+          shippoTransactionId: null,
+          labelUrl: null,
+          labelCarrier: null,
+          labelTrackingNumber: null,
+        },
       });
       await tx.sellerProfile.update({
         where: { id: user.sellerProfile.id },

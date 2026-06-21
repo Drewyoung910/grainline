@@ -110,6 +110,42 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     assert.match(route, /status: HTTP_STATUS\.CONFLICT/);
   });
 
+  it("keeps account deletion behind same-origin, fresh-session, and server confirmation checks", () => {
+    const route = source("src/app/api/account/delete/route.ts");
+    const button = source("src/components/AccountDeletionButton.tsx");
+
+    assert.match(route, /import \{ auth, clerkClient, reverificationErrorResponse \} from "@clerk\/nextjs\/server"/);
+    assert.match(route, /getExplicitCrossOriginPostRejection\(req\)/);
+    assert.match(route, /hasFreshAccountDeletionSession\(session\.factorVerificationAge\)/);
+    assert.match(route, /reverificationErrorResponse\(ACCOUNT_DELETION_REVERIFICATION\)/);
+    assert.match(route, /confirmText: z\.literal\("DELETE"\)/);
+    assert.match(route, /readBoundedJson\(req, ACCOUNT_DELETION_BODY_MAX_BYTES\)/);
+
+    const guardIndex = route.indexOf("getExplicitCrossOriginPostRejection(req)");
+    const authIndex = route.indexOf("await auth()");
+    const freshnessIndex = route.indexOf("hasFreshAccountDeletionSession(session.factorVerificationAge)");
+    const bodyIndex = route.indexOf("readBoundedJson(req, ACCOUNT_DELETION_BODY_MAX_BYTES)");
+    const rateIndex = route.indexOf("safeRateLimit(accountDeletionRatelimit");
+    const blockersIndex = route.indexOf("getAccountDeletionBlockers(me.id)");
+    const lockIndex = route.indexOf("acquireAccountDeletionLock(me.id)");
+    const clerkIndex = route.indexOf("users.deleteUser(clerkId)");
+
+    assert.ok(guardIndex >= 0);
+    assert.ok(authIndex > guardIndex);
+    assert.ok(freshnessIndex > authIndex);
+    assert.ok(bodyIndex > freshnessIndex);
+    assert.ok(rateIndex > bodyIndex);
+    assert.ok(blockersIndex > rateIndex);
+    assert.ok(lockIndex > blockersIndex);
+    assert.ok(clerkIndex > lockIndex);
+
+    assert.match(button, /useReverification\(requestAccountDeletion\)/);
+    assert.match(button, /credentials: "same-origin"/);
+    assert.match(button, /"Content-Type": "application\/json"/);
+    assert.match(button, /body: JSON\.stringify\(\{ confirmText \}\)/);
+    assert.match(button, /isReverificationCancelledError\(error\)/);
+  });
+
   it("treats post-Clerk anonymization failures as terminal for the client", () => {
     const route = source("src/app/api/account/delete/route.ts");
     const button = source("src/components/AccountDeletionButton.tsx");

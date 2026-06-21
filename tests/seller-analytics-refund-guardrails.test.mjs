@@ -12,8 +12,11 @@ describe("seller analytics refund guardrails", () => {
     assert.match(helper, /NON_BLOCKING_REFUND_LEDGER_STATUSES/);
     assert.match(helper, /lower\(ope\."status"\) NOT IN \(\$\{Prisma\.join\(NON_BLOCKING_REFUND_LEDGER_STATUSES\)\}\)/);
     assert.match(helper, /latestOpenDisputeLedgerExistsSql/);
+    assert.match(helper, /latestOpenDisputeLedgerRowsSql/);
     assert.match(helper, /SELECT DISTINCT ON \(COALESCE\(ope\."stripeObjectId", ope\.id\)\)/);
-    assert.match(helper, /ORDER BY COALESCE\(ope\."stripeObjectId", ope\.id\), ope\."createdAt" DESC, ope\.id DESC/);
+    assert.match(helper, /NULLIF\(ope\."metadata"->>'stripeEventCreated', ''\)::bigint/);
+    assert.match(helper, /EXTRACT\(EPOCH FROM ope\."createdAt"\)::bigint/);
+    assert.match(helper, /ope\."createdAt" DESC/);
     assert.match(helper, /STRIPE_DISPUTE_CLOSED_STATUSES/);
 
     for (const path of [
@@ -62,5 +65,16 @@ describe("seller analytics refund guardrails", () => {
       assert.match(text, /o\."sellerRefundId" IS NULL/);
       assert.match(text, /BLOCKING_REFUND_LEDGER_SQL/);
     }
+  });
+
+  it("orders seller refund and blocked-checkout dispute guards by Stripe event time", () => {
+    const sellerRefundRoute = source("src/app/api/orders/[id]/refund/route.ts");
+    const stripeWebhook = source("src/app/api/stripe/webhook/route.ts");
+
+    assert.match(sellerRefundRoute, /latestOpenDisputeLedgerExistsSql\(Prisma\.sql`\$\{orderId\}`\)/);
+    assert.doesNotMatch(sellerRefundRoute, /orderPaymentEvent\.findFirst\(\{\s*where: \{ orderId, eventType: "DISPUTE" \}/s);
+
+    assert.match(stripeWebhook, /latestOpenDisputeLedgerRowsSql\(Prisma\.sql`\$\{input\.orderId\}`\)/);
+    assert.doesNotMatch(stripeWebhook, /orderPaymentEvent\.findFirst\(\{\s*where: \{ orderId: input\.orderId, eventType: "DISPUTE" \}/s);
   });
 });

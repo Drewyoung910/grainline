@@ -526,6 +526,7 @@ describe("Stripe webhook state helpers", () => {
     const state = chargeDisputeLedgerState({
       chargeId: "ch_1",
       eventType: "charge.dispute.created",
+      stripeEventCreated: 1_717_171_717,
       orderCurrency: "usd",
       dispute: { id: "dp_1", amount: 3_200, currency: null, reason: "fraudulent", status: null },
     });
@@ -541,12 +542,19 @@ describe("Stripe webhook state helpers", () => {
         chargeId: "ch_1",
         disputeId: "dp_1",
         stripeEventType: "charge.dispute.created",
+        stripeEventCreated: 1_717_171_717,
       },
     });
     assert.deepEqual(state.orderUpdate, {
       reviewNeeded: true,
       reviewNote: "Stripe dispute charge.dispute.created: fraudulent",
     });
+  });
+
+  it("records signed Stripe event time on dispute ledger rows", () => {
+    const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+
+    assert.match(source, /chargeDisputeLedgerState\(\{\s*chargeId,\s*eventType: event\.type,\s*stripeEventCreated: event\.created,/s);
   });
 
   it("clears stale refund-lock timestamps when a Stripe dispute closes", () => {

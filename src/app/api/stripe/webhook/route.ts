@@ -46,7 +46,10 @@ import {
   isBlockingRefundLedgerEvent,
   orderHasRefundLedger,
 } from "@/lib/refundRouteState";
-import { blockingRefundOrLatestOpenDisputeLedgerExistsSql } from "@/lib/refundLedgerSql";
+import {
+  blockingRefundOrLatestOpenDisputeLedgerExistsSql,
+  latestOpenDisputeLedgerRowsSql,
+} from "@/lib/refundLedgerSql";
 import { REFUND_LOCK_SENTINEL, isStaleRefundLock } from "@/lib/refundLockState";
 import { releaseStaleRefundLocks } from "@/lib/refundLocks";
 import { createMarketplaceRefund, refundIdempotencyKeyBase } from "@/lib/marketplaceRefunds";
@@ -1028,11 +1031,11 @@ export async function POST(req: Request) {
             return;
           }
 
-          const latestDispute = await prisma.orderPaymentEvent.findFirst({
-            where: { orderId: input.orderId, eventType: "DISPUTE" },
-            orderBy: { createdAt: "desc" },
-            select: { status: true, stripeObjectId: true },
-          });
+          const [latestDispute] =
+            await prisma.$queryRaw<Array<{ status: string | null; stripeObjectId: string | null }>>`
+              ${latestOpenDisputeLedgerRowsSql(Prisma.sql`${input.orderId}`)}
+              LIMIT 1
+            `;
           const disputeGuard = blockedCheckoutDisputeState({ latestDispute, reviewPrefix });
           if (disputeGuard) {
             await prisma.order.update({
@@ -2203,6 +2206,7 @@ export async function POST(req: Request) {
             const disputeLedger = chargeDisputeLedgerState({
               chargeId,
               eventType: event.type,
+              stripeEventCreated: event.created,
               dispute,
               orderCurrency: order.currency,
             });

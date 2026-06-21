@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 const {
+  ACCOUNT_DELETION_REVERIFICATION,
   ACCOUNT_EXPORT_REVERIFICATION,
+  hasFreshAccountDeletionSession,
   hasFreshAccountExportSession,
 } = await import("../src/lib/accountExportReverification.ts");
 
-describe("account export reverification state", () => {
-  it("requires a recent first-factor verification", () => {
+describe("account export/deletion reverification state", () => {
+  it("requires a recent first-factor verification for account export", () => {
     assert.deepEqual(ACCOUNT_EXPORT_REVERIFICATION, {
       level: "first_factor",
       afterMinutes: 10,
@@ -21,10 +23,25 @@ describe("account export reverification state", () => {
     assert.equal(hasFreshAccountExportSession(null), false);
   });
 
+  it("requires a recent first-factor verification for account deletion", () => {
+    assert.deepEqual(ACCOUNT_DELETION_REVERIFICATION, {
+      level: "first_factor",
+      afterMinutes: 10,
+    });
+
+    assert.equal(hasFreshAccountDeletionSession([0, -1]), true);
+    assert.equal(hasFreshAccountDeletionSession([9, -1]), true);
+    assert.equal(hasFreshAccountDeletionSession([10, -1]), false);
+    assert.equal(hasFreshAccountDeletionSession([-1, 0]), false);
+    assert.equal(hasFreshAccountDeletionSession(null), false);
+  });
+
   it("rejects malformed factor-age claims", () => {
     assert.equal(hasFreshAccountExportSession([Number.NaN, -1]), false);
     assert.equal(hasFreshAccountExportSession([0, Number.NaN]), false);
     assert.equal(hasFreshAccountExportSession([0]), false);
     assert.equal(hasFreshAccountExportSession([0, -1, 0]), false);
+    assert.equal(hasFreshAccountDeletionSession([Number.NaN, -1]), false);
+    assert.equal(hasFreshAccountDeletionSession([0]), false);
   });
 });

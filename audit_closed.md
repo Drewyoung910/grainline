@@ -8334,3 +8334,122 @@ submission decision, residual lower-risk HTTP-status/logging hygiene outside
 touched routes, Vercel Analytics/Speed Insights product/privacy decision,
 remaining homepage runtime a11y proof, and residual agent/worktree verification
 process hygiene.
+
+Entry 437 closes a wider parent-verified account-deletion, refund/dispute,
+label, fulfillment, dependency-hygiene, and small observability pass. Two
+read-only agents were used as sidecar scanners for account deletion/privacy and
+Stripe refund/dispute/label risks. Both agents were closed, and parent Codex
+rechecked code, installed Stripe SDK types, docs, and tests before editing or
+classifying findings.
+
+Verified fixed/reduced:
+
+- Direct Prisma packages were mismatched locally (`prisma` 7.8.0 with
+  `@prisma/client`/`@prisma/adapter-pg` 7.7.0). The client and adapter were
+  aligned to 7.8.0, and dependency hygiene tests now pin the direct Prisma trio
+  across `package.json` and `package-lock.json`.
+- Latest Stripe dispute checks no longer sort by local
+  `OrderPaymentEvent.createdAt` alone. Dispute webhooks now persist signed
+  `event.created` as `metadata.stripeEventCreated`, and shared latest-dispute
+  SQL orders by that Stripe timestamp with local `createdAt` as fallback. Seller
+  refund preflight and blocked-checkout auto-refund dispute guards now use the
+  same shared SQL.
+- Seller and staff first-party refund routes now derive
+  `canReverseTransfer` from the actual historical `Order.stripeTransferId`, not
+  the seller's current connected-account presence.
+- Account deletion now requires explicit same-origin POST headers, a fresh
+  first-factor Clerk session, and server-validated `{ confirmText: "DELETE" }`
+  before rate limits, blockers, locks, Clerk deletion, or local anonymization.
+  The client uses Clerk reverification and sends the confirmation body; the
+  client-only typed confirmation is no longer the only destructive-action guard.
+- Account deletion privacy coverage now exports and scrubs
+  `BlogPost.materialDisclosure`, includes seller contact/address/profile URL
+  fields as redaction needles before clearing them, redacts seller-linked
+  `Case.description` rows that quote deleted-account values, and clears
+  seller-owned retained order fulfillment artifacts (`tracking*`, `shippo*`,
+  label URL/carrier/tracking) after blockers prove the orders are no longer
+  operational.
+- Label purchase now releases stale refund locks after seller ownership is
+  established and refetches order state before label/refund guards. Explicit
+  non-success Shippo transaction responses still revert the label lock, but
+  thrown/transport/ambiguous Shippo purchase failures now keep the pre-Shippo
+  `labelStatus = PURCHASED` lock, mark the order for review, and require staff
+  Shippo reconciliation before retry to reduce duplicate-label risk.
+- Manual fulfillment state changes now block latest-open Stripe dispute ledger
+  state both in preflight and in the final raw `UPDATE` predicate, so a dispute
+  ledger without a local `Case` can still prevent shipping/pickup transitions.
+- Stripe dispute status `prevented` is now treated as terminal/non-blocking
+  alongside `won`, `lost`, and `warning_closed`, matching the installed Stripe
+  SDK dispute status type.
+- `DELETE /api/favorites/[listingId]` now logs sanitized `favorite_delete`
+  telemetry and returns a normal internal-error message instead of a literal
+  unlogged `"DB error"`.
+- The CSP report route's development console path now logs
+  `sanitizeCspReportForSentry(report)` instead of raw report JSON.
+
+Deferred/accounting:
+
+- Splitting terminal dispute state from refund-safe dispute state remains a
+  product/accounting decision. In particular, `lost` disputes are still treated
+  as terminal for current guards; changing that to require staff reconciliation
+  before first-party refunds needs a Stripe/live-accounting policy decision.
+- Retrying platform-funded refunds after Stripe rejects transfer reversal for a
+  stale or non-reversible historical `Order.stripeTransferId` is deferred. It
+  needs explicit Stripe error classification, idempotency design, and manual
+  reconciliation policy rather than a drive-by fallback.
+
+Guardrails:
+`tests/dependency-hygiene.test.mjs`,
+`tests/seller-analytics-refund-guardrails.test.mjs`,
+`tests/stripe-webhook-state.test.mjs`,
+`tests/payment-side-effect-observability.test.mjs`,
+`tests/refund-route-source-order.test.mjs`,
+`tests/refund-route-state.test.mjs`,
+`tests/order-review-holds.test.mjs`,
+`tests/round10-state-machine-guardrails.test.mjs`,
+`tests/account-export-reverification.test.mjs`,
+`tests/account-deletion-timeout-fix.test.mjs`,
+`tests/account-export-privacy.test.mjs`,
+`tests/round9-account-deletion-pii-guardrails.test.mjs`,
+`tests/review-report-observability.test.mjs`, and
+`tests/public-cron-search-hardening.test.mjs`.
+
+Verification:
+focused `node --test tests/account-export-reverification.test.mjs tests/account-deletion-timeout-fix.test.mjs tests/account-export-privacy.test.mjs tests/round9-account-deletion-pii-guardrails.test.mjs tests/refund-route-state.test.mjs tests/order-review-holds.test.mjs tests/round10-state-machine-guardrails.test.mjs tests/seller-analytics-refund-guardrails.test.mjs tests/stripe-webhook-state.test.mjs tests/refund-route-source-order.test.mjs tests/dependency-hygiene.test.mjs tests/payment-side-effect-observability.test.mjs tests/review-report-observability.test.mjs tests/public-cron-search-hardening.test.mjs`
+(160/160 tests passing across 14 suites),
+`npm test` (1361/1361 tests passing across 254 suites),
+`npx tsc --noEmit`,
+`npm run lint` (exit 0; existing JSX AST utility resolver warning only),
+`npm audit --audit-level=moderate` (0 vulnerabilities),
+`git diff --check`, and
+`npm run build` passed.
+
+Current running tally after Entry 437: verified fixed/reduced 862, verified
+stale/false-positive/current 473, deferred product/design/ops/legal 75,
+approximate raw allegations left from current max #1126: 79. Fixed/reduced
+increases by fourteen for the verified source defects and risk reductions above.
+Deferred increases by two for the dispute-loss refund policy split and
+non-reversible-transfer platform-funded fallback design. Stale/current and raw
+left stay flat because this pass primarily closed source-discovered residues
+inside remaining privacy/Stripe/dependency/observability categories rather than
+retiring newly numbered raw allegations.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and route guard paths, Stripe webhook
+subscription dashboard evidence, Stripe Connect v2 loss-liability ops/legal
+decision, stale remote branch and old git author hygiene, Round 10 deferred
+cache/state-machine product designs that require product decisions rather than
+source guardrails, remaining EXPLAIN-dependent query-plan/index validation,
+Stripe partial-refund runtime reconciliation proof, founding-maker permanence
+policy, remaining privacy/legal retention scope, remaining privacy/export
+retention decisions, cross-seller AI duplicate-detection product design, legacy
+enum cleanup/data-migration decisions, partial multi-seller checkout
+continuation design, deliberate BigInt money-column modeling, live-data
+reconciliation for historical seller shipping-rate currency drift, Clerk staff
+MFA and breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket/dashboard posture plus production smoke evidence and
+public-availability proof, HSTS preload submission decision, Vercel
+Analytics/Speed Insights product/privacy decision, remaining homepage runtime
+a11y proof, and residual agent/worktree verification process hygiene.

@@ -53,6 +53,7 @@ describe("review/report/favorite observability hardening", () => {
   it("captures report, favorite, and block cleanup failures instead of swallowing them", () => {
     const reportRoute = source("src/app/api/users/[id]/report/route.ts");
     const favoriteRoute = source("src/app/api/favorites/route.ts");
+    const favoriteDeleteRoute = source("src/app/api/favorites/[listingId]/route.ts");
     const blockRoute = source("src/app/api/users/[id]/block/route.ts");
 
     assert.match(reportRoute, /source: "user_report_listing_notification"/);
@@ -61,6 +62,10 @@ describe("review/report/favorite observability hardening", () => {
     assert.match(favoriteRoute, /source: "favorite_upsert"/);
     assert.match(favoriteRoute, /source: "favorite_notification"/);
     assert.doesNotMatch(favoriteRoute, /console\.error\("POST \/api\/favorites/);
+    assert.match(favoriteDeleteRoute, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
+    assert.match(favoriteDeleteRoute, /source: "favorite_delete"/);
+    assert.match(favoriteDeleteRoute, /HTTP_STATUS\.INTERNAL_SERVER_ERROR/);
+    assert.doesNotMatch(favoriteDeleteRoute, /error: "DB error"/);
     assert.match(blockRoute, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
     assert.match(blockRoute, /source: "block_follow_cleanup"/);
     assert.doesNotMatch(blockRoute, /console\.error\("Failed to remove follow rows after block:/);

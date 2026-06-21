@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (process.env.NODE_ENV === "development") {
-      console.warn("[CSP Violation]", JSON.stringify(report, null, 2));
+      console.warn("[CSP Violation]", JSON.stringify(sanitizeCspReportForSentry(report), null, 2));
     }
   } catch (err) {
     Sentry.captureException(err, {

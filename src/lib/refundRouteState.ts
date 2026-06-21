@@ -11,7 +11,7 @@ type OrderRefundTotals = {
   taxAmountCents: number | null;
 };
 
-export const STRIPE_DISPUTE_CLOSED_STATUSES = new Set(["won", "lost", "warning_closed"]);
+export const STRIPE_DISPUTE_CLOSED_STATUSES = new Set(["won", "lost", "prevented", "warning_closed"]);
 export const NON_BLOCKING_REFUND_LEDGER_STATUSES = ["failed", "canceled", "cancelled"] as const;
 
 export function orderRefundTotalCents(order: OrderRefundTotals) {

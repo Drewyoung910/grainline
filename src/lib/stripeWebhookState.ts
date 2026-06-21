@@ -119,6 +119,7 @@ export type ChargeDisputeLedgerState = {
       chargeId: string;
       disputeId: string | null;
       stripeEventType: string;
+      stripeEventCreated: number | null;
     };
   };
   orderUpdate: {
@@ -547,11 +548,13 @@ export function chargeRefundLedgerState({
 export function chargeDisputeLedgerState({
   chargeId,
   eventType,
+  stripeEventCreated,
   dispute,
   orderCurrency,
 }: {
   chargeId: string;
   eventType: string;
+  stripeEventCreated?: number | null;
   dispute: StripeDisputeLike;
   orderCurrency: string;
 }): ChargeDisputeLedgerState {
@@ -572,6 +575,7 @@ export function chargeDisputeLedgerState({
         chargeId,
         disputeId: dispute.id ?? null,
         stripeEventType: eventType,
+        stripeEventCreated: stripeEventCreated ?? null,
       },
     },
     orderUpdate: {

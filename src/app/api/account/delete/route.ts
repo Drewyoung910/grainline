@@ -1,4 +1,4 @@
-import { auth, clerkClient } from "@clerk/nextjs/server";
+import { auth, clerkClient, reverificationErrorResponse } from "@clerk/nextjs/server";
 import * as Sentry from "@sentry/nextjs";
 import { ensureUser } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
@@ -13,10 +13,59 @@ import { enqueueAccountDeletionLocalAnonymizeSideEffect } from "@/lib/accountDel
 import { accountDeletionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
+import {
+  ACCOUNT_DELETION_REVERIFICATION,
+  hasFreshAccountDeletionSession,
+} from "@/lib/accountExportReverification";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
+import { z } from "zod";
 
-export async function POST() {
-  const { userId: clerkId } = await auth();
+const AccountDeletionSchema = z.object({
+  confirmText: z.literal("DELETE"),
+});
+const ACCOUNT_DELETION_BODY_MAX_BYTES = 4 * 1024;
+
+export async function POST(req: Request) {
+  const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
+  if (crossOriginRejection) {
+    return privateJson(
+      { error: "Cross-origin account deletion requests are not allowed." },
+      { status: HTTP_STATUS.FORBIDDEN },
+    );
+  }
+
+  const session = await auth();
+  const clerkId = session.userId;
   if (!clerkId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
+  if (!hasFreshAccountDeletionSession(session.factorVerificationAge)) {
+    return privateResponse(reverificationErrorResponse(ACCOUNT_DELETION_REVERIFICATION));
+  }
+
+  try {
+    AccountDeletionSchema.parse(await readBoundedJson(req, ACCOUNT_DELETION_BODY_MAX_BYTES));
+  } catch (error) {
+    if (isRequestBodyTooLargeError(error)) {
+      return privateJson(
+        { error: "Request body too large" },
+        { status: HTTP_STATUS.PAYLOAD_TOO_LARGE },
+      );
+    }
+    if (isInvalidJsonBodyError(error)) {
+      return privateJson({ error: "Invalid JSON" }, { status: HTTP_STATUS.BAD_REQUEST });
+    }
+    if (error instanceof z.ZodError) {
+      return privateJson(
+        { error: "Type DELETE to confirm account deletion." },
+        { status: HTTP_STATUS.BAD_REQUEST },
+      );
+    }
+    throw error;
+  }
 
   let me: Awaited<ReturnType<typeof ensureUser>>;
   try {

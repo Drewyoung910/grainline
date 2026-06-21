@@ -123,7 +123,7 @@ export async function POST(
         },
         seller: {
           select: {
-            sellerProfile: { select: { id: true, stripeAccountId: true } },
+            sellerProfile: { select: { id: true } },
           },
         },
       },
@@ -263,7 +263,7 @@ export async function POST(
           shippingAmountCents: caseRecord.order.shippingAmountCents,
           giftWrappingPriceCents: caseRecord.order.giftWrappingPriceCents,
           taxAmountCents: caseRecord.order.taxAmountCents,
-          canReverseTransfer: Boolean(caseRecord.seller.sellerProfile?.stripeAccountId),
+          canReverseTransfer: Boolean(caseRecord.order.stripeTransferId),
           idempotencyKeyBase: refundIdempotencyKeyBase({
             scope: "case-resolve",
             id,

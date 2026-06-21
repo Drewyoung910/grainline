@@ -14,6 +14,7 @@ import {
   orderHasRefundLedger,
 } from "@/lib/refundRouteState";
 import { latestOpenDisputeLedgerExistsSql } from "@/lib/refundLedgerSql";
+import { releaseStaleRefundLocks } from "@/lib/refundLocks";
 import {
   labelClawbackErrorMessage,
   labelClawbackIdempotencyKey,
@@ -210,7 +211,14 @@ export async function POST(
     const authz = await ensureSellerOwnsOrder(userId, id);
     if (!authz) return privateJson({ error: "Forbidden" }, { status: HTTP_STATUS.FORBIDDEN });
 
-    const { order, seller } = authz;
+    let { order, seller } = authz;
+
+    const staleLocksReleased = await releaseStaleRefundLocks(id);
+    if (staleLocksReleased.count > 0) {
+      const refreshedAuthz = await ensureSellerOwnsOrder(userId, id);
+      if (!refreshedAuthz) return privateJson({ error: "Forbidden" }, { status: HTTP_STATUS.FORBIDDEN });
+      ({ order, seller } = refreshedAuthz);
+    }
 
     // Parse optional body — frontend may supply rateObjectId after a re-quote
     let labelParsed: { rateObjectId?: string | null | undefined } = {};
@@ -663,65 +671,88 @@ export async function POST(
       });
     } catch (labelErr) {
       if (!shippoPurchaseSucceeded) {
-        await revertLabelLock();
-      } else {
         Sentry.captureException(labelErr, {
-          tags: { source: "shippo_label_post_purchase_db_update" },
-          extra: {
-            orderId: id,
-            shippoTransactionId: purchasedLabelDetails?.transactionId ?? null,
-            labelCostCents: purchasedLabelDetails?.labelCostCents ?? null,
-            carrier: purchasedLabelDetails?.carrier ?? null,
-            hasLabelUrl: Boolean(purchasedLabelDetails?.labelUrl),
-            hasTrackingNumber: Boolean(purchasedLabelDetails?.trackingNumber),
-          },
+          level: "warning",
+          tags: { source: "shippo_label_purchase_ambiguous" },
+          extra: { orderId: id, shippoRateObjectId: effectiveRateObjectId },
         });
         await prisma.order
           .updateMany({
             where: { id, labelStatus: "PURCHASED" },
             data: {
               reviewNeeded: true,
-              reviewNote: `ORPHANED LABEL: Shippo label ${purchasedLabelDetails?.transactionId ?? "unknown"} may have been purchased, but follow-up DB work failed. Manual reconciliation required.`,
-              ...(purchasedLabelDetails?.transactionId
-                ? { shippoTransactionId: purchasedLabelDetails.transactionId }
-                : {}),
-              ...(purchasedLabelDetails?.labelUrl
-                ? { labelUrl: purchasedLabelDetails.labelUrl }
-                : {}),
-              ...(purchasedLabelDetails?.trackingNumber
-                ? {
-                    labelTrackingNumber: purchasedLabelDetails.trackingNumber,
-                    trackingNumber: purchasedLabelDetails.trackingNumber,
-                  }
-                : {}),
-              ...(purchasedLabelDetails?.carrier
-                ? {
-                    labelCarrier: purchasedLabelDetails.carrier,
-                    trackingCarrier: purchasedLabelDetails.carrier,
-                  }
-                : {}),
-              ...(typeof purchasedLabelDetails?.labelCostCents === "number"
-                ? { labelCostCents: purchasedLabelDetails.labelCostCents }
-                : {}),
+              reviewNote:
+                "AMBIGUOUS LABEL: Shippo label purchase response was unavailable after Grainline reserved the label slot. Staff must reconcile Shippo before retrying or clearing label status.",
             },
           })
           .catch((updateError) => {
             Sentry.captureException(updateError, {
-              tags: { source: "shippo_label_orphan_record_failed" },
-              extra: {
-                orderId: id,
-                shippoTransactionId:
-                  purchasedLabelDetails?.transactionId ?? null,
-                labelCostCents: purchasedLabelDetails?.labelCostCents ?? null,
-                carrier: purchasedLabelDetails?.carrier ?? null,
-                hasLabelUrl: Boolean(purchasedLabelDetails?.labelUrl),
-                hasTrackingNumber: Boolean(
-                  purchasedLabelDetails?.trackingNumber,
-                ),
-              },
+              tags: { source: "shippo_label_ambiguous_record_failed" },
+              extra: { orderId: id, shippoRateObjectId: effectiveRateObjectId },
             });
           });
+        return privateJson(
+          { error: "Shippo label purchase status is unclear. Staff must reconcile before retrying." },
+          { status: HTTP_STATUS.BAD_GATEWAY },
+        );
       }
+
+      Sentry.captureException(labelErr, {
+        tags: { source: "shippo_label_post_purchase_db_update" },
+        extra: {
+          orderId: id,
+          shippoTransactionId: purchasedLabelDetails?.transactionId ?? null,
+          labelCostCents: purchasedLabelDetails?.labelCostCents ?? null,
+          carrier: purchasedLabelDetails?.carrier ?? null,
+          hasLabelUrl: Boolean(purchasedLabelDetails?.labelUrl),
+          hasTrackingNumber: Boolean(purchasedLabelDetails?.trackingNumber),
+        },
+      });
+      await prisma.order
+        .updateMany({
+          where: { id, labelStatus: "PURCHASED" },
+          data: {
+            reviewNeeded: true,
+            reviewNote: `ORPHANED LABEL: Shippo label ${purchasedLabelDetails?.transactionId ?? "unknown"} may have been purchased, but follow-up DB work failed. Manual reconciliation required.`,
+            ...(purchasedLabelDetails?.transactionId
+              ? { shippoTransactionId: purchasedLabelDetails.transactionId }
+              : {}),
+            ...(purchasedLabelDetails?.labelUrl
+              ? { labelUrl: purchasedLabelDetails.labelUrl }
+              : {}),
+            ...(purchasedLabelDetails?.trackingNumber
+              ? {
+                  labelTrackingNumber: purchasedLabelDetails.trackingNumber,
+                  trackingNumber: purchasedLabelDetails.trackingNumber,
+                }
+              : {}),
+            ...(purchasedLabelDetails?.carrier
+              ? {
+                  labelCarrier: purchasedLabelDetails.carrier,
+                  trackingCarrier: purchasedLabelDetails.carrier,
+                }
+              : {}),
+            ...(typeof purchasedLabelDetails?.labelCostCents === "number"
+              ? { labelCostCents: purchasedLabelDetails.labelCostCents }
+              : {}),
+          },
+        })
+        .catch((updateError) => {
+          Sentry.captureException(updateError, {
+            tags: { source: "shippo_label_orphan_record_failed" },
+            extra: {
+              orderId: id,
+              shippoTransactionId:
+                purchasedLabelDetails?.transactionId ?? null,
+              labelCostCents: purchasedLabelDetails?.labelCostCents ?? null,
+              carrier: purchasedLabelDetails?.carrier ?? null,
+              hasLabelUrl: Boolean(purchasedLabelDetails?.labelUrl),
+              hasTrackingNumber: Boolean(
+                purchasedLabelDetails?.trackingNumber,
+              ),
+            },
+          });
+        });
       throw labelErr;
     }
   } catch (err) {

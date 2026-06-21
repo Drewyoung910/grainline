@@ -50,7 +50,8 @@ describe("order review holds", () => {
     assert.match(fulfillment, /orderHasDeauthorizedSellerReviewHold\(authz\.order\)/);
     assert.match(fulfillment, /DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE/);
     assert.match(fulfillment, /action !== "update_notes" && orderHasDeauthorizedSellerReviewHold\(authz\.order\)/);
-    assert.match(fulfillment, /NOT: deauthorizedSellerReviewHoldWhere\(\)/);
+    assert.match(fulfillment, /DEAUTHORIZED_SELLER_REVIEW_NOTE_SQL_PATTERN/);
+    assert.match(fulfillment, /COALESCE\("reviewNote", ''\) LIKE \$\{DEAUTHORIZED_SELLER_REVIEW_NOTE_SQL_PATTERN\}/);
   });
 
   it("blocks deauthorized orders before label purchase and inside the label lock", () => {

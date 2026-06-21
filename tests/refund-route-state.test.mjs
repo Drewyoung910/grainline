@@ -74,6 +74,7 @@ describe("refund route state", () => {
     assert.equal(isOpenStripeDisputeStatus(null), true);
     assert.equal(isOpenStripeDisputeStatus("WON"), false);
     assert.equal(isOpenStripeDisputeStatus("lost"), false);
+    assert.equal(isOpenStripeDisputeStatus("prevented"), false);
     assert.equal(isOpenStripeDisputeStatus("warning_closed"), false);
   });
 
@@ -204,7 +205,7 @@ describe("refund route state", () => {
       eventType: "DISPUTE",
       OR: [
         { status: null },
-        { status: { notIn: ["won", "lost", "warning_closed"] } },
+        { status: { notIn: ["won", "lost", "prevented", "warning_closed"] } },
       ],
     });
     assert.deepEqual(blockingRefundOrDisputeLedgerWhere(), {
@@ -220,7 +221,7 @@ describe("refund route state", () => {
           eventType: "DISPUTE",
           OR: [
             { status: null },
-            { status: { notIn: ["won", "lost", "warning_closed"] } },
+            { status: { notIn: ["won", "lost", "prevented", "warning_closed"] } },
           ],
         },
       ],

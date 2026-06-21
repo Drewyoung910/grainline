@@ -9,6 +9,10 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { fulfillmentRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { blockingRefundLedgerWhere, orderHasRefundLedger } from "@/lib/refundRouteState";
 import {
+  blockingRefundLedgerExistsSql,
+  latestOpenDisputeLedgerExistsSql,
+} from "@/lib/refundLedgerSql";
+import {
   assertKnownContentLengthUnder,
   isInvalidContentLengthError,
   isMissingContentLengthError,
@@ -17,13 +21,13 @@ import {
 } from "@/lib/requestBody";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
-import { CaseStatus, LabelStatus, type FulfillmentStatus, type Prisma } from "@prisma/client";
+import { CaseStatus, Prisma, type FulfillmentStatus } from "@prisma/client";
 import { z } from "zod";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { logServerError } from "@/lib/serverErrorLogger";
 import {
   DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE,
-  deauthorizedSellerReviewHoldWhere,
+  DEAUTHORIZED_SELLER_REVIEW_NOTE_SQL_PATTERN,
   orderHasDeauthorizedSellerReviewHold,
 } from "@/lib/orderReviewHolds";
 
@@ -177,6 +181,18 @@ export async function POST(
         { status: 400 },
       );
     }
+    if (action !== "update_notes") {
+      const [{ hasOpenDispute } = { hasOpenDispute: false }] =
+        await prisma.$queryRaw<Array<{ hasOpenDispute: boolean }>>`
+          SELECT ${latestOpenDisputeLedgerExistsSql(Prisma.sql`${id}`)} AS "hasOpenDispute"
+        `;
+      if (hasOpenDispute) {
+        return privateJson(
+          { error: "Resolve the open Stripe dispute before changing fulfillment." },
+          { status: HTTP_STATUS.CONFLICT },
+        );
+      }
+    }
     if (action !== "update_notes" && orderHasDeauthorizedSellerReviewHold(authz.order)) {
       return privateJson(
         { error: DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE },
@@ -269,33 +285,63 @@ export async function POST(
         return privateJson({ error: "Unknown action" }, { status: 400 });
     }
 
-    const orderWhereAnd: Prisma.OrderWhereInput[] = [];
-    if (action === "shipped") {
-      orderWhereAnd.push({
-        OR: [{ labelStatus: null }, { labelStatus: { not: LabelStatus.PURCHASED } }],
+    let updatedCount: number;
+    if (action === "update_notes") {
+      const updated = await prisma.order.updateMany({
+        where: {
+          id,
+          sellerRefundId: null,
+          paymentEvents: { none: blockingRefundLedgerWhere() },
+        },
+        data,
       });
-    }
-    if (action !== "update_notes") {
-      orderWhereAnd.push({
-        OR: [
-          { case: { is: null } },
-          { case: { is: { status: { notIn: [...ACTIVE_CASE_STATUSES] } } } },
-        ],
-      });
-      orderWhereAnd.push({ NOT: deauthorizedSellerReviewHoldWhere() });
-    }
+      updatedCount = updated.count;
+    } else {
+      const allowedStatusSql = allowed
+        ? Prisma.sql`AND "fulfillmentStatus"::text IN (${Prisma.join(allowed)})`
+        : Prisma.empty;
+      const labelStatusSql = action === "shipped"
+        ? Prisma.sql`AND ("labelStatus" IS NULL OR "labelStatus" != 'PURCHASED'::"LabelStatus")`
+        : Prisma.empty;
+      const mutationSql =
+        action === "ready_for_pickup"
+          ? Prisma.sql`
+              "fulfillmentMethod" = 'PICKUP'::"FulfillmentMethod",
+              "fulfillmentStatus" = 'READY_FOR_PICKUP'::"FulfillmentStatus",
+              "pickupReadyAt" = ${now}
+            `
+          : action === "picked_up"
+            ? Prisma.sql`
+                "fulfillmentMethod" = 'PICKUP'::"FulfillmentMethod",
+                "fulfillmentStatus" = 'PICKED_UP'::"FulfillmentStatus",
+                "pickedUpAt" = ${now}
+              `
+            : Prisma.sql`
+                "fulfillmentMethod" = 'SHIPPING'::"FulfillmentMethod",
+                "fulfillmentStatus" = 'SHIPPED'::"FulfillmentStatus",
+                "shippedAt" = ${now},
+                "trackingCarrier" = ${data.trackingCarrier as string},
+                "trackingNumber" = ${data.trackingNumber as string}
+              `;
 
-    const updatedCount = await prisma.order.updateMany({
-      where: {
-        id,
-        sellerRefundId: null,
-        paymentEvents: { none: blockingRefundLedgerWhere() },
-        ...(allowed ? { fulfillmentStatus: { in: allowed } } : {}),
-        ...(orderWhereAnd.length ? { AND: orderWhereAnd } : {}),
-      },
-      data,
-    });
-    if (updatedCount.count === 0) {
+      updatedCount = await prisma.$executeRaw`
+        UPDATE "Order"
+        SET ${mutationSql}
+        WHERE id = ${id}
+          AND "sellerRefundId" IS NULL
+          AND NOT (${blockingRefundLedgerExistsSql(Prisma.sql`"Order".id`)})
+          ${allowedStatusSql}
+          ${labelStatusSql}
+          AND NOT EXISTS (
+            SELECT 1 FROM "Case" c
+            WHERE c."orderId" = "Order".id
+              AND c."status"::text IN (${Prisma.join([...ACTIVE_CASE_STATUSES])})
+          )
+          AND NOT ("reviewNeeded" = true AND COALESCE("reviewNote", '') LIKE ${DEAUTHORIZED_SELLER_REVIEW_NOTE_SQL_PATTERN})
+          AND NOT (${latestOpenDisputeLedgerExistsSql(Prisma.sql`"Order".id`)})
+      `;
+    }
+    if (updatedCount === 0) {
       return privateJson({ error: "Order status changed. Refresh and try again." }, { status: 409 });
     }
 
