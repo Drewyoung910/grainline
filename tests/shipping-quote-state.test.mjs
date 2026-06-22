@@ -5,12 +5,14 @@ import { describe, it } from "node:test";
 const {
   DEFAULT_FALLBACK_SHIPPING_CENTS,
   MAX_FALLBACK_SHIPPING_CENTS,
+  MAX_PROVIDER_SHIPPING_CENTS,
   MIN_FALLBACK_SHIPPING_CENTS,
   carrierMatchesPreference,
   filterShippoRatesForCheckout,
   isQuoteOnlyRateObjectId,
   quoteOnlyRateObjectId,
   safeFallbackShippingCents,
+  safeProviderShippingCents,
 } = await import("../src/lib/shippingQuoteState.ts");
 
 describe("shipping quote state helpers", () => {
@@ -22,6 +24,16 @@ describe("shipping quote state helpers", () => {
     assert.equal(safeFallbackShippingCents(999.6), 1000);
     assert.equal(safeFallbackShippingCents(5001), MAX_FALLBACK_SHIPPING_CENTS);
     assert.equal(safeFallbackShippingCents(99999999), MAX_FALLBACK_SHIPPING_CENTS);
+  });
+
+  it("drops malformed or extreme provider shipping amounts before signing", () => {
+    assert.equal(safeProviderShippingCents("12.345"), 1235);
+    assert.equal(safeProviderShippingCents(0), 0);
+    assert.equal(safeProviderShippingCents("0"), 0);
+    assert.equal(safeProviderShippingCents("-1"), null);
+    assert.equal(safeProviderShippingCents("NaN"), null);
+    assert.equal(safeProviderShippingCents(Infinity), null);
+    assert.equal(safeProviderShippingCents((MAX_PROVIDER_SHIPPING_CENTS / 100) + 0.01), null);
   });
 
   it("keeps the singleton SiteConfig seed migration in place", () => {
@@ -85,6 +97,8 @@ describe("shipping quote state helpers", () => {
 
     assert.match(route, /fallbackRate\(\{\s*amountCents: safeFallbackShippingCents\(fallbackShippingCents\)/s);
     assert.match(route, /const filtered = filterShippoRatesForCheckout\(\{/);
+    assert.match(route, /const amountCents = safeProviderShippingCents\(r\.amount\)/);
+    assert.match(route, /if \(amountCents === null\) return \[\]/);
     assert.match(route, /preferredCarriers: sellerPreferredCarriers/);
     assert.match(route, /if \(filtered\.blockedByCarrierPreference\) \{/);
     assert.match(route, /if \(sellerAllowsPickup\) \{\s*return pickupOnlyResponse/s);

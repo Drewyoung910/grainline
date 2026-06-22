@@ -370,6 +370,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
     const { reviewListingWithAI } = await import('@/lib/ai-review')
 
     const aiResult = await reviewListingWithAI({
+      listingId: created.id,
       sellerId: seller.id,
       title: created.title,
       description: created.description,

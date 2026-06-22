@@ -15,15 +15,16 @@ import { isR2PublicUrl } from "./urlValidation.ts";
 export type { AIReviewResult } from "./aiReviewResultState";
 
 type AIReviewDependencies = {
-  findRecentListingTitles?: (sellerId: string) => Promise<Array<{ title: string }>>;
+  findRecentListingTitles?: (sellerId: string, excludeListingId?: string | null) => Promise<Array<{ title: string }>>;
   fetchWithTimeout?: typeof defaultFetchWithTimeout;
   sleep?: (ms: number) => Promise<void>;
 };
 
-async function defaultFindRecentListingTitles(sellerId: string) {
+async function defaultFindRecentListingTitles(sellerId: string, excludeListingId?: string | null) {
   const { prisma } = await import("./db.ts");
   return prisma.listing.findMany({
     where: {
+      ...(excludeListingId ? { id: { not: excludeListingId } } : {}),
       sellerId,
       createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
     },
@@ -95,6 +96,7 @@ const AI_REVIEW_RESPONSE_FORMAT = {
  * than falling open to `ACTIVE`.
  */
 export async function reviewListingWithAI(listing: {
+  listingId?: string | null
   sellerId: string
   title: string
   description: string | null
@@ -131,7 +133,7 @@ export async function reviewListingWithAI(listing: {
   // Normalize aggressively so punctuation, spacing, and emoji changes do not bypass the check.
   try {
     // Fetch recent titles from same seller for normalized comparison
-    const recentListings = await findRecentListingTitles(listing.sellerId);
+    const recentListings = await findRecentListingTitles(listing.sellerId, listing.listingId);
     const normalizedNew = normalizeDuplicateListingTitle(listing.title);
     const duplicateCount = normalizedNew ? recentListings.filter(
       (l) => normalizeDuplicateListingTitle(l.title) === normalizedNew

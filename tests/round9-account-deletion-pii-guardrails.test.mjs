@@ -206,7 +206,7 @@ describe("Round 9 account deletion PII guardrails", () => {
   it("scrubs account-linked support and data-request contact fields on account deletion", () => {
     const deletion = source("src/lib/accountDeletion.ts");
 
-    assert.match(deletion, /import \{ supportRequestAccountExportWhere \} from "@\/lib\/supportRequest"/);
+    assert.match(deletion, /import \{[^}]*supportRequestAccountExportWhere[^}]*\} from "@\/lib\/supportRequest"/);
     assert.match(deletion, /const DELETED_SUPPORT_REQUEST_EMAIL = "deleted-account@deleted\.thegrainline\.local"/);
     assert.match(deletion, /const DELETED_SUPPORT_REQUEST_MESSAGE = "\[Support request removed after account deletion\]"/);
     assert.match(deletion, /async function redactSupportRequestsForDeletedAccount/);

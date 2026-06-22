@@ -9458,6 +9458,115 @@ evidence and public-availability proof, HSTS preload submission decision,
 Vercel Analytics/Speed Insights product/privacy decision, and remaining
 homepage browser a11y/runtime proof beyond source fallback.
 
+Entry 449 closes a parent-verified AI-review, shipping-quote, and
+provider-deleted-account follow-up pass. Three read-only agents were used for
+ops/media, query/modeling/product, and privacy/account-lifecycle sidecar scans;
+parent Codex reviewed the source-shaped findings locally, implemented only
+verified source issues, closed all agents, and did not stage the raw audit
+import.
+
+Verified fixed/reduced:
+
+- AI duplicate-title precheck now accepts the current listing id and excludes
+  that row from the same-seller seven-day duplicate query. New-listing,
+  custom-listing, and active-listing edit review callers pass the created or
+  edited listing id, so the just-created/current row no longer counts as one of
+  the "2+ already posted listings" needed for `duplicate-listing`.
+- Shippo provider quote amounts now pass through `safeProviderShippingCents()`
+  before signing. Malformed, non-finite, negative, unsafe, or extreme provider
+  amounts are dropped before the 12-rate cap; if no valid provider rate remains,
+  the route uses the existing empty-rate fallback/pickup behavior instead of
+  minting a bad signed checkout rate.
+- Clerk provider-side `user.deleted` events with remaining Grainline deletion
+  blockers now create or refresh one open `DATA_REQUEST` `SupportRequest` for
+  the retained local user while disabling the account/seller orderability. The
+  support/legal queue now has durable follow-up state that requires closure
+  evidence before staff can mark the data request closed.
+- `CLAUDE.md` now records the reusable contracts for current-listing exclusion
+  in AI duplicate checks, provider quote amount validation before signing, and
+  durable data-request follow-up rows for blocked provider-side deletions.
+
+Verified current/stale/deferred during the same pass:
+
+- R2/ListBucket/public bucket posture, bucket object-size limits, CORS/public
+  domain settings, HSTS preload status, and Sentry alert routing remain
+  external launch/ops evidence; source docs keep them in the launch checklist.
+- R2 upload byte-signature checks, public-availability cleanup, and direct
+  upload cleanup-by-stored-key allegations remain stale/current in source.
+- `/api/cron/ops-health` already checks stale running cron rows, completed cron
+  partial failures, webhook piles, support SLA breaches, and
+  account-deletion side-effect piles, and returns 503 when unhealthy. Extra
+  Sentry warning de-noising/fingerprinting is an ops-noise decision, not a
+  missed failure status.
+- Missing Vercel Analytics/Speed Insights remains a product/privacy decision
+  because adding root-level analytics would affect checkout/payment surfaces
+  and the checkout script inventory.
+- Variant-adjusted unit-price floor and same-seller-only AI duplicate scope
+  are current/deferred as previously classified; cross-seller duplicate
+  detection remains a product-design decision.
+- EXPLAIN-dependent query-plan proof, BigInt money-column modeling, Founding
+  Maker live DB concurrency proof, legacy enum cleanup, stale branch/author
+  hygiene, provider-side privacy retention, buyer-deletion runtime replay, and
+  unsubscribe/manual resubscribe semantics remain current, duplicate, or
+  external evidence as previously classified.
+
+Guardrails:
+`tests/ai-review-outer-failclosed.test.mjs`,
+`tests/shipping-quote-state.test.mjs`,
+`tests/account-deletion-blocker-refund-state.test.mjs`,
+`tests/round9-account-deletion-pii-guardrails.test.mjs`,
+`tests/upload-ux-followups.test.mjs`,
+`tests/direct-upload-lifecycle.test.mjs`,
+`tests/retention-and-ops-followups.test.mjs`,
+`tests/cron-schedule-guardrails.test.mjs`,
+`tests/public-security-config.test.mjs`,
+`tests/support-request.test.mjs`,
+`tests/support-request-state.test.mjs`,
+`tests/account-export-privacy.test.mjs`,
+`tests/account-privacy-observability.test.mjs`,
+`tests/pr-i-media-upload-unsubscribe-followups.test.mjs`,
+`tests/newsletter-double-opt-in.test.mjs`, and
+`tests/unsubscribe-token.test.mjs`.
+
+Verification:
+focused parent `node --test tests/ai-review-outer-failclosed.test.mjs tests/shipping-quote-state.test.mjs tests/account-deletion-blocker-refund-state.test.mjs`
+(19/19 tests passing),
+`node --test tests/round9-account-deletion-pii-guardrails.test.mjs`
+(17/17 tests passing), `npx prisma validate`, `npx tsc --noEmit`,
+`git diff --check`, `npm run lint` (exit 0; existing JSX AST utility warning
+only), `npm test` (1389/1389 tests passing across 255 suites),
+`npm audit --audit-level=moderate` (0 vulnerabilities), and `npm run build`
+passed.
+
+Current running tally after Entry 449: verified fixed/reduced 899, verified
+stale/false-positive/current 504, deferred product/design/ops/legal 80,
+approximate raw allegations left from current max #1126: 32. Fixed/reduced
+increases by three for the parent-verified hidden/adjacent source fixes above.
+Stale/current, deferred, and raw-left do not change because the rechecked raw
+ops/privacy/modeling categories were already classified earlier or remain
+external runtime/legal/product evidence.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger, label clawback policy/runtime proof,
+Stripe webhook subscription dashboard evidence, Stripe Connect v2
+loss-liability ops/legal decision, stale remote branch and old git author
+hygiene, Round 10 deferred cache/state-machine product designs that require
+product decisions rather than source guardrails, remaining EXPLAIN-dependent
+runtime query-plan validation beyond the existing source indexes, Stripe
+partial-refund runtime reconciliation proof, founding-maker permanence policy,
+remaining privacy/legal retention scope, remaining privacy/export retention
+decisions, cross-seller AI duplicate-detection product design, legacy enum
+cleanup/data-migration decisions, partial multi-seller checkout continuation
+design, deliberate BigInt money-column modeling, variant-adjusted unit-price
+floor policy, live-data reconciliation for historical seller shipping-rate
+currency drift, Clerk staff MFA and breached-password dashboard evidence,
+Clerk multi-account spam dashboard evidence, buyer-deletion runtime replay
+proof, Founding Maker live DB concurrency proof, Sentry cron alert evidence,
+Cloudflare R2 ListBucket/public-bucket dashboard posture plus production smoke
+evidence and public-availability proof, HSTS preload submission decision,
+Vercel Analytics/Speed Insights product/privacy decision, and remaining
+homepage browser a11y/runtime proof beyond source fallback.
+
 Entry 448 closes a parent-verified checkout rollback-state and no-JS scroll
 reveal follow-up pass. Three read-only agents were used for Stripe/payment,
 privacy/export/retention, and modeling/product sidecar scans; parent Codex

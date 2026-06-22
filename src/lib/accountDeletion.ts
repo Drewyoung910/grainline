@@ -11,7 +11,7 @@ import {
   accountEmailSuppressionKeysForEmails,
   userAccountEmailAddressState,
 } from "@/lib/userEmailAddresses";
-import { supportRequestAccountExportWhere } from "@/lib/supportRequest";
+import { supportRequestAccountExportWhere, supportRequestSlaDueAt } from "@/lib/supportRequest";
 import { invalidateAccountStateCache } from "@/lib/accountStateCache";
 import {
   Prisma,
@@ -43,6 +43,7 @@ const ACCOUNT_DELETION_REDACTION_BATCH_SIZE = 500;
 const ACCOUNT_DELETION_LOCK_TTL_SECONDS = 120;
 const DELETED_SUPPORT_REQUEST_EMAIL = "deleted-account@deleted.thegrainline.local";
 const DELETED_SUPPORT_REQUEST_MESSAGE = "[Support request removed after account deletion]";
+const PROVIDER_DELETED_ACCOUNT_DATA_REQUEST_TOPIC = "delete";
 
 export type AccountDeletionLock = {
   key: string;
@@ -92,6 +93,22 @@ function accountDeletionTerminalCutoff(now = new Date()) {
   return new Date(
     now.getTime() - ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS * 24 * 60 * 60 * 1000,
   );
+}
+
+function providerDeletedAccountDataRequestMessage(input: {
+  userId: string;
+  blockers: AccountDeletionBlocker[];
+}) {
+  const blockerSummary = input.blockers
+    .map((blocker) => `${blocker.code}: ${blocker.count}`)
+    .join(", ");
+  return [
+    "Provider-side account deletion arrived before Grainline deletion blockers cleared.",
+    "The local account has been disabled and seller orderability has been paused.",
+    `Local user id: ${input.userId}`,
+    `Deletion blockers: ${blockerSummary || "unknown"}.`,
+    "Keep this data request open until blockers clear and local anonymization has been completed or replayed. Record provider, counsel, or completion evidence before closing.",
+  ].join("\n");
 }
 
 const ACCOUNT_DELETION_FULL_REFUND_SQL = Prisma.sql`
@@ -1168,8 +1185,18 @@ async function deferProviderDeletedAccountAnonymization(input: {
   blockers: AccountDeletionBlocker[];
 }) {
   const now = new Date();
-  await prisma.$transaction([
-    prisma.user.updateMany({
+  const message = providerDeletedAccountDataRequestMessage({
+    userId: input.userId,
+    blockers: input.blockers,
+  });
+
+  await prisma.$transaction(async (tx) => {
+    const user = await tx.user.findUnique({
+      where: { id: input.userId },
+      select: { email: true, name: true },
+    });
+
+    await tx.user.updateMany({
       where: { id: input.userId, deletedAt: null },
       data: {
         banned: true,
@@ -1177,12 +1204,45 @@ async function deferProviderDeletedAccountAnonymization(input: {
         banReason: "Clerk account deleted before Grainline deletion blockers cleared; support review required",
         bannedBy: "system",
       },
-    }),
-    prisma.sellerProfile.updateMany({
+    });
+    await tx.sellerProfile.updateMany({
       where: { userId: input.userId },
       data: { chargesEnabled: false, vacationMode: true },
-    }),
-  ]);
+    });
+
+    const existingRequest = await tx.supportRequest.findFirst({
+      where: {
+        userId: input.userId,
+        kind: "DATA_REQUEST",
+        status: { in: ["OPEN", "IN_PROGRESS"] },
+        topic: PROVIDER_DELETED_ACCOUNT_DATA_REQUEST_TOPIC,
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: { id: true },
+    });
+
+    if (existingRequest) {
+      await tx.supportRequest.update({
+        where: { id: existingRequest.id },
+        data: {
+          message,
+          slaDueAt: supportRequestSlaDueAt(now),
+        },
+      });
+    } else {
+      await tx.supportRequest.create({
+        data: {
+          userId: input.userId,
+          kind: "DATA_REQUEST",
+          name: user?.name ?? null,
+          email: user?.email ?? `deleted+${input.userId}@deleted.thegrainline.local`,
+          topic: PROVIDER_DELETED_ACCOUNT_DATA_REQUEST_TOPIC,
+          message,
+          slaDueAt: supportRequestSlaDueAt(now),
+        },
+      });
+    }
+  });
 
   await invalidateAccountStateCache(input.clerkId, "provider_deleted_account_blocked_anonymization");
   revalidateDeletedAccountSearchCaches(input.userId);

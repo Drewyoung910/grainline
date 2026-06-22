@@ -8,6 +8,7 @@ import { signRate } from "@/lib/shipping-token";
 import {
   filterShippoRatesForCheckout,
   quoteOnlyRateObjectId,
+  safeProviderShippingCents,
   safeFallbackShippingCents,
   type ShippoQuoteRate,
 } from "@/lib/shippingQuoteState";
@@ -594,13 +595,19 @@ export async function POST(req: Request) {
       });
     }
 
-    const out = filtered.rates
-      .slice(0, 12)
-      .map((r) => {
+    const validRates = filtered.rates
+      .flatMap((r) => {
+        const amountCents = safeProviderShippingCents(r.amount);
+        if (amountCents === null) return [];
+        return [{ rate: r, amountCents }];
+      })
+      .slice(0, 12);
+
+    const out = validRates
+      .map(({ rate: r, amountCents }) => {
         const label = `${r.provider || r.carrier} ${r.servicelevel?.name || r.service} (${
           r.estimated_days ? `${r.estimated_days}d` : "—"
         })`;
-        const amountCents = Math.round(Number(r.amount) * 100);
         const carrier = r.provider || r.carrier || "";
         const service = r.servicelevel?.name || r.service || "";
         const estDays = r.estimated_days ?? null;

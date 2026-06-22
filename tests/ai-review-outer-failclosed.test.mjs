@@ -151,4 +151,39 @@ describe("AI review outer fail-closed behavior", () => {
     assert.match(systemPrompt, /marketplace serving the United States/);
     assert.doesNotMatch(systemPrompt, /US and Canada|United States and Canada/);
   });
+
+  it("does not count the listing currently under review as a prior duplicate", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+
+    const result = await reviewListingWithAI({ ...listing(), listingId: "listing_current" }, {
+      findRecentListingTitles: async (_sellerId, excludeListingId) => {
+        assert.equal(excludeListingId, "listing_current");
+        return [
+          { id: "listing_prior", title: "Walnut entry bench" },
+          { id: "listing_current", title: "Walnut entry bench" },
+        ].filter((row) => row.id !== excludeListingId);
+      },
+      fetchWithTimeout: async () =>
+        new Response(JSON.stringify({
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                approved: true,
+                flags: [],
+                confidence: 0.92,
+                reason: "Looks good",
+                altTexts: [],
+              }),
+            },
+          }],
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      sleep: async () => {},
+    });
+
+    assert.equal(result.approved, true);
+    assert.deepEqual(result.flags, []);
+  });
 });

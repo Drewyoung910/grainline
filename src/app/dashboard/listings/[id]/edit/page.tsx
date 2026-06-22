@@ -531,6 +531,7 @@ async function updateListing(
         });
         const { reviewListingWithAI } = await import("@/lib/ai-review");
         const aiResult = await reviewListingWithAI({
+          listingId,
           sellerId: seller.id,
           title,
           description,
