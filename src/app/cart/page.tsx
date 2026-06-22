@@ -3,6 +3,7 @@
 
 import * as React from "react";
 import { Suspense } from "react";
+import { flushSync } from "react-dom";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import GiftNoteSection from "@/components/GiftNoteSection";
@@ -241,14 +242,40 @@ function CartPage() {
   // Embedded checkout state
   const [clientSecrets, setClientSecrets] = React.useState<ClientSecretEntry[]>([]);
   const [currentPaymentIndex, setCurrentPaymentIndex] = React.useState(0);
+  const [completedSessionIds, setCompletedSessionIds] = React.useState<Set<string>>(() => new Set());
   const [creatingSession, setCreatingSession] = React.useState(false);
   const [rollingBackCheckout, setRollingBackCheckout] = React.useState(false);
   const clientSecretsRef = React.useRef<ClientSecretEntry[]>([]);
+  const completedSessionIdsRef = React.useRef<Set<string>>(new Set());
   const checkoutCompletedRef = React.useRef(false);
 
   React.useEffect(() => {
     clientSecretsRef.current = clientSecrets;
   }, [clientSecrets]);
+
+  React.useLayoutEffect(() => {
+    completedSessionIdsRef.current = completedSessionIds;
+  }, [completedSessionIds]);
+
+  const clearCompletedCheckoutSessions = React.useCallback(() => {
+    setCompletedSessionIds(new Set());
+  }, []);
+
+  const markCheckoutSessionCompleted = React.useCallback((sessionId: string | undefined) => {
+    if (!sessionId) return;
+    setCompletedSessionIds((prev) => {
+      const next = new Set(prev);
+      next.add(sessionId);
+      return next;
+    });
+  }, []);
+
+  const pendingCheckoutSessionIds = React.useCallback((entries = clientSecretsRef.current) => {
+    const completedIds = completedSessionIdsRef.current;
+    return entries
+      .map((entry) => entry.sessionId)
+      .filter((sessionId) => !completedIds.has(sessionId));
+  }, []);
 
   // Mount-time URL restoration
   React.useEffect(() => {
@@ -273,12 +300,13 @@ function CartPage() {
       setSelectedRates({});
       setClientSecrets([]);
       setCurrentPaymentIndex(0);
+      clearCompletedCheckoutSessions();
       setStep("review");
     }
 
     window.addEventListener(LOCAL_ACCOUNT_STATE_CLEARED_EVENT, handleLocalAccountStateCleared);
     return () => window.removeEventListener(LOCAL_ACCOUNT_STATE_CLEARED_EVENT, handleLocalAccountStateCleared);
-  }, []);
+  }, [clearCompletedCheckoutSessions]);
 
   // Safety guards
   React.useEffect(() => {
@@ -302,7 +330,7 @@ function CartPage() {
   React.useEffect(() => {
     function rollbackOpenCheckoutSessions() {
       if (checkoutCompletedRef.current) return;
-      const sessionIds = clientSecretsRef.current.map((entry) => entry.sessionId);
+      const sessionIds = pendingCheckoutSessionIds();
       if (sessionIds.length > 0) {
         void rollbackCheckoutSessions(sessionIds);
       }
@@ -310,7 +338,7 @@ function CartPage() {
 
     window.addEventListener("pagehide", rollbackOpenCheckoutSessions);
     return () => window.removeEventListener("pagehide", rollbackOpenCheckoutSessions);
-  }, []);
+  }, [pendingCheckoutSessionIds]);
 
   async function load() {
     setLoading(true);
@@ -377,6 +405,7 @@ function CartPage() {
       setSelectedRates({});
       setClientSecrets([]);
       setCurrentPaymentIndex(0);
+      clearCompletedCheckoutSessions();
       return;
     }
 
@@ -395,6 +424,7 @@ function CartPage() {
       setSelectedRates({});
       setClientSecrets([]);
       setCurrentPaymentIndex(0);
+      clearCompletedCheckoutSessions();
     } catch (e) {
       setError((e as Error).message);
     }
@@ -420,6 +450,7 @@ function CartPage() {
       setSelectedRates({});
       setClientSecrets([]);
       setCurrentPaymentIndex(0);
+      clearCompletedCheckoutSessions();
     } catch (e) {
       setError((e as Error).message);
     }
@@ -493,8 +524,7 @@ function CartPage() {
   const hasBlockingCartChange = hasUnavailable || hasPriceChanged || hasVariantUnavailable || hasStockExceeded || hasMixedCurrencies;
 
   // Render seller item list (used in review and shipping steps)
-  function renderSellerSections() {
-    return groups.map((g) => (
+  const sellerSections = groups.map((g) => (
       <section key={g.sellerId}>
         <header className="flex items-center justify-between border-b border-neutral-200/70 pb-3">
           <div className="text-sm text-neutral-700">
@@ -638,7 +668,6 @@ function CartPage() {
         </div>
       </section>
     ));
-  }
 
   // Calculate total shipping
   const totalShippingCents = groups.reduce((sum, g) => {
@@ -663,6 +692,7 @@ function CartPage() {
     }
     setCreatingSession(true);
     checkoutCompletedRef.current = false;
+    clearCompletedCheckoutSessions();
     setError(null);
 
     const secrets: ClientSecretEntry[] = [];
@@ -693,6 +723,7 @@ function CartPage() {
             setSelectedRates({});
             setClientSecrets([]);
             setCurrentPaymentIndex(0);
+            clearCompletedCheckoutSessions();
             setStep("review");
             router.replace("/cart", { scroll: false });
           }
@@ -722,6 +753,7 @@ function CartPage() {
         clearCartSessionStorage();
         setClientSecrets([]);
         setCurrentPaymentIndex(0);
+        clearCompletedCheckoutSessions();
       }
       setError((e as Error).message);
     } finally {
@@ -731,12 +763,21 @@ function CartPage() {
 
   async function handleReturnToShippingFromPayment() {
     if (rollingBackCheckout) return;
+    if (completedSessionIds.size > 0) {
+      setError("One payment is already complete. Finish the remaining payments or contact support for help.");
+      return;
+    }
     setRollingBackCheckout(true);
     setError(null);
-    await rollbackCheckoutSessions(clientSecrets.map((entry) => entry.sessionId));
+    await rollbackCheckoutSessions(
+      clientSecrets
+        .map((entry) => entry.sessionId)
+        .filter((sessionId) => !completedSessionIds.has(sessionId)),
+    );
     clearCartSessionStorage();
     setClientSecrets([]);
     setCurrentPaymentIndex(0);
+    clearCompletedCheckoutSessions();
     setStep("shipping");
     router.replace("/cart?step=shipping", { scroll: false });
     setRollingBackCheckout(false);
@@ -774,77 +815,75 @@ function CartPage() {
       )}
 
       {/* Step 1: Review */}
-      {step === "review" && (() => {
-        return (
-          <>
-            {renderSellerSections()}
+      {step === "review" && (
+        <>
+          {sellerSections}
 
-            <div className="flex items-center justify-end gap-4">
-              <div className="text-sm text-neutral-600">Subtotal (items only)</div>
-              <div className="text-lg font-semibold">{formatCurrencyCents(grandTotal, cartCurrency)}</div>
+          <div className="flex items-center justify-end gap-4">
+            <div className="text-sm text-neutral-600">Subtotal (items only)</div>
+            <div className="text-lg font-semibold">{formatCurrencyCents(grandTotal, cartCurrency)}</div>
+          </div>
+
+          {hasUnavailable && (
+            <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              Some items in your cart are no longer available. Please remove them before continuing.
             </div>
-
-            {hasUnavailable && (
-              <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                Some items in your cart are no longer available. Please remove them before continuing.
-              </div>
-            )}
-            {hasVariantUnavailable && (
-              <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                Some selected options are no longer available. Please remove those items before continuing.
-              </div>
-            )}
-            {hasStockExceeded && (
-              <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                Some quantities exceed current stock. Adjust those quantities before continuing.
-              </div>
-            )}
-            {hasPriceChanged && (
-              <div className="flex flex-col gap-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between">
-                <span>Some prices changed since the items were added to your cart.</span>
-                <button
-                  type="button"
-                  onClick={refreshChangedPrices}
-                  className="rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100"
-                >
-                  Accept updated prices
-                </button>
-              </div>
-            )}
-            {hasMixedCurrencies && (
-              <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                Items with different currencies cannot be checked out together. Please check out one currency at a time.
-              </div>
-            )}
-
-            {needsSignIn && (
-              <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                Sign in to keep these items and checkout.
-              </div>
-            )}
-
-            {needsSignIn ? (
-              <Link
-                href={signInPathForRedirect("/cart")}
-                className="inline-flex w-full items-center justify-center rounded-md bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-800 sm:w-auto"
-              >
-                Sign in to checkout →
-              </Link>
-            ) : (
+          )}
+          {hasVariantUnavailable && (
+            <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              Some selected options are no longer available. Please remove those items before continuing.
+            </div>
+          )}
+          {hasStockExceeded && (
+            <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              Some quantities exceed current stock. Adjust those quantities before continuing.
+            </div>
+          )}
+          {hasPriceChanged && (
+            <div className="flex flex-col gap-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between">
+              <span>Some prices changed since the items were added to your cart.</span>
               <button
-                onClick={() => {
-                  setStep("address");
-                  router.replace("/cart?step=address", { scroll: false });
-                }}
-                disabled={items.length === 0 || hasBlockingCartChange}
-                className="w-full sm:w-auto rounded-md bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50 mt-6"
+                type="button"
+                onClick={refreshChangedPrices}
+                className="rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100"
               >
-                Continue to shipping →
+                Accept updated prices
               </button>
-            )}
-          </>
-        );
-      })()}
+            </div>
+          )}
+          {hasMixedCurrencies && (
+            <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              Items with different currencies cannot be checked out together. Please check out one currency at a time.
+            </div>
+          )}
+
+          {needsSignIn && (
+            <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              Sign in to keep these items and checkout.
+            </div>
+          )}
+
+          {needsSignIn ? (
+            <Link
+              href={signInPathForRedirect("/cart")}
+              className="inline-flex w-full items-center justify-center rounded-md bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-800 sm:w-auto"
+            >
+              Sign in to checkout →
+            </Link>
+          ) : (
+            <button
+              onClick={() => {
+                setStep("address");
+                router.replace("/cart?step=address", { scroll: false });
+              }}
+              disabled={items.length === 0 || hasBlockingCartChange}
+              className="w-full sm:w-auto rounded-md bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50 mt-6"
+            >
+              Continue to shipping →
+            </button>
+          )}
+        </>
+      )}
 
       {/* Step 2: Address */}
       {step === "address" && (
@@ -863,6 +902,8 @@ function CartPage() {
               clearCartSessionStorage({ includeAddress: true });
               setSelectedRates({});
               setClientSecrets([]);
+              setCurrentPaymentIndex(0);
+              clearCompletedCheckoutSessions();
               setStep("shipping");
               router.replace("/cart?step=shipping", { scroll: false });
             }}
@@ -1003,6 +1044,9 @@ function CartPage() {
               currentIndex={currentPaymentIndex + 1}
               totalCount={clientSecrets.length}
               onComplete={() => {
+                flushSync(() => {
+                  markCheckoutSessionCompleted(clientSecrets[currentPaymentIndex]?.sessionId);
+                });
                 if (currentPaymentIndex < clientSecrets.length - 1) {
                   setCurrentPaymentIndex((prev) => prev + 1);
                 } else {
@@ -1024,13 +1068,19 @@ function CartPage() {
             </div>
           )}
 
-          <button
-            onClick={handleReturnToShippingFromPayment}
-            disabled={rollingBackCheckout}
-            className="text-sm text-neutral-500 hover:text-neutral-700"
-          >
-            {rollingBackCheckout ? "Returning..." : "← Back to shipping"}
-          </button>
+          {completedSessionIds.size === 0 ? (
+            <button
+              onClick={handleReturnToShippingFromPayment}
+              disabled={rollingBackCheckout}
+              className="text-sm text-neutral-500 hover:text-neutral-700"
+            >
+              {rollingBackCheckout ? "Returning..." : "← Back to shipping"}
+            </button>
+          ) : (
+            <p className="text-sm text-neutral-500">
+              Finish the remaining payments to complete checkout.
+            </p>
+          )}
         </>
       )}
     </main>

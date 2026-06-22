@@ -9457,3 +9457,98 @@ Cloudflare R2 ListBucket/public-bucket dashboard posture plus production smoke
 evidence and public-availability proof, HSTS preload submission decision,
 Vercel Analytics/Speed Insights product/privacy decision, and remaining
 homepage browser a11y/runtime proof beyond source fallback.
+
+Entry 448 closes a parent-verified checkout rollback-state and no-JS scroll
+reveal follow-up pass. Three read-only agents were used for Stripe/payment,
+privacy/export/retention, and modeling/product sidecar scans; parent Codex
+reviewed the cited source, implemented only verified source issues, and did
+not stage the raw audit import.
+
+Verified fixed/reduced:
+
+- Homepage `ScrollSection` content now stays visible in SSR/no-JS markup and
+  only applies the hidden scroll-reveal state after client-side observation is
+  available. `useInView()` now returns `hasObserved`, sets it when
+  `IntersectionObserver` is unavailable or the first observation arrives, and
+  `ScrollSection` reveals while `!hasObserved || inView`.
+- Cart multi-seller embedded checkout now tracks completed Stripe Checkout
+  session IDs in a component state/ref pair. Pagehide and back-to-shipping
+  rollback calls filter out completed session IDs and only submit
+  pending/unpaid sessions for rollback. After any seller payment completes, the
+  cart no longer offers the pre-payment rollback-to-shipping path and instead
+  tells the buyer to finish the remaining payments or contact support.
+- The reusable behavior contract in `CLAUDE.md` now records both durable
+  guardrails: scroll-reveal wrappers must keep SSR/no-JS content visible, and
+  multi-seller cart checkout must not rollback already-completed seller
+  sessions.
+
+Verified current/stale/deferred during the same pass:
+
+- Stripe/payment sidecar rechecked webhook routing, card-only Checkout
+  fulfillment, seller/staff refunds, label clawback, partial-refund accounting,
+  and Connect v2 loss-liability scope. No new source-real Stripe issue was
+  found. Webhook dashboard evidence, partial-refund runtime reconciliation,
+  label-clawback runtime proof, and Connect v2 liability/legal sign-off remain
+  external ops/runtime/legal evidence.
+- Privacy/export/retention sidecar rechecked account export, account deletion,
+  provider-deletion replay, order PII retention, message/case retention, email
+  retention, and privacy/legal request handling. No new source-real privacy
+  issue was found. Provider-held copies, legal retention periods, and
+  buyer-deletion runtime replay remain ops/legal/runtime evidence.
+- Modeling/product sidecar classified legacy enum cleanup, BigInt money
+  modeling, variant unit-price floor policy, Founding Maker permanence/live DB
+  proof, stale branch/author hygiene, and full multi-seller continuation as
+  deferred or stale/current as appropriate. The only source-actionable issue it
+  surfaced was the no-JS scroll reveal fallback fixed above; the checkout fix
+  reduces rollback risk without implementing the still-deferred product design
+  for continuing with only already-paid sellers.
+
+Guardrails:
+`tests/accessibility-followups.test.mjs`,
+`tests/client-async-guardrails.test.mjs`,
+`tests/local-account-state.test.mjs`, and
+`tests/verified-audit-followups.test.mjs`.
+
+Verification:
+final focused `node --test tests/accessibility-followups.test.mjs tests/client-async-guardrails.test.mjs tests/local-account-state.test.mjs tests/verified-audit-followups.test.mjs`
+(68/68 tests passing),
+agent Stripe sidecar focused `node --test tests/marketplace-refunds.test.mjs tests/refund-route-state.test.mjs tests/refund-lock-state.test.mjs tests/label-clawback-state.test.mjs tests/stripe-webhook-state.test.mjs tests/stripe-webhook-v2-route.test.mjs tests/stripe-connect-v2.test.mjs tests/payment-side-effect-observability.test.mjs`
+(122/122 tests passing),
+agent modeling sidecar focused `node --test tests/listing-variants.test.mjs tests/schema-numeric-index-guardrails.test.mjs tests/post-launch-ui-followups.test.mjs tests/client-async-guardrails.test.mjs tests/accessibility-followups.test.mjs tests/public-cron-search-hardening.test.mjs tests/case-action-state.test.mjs tests/ban-side-effect-guardrails.test.mjs`
+(107/107 tests passing),
+`npx prisma validate`,
+`npx tsc --noEmit`,
+`git diff --check`,
+`npm run lint` (exit 0; existing JSX AST utility warning only),
+`npm audit --audit-level=moderate` (0 vulnerabilities),
+`npm test` (1387/1387 tests passing across 255 suites), and
+`npm run build` passed.
+
+Current running tally after Entry 448: verified fixed/reduced 896, verified
+stale/false-positive/current 504, deferred product/design/ops/legal 80,
+approximate raw allegations left from current max #1126: 32. Fixed/reduced
+increases by two for the parent-verified hidden/adjacent source fixes above.
+Stale/current, deferred, and raw-left do not change because the rechecked raw
+payment/privacy/modeling categories were already classified earlier or remain
+external runtime/legal/product evidence.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger, label clawback policy/runtime proof,
+Stripe webhook subscription dashboard evidence, Stripe Connect v2
+loss-liability ops/legal decision, stale remote branch and old git author
+hygiene, Round 10 deferred cache/state-machine product designs that require
+product decisions rather than source guardrails, remaining EXPLAIN-dependent
+runtime query-plan validation beyond the existing source indexes, Stripe
+partial-refund runtime reconciliation proof, founding-maker permanence policy,
+remaining privacy/legal retention scope, remaining privacy/export retention
+decisions, cross-seller AI duplicate-detection product design, legacy enum
+cleanup/data-migration decisions, partial multi-seller checkout continuation
+design, deliberate BigInt money-column modeling, variant-adjusted unit-price
+floor policy, live-data reconciliation for historical seller shipping-rate
+currency drift, Clerk staff MFA and breached-password dashboard evidence,
+Clerk multi-account spam dashboard evidence, buyer-deletion runtime replay
+proof, Founding Maker live DB concurrency proof, Sentry cron alert evidence,
+Cloudflare R2 ListBucket/public-bucket dashboard posture plus production smoke
+evidence and public-availability proof, HSTS preload submission decision,
+Vercel Analytics/Speed Insights product/privacy decision, and remaining
+homepage browser a11y/runtime proof beyond source fallback.

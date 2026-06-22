@@ -357,12 +357,17 @@ describe("accessibility follow-ups", () => {
     assert.match(globals, /transition-duration: 0\.01ms !important/);
   });
 
-  it("keeps scroll reveal content visible when IntersectionObserver is unavailable", () => {
+  it("keeps scroll reveal content visible until client observation can hide it", () => {
     const hook = source("src/hooks/useInView.ts");
     const section = source("src/components/ScrollSection.tsx");
 
+    assert.match(hook, /const \[hasObserved, setHasObserved\] = useState\(false\)/);
     assert.match(hook, /typeof IntersectionObserver === "undefined"/);
+    assert.match(hook, /setHasObserved\(true\)/);
     assert.match(hook, /setInView\(true\)/);
-    assert.match(section, /inView \? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"/);
+    assert.match(hook, /return \{ ref, hasObserved, inView \}/);
+    assert.match(section, /const \{ ref, hasObserved, inView \} = useInView/);
+    assert.match(section, /const shouldReveal = !hasObserved \|\| inView/);
+    assert.match(section, /shouldReveal \? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"/);
   });
 });

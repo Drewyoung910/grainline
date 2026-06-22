@@ -136,10 +136,20 @@ describe("client async guardrails", () => {
 
     assert.match(cartPage, /keepalive: true/);
     assert.match(cartPage, /const clientSecretsRef = React\.useRef<ClientSecretEntry\[\]>\(\[\]\)/);
+    assert.match(cartPage, /const completedSessionIdsRef = React\.useRef<Set<string>>\(new Set\(\)\)/);
     assert.match(cartPage, /const checkoutCompletedRef = React\.useRef\(false\)/);
+    assert.match(cartPage, /const \[completedSessionIds, setCompletedSessionIds\] = React\.useState<Set<string>>\(\(\) => new Set\(\)\)/);
+    assert.match(cartPage, /React\.useLayoutEffect\(\(\) => \{\s*completedSessionIdsRef\.current = completedSessionIds;/);
+    assert.match(cartPage, /const pendingCheckoutSessionIds = React\.useCallback\(\(entries = clientSecretsRef\.current\) =>/);
+    assert.match(cartPage, /const completedIds = completedSessionIdsRef\.current/);
+    assert.match(cartPage, /\.filter\(\(sessionId\) => !completedIds\.has\(sessionId\)\)/);
     assert.match(cartPage, /window\.addEventListener\("pagehide", rollbackOpenCheckoutSessions\)/);
+    assert.match(cartPage, /const sessionIds = pendingCheckoutSessionIds\(\)/);
     assert.match(cartPage, /void rollbackCheckoutSessions\(sessionIds\)/);
     assert.match(cartPage, /checkoutCompletedRef\.current = true/);
+    assert.match(cartPage, /flushSync\(\(\) => \{\s*markCheckoutSessionCompleted\(clientSecrets\[currentPaymentIndex\]\?\.sessionId\)/);
+    assert.match(cartPage, /\.filter\(\(sessionId\) => !completedSessionIds\.has\(sessionId\)\)/);
+    assert.match(cartPage, /completedSessionIds\.size === 0 \? \(/);
     assert.doesNotMatch(cartPage, /writeCartSessionJson\(CART_CHECKOUTS_KEY/);
   });
 

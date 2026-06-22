@@ -4,17 +4,20 @@ import { useEffect, useRef, useState } from "react";
 
 export function useInView(options?: IntersectionObserverInit) {
   const ref = useRef<HTMLDivElement>(null);
+  const [hasObserved, setHasObserved] = useState(false);
   const [inView, setInView] = useState(false);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     if (typeof IntersectionObserver === "undefined") {
+      setHasObserved(true);
       setInView(true);
       return;
     }
     const observer = new IntersectionObserver(
       ([entry]) => {
+        setHasObserved(true);
         if (entry.isIntersecting) {
           setInView(true);
           observer.disconnect();
@@ -27,5 +30,5 @@ export function useInView(options?: IntersectionObserverInit) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { ref, inView };
+  return { ref, hasObserved, inView };
 }
