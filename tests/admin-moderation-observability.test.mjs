@@ -27,6 +27,19 @@ describe("admin moderation hardening follow-ups", () => {
     assert.doesNotMatch(customOrderReadyLink, /extra:\s*\{[^}]*email/s);
   });
 
+  it("sanitizes admin listing rejection reasons before persistence and notifications", () => {
+    const reviewRoute = source("src/app/api/admin/listings/[id]/review/route.ts");
+
+    assert.match(reviewRoute, /import \{ sanitizeText, truncateText \} from '@\/lib\/sanitize'/);
+    assert.match(reviewRoute, /const sanitizedReason = truncateText\(sanitizeText\(reason \?\? ''\), 500\)\.trim\(\)/);
+    assert.match(reviewRoute, /if \(!sanitizedReason\) return privateJson\(\{ error: 'Reason required for rejection' \}/);
+    assert.match(reviewRoute, /rejectionReason: sanitizedReason/);
+    assert.match(reviewRoute, /reason: sanitizedReason/);
+    assert.match(reviewRoute, /Reason: \$\{sanitizedReason\}/);
+    assert.doesNotMatch(reviewRoute, /rejectionReason: reason/);
+    assert.doesNotMatch(reviewRoute, /Reason: \$\{reason\}/);
+  });
+
   it("rechecks seller orderability before admin listing approval", () => {
     const reviewRoute = source("src/app/api/admin/listings/[id]/review/route.ts");
 

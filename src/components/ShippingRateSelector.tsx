@@ -85,9 +85,6 @@ export default function ShippingRateSelector({
             toState: address.state,
             toCity: address.city,
             toCountry: "US",
-            toName: address.name,
-            toLine1: address.line1,
-            toLine2: address.line2,
           }),
         });
         if (!res.ok) {
@@ -125,7 +122,7 @@ export default function ShippingRateSelector({
     fetchRates();
     return () => ac.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sellerId, address.postalCode, address.state, address.city, address.line1, address.line2, address.name, quoteBodyStr]);
+  }, [sellerId, address.postalCode, address.state, address.city, quoteBodyStr]);
 
   if (loading) {
     return (

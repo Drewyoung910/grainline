@@ -9257,3 +9257,93 @@ ListBucket/public-bucket/dashboard posture plus production smoke evidence and
 public-availability proof, HSTS preload submission decision, Vercel
 Analytics/Speed Insights product/privacy decision, and remaining homepage
 browser a11y/runtime proof beyond source fallback.
+
+Entry 446 closes raw #52 after parent review of the shipping quote route,
+checkout metadata flow, label-purchase rate resolution, and the read-only
+shipping sidecar report. This pass also fixed two hidden source issues found
+by the text-sanitization sidecar. No raw audit import was staged.
+
+Verified fixed/reduced:
+
+- `/api/shipping/quote` no longer accepts or forwards buyer recipient name,
+  street1, or street2 to Shippo during buyer-facing quote collection. It now
+  sends destination city/state/postal/country with `street1: "Rate quote only"`
+  and wraps returned Shippo rate IDs with `quote-only:` before HMAC signing.
+  `ShippingRateSelector` no longer sends those recipient name/street fields or
+  refetches quotes when only those fields change.
+- Seller label purchase now treats `quote-only:` rate IDs as non-purchasable,
+  so stored buyer-checkout quote IDs force a fresh seller label re-quote with
+  the saved full order recipient name/address before buying a Shippo label.
+  The label re-quote path now includes `order.buyerName ?? order.quotedToName`
+  in the Shippo `to` address.
+- Admin listing rejection reasons are normalized once through
+  `sanitizeText()`/`truncateText()` before being written to
+  `Listing.rejectionReason`, used as the admin-audit reason, or rendered in the
+  seller notification body.
+- Non-file structured message parsers now sanitize and cap user-visible card
+  text and streamed message bodies on read, reducing risk from historical or
+  tampered message rows while leaving IDs shape-checked for routing.
+
+Verified current/stale/duplicate during the same pass:
+
+- Raw #520-#547 Unicode/text-normalization allegations remain stale/current
+  under the current shared `normalizeUserText()` / `sanitizeText()` boundary;
+  the sidecar rechecked message/case/custom-order/commission/gift-note/report/
+  seller-note/audit/blog/FAQ/order-snapshot paths and found the only current
+  source gaps fixed above.
+- Raw #984-style broad `Int -> BigInt` allegations remain deferred modeling,
+  not a current source-actionable launch blocker. Current order subtotal and
+  cart/listing caps keep source-created `Order.itemsSubtotalCents` under the
+  PostgreSQL integer ceiling; the future live-volume risk remains mainly
+  `SellerMetrics.totalSalesCents` if lifetime seller sales approach the integer
+  limit.
+
+Guardrails:
+`tests/shipping-quote-state.test.mjs`,
+`tests/stripe-webhook-state.test.mjs`,
+`tests/message-bodies.test.mjs`,
+`tests/admin-moderation-observability.test.mjs`, and
+`tests/user-text-normalization-followups.test.mjs`.
+
+Verification:
+focused `node --test tests/shipping-quote-state.test.mjs tests/stripe-webhook-state.test.mjs tests/message-bodies.test.mjs tests/admin-moderation-observability.test.mjs`
+(58/58 tests passing),
+broader focused `node --test tests/shipping-quote-state.test.mjs tests/stripe-webhook-state.test.mjs tests/checkout-payment-methods.test.mjs tests/checkout-session-expiry.test.mjs tests/payment-side-effect-observability.test.mjs tests/shippo-error-sanitization.test.mjs tests/message-bodies.test.mjs tests/admin-moderation-observability.test.mjs tests/sanitize-unicode.test.mjs tests/user-text-normalization-followups.test.mjs`
+(114/114 tests passing),
+`npx tsc --noEmit`,
+`git diff --check`,
+`npm run lint` (exit 0; existing JSX AST utility warning only),
+`npm audit --audit-level=moderate` (0 vulnerabilities),
+`npm test` (1384/1384 tests passing across 255 suites), and
+`npm run build` passed.
+
+Current running tally after Entry 446: verified fixed/reduced 888, verified
+stale/false-positive/current 504, deferred product/design/ops/legal 80,
+approximate raw allegations left from current max #1126: 32. Fixed/reduced
+increases by three for raw #52 plus two agent-found hidden source fixes.
+Deferred decreases by one and raw-left decreases by one because raw #52 moved
+from deferred provider-smoke/product decision to implemented source
+minimization with label re-quote guardrails. Stale/current does not increase
+because the text-normalization and BigInt rechecks were already classified in
+prior passes.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger, label clawback policy/runtime proof,
+Stripe webhook subscription dashboard evidence, Stripe Connect v2
+loss-liability ops/legal decision, stale remote branch and old git author
+hygiene, Round 10 deferred cache/state-machine product designs that require
+product decisions rather than source guardrails, remaining EXPLAIN-dependent
+query-plan/index validation, Stripe partial-refund runtime reconciliation proof,
+founding-maker permanence policy, remaining privacy/legal retention scope,
+remaining privacy/export retention decisions, cross-seller AI
+duplicate-detection product design, legacy enum cleanup/data-migration
+decisions, partial multi-seller checkout continuation design, deliberate BigInt
+money-column modeling, variant-adjusted unit-price floor policy, live-data
+reconciliation for historical seller shipping-rate currency drift, Clerk staff
+MFA and breached-password dashboard evidence, Clerk multi-account spam
+dashboard evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket/dashboard posture plus production smoke evidence and
+public-availability proof, HSTS preload submission decision, Vercel
+Analytics/Speed Insights product/privacy decision, and remaining homepage
+browser a11y/runtime proof beyond source fallback.

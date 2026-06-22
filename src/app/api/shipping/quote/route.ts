@@ -7,6 +7,7 @@ import { shippoRequest } from "@/lib/shippo";
 import { signRate } from "@/lib/shipping-token";
 import {
   filterShippoRatesForCheckout,
+  quoteOnlyRateObjectId,
   safeFallbackShippingCents,
   type ShippoQuoteRate,
 } from "@/lib/shippingQuoteState";
@@ -37,9 +38,6 @@ const ShippingQuoteSchema = z.object({
   toState: z.string().max(50).optional().nullable(),
   toCity: z.string().max(100).optional().nullable(),
   toCountry: z.string().max(2).optional().nullable(),
-  toName: z.string().max(100).optional().nullable(),
-  toLine1: z.string().max(200).optional().nullable(),
-  toLine2: z.string().max(200).optional().nullable(),
 });
 
 export const runtime = "nodejs";
@@ -219,9 +217,6 @@ export async function POST(req: Request) {
     const sanitizedToState = sanitizeOptionalAddressField(body.toState, 50);
     const sanitizedToCountry = sanitizeOptionalAddressField(body.toCountry, 2);
     const shipTo = {
-      name: sanitizeOptionalAddressField(body.toName, 100) || undefined,
-      line1: sanitizeOptionalAddressField(body.toLine1, 200) || undefined,
-      line2: sanitizeOptionalAddressField(body.toLine2, 200) || undefined,
       postal: sanitizeAddressField(body.toPostal, 20),
       state: sanitizedToState || "NY",
       city: sanitizedToCity || "New York",
@@ -530,9 +525,7 @@ export async function POST(req: Request) {
             country: shipFrom.country,
           },
           address_to: {
-            name: shipTo.name,
-            street1: shipTo.line1,
-            street2: shipTo.line2,
+            street1: "Rate quote only",
             city: shipTo.city,
             state: shipTo.state,
             zip: shipTo.postal,
@@ -611,10 +604,10 @@ export async function POST(req: Request) {
         const carrier = r.provider || r.carrier || "";
         const service = r.servicelevel?.name || r.service || "";
         const estDays = r.estimated_days ?? null;
-        const objectId = r.object_id ?? null;
+        const objectId = quoteOnlyRateObjectId(r.object_id ?? null);
 
         const { token, expiresAt } = signRate({
-          objectId: objectId ?? "",
+          objectId,
           amountCents,
           currency,
           displayName: label,
@@ -633,7 +626,7 @@ export async function POST(req: Request) {
           service,
           estDays,
           taxBehavior: "exclusive" as const,
-          objectId,
+          objectId: objectId || null,
           token,
           expiresAt,
         };

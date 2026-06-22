@@ -1,5 +1,5 @@
-import { sanitizeText, truncateText } from "@/lib/sanitize";
-import { isR2PublicUrl } from "@/lib/urlValidation";
+import { sanitizeText, truncateText } from "./sanitize.ts";
+import { isR2PublicUrl } from "./urlValidation.ts";
 
 export type FileMessageBody = {
   kind: "file";
@@ -46,6 +46,9 @@ export type ThreadMessageEventMessage = {
 const MAX_FILE_MESSAGE_URL_LENGTH = 1000;
 const MAX_FILE_MESSAGE_NAME_LENGTH = 200;
 const MAX_FILE_MESSAGE_TYPE_LENGTH = 100;
+const MAX_STRUCTURED_MESSAGE_SHORT_TEXT_LENGTH = 200;
+const MAX_STRUCTURED_MESSAGE_BODY_LENGTH = 5000;
+const MAX_STRUCTURED_MESSAGE_CURRENCY_LENGTH = 10;
 const FILE_MESSAGE_CONTROL_CHARS = /[\u0000-\u001F\u007F]/g;
 
 function parseJsonRecord(raw: string): Record<string, unknown> | null {
@@ -60,12 +63,6 @@ function parseJsonRecord(raw: string): Record<string, unknown> | null {
 
 function optionalString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined;
-}
-
-function optionalNullableString(value: unknown): string | null | undefined {
-  if (value === null) return null;
-  if (value === undefined) return undefined;
-  return optionalString(value);
 }
 
 function optionalCleanNullableString(value: unknown, maxLength: number): string | null | undefined {
@@ -107,11 +104,11 @@ export function parseCommissionInterestMessageBody(raw: string): CommissionInter
   if (!obj) return {};
   return {
     commissionId: optionalString(obj.commissionId),
-    commissionTitle: optionalString(obj.commissionTitle),
-    sellerName: optionalString(obj.sellerName),
+    commissionTitle: optionalCleanNullableString(obj.commissionTitle, MAX_STRUCTURED_MESSAGE_SHORT_TEXT_LENGTH) ?? undefined,
+    sellerName: optionalCleanNullableString(obj.sellerName, MAX_STRUCTURED_MESSAGE_SHORT_TEXT_LENGTH) ?? undefined,
     budgetMinCents: optionalNullableNumber(obj.budgetMinCents),
     budgetMaxCents: optionalNullableNumber(obj.budgetMaxCents),
-    timeline: optionalNullableString(obj.timeline),
+    timeline: optionalCleanNullableString(obj.timeline, MAX_STRUCTURED_MESSAGE_SHORT_TEXT_LENGTH),
   };
 }
 
@@ -119,11 +116,11 @@ export function parseCustomOrderRequestMessageBody(raw: string): CustomOrderRequ
   const obj = parseJsonRecord(raw);
   if (!obj) return {};
   return {
-    description: optionalString(obj.description),
-    dimensions: optionalNullableString(obj.dimensions),
+    description: optionalCleanNullableString(obj.description, MAX_STRUCTURED_MESSAGE_BODY_LENGTH) ?? undefined,
+    dimensions: optionalCleanNullableString(obj.dimensions, MAX_STRUCTURED_MESSAGE_SHORT_TEXT_LENGTH),
     budget: optionalNullableNumber(obj.budget),
-    timelineLabel: optionalNullableString(obj.timelineLabel),
-    listingTitle: optionalNullableString(obj.listingTitle),
+    timelineLabel: optionalCleanNullableString(obj.timelineLabel, MAX_STRUCTURED_MESSAGE_SHORT_TEXT_LENGTH),
+    listingTitle: optionalCleanNullableString(obj.listingTitle, MAX_STRUCTURED_MESSAGE_SHORT_TEXT_LENGTH),
   };
 }
 
@@ -132,9 +129,9 @@ export function parseCustomOrderLinkMessageBody(raw: string): CustomOrderLinkMes
   if (!obj) return {};
   return {
     listingId: optionalString(obj.listingId),
-    title: optionalString(obj.title),
+    title: optionalCleanNullableString(obj.title, MAX_STRUCTURED_MESSAGE_SHORT_TEXT_LENGTH) ?? undefined,
     priceCents: optionalNumber(obj.priceCents),
-    currency: optionalString(obj.currency),
+    currency: optionalCleanNullableString(obj.currency, MAX_STRUCTURED_MESSAGE_CURRENCY_LENGTH) ?? undefined,
   };
 }
 
@@ -154,7 +151,7 @@ function parseThreadMessage(value: unknown): ThreadMessageEventMessage | null {
     id: obj.id,
     senderId: obj.senderId,
     recipientId: obj.recipientId,
-    body: obj.body,
+    body: optionalCleanNullableString(obj.body, MAX_STRUCTURED_MESSAGE_BODY_LENGTH) ?? "",
     kind: typeof obj.kind === "string" || obj.kind === null ? obj.kind : undefined,
     isSystemMessage: typeof obj.isSystemMessage === "boolean" || obj.isSystemMessage === null
       ? obj.isSystemMessage

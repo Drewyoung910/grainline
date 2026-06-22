@@ -312,6 +312,7 @@ describe("Stripe webhook state helpers", () => {
     assert.equal(normalizeShippoRateObjectId(" fallback "), null);
     assert.equal(normalizeShippoRateObjectId(null), null);
     assert.equal(normalizeShippoRateObjectId("shippo_rate_1"), "shippo_rate_1");
+    assert.equal(normalizeShippoRateObjectId("quote-only:shippo_rate_1"), "quote-only:shippo_rate_1");
   });
 
   it("explains why a completed checkout seller is no longer eligible", () => {

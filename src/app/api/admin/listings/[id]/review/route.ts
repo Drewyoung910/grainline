@@ -18,6 +18,7 @@ import {
 } from '@/lib/requestBody'
 import { privateJson, privateResponse } from '@/lib/privateResponse'
 import { HTTP_STATUS } from '@/lib/httpStatus'
+import { sanitizeText, truncateText } from '@/lib/sanitize'
 import { z } from 'zod'
 
 const ReviewActionSchema = z.object({
@@ -108,6 +109,7 @@ export async function PATCH(
     throw e
   }
   const { action, reason } = body
+  const sanitizedReason = truncateText(sanitizeText(reason ?? ''), 500).trim()
 
   const listing = await prisma.listing.findUnique({
     where: { id },
@@ -160,7 +162,7 @@ export async function PATCH(
         action: 'APPROVE_LISTING',
         targetType: 'LISTING',
         targetId: id,
-        reason: reason || 'Approved',
+        reason: sanitizedReason || 'Approved',
       })
       return {
         count: updated.count,
@@ -245,11 +247,11 @@ export async function PATCH(
       })
     })
   } else if (action === 'reject') {
-    if (!reason?.trim()) return privateJson({ error: 'Reason required for rejection' }, { status: HTTP_STATUS.BAD_REQUEST })
+    if (!sanitizedReason) return privateJson({ error: 'Reason required for rejection' }, { status: HTTP_STATUS.BAD_REQUEST })
     const rejected = await prisma.$transaction(async (tx) => {
       const updated = await tx.listing.updateMany({
         where: { id, status: 'PENDING_REVIEW' },
-        data: { status: 'REJECTED', reviewedByAdmin: true, reviewedAt: new Date(), rejectionReason: reason }
+        data: { status: 'REJECTED', reviewedByAdmin: true, reviewedAt: new Date(), rejectionReason: sanitizedReason }
       })
       if (updated.count === 0) return updated
       await logAdminActionOrThrow({
@@ -258,7 +260,7 @@ export async function PATCH(
         action: 'REJECT_LISTING',
         targetType: 'LISTING',
         targetId: id,
-        reason,
+        reason: sanitizedReason,
       })
       return updated
     })
@@ -272,7 +274,7 @@ export async function PATCH(
       userId: listing.seller.userId,
       type: 'LISTING_REJECTED',
       title: 'Listing needs changes',
-      body: `Your listing "${listing.title}" was not approved. Reason: ${reason}. Please edit and resubmit.`,
+      body: `Your listing "${listing.title}" was not approved. Reason: ${sanitizedReason}. Please edit and resubmit.`,
       link: `/dashboard/listings/${id}/edit`,
     }).catch((error) => {
       Sentry.captureException(error, {

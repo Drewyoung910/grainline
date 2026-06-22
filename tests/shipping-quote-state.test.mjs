@@ -8,6 +8,8 @@ const {
   MIN_FALLBACK_SHIPPING_CENTS,
   carrierMatchesPreference,
   filterShippoRatesForCheckout,
+  isQuoteOnlyRateObjectId,
+  quoteOnlyRateObjectId,
   safeFallbackShippingCents,
 } = await import("../src/lib/shippingQuoteState.ts");
 
@@ -38,6 +40,15 @@ describe("shipping quote state helpers", () => {
     assert.equal(carrierMatchesPreference({ provider: "UPS Ground" }, "UPS"), true);
     assert.equal(carrierMatchesPreference({ provider: "UPSERT Logistics" }, "UPS"), false);
     assert.equal(carrierMatchesPreference({ provider: "USPS" }, "UPS"), false);
+  });
+
+  it("marks Shippo checkout quotes as quote-only instead of purchasable label rates", () => {
+    assert.equal(quoteOnlyRateObjectId(" rate_123 "), "quote-only:rate_123");
+    assert.equal(quoteOnlyRateObjectId(""), "");
+    assert.equal(quoteOnlyRateObjectId(null), "");
+    assert.equal(isQuoteOnlyRateObjectId("quote-only:rate_123"), true);
+    assert.equal(isQuoteOnlyRateObjectId("rate_123"), false);
+    assert.equal(isQuoteOnlyRateObjectId(" pickup "), false);
   });
 
   it("reports when carrier preferences filtered out otherwise valid rates", () => {
@@ -94,5 +105,35 @@ describe("shipping quote state helpers", () => {
     assert.doesNotMatch(route, /console\.error\("Shippo quote failed; returning signed fallback rate:", err\)/);
     assert.doesNotMatch(route, /console\.error\("Site config fallback shipping lookup failed:", siteConfigError\)/);
     assert.doesNotMatch(route, /console\.error\("POST \/api\/shipping\/quote error:", err\)/);
+  });
+
+  it("minimizes Shippo quote destination payloads and keeps returned rate ids quote-only", () => {
+    const route = readFileSync("src/app/api/shipping/quote/route.ts", "utf8");
+    const selector = readFileSync("src/components/ShippingRateSelector.tsx", "utf8");
+
+    assert.match(route, /quoteOnlyRateObjectId/);
+    assert.doesNotMatch(route, /toName|toLine1|toLine2/);
+    assert.match(route, /street1: "Rate quote only"/);
+    const addressToBlock = route.match(/address_to:\s*\{([\s\S]*?)\n\s*\},\n\s*parcels:/)?.[1] ?? "";
+    assert.match(addressToBlock, /city: shipTo\.city/);
+    assert.match(addressToBlock, /state: shipTo\.state/);
+    assert.match(addressToBlock, /zip: shipTo\.postal/);
+    assert.match(addressToBlock, /country: shipTo\.country/);
+    assert.doesNotMatch(addressToBlock, /\bname:/);
+    assert.doesNotMatch(addressToBlock, /\bstreet2:/);
+    assert.match(route, /const objectId = quoteOnlyRateObjectId\(r\.object_id \?\? null\)/);
+    assert.match(route, /objectId: objectId \|\| null/);
+
+    assert.doesNotMatch(selector, /toName|toLine1|toLine2/);
+    assert.doesNotMatch(selector, /address\.line1|address\.line2|address\.name/);
+  });
+
+  it("forces seller label purchase to re-quote quote-only rates with full order recipient data", () => {
+    const labelRoute = readFileSync("src/app/api/orders/[id]/label/route.ts", "utf8");
+
+    assert.match(labelRoute, /import \{ isPickupRateObjectId, isQuoteOnlyRateObjectId \} from "@\/lib\/shippingQuoteState"/);
+    assert.match(labelRoute, /!isQuoteOnlyRateObjectId\(rateObjectId\)/);
+    assert.match(labelRoute, /const storedRateUsable =\s*isPurchasableRateObjectId\(order\.shippoRateObjectId\)/);
+    assert.match(labelRoute, /name: order\.buyerName \?\? order\.quotedToName \?\? undefined/);
   });
 });

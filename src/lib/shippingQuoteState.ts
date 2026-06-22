@@ -2,6 +2,7 @@ export const DEFAULT_FALLBACK_SHIPPING_CENTS = 1500;
 export const MIN_FALLBACK_SHIPPING_CENTS = 500;
 export const MAX_FALLBACK_SHIPPING_CENTS = 5000;
 export const PICKUP_RATE_OBJECT_ID = "pickup";
+export const SHIPPO_QUOTE_ONLY_RATE_PREFIX = "quote-only:";
 
 export type ShippoQuoteRate = {
   currency?: string | null;
@@ -22,6 +23,15 @@ export function safeFallbackShippingCents(value: number | null | undefined) {
 
 export function isPickupRateObjectId(value: string | null | undefined) {
   return value?.trim().toLowerCase() === PICKUP_RATE_OBJECT_ID;
+}
+
+export function quoteOnlyRateObjectId(objectId: string | null | undefined) {
+  const trimmed = objectId?.trim();
+  return trimmed ? `${SHIPPO_QUOTE_ONLY_RATE_PREFIX}${trimmed}` : "";
+}
+
+export function isQuoteOnlyRateObjectId(value: string | null | undefined) {
+  return typeof value === "string" && value.startsWith(SHIPPO_QUOTE_ONLY_RATE_PREFIX);
 }
 
 function normalizeCarrier(value: string) {

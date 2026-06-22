@@ -42,6 +42,7 @@ import {
   orderHasDeauthorizedSellerReviewHold,
 } from "@/lib/orderReviewHolds";
 import { sanitizeShippoProviderErrorBody } from "@/lib/shippoErrorSanitize";
+import { isPickupRateObjectId, isQuoteOnlyRateObjectId } from "@/lib/shippingQuoteState";
 
 const LabelSchema = z.object({
   rateObjectId: z.string().min(1).optional().nullable(),
@@ -89,7 +90,10 @@ function isPurchasableRateObjectId(
   rateObjectId: string | null | undefined,
 ): rateObjectId is string {
   return (
-    !!rateObjectId && rateObjectId !== "fallback" && rateObjectId !== "pickup"
+    !!rateObjectId &&
+    rateObjectId !== "fallback" &&
+    !isPickupRateObjectId(rateObjectId) &&
+    !isQuoteOnlyRateObjectId(rateObjectId)
   );
 }
 
@@ -405,6 +409,7 @@ export async function POST(
           country: seller.shipFromCountry ?? "US",
         },
         to: {
+          name: order.buyerName ?? order.quotedToName ?? undefined,
           street1: order.shipToLine1,
           street2: order.shipToLine2 ?? undefined,
           city: order.shipToCity,
