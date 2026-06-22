@@ -8870,6 +8870,108 @@ public-availability proof, HSTS preload submission decision, Vercel
 Analytics/Speed Insights product/privacy decision, and remaining homepage
 browser a11y/runtime proof beyond source fallback.
 
+Entry 444 reduces the previously deferred shared-admin-PIN blast-radius item
+after parent review of the ops sidecar. The same pass used two read-only Stripe
+sidecars for webhook/subscription and refund/label-clawback rechecks; parent
+Codex reviewed their outputs against current source before accepting
+classifications. No raw audit import was staged.
+
+Verified fixed/reduced:
+
+- `POST /api/admin/verify-pin` can now verify staff/admin PINs through
+  `ADMIN_PIN_SHA256_BY_CLERK_ID`, a JSON map from Clerk user id to SHA-256 PIN
+  digest. When that map is configured, it is authoritative: malformed JSON,
+  malformed digests, or an active staff user missing from the map fail closed
+  instead of falling back to the shared `ADMIN_PIN`.
+- The legacy shared `ADMIN_PIN` remains as a fallback when no per-user digest
+  map is configured, so current environments can migrate deliberately. Successful
+  PIN verification audit metadata records only whether the challenge source was
+  `per-user` or `shared`; it does not store submitted PINs or raw Clerk ids/IPs.
+- `.env.example`, `CLAUDE.md`, `docs/launch-checklist.md`, and
+  `docs/runbook.md` now document the per-user digest map, rotation expectations,
+  and launch verification boundary. The docs explicitly keep Clerk-native staff
+  MFA/breached-password dashboard evidence separate; the per-user app PIN map
+  reduces shared-secret blast radius but is not treated as provider MFA proof.
+
+Verified current/stale/duplicate/deferred during the same pass:
+
+- Stripe webhook `payment_intent.*` allegations remain stale/current under the
+  current card-only Checkout configuration. The source still drives order
+  creation from `checkout.session.completed` /
+  `checkout.session.async_payment_succeeded`, restores stock on
+  `checkout.session.expired` / `checkout.session.async_payment_failed`, and
+  docs/tests require the live Stripe Dashboard endpoint to exclude
+  `payment_intent.*` until payment methods and failure handling are expanded.
+  Live Stripe endpoint screenshots remain a separate dashboard evidence item.
+- Refund/accounting and label-clawback source rechecks found no new accepted
+  source defect. Seller/staff refunds still use the shared
+  `createMarketplaceRefund()` path, scoped idempotency bases, single-refund
+  order locks, local refund evidence rows, and label-clawback retry/manual-review
+  state. Runtime refund reconciliation and label-clawback production proof remain
+  ops/runtime evidence categories.
+- Clerk breached-password/multi-account spam controls, Sentry cron alert
+  routing, R2 ListBucket/public-bucket posture and production smoke evidence,
+  HSTS preload acceptance, Vercel Analytics/Speed Insights, stale branch pruning,
+  and old git-author metadata remain external dashboard/product/legal/hygiene
+  items rather than source claims in this entry.
+
+Guardrails:
+`tests/admin-pin.test.mjs`,
+`tests/admin-action-guardrails.test.mjs`,
+`tests/private-json-cache-headers.test.mjs`,
+`tests/r65-observability-guardrails.test.mjs`,
+`tests/marketplace-refunds.test.mjs`,
+`tests/refund-route-state.test.mjs`,
+`tests/refund-route-source-order.test.mjs`,
+`tests/label-clawback-state.test.mjs`,
+`tests/payment-side-effect-observability.test.mjs`,
+`tests/stripe-connect-v2.test.mjs`,
+`tests/stripe-webhook-v2-route.test.mjs`, and
+`tests/checkout-payment-methods.test.mjs`.
+
+Verification:
+focused `node --test tests/admin-pin.test.mjs` (13/13 tests passing),
+expanded focused `node --test tests/admin-pin.test.mjs tests/admin-action-guardrails.test.mjs tests/private-json-cache-headers.test.mjs tests/r65-observability-guardrails.test.mjs tests/marketplace-refunds.test.mjs tests/refund-route-state.test.mjs tests/refund-route-source-order.test.mjs tests/label-clawback-state.test.mjs tests/payment-side-effect-observability.test.mjs tests/stripe-connect-v2.test.mjs tests/stripe-webhook-v2-route.test.mjs tests/checkout-payment-methods.test.mjs`
+(127/127 tests passing across 12 suites),
+`npx tsc --noEmit`,
+`git diff --check`,
+`npm run lint` (exit 0; existing JSX AST utility warning only),
+`npm audit --audit-level=moderate` (0 vulnerabilities),
+`npm test` (1378/1378 tests passing across 255 suites), and
+`npm run build` passed.
+
+Current running tally after Entry 444: verified fixed/reduced 884, verified
+stale/false-positive/current 504, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 34. Fixed/reduced
+increases by one for the per-user admin PIN digest-map support, deferred
+decreases by one because raw #495's shared-admin-PIN source architecture item
+is now reduced in app code, and raw-left decreases by one for that newly
+source-addressed item. Stale/current does not change because the adjacent
+Stripe/webhook/refund/ops rechecks were already classified or remain dashboard
+evidence.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger, label clawback policy/runtime proof,
+Stripe webhook subscription dashboard evidence, Stripe Connect v2
+loss-liability ops/legal decision, stale remote branch and old git author
+hygiene, Round 10 deferred cache/state-machine product designs that require
+product decisions rather than source guardrails, remaining EXPLAIN-dependent
+query-plan/index validation, Stripe partial-refund runtime reconciliation proof,
+founding-maker permanence policy, remaining privacy/legal retention scope,
+remaining privacy/export retention decisions, shipping quote PII-minimization
+provider smoke/product decision, cross-seller AI duplicate-detection product
+design, legacy enum cleanup/data-migration decisions, partial multi-seller
+checkout continuation design, deliberate BigInt money-column modeling,
+variant-adjusted unit-price floor policy, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket/dashboard posture plus production smoke evidence and
+public-availability proof, HSTS preload submission decision, Vercel
+Analytics/Speed Insights product/privacy decision, and remaining homepage
+browser a11y/runtime proof beyond source fallback.
+
 Entry 443 closes two hidden R2 upload-lifecycle defects found by read-only
 sidecar scan and accepted after parent source review. Parent Codex also
 spot-checked the parallel Stripe sidecar's no-fix report but did not accept new

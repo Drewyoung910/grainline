@@ -17,7 +17,11 @@ import { isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/reque
 import { hashIdentifierForTelemetry } from "@/lib/privacyTelemetry";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
-import { createHash, timingSafeEqual } from "crypto";
+import {
+  ADMIN_PIN_SHA256_BY_CLERK_ID_ENV,
+  adminPinDigestMatches,
+  resolveAdminPinDigestForUser,
+} from "@/lib/adminPinChallenge";
 
 // 5 attempts per 15 minutes per user — fail closed for compromised sessions.
 const pinUserRatelimit = new Ratelimit({
@@ -129,14 +133,22 @@ export async function POST(req: Request) {
   }
   const bodyObject = body as { pin?: unknown };
   const pin = typeof bodyObject.pin === "string" ? bodyObject.pin : "";
-  const adminPin = process.env.ADMIN_PIN;
+  const adminPinResolution = resolveAdminPinDigestForUser({
+    clerkUserId: userId,
+    perUserPinDigestsJson: process.env[ADMIN_PIN_SHA256_BY_CLERK_ID_ENV],
+    sharedPin: process.env.ADMIN_PIN,
+  });
 
-  if (!adminPin) {
+  if (!adminPinResolution.ok) {
     if (
+      adminPinResolution.reason !== "missing_config" ||
       process.env.NODE_ENV === "production" ||
       process.env.ALLOW_DEV_ADMIN_PIN_BYPASS !== "true"
     ) {
-      return privateJson({ error: "Admin PIN is not configured" }, { status: HTTP_STATUS.SERVICE_UNAVAILABLE });
+      const error = adminPinResolution.reason === "invalid"
+        ? "Admin PIN configuration is invalid"
+        : "Admin PIN is not configured";
+      return privateJson({ error }, { status: HTTP_STATUS.SERVICE_UNAVAILABLE });
     }
 
     const cookieValue = await createAdminPinSessionCookieValue(userId, sessionId);
@@ -164,9 +176,7 @@ export async function POST(req: Request) {
   }
 
   // Constant-time comparison to prevent timing attacks
-  const pinDigest = createHash("sha256").update(pin).digest();
-  const adminPinDigest = createHash("sha256").update(adminPin).digest();
-  const match = timingSafeEqual(pinDigest, adminPinDigest);
+  const match = adminPinDigestMatches(pin, adminPinResolution.digest);
   if (!match) {
     await logAdminPinAttempt({
       adminId: user.id,
@@ -194,6 +204,7 @@ export async function POST(req: Request) {
     action: "ADMIN_PIN_VERIFY_OK",
     ipHash,
     clerkUserIdHash,
+    metadata: { pinSource: adminPinResolution.source },
   });
 
   const res = privateResponse(NextResponse.json({ ok: true }));

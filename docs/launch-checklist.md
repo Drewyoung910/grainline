@@ -17,6 +17,7 @@ Confirm production and preview values in Vercel:
 - `STRIPE_WEBHOOK_SECRET`
 - `STRIPE_V2_WEBHOOK_SECRET`
 - `ADMIN_PIN`
+- `ADMIN_PIN_SHA256_BY_CLERK_ID` preferred for per-staff admin PINs; if unset, document why the shared `ADMIN_PIN` fallback is still acceptable.
 - `ADMIN_PIN_COOKIE_SECRET`
 - `CLOUDFLARE_R2_ACCOUNT_ID`
 - `CLOUDFLARE_R2_ACCESS_KEY_ID`
@@ -89,7 +90,7 @@ Do not rename a migration directory after it has been applied in production.
 Run these in test mode before switching to live money:
 
 - Sign up, sign in, sign out.
-- Admin PIN gate: page access and `/api/admin/*` access.
+- Admin PIN gate: page access and `/api/admin/*` access. If `ADMIN_PIN_SHA256_BY_CLERK_ID` is configured, verify every active EMPLOYEE/ADMIN Clerk user id has a digest entry and missing users cannot use the shared fallback.
 - Seller onboarding and Stripe Connect return flow.
 - Create draft listing, preview it, publish listing.
 - Add variant listing to cart, change quantity, remove item.

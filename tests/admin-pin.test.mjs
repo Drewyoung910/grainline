@@ -7,6 +7,12 @@ const {
   createAdminPinSessionCookieValue,
   verifyAdminPinCookieValue,
 } = await import("../src/lib/adminPin.ts");
+const {
+  ADMIN_PIN_SHA256_BY_CLERK_ID_ENV,
+  adminPinDigestMatches,
+  adminPinSha256Hex,
+  resolveAdminPinDigestForUser,
+} = await import("../src/lib/adminPinChallenge.ts");
 
 describe("admin PIN cookie secret configuration", () => {
   it("allows production when a dedicated cookie secret is configured", () => {
@@ -78,13 +84,75 @@ describe("admin PIN cookie secret configuration", () => {
     const requiredEnvStart = claude.indexOf("### Production environment variables");
     const requiredEnv = claude.slice(requiredEnvStart, claude.indexOf("### Remaining architectural risks", requiredEnvStart));
 
-    assert.match(route, /const adminPin = process\.env\.ADMIN_PIN/);
+    assert.match(route, /resolveAdminPinDigestForUser/);
+    assert.match(route, /process\.env\.ADMIN_PIN/);
+    assert.match(route, /process\.env\[ADMIN_PIN_SHA256_BY_CLERK_ID_ENV\]/);
     assert.match(route, /Admin PIN is not configured/);
     assert.match(requiredEnv, /`ADMIN_PIN`/);
+    assert.match(requiredEnv, /`ADMIN_PIN_SHA256_BY_CLERK_ID`/);
     assert.match(requiredEnv, /explicit handler guard that fails closed in production/);
     assert.match(launch, /- `ADMIN_PIN`/);
-    assert.match(runbook, /`ADMIN_PIN`, `ADMIN_PIN_COOKIE_SECRET`/);
+    assert.match(launch, /- `ADMIN_PIN_SHA256_BY_CLERK_ID`/);
+    assert.match(runbook, /`ADMIN_PIN`/);
+    assert.match(runbook, /`ADMIN_PIN_SHA256_BY_CLERK_ID`/);
+    assert.match(runbook, /`ADMIN_PIN_COOKIE_SECRET`/);
     assert.match(envExample, /^ADMIN_PIN=change-me/m);
+    assert.match(envExample, /^# ADMIN_PIN_SHA256_BY_CLERK_ID=/m);
+  });
+
+  it("supports per-Clerk-user admin PIN digests without falling back to the shared PIN", () => {
+    const pinDigest = adminPinSha256Hex("123456");
+    const resolved = resolveAdminPinDigestForUser({
+      clerkUserId: "user_1",
+      perUserPinDigestsJson: JSON.stringify({ user_1: pinDigest }),
+      sharedPin: "999999",
+    });
+
+    assert.equal(resolved.ok, true);
+    assert.equal(resolved.source, "per-user");
+    assert.equal(adminPinDigestMatches("123456", resolved.digest), true);
+    assert.equal(adminPinDigestMatches("999999", resolved.digest), false);
+  });
+
+  it("fails closed when a per-user admin PIN map is configured but the staff user is absent", () => {
+    const resolved = resolveAdminPinDigestForUser({
+      clerkUserId: "missing_user",
+      perUserPinDigestsJson: JSON.stringify({ user_1: adminPinSha256Hex("123456") }),
+      sharedPin: "999999",
+    });
+
+    assert.deepEqual(resolved, { ok: false, reason: "missing_user" });
+  });
+
+  it("rejects malformed per-user admin PIN digest maps", () => {
+    assert.deepEqual(
+      resolveAdminPinDigestForUser({
+        clerkUserId: "user_1",
+        perUserPinDigestsJson: JSON.stringify({ user_1: "123456" }),
+        sharedPin: "999999",
+      }),
+      { ok: false, reason: "invalid" },
+    );
+    assert.deepEqual(
+      resolveAdminPinDigestForUser({
+        clerkUserId: "user_1",
+        perUserPinDigestsJson: "[1,2,3]",
+        sharedPin: "999999",
+      }),
+      { ok: false, reason: "invalid" },
+    );
+  });
+
+  it("keeps the legacy shared admin PIN as the fallback when no per-user map is configured", () => {
+    const resolved = resolveAdminPinDigestForUser({
+      clerkUserId: "user_1",
+      sharedPin: "999999",
+    });
+
+    assert.equal(ADMIN_PIN_SHA256_BY_CLERK_ID_ENV, "ADMIN_PIN_SHA256_BY_CLERK_ID");
+    assert.equal(resolved.ok, true);
+    assert.equal(resolved.source, "shared");
+    assert.equal(adminPinDigestMatches("999999", resolved.digest), true);
   });
 
   it("binds admin PIN cookies to the active Clerk session", async () => {
