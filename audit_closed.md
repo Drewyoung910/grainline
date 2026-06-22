@@ -9170,3 +9170,90 @@ ListBucket/public-bucket/dashboard posture plus production smoke evidence and
 public-availability proof, HSTS preload submission decision, Vercel
 Analytics/Speed Insights product/privacy decision, and remaining homepage
 browser a11y/runtime proof beyond source fallback.
+
+Entry 445 closes raw #165 after parent review of the saved-search route, the
+privacy sidecar's read-only report, and adjacent email/export/deletion
+guardrails. No raw audit import was staged.
+
+Verified fixed/reduced:
+
+- `GET /api/search/saved` no longer returns stored saved-search `lat/lng` at
+  5-decimal precision. The route still stores 5-decimal normalized coordinates
+  for duplicate matching/search fidelity, but authenticated GET transport now
+  maps each row through `savedSearchCoordinateForTransport()` and rounds
+  `lat/lng` to 2 decimals before returning private JSON.
+- The saved-search route remains current-user scoped and fail-closed
+  rate-limited before listing rows. This pass did not change the existing
+  serializable duplicate/cap transaction or tag canonicalization behavior.
+
+Verified current/stale/duplicate during the same pass:
+
+- Raw #988-#992 remain stale/current under current `src/lib/email.ts`: the
+  relevant transactional emails do not render buyer case descriptions, custom
+  order descriptions, review previews, message previews, or case descriptions
+  into seller/recipient email bodies; they direct users back into Grainline
+  instead.
+- Raw #993 remains a provider/legal retention evidence item, not a source-only
+  defect. Current code minimizes the sensitive email bodies above, the Privacy
+  Policy discloses Resend processing, and the runbook requires processor-side
+  handling/ticket evidence for data requests. Provider-side retention proof
+  remains external evidence.
+- Account export/delete/support/data-request guardrails were spot-checked as
+  current in the same privacy pass: account export is same-origin/fresh-session
+  gated with audit logging, deletion has durable retry rows for local
+  anonymization/Stripe/R2/audit side effects, fulfilled-order PII pruning keeps
+  active case/review holds, and support/data-request closure evidence remains
+  documented and tested. Broader retention periods remain legal/product
+  decisions.
+
+Guardrails:
+`tests/r49-account-state-routes.test.mjs`,
+`tests/email-delivery-guardrails.test.mjs`,
+`tests/support-request.test.mjs`,
+`tests/account-deletion-side-effects.test.mjs`,
+`tests/order-pii-retention.test.mjs`,
+`tests/account-export-reverification.test.mjs`,
+`tests/account-export-payload.test.mjs`, and
+`tests/account-export-privacy.test.mjs`.
+
+Verification:
+focused `node --test tests/r49-account-state-routes.test.mjs`
+(9/9 tests passing),
+privacy batch `node --test tests/email-delivery-guardrails.test.mjs tests/support-request.test.mjs tests/account-deletion-side-effects.test.mjs tests/order-pii-retention.test.mjs tests/r49-account-state-routes.test.mjs tests/account-export-reverification.test.mjs tests/account-export-payload.test.mjs tests/account-export-privacy.test.mjs`
+(55/55 tests passing across 8 suites),
+`npx tsc --noEmit`,
+`git diff --check`,
+`npm run lint` (exit 0; existing JSX AST utility warning only),
+`npm audit --audit-level=moderate` (0 vulnerabilities),
+`npm test` (1379/1379 tests passing across 255 suites), and
+`npm run build` passed.
+
+Current running tally after Entry 445: verified fixed/reduced 885, verified
+stale/false-positive/current 504, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 33. Fixed/reduced
+increases by one and raw-left decreases by one for raw #165's saved-search
+coordinate transport minimization. Stale/current does not increase because
+raw #988-#992 had already been classified in prior privacy/email passes, and
+deferred does not change because raw #993 remains provider/legal evidence.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger, label clawback policy/runtime proof,
+Stripe webhook subscription dashboard evidence, Stripe Connect v2
+loss-liability ops/legal decision, stale remote branch and old git author
+hygiene, Round 10 deferred cache/state-machine product designs that require
+product decisions rather than source guardrails, remaining EXPLAIN-dependent
+query-plan/index validation, Stripe partial-refund runtime reconciliation proof,
+founding-maker permanence policy, remaining privacy/legal retention scope,
+remaining privacy/export retention decisions, shipping quote PII-minimization
+provider smoke/product decision, cross-seller AI duplicate-detection product
+design, legacy enum cleanup/data-migration decisions, partial multi-seller
+checkout continuation design, deliberate BigInt money-column modeling,
+variant-adjusted unit-price floor policy, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion runtime replay proof, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket/dashboard posture plus production smoke evidence and
+public-availability proof, HSTS preload submission decision, Vercel
+Analytics/Speed Insights product/privacy decision, and remaining homepage
+browser a11y/runtime proof beyond source fallback.

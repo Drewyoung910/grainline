@@ -95,6 +95,25 @@ describe("R49 account-state route guardrails", () => {
     assert.match(savedSearchRoute, /tags: normalizedTags/);
   });
 
+  it("minimizes saved-search coordinates before GET transport", () => {
+    const savedSearchRoute = source("src/app/api/search/saved/route.ts");
+    const getStart = savedSearchRoute.indexOf("export async function GET");
+    const deleteStart = savedSearchRoute.indexOf("export async function DELETE", getStart);
+    const getRoute = savedSearchRoute.slice(getStart, deleteStart);
+
+    assert.match(savedSearchRoute, /function savedSearchCoordinateForTransport\(value: number \| null\)/);
+    assert.match(savedSearchRoute, /Number\(value\.toFixed\(2\)\)/);
+    assert.match(savedSearchRoute, /Number\(lat\.toFixed\(5\)\)/);
+    assert.match(savedSearchRoute, /Number\(lng\.toFixed\(5\)\)/);
+    assert.match(getRoute, /searches\.map\(\(search\) => \(\{/);
+    assert.match(getRoute, /lat: savedSearchCoordinateForTransport\(search\.lat\)/);
+    assert.match(getRoute, /lng: savedSearchCoordinateForTransport\(search\.lng\)/);
+    assert.ok(
+      getRoute.indexOf("prisma.savedSearch.findMany") < getRoute.indexOf("searches.map"),
+      "saved-search GET should minimize coordinates after loading the current user's rows",
+    );
+  });
+
   it("keeps saved-search dedupe, 25 cap, and create in one serializable transaction", () => {
     const savedSearchRoute = source("src/app/api/search/saved/route.ts");
 

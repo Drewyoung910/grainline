@@ -53,6 +53,10 @@ function normalizeSavedSearchTags(tags: string[] | undefined) {
   return normalizeTags(tags ?? [], 20).sort((a, b) => a.localeCompare(b));
 }
 
+function savedSearchCoordinateForTransport(value: number | null) {
+  return typeof value === "number" && Number.isFinite(value) ? Number(value.toFixed(2)) : null;
+}
+
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
@@ -188,7 +192,13 @@ export async function GET() {
     orderBy: { createdAt: "desc" },
   });
 
-  return privateJson({ searches });
+  return privateJson({
+    searches: searches.map((search) => ({
+      ...search,
+      lat: savedSearchCoordinateForTransport(search.lat),
+      lng: savedSearchCoordinateForTransport(search.lng),
+    })),
+  });
 }
 
 export async function DELETE(req: NextRequest) {
