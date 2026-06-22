@@ -120,13 +120,16 @@ export default async function SellerShopPage({
   const statusRaw = sp.status ?? "";
   const tag = normalizeTag(sp.tag);
 
-  const seller = await getSellerProfileForShopPage(sellerId);
+  const [seller, authResult] = await Promise.all([
+    getSellerProfileForShopPage(sellerId),
+    auth(),
+  ]);
 
   if (!seller) return notFound();
   const sellerShopHref = publicSellerShopPath(seller.id, seller.displayName);
 
   // Get current viewer for favorites
-  const { userId } = await auth();
+  const { userId } = authResult;
   let meId: string | null = null;
   if (userId) {
     const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
@@ -157,17 +160,6 @@ export default async function SellerShopPage({
     permanentRedirect(`${sellerShopHref}${canonicalQuery ? `?${canonicalQuery}` : ""}`);
   }
 
-  // Follow data
-  const [followerCount, isFollowing] = await Promise.all([
-    prisma.follow.count({ where: { sellerProfileId: sellerId } }),
-    meId
-      ? prisma.follow.findUnique({
-          where: { followerId_sellerProfileId: { followerId: meId, sellerProfileId: sellerId } },
-          select: { id: true },
-        }).then((r) => r !== null)
-      : Promise.resolve(false),
-  ]);
-
   // Distinct categories — for owner show all statuses (optionally filtered by status), for buyers show ACTIVE only
   const categoryGroupWhere = isOwner
     ? {
@@ -177,16 +169,6 @@ export default async function SellerShopPage({
         ...(statusFilter ? { status: statusFilter as "ACTIVE" | "DRAFT" | "HIDDEN" | "SOLD" | "SOLD_OUT" | "PENDING_REVIEW" | "REJECTED" } : {}),
       }
     : publicListingWhere({ sellerId, category: { not: null }, ...(tag ? { tags: { has: tag } } : {}) });
-
-  const categoryGroups = await prisma.listing.groupBy({
-    by: ["category"],
-    where: categoryGroupWhere,
-    _count: { _all: true },
-  });
-  const availableCategories = categoryGroups
-    .filter((g) => g.category != null)
-    .map((g) => g.category as Category)
-    .sort();
 
   // Build where clause — owner sees all listings (filtered by status); buyers see ACTIVE + chargesEnabled only
   const categoryFilter = category ? { category } : {};
@@ -205,7 +187,33 @@ export default async function SellerShopPage({
     : sort === "popular" ? [{ favorites: { _count: "desc" } }, { createdAt: "desc" }, { id: "desc" }]
     : [{ createdAt: "desc" }, { id: "desc" }];
 
-  const total = await prisma.listing.count({ where });
+  const [
+    [followerCount, isFollowing],
+    categoryGroups,
+    total,
+  ] = await Promise.all([
+    Promise.all([
+      prisma.follow.count({ where: { sellerProfileId: sellerId } }),
+      meId
+        ? prisma.follow.findUnique({
+            where: { followerId_sellerProfileId: { followerId: meId, sellerProfileId: sellerId } },
+            select: { id: true },
+          }).then((r) => r !== null)
+        : Promise.resolve(false),
+    ]),
+    prisma.listing.groupBy({
+      by: ["category"],
+      where: categoryGroupWhere,
+      _count: { _all: true },
+    }),
+    prisma.listing.count({ where }),
+  ]);
+
+  const availableCategories = categoryGroups
+    .filter((g) => g.category != null)
+    .map((g) => g.category as Category)
+    .sort();
+
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const clampedPage = Math.min(Math.max(page, 1), totalPages);
 

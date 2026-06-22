@@ -124,4 +124,29 @@ describe("seller public page query guardrails", () => {
     assert.match(customerPhotosPage, /export async function generateMetadata[\s\S]*getSellerProfileForCustomerPhotosPage\(sellerId\)/);
     assert.match(customerPhotosPage, /export default async function CustomerPhotosPage[\s\S]*getSellerProfileForCustomerPhotosPage\(sellerId\)/);
   });
+
+  it("keeps independent seller-shop page reads grouped before paginated listing fetch", () => {
+    const sellerShopPage = source("src/app/seller/[id]/shop/page.tsx");
+
+    assert.match(
+      sellerShopPage,
+      /const \[seller, authResult\] = await Promise\.all\(\[\s*getSellerProfileForShopPage\(sellerId\),\s*auth\(\),\s*\]\)/,
+    );
+    assert.match(
+      sellerShopPage,
+      /const \[\s*\[followerCount, isFollowing\],\s*categoryGroups,\s*total,\s*\] = await Promise\.all\(\[/,
+    );
+    assert.ok(
+      sellerShopPage.indexOf("prisma.listing.groupBy({") < sellerShopPage.indexOf("const totalPages ="),
+      "seller shop category groups should be fetched in the shared pre-pagination batch",
+    );
+    assert.ok(
+      sellerShopPage.indexOf("prisma.listing.count({ where })") < sellerShopPage.indexOf("const totalPages ="),
+      "seller shop total count should be fetched in the shared pre-pagination batch",
+    );
+    assert.ok(
+      sellerShopPage.indexOf("const totalPages =") < sellerShopPage.indexOf("const listings = await prisma.listing.findMany"),
+      "seller shop listing fetch should still wait for page clamping",
+    );
+  });
 });

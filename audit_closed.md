@@ -9661,3 +9661,85 @@ Cloudflare R2 ListBucket/public-bucket dashboard posture plus production smoke
 evidence and public-availability proof, HSTS preload submission decision,
 Vercel Analytics/Speed Insights product/privacy decision, and remaining
 homepage browser a11y/runtime proof beyond source fallback.
+
+Entry 450 closes a parent-verified seller-shop public-query performance pass.
+This entry follows Entry 449's running tally; the existing out-of-order Entry
+448 tail above is historical. Three read-only agents were used for
+payment/shipping, privacy/account-lifecycle, and modeling/product sidecar
+checks. Parent Codex reviewed the current source-shaped result locally,
+implemented only the verified seller-shop query improvement, closed all
+agents, and did not stage the raw audit import.
+
+Verified fixed/reduced:
+
+- The public seller shop page now fetches the cached seller profile and Clerk
+  auth state in one `Promise.all` batch instead of awaiting the seller before
+  auth. After owner/block/visibility decisions are known, it also batches the
+  follower state, category group query, and listing count before page clamping.
+  The paginated listing fetch still waits until the page number is clamped,
+  preserving behavior while reducing serialized public-page database latency.
+
+Verified current/stale/deferred during the same pass:
+
+- Payment/shipping sidecar found no current source-actionable issue in seller
+  refunds, staff case refunds, label clawback retry, webhook event handling,
+  Connect v2 setup, partial-refund accounting, or seller shipping-rate source
+  state. Stripe webhook subscription proof, partial-refund reconciliation,
+  label-clawback runtime proof, refund backfill/runtime evidence, Connect v2
+  loss-liability sign-off, and historical seller shipping-rate drift remain
+  dashboard/runtime/legal/data evidence.
+- Privacy/account-lifecycle sidecar found no current source-actionable issue
+  in account deletion/export, provider-deletion replay, provider-held copies,
+  Clerk staff controls, or multi-account spam scope. Retention periods,
+  provider-side copies, buyer-deletion replay proof, Clerk MFA/breached-password
+  settings, and spam-dashboard evidence remain counsel/ops/runtime evidence.
+- Modeling/product sidecar found no unconditional source-actionable issue in
+  EXPLAIN validation, git hygiene, Round 10 state-machine decisions, Founding
+  Maker policy/concurrency proof, legacy enums, partial multi-seller
+  continuation, BigInt money modeling, variant unit-price floor, cross-seller
+  AI duplicate detection, or homepage runtime a11y. Those remain external
+  evidence or product/modeling decisions.
+- `CLAUDE.md` was not updated because this pass added a focused source/test
+  guardrail rather than a new reusable behavior contract.
+
+Guardrails:
+`tests/seller-page-performance.test.mjs` and
+`tests/public-query-determinism.test.mjs`.
+
+Verification:
+focused `node --test tests/seller-page-performance.test.mjs`
+(8/8 tests passing),
+public-query focused `node --test tests/seller-page-performance.test.mjs tests/public-query-determinism.test.mjs`
+(19/19 tests passing), `npx tsc --noEmit`, `npm run lint` (exit 0; existing
+JSX AST utility warning only), and `git diff --check` passed. Latest CI on
+`main` before this pass was still green: `27934043749` for `26f8c8c2` passed
+in 2m53s, and the latest three `main` push runs were all successful.
+
+Current running tally after Entry 450: verified fixed/reduced 900, verified
+stale/false-positive/current 504, deferred product/design/ops/legal 80,
+approximate raw allegations left from current max #1126: 32. Fixed/reduced
+increases by one for the parent-verified seller-shop public-query improvement.
+Stale/current, deferred, and raw-left do not change because the sidecar-reviewed
+payment/privacy/modeling categories remain already-classified external
+runtime/legal/product evidence.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger, label clawback policy/runtime proof,
+Stripe webhook subscription dashboard evidence, Stripe Connect v2
+loss-liability ops/legal decision, stale remote branch and old git author
+hygiene, Round 10 deferred cache/state-machine product designs that require
+product decisions rather than source guardrails, remaining EXPLAIN-dependent
+runtime query-plan validation beyond the existing source indexes, Stripe
+partial-refund runtime reconciliation proof, founding-maker permanence policy,
+remaining privacy/legal retention scope, remaining privacy/export retention
+decisions, cross-seller AI duplicate-detection product design, legacy enum
+cleanup/data-migration decisions, partial multi-seller checkout continuation
+design, deliberate BigInt money-column modeling, variant-adjusted unit-price
+floor policy, live-data reconciliation for historical seller shipping-rate
+currency drift, Clerk staff MFA and breached-password dashboard evidence,
+Clerk multi-account spam dashboard evidence, buyer-deletion runtime replay
+proof, Founding Maker live DB concurrency proof, Sentry cron alert evidence,
+Cloudflare R2 ListBucket/public-bucket dashboard posture plus production smoke
+evidence and public-availability proof, HSTS preload submission decision,
+Vercel Analytics/Speed Insights product/privacy decision, and remaining
+homepage browser a11y/runtime proof beyond source fallback.
