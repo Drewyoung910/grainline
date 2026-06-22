@@ -161,7 +161,7 @@ export default async function AdminBlogPage() {
 
   const pendingComments = await prisma.blogComment.findMany({
     where: { approved: false },
-    orderBy: { createdAt: "asc" },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     take: 30,
     select: {
       id: true, body: true, createdAt: true,

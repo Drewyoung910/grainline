@@ -21,7 +21,15 @@ type TagSearch = {
   page?: string;
 };
 
-const TAG_LISTING_INCLUDE = {
+const TAG_LISTING_SELECT = {
+  id: true,
+  title: true,
+  priceCents: true,
+  currency: true,
+  status: true,
+  listingType: true,
+  stockQuantity: true,
+  sellerId: true,
   photos: { take: 2, orderBy: { sortOrder: "asc" as const }, select: { url: true, altText: true } },
   seller: {
     select: {
@@ -34,9 +42,9 @@ const TAG_LISTING_INCLUDE = {
       user: { select: { imageUrl: true } },
     },
   },
-} satisfies Prisma.ListingInclude;
+} satisfies Prisma.ListingSelect;
 
-type TagListing = Prisma.ListingGetPayload<{ include: typeof TAG_LISTING_INCLUDE }>;
+type TagListing = Prisma.ListingGetPayload<{ select: typeof TAG_LISTING_SELECT }>;
 
 function decodeRouteSlug(slug: string): string {
   try {
@@ -133,7 +141,7 @@ export default async function TagLandingPage({
     orderBy: [{ qualityScore: "desc" }, { createdAt: "desc" }, { id: "desc" }],
     skip: (page - 1) * TAG_PAGE_SIZE,
     take: TAG_PAGE_SIZE,
-    include: TAG_LISTING_INCLUDE,
+    select: TAG_LISTING_SELECT,
   });
 
   let savedSet = new Set<string>();

@@ -388,6 +388,7 @@ model Listing {
   @@index([category, status])
   @@index([viewCount])
   @@index([clickCount])
+  @@index([status, createdAt, id])
   @@index([status, isPrivate, qualityScore])
   @@index([priceCents])
   @@index([qualityScore])
@@ -962,6 +963,7 @@ model MakerVerification {
   updatedAt                DateTime           @updatedAt
 
   @@index([reviewedById])
+  @@index([status, appliedAt, id])
 }
 
 enum BlogPostType {
@@ -1033,6 +1035,7 @@ model BlogComment {
   @@index([postId, createdAt])
   @@index([authorId])
   @@index([parentId])
+  @@index([approved, createdAt, id])
 }
 
 model NewsletterSubscriber {
@@ -1561,4 +1564,6 @@ model UserReport {
   @@index([reportedId])
   @@index([resolved])
   @@index([resolvedById])
+  @@index([resolved, createdAt, id])
+  @@index([createdAt, reporterId])
 }

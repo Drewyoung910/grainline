@@ -9347,3 +9347,113 @@ ListBucket/public-bucket/dashboard posture plus production smoke evidence and
 public-availability proof, HSTS preload submission decision, Vercel
 Analytics/Speed Insights product/privacy decision, and remaining homepage
 browser a11y/runtime proof beyond source fallback.
+
+Entry 447 closes a parent-verified label purchase recovery, public projection,
+and query-shape/index follow-up pass. Three read-only agents were used for
+payment/refund/Stripe, EXPLAIN/query, and privacy/export/deletion sidecar
+scans; parent Codex re-read the cited source, implemented only verified source
+issues, and did not stage the raw audit import.
+
+Verified fixed/reduced:
+
+- If Shippo label purchase succeeds but the first post-purchase order update
+  fails, the orphan recovery update now restores the same operational state as
+  the normal success path: `labelStatus = PURCHASED`, `labelPurchasedAt`,
+  `fulfillmentStatus = SHIPPED`, and `shippedAt`, plus the existing label,
+  tracking, review, and clawback recovery evidence. This reduces the risk of an
+  order being stuck as operationally pending after a purchased label.
+- Label purchase re-quote selection and label-clawback retry batches now end
+  capped/first-row ordering with deterministic `id` tie-breakers. The retry
+  batch uses `labelClawbackNextAttemptAt`/`labelPurchasedAt`/`createdAt`/`id`;
+  seller-selected re-quote validation uses newest quote `createdAt`/`id`.
+- Homepage fresh/top-pick listing cards and tag landing listing cards now use
+  top-level `select` allowlists instead of broad Listing rows via
+  `include: { photos, seller }`, matching the public listing-card projection
+  contract already used by browse, listing detail, seller profile, and seller
+  shop.
+- Admin listing review is no longer an unbounded queue read. It now counts the
+  total pending rows separately, fetches the oldest 100 with
+  `createdAt`/`id` ordering, and shows staff when more rows remain.
+- Admin verification, blog-comment, and user-report capped queues now have
+  deterministic id tie-breakers and matching schema/migration indexes for their
+  filter/order shapes. The migration also adds a supporting
+  `UserReport(createdAt, reporterId)` index for the 30-day top-reporters group.
+- Public seller/author substring search now has raw-managed trigram indexes on
+  `SellerProfile.displayName` and `displayNameNormalized`, matching the current
+  browse/global-suggestion/blog-suggestion `contains` predicates without
+  changing search semantics.
+
+Verified current/stale/deferred during the same pass:
+
+- Seller refunds and staff case refunds remain current in source: both claim
+  the shared refund sentinel before Stripe, use the marketplace refund helper,
+  block existing refund/label/open-dispute states, and co-write durable local
+  refund evidence. Stripe partial-refund reconciliation remains runtime
+  evidence rather than a source-only closure.
+- Stripe webhook category/runtime allegations remain stale/current: source uses
+  `CATEGORY_VALUES`/`CATEGORY_LABELS`, and no `Object.values(Category)` use was
+  found in `src/`.
+- Privacy/export/deletion/email-retention allegations rechecked by the privacy
+  sidecar remain current or deferred outside source: account export is
+  POST/same-origin/fresh-session gated, account deletion and order PII pruning
+  have durable local source guardrails, and provider-held copies/retention
+  periods remain legal/ops evidence.
+- Raw #53/#60-#63 style listing/index allegations were already classified in
+  Entry 441, so the query sidecar's recheck did not change stale/current or
+  raw-left tallies.
+
+Guardrails:
+`tests/payment-side-effect-observability.test.mjs`,
+`tests/shipping-quote-state.test.mjs`,
+`tests/verified-audit-followups.test.mjs`,
+`tests/public-visibility-followups.test.mjs`,
+`tests/query-param-state.test.mjs`,
+`tests/schema-numeric-index-guardrails.test.mjs`,
+`tests/schema-drift-followups.test.mjs`,
+`tests/display-name-normalization-guardrails.test.mjs`,
+`tests/public-query-determinism.test.mjs`, and
+`tests/admin-moderation-observability.test.mjs`.
+
+Verification:
+payment-focused `node --test tests/marketplace-refunds.test.mjs tests/refund-route-state.test.mjs tests/refund-lock-state.test.mjs tests/label-clawback-state.test.mjs tests/stripe-webhook-state.test.mjs tests/stripe-webhook-cart-finalization.test.mjs tests/stripe-webhook-metadata.test.mjs tests/payment-side-effect-observability.test.mjs tests/refund-route-source-order.test.mjs tests/categories.test.mjs tests/shipping-quote-state.test.mjs tests/verified-audit-followups.test.mjs`
+(145/145 tests passing),
+query/index-focused `node --test tests/schema-drift-followups.test.mjs tests/display-name-normalization-guardrails.test.mjs tests/public-query-determinism.test.mjs tests/schema-numeric-index-guardrails.test.mjs tests/query-param-state.test.mjs tests/public-visibility-followups.test.mjs`
+(46/46 tests passing),
+`node --test tests/public-visibility-followups.test.mjs tests/query-param-state.test.mjs tests/schema-numeric-index-guardrails.test.mjs tests/admin-moderation-observability.test.mjs`
+(34/34 tests passing),
+`npx prisma validate`,
+`npx tsc --noEmit`,
+`git diff --check`,
+`npm run lint` (exit 0; existing JSX AST utility warning only),
+`npm audit --audit-level=moderate` (0 vulnerabilities),
+`npm test` (1387/1387 tests passing across 255 suites), and
+`npm run build` passed.
+
+Current running tally after Entry 447: verified fixed/reduced 894, verified
+stale/false-positive/current 504, deferred product/design/ops/legal 80,
+approximate raw allegations left from current max #1126: 32. Fixed/reduced
+increases by six for the parent-verified hidden/adjacent source fixes above.
+Stale/current, deferred, and raw-left do not change because the rechecked raw
+index/privacy/payment categories were already classified earlier or remain
+external runtime/legal evidence.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger, label clawback policy/runtime proof,
+Stripe webhook subscription dashboard evidence, Stripe Connect v2
+loss-liability ops/legal decision, stale remote branch and old git author
+hygiene, Round 10 deferred cache/state-machine product designs that require
+product decisions rather than source guardrails, remaining EXPLAIN-dependent
+runtime query-plan validation beyond the source indexes added here, Stripe
+partial-refund runtime reconciliation proof, founding-maker permanence policy,
+remaining privacy/legal retention scope, remaining privacy/export retention
+decisions, cross-seller AI duplicate-detection product design, legacy enum
+cleanup/data-migration decisions, partial multi-seller checkout continuation
+design, deliberate BigInt money-column modeling, variant-adjusted unit-price
+floor policy, live-data reconciliation for historical seller shipping-rate
+currency drift, Clerk staff MFA and breached-password dashboard evidence,
+Clerk multi-account spam dashboard evidence, buyer-deletion runtime replay
+proof, Founding Maker live DB concurrency proof, Sentry cron alert evidence,
+Cloudflare R2 ListBucket/public-bucket dashboard posture plus production smoke
+evidence and public-availability proof, HSTS preload submission decision,
+Vercel Analytics/Speed Insights product/privacy decision, and remaining
+homepage browser a11y/runtime proof beyond source fallback.

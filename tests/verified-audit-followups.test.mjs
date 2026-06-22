@@ -192,6 +192,10 @@ describe("verified audit follow-up guardrails", () => {
     assert.match(retryLib, /reviewNeeded: true/);
     assert.match(retryLib, /labelClawbackStatus: "RETRYING"/);
     assert.match(retryLib, /labelClawbackStatusAfterFailure/);
+    assert.match(
+      retryLib,
+      /orderBy: \[\s*\{ labelClawbackNextAttemptAt: "asc" \},\s*\{ labelPurchasedAt: "asc" \},\s*\{ createdAt: "asc" \},\s*\{ id: "asc" \},\s*\]/,
+    );
     assert.match(source("src/lib/labelClawbackState.ts"), /Staff must retry or manually reconcile/);
     assert.match(source("src/app/api/cron/label-clawback-retry/route.ts"), /processLabelClawbackRetryBatch/);
     assert.match(source("vercel.json"), /\/api\/cron\/label-clawback-retry/);

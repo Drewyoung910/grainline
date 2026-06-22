@@ -10,6 +10,8 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Review Queue — Admin" };
 
+const REVIEW_QUEUE_LIMIT = 100;
+
 export default async function AdminReviewPage() {
   const { userId } = await auth();
   if (!userId) redirect("/");
@@ -20,20 +22,24 @@ export default async function AdminReviewPage() {
   });
   if (!admin || admin.banned || admin.deletedAt || (admin.role !== "ADMIN" && admin.role !== "EMPLOYEE")) redirect("/");
 
-  const listings = await prisma.listing.findMany({
-    where: { status: "PENDING_REVIEW" },
-    orderBy: { createdAt: "asc" },
-    include: {
-      seller: {
-        select: {
-          displayName: true,
-          userId: true,
-          _count: { select: { listings: true } },
+  const [totalPending, listings] = await Promise.all([
+    prisma.listing.count({ where: { status: "PENDING_REVIEW" } }),
+    prisma.listing.findMany({
+      where: { status: "PENDING_REVIEW" },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      take: REVIEW_QUEUE_LIMIT,
+      include: {
+        seller: {
+          select: {
+            displayName: true,
+            userId: true,
+            _count: { select: { listings: true } },
+          },
         },
+        photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
       },
-      photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
-    },
-  });
+    }),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -42,9 +48,15 @@ export default async function AdminReviewPage() {
         <span className={`text-sm font-medium px-2 py-0.5 rounded-full ${
           listings.length > 0 ? "bg-amber-100 text-amber-800" : "bg-neutral-100 text-neutral-600"
         }`}>
-          {listings.length} pending
+          {totalPending} pending
         </span>
       </div>
+
+      {totalPending > listings.length && (
+        <p className="text-sm text-neutral-500">
+          Showing the oldest {listings.length} listings pending review.
+        </p>
+      )}
 
       {listings.length === 0 ? (
         <div className="border border-neutral-200 bg-white p-12 text-center">

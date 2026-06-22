@@ -885,7 +885,7 @@ export default async function AdminVerificationPage() {
   const [memberPending, masterPending, memberActive, masterActive, revokedMembers] = await Promise.all([
     prisma.makerVerification.findMany({
       where: { status: "PENDING" },
-      orderBy: { appliedAt: "asc" },
+      orderBy: [{ appliedAt: "asc" }, { id: "asc" }],
       take: 50,
       include: {
         sellerProfile: { select: { displayName: true, id: true } },
@@ -893,7 +893,7 @@ export default async function AdminVerificationPage() {
     }),
     prisma.makerVerification.findMany({
       where: { status: "GUILD_MASTER_PENDING" },
-      orderBy: { appliedAt: "asc" },
+      orderBy: [{ appliedAt: "asc" }, { id: "asc" }],
       take: 50,
       include: {
         sellerProfile: {

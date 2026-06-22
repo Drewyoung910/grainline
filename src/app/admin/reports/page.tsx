@@ -37,7 +37,7 @@ export default async function AdminReportsPage() {
 
   const reports = await prisma.userReport.findMany({
     where: { resolved: false },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: 50,
     select: {
       id: true,

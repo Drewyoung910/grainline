@@ -162,6 +162,35 @@ describe("schema drift follow-ups", () => {
     }
   });
 
+  it("protects raw-managed seller display-name trigram indexes", () => {
+    const expectedIndexes = [
+      {
+        name: "SellerProfile_displayName_trgm_idx",
+        create:
+          /CREATE INDEX(?: CONCURRENTLY)? IF NOT EXISTS "SellerProfile_displayName_trgm_idx"[\s\S]*ON "SellerProfile" USING GIN \("displayName" gin_trgm_ops\)/,
+      },
+      {
+        name: "SellerProfile_displayNameNormalized_trgm_idx",
+        create:
+          /CREATE INDEX(?: CONCURRENTLY)? IF NOT EXISTS "SellerProfile_displayNameNormalized_trgm_idx"[\s\S]*ON "SellerProfile" USING GIN \("displayNameNormalized" gin_trgm_ops\)/,
+      },
+    ];
+
+    for (const expected of expectedIndexes) {
+      const events = [];
+      for (const { name, sql } of migrationFiles()) {
+        if (new RegExp(`DROP INDEX[\\s\\S]*"${expected.name}"`).test(sql)) {
+          events.push({ name, type: "drop" });
+        }
+        if (expected.create.test(sql)) {
+          events.push({ name, type: "create" });
+        }
+      }
+
+      assert.equal(events.at(-1)?.type, "create", `${expected.name} should not be dropped after its final create`);
+    }
+  });
+
   it("validates listing check constraints after the NOT VALID migration", () => {
     const migration = source(
       "prisma/migrations/20260521154500_schema_drift_and_raw_index_followups/migration.sql",

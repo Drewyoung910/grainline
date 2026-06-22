@@ -327,7 +327,7 @@ export async function POST(
       } else {
         const quoteSet = await prisma.orderShippingRateQuote.findFirst({
           where: { orderId: order.id, expiresAt: { gt: new Date() } },
-          orderBy: { createdAt: "desc" },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
           select: { rates: true },
         });
         if (!quoteSet || !rateSetIncludes(quoteSet.rates, bodyRateObjectId)) {
@@ -713,12 +713,17 @@ export async function POST(
           hasTrackingNumber: Boolean(purchasedLabelDetails?.trackingNumber),
         },
       });
+      const orphanRecordedAt = new Date();
       await prisma.order
         .updateMany({
           where: { id, labelStatus: "PURCHASED" },
           data: {
             reviewNeeded: true,
             reviewNote: `ORPHANED LABEL: Shippo label ${purchasedLabelDetails?.transactionId ?? "unknown"} may have been purchased, but follow-up DB work failed. Manual reconciliation required.`,
+            labelStatus: "PURCHASED",
+            labelPurchasedAt: orphanRecordedAt,
+            fulfillmentStatus: "SHIPPED",
+            shippedAt: orphanRecordedAt,
             ...(purchasedLabelDetails?.transactionId
               ? { shippoTransactionId: purchasedLabelDetails.transactionId }
               : {}),

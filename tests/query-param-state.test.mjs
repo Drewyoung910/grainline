@@ -118,6 +118,24 @@ describe("query parameter parsing helpers", () => {
     assert.match(notifications, /skip: \(page - 1\) \* PAGE_SIZE/);
   });
 
+  it("keeps admin queues capped and stably ordered", () => {
+    const review = readFileSync("src/app/admin/review/page.tsx", "utf8");
+    const verification = readFileSync("src/app/admin/verification/page.tsx", "utf8");
+    const blog = readFileSync("src/app/admin/blog/page.tsx", "utf8");
+    const reports = readFileSync("src/app/admin/reports/page.tsx", "utf8");
+
+    assert.match(review, /const REVIEW_QUEUE_LIMIT = 100/);
+    assert.match(review, /prisma\.listing\.count\(\{ where: \{ status: "PENDING_REVIEW" \} \}\)/);
+    assert.match(review, /orderBy: \[\{ createdAt: "asc" \}, \{ id: "asc" \}\]/);
+    assert.match(review, /take: REVIEW_QUEUE_LIMIT/);
+
+    assert.match(verification, /where: \{ status: "PENDING" \}[\s\S]*orderBy: \[\{ appliedAt: "asc" \}, \{ id: "asc" \}\][\s\S]*take: 50/);
+    assert.match(verification, /where: \{ status: "GUILD_MASTER_PENDING" \}[\s\S]*orderBy: \[\{ appliedAt: "asc" \}, \{ id: "asc" \}\][\s\S]*take: 50/);
+
+    assert.match(blog, /where: \{ approved: false \}[\s\S]*orderBy: \[\{ createdAt: "asc" \}, \{ id: "asc" \}\][\s\S]*take: 30/);
+    assert.match(reports, /where: \{ resolved: false \}[\s\S]*orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: 50/);
+  });
+
   it("keeps private capped account lists stable on equal timestamps", () => {
     const account = readFileSync("src/app/account/page.tsx", "utf8");
     const saved = readFileSync("src/app/account/saved/page.tsx", "utf8");

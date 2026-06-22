@@ -173,6 +173,29 @@ type FeaturedMakerWithListings = {
   listings: FeaturedListing[];
 };
 
+const homeListingCardSelect = {
+  id: true,
+  title: true,
+  priceCents: true,
+  currency: true,
+  status: true,
+  listingType: true,
+  stockQuantity: true,
+  sellerId: true,
+  photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
+  seller: {
+    select: {
+      displayName: true,
+      avatarImageUrl: true,
+      guildLevel: true,
+      city: true,
+      state: true,
+      acceptingNewOrders: true,
+      user: { select: { imageUrl: true } },
+    },
+  },
+} satisfies Prisma.ListingSelect;
+
 async function getFeaturedMakerBlock(blockedSellerIds: string[] = []): Promise<FeaturedMakerWithListings[]> {
   const blocked = new Set(blockedSellerIds);
   const makers = (await getFeaturedMakers()).filter((maker) => !blocked.has(maker.id));
@@ -257,20 +280,7 @@ export default async function HomePage() {
       }),
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: 12,
-      include: {
-        photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
-        seller: {
-          select: {
-            displayName: true,
-            avatarImageUrl: true,
-            guildLevel: true,
-            city: true,
-            state: true,
-            acceptingNewOrders: true,
-            user: { select: { imageUrl: true } },
-          },
-        },
-      },
+      select: homeListingCardSelect,
     }).then(async (results) => {
       if (results.length >= 12) return results;
       // Fall back to newest without date filter
@@ -280,20 +290,7 @@ export default async function HomePage() {
         }),
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         take: 12,
-        include: {
-          photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
-          seller: {
-            select: {
-              displayName: true,
-              avatarImageUrl: true,
-              guildLevel: true,
-              city: true,
-              state: true,
-              acceptingNewOrders: true,
-              user: { select: { imageUrl: true } },
-            },
-          },
-        },
+        select: homeListingCardSelect,
       });
     }),
     prisma.listing.findMany({
@@ -303,21 +300,7 @@ export default async function HomePage() {
       }),
       orderBy: [{ qualityScore: "desc" }, { createdAt: "desc" }, { id: "desc" }],
       take: 12,
-      include: {
-        photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
-        seller: {
-          select: {
-            displayName: true,
-            avatarImageUrl: true,
-            guildLevel: true,
-            city: true,
-            state: true,
-            acceptingNewOrders: true,
-            user: { select: { imageUrl: true } },
-          },
-        },
-        _count: { select: { favorites: true } },
-      },
+      select: homeListingCardSelect,
     }),
     prisma.sellerProfile.findMany({
       where: activeSellerProfileWhere({

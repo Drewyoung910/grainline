@@ -124,6 +124,7 @@ export async function processLabelClawbackRetryBatch(opts: {
       { labelClawbackNextAttemptAt: "asc" },
       { labelPurchasedAt: "asc" },
       { createdAt: "asc" },
+      { id: "asc" },
     ],
     take,
     select: {

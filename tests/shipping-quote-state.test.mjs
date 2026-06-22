@@ -134,6 +134,7 @@ describe("shipping quote state helpers", () => {
     assert.match(labelRoute, /import \{ isPickupRateObjectId, isQuoteOnlyRateObjectId \} from "@\/lib\/shippingQuoteState"/);
     assert.match(labelRoute, /!isQuoteOnlyRateObjectId\(rateObjectId\)/);
     assert.match(labelRoute, /const storedRateUsable =\s*isPurchasableRateObjectId\(order\.shippoRateObjectId\)/);
+    assert.match(labelRoute, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(labelRoute, /name: order\.buyerName \?\? order\.quotedToName \?\? undefined/);
   });
 });

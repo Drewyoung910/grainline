@@ -16,6 +16,7 @@ describe("schema numeric and index guardrails", () => {
   const migrationPath = "prisma/migrations/20260523223000_schema_numeric_guards_and_indexes/migration.sql";
   const variantMigrationPath = "prisma/migrations/20260524090000_listing_variant_price_adjust_guard/migration.sql";
   const fkHygieneMigrationPath = "prisma/migrations/20260531051500_add_fk_hygiene_indexes/migration.sql";
+  const adminQueueMigrationPath = "prisma/migrations/20260622120000_admin_queue_query_indexes/migration.sql";
 
   it("adds and validates database numeric guardrails for money, scores, dates, and ranges", () => {
     const migration = source(migrationPath);
@@ -122,5 +123,22 @@ describe("schema numeric and index guardrails", () => {
     assert.match(sessionMigration, /CREATE UNIQUE INDEX "Order_stripeSessionId_key"[\s\S]*\("stripeSessionId"\)/);
     assert.match(paymentIntentMigration, /"Order_stripePaymentIntentId_idx"[\s\S]*WHERE "stripePaymentIntentId" IS NOT NULL/);
     assert.match(chargeMigration, /"Order_stripeChargeId_idx"[\s\S]*WHERE "stripeChargeId" IS NOT NULL/);
+  });
+
+  it("keeps capped admin queue query indexes represented in schema and migration", () => {
+    const schema = source("prisma/schema.prisma");
+    const migration = source(adminQueueMigrationPath);
+    const expected = [
+      ["Listing", "@@index([status, createdAt, id])", "Listing_status_createdAt_id_idx"],
+      ["MakerVerification", "@@index([status, appliedAt, id])", "MakerVerification_status_appliedAt_id_idx"],
+      ["BlogComment", "@@index([approved, createdAt, id])", "BlogComment_approved_createdAt_id_idx"],
+      ["UserReport", "@@index([resolved, createdAt, id])", "UserReport_resolved_createdAt_id_idx"],
+      ["UserReport", "@@index([createdAt, reporterId])", "UserReport_createdAt_reporterId_idx"],
+    ];
+
+    for (const [model, schemaIndex, sqlIndex] of expected) {
+      assert.match(modelBlock(schema, model), new RegExp(schemaIndex.replace(/[()[\]]/g, "\\$&")));
+      assert.match(migration, new RegExp(`CREATE INDEX CONCURRENTLY IF NOT EXISTS "${sqlIndex}"`));
+    }
   });
 });
