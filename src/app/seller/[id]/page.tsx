@@ -43,6 +43,21 @@ const SOCIAL_LINK_ALLOWED_HOSTS = {
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const SELLER_PROFILE_LISTING_PREVIEW_SIZE = 9;
 
+function topListingTags(rows: { tags: string[] }[]) {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    for (const tag of row.tags) {
+      if (!tag) continue;
+      counts.set(tag, (counts.get(tag) ?? 0) + 1);
+    }
+  }
+
+  return [...counts.entries()]
+    .sort(([tagA, countA], [tagB, countB]) => countB - countA || tagA.localeCompare(tagB))
+    .slice(0, 8)
+    .map(([tag]) => tag);
+}
+
 const sellerProfileListingCardSelect = {
   id: true,
   title: true,
@@ -82,6 +97,7 @@ const getSellerProfileForPublicPage = cache(async (sellerId: string) =>
       createdAt: true,
       radiusMeters: true,
       publicMapOptIn: true,
+      allowLocalPickup: true,
       tagline: true,
       bannerImageUrl: true,
       avatarImageUrl: true,
@@ -235,7 +251,7 @@ export default async function SellerPublicPage({
     activePublicListingCount,
     sellerRatingMap,
     publicSellerStats,
-    tagRows,
+    tagListingRows,
     customerPhotos,
     customerPhotoTotal,
   ] = await Promise.all([
@@ -274,16 +290,10 @@ export default async function SellerPublicPage({
     prisma.listing.count({ where: publicListingWhere({ sellerId: seller.id }) }),
     getSellerRatingMap([seller.id]),
     getCachedPublicSellerStats(seller.id),
-    prisma.$queryRaw<{ tag: string; count: bigint }[]>`
-      SELECT tag, COUNT(*) AS count
-      FROM "Listing" l, unnest(l.tags) AS tag
-      WHERE l."sellerId" = ${seller.id}
-        AND l.status = 'ACTIVE'
-        AND l."isPrivate" = false
-      GROUP BY tag
-      ORDER BY COUNT(*) DESC, tag ASC
-      LIMIT 8
-    `,
+    prisma.listing.findMany({
+      where: publicListingWhere({ sellerId: seller.id }),
+      select: { tags: true },
+    }),
     prisma.reviewPhoto.findMany({
       where: {
         review: {
@@ -344,9 +354,10 @@ export default async function SellerPublicPage({
   const shopRating = sellerRatingMap.get(seller.id) ?? null;
   const { soldCount, avgShipDays } = publicSellerStats;
 
-  const topTags = tagRows.map((r) => r.tag);
+  const topTags = topListingTags(tagListingRows);
   const memberSinceYear = seller.createdAt.getFullYear();
   const isNewSeller = soldCount === 0 && (shopRating?.count ?? 0) === 0;
+  const showPickupMap = seller.allowLocalPickup && lat != null && lng != null;
 
   const customerPhotoReviewerCount = new Set(customerPhotos.map((p) => p.review.reviewer.id)).size;
 
@@ -895,7 +906,7 @@ export default async function SellerPublicPage({
           )}
 
           {/* Pickup area — full-width when set, with a proper heading */}
-          {lat != null && lng != null && (
+          {showPickupMap && (
             <section>
               <div className="mb-4">
                 <h2 className="text-xl sm:text-2xl font-display font-semibold">Visit this maker</h2>

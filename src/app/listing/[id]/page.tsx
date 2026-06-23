@@ -71,6 +71,7 @@ const getListingForDetailPage = cache(async (listingId: string) =>
           lat: true,
           lng: true,
           radiusMeters: true,
+          allowLocalPickup: true,
           chargesEnabled: true,
           stripeAccountVersion: true,
           vacationMode: true,
@@ -336,6 +337,7 @@ export default async function ListingPage({
   const lng = listing.seller.lng != null ? Number(listing.seller.lng) : null;
   const radius = Number(listing.seller.radiusMeters ?? 0);
   const cityState = [listing.seller.city, listing.seller.state].filter(Boolean).join(", ");
+  const showPickupMap = listing.seller.allowLocalPickup && lat != null && lng != null;
 
   const signedInMessageHref =
     sellerUserId
@@ -773,7 +775,7 @@ export default async function ListingPage({
       )}
 
       {/* ── Pickup area map ───────────────────────────────────────────────── */}
-      {lat != null && lng != null && (
+      {showPickupMap && (
         <section className="mb-10 max-w-2xl">
           <div style={{ position: "relative", zIndex: 0 }}>
             <DynamicMapCard

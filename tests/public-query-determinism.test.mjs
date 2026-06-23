@@ -154,9 +154,12 @@ describe("public query determinism", () => {
   });
 
   it("orders equal-count public tag caps by tag", () => {
+    const sellerPage = source("src/app/seller/[id]/page.tsx");
+
     assert.match(source("src/lib/popularTags.ts"), /ORDER BY count DESC, tag ASC/);
     assert.match(source("src/lib/popularBlogTags.ts"), /ORDER BY count DESC, tag ASC/);
-    assert.match(source("src/app/seller/[id]/page.tsx"), /ORDER BY COUNT\(\*\) DESC, tag ASC/);
+    assert.match(sellerPage, /\.sort\(\(\[tagA, countA\], \[tagB, countB\]\) => countB - countA \|\| tagA\.localeCompare\(tagB\)\)/);
+    assert.match(sellerPage, /\.slice\(0, 8\)/);
   });
 
   it("reuses cached popular blog tag rows outside full blog search", () => {

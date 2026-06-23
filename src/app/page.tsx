@@ -206,13 +206,11 @@ async function getFeaturedMakerBlock(blockedSellerIds: string[] = []): Promise<F
       let listings: FeaturedListing[] = [];
       if (maker.featuredListingIds.length > 0) {
         const featuredRows = await prisma.listing.findMany({
-          where: {
+          where: publicListingWhere({
             id: { in: maker.featuredListingIds },
             sellerId: maker.id,
-            status: "ACTIVE",
-            isPrivate: false,
             photos: { some: {} },
-          },
+          }),
           select: featuredListingSelect,
         });
         const featuredById = new Map(featuredRows.map((listing) => [listing.id, listing]));
@@ -224,13 +222,11 @@ async function getFeaturedMakerBlock(blockedSellerIds: string[] = []): Promise<F
       if (listings.length < 3) {
         const existingIds = listings.map((l) => l.id);
         const more = await prisma.listing.findMany({
-          where: {
+          where: publicListingWhere({
             sellerId: maker.id,
-            status: "ACTIVE",
-            isPrivate: false,
             photos: { some: {} },
             ...(existingIds.length > 0 ? { id: { notIn: existingIds } } : {}),
-          },
+          }),
           orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
           select: featuredListingSelect,
           take: 3 - listings.length,

@@ -32,6 +32,17 @@ describe("homepage deterministic query guardrails", () => {
     assert.match(mosaicQuery, /take: 24/);
   });
 
+  it("keeps featured maker thumbnail listings on shared public visibility filters", () => {
+    const home = source("src/app/page.tsx");
+    const start = home.indexOf("async function getFeaturedMakerBlock");
+    const block = home.slice(start, home.indexOf("const CATEGORIES", start));
+
+    assert.match(block, /where: publicListingWhere\(\{\s*id: \{ in: maker\.featuredListingIds \},\s*sellerId: maker\.id,\s*photos: \{ some: \{\} \},\s*\}\),/);
+    assert.match(block, /where: publicListingWhere\(\{\s*sellerId: maker\.id,\s*photos: \{ some: \{\} \},\s*\.\.\.\(existingIds\.length > 0 \? \{ id: \{ notIn: existingIds \} \} : \{\}\),\s*\}\),/);
+    assert.doesNotMatch(block, /status: "ACTIVE"/);
+    assert.doesNotMatch(block, /isPrivate: false/);
+  });
+
   it("merges followed-maker listing and blog items by recency before slicing", () => {
     const home = source("src/app/page.tsx");
 

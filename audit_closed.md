@@ -9567,6 +9567,93 @@ evidence and public-availability proof, HSTS preload submission decision,
 Vercel Analytics/Speed Insights product/privacy decision, and remaining
 homepage browser a11y/runtime proof beyond source fallback.
 
+Entry 451 closes a parent-verified public discovery and pickup-eligibility
+hardening pass. One read-only public-discovery agent was used for sidecar
+source scanning, parent Codex verified both reported findings locally, closed
+the agent, and also audited adjacent homepage/Founding Maker surfaces in the
+same visibility-predicate area. The raw Claude import remained unstaged.
+
+Verified fixed/reduced:
+
+- Homepage featured-maker thumbnail listing queries now use
+  `publicListingWhere({ sellerId: maker.id, ... })` instead of hand-rolled
+  `ACTIVE` / `isPrivate` checks, so stale cached maker rows cannot bypass the
+  shared public seller/listing state policy.
+- `maybeGrantFoundingMaker()` now uses `publicListingWhere({ sellerId })` for
+  both its cheap pre-check and transaction re-check. The grant remains
+  non-blocking and advisory-lock serialized, but eligibility now follows the
+  same public listing policy as marketplace surfaces instead of only checking
+  listing status/privacy. `CLAUDE.md` was updated because that helper contract
+  is reusable future-agent behavior.
+- Seller-profile tag chips now derive from `prisma.listing.findMany({ where:
+  publicListingWhere({ sellerId: seller.id }), select: { tags: true } })` and
+  sort counts deterministically in memory. This removes the raw tag SQL that
+  could show active/private-only tags for sellers whose current public listing
+  grid is empty under the shared seller visibility policy, such as vacation
+  sellers.
+- Public seller and listing detail pickup maps now select `allowLocalPickup`
+  and render the visible pickup map only when pickup is enabled and coordinates
+  exist. Public JSON-LD `geo` behavior remains separately gated by
+  `publicMapOptIn` and radius privacy as before.
+
+Verified current/stale/deferred during the same pass:
+
+- A scan of adjacent public card/listing routes did not find new broad
+  `include: { photos: ... }` listing-card regressions or Clerk-id owner checks.
+- Seller publish/admin approval callers already check seller orderability before
+  ACTIVE transitions and Founding Maker grant calls; the real issue was the
+  helper's own public-listing re-check predicate, now aligned.
+- The visible pickup-map fix does not change the still-separate public map
+  opt-in product semantics or the existing radius-protected `MapCard` fallback
+  behavior.
+- Remaining browser-rendered homepage a11y/runtime proof, Founding Maker live
+  DB concurrency proof, and the broader ops/legal/runtime evidence categories
+  remain external evidence rather than source fixes.
+
+Guardrails:
+`tests/homepage-determinism.test.mjs`,
+`tests/post-launch-ui-followups.test.mjs`,
+`tests/public-visibility-followups.test.mjs`,
+`tests/public-query-determinism.test.mjs`, and
+`tests/round8-fulfillment-privacy-guardrails.test.mjs`.
+
+Verification:
+focused `node --test tests/public-query-determinism.test.mjs tests/public-visibility-followups.test.mjs tests/round8-fulfillment-privacy-guardrails.test.mjs tests/homepage-determinism.test.mjs tests/post-launch-ui-followups.test.mjs`
+(72/72 tests passing), `npx tsc --noEmit`, `npm run lint` (exit 0; existing
+JSX AST utility warning only), and final `npm test` (1392/1392 tests passing
+across 255 suites) passed. Latest CI on `main` before this pass was still
+green: the latest two Dependabot update runs were successful and CI run
+`27968903286` for `2e4169dd` passed in 3m3s.
+
+Current running tally after Entry 451: verified fixed/reduced 904, verified
+stale/false-positive/current 504, deferred product/design/ops/legal 80,
+approximate raw allegations left from current max #1126: 32. Fixed/reduced
+increases by four for the parent-verified public visibility/pickup hardening
+items above. Stale/current, deferred, and raw-left do not change because these
+were hidden/adjacent source findings rather than newly consumed raw Claude
+allegations.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger, label clawback policy/runtime proof,
+Stripe webhook subscription dashboard evidence, Stripe Connect v2
+loss-liability ops/legal decision, stale remote branch and old git author
+hygiene, Round 10 deferred cache/state-machine product designs that require
+product decisions rather than source guardrails, remaining EXPLAIN-dependent
+runtime query-plan validation beyond the existing source indexes, Stripe
+partial-refund runtime reconciliation proof, founding-maker permanence policy,
+remaining privacy/legal retention scope, remaining privacy/export retention
+decisions, cross-seller AI duplicate-detection product design, legacy enum
+cleanup/data-migration decisions, partial multi-seller checkout continuation
+design, deliberate BigInt money-column modeling, variant-adjusted unit-price
+floor policy, live-data reconciliation for historical seller shipping-rate
+currency drift, Clerk staff MFA and breached-password dashboard evidence,
+Clerk multi-account spam dashboard evidence, buyer-deletion runtime replay
+proof, Founding Maker live DB concurrency proof, Sentry cron alert evidence,
+Cloudflare R2 ListBucket/public-bucket dashboard posture plus production smoke
+evidence and public-availability proof, HSTS preload submission decision,
+Vercel Analytics/Speed Insights product/privacy decision, and remaining
+homepage browser a11y/runtime proof beyond source fallback.
+
 Entry 448 closes a parent-verified checkout rollback-state and no-JS scroll
 reveal follow-up pass. Three read-only agents were used for Stripe/payment,
 privacy/export/retention, and modeling/product sidecar scans; parent Codex

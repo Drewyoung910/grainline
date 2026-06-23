@@ -82,6 +82,12 @@ describe("Round 8 public profile privacy guardrails", () => {
     assert.match(listing, /reviewer: \{ banned: false, deletedAt: null \}/);
     assert.match(listing, /reviewerId: \{ notIn: \[\.\.\.blockedUserIds\] \}/);
     assert.match(seller, /seller\.publicMapOptIn && !radiusMeters && lat != null && lng != null/);
+    assert.match(seller, /allowLocalPickup: true/);
+    assert.match(seller, /const showPickupMap = seller\.allowLocalPickup && lat != null && lng != null/);
+    assert.match(seller, /\{showPickupMap && \(/);
+    assert.match(listing, /allowLocalPickup: true/);
+    assert.match(listing, /const showPickupMap = listing\.seller\.allowLocalPickup && lat != null && lng != null/);
+    assert.match(listing, /\{showPickupMap && \(/);
     assert.match(seller, /reviewer: \{ banned: false, deletedAt: null \}/);
     assert.doesNotMatch(seller, /select: \{ listingId: true, reviewerId: true/);
     assert.match(customerPhotos, /reviewer: \{ banned: false, deletedAt: null \}/);

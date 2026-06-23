@@ -94,6 +94,17 @@ describe("public visibility follow-ups", () => {
     }
   });
 
+  it("derives seller profile tag chips from shared public listing visibility", () => {
+    const sellerPage = read("src/app/seller/[id]/page.tsx");
+
+    assert.match(sellerPage, /function topListingTags\(rows: \{ tags: string\[\] \}\[\]\)/);
+    assert.match(sellerPage, /prisma\.listing\.findMany\(\{\s*where: publicListingWhere\(\{ sellerId: seller\.id \}\),\s*select: \{ tags: true \},\s*\}\)/);
+    assert.match(sellerPage, /const topTags = topListingTags\(tagListingRows\)/);
+    assert.doesNotMatch(sellerPage, /FROM "Listing" l, unnest\(l\.tags\) AS tag/);
+    assert.doesNotMatch(sellerPage, /l\.status = 'ACTIVE'/);
+    assert.doesNotMatch(sellerPage, /l\."isPrivate" = false/);
+  });
+
   it("keeps public owner checks off Clerk ids when local seller user ids are selected", () => {
     const listingPage = read("src/app/listing/[id]/page.tsx");
     const sellerPage = read("src/app/seller/[id]/page.tsx");

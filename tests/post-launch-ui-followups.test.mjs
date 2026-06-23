@@ -478,6 +478,8 @@ describe("post-launch UI follow-ups", () => {
   it("serializes Founding Maker number assignment instead of relying on bounded retries", () => {
     const founding = source("src/lib/foundingMaker.ts");
 
+    assert.match(founding, /import \{ publicListingWhere \} from "@\/lib\/listingVisibility"/);
+    assert.equal((founding.match(/where: publicListingWhere\(\{ sellerId: sellerProfileId \}\)/g) ?? []).length, 2);
     assert.match(founding, /pg_advisory_xact_lock/);
     assert.match(founding, /FOUNDING_MAKER_LOCK_NAMESPACE/);
     assert.match(founding, /_max: \{ foundingMakerNumber: true \}/);
@@ -491,5 +493,7 @@ describe("post-launch UI follow-ups", () => {
     assert.doesNotMatch(founding, /FOUNDING_MAKER_GRANT_ATTEMPTS/);
     assert.doesNotMatch(founding, /isUniqueConstraintError\(err\)/);
     assert.doesNotMatch(founding, /currentCount \+ 1/);
+    assert.doesNotMatch(founding, /status: "ACTIVE"/);
+    assert.doesNotMatch(founding, /isPrivate: false/);
   });
 });

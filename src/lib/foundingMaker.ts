@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { publicListingWhere } from "@/lib/listingVisibility";
 import { logServerError } from "@/lib/serverErrorLogger";
 
 const FOUNDING_MAKER_CAP = 250;
@@ -30,11 +31,7 @@ export async function maybeGrantFoundingMaker(sellerProfileId: string): Promise<
 
     // Cheap pre-check: avoid taking the assignment lock if no public listing exists.
     const activeListingCount = await prisma.listing.count({
-      where: {
-        sellerId: sellerProfileId,
-        status: "ACTIVE",
-        isPrivate: false,
-      },
+      where: publicListingWhere({ sellerId: sellerProfileId }),
     });
     if (activeListingCount === 0) return;
 
@@ -48,11 +45,7 @@ export async function maybeGrantFoundingMaker(sellerProfileId: string): Promise<
       `;
 
       const stillEligible = await tx.listing.count({
-        where: {
-          sellerId: sellerProfileId,
-          status: "ACTIVE",
-          isPrivate: false,
-        },
+        where: publicListingWhere({ sellerId: sellerProfileId }),
       });
       if (stillEligible === 0) return;
 
