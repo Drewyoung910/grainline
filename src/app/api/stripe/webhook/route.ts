@@ -1084,6 +1084,7 @@ export async function POST(req: Request) {
         let refundStatuses: Array<string | null> = [];
         let refundRequiresManualTransferReconciliation = false;
         let refundRequiresManualFollowUp = false;
+        let refundAccountingEvidence: Prisma.InputJsonObject | null = null;
         let retryBlockedCheckoutRefund = false;
         try {
           await releaseStaleRefundLocks(input.orderId);
@@ -1203,6 +1204,7 @@ export async function POST(req: Request) {
             refundStatuses = refund.refundStatuses;
             refundRequiresManualTransferReconciliation = refund.requiresManualTransferReconciliation;
             refundRequiresManualFollowUp = refund.requiresManualFollowUp;
+            refundAccountingEvidence = refund.accountingEvidence;
 
             const transferNote = refund.requiresManualTransferReconciliation
               ? " Seller transfer reversal requires manual reconciliation."
@@ -1244,6 +1246,7 @@ export async function POST(req: Request) {
                     stripeSessionId: sessionId,
                     stripeEventType: event.type,
                     checkoutReason: input.reason,
+                    refundAccounting: refund.accountingEvidence,
                     requiresManualTransferReconciliation: refund.requiresManualTransferReconciliation,
                     requiresManualFollowUp: refund.requiresManualFollowUp,
                   },
@@ -1328,6 +1331,7 @@ export async function POST(req: Request) {
                       stripeEventType: event.type,
                       checkoutReason: input.reason,
                       orphanRecovery: true,
+                      refundAccounting: refundAccountingEvidence,
                       requiresManualTransferReconciliation: refundRequiresManualTransferReconciliation,
                       requiresManualFollowUp: refundRequiresManualFollowUp,
                     },

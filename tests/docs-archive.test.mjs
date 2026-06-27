@@ -22,4 +22,14 @@ describe("documentation archive guardrails", () => {
     assert.match(archive, /^## Audit Fix Pass — CI Build Gate and Pure Regression Tests/m);
     assert.match(archive, /^## Comprehensive Audit Fix Pass/m);
   });
+
+  it("keeps recommendation routing in existing operating docs", () => {
+    const claude = source("CLAUDE.md");
+    const maintainability = source("docs/maintainability-plan.md");
+
+    assert.match(claude, /Recommendation-routing workflow/);
+    assert.match(claude, /do not create a generic recommendations folder by default/);
+    assert.match(maintainability, /Recommendation routing rule/);
+    assert.match(maintainability, /source-backed fixes and guardrails in code\/tests plus `audit_closed\.md`/);
+  });
 });

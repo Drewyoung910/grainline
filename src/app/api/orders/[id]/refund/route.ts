@@ -321,6 +321,7 @@ export async function POST(
     let refundStatuses: Array<string | null> = [];
     let refundRequiresManualTransferReconciliation = false;
     let refundRequiresManualFollowUp = false;
+    let refundAccountingEvidence: Prisma.InputJsonObject | null = null;
     try {
       const refund = await createMarketplaceRefund({
         paymentIntentId: order.stripePaymentIntentId,
@@ -343,6 +344,7 @@ export async function POST(
       refundStatuses = refund.refundStatuses;
       refundRequiresManualTransferReconciliation = refund.requiresManualTransferReconciliation;
       refundRequiresManualFollowUp = refund.requiresManualFollowUp;
+      refundAccountingEvidence = refund.accountingEvidence;
 
       const stockRestores =
         type === "FULL" && refundMayRestoreStock(order)
@@ -400,6 +402,7 @@ export async function POST(
             description: reviewNote,
             metadata: {
               refundType: type,
+              refundAccounting: refund.accountingEvidence,
               requiresManualTransferReconciliation: refund.requiresManualTransferReconciliation,
               requiresManualFollowUp: refund.requiresManualFollowUp,
             },
@@ -507,6 +510,7 @@ export async function POST(
               metadata: {
                 refundType: type,
                 orphanRecovery: true,
+                refundAccounting: refundAccountingEvidence,
                 requiresManualTransferReconciliation: refundRequiresManualTransferReconciliation,
                 requiresManualFollowUp: refundRequiresManualFollowUp,
               },

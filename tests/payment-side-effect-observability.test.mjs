@@ -142,6 +142,29 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.doesNotMatch(caseRoute, /Boolean\(caseRecord\.seller\.sellerProfile\?\.stripeAccountId\)/);
   });
 
+  it("records transfer-reversal accounting evidence for first-party refunds", () => {
+    const helper = source("src/lib/marketplaceRefunds.ts");
+    const sellerRoute = source("src/app/api/orders/[id]/refund/route.ts");
+    const caseRoute = source("src/app/api/cases/[id]/resolve/route.ts");
+    const webhookRoute = source("src/app/api/stripe/webhook/route.ts");
+
+    assert.match(helper, /expand: \["transfer_reversal"\]/);
+    assert.match(helper, /transferReversalId/);
+    assert.match(helper, /transferReversalAmountCents/);
+    assert.match(helper, /platformFundedRefundCents/);
+    assert.match(helper, /originalTransferAmountCents/);
+
+    for (const route of [sellerRoute, caseRoute, webhookRoute]) {
+      assert.match(route, /let refundAccountingEvidence: Prisma\.InputJsonObject \| null = null/);
+      assert.match(route, /refundAccountingEvidence = refund\.accountingEvidence/);
+      assert.match(route, /refundAccounting: (?:refund\.accountingEvidence|refundAccountingEvidence)/);
+      assert.ok(
+        (route.match(/refundAccounting:/g) ?? []).length >= 2,
+        "normal and orphan refund evidence paths should include refundAccounting metadata",
+      );
+    }
+  });
+
   it("serializes staff case refunds and dismissals before Stripe moves money", () => {
     const route = source("src/app/api/cases/[id]/resolve/route.ts");
 

@@ -95,6 +95,10 @@ Tackle only after security launch blockers are closed:
 - `CLOSED_AUDIT_HISTORY.md`: archived historical audit logs.
 - `audit_open_findings.md`: verified findings and status changes.
 
+Recommendation routing rule:
+
+- Do not create a generic recommendations folder by default. Put source-backed fixes and guardrails in code/tests plus `audit_closed.md`; reusable future-agent rules in `CLAUDE.md`; security posture in `docs/security-hardening-plan.md`; RLS work in `docs/rls-feasibility-plan.md`; maintainability debt here; runtime/vendor/dashboard evidence in `docs/runbook.md` and `docs/launch-checklist.md`; and strategic product or market decisions in `STRATEGY.md`. Create a new focused recommendations doc only when these destinations cannot cleanly hold a cross-cutting backlog, and explain why in `audit_closed.md`.
+
 ## Team Handoff Standard
 
 A new engineer should be able to:

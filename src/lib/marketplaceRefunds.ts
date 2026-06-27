@@ -1,7 +1,10 @@
 import type Stripe from "stripe";
+import { calculateCheckoutAmounts } from "./checkoutAmounts.ts";
 
 type RefundResolution = "FULL" | "PARTIAL" | "REFUND_FULL" | "REFUND_PARTIAL";
-type CreatedRefund = Pick<Stripe.Refund, "id" | "status">;
+type CreatedRefund = Pick<Stripe.Refund, "id" | "status"> & {
+  transfer_reversal?: Stripe.Refund["transfer_reversal"];
+};
 type RefundCreator = (
   params: Stripe.RefundCreateParams,
   requestOptions: { idempotencyKey: string },
@@ -76,6 +79,41 @@ function refundNeedsManualFollowUp(refund: CreatedRefund) {
   return refund.status === "pending" || refund.status === "requires_action";
 }
 
+function transferReversalEvidence({
+  refund,
+  expectedTransferReversal,
+  buyerRefundAmountCents,
+  chargeAmountCents,
+  originalTransferAmountCents,
+}: {
+  refund: CreatedRefund;
+  expectedTransferReversal: boolean;
+  buyerRefundAmountCents: number;
+  chargeAmountCents: number;
+  originalTransferAmountCents: number;
+}) {
+  const reversal = refund.transfer_reversal ?? null;
+  const transferReversalId =
+    typeof reversal === "string" ? reversal : reversal?.id ?? null;
+  const transferReversalAmountCents =
+    typeof reversal === "object" && reversal ? reversal.amount : null;
+
+  return {
+    buyerRefundAmountCents,
+    chargeAmountCents,
+    originalTransferAmountCents,
+    expectedTransferReversal,
+    transferReversalId,
+    transferReversalAmountCents,
+    platformFundedRefundCents:
+      transferReversalAmountCents == null
+        ? expectedTransferReversal
+          ? null
+          : buyerRefundAmountCents
+        : Math.max(0, buyerRefundAmountCents - transferReversalAmountCents),
+  };
+}
+
 export async function createMarketplaceRefundWithCreator(
   opts: MarketplaceRefundOptions,
   createStripeRefund: RefundCreator,
@@ -92,6 +130,11 @@ export async function createMarketplaceRefundWithCreator(
   );
   const taxAmountCents = Math.max(0, opts.taxAmountCents);
   const maxRefundCents = sellerPortionCents + taxAmountCents;
+  const originalTransferAmountCents = calculateCheckoutAmounts({
+    itemsSubtotalCents: opts.itemsSubtotalCents,
+    shippingAmountCents: opts.shippingAmountCents,
+    giftWrapCents: opts.giftWrappingPriceCents ?? 0,
+  }).sellerTransferAmountCents;
   const isFullRefund =
     opts.resolution === "FULL" || opts.resolution === "REFUND_FULL";
   if (opts.amountCents > maxRefundCents) {
@@ -126,6 +169,13 @@ export async function createMarketplaceRefundWithCreator(
       requiresManualFollowUp: refundNeedsManualFollowUp(refund),
       sellerPortionCents: 0,
       taxAmountCents,
+      accountingEvidence: transferReversalEvidence({
+        refund,
+        expectedTransferReversal: false,
+        buyerRefundAmountCents: opts.amountCents,
+        chargeAmountCents: maxRefundCents,
+        originalTransferAmountCents,
+      }),
       requiresManualTransferReconciliation: true,
       usedPlatformOnly: true,
     };
@@ -148,6 +198,13 @@ export async function createMarketplaceRefundWithCreator(
       requiresManualFollowUp: refundNeedsManualFollowUp(refund),
       sellerPortionCents: 0,
       taxAmountCents,
+      accountingEvidence: transferReversalEvidence({
+        refund,
+        expectedTransferReversal: false,
+        buyerRefundAmountCents: opts.amountCents,
+        chargeAmountCents: maxRefundCents,
+        originalTransferAmountCents,
+      }),
       requiresManualTransferReconciliation: false,
       usedPlatformOnly: true,
     };
@@ -159,6 +216,7 @@ export async function createMarketplaceRefundWithCreator(
         payment_intent: opts.paymentIntentId,
         amount: opts.amountCents,
         reverse_transfer: true,
+        expand: ["transfer_reversal"],
         ...(opts.reason ? { reason: opts.reason } : {}),
       },
       "full",
@@ -171,6 +229,13 @@ export async function createMarketplaceRefundWithCreator(
       requiresManualFollowUp: refundNeedsManualFollowUp(refund),
       sellerPortionCents,
       taxAmountCents,
+      accountingEvidence: transferReversalEvidence({
+        refund,
+        expectedTransferReversal: true,
+        buyerRefundAmountCents: opts.amountCents,
+        chargeAmountCents: maxRefundCents,
+        originalTransferAmountCents,
+      }),
       requiresManualTransferReconciliation: false,
       usedPlatformOnly: false,
     };
@@ -181,6 +246,7 @@ export async function createMarketplaceRefundWithCreator(
       payment_intent: opts.paymentIntentId,
       amount: opts.amountCents,
       reverse_transfer: true,
+      expand: ["transfer_reversal"],
       ...(opts.reason ? { reason: opts.reason } : {}),
     },
     "seller",
@@ -193,6 +259,13 @@ export async function createMarketplaceRefundWithCreator(
     requiresManualFollowUp: refundNeedsManualFollowUp(refund),
     sellerPortionCents: opts.amountCents,
     taxAmountCents: 0,
+    accountingEvidence: transferReversalEvidence({
+      refund,
+      expectedTransferReversal: true,
+      buyerRefundAmountCents: opts.amountCents,
+      chargeAmountCents: maxRefundCents,
+      originalTransferAmountCents,
+    }),
     requiresManualTransferReconciliation: false,
     usedPlatformOnly: false,
   };

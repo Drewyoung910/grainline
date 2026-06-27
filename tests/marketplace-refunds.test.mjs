@@ -27,6 +27,19 @@ function baseOpts(overrides = {}) {
   return opts;
 }
 
+function accountingEvidence(overrides = {}) {
+  return {
+    buyerRefundAmountCents: 11_325,
+    chargeAmountCents: 11_325,
+    originalTransferAmountCents: 10_000,
+    expectedTransferReversal: true,
+    transferReversalId: null,
+    transferReversalAmountCents: null,
+    platformFundedRefundCents: null,
+    ...overrides,
+  };
+}
+
 describe("marketplace refunds", () => {
   it("uses one full reverse-transfer refund when the original order included tax", async () => {
     const calls = [];
@@ -45,6 +58,7 @@ describe("marketplace refunds", () => {
       requiresManualFollowUp: false,
       sellerPortionCents: 10_500,
       taxAmountCents: 825,
+      accountingEvidence: accountingEvidence(),
       requiresManualTransferReconciliation: false,
       usedPlatformOnly: false,
     });
@@ -54,6 +68,7 @@ describe("marketplace refunds", () => {
           payment_intent: "pi_test",
           amount: 11_325,
           reverse_transfer: true,
+          expand: ["transfer_reversal"],
         },
         requestOptions: {
           idempotencyKey: "seller-refund:order_1:FULL:11325:full",
@@ -79,6 +94,11 @@ describe("marketplace refunds", () => {
       requiresManualFollowUp: false,
       sellerPortionCents: 11_000,
       taxAmountCents: 825,
+      accountingEvidence: accountingEvidence({
+        buyerRefundAmountCents: 11_825,
+        chargeAmountCents: 11_825,
+        originalTransferAmountCents: 10_500,
+      }),
       requiresManualTransferReconciliation: false,
       usedPlatformOnly: false,
     });
@@ -88,6 +108,7 @@ describe("marketplace refunds", () => {
           payment_intent: "pi_test",
           amount: 11_825,
           reverse_transfer: true,
+          expand: ["transfer_reversal"],
         },
         requestOptions: {
           idempotencyKey: "seller-refund:order_1:FULL:11825:full",
@@ -113,6 +134,10 @@ describe("marketplace refunds", () => {
       requiresManualFollowUp: false,
       sellerPortionCents: 0,
       taxAmountCents: 825,
+      accountingEvidence: accountingEvidence({
+        expectedTransferReversal: false,
+        platformFundedRefundCents: 11_325,
+      }),
       requiresManualTransferReconciliation: true,
       usedPlatformOnly: true,
     });
@@ -140,7 +165,15 @@ describe("marketplace refunds", () => {
       }),
       async (params, requestOptions) => {
         calls.push({ params, requestOptions });
-        return { id: "re_partial" };
+        return {
+          id: "re_partial",
+          transfer_reversal: {
+            id: "trr_partial",
+            object: "transfer_reversal",
+            amount: 1_060,
+            currency: "usd",
+          },
+        };
       },
     );
 
@@ -151,6 +184,12 @@ describe("marketplace refunds", () => {
       requiresManualFollowUp: false,
       sellerPortionCents: 1_200,
       taxAmountCents: 0,
+      accountingEvidence: accountingEvidence({
+        buyerRefundAmountCents: 1_200,
+        transferReversalId: "trr_partial",
+        transferReversalAmountCents: 1_060,
+        platformFundedRefundCents: 140,
+      }),
       requiresManualTransferReconciliation: false,
       usedPlatformOnly: false,
     });
@@ -160,6 +199,7 @@ describe("marketplace refunds", () => {
           payment_intent: "pi_test",
           amount: 1_200,
           reverse_transfer: true,
+          expand: ["transfer_reversal"],
           reason: "requested_by_customer",
         },
         requestOptions: {
@@ -167,6 +207,26 @@ describe("marketplace refunds", () => {
         },
       },
     ]);
+  });
+
+  it("keeps string-only transfer reversal evidence when Stripe does not expand the object", async () => {
+    const result = await createMarketplaceRefundWithCreator(
+      baseOpts({
+        resolution: "PARTIAL",
+        amountCents: 1_200,
+      }),
+      async () => {
+        return {
+          id: "re_partial",
+          transfer_reversal: "trr_partial",
+        };
+      },
+    );
+
+    assert.deepEqual(result.accountingEvidence, accountingEvidence({
+      buyerRefundAmountCents: 1_200,
+      transferReversalId: "trr_partial",
+    }));
   });
 
   it("uses a single platform-funded refund without manual seller reconciliation for full tax-only refunds", async () => {
@@ -190,6 +250,13 @@ describe("marketplace refunds", () => {
       requiresManualFollowUp: false,
       sellerPortionCents: 0,
       taxAmountCents: 825,
+      accountingEvidence: accountingEvidence({
+        buyerRefundAmountCents: 825,
+        chargeAmountCents: 825,
+        originalTransferAmountCents: 0,
+        expectedTransferReversal: false,
+        platformFundedRefundCents: 825,
+      }),
       requiresManualTransferReconciliation: false,
       usedPlatformOnly: true,
     });

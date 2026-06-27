@@ -184,6 +184,7 @@ export async function POST(
     let refundNote: string | null = null;
     let refundRequiresManualTransferReconciliation = false;
     let refundRequiresManualFollowUp = false;
+    let refundAccountingEvidence: Prisma.InputJsonObject | null = null;
     let stripeRefundStatuses: Array<string | null> = [];
     const refundAmountForOrder = refundAmountForResolution(resolution, caseRecord.order, refundAmountCents);
     const persistedRefundAmountCents = refunding ? refundAmountForOrder : null;
@@ -277,6 +278,7 @@ export async function POST(
         stripeRefundStatuses = refund.refundStatuses;
         refundRequiresManualTransferReconciliation = refund.requiresManualTransferReconciliation;
         refundRequiresManualFollowUp = refund.requiresManualFollowUp;
+        refundAccountingEvidence = refund.accountingEvidence;
         refundNote = [
           stripeRefundIds.length > 1
             ? `Stripe refunds ${stripeRefundIds.join(", ")}`
@@ -389,6 +391,7 @@ export async function POST(
               metadata: {
                 caseId: id,
                 resolution,
+                refundAccounting: refundAccountingEvidence,
                 requiresManualTransferReconciliation: refundRequiresManualTransferReconciliation,
                 requiresManualFollowUp: refundRequiresManualFollowUp,
               },
@@ -480,6 +483,7 @@ export async function POST(
                 caseId: id,
                 resolution,
                 orphanRecovery: true,
+                refundAccounting: refundAccountingEvidence,
                 requiresManualTransferReconciliation: refundRequiresManualTransferReconciliation,
                 requiresManualFollowUp: refundRequiresManualFollowUp,
               },

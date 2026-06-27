@@ -10159,3 +10159,83 @@ submission decision, Vercel Analytics/Speed Insights product/privacy decision,
 homepage browser a11y/runtime proof beyond source fallback, deployed
 security-header runtime proof beyond source/config guardrails, and customer
 photo exact-count performance tradeoff.
+
+Entry 455 closes a parent-verified Stripe refund accounting evidence and
+documentation-routing pass. One read-only agent reviewed the refund evidence
+slice and docs-routing destinations; parent Codex verified the actionable
+findings locally, implemented the source/test/docs changes, closed the agent,
+and did not stage the raw Claude import.
+
+Verified fixed/reduced:
+
+- `createMarketplaceRefund()` now requests `expand: ["transfer_reversal"]` on
+  reverse-transfer Stripe refunds and returns bounded `accountingEvidence`
+  with buyer refund amount, modeled charge amount, original seller transfer
+  amount, expected reversal state, transfer-reversal id, transfer-reversal
+  amount when Stripe returns the expanded object, and derived platform-funded
+  remainder when calculable.
+- Seller self-service refunds, staff case refunds, and blocked-checkout
+  automatic refunds now persist that accounting evidence in both normal and
+  orphan-recovery `recordLocalRefundEvidence()` calls, so the existing
+  `OrderPaymentEvent` and `SystemAuditLog` evidence surfaces can distinguish
+  buyer refund amount from seller transfer recovery.
+- `CLAUDE.md`, `docs/runbook.md`, and `docs/maintainability-plan.md` now record
+  the durable refund-accounting behavior and the recommendation-routing rule:
+  use existing focused docs by category rather than creating a generic
+  recommendations folder by default.
+
+Verified current/stale/deferred during the same pass:
+
+- The manual `transfer_data.amount` checkout/refund model remains unchanged:
+  full connected-seller refunds are still single reverse-transfer refunds,
+  partial connected-seller refunds remain single proportional reverse-transfer
+  refunds, and disconnected sellers still use platform-funded refunds plus
+  manual reconciliation notes.
+- Stripe dashboard/runtime evidence items remain external: webhook
+  subscription screenshots, Connect v2 loss-liability/legal signoff, live
+  partial-refund reconciliation proof, and label-clawback runtime proof still
+  need the existing launch/runbook evidence paths.
+- A generic recommendations folder was not created because the current docs
+  already have clear homes for source fixes, future-agent rules,
+  security/RLS posture, maintainability debt, ops/runtime evidence, and
+  strategic product decisions.
+
+Guardrails:
+`tests/marketplace-refunds.test.mjs`,
+`tests/payment-side-effect-observability.test.mjs`, and
+`tests/docs-archive.test.mjs`.
+
+Verification so far:
+focused `node --test tests/marketplace-refunds.test.mjs tests/payment-side-effect-observability.test.mjs tests/docs-archive.test.mjs`
+(42/42 tests passing) and `npx tsc --noEmit` passed.
+
+Current running tally after Entry 455: verified fixed/reduced 917, verified
+stale/false-positive/current 504, deferred product/design/ops/legal 80,
+approximate raw allegations left from current max #1126: 32. Fixed/reduced
+increases by one for parent-verified partial refund transfer-reversal evidence
+persistence. Stale/current, deferred, and raw-left do not change because this
+closed an adjacent sidecar-discovered evidence gap and recorded a user-requested
+workflow rule rather than consuming a new raw Claude allegation.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence,
+label clawback policy/runtime proof, Stripe webhook subscription dashboard
+evidence, Stripe Connect v2 loss-liability ops/legal decision, stale remote
+branch and old git author hygiene, Round 10 deferred cache/state-machine
+product designs that require product decisions rather than source guardrails,
+remaining EXPLAIN-dependent runtime query-plan validation beyond the existing
+source indexes, Stripe partial-refund live reconciliation proof, founding-maker
+permanence policy, remaining privacy/legal retention scope, cross-seller AI
+duplicate-detection product design, legacy enum cleanup/data-migration
+decisions, partial multi-seller checkout continuation design, deliberate BigInt
+money-column modeling, variant-adjusted unit-price floor policy, live-data
+reconciliation for historical seller shipping-rate currency drift, Clerk staff
+MFA and breached-password dashboard evidence, Clerk multi-account spam
+dashboard evidence, buyer-deletion live Stripe replay proof after source
+minimization, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public-bucket dashboard posture plus
+production smoke evidence and public-availability proof, HSTS preload
+submission decision, Vercel Analytics/Speed Insights product/privacy decision,
+homepage browser a11y/runtime proof beyond source fallback, deployed
+security-header runtime proof beyond source/config guardrails, and customer
+photo exact-count performance tradeoff.
