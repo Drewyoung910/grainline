@@ -161,7 +161,11 @@ export async function PATCH(
       after(async () => {
         try {
           while (true) {
-            const claimedSubscribers = await prisma.$queryRaw<{ userId: string; stockQuantity: number | null }[]>`
+            const claimedSubscribers = await prisma.$queryRaw<{
+              userId: string;
+              stockNotificationId: string;
+              stockQuantity: number | null;
+            }[]>`
               WITH available_listing AS (
                 SELECT l.id, l."stockQuantity"
                 FROM "Listing" l
@@ -187,10 +191,13 @@ export async function PATCH(
               DELETE FROM "StockNotification" sn
               USING next_subscribers ns, available_listing al
               WHERE sn.id = ns.id
-              RETURNING sn."userId", al."stockQuantity"
+              RETURNING sn."userId", sn.id AS "stockNotificationId", al."stockQuantity"
             `;
             if (claimedSubscribers.length === 0) return;
             const stockQuantity = claimedSubscribers[0]?.stockQuantity ?? updated.stockQuantity;
+            const stockNotificationIdByUserId = new Map(
+              claimedSubscribers.map((sub) => [sub.userId, sub.stockNotificationId]),
+            );
 
             for (const userIdChunk of chunkArray(
               claimedSubscribers.map((sub) => sub.userId),
@@ -213,6 +220,8 @@ export async function PATCH(
                   link: publicListingPath(id, updated.title),
                 });
                 if (sub.email && await shouldSendEmail(sub.id, "EMAIL_BACK_IN_STOCK")) {
+                  const stockNotificationId = stockNotificationIdByUserId.get(sub.id);
+                  if (!stockNotificationId) return;
                   const email = renderBackInStockEmail({
                     buyer: { name: sub.name, email: sub.email },
                     listingTitle: updated.title,
@@ -220,7 +229,7 @@ export async function PATCH(
                   });
                   await enqueueEmailOutbox({
                     ...email,
-                    dedupKey: `back-in-stock:${id}:${sub.id}`,
+                    dedupKey: `back-in-stock:${id}:${stockNotificationId}`,
                     templateName: "back_in_stock",
                     userId: sub.id,
                     preferenceKey: "EMAIL_BACK_IN_STOCK",

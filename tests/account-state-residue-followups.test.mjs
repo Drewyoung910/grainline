@@ -135,11 +135,11 @@ describe("account-state residue hardening", () => {
     assert.match(broadcastRoute, /sourceType: "seller_broadcast"/);
     assert.match(broadcastRoute, /sourceId: broadcast\.id/);
     assert.match(listingFanout, /sourceType: "followed_maker_new_listing"/);
-    assert.match(listingFanout, /sourceId: listing\.id/);
+    assert.match(listingFanout, /sourceId: publicListing\.id/);
     assert.match(blogNew, /sourceType: "followed_maker_new_blog"/);
-    assert.match(blogNew, /sourceId: newPost\.id/);
+    assert.match(blogNew, /sourceId: publicPost\.id/);
     assert.match(blogEdit, /sourceType: "followed_maker_new_blog"/);
-    assert.match(blogEdit, /sourceId: updated\.id/);
+    assert.match(blogEdit, /sourceId: publicPost\.id/);
   });
 
   it("removes deleted seller-authored fanout residue from follower notifications and outbox rows", () => {

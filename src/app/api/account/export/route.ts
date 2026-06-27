@@ -149,6 +149,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
     emailOutboxRows,
     emailFailureCounts,
     stockNotifications,
+    checkoutStockReservationRows,
     makerVerification,
     sellerFaqs,
     newsletterSubscriptions,
@@ -608,6 +609,28 @@ async function buildExport(user: NonNullable<ExportableUser>) {
       orderBy: { createdAt: "desc" },
       select: { listingId: true, createdAt: true, listing: { select: { title: true, status: true } } },
     }),
+    prisma.checkoutStockReservation.findMany({
+      where: {
+        OR: [
+          { buyerId: user.id },
+          ...(sellerProfile ? [{ sellerId: sellerProfile.id }] : []),
+        ],
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        buyerId: true,
+        sellerId: true,
+        stripeSessionId: true,
+        status: true,
+        reservedItems: true,
+        expiresAt: true,
+        restoredAt: true,
+        restoreReason: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    }),
     sellerProfile
       ? prisma.makerVerification.findUnique({
           where: { sellerProfileId: sellerProfile.id },
@@ -711,6 +734,25 @@ async function buildExport(user: NonNullable<ExportableUser>) {
       _count,
     }),
   }));
+  const checkoutStockReservations = checkoutStockReservationRows.map((reservation) => {
+    const exportedAsBuyer = reservation.buyerId === user.id;
+    const exportedAsSeller = Boolean(sellerProfile && reservation.sellerId === sellerProfile.id);
+    return {
+      id: reservation.id,
+      exportedAsBuyer,
+      exportedAsSeller,
+      buyerId: exportedAsBuyer ? reservation.buyerId : null,
+      sellerId: exportedAsSeller ? reservation.sellerId : null,
+      stripeSessionId: exportedAsBuyer ? reservation.stripeSessionId : null,
+      status: reservation.status,
+      reservedItems: reservation.reservedItems,
+      expiresAt: reservation.expiresAt,
+      restoredAt: reservation.restoredAt,
+      restoreReason: reservation.restoreReason,
+      createdAt: reservation.createdAt,
+      updatedAt: reservation.updatedAt,
+    };
+  });
 
   return buildAccountExportPayload(user, {
     accountEmailAddresses,
@@ -740,6 +782,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
     emailOutboxRows,
     emailFailureCounts,
     stockNotifications,
+    checkoutStockReservations,
     makerVerification,
     sellerFaqs,
     newsletterSubscriptions,

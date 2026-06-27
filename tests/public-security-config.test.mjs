@@ -20,6 +20,58 @@ describe("public security configuration guardrails", () => {
     assert.doesNotMatch(config, /'unsafe-eval'/);
   });
 
+  it("keeps the global security header set enforced on every route", () => {
+    const config = source("next.config.ts");
+
+    for (const [key, value] of [
+      ["X-DNS-Prefetch-Control", "on"],
+      ["X-Frame-Options", "SAMEORIGIN"],
+      ["X-Content-Type-Options", "nosniff"],
+      ["Referrer-Policy", "strict-origin-when-cross-origin"],
+      ["Cross-Origin-Opener-Policy", "same-origin-allow-popups"],
+      ["Cross-Origin-Resource-Policy", "same-site"],
+      ["Permissions-Policy", "camera=(), microphone=(), geolocation=(self)"],
+      ["Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload"],
+      ["Content-Security-Policy", null],
+    ]) {
+      assert.match(config, new RegExp(`key: "${key}"`));
+      if (value) assert.match(config, new RegExp(`value: "${value.replace(/[()]/g, "\\$&")}"`));
+    }
+
+    assert.match(config, /key: "Reporting-Endpoints", value: 'csp-endpoint="\/api\/csp-report"'/);
+    assert.match(config, /source: "\/\(\.\*\)"/);
+    assert.match(config, /headers: securityHeaders/);
+    assert.doesNotMatch(config, /Content-Security-Policy-Report-Only/);
+  });
+
+  it("keeps core CSP directives and reporting in the enforced policy", () => {
+    const config = source("next.config.ts");
+
+    for (const directive of [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "script-src-elem 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      "font-src 'self' data:",
+      "img-src 'self' data: blob:",
+      "connect-src 'self'",
+      "frame-src 'self'",
+      "worker-src 'self' blob:",
+      "media-src 'self'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'self'",
+      "report-to csp-endpoint",
+      "report-uri /api/csp-report",
+    ]) {
+      assert.match(config, new RegExp(directive.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    }
+
+    assert.equal(config.includes("script-src *"), false);
+    assert.equal(config.includes("frame-src *"), false);
+  });
+
   it("keeps retired third-party image hosts out of CSP", () => {
     const config = source("next.config.ts");
 
@@ -93,5 +145,13 @@ describe("public security configuration guardrails", () => {
 
     assert.match(docs, /`SellerRefundPanel` now accepts `orderTotalCents`/);
     assert.doesNotMatch(docs, /`SellerRefundPanel` now accepts `maxRefundCents`/);
+  });
+
+  it("keeps env docs from recommending non-null assertions on secrets", () => {
+    const docs = source("CLAUDE.md");
+
+    assert.match(docs, /requiredProductionEnv\("DATABASE_URL"\)/);
+    assert.doesNotMatch(docs, /process\.env\.DATABASE_URL!/);
+    assert.doesNotMatch(docs, /new PrismaPg\(\{ connectionString: process\.env\.[A-Z0-9_]+/);
   });
 });

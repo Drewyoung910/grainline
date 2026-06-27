@@ -71,8 +71,9 @@ describe("blog dashboard action guardrails", () => {
     assert.match(editPage, /const transitioningToPublished = newStatus === "PUBLISHED" && existing\.status !== "PUBLISHED"/);
     assert.match(editPage, /const isFirstPublish = transitioningToPublished && existing\.publishedAt === null/);
     assert.match(editPage, /if \(isFirstPublish\) \{\s*publishedAt = new Date\(\);/);
-    assert.match(editPage, /if \(isFirstPublish && updated\.sellerProfileId && updated\.sellerProfile\?\.userId\)/);
-    assert.match(editPage, /const sellerUserId = updated\.sellerProfile!\.userId/);
+    assert.match(editPage, /if \(isFirstPublish && updated\.sellerProfileId\)/);
+    assert.match(editPage, /where: publicBlogPostWhere\(\{ id: updated\.id, sellerProfileId: updated\.sellerProfileId \}\)/);
+    assert.match(editPage, /const sellerUserId = publicPost\.sellerProfile\.userId/);
     assert.match(editPage, /blocks: \{ none: \{ blockedId: sellerUserId \} \}/);
     assert.match(editPage, /blockedBy: \{ none: \{ blockerId: sellerUserId \} \}/);
     assert.doesNotMatch(editPage, /else if \(newStatus !== "PUBLISHED"\) \{\s*publishedAt = null/);

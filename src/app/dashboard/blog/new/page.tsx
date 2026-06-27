@@ -16,6 +16,7 @@ import { normalizeTags } from "@/lib/tags";
 import { revalidateBlogSearchCaches } from "@/lib/searchCache";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { parseCreateBlogStatus } from "@/lib/blogStatusInput";
+import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -199,34 +200,42 @@ export default async function NewBlogPostPage() {
     if (status === "PUBLISHED" && sellerProfileId) {
       after(async () => {
         try {
+          const publicPost = await prisma.blogPost.findFirst({
+            where: publicBlogPostWhere({ id: newPost.id, sellerProfileId }),
+            select: {
+              id: true,
+              slug: true,
+              title: true,
+              sellerProfileId: true,
+              sellerProfile: { select: { displayName: true, userId: true } },
+            },
+          });
+          if (!publicPost?.sellerProfile?.userId) return;
+          const sellerUserId = publicPost.sellerProfile.userId;
           const followers = await prisma.follow.findMany({
             where: {
-              sellerProfileId,
-              followerId: { not: author.id },
+              sellerProfileId: publicPost.sellerProfileId!,
+              followerId: { not: sellerUserId },
               follower: {
                 banned: false,
                 deletedAt: null,
-                blocks: { none: { blockedId: author.id } },
-                blockedBy: { none: { blockerId: author.id } },
+                blocks: { none: { blockedId: sellerUserId } },
+                blockedBy: { none: { blockerId: sellerUserId } },
               },
             },
             select: { followerId: true },
             take: 10000,
           });
-          const sellerProfile = await prisma.sellerProfile.findUnique({
-            where: { id: sellerProfileId },
-            select: { displayName: true },
-          });
-          const sellerDisplay = sellerProfile?.displayName ?? "A maker you follow";
+          const sellerDisplay = publicPost.sellerProfile.displayName ?? "A maker you follow";
           await mapWithConcurrency(followers, 10, (f) =>
             createNotification({
               userId: f.followerId,
               type: "FOLLOWED_MAKER_NEW_BLOG",
               title: `New post from ${sellerDisplay}`,
-              body: newPost.title,
-              link: `/blog/${newPost.slug}`,
+              body: publicPost.title,
+              link: `/blog/${publicPost.slug}`,
               sourceType: "followed_maker_new_blog",
-              sourceId: newPost.id,
+              sourceId: publicPost.id,
             }),
           );
         } catch (error) {

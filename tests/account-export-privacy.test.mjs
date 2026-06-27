@@ -96,6 +96,7 @@ describe("account export privacy coverage", () => {
       "emailOutbox",
       "emailFailureCount",
       "stockNotification",
+      "checkoutStockReservation",
       "makerVerification",
       "sellerFaq",
       "newsletterSubscriber",
@@ -117,6 +118,7 @@ describe("account export privacy coverage", () => {
       "emailOutboxRows",
       "emailFailureCounts",
       "stockNotifications",
+      "checkoutStockReservations",
       "makerVerification",
       "sellerFaqs",
       "newsletterSubscriptions",
@@ -127,6 +129,45 @@ describe("account export privacy coverage", () => {
     ]) {
       assert.match(payload, new RegExp(`${key}: data\\.${key}`), `payload must expose ${key}`);
     }
+  });
+
+  it("exports checkout stock reservations without counterparty identifiers", () => {
+    const route = source("src/app/api/account/export/route.ts");
+    const payload = source("src/lib/accountExportPayload.ts");
+    const reservationStart = route.indexOf("prisma.checkoutStockReservation.findMany({");
+    const reservationEnd = route.indexOf("sellerProfile\n      ? prisma.makerVerification", reservationStart);
+    const reservationQuery = route.slice(reservationStart, reservationEnd);
+    const mapStart = route.indexOf("const checkoutStockReservations = checkoutStockReservationRows.map");
+    const mapEnd = route.indexOf("return buildAccountExportPayload", mapStart);
+    const reservationMap = route.slice(mapStart, mapEnd);
+
+    assert.ok(reservationStart >= 0, "account export must query checkout stock reservations");
+    assert.ok(reservationEnd > reservationStart, "reservation export query must stay bounded");
+    assert.match(reservationQuery, /OR: \[\s*\{ buyerId: user\.id \}/);
+    assert.match(reservationQuery, /\{ sellerId: sellerProfile\.id \}/);
+    for (const field of [
+      "id",
+      "buyerId",
+      "sellerId",
+      "stripeSessionId",
+      "status",
+      "reservedItems",
+      "expiresAt",
+      "restoredAt",
+      "restoreReason",
+      "createdAt",
+      "updatedAt",
+    ]) {
+      assert.match(reservationQuery, new RegExp(`${field}: true`), `reservation export must select ${field}`);
+    }
+
+    assert.match(reservationMap, /exportedAsBuyer = reservation\.buyerId === user\.id/);
+    assert.match(reservationMap, /exportedAsSeller = Boolean\(sellerProfile && reservation\.sellerId === sellerProfile\.id\)/);
+    assert.match(reservationMap, /buyerId: exportedAsBuyer \? reservation\.buyerId : null/);
+    assert.match(reservationMap, /sellerId: exportedAsSeller \? reservation\.sellerId : null/);
+    assert.match(reservationMap, /stripeSessionId: exportedAsBuyer \? reservation\.stripeSessionId : null/);
+    assert.match(payload, /checkoutStockReservations: unknown\[\]/);
+    assert.match(payload, /checkoutStockReservations: data\.checkoutStockReservations/);
   });
 
   it("exports seller ship-from address fields used for label purchases", () => {

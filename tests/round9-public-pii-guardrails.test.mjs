@@ -58,7 +58,7 @@ describe("Round 9 public PII and notification-link guardrails", () => {
     assert.match(checkoutSuccess, /orderItemsSubtotalCents\(order\)/);
     assert.doesNotMatch(checkoutSuccess, /itemsSubtotalCents \+ shippingAmountCents \+ taxAmountCents \+ giftWrappingPriceCents/);
 
-    assert.match(followerFanout, /formatCurrencyCents\(listing\.priceCents, listing\.currency\)/);
+    assert.match(followerFanout, /formatCurrencyCents\(publicListing\.priceCents, publicListing\.currency\)/);
     assert.doesNotMatch(followerFanout, /priceCents \/ 100|toFixed\(2\)/);
   });
 });

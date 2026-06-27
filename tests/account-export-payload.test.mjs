@@ -56,6 +56,7 @@ function collections(overrides = {}) {
     emailOutboxRows: [],
     emailFailureCounts: [],
     stockNotifications: [],
+    checkoutStockReservations: [],
     makerVerification: null,
     sellerFaqs: [],
     newsletterSubscriptions: [],
@@ -109,6 +110,7 @@ describe("account export payload", () => {
       "emailOutboxRows",
       "emailFailureCounts",
       "stockNotifications",
+      "checkoutStockReservations",
       "makerVerification",
       "sellerFaqs",
       "newsletterSubscriptions",
@@ -165,5 +167,6 @@ describe("account export payload", () => {
     assert.deepEqual(payload.sellerBroadcasts, []);
     assert.deepEqual(payload.sellerPayoutEvents, []);
     assert.deepEqual(payload.directUploads, []);
+    assert.deepEqual(payload.checkoutStockReservations, []);
   });
 });

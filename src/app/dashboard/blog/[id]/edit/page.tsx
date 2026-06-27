@@ -16,6 +16,7 @@ import { normalizeTags } from "@/lib/tags";
 import { revalidateBlogSearchCaches } from "@/lib/searchCache";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { parseUpdateBlogStatus } from "@/lib/blogStatusInput";
+import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -202,13 +203,24 @@ export default async function EditBlogPostPage({
     }
 
     // Notify followers only on the first-ever publish, not on archive/republish.
-    if (isFirstPublish && updated.sellerProfileId && updated.sellerProfile?.userId) {
+    if (isFirstPublish && updated.sellerProfileId) {
       after(async () => {
         try {
-          const sellerUserId = updated.sellerProfile!.userId;
+          const publicPost = await prisma.blogPost.findFirst({
+            where: publicBlogPostWhere({ id: updated.id, sellerProfileId: updated.sellerProfileId }),
+            select: {
+              id: true,
+              slug: true,
+              title: true,
+              sellerProfileId: true,
+              sellerProfile: { select: { displayName: true, userId: true } },
+            },
+          });
+          if (!publicPost?.sellerProfile?.userId) return;
+          const sellerUserId = publicPost.sellerProfile.userId;
           const followers = await prisma.follow.findMany({
             where: {
-              sellerProfileId: updated.sellerProfileId!,
+              sellerProfileId: publicPost.sellerProfileId!,
               followerId: { not: sellerUserId },
               follower: {
                 banned: false,
@@ -221,16 +233,16 @@ export default async function EditBlogPostPage({
             take: 10000,
           });
           if (followers.length > 0) {
-            const sellerName = updated.sellerProfile?.displayName ?? "A maker you follow";
+            const sellerName = publicPost.sellerProfile.displayName ?? "A maker you follow";
             await mapWithConcurrency(followers, 10, (f) =>
               createNotification({
                 userId: f.followerId,
                 type: "FOLLOWED_MAKER_NEW_BLOG",
                 title: `New post from ${sellerName}`,
-                body: title,
-                link: `/blog/${updated.slug}`,
+                body: publicPost.title,
+                link: `/blog/${publicPost.slug}`,
                 sourceType: "followed_maker_new_blog",
-                sourceId: updated.id,
+                sourceId: publicPost.id,
               }),
             );
           }

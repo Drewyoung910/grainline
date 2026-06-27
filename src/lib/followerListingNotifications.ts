@@ -6,6 +6,7 @@ import { mapWithConcurrency } from "@/lib/concurrency";
 import { publicListingPath } from "@/lib/publicPaths";
 import { formatCurrencyCents } from "@/lib/money";
 import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
+import { publicListingWhere } from "@/lib/listingVisibility";
 
 const FOLLOWER_FANOUT_PAGE_SIZE = 1000;
 
@@ -27,27 +28,34 @@ export async function fanOutListingToFollowers({
   listing: ListingForFanout;
   emailDedupKey: (followerId: string) => string;
 }) {
-  const sellerDisplay = sellerDisplayName ?? "A maker you follow";
-  const listingPath = publicListingPath(listing.id, listing.title);
-  const listingUrl = `${EMAIL_APP_URL}${listingPath}`;
-  const listingPrice = formatCurrencyCents(listing.priceCents, listing.currency);
-  const seller = await prisma.sellerProfile.findUnique({
-    where: { id: sellerProfileId },
-    select: { userId: true },
+  const publicListing = await prisma.listing.findFirst({
+    where: publicListingWhere({ id: listing.id, sellerId: sellerProfileId }),
+    select: {
+      id: true,
+      title: true,
+      priceCents: true,
+      currency: true,
+      seller: { select: { userId: true, displayName: true } },
+    },
   });
-  if (!seller) return;
+  if (!publicListing) return;
+  const sellerUserId = publicListing.seller.userId;
+  const sellerDisplay = publicListing.seller.displayName ?? sellerDisplayName ?? "A maker you follow";
+  const listingPath = publicListingPath(publicListing.id, publicListing.title);
+  const listingUrl = `${EMAIL_APP_URL}${listingPath}`;
+  const listingPrice = formatCurrencyCents(publicListing.priceCents, publicListing.currency);
   let cursor: string | undefined;
 
   while (true) {
     const followers = await prisma.follow.findMany({
       where: {
         sellerProfileId,
-        followerId: { not: seller.userId },
+        followerId: { not: sellerUserId },
         follower: {
           banned: false,
           deletedAt: null,
-          blocks: { none: { blockedId: seller.userId } },
-          blockedBy: { none: { blockerId: seller.userId } },
+          blocks: { none: { blockedId: sellerUserId } },
+          blockedBy: { none: { blockerId: sellerUserId } },
         },
       },
       orderBy: { id: "asc" },
@@ -63,10 +71,10 @@ export async function fanOutListingToFollowers({
         userId: f.followerId,
         type: "FOLLOWED_MAKER_NEW_LISTING",
         title: `New listing from ${sellerDisplay}`,
-        body: listing.title,
+        body: publicListing.title,
         link: listingPath,
         sourceType: "followed_maker_new_listing",
-        sourceId: listing.id,
+        sourceId: publicListing.id,
       }),
     );
 
@@ -75,7 +83,7 @@ export async function fanOutListingToFollowers({
         const email = renderNewListingFromFollowedMakerEmail({
           to: f.follower.email!,
           makerName: sellerDisplay,
-          listingTitle: listing.title,
+          listingTitle: publicListing.title,
           listingPrice,
           listingUrl,
         });
@@ -86,7 +94,7 @@ export async function fanOutListingToFollowers({
           userId: f.followerId,
           preferenceKey: "EMAIL_FOLLOWED_MAKER_NEW_LISTING",
           sourceType: "followed_maker_new_listing",
-          sourceId: listing.id,
+          sourceId: publicListing.id,
         });
       }
     });

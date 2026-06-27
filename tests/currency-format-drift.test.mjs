@@ -36,7 +36,7 @@ describe("currency formatting drift guardrails", () => {
     assert.match(guildMetrics, /formatCurrencyCents\(GUILD_MASTER_REQUIREMENTS\.totalSalesCents\)/);
     assert.doesNotMatch(guildMetrics, /totalSalesCents \/ 100/);
 
-    assert.match(followerFanout, /formatCurrencyCents\(listing\.priceCents, listing\.currency\)/);
+    assert.match(followerFanout, /formatCurrencyCents\(publicListing\.priceCents, publicListing\.currency\)/);
     assert.doesNotMatch(followerFanout, /priceCents \/ 100|toFixed\(2\)/);
 
     assert.match(threadMessages, /import \{ DEFAULT_CURRENCY, formatCurrencyCents \} from "@\/lib\/money"/);

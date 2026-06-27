@@ -152,6 +152,15 @@ describe("stock mutation state", () => {
     assert.match(fanoutSql, /u\."deletedAt" IS NULL/);
   });
 
+  it("uses subscription-scoped email dedup keys for repeat back-in-stock subscriptions", () => {
+    const stockRoute = source("src/app/api/listings/[id]/stock/route.ts");
+
+    assert.match(stockRoute, /RETURNING sn\."userId", sn\.id AS "stockNotificationId", al\."stockQuantity"/);
+    assert.match(stockRoute, /const stockNotificationIdByUserId = new Map/);
+    assert.match(stockRoute, /dedupKey: `back-in-stock:\$\{id\}:\$\{stockNotificationId\}`/);
+    assert.doesNotMatch(stockRoute, /dedupKey: `back-in-stock:\$\{id\}:\$\{sub\.id\}`/);
+  });
+
   it("dedupes low-stock notifications per listing over a rolling multi-day window", () => {
     assert.equal(LOW_STOCK_DEDUP_WINDOW_MS, 72 * 60 * 60 * 1000);
     assert.equal(lowStockNotificationLink("listing_123"), "/dashboard/listings/listing_123/edit");

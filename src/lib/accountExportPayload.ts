@@ -47,6 +47,7 @@ type AccountExportCollections = {
   emailOutboxRows: unknown[];
   emailFailureCounts: unknown[];
   stockNotifications: unknown[];
+  checkoutStockReservations: unknown[];
   makerVerification: unknown;
   sellerFaqs: unknown[];
   newsletterSubscriptions: unknown[];
@@ -110,6 +111,7 @@ export function buildAccountExportPayload(
     emailOutboxRows: data.emailOutboxRows,
     emailFailureCounts: data.emailFailureCounts,
     stockNotifications: data.stockNotifications,
+    checkoutStockReservations: data.checkoutStockReservations,
     makerVerification: data.makerVerification,
     sellerFaqs: data.sellerFaqs,
     newsletterSubscriptions: data.newsletterSubscriptions,
