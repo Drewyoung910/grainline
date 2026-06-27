@@ -798,6 +798,49 @@ async function redactCasesAboutDeletedAccount(
   }
 }
 
+async function redactOrderReviewNotesForDeletedAccount(
+  tx: Prisma.TransactionClient,
+  deletedUserId: string,
+  sellerProfileId: string | null | undefined,
+  sensitiveValues: string[],
+) {
+  const where: Prisma.OrderWhereInput = {
+    reviewNote: { not: null },
+    OR: [
+      { buyerId: deletedUserId },
+      ...(sellerProfileId
+        ? [{ items: { some: { listing: { sellerId: sellerProfileId } } } }]
+        : []),
+    ],
+  };
+  let cursor: string | undefined;
+
+  for (;;) {
+    const orders = await tx.order.findMany({
+      where,
+      select: { id: true, reviewNote: true },
+      orderBy: { id: "asc" },
+      take: ACCOUNT_DELETION_REDACTION_BATCH_SIZE,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+
+    for (const order of orders) {
+      if (!order.reviewNote) continue;
+      const reviewNote = redactAccountDeletionText(order.reviewNote, sensitiveValues);
+      if (!reviewNote.changed) continue;
+
+      await tx.order.update({
+        where: { id: order.id },
+        data: { reviewNote: reviewNote.text },
+      });
+    }
+
+    if (orders.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
+    cursor = orders[orders.length - 1]?.id;
+    if (!cursor) break;
+  }
+}
+
 async function redactSupportRequestsForDeletedAccount(
   tx: Prisma.TransactionClient,
   deletedUserId: string,
@@ -1647,6 +1690,12 @@ export async function anonymizeUserAccount(
       data: { description: "[Case description deleted]" },
     });
     await redactCasesAboutDeletedAccount(tx, user.id, accountSensitiveValues);
+    await redactOrderReviewNotesForDeletedAccount(
+      tx,
+      user.id,
+      user.sellerProfile?.id ?? null,
+      accountSensitiveValues,
+    );
     await tx.review.updateMany({
       where: { reviewerId: user.id },
       data: { comment: null },

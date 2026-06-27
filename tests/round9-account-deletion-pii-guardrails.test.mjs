@@ -113,6 +113,18 @@ describe("Round 9 account deletion PII guardrails", () => {
     assert.match(deletion, /redactCasesAboutDeletedAccount\(tx, user\.id, accountSensitiveValues\)/);
   });
 
+  it("redacts deleted-account values from retained order review notes", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+
+    assert.match(deletion, /async function redactOrderReviewNotesForDeletedAccount/);
+    assert.match(deletion, /reviewNote: \{ not: null \}/);
+    assert.match(deletion, /\{ buyerId: deletedUserId \}/);
+    assert.match(deletion, /items: \{ some: \{ listing: \{ sellerId: sellerProfileId \} \} \}/);
+    assert.match(deletion, /redactAccountDeletionText\(order\.reviewNote, sensitiveValues\)/);
+    assert.match(deletion, /data: \{ reviewNote: reviewNote\.text \}/);
+    assert.match(deletion, /redactOrderReviewNotesForDeletedAccount\(\s*tx,\s*user\.id,\s*user\.sellerProfile\?\.id \?\? null,\s*accountSensitiveValues,\s*\)/s);
+  });
+
   it("preserves conversations without deleted-account email fallbacks", () => {
     const deletion = source("src/lib/accountDeletion.ts");
     const threadPage = source("src/app/messages/[id]/page.tsx");

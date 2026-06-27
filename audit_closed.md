@@ -10350,3 +10350,95 @@ Vercel Analytics/Speed Insights product/privacy decision, homepage browser
 a11y/runtime proof beyond source fallback, deployed security-header runtime
 proof beyond source/config guardrails, and customer photo exact-count
 performance tradeoff.
+
+Entry 457 closes a parent-verified privacy/legal-retention source pass. Two
+read-only agents reviewed disjoint account export/deletion/support and
+email/outbox/provider-retention slices; parent Codex verified their cited
+source locally, implemented the one source-real issue found in parent review,
+closed both agents, and did not stage the raw audit import.
+
+Verified fixed/reduced:
+
+- Account deletion now redacts retained `Order.reviewNote` free text for orders
+  tied to the deleted buyer or seller profile. Staff review notes can quote
+  contact, address, or account identifiers, so `redactOrderReviewNotesForDeletedAccount()`
+  cursor-scans only affected order rows with non-null review notes and rewrites
+  matched deleted-account values through the existing bounded account-deletion
+  text redactor.
+- `CLAUDE.md` now records the durable account-deletion redaction contract for
+  retained order review notes, alongside the existing support, case, message,
+  audit, order PII, and media cleanup rules.
+
+Verified current/stale/deferred during the same pass:
+
+- Account export remains POST-only, explicit same-origin guarded,
+  fresh-session/reverification gated, and includes support/data-request rows
+  via stable account id plus current/historical email fallback while omitting
+  staff closure actor ids.
+- Support and legal data-request intake remains durable before email delivery;
+  admin closure for data requests still requires bounded closure evidence and
+  stores only evidence metadata in the admin audit log.
+- Account deletion support/data-request scrubbing, provider-side blocked
+  deletion follow-up rows, buyer order PII pruning, EmailOutbox terminal
+  retention, EmailSuppression Gmail/Googlemail suppression-key behavior, Resend
+  webhook idempotency/retention, and public-form telemetry were rechecked
+  current against source and focused tests.
+- Provider-held copies, provider-side privacy-request evidence, and legal
+  retention periods remain external ops/legal evidence, not source-only
+  closures.
+
+Guardrails:
+`tests/round9-account-deletion-pii-guardrails.test.mjs`,
+`tests/account-export-privacy.test.mjs`,
+`tests/order-pii-retention.test.mjs`,
+`tests/support-request-state.test.mjs`,
+`tests/account-privacy-observability.test.mjs`,
+`tests/email-outbox-retention.test.mjs`,
+`tests/retention-and-ops-followups.test.mjs`,
+`tests/support-request.test.mjs`,
+`tests/privacy-telemetry.test.mjs`, and
+`tests/email-normalization-followups.test.mjs`.
+
+Verification:
+focused `node --test tests/round9-account-deletion-pii-guardrails.test.mjs tests/account-export-privacy.test.mjs tests/order-pii-retention.test.mjs tests/support-request-state.test.mjs`
+(40/40 tests passing), expanded privacy/retention focused
+`node --test tests/round9-account-deletion-pii-guardrails.test.mjs tests/account-export-privacy.test.mjs tests/order-pii-retention.test.mjs tests/support-request-state.test.mjs tests/account-privacy-observability.test.mjs tests/email-outbox-retention.test.mjs tests/retention-and-ops-followups.test.mjs tests/support-request.test.mjs tests/privacy-telemetry.test.mjs tests/email-normalization-followups.test.mjs`
+(94/94 tests passing), agent account/export sidecar focused suite
+(88/88 tests passing), agent email/outbox sidecar focused suite
+(66/66 tests passing), `npx tsc --noEmit`, `git diff --check`,
+`npm run lint` (exit 0; existing JSX AST utility warning only),
+`npm test` (1410/1410 tests passing across 256 suites), and
+`npm run build` passed.
+
+Current running tally after Entry 457: verified fixed/reduced 921, verified
+stale/false-positive/current 504, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 31. Fixed/reduced
+increases by one for parent-verified account-deletion order review-note
+redaction. Stale/current, deferred, and raw-left stay flat because the broader
+privacy/export/email/provider-retention rechecks were already classified or
+remain external ops/legal evidence, and the source fix was a hidden adjacent
+issue found during parent review rather than a newly consumed raw Claude id.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence,
+label clawback policy/runtime proof, Stripe webhook subscription dashboard
+evidence, Stripe Connect v2 loss-liability ops/legal decision, stale remote
+branch and old git author hygiene, Round 10 deferred cache/state-machine
+product designs that require product decisions rather than source guardrails,
+remaining EXPLAIN-dependent runtime query-plan validation beyond the existing
+source indexes, Stripe partial-refund live reconciliation proof, founding-maker
+permanence policy, remaining privacy/legal retention scope, cross-seller AI
+duplicate-detection product design, legacy enum cleanup/data-migration
+decisions, partial multi-seller checkout continuation design, deliberate BigInt
+money-column modeling, variant-adjusted unit-price floor policy, live-data
+reconciliation for historical seller shipping-rate currency drift, Guild
+private/custom-order sales/review trust-metric product policy, Clerk staff MFA
+and breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion live Stripe replay proof after source minimization,
+Founding Maker live DB concurrency proof, Sentry cron alert evidence,
+Cloudflare R2 ListBucket/public-bucket dashboard posture plus production smoke
+evidence and public-availability proof, HSTS preload submission decision,
+Vercel Analytics/Speed Insights product/privacy decision, homepage browser
+a11y/runtime proof beyond source fallback, deployed security-header runtime
+proof beyond source/config guardrails, and customer photo exact-count
+performance tradeoff.
