@@ -7,6 +7,7 @@ import {
 } from "@/lib/metricsState";
 import { isSellerMetricsFresh } from "@/lib/metricsFreshness";
 import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
+import { PAID_STRIPE_ORDER_SQL } from "@/lib/orderTrust";
 
 const SELLER_METRICS_LOCK_NAMESPACE = 913344;
 
@@ -171,6 +172,7 @@ async function calculateSellerMetricsWithoutLock(
         JOIN "OrderItem" oi ON oi."orderId" = o.id
         JOIN "Listing" l ON l.id = oi."listingId"
         WHERE l."sellerId" = ${sellerProfileId}
+          ${PAID_STRIPE_ORDER_SQL}
           AND o."fulfillmentStatus" IN ('DELIVERED', 'PICKED_UP')
           AND o."sellerRefundId" IS NULL
           ${BLOCKING_REFUND_LEDGER_SQL}
@@ -182,6 +184,7 @@ async function calculateSellerMetricsWithoutLock(
           COUNT(*) FILTER (WHERE o."shippedAt" <= o."processingDeadline")::bigint AS "onTimeCount"
         FROM "Order" o
         WHERE o."sellerRefundId" IS NULL
+          ${PAID_STRIPE_ORDER_SQL}
           ${BLOCKING_REFUND_LEDGER_SQL}
           AND o."shippedAt" IS NOT NULL
           AND o."shippedAt" >= ${periodStart}

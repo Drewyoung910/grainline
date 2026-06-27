@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/db";
 import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
+import { PAID_STRIPE_ORDER_SQL } from "@/lib/orderTrust";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 export const PUBLIC_SELLER_STATS_REVALIDATE_SECONDS = 5 * 60;
@@ -23,7 +24,7 @@ async function loadPublicSellerStats(sellerProfileId: string): Promise<PublicSel
       JOIN "Listing" l ON l.id = oi."listingId"
       JOIN "Order" o ON o.id = oi."orderId"
       WHERE l."sellerId" = ${sellerProfileId}
-        AND o."paidAt" IS NOT NULL
+        ${PAID_STRIPE_ORDER_SQL}
         AND o."sellerRefundId" IS NULL
         ${BLOCKING_REFUND_LEDGER_SQL}
     `,
@@ -34,8 +35,8 @@ async function loadPublicSellerStats(sellerProfileId: string): Promise<PublicSel
       FROM (
         SELECT o."paidAt", o."shippedAt"
         FROM "Order" o
-        WHERE o."paidAt" IS NOT NULL
-          AND o."shippedAt" IS NOT NULL
+        WHERE o."shippedAt" IS NOT NULL
+          ${PAID_STRIPE_ORDER_SQL}
           AND o."sellerRefundId" IS NULL
           ${BLOCKING_REFUND_LEDGER_SQL}
           AND o."shippedAt" >= ${recentShippingCutoff}

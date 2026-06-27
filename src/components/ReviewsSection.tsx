@@ -8,6 +8,8 @@ import { ImageLightbox } from "@/components/ImageLightbox";
 import BlockReportButton from "@/components/BlockReportButton";
 import { publicListingPath } from "@/lib/publicPaths";
 import { avatarInitials } from "@/lib/avatarInitials";
+import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
+import { paidStripeOrderWhere } from "@/lib/orderTrust";
 
 const LISTING_REVIEW_DISPLAY_LIMIT = 100;
 
@@ -133,7 +135,17 @@ export default async function ReviewsSection({
   let canCreate = false;
   if (meId && !mine) {
     const paidOrder = await prisma.orderItem.findFirst({
-      where: { listingId, order: { buyerId: meId, paidAt: { not: null, gte: since90 } } },
+      where: {
+        listingId,
+        order: {
+          ...paidStripeOrderWhere(),
+          buyerId: meId,
+          createdAt: { gte: since90 },
+          fulfillmentStatus: { in: ["DELIVERED", "PICKED_UP"] },
+          sellerRefundId: null,
+          paymentEvents: { none: blockingRefundLedgerWhere() },
+        },
+      },
       select: { id: true },
     });
     canCreate = !!paidOrder;

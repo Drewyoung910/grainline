@@ -24,6 +24,7 @@ import { safeJsonLd } from "@/lib/json-ld";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
+import { paidStripeOrderWhere } from "@/lib/orderTrust";
 import { isTrustedMediaUrl } from "@/lib/urlValidation";
 import { getPopularListingTags } from "@/lib/popularTags";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
@@ -318,7 +319,7 @@ export default async function HomePage() {
       }),
       prisma.order.count({
         where: {
-          paidAt: { not: null },
+          ...paidStripeOrderWhere(),
           sellerRefundId: null,
           paymentEvents: { none: blockingRefundLedgerWhere() },
           fulfillmentStatus: { in: ["DELIVERED", "PICKED_UP"] },

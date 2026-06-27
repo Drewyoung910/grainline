@@ -31,6 +31,7 @@ import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import { normalizePublicHttpsUrl } from "@/lib/urlValidation";
 import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
+import { PAID_STRIPE_ORDER_SQL } from "@/lib/orderTrust";
 import { formatCurrencyCents } from "@/lib/money";
 
 type ActionState = { ok: boolean; error?: string };
@@ -183,6 +184,7 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
       INNER JOIN "Order" o ON o.id = oi."orderId"
       INNER JOIN "Listing" l ON l.id = oi."listingId"
       WHERE l."sellerId" = ${verification.sellerProfileId}
+        ${PAID_STRIPE_ORDER_SQL}
         AND o."fulfillmentStatus" IN ('DELIVERED'::"FulfillmentStatus", 'PICKED_UP'::"FulfillmentStatus")
         AND o."sellerRefundId" IS NULL
         ${BLOCKING_REFUND_LEDGER_SQL}

@@ -9,6 +9,8 @@ import { orderTotalCents } from "@/lib/orderTotals";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import { savedListingFavoriteWhere } from "@/lib/savedListingVisibility";
 import { formatCurrencyCents } from "@/lib/money";
+import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
+import { paidStripeOrderWhere } from "@/lib/orderTrust";
 
 export const metadata: Metadata = {
   title: "My Account",
@@ -106,6 +108,9 @@ export default async function AccountPage() {
           some: { listing: { sellerId: sellerProfile.id } },
           every: { listing: { sellerId: sellerProfile.id } },
         },
+        ...paidStripeOrderWhere(),
+        sellerRefundId: null,
+        paymentEvents: { none: blockingRefundLedgerWhere() },
         fulfillmentStatus: { in: ["DELIVERED", "PICKED_UP"] },
       },
     });

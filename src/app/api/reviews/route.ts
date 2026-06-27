@@ -20,6 +20,7 @@ import { claimDirectUploadsForUrls } from "@/lib/directUploadLifecycle";
 import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 import { publicListingPath } from "@/lib/publicPaths";
 import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
+import { paidStripeOrderWhere } from "@/lib/orderTrust";
 import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import {
@@ -138,8 +139,8 @@ export async function POST(req: NextRequest) {
     where: {
       listingId,
       order: {
+        ...paidStripeOrderWhere(),
         buyerId: me.id,
-        paidAt: { not: null },
         createdAt: { gte: since },
         fulfillmentStatus: { in: ["DELIVERED", "PICKED_UP"] },
         sellerRefundId: null,

@@ -107,6 +107,11 @@ const boundedMutationRoutes = [
     requestName: "req",
     maxBytesConst: "COMMISSION_STATUS_BODY_MAX_BYTES",
   },
+  {
+    path: "src/app/api/dev/make-order/route.ts",
+    requestName: "req",
+    maxBytesConst: "DEV_MAKE_ORDER_BODY_MAX_BYTES",
+  },
 ];
 
 describe("authenticated JSON mutation body bounds", () => {

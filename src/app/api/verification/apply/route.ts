@@ -15,6 +15,7 @@ import { logServerError } from "@/lib/serverErrorLogger";
 import { formatCurrencyCents } from "@/lib/money";
 import { z } from "zod";
 import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
+import { PAID_STRIPE_ORDER_SQL } from "@/lib/orderTrust";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 
 export const runtime = "nodejs";
@@ -92,6 +93,7 @@ export async function POST(req: Request) {
         INNER JOIN "Order" o ON o.id = oi."orderId"
         INNER JOIN "Listing" l ON l.id = oi."listingId"
         WHERE l."sellerId" = ${seller.id}
+          ${PAID_STRIPE_ORDER_SQL}
           AND o."fulfillmentStatus" IN ('DELIVERED'::"FulfillmentStatus", 'PICKED_UP'::"FulfillmentStatus")
           AND o."sellerRefundId" IS NULL
           ${BLOCKING_REFUND_LEDGER_SQL}

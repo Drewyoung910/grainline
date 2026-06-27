@@ -85,6 +85,7 @@ describe("cron and public route hardening", () => {
 
   it("keeps dev-only order fixtures disabled outside local development", () => {
     const route = source("src/app/api/dev/make-order/route.ts");
+    const middleware = source("src/middleware.ts");
 
     assert.match(route, /process\.env\.NODE_ENV === "development"/);
     assert.match(route, /process\.env\.VERCEL !== "1"/);
@@ -92,6 +93,7 @@ describe("cron and public route hardening", () => {
     assert.match(route, /process\.env\.ENABLE_DEV_MAKE_ORDER === "true"/);
     assert.doesNotMatch(route, /process\.env\.NODE_ENV !== "production"/);
     assert.doesNotMatch(route, /!process\.env\.VERCEL_ENV/);
+    assert.doesNotMatch(middleware, /"\/api\/dev/);
   });
 
   it("keeps CI on read-only repository permissions and blocking high audits", () => {

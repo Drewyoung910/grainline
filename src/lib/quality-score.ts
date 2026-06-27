@@ -32,6 +32,7 @@ import {
   type QualityScoreGlobalMeans,
 } from "./qualityScoreFormula.ts";
 import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
+import { PAID_STRIPE_ORDER_SQL } from "@/lib/orderTrust";
 
 const BATCH_SIZE = 200;
 
@@ -86,6 +87,7 @@ async function fetchActiveListingBatch(cursorId: string | null): Promise<Listing
       FROM "OrderItem" oi
       JOIN "Order" o ON o.id = oi."orderId"
       WHERE oi."listingId" = l.id
+        ${PAID_STRIPE_ORDER_SQL}
         AND o."sellerRefundId" IS NULL
         ${BLOCKING_REFUND_LEDGER_SQL}
         AND NOT EXISTS (

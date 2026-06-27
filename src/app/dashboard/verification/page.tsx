@@ -25,6 +25,7 @@ import { normalizePublicHttpsUrl } from "@/lib/urlValidation";
 import { formatCurrencyCents } from "@/lib/money";
 import type { Metadata } from "next";
 import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
+import { PAID_STRIPE_ORDER_SQL } from "@/lib/orderTrust";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -64,6 +65,7 @@ async function getGuildMemberEligibility({
       JOIN "Order" o ON o.id = oi."orderId"
       JOIN "Listing" l ON l.id = oi."listingId"
       WHERE l."sellerId" = ${sellerProfileId}
+        ${PAID_STRIPE_ORDER_SQL}
         AND o."fulfillmentStatus" IN ('DELIVERED', 'PICKED_UP')
         AND o."sellerRefundId" IS NULL
         ${BLOCKING_REFUND_LEDGER_SQL}

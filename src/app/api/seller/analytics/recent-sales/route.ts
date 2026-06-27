@@ -7,6 +7,7 @@ import { rateLimitResponse, safeRateLimit, sellerAnalyticsRatelimit } from "@/li
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { paidStripeOrderWhere } from "@/lib/orderTrust";
 
 export const runtime = "nodejs";
 
@@ -44,7 +45,7 @@ export async function GET() {
           some: { listing: { sellerId: sellerProfile.id } },
           every: { listing: { sellerId: sellerProfile.id } },
         },
-        paidAt: { not: null },
+        ...paidStripeOrderWhere(),
         sellerRefundId: null,
         paymentEvents: { none: blockingRefundLedgerWhere() },
       },

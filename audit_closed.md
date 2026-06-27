@@ -10239,3 +10239,114 @@ submission decision, Vercel Analytics/Speed Insights product/privacy decision,
 homepage browser a11y/runtime proof beyond source fallback, deployed
 security-header runtime proof beyond source/config guardrails, and customer
 photo exact-count performance tradeoff.
+
+Entry 456 closes a parent-verified dev-fixture/trust-metric guardrail pass.
+Two read-only agents reviewed local dev-helper boundaries and order-counting
+trust surfaces; parent Codex verified their actionable findings locally,
+implemented the source/test/docs changes, closed both agents, and did not stage
+the raw Claude import.
+
+Verified fixed/reduced:
+
+- `src/lib/orderTrust.ts` now centralizes the paid Stripe-backed order
+  predicate for marketplace trust surfaces. Raw SQL callers use
+  `PAID_STRIPE_ORDER_SQL`; Prisma callers use `paidStripeOrderWhere()`. The
+  predicate requires `paidAt` plus at least one durable Stripe reference
+  (`stripeSessionId`, `stripePaymentIntentId`, or `stripeChargeId`), so local
+  dev fixture rows with only `paidAt` do not feed trust metrics while older or
+  migrated real Stripe-backed rows are not excluded solely because they lack a
+  Checkout Session id.
+- Quality score conversion, site metrics, public seller sold/shipping stats,
+  seller analytics/recent-sales, Guild seller metrics, Guild Member dashboard
+  eligibility, Guild Member API/admin approval checks, homepage completed-order
+  stats, account seller completed-order stats, and review eligibility now share
+  that paid-Stripe predicate while keeping the existing local refund and
+  durable refund/dispute ledger exclusions.
+- `ReviewsSection` now mirrors the review POST route before showing the
+  write-review affordance: real paid Stripe-backed order, delivered/picked-up,
+  within the review window, no local seller refund, and no blocking refund
+  ledger row.
+- Local dev-helper guardrails were tightened without reopening the stale
+  production-exposure finding: `.env.example` now says `VERCEL_ENV` must remain
+  unset for local fixtures and warns against shared demo/QA databases; the dev
+  order fixture's 8 KiB JSON cap is pinned in the authenticated body-bound
+  inventory; and the public cron/search hardening test now asserts `/api/dev`
+  is not added to the public middleware allowlist.
+
+Verified current/stale/deferred during the same pass:
+
+- Raw #153 (`/api/dev/make-order` production exposure) remains stale on current
+  `main`: the route requires `NODE_ENV === "development"`, `VERCEL !== "1"`,
+  `VERCEL_ENV === undefined`, and `ENABLE_DEV_MAKE_ORDER === "true"`, and it
+  remains outside middleware's public API allowlist. This was already counted
+  in earlier closed entries, so no stale tally change is recorded.
+- Raw #159 (Guild verification sales counting first-party partial refunds) and
+  raw #306 (partial case-resolution copy rendering `$0.00`) remain
+  fixed/stale/current against present source and tests. Both were already
+  classified in earlier entries, so no duplicate stale tally change is
+  recorded.
+- Account-deletion blockers intentionally remain fulfillment-obligation
+  blockers rather than paid-Stripe trust metrics. Existing tests encode that
+  conservative retention/product behavior, so this pass did not add the new
+  paid-Stripe helper there.
+- The remaining Guild private/custom-order trust-metric question is deferred
+  as a product-policy decision: current Guild metrics count real paid
+  Stripe-backed fulfilled sales and reviews for the seller regardless of
+  listing privacy, while the five-active-listing Guild Member criterion already
+  requires active public listings. Excluding private/reserved custom-order
+  sales or reviews would change how legitimate custom commissions contribute
+  to Guild trust status and needs product signoff rather than a drive-by source
+  edit.
+
+Guardrails:
+`tests/order-trust-metrics-guardrails.test.mjs`,
+`tests/authenticated-json-body-bounds.test.mjs`,
+`tests/public-cron-search-hardening.test.mjs`,
+`tests/seller-analytics-refund-guardrails.test.mjs`,
+`tests/seller-page-performance.test.mjs`,
+`tests/guild-listing-edit-followups.test.mjs`,
+`tests/guild-metrics-state.test.mjs`,
+`tests/quality-score-query-guardrails.test.mjs`, and
+`tests/review-route-hardening.test.mjs`.
+
+Verification:
+focused `node --test tests/order-trust-metrics-guardrails.test.mjs tests/authenticated-json-body-bounds.test.mjs tests/public-cron-search-hardening.test.mjs tests/seller-analytics-refund-guardrails.test.mjs tests/seller-page-performance.test.mjs tests/guild-listing-edit-followups.test.mjs tests/guild-metrics-state.test.mjs tests/quality-score-query-guardrails.test.mjs tests/review-route-hardening.test.mjs`
+(55/55 tests passing), `npx tsc --noEmit`, `git diff --check`,
+`npm run lint` (exit 0; existing JSX AST utility warning only), full
+`npm test` (1409/1409 tests passing across 256 suites), and `npm run build`
+passed. After the final docs-only contract addition, follow-up focused
+`node --test tests/order-trust-metrics-guardrails.test.mjs tests/docs-archive.test.mjs tests/public-cron-search-hardening.test.mjs tests/authenticated-json-body-bounds.test.mjs`
+also passed (35/35 tests passing).
+
+Current running tally after Entry 456: verified fixed/reduced 920, verified
+stale/false-positive/current 504, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 31. Fixed/reduced
+increases by three for the paid Stripe-backed order trust predicate helper,
+review CTA/API eligibility alignment, and local dev-helper guardrails. Deferred
+increases by one and raw-left decreases by one for classifying the Guild
+private/custom-order trust-metric policy item. Stale/current does not change
+because #153, #159, and #306 were already classified in earlier entries.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence,
+label clawback policy/runtime proof, Stripe webhook subscription dashboard
+evidence, Stripe Connect v2 loss-liability ops/legal decision, stale remote
+branch and old git author hygiene, Round 10 deferred cache/state-machine
+product designs that require product decisions rather than source guardrails,
+remaining EXPLAIN-dependent runtime query-plan validation beyond the existing
+source indexes, Stripe partial-refund live reconciliation proof, founding-maker
+permanence policy, remaining privacy/legal retention scope, cross-seller AI
+duplicate-detection product design, legacy enum cleanup/data-migration
+decisions, partial multi-seller checkout continuation design, deliberate BigInt
+money-column modeling, variant-adjusted unit-price floor policy, live-data
+reconciliation for historical seller shipping-rate currency drift, Guild
+private/custom-order sales/review trust-metric product policy, Clerk staff MFA
+and breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion live Stripe replay proof after source minimization,
+Founding Maker live DB concurrency proof, Sentry cron alert evidence,
+Cloudflare R2 ListBucket/public-bucket dashboard posture plus production smoke
+evidence and public-availability proof, HSTS preload submission decision,
+Vercel Analytics/Speed Insights product/privacy decision, homepage browser
+a11y/runtime proof beyond source fallback, deployed security-header runtime
+proof beyond source/config guardrails, and customer photo exact-count
+performance tradeoff.
