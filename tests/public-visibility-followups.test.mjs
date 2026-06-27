@@ -94,15 +94,26 @@ describe("public visibility follow-ups", () => {
     }
   });
 
-  it("derives seller profile tag chips from shared public listing visibility", () => {
+  it("derives seller profile tag chips from cached public seller tag counts", () => {
     const sellerPage = read("src/app/seller/[id]/page.tsx");
+    const popularTags = read("src/lib/popularTags.ts");
 
-    assert.match(sellerPage, /function topListingTags\(rows: \{ tags: string\[\] \}\[\]\)/);
-    assert.match(sellerPage, /prisma\.listing\.findMany\(\{\s*where: publicListingWhere\(\{ sellerId: seller\.id \}\),\s*select: \{ tags: true \},\s*\}\)/);
-    assert.match(sellerPage, /const topTags = topListingTags\(tagListingRows\)/);
-    assert.doesNotMatch(sellerPage, /FROM "Listing" l, unnest\(l\.tags\) AS tag/);
-    assert.doesNotMatch(sellerPage, /l\.status = 'ACTIVE'/);
-    assert.doesNotMatch(sellerPage, /l\."isPrivate" = false/);
+    assert.match(sellerPage, /import \{ getCachedPublicSellerTopTags \} from "@\/lib\/popularTags"/);
+    assert.match(sellerPage, /getCachedPublicSellerTopTags\(seller\.id\)/);
+    assert.doesNotMatch(sellerPage, /function topListingTags/);
+    assert.doesNotMatch(sellerPage, /select: \{ tags: true \}/);
+    assert.match(popularTags, /export const PUBLIC_SELLER_TOP_TAG_LIMIT = 8/);
+    assert.match(popularTags, /export const getCachedPublicSellerTopTags = unstable_cache\(/);
+    assert.match(popularTags, /l\."sellerId" = \$\{sellerId\}/);
+    assert.match(popularTags, /unnest\(l\.tags\) AS tag/);
+    assert.match(popularTags, /l\.status = 'ACTIVE'/);
+    assert.match(popularTags, /l\."isPrivate" = false/);
+    assert.match(popularTags, /sp\."chargesEnabled" = true/);
+    assert.match(popularTags, /sp\."vacationMode" = false/);
+    assert.match(popularTags, /u\.banned = false/);
+    assert.match(popularTags, /u\."deletedAt" IS NULL/);
+    assert.match(popularTags, /LIMIT \$\{PUBLIC_SELLER_TOP_TAG_LIMIT\}/);
+    assert.match(popularTags, /tags: \["popular-listing-tags"\]/);
   });
 
   it("keeps public owner checks off Clerk ids when local seller user ids are selected", () => {

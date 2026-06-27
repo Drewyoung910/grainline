@@ -155,11 +155,12 @@ describe("public query determinism", () => {
 
   it("orders equal-count public tag caps by tag", () => {
     const sellerPage = source("src/app/seller/[id]/page.tsx");
+    const popularTags = source("src/lib/popularTags.ts");
 
-    assert.match(source("src/lib/popularTags.ts"), /ORDER BY count DESC, tag ASC/);
+    assert.match(popularTags, /ORDER BY count DESC, tag ASC/);
     assert.match(source("src/lib/popularBlogTags.ts"), /ORDER BY count DESC, tag ASC/);
-    assert.match(sellerPage, /\.sort\(\(\[tagA, countA\], \[tagB, countB\]\) => countB - countA \|\| tagA\.localeCompare\(tagB\)\)/);
-    assert.match(sellerPage, /\.slice\(0, 8\)/);
+    assert.match(sellerPage, /getCachedPublicSellerTopTags\(seller\.id\)/);
+    assert.match(popularTags, /ORDER BY count DESC, tag ASC\s*LIMIT \$\{PUBLIC_SELLER_TOP_TAG_LIMIT\}/);
   });
 
   it("reuses cached popular blog tag rows outside full blog search", () => {

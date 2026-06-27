@@ -178,6 +178,7 @@ export default async function ListingPage({
 }) {
   const { id } = await params;
   const listingId = extractRouteId(id);
+  const listingPromise = getListingForDetailPage(listingId);
 
   const sp = await searchParams;
   const sortKey = (sp.rsort as "top" | "new" | "rating" | "photos") ?? "top";
@@ -195,7 +196,7 @@ export default async function ListingPage({
   }
   const blockedUserIds = await getBlockedUserIdsFor(meId);
 
-  const listing = await getListingForDetailPage(listingId);
+  const listing = await listingPromise;
   if (!listing) return notFound();
 
   // Preview mode: seller can view their own listing regardless of status/chargesEnabled

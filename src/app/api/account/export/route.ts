@@ -20,6 +20,7 @@ import {
   ACCOUNT_EXPORT_REVERIFICATION,
   hasFreshAccountExportSession,
 } from "@/lib/accountExportReverification";
+import { parseCheckoutStockReservationItems } from "@/lib/checkoutStockRestore";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 
@@ -745,7 +746,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
       sellerId: exportedAsSeller ? reservation.sellerId : null,
       stripeSessionId: exportedAsBuyer ? reservation.stripeSessionId : null,
       status: reservation.status,
-      reservedItems: reservation.reservedItems,
+      reservedItems: parseCheckoutStockReservationItems(reservation.reservedItems),
       expiresAt: reservation.expiresAt,
       restoredAt: reservation.restoredAt,
       restoreReason: reservation.restoreReason,

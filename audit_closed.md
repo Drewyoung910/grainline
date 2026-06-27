@@ -10045,3 +10045,117 @@ evidence and public-availability proof, HSTS preload submission decision,
 Vercel Analytics/Speed Insights product/privacy decision, homepage browser
 a11y/runtime proof beyond source fallback, and deployed security-header runtime
 proof beyond source/config guardrails.
+
+Entry 454 closes a parent-verified account-reservation privacy and public-page
+performance pass. Three read-only agents were used for seller/listing
+performance, active checkout-stock-reservation account lifecycle semantics, and
+Stripe/refund/Connect evidence. Parent Codex reviewed each report locally,
+implemented only the confirmed source fixes, closed all agents, and did not
+stage the raw Claude import.
+
+Verified fixed/reduced:
+
+- `/api/account/export` now normalizes `checkoutStockReservations[].reservedItems`
+  through `parseCheckoutStockReservationItems()` before returning the payload.
+  Nested item-level seller ids are no longer exported around the existing
+  top-level buyer/seller/session redaction contract; exported reservation items
+  retain only listing id and quantity.
+- Account deletion now best-effort cleans up active checkout stock reservations
+  tied to the deleting buyer or seller profile before the large anonymization
+  transaction. No-session rows restore by reservation id; unpaid open Stripe
+  sessions are expired before restoration; unpaid expired sessions can restore;
+  paid, complete, unrecognized, or unreachable sessions are skipped or retried
+  with Sentry evidence instead of blindly restoring stock. The local
+  anonymization transaction then scrubs buyer/seller ids, raw checkout lock
+  keys, payload hashes, and nested seller ids while preserving listing
+  id/quantity data needed for later stale-reservation recovery.
+- Public seller profile tag chips now use
+  `getCachedPublicSellerTopTags(seller.id)`, a tagged `unstable_cache()` SQL
+  aggregation with the shared public listing/seller predicates and
+  `ORDER BY count DESC, tag ASC LIMIT 8`. This replaces the previous hot-path
+  Prisma read of every public listing's tag array for that seller.
+- Listing detail page render now starts the cached
+  `getListingForDetailPage(listingId)` load immediately after route-id parsing
+  and before viewer-specific auth/block reads. Visibility checks still await
+  viewer state before rendering or redirecting.
+
+Verified current/stale/deferred during the same pass:
+
+- Round 13 upload/media/AI/observability allegations #1095, #1096, #1097,
+  #1098, and #1099 remain fixed/stale on current `main`: the upload route uses
+  a 16MB multipart cap, Sharp `limitInputPixels`, image signature checks,
+  processed-size checks, and telemetry key hashing; AI review prompt prices use
+  `formatCurrencyCents()` and the scoped observability paths use
+  `logServerError()` or Sentry. These items were already counted in earlier
+  entries, so no duplicate stale tally change is recorded.
+- Round 14 seller-page performance allegations #1109, #1110, and #1111 remain
+  stale as originally stated because seller/listing loaders are cached and the
+  main seller page reads are parallelized. This pass fixed two adjacent
+  performance issues found during re-review rather than re-counting those raw
+  allegations.
+- Stripe refund/label/Connect sidecar review found full connected-seller refund
+  transfer reversal, refund idempotency scope, partial-refund stock restore,
+  label-clawback retry, card-only Checkout webhook source assumptions, and
+  Connect v2 source wiring current against source. Runtime/dashboard/legal proof
+  remains external evidence.
+- A narrower Stripe accounting evidence gap remains: partial reverse-transfer
+  refunds do not yet persist the actual Stripe `transfer_reversal` allocation
+  into local refund evidence. That should be handled as a dedicated refund
+  evidence pass rather than mixed into this account-reservation/performance
+  patch.
+- Customer-photo exact count on seller pages remains a product/runtime tradeoff;
+  it drives exact copy and the "View all" link, so this pass did not replace it
+  with existence-only or approximate count behavior.
+- `CLAUDE.md` now records the durable account-deletion reservation cleanup and
+  checkout-reservation export redaction contracts so future agents do not
+  reintroduce blind stock restoration or nested counterparty identifiers.
+
+Guardrails:
+`tests/account-export-privacy.test.mjs`,
+`tests/account-deletion-timeout-fix.test.mjs`,
+`tests/public-visibility-followups.test.mjs`,
+`tests/listing-page-performance.test.mjs`,
+`tests/seller-page-performance.test.mjs`, and
+`tests/public-query-determinism.test.mjs`.
+
+Verification:
+focused `node --test tests/account-export-privacy.test.mjs tests/account-deletion-timeout-fix.test.mjs tests/public-visibility-followups.test.mjs tests/listing-page-performance.test.mjs tests/seller-page-performance.test.mjs`
+(47/47 tests passing), follow-up focused
+`node --test tests/public-query-determinism.test.mjs tests/account-export-privacy.test.mjs tests/account-deletion-timeout-fix.test.mjs tests/public-visibility-followups.test.mjs tests/listing-page-performance.test.mjs tests/seller-page-performance.test.mjs`
+(58/58 tests passing), `npx tsc --noEmit`, `git diff --check`,
+`npm run lint` (exit 0; existing JSX AST utility warning only), final
+`npm test` (1401/1401 tests passing across 255 suites), and
+`npm run build` passed.
+
+Current running tally after Entry 454: verified fixed/reduced 916, verified
+stale/false-positive/current 504, deferred product/design/ops/legal 80,
+approximate raw allegations left from current max #1126: 32. Fixed/reduced
+increases by four for parent-verified nested reservation export redaction,
+deletion-time checkout-reservation cleanup/scrubbing, cached public seller tag
+aggregation, and earlier listing-detail load start. Stale/current, deferred,
+and raw-left do not change because the rechecked raw allegations were already
+classified and the new fixes came from adjacent parent/sidecar-discovered
+issues rather than newly consumed raw Claude IDs.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger, partial refund transfer-reversal evidence
+persistence, label clawback policy/runtime proof, Stripe webhook subscription
+dashboard evidence, Stripe Connect v2 loss-liability ops/legal decision, stale
+remote branch and old git author hygiene, Round 10 deferred cache/state-machine
+product designs that require product decisions rather than source guardrails,
+remaining EXPLAIN-dependent runtime query-plan validation beyond the existing
+source indexes, Stripe partial-refund runtime reconciliation proof, founding-
+maker permanence policy, remaining privacy/legal retention scope, cross-seller
+AI duplicate-detection product design, legacy enum cleanup/data-migration
+decisions, partial multi-seller checkout continuation design, deliberate BigInt
+money-column modeling, variant-adjusted unit-price floor policy, live-data
+reconciliation for historical seller shipping-rate currency drift, Clerk staff
+MFA and breached-password dashboard evidence, Clerk multi-account spam
+dashboard evidence, buyer-deletion live Stripe replay proof after source
+minimization, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public-bucket dashboard posture plus
+production smoke evidence and public-availability proof, HSTS preload
+submission decision, Vercel Analytics/Speed Insights product/privacy decision,
+homepage browser a11y/runtime proof beyond source fallback, deployed
+security-header runtime proof beyond source/config guardrails, and customer
+photo exact-count performance tradeoff.

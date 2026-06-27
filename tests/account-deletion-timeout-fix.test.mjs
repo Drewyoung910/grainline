@@ -58,6 +58,45 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     assert.match(accountDeletion, /source: "account_delete_stripe_reject_local_disable"/);
   });
 
+  it("expires, restores, and scrubs account checkout stock reservations during deletion", () => {
+    const accountDeletion = source("src/lib/accountDeletion.ts");
+    const cleanupStart = accountDeletion.indexOf("async function cleanupAccountCheckoutStockReservationsForDeletion");
+    const scrubStart = accountDeletion.indexOf("async function scrubCheckoutStockReservationsForDeletedAccount");
+    const anonymizeStart = accountDeletion.indexOf("export async function anonymizeUserAccount");
+    const transactionStart = accountDeletion.indexOf("const result = await prisma.$transaction");
+
+    assert.notEqual(cleanupStart, -1);
+    assert.notEqual(scrubStart, -1);
+    assert.notEqual(anonymizeStart, -1);
+    assert.notEqual(transactionStart, -1);
+    assert.ok(cleanupStart < anonymizeStart);
+    assert.ok(scrubStart < anonymizeStart);
+    assert.ok(
+      accountDeletion.indexOf("cleanupAccountCheckoutStockReservationsForDeletion({", anonymizeStart) <
+        transactionStart,
+      "best-effort Stripe/session cleanup should run before the large anonymization transaction",
+    );
+    assert.ok(
+      accountDeletion.indexOf("scrubCheckoutStockReservationsForDeletedAccount(tx", transactionStart) >
+        transactionStart,
+      "reservation identifier scrubbing should run inside the local anonymization transaction",
+    );
+    assert.match(accountDeletion, /ACCOUNT_DELETION_CHECKOUT_RESERVATION_CLEANUP_BATCH_SIZE = 50/);
+    assert.match(accountDeletion, /status: \{ in: \["RESERVED", "SESSION_CREATED"\] \}/);
+    assert.match(accountDeletion, /restoreCheckoutStockReservationOnce\(\{[\s\S]*reason: "account_deletion_no_session"/);
+    assert.match(accountDeletion, /stripe\.checkout\.sessions\.retrieve\(sessionId\)/);
+    assert.match(accountDeletion, /checkoutStockReservationRepairAction\(session\)/);
+    assert.match(accountDeletion, /action === "skip_paid_or_complete" \|\| action === "skip_unrecognized"/);
+    assert.match(accountDeletion, /stripe\.checkout\.sessions\.expire\(sessionId\)/);
+    assert.match(accountDeletion, /reason: "account_deletion_stripe_session_unpaid"/);
+    assert.match(accountDeletion, /source: "account_delete_checkout_reservation_cleanup"/);
+    assert.match(accountDeletion, /checkoutLockKey: `deleted:\$\{reservation\.id\}`/);
+    assert.match(accountDeletion, /payloadHash: "deleted"/);
+    assert.match(accountDeletion, /reservedItems: parseCheckoutStockReservationItems\(reservation\.reservedItems\) as Prisma\.InputJsonValue/);
+    assert.match(accountDeletion, /where: \{ buyerId: userId \},\s*data: \{ buyerId: null \}/);
+    assert.match(accountDeletion, /where: \{ sellerId: sellerProfileId \},\s*data: \{ sellerId: null \}/);
+  });
+
   it("writes a user-requested account deletion audit row before anonymization", () => {
     const accountDeletion = source("src/lib/accountDeletion.ts");
     const auditCreate = accountDeletion.indexOf('action: "USER_ACCOUNT_DELETE"');

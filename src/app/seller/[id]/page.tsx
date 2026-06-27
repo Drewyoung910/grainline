@@ -33,6 +33,7 @@ import { truncateText } from "@/lib/sanitize";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { isFirstPartyMediaUrl, normalizePublicHttpsUrl } from "@/lib/urlValidation";
 import { getCachedPublicSellerStats } from "@/lib/publicSellerStats";
+import { getCachedPublicSellerTopTags } from "@/lib/popularTags";
 
 const SOCIAL_LINK_ALLOWED_HOSTS = {
   Instagram: ["instagram.com"],
@@ -42,21 +43,6 @@ const SOCIAL_LINK_ALLOWED_HOSTS = {
 } satisfies Record<string, string[]>;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const SELLER_PROFILE_LISTING_PREVIEW_SIZE = 9;
-
-function topListingTags(rows: { tags: string[] }[]) {
-  const counts = new Map<string, number>();
-  for (const row of rows) {
-    for (const tag of row.tags) {
-      if (!tag) continue;
-      counts.set(tag, (counts.get(tag) ?? 0) + 1);
-    }
-  }
-
-  return [...counts.entries()]
-    .sort(([tagA, countA], [tagB, countB]) => countB - countA || tagA.localeCompare(tagB))
-    .slice(0, 8)
-    .map(([tag]) => tag);
-}
 
 const sellerProfileListingCardSelect = {
   id: true,
@@ -251,7 +237,7 @@ export default async function SellerPublicPage({
     activePublicListingCount,
     sellerRatingMap,
     publicSellerStats,
-    tagListingRows,
+    topTags,
     customerPhotos,
     customerPhotoTotal,
   ] = await Promise.all([
@@ -290,10 +276,7 @@ export default async function SellerPublicPage({
     prisma.listing.count({ where: publicListingWhere({ sellerId: seller.id }) }),
     getSellerRatingMap([seller.id]),
     getCachedPublicSellerStats(seller.id),
-    prisma.listing.findMany({
-      where: publicListingWhere({ sellerId: seller.id }),
-      select: { tags: true },
-    }),
+    getCachedPublicSellerTopTags(seller.id),
     prisma.reviewPhoto.findMany({
       where: {
         review: {
@@ -353,8 +336,6 @@ export default async function SellerPublicPage({
 
   const shopRating = sellerRatingMap.get(seller.id) ?? null;
   const { soldCount, avgShipDays } = publicSellerStats;
-
-  const topTags = topListingTags(tagListingRows);
   const memberSinceYear = seller.createdAt.getFullYear();
   const isNewSeller = soldCount === 0 && (shopRating?.count ?? 0) === 0;
   const showPickupMap = seller.allowLocalPickup && lat != null && lng != null;

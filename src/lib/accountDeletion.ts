@@ -14,6 +14,12 @@ import {
 import { supportRequestAccountExportWhere, supportRequestSlaDueAt } from "@/lib/supportRequest";
 import { invalidateAccountStateCache } from "@/lib/accountStateCache";
 import {
+  parseCheckoutStockReservationItems,
+  restoreCheckoutStockReservationOnce,
+} from "@/lib/checkoutStockRestore";
+import { checkoutStockReservationRepairAction } from "@/lib/checkoutStockReservationRepairState";
+import { stripe } from "@/lib/stripe";
+import {
   Prisma,
   EmailSuppressionReason,
 } from "@prisma/client";
@@ -40,6 +46,7 @@ export const ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
 const ACTIVE_CASE_STATUSES = ["OPEN", "IN_DISCUSSION", "PENDING_CLOSE", "UNDER_REVIEW"] as const;
 const ACTIVE_COMMISSION_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
 const ACCOUNT_DELETION_REDACTION_BATCH_SIZE = 500;
+const ACCOUNT_DELETION_CHECKOUT_RESERVATION_CLEANUP_BATCH_SIZE = 50;
 const ACCOUNT_DELETION_LOCK_TTL_SECONDS = 120;
 const DELETED_SUPPORT_REQUEST_EMAIL = "deleted-account@deleted.thegrainline.local";
 const DELETED_SUPPORT_REQUEST_MESSAGE = "[Support request removed after account deletion]";
@@ -76,6 +83,18 @@ type AccountDeletionMediaDb = Pick<
   Prisma.TransactionClient,
   "sellerProfile" | "reviewPhoto" | "commissionRequest" | "message" | "blogPost" | "directUpload"
 >;
+
+function accountDeletionCheckoutReservationWhere(
+  userId: string,
+  sellerProfileId?: string | null,
+): Prisma.CheckoutStockReservationWhereInput {
+  return {
+    OR: [
+      { buyerId: userId },
+      ...(sellerProfileId ? [{ sellerId: sellerProfileId }] : []),
+    ],
+  };
+}
 
 function chunks<T>(items: T[], size = ACCOUNT_DELETION_REDACTION_BATCH_SIZE) {
   const result: T[][] = [];
@@ -1179,6 +1198,181 @@ async function disableSellerOrderabilityAfterStripeReject(input: {
   }
 }
 
+async function cleanupAccountCheckoutStockReservationsForDeletion(input: {
+  userId: string;
+  sellerProfileId?: string | null;
+}) {
+  const reservations = await prisma.checkoutStockReservation.findMany({
+    where: {
+      ...accountDeletionCheckoutReservationWhere(input.userId, input.sellerProfileId),
+      status: { in: ["RESERVED", "SESSION_CREATED"] },
+    },
+    orderBy: { createdAt: "asc" },
+    take: ACCOUNT_DELETION_CHECKOUT_RESERVATION_CLEANUP_BATCH_SIZE,
+    select: { id: true, stripeSessionId: true },
+  });
+
+  let restored = 0;
+  let expired = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const reservation of reservations) {
+    try {
+      const sessionId = reservation.stripeSessionId;
+      if (!sessionId) {
+        const result = await restoreCheckoutStockReservationOnce({
+          reservationId: reservation.id,
+          reason: "account_deletion_no_session",
+        });
+        if (result.restored) restored += 1;
+        else skipped += 1;
+        continue;
+      }
+
+      const orderExists = await prisma.order.findFirst({
+        where: { stripeSessionId: sessionId },
+        select: { id: true },
+      });
+      if (orderExists) {
+        await restoreCheckoutStockReservationOnce({
+          reservationId: reservation.id,
+          sessionId,
+          reason: "account_deletion_order_exists",
+        });
+        skipped += 1;
+        continue;
+      }
+
+      let session: { status?: string | null; payment_status?: string | null };
+      try {
+        session = await stripe.checkout.sessions.retrieve(sessionId);
+      } catch (error) {
+        failed += 1;
+        Sentry.captureException(error, {
+          level: "warning",
+          tags: { source: "account_delete_checkout_reservation_session_retrieve" },
+          extra: {
+            userId: input.userId,
+            sellerProfileId: input.sellerProfileId,
+            reservationId: reservation.id,
+            stripeSessionId: sessionId,
+          },
+        });
+        continue;
+      }
+
+      const action = checkoutStockReservationRepairAction(session);
+      if (action === "skip_paid_or_complete" || action === "skip_unrecognized") {
+        skipped += 1;
+        Sentry.captureMessage("Account deletion skipped checkout reservation restore for Stripe session state", {
+          level: "warning",
+          tags: { source: "account_delete_checkout_reservation_skip" },
+          extra: {
+            userId: input.userId,
+            sellerProfileId: input.sellerProfileId,
+            reservationId: reservation.id,
+            stripeSessionId: sessionId,
+            sessionStatus: session.status,
+            paymentStatus: session.payment_status,
+            action,
+          },
+        });
+        continue;
+      }
+
+      if (action === "expire_and_restore") {
+        try {
+          await stripe.checkout.sessions.expire(sessionId);
+          expired += 1;
+        } catch (error) {
+          failed += 1;
+          Sentry.captureException(error, {
+            level: "warning",
+            tags: { source: "account_delete_checkout_reservation_session_expire" },
+            extra: {
+              userId: input.userId,
+              sellerProfileId: input.sellerProfileId,
+              reservationId: reservation.id,
+              stripeSessionId: sessionId,
+            },
+          });
+          continue;
+        }
+      }
+
+      const result = await restoreCheckoutStockReservationOnce({
+        reservationId: reservation.id,
+        sessionId,
+        reason: "account_deletion_stripe_session_unpaid",
+      });
+      if (result.restored) restored += 1;
+      else skipped += 1;
+    } catch (error) {
+      failed += 1;
+      Sentry.captureException(error, {
+        level: "warning",
+        tags: { source: "account_delete_checkout_reservation_cleanup" },
+        extra: {
+          userId: input.userId,
+          sellerProfileId: input.sellerProfileId,
+          reservationId: reservation.id,
+        },
+      });
+    }
+  }
+
+  if (reservations.length > 0) {
+    Sentry.captureMessage("Account deletion checkout reservation cleanup completed", {
+      level: failed > 0 ? "warning" : "info",
+      tags: { source: "account_delete_checkout_reservation_cleanup" },
+      extra: {
+        userId: input.userId,
+        sellerProfileId: input.sellerProfileId,
+        scanned: reservations.length,
+        restored,
+        expired,
+        skipped,
+        failed,
+      },
+    });
+  }
+}
+
+async function scrubCheckoutStockReservationsForDeletedAccount(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  sellerProfileId?: string | null,
+) {
+  const reservations = await tx.checkoutStockReservation.findMany({
+    where: accountDeletionCheckoutReservationWhere(userId, sellerProfileId),
+    select: { id: true, reservedItems: true },
+  });
+
+  for (const reservation of reservations) {
+    await tx.checkoutStockReservation.update({
+      where: { id: reservation.id },
+      data: {
+        checkoutLockKey: `deleted:${reservation.id}`,
+        payloadHash: "deleted",
+        reservedItems: parseCheckoutStockReservationItems(reservation.reservedItems) as Prisma.InputJsonValue,
+      },
+    });
+  }
+
+  await tx.checkoutStockReservation.updateMany({
+    where: { buyerId: userId },
+    data: { buyerId: null },
+  });
+
+  if (sellerProfileId) {
+    await tx.checkoutStockReservation.updateMany({
+      where: { sellerId: sellerProfileId },
+      data: { sellerId: null },
+    });
+  }
+}
+
 async function deferProviderDeletedAccountAnonymization(input: {
   userId: string;
   clerkId: string;
@@ -1275,6 +1469,7 @@ export async function anonymizeUserAccount(
       deletedAt: true,
       sellerProfile: {
         select: {
+          id: true,
           stripeAccountId: true,
           stripeAccountVersion: true,
           stripeControllerType: true,
@@ -1306,6 +1501,16 @@ export async function anonymizeUserAccount(
       stripeControllerType,
     });
   }
+  await cleanupAccountCheckoutStockReservationsForDeletion({
+    userId,
+    sellerProfileId: account.sellerProfile?.id ?? null,
+  }).catch((error) => {
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "account_delete_checkout_reservation_cleanup" },
+      extra: { userId, sellerProfileId: account.sellerProfile?.id ?? null },
+    });
+  });
 
   const result = await prisma.$transaction(async (tx) => {
     const user = await tx.user.findUnique({
@@ -1417,6 +1622,7 @@ export async function anonymizeUserAccount(
     await tx.favorite.deleteMany({ where: { userId: user.id } });
     await tx.savedSearch.deleteMany({ where: { userId: user.id } });
     await tx.stockNotification.deleteMany({ where: { userId: user.id } });
+    await scrubCheckoutStockReservationsForDeletedAccount(tx, user.id, user.sellerProfile?.id ?? null);
     await tx.notification.deleteMany({ where: { userId: user.id } });
     await tx.savedBlogPost.deleteMany({ where: { userId: user.id } });
     await tx.reviewVote.deleteMany({ where: { userId: user.id } });

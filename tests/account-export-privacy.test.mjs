@@ -166,6 +166,9 @@ describe("account export privacy coverage", () => {
     assert.match(reservationMap, /buyerId: exportedAsBuyer \? reservation\.buyerId : null/);
     assert.match(reservationMap, /sellerId: exportedAsSeller \? reservation\.sellerId : null/);
     assert.match(reservationMap, /stripeSessionId: exportedAsBuyer \? reservation\.stripeSessionId : null/);
+    assert.match(route, /import \{ parseCheckoutStockReservationItems \} from "@\/lib\/checkoutStockRestore"/);
+    assert.match(reservationMap, /reservedItems: parseCheckoutStockReservationItems\(reservation\.reservedItems\)/);
+    assert.doesNotMatch(reservationMap, /reservedItems: reservation\.reservedItems/);
     assert.match(payload, /checkoutStockReservations: unknown\[\]/);
     assert.match(payload, /checkoutStockReservations: data\.checkoutStockReservations/);
   });
