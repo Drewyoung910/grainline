@@ -365,6 +365,7 @@ describe("Stripe webhook state helpers", () => {
       }),
       {
         reason: "Seller Stripe account was disabled before payment completion.",
+        buyerInvalidReason: null,
         buyerUserId: "buyer_1",
         sellerUserIds: ["user_1"],
       },
@@ -377,6 +378,7 @@ describe("Stripe webhook state helpers", () => {
       }),
       {
         reason: "Buyer account was suspended before payment completion. Listing was no longer active before payment completion.",
+        buyerInvalidReason: "Buyer account was suspended before payment completion.",
         buyerUserId: null,
         sellerUserIds: [],
       },

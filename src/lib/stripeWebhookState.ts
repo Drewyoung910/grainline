@@ -53,6 +53,7 @@ export type CheckoutListingState = {
 
 export type CheckoutInvalidReasonState = {
   reason: string;
+  buyerInvalidReason: string | null;
   buyerUserId: string | null;
   sellerUserIds: string[];
 };
@@ -410,6 +411,7 @@ export function checkoutInvalidReasonState(input: {
       ...[...invalidSellers.values()].map((value) => value.reason),
       ...invalidListings.values(),
     ].filter(Boolean).join(" "),
+    buyerInvalidReason: buyerReason,
     buyerUserId: effectiveBuyerUserId,
     sellerUserIds: [...invalidSellers.values()]
       .map((value) => value.sellerUserId)

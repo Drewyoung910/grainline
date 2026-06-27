@@ -10,10 +10,13 @@ import { checkoutStockReservationRepairAction } from "@/lib/checkoutStockReserva
 export const CHECKOUT_STOCK_RESERVATION_TTL_MS = 31 * 60 * 1000;
 export const CHECKOUT_STOCK_RESERVATION_STALE_GRACE_MS = 2 * 60 * 60 * 1000;
 export const CHECKOUT_STOCK_RESERVATION_STALE_BATCH_SIZE = 50;
+export const CHECKOUT_STOCK_RESERVATION_TERMINAL_RETENTION_DAYS = 30;
+export const CHECKOUT_STOCK_RESERVATION_TERMINAL_PRUNE_BATCH_SIZE = 100;
 
 const CHECKOUT_STOCK_RESERVATION_RESTORABLE_STATUSES = ["RESERVED", "SESSION_CREATED"] as const;
 type CheckoutStockReservationRestorableStatus =
   (typeof CHECKOUT_STOCK_RESERVATION_RESTORABLE_STATUSES)[number];
+const CHECKOUT_STOCK_RESERVATION_TERMINAL_STATUSES = ["COMPLETED", "RESTORED"] as const;
 
 export type CheckoutStockRestoreLineItem = {
   quantity?: number | null;
@@ -82,6 +85,16 @@ export function checkoutStockReservationMetadata(reservationId: string | null | 
 
 export function checkoutStockReservationStaleCutoff(now = new Date()) {
   return new Date(now.getTime() - CHECKOUT_STOCK_RESERVATION_STALE_GRACE_MS);
+}
+
+export function checkoutStockReservationTerminalRetentionCutoff({
+  now = new Date(),
+  retentionDays = CHECKOUT_STOCK_RESERVATION_TERMINAL_RETENTION_DAYS,
+}: {
+  now?: Date;
+  retentionDays?: number;
+} = {}) {
+  return new Date(now.getTime() - retentionDays * 24 * 60 * 60 * 1000);
 }
 
 export function parseCheckoutStockReservationItems(value: unknown): RestorableStockItem[] {
@@ -526,6 +539,38 @@ export async function restoreStaleCheckoutStockReservations(input: {
     errors,
     hasMore: staleReservations.length === take,
   };
+}
+
+export async function pruneTerminalCheckoutStockReservations(input: {
+  now?: Date;
+  take?: number;
+  retentionDays?: number;
+} = {}) {
+  const cutoff = checkoutStockReservationTerminalRetentionCutoff({
+    now: input.now ?? new Date(),
+    retentionDays: input.retentionDays,
+  });
+  const take = input.take ?? CHECKOUT_STOCK_RESERVATION_TERMINAL_PRUNE_BATCH_SIZE;
+  const terminalRows = await prisma.checkoutStockReservation.findMany({
+    where: {
+      status: { in: [...CHECKOUT_STOCK_RESERVATION_TERMINAL_STATUSES] },
+      updatedAt: { lt: cutoff },
+    },
+    orderBy: { updatedAt: "asc" },
+    take,
+    select: { id: true },
+  });
+  if (terminalRows.length === 0) {
+    return { pruned: 0, cutoff: cutoff.toISOString() };
+  }
+
+  const deleted = await prisma.checkoutStockReservation.deleteMany({
+    where: {
+      id: { in: terminalRows.map((row) => row.id) },
+      status: { in: [...CHECKOUT_STOCK_RESERVATION_TERMINAL_STATUSES] },
+    },
+  });
+  return { pruned: deleted.count, cutoff: cutoff.toISOString() };
 }
 
 async function claimCheckoutStockRestore(tx: Prisma.TransactionClient, sessionId: string) {

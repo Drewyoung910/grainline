@@ -60,6 +60,22 @@ describe("durable checkout stock reservation guardrails", () => {
     assert.match(restore, /let reason = "stale_no_session"/);
   });
 
+  it("prunes terminal checkout stock reservations after the replay/debug window", () => {
+    const cronRoute = source("src/app/api/cron/checkout-stock-reservations/route.ts");
+    const restore = source("src/lib/checkoutStockRestore.ts");
+
+    assert.match(restore, /CHECKOUT_STOCK_RESERVATION_TERMINAL_RETENTION_DAYS = 30/);
+    assert.match(restore, /retentionDays \* 24 \* 60 \* 60 \* 1000/);
+    assert.match(restore, /CHECKOUT_STOCK_RESERVATION_TERMINAL_PRUNE_BATCH_SIZE = 100/);
+    assert.match(restore, /CHECKOUT_STOCK_RESERVATION_TERMINAL_STATUSES = \["COMPLETED", "RESTORED"\]/);
+    assert.match(restore, /status: \{ in: \[\.\.\.CHECKOUT_STOCK_RESERVATION_TERMINAL_STATUSES\] \}/);
+    assert.match(restore, /updatedAt: \{ lt: cutoff \}/);
+    assert.match(restore, /orderBy: \{ updatedAt: "asc" \}/);
+    assert.match(restore, /await prisma\.checkoutStockReservation\.deleteMany\(\{/);
+    assert.match(cronRoute, /pruneTerminalCheckoutStockReservations\(\{/);
+    assert.match(cronRoute, /const result = \{ \.\.\.repair, terminalPrune \}/);
+  });
+
   it("repairs stale Stripe-session reservations only when the session is unpaid and restorable", () => {
     const restore = source("src/lib/checkoutStockRestore.ts");
 

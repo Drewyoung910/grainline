@@ -5,6 +5,8 @@ import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 import {
   CHECKOUT_STOCK_RESERVATION_STALE_BATCH_SIZE,
+  CHECKOUT_STOCK_RESERVATION_TERMINAL_PRUNE_BATCH_SIZE,
+  pruneTerminalCheckoutStockReservations,
   restoreStaleCheckoutStockReservations,
 } from "@/lib/checkoutStockRestore";
 import { HTTP_STATUS } from "@/lib/httpStatus";
@@ -27,9 +29,13 @@ export async function GET(request: Request) {
     if (!cronRun.acquired) return NextResponse.json(skippedCronRunResponse(cronRun));
 
     try {
-      const result = await restoreStaleCheckoutStockReservations({
+      const repair = await restoreStaleCheckoutStockReservations({
         take: CHECKOUT_STOCK_RESERVATION_STALE_BATCH_SIZE,
       });
+      const terminalPrune = await pruneTerminalCheckoutStockReservations({
+        take: CHECKOUT_STOCK_RESERVATION_TERMINAL_PRUNE_BATCH_SIZE,
+      });
+      const result = { ...repair, terminalPrune };
       await completeCronRun(cronRun, result);
       return NextResponse.json(result);
     } catch (error) {

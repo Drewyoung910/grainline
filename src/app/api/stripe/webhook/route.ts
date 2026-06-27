@@ -103,6 +103,92 @@ function paymentEventDescription(value: string | null | undefined) {
   return description || null;
 }
 
+type CheckoutBuyerPiiOrderData = {
+  buyerEmail: string | null;
+  buyerName: string | null;
+  shipToLine1: string | null;
+  shipToLine2: string | null;
+  shipToCity: string | null;
+  shipToState: string | null;
+  shipToPostalCode: string | null;
+  shipToCountry: string | null;
+  quotedToName: string | null;
+  quotedToPhone: string | null;
+  quotedToCity: string | null;
+  quotedToState: string | null;
+  quotedToPostalCode: string | null;
+  quotedToCountry: string | null;
+  shippoShipmentId: string | null;
+  shippoRateObjectId: string | null;
+  giftNote: string | null;
+  buyerDataPurgedAt: Date | null;
+};
+
+function checkoutBuyerPiiOrderData(input: {
+  buyerInvalidReason: string | null;
+  buyerEmail?: string | null;
+  buyerName?: string | null;
+  shipToLine1?: string | null;
+  shipToLine2?: string | null;
+  shipToCity?: string | null;
+  shipToState?: string | null;
+  shipToPostalCode?: string | null;
+  shipToCountry?: string | null;
+  quotedToName?: string | null;
+  quotedToPhone?: string | null;
+  quotedToCity?: string | null;
+  quotedToState?: string | null;
+  quotedToPostalCode?: string | null;
+  quotedToCountry?: string | null;
+  shippoShipmentId?: string | null;
+  shippoRateObjectId?: string | null;
+  giftNote?: string | null;
+}): CheckoutBuyerPiiOrderData {
+  if (input.buyerInvalidReason) {
+    return {
+      buyerEmail: null,
+      buyerName: null,
+      shipToLine1: null,
+      shipToLine2: null,
+      shipToCity: null,
+      shipToState: null,
+      shipToPostalCode: null,
+      shipToCountry: null,
+      quotedToName: null,
+      quotedToPhone: null,
+      quotedToCity: null,
+      quotedToState: null,
+      quotedToPostalCode: null,
+      quotedToCountry: null,
+      shippoShipmentId: null,
+      shippoRateObjectId: null,
+      giftNote: null,
+      buyerDataPurgedAt: new Date(),
+    };
+  }
+
+  return {
+    buyerEmail: input.buyerEmail ?? null,
+    buyerName: input.buyerName ?? null,
+    shipToLine1: input.shipToLine1 ?? null,
+    shipToLine2: input.shipToLine2 ?? null,
+    shipToCity: input.shipToCity ?? null,
+    shipToState: input.shipToState ?? null,
+    shipToPostalCode: input.shipToPostalCode ?? null,
+    shipToCountry: input.shipToCountry ?? null,
+    quotedToName: input.quotedToName ?? null,
+    quotedToPhone: input.quotedToPhone ?? null,
+    quotedToCity: input.quotedToCity ?? null,
+    quotedToState: input.quotedToState ?? null,
+    quotedToPostalCode: input.quotedToPostalCode ?? null,
+    quotedToCountry: input.quotedToCountry ?? null,
+    shippoShipmentId: input.shippoShipmentId ?? null,
+    shippoRateObjectId: input.shippoRateObjectId ?? null,
+    giftNote: input.giftNote ?? null,
+    buyerDataPurgedAt: null,
+  };
+}
+
 type CheckoutSessionShippingDetails = {
   shipping_details?: {
     address?: Record<string, string | null> | null;
@@ -1534,6 +1620,26 @@ export async function POST(req: Request) {
             listings: cartListingIds.map((listingId) => transactionListingById.get(listingId)),
             buyerUserId: buyerId,
           });
+          const cartBuyerPii = checkoutBuyerPiiOrderData({
+            buyerInvalidReason: cartInvalidState.buyerInvalidReason,
+            buyerEmail,
+            buyerName,
+            shipToLine1,
+            shipToLine2,
+            shipToCity,
+            shipToState,
+            shipToPostalCode,
+            shipToCountry,
+            quotedToName: sessionMeta.quotedToName,
+            quotedToPhone: sessionMeta.quotedToPhone,
+            quotedToCity: quotedShipToCity || null,
+            quotedToState: quotedShipToState || null,
+            quotedToPostalCode: quotedShipToPostalCode || null,
+            quotedToCountry: quotedShipToCountry || null,
+            shippoShipmentId,
+            shippoRateObjectId,
+            giftNote,
+          });
 
           const order = await tx.order.create({
             data: {
@@ -1547,14 +1653,14 @@ export async function POST(req: Request) {
               shippingAmountCents,
               taxAmountCents,
 
-              buyerEmail,
-              buyerName,
-              shipToLine1,
-              shipToLine2,
-              shipToCity,
-              shipToState,
-              shipToPostalCode,
-              shipToCountry,
+              buyerEmail: cartBuyerPii.buyerEmail,
+              buyerName: cartBuyerPii.buyerName,
+              shipToLine1: cartBuyerPii.shipToLine1,
+              shipToLine2: cartBuyerPii.shipToLine2,
+              shipToCity: cartBuyerPii.shipToCity,
+              shipToState: cartBuyerPii.shipToState,
+              shipToPostalCode: cartBuyerPii.shipToPostalCode,
+              shipToCountry: cartBuyerPii.shipToCountry,
 
               stripePaymentIntentId: paymentIntentId,
               stripeChargeId,
@@ -1569,12 +1675,12 @@ export async function POST(req: Request) {
               shippingService,
               shippingEta,
 
-              quotedToName: sessionMeta.quotedToName ?? null,
-              quotedToPhone: sessionMeta.quotedToPhone ?? null,
-              quotedToCity: quotedShipToCity || null,
-              quotedToState: quotedShipToState || null,
-              quotedToPostalCode: quotedShipToPostalCode || null,
-              quotedToCountry: quotedShipToCountry || null,
+              quotedToName: cartBuyerPii.quotedToName,
+              quotedToPhone: cartBuyerPii.quotedToPhone,
+              quotedToCity: cartBuyerPii.quotedToCity,
+              quotedToState: cartBuyerPii.quotedToState,
+              quotedToPostalCode: cartBuyerPii.quotedToPostalCode,
+              quotedToCountry: cartBuyerPii.quotedToCountry,
               quotedShippingAmountCents: quotedShippingAmountCents ?? null,
 
               reviewNeeded: reviewNeeded || !!cartInvalidState.reason,
@@ -1584,15 +1690,16 @@ export async function POST(req: Request) {
                   ? "Address and/or quoted amount changed at Checkout."
                   : null,
 
-              shippoShipmentId,
-              shippoRateObjectId,
+              shippoShipmentId: cartBuyerPii.shippoShipmentId,
+              shippoRateObjectId: cartBuyerPii.shippoRateObjectId,
 
               processingDeadline: cartProcessingDeadline,
               estimatedDeliveryDate: cartEstDelivery,
 
-              giftNote,
+              giftNote: cartBuyerPii.giftNote,
               giftWrapping,
               giftWrappingPriceCents,
+              buyerDataPurgedAt: cartBuyerPii.buyerDataPurgedAt,
             },
           });
           await logSystemActionOrThrow({
@@ -1880,6 +1987,26 @@ export async function POST(req: Request) {
             listings: [transactionListing],
             buyerUserId: buyerId,
           });
+          const singleBuyerPii = checkoutBuyerPiiOrderData({
+            buyerInvalidReason: singleInvalidState.buyerInvalidReason,
+            buyerEmail,
+            buyerName,
+            shipToLine1,
+            shipToLine2,
+            shipToCity,
+            shipToState,
+            shipToPostalCode,
+            shipToCountry,
+            quotedToName: sessionMeta.quotedToName,
+            quotedToPhone: sessionMeta.quotedToPhone,
+            quotedToCity: quotedShipToCity || null,
+            quotedToState: quotedShipToState || null,
+            quotedToPostalCode: quotedShipToPostalCode || null,
+            quotedToCountry: quotedShipToCountry || null,
+            shippoShipmentId,
+            shippoRateObjectId,
+            giftNote,
+          });
 
           const order = await tx.order.create({
             data: {
@@ -1893,14 +2020,14 @@ export async function POST(req: Request) {
               shippingAmountCents,
               taxAmountCents,
 
-              buyerEmail,
-              buyerName,
-              shipToLine1,
-              shipToLine2,
-              shipToCity,
-              shipToState,
-              shipToPostalCode,
-              shipToCountry,
+              buyerEmail: singleBuyerPii.buyerEmail,
+              buyerName: singleBuyerPii.buyerName,
+              shipToLine1: singleBuyerPii.shipToLine1,
+              shipToLine2: singleBuyerPii.shipToLine2,
+              shipToCity: singleBuyerPii.shipToCity,
+              shipToState: singleBuyerPii.shipToState,
+              shipToPostalCode: singleBuyerPii.shipToPostalCode,
+              shipToCountry: singleBuyerPii.shipToCountry,
 
               stripePaymentIntentId: paymentIntentId,
               stripeChargeId,
@@ -1933,12 +2060,12 @@ export async function POST(req: Request) {
               shippingService,
               shippingEta,
 
-              quotedToName: sessionMeta.quotedToName ?? null,
-              quotedToPhone: sessionMeta.quotedToPhone ?? null,
-              quotedToCity: quotedShipToCity || null,
-              quotedToState: quotedShipToState || null,
-              quotedToPostalCode: quotedShipToPostalCode || null,
-              quotedToCountry: quotedShipToCountry || null,
+              quotedToName: singleBuyerPii.quotedToName,
+              quotedToPhone: singleBuyerPii.quotedToPhone,
+              quotedToCity: singleBuyerPii.quotedToCity,
+              quotedToState: singleBuyerPii.quotedToState,
+              quotedToPostalCode: singleBuyerPii.quotedToPostalCode,
+              quotedToCountry: singleBuyerPii.quotedToCountry,
               quotedShippingAmountCents: quotedShippingAmountCents ?? null,
 
               reviewNeeded: reviewNeeded || !!singleInvalidState.reason,
@@ -1948,15 +2075,16 @@ export async function POST(req: Request) {
                   ? "Address and/or quoted amount changed at Checkout."
                   : null,
 
-              shippoShipmentId,
-              shippoRateObjectId,
+              shippoShipmentId: singleBuyerPii.shippoShipmentId,
+              shippoRateObjectId: singleBuyerPii.shippoRateObjectId,
 
               processingDeadline: singleProcessingDeadline,
               estimatedDeliveryDate: singleEstDelivery,
 
-              giftNote,
+              giftNote: singleBuyerPii.giftNote,
               giftWrapping,
               giftWrappingPriceCents,
+              buyerDataPurgedAt: singleBuyerPii.buyerDataPurgedAt,
             },
           });
           await logSystemActionOrThrow({

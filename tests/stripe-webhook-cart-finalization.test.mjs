@@ -68,4 +68,45 @@ describe("Stripe cart checkout webhook finalization", () => {
       "single-listing finalization must pass transaction-fresh listing state into checkoutInvalidReasonState",
     );
   });
+
+  it("minimizes buyer PII on buyer-invalid checkout replay orders", () => {
+    const helperStart = webhookSource.indexOf("function checkoutBuyerPiiOrderData");
+    const helperEnd = webhookSource.indexOf("type CheckoutSessionShippingDetails", helperStart);
+    const helper = webhookSource.slice(helperStart, helperEnd);
+
+    assert.ok(helperStart >= 0 && helperEnd > helperStart, "webhook must centralize buyer PII order data");
+    assert.match(helper, /if \(input\.buyerInvalidReason\)/);
+    for (const field of [
+      "buyerEmail",
+      "buyerName",
+      "shipToLine1",
+      "shipToLine2",
+      "shipToCity",
+      "shipToState",
+      "shipToPostalCode",
+      "shipToCountry",
+      "quotedToName",
+      "quotedToPhone",
+      "quotedToCity",
+      "quotedToState",
+      "quotedToPostalCode",
+      "quotedToCountry",
+      "shippoShipmentId",
+      "shippoRateObjectId",
+      "giftNote",
+    ]) {
+      assert.match(helper, new RegExp(`${field}: null`), `buyer-invalid checkout must null ${field}`);
+    }
+    assert.match(helper, /buyerDataPurgedAt: new Date\(\)/);
+    assert.match(
+      webhookSource,
+      /buyerInvalidReason: cartInvalidState\.buyerInvalidReason,[\s\S]*?buyerEmail: cartBuyerPii\.buyerEmail,[\s\S]*?shippoShipmentId: cartBuyerPii\.shippoShipmentId,[\s\S]*?giftNote: cartBuyerPii\.giftNote,[\s\S]*?buyerDataPurgedAt: cartBuyerPii\.buyerDataPurgedAt,/,
+      "cart checkout order creation must use the buyer PII helper",
+    );
+    assert.match(
+      webhookSource,
+      /buyerInvalidReason: singleInvalidState\.buyerInvalidReason,[\s\S]*?buyerEmail: singleBuyerPii\.buyerEmail,[\s\S]*?shippoShipmentId: singleBuyerPii\.shippoShipmentId,[\s\S]*?giftNote: singleBuyerPii\.giftNote,[\s\S]*?buyerDataPurgedAt: singleBuyerPii\.buyerDataPurgedAt,/,
+      "single-listing checkout order creation must use the buyer PII helper",
+    );
+  });
 });
