@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
-import { resolveListingVariantSelection } from "@/lib/listingVariants";
+import { resolveListingVariantSelection, validateVariantUnitPriceCents } from "@/lib/listingVariants";
 import { cartMutationRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
@@ -128,8 +128,9 @@ export async function POST(req: Request) {
     }
 
     const totalPriceCents = listing.priceCents + variantResolution.variantAdjustCents;
-    if (totalPriceCents < 1) {
-      return privateJson({ error: "Variant selection results in an invalid price." }, { status: HTTP_STATUS.BAD_REQUEST });
+    const unitPriceError = validateVariantUnitPriceCents(totalPriceCents);
+    if (unitPriceError) {
+      return privateJson({ error: unitPriceError }, { status: HTTP_STATUS.BAD_REQUEST });
     }
 
     const variantKey = variantResolution.variantKey;

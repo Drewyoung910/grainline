@@ -54,7 +54,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: `Customer photos from ${name} | Grainline`,
     description: `Real customer photos from buyers of ${name}'s handmade woodworking pieces.`,
-    alternates: { canonical: `https://thegrainline.com/seller/${sellerId}/customer-photos` },
+    alternates: { canonical: `https://thegrainline.com${publicSellerPath(seller.id, name)}/customer-photos` },
   };
 }
 

@@ -2,7 +2,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
-import { resolveListingVariantSelection } from "@/lib/listingVariants";
+import { resolveListingVariantSelection, validateVariantUnitPriceCents } from "@/lib/listingVariants";
 import { cartItemExceedsLiveStock } from "@/lib/stockMutationState";
 import { cartReadRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { DEFAULT_CURRENCY } from "@/lib/money";
@@ -89,7 +89,7 @@ export async function GET() {
       const livePriceCents = variantResolution.ok
         ? ci.listing.priceCents + variantResolution.variantAdjustCents
         : ci.listing.priceCents;
-      const variantUnavailable = !variantResolution.ok;
+      const variantUnavailable = !variantResolution.ok || validateVariantUnitPriceCents(livePriceCents) !== null;
       const maxQuantity = ci.listing.listingType === "MADE_TO_ORDER"
         ? 1
         : Math.min(99, Math.max(0, ci.listing.stockQuantity ?? 0));

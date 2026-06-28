@@ -162,6 +162,55 @@ describe("schema drift follow-ups", () => {
     }
   });
 
+  it("protects raw-managed hot-path and blog title search indexes", () => {
+    const expectedIndexes = [
+      {
+        name: "Listing_qualityScore_visible_idx",
+        create:
+          /CREATE INDEX(?: CONCURRENTLY)? IF NOT EXISTS "Listing_qualityScore_visible_idx"[\s\S]*ON "Listing" \("qualityScore" DESC\)[\s\S]*WHERE "status" = 'ACTIVE' AND "isPrivate" = false/,
+      },
+      {
+        name: "Order_buyerId_paidAt_idx",
+        create:
+          /CREATE INDEX(?: CONCURRENTLY)? IF NOT EXISTS "Order_buyerId_paidAt_idx"[\s\S]*ON "Order" \("buyerId", "paidAt" DESC\)[\s\S]*WHERE "paidAt" IS NOT NULL/,
+      },
+      {
+        name: "Message_conversationId_createdAt_desc_idx",
+        create:
+          /CREATE INDEX(?: CONCURRENTLY)? IF NOT EXISTS "Message_conversationId_createdAt_desc_idx"[\s\S]*ON "Message" \("conversationId", "createdAt" DESC\)/,
+      },
+      {
+        name: "User_banned_deletedAt_idx",
+        create:
+          /CREATE INDEX(?: CONCURRENTLY)? IF NOT EXISTS "User_banned_deletedAt_idx"[\s\S]*ON "User" \("banned", "deletedAt"\)[\s\S]*WHERE "banned" = true OR "deletedAt" IS NOT NULL/,
+      },
+      {
+        name: "OrderPaymentEvent_orderId_eventType_createdAt_idx",
+        create:
+          /CREATE INDEX(?: CONCURRENTLY)? IF NOT EXISTS "OrderPaymentEvent_orderId_eventType_createdAt_idx"[\s\S]*ON "OrderPaymentEvent" \("orderId", "eventType", "createdAt" DESC\)/,
+      },
+      {
+        name: "BlogPost_title_trgm_published_idx",
+        create:
+          /CREATE INDEX(?: CONCURRENTLY)? IF NOT EXISTS "BlogPost_title_trgm_published_idx"[\s\S]*ON "BlogPost" USING GIN \("title" gin_trgm_ops\)[\s\S]*WHERE "status" = 'PUBLISHED'/,
+      },
+    ];
+
+    for (const expected of expectedIndexes) {
+      const events = [];
+      for (const { name, sql } of migrationFiles()) {
+        if (new RegExp(`DROP INDEX[\\s\\S]*"${expected.name}"`).test(sql)) {
+          events.push({ name, type: "drop" });
+        }
+        if (expected.create.test(sql)) {
+          events.push({ name, type: "create" });
+        }
+      }
+
+      assert.equal(events.at(-1)?.type, "create", `${expected.name} should not be dropped after its final create`);
+    }
+  });
+
   it("protects raw-managed seller display-name trigram indexes", () => {
     const expectedIndexes = [
       {

@@ -5,7 +5,7 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { checkoutRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { isFallbackRate } from "@/types/checkout";
 import { shippingRateExpiresAtIsTooFarFuture, verifyRate } from "@/lib/shipping-token";
-import { resolveListingVariantSelection } from "@/lib/listingVariants";
+import { resolveListingVariantSelection, validateVariantUnitPriceCents } from "@/lib/listingVariants";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { calculateCheckoutAmounts } from "@/lib/checkoutAmounts";
 import { stripeStatementDescriptorSuffix } from "@/lib/stripeStatementDescriptor";
@@ -263,8 +263,9 @@ export async function POST(req: Request) {
     const selectedVariantLabels = variantResolution.selectedVariantLabels;
     const selectedVariantsSnapshot = variantResolution.selectedVariantsSnapshot;
     const unitPriceCents = listing.priceCents + variantResolution.variantAdjustCents;
-    if (unitPriceCents < 1) {
-      return privateJson({ error: "Variant selection results in an invalid price." }, { status: HTTP_STATUS.BAD_REQUEST });
+    const unitPriceError = validateVariantUnitPriceCents(unitPriceCents);
+    if (unitPriceError) {
+      return privateJson({ error: unitPriceError }, { status: HTTP_STATUS.BAD_REQUEST });
     }
 
     // Resolve shipping amount from the signed selected rate.

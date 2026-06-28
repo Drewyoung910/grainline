@@ -129,6 +129,16 @@ export function validateVariantPriceAdjustCents(value: number): string | null {
   return null;
 }
 
+export function validateVariantUnitPriceCents(value: number): string | null {
+  if (!Number.isSafeInteger(value)) {
+    return "Variant selection results in an invalid price.";
+  }
+  if (value < MIN_VARIANT_UNIT_PRICE_CENTS || value > MAX_VARIANT_UNIT_PRICE_CENTS) {
+    return "Variant selection results in an invalid price.";
+  }
+  return null;
+}
+
 export function validateVariantGroupsForBasePrice(
   variantGroups: Array<{ options: Array<{ label: string; priceAdjustCents: number }> }>,
   basePriceCents: number,

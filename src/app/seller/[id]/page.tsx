@@ -43,6 +43,7 @@ const SOCIAL_LINK_ALLOWED_HOSTS = {
 } satisfies Record<string, string[]>;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const SELLER_PROFILE_LISTING_PREVIEW_SIZE = 9;
+const CUSTOMER_PHOTO_PREVIEW_SIZE = 12;
 
 const sellerProfileListingCardSelect = {
   id: true,
@@ -238,8 +239,7 @@ export default async function SellerPublicPage({
     sellerRatingMap,
     publicSellerStats,
     topTags,
-    customerPhotos,
-    customerPhotoTotal,
+    customerPhotoRows,
   ] = await Promise.all([
     Promise.all([
       prisma.follow.count({ where: { sellerProfileId: seller.id } }),
@@ -286,21 +286,12 @@ export default async function SellerPublicPage({
         },
       },
       orderBy: [{ review: { createdAt: "desc" } }, { id: "desc" }],
-      take: 12,
+      take: CUSTOMER_PHOTO_PREVIEW_SIZE + 1,
       select: {
         id: true,
         url: true,
         altText: true,
         review: { select: { listingId: true, reviewer: { select: { id: true } }, listing: { select: { title: true } } } },
-      },
-    }),
-    prisma.reviewPhoto.count({
-      where: {
-        review: {
-          listing: publicListingDetailWhere({ sellerId: seller.id }),
-          reviewer: { banned: false, deletedAt: null },
-          ...(blockedUserIds.size > 0 ? { reviewerId: { notIn: [...blockedUserIds] } } : {}),
-        },
       },
     }),
   ]);
@@ -340,6 +331,8 @@ export default async function SellerPublicPage({
   const isNewSeller = soldCount === 0 && (shopRating?.count ?? 0) === 0;
   const showPickupMap = seller.allowLocalPickup && lat != null && lng != null;
 
+  const hasMoreCustomerPhotos = customerPhotoRows.length > CUSTOMER_PHOTO_PREVIEW_SIZE;
+  const customerPhotos = customerPhotoRows.slice(0, CUSTOMER_PHOTO_PREVIEW_SIZE);
   const customerPhotoReviewerCount = new Set(customerPhotos.map((p) => p.review.reviewer.id)).size;
 
   // ── JSON-LD ─────────────────────────────────────────────────────────────────
@@ -761,18 +754,19 @@ export default async function SellerPublicPage({
               <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
                 <div>
                   <h2 className="text-xl sm:text-2xl font-display font-semibold">Customer photos</h2>
-                  {customerPhotoTotal > 0 && (
+                  {customerPhotos.length > 0 && (
                     <p className="text-sm text-neutral-500 mt-1">
-                      {customerPhotoTotal.toLocaleString("en-US")} {customerPhotoTotal === 1 ? "photo" : "photos"}
+                      {hasMoreCustomerPhotos ? "Recent " : ""}
+                      {customerPhotos.length.toLocaleString("en-US")} {customerPhotos.length === 1 ? "photo" : "photos"}
                       {customerPhotoReviewerCount > 0 && (
                         <> from {customerPhotoReviewerCount.toLocaleString("en-US")} {customerPhotoReviewerCount === 1 ? "buyer" : "buyers"}</>
                       )}
                     </p>
                   )}
                 </div>
-                {customerPhotoTotal > 12 && (
+                {hasMoreCustomerPhotos && (
                   <Link
-                    href={`/seller/${seller.id}/customer-photos`}
+                    href={`${publicSellerPath(seller.id, seller.displayName)}/customer-photos`}
                     className="text-sm text-amber-700 hover:underline"
                   >
                     View all customer photos →

@@ -22,9 +22,12 @@ describe("homepage deterministic query guardrails", () => {
 
   it("applies viewer block filters to the homepage hero mosaic query", () => {
     const home = source("src/app/page.tsx");
-    const mosaicStart = home.indexOf("const [topListings");
+    const mosaicStart = home.indexOf("mosaicListings,");
+    assert.notEqual(mosaicStart, -1, "homepage mosaic query anchor should exist");
     const mosaicQueryStart = home.indexOf("prisma.listing.findMany({", mosaicStart);
     const mosaicQueryEnd = home.indexOf("getFeaturedMakerBlock(blockedSellerIds)", mosaicQueryStart);
+    assert.notEqual(mosaicQueryStart, -1, "homepage mosaic listing query should exist after the anchor");
+    assert.notEqual(mosaicQueryEnd, -1, "homepage mosaic query should end before featured maker fetch");
     const mosaicQuery = home.slice(mosaicQueryStart, mosaicQueryEnd);
 
     assert.match(mosaicQuery, /where: publicListingWhere\(\s*blockedSellerIds\.length > 0 \? \{ sellerId: \{ notIn: blockedSellerIds \} \} : \{\},\s*\)/);

@@ -25,7 +25,7 @@ describe("seller public page query guardrails", () => {
   it("keeps independent seller-page queries grouped in one parallel batch", () => {
     const sellerPage = source("src/app/seller/[id]/page.tsx");
 
-    assert.match(sellerPage, /const \[\s*\[followerCount, isFollowing\],[\s\S]*customerPhotoTotal,\s*\] = await Promise\.all\(\[/);
+    assert.match(sellerPage, /const \[\s*\[followerCount, isFollowing\],[\s\S]*customerPhotoRows,\s*\] = await Promise\.all\(\[/);
     assert.match(sellerPage, /prisma\.sellerBroadcast\.findFirst/);
     assert.match(sellerPage, /prisma\.blogPost\.findMany/);
     assert.match(sellerPage, /prisma\.listing\.findMany/);
@@ -36,6 +36,22 @@ describe("seller public page query guardrails", () => {
     );
     assert.match(sellerPage, /getSellerRatingMap\(\[seller\.id\]\)/);
     assert.match(sellerPage, /getCachedPublicSellerStats\(seller\.id\)/);
+  });
+
+  it("keeps customer-photo preview bounded without exact-counting the whole set", () => {
+    const sellerPage = source("src/app/seller/[id]/page.tsx");
+    const customerPhotosPage = source("src/app/seller/[id]/customer-photos/page.tsx");
+
+    assert.match(sellerPage, /const CUSTOMER_PHOTO_PREVIEW_SIZE = 12/);
+    assert.match(sellerPage, /take: CUSTOMER_PHOTO_PREVIEW_SIZE \+ 1/);
+    assert.match(sellerPage, /const hasMoreCustomerPhotos = customerPhotoRows\.length > CUSTOMER_PHOTO_PREVIEW_SIZE/);
+    assert.match(sellerPage, /const customerPhotos = customerPhotoRows\.slice\(0, CUSTOMER_PHOTO_PREVIEW_SIZE\)/);
+    assert.doesNotMatch(sellerPage, /prisma\.reviewPhoto\.count\(/);
+    assert.match(customerPhotosPage, /const totalCount = await prisma\.reviewPhoto\.count\(\{ where: photoWhere \}\)/);
+    assert.match(sellerPage, /href=\{\`\$\{publicSellerPath\(seller\.id, seller\.displayName\)\}\/customer-photos`\}/);
+    assert.doesNotMatch(sellerPage, /href=\{`\/seller\/\$\{seller\.id\}\/customer-photos`\}/);
+    assert.match(customerPhotosPage, /canonical: `https:\/\/thegrainline\.com\$\{publicSellerPath\(seller\.id, name\)\}\/customer-photos`/);
+    assert.doesNotMatch(customerPhotosPage, /canonical: `https:\/\/thegrainline\.com\/seller\/\$\{sellerId\}\/customer-photos`/);
   });
 
   it("keeps seller profile listing previews bounded without deriving total count from preview rows", () => {

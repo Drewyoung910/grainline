@@ -4,11 +4,14 @@ import { describe, it } from "node:test";
 
 const {
   MAX_VARIANT_PRICE_ADJUST_CENTS,
+  MAX_VARIANT_UNIT_PRICE_CENTS,
   MIN_VARIANT_PRICE_ADJUST_CENTS,
+  MIN_VARIANT_UNIT_PRICE_CENTS,
   normalizeVariantPriceAdjustCents,
   resolveListingVariantSelection,
   validateVariantGroupsForBasePrice,
   validateVariantPriceAdjustCents,
+  validateVariantUnitPriceCents,
 } = await import("../src/lib/listingVariants.ts");
 
 const variantGroups = [
@@ -87,6 +90,10 @@ describe("listing variant selection", () => {
       "Variant price adjustments cannot exceed $100,000.",
     );
     assert.equal(validateVariantPriceAdjustCents(500), null);
+    assert.equal(validateVariantUnitPriceCents(MIN_VARIANT_UNIT_PRICE_CENTS - 1), "Variant selection results in an invalid price.");
+    assert.equal(validateVariantUnitPriceCents(MAX_VARIANT_UNIT_PRICE_CENTS + 1), "Variant selection results in an invalid price.");
+    assert.equal(validateVariantUnitPriceCents(MIN_VARIANT_UNIT_PRICE_CENTS), null);
+    assert.equal(validateVariantUnitPriceCents(MAX_VARIANT_UNIT_PRICE_CENTS), null);
 
     assert.equal(
       validateVariantGroupsForBasePrice([
@@ -110,20 +117,50 @@ describe("listing variant selection", () => {
   });
 
   it("checks invalid recalculated variant prices before persisting cart snapshots", () => {
-    const cartUpdate = source("src/app/api/cart/update/route.ts");
+    const cartRead = source("src/app/api/cart/route.ts");
+    assert.match(cartRead, /import \{ resolveListingVariantSelection, validateVariantUnitPriceCents \} from "@\/lib\/listingVariants"/);
     assert.ok(
-      cartUpdate.indexOf("if (livePriceCents < 1)") > cartUpdate.indexOf("livePriceCents = listing.priceCents + variantResolution.variantAdjustCents"),
+      cartRead.indexOf("validateVariantUnitPriceCents(livePriceCents) !== null") > cartRead.indexOf("const livePriceCents = variantResolution.ok"),
+    );
+
+    const cartAdd = source("src/app/api/cart/add/route.ts");
+    assert.match(cartAdd, /import \{ resolveListingVariantSelection, validateVariantUnitPriceCents \} from "@\/lib\/listingVariants"/);
+    assert.ok(
+      cartAdd.indexOf("const unitPriceError = validateVariantUnitPriceCents(totalPriceCents)") > cartAdd.indexOf("const totalPriceCents = listing.priceCents + variantResolution.variantAdjustCents"),
     );
     assert.ok(
-      cartUpdate.indexOf("if (livePriceCents < 1)") < cartUpdate.indexOf("tx.cartItem.updateMany"),
+      cartAdd.indexOf("const unitPriceError = validateVariantUnitPriceCents(totalPriceCents)") < cartAdd.indexOf("const cart = await prisma.cart.upsert"),
+    );
+
+    const cartUpdate = source("src/app/api/cart/update/route.ts");
+    assert.ok(
+      cartUpdate.indexOf("const unitPriceError = validateVariantUnitPriceCents(livePriceCents)") > cartUpdate.indexOf("livePriceCents = listing.priceCents + variantResolution.variantAdjustCents"),
+    );
+    assert.ok(
+      cartUpdate.indexOf("const unitPriceError = validateVariantUnitPriceCents(livePriceCents)") < cartUpdate.indexOf("tx.cartItem.updateMany"),
     );
 
     const checkoutSeller = source("src/app/api/cart/checkout-seller/route.ts");
     assert.ok(
-      checkoutSeller.indexOf("if (unitPriceCents < 1)") > checkoutSeller.indexOf("const unitPriceCents = item.listing.priceCents + variantResolution.variantAdjustCents"),
+      checkoutSeller.indexOf("validateVariantUnitPriceCents(unitPriceCents)") > checkoutSeller.indexOf("const unitPriceCents = item.listing.priceCents + variantResolution.variantAdjustCents"),
     );
     assert.ok(
-      checkoutSeller.indexOf("if (unitPriceCents < 1)") < checkoutSeller.indexOf("prisma.cartItem.update({"),
+      checkoutSeller.indexOf("validateVariantUnitPriceCents(unitPriceCents)") < checkoutSeller.indexOf("prisma.cartItem.update({"),
+    );
+    assert.ok(
+      checkoutSeller.indexOf("validateVariantUnitPriceCents(unitPriceCents)") < checkoutSeller.indexOf("stripe.checkout.sessions.create"),
+    );
+
+    const checkoutSingle = source("src/app/api/cart/checkout/single/route.ts");
+    assert.match(checkoutSingle, /import \{ resolveListingVariantSelection, validateVariantUnitPriceCents \} from "@\/lib\/listingVariants"/);
+    assert.ok(
+      checkoutSingle.indexOf("const unitPriceError = validateVariantUnitPriceCents(unitPriceCents)") > checkoutSingle.indexOf("const unitPriceCents = listing.priceCents + variantResolution.variantAdjustCents"),
+    );
+    assert.ok(
+      checkoutSingle.indexOf("const unitPriceError = validateVariantUnitPriceCents(unitPriceCents)") < checkoutSingle.indexOf("const reservation = await createCheckoutStockReservation"),
+    );
+    assert.ok(
+      checkoutSingle.indexOf("const unitPriceError = validateVariantUnitPriceCents(unitPriceCents)") < checkoutSingle.indexOf("stripe.checkout.sessions.create"),
     );
   });
 });

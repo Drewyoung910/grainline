@@ -7,7 +7,7 @@ import { shippingRateExpiresAtIsTooFarFuture, verifyRate } from "@/lib/shipping-
 import { checkoutRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { calculateCheckoutAmounts } from "@/lib/checkoutAmounts";
-import { resolveListingVariantSelection, type SelectedVariantSnapshot } from "@/lib/listingVariants";
+import { resolveListingVariantSelection, validateVariantUnitPriceCents, type SelectedVariantSnapshot } from "@/lib/listingVariants";
 import { stripeStatementDescriptorSuffix } from "@/lib/stripeStatementDescriptor";
 import {
   acquireCheckoutLock,
@@ -276,7 +276,7 @@ export async function POST(req: Request) {
       }
 
       const unitPriceCents = item.listing.priceCents + variantResolution.variantAdjustCents;
-      if (unitPriceCents < 1) {
+      if (validateVariantUnitPriceCents(unitPriceCents)) {
         return privateJson(
           { error: `"${item.listing.title}" has an invalid variant price.` },
           { status: HTTP_STATUS.BAD_REQUEST },

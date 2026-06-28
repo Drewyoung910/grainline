@@ -10442,3 +10442,109 @@ Vercel Analytics/Speed Insights product/privacy decision, homepage browser
 a11y/runtime proof beyond source fallback, deployed security-header runtime
 proof beyond source/config guardrails, and customer photo exact-count
 performance tradeoff.
+
+Entry 458 closes a parent-verified public-page performance, checkout variant
+price-bound, and raw-index guardrail pass. Two read-only agents reviewed
+disjoint public/ops/source and model/payment-adjacent slices; parent Codex
+verified each actionable finding locally, implemented the source/test/docs
+changes, closed both agents, and did not stage the raw audit import.
+
+Verified fixed/reduced:
+
+- The public seller profile customer-photo preview no longer exact-counts the
+  full `ReviewPhoto` set just to render the preview heading and "View all"
+  affordance. It fetches `CUSTOMER_PHOTO_PREVIEW_SIZE + 1`, renders the 12
+  most recent photos, and uses the extra row only to infer whether the
+  dedicated paginated customer-photo page should be linked.
+- Customer-photo public links now use canonical slugged seller paths: the
+  seller profile CTA uses `publicSellerPath(...)`, and the customer-photo
+  subpage metadata canonical now matches the same slugged route that the page
+  redirects to and the sitemap emits.
+- The homepage mosaic source guardrail no longer anchors on a stale
+  `topListings` string. It asserts the `mosaicListings` anchor exists before
+  slicing the query block, so the deterministic/block-filter test cannot pass
+  accidentally against the wrong region.
+- Runtime variant-unit-price validation now checks both the $0.01 lower bound
+  and the $100,000 upper bound through `validateVariantUnitPriceCents()`.
+  Cart reads mark stale invalid variant rows unavailable; cart add/update and
+  both checkout session creation routes reject invalid recalculated prices
+  before cart mutation, stock reservation, or Stripe Checkout creation.
+- Raw-managed hot-path and blog-title indexes are now protected in
+  `tests/schema-drift-followups.test.mjs`, including
+  `Listing_qualityScore_visible_idx`, `Order_buyerId_paidAt_idx`,
+  `Message_conversationId_createdAt_desc_idx`, `User_banned_deletedAt_idx`,
+  `OrderPaymentEvent_orderId_eventType_createdAt_idx`, and
+  `BlogPost_title_trgm_published_idx`.
+- `CLAUDE.md` records the durable customer-photo preview, variant unit-price,
+  and raw-managed index behavior contracts for future agents.
+
+Verified current/stale/deferred during the same pass:
+
+- Source-configured security headers remain current: `next.config.ts` enforces
+  the global security-header set, CSP, and HSTS header, and
+  `tests/public-security-config.test.mjs` guards that source/config behavior.
+  Deployed security-header proof and HSTS preload submission remain runtime
+  ops/legal evidence, not source-only closures.
+- Homepage a11y/source guardrails remain current for the hero mosaic,
+  instance-scoped search combobox/listbox ids, and scroll-reveal fallback
+  content. Browser/runtime a11y proof remains separate manual/runtime evidence.
+- Founding Maker permanence/concurrency source remains current under the
+  advisory-lock/max-number/updateMany helper, but live DB concurrency proof
+  remains runtime evidence.
+- Stale branch/old git author hygiene, legacy enum cleanup/data migration,
+  deliberate BigInt money/counter modeling, private/custom-order Guild
+  trust-metric scope, and the variant one-cent floor policy remain deferred
+  ops/product/data-model decisions. This pass fixed the separate upper-bound
+  runtime guard for legacy/manual variant data; it does not close the already
+  deferred product pricing-floor question.
+- EXPLAIN-dependent query-plan validation remains runtime DB evidence beyond
+  source-index presence. This pass only closes the source guardrail gap for
+  existing raw-managed indexes.
+
+Guardrails:
+`tests/seller-page-performance.test.mjs`,
+`tests/homepage-determinism.test.mjs`,
+`tests/listing-variants.test.mjs`,
+`tests/schema-drift-followups.test.mjs`, and
+`tests/public-security-config.test.mjs`.
+
+Verification:
+focused `node --test tests/seller-page-performance.test.mjs tests/homepage-determinism.test.mjs tests/listing-variants.test.mjs tests/schema-drift-followups.test.mjs tests/public-security-config.test.mjs`
+(37/37 tests passing), `npx tsc --noEmit`, `git diff --check`,
+`npm run lint` (exit 0; existing JSX AST utility warning only),
+`npm test` (1412/1412 tests passing across 256 suites), and
+`npm run build` passed.
+
+Current running tally after Entry 458: verified fixed/reduced 926, verified
+stale/false-positive/current 504, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 30. Fixed/reduced
+increases by five for customer-photo preview query reduction, customer-photo
+canonical slug alignment, homepage mosaic test-anchor hardening, runtime
+variant unit-price upper-bound validation, and raw-managed hot-path/blog-title
+index guardrails. Raw-left decreases by one for closing the customer-photo
+exact-count performance category. Stale/current and deferred stay flat because
+the source-header/homepage a11y/modeling/ops rechecks were already classified
+or remain runtime/product evidence.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence,
+label clawback policy/runtime proof, Stripe webhook subscription dashboard
+evidence, Stripe Connect v2 loss-liability ops/legal decision, stale remote
+branch and old git author hygiene, Round 10 deferred cache/state-machine
+product designs that require product decisions rather than source guardrails,
+remaining EXPLAIN-dependent runtime query-plan validation beyond the existing
+source indexes and source guardrails, Stripe partial-refund live reconciliation
+proof, founding-maker permanence policy, remaining privacy/legal retention
+scope, cross-seller AI duplicate-detection product design, legacy enum
+cleanup/data-migration decisions, partial multi-seller checkout continuation
+design, deliberate BigInt money-column modeling, variant-adjusted unit-price
+floor policy, live-data reconciliation for historical seller shipping-rate
+currency drift, Guild private/custom-order sales/review trust-metric product
+policy, Clerk staff MFA and breached-password dashboard evidence, Clerk
+multi-account spam dashboard evidence, buyer-deletion live Stripe replay proof
+after source minimization, Founding Maker live DB concurrency proof, Sentry
+cron alert evidence, Cloudflare R2 ListBucket/public-bucket dashboard posture
+plus production smoke evidence and public-availability proof, HSTS preload
+submission decision, Vercel Analytics/Speed Insights product/privacy decision,
+homepage browser a11y/runtime proof beyond source fallback, and deployed
+security-header runtime proof beyond source/config guardrails.
