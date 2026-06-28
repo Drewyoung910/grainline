@@ -145,7 +145,7 @@ describe("shipping quote state helpers", () => {
   it("forces seller label purchase to re-quote quote-only rates with full order recipient data", () => {
     const labelRoute = readFileSync("src/app/api/orders/[id]/label/route.ts", "utf8");
 
-    assert.match(labelRoute, /import \{ isPickupRateObjectId, isQuoteOnlyRateObjectId \} from "@\/lib\/shippingQuoteState"/);
+    assert.match(labelRoute, /isPickupRateObjectId,[\s\S]*isQuoteOnlyRateObjectId,[\s\S]*from "@\/lib\/shippingQuoteState"/);
     assert.match(labelRoute, /!isQuoteOnlyRateObjectId\(rateObjectId\)/);
     assert.match(labelRoute, /const storedRateUsable =\s*isPurchasableRateObjectId\(order\.shippoRateObjectId\)/);
     assert.match(labelRoute, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);

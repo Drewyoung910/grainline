@@ -1,11 +1,14 @@
 // src/lib/shippo.ts
-import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
-import { readResponseTextWithTimeout } from "@/lib/responseText";
-import { requiredProductionEnv } from "@/lib/env";
-import { shippoProviderErrorMessage } from "@/lib/shippoErrorSanitize";
+import { fetchWithTimeout } from "./fetchWithTimeout.ts";
+import { readResponseTextWithTimeout } from "./responseText.ts";
+import { requiredProductionEnv } from "./env.ts";
+import { shippoProviderErrorMessage } from "./shippoErrorSanitize.ts";
+import { DEFAULT_CURRENCY, normalizeCurrencyCode } from "./money.ts";
+import { safeProviderShippingCents } from "./shippingQuoteState.ts";
 
 const SHIPPO_API_KEY = requiredProductionEnv("SHIPPO_API_KEY");
 const SHIPPO_BASE = "https://api.goshippo.com";
+const ISO_CURRENCY_CODE = /^[A-Z]{3}$/i;
 
 type Address = {
   name?: string;
@@ -23,6 +26,50 @@ type Parcel = {
   width?: string;
   height?: string;
 };
+
+type ShippoRate = {
+  object_id?: string | null;
+  provider?: string | null;
+  servicelevel?: { name?: string | null } | null;
+  amount?: string | number | null;
+  currency?: string | null;
+  est_days?: number | null;
+};
+
+export type NormalizedShippoRate = {
+  objectId: string;
+  provider?: string | null;
+  servicelevel_name?: string | null;
+  amount: number;
+  currency: string;
+  est_days?: number | null;
+};
+
+export function normalizeShippoRateCurrency(value: unknown, fallback = DEFAULT_CURRENCY) {
+  if (value == null || String(value).trim() === "") {
+    return normalizeCurrencyCode(fallback).toLowerCase();
+  }
+  const raw = String(value).trim();
+  return ISO_CURRENCY_CODE.test(raw) ? raw.toLowerCase() : null;
+}
+
+export function normalizeShippoShipmentRates(rates: ShippoRate[]): NormalizedShippoRate[] {
+  return rates.flatMap((rate) => {
+    const objectId = typeof rate.object_id === "string" ? rate.object_id.trim() : "";
+    const amount = safeProviderShippingCents(rate.amount);
+    const currency = normalizeShippoRateCurrency(rate.currency);
+    if (!objectId || amount === null || !currency) return [];
+
+    return [{
+      objectId,
+      provider: rate.provider,
+      servicelevel_name: rate.servicelevel?.name ?? null,
+      amount,
+      currency,
+      est_days: Number.isFinite(rate.est_days) ? rate.est_days ?? null : null,
+    }];
+  });
+}
 
 // Minimal generic wrapper (some routes import this)
 export async function shippoRequest<T = unknown>(
@@ -95,15 +142,7 @@ export async function shippoRatesMultiPiece(opts: {
   }
 
   const shipmentObj = await res.json();
-  type ShippoRate = { object_id?: string; provider?: string; servicelevel?: { name?: string }; amount?: string | number; currency?: string; est_days?: number };
-  const rates = ((shipmentObj as { rates?: ShippoRate[] }).rates || []).map((r) => ({
-    objectId: r.object_id,
-    provider: r.provider,
-    servicelevel_name: r.servicelevel?.name,
-    amount: Math.round(Number(r.amount) * 100), // cents
-    currency: r.currency || "USD",
-    est_days: r.est_days,
-  }));
+  const rates = normalizeShippoShipmentRates(((shipmentObj as { rates?: ShippoRate[] }).rates || []));
 
   return { shipmentId: shipmentObj.object_id, rates };
 }

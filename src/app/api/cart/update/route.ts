@@ -56,10 +56,25 @@ export async function POST(req: Request) {
     const cart = await prisma.cart.findUnique({ where: { userId: me.id } });
     if (!cart) return privateJson({ error: "Cart not found" }, { status: HTTP_STATUS.NOT_FOUND });
 
-    // Find the cart item — prefer cartItemId, fall back to listingId
-    const item = cartItemId
+    // Find the cart item — prefer cartItemId. Listing-only updates are a
+    // legacy fallback and are ambiguous once variants create multiple rows.
+    let item = cartItemId
       ? await prisma.cartItem.findFirst({ where: { id: cartItemId, cartId: cart.id } })
-      : await prisma.cartItem.findFirst({ where: { cartId: cart.id, listingId: listingId! } });
+      : null;
+    if (!item && !cartItemId && listingId) {
+      const matchingItems = await prisma.cartItem.findMany({
+        where: { cartId: cart.id, listingId },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        take: 2,
+      });
+      if (matchingItems.length > 1) {
+        return privateJson(
+          { error: "Use cartItemId to update variant cart lines." },
+          { status: HTTP_STATUS.BAD_REQUEST },
+        );
+      }
+      item = matchingItems[0] ?? null;
+    }
     if (!item) return privateJson({ error: "Item not in cart" }, { status: HTTP_STATUS.NOT_FOUND });
 
     let livePriceCents = item.priceCents;

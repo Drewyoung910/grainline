@@ -2,7 +2,11 @@
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
-import { shippoRequest, shippoRatesMultiPiece } from "@/lib/shippo";
+import {
+  normalizeShippoRateCurrency,
+  shippoRequest,
+  shippoRatesMultiPiece,
+} from "@/lib/shippo";
 import {
   labelPurchaseRatelimit,
   rateLimitResponse,
@@ -16,6 +20,7 @@ import {
 import { latestOpenDisputeLedgerExistsSql } from "@/lib/refundLedgerSql";
 import { releaseStaleRefundLocks } from "@/lib/refundLocks";
 import {
+  appendLabelClawbackReviewNote,
   labelClawbackErrorMessage,
   labelClawbackIdempotencyKey,
 } from "@/lib/labelClawbackState";
@@ -42,7 +47,13 @@ import {
   orderHasDeauthorizedSellerReviewHold,
 } from "@/lib/orderReviewHolds";
 import { sanitizeShippoProviderErrorBody } from "@/lib/shippoErrorSanitize";
-import { isPickupRateObjectId, isQuoteOnlyRateObjectId } from "@/lib/shippingQuoteState";
+import {
+  isPickupRateObjectId,
+  isQuoteOnlyRateObjectId,
+  MAX_PROVIDER_SHIPPING_CENTS,
+  safeProviderShippingCents,
+} from "@/lib/shippingQuoteState";
+import { normalizeCurrencyCode } from "@/lib/money";
 
 const LabelSchema = z.object({
   rateObjectId: z.string().min(1).optional().nullable(),
@@ -55,6 +66,7 @@ export const preferredRegion = "iad1";
 type LiveRate = {
   label: string;
   amountCents: number;
+  currency: string;
   objectId: string;
   carrier?: string;
   service?: string;
@@ -100,11 +112,24 @@ function isPurchasableRateObjectId(
 function rateSetIncludes(
   rates: Prisma.JsonValue,
   rateObjectId: string,
+  expectedCurrency: string,
 ): boolean {
+  const expected = normalizeCurrencyCode(expectedCurrency).toLowerCase();
   if (!Array.isArray(rates)) return false;
   return rates.some((rate) => {
     if (!rate || typeof rate !== "object" || Array.isArray(rate)) return false;
-    return "objectId" in rate && rate.objectId === rateObjectId;
+    const candidate = rate as Record<string, unknown>;
+    const objectId = typeof candidate.objectId === "string" ? candidate.objectId : "";
+    const amountCents = typeof candidate.amountCents === "number" ? candidate.amountCents : null;
+    const currency = normalizeShippoRateCurrency(candidate.currency);
+    return (
+      objectId === rateObjectId &&
+      currency === expected &&
+      amountCents !== null &&
+      Number.isSafeInteger(amountCents) &&
+      amountCents >= 0 &&
+      amountCents <= MAX_PROVIDER_SHIPPING_CENTS
+    );
   });
 }
 
@@ -310,6 +335,7 @@ export async function POST(
     //   3. Neither → trigger re-quote
     const FIVE_DAYS_MS = 5 * 24 * 60 * 60 * 1000;
     const orderAge = Date.now() - order.createdAt.getTime();
+    const expectedLabelCurrency = normalizeCurrencyCode(order.currency).toLowerCase();
     const storedRateUsable =
       isPurchasableRateObjectId(order.shippoRateObjectId) &&
       orderAge < FIVE_DAYS_MS;
@@ -330,7 +356,7 @@ export async function POST(
           orderBy: [{ createdAt: "desc" }, { id: "desc" }],
           select: { rates: true },
         });
-        if (!quoteSet || !rateSetIncludes(quoteSet.rates, bodyRateObjectId)) {
+        if (!quoteSet || !rateSetIncludes(quoteSet.rates, bodyRateObjectId, expectedLabelCurrency)) {
           return privateJson(
             {
               error:
@@ -432,16 +458,31 @@ export async function POST(
         servicelevel_name?: string;
         est_days?: number | null;
         amount: number;
+        currency?: string | null;
         objectId?: string;
       };
-      const liveRates: LiveRate[] = (rawRates as RawRate[]).map((r) => ({
-        label: `${r.provider} ${r.servicelevel_name} (${r.est_days ? `${r.est_days}d` : "—"})`,
-        amountCents: r.amount,
-        objectId: r.objectId || "",
-        carrier: r.provider,
-        service: r.servicelevel_name,
-        estDays: r.est_days ?? null,
-      }));
+      const liveRates: LiveRate[] = (rawRates as RawRate[]).flatMap((r) => {
+        const rateCurrency = normalizeShippoRateCurrency(r.currency);
+        if (
+          rateCurrency !== expectedLabelCurrency ||
+          !isPurchasableRateObjectId(r.objectId) ||
+          !Number.isSafeInteger(r.amount) ||
+          r.amount < 0 ||
+          r.amount > MAX_PROVIDER_SHIPPING_CENTS
+        ) {
+          return [];
+        }
+
+        return [{
+          label: `${r.provider} ${r.servicelevel_name} (${r.est_days ? `${r.est_days}d` : "—"})`,
+          amountCents: r.amount,
+          currency: rateCurrency,
+          objectId: r.objectId,
+          carrier: r.provider,
+          service: r.servicelevel_name,
+          estDays: r.est_days ?? null,
+        }];
+      });
 
       const prioritized = prioritizeAndTrim(liveRates, 4);
       if (prioritized.length === 0) {
@@ -530,7 +571,7 @@ export async function POST(
       labelUrl?: string;
       trackingNumber?: string;
       carrier?: string;
-      labelCostCents?: number;
+      labelCostCents?: number | null;
     } | null = null;
 
     try {
@@ -540,7 +581,7 @@ export async function POST(
         object_id?: string;
         label_url?: string;
         tracking_number?: string;
-        rate?: { amount?: number; provider?: string };
+        rate?: { amount?: number | string | null; currency?: string | null; provider?: string };
       };
       // Purchase the label using the resolved rate objectId
       const txn = await shippoRequest<ShippoTransaction>("/transactions/", {
@@ -564,7 +605,32 @@ export async function POST(
       }
       shippoPurchaseSucceeded = true;
 
-      const labelCostCents = Math.round(Number(txn.rate?.amount ?? 0) * 100);
+      const txnRateCurrency = normalizeShippoRateCurrency(txn.rate?.currency, order.currency);
+      const txnRateAmountCents = safeProviderShippingCents(txn.rate?.amount);
+      const labelCostCents =
+        txnRateAmountCents !== null && txnRateCurrency === expectedLabelCurrency
+          ? txnRateAmountCents
+          : null;
+      const invalidLabelCost = labelCostCents === null;
+      const invalidLabelCostNote = invalidLabelCost
+        ? appendLabelClawbackReviewNote(
+            order.reviewNote,
+            `Shippo label ${txn.object_id ?? "unknown"} was purchased, but Shippo returned an invalid or non-${expectedLabelCurrency.toUpperCase()} label cost. Staff must manually reconcile the label-cost deduction before clearing this review hold.`,
+          )
+        : undefined;
+      if (invalidLabelCost) {
+        Sentry.captureMessage("Shippo label purchase returned invalid label cost", {
+          level: "warning",
+          tags: { source: "shippo_label_cost_validation" },
+          extra: {
+            orderId: id,
+            shippoTransactionId: txn.object_id ?? null,
+            expectedCurrency: expectedLabelCurrency,
+            actualCurrency: txn.rate?.currency ?? null,
+            hasAmount: txn.rate?.amount != null,
+          },
+        });
+      }
       purchasedLabelDetails = {
         transactionId: txn.object_id,
         labelUrl: txn.label_url,
@@ -583,6 +649,14 @@ export async function POST(
           labelTrackingNumber: txn.tracking_number ?? null,
           labelCostCents,
           labelStatus: "PURCHASED",
+          reviewNeeded: invalidLabelCost ? true : undefined,
+          reviewNote: invalidLabelCostNote,
+          labelClawbackStatus: invalidLabelCost ? "MANUAL_REVIEW" : undefined,
+          labelClawbackRetryCount: invalidLabelCost ? 0 : undefined,
+          labelClawbackLastAttemptAt: invalidLabelCost ? null : undefined,
+          labelClawbackNextAttemptAt: invalidLabelCost ? null : undefined,
+          labelClawbackResolvedAt: invalidLabelCost ? null : undefined,
+          labelClawbackReversalId: invalidLabelCost ? null : undefined,
           labelPurchasedAt: now,
           fulfillmentStatus: "SHIPPED",
           shippedAt: now,
@@ -593,7 +667,7 @@ export async function POST(
       });
 
       // Best-effort: claw back label cost by reversing part of the seller's transfer
-      if (labelCostCents > 0) {
+      if (labelCostCents != null && labelCostCents > 0) {
         if (!order.stripeTransferId) {
           console.warn(
             `Order ${id} has no stripeTransferId — label cost clawback of ${labelCostCents} cents must be handled manually.`,

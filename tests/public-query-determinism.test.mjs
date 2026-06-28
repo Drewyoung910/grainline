@@ -190,6 +190,16 @@ describe("public query determinism", () => {
     assert.match(blogSuggestions, /orderBy: \[\{ displayNameNormalized: "asc" \}, \{ id: "asc" \}\]/);
   });
 
+  it("keeps cached homepage featured makers on a public projection allowlist", () => {
+    const homePage = source("src/app/page.tsx");
+
+    assert.match(homePage, /const featuredMakerSelect = \{/);
+    assert.match(homePage, /satisfies Prisma\.SellerProfileSelect/);
+    assert.match(homePage, /select: featuredMakerSelect/);
+    assert.doesNotMatch(homePage, /featuredMakerInclude/);
+    assert.doesNotMatch(homePage, /include: featuredMaker/);
+  });
+
   it("keeps public fuzzy suggestions on indexable trigram predicates", () => {
     const searchSuggestions = source("src/app/api/search/suggestions/route.ts");
     const blogSuggestions = source("src/app/api/blog/search/suggestions/route.ts");

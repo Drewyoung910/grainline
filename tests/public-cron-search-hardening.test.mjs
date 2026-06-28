@@ -172,7 +172,9 @@ describe("cron and public route hardening", () => {
 
     assert.match(globalSuggestions, /normalizeSearchSuggestionQuery/);
     assert.match(globalSuggestions, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
-    assert.match(globalSuggestions, /getBlockedSellerProfileIdsFor/);
+    assert.match(globalSuggestions, /getBlockedIdsFor\(meDbId\)/);
+    assert.match(globalSuggestions, /bp\."authorId" != ALL\(\$\{blockedUserIds\}\)/);
+    assert.match(globalSuggestions, /bp\."sellerProfileId" != ALL\(\$\{blockedSellerIds\}\)/);
     assert.match(globalSuggestions, /publicListingWhere/);
     assert.match(globalSuggestions, /activeSellerProfileWhere/);
     assert.match(globalSuggestions, /bp\."publishedAt" IS NOT NULL/);

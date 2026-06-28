@@ -24,6 +24,8 @@ describe("SEO landing route guardrails", () => {
   it("adds a canonical maker blog-author page without trusting slug-only identifiers", () => {
     const page = source("src/app/blog/author/[slug]/page.tsx");
 
+    assert.match(page, /import \{ cache \} from "react"/);
+    assert.match(page, /const getPublicBlogAuthor = cache\(async \(sellerProfileId: string\) =>/);
     assert.match(page, /extractRouteId\(slug\)/);
     assert.match(page, /publicBlogAuthorPath\(author\.id, author\.displayName\)/);
     assert.match(page, /activeSellerProfileWhere\(\{/);

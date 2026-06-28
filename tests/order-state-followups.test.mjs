@@ -104,6 +104,17 @@ describe("order-state audit follow-up guardrails", () => {
     assert.doesNotMatch(text, /console\.error\("POST \/api\/cart\/update error:", err\)/);
   });
 
+  it("rejects ambiguous listing-only cart updates once variants create multiple rows", () => {
+    const text = source("src/app/api/cart/update/route.ts");
+
+    assert.match(text, /const matchingItems = await prisma\.cartItem\.findMany\(\{/);
+    assert.match(text, /where: \{ cartId: cart\.id, listingId \}/);
+    assert.match(text, /take: 2/);
+    assert.match(text, /matchingItems\.length > 1/);
+    assert.match(text, /Use cartItemId to update variant cart lines\./);
+    assert.doesNotMatch(text, /findFirst\(\{ where: \{ cartId: cart\.id, listingId: listingId!/);
+  });
+
   it("keeps checkout stock reservation tied to live active listing ownership", () => {
     const singleCheckout = source("src/app/api/cart/checkout/single/route.ts");
     const sellerCheckout = source("src/app/api/cart/checkout-seller/route.ts");

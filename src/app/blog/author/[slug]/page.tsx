@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
+import { cache } from "react";
 import MediaImage from "@/components/MediaImage";
 import SaveBlogButton from "@/components/SaveBlogButton";
 import { BLOG_TYPE_COLORS, BLOG_TYPE_LABELS } from "@/lib/blog";
@@ -34,8 +35,8 @@ const AUTHOR_POST_SELECT = {
 
 type AuthorPost = Prisma.BlogPostGetPayload<{ select: typeof AUTHOR_POST_SELECT }>;
 
-async function getPublicBlogAuthor(sellerProfileId: string) {
-  return prisma.sellerProfile.findFirst({
+const getPublicBlogAuthor = cache(async (sellerProfileId: string) =>
+  prisma.sellerProfile.findFirst({
     where: activeSellerProfileWhere({
       id: sellerProfileId,
       blogPosts: { some: publicBlogPostWhere({ sellerProfileId }) },
@@ -48,8 +49,8 @@ async function getPublicBlogAuthor(sellerProfileId: string) {
       bannerImageUrl: true,
       user: { select: { id: true, imageUrl: true } },
     },
-  });
-}
+  })
+);
 
 export async function generateMetadata({
   params,

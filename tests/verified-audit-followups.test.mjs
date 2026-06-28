@@ -230,6 +230,7 @@ describe("verified audit follow-up guardrails", () => {
     assert.match(text, /sp\."vacationMode" = false/);
     assert.match(text, /sp\."stripeAccountVersion" IS NULL OR sp\."stripeAccountVersion" = 'v2'/);
     assert.match(text, /seller_user\.banned = false/);
+    assert.match(text, /bp\."authorId" != ALL\(\$\{blockedUserIds\}\)/);
     assert.match(text, /bp\."sellerProfileId" != ALL\(\$\{blockedSellerIds\}\)/);
   });
 

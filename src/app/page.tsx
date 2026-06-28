@@ -50,11 +50,22 @@ function StarsInline({ value }: { value: number }) {
   );
 }
 
-const featuredMakerInclude = {
+const featuredMakerSelect = {
+  id: true,
+  displayName: true,
+  bio: true,
+  city: true,
+  state: true,
+  tagline: true,
+  bannerImageUrl: true,
+  avatarImageUrl: true,
+  workshopImageUrl: true,
+  featuredListingIds: true,
+  guildLevel: true,
   user: { select: { imageUrl: true } },
-} satisfies Prisma.SellerProfileInclude;
+} satisfies Prisma.SellerProfileSelect;
 
-type FeaturedMaker = Prisma.SellerProfileGetPayload<{ include: typeof featuredMakerInclude }>;
+type FeaturedMaker = Prisma.SellerProfileGetPayload<{ select: typeof featuredMakerSelect }>;
 
 function makerWeekIndex(count: number) {
   if (count <= 0) return 0;
@@ -82,7 +93,7 @@ const getFeaturedMakers = unstable_cache(async (): Promise<FeaturedMaker[]> => {
   const curated = await prisma.sellerProfile.findMany({
     where: activeSellerProfileWhere({ featuredUntil: { gt: now } }),
     orderBy: [{ featuredUntil: "desc" }, { id: "asc" }],
-    include: featuredMakerInclude,
+    select: featuredMakerSelect,
     take: 2,
   });
   for (const m of curated) add(m);
@@ -103,7 +114,7 @@ const getFeaturedMakers = unstable_cache(async (): Promise<FeaturedMaker[]> => {
         orderBy: { id: "asc" },
         skip: startIdx,
         take: need,
-        include: featuredMakerInclude,
+        select: featuredMakerSelect,
       });
       for (const m of weekly) add(m);
       // Wrap-around if skip was near the end
@@ -112,7 +123,7 @@ const getFeaturedMakers = unstable_cache(async (): Promise<FeaturedMaker[]> => {
           where: guildWhere,
           orderBy: { id: "asc" },
           take: 2 - picked.length,
-          include: featuredMakerInclude,
+          select: featuredMakerSelect,
         });
         for (const m of wrap) add(m);
       }
@@ -145,7 +156,7 @@ const getFeaturedMakers = unstable_cache(async (): Promise<FeaturedMaker[]> => {
     if (candidateIds.length > 0) {
       const candidates = await prisma.sellerProfile.findMany({
         where: activeSellerProfileWhere({ id: { in: candidateIds } }),
-        include: featuredMakerInclude,
+        select: featuredMakerSelect,
       });
       // Preserve the SQL ordering
       const byId = new Map(candidates.map((c) => [c.id, c]));

@@ -1,9 +1,10 @@
 import { NextRequest } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import { searchRatelimit, getIP, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { auth } from "@clerk/nextjs/server";
-import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
+import { getBlockedIdsFor } from "@/lib/blocks";
 import { getPopularListingTags } from "@/lib/popularTags";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
@@ -63,65 +64,46 @@ async function listingFuzzySuggestionRows(q: string, blockedSellerIds: string[])
   });
 }
 
-async function blogFuzzySuggestionRows(q: string, blockedSellerIds: string[]) {
+async function blogFuzzySuggestionRows(q: string, blockedUserIds: string[], blockedSellerIds: string[]) {
   return prisma.$transaction(async (tx) => {
     await tx.$queryRaw`
       SELECT set_config('pg_trgm.similarity_threshold', ${String(BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY)}, true)
     `;
-    return blockedSellerIds.length > 0
-      ? tx.$queryRaw<Array<{ slug: string; title: string }>>`
-          SELECT bp.slug, bp.title
-          FROM "BlogPost" bp
-          INNER JOIN "User" u ON u.id = bp."authorId"
-          LEFT JOIN "SellerProfile" sp ON sp.id = bp."sellerProfileId"
-          LEFT JOIN "User" seller_user ON seller_user.id = sp."userId"
-          WHERE bp.status = 'PUBLISHED'
-            AND bp."publishedAt" IS NOT NULL
-            AND bp."publishedAt" <= NOW()
-            AND u.banned = false
-            AND u."deletedAt" IS NULL
-            AND (
-              bp."sellerProfileId" IS NULL
-              OR (
-                sp."chargesEnabled" = true
-                AND sp."vacationMode" = false
-                AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
-                AND seller_user.banned = false
-                AND seller_user."deletedAt" IS NULL
-              )
-            )
-            AND (bp."sellerProfileId" IS NULL OR bp."sellerProfileId" != ALL(${blockedSellerIds}))
-            AND bp.title % ${q}
-            AND similarity(bp.title, ${q}) > ${BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY}
-          ORDER BY similarity(bp.title, ${q}) DESC, bp."publishedAt" DESC, bp.id DESC
-          LIMIT 3
-        `
-      : tx.$queryRaw<Array<{ slug: string; title: string }>>`
-          SELECT bp.slug, bp.title
-          FROM "BlogPost" bp
-          INNER JOIN "User" u ON u.id = bp."authorId"
-          LEFT JOIN "SellerProfile" sp ON sp.id = bp."sellerProfileId"
-          LEFT JOIN "User" seller_user ON seller_user.id = sp."userId"
-          WHERE bp.status = 'PUBLISHED'
-            AND bp."publishedAt" IS NOT NULL
-            AND bp."publishedAt" <= NOW()
-            AND u.banned = false
-            AND u."deletedAt" IS NULL
-            AND (
-              bp."sellerProfileId" IS NULL
-              OR (
-                sp."chargesEnabled" = true
-                AND sp."vacationMode" = false
-                AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
-                AND seller_user.banned = false
-                AND seller_user."deletedAt" IS NULL
-              )
-            )
-            AND bp.title % ${q}
-            AND similarity(bp.title, ${q}) > ${BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY}
-          ORDER BY similarity(bp.title, ${q}) DESC, bp."publishedAt" DESC, bp.id DESC
-          LIMIT 3
-        `;
+    const blockedAuthorPredicate = blockedUserIds.length > 0
+      ? Prisma.sql`AND bp."authorId" != ALL(${blockedUserIds})`
+      : Prisma.empty;
+    const blockedSellerPredicate = blockedSellerIds.length > 0
+      ? Prisma.sql`AND (bp."sellerProfileId" IS NULL OR bp."sellerProfileId" != ALL(${blockedSellerIds}))`
+      : Prisma.empty;
+
+    return tx.$queryRaw<Array<{ slug: string; title: string }>>(Prisma.sql`
+      SELECT bp.slug, bp.title
+      FROM "BlogPost" bp
+      INNER JOIN "User" u ON u.id = bp."authorId"
+      LEFT JOIN "SellerProfile" sp ON sp.id = bp."sellerProfileId"
+      LEFT JOIN "User" seller_user ON seller_user.id = sp."userId"
+      WHERE bp.status = 'PUBLISHED'
+        AND bp."publishedAt" IS NOT NULL
+        AND bp."publishedAt" <= NOW()
+        AND u.banned = false
+        AND u."deletedAt" IS NULL
+        AND (
+          bp."sellerProfileId" IS NULL
+          OR (
+            sp."chargesEnabled" = true
+            AND sp."vacationMode" = false
+            AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
+            AND seller_user.banned = false
+            AND seller_user."deletedAt" IS NULL
+          )
+        )
+        ${blockedAuthorPredicate}
+        ${blockedSellerPredicate}
+        AND bp.title % ${q}
+        AND similarity(bp.title, ${q}) > ${BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY}
+      ORDER BY similarity(bp.title, ${q}) DESC, bp."publishedAt" DESC, bp.id DESC
+      LIMIT 3
+    `);
   });
 }
 
@@ -145,7 +127,8 @@ export async function GET(req: NextRequest) {
       throw err;
     }
   }
-  const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
+  const { blockedUserIds, blockedSellerIds } = await getBlockedIdsFor(meDbId);
+  const blockedUserIdList = [...blockedUserIds];
 
   const qLower = q.toLowerCase();
   const normalizedDisplayNameQuery = normalizeDisplayNameForLookup(q);
@@ -197,7 +180,7 @@ export async function GET(req: NextRequest) {
   // Blog post title suggestions. Keep this raw SQL predicate equivalent to
   // publicBlogPostWhere() so global search never suggests a slug that the
   // public blog page will hide.
-  const blogRows = await blogFuzzySuggestionRows(q, blockedSellerIds);
+  const blogRows = await blogFuzzySuggestionRows(q, blockedUserIdList, blockedSellerIds);
 
   const seen = new Set<string>();
   const suggestions: string[] = [];

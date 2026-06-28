@@ -10647,3 +10647,105 @@ plus production smoke evidence and public-availability proof, HSTS preload
 submission decision, Vercel Analytics/Speed Insights product/privacy decision,
 homepage browser a11y/runtime proof beyond source fallback, and deployed
 security-header runtime proof beyond source/config guardrails.
+
+Entry 460 closes a parent-verified hidden-source pass across Shippo label
+money handling, cart variant updates, public/homepage query projections, and
+blog suggestion/author loaders. Parent Codex reviewed the three read-only
+agents' conclusions, verified the source locally, closed the agents, and did
+not stage the raw audit import.
+
+Verified fixed/reduced:
+
+- Shippo label re-quotes now normalize provider rates through a shared helper
+  before persisting selectable `OrderShippingRateQuote` rows. Missing rate ids,
+  malformed/negative/unsafe/extreme amounts, and non-order-currency rates are
+  dropped instead of becoming seller-selectable label rates.
+- Shippo transaction label costs now pass through the same provider-money guard
+  and must match `Order.currency` before Stripe transfer reversal. If Shippo
+  returns a missing, malformed, extreme, or wrong-currency cost after a label is
+  purchased, the order is marked for manual review with durable
+  label-clawback state instead of attempting an arbitrary seller-transfer
+  reversal.
+- `/api/cart/update` no longer chooses an arbitrary row when legacy
+  listing-id-only updates match multiple cart rows for the same listing. The
+  route now requires `cartItemId` for ambiguous variant/duplicate cart lines.
+- Homepage featured-maker cache reads now use an explicit public
+  `SellerProfileSelect` allowlist instead of caching broad seller profile rows.
+- Global search blog title suggestions now filter both blocked author user ids
+  and blocked seller profile ids before returning public blog suggestions.
+- `/blog/author/[slug]` now shares the public author seller read between
+  `generateMetadata()` and the page render through React `cache()`, preserving
+  the same public visibility predicate while avoiding duplicate reads.
+- `CLAUDE.md` records the reusable behavior contracts for label-money
+  normalization, ambiguous cart update identifiers, public featured-maker
+  projections, blocked blog suggestions, and shared blog-author loaders.
+
+Verified current/deferred during the same pass:
+
+- Stripe subscriptions/webhook dashboard evidence, Stripe Connect v2
+  loss-liability policy, Clerk staff MFA/breached-password/spam dashboard
+  evidence, Sentry cron alert routing, R2 ListBucket/public-bucket posture and
+  production smoke evidence, deployed-header/HSTS preload proof, Vercel
+  Analytics/Speed Insights, privacy/legal retention scope, founding-maker
+  policy, stale remote branch/git-author hygiene, and EXPLAIN/runtime query-plan
+  validation remain external ops/legal/runtime evidence rather than source-only
+  closures.
+- Partial connected-refund live reconciliation proof and historical seller
+  shipping-rate currency drift remain runtime/backfill evidence. This pass
+  reduced new label-rate/cost risk but did not prove historical live data or
+  provider dashboard state.
+
+Guardrails:
+`tests/shippo-label-money-guardrails.test.mjs`,
+`tests/shipping-quote-state.test.mjs`,
+`tests/label-clawback-state.test.mjs`,
+`tests/order-state-followups.test.mjs`,
+`tests/listing-variants.test.mjs`,
+`tests/public-query-determinism.test.mjs`,
+`tests/public-cron-search-hardening.test.mjs`,
+`tests/verified-audit-followups.test.mjs`, and
+`tests/seo-landing-routes.test.mjs`.
+
+Verification:
+focused `node --test tests/shippo-label-money-guardrails.test.mjs tests/shipping-quote-state.test.mjs tests/label-clawback-state.test.mjs`
+(20/20 tests passing), focused
+`node --test tests/order-state-followups.test.mjs tests/listing-variants.test.mjs`
+(12/12 tests passing), focused
+`node --test tests/public-query-determinism.test.mjs tests/public-cron-search-hardening.test.mjs tests/verified-audit-followups.test.mjs tests/seo-landing-routes.test.mjs`
+(47/47 tests passing), combined focused rerun across the same nine test files
+(79/79 tests passing), `npx tsc --noEmit`, `git diff --check`,
+`npm run lint` (exit 0; existing JSX AST utility warning only), `npm test`
+(1416/1416 tests passing across 257 suites), and `npm run build` passed.
+
+Current running tally after Entry 460: verified fixed/reduced 932, verified
+stale/false-positive/current 504, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 30. Fixed/reduced
+increases by five for Shippo label money normalization, ambiguous cart update
+identifier handling, homepage featured-maker public projections, global blog
+suggestion block filtering, and blog-author cached loader sharing. Stale/current,
+deferred, and raw-left stay flat because this pass fixed hidden adjacent source
+issues and rechecked already-deferred runtime/vendor/legal categories rather
+than closing a remaining raw allegation category.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence, label
+clawback policy/runtime proof, Stripe webhook subscription dashboard evidence,
+Stripe Connect v2 loss-liability ops/legal decision, stale remote branch and
+old git author hygiene, Round 10 deferred cache/state-machine product designs
+that require product decisions rather than source guardrails, remaining
+EXPLAIN-dependent runtime query-plan validation beyond the existing source
+indexes and source guardrails, Stripe partial-refund live reconciliation proof,
+founding-maker permanence policy, remaining privacy/legal retention scope,
+cross-seller AI duplicate-detection product design, legacy enum cleanup/data-
+migration decisions, partial multi-seller checkout continuation design,
+deliberate BigInt money-column modeling, variant-adjusted unit-price floor
+policy, live-data reconciliation for historical seller shipping-rate currency
+drift, Guild private/custom-order sales/review trust-metric product policy,
+Clerk staff MFA and breached-password dashboard evidence, Clerk multi-account
+spam dashboard evidence, buyer-deletion live Stripe replay proof after source
+minimization, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public-bucket dashboard posture plus
+production smoke evidence and public-availability proof, HSTS preload
+submission decision, Vercel Analytics/Speed Insights product/privacy decision,
+homepage browser a11y/runtime proof beyond source fallback, and deployed
+security-header runtime proof beyond source/config guardrails.
