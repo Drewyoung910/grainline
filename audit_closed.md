@@ -10548,3 +10548,102 @@ plus production smoke evidence and public-availability proof, HSTS preload
 submission decision, Vercel Analytics/Speed Insights product/privacy decision,
 homepage browser a11y/runtime proof beyond source fallback, and deployed
 security-header runtime proof beyond source/config guardrails.
+
+Entry 459 closes a parent-verified seller-profile metadata/listing-preview
+query reduction and rechecks a larger Stripe/ops/upload/env source slice with
+two read-only agents. Parent Codex reviewed both agents' conclusions, verified
+the source locally, closed both agents, and did not stage the raw audit import.
+
+Verified fixed/reduced:
+
+- The public seller profile now shares the public listing-preview query between
+  `generateMetadata()` fallback OG image selection and the page render through
+  `getSellerProfileListingPreview()`. This avoids a separate
+  `prisma.listing.findFirst()` metadata query on sellers without a banner,
+  avatar, or Clerk image while preserving the bounded nine-listing preview,
+  public listing predicate, and existing page behavior.
+- `CLAUDE.md` records the durable performance/cache rule that `/seller/[id]`
+  uses cached loaders for both the seller row and public listing-preview rows
+  when metadata and the page render need the same non-viewer-specific data.
+
+Verified current/stale/deferred during the same pass:
+
+- Stripe label-clawback purchase, retry, and refund recovery source behavior
+  remains current: label purchase keeps the pre-Shippo label lock, missing or
+  failed transfer reversals enter durable review/retry state, the half-hourly
+  retry cron is scheduled, seller/staff/blocked-checkout refunds co-write local
+  refund ledger and system-audit evidence, and orphan recovery stays retryable
+  until local evidence is durable.
+- Round 13/14 upload and env allegations #1095, #1096, #1099, and #1108 remain
+  stale on current `main`: processed-image upload uses a 16 MiB multipart cap,
+  a 50 MP Sharp input cap, image signature checks before processing, processed
+  output size checks before R2 writes, and critical env reads go through
+  `requiredProductionEnv()` or explicit fail-closed helpers.
+- Round 14 seller-page allegations #1109, #1110, and #1111 remain stale as
+  originally stated because seller/profile/listing pages already use React
+  `cache()` loaders and parallelized independent reads. The new source fix is
+  a narrower adjacent duplication in seller metadata's fallback listing-photo
+  query, not a duplicate raw-category closure.
+- Security headers, R2 health/ListBucket posture, Sentry cron alert routing,
+  homepage source a11y/fallbacks, RLS posture, and privacy/legal retention were
+  rechecked as current source/docs plus deferred runtime/vendor/legal evidence.
+  The deployed-header, HSTS preload, R2 ListBucket/public-bucket, R2 smoke-test,
+  Sentry alert, Clerk dashboard, provider-side privacy, and live Stripe
+  reconciliation items still require external evidence rather than source-only
+  closure.
+
+Guardrails:
+`tests/seller-page-performance.test.mjs`,
+`tests/label-clawback-state.test.mjs`,
+`tests/marketplace-refunds.test.mjs`,
+`tests/refund-route-state.test.mjs`,
+`tests/refund-lock-state.test.mjs`,
+`tests/refund-route-source-order.test.mjs`,
+`tests/payment-side-effect-observability.test.mjs`,
+`tests/public-security-config.test.mjs`,
+`tests/retention-and-ops-followups.test.mjs`,
+`tests/form-data-body-bounds.test.mjs`,
+`tests/upload-ux-followups.test.mjs`, and
+`tests/env-validation.test.mjs`.
+
+Verification:
+focused `node --test tests/seller-page-performance.test.mjs` (9/9 tests
+passing). Stripe read-only agent verification also ran
+`node --test tests/label-clawback-state.test.mjs tests/marketplace-refunds.test.mjs tests/refund-route-state.test.mjs tests/refund-lock-state.test.mjs tests/refund-route-source-order.test.mjs tests/payment-side-effect-observability.test.mjs`
+(72/72 tests passing). Parent expanded focused
+`node --test tests/seller-page-performance.test.mjs tests/label-clawback-state.test.mjs tests/marketplace-refunds.test.mjs tests/refund-route-state.test.mjs tests/refund-lock-state.test.mjs tests/refund-route-source-order.test.mjs tests/payment-side-effect-observability.test.mjs tests/public-security-config.test.mjs tests/retention-and-ops-followups.test.mjs tests/form-data-body-bounds.test.mjs tests/upload-ux-followups.test.mjs tests/env-validation.test.mjs`
+(124/124 tests passing), `npx tsc --noEmit`, `git diff --check`,
+`npm run lint` (exit 0; existing JSX AST utility warning only),
+`npm test` (1412/1412 tests passing across 256 suites), and
+`npm run build` passed.
+
+Current running tally after Entry 459: verified fixed/reduced 927, verified
+stale/false-positive/current 504, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 30. Fixed/reduced
+increases by one for the seller metadata/listing-preview cached loader.
+Stale/current, deferred, and raw-left stay flat because the rechecked
+upload/env/seller/Stripe/ops categories were already counted in earlier ledger
+entries or remain external runtime/vendor/product/legal evidence.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence,
+label clawback policy/runtime proof, Stripe webhook subscription dashboard
+evidence, Stripe Connect v2 loss-liability ops/legal decision, stale remote
+branch and old git author hygiene, Round 10 deferred cache/state-machine
+product designs that require product decisions rather than source guardrails,
+remaining EXPLAIN-dependent runtime query-plan validation beyond the existing
+source indexes and source guardrails, Stripe partial-refund live reconciliation
+proof, founding-maker permanence policy, remaining privacy/legal retention
+scope, cross-seller AI duplicate-detection product design, legacy enum
+cleanup/data-migration decisions, partial multi-seller checkout continuation
+design, deliberate BigInt money-column modeling, variant-adjusted unit-price
+floor policy, live-data reconciliation for historical seller shipping-rate
+currency drift, Guild private/custom-order sales/review trust-metric product
+policy, Clerk staff MFA and breached-password dashboard evidence, Clerk
+multi-account spam dashboard evidence, buyer-deletion live Stripe replay proof
+after source minimization, Founding Maker live DB concurrency proof, Sentry
+cron alert evidence, Cloudflare R2 ListBucket/public-bucket dashboard posture
+plus production smoke evidence and public-availability proof, HSTS preload
+submission decision, Vercel Analytics/Speed Insights product/privacy decision,
+homepage browser a11y/runtime proof beyond source fallback, and deployed
+security-header runtime proof beyond source/config guardrails.

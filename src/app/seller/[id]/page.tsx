@@ -121,6 +121,15 @@ const getSellerProfileForPublicPage = cache(async (sellerId: string) =>
   })
 );
 
+const getSellerProfileListingPreview = cache(async (sellerId: string) =>
+  prisma.listing.findMany({
+    where: publicListingWhere({ sellerId }),
+    select: sellerProfileListingCardSelect,
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+    take: SELLER_PROFILE_LISTING_PREVIEW_SIZE,
+  })
+);
+
 type PublicSellerProfile = NonNullable<Awaited<ReturnType<typeof getSellerProfileForPublicPage>>>;
 
 function sellerIsPubliclyVisible(
@@ -158,12 +167,8 @@ export async function generateMetadata({
     seller.user?.imageUrl ||
     null;
   if (!img) {
-    const firstPhoto = await prisma.listing.findFirst({
-      where: publicListingWhere({ sellerId }),
-      select: { photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } } },
-      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
-    });
-    img = firstPhoto?.photos[0]?.url ?? null;
+    const previewListings = await getSellerProfileListingPreview(sellerId);
+    img = previewListings.find((listing) => listing.photos[0]?.url)?.photos[0]?.url ?? null;
   }
 
   return {
@@ -261,12 +266,7 @@ export default async function SellerPublicPage({
       take: 3,
       select: { slug: true, title: true, excerpt: true, coverImageUrl: true, publishedAt: true, type: true },
     }),
-    prisma.listing.findMany({
-      where: publicListingWhere({ sellerId: seller.id }),
-      select: sellerProfileListingCardSelect,
-      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
-      take: SELLER_PROFILE_LISTING_PREVIEW_SIZE,
-    }),
+    getSellerProfileListingPreview(seller.id),
     seller.featuredListingIds && seller.featuredListingIds.length > 0
       ? prisma.listing.findMany({
           where: publicListingWhere({ sellerId: seller.id, id: { in: seller.featuredListingIds } }),

@@ -58,8 +58,12 @@ describe("seller public page query guardrails", () => {
     const sellerPage = source("src/app/seller/[id]/page.tsx");
 
     assert.match(sellerPage, /const SELLER_PROFILE_LISTING_PREVIEW_SIZE = 9/);
+    assert.match(sellerPage, /const getSellerProfileListingPreview = cache\(async \(sellerId: string\) =>/);
+    assert.match(sellerPage, /export async function generateMetadata[\s\S]*getSellerProfileListingPreview\(sellerId\)/);
+    assert.match(sellerPage, /export default async function SellerPublicPage[\s\S]*getSellerProfileListingPreview\(seller\.id\)/);
     assert.match(sellerPage, /take: SELLER_PROFILE_LISTING_PREVIEW_SIZE/);
     assert.match(sellerPage, /prisma\.listing\.count\(\{ where: publicListingWhere\(\{ sellerId: seller\.id \}\) \}\)/);
+    assert.doesNotMatch(sellerPage, /prisma\.listing\.findFirst\(\{\s*where: publicListingWhere\(\{ sellerId \}\)/);
     assert.doesNotMatch(sellerPage, /const featuredRows = await prisma\.listing\.findMany\(\{/);
     assert.match(sellerPage, /where: publicListingWhere\(\{ sellerId: seller\.id, id: \{ in: seller\.featuredListingIds \} \}\)/);
     assert.match(sellerPage, /See all \{activePublicListingCount\}/);
