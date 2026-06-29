@@ -10842,3 +10842,91 @@ production smoke evidence and public-availability proof, HSTS preload
 submission decision, Vercel Analytics/Speed Insights product/privacy decision,
 homepage browser a11y/runtime proof beyond source fallback, and deployed
 security-header runtime proof beyond source/config guardrails.
+
+Entry 462 closes a parent-verified Buy Now checkout and checkout-stock
+reservation race pass. Three read-only agents were used for sidecar checks;
+Parent Codex reviewed their findings locally, closed all agents, and did not
+stage the raw audit import.
+
+Verified fixed/reduced:
+
+- Reservation-backed checkout stock restoration now takes the same
+  checkout-session advisory lock used by paid checkout completion before it
+  checks for an existing order or claims a reservation as `RESTORED`. This
+  reduces the race where an expired/rollback restore could see no order,
+  restore stock, and then lose to a concurrent paid webhook creating the order.
+- Buy Now checkout now rolls back its open session on browser `pagehide`, in
+  addition to close/unmount cleanup, while still suppressing rollback after
+  checkout completion.
+- Buy Now address confirmation, address change/back navigation, shipping-rate
+  selection, and gift-note/gift-wrap edits now invalidate in-flight session
+  creation requests. Late Stripe session responses are rejected through the
+  existing stale-response path and their returned session ids are rolled back.
+
+Verified current/stale/deferred during the same pass:
+
+- Round 9 #807/#808/#809/#810 remain stale/current in source and already
+  covered by earlier entries: Guild Master revocation uses guarded
+  `updateMany` predicates plus system-audit evidence, case auto-close copy is
+  neutral for inactivity, commission-expire notification fanout is
+  concurrency-limited, and `ListingViewDaily` pruning is batched with system
+  audit evidence.
+- Round 13/14 upload/media/AI-review/env allegations rechecked in the touched
+  context remain fixed/current: AI review prompt prices use
+  `formatCurrencyCents()`, and the upload/env guardrails remain covered by
+  existing tests and ledger entries.
+- Stripe webhook subscription proof, Connect v2 loss-liability, Clerk security
+  dashboard controls, Sentry cron alert routing, R2 ListBucket/public-bucket
+  posture, HSTS/deployed-header proof, Vercel Analytics/Speed Insights,
+  EXPLAIN query-plan proof, and provider-side/legal privacy retention remain
+  external runtime/provider/legal/product evidence items, not source-only bugs
+  in this pass.
+
+Guardrails:
+`tests/client-async-guardrails.test.mjs`,
+`tests/checkout-stock-reservation-guardrails.test.mjs`,
+`tests/checkout-session-expiry.test.mjs`,
+`tests/public-cron-search-hardening.test.mjs`,
+`tests/checkout-payment-methods.test.mjs`, and
+`tests/payment-side-effect-observability.test.mjs`.
+
+Verification:
+focused
+`node --test tests/client-async-guardrails.test.mjs tests/checkout-stock-reservation-guardrails.test.mjs`
+(27/27 tests passing), expanded focused
+`node --test tests/client-async-guardrails.test.mjs tests/checkout-stock-reservation-guardrails.test.mjs tests/checkout-session-expiry.test.mjs tests/public-cron-search-hardening.test.mjs tests/checkout-payment-methods.test.mjs tests/payment-side-effect-observability.test.mjs`
+(74/74 tests passing), `npx tsc --noEmit`, `git diff --check`,
+`npm run lint` (exit 0; existing JSX AST utility warning only), `npm test`
+(1418/1418 tests passing across 257 suites), and `npm run build` passed.
+
+Current running tally after Entry 462: verified fixed/reduced 937, verified
+stale/false-positive/current 506, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 30. Fixed/reduced
+increases by three for the reservation-backed restore session lock, Buy Now
+pagehide rollback, and Buy Now stale session-create invalidation. Stale/current,
+deferred, and raw-left stay flat because the cron/source rechecks were already
+classified and raw #1120 remains a reduced best-effort rollback/product window
+rather than a fully eliminated browser/network limitation.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence, label
+clawback policy/runtime proof, Stripe webhook subscription dashboard evidence,
+Stripe Connect v2 loss-liability ops/legal decision, stale remote branch and
+old git author hygiene, Round 10 deferred cache/state-machine product designs
+that require product decisions rather than source guardrails, remaining
+EXPLAIN-dependent runtime query-plan validation beyond the existing source
+indexes and source guardrails, Stripe partial-refund live reconciliation proof,
+founding-maker permanence policy, remaining privacy/legal retention scope,
+cross-seller AI duplicate-detection product design, legacy enum cleanup/data-
+migration decisions, partial multi-seller checkout continuation design,
+deliberate BigInt money-column modeling, variant-adjusted unit-price floor
+policy, live-data reconciliation for historical seller shipping-rate currency
+drift, Guild private/custom-order sales/review trust-metric product policy,
+Clerk staff MFA and breached-password dashboard evidence, Clerk multi-account
+spam dashboard evidence, buyer-deletion live Stripe replay proof after source
+minimization, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public-bucket dashboard posture plus
+production smoke evidence and public-availability proof, HSTS preload
+submission decision, Vercel Analytics/Speed Insights product/privacy decision,
+homepage browser a11y/runtime proof beyond source fallback, and deployed
+security-header runtime proof beyond source/config guardrails.

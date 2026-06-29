@@ -129,6 +129,15 @@ describe("client async guardrails", () => {
     assert.match(modal, /requestId !== createSessionRequestRef\.current/);
     assert.match(modal, /completedRef\.current = true/);
     assert.match(modal, /if \(!completedRef\.current && currentSessionId\)/);
+    assert.match(modal, /const handleAddressConfirmed = useCallback\(\(address: ShippingAddress\) => \{[\s\S]*?resetCheckoutState\(\{ rollback: true \}\);[\s\S]*?setShippingAddress\(address\);[\s\S]*?setStep\("shipping"\);/);
+    assert.match(modal, /const handleReturnToAddress = useCallback\(\(\) => \{[\s\S]*?resetCheckoutState\(\{ rollback: true \}\);[\s\S]*?setStep\("address"\);/);
+    assert.match(modal, /const handleRateSelected = useCallback\(\(rate: SelectedShippingRate \| null\) => \{[\s\S]*?resetCheckoutState\(\{ rollback: true \}\);[\s\S]*?setSelectedRate\(rate\);/);
+    assert.match(modal, /const handleGiftNoteChange = useCallback\(\(note: string, wrapping: boolean\) => \{[\s\S]*?createSessionRequestRef\.current \+= 1;[\s\S]*?setCreatingSession\(false\);/);
+    assert.match(modal, /onConfirm=\{handleAddressConfirmed\}/);
+    assert.match(modal, /onSelect=\{handleRateSelected\}/);
+    assert.match(modal, /onChange=\{handleGiftNoteChange\}/);
+    assert.match(modal, /window\.addEventListener\("pagehide", rollbackOpenCheckoutSession\)/);
+    assert.match(modal, /return \(\) => window\.removeEventListener\("pagehide", rollbackOpenCheckoutSession\)/);
   });
 
   it("rolls back cart checkout sessions on pagehide without persisting Stripe secrets", () => {

@@ -45,6 +45,31 @@ describe("durable checkout stock reservation guardrails", () => {
     assert.match(restore, /if \(reservationRestore\.handled\) return/);
   });
 
+  it("serializes reservation-backed restores against paid checkout completion", () => {
+    const restore = source("src/lib/checkoutStockRestore.ts");
+    const restoreStart = restore.indexOf("export async function restoreCheckoutStockReservationOnce");
+    const restoreEnd = restore.indexOf("async function deferCheckoutStockReservationRepair", restoreStart);
+    const restoreBlock = restore.slice(restoreStart, restoreEnd);
+    const sessionIdsIndex = restoreBlock.indexOf("const sessionIds =");
+    const lockIndex = restoreBlock.indexOf("await lockCheckoutSessionMutation(tx, sessionId)", sessionIdsIndex);
+    const orderExistsIndex = restoreBlock.indexOf("tx.order.findFirst", sessionIdsIndex);
+    const restoredIndex = restoreBlock.indexOf('status: "RESTORED"', sessionIdsIndex);
+
+    assert.notEqual(restoreStart, -1, "reservation restore helper must exist");
+    assert.notEqual(restoreEnd, -1, "reservation restore helper block must be bounded for this guardrail");
+    assert.notEqual(sessionIdsIndex, -1, "reservation restore must derive known Stripe session ids");
+    assert.notEqual(lockIndex, -1, "reservation restore must take the checkout-session mutation lock");
+    assert.notEqual(orderExistsIndex, -1, "reservation restore must check for an existing order");
+    assert.notEqual(restoredIndex, -1, "reservation restore must claim RESTORED before restocking");
+    assert.ok(lockIndex > sessionIdsIndex, "session lock should use the derived session ids");
+    assert.ok(lockIndex < orderExistsIndex, "session lock must happen before checking for an order");
+    assert.ok(lockIndex < restoredIndex, "session lock must happen before claiming RESTORED");
+    assert.match(
+      restoreBlock,
+      /for \(const sessionId of \[\.\.\.sessionIds\]\.sort\(\)\) \{\s*await lockCheckoutSessionMutation\(tx, sessionId\);\s*\}/,
+    );
+  });
+
   it("registers a bounded cron to repair no-session reservations", () => {
     const vercel = source("vercel.json");
     const cronRoute = source("src/app/api/cron/checkout-stock-reservations/route.ts");

@@ -125,6 +125,29 @@ export default function BuyNowCheckoutModal({
     setStep((currentStep) => (currentStep === "payment" ? "shipping" : currentStep));
   }, []);
 
+  const handleAddressConfirmed = useCallback((address: ShippingAddress) => {
+    resetCheckoutState({ rollback: true });
+    setShippingAddress(address);
+    setStep("shipping");
+  }, [resetCheckoutState]);
+
+  const handleReturnToAddress = useCallback(() => {
+    resetCheckoutState({ rollback: true });
+    setStep("address");
+  }, [resetCheckoutState]);
+
+  const handleRateSelected = useCallback((rate: SelectedShippingRate | null) => {
+    resetCheckoutState({ rollback: true });
+    setSelectedRate(rate);
+  }, [resetCheckoutState]);
+
+  const handleGiftNoteChange = useCallback((note: string, wrapping: boolean) => {
+    createSessionRequestRef.current += 1;
+    setCreatingSession(false);
+    setGiftNote(note);
+    setGiftWrapping(wrapping);
+  }, []);
+
   // Reset payment/rate state when modal closes. Shipping rates are signed and
   // short-lived, so preserving selectedRate across re-open can create HMAC
   // failures even when the address did not change.
@@ -146,6 +169,18 @@ export default function BuyNowCheckoutModal({
       }
       sessionIdRef.current = null;
     };
+  }, []);
+
+  useEffect(() => {
+    function rollbackOpenCheckoutSession() {
+      const currentSessionId = sessionIdRef.current;
+      if (!completedRef.current && currentSessionId) {
+        void rollbackCheckoutSessions([currentSessionId]);
+      }
+    }
+
+    window.addEventListener("pagehide", rollbackOpenCheckoutSession);
+    return () => window.removeEventListener("pagehide", rollbackOpenCheckoutSession);
   }, []);
 
   async function handleProceedToPayment() {
@@ -296,13 +331,7 @@ export default function BuyNowCheckoutModal({
           {step === "address" && (
             <ShippingAddressForm
               isSignedIn={isSignedIn}
-              onConfirm={(address) => {
-                setShippingAddress(address);
-                setSelectedRate(null);
-                setClientSecret(null);
-                setSessionId(null);
-                setStep("shipping");
-              }}
+              onConfirm={handleAddressConfirmed}
             />
           )}
 
@@ -318,12 +347,7 @@ export default function BuyNowCheckoutModal({
                   {shippingAddress.state} {shippingAddress.postalCode}
                 </span>
                 <button
-                  onClick={() => {
-                    setSelectedRate(null);
-                    setClientSecret(null);
-                    setSessionId(null);
-                    setStep("address");
-                  }}
+                  onClick={handleReturnToAddress}
                   className="text-xs text-neutral-500 hover:text-neutral-700 whitespace-nowrap flex-shrink-0"
                 >
                   Change
@@ -335,7 +359,7 @@ export default function BuyNowCheckoutModal({
                 sellerDisplayName={sellerName}
                 address={shippingAddress}
                 selectedRate={selectedRate}
-                onSelect={setSelectedRate}
+                onSelect={handleRateSelected}
                 quoteBodyExtra={{
                   mode: "single",
                   listingId,
@@ -350,10 +374,7 @@ export default function BuyNowCheckoutModal({
                     giftNote={giftNote}
                     giftWrapping={giftWrapping}
                     currency={displayCurrency}
-                    onChange={(note, wrapping) => {
-                      setGiftNote(note);
-                      setGiftWrapping(wrapping);
-                    }}
+                    onChange={handleGiftNoteChange}
                   />
                 </div>
               )}
@@ -415,12 +436,7 @@ export default function BuyNowCheckoutModal({
               </button>
 
               <button
-                onClick={() => {
-                  setSelectedRate(null);
-                  setClientSecret(null);
-                  setSessionId(null);
-                  setStep("address");
-                }}
+                onClick={handleReturnToAddress}
                 className="w-full text-sm text-neutral-500 hover:text-neutral-700"
               >
                 ← Back to address

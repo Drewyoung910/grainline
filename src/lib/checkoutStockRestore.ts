@@ -291,6 +291,10 @@ export async function restoreCheckoutStockReservationOnce(input: {
 
     const sessionIds = [...new Set([input.sessionId, reservation.stripeSessionId].filter(Boolean))] as string[];
     if (sessionIds.length > 0) {
+      for (const sessionId of [...sessionIds].sort()) {
+        await lockCheckoutSessionMutation(tx, sessionId);
+      }
+
       const orderExists = await tx.order.findFirst({
         where: { stripeSessionId: { in: sessionIds } },
         select: { id: true },
