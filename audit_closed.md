@@ -10749,3 +10749,96 @@ production smoke evidence and public-availability proof, HSTS preload
 submission decision, Vercel Analytics/Speed Insights product/privacy decision,
 homepage browser a11y/runtime proof beyond source fallback, and deployed
 security-header runtime proof beyond source/config guardrails.
+
+Entry 461 closes a parent-verified notification/cron source pass with three
+read-only agents used for sidecar checks. Parent Codex reviewed the agent
+findings locally, closed all agents, and did not stage the raw audit import.
+
+Verified fixed/reduced:
+
+- Maker blog follower fanout now runs through `fanOutBlogPostToFollowers()`
+  from both blog create and first-publish edit paths. The shared helper
+  rechecks `publicBlogPostWhere({ id: postId, sellerProfileId })`, filters
+  reciprocal blocks and inactive follower accounts before fanout, writes
+  `followed_maker_new_blog/{blogPostId}` source metadata, and pages followers
+  by `Follow.id` in 1,000-row batches instead of keeping duplicated inline
+  `take: 10000` follower queries in the two blog actions.
+- `beginCronRun()` failed-run reclaim no longer deletes by primary key alone.
+  It now removes a reclaimable row with a conditional
+  `id + status: FAILED + startedAt` predicate before retrying the claim, so a
+  concurrent retry cannot delete another worker's fresh `RUNNING` replacement
+  row for the same deterministic cron id.
+
+Verified stale/current during the same pass:
+
+- The `createNotification()` dedup-return ambiguity remains design-only under
+  current call sites. `P2002` returns the existing notification row, and the
+  only observed return-value consumer treats an existing row under the same
+  `dedupScope` as an already-delivered notification rather than as a gate for
+  another mutation.
+- The unawaited/fire-and-forget `createNotification()` allegation is stale as
+  written. Apparent naked calls are awaited through `Promise.all`,
+  `Promise.allSettled`, `mapWithConcurrency()`, or Next `after()` callbacks
+  whose internal work awaits the helper. No escaping `createNotification()`
+  promise was found in the checked request/cron lifecycle.
+- The old failed-cron-run permanent-skip allegation remains stale: `FAILED`
+  rows older than the retry window are reclaimable and covered by
+  `tests/cron-run.test.mjs`. Stale `RUNNING` rows remain intentionally
+  observability-driven via ops-health rather than auto-reclaimed.
+- Stripe webhook subscription proof, Connect v2 loss-liability, Clerk security
+  dashboard controls, Sentry cron alert routing, R2 ListBucket/public-bucket
+  posture, HSTS/deployed-header proof, Vercel Analytics/Speed Insights,
+  EXPLAIN query-plan proof, and provider-side/legal privacy retention remain
+  external runtime/provider/legal/product evidence items, not source-only bugs
+  in this pass.
+
+Guardrails:
+`tests/follower-listing-notifications.test.mjs`,
+`tests/account-state-residue-followups.test.mjs`,
+`tests/blog-action-guardrails.test.mjs`,
+`tests/cron-run.test.mjs`, `tests/public-cron-search-hardening.test.mjs`,
+`tests/cron-schedule-guardrails.test.mjs`, and
+`tests/cron-monitor-state.test.mjs`.
+
+Verification:
+focused
+`node --test tests/follower-listing-notifications.test.mjs tests/account-state-residue-followups.test.mjs tests/blog-action-guardrails.test.mjs`
+(23/23 tests passing), focused
+`node --test tests/follower-listing-notifications.test.mjs tests/account-state-residue-followups.test.mjs tests/blog-action-guardrails.test.mjs tests/cron-run.test.mjs tests/public-cron-search-hardening.test.mjs tests/cron-schedule-guardrails.test.mjs tests/cron-monitor-state.test.mjs`
+(41/41 tests passing), focused `node --test tests/cron-run.test.mjs`
+(5/5 tests passing), `npx tsc --noEmit`, `git diff --check`,
+`npm run lint` (exit 0; existing JSX AST utility warning only), `npm test`
+(1417/1417 tests passing across 257 suites), and `npm run build` passed.
+
+Current running tally after Entry 461: verified fixed/reduced 934, verified
+stale/false-positive/current 506, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 30. Fixed/reduced
+increases by two for blog follower fanout pagination and cron failed-run
+reclaim race reduction. Stale/current increases by two for the notification
+dedup-return and unawaited-createNotification allegations. Deferred and raw-left
+stay flat because the remaining runtime/provider/legal categories were already
+classified and the source fixes were hidden adjacent issues rather than new
+raw-category decrements.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence, label
+clawback policy/runtime proof, Stripe webhook subscription dashboard evidence,
+Stripe Connect v2 loss-liability ops/legal decision, stale remote branch and
+old git author hygiene, Round 10 deferred cache/state-machine product designs
+that require product decisions rather than source guardrails, remaining
+EXPLAIN-dependent runtime query-plan validation beyond the existing source
+indexes and source guardrails, Stripe partial-refund live reconciliation proof,
+founding-maker permanence policy, remaining privacy/legal retention scope,
+cross-seller AI duplicate-detection product design, legacy enum cleanup/data-
+migration decisions, partial multi-seller checkout continuation design,
+deliberate BigInt money-column modeling, variant-adjusted unit-price floor
+policy, live-data reconciliation for historical seller shipping-rate currency
+drift, Guild private/custom-order sales/review trust-metric product policy,
+Clerk staff MFA and breached-password dashboard evidence, Clerk multi-account
+spam dashboard evidence, buyer-deletion live Stripe replay proof after source
+minimization, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public-bucket dashboard posture plus
+production smoke evidence and public-availability proof, HSTS preload
+submission decision, Vercel Analytics/Speed Insights product/privacy decision,
+homepage browser a11y/runtime proof beyond source fallback, and deployed
+security-header runtime proof beyond source/config guardrails.

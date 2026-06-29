@@ -38,22 +38,41 @@ describe("follower listing notification guardrails", () => {
   it("keeps blog follower notifications behind the same reciprocal block filters", () => {
     const blogNew = source("src/app/dashboard/blog/new/page.tsx");
     const blogEdit = source("src/app/dashboard/blog/[id]/edit/page.tsx");
+    const blogFanout = source("src/lib/followerBlogNotifications.ts");
 
-    assert.match(blogNew, /import \{ publicBlogPostWhere \} from "@\/lib\/blogVisibility"/);
-    assert.match(blogNew, /where: publicBlogPostWhere\(\{ id: newPost\.id, sellerProfileId \}\)/);
-    assert.match(blogNew, /if \(!publicPost\?\.sellerProfile\?\.userId\) return/);
-    assert.match(blogNew, /const sellerUserId = publicPost\.sellerProfile\.userId/);
-    assert.match(blogNew, /followerId: \{ not: sellerUserId \}/);
-    assert.match(blogNew, /blocks: \{ none: \{ blockedId: sellerUserId \} \}/);
-    assert.match(blogNew, /blockedBy: \{ none: \{ blockerId: sellerUserId \} \}/);
+    assert.match(blogNew, /import \{ fanOutBlogPostToFollowers \} from "@\/lib\/followerBlogNotifications"/);
+    assert.match(blogNew, /fanOutBlogPostToFollowers\(\{ postId: newPost\.id, sellerProfileId \}\)/);
+    assert.doesNotMatch(blogNew, /take: 10000/);
 
-    assert.match(blogEdit, /import \{ publicBlogPostWhere \} from "@\/lib\/blogVisibility"/);
-    assert.match(blogEdit, /where: publicBlogPostWhere\(\{ id: updated\.id, sellerProfileId: updated\.sellerProfileId \}\)/);
-    assert.match(blogEdit, /if \(!publicPost\?\.sellerProfile\?\.userId\) return/);
-    assert.match(blogEdit, /const sellerUserId = publicPost\.sellerProfile\.userId/);
-    assert.match(blogEdit, /followerId: \{ not: sellerUserId \}/);
-    assert.match(blogEdit, /blocks: \{ none: \{ blockedId: sellerUserId \} \}/);
-    assert.match(blogEdit, /blockedBy: \{ none: \{ blockerId: sellerUserId \} \}/);
+    assert.match(blogEdit, /import \{ fanOutBlogPostToFollowers \} from "@\/lib\/followerBlogNotifications"/);
+    assert.match(blogEdit, /const publishedSellerProfileId = updated\.sellerProfileId/);
+    assert.match(blogEdit, /postId: updated\.id/);
+    assert.match(blogEdit, /sellerProfileId: publishedSellerProfileId/);
+    assert.doesNotMatch(blogEdit, /take: 10000/);
+
+    assert.match(blogFanout, /import \{ publicBlogPostWhere \} from "@\/lib\/blogVisibility"/);
+    assert.match(blogFanout, /const BLOG_FOLLOWER_FANOUT_PAGE_SIZE = 1000/);
+    assert.match(blogFanout, /where: publicBlogPostWhere\(\{ id: postId, sellerProfileId \}\)/);
+    assert.match(blogFanout, /if \(!publicPost\?\.sellerProfile\?\.userId\) return/);
+    assert.match(blogFanout, /const sellerUserId = publicPost\.sellerProfile\.userId/);
+    assert.match(blogFanout, /followerId: \{ not: sellerUserId \}/);
+    assert.match(blogFanout, /blocks: \{ none: \{ blockedId: sellerUserId \} \}/);
+    assert.match(blogFanout, /blockedBy: \{ none: \{ blockerId: sellerUserId \} \}/);
+    assert.match(blogFanout, /orderBy: \{ id: "asc" \}/);
+    assert.match(blogFanout, /\.\.\.\(cursor \? \{ cursor: \{ id: cursor \}, skip: 1 \} : \{\}\)/);
+    assert.match(blogFanout, /take: BLOG_FOLLOWER_FANOUT_PAGE_SIZE/);
+    assert.match(blogFanout, /sourceType: "followed_maker_new_blog"/);
+    assert.match(blogFanout, /sourceId: publicPost\.id/);
+    assert.ok(
+      blogFanout.indexOf("where: publicBlogPostWhere({ id: postId, sellerProfileId })") <
+        blogFanout.indexOf("const followers = await prisma.follow.findMany"),
+      "public blog state must be rechecked before follower lookup",
+    );
+    assert.ok(
+      blogFanout.indexOf("blocks: { none: { blockedId: sellerUserId } }") <
+        blogFanout.indexOf("await mapWithConcurrency(followers, 10"),
+      "block filtering must happen before blog notification fanout",
+    );
   });
 
   it("filters seller broadcast follower recipients before notifications and email outbox jobs", () => {

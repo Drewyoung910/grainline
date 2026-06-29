@@ -67,15 +67,19 @@ describe("blog dashboard action guardrails", () => {
 
   it("does not treat archive and republish as a brand-new blog post", () => {
     const editPage = source("src/app/dashboard/blog/[id]/edit/page.tsx");
+    const blogFanout = source("src/lib/followerBlogNotifications.ts");
 
     assert.match(editPage, /const transitioningToPublished = newStatus === "PUBLISHED" && existing\.status !== "PUBLISHED"/);
     assert.match(editPage, /const isFirstPublish = transitioningToPublished && existing\.publishedAt === null/);
     assert.match(editPage, /if \(isFirstPublish\) \{\s*publishedAt = new Date\(\);/);
-    assert.match(editPage, /if \(isFirstPublish && updated\.sellerProfileId\)/);
-    assert.match(editPage, /where: publicBlogPostWhere\(\{ id: updated\.id, sellerProfileId: updated\.sellerProfileId \}\)/);
-    assert.match(editPage, /const sellerUserId = publicPost\.sellerProfile\.userId/);
-    assert.match(editPage, /blocks: \{ none: \{ blockedId: sellerUserId \} \}/);
-    assert.match(editPage, /blockedBy: \{ none: \{ blockerId: sellerUserId \} \}/);
+    assert.match(editPage, /const publishedSellerProfileId = updated\.sellerProfileId/);
+    assert.match(editPage, /if \(isFirstPublish && publishedSellerProfileId\)/);
+    assert.match(editPage, /postId: updated\.id/);
+    assert.match(editPage, /sellerProfileId: publishedSellerProfileId/);
+    assert.match(blogFanout, /where: publicBlogPostWhere\(\{ id: postId, sellerProfileId \}\)/);
+    assert.match(blogFanout, /const sellerUserId = publicPost\.sellerProfile\.userId/);
+    assert.match(blogFanout, /blocks: \{ none: \{ blockedId: sellerUserId \} \}/);
+    assert.match(blogFanout, /blockedBy: \{ none: \{ blockerId: sellerUserId \} \}/);
     assert.doesNotMatch(editPage, /else if \(newStatus !== "PUBLISHED"\) \{\s*publishedAt = null/);
   });
 

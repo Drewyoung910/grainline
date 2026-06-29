@@ -35,6 +35,10 @@ export async function beginCronRun(
         select: { status: true, startedAt: true },
       });
       if (shouldReclaimFailedCronRun(existing)) {
+        const failedStartedAt = existing?.startedAt;
+        if (!(failedStartedAt instanceof Date)) {
+          return { acquired: false, runId, jobName, bucket };
+        }
         if (reclaimRetries >= MAX_RECLAIM_RETRIES) {
           Sentry.captureMessage("Cron run reclaim retry limit reached", {
             level: "warning",
@@ -43,14 +47,12 @@ export async function beginCronRun(
           });
           return { acquired: false, runId, jobName, bucket };
         }
-        await prisma.cronRun.delete({ where: { id: runId } }).catch((deleteError) => {
-          if (
-            deleteError instanceof Prisma.PrismaClientKnownRequestError &&
-            deleteError.code === "P2025"
-          ) {
-            return;
-          }
-          throw deleteError;
+        await prisma.cronRun.deleteMany({
+          where: {
+            id: runId,
+            status: "FAILED",
+            startedAt: failedStartedAt,
+          },
         });
         return beginCronRun(jobName, bucket, reclaimRetries + 1);
       }

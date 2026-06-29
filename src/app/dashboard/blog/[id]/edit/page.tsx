@@ -7,8 +7,6 @@ import { prisma } from "@/lib/db";
 import { BLOG_BODY_MAX_CHARS, calculateReadingTime } from "@/lib/blog";
 import { BlogPostType } from "@prisma/client";
 import BlogPostForm from "@/components/BlogPostForm";
-import { createNotification } from "@/lib/notifications";
-import { mapWithConcurrency } from "@/lib/concurrency";
 import { normalizeBlogCoverImageUrl, normalizeBlogVideoUrl } from "@/lib/blogInput";
 import { claimDirectUploadsForUrls } from "@/lib/directUploadLifecycle";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
@@ -16,7 +14,7 @@ import { normalizeTags } from "@/lib/tags";
 import { revalidateBlogSearchCaches } from "@/lib/searchCache";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { parseUpdateBlogStatus } from "@/lib/blogStatusInput";
-import { publicBlogPostWhere } from "@/lib/blogVisibility";
+import { fanOutBlogPostToFollowers } from "@/lib/followerBlogNotifications";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -203,54 +201,19 @@ export default async function EditBlogPostPage({
     }
 
     // Notify followers only on the first-ever publish, not on archive/republish.
-    if (isFirstPublish && updated.sellerProfileId) {
+    const publishedSellerProfileId = updated.sellerProfileId;
+    if (isFirstPublish && publishedSellerProfileId) {
       after(async () => {
         try {
-          const publicPost = await prisma.blogPost.findFirst({
-            where: publicBlogPostWhere({ id: updated.id, sellerProfileId: updated.sellerProfileId }),
-            select: {
-              id: true,
-              slug: true,
-              title: true,
-              sellerProfileId: true,
-              sellerProfile: { select: { displayName: true, userId: true } },
-            },
+          await fanOutBlogPostToFollowers({
+            postId: updated.id,
+            sellerProfileId: publishedSellerProfileId,
           });
-          if (!publicPost?.sellerProfile?.userId) return;
-          const sellerUserId = publicPost.sellerProfile.userId;
-          const followers = await prisma.follow.findMany({
-            where: {
-              sellerProfileId: publicPost.sellerProfileId!,
-              followerId: { not: sellerUserId },
-              follower: {
-                banned: false,
-                deletedAt: null,
-                blocks: { none: { blockedId: sellerUserId } },
-                blockedBy: { none: { blockerId: sellerUserId } },
-              },
-            },
-            select: { followerId: true },
-            take: 10000,
-          });
-          if (followers.length > 0) {
-            const sellerName = publicPost.sellerProfile.displayName ?? "A maker you follow";
-            await mapWithConcurrency(followers, 10, (f) =>
-              createNotification({
-                userId: f.followerId,
-                type: "FOLLOWED_MAKER_NEW_BLOG",
-                title: `New post from ${sellerName}`,
-                body: publicPost.title,
-                link: `/blog/${publicPost.slug}`,
-                sourceType: "followed_maker_new_blog",
-                sourceId: publicPost.id,
-              }),
-            );
-          }
         } catch (error) {
           Sentry.captureException(error, {
             level: "warning",
             tags: { source: "blog_update_follower_notification" },
-            extra: { postId: id, sellerProfileId: updated.sellerProfileId },
+            extra: { postId: id, sellerProfileId: publishedSellerProfileId },
           });
         }
       });

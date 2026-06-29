@@ -109,8 +109,7 @@ describe("account-state residue hardening", () => {
     const outbox = source("src/lib/emailOutbox.ts");
     const broadcastRoute = source("src/app/api/seller/broadcast/route.ts");
     const listingFanout = source("src/lib/followerListingNotifications.ts");
-    const blogNew = source("src/app/dashboard/blog/new/page.tsx");
-    const blogEdit = source("src/app/dashboard/blog/[id]/edit/page.tsx");
+    const blogFanout = source("src/lib/followerBlogNotifications.ts");
 
     for (const model of ["EmailOutbox", "Notification"]) {
       const modelBlock = schema.slice(schema.indexOf(`model ${model} {`), schema.indexOf("}", schema.indexOf(`model ${model} {`)));
@@ -136,10 +135,8 @@ describe("account-state residue hardening", () => {
     assert.match(broadcastRoute, /sourceId: broadcast\.id/);
     assert.match(listingFanout, /sourceType: "followed_maker_new_listing"/);
     assert.match(listingFanout, /sourceId: publicListing\.id/);
-    assert.match(blogNew, /sourceType: "followed_maker_new_blog"/);
-    assert.match(blogNew, /sourceId: publicPost\.id/);
-    assert.match(blogEdit, /sourceType: "followed_maker_new_blog"/);
-    assert.match(blogEdit, /sourceId: publicPost\.id/);
+    assert.match(blogFanout, /sourceType: "followed_maker_new_blog"/);
+    assert.match(blogFanout, /sourceId: publicPost\.id/);
   });
 
   it("removes deleted seller-authored fanout residue from follower notifications and outbox rows", () => {

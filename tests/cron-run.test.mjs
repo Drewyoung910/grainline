@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const {
@@ -8,6 +9,10 @@ const {
   shouldReclaimFailedCronRun,
 } = await import("../src/lib/cronRunState.ts");
 const { cronRunPartialIssueSummary } = await import("../src/lib/cronRunPartialIssues.ts");
+
+function source(path) {
+  return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+}
 
 describe("cron run idempotency helpers", () => {
   it("uses UTC hour buckets for deterministic cron run IDs", () => {
@@ -26,6 +31,18 @@ describe("cron run idempotency helpers", () => {
     assert.equal(shouldReclaimFailedCronRun({ status: "COMPLETED", startedAt: stale }, now), false);
     assert.equal(shouldReclaimFailedCronRun({ status: "FAILED", startedAt: null }, now), false);
     assert.equal(shouldReclaimFailedCronRun(null, now), false);
+  });
+
+  it("guards failed-run reclaim deletes against fresh replacement claims", () => {
+    const cronRun = source("src/lib/cronRun.ts");
+
+    assert.match(cronRun, /const failedStartedAt = existing\?\.startedAt/);
+    assert.match(
+      cronRun,
+      /prisma\.cronRun\.deleteMany\(\{\s*where: \{\s*id: runId,\s*status: "FAILED",\s*startedAt: failedStartedAt,\s*\},\s*\}\)/s,
+    );
+    assert.doesNotMatch(cronRun, /prisma\.cronRun\.delete\(\{ where: \{ id: runId \} \}/);
+    assert.match(cronRun, /return beginCronRun\(jobName, bucket, reclaimRetries \+ 1\)/);
   });
 
   it("sanitizes persisted cron failure messages", () => {
