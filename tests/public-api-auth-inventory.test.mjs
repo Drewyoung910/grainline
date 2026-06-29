@@ -15,8 +15,6 @@ function apiRoutes() {
 
 const intentionalNoAuthPublicRoutes = new Set([
   "src/app/api/address/autocomplete/route.ts",
-  "src/app/api/blog/route.ts",
-  "src/app/api/blog/search/route.ts",
   "src/app/api/csp-report/route.ts",
   "src/app/api/email/unsubscribe/route.ts",
   "src/app/api/health/route.ts",
@@ -34,6 +32,8 @@ const intentionalOptionalAuthPublicRoutes = new Set([
 ]);
 
 const intentionalOptionalAccountAuthPublicRoutes = new Set([
+  "src/app/api/blog/route.ts",
+  "src/app/api/blog/search/route.ts",
   "src/app/api/blog/search/suggestions/route.ts",
 ]);
 

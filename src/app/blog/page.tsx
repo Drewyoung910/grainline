@@ -7,7 +7,7 @@ import { BlogPostType, Prisma } from "@prisma/client";
 import NewsletterSignup from "@/components/NewsletterSignup";
 import { auth } from "@clerk/nextjs/server";
 import SaveBlogButton from "@/components/SaveBlogButton";
-import { getBlockedUserIdsFor } from "@/lib/blocks";
+import { getBlockedIdsFor } from "@/lib/blocks";
 import BlogSearchBar from "@/components/BlogSearchBar";
 import MediaImage from "@/components/MediaImage";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
@@ -67,15 +67,23 @@ export default async function BlogIndexPage({
     const meRow = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
     meDbId = meRow?.id ?? null;
   }
-  const blockedUserIds = await getBlockedUserIdsFor(meDbId);
+  const { blockedUserIds, blockedSellerIds } = await getBlockedIdsFor(meDbId);
   const blockedUserIdList = [...blockedUserIds];
 
   // Base where clause (type + tag + author filters apply always)
-  const baseFilters = {
-    ...(typeValid ? { type: typeFilter as BlogPostType } : {}),
-    ...(tagsFilter.length > 0 ? { tags: { hasSome: tagsFilter } } : {}),
-    ...(authorFilter ? { sellerProfileId: authorFilter } : {}),
-    ...(blockedUserIdList.length > 0 ? { authorId: { notIn: blockedUserIdList } } : {}),
+  const blockFilters: Prisma.BlogPostWhereInput[] = [
+    ...(blockedUserIdList.length > 0 ? [{ authorId: { notIn: blockedUserIdList } }] : []),
+    ...(blockedSellerIds.length > 0
+      ? [{ OR: [{ sellerProfileId: null }, { sellerProfileId: { notIn: blockedSellerIds } }] }]
+      : []),
+  ];
+  const baseFilters: Prisma.BlogPostWhereInput = {
+    AND: [
+      ...(typeValid ? [{ type: typeFilter as BlogPostType }] : []),
+      ...(tagsFilter.length > 0 ? [{ tags: { hasSome: tagsFilter } }] : []),
+      ...(authorFilter ? [{ sellerProfileId: authorFilter }] : []),
+      ...blockFilters,
+    ],
   };
 
   type PostSelect = {
@@ -114,6 +122,9 @@ export default async function BlogIndexPage({
     const blockedAuthorSql = blockedUserIdList.length > 0
       ? Prisma.sql`AND "BlogPost"."authorId" != ALL(${blockedUserIdList})`
       : Prisma.empty;
+    const blockedSellerSql = blockedSellerIds.length > 0
+      ? Prisma.sql`AND ("BlogPost"."sellerProfileId" IS NULL OR "BlogPost"."sellerProfileId" != ALL(${blockedSellerIds}))`
+      : Prisma.empty;
     const rankedRows = await prisma.$queryRaw<RankedRow[]>`
       SELECT "BlogPost".id FROM "BlogPost"
       JOIN "User" author_user ON author_user.id = "BlogPost"."authorId"
@@ -138,6 +149,7 @@ export default async function BlogIndexPage({
         ${tagsSql}
         ${authorSql}
         ${blockedAuthorSql}
+        ${blockedSellerSql}
         AND to_tsvector('english',
           coalesce("BlogPost".title, '') || ' ' || coalesce("BlogPost".excerpt, '') || ' ' || coalesce("BlogPost".body, '')
         ) @@ plainto_tsquery('english', ${q})

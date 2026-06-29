@@ -1,6 +1,8 @@
 import { HTTP_STATUS } from "./httpStatus.ts";
-
-const REFUND_LOCK_SENTINEL = "pending";
+import {
+  REFUND_AMBIGUOUS_SENTINEL,
+  REFUND_LOCK_SENTINEL,
+} from "./refundLockState.ts";
 
 type RefundResolution = "FULL" | "PARTIAL" | "REFUND_FULL" | "REFUND_PARTIAL" | "DISMISSED";
 
@@ -106,12 +108,21 @@ export function blockingRefundOrDisputeLedgerWhere() {
 
 export function sellerRefundConflictResponse(sellerRefundId: string | null | undefined) {
   if (!sellerRefundId) return null;
-  const pending = sellerRefundId === REFUND_LOCK_SENTINEL;
+  if (sellerRefundId === REFUND_LOCK_SENTINEL) {
+    return {
+      status: HTTP_STATUS.CONFLICT,
+      error: "A refund is already being processed for this order.",
+    };
+  }
+  if (sellerRefundId === REFUND_AMBIGUOUS_SENTINEL) {
+    return {
+      status: HTTP_STATUS.CONFLICT,
+      error: "A refund attempt needs manual reconciliation before another refund can be issued.",
+    };
+  }
   return {
-    status: pending ? 409 : 400,
-    error: pending
-      ? "A refund is already being processed for this order."
-      : "A refund has already been issued for this order.",
+    status: HTTP_STATUS.BAD_REQUEST,
+    error: "A refund has already been issued for this order.",
   };
 }
 

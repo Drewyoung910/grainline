@@ -1,10 +1,14 @@
 // src/app/api/blog/search/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { BlogPostType, Prisma } from "@prisma/client";
 import { getIP, rateLimitResponse, searchRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { truncateText } from "@/lib/sanitize";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
+import { getBlockedIdsFor } from "@/lib/blocks";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
+import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { normalizeTags } from "@/lib/tags";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 
@@ -50,12 +54,38 @@ export async function GET(req: NextRequest) {
   const limit = parseBoundedPositiveIntParam(url.searchParams.get("limit"), 12, 50);
 
   const typeValid = type && (Object.values(BlogPostType) as string[]).includes(type);
+  const { userId } = await auth();
+  let meDbId: string | null = null;
+  if (userId) {
+    try {
+      const me = await ensureUserByClerkId(userId);
+      meDbId = me.id;
+    } catch (err) {
+      const accountResponse = accountAccessErrorResponse(err);
+      if (accountResponse) return accountResponse;
+      throw err;
+    }
+  }
+  const { blockedUserIds, blockedSellerIds } = await getBlockedIdsFor(meDbId);
+  const blockedUserIdList = [...blockedUserIds];
+  const blockFilters: Prisma.BlogPostWhereInput[] = [
+    ...(blockedUserIdList.length > 0 ? [{ authorId: { notIn: blockedUserIdList } }] : []),
+    ...(blockedSellerIds.length > 0
+      ? [{ OR: [{ sellerProfileId: null }, { sellerProfileId: { notIn: blockedSellerIds } }] }]
+      : []),
+  ];
   if (q && sort === "relevant") {
     // GIN full-text search — get IDs ranked by ts_rank
     type RankedRow = { id: string };
     const typeSql = typeValid ? Prisma.sql`AND bp.type = ${type}::"BlogPostType"` : Prisma.empty;
     const tagsSql = tags.length > 0
       ? Prisma.sql`AND bp.tags && ARRAY[${Prisma.join(tags)}]::text[]`
+      : Prisma.empty;
+    const blockedAuthorSql = blockedUserIdList.length > 0
+      ? Prisma.sql`AND bp."authorId" != ALL(${blockedUserIdList})`
+      : Prisma.empty;
+    const blockedSellerSql = blockedSellerIds.length > 0
+      ? Prisma.sql`AND (bp."sellerProfileId" IS NULL OR bp."sellerProfileId" != ALL(${blockedSellerIds}))`
       : Prisma.empty;
     const rankedRows = await prisma.$queryRaw<RankedRow[]>`
       SELECT bp.id
@@ -80,6 +110,8 @@ export async function GET(req: NextRequest) {
         )
         ${typeSql}
         ${tagsSql}
+        ${blockedAuthorSql}
+        ${blockedSellerSql}
         AND to_tsvector('english',
           coalesce(bp.title, '') || ' ' ||
           coalesce(bp.excerpt, '') || ' ' ||
@@ -110,6 +142,7 @@ export async function GET(req: NextRequest) {
         id: { in: rankedIds },
         ...(typeValid ? { type: type as BlogPostType } : {}),
         ...(tags.length > 0 ? { tags: { hasSome: tags } } : {}),
+        ...(blockFilters.length > 0 ? { AND: blockFilters } : {}),
       }),
       select: POST_SELECT,
     });
@@ -138,6 +171,7 @@ export async function GET(req: NextRequest) {
             ],
           }]
         : []),
+      ...blockFilters,
     ],
     ...(typeValid ? { type: type as BlogPostType } : {}),
     ...(tags.length > 0 ? { tags: { hasSome: tags } } : {}),

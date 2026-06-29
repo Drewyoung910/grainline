@@ -25,6 +25,10 @@ const {
   SHIPPING_ESTIMATED_DAYS_MAX,
 } = await import("../src/lib/stripeWebhookState.ts");
 
+const {
+  REFUND_AMBIGUOUS_SENTINEL,
+} = await import("../src/lib/refundLockState.ts");
+
 function seller(overrides = {}) {
   return {
     id: "seller_1",
@@ -494,6 +498,24 @@ describe("Stripe webhook state helpers", () => {
       reviewNeeded: true,
       reviewNote: "Stripe refund was created outside Grainline.",
     });
+  });
+
+  it("lets charge.refunded resolve ambiguous local refund attempts", () => {
+    const state = chargeRefundLedgerState({
+      chargeId: "ch_1",
+      chargeCurrency: "usd",
+      amountRefundedCents: 4_000,
+      latestRefund: { id: "re_resolved", amount: 4_000, status: "succeeded", created: 10 },
+      order: {
+        currency: "usd",
+        sellerRefundId: REFUND_AMBIGUOUS_SENTINEL,
+        sellerRefundLockedAt: null,
+        sellerRefundAmountCents: null,
+      },
+    });
+
+    assert.equal(state.orderUpdate?.sellerRefundId, "re_resolved");
+    assert.equal(state.orderUpdate?.sellerRefundLockedAt, null);
   });
 
   it("preserves a local refund id when Stripe reports an additional external refund", () => {

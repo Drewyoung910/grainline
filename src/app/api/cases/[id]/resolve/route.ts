@@ -9,7 +9,11 @@ import { createMarketplaceRefund, refundIdempotencyKeyBase } from "@/lib/marketp
 import { recordLocalRefundEvidence } from "@/lib/localRefundEvidence";
 import { formatCurrencyCents } from "@/lib/money";
 import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
-import { REFUND_LOCK_SENTINEL, releaseStaleRefundLocks } from "@/lib/refundLocks";
+import {
+  REFUND_AMBIGUOUS_SENTINEL,
+  REFUND_LOCK_SENTINEL,
+  releaseStaleRefundLocks,
+} from "@/lib/refundLocks";
 import { blockingRefundOrLatestOpenDisputeLedgerExistsSql } from "@/lib/refundLedgerSql";
 import { caseResolutionCopy } from "@/lib/caseResolutionCopy";
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
@@ -289,9 +293,18 @@ export async function POST(
             : null,
         ].filter(Boolean).join("; ");
       } catch (stripeErr) {
-        await releaseCaseRefundLock().catch((dbError) => {
+        await prisma.order.updateMany({
+          where: { id: caseRecord.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
+          data: {
+            sellerRefundId: REFUND_AMBIGUOUS_SENTINEL,
+            sellerRefundLockedAt: null,
+            reviewNeeded: true,
+            reviewNote:
+              "Staff case refund attempt has an ambiguous Stripe outcome; staff must reconcile Stripe before another refund is attempted.",
+          },
+        }).catch((dbError) => {
           Sentry.captureException(dbError, {
-            tags: { source: "case_refund_lock_release_failed" },
+            tags: { source: "case_refund_ambiguous_record_failed" },
             extra: { caseId: id, orderId: caseRecord.orderId },
           });
         });
@@ -508,10 +521,16 @@ export async function POST(
       } else if (refunding) {
         await prisma.order.updateMany({
           where: { id: caseRecord.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
-          data: { sellerRefundId: null, sellerRefundLockedAt: null },
+          data: {
+            sellerRefundId: REFUND_AMBIGUOUS_SENTINEL,
+            sellerRefundLockedAt: null,
+            reviewNeeded: true,
+            reviewNote:
+              "Staff case refund attempt has an ambiguous local outcome after refund processing started; staff must reconcile Stripe before another refund is attempted.",
+          },
         }).catch((lockReleaseError) => {
           Sentry.captureException(lockReleaseError, {
-            tags: { source: "case_refund_lock_release_failed" },
+            tags: { source: "case_refund_ambiguous_record_failed" },
             extra: { caseId: id, orderId: caseRecord.orderId },
           });
         });

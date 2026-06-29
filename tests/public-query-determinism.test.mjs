@@ -56,6 +56,7 @@ describe("public query determinism", () => {
     assert.match(home, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(home, /orderBy: \[\{ qualityScore: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(home, /where: publicBlogPostWhere\(\{\s*\.\.\.\(blockedUserIds\.size > 0/);
+    assert.match(home, /sellerProfileId: \{ notIn: blockedSellerIds \}/);
     assert.doesNotMatch(home, /status: "PUBLISHED",\s*author: \{ banned: false, deletedAt: null \}/);
     assert.match(home, /orderBy: \[\{ publishedAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(home, /featuredById = new Map\(featuredRows\.map\(\(listing\) => \[listing\.id, listing\]\)\)/);

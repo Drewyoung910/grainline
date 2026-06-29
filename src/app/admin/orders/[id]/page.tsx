@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import AdminOrderActions from "./AdminOrderActions";
 import { publicListingPath } from "@/lib/publicPaths";
 import { latestRefundLedgerEvent } from "@/lib/refundRouteState";
+import { isAmbiguousRefundState, isRefundProcessingState } from "@/lib/refundLockState";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
@@ -248,10 +249,10 @@ export default async function AdminOrderDetailPage({
             <span>Total</span>
             <span>{fmtMoney(total, currency)}</span>
           </div>
-          {order.sellerRefundId === "pending" ? (
+          {isRefundProcessingState(order.sellerRefundId) ? (
             <div className="flex justify-between text-amber-700 border-t border-neutral-100 pt-2">
-              <span>Seller refund processing</span>
-              <span className="font-medium">Pending</span>
+              <span>{isAmbiguousRefundState(order.sellerRefundId) ? "Seller refund needs review" : "Seller refund processing"}</span>
+              <span className="font-medium">{isAmbiguousRefundState(order.sellerRefundId) ? "Manual review" : "Pending"}</span>
             </div>
           ) : order.sellerRefundId ? (
             <div className="flex justify-between text-amber-700 border-t border-neutral-100 pt-2">

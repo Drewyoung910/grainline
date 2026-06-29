@@ -10930,3 +10930,136 @@ production smoke evidence and public-availability proof, HSTS preload
 submission decision, Vercel Analytics/Speed Insights product/privacy decision,
 homepage browser a11y/runtime proof beyond source fallback, and deployed
 security-header runtime proof beyond source/config guardrails.
+
+Entry 463 closes a parent-verified privacy/refund/blog visibility source pass.
+Three read-only agents were used for sidecar checks; Parent Codex reviewed the
+findings locally, closed all agents, and did not stage the raw audit import.
+
+Verified fixed/reduced:
+
+- Seller account deletion now deletes retained `ListingVariantGroup` rows for
+  the deleted seller before retaining scrubbed/hidden listing rows. Because the
+  listing rows are not hard-deleted, this removes seller-authored variant group
+  names and option labels instead of relying on `onDelete: Cascade` that would
+  never run for retained listings.
+- Seller-initiated refund failures where Stripe throws before returning a
+  refund id now mark the order with a distinct
+  `ambiguous_refund_pending_reconciliation` state instead of clearing
+  `sellerRefundId` back to null. The state is not stale-released and blocks
+  another refund attempt until staff reconciles Stripe.
+- Staff case-refund and blocked-checkout automatic-refund no-refund-id failures
+  now use the same ambiguous refund state rather than reopening the refund slot.
+  Later `charge.refunded` webhook evidence can replace the ambiguous marker with
+  the concrete Stripe refund id.
+- Refund display surfaces now classify both `pending` and ambiguous refund
+  states as processing/review states rather than rendering the ambiguous marker
+  as a completed Stripe refund id.
+- Homepage/blog-index blog discovery now filters both blocked authors and
+  blocked seller profiles for signed-in viewers.
+- Public blog JSON/search APIs now remain signed-out public but resolve optional
+  signed-in account state and apply the same blocked author/seller-profile
+  filters used by blog suggestions and detail pages.
+
+Verified current/stale during the same pass:
+
+- Account deletion route guardrails are current: same-origin POST, Clerk auth,
+  fresh re-verification, bounded JSON, explicit `DELETE` confirmation, rate
+  limit, deletion blockers, and a Redis lock all run before mutation.
+- Order buyer PII pruning remains source-current: it targets delivered/picked-up
+  orders past the cutoff, skips review holds and active cases, deletes saved rate
+  quotes, clears address/contact/tracking/label/gift/seller-note fields, and is
+  covered by guardrails that prevent `buyerDataPurgedAt IS NULL` from skipping
+  reintroduced PII.
+- Seller account export remains current in this slice: seller sales export does
+  not select direct buyer shipping/contact fields, while buyer exports still
+  select buyer-owned order/contact fields.
+- Support/data-request intake and admin closure guardrails remain current:
+  input is normalized/sanitized, requests persist before email delivery, failures
+  keep durable `emailLastError`, closure requires evidence, and audit metadata
+  records evidence length/timestamp rather than raw evidence.
+- Refund accounting source behavior remains current for the checked allegations:
+  first-party refunds use captured `Order.stripeTransferId` rather than current
+  seller `stripeAccountId`, shipped/delivered/picked-up orders do not restore
+  stock on full refund, partial refunds can restore only explicitly requested
+  purchased in-stock quantities, and terminal Stripe dispute events preserve
+  fresh local refund locks.
+- Public listing/seller/blog visibility helpers, seller/listing detail shared
+  loaders, search/blog suggestions, map pages, and popular listing/blog tag
+  helpers remain source-current for the checked visibility and determinism
+  allegations.
+
+Remaining verified/not closed in this entry:
+
+- Stripe refund/dispute webhook event-ordering still needs a dedicated source
+  pass before closing; the current pass fixed ambiguous refund slot reopening but
+  did not claim to solve every out-of-order webhook replay case.
+- Metro browse seller-count block filtering, blog-detail top-level `include`
+  projection hardening, metro category build-time static-param N+1 shape, and
+  similar-listing photo subquery optimization remain source/performance
+  follow-ups. The similar-listing and broader geo/blog FTS plan severity still
+  needs EXPLAIN/runtime evidence before ranking severity.
+- Provider-held deletion/export, Stripe Connect liability, partial-refund live
+  reconciliation, Clerk/Sentry/R2/Vercel dashboard evidence, HSTS/deployed-header
+  proof, and broader legal/privacy retention decisions remain external
+  provider/runtime/legal/product categories rather than source-only closures in
+  this pass.
+
+Guardrails:
+`tests/round9-account-deletion-pii-guardrails.test.mjs`,
+`tests/refund-lock-state.test.mjs`, `tests/refund-route-state.test.mjs`,
+`tests/stripe-webhook-state.test.mjs`,
+`tests/payment-side-effect-observability.test.mjs`,
+`tests/public-api-auth-inventory.test.mjs`,
+`tests/public-cron-search-hardening.test.mjs`,
+`tests/public-query-determinism.test.mjs`, and
+`tests/case-observability-followups.test.mjs`.
+
+Verification:
+focused
+`node --test tests/refund-lock-state.test.mjs tests/refund-route-state.test.mjs tests/stripe-webhook-state.test.mjs tests/payment-side-effect-observability.test.mjs tests/round9-account-deletion-pii-guardrails.test.mjs tests/public-api-auth-inventory.test.mjs tests/public-cron-search-hardening.test.mjs tests/public-query-determinism.test.mjs`
+(137/137 tests passing), focused rerun
+`node --test tests/payment-side-effect-observability.test.mjs tests/case-observability-followups.test.mjs`
+(35/35 tests passing), post-ledger focused rerun across the nine focused test
+files above (142/142 tests passing), `npx tsc --noEmit`, `git diff --check`,
+`npm run lint` (exit 0; existing JSX AST utility warning only), `npm test`
+(1422/1422 tests passing across 257 suites), and `npm run build` passed after
+rerunning outside the sandbox for Neon page-data access.
+
+Current running tally after Entry 463: verified fixed/reduced 943, verified
+stale/false-positive/current 514, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 30. Fixed/reduced
+increases by six for seller deletion variant text removal, seller refund
+ambiguous-outcome blocking, staff/blocked-checkout ambiguous-outcome blocking,
+refund UI ambiguous-state classification, blog page/homepage blocked-seller
+filtering, and blog JSON/search optional-auth block filtering. Stale/current
+increases by eight for the account deletion, PII prune, seller export,
+support/data-request, refund accounting/stock, public visibility helper,
+loader/determinism, and suggestion/map/tag helper rechecks. Deferred and raw-left
+stay flat because the remaining runtime/provider/legal categories were already
+classified and several fixed items were hidden adjacent issues rather than raw
+category decrements.
+
+Remaining major categories: Stripe refund/dispute webhook event-order source
+pass, Stripe refund runtime/backfill design beyond the now-fixed first-party
+orphan ledger and local transfer-reversal evidence, label clawback policy/runtime
+proof, Stripe webhook subscription dashboard evidence, Stripe Connect v2
+loss-liability ops/legal decision, stale remote branch and old git author
+hygiene, Round 10 deferred cache/state-machine product designs that require
+product decisions rather than source guardrails, remaining EXPLAIN-dependent
+runtime query-plan validation beyond the existing source indexes and source
+guardrails, Stripe partial-refund live reconciliation proof, founding-maker
+permanence policy, remaining privacy/legal retention scope, cross-seller AI
+duplicate-detection product design, legacy enum cleanup/data-migration decisions,
+partial multi-seller checkout continuation design, deliberate BigInt money-column
+modeling, variant-adjusted unit-price floor policy, live-data reconciliation for
+historical seller shipping-rate currency drift, Guild private/custom-order
+sales/review trust-metric product policy, blocked-seller metro count/blog
+projection/static-param/similar-listing performance follow-ups, Clerk staff MFA
+and breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion live Stripe replay proof after source minimization,
+Founding Maker live DB concurrency proof, Sentry cron alert evidence, Cloudflare
+R2 ListBucket/public-bucket dashboard posture plus production smoke evidence and
+public-availability proof, HSTS preload submission decision, Vercel
+Analytics/Speed Insights product/privacy decision, homepage browser a11y/runtime
+proof beyond source fallback, and deployed security-header runtime proof beyond
+source/config guardrails.

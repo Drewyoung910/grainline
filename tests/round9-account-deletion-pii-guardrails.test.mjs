@@ -268,6 +268,21 @@ describe("Round 9 account deletion PII guardrails", () => {
     assert.match(listingUpdate, /materials: \[\]/);
   });
 
+  it("removes retained seller-defined listing variant text on account deletion", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+
+    const variantDeleteStart = deletion.indexOf("await tx.listingVariantGroup.deleteMany({");
+    const listingUpdateStart = deletion.indexOf("await tx.listing.updateMany({", variantDeleteStart);
+    const variantDelete = deletion.slice(variantDeleteStart, listingUpdateStart);
+
+    assert.ok(variantDeleteStart > -1, "account deletion must remove seller variant groups");
+    assert.ok(
+      listingUpdateStart > variantDeleteStart,
+      "variant text should be removed before retained listing rows are scrubbed",
+    );
+    assert.match(variantDelete, /where: \{ listing: \{ sellerId: user\.sellerProfile\.id \} \}/);
+  });
+
   it("scrubs maker verification personal details and reviewer linkage", () => {
     const deletion = source("src/lib/accountDeletion.ts");
 

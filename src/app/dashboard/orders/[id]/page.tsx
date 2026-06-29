@@ -28,6 +28,7 @@ import {
   unavailableCaseRecipientMessage,
 } from "@/lib/caseMessagingState";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
+import { isRecordedRefundId } from "@/lib/refundLockState";
 import type { CaseStatus } from "@prisma/client";
 import type { Metadata } from "next";
 
@@ -162,8 +163,7 @@ export default async function BuyerOrderDetailPage({
     .filter((value): value is number => typeof value === "number");
   const activeCase = order.case;
   const externalRefund = latestRefundLedgerEvent(order.paymentEvents);
-  const sellerRefundPending = order.sellerRefundId === "pending";
-  const sellerRefundIssued = !!order.sellerRefundId && !sellerRefundPending;
+  const sellerRefundIssued = isRecordedRefundId(order.sellerRefundId);
   const hasRefund = sellerRefundIssued || !!activeCase?.stripeRefundId || !!externalRefund;
 
   // Case eligibility

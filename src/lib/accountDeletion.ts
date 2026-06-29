@@ -1878,6 +1878,9 @@ export async function anonymizeUserAccount(
       await tx.photo.deleteMany({
         where: { listing: { sellerId: user.sellerProfile.id } },
       });
+      await tx.listingVariantGroup.deleteMany({
+        where: { listing: { sellerId: user.sellerProfile.id } },
+      });
       await tx.listing.updateMany({
         where: { sellerId: user.sellerProfile.id },
         data: {

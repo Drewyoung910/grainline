@@ -146,12 +146,18 @@ describe("cron and public route hardening", () => {
 
     assert.match(blog, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
     assert.match(blog, /rateLimitResponse\(reset, "Too many blog requests\."\)/);
+    assert.match(blog, /ensureUserByClerkId\(userId\)/);
+    assert.match(blog, /getBlockedIdsFor\(meDbId\)/);
     assert.match(blog, /truncateText\(searchParams\.get\("tag"\)\?\.trim\(\) \?\? "", 64\)/);
     assert.match(blog, /publicBlogPostWhere/);
+    assert.match(blog, /authorId: \{ notIn: blockedUserIdList \}/);
+    assert.match(blog, /sellerProfileId: \{ notIn: blockedSellerIds \}/);
     assert.match(blog, /parseBoundedPositiveIntParam\(searchParams\.get\("page"\), 1, 1000\)/);
     assert.match(blog, /const pageSize = 12/);
 
     assert.match(blogSearch, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
+    assert.match(blogSearch, /ensureUserByClerkId\(userId\)/);
+    assert.match(blogSearch, /getBlockedIdsFor\(meDbId\)/);
     assert.match(blogSearch, /publicBlogPostWhere/);
     assert.match(blogSearch, /parseBoundedPositiveIntParam/);
     assert.match(blogSearch, /const page = parseBoundedPositiveIntParam\(url\.searchParams\.get\("page"\), 1, 1000\)/);
@@ -159,6 +165,9 @@ describe("cron and public route hardening", () => {
     assert.match(blogSearch, /normalizeTags\(tagsParam\.split\(","\), 20\)/);
     assert.match(blogSearch, /bp\."publishedAt" IS NOT NULL/);
     assert.match(blogSearch, /bp\."publishedAt" <= NOW\(\)/);
+    assert.match(blogSearch, /bp\."authorId" != ALL\(\$\{blockedUserIdList\}\)/);
+    assert.match(blogSearch, /bp\."sellerProfileId" != ALL\(\$\{blockedSellerIds\}\)/);
+    assert.match(blogSearch, /sellerProfileId: \{ notIn: blockedSellerIds \}/);
     assert.doesNotMatch(blogSearch, /x-forwarded-for/);
 
     assert.match(blogSuggestions, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
@@ -189,6 +198,8 @@ describe("cron and public route hardening", () => {
 
     assert.match(blogPage, /"BlogPost"\."publishedAt" IS NOT NULL/);
     assert.match(blogPage, /"BlogPost"\."publishedAt" <= NOW\(\)/);
+    assert.match(blogPage, /getBlockedIdsFor\(meDbId\)/);
+    assert.match(blogPage, /"BlogPost"\."sellerProfileId" != ALL\(\$\{blockedSellerIds\}\)/);
     assert.match(blogPage, /getPopularBlogTagRows\(20\)/);
     assert.match(popularBlogTags, /bp\."publishedAt" IS NOT NULL/);
     assert.match(popularBlogTags, /bp\."publishedAt" <= NOW\(\)/);

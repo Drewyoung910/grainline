@@ -1,7 +1,11 @@
 import { prisma } from "@/lib/db";
 import { REFUND_LOCK_SENTINEL, refundLockCutoff } from "@/lib/refundLockState";
 
-export { REFUND_LOCK_SENTINEL, REFUND_LOCK_STALE_MS } from "@/lib/refundLockState";
+export {
+  REFUND_AMBIGUOUS_SENTINEL,
+  REFUND_LOCK_SENTINEL,
+  REFUND_LOCK_STALE_MS,
+} from "@/lib/refundLockState";
 
 export async function releaseStaleRefundLocks(orderId?: string) {
   const cutoff = refundLockCutoff();

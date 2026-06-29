@@ -129,6 +129,20 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(caseOrphanBlock, /throw reviewUpdateError/);
   });
 
+  it("marks no-refund-id Stripe failures as ambiguous instead of reopening refund attempts", () => {
+    const sellerRoute = source("src/app/api/orders/[id]/refund/route.ts");
+    const caseRoute = source("src/app/api/cases/[id]/resolve/route.ts");
+
+    assert.match(sellerRoute, /REFUND_AMBIGUOUS_SENTINEL/);
+    assert.match(sellerRoute, /seller_refund_ambiguous_record_failed/);
+    assert.match(sellerRoute, /ambiguous Stripe outcome/);
+    assert.doesNotMatch(sellerRoute, /source: "seller_refund_lock_release_failed"/);
+
+    assert.match(caseRoute, /REFUND_AMBIGUOUS_SENTINEL/);
+    assert.match(caseRoute, /case_refund_ambiguous_record_failed/);
+    assert.match(caseRoute, /ambiguous Stripe outcome/);
+  });
+
   it("derives first-party refund reversal eligibility from the order transfer", () => {
     const sellerRoute = source("src/app/api/orders/[id]/refund/route.ts");
     const caseRoute = source("src/app/api/cases/[id]/resolve/route.ts");
@@ -511,7 +525,7 @@ describe("payment and fulfillment side-effect observability", () => {
     );
     assert.match(
       route,
-      /stripe_webhook_blocked_checkout_refund_lock_release_failed/,
+      /stripe_webhook_blocked_checkout_refund_ambiguous_record_failed/,
     );
   });
 
@@ -520,7 +534,7 @@ describe("payment and fulfillment side-effect observability", () => {
     const notificationSource = 'source: "stripe_webhook_blocked_checkout_refund_notification"';
     const orphanedSource = 'source: "stripe_webhook_blocked_checkout_orphaned_after_stripe"';
     const orphanRecordSource = 'source: "stripe_webhook_blocked_checkout_orphan_record_failed"';
-    const lockReleaseSource = 'source: "stripe_webhook_blocked_checkout_refund_lock_release_failed"';
+    const lockReleaseSource = 'source: "stripe_webhook_blocked_checkout_refund_ambiguous_record_failed"';
 
     const notificationStart = route.indexOf(notificationSource);
     const orphanedStart = route.indexOf(orphanedSource);
@@ -561,6 +575,8 @@ describe("payment and fulfillment side-effect observability", () => {
     );
     assert.match(lockReleaseBlock, /Sentry\.captureException\(dbError/);
     assert.match(lockReleaseBlock, /throw dbError/);
+    assert.match(lockReleaseBlock, /sellerRefundId: REFUND_AMBIGUOUS_SENTINEL/);
+    assert.match(lockReleaseBlock, /ambiguous Stripe outcome/);
     assert.match(noRefundIdBranch, /retryBlockedCheckoutRefund = true/);
     assert.match(noRefundIdBranch, /throw refundError/);
 

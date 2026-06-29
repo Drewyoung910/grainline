@@ -24,6 +24,7 @@ import { publicListingPath } from "@/lib/publicPaths";
 import { blockingRefundLedgerWhere, latestRefundLedgerEvent, orderHasRefundLedger, refundMayRestoreStock } from "@/lib/refundRouteState";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
+import { isRecordedRefundId } from "@/lib/refundLockState";
 import {
   DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE,
   orderHasDeauthorizedSellerReviewHold,
@@ -166,8 +167,7 @@ export default async function SellerOrderDetailPage({
   const activeCase = order.case;
   const externalRefund = latestRefundLedgerEvent(order.paymentEvents);
   const now = new Date();
-  const sellerRefundPending = order.sellerRefundId === "pending";
-  const sellerRefundIssued = !!order.sellerRefundId && !sellerRefundPending;
+  const sellerRefundIssued = isRecordedRefundId(order.sellerRefundId);
   const restorableRefundItems = Array.from(
     myItems.reduce((items, item) => {
       if (item.listing.listingType !== "IN_STOCK" || item.quantity <= 0) return items;

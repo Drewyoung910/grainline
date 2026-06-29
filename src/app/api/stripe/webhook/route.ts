@@ -50,7 +50,11 @@ import {
   blockingRefundOrLatestOpenDisputeLedgerExistsSql,
   latestOpenDisputeLedgerRowsSql,
 } from "@/lib/refundLedgerSql";
-import { REFUND_LOCK_SENTINEL, isStaleRefundLock } from "@/lib/refundLockState";
+import {
+  REFUND_AMBIGUOUS_SENTINEL,
+  REFUND_LOCK_SENTINEL,
+  isStaleRefundLock,
+} from "@/lib/refundLockState";
 import { releaseStaleRefundLocks } from "@/lib/refundLocks";
 import { createMarketplaceRefund, refundIdempotencyKeyBase } from "@/lib/marketplaceRefunds";
 import { recordLocalRefundEvidence } from "@/lib/localRefundEvidence";
@@ -1350,15 +1354,15 @@ export async function POST(req: Request) {
                 await prisma.order.updateMany({
                   where: { id: input.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
                   data: {
-                    sellerRefundId: null,
+                    sellerRefundId: REFUND_AMBIGUOUS_SENTINEL,
                     sellerRefundLockedAt: null,
                     reviewNeeded: true,
-                    reviewNote: `${reviewPrefix} Automatic refund failed; staff must reconcile this payment manually.`,
+                    reviewNote: `${reviewPrefix} Automatic refund has an ambiguous Stripe outcome; staff must reconcile this payment manually before another refund is attempted.`,
                   },
                 });
               } catch (dbError) {
                 Sentry.captureException(dbError, {
-                  tags: { source: "stripe_webhook_blocked_checkout_refund_lock_release_failed" },
+                  tags: { source: "stripe_webhook_blocked_checkout_refund_ambiguous_record_failed" },
                   extra: { stripeSessionId: sessionId, orderId: input.orderId, reason: input.reason },
                 });
                 throw dbError;

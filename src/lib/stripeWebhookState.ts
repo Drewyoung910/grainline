@@ -1,6 +1,10 @@
 import type { CaseStatus } from "@prisma/client";
 import { DEFAULT_CURRENCY } from "./money.ts";
-import { REFUND_LOCK_SENTINEL, isStaleRefundLock } from "./refundLockState.ts";
+import {
+  REFUND_AMBIGUOUS_SENTINEL,
+  REFUND_LOCK_SENTINEL,
+  isStaleRefundLock,
+} from "./refundLockState.ts";
 import { STRIPE_DISPUTE_CLOSED_STATUSES } from "./refundRouteState.ts";
 
 export type StripeRefundLike = {
@@ -463,6 +467,7 @@ export function chargeRefundLedgerState({
   const hasLocalRefundAudit =
     !!order.sellerRefundId &&
     order.sellerRefundId !== REFUND_LOCK_SENTINEL &&
+    order.sellerRefundId !== REFUND_AMBIGUOUS_SENTINEL &&
     !order.sellerRefundId.startsWith("external:");
   const hasFreshLocalRefundLock =
     order.sellerRefundId === REFUND_LOCK_SENTINEL &&

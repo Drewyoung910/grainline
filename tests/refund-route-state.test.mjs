@@ -3,6 +3,10 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const {
+  REFUND_AMBIGUOUS_SENTINEL,
+} = await import("../src/lib/refundLockState.ts");
+
+const {
   blockingOpenDisputeLedgerWhere,
   blockingRefundOrDisputeLedgerWhere,
   isBlockingDisputeLedgerEvent,
@@ -83,6 +87,10 @@ describe("refund route state", () => {
     assert.deepEqual(sellerRefundConflictResponse("pending"), {
       status: 409,
       error: "A refund is already being processed for this order.",
+    });
+    assert.deepEqual(sellerRefundConflictResponse(REFUND_AMBIGUOUS_SENTINEL), {
+      status: 409,
+      error: "A refund attempt needs manual reconciliation before another refund can be issued.",
     });
     assert.deepEqual(sellerRefundConflictResponse("re_123"), {
       status: 400,
@@ -196,6 +204,10 @@ describe("refund route state", () => {
   it("uses stale-lock release results for same-request refund state", () => {
     assert.equal(sellerRefundIdAfterStaleRelease("pending", 1), null);
     assert.equal(sellerRefundIdAfterStaleRelease("pending", 0), "pending");
+    assert.equal(
+      sellerRefundIdAfterStaleRelease(REFUND_AMBIGUOUS_SENTINEL, 1),
+      REFUND_AMBIGUOUS_SENTINEL,
+    );
     assert.equal(sellerRefundIdAfterStaleRelease("re_123", 1), "re_123");
     assert.equal(sellerRefundIdAfterStaleRelease(null, 1), null);
   });

@@ -2,6 +2,7 @@
 "use client";
 import * as React from "react";
 import { DEFAULT_CURRENCY, formatCurrencyCents, parseMoneyInputToCents } from "@/lib/money";
+import { isAmbiguousRefundState, isRefundProcessingState } from "@/lib/refundLockState";
 
 type Props = {
   orderId: string;
@@ -12,8 +13,6 @@ type Props = {
   restorableItems?: RestorableRefundItem[];
   canRestoreStock?: boolean;
 };
-
-const REFUND_LOCK_SENTINEL = "pending";
 
 type RestorableRefundItem = {
   listingId: string;
@@ -48,14 +47,17 @@ export default function SellerRefundPanel({
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [result, setResult] = React.useState<{ refundAmountCents: number } | null>(null);
-  const refundProcessing = alreadyRefundedId === REFUND_LOCK_SENTINEL;
+  const refundProcessing = isRefundProcessingState(alreadyRefundedId);
+  const refundAmbiguous = isAmbiguousRefundState(alreadyRefundedId);
 
   if (refundProcessing && !result) {
     return (
       <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-        <div className="font-semibold">Refund processing</div>
+        <div className="font-semibold">{refundAmbiguous ? "Refund needs review" : "Refund processing"}</div>
         <div className="mt-1">
-          Stripe is processing this refund. Refresh in a few minutes before trying again.
+          {refundAmbiguous
+            ? "Stripe refund status is unclear. Staff must reconcile this order before another refund is attempted."
+            : "Stripe is processing this refund. Refresh in a few minutes before trying again."}
         </div>
       </div>
     );

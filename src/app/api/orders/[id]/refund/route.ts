@@ -20,6 +20,7 @@ import {
   safeRateLimit,
 } from "@/lib/ratelimit";
 import {
+  REFUND_AMBIGUOUS_SENTINEL,
   REFUND_LOCK_SENTINEL,
   releaseStaleRefundLocks,
 } from "@/lib/refundLocks";
@@ -537,11 +538,17 @@ export async function POST(
         await prisma.order
           .updateMany({
             where: { id: orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
-            data: { sellerRefundId: null, sellerRefundLockedAt: null },
+            data: {
+              sellerRefundId: REFUND_AMBIGUOUS_SENTINEL,
+              sellerRefundLockedAt: null,
+              reviewNeeded: true,
+              reviewNote:
+                "Seller refund attempt has an ambiguous Stripe outcome; staff must reconcile Stripe before another refund is attempted.",
+            },
           })
           .catch((dbError) => {
             Sentry.captureException(dbError, {
-              tags: { source: "seller_refund_lock_release_failed" },
+              tags: { source: "seller_refund_ambiguous_record_failed" },
               extra: { orderId, refundAmountCents },
             });
           });

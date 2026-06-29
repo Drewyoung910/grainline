@@ -341,6 +341,9 @@ export default async function HomePage() {
     prisma.blogPost.findMany({
       where: publicBlogPostWhere({
         ...(blockedUserIds.size > 0 ? { authorId: { notIn: [...blockedUserIds] } } : {}),
+        ...(blockedSellerIds.length > 0
+          ? { OR: [{ sellerProfileId: null }, { sellerProfileId: { notIn: blockedSellerIds } }] }
+          : {}),
       }),
       orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
       take: 3,
