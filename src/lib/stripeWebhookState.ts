@@ -135,6 +135,12 @@ export type ChargeDisputeLedgerState = {
   };
 };
 
+export type LatestDisputeLedgerEventState = {
+  stripeEventId?: string | null;
+  status?: string | null;
+  stripeEventCreated?: number | bigint | null;
+};
+
 export type DisputeCaseAction =
   | { action: "none" }
   | { action: "update"; caseId: string; expectedStatus: CaseStatus; status: "UNDER_REVIEW" }
@@ -186,6 +192,38 @@ const THIN_STRIPE_EVENT_OBJECT_KEYS = new Set(["id", "object", "livemode"]);
 
 function isOpenDisputeStatus(status: string | null | undefined) {
   return !STRIPE_DISPUTE_CLOSED_STATUSES.has((status ?? "").toLowerCase());
+}
+
+function disputeEventCreatedSeconds(value: number | bigint | null | undefined) {
+  if (typeof value === "bigint") {
+    const asNumber = Number(value);
+    return Number.isSafeInteger(asNumber) ? asNumber : null;
+  }
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+export function shouldApplyDisputeWebhookSideEffects({
+  currentEventCreated,
+  currentStatus,
+  latestEvent,
+}: {
+  currentEventCreated: number | null | undefined;
+  currentStatus: string | null | undefined;
+  latestEvent?: LatestDisputeLedgerEventState | null;
+}) {
+  if (!latestEvent) return true;
+  const currentCreated = disputeEventCreatedSeconds(currentEventCreated);
+  const latestCreated = disputeEventCreatedSeconds(latestEvent.stripeEventCreated);
+  if (currentCreated == null || latestCreated == null) return true;
+  if (currentCreated < latestCreated) return false;
+  if (
+    currentCreated === latestCreated &&
+    isOpenDisputeStatus(currentStatus) &&
+    !isOpenDisputeStatus(latestEvent.status)
+  ) {
+    return false;
+  }
+  return true;
 }
 
 export type CheckoutPriceDriftState = {

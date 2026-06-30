@@ -92,7 +92,17 @@ describe("public query determinism", () => {
     assert.match(metroPage, /orderBy: \[\{ name: "asc" \}, \{ slug: "asc" \}\]/);
     assert.match(metroPage, /href=\{`\/browse\?lat=\$\{metro\.latitude\}&lng=\$\{metro\.longitude\}&radius=50`\}/);
     assert.doesNotMatch(metroPage, /\/browse\?lat=\$\{metro\.id\}/);
+    assert.match(metroPage, /const blockedSellerProfileWhere: Prisma\.SellerProfileWhereInput/);
+    assert.match(metroPage, /const blockedSellerListingWhere: Prisma\.ListingWhereInput/);
+    assert.match(metroPage, /const listingWhere = publicListingWhere\(\{[\s\S]*\.\.\.blockedSellerListingWhere/);
+    assert.match(metroPage, /where: activeSellerProfileWhere\(\{[\s\S]*\.\.\.blockedSellerProfileWhere[\s\S]*\}\)/);
+    assert.match(metroPage, /listings: \{ some: publicListingWhere\(blockedSellerListingWhere\) \}/);
+    assert.match(metroPage, /listingCityMetros: \{ some: publicListingWhere\(blockedSellerListingWhere\) \}/);
     assert.match(metroCategoryPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(metroCategoryPage, /const \[metros, majorGroups, cityGroups\] = await Promise\.all/);
+    assert.match(metroCategoryPage, /prisma\.listing\.groupBy\(\{[\s\S]*by: \["metroId", "category"\]/);
+    assert.match(metroCategoryPage, /prisma\.listing\.groupBy\(\{[\s\S]*by: \["cityMetroId", "category"\]/);
+    assert.doesNotMatch(metroCategoryPage, /for \(const metro of metros\)[\s\S]*await prisma\.listing\.groupBy/);
     for (const metroText of [metroPage, metroCategoryPage]) {
       assert.ok(
         metroText.indexOf("const [listings") < metroText.indexOf("const favs = await prisma.favorite.findMany"),
@@ -114,6 +124,9 @@ describe("public query determinism", () => {
     assert.match(similar, /l\."createdAt" DESC,\s*l\.id DESC/);
     assert.match(similar, /b\.createdAt\.getTime\(\) - a\.createdAt\.getTime\(\)/);
     assert.match(similar, /b\.id\.localeCompare\(a\.id\)/);
+    assert.match(similar, /LEFT JOIN LATERAL/);
+    assert.match(similar, /ROW_NUMBER\(\) OVER \(ORDER BY p\."sortOrder" ASC, p\.id ASC\)/);
+    assert.doesNotMatch(similar, /\(SELECT p\.url FROM "Photo" p/);
 
     assert.match(sellersMap, /getBlockedSellerProfileIdsFor\(meDbId\)/);
     assert.match(sellersMap, /\.\.\.\(blockedSellerIds\.length > 0 \? \{ id: \{ notIn: blockedSellerIds \} \} : \{\}\)/);

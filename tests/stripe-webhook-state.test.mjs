@@ -23,6 +23,7 @@ const {
   parsePositiveInt,
   retrievedStripeEventMatchesSignedEnvelope,
   SHIPPING_ESTIMATED_DAYS_MAX,
+  shouldApplyDisputeWebhookSideEffects,
 } = await import("../src/lib/stripeWebhookState.ts");
 
 const {
@@ -163,6 +164,85 @@ describe("Stripe webhook state helpers", () => {
       disputeBranch.indexOf("if (!order)") < disputeBranch.indexOf("await recordOrderPaymentEvent"),
       "dispute webhook should fail before recording or marking the event processed",
     );
+  });
+
+  it("orders dispute webhook side effects by Stripe event time", () => {
+    assert.equal(
+      shouldApplyDisputeWebhookSideEffects({
+        currentEventCreated: 100,
+        currentStatus: "needs_response",
+        latestEvent: { stripeEventCreated: 101, status: "lost", stripeEventId: "evt_closed" },
+      }),
+      false,
+    );
+    assert.equal(
+      shouldApplyDisputeWebhookSideEffects({
+        currentEventCreated: 101,
+        currentStatus: "lost",
+        latestEvent: { stripeEventCreated: 100, status: "needs_response", stripeEventId: "evt_created" },
+      }),
+      true,
+    );
+    assert.equal(
+      shouldApplyDisputeWebhookSideEffects({
+        currentEventCreated: 101,
+        currentStatus: "needs_response",
+        latestEvent: { stripeEventCreated: 101, status: "won", stripeEventId: "evt_won" },
+      }),
+      false,
+    );
+    assert.equal(
+      shouldApplyDisputeWebhookSideEffects({
+        currentEventCreated: 101,
+        currentStatus: "won",
+        latestEvent: { stripeEventCreated: 101, status: "needs_response", stripeEventId: "evt_created" },
+      }),
+      true,
+    );
+    assert.equal(
+      shouldApplyDisputeWebhookSideEffects({
+        currentEventCreated: 100,
+        currentStatus: "needs_response",
+        latestEvent: null,
+      }),
+      true,
+    );
+  });
+
+  it("checks existing dispute event order before applying dispute side effects", () => {
+    const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+    const disputeStart = source.indexOf("if (STRIPE_DISPUTE_EVENT_TYPES.has(event.type))");
+    const payoutStart = source.indexOf('if (event.type === "payout.failed")');
+    const disputeBranch = source.slice(disputeStart, payoutStart);
+
+    const latestQuery = disputeBranch.indexOf('FROM "OrderPaymentEvent" ope');
+    const sideEffectGate = disputeBranch.indexOf("const applyDisputeSideEffects = shouldApplyDisputeWebhookSideEffects");
+    const ledgerWrite = disputeBranch.indexOf("const disputeLedgerCreated = await recordOrderPaymentEvent");
+    const orderUpdate = disputeBranch.indexOf("await tx.order.update");
+    const caseAction = disputeBranch.indexOf('event.type === "charge.dispute.created"');
+    const notification = disputeBranch.indexOf('type: "PAYMENT_DISPUTE"');
+
+    assert.ok(latestQuery >= 0, "dispute webhook should read existing dispute ledgers");
+    assert.ok(sideEffectGate > latestQuery, "dispute side-effect gate should use the latest recorded event");
+    assert.ok(ledgerWrite > sideEffectGate, "dispute ledger should still be written after computing the side-effect gate");
+    assert.ok(orderUpdate > ledgerWrite, "order updates should happen after the ledger write");
+    assert.ok(caseAction > ledgerWrite, "case promotion should be guarded after the ledger write");
+    assert.match(disputeBranch, /const disputeSideEffectsApplied = disputeLedgerCreated && applyDisputeSideEffects/);
+    assert.match(disputeBranch, /if \(disputeSideEffectsApplied\) \{[\s\S]*await tx\.order\.update/);
+    assert.match(disputeBranch, /if \(disputeSideEffectsApplied && event\.type === "charge\.dispute\.created"/);
+    assert.ok(notification > caseAction, "seller dispute notification should remain after guarded case promotion");
+    assert.match(disputeBranch, /return disputeSideEffectsApplied && event\.type === "charge\.dispute\.created" && sellerUserId/);
+  });
+
+  it("applies refund webhook order side effects only when the refund ledger is new", () => {
+    const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+    const refundStart = source.indexOf('if (event.type === "charge.refunded")');
+    const disputeStart = source.indexOf("if (STRIPE_DISPUTE_EVENT_TYPES.has(event.type))");
+    const refundBranch = source.slice(refundStart, disputeStart);
+
+    assert.match(refundBranch, /const refundLedgerCreated = await recordOrderPaymentEvent/);
+    assert.match(refundBranch, /if \(refundLedgerCreated && refundLedger\.orderUpdate\) \{/);
+    assert.doesNotMatch(refundBranch, /if \(refundLedger\.orderUpdate\) \{/);
   });
 
   it("detects stale Stripe webhook events from the signed event timestamp", () => {

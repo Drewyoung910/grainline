@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const {
@@ -10,6 +11,10 @@ const {
   labelClawbackReviewNote,
   labelClawbackStatusAfterFailure,
 } = await import("../src/lib/labelClawbackState.ts");
+
+function source(path) {
+  return readFileSync(path, "utf8");
+}
 
 describe("label clawback reconciliation state", () => {
   it("builds a staff-visible note for missing seller transfer IDs", () => {
@@ -100,5 +105,39 @@ describe("label clawback reconciliation state", () => {
     assert.equal(labelClawbackStatusAfterFailure(4), "RETRY_PENDING");
     assert.equal(labelClawbackStatusAfterFailure(5), "MANUAL_REVIEW");
     assert.equal(labelClawbackNextAttemptAt(5, now), null);
+  });
+
+  it("advances stale retry claims instead of reusing the previous attempt count", () => {
+    const retry = source("src/lib/labelClawbackRetry.ts");
+
+    assert.match(retry, /const attemptCount = order\.labelClawbackRetryCount \+ 1/);
+    assert.doesNotMatch(retry, /Math\.max\(1, order\.labelClawbackRetryCount\)/);
+  });
+
+  it("preserves accepted Stripe reversals if the local success write fails", () => {
+    const route = source("src/app/api/orders/[id]/label/route.ts");
+    const orphanStart = route.indexOf("const orphanRecordedAt = new Date()");
+    const orphanEnd = route.indexOf(".catch((updateError)", orphanStart);
+    const orphanBlock = route.slice(orphanStart, orphanEnd);
+
+    assert.match(route, /let labelClawbackReversalAccepted = false/);
+    assert.match(route, /labelClawbackReversalAccepted = true/);
+    assert.match(route, /acceptedLabelClawbackReversalId = reversal\.id \?\? null/);
+    assert.match(route, /source: "label_cost_clawback_record_failed"/);
+    assert.match(orphanBlock, /labelClawbackReversalAccepted/);
+    assert.match(orphanBlock, /labelClawbackStatus: "REVERSED" as const/);
+    assert.match(orphanBlock, /labelClawbackReversalId: acceptedLabelClawbackReversalId/);
+    assert.ok(
+      orphanBlock.indexOf('labelClawbackStatus: "REVERSED" as const') <
+        orphanBlock.indexOf('labelClawbackStatus: "RETRY_PENDING" as const'),
+      "accepted reversals should be preserved before retry-pending fallback",
+    );
+  });
+
+  it("keeps active label-cost reconciliation holds visible to staff", () => {
+    const adminActions = source("src/app/admin/actions.ts");
+
+    assert.match(adminActions, /NOT: \{ labelClawbackStatus: \{ in: \["RETRY_PENDING", "RETRYING"\] \} \}/);
+    assert.match(adminActions, /active label-cost reconciliation/);
   });
 });

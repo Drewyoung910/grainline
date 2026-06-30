@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
+import type { Prisma } from "@prisma/client";
 import { auth } from "@clerk/nextjs/server";
 import { CATEGORY_LABELS } from "@/lib/categories";
 import ClickTracker from "@/components/ClickTracker";
@@ -115,10 +116,16 @@ export default async function BrowseMetroPage({
     meDbId = meRow?.id ?? null;
   }
   const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
+  const blockedSellerProfileWhere: Prisma.SellerProfileWhereInput = blockedSellerIds.length > 0
+    ? { id: { notIn: blockedSellerIds } }
+    : {};
+  const blockedSellerListingWhere: Prisma.ListingWhereInput = blockedSellerIds.length > 0
+    ? { sellerId: { notIn: blockedSellerIds } }
+    : {};
 
   const listingWhere = publicListingWhere({
     ...(isMajorMetro ? { metroId: metro.id } : { cityMetroId: metro.id }),
-    ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
+    ...blockedSellerListingWhere,
   });
 
   const [listings, listingCount, sellerCount] = await Promise.all([
@@ -152,10 +159,10 @@ export default async function BrowseMetroPage({
     }),
     prisma.listing.count({ where: listingWhere }),
     prisma.sellerProfile.count({
-      where: {
-        ...activeSellerProfileWhere(),
+      where: activeSellerProfileWhere({
         ...(isMajorMetro ? { metroId: metro.id } : { cityMetroId: metro.id }),
-      },
+        ...blockedSellerProfileWhere,
+      }),
     }),
   ]);
   if (listingCount === 0) return notFound();
@@ -190,8 +197,8 @@ export default async function BrowseMetroPage({
           id: { in: nearbyIds },
           isActive: true,
           OR: [
-            { listings: { some: publicListingWhere() } },
-            { listingCityMetros: { some: publicListingWhere() } },
+            { listings: { some: publicListingWhere(blockedSellerListingWhere) } },
+            { listingCityMetros: { some: publicListingWhere(blockedSellerListingWhere) } },
           ],
         },
         select: { id: true, slug: true, name: true },

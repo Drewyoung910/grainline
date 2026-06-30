@@ -85,10 +85,10 @@ export async function GET(
         l.status,
         l."listingType"::text AS "listingType",
         l."stockQuantity",
-        (SELECT p.url FROM "Photo" p WHERE p."listingId" = l.id ORDER BY p."sortOrder" ASC LIMIT 1) AS "photoUrl",
-        (SELECT p."altText" FROM "Photo" p WHERE p."listingId" = l.id ORDER BY p."sortOrder" ASC LIMIT 1) AS "photoAltText",
-        (SELECT p.url FROM "Photo" p WHERE p."listingId" = l.id ORDER BY p."sortOrder" ASC LIMIT 1 OFFSET 1) AS "secondPhotoUrl",
-        (SELECT p."altText" FROM "Photo" p WHERE p."listingId" = l.id ORDER BY p."sortOrder" ASC LIMIT 1 OFFSET 1) AS "secondPhotoAltText",
+        listing_photos."photoUrl",
+        listing_photos."photoAltText",
+        listing_photos."secondPhotoUrl",
+        listing_photos."secondPhotoAltText",
         sp."displayName" AS "sellerDisplayName",
         sp."avatarImageUrl" AS "sellerAvatarImageUrl",
         sp."guildLevel"::text AS "sellerGuildLevel",
@@ -101,6 +101,23 @@ export async function GET(
         (l.category = ${category ?? "OTHER"}::"Category") AS "categoryMatch"
       FROM "Listing" l
       JOIN "SellerProfile" sp ON sp.id = l."sellerId"
+      LEFT JOIN LATERAL (
+        SELECT
+          MAX(photo_rows.url) FILTER (WHERE photo_rows.rn = 1) AS "photoUrl",
+          MAX(photo_rows."altText") FILTER (WHERE photo_rows.rn = 1) AS "photoAltText",
+          MAX(photo_rows.url) FILTER (WHERE photo_rows.rn = 2) AS "secondPhotoUrl",
+          MAX(photo_rows."altText") FILTER (WHERE photo_rows.rn = 2) AS "secondPhotoAltText"
+        FROM (
+          SELECT
+            p.url,
+            p."altText",
+            ROW_NUMBER() OVER (ORDER BY p."sortOrder" ASC, p.id ASC) AS rn
+          FROM "Photo" p
+          WHERE p."listingId" = l.id
+          ORDER BY p."sortOrder" ASC, p.id ASC
+          LIMIT 2
+        ) photo_rows
+      ) listing_photos ON true
       WHERE
         l.id != ${id}
         AND l."sellerId" != ${sellerId}

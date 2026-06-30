@@ -151,9 +151,7 @@ export async function processLabelClawbackRetryBatch(opts: {
   };
 
   for (const order of orders) {
-    const attemptCount = order.labelClawbackStatus === "RETRYING"
-      ? Math.max(1, order.labelClawbackRetryCount)
-      : order.labelClawbackRetryCount + 1;
+    const attemptCount = order.labelClawbackRetryCount + 1;
     const claim = await prisma.order.updateMany({
       where: {
         id: order.id,

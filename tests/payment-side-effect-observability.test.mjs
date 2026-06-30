@@ -694,8 +694,11 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(orphanBlock, /labelPurchasedAt: orphanRecordedAt/);
     assert.match(orphanBlock, /fulfillmentStatus: "SHIPPED"/);
     assert.match(orphanBlock, /shippedAt: orphanRecordedAt/);
+    assert.match(orphanBlock, /labelClawbackReversalAccepted/);
+    assert.match(orphanBlock, /labelClawbackStatus: "REVERSED"/);
+    assert.match(orphanBlock, /labelClawbackReversalId: acceptedLabelClawbackReversalId/);
     assert.match(orphanBlock, /labelClawbackStatus: "RETRY_PENDING"/);
-    assert.match(orphanBlock, /labelClawbackNextAttemptAt: new Date\(\)/);
+    assert.match(orphanBlock, /labelClawbackNextAttemptAt: orphanRecordedAt/);
     assert.match(orphanBlock, /labelClawbackStatus: "MANUAL_REVIEW"/);
     assert.doesNotMatch(route, /order:\s*updated/);
     assert.match(route, /order: labelPurchaseOrderResponse\(updated\)/);

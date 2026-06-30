@@ -573,6 +573,8 @@ export async function POST(
       carrier?: string;
       labelCostCents?: number | null;
     } | null = null;
+    let labelClawbackReversalAccepted = false;
+    let acceptedLabelClawbackReversalId: string | null = null;
 
     try {
       type ShippoTransaction = {
@@ -712,10 +714,8 @@ export async function POST(
                 }),
               },
             );
-            updated = await recordSuccessfulLabelClawback({
-              orderId: id,
-              reversalId: reversal.id,
-            });
+            labelClawbackReversalAccepted = true;
+            acceptedLabelClawbackReversalId = reversal.id ?? null;
           } catch (stripeErr) {
             console.warn(
               `Stripe label cost clawback failed for order ${id}:`,
@@ -739,6 +739,25 @@ export async function POST(
               stripeTransferId: order.stripeTransferId,
               errorMessage: labelClawbackErrorMessage(stripeErr),
             });
+          }
+          if (labelClawbackReversalAccepted) {
+            try {
+              updated = await recordSuccessfulLabelClawback({
+                orderId: id,
+                reversalId: acceptedLabelClawbackReversalId,
+              });
+            } catch (recordErr) {
+              Sentry.captureException(recordErr, {
+                tags: { source: "label_cost_clawback_record_failed" },
+                extra: {
+                  orderId: id,
+                  labelClawbackReversalAccepted,
+                  hasReversalId: Boolean(acceptedLabelClawbackReversalId),
+                  labelCostCents,
+                },
+              });
+              throw recordErr;
+            }
           }
         }
       }
@@ -788,12 +807,44 @@ export async function POST(
         },
       });
       const orphanRecordedAt = new Date();
+      const orphanedLabelReviewNote = labelClawbackReversalAccepted
+        ? `ORPHANED LABEL: Shippo label ${purchasedLabelDetails?.transactionId ?? "unknown"} was purchased and Stripe label-cost reversal ${acceptedLabelClawbackReversalId ?? "unknown"} was accepted, but follow-up DB work failed. Manual reconciliation required.`
+        : `ORPHANED LABEL: Shippo label ${purchasedLabelDetails?.transactionId ?? "unknown"} may have been purchased, but follow-up DB work failed. Manual reconciliation required.`;
+      const labelClawbackOrphanData =
+        typeof purchasedLabelDetails?.labelCostCents === "number" &&
+        purchasedLabelDetails.labelCostCents > 0
+          ? labelClawbackReversalAccepted
+            ? {
+                labelClawbackStatus: "REVERSED" as const,
+                labelClawbackLastAttemptAt: orphanRecordedAt,
+                labelClawbackNextAttemptAt: null,
+                labelClawbackResolvedAt: orphanRecordedAt,
+                labelClawbackReversalId: acceptedLabelClawbackReversalId,
+              }
+            : order.stripeTransferId
+              ? {
+                  labelClawbackStatus: "RETRY_PENDING" as const,
+                  labelClawbackRetryCount: 0,
+                  labelClawbackLastAttemptAt: null,
+                  labelClawbackNextAttemptAt: orphanRecordedAt,
+                  labelClawbackResolvedAt: null,
+                  labelClawbackReversalId: null,
+                }
+              : {
+                  labelClawbackStatus: "MANUAL_REVIEW" as const,
+                  labelClawbackRetryCount: 0,
+                  labelClawbackLastAttemptAt: null,
+                  labelClawbackNextAttemptAt: null,
+                  labelClawbackResolvedAt: null,
+                  labelClawbackReversalId: null,
+                }
+          : {};
       await prisma.order
         .updateMany({
           where: { id, labelStatus: "PURCHASED" },
           data: {
             reviewNeeded: true,
-            reviewNote: `ORPHANED LABEL: Shippo label ${purchasedLabelDetails?.transactionId ?? "unknown"} may have been purchased, but follow-up DB work failed. Manual reconciliation required.`,
+            reviewNote: orphanedLabelReviewNote,
             labelStatus: "PURCHASED",
             labelPurchasedAt: orphanRecordedAt,
             fulfillmentStatus: "SHIPPED",
@@ -819,26 +870,7 @@ export async function POST(
             ...(typeof purchasedLabelDetails?.labelCostCents === "number"
               ? { labelCostCents: purchasedLabelDetails.labelCostCents }
               : {}),
-            ...(typeof purchasedLabelDetails?.labelCostCents === "number" &&
-            purchasedLabelDetails.labelCostCents > 0
-              ? order.stripeTransferId
-                ? {
-                    labelClawbackStatus: "RETRY_PENDING" as const,
-                    labelClawbackRetryCount: 0,
-                    labelClawbackLastAttemptAt: null,
-                    labelClawbackNextAttemptAt: new Date(),
-                    labelClawbackResolvedAt: null,
-                    labelClawbackReversalId: null,
-                  }
-                : {
-                    labelClawbackStatus: "MANUAL_REVIEW" as const,
-                    labelClawbackRetryCount: 0,
-                    labelClawbackLastAttemptAt: null,
-                    labelClawbackNextAttemptAt: null,
-                    labelClawbackResolvedAt: null,
-                    labelClawbackReversalId: null,
-                  }
-              : {}),
+            ...labelClawbackOrphanData,
           },
         })
         .catch((updateError) => {

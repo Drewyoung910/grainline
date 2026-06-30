@@ -11063,3 +11063,127 @@ public-availability proof, HSTS preload submission decision, Vercel
 Analytics/Speed Insights product/privacy decision, homepage browser a11y/runtime
 proof beyond source fallback, and deployed security-header runtime proof beyond
 source/config guardrails.
+
+Entry 464 closes a parent-verified Stripe webhook, label-clawback, and public
+discovery source pass. Three read-only agents were used for sidecar source
+checks; Parent Codex verified the allegations locally, made the scoped fixes,
+closed all agents, and did not stage the raw audit import.
+
+Verified fixed/reduced:
+
+- Stripe `charge.refunded` webhook order/review side effects now run only when
+  the provider-event `OrderPaymentEvent` ledger row is newly inserted. Duplicate
+  webhook retries after a ledger commit no longer rewrite order review state.
+- Stripe dispute webhooks now read the latest same-dispute ledger ordered by the
+  signed Stripe `event.created` timestamp, then gate order updates, case
+  promotion/creation, audit metadata, and seller dispute notifications on both a
+  newly inserted ledger row and non-stale event ordering. This reduces the
+  duplicate/replayed `charge.dispute.created` path that could re-promote a
+  later-resolved case.
+- Label-clawback retry claims now increment stale `RETRYING` rows instead of
+  reusing the prior attempt count, so retry/manual-review accounting cannot
+  repeat the same counted attempt indefinitely.
+- Label purchase now remembers when Stripe accepted a label-cost transfer
+  reversal before the local success write. If later DB work fails, orphan
+  recovery records `REVERSED` with the accepted reversal id rather than
+  scheduling another reversal.
+- Admin "Mark as Reviewed" no longer clears the visible review flag while
+  `labelClawbackStatus` is `RETRY_PENDING` or `RETRYING`, so active
+  label-cost reconciliation remains staff-visible until it is resolved.
+- Metro browse pages now apply viewer block-aware seller/listing filters to the
+  listing grid, listing count, seller count, and nearby-metro content checks.
+  Blocked makers no longer affect those public discovery counts/links for the
+  viewer.
+- Metro-category static params now use set-based listing `groupBy` queries for
+  major and city metro category pairs instead of one listing-group query per
+  active metro during build/static generation.
+- Similar-listing photo selection now uses one deterministic `LEFT JOIN
+  LATERAL` ordered by `Photo.sortOrder, Photo.id` instead of four correlated
+  subqueries ordered only by `sortOrder`, reducing query work and avoiding
+  mismatched URL/alt-text ties.
+
+Verified current/stale during the same pass:
+
+- Unmatched Stripe `charge.refunded` and dispute webhooks still fail before
+  ledger writes and remain retryable.
+- The similar-listing route already applies the signed-in viewer's blocked
+  seller filter before returning candidates.
+- Blog-detail related post/listing surfaces already apply blocked
+  author/seller filters. The detail page still uses a top-level Prisma
+  `include`, but nested author/seller/comment relations are explicit allowlists
+  and the current broad top-level row is `BlogPost` content/state, not current
+  `User` or `SellerProfile` PII. A future explicit top-level post projection is
+  still a reasonable cleanup, but the PII allegation was stale under the current
+  schema.
+- Label purchase already kept missing-transfer, invalid-cost, and wrong-currency
+  label clawback cases in manual review rather than attempting arbitrary
+  transfer reversals.
+
+Still deferred or runtime/provider evidence, not closed here:
+
+- Stripe Dashboard webhook subscription evidence, live/test-mode reversal
+  reconciliation proof, and historical production/staging webhook replay scans
+  still require provider/runtime access.
+- Label-clawback runtime proof and dashboard reconciliation evidence remain open
+  even though the source retry/orphan/admin-review issues above were reduced.
+- EXPLAIN-dependent public query-plan validation, Stripe Connect liability,
+  Clerk/Sentry/R2/Vercel dashboard evidence, HSTS/deployed-header proof, and
+  broader legal/product retention decisions remain outside this source-only
+  pass.
+
+Guardrails:
+`tests/stripe-webhook-state.test.mjs`,
+`tests/payment-side-effect-observability.test.mjs`,
+`tests/system-audit-log.test.mjs`, `tests/refund-route-state.test.mjs`,
+`tests/refund-lock-state.test.mjs`, `tests/public-query-determinism.test.mjs`,
+`tests/public-cron-search-hardening.test.mjs`,
+`tests/public-visibility-followups.test.mjs`,
+`tests/label-clawback-state.test.mjs`, and
+`tests/verified-audit-followups.test.mjs`.
+
+Verification:
+focused
+`node --test tests/stripe-webhook-state.test.mjs tests/payment-side-effect-observability.test.mjs tests/system-audit-log.test.mjs tests/refund-route-state.test.mjs tests/refund-lock-state.test.mjs tests/public-query-determinism.test.mjs tests/public-cron-search-hardening.test.mjs tests/public-visibility-followups.test.mjs tests/label-clawback-state.test.mjs tests/verified-audit-followups.test.mjs`
+(164/164 tests passing), `npx tsc --noEmit`, `git diff --check`, and
+`npm test` (1428/1428 tests passing across 257 suites) passed.
+
+Current running tally after Entry 464: verified fixed/reduced 952, verified
+stale/false-positive/current 518, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 27. Fixed/reduced
+increases by nine for refund duplicate side-effect gating, dispute
+event-order/duplicate side-effect gating, label retry attempt accounting,
+accepted label-reversal orphan preservation, admin label-clawback review hold
+blocking, metro seller count block filtering, nearby metro block filtering,
+metro-category static-param query reduction, and similar-listing deterministic
+photo selection. Stale/current increases by four for unmatched webhook
+retryability, existing similar blocked-seller filtering, current blog-detail
+non-PII projection state, and current label missing-transfer/invalid-cost manual
+review guards. Deferred stays flat. Raw-left decreases by three because this
+closes the remaining Stripe webhook event-order source pass, the source portion
+of the label-clawback retry/orphan/admin-review bucket, and the blocked-seller
+metro/static-param/similar-listing public-discovery source bucket; provider and
+runtime evidence remains open.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence, label
+clawback runtime proof/dashboard reconciliation evidence, Stripe webhook
+subscription dashboard evidence, Stripe Connect v2 loss-liability ops/legal
+decision, stale remote branch and old git author hygiene, Round 10 deferred
+cache/state-machine product designs that require product decisions rather than
+source guardrails, remaining EXPLAIN-dependent runtime query-plan validation
+beyond the existing source indexes and source guardrails, Stripe partial-refund
+live reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope, cross-seller AI duplicate-detection product
+design, legacy enum cleanup/data-migration decisions, partial multi-seller
+checkout continuation design, deliberate BigInt money-column modeling,
+variant-adjusted unit-price floor policy, live-data reconciliation for
+historical seller shipping-rate currency drift, Guild private/custom-order
+sales/review trust-metric product policy, Clerk staff MFA and breached-password
+dashboard evidence, Clerk multi-account spam dashboard evidence, buyer-deletion
+live Stripe replay proof after source minimization, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket dashboard posture plus production smoke evidence and
+public-availability proof, HSTS preload submission decision, Vercel
+Analytics/Speed Insights product/privacy decision, homepage browser
+a11y/runtime proof beyond source fallback, and deployed security-header runtime
+proof beyond source/config guardrails.

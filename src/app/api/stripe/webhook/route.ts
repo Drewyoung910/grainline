@@ -83,6 +83,7 @@ import {
   parsePositiveInt,
   retrievedStripeEventMatchesSignedEnvelope,
   SHIPPING_ESTIMATED_DAYS_MAX,
+  shouldApplyDisputeWebhookSideEffects,
 } from "@/lib/stripeWebhookState";
 import { Prisma, type FulfillmentStatus } from "@prisma/client";
 
@@ -2267,7 +2268,7 @@ export async function POST(req: Request) {
               metadata: refundLedger.ledger.metadata,
             }, tx);
 
-            if (refundLedger.orderUpdate) {
+            if (refundLedgerCreated && refundLedger.orderUpdate) {
               await tx.order.update({
                 where: { id: existingOrder.id },
                 data: refundLedger.orderUpdate,
@@ -2347,6 +2348,39 @@ export async function POST(req: Request) {
               dispute,
               orderCurrency: order.currency,
             });
+            const latestDisputeEvents = dispute.id
+              ? await tx.$queryRaw<Array<{
+                  stripeEventId: string;
+                  status: string | null;
+                  stripeEventCreated: bigint | number | null;
+                }>>`
+                  SELECT
+                    ope."stripeEventId",
+                    ope."status",
+                    COALESCE(
+                      NULLIF(ope."metadata"->>'stripeEventCreated', '')::bigint,
+                      EXTRACT(EPOCH FROM ope."createdAt")::bigint
+                    ) AS "stripeEventCreated"
+                  FROM "OrderPaymentEvent" ope
+                  WHERE ope."orderId" = ${order.id}
+                    AND ope."eventType" = 'DISPUTE'
+                    AND ope."stripeObjectId" = ${dispute.id}
+                  ORDER BY
+                    COALESCE(
+                      NULLIF(ope."metadata"->>'stripeEventCreated', '')::bigint,
+                      EXTRACT(EPOCH FROM ope."createdAt")::bigint
+                    ) DESC,
+                    ope."createdAt" DESC,
+                    ope.id DESC
+                  LIMIT 1
+                `
+              : [];
+            const latestDisputeEvent = latestDisputeEvents[0] ?? null;
+            const applyDisputeSideEffects = shouldApplyDisputeWebhookSideEffects({
+              currentEventCreated: event.created,
+              currentStatus: disputeLedger.ledger.status,
+              latestEvent: latestDisputeEvent,
+            });
             const disputeLedgerCreated = await recordOrderPaymentEvent({
               orderId: order.id,
               stripeEventId: event.id,
@@ -2360,23 +2394,26 @@ export async function POST(req: Request) {
               description: disputeLedger.ledger.description,
               metadata: disputeLedger.ledger.metadata,
             }, tx);
+            const disputeSideEffectsApplied = disputeLedgerCreated && applyDisputeSideEffects;
             const orderUpdate = { ...disputeLedger.orderUpdate };
-            if (
-              "sellerRefundLockedAt" in orderUpdate &&
-              order.sellerRefundId === REFUND_LOCK_SENTINEL &&
-              !isStaleRefundLock({
-                sellerRefundId: order.sellerRefundId,
-                sellerRefundLockedAt: order.sellerRefundLockedAt,
-              })
-            ) {
-              delete orderUpdate.sellerRefundLockedAt;
+            if (disputeSideEffectsApplied) {
+              if (
+                "sellerRefundLockedAt" in orderUpdate &&
+                order.sellerRefundId === REFUND_LOCK_SENTINEL &&
+                !isStaleRefundLock({
+                  sellerRefundId: order.sellerRefundId,
+                  sellerRefundLockedAt: order.sellerRefundLockedAt,
+                })
+              ) {
+                delete orderUpdate.sellerRefundLockedAt;
+              }
+              await tx.order.update({
+                where: { id: order.id },
+                data: orderUpdate,
+              });
             }
-            await tx.order.update({
-              where: { id: order.id },
-              data: orderUpdate,
-            });
             let disputeCaseActionName = "none";
-            if (event.type === "charge.dispute.created" && order.buyerId && sellerUserId) {
+            if (disputeSideEffectsApplied && event.type === "charge.dispute.created" && order.buyerId && sellerUserId) {
               const caseAction = disputeCaseAction({
                 eventType: event.type,
                 existingCase: order.case,
@@ -2429,11 +2466,16 @@ export async function POST(req: Request) {
                   currency: disputeLedger.ledger.currency,
                   status: disputeLedger.ledger.status,
                   caseAction: disputeCaseActionName,
-                  hasOrderUpdate: Object.keys(orderUpdate).length > 0,
+                  hasOrderUpdate: disputeSideEffectsApplied && Object.keys(orderUpdate).length > 0,
+                  disputeSideEffectsApplied,
+                  latestRecordedStripeEventId: latestDisputeEvent?.stripeEventId ?? null,
+                  latestRecordedStripeEventCreated: latestDisputeEvent?.stripeEventCreated != null
+                    ? String(latestDisputeEvent.stripeEventCreated)
+                    : null,
                 },
               });
             }
-            return event.type === "charge.dispute.created" && sellerUserId
+            return disputeSideEffectsApplied && event.type === "charge.dispute.created" && sellerUserId
               ? { sellerUserId, orderId: order.id }
               : null;
           });

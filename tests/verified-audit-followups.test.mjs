@@ -186,11 +186,14 @@ describe("verified audit follow-up guardrails", () => {
     assert.match(labelRoute, /markLabelClawbackForReview/);
     assert.match(labelRoute, /recordSuccessfulLabelClawback/);
     assert.match(labelRoute, /labelClawbackIdempotencyKey/);
+    assert.match(labelRoute, /labelClawbackReversalAccepted = true/);
+    assert.match(labelRoute, /source: "label_cost_clawback_record_failed"/);
     assert.match(labelRoute, /reason: "missing_transfer"/);
     assert.match(labelRoute, /reason: "stripe_reversal_failed"/);
     const retryLib = source("src/lib/labelClawbackRetry.ts");
     assert.match(retryLib, /reviewNeeded: true/);
     assert.match(retryLib, /labelClawbackStatus: "RETRYING"/);
+    assert.match(retryLib, /const attemptCount = order\.labelClawbackRetryCount \+ 1/);
     assert.match(retryLib, /labelClawbackStatusAfterFailure/);
     assert.match(
       retryLib,

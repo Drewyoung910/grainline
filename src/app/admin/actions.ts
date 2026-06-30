@@ -37,7 +37,11 @@ export async function markReviewed(orderId: string, _prevState?: unknown): Promi
     const admin = await requireAdmin();
     const updated = await prisma.$transaction(async (tx) => {
       const result = await tx.order.updateMany({
-        where: { id: orderId, reviewNeeded: true },
+        where: {
+          id: orderId,
+          reviewNeeded: true,
+          NOT: { labelClawbackStatus: { in: ["RETRY_PENDING", "RETRYING"] } },
+        },
         data: { reviewNeeded: false },
       });
       if (result.count === 0) return result;
@@ -50,7 +54,12 @@ export async function markReviewed(orderId: string, _prevState?: unknown): Promi
       });
       return result;
     });
-    if (updated.count === 0) return { ok: false, error: "Order is already reviewed or no longer exists." };
+    if (updated.count === 0) {
+      return {
+        ok: false,
+        error: "Order is already reviewed, no longer exists, or still has active label-cost reconciliation.",
+      };
+    }
     revalidatePath(`/admin/orders/${orderId}`);
     revalidatePath("/admin/flagged");
     revalidatePath("/admin/orders");
