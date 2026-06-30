@@ -620,6 +620,12 @@ export default function PrivacyPage() {
               and fraud-prevention purposes.
             </li>
             <li>
+              <strong>Support and privacy requests.</strong> Closed support and privacy data-request
+              records are retained for up to <strong>2 years</strong> so we can document request
+              handling, provider follow-up, and legal exceptions, then removed from active application
+              storage unless a legal hold or unresolved follow-up requires longer retention.
+            </li>
+            <li>
               <strong>Notification data.</strong> Read notifications are automatically deleted after
               <strong> 90 days</strong>. Unread notifications are automatically deleted after
               <strong> 365 days</strong> or upon account deletion, whichever happens first.

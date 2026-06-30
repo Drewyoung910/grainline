@@ -43,7 +43,7 @@ type CachedSellerMetrics = {
   reviewCount: number;
   onTimeShippingRate: number;
   responseRate: number;
-  totalSalesCents: number;
+  totalSalesCents: number | bigint;
   completedOrderCount: number;
   activeCaseCount: number;
   accountAgeDays: number;
@@ -58,7 +58,7 @@ function cachedMetricsToResult(sellerProfileId: string, metrics: CachedSellerMet
     reviewCount: metrics.reviewCount,
     onTimeShippingRate: metrics.onTimeShippingRate,
     responseRate: metrics.responseRate,
-    totalSalesCents: metrics.totalSalesCents,
+    totalSalesCents: Number(metrics.totalSalesCents),
     completedOrderCount: metrics.completedOrderCount,
     activeCaseCount: metrics.activeCaseCount,
     accountAgeDays: metrics.accountAgeDays,

@@ -205,3 +205,9 @@ Local account deletion, export, and outbox pruning cover Grainline-owned storage
 3. Resend: check sent-message, bounce, complaint, suppression, and webhook event records for the requester. If deletion, export, or suppression is required, use the Resend dashboard or support path and record the provider ticket id, date, owner, and outcome. Do not assume `EmailOutbox` or `ResendWebhookEvent` pruning deletes provider copies.
 4. Stripe, Clerk, Shippo, Sentry, Cloudflare, UploadThing/UTFS legacy media, Neon, Upstash, and Vercel: determine whether the request is a deletion, export, suppression, or legal-retention exception, then use the provider dashboard or support path and record the evidence URL or ticket id.
 5. Close the `SupportRequest` only after local action, provider action or exception, requester response, owner, and completion date are recorded.
+
+Closed support and privacy data-request rows are pruned by the daily `notification-prune`
+maintenance cron after the 2-year application retention window. Keep requests `OPEN`
+or `IN_PROGRESS` while provider follow-up, requester response, or legal-hold review is
+still active; do not close a data request until the closure evidence would be safe to
+retain until that prune window expires.

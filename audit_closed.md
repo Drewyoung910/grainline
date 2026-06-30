@@ -11187,3 +11187,124 @@ public-availability proof, HSTS preload submission decision, Vercel
 Analytics/Speed Insights product/privacy decision, homepage browser
 a11y/runtime proof beyond source fallback, and deployed security-header runtime
 proof beyond source/config guardrails.
+
+Entry 465 closes a parent-verified privacy-retention and metrics-schema source
+pass. Three read-only agents were used for sidecar review; Parent Codex checked
+the relevant source locally, made only the scoped fixes below, closed all
+agents, and did not stage the raw audit import.
+
+Verified fixed/reduced:
+
+- Closed `SupportRequest` rows now have an explicit application retention path.
+  The daily `notification-prune` maintenance cron calls
+  `pruneClosedSupportRequests()`, deleting only `CLOSED` requests with
+  non-null `closedAt` older than the two-year support/privacy request retention
+  window. Active `OPEN` and `IN_PROGRESS` support/data-request rows are
+  preserved for provider follow-up, requester response, or legal-hold review.
+  The `SupportRequest(status, closedAt)` index was added for the prune query,
+  the Privacy Policy discloses the two-year closed-request window, and the
+  runbook now tells staff not to close data requests until the closure evidence
+  is safe to retain until that prune window expires.
+- `SellerMetrics.totalSalesCents` now uses a PostgreSQL/Prisma `BigInt` column
+  instead of `Int`, reducing the overflow risk for the all-time seller sales
+  aggregate while leaving individual order/item cents fields and the broader
+  money-column modeling decision unchanged. Cached metrics reads normalize the
+  Prisma `bigint` back to a bounded `number` at UI/API boundaries.
+
+Verified current/stale during the same pass:
+
+- Account export already includes the source-verifiable local privacy records
+  in scope, including support/data requests, email/outbox/failure records,
+  seller payout events, direct-upload lifecycle rows, buyer-owned order PII, and
+  seller-side order records without buyer contact fields.
+- Account deletion already performs local PII scrubbing for buyer order contact
+  fields, support/data-request text/evidence, direct-upload lifecycle rows, and
+  durable provider/media/audit side effects.
+- Fulfilled-order buyer PII pruning remains implemented and scheduled through
+  `/api/cron/order-pii-prune`, with active case and review-needed holds.
+- Legacy listing-type cleanup is source-current: `isReadyToShip` is gone from
+  current schema/source except historical migrations, and current listing type
+  invariants are represented in source and migrations.
+- Variant-adjusted listing unit prices already enforce the one-cent floor and
+  listing max price guard through the shared variant validator and checkout
+  guardrails.
+- Current seller shipping-rate writes and checkout quote validation use cents
+  and signed server-derived currency, so the source side of the historical
+  currency-drift allegation is current; any live historical-data reconciliation
+  remains a data scan.
+- Guild Master active-case counting is current: unresolved cases are counted
+  across all time, not only inside the rolling metrics window.
+- Founding Maker number assignment is source-guarded by an advisory transaction
+  lock, max-number allocation, idempotent update guard, unique index, public
+  listing eligibility, and DB range check. Live DB concurrency proof and the
+  permanence/revocation policy remain outside this source-only fix.
+- Homepage source guardrails for deterministic capped queries, block-aware
+  public data, reduced-motion/decorative mosaic behavior, and search a11y are
+  current. Browser runtime proof remains a separate launch-evidence item.
+
+Still deferred or runtime/provider/product evidence, not closed here:
+
+- Provider-held privacy copies still require the manual runbook workflow across
+  Resend, Stripe, Clerk, Shippo, Sentry, Cloudflare, Neon, Upstash, Vercel, and
+  legacy media providers.
+- Partial multi-seller checkout continuation after refresh/navigation remains a
+  product-flow design item rather than a small source bug; current cart state is
+  not durable enough to resume a partially paid multi-seller checkout after
+  reload.
+- Cross-seller AI duplicate detection, Guild private/custom-order trust-metric
+  policy, Founding Maker permanence policy, live historical shipping-rate data
+  reconciliation, and live Founding Maker DB concurrency proof remain product,
+  data, or runtime evidence decisions.
+
+Guardrails:
+`tests/support-request-state.test.mjs`,
+`tests/guild-metrics-state.test.mjs`,
+`tests/retention-and-ops-followups.test.mjs`,
+`tests/cron-schedule-guardrails.test.mjs`, and
+`tests/schema-numeric-index-guardrails.test.mjs`.
+
+Verification:
+focused
+`node --test tests/support-request-state.test.mjs tests/guild-metrics-state.test.mjs tests/retention-and-ops-followups.test.mjs tests/cron-schedule-guardrails.test.mjs tests/schema-numeric-index-guardrails.test.mjs`
+(31/31 tests passing), `npx prisma generate`, and `npx tsc --noEmit` passed.
+
+Current running tally after Entry 465: verified fixed/reduced 954, verified
+stale/false-positive/current 527, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 25. Fixed/reduced
+increases by two for closed support/data-request retention pruning and
+`SellerMetrics.totalSalesCents` BigInt storage. Stale/current increases by
+nine for current account export scope, local account deletion scrubbing,
+fulfilled-order PII prune scheduling, legacy listing-type cleanup, variant
+unit-price floor guards, seller shipping-rate currency source behavior, all-time
+active-case counting, Founding Maker source concurrency guards, and homepage
+source guardrails. Deferred stays flat because provider-held privacy evidence,
+partial multi-seller checkout continuation, cross-seller AI duplicate
+detection, Guild private/custom-order trust metrics, Founding Maker permanence,
+historical shipping-rate data scans, and homepage browser proof were already
+represented in the remaining categories. Raw-left decreases by two because this
+closes the source-enforceable support/data-request retention slice and the
+narrow aggregate-cache part of the BigInt money-column modeling slice.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence, label
+clawback runtime proof/dashboard reconciliation evidence, Stripe webhook
+subscription dashboard evidence, Stripe Connect v2 loss-liability ops/legal
+decision, stale remote branch and old git author hygiene, Round 10 deferred
+cache/state-machine product designs that require product decisions rather than
+source guardrails, remaining EXPLAIN-dependent runtime query-plan validation
+beyond the existing source indexes and source guardrails, Stripe partial-refund
+live reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope after the closed-support-row source prune,
+cross-seller AI duplicate-detection product design, partial multi-seller
+checkout continuation design, deliberate BigInt money-column modeling beyond
+the fixed seller-metrics aggregate cache, live-data reconciliation for
+historical seller shipping-rate currency drift, Guild private/custom-order
+sales/review trust-metric product policy, Clerk staff MFA and breached-password
+dashboard evidence, Clerk multi-account spam dashboard evidence, buyer-deletion
+live Stripe replay proof after source minimization, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public-bucket dashboard posture plus production smoke evidence and
+public-availability proof, HSTS preload submission decision, Vercel
+Analytics/Speed Insights product/privacy decision, homepage browser
+a11y/runtime proof beyond source fallback, and deployed security-header runtime
+proof beyond source/config guardrails.

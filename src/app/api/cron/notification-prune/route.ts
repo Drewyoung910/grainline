@@ -7,6 +7,7 @@ import { releaseStaleRefundLocks } from "@/lib/refundLocks";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 import { pruneEmailOutboxRetention } from "@/lib/emailOutboxRetention";
 import { notificationRetentionCutoffs, NOTIFICATION_RETENTION_BATCH_SIZE, NOTIFICATION_RETENTION_TIME_BUDGET_MS } from "@/lib/notificationRetentionState";
+import { pruneClosedSupportRequests } from "@/lib/supportRequestRetention";
 import { pruneWebhookEventRetention } from "@/lib/webhookEventRetention";
 import { runBoundedDeletionBatches } from "@/lib/cronBatchState";
 import { HTTP_STATUS } from "@/lib/httpStatus";
@@ -26,12 +27,20 @@ export async function GET(request: NextRequest) {
     const { readCutoff, unreadCutoff } = notificationRetentionCutoffs();
 
     try {
-      const [readPruned, unreadPruned, staleRefundLocks, emailOutboxPruned, webhookEventsPruned] = await Promise.all([
+      const [
+        readPruned,
+        unreadPruned,
+        staleRefundLocks,
+        emailOutboxPruned,
+        webhookEventsPruned,
+        supportRequestsPruned,
+      ] = await Promise.all([
         pruneReadNotifications(readCutoff),
         pruneUnreadNotifications(unreadCutoff),
         releaseStaleRefundLocksForPrune(),
         pruneEmailOutboxRetention(),
         pruneWebhookEventRetention(),
+        pruneClosedSupportRequests(),
       ]);
 
       const response = {
@@ -45,6 +54,9 @@ export async function GET(request: NextRequest) {
         emailOutboxPruneComplete: emailOutboxPruned.complete,
         webhookEventsPruned: webhookEventsPruned.count,
         webhookEventsPruneComplete: webhookEventsPruned.complete,
+        supportRequestsPruned: supportRequestsPruned.count,
+        supportRequestsPruneComplete: supportRequestsPruned.complete,
+        supportRequestsPruneCutoff: supportRequestsPruned.cutoff.toISOString(),
       };
       await completeCronRun(cronRun, response);
       return NextResponse.json(response);

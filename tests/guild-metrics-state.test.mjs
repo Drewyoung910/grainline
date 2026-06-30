@@ -54,4 +54,20 @@ describe("Guild metrics state", () => {
     assert.match(source, /reply\."senderId" = \$\{seller\.userId\}/);
     assert.match(source, /LEFT JOIN seller_responses sr/);
   });
+
+  it("stores cached total sales in a bigint column and normalizes cached reads for UI metrics", () => {
+    const schema = readFileSync(new URL("../prisma/schema.prisma", import.meta.url), "utf8");
+    const metricsSource = readFileSync(new URL("../src/lib/metrics.ts", import.meta.url), "utf8");
+    const adminVerification = readFileSync(new URL("../src/app/admin/verification/page.tsx", import.meta.url), "utf8");
+    const migration = readFileSync(
+      new URL("../prisma/migrations/20260630143000_seller_metrics_sales_bigint/migration.sql", import.meta.url),
+      "utf8",
+    );
+
+    assert.match(schema, /model SellerMetrics[\s\S]*totalSalesCents\s+BigInt\s+@default\(0\)/);
+    assert.match(migration, /ALTER COLUMN "totalSalesCents" TYPE BIGINT/);
+    assert.match(metricsSource, /totalSalesCents: Number\(metrics\.totalSalesCents\)/);
+    assert.match(adminVerification, /totalSalesCents: number \| bigint/);
+    assert.match(adminVerification, /totalSalesCents: Number\(metrics\.totalSalesCents\)/);
+  });
 });

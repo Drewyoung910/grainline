@@ -1259,6 +1259,7 @@ model SupportRequest {
   @@index([orderId])
   @@index([listingId])
   @@index([status, createdAt])
+  @@index([status, closedAt])
 }
 
 model StripeWebhookEvent {
@@ -1284,7 +1285,7 @@ model SellerMetrics {
   reviewCount         Int           @default(0)
   onTimeShippingRate  Float         @default(0)
   responseRate        Float         @default(0)
-  totalSalesCents     Int           @default(0)
+  totalSalesCents     BigInt        @default(0)
   completedOrderCount Int           @default(0)
   activeCaseCount     Int           @default(0)
   accountAgeDays      Int           @default(0)

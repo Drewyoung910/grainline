@@ -58,7 +58,7 @@ export function cachedSellerMetricsToResult(metrics: CachedSellerMetrics): Selle
     reviewCount: metrics.reviewCount,
     onTimeShippingRate: metrics.onTimeShippingRate,
     responseRate: metrics.responseRate,
-    totalSalesCents: metrics.totalSalesCents,
+    totalSalesCents: Number(metrics.totalSalesCents),
     completedOrderCount: metrics.completedOrderCount,
     activeCaseCount: metrics.activeCaseCount,
     accountAgeDays: metrics.accountAgeDays,
