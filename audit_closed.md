@@ -11699,3 +11699,79 @@ production smoke evidence and public-availability proof, HSTS preload submission
 decision, Vercel Analytics/Speed Insights product/privacy decision, homepage
 browser a11y/runtime proof beyond source fallback, and deployed security-header
 runtime proof beyond source/config guardrails.
+
+## Entry 470 - branch hygiene and committer metadata reverify pass
+
+Entry 470 records a source-control hygiene recheck for raw #762 and #763. No
+agents were used. No source code was changed, no branches were pruned, and the
+raw audit import was not staged.
+
+Verified current/ops during this pass:
+
+- Raw #762 remains a real ops hygiene item. Live `git ls-remote --heads origin`
+  on 2026-07-01 shows 11 non-main remote heads:
+  `claude/sleepy-hypatia-4aa428`,
+  `dependabot/npm_and_yarn/minor-and-patch-77975e8ef0`,
+  `docs/claude-archive-cleanup`, `feature/hero-mosaic`,
+  `feature/stripe-connect-v2`, `fix-onboarding-stripe-deadlock`,
+  `fix/terms-acceptance-bypass`, `fix/wizard-step-4-duplicate-button`,
+  `style-site-ui-sweep`, and `ui-polish`.
+- `feature/stripe-connect-v2` is still divergent from current `main`, and the
+  live branch tip `0295778456cca79d17bad740abda7ec38a237861` would change 799
+  files compared with `main`. The targeted diff still includes deletion of many
+  production migrations plus large rewrites under Stripe webhook/connect code.
+  It must not be merged without rebasing onto current `main` and re-auditing the
+  diff.
+- Raw #763 remains historical/cosmetic rather than a current commit-path bug.
+  `git log --all --format='%ae'` still finds exactly two historical commits
+  with `drewyoung@Drews-MacBook-Air-5.local`, but repo-local `user.email` is now
+  `drewyoung910@gmail.com`, `user.name` is `Drew Young`, and latest commit
+  `8bdcb144` used `Drew Young <drewyoung910@gmail.com>` for both author and
+  committer.
+
+No code fix was made because pruning remote branches and rewriting historical
+author metadata are explicit repository-operations decisions. The verified local
+future-author config reduces recurrence risk without rewriting published
+history.
+
+Guardrails/evidence:
+`git ls-remote --heads origin`, `git branch -r`,
+`git log --all --format='%ae' | sort | uniq -c`,
+`git config --get user.email`, `git config --get user.name`, and
+`git diff --name-status main..0295778456cca79d17bad740abda7ec38a237861`.
+
+Verification:
+`git diff --check`, `npx tsc --noEmit`, `npm test` (1432/1432 tests
+passing), and `npm run lint` passed. Lint still prints the existing
+`jsx-eslint` TSNonNullExpression resolver warning while exiting 0.
+
+Current running tally after Entry 470: verified fixed/reduced 958, verified
+stale/false-positive/current 528, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 23. Counts stay flat
+because #762 and #763 were already classified in Entry 295; this pass updates
+the live evidence and narrows the remaining action to explicit branch-pruning
+ops.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence, label
+clawback runtime proof/dashboard reconciliation evidence, Stripe webhook
+subscription dashboard evidence, Stripe Connect v2 loss-liability ops/legal
+decision, explicit stale remote branch pruning/review, Round 10 deferred
+cache/state-machine product designs that require product decisions rather than
+source guardrails, remaining EXPLAIN-dependent runtime query-plan validation
+beyond the existing source indexes and source guardrails, Stripe partial-refund
+live reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope after the closed-support-row source prune,
+cross-seller AI duplicate-detection product design, durable checkout-group
+design beyond the ready-lock cart checkout resume, deliberate BigInt
+money-column modeling beyond the fixed seller-metrics aggregate cache,
+live-data reconciliation for historical seller shipping-rate currency drift,
+Guild private/custom-order sales/review trust-metric product policy, Clerk
+staff MFA and breached-password dashboard evidence, Clerk multi-account spam
+dashboard evidence, buyer-deletion live Stripe replay proof after source
+minimization, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public-bucket dashboard posture plus
+production smoke evidence and public-availability proof, HSTS preload submission
+decision, Vercel Analytics/Speed Insights product/privacy decision, homepage
+browser a11y/runtime proof beyond source fallback, and deployed security-header
+runtime proof beyond source/config guardrails.
