@@ -11410,3 +11410,106 @@ production smoke evidence and public-availability proof, HSTS preload submission
 decision, Vercel Analytics/Speed Insights product/privacy decision, homepage
 browser a11y/runtime proof beyond source fallback, and deployed security-header
 runtime proof beyond source/config guardrails.
+
+## Entry 467 - cache contract docs and duplicate raw reverify pass
+
+Entry 467 closes a parent-verified cache-contract and raw-duplicate
+reverification pass. Two read-only agents were used for sidecar review; Parent
+Codex checked the relevant source locally, closed both agents, and did not stage
+the raw audit import.
+
+Verified fixed/reduced:
+
+- A stale durable docs line in `CLAUDE.md` still described
+  `/api/search/popular-tags` and `/api/search/popular-blog-tags` as ISR
+  one-hour routes. Current source intentionally uses dynamic route handlers
+  backed by the tagged `unstable_cache` helpers so `revalidateTag()` is not
+  hidden behind a second route-response cache. The docs now match the current
+  source contract, and `tests/cache-invalidation-guardrails.test.mjs` pins both
+  the source behavior and the docs wording.
+
+Verified current/stale during the same pass:
+
+- Raw #769 and #770 were reverified stale/current against the current Stripe
+  webhook code. Blocked/refunded checkout orders return before post-payment
+  notifications/emails, and terminal dispute events preserve fresh local refund
+  locks instead of clearing `sellerRefundLockedAt` while a local refund is still
+  in flight.
+- Raw #775 is stale/current. `EmbeddedCheckoutPanel` no longer uses
+  `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!`; it guards missing publishable-key state
+  and renders a checkout-unavailable alert. Existing checkout-script and env
+  validation tests cover the contract.
+- Raw #776 through #781 are stale/current against listing detail source:
+  listing JSON-LD review data uses the same visible review predicate as the
+  rendered review surfaces, seller email fallback/selects are gone from public
+  listing detail, "more from seller" uses `publicListingWhere()`, and `canBuy`
+  checks seller `chargesEnabled`.
+- Raw #1037, #1038, and #1039 are stale/current. Guild Member and Guild Master
+  reapplication paths enforce the 30-day rejected/revoked cooldown through
+  `guildApplicationState.ts`, and admin listing approval uses a
+  `PENDING_REVIEW` transition guard so duplicate approval does not re-run
+  approval side effects.
+- Raw #1032 was already fixed in source: public popular-tag APIs are dynamic
+  and rely on their underlying tagged caches. This pass fixed only the stale
+  durable docs line that still described the old route-level ISR cache.
+
+Still deferred or product/design, not changed here:
+
+- Raw #771 remains a product/UX decision rather than a narrow safe patch:
+  anonymous-cart merge currently preserves retryable failures and drops
+  terminal rejections after showing an error. Preserving terminal rejected lines
+  for signed-in users would require a new rejected-line UX/state model so the
+  app does not silently retain invisible localStorage lines and retry them on
+  every cart load.
+- Raw #773 remains the existing multi-seller checkout partial-session creation
+  product-flow decision. No buyer payment has completed in that failure shape;
+  offering a "continue with available sellers" path is broader checkout UX work.
+
+Guardrails:
+`tests/cache-invalidation-guardrails.test.mjs`,
+`tests/round8-fulfillment-privacy-guardrails.test.mjs`,
+`tests/round10-state-machine-guardrails.test.mjs`,
+`tests/admin-moderation-observability.test.mjs`,
+`tests/payment-side-effect-observability.test.mjs`,
+`tests/checkout-script-inventory.test.mjs`,
+`tests/env-validation.test.mjs`, and
+`tests/anonymous-cart-merge.test.mjs`.
+
+Verification:
+`node --test tests/cache-invalidation-guardrails.test.mjs` (7/7 tests
+passing),
+`node --test tests/round8-fulfillment-privacy-guardrails.test.mjs tests/round10-state-machine-guardrails.test.mjs tests/admin-moderation-observability.test.mjs tests/payment-side-effect-observability.test.mjs tests/checkout-script-inventory.test.mjs tests/env-validation.test.mjs tests/anonymous-cart-merge.test.mjs`
+(64/64 tests passing), `git diff --check`, `npx tsc --noEmit`, `npm test`
+(1432/1432 tests passing), and `npm run lint` passed.
+
+Current running tally after Entry 467: verified fixed/reduced 957, verified
+stale/false-positive/current 528, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 23. Fixed/reduced
+increases by one for the cache-contract docs/test alignment. Stale/current and
+deferred counts stay flat because the raw allegations reverified in this pass
+were already represented in prior closed entries. Raw-left stays flat for the
+same reason.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence, label
+clawback runtime proof/dashboard reconciliation evidence, Stripe webhook
+subscription dashboard evidence, Stripe Connect v2 loss-liability ops/legal
+decision, stale remote branch and old git author hygiene, Round 10 deferred
+cache/state-machine product designs that require product decisions rather than
+source guardrails, remaining EXPLAIN-dependent runtime query-plan validation
+beyond the existing source indexes and source guardrails, Stripe partial-refund
+live reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope after the closed-support-row source prune,
+cross-seller AI duplicate-detection product design, durable checkout-group
+design beyond the ready-lock cart checkout resume, deliberate BigInt
+money-column modeling beyond the fixed seller-metrics aggregate cache,
+live-data reconciliation for historical seller shipping-rate currency drift,
+Guild private/custom-order sales/review trust-metric product policy, Clerk
+staff MFA and breached-password dashboard evidence, Clerk multi-account spam
+dashboard evidence, buyer-deletion live Stripe replay proof after source
+minimization, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public-bucket dashboard posture plus
+production smoke evidence and public-availability proof, HSTS preload submission
+decision, Vercel Analytics/Speed Insights product/privacy decision, homepage
+browser a11y/runtime proof beyond source fallback, and deployed security-header
+runtime proof beyond source/config guardrails.

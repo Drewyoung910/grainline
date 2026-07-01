@@ -95,11 +95,16 @@ describe("public cache invalidation guardrails", () => {
     const popularTags = source("src/app/api/search/popular-tags/route.ts");
     const popularBlogTags = source("src/app/api/search/popular-blog-tags/route.ts");
     const why = source("src/app/why-grainline/page.tsx");
+    const docs = source("CLAUDE.md");
 
     assert.match(popularTags, /export const dynamic = "force-dynamic"/);
     assert.match(popularBlogTags, /export const dynamic = "force-dynamic"/);
     assert.doesNotMatch(popularTags, /export const revalidate/);
     assert.doesNotMatch(popularBlogTags, /export const revalidate/);
+    assert.match(docs, /Popular tags API.*dynamic route backed by `unstable_cache` tag `popular-listing-tags`/);
+    assert.match(docs, /Popular blog tags API.*dynamic route backed by `unstable_cache` tag `popular-blog-tags`/);
+    assert.doesNotMatch(docs, /Popular tags API.*ISR 1hr cache/);
+    assert.doesNotMatch(docs, /Popular blog tags API.*ISR 1hr cache/);
     assert.match(why, /export const revalidate = 300/);
   });
 
