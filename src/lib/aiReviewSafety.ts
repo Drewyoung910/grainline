@@ -1,7 +1,7 @@
 import { normalizeUserText, sanitizeText, truncateText } from "./sanitize.ts";
 
 const PROMPT_CONTROL_PHRASES =
-  /(?:\b(ignore|disregard|forget|override|bypass|skip|ignora|ignorar|ignorez|ignorer|oublie|oublier|oubliez|omite|omitir|anula|anular|descarta|descartar|desconsidera|desconsiderar)\b|忽略|無視|무시|игнорируй|забудь)/giu;
+  /(?:\b(ignore|disregard|forget|override|bypass|skip|ignora|ignorar|ignorez|ignorer|oublie|oublier|oubliez|omite|omitir|anula|anular|descarta|descartar|desconsidera|desconsiderar|ignoriere|ignorieren|vergiss|vergesse)\b|忽略|忘记|忘記|無視|忘れて|무시|잊어|игнорируй|забудь|تجاهل|انس|अनदेखा)/giu;
 const MODEL_CONTROL_MARKERS =
   /(<\|im_(?:start|end)\|>|\[\/?INST\]|\b(system|assistant|developer|user|human)\s*:)/giu;
 

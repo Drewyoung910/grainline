@@ -11623,3 +11623,79 @@ production smoke evidence and public-availability proof, HSTS preload submission
 decision, Vercel Analytics/Speed Insights product/privacy decision, homepage
 browser a11y/runtime proof beyond source fallback, and deployed security-header
 runtime proof beyond source/config guardrails.
+
+## Entry 469 - AI review prompt-redaction hardening and stale cluster reverify
+
+Entry 469 closes a source-only AI review hardening pass. No agents were used.
+Parent Codex verified the relevant source and tests locally, and the raw audit
+import was not staged.
+
+Fixed/reduced in adjacent source hardening:
+
+- `redactPromptInjection()` now redacts additional common non-English
+  prompt-control verbs before seller listing text is JSON-framed into the AI
+  review user message. The added coverage includes German, Arabic, Hindi, more
+  Chinese/Japanese, and Korean variants. This reduces bypass risk for translated
+  "ignore/forget" instructions without claiming prompt injection is impossible.
+
+Verified stale/current during this pass:
+
+- Round 9 #808, #809, and #810 remain already fixed/current. `case-auto-close`
+  uses neutral inactivity copy, `commission-expire` bounds notification fanout
+  through `mapWithConcurrency()`, and `guild-metrics` prunes old
+  `ListingViewDaily` rows in bounded batches with a system audit summary.
+- Round 9 #811 is stale/current. Listing create/custom/edit and shop publish
+  mutation paths are covered by `listingCreateRatelimit` or
+  `listingMutationRatelimit` before expensive AI-review work.
+- Round 9 #813 is stale/current. `normalizeAIReviewResult()` fails closed for
+  semantic contradictions such as `approved: true` with non-empty flags.
+- Round 9 #815, #816, #817, #818, and #819 remain stale/current. Listing image
+  upload caps, AI review image caps, model settings, max-token budgets,
+  fail-closed `altTexts: []` behavior, and SellerProfile-id duplicate checking
+  match the current source/docs contract.
+- Round 9 #814 remains a product/design decision: cross-seller fuzzy duplicate
+  detection for likely sock-puppet sellers is broader moderation design, not a
+  narrow source bug in the same-seller duplicate guard.
+
+Guardrails:
+`tests/ai-review-safety.test.mjs`,
+`tests/ai-review-result-state.test.mjs`,
+`tests/ai-review-outer-failclosed.test.mjs`, and
+`tests/server-action-rate-limit-sweep.test.mjs`.
+
+Verification:
+`node --test tests/ai-review-safety.test.mjs tests/ai-review-result-state.test.mjs tests/ai-review-outer-failclosed.test.mjs tests/server-action-rate-limit-sweep.test.mjs`
+(27/27 tests passing), `git diff --check`, `npx tsc --noEmit`, `npm test`
+(1432/1432 tests passing), and `npm run lint` passed. Lint still prints the
+existing `jsx-eslint` TSNonNullExpression resolver warning while exiting 0.
+
+Current running tally after Entry 469: verified fixed/reduced 958, verified
+stale/false-positive/current 528, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 23. Fixed/reduced
+increases by one for the adjacent prompt-redaction hardening. Stale/current and
+raw-left stay flat because #808-#813 and #815-#819 were already counted in
+earlier entries; #814 remains deferred/already represented.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence, label
+clawback runtime proof/dashboard reconciliation evidence, Stripe webhook
+subscription dashboard evidence, Stripe Connect v2 loss-liability ops/legal
+decision, stale remote branch and old git author hygiene, Round 10 deferred
+cache/state-machine product designs that require product decisions rather than
+source guardrails, remaining EXPLAIN-dependent runtime query-plan validation
+beyond the existing source indexes and source guardrails, Stripe partial-refund
+live reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope after the closed-support-row source prune,
+cross-seller AI duplicate-detection product design, durable checkout-group
+design beyond the ready-lock cart checkout resume, deliberate BigInt
+money-column modeling beyond the fixed seller-metrics aggregate cache,
+live-data reconciliation for historical seller shipping-rate currency drift,
+Guild private/custom-order sales/review trust-metric product policy, Clerk
+staff MFA and breached-password dashboard evidence, Clerk multi-account spam
+dashboard evidence, buyer-deletion live Stripe replay proof after source
+minimization, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public-bucket dashboard posture plus
+production smoke evidence and public-availability proof, HSTS preload submission
+decision, Vercel Analytics/Speed Insights product/privacy decision, homepage
+browser a11y/runtime proof beyond source fallback, and deployed security-header
+runtime proof beyond source/config guardrails.
