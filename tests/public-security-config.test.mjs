@@ -44,6 +44,15 @@ describe("public security configuration guardrails", () => {
     assert.doesNotMatch(config, /Content-Security-Policy-Report-Only/);
   });
 
+  it("keeps HSTS preload-list proof separate from source-configured headers", () => {
+    const checklist = source("docs/launch-checklist.md");
+    const docs = source("CLAUDE.md");
+
+    assert.match(checklist, /HSTS header present in production and preload-list status verified against hstspreload\.org/);
+    assert.match(checklist, /Do not treat source-configured `preload` as preload-list acceptance/);
+    assert.match(docs, /Do not claim Grainline is preloaded unless the live `hstspreload\.org` status API reports `pending` or `preloaded`/);
+  });
+
   it("keeps core CSP directives and reporting in the enforced policy", () => {
     const config = source("next.config.ts");
 

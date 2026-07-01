@@ -11308,3 +11308,105 @@ public-availability proof, HSTS preload submission decision, Vercel
 Analytics/Speed Insights product/privacy decision, homepage browser
 a11y/runtime proof beyond source fallback, and deployed security-header runtime
 proof beyond source/config guardrails.
+
+## Entry 466 - cart checkout resume and HSTS evidence-boundary pass
+
+Entry 466 closes a parent-verified cart checkout and launch-evidence boundary
+pass. Two read-only agents were used for sidecar review; Parent Codex verified
+their claims against current source, closed both agents, and did not stage the
+raw audit import.
+
+Verified fixed/reduced:
+
+- Partial multi-seller cart checkout continuation after refresh/navigation is
+  reduced for source-verifiable ready-lock cases without reintroducing browser
+  persistence of Stripe client secrets. `GET /api/cart/checkout/resume` is
+  signed-in only, rate-limited, derives the active cart from the current Clerk
+  user, checks each current cart seller's checkout lock, retrieves the Stripe
+  Checkout Session, and returns only sessions whose Stripe metadata matches the
+  current `buyerId`, `cartId`, `sellerId`, and checkout lock key. Open/unpaid
+  sessions are returned for embedded checkout; matched paid/complete sessions
+  are tracked as completed so the cart can preserve them in the final success
+  redirect when the live lock still exists.
+- The cart page now attempts that server-side resume only when the user lands
+  on `/cart?step=payment`; it restores the quoted shipping address from Stripe
+  metadata and does not write checkout secrets, addresses, or rates to
+  `sessionStorage`. If no verified pending session is available, the page falls
+  back to the address step.
+- The launch checklist now separates source-configured HSTS `preload` from
+  actual preload-list proof. Production evidence must verify the deployed HSTS
+  header and `hstspreload.org` status; source configuration alone is not treated
+  as preload-list acceptance.
+
+Verified current/stale during the same pass:
+
+- Raw allegation #906, which claimed Stripe `clientSecret` values are persisted
+  in `sessionStorage`, is stale against current source. The cart page does not
+  read/write `CART_CHECKOUTS_KEY`, and tests continue to enforce no persisted
+  Stripe client secrets.
+- Runtime/provider evidence for deployed security-header scanner results, SSL
+  Labs output, HSTS preload-list status, Clerk dashboard settings, Sentry alert
+  routing, and Cloudflare R2 bucket posture remains outside source-only review.
+
+Still deferred or runtime/provider/product evidence, not closed here:
+
+- A fully durable checkout-group model is still a broader product/payment
+  design if Grainline wants complete recovery after webhook cleanup has already
+  released locks, consolidated receipt history across independent seller
+  sessions, or long-lived server-side checkout orchestration.
+- Actual HSTS preload submission/acceptance remains an ops/legal decision and
+  live provider check, not a source claim.
+
+Guardrails:
+`tests/client-async-guardrails.test.mjs`,
+`tests/local-account-state.test.mjs`,
+`tests/public-api-auth-inventory.test.mjs`, and
+`tests/public-security-config.test.mjs`.
+
+Verification:
+focused
+`node --test tests/client-async-guardrails.test.mjs tests/local-account-state.test.mjs`
+(26/26 tests passing),
+`node --test tests/client-async-guardrails.test.mjs tests/local-account-state.test.mjs tests/public-api-auth-inventory.test.mjs`
+(30/30 tests passing),
+`node --test tests/public-security-config.test.mjs` (13/13 tests passing),
+`npx tsc --noEmit`, `git diff --check`, `npm test` (1432/1432 tests
+passing), `npm run lint`, and escalated `npm run build` passed. The first
+sandboxed `npm run build` attempt compiled and passed TypeScript but failed
+during sitemap page-data collection because the restricted sandbox could not
+reach the configured Neon database (`P1001`); the escalated rerun completed.
+
+Current running tally after Entry 466: verified fixed/reduced 956, verified
+stale/false-positive/current 528, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 23. Fixed/reduced
+increases by two for server-verified cart checkout resume behavior and the HSTS
+preload evidence-boundary guardrail. Stale/current increases by one for the
+stale persisted-client-secret allegation. Deferred stays flat because a fully
+durable checkout-group model and live HSTS preload decision remain represented
+in the remaining categories. Raw-left decreases by two for raw allegations #906
+and #772; the HSTS wording improvement reduces evidence-risk but is not counted
+as closing an additional raw allegation.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence, label
+clawback runtime proof/dashboard reconciliation evidence, Stripe webhook
+subscription dashboard evidence, Stripe Connect v2 loss-liability ops/legal
+decision, stale remote branch and old git author hygiene, Round 10 deferred
+cache/state-machine product designs that require product decisions rather than
+source guardrails, remaining EXPLAIN-dependent runtime query-plan validation
+beyond the existing source indexes and source guardrails, Stripe partial-refund
+live reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope after the closed-support-row source prune,
+cross-seller AI duplicate-detection product design, durable checkout-group
+design beyond the now-added ready-lock cart checkout resume, deliberate BigInt
+money-column modeling beyond the fixed seller-metrics aggregate cache,
+live-data reconciliation for historical seller shipping-rate currency drift,
+Guild private/custom-order sales/review trust-metric product policy, Clerk
+staff MFA and breached-password dashboard evidence, Clerk multi-account spam
+dashboard evidence, buyer-deletion live Stripe replay proof after source
+minimization, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public-bucket dashboard posture plus
+production smoke evidence and public-availability proof, HSTS preload submission
+decision, Vercel Analytics/Speed Insights product/privacy decision, homepage
+browser a11y/runtime proof beyond source fallback, and deployed security-header
+runtime proof beyond source/config guardrails.

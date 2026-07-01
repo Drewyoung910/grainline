@@ -162,6 +162,34 @@ describe("client async guardrails", () => {
     assert.doesNotMatch(cartPage, /writeCartSessionJson\(CART_CHECKOUTS_KEY/);
   });
 
+  it("resumes open cart checkout sessions from the server without persisted secrets", () => {
+    const cartPage = source("src/app/cart/page.tsx");
+    const resumeRoute = source("src/app/api/cart/checkout/resume/route.ts");
+
+    assert.match(cartPage, /fetch\("\/api\/cart\/checkout\/resume", \{ cache: "no-store", signal \}\)/);
+    assert.match(cartPage, /urlStep === "payment"[\s\S]*?resumeOpenCartCheckout\(controller\.signal\)/);
+    assert.match(cartPage, /setShippingAddress\(data\.shippingAddress\)/);
+    assert.match(cartPage, /setClientSecrets\(resumedSecrets\)/);
+    assert.match(cartPage, /setCompletedSessionIds\(new Set\(resumedCompletedIds\)\)/);
+    assert.match(cartPage, /setStep\("payment"\)/);
+    assert.match(cartPage, /\.\.\.Array\.from\(completedSessionIds\),\s*\.\.\.clientSecrets\.map\(\(entry\) => entry\.sessionId\)/);
+    assert.match(cartPage, /if \(step === "payment" && !resumingCheckout && \(!shippingAddress \|\| clientSecrets\.length === 0\)\)/);
+    assert.doesNotMatch(cartPage, /writeCartSessionJson\(CART_CHECKOUTS_KEY/);
+
+    assert.match(resumeRoute, /await auth\(\)/);
+    assert.match(resumeRoute, /ensureUserByClerkId\(userId\)/);
+    assert.match(resumeRoute, /where: \{ userId: me\.id \}/);
+    assert.match(resumeRoute, /cartCheckoutLockKey\(cart\.id, sellerId\)/);
+    assert.match(resumeRoute, /stripe\.checkout\.sessions\.retrieve\(lock\.sessionId\)/);
+    assert.match(resumeRoute, /metadata\.buyerId !== me\.id/);
+    assert.match(resumeRoute, /metadata\.cartId !== cart\.id/);
+    assert.match(resumeRoute, /metadata\.sellerId !== sellerId/);
+    assert.match(resumeRoute, /session\.payment_status === "paid" \|\| session\.status === "complete"/);
+    assert.match(resumeRoute, /completedSessionIds\.push\(session\.id\)/);
+    assert.match(resumeRoute, /session\.status !== "open" \|\| session\.payment_status !== "unpaid"/);
+    assert.match(resumeRoute, /shippingAddressFromMetadata\(metadata\)/);
+  });
+
   it("scopes action-form success events to the message composer form", () => {
     const actionForm = source("src/components/ActionForm.tsx");
     const page = source("src/app/messages/[id]/page.tsx");

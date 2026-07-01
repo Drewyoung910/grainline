@@ -245,6 +245,7 @@ function CartPage() {
   const [completedSessionIds, setCompletedSessionIds] = React.useState<Set<string>>(() => new Set());
   const [creatingSession, setCreatingSession] = React.useState(false);
   const [rollingBackCheckout, setRollingBackCheckout] = React.useState(false);
+  const [resumingCheckout, setResumingCheckout] = React.useState(false);
   const clientSecretsRef = React.useRef<ClientSecretEntry[]>([]);
   const completedSessionIdsRef = React.useRef<Set<string>>(new Set());
   const checkoutCompletedRef = React.useRef(false);
@@ -277,8 +278,50 @@ function CartPage() {
       .filter((sessionId) => !completedIds.has(sessionId));
   }, []);
 
+  async function resumeOpenCartCheckout(signal: AbortSignal) {
+    setResumingCheckout(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/cart/checkout/resume", { cache: "no-store", signal });
+      if (res.status === 401) {
+        setNeedsSignIn(true);
+        return false;
+      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Could not resume checkout.");
+      const resumedSecrets = Array.isArray(data.clientSecrets) ? data.clientSecrets : [];
+      const resumedCompletedIds = Array.isArray(data.completedSessionIds) ? data.completedSessionIds : [];
+      if (data.shippingAddress && resumedSecrets.length === 0 && resumedCompletedIds.length > 0) {
+        checkoutCompletedRef.current = true;
+        clearCartSessionStorage({ includeAddress: true });
+        const params = new URLSearchParams({
+          session_id: resumedCompletedIds[resumedCompletedIds.length - 1],
+          session_ids: resumedCompletedIds.join(","),
+        });
+        router.push(`/checkout/success?${params.toString()}`);
+        return true;
+      }
+      if (!data.shippingAddress || resumedSecrets.length === 0) return false;
+      setShippingAddress(data.shippingAddress);
+      setClientSecrets(resumedSecrets);
+      setCurrentPaymentIndex(0);
+      setCompletedSessionIds(new Set(resumedCompletedIds));
+      checkoutCompletedRef.current = false;
+      setStep("payment");
+      router.replace("/cart?step=payment", { scroll: false });
+      return true;
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return true;
+      setError((err as Error).message);
+      return false;
+    } finally {
+      if (!signal.aborted) setResumingCheckout(false);
+    }
+  }
+
   // Mount-time URL restoration
   React.useEffect(() => {
+    const controller = new AbortController();
     clearCartSessionStorage({ includeAddress: true });
 
     const urlStep = searchParams.get("step");
@@ -288,9 +331,14 @@ function CartPage() {
       setStep("address");
       router.replace("/cart?step=address", { scroll: false });
     } else if (urlStep === "payment") {
-      setStep("address");
-      router.replace("/cart?step=address", { scroll: false });
+      void resumeOpenCartCheckout(controller.signal).then((resumed) => {
+        if (!resumed && !controller.signal.aborted) {
+          setStep("address");
+          router.replace("/cart?step=address", { scroll: false });
+        }
+      });
     }
+    return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -314,12 +362,12 @@ function CartPage() {
       setStep("address");
       router.replace("/cart?step=address", { scroll: false });
     }
-    if (step === "payment" && (!shippingAddress || clientSecrets.length === 0)) {
+    if (step === "payment" && !resumingCheckout && (!shippingAddress || clientSecrets.length === 0)) {
       setStep("shipping");
       router.replace("/cart?step=shipping", { scroll: false });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, shippingAddress, clientSecrets]);
+  }, [step, shippingAddress, clientSecrets, resumingCheckout]);
 
   React.useEffect(() => {
     if (step !== "payment" || clientSecrets.length === 0) {
@@ -1023,6 +1071,12 @@ function CartPage() {
       )}
 
       {/* Step 4: Payment */}
+      {resumingCheckout && (
+        <div className="p-6 text-sm text-neutral-600">
+          Restoring checkout...
+        </div>
+      )}
+
       {step === "payment" && clientSecrets.length > 0 && (
         <>
           {/* Address summary */}
@@ -1053,7 +1107,10 @@ function CartPage() {
                   // All payments complete — clean up and redirect
                   checkoutCompletedRef.current = true;
                   clearCartSessionStorage({ includeAddress: true });
-                  const sessionIds = clientSecrets.map((entry) => entry.sessionId);
+                  const sessionIds = [
+                    ...Array.from(completedSessionIds),
+                    ...clientSecrets.map((entry) => entry.sessionId),
+                  ];
                   const params = new URLSearchParams({
                     session_id: sessionIds[sessionIds.length - 1],
                     session_ids: sessionIds.join(","),
