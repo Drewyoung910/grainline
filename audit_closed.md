@@ -11513,3 +11513,113 @@ production smoke evidence and public-availability proof, HSTS preload submission
 decision, Vercel Analytics/Speed Insights product/privacy decision, homepage
 browser a11y/runtime proof beyond source fallback, and deployed security-header
 runtime proof beyond source/config guardrails.
+
+## Entry 468 - provider-evidence boundary and stale Round 14 reverify pass
+
+Entry 468 closes a parent-verified source/evidence-boundary pass over remaining
+Stripe/Shippo, provider-dashboard, privacy-retention, and Round 14 source
+allegations. Two read-only agents were started; the Stripe/Shippo agent
+completed and Parent Codex verified its source claims locally. The
+provider/privacy agent did not return useful results before shutdown, so Parent
+Codex performed that verification locally. No agent edited files or committed,
+and the raw audit import was not staged.
+
+Verified current/stale during this pass:
+
+- Raw #1108 is stale/current. Critical server env reads no longer rely on
+  `process.env.NAME!`; the runtime provider modules use
+  `requiredProductionEnv()` or domain-specific production guards, and
+  `tests/env-validation.test.mjs` recursively rejects named `process.env`
+  non-null assertions.
+- Raw #1109, #1110, and #1111 are stale/current. `/seller/[id]`,
+  `/seller/[id]/shop`, `/seller/[id]/customer-photos`, `/blog/author/[slug]`,
+  and `/listing/[id]` already use React `cache()` loaders where metadata and
+  page rendering share non-viewer-specific resources, and the seller profile
+  page batches independent public reads. `tests/seller-page-performance.test.mjs`
+  guards the seller-profile loader sharing and batched-query contract.
+- Raw #1120 remains reduced/current rather than a source defect. Buy-now and
+  cart rollback use same-origin `keepalive` requests on close/unmount/pagehide
+  and invalidate stale session-creation responses, but browser cleanup is still
+  best-effort by design. `CLAUDE.md` correctly documents the fallback to
+  `checkout.session.expired`/`checkout.session.async_payment_failed` webhooks
+  and the stale-reservation cron, and `tests/client-async-guardrails.test.mjs`
+  guards the current client behavior.
+- Raw #1112 remains source-current. The label-clawback retry cron is registered
+  in `vercel.json`, runs through `withSentryCronMonitor()`, uses bounded cron
+  run state, and retries only due/stale label-cost reversal holds with a
+  five-attempt cap before manual review. Label purchase uses a stable Stripe
+  transfer-reversal idempotency key and preserves accepted reversal state if
+  follow-up DB writes fail.
+- Raw #1101 is source/docs-current. The snapshot Stripe webhook and Connect v2
+  thin webhook use separate secrets/routes, source handles the intended event
+  families, and `docs/launch-checklist.md` plus `docs/runbook.md` record the
+  exact production subscription evidence required.
+
+Still runtime/provider/legal/product evidence, not closed here:
+
+- Label clawback reconciliation still needs Stripe/Shippo test-mode or live
+  provider proof for successful transfer reversal, failed reversal retry,
+  exhausted manual-review state, and admin/dashboard reconciliation. Source
+  guardrails reduce the risk but do not prove provider-side behavior.
+- Stripe partial-refund/live reconciliation still needs Stripe evidence showing
+  actual `transfer_reversal.amount` behavior for representative partial refunds
+  and any historical backfill decision beyond the current first-party ledger.
+- Stripe webhook subscription narrowing remains a dashboard/API evidence item:
+  source and docs define the expected event lists, but production endpoint
+  subscriptions must be proven from Stripe.
+- Stripe Connect v2 `losses_collector: "application"` remains a counsel and
+  accounting sign-off item recorded in the legal-risk materials, not a code bug.
+- Clerk staff/admin MFA, breached-password, multi-account/spam controls, Sentry
+  cron alert routing, Cloudflare R2 ListBucket/public-bucket posture and upload
+  smoke evidence, HSTS preload/security-header scan evidence, and provider-side
+  privacy request handling remain dashboard/provider evidence items. Current
+  docs correctly avoid treating source review as proof for those settings.
+
+Guardrails:
+`tests/env-validation.test.mjs`,
+`tests/seller-page-performance.test.mjs`,
+`tests/client-async-guardrails.test.mjs`,
+`tests/label-clawback-state.test.mjs`,
+`tests/payment-side-effect-observability.test.mjs`,
+`tests/shippo-label-money-guardrails.test.mjs`,
+`tests/marketplace-refunds.test.mjs`,
+`tests/stripe-webhook-v2-route.test.mjs`,
+`tests/retention-and-ops-followups.test.mjs`,
+`tests/launch-readiness-followups.test.mjs`, and
+`tests/support-request.test.mjs`.
+
+Verification:
+`node --test tests/env-validation.test.mjs tests/seller-page-performance.test.mjs tests/client-async-guardrails.test.mjs tests/label-clawback-state.test.mjs tests/payment-side-effect-observability.test.mjs tests/shippo-label-money-guardrails.test.mjs tests/marketplace-refunds.test.mjs tests/stripe-webhook-v2-route.test.mjs tests/retention-and-ops-followups.test.mjs tests/launch-readiness-followups.test.mjs tests/support-request.test.mjs`
+(118/118 tests passing), `git diff --check`, `npx tsc --noEmit`, `npm test`
+(1432/1432 tests passing), and `npm run lint` passed. Lint still prints the
+existing `jsx-eslint` TSNonNullExpression resolver warning while exiting 0.
+
+Current running tally after Entry 468: verified fixed/reduced 957, verified
+stale/false-positive/current 528, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 23. Counts stay flat
+because this pass reverified already-classified source-current and
+runtime/provider-evidence categories rather than closing a new raw allegation.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence, label
+clawback runtime proof/dashboard reconciliation evidence, Stripe webhook
+subscription dashboard evidence, Stripe Connect v2 loss-liability ops/legal
+decision, stale remote branch and old git author hygiene, Round 10 deferred
+cache/state-machine product designs that require product decisions rather than
+source guardrails, remaining EXPLAIN-dependent runtime query-plan validation
+beyond the existing source indexes and source guardrails, Stripe partial-refund
+live reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope after the closed-support-row source prune,
+cross-seller AI duplicate-detection product design, durable checkout-group
+design beyond the ready-lock cart checkout resume, deliberate BigInt
+money-column modeling beyond the fixed seller-metrics aggregate cache,
+live-data reconciliation for historical seller shipping-rate currency drift,
+Guild private/custom-order sales/review trust-metric product policy, Clerk
+staff MFA and breached-password dashboard evidence, Clerk multi-account spam
+dashboard evidence, buyer-deletion live Stripe replay proof after source
+minimization, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public-bucket dashboard posture plus
+production smoke evidence and public-availability proof, HSTS preload submission
+decision, Vercel Analytics/Speed Insights product/privacy decision, homepage
+browser a11y/runtime proof beyond source fallback, and deployed security-header
+runtime proof beyond source/config guardrails.
