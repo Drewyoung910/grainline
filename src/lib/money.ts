@@ -57,7 +57,7 @@ export function formatCurrencyCents(
 
 export function parseMoneyInputToCents(
   input: unknown,
-  options: { allowNegative?: boolean } = {},
+  options: { allowNegative?: boolean; maxCents?: number } = {},
 ): number | null {
   const raw =
     typeof input === "number"
@@ -87,5 +87,8 @@ export function parseMoneyInputToCents(
     return null;
   }
 
-  return Number(signedCents);
+  const result = Number(signedCents);
+  if (options.maxCents != null && result > options.maxCents) return null;
+
+  return result;
 }

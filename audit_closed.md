@@ -11853,6 +11853,108 @@ product/privacy decision, homepage browser a11y/runtime proof beyond source
 fallback, and deployed security-header runtime proof beyond source/config
 guardrails.
 
+## Entry 474 - seller shipping settings bounds and checkout continuation recheck
+
+Entry 474 closes a source hardening pass adjacent to raw #949 and rechecks
+legacy enum, Guild metric, checkout-continuation, branch-hygiene, and audit
+archive categories with two read-only agents. Parent Codex reviewed both agent
+outputs against current source before recording this entry. The raw audit import
+was not staged.
+
+Fixed/reduced during this pass:
+
+- Seller dashboard shipping settings now bound normal app writes before Prisma
+  persistence. Flat-rate shipping and free-shipping thresholds call
+  `parseMoneyInputToCents(..., { maxCents: 500_000 })`, reducing the chance that
+  extreme seller-entered money values reach Stripe-facing or buyer-visible
+  shipping paths. Default package length/width/height now drop negative or
+  >240-inch values, default package weight drops negative or >500-pound values,
+  and the number inputs expose matching `min`/`max` hints. Existing database
+  CHECK constraints still guard non-negative values, but this pass does not add
+  a production migration for database-level upper bounds.
+- `parseMoneyInputToCents()` now supports an optional `maxCents` argument so
+  money-input callers can apply route-specific ceilings without duplicating
+  parser logic.
+
+Verified current/stale or deferred during the same pass:
+
+- Historical seller shipping-rate float-to-cents drift remains a live-data
+  reconciliation/backfill evidence item, not something source inspection can
+  prove fixed. Current checkout and quote source still binds signed shipping
+  rates to the server-derived cart/listing currency and filters provider rates
+  by currency before signing.
+- `LabelStatus.EXPIRED` and `LabelStatus.VOIDED` remain deferred
+  product/schema-lifecycle cleanup. Current source writes `PURCHASED` for label
+  purchase and intentionally treats `PURCHASED` as the refund-blocking label
+  state; tests cover `VOIDED` as non-blocking.
+- `EmailOutbox.status` remains stale/current as a string field with centralized
+  status constants and a raw DB CHECK constraint; it is not a current source
+  defect.
+- Guild private/custom-order sales/review metrics remain a product-policy
+  decision, not a current source bug under current copy. The handbook says
+  completed sales and 25+ reviews, privacy copy says Guild metrics use platform
+  activity, seller/Guild metrics count delivered/picked-up non-refunded seller
+  orders and listing reviews, and public marketplace metrics remain separately
+  public-filtered.
+- Parent review confirmed two checkout continuation issues remain real in the
+  deferred durable checkout-group category: cart `pagehide` rollback can expire
+  resumable unpaid sessions during refresh/navigation, and partial multi-seller
+  resume discovers sessions from current cart rows, so a completed seller
+  session can be omitted after webhook cart cleanup deletes that seller's rows.
+  These were not fixed here because a correct fix likely needs durable checkout
+  group/session state rather than another page-render-derived workaround.
+- Stale remote branch pruning remains an explicit source-control operation, not
+  a runtime source defect. Completed audit sections older than 60 days still
+  need archive housekeeping under the AGENTS.md boundary; that docs hygiene work
+  was not mixed into this source patch.
+
+Guardrails:
+`tests/money.test.mjs` and
+`tests/seller-shipping-settings-guardrails.test.mjs`.
+
+Verification:
+focused `node --test tests/money.test.mjs tests/seller-shipping-settings-guardrails.test.mjs`
+(11/11 tests passing), `npx tsc --noEmit`, and `git diff --check` passed.
+The enum/Guild sidecar also ran
+`node --test tests/email-outbox-state.test.mjs tests/refund-route-state.test.mjs tests/guild-metrics-state.test.mjs tests/order-trust-metrics-guardrails.test.mjs tests/stripe-webhook-state.test.mjs tests/review-vote-visibility.test.mjs`
+(79/79 tests passing). Full-suite verification is recorded with the commit for
+this entry.
+
+Current running tally after Entry 474: verified fixed/reduced 960, verified
+stale/false-positive/current 528, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 23. Fixed/reduced
+increases by one for the new seller-settings source guardrail; raw-left stays
+flat because raw #949 also alleged schema-level upper-bound gaps and this pass
+intentionally avoided a production migration.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence, label
+clawback runtime proof/dashboard reconciliation evidence, Stripe webhook
+subscription dashboard evidence, Stripe Connect v2 loss-liability ops/legal
+decision, explicit stale remote branch pruning/review, completed-audit archive
+housekeeping, Round 10 deferred cache/state-machine product designs that require
+product decisions rather than source guardrails, remaining EXPLAIN-dependent
+runtime query-plan validation beyond the existing source indexes and source
+guardrails, Stripe partial-refund live reconciliation proof, founding-maker
+permanence policy, remaining privacy/legal retention scope after the
+closed-support-row source prune, cross-seller AI duplicate-detection product
+design, durable checkout-group design beyond the ready-lock cart checkout resume
+including refresh/navigation resume and partial multi-seller completed-session
+retention, deliberate BigInt money-column modeling for individual order/item
+cents fields and high-volume listing analytics counters beyond the fixed
+seller-metrics aggregate cache and new webhook integer bounds, live-data
+reconciliation for historical seller shipping-rate currency drift, Guild
+private/custom-order sales/review trust-metric product policy, legacy
+`LabelStatus` lifecycle cleanup, Clerk staff MFA and breached-password dashboard
+evidence, Clerk multi-account spam dashboard evidence, buyer-deletion live
+Stripe replay proof after source minimization, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2 ListBucket/public
+bucket dashboard posture plus production smoke evidence and public-availability
+proof, HSTS preload submission decision, Vercel Analytics/Speed Insights
+product/privacy decision, homepage browser a11y/runtime proof beyond source
+fallback, and deployed security-header runtime proof beyond source/config
+guardrails.
+
 ## Entry 472 - duplicate raw audit allegations reverified current
 
 Entry 472 records a no-code verification pass over raw findings that looked

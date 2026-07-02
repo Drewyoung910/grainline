@@ -68,6 +68,8 @@ describe("money formatting", () => {
     assert.equal(parseMoneyInputToCents("1.234"), null);
     assert.equal(parseMoneyInputToCents("-1"), null);
     assert.equal(parseMoneyInputToCents("-1.25", { allowNegative: true }), -125);
+    assert.equal(parseMoneyInputToCents("50.00", { maxCents: 5000 }), 5000);
+    assert.equal(parseMoneyInputToCents("50.01", { maxCents: 5000 }), null);
   });
 
   it("keeps runtime currency fallbacks centralized on DEFAULT_CURRENCY", () => {

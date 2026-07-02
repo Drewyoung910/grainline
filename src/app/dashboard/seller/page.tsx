@@ -26,6 +26,10 @@ import { revalidateFooterMetrosCache } from "@/lib/footerMetros";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { mirrorStripeChargesEnabled } from "@/lib/stripeWebhookMirror";
 
+const MAX_SELLER_SHIPPING_MONEY_CENTS = 500_000; // $5,000
+const MAX_DEFAULT_PACKAGE_DIMENSION_IN = 240;
+const MAX_DEFAULT_PACKAGE_WEIGHT_LB = 500;
+
 const inputClass =
   "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300";
 const checkboxClass =
@@ -40,6 +44,14 @@ function toFloat(v: unknown) {
   if (s === "" || s === undefined) return null;
   const n = parseFloat(String(s));
   return Number.isFinite(n) ? n : null;
+}
+function toBoundedNonNegativeFloat(v: unknown, max: number) {
+  const raw = typeof v === "number" ? String(v) : typeof v === "string" ? v.trim() : "";
+  if (!/^\d+(?:\.\d+)?$/.test(raw)) return null;
+  const n = Number(raw);
+  if (n == null) return null;
+  if (n < 0 || n > max) return null;
+  return n;
 }
 
 async function updateSellerProfile(_prevState: unknown, formData: FormData) {
@@ -62,8 +74,12 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   const publicMapOptIn = String(formData.get("publicMapOptIn") ?? "") === "on";
 
   // Shipping/tax in dollars
-  const shippingFlatRateCents = parseMoneyInputToCents(formData.get("shippingFlatRate"));
-  const freeShippingOverCents = parseMoneyInputToCents(formData.get("freeShippingOver"));
+  const shippingFlatRateCents = parseMoneyInputToCents(formData.get("shippingFlatRate"), {
+    maxCents: MAX_SELLER_SHIPPING_MONEY_CENTS,
+  });
+  const freeShippingOverCents = parseMoneyInputToCents(formData.get("freeShippingOver"), {
+    maxCents: MAX_SELLER_SHIPPING_MONEY_CENTS,
+  });
   const allowLocalPickup = String(formData.get("allowLocalPickup") ?? "") === "on";
   const useCalculatedShipping = String(formData.get("useCalculatedShipping") ?? "") === "on";
 
@@ -98,11 +114,11 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   // Conversions: 1 in = 2.54 cm; 1 lb = 453.592 g.
   const inToCm = (v: number | null) => (v == null ? null : Math.round(v * 2.54 * 10) / 10);
   const lbToG = (v: number | null) => (v == null ? null : Math.round(v * 453.592));
-  const defaultPkgLengthCm = inToCm(toFloat(formData.get("defaultPkgLengthIn")));
-  const defaultPkgWidthCm = inToCm(toFloat(formData.get("defaultPkgWidthIn")));
-  const defaultPkgHeightCm = inToCm(toFloat(formData.get("defaultPkgHeightIn")));
+  const defaultPkgLengthCm = inToCm(toBoundedNonNegativeFloat(formData.get("defaultPkgLengthIn"), MAX_DEFAULT_PACKAGE_DIMENSION_IN));
+  const defaultPkgWidthCm = inToCm(toBoundedNonNegativeFloat(formData.get("defaultPkgWidthIn"), MAX_DEFAULT_PACKAGE_DIMENSION_IN));
+  const defaultPkgHeightCm = inToCm(toBoundedNonNegativeFloat(formData.get("defaultPkgHeightIn"), MAX_DEFAULT_PACKAGE_DIMENSION_IN));
   const defaultPkgWeightGrams = (() => {
-    const raw = toFloat(formData.get("defaultPkgWeightLb"));
+    const raw = toBoundedNonNegativeFloat(formData.get("defaultPkgWeightLb"), MAX_DEFAULT_PACKAGE_WEIGHT_LB);
     if (raw == null) return null;
     return lbToG(raw);
   })();
@@ -426,6 +442,8 @@ export default async function SellerSettingsPage({
               type="number"
               inputMode="decimal"
               step="0.1"
+              min="0"
+              max={MAX_DEFAULT_PACKAGE_DIMENSION_IN}
               placeholder="Length (in)"
               autoComplete="off"
               defaultValue={
@@ -440,6 +458,8 @@ export default async function SellerSettingsPage({
               type="number"
               inputMode="decimal"
               step="0.1"
+              min="0"
+              max={MAX_DEFAULT_PACKAGE_DIMENSION_IN}
               placeholder="Width (in)"
               autoComplete="off"
               defaultValue={
@@ -454,6 +474,8 @@ export default async function SellerSettingsPage({
               type="number"
               inputMode="decimal"
               step="0.1"
+              min="0"
+              max={MAX_DEFAULT_PACKAGE_DIMENSION_IN}
               placeholder="Height (in)"
               autoComplete="off"
               defaultValue={
@@ -468,6 +490,8 @@ export default async function SellerSettingsPage({
               type="number"
               inputMode="decimal"
               step="0.1"
+              min="0"
+              max={MAX_DEFAULT_PACKAGE_WEIGHT_LB}
               placeholder="Weight (lb)"
               autoComplete="off"
               defaultValue={
