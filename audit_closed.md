@@ -11945,3 +11945,121 @@ proof, HSTS preload submission decision, Vercel Analytics/Speed Insights
 product/privacy decision, homepage browser a11y/runtime proof beyond source
 fallback, and deployed security-header runtime proof beyond source/config
 guardrails.
+
+## Entry 473 - refund, numeric, privacy, email, and public-abuse slices reverified current
+
+Entry 473 records a parent-reviewed no-code verification pass across several
+remaining raw-audit categories. Two read-only sidecar agents were used for
+disjoint refund/accounting and numeric/query-plan slices, then parent Codex
+checked their conclusions against current source, tests, docs, and recent ledger
+entries. The raw audit import was not staged.
+
+Verified current/stale without code changes:
+
+- Latest CI on `main` remained green before this pass: GitHub Actions run
+  `28625291430` for `docs: record duplicate audit reverification pass`
+  completed successfully.
+- Stripe refund/accounting source remains current for first-party refund paths:
+  `createMarketplaceRefund()` uses connected-account `reverse_transfer: true`
+  with `expand: ["transfer_reversal"]`, records returned transfer-reversal
+  evidence, and seller/case refund routes carry that evidence into local refund
+  ledgers. Remaining partial-refund economics proof is still a Stripe
+  test/live evidence task, not a source-only closure.
+- Label-clawback source behavior remains current: label purchase uses a stable
+  Stripe transfer-reversal idempotency key, failed clawbacks enter retry/manual
+  review state, the retry cron is registered, and admin order review is blocked
+  while active label-cost reconciliation is pending or retrying. Runtime
+  dashboard proof for success/failure/manual-review states remains open.
+- Numeric/schema allegations rechecked in this pass remain stale/current:
+  `Order.platformFeeCents` is not a persisted column, malformed processing
+  windows are normalized before CHECK validation, seller-profile public-page
+  reads use the cached shared loader plus parallelized independent queries,
+  Stripe webhook integer parsing now rejects PostgreSQL `Int` overflows, and
+  `SellerMetrics.totalSalesCents` is already PostgreSQL/Prisma `BigInt`.
+  Deliberate migration of individual order/item money fields and high-volume
+  listing analytics counters to `BigInt` remains a data-modeling decision.
+- Founding Maker source remains current: assignment prechecks use public listing
+  visibility, the transaction takes the advisory lock, the next number is based
+  on `_max.foundingMakerNumber`, and focused guardrails cover the source shape.
+  Live database concurrency proof and permanence policy remain runtime/product
+  evidence.
+- Cross-seller AI duplicate detection remains a product decision, not a current
+  source defect. Current duplicate detection is intentionally same-seller and
+  excludes the listing under review; fail-closed duplicate-review behavior and
+  money formatting are covered by existing AI-review tests.
+- Privacy/legal retention source remains current for the inspected local scope:
+  account export includes support/data-request rows by stable user id plus email
+  fallback; account deletion unlinks or redacts account-linked support request
+  contact, closure, and provider-error text; and the runbook requires provider
+  privacy requests to remain open or in progress until provider action,
+  exception, owner, and completion evidence are recorded. Provider-held copies
+  remain external legal/ops evidence.
+- Previously raw JSON/newsletter/support/email/public-abuse allegations
+  rechecked during this pass remain closed or already deferred: JSON shape/size
+  constraints and tests are present, newsletter signup is double opt-in, support
+  request reopening/closure evidence is guarded, Reply-To and one-click
+  unsubscribe headers are present, message/review/case/custom-order email bodies
+  no longer include raw user previews, similar-listings and CSP report routes
+  are rate-limited before expensive or noisy work, and the Round 8 fulfillment
+  fraud chain remains covered by tracking, delivery, and case-window deletion
+  guardrails.
+
+No code fix was made because no new source-actionable defect was verified.
+
+Guardrails/evidence:
+`tests/marketplace-refunds.test.mjs`,
+`tests/payment-side-effect-observability.test.mjs`,
+`tests/label-clawback-state.test.mjs`,
+`tests/schema-numeric-index-guardrails.test.mjs`,
+`tests/seller-page-performance.test.mjs`,
+`tests/stripe-webhook-state.test.mjs`,
+`tests/post-launch-ui-followups.test.mjs`,
+`tests/ai-review-safety.test.mjs`,
+`tests/ai-review-outer-failclosed.test.mjs`,
+`tests/round9-account-deletion-pii-guardrails.test.mjs`,
+`tests/account-export-privacy.test.mjs`,
+`tests/support-request.test.mjs`,
+`tests/json-column-guardrails.test.mjs`,
+`tests/newsletter-double-opt-in.test.mjs`,
+`tests/email-delivery-guardrails.test.mjs`,
+`tests/public-cron-search-hardening.test.mjs`, and
+`tests/round8-fulfillment-privacy-guardrails.test.mjs`.
+
+Verification:
+source inspection with `rg`/`sed` over the cited modules, tests, and docs;
+`gh run list --branch main --limit 5` confirmed the latest pushed CI run was
+green. No source changed, so no focused test run was required beyond the
+existing guardrail references in this entry.
+
+Current running tally after Entry 473: verified fixed/reduced 959, verified
+stale/false-positive/current 528, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 23. Counts stay flat
+because every rechecked item was already represented in earlier fixed/stale or
+deferred evidence categories; this pass narrowed current evidence and avoided
+double-counting.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence, label
+clawback runtime proof/dashboard reconciliation evidence, Stripe webhook
+subscription dashboard evidence, Stripe Connect v2 loss-liability ops/legal
+decision, explicit stale remote branch pruning/review, Round 10 deferred
+cache/state-machine product designs that require product decisions rather than
+source guardrails, remaining EXPLAIN-dependent runtime query-plan validation
+beyond the existing source indexes and source guardrails, Stripe partial-refund
+live reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope after the closed-support-row source prune,
+cross-seller AI duplicate-detection product design, durable checkout-group
+design beyond the ready-lock cart checkout resume, deliberate BigInt
+money-column modeling for individual order/item cents fields and high-volume
+listing analytics counters beyond the fixed seller-metrics aggregate cache and
+new webhook integer bounds, live-data reconciliation for historical seller
+shipping-rate currency drift, Guild private/custom-order sales/review
+trust-metric product policy, Clerk staff MFA and breached-password dashboard
+evidence, Clerk multi-account spam dashboard evidence, buyer-deletion live
+Stripe replay proof after source minimization, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2 ListBucket/public
+bucket dashboard posture plus production smoke evidence and public-availability
+proof, HSTS preload submission decision, Vercel Analytics/Speed Insights
+product/privacy decision, homepage browser a11y/runtime proof beyond source
+fallback, and deployed security-header runtime proof beyond source/config
+guardrails.
