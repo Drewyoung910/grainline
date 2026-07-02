@@ -11852,3 +11852,96 @@ proof, HSTS preload submission decision, Vercel Analytics/Speed Insights
 product/privacy decision, homepage browser a11y/runtime proof beyond source
 fallback, and deployed security-header runtime proof beyond source/config
 guardrails.
+
+## Entry 472 - duplicate raw audit allegations reverified current
+
+Entry 472 records a no-code verification pass over raw findings that looked
+source-actionable but were already fixed, stale, or deferred in earlier ledger
+entries. Two read-only sidecar agents were used for disjoint refund/label and
+provider/ops evidence checks; parent Codex reviewed their conclusions against
+current source before recording this pass. The raw audit import was not staged.
+
+Verified current/stale without code changes:
+
+- Raw #842 remains stale/current: `processEmailOutboxBatch()` rechecks queued
+  recipients by `userId` or normalized recipient email, skips nonexistent,
+  banned, or deleted accounts before preference, quota, or Resend work, and
+  `tests/account-state-residue-followups.test.mjs` guards the ordering.
+- Raw #387 remains stale/current: daily quota exhaustion waits for reset, but
+  Redis quota-counter outages use `emailOutboxRetryDelayMs()` through
+  `emailOutboxQuotaDeferralState()` instead of deferring jobs until midnight.
+- Raw #153/#353-style dev fixture gate remains stale/current:
+  `/api/dev/make-order` is positively gated to local development, non-Vercel,
+  and explicit `ENABLE_DEV_MAKE_ORDER=true`, with source guardrails.
+- Raw #282 remains stale/current: auto-created metros use the reverse-geocoded
+  locality centroid, not the first caller's exact coordinate, and locality logs
+  omit city/state detail.
+- Raw #678 remains a runtime/provider evidence item rather than a current
+  source bug: Checkout is still card-only, stock is restored on
+  `checkout.session.expired` and `checkout.session.async_payment_failed`, and
+  `payment_intent.*` handlers should not be added unless delayed payment
+  methods are intentionally enabled.
+- Raw #1095, #1096, and #1099 remain fixed/current: processed image uploads use
+  a 16 MiB multipart precheck, Sharp `limitInputPixels: 50_000_000`, image
+  signature checks before Sharp, processed-size checks before R2 writes, and
+  direct-upload signature verification for PDF/video paths.
+- Raw #1098 remains fixed/current on the named paths: email preference,
+  direct-email, AI review, Founding Maker, alt-text backfill, seller vacation,
+  and seller analytics failures now leave bounded `logServerError()` or Sentry
+  evidence. Remaining `console.error` calls in the scanned hot paths are paired
+  with Sentry/shared logging and sanitized error text.
+- Raw #1108-#1111 remain stale/current: critical runtime env reads use
+  `requiredProductionEnv()` or domain-specific fail-closed helpers, and public
+  seller/listing render paths already use React `cache()` loaders plus
+  parallelized independent seller-page reads where metadata and page rendering
+  share non-viewer-specific resources.
+- Raw #1103 remains fixed/current: low-frequency maintenance crons are already
+  spread across the UTC day and `tests/cron-schedule-guardrails.test.mjs`
+  prevents re-clustering.
+- Raw #1120 remains documented/current: buy-now/cart rollback is best-effort
+  browser cleanup with `keepalive`; failed rollback falls back to
+  `checkout.session.expired` and the checkout-stock reservation repair cron, so
+  it must not be described as guaranteed immediate stock release.
+
+Sidecar review found no new source-actionable issue in the Stripe refund,
+label-clawback, Clerk/Sentry/R2, HSTS, or Vercel Analytics evidence buckets.
+Those remain runtime/dashboard/legal/product evidence items where previously
+classified, not code changes for this pass.
+
+Verification:
+source inspection with `rg`/`sed` over the cited modules and tests. No code was
+changed, so no focused test run was required beyond the existing guardrail
+references in this entry.
+
+Current running tally after Entry 472: verified fixed/reduced 959, verified
+stale/false-positive/current 528, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 23. Counts stay flat
+because every raw allegation rechecked in this pass was already represented in
+earlier fixed/stale/deferred ledger entries or in the remaining external
+evidence categories.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence, label
+clawback runtime proof/dashboard reconciliation evidence, Stripe webhook
+subscription dashboard evidence, Stripe Connect v2 loss-liability ops/legal
+decision, explicit stale remote branch pruning/review, Round 10 deferred
+cache/state-machine product designs that require product decisions rather than
+source guardrails, remaining EXPLAIN-dependent runtime query-plan validation
+beyond the existing source indexes and source guardrails, Stripe partial-refund
+live reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope after the closed-support-row source prune,
+cross-seller AI duplicate-detection product design, durable checkout-group
+design beyond the ready-lock cart checkout resume, deliberate BigInt
+money-column modeling for individual order/item cents fields and high-volume
+listing analytics counters beyond the fixed seller-metrics aggregate cache and
+new webhook integer bounds, live-data reconciliation for historical seller
+shipping-rate currency drift, Guild private/custom-order sales/review
+trust-metric product policy, Clerk staff MFA and breached-password dashboard
+evidence, Clerk multi-account spam dashboard evidence, buyer-deletion live
+Stripe replay proof after source minimization, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2 ListBucket/public
+bucket dashboard posture plus production smoke evidence and public-availability
+proof, HSTS preload submission decision, Vercel Analytics/Speed Insights
+product/privacy decision, homepage browser a11y/runtime proof beyond source
+fallback, and deployed security-header runtime proof beyond source/config
+guardrails.
