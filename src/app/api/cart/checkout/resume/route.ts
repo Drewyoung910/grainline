@@ -9,6 +9,7 @@ import { logServerError } from "@/lib/serverErrorLogger";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 
 export const runtime = "nodejs";
+const CHECKOUT_RESUME_COMPLETED_LOOKBACK_MS = 2 * 60 * 60 * 1000;
 
 type ResumedShippingAddress = {
   name: string;
@@ -65,12 +66,9 @@ export async function GET() {
       },
     });
 
-    if (!cart || cart.items.length === 0) {
-      return privateJson({ clientSecrets: [], shippingAddress: null });
-    }
-
+    const cartId = cart?.id ?? null;
     const sellers = new Map<string, string>();
-    for (const item of cart.items) {
+    for (const item of cart?.items ?? []) {
       if (!sellers.has(item.listing.sellerId)) {
         sellers.set(item.listing.sellerId, item.listing.seller.displayName);
       }
@@ -83,24 +81,28 @@ export async function GET() {
       sessionId: string;
     }[] = [];
     const completedSessionIds: string[] = [];
+    const completedSessionIdSet = new Set<string>();
     let shippingAddress: ResumedShippingAddress | null = null;
 
     for (const [sellerId, sellerName] of sellers) {
-      const lock = await getCheckoutLock(cartCheckoutLockKey(cart.id, sellerId));
+      if (!cartId) continue;
+      const checkoutLockKey = cartCheckoutLockKey(cartId, sellerId);
+      const lock = await getCheckoutLock(checkoutLockKey);
       if (lock?.state !== "ready" || !lock.sessionId || !lock.clientSecret) continue;
 
       const session = await stripe.checkout.sessions.retrieve(lock.sessionId);
       const metadata = session.metadata ?? {};
       if (
         metadata.buyerId !== me.id ||
-        metadata.cartId !== cart.id ||
+        metadata.cartId !== cartId ||
         metadata.sellerId !== sellerId ||
-        metadata.checkoutLockKey !== cartCheckoutLockKey(cart.id, sellerId)
+        metadata.checkoutLockKey !== checkoutLockKey
       ) {
         continue;
       }
       if (session.payment_status === "paid" || session.status === "complete") {
         completedSessionIds.push(session.id);
+        completedSessionIdSet.add(session.id);
         shippingAddress ??= shippingAddressFromMetadata(metadata);
         continue;
       }
@@ -116,6 +118,41 @@ export async function GET() {
         secret: sessionClientSecret,
         sessionId: session.id,
       });
+    }
+
+    const recentCompletedReservations = await prisma.checkoutStockReservation.findMany({
+      where: {
+        buyerId: me.id,
+        status: "COMPLETED",
+        stripeSessionId: { not: null },
+        createdAt: { gte: new Date(Date.now() - CHECKOUT_RESUME_COMPLETED_LOOKBACK_MS) },
+      },
+      orderBy: { createdAt: "asc" },
+      take: 20,
+      select: { stripeSessionId: true },
+    });
+
+    for (const reservation of recentCompletedReservations) {
+      if (!reservation.stripeSessionId || completedSessionIdSet.has(reservation.stripeSessionId)) continue;
+      let session: Awaited<ReturnType<typeof stripe.checkout.sessions.retrieve>>;
+      try {
+        session = await stripe.checkout.sessions.retrieve(reservation.stripeSessionId);
+      } catch (error) {
+        logServerError(error, {
+          source: "cart_checkout_resume_completed_session_retrieve",
+          level: "warning",
+          extra: { stripeSessionId: reservation.stripeSessionId },
+        });
+        continue;
+      }
+      const metadata = session.metadata ?? {};
+      if (metadata.buyerId !== me.id) continue;
+      if (!metadata.cartId) continue;
+      if (cartId && metadata.cartId !== cartId) continue;
+      if (session.payment_status !== "paid" && session.status !== "complete") continue;
+      completedSessionIds.push(session.id);
+      completedSessionIdSet.add(session.id);
+      shippingAddress ??= shippingAddressFromMetadata(metadata);
     }
 
     return privateJson({ clientSecrets, completedSessionIds, shippingAddress });

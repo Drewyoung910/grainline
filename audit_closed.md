@@ -11853,6 +11853,106 @@ product/privacy decision, homepage browser a11y/runtime proof beyond source
 fallback, and deployed security-header runtime proof beyond source/config
 guardrails.
 
+## Entry 475 - cart checkout continuation recovery
+
+Entry 475 closes a source fix for the remaining cart checkout-continuation
+defect found while rechecking raw #772/#773 and adjacent checkout state-machine
+behavior. Two read-only agents inspected disjoint checkout slices; parent Codex
+reviewed their claims against current source before patching. The raw audit
+import was not staged.
+
+Fixed/reduced during this pass:
+
+- Cart multi-seller checkout no longer expires unpaid embedded Checkout Sessions
+  on browser `pagehide`. That handler fought the mount-time
+  `/api/cart/checkout/resume` path during refresh/navigation by expiring the
+  very sessions the resume route was supposed to recover. Cart rollback remains
+  available through the explicit "Back to shipping" action before any seller
+  payment completes; after a seller payment completes, the existing UI guard
+  continues to require the buyer to finish the remaining payments.
+- `GET /api/cart/checkout/resume` now also reads recent `COMPLETED`
+  `CheckoutStockReservation` rows for the signed-in buyer, verifies each
+  candidate against Stripe, requires cart-checkout metadata, deduplicates
+  session ids, and folds those paid sessions into `completedSessionIds`. This
+  lets a partially paid multi-seller cart recover the already-paid seller
+  session after the webhook has released that seller's Redis lock and deleted
+  that seller's cart rows. The route still does not persist or return Stripe
+  client secrets for paid sessions.
+- `CLAUDE.md` now records the durable behavior rule: Buy Now pagehide cleanup
+  remains best-effort, but cart multi-seller checkout must not expire sessions
+  on refresh/navigation because server resume depends on those sessions.
+
+Verified current/stale or deferred during the same pass:
+
+- The literal raw #772 mechanism that described reuse of a paid persisted
+  client secret is stale: cart checkout still does not persist Stripe client
+  secrets, and resume derives open client secrets from server-side locks plus
+  Stripe verification. The narrower real issue was missing completed-session
+  recovery after webhook cart cleanup; this pass reduced that issue.
+- Raw #773's "partial sequential checkout creation" concern remains overstated
+  for paid-state consistency: earlier seller sessions are unpaid at that point,
+  and the existing error path rolls back opened unpaid sessions best-effort with
+  Stripe expiry/stale-reservation repair as backup. No paid order is created
+  until the webhook receives a paid Checkout Session.
+- Agent-discovered adjacent findings remain open for separate source slices:
+  stale signed shipping-rate tokens may be reusable after package/quantity
+  changes, and thrown Redis ready-transition errors may return a live Stripe
+  session while leaving a preparing lock until TTL. They were not mixed into
+  this patch because they touch checkout quote binding and lock error handling,
+  not the cart continuation recovery fixed here.
+- A fully durable checkout-group/batch model remains a product/payment design
+  category for consolidated cart emails and longer-lived cross-device checkout
+  grouping. This pass uses existing completed reservation rows for short-term
+  continuation recovery and does not introduce a new schema model.
+
+Guardrails:
+`tests/client-async-guardrails.test.mjs`,
+`tests/checkout-stock-reservation-guardrails.test.mjs`,
+`tests/stripe-webhook-cart-finalization.test.mjs`, and
+`tests/payment-side-effect-observability.test.mjs`.
+
+Verification:
+focused `node --test tests/client-async-guardrails.test.mjs tests/checkout-stock-reservation-guardrails.test.mjs tests/stripe-webhook-cart-finalization.test.mjs tests/payment-side-effect-observability.test.mjs`
+(62/62 tests passing). Full-suite and static verification are recorded with the
+commit for this entry.
+
+Current running tally after Entry 475: verified fixed/reduced 961, verified
+stale/false-positive/current 529, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 22. Fixed/reduced
+increases by one for the cart checkout-continuation recovery; stale/current
+increases by one for the literal persisted-client-secret mechanism in raw #772.
+Deferred stays flat because the broader checkout-group product/design category
+still exists.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence, label
+clawback runtime proof/dashboard reconciliation evidence, Stripe webhook
+subscription dashboard evidence, Stripe Connect v2 loss-liability ops/legal
+decision, explicit stale remote branch pruning/review, completed-audit archive
+housekeeping, Round 10 deferred cache/state-machine product designs that require
+product decisions rather than source guardrails, remaining EXPLAIN-dependent
+runtime query-plan validation beyond the existing source indexes and source
+guardrails, Stripe partial-refund live reconciliation proof, founding-maker
+permanence policy, remaining privacy/legal retention scope after the
+closed-support-row source prune, cross-seller AI duplicate-detection product
+design, durable checkout-group design for checkout batch semantics beyond the
+now-reduced ready-lock/reservation resume path, stale signed shipping-rate token
+reuse after package or quantity changes, checkout lock ready-transition thrown
+error cleanup, deliberate BigInt money-column modeling for individual order/item
+cents fields and high-volume listing analytics counters beyond the fixed
+seller-metrics aggregate cache and new webhook integer bounds, live-data
+reconciliation for historical seller shipping-rate currency drift, Guild
+private/custom-order sales/review trust-metric product policy, legacy
+`LabelStatus` lifecycle cleanup, Clerk staff MFA and breached-password dashboard
+evidence, Clerk multi-account spam dashboard evidence, buyer-deletion live
+Stripe replay proof after source minimization, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2 ListBucket/public
+bucket dashboard posture plus production smoke evidence and public-availability
+proof, HSTS preload submission decision, Vercel Analytics/Speed Insights
+product/privacy decision, homepage browser a11y/runtime proof beyond source
+fallback, and deployed security-header runtime proof beyond source/config
+guardrails.
+
 ## Entry 474 - seller shipping settings bounds and checkout continuation recheck
 
 Entry 474 closes a source hardening pass adjacent to raw #949 and rechecks

@@ -247,16 +247,10 @@ function CartPage() {
   const [rollingBackCheckout, setRollingBackCheckout] = React.useState(false);
   const [resumingCheckout, setResumingCheckout] = React.useState(false);
   const clientSecretsRef = React.useRef<ClientSecretEntry[]>([]);
-  const completedSessionIdsRef = React.useRef<Set<string>>(new Set());
-  const checkoutCompletedRef = React.useRef(false);
 
   React.useEffect(() => {
     clientSecretsRef.current = clientSecrets;
   }, [clientSecrets]);
-
-  React.useLayoutEffect(() => {
-    completedSessionIdsRef.current = completedSessionIds;
-  }, [completedSessionIds]);
 
   const clearCompletedCheckoutSessions = React.useCallback(() => {
     setCompletedSessionIds(new Set());
@@ -269,13 +263,6 @@ function CartPage() {
       next.add(sessionId);
       return next;
     });
-  }, []);
-
-  const pendingCheckoutSessionIds = React.useCallback((entries = clientSecretsRef.current) => {
-    const completedIds = completedSessionIdsRef.current;
-    return entries
-      .map((entry) => entry.sessionId)
-      .filter((sessionId) => !completedIds.has(sessionId));
   }, []);
 
   async function resumeOpenCartCheckout(signal: AbortSignal) {
@@ -292,7 +279,6 @@ function CartPage() {
       const resumedSecrets = Array.isArray(data.clientSecrets) ? data.clientSecrets : [];
       const resumedCompletedIds = Array.isArray(data.completedSessionIds) ? data.completedSessionIds : [];
       if (data.shippingAddress && resumedSecrets.length === 0 && resumedCompletedIds.length > 0) {
-        checkoutCompletedRef.current = true;
         clearCartSessionStorage({ includeAddress: true });
         const params = new URLSearchParams({
           session_id: resumedCompletedIds[resumedCompletedIds.length - 1],
@@ -306,7 +292,6 @@ function CartPage() {
       setClientSecrets(resumedSecrets);
       setCurrentPaymentIndex(0);
       setCompletedSessionIds(new Set(resumedCompletedIds));
-      checkoutCompletedRef.current = false;
       setStep("payment");
       router.replace("/cart?step=payment", { scroll: false });
       return true;
@@ -368,25 +353,6 @@ function CartPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, shippingAddress, clientSecrets, resumingCheckout]);
-
-  React.useEffect(() => {
-    if (step !== "payment" || clientSecrets.length === 0) {
-      checkoutCompletedRef.current = false;
-    }
-  }, [step, clientSecrets.length]);
-
-  React.useEffect(() => {
-    function rollbackOpenCheckoutSessions() {
-      if (checkoutCompletedRef.current) return;
-      const sessionIds = pendingCheckoutSessionIds();
-      if (sessionIds.length > 0) {
-        void rollbackCheckoutSessions(sessionIds);
-      }
-    }
-
-    window.addEventListener("pagehide", rollbackOpenCheckoutSessions);
-    return () => window.removeEventListener("pagehide", rollbackOpenCheckoutSessions);
-  }, [pendingCheckoutSessionIds]);
 
   async function load() {
     setLoading(true);
@@ -739,7 +705,6 @@ function CartPage() {
       return;
     }
     setCreatingSession(true);
-    checkoutCompletedRef.current = false;
     clearCompletedCheckoutSessions();
     setError(null);
 
@@ -1105,7 +1070,6 @@ function CartPage() {
                   setCurrentPaymentIndex((prev) => prev + 1);
                 } else {
                   // All payments complete — clean up and redirect
-                  checkoutCompletedRef.current = true;
                   clearCartSessionStorage({ includeAddress: true });
                   const sessionIds = [
                     ...Array.from(completedSessionIds),

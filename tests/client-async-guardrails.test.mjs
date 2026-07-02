@@ -140,23 +140,17 @@ describe("client async guardrails", () => {
     assert.match(modal, /return \(\) => window\.removeEventListener\("pagehide", rollbackOpenCheckoutSession\)/);
   });
 
-  it("rolls back cart checkout sessions on pagehide without persisting Stripe secrets", () => {
+  it("keeps cart checkout resume-compatible without persisting Stripe secrets", () => {
     const cartPage = source("src/app/cart/page.tsx");
 
     assert.match(cartPage, /keepalive: true/);
     assert.match(cartPage, /const clientSecretsRef = React\.useRef<ClientSecretEntry\[\]>\(\[\]\)/);
-    assert.match(cartPage, /const completedSessionIdsRef = React\.useRef<Set<string>>\(new Set\(\)\)/);
-    assert.match(cartPage, /const checkoutCompletedRef = React\.useRef\(false\)/);
     assert.match(cartPage, /const \[completedSessionIds, setCompletedSessionIds\] = React\.useState<Set<string>>\(\(\) => new Set\(\)\)/);
-    assert.match(cartPage, /React\.useLayoutEffect\(\(\) => \{\s*completedSessionIdsRef\.current = completedSessionIds;/);
-    assert.match(cartPage, /const pendingCheckoutSessionIds = React\.useCallback\(\(entries = clientSecretsRef\.current\) =>/);
-    assert.match(cartPage, /const completedIds = completedSessionIdsRef\.current/);
-    assert.match(cartPage, /\.filter\(\(sessionId\) => !completedIds\.has\(sessionId\)\)/);
-    assert.match(cartPage, /window\.addEventListener\("pagehide", rollbackOpenCheckoutSessions\)/);
-    assert.match(cartPage, /const sessionIds = pendingCheckoutSessionIds\(\)/);
-    assert.match(cartPage, /void rollbackCheckoutSessions\(sessionIds\)/);
-    assert.match(cartPage, /checkoutCompletedRef\.current = true/);
+    assert.doesNotMatch(cartPage, /window\.addEventListener\("pagehide", rollbackOpenCheckoutSessions\)/);
+    assert.doesNotMatch(cartPage, /const pendingCheckoutSessionIds = React\.useCallback/);
+    assert.doesNotMatch(cartPage, /const checkoutCompletedRef = React\.useRef\(false\)/);
     assert.match(cartPage, /flushSync\(\(\) => \{\s*markCheckoutSessionCompleted\(clientSecrets\[currentPaymentIndex\]\?\.sessionId\)/);
+    assert.match(cartPage, /async function handleReturnToShippingFromPayment\(\)/);
     assert.match(cartPage, /\.filter\(\(sessionId\) => !completedSessionIds\.has\(sessionId\)\)/);
     assert.match(cartPage, /completedSessionIds\.size === 0 \? \(/);
     assert.doesNotMatch(cartPage, /writeCartSessionJson\(CART_CHECKOUTS_KEY/);
@@ -179,13 +173,19 @@ describe("client async guardrails", () => {
     assert.match(resumeRoute, /await auth\(\)/);
     assert.match(resumeRoute, /ensureUserByClerkId\(userId\)/);
     assert.match(resumeRoute, /where: \{ userId: me\.id \}/);
-    assert.match(resumeRoute, /cartCheckoutLockKey\(cart\.id, sellerId\)/);
+    assert.match(resumeRoute, /const cartId = cart\?\.id \?\? null/);
+    assert.match(resumeRoute, /cartCheckoutLockKey\(cartId, sellerId\)/);
     assert.match(resumeRoute, /stripe\.checkout\.sessions\.retrieve\(lock\.sessionId\)/);
     assert.match(resumeRoute, /metadata\.buyerId !== me\.id/);
-    assert.match(resumeRoute, /metadata\.cartId !== cart\.id/);
+    assert.match(resumeRoute, /metadata\.cartId !== cartId/);
     assert.match(resumeRoute, /metadata\.sellerId !== sellerId/);
     assert.match(resumeRoute, /session\.payment_status === "paid" \|\| session\.status === "complete"/);
     assert.match(resumeRoute, /completedSessionIds\.push\(session\.id\)/);
+    assert.match(resumeRoute, /prisma\.checkoutStockReservation\.findMany\(\{/);
+    assert.match(resumeRoute, /status: "COMPLETED"/);
+    assert.match(resumeRoute, /createdAt: \{ gte: new Date\(Date\.now\(\) - CHECKOUT_RESUME_COMPLETED_LOOKBACK_MS\) \}/);
+    assert.match(resumeRoute, /metadata\.buyerId !== me\.id/);
+    assert.match(resumeRoute, /cartId && metadata\.cartId !== cartId/);
     assert.match(resumeRoute, /session\.status !== "open" \|\| session\.payment_status !== "unpaid"/);
     assert.match(resumeRoute, /shippingAddressFromMetadata\(metadata\)/);
   });
