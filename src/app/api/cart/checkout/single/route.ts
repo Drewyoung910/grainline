@@ -613,7 +613,35 @@ export async function POST(req: Request) {
         );
       }
     } catch (lockErr) {
-      Sentry.captureException(lockErr, { tags: { source: "checkout_lock_ready" } });
+      Sentry.captureException(lockErr, {
+        tags: { source: "checkout_lock_ready", route: "single_checkout" },
+        extra: {
+          checkoutLockKeyHash: hashIdentifierForTelemetry(checkoutLockKeyValue),
+          stripeSessionId: session.id,
+        },
+      });
+      let staleSessionExpired = false;
+      await stripe.checkout.sessions.expire(session.id).then(() => {
+        staleSessionExpired = true;
+      }).catch((error) => {
+        Sentry.captureException(error, { tags: { source: "checkout_lock_expire_stale" } });
+      });
+      if (staleSessionExpired) {
+        await restoreUnorderedCheckoutStockOnce({
+          sessionId: session.id,
+          metadata: checkoutMetadata,
+        }).catch((error) => {
+          Sentry.captureException(error, { tags: { source: "checkout_lock_restore_stale" } });
+        });
+        const sessionBoundLockReleased = await releaseCheckoutLock(checkoutLockKeyValue, session.id);
+        if (!sessionBoundLockReleased) {
+          await releaseCheckoutLock(checkoutLockKeyValue);
+        }
+      }
+      return privateJson(
+        { error: "Checkout state changed. Please try again." },
+        { status: HTTP_STATUS.CONFLICT },
+      );
     }
 
     return privateJson({ clientSecret: session.client_secret, sessionId: session.id });

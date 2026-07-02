@@ -11853,6 +11853,76 @@ product/privacy decision, homepage browser a11y/runtime proof beyond source
 fallback, and deployed security-header runtime proof beyond source/config
 guardrails.
 
+## Entry 477 - checkout lock ready-transition error cleanup
+
+Entry 477 closes the second agent-discovered checkout state-machine issue found
+while continuing adjacent hidden-issue scans around the cart checkout recovery
+work. This was not counted as a raw Claude allegation. Parent Codex verified
+the claim against current checkout routes before patching. The raw audit import
+was not staged.
+
+Fixed/reduced during this pass:
+
+- `/api/cart/checkout-seller` and `/api/cart/checkout/single` no longer return
+  a live Stripe Checkout Session to the buyer when `markCheckoutLockReady()`
+  throws after session creation. The thrown-error path now records bounded
+  Sentry telemetry, attempts to expire the just-created Stripe session, restores
+  unordered reserved stock when expiry succeeds, best-effort releases the local
+  checkout lock, and returns `409 Checkout state changed` so the buyer retries
+  from a clean quote/session path.
+- The pre-existing rejected ready-transition path already expired stale sessions
+  and restored unordered stock. This pass closes the narrower thrown Redis/script
+  error path that previously logged the exception but still returned
+  `{ clientSecret, sessionId }` while the local lock could remain `preparing`
+  until TTL.
+- `CLAUDE.md` now records the durable rule that ready-transition errors after
+  Stripe session creation must not expose the live session to the buyer.
+
+Guardrails:
+`tests/checkout-lock-state.test.mjs`,
+`tests/checkout-stock-reservation-guardrails.test.mjs`,
+`tests/order-state-followups.test.mjs`, and
+`tests/r65-observability-guardrails.test.mjs`.
+
+Verification:
+focused `node --test tests/checkout-lock-state.test.mjs tests/checkout-stock-reservation-guardrails.test.mjs tests/order-state-followups.test.mjs tests/r65-observability-guardrails.test.mjs`
+(27/27 tests passing), `npx tsc --noEmit`, `npm run lint` (exited 0 with
+the existing jsx-ast-utils TSNonNullExpression warning), full `npm test --
+--test-reporter=dot` (1438/1438 tests passing), and `git diff --check` passed.
+
+Current running tally after Entry 477: verified fixed/reduced 963, verified
+stale/false-positive/current 529, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 22. Fixed/reduced
+increases by one for this newly discovered source defect; raw-left stays flat
+because it was not one of the raw imported allegations.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence, label
+clawback runtime proof/dashboard reconciliation evidence, Stripe webhook
+subscription dashboard evidence, Stripe Connect v2 loss-liability ops/legal
+decision, explicit stale remote branch pruning/review, completed-audit archive
+housekeeping, Round 10 deferred cache/state-machine product designs that require
+product decisions rather than source guardrails, remaining EXPLAIN-dependent
+runtime query-plan validation beyond the existing source indexes and source
+guardrails, Stripe partial-refund live reconciliation proof, founding-maker
+permanence policy, remaining privacy/legal retention scope after the
+closed-support-row source prune, cross-seller AI duplicate-detection product
+design, durable checkout-group design for checkout batch semantics beyond the
+now-reduced ready-lock/reservation resume path, deliberate BigInt money-column
+modeling for individual order/item cents fields and high-volume listing
+analytics counters beyond the fixed seller-metrics aggregate cache and new
+webhook integer bounds, live-data reconciliation for historical seller
+shipping-rate currency drift, Guild private/custom-order sales/review
+trust-metric product policy, legacy `LabelStatus` lifecycle cleanup, Clerk staff
+MFA and breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion live Stripe replay proof after source minimization,
+Founding Maker live DB concurrency proof, Sentry cron alert evidence, Cloudflare
+R2 ListBucket/public bucket dashboard posture plus production smoke evidence and
+public-availability proof, HSTS preload submission decision, Vercel
+Analytics/Speed Insights product/privacy decision, homepage browser
+a11y/runtime proof beyond source fallback, and deployed security-header runtime
+proof beyond source/config guardrails.
+
 ## Entry 476 - shipping rate subject binding
 
 Entry 476 closes an agent-discovered checkout/shipping-rate issue found while

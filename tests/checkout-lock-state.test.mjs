@@ -68,4 +68,25 @@ describe("checkout lock state guards", () => {
       assert.doesNotMatch(captureBlock, /checkoutLockKey: checkoutLockKeyValue/);
     }
   });
+
+  it("does not return live Stripe sessions after ready-transition errors", () => {
+    for (const path of [
+      "src/app/api/cart/checkout/single/route.ts",
+      "src/app/api/cart/checkout-seller/route.ts",
+    ]) {
+      const route = source(path);
+      const catchStart = route.indexOf("} catch (lockErr) {");
+      assert.notEqual(catchStart, -1);
+      const catchEnd = route.indexOf("\n    }\n\n    return privateJson({ clientSecret", catchStart);
+      assert.notEqual(catchEnd, -1);
+      const catchBlock = route.slice(catchStart, catchEnd);
+
+      assert.match(catchBlock, /stripe\.checkout\.sessions\.expire\(session\.id\)/);
+      assert.match(catchBlock, /restoreUnorderedCheckoutStockOnce\(\{/);
+      assert.match(catchBlock, /const sessionBoundLockReleased = await releaseCheckoutLock\(checkoutLockKeyValue, session\.id\)/);
+      assert.match(catchBlock, /if \(!sessionBoundLockReleased\) \{\s*await releaseCheckoutLock\(checkoutLockKeyValue\);/s);
+      assert.match(catchBlock, /status: HTTP_STATUS\.CONFLICT/);
+      assert.doesNotMatch(catchBlock, /return privateJson\(\{ clientSecret: session\.client_secret, sessionId: session\.id \}\)/);
+    }
+  });
 });
