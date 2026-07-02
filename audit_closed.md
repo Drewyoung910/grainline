@@ -11775,3 +11775,80 @@ production smoke evidence and public-availability proof, HSTS preload submission
 decision, Vercel Analytics/Speed Insights product/privacy decision, homepage
 browser a11y/runtime proof beyond source fallback, and deployed security-header
 runtime proof beyond source/config guardrails.
+
+## Entry 471 - webhook integer-bound hardening for subtotal metadata
+
+Entry 471 closes a narrow source hardening pass adjacent to raw #984 and #566.
+No agents were used. The raw audit import was not staged. Current source still
+leaves the broader BigInt money/counter modeling decision open, but the
+malformed webhook numeric edge found during this pass is now bounded before it
+can feed persisted PostgreSQL `Int` fields.
+
+Fixed/reduced during this pass:
+
+- `src/lib/stripeWebhookState.ts` now centralizes `POSTGRES_INT_MAX` for
+  Stripe webhook integer parsing. `parsePositiveInt()` and
+  `parseOptionalNonNegativeInt()` reject values above the PostgreSQL signed
+  integer ceiling instead of treating them as valid metadata.
+- `checkoutItemsSubtotalCents()` now keeps its own helper boundary defensive:
+  oversized metadata subtotals are ignored, oversized checkout subtotal
+  fallbacks collapse to `0`, gift-wrap fallback subtraction only uses bounded
+  non-negative values, and listing-line subtotal derivation returns `null` if
+  either a line multiplication or aggregate sum would exceed the persisted
+  integer cents field.
+
+Verified current/deferred during the same pass:
+
+- Source-created listing/cart paths still keep ordinary checkout subtotals below
+  the PostgreSQL `Int` ceiling: listing unit price remains capped at
+  `MAX_LISTING_PRICE_CENTS = 10_000_000`, cart item quantity remains capped at
+  99, total cart quantity remains capped at 200, and manual stock entry remains
+  capped by `MAX_MANUAL_STOCK_QUANTITY`.
+- `SellerMetrics.totalSalesCents` remains fixed from the prior pass as
+  PostgreSQL/Prisma `BigInt`.
+- The deliberate schema/modeling decision to migrate individual order/item
+  money fields or long-lived listing analytics counters to `BigInt` remains
+  deferred. This pass only reduces malformed/out-of-band webhook integer risk;
+  it does not claim the broader BigInt category is closed.
+
+Guardrails:
+`tests/stripe-webhook-state.test.mjs`.
+
+Verification:
+focused `node --test tests/stripe-webhook-state.test.mjs` (41/41 tests
+passing), `git diff --check`, `npx tsc --noEmit`, `npm test` (1433/1433 tests
+passing), and `npm run lint` passed. Lint still prints the existing
+`jsx-eslint` TSNonNullExpression resolver warning while exiting 0.
+
+Current running tally after Entry 471: verified fixed/reduced 959, verified
+stale/false-positive/current 528, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 23. Fixed/reduced
+increases by one for the newly fixed webhook integer-bound edge. Raw-left stays
+flat because raw #984/#566 still include the broader deliberate BigInt
+money/counter modeling decision.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence, label
+clawback runtime proof/dashboard reconciliation evidence, Stripe webhook
+subscription dashboard evidence, Stripe Connect v2 loss-liability ops/legal
+decision, explicit stale remote branch pruning/review, Round 10 deferred
+cache/state-machine product designs that require product decisions rather than
+source guardrails, remaining EXPLAIN-dependent runtime query-plan validation
+beyond the existing source indexes and source guardrails, Stripe partial-refund
+live reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention scope after the closed-support-row source prune,
+cross-seller AI duplicate-detection product design, durable checkout-group
+design beyond the ready-lock cart checkout resume, deliberate BigInt
+money-column modeling for individual order/item cents fields and high-volume
+listing analytics counters beyond the fixed seller-metrics aggregate cache and
+new webhook integer bounds, live-data reconciliation for historical seller
+shipping-rate currency drift, Guild private/custom-order sales/review
+trust-metric product policy, Clerk staff MFA and breached-password dashboard
+evidence, Clerk multi-account spam dashboard evidence, buyer-deletion live
+Stripe replay proof after source minimization, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2 ListBucket/public
+bucket dashboard posture plus production smoke evidence and public-availability
+proof, HSTS preload submission decision, Vercel Analytics/Speed Insights
+product/privacy decision, homepage browser a11y/runtime proof beyond source
+fallback, and deployed security-header runtime proof beyond source/config
+guardrails.

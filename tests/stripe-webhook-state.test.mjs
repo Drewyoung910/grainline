@@ -17,6 +17,7 @@ const {
   isStaleStripeEvent,
   latestSuccessfulRefund,
   normalizeShippoRateObjectId,
+  POSTGRES_INT_MAX,
   payoutFailureState,
   parseBoundedPositiveInt,
   parseOptionalNonNegativeInt,
@@ -275,6 +276,7 @@ describe("Stripe webhook state helpers", () => {
     assert.equal(parsePositiveInt("0", 7), 7);
     assert.equal(parsePositiveInt("1.5", 7), 7);
     assert.equal(parsePositiveInt("abc", 7), 7);
+    assert.equal(parsePositiveInt(String(POSTGRES_INT_MAX + 1), 7), 7);
   });
 
   it("parses bounded positive integer metadata with a fallback", () => {
@@ -293,6 +295,7 @@ describe("Stripe webhook state helpers", () => {
     assert.equal(parseOptionalNonNegativeInt(""), null);
     assert.equal(parseOptionalNonNegativeInt("-1"), null);
     assert.equal(parseOptionalNonNegativeInt("1.25"), null);
+    assert.equal(parseOptionalNonNegativeInt(String(POSTGRES_INT_MAX + 1)), null);
   });
 
   it("derives checkout item subtotal from listing line items before gift-wrap fallback", () => {
@@ -339,6 +342,44 @@ describe("Stripe webhook state helpers", () => {
         lineItems: [],
       }),
       10_000,
+    );
+  });
+
+  it("bounds checkout subtotal derivation to persisted integer cents fields", () => {
+    assert.equal(
+      checkoutItemsSubtotalCents({
+        checkoutAmountSubtotalCents: POSTGRES_INT_MAX + 1,
+        metadataItemsSubtotalCents: POSTGRES_INT_MAX + 1,
+        giftWrappingPriceCents: 0,
+        lineItems: [
+          {
+            amount_subtotal: POSTGRES_INT_MAX + 1,
+            quantity: 2,
+            price: {
+              unit_amount: POSTGRES_INT_MAX,
+              product: { metadata: { listingId: "listing_1" } },
+            },
+          },
+        ],
+      }),
+      0,
+    );
+
+    assert.equal(
+      checkoutItemsSubtotalCents({
+        checkoutAmountSubtotalCents: POSTGRES_INT_MAX,
+        giftWrappingPriceCents: 0,
+        lineItems: [
+          {
+            quantity: 2,
+            price: {
+              unit_amount: POSTGRES_INT_MAX,
+              product: { metadata: { listingId: "listing_1" } },
+            },
+          },
+        ],
+      }),
+      POSTGRES_INT_MAX,
     );
   });
 

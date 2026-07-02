@@ -240,9 +240,11 @@ export function latestSuccessfulRefund(refunds: StripeRefundLike[]) {
     .sort((a, b) => (b.created ?? 0) - (a.created ?? 0))[0] ?? null;
 }
 
+export const POSTGRES_INT_MAX = 2_147_483_647;
+
 export function parsePositiveInt(value: string | number | null | undefined, fallback: number): number {
   const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+  return Number.isInteger(parsed) && parsed > 0 && parsed <= POSTGRES_INT_MAX ? parsed : fallback;
 }
 
 export function parseBoundedPositiveInt(
@@ -257,7 +259,7 @@ export function parseBoundedPositiveInt(
 export function parseOptionalNonNegativeInt(value: string | number | null | undefined): number | null {
   if (value == null || value === "") return null;
   const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+  return Number.isInteger(parsed) && parsed >= 0 && parsed <= POSTGRES_INT_MAX ? parsed : null;
 }
 
 type CheckoutSubtotalLineItem = {
@@ -280,6 +282,7 @@ function checkoutListingLineItemsSubtotalCents(lineItems: CheckoutSubtotalLineIt
 
     const amountSubtotalCents = parseOptionalNonNegativeInt(lineItem.amount_subtotal);
     if (amountSubtotalCents != null) {
+      if (subtotalCents + amountSubtotalCents > POSTGRES_INT_MAX) return null;
       subtotalCents += amountSubtotalCents;
       continue;
     }
@@ -287,7 +290,11 @@ function checkoutListingLineItemsSubtotalCents(lineItems: CheckoutSubtotalLineIt
     const unitAmountCents = parseOptionalNonNegativeInt(lineItem.price?.unit_amount);
     const quantity = parseOptionalNonNegativeInt(lineItem.quantity);
     if (unitAmountCents == null || quantity == null || quantity <= 0) return null;
-    subtotalCents += unitAmountCents * quantity;
+    const lineSubtotalCents = unitAmountCents * quantity;
+    if (lineSubtotalCents > POSTGRES_INT_MAX || subtotalCents + lineSubtotalCents > POSTGRES_INT_MAX) {
+      return null;
+    }
+    subtotalCents += lineSubtotalCents;
   }
 
   return foundListingLineItem ? subtotalCents : null;
@@ -307,12 +314,23 @@ export function checkoutItemsSubtotalCents({
   const listingLineSubtotalCents = checkoutListingLineItemsSubtotalCents(lineItems);
   if (listingLineSubtotalCents != null) return listingLineSubtotalCents;
 
-  if (metadataItemsSubtotalCents != null) return metadataItemsSubtotalCents;
+  if (
+    metadataItemsSubtotalCents != null &&
+    metadataItemsSubtotalCents >= 0 &&
+    metadataItemsSubtotalCents <= POSTGRES_INT_MAX
+  ) {
+    return metadataItemsSubtotalCents;
+  }
 
   const checkoutSubtotalCents = parseOptionalNonNegativeInt(checkoutAmountSubtotalCents);
   if (checkoutSubtotalCents == null) return 0;
 
-  return Math.max(0, checkoutSubtotalCents - (giftWrappingPriceCents ?? 0));
+  const safeGiftWrappingPriceCents = giftWrappingPriceCents != null &&
+    giftWrappingPriceCents >= 0 &&
+    giftWrappingPriceCents <= POSTGRES_INT_MAX
+    ? giftWrappingPriceCents
+    : 0;
+  return Math.max(0, checkoutSubtotalCents - safeGiftWrappingPriceCents);
 }
 
 export function normalizeShippoRateObjectId(value: string | null | undefined): string | null {
