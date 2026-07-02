@@ -15,6 +15,7 @@ export type SelectedShippingRate = {
   displayName: string
   carrier: string
   estDays: number | null
+  subjectHash: string
   token: string        // HMAC from signRate()
   expiresAt: number    // Unix timestamp seconds
 }

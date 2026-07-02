@@ -13,6 +13,7 @@ type QuoteRate = {
   service: string;
   estDays: number | null;
   objectId?: string | null;
+  subjectHash?: string;
   token?: string;
   expiresAt?: number;
 };
@@ -37,6 +38,7 @@ function toSelectedRate(r: QuoteRate, index: number): SelectedShippingRate {
     displayName: r.label,
     carrier: r.carrier,
     estDays: r.estDays,
+    subjectHash: r.subjectHash ?? "",
     // Unsigned rates get empty token — checkout verification fails closed.
     token: r.token ?? "",
     expiresAt: r.expiresAt ?? 0,

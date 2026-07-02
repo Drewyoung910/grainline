@@ -11853,6 +11853,90 @@ product/privacy decision, homepage browser a11y/runtime proof beyond source
 fallback, and deployed security-header runtime proof beyond source/config
 guardrails.
 
+## Entry 476 - shipping rate subject binding
+
+Entry 476 closes an agent-discovered checkout/shipping-rate issue found while
+continuing the cart checkout state-machine audit. This was not counted as a raw
+Claude allegation; it came from the requested adjacent hidden-issue scan. Parent
+Codex verified the claim against current quote and checkout source before
+patching. The raw audit import was not staged.
+
+Fixed/reduced during this pass:
+
+- Shipping-rate HMACs now bind to a server-computed quote subject as well as
+  buyer, destination postal code, context, amount, currency, carrier, and
+  expiry. `shippingRateSubjectHash()` hashes the quoted cart/listing package and
+  quantity state, `/api/shipping/quote` includes that `subjectHash` in every
+  signed provider, fallback, and pickup rate, and both checkout routes recompute
+  the hash from live server state before calling `verifyRate()`.
+- Cart checkout subject hashes include seller id plus sorted seller cart rows
+  with cart item id, listing id, quantity, variant key, and effective package
+  dimensions/weight. Buy-now subject hashes include listing id, quantity, and
+  effective package dimensions/weight. A stale signed rate from another tab or
+  old quote can no longer be replayed after quantity/package-cart changes
+  without failing token verification.
+- `ShippingRateSelector` carries the server-emitted `subjectHash` through the
+  selected-rate object. Missing/unsigned subject hashes fail closed at checkout
+  through the selected-rate schema or HMAC mismatch.
+- `CLAUDE.md` now records the durable rule that quote routes must sign the
+  server-computed subject and checkout routes must recompute it from live server
+  state before trusting a selected shipping amount.
+
+Verified current/deferred during the same pass:
+
+- Existing currency binding, destination postal binding, buyer binding, local
+  pickup recheck, and token-expiry guardrails remain in place.
+- The other adjacent agent finding, thrown Redis ready-transition cleanup, was
+  not mixed into this patch. It remains a separate source slice because it
+  touches checkout lock error handling after Stripe session creation rather than
+  shipping quote/token binding.
+
+Guardrails:
+`tests/shipping-token.test.mjs`, `tests/shipping-quote-state.test.mjs`,
+`tests/checkout-est-days-bounds.test.mjs`,
+`tests/r65-observability-guardrails.test.mjs`, and
+`tests/order-state-followups.test.mjs`.
+
+Verification:
+focused `node --test tests/shipping-quote-state.test.mjs tests/shipping-token.test.mjs tests/checkout-est-days-bounds.test.mjs tests/r65-observability-guardrails.test.mjs tests/order-state-followups.test.mjs`
+(39/39 tests passing), `npx tsc --noEmit`, `npm run lint` (exited 0 with
+the existing jsx-ast-utils TSNonNullExpression warning), full `npm test --
+--test-reporter=dot` (1437/1437 tests passing), and `git diff --check` passed.
+
+Current running tally after Entry 476: verified fixed/reduced 962, verified
+stale/false-positive/current 529, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 22. Fixed/reduced
+increases by one for this newly discovered source defect; raw-left stays flat
+because it was not one of the raw imported allegations.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence, label
+clawback runtime proof/dashboard reconciliation evidence, Stripe webhook
+subscription dashboard evidence, Stripe Connect v2 loss-liability ops/legal
+decision, explicit stale remote branch pruning/review, completed-audit archive
+housekeeping, Round 10 deferred cache/state-machine product designs that require
+product decisions rather than source guardrails, remaining EXPLAIN-dependent
+runtime query-plan validation beyond the existing source indexes and source
+guardrails, Stripe partial-refund live reconciliation proof, founding-maker
+permanence policy, remaining privacy/legal retention scope after the
+closed-support-row source prune, cross-seller AI duplicate-detection product
+design, durable checkout-group design for checkout batch semantics beyond the
+now-reduced ready-lock/reservation resume path, checkout lock ready-transition
+thrown error cleanup, deliberate BigInt money-column modeling for individual
+order/item cents fields and high-volume listing analytics counters beyond the
+fixed seller-metrics aggregate cache and new webhook integer bounds, live-data
+reconciliation for historical seller shipping-rate currency drift, Guild
+private/custom-order sales/review trust-metric product policy, legacy
+`LabelStatus` lifecycle cleanup, Clerk staff MFA and breached-password dashboard
+evidence, Clerk multi-account spam dashboard evidence, buyer-deletion live
+Stripe replay proof after source minimization, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2 ListBucket/public
+bucket dashboard posture plus production smoke evidence and public-availability
+proof, HSTS preload submission decision, Vercel Analytics/Speed Insights
+product/privacy decision, homepage browser a11y/runtime proof beyond source
+fallback, and deployed security-header runtime proof beyond source/config
+guardrails.
+
 ## Entry 475 - cart checkout continuation recovery
 
 Entry 475 closes a source fix for the remaining cart checkout-continuation

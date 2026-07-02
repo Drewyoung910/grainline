@@ -55,6 +55,19 @@ describe("shipping rate tokens", () => {
     );
   });
 
+  it("binds signed rates to the quoted cart or package subject", () => {
+    const signed = signRate({ ...fields, subjectHash: "cart-package-v1" }, 60);
+
+    assert.deepEqual(
+      verifyRate({ ...fields, subjectHash: "cart-package-v1" }, signed.token, signed.expiresAt),
+      { ok: true },
+    );
+    assert.equal(
+      verifyRate({ ...fields, subjectHash: "cart-package-v2" }, signed.token, signed.expiresAt).ok,
+      false,
+    );
+  });
+
   it("uses unambiguous JSON-array canonicalization for display names with separators", () => {
     const source = readFileSync("src/lib/shipping-token.ts", "utf8");
     const signed = signRate({ ...fields, displayName: "Ground: Priority" }, 60);
@@ -125,6 +138,26 @@ describe("shipping rate tokens", () => {
     assert.match(quoteRoute, /mixedCurrencyItem/);
     assert.doesNotMatch(quoteRoute, /const currency = \(body\.currency/);
     assert.match(selector, /currency: \(r\.currency \?\? DEFAULT_CURRENCY\)\.toLowerCase\(\)/);
+  });
+
+  it("binds checkout shipping rates to server-derived package and quantity state", () => {
+    const sellerCheckout = readFileSync("src/app/api/cart/checkout-seller/route.ts", "utf8");
+    const singleCheckout = readFileSync("src/app/api/cart/checkout/single/route.ts", "utf8");
+    const quoteRoute = readFileSync("src/app/api/shipping/quote/route.ts", "utf8");
+    const tokenSource = readFileSync("src/lib/shipping-token.ts", "utf8");
+
+    assert.match(tokenSource, /export function shippingRateSubjectHash/);
+    assert.match(tokenSource, /fields\.subjectHash/);
+    assert.match(quoteRoute, /subjectHash = shippingRateSubjectHash\(\{/);
+    assert.match(quoteRoute, /subjectHash,/);
+    assert.match(quoteRoute, /token,\s*expiresAt,\s*subjectHash,/s);
+
+    for (const source of [sellerCheckout, singleCheckout]) {
+      assert.match(source, /subjectHash: z\.string\(\)\.min\(1\)\.max\(64\)/);
+      assert.match(source, /const subjectHash = shippingRateSubjectHash\(\{/);
+      assert.match(source, /subjectHash,/);
+      assert.doesNotMatch(source, /subjectHash: body\.selectedRate\.subjectHash/);
+    }
   });
 
   it("rechecks local pickup availability at checkout after token verification", () => {

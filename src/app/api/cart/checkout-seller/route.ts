@@ -3,7 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
-import { shippingRateExpiresAtIsTooFarFuture, verifyRate } from "@/lib/shipping-token";
+import { shippingRateExpiresAtIsTooFarFuture, shippingRateSubjectHash, verifyRate } from "@/lib/shipping-token";
 import { checkoutRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { calculateCheckoutAmounts } from "@/lib/checkoutAmounts";
@@ -63,6 +63,7 @@ const CheckoutSellerSchema = z.object({
     displayName: z.string().min(1).max(100),
     carrier: z.string().max(100),
     estDays: z.number().int().min(1).max(SHIPPING_ESTIMATED_DAYS_MAX).nullable(),
+    subjectHash: z.string().min(1).max(64),
     token: z.string().min(1),
     expiresAt: z.number().int().min(0).refine(
       (expiresAt) => !shippingRateExpiresAtIsTooFarFuture(expiresAt),
@@ -316,6 +317,24 @@ export async function POST(req: Request) {
     // Verify every shipping rate, including fallback. Fallback rates must be
     // signed by /api/shipping/quote; clients cannot force the fallback objectId.
     const contextId = body.sellerId;
+    const sellerDefaults = sellerItems[0].listing.seller;
+    const subjectHash = shippingRateSubjectHash({
+      mode: "cart",
+      sellerId,
+      items: resolvedSellerItems
+        .map((it) => ({
+          cartItemId: it.id,
+          listingId: it.listingId,
+          quantity: it.quantity,
+          variantKey: it.variantKey ?? "",
+          weight: it.listing.packagedWeightGrams ?? sellerDefaults.defaultPkgWeightGrams ?? 0,
+          length: it.listing.packagedLengthCm ?? sellerDefaults.defaultPkgLengthCm ?? 0,
+          width: it.listing.packagedWidthCm ?? sellerDefaults.defaultPkgWidthCm ?? 0,
+          height: it.listing.packagedHeightCm ?? sellerDefaults.defaultPkgHeightCm ?? 0,
+        }))
+        .sort((a, b) => a.cartItemId.localeCompare(b.cartItemId)),
+    });
+
     const rateVerification = verifyRate(
       {
         objectId: body.selectedRate.objectId,
@@ -327,6 +346,7 @@ export async function POST(req: Request) {
         contextId,
         buyerId: me.id,
         buyerPostal: shippingAddress.postalCode,
+        subjectHash,
       },
       body.selectedRate.token,
       body.selectedRate.expiresAt,

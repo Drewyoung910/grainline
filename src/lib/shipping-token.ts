@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHash, createHmac, timingSafeEqual } from "crypto";
 
 const SECRET = process.env.SHIPPING_RATE_SECRET;
 export const SHIPPING_RATE_TOKEN_TTL_SECONDS = 30 * 60;
@@ -34,6 +34,7 @@ function canonicalInput(
   contextId: string,
   buyerId: string,
   buyerPostal: string,
+  subjectHash: string | null | undefined,
   expiresAt: number,
 ): string {
   return JSON.stringify([
@@ -46,6 +47,7 @@ function canonicalInput(
     contextId,
     buyerId,
     buyerPostal,
+    subjectHash ?? "",
     expiresAt,
   ]);
 }
@@ -60,7 +62,15 @@ export type SignedRateFields = {
   contextId: string;
   buyerId: string;
   buyerPostal: string;
+  subjectHash?: string | null;
 };
+
+export function shippingRateSubjectHash(value: unknown): string {
+  return createHash("sha256")
+    .update(JSON.stringify(value))
+    .digest("base64url")
+    .slice(0, 32);
+}
 
 export function signRate(
   fields: SignedRateFields,
@@ -77,6 +87,7 @@ export function signRate(
     fields.contextId,
     fields.buyerId,
     fields.buyerPostal,
+    fields.subjectHash,
     expiresAt,
   );
   const token = createHmac("sha256", getSecret()).update(input).digest("hex");
@@ -130,6 +141,7 @@ export function verifyRate(
     fields.contextId,
     fields.buyerId,
     fields.buyerPostal,
+    fields.subjectHash,
     expiresAt,
   );
   const expectedHmac = createHmac("sha256", getSecret())
