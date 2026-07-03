@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useRef } from "react";
 import { useFormStatus } from "react-dom";
-import { appendNote, markReviewed, type AdminOrderActionState } from "../../actions";
+import { appendNote, markReviewed, recordLabelVoided, type AdminOrderActionState } from "../../actions";
 
 const initialState: AdminOrderActionState = { ok: false };
 
@@ -40,13 +40,22 @@ function ActionMessage({ state }: { state: AdminOrderActionState }) {
 export default function AdminOrderActions({
   orderId,
   reviewNeeded,
+  labelStatus,
+  labelClawbackStatus,
 }: {
   orderId: string;
   reviewNeeded: boolean;
+  labelStatus: string | null;
+  labelClawbackStatus: string | null;
 }) {
   const noteRef = useRef<HTMLTextAreaElement>(null);
   const [reviewState, reviewAction] = useActionState(markReviewed.bind(null, orderId), initialState);
+  const [labelState, labelAction] = useActionState(recordLabelVoided.bind(null, orderId), initialState);
   const [noteState, noteAction] = useActionState(appendNote.bind(null, orderId), initialState);
+  const canRecordLabelVoided =
+    labelStatus === "PURCHASED" &&
+    labelClawbackStatus !== "RETRY_PENDING" &&
+    labelClawbackStatus !== "RETRYING";
 
   useEffect(() => {
     if (noteState.ok) noteRef.current?.form?.reset();
@@ -57,11 +66,24 @@ export default function AdminOrderActions({
       {reviewNeeded && (
         <div className="space-y-2">
           <p className="text-sm text-neutral-600">
-            Once you have verified the shipping details are acceptable, mark this order as reviewed.
+            Once you have resolved the review note, mark this order as reviewed.
           </p>
           <form action={reviewAction} className="space-y-2">
             <SubmitButton>Mark as Reviewed</SubmitButton>
             <ActionMessage state={reviewState} />
+          </form>
+        </div>
+      )}
+
+      {canRecordLabelVoided && (
+        <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+          <p className="text-sm text-amber-900">
+            Only use this after staff has voided or reconciled the carrier label outside Grainline.
+            Recording the label as voided removes the app-level refund block.
+          </p>
+          <form action={labelAction} className="space-y-2">
+            <SubmitButton>Record Label Voided</SubmitButton>
+            <ActionMessage state={labelState} />
           </form>
         </div>
       )}

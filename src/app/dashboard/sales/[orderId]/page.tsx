@@ -88,7 +88,7 @@ export default async function SellerOrderDetailPage({
 
   const seller = await prisma.sellerProfile.findUnique({
     where: { userId: me.id },
-    select: { id: true, displayName: true, onboardingComplete: true },
+    select: { id: true, displayName: true, onboardingComplete: true, manualStripeReconciliationNeeded: true },
   });
   if (!seller) redirect("/dashboard/seller");
   if (!seller.onboardingComplete) redirect("/dashboard?setup=required");
@@ -541,7 +541,9 @@ export default async function SellerOrderDetailPage({
                 <span className="font-medium">{fmtMoney(refundCents, currency)}</span>
               </div>
               <p className="text-xs text-neutral-500">
-                This amount has been deducted from your Stripe balance.
+                {seller.manualStripeReconciliationNeeded
+                  ? "This refund is recorded; staff may need to reconcile the connected-account transfer manually."
+                  : "This amount has been deducted from your Stripe balance."}
               </p>
             </>
           )}

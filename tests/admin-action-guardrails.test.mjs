@@ -119,6 +119,25 @@ describe("admin server action guardrails", () => {
     }
   });
 
+  it("lets staff record an externally voided label before refund reconciliation", () => {
+    const actions = source("src/app/admin/actions.ts");
+    const panel = source("src/app/admin/orders/[id]/AdminOrderActions.tsx");
+    const page = source("src/app/admin/orders/[id]/page.tsx");
+
+    assert.match(actions, /export async function recordLabelVoided/);
+    assert.match(actions, /labelStatus !== "PURCHASED"/);
+    assert.match(actions, /labelClawbackStatus === "RETRY_PENDING" \|\| order\.labelClawbackStatus === "RETRYING"/);
+    assert.match(actions, /labelStatus: "VOIDED"/);
+    assert.match(actions, /action: "RECORD_LABEL_VOIDED"/);
+    assert.match(actions, /source: "admin_order_record_label_voided"/);
+    assert.match(panel, /recordLabelVoided/);
+    assert.match(panel, /Only use this after staff has voided or reconciled the carrier label outside Grainline/);
+    assert.match(panel, /labelStatus === "PURCHASED"/);
+    assert.match(panel, /labelClawbackStatus !== "RETRY_PENDING"/);
+    assert.match(page, /labelStatus=\{order\.labelStatus \?\? null\}/);
+    assert.match(page, /labelClawbackStatus=\{order\.labelClawbackStatus \?\? null\}/);
+  });
+
   it("does not allow admin email to become an arbitrary external sender", () => {
     const route = source("src/app/api/admin/email/route.ts");
     const usersPage = source("src/app/admin/users/page.tsx");

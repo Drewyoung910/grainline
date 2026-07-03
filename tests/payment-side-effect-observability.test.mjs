@@ -304,6 +304,14 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(labelRoute, /latestOpenDisputeLedgerExistsSql\(Prisma\.sql`"Order"\.id`\)/);
   });
 
+  it("keeps seller refund copy honest when transfer reversal needs manual reconciliation", () => {
+    const salesPage = source("src/app/dashboard/sales/[orderId]/page.tsx");
+
+    assert.match(salesPage, /manualStripeReconciliationNeeded: true/);
+    assert.match(salesPage, /staff may need to reconcile the connected-account transfer manually/);
+    assert.match(salesPage, /This amount has been deducted from your Stripe balance/);
+  });
+
   it("blocks fulfillment state changes on latest open Stripe dispute ledgers", () => {
     const route = source("src/app/api/orders/[id]/fulfillment/route.ts");
 

@@ -278,6 +278,8 @@ describe("post-launch UI follow-ups", () => {
     assert.doesNotMatch(source("src/app/admin/flagged/page.tsx"), /No flagged orders/);
     assert.doesNotMatch(source("src/app/dashboard/orders/[id]/page.tsx"), /shipping detail change/);
     assert.doesNotMatch(source("src/app/dashboard/sales/[orderId]/page.tsx"), /Shipping address or rate changed/);
+    assert.doesNotMatch(source("src/app/admin/orders/[id]/page.tsx"), /Shipping address or rate changed/);
+    assert.match(source("src/app/admin/orders/[id]/page.tsx"), /This order has a staff review hold/);
   });
 
   it("dashboard listing card click goes to public path for active and to preview URL for non-public statuses", () => {

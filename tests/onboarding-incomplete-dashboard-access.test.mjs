@@ -42,7 +42,7 @@ describe("onboarding-incomplete dashboard access", () => {
     assert.match(sales, /Connect Stripe to start accepting orders/);
 
     const salesDetail = source("src/app/dashboard/sales/[orderId]/page.tsx");
-    assert.match(salesDetail, /select: \{ id: true, displayName: true, onboardingComplete: true \}/);
+    assert.match(salesDetail, /select: \{ id: true, displayName: true, onboardingComplete: true, manualStripeReconciliationNeeded: true \}/);
     assert.match(salesDetail, /if \(!seller\.onboardingComplete\) redirect\("\/dashboard\?setup=required"\)/);
 
     const analyticsApi = source("src/app/api/seller/analytics/route.ts");

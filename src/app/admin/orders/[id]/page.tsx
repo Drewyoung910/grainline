@@ -147,8 +147,8 @@ export default async function AdminOrderDetailPage({
       {/* Review alert */}
       {order.reviewNeeded && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          <strong>Action required:</strong> Shipping address or rate changed between quote and
-          checkout. Review the quoted vs. actual shipping below before allowing fulfillment.
+          <strong>Action required:</strong> This order has a staff review hold.
+          Check the review notes below before allowing fulfillment, refund, or reconciliation actions.
         </div>
       )}
 
@@ -465,7 +465,12 @@ export default async function AdminOrderDetailPage({
 
       {/* Admin actions */}
       <Section title="Admin Actions">
-        <AdminOrderActions orderId={order.id} reviewNeeded={order.reviewNeeded} />
+        <AdminOrderActions
+          orderId={order.id}
+          reviewNeeded={order.reviewNeeded}
+          labelStatus={order.labelStatus ?? null}
+          labelClawbackStatus={order.labelClawbackStatus ?? null}
+        />
       </Section>
     </div>
   );
