@@ -40,6 +40,26 @@ describe("PR I media, upload, and unsubscribe follow-ups", () => {
     assert.match(source("src/lib/ai-review.ts"), /isR2PublicUrl/);
   });
 
+  it("keeps follower email image rendering behind first-party validation", () => {
+    const email = source("src/lib/email.ts");
+    const safeImgStart = email.indexOf("function safeImgUrl");
+    const listingStart = email.indexOf("export function renderNewListingFromFollowedMakerEmail");
+    const broadcastStart = email.indexOf("export function renderSellerBroadcastEmail");
+    const sendMessageStart = email.indexOf("export async function sendNewMessageEmail");
+    const safeImgBody = email.slice(safeImgStart, listingStart);
+    const listingBody = email.slice(listingStart, broadcastStart);
+    const broadcastBody = email.slice(broadcastStart, sendMessageStart);
+
+    assert.match(safeImgBody, /isFirstPartyMediaUrl\(url\)/);
+    assert.doesNotMatch(safeImgBody, /isR2PublicUrl/);
+    assert.match(listingBody, /const validImgUrl = safeImgUrl\(listingImageUrl\)/);
+    assert.match(listingBody, /validImgUrl[\s\S]*<img src="\$\{validImgUrl\}"/);
+    assert.doesNotMatch(listingBody, /listingImageUrl[\s\S]*<img src="\$\{listingImageUrl\}"/);
+    assert.match(broadcastBody, /const validImgUrl = safeImgUrl\(imageUrl\)/);
+    assert.match(broadcastBody, /validImgUrl[\s\S]*<img src="\$\{validImgUrl\}"/);
+    assert.doesNotMatch(broadcastBody, /imageUrl[\s\S]*<img src="\$\{imageUrl\}"/);
+  });
+
   it("scopes newly submitted first-party media URLs to the current uploader", () => {
     const currentUserWritePaths = [
       "src/app/messages/[id]/page.tsx",

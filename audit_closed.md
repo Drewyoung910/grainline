@@ -12339,6 +12339,120 @@ submission decision, Vercel Analytics/Speed Insights product/privacy decision,
 homepage browser a11y/runtime proof beyond source fallback, and deployed
 security-header runtime proof beyond source/config guardrails.
 
+## Entry 483 - R2/media upload allegations reverified current
+
+Entry 483 records a source-and-test verification pass over remaining
+R2/media/upload allegations plus adjacent hidden-issue scans. One read-only
+agent checked the media/R2 slice while parent Codex independently verified the
+current source, tests, docs, and latest CI status. The raw audit import and
+expected untracked local files were not staged.
+
+Fixed/reduced in tests:
+
+- Added a focused follower-email guardrail proving the two image-rendering email
+  paths stay behind `safeImgUrl()` and `isFirstPartyMediaUrl()` instead of
+  rendering raw listing/broadcast image URLs or legacy display-only origins.
+  This reduces regression risk for legacy UploadThing/foreign-image leakage in
+  Grainline-branded follower emails.
+
+Verified current/stale during the same pass:
+
+- Raw image magic-byte / R2 nosniff allegations are stale/current in source:
+  processed image uploads precheck multipart size, run
+  `uploadFileSignatureMatches()` before Sharp, use Sharp bounded input pixels,
+  reject SVG/unknown signatures, enforce processed-size caps before R2 writes,
+  probe public availability, and clean up failed objects. Direct uploads also
+  HEAD the object, range-read the first bytes, validate signatures, and delete
+  failures before persistence can claim the upload.
+- IDN/punycode first-party media spoofing is stale/false-positive as written:
+  current media validators compare parsed URL origins exactly and require the
+  configured public path prefix. Tests cover arbitrary R2 hosts, insecure
+  schemes, and Cyrillic lookalike hostnames.
+- Legacy follower-email image risk is reduced in source: follower listing and
+  seller-broadcast emails use `safeImgUrl()`, which requires
+  `isFirstPartyMediaUrl()` and excludes legacy UploadThing display origins.
+- Listing photo replace/delete orphan risk is already reduced: edited listing
+  photo URLs are verified and claimed transactionally, vanished-row conflicts
+  throw a typed conflict, and newly submitted R2 URLs are cleaned up on conflict
+  or after successful replacement/deletion.
+- R2 health-check overclaim allegations remain closed/current in docs and
+  tests: `/api/health` intentionally uses cheap `HeadBucketCommand`
+  reachability, and the runbook/launch checklist explicitly say it does not
+  prove writes, public-domain delivery, CORS, bucket object-size controls, or
+  public ListBucket/bucket-listing posture.
+- Cron clustering, cart quantity/update races, shipping-rate HMAC delimiter
+  ambiguity, founding-maker grant observability, AI prompt-control redaction,
+  AI alt-text sanitizer drift, display-name confusable lookup, and email-outbox
+  retention-index allegations sampled during this pass remain fixed/current by
+  existing source, tests, and behavior contracts.
+
+Deferred/runtime evidence still open:
+
+- Cloudflare R2 public bucket-listing/ListBucket posture, bucket-level object
+  size settings, CORS/public-domain settings, production processed-image smoke
+  proof, and direct upload/verify smoke proof remain external provider/runtime
+  evidence. Source review cannot close those dashboard/CLI evidence items.
+- Pre-2026-04-18 object cache-header backfill remains an ops/performance data
+  migration decision, not a source security defect in the current upload path.
+
+Guardrails:
+`tests/pr-i-media-upload-unsubscribe-followups.test.mjs`,
+`tests/upload-verification-token.test.mjs`,
+`tests/upload-ux-followups.test.mjs`,
+`tests/media-url.test.mjs`,
+`tests/r56-r67-small-fixes.test.mjs`,
+`tests/retention-and-ops-followups.test.mjs`,
+`tests/cron-schedule-guardrails.test.mjs`,
+`tests/cart-route-state.test.mjs`,
+`tests/shipping-token.test.mjs`,
+`tests/ai-review-safety.test.mjs`,
+`tests/sanitize-unicode.test.mjs`, and
+`tests/display-name-normalization-guardrails.test.mjs`.
+
+Verification:
+latest pushed CI on `main` remained green for `67d86cd2`; focused
+`node --test tests/pr-i-media-upload-unsubscribe-followups.test.mjs` passed
+7/7. The read-only media agent reported 72/72 focused tests passing in its
+slice. Parent source review used `rg`/`sed` over upload, media validation,
+email rendering, listing photo edit, health, cron, cart, shipping-token,
+founding-maker, AI-review, and normalization modules.
+
+Current running tally after Entry 483: verified fixed/reduced 972, verified
+stale/false-positive/current 542, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 21. Fixed/reduced
+increases by one for the new follower-email media rendering guardrail.
+Stale/current, deferred, and raw-left counts stay flat because the reverified
+R2/media/source allegations were already represented in earlier closure or
+provider-evidence buckets, and the remaining Cloudflare/R2 proof still requires
+external runtime evidence.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence, label
+clawback runtime proof/dashboard reconciliation evidence, Stripe webhook
+subscription dashboard evidence, Stripe Connect v2 loss-liability ops/legal
+decision, explicit stale remote branch pruning/review, completed-audit archive
+housekeeping once the 60-day threshold is reached, Round 10 deferred
+cache/state-machine product designs that require product decisions rather than
+source guardrails, remaining EXPLAIN-dependent runtime query-plan validation
+beyond the existing source indexes and source guardrails, Stripe partial-refund
+live reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention provider scope, cross-seller AI duplicate-detection
+product design, durable checkout-group design for checkout batch semantics
+beyond the now-reduced ready-lock/reservation resume path, deliberate BigInt
+money-column modeling for individual order/item cents fields and high-volume
+listing analytics counters beyond the fixed seller-metrics aggregate cache and
+new webhook integer bounds, live-data reconciliation for historical seller
+shipping-rate currency drift, Guild private/custom-order sales/review
+trust-metric product policy, remaining legacy `LabelStatus` lifecycle cleanup,
+Clerk staff MFA and breached-password dashboard evidence, Clerk multi-account
+spam dashboard evidence, buyer-deletion live Stripe replay proof after source
+minimization, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public bucket dashboard posture plus
+production smoke evidence and public-availability proof, HSTS preload
+submission decision, Vercel Analytics/Speed Insights product/privacy decision,
+homepage browser a11y/runtime proof beyond source fallback, and deployed
+security-header runtime proof beyond source/config guardrails.
+
 ## Entry 477 - checkout lock ready-transition error cleanup
 
 Entry 477 closes the second agent-discovered checkout state-machine issue found
