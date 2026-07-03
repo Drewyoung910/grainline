@@ -26,6 +26,7 @@ import { publicSellerPath } from "@/lib/publicPaths";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/sellerProfileText";
 import { safeRateLimit, sellerProfileRatelimit } from "@/lib/ratelimit";
+import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
 
 const inputClass =
   "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300";
@@ -228,6 +229,7 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   revalidatePath(`/seller/${seller.id}`);
   // Homepage Meet a Maker spotlight may render this seller's banner/avatar/bio,
   // so refresh the homepage cache when any of those fields change.
+  revalidateFeaturedMakerCaches();
   revalidatePath("/");
 
   if (duplicate) {
@@ -293,6 +295,8 @@ async function removeSellerAvatar() {
   await prisma.sellerProfile.update({ where: { id: seller.id }, data: { avatarImageUrl: null } });
   revalidatePath("/dashboard/profile");
   revalidatePath(`/seller/${seller.id}`);
+  revalidateFeaturedMakerCaches();
+  revalidatePath("/");
 }
 
 async function toggleFeaturedListing(listingId: string) {
@@ -328,6 +332,8 @@ async function toggleFeaturedListing(listingId: string) {
 
   revalidatePath("/dashboard/profile");
   revalidatePath(`/seller/${seller.id}`);
+  revalidateFeaturedMakerCaches();
+  revalidatePath("/");
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

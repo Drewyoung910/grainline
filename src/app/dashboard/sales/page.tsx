@@ -11,7 +11,7 @@ import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { fulfillmentStatusLabel } from "@/lib/fulfillmentLabels";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
-import { sellerFacingUserLabel } from "@/lib/sellerFacingUser";
+import { sellerFacingOrderBuyerLabel } from "@/lib/sellerFacingUser";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -116,7 +116,7 @@ export default async function SalesPage({
           },
         },
       },
-      buyer: { select: { id: true, name: true, email: true, imageUrl: true, deletedAt: true } },
+      buyer: { select: { id: true, deletedAt: true } },
       paymentEvents: {
         where: blockingRefundLedgerWhere(),
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -175,7 +175,7 @@ export default async function SalesPage({
                         {o.paidAt ? " · Paid" : " · Unpaid"}
                       </div>
                       <div className="text-xs text-neutral-500">
-                        Buyer: {sellerFacingUserLabel(o.buyer, "Deleted user")}
+                        Buyer: {sellerFacingOrderBuyerLabel(o, "Deleted user")}
                       </div>
                     </div>
                     <div className="text-sm font-semibold">

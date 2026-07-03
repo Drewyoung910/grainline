@@ -90,6 +90,14 @@ describe("admin PIN cookie secret configuration", () => {
     assert.match(route, /Admin PIN is not configured/);
     assert.match(requiredEnv, /`ADMIN_PIN`/);
     assert.match(requiredEnv, /`ADMIN_PIN_SHA256_BY_CLERK_ID`/);
+    assert.match(requiredEnv, /`OPENAI_API_KEY`/);
+    assert.match(requiredEnv, /`CRON_SECRET_PREVIOUS`/);
+    assert.match(requiredEnv, /`UNSUBSCRIBE_SECRET` or legacy alias `EMAIL_UNSUBSCRIBE_SECRET`/);
+    assert.match(requiredEnv, /`R2_PUBLIC_URL`/);
+    assert.match(requiredEnv, /`NEXT_PUBLIC_CLOUDFLARE_R2_PUBLIC_URL`/);
+    assert.match(requiredEnv, /`NEXT_PUBLIC_R2_PUBLIC_URL`/);
+    assert.match(requiredEnv, /`CLOUDFLARE_R2_PUBLIC_URLS`/);
+    assert.match(requiredEnv, /`ALLOWED_R2_PUBLIC_URLS`/);
     assert.match(requiredEnv, /explicit handler guard that fails closed in production/);
     assert.match(launch, /- `ADMIN_PIN`/);
     assert.match(launch, /- `ADMIN_PIN_SHA256_BY_CLERK_ID`/);

@@ -11970,6 +11970,108 @@ Analytics/Speed Insights product/privacy decision, homepage browser
 a11y/runtime proof beyond source fallback, and deployed security-header runtime
 proof beyond source/config guardrails.
 
+## Entry 479 - seller retention labels, profile cache tags, and ops-doc drift
+
+Entry 479 closes a source-fix pass over privacy-retention, homepage cache
+invalidation, and stale ops-doc allegations. Two read-only agents inspected
+disjoint cron/cache/PII/doc slices; parent Codex verified their findings against
+current source before editing. The raw audit import was not staged.
+
+Fixed/reduced in source:
+
+- Seller sales list/detail pages no longer select or render the buyer's live
+  account `name`, `email`, or `imageUrl` for seller-facing order labels after
+  order PII retention has scrubbed the `Order` snapshot fields. They now use
+  `sellerFacingOrderBuyerLabel()` from `src/lib/sellerFacingUser.ts`, which
+  returns the retained `Order.buyerName` / `Order.buyerEmail` only before
+  `buyerDataPurgedAt`, and falls back to neutral deleted-user copy after purge
+  or buyer deletion. The seller sales detail page keeps only `buyer.id` for the
+  message link and removed an unused case-message author email select.
+- Seller profile public-data mutations now invalidate the tagged homepage
+  featured-maker cache, not only `revalidatePath("/")`. `updateSellerProfile`,
+  `removeSellerAvatar`, and `toggleFeaturedListing` call
+  `revalidateFeaturedMakerCaches()` so featured seller banner/avatar/bio and
+  curated featured-listing changes do not wait for the five-minute
+  `unstable_cache` window.
+- Raw #800 is fixed in `CLAUDE.md`: the production env list now includes
+  `OPENAI_API_KEY`, documents `UNSUBSCRIBE_SECRET` / legacy
+  `EMAIL_UNSUBSCRIBE_SECRET`, and records `CRON_SECRET_PREVIOUS` plus the R2
+  public-origin aliases as operational/alias configuration rather than leaving
+  operators to infer them from code.
+
+Verified current/stale during the same pass:
+
+- Raw #795-#799 are stale/current: notification links use
+  `safeNotificationPath`, new-listing AI alt text uses
+  `backfillEmptyAltTexts`, checkout success uses `orderTotalCents`, listing OG
+  price metadata uses `formatCurrencyMinorUnitAmount`, and follower listing
+  email price copy uses `formatCurrencyCents`.
+- Raw #801 and #805-#811 are stale/current: current `CLAUDE.md` no longer lists
+  retired photo-edit AI call sites, label-clawback retry is registered in
+  `vercel.json`, ops-health checks stale `RUNNING` cron rows, guild-metrics
+  Master revocation re-checks `guildLevel = "GUILD_MASTER"` before update,
+  case-auto-close copy is neutral, commission-expire fanout is concurrency
+  bounded, ListingViewDaily pruning writes system-audit evidence, and listing
+  edit/publish AI review paths are behind `listingMutationRatelimit`.
+- Raw #802/#803 remain current in `CLAUDE.md`, but the untracked local
+  `AGENTS.md` still has stale wording around checkout email outbox semantics
+  and `SellerRefundPanel`'s old `maxRefundCents` prop. Because `AGENTS.md` is
+  an expected untracked preserved file, it was not edited or staged here.
+
+Guardrails:
+`tests/seller-facing-user-label.test.mjs` now verifies retained order snapshot
+labels and prevents live buyer `name`/`email` selects on seller sales pages;
+`tests/cache-invalidation-guardrails.test.mjs` now verifies seller profile
+mutations call `revalidateFeaturedMakerCaches()`; `tests/admin-pin.test.mjs`
+now keeps the production env docs aligned with OpenAI, cron rotation,
+unsubscribe alias, and R2 public-origin alias configuration.
+
+Verification:
+`node --test tests/seller-facing-user-label.test.mjs
+tests/cache-invalidation-guardrails.test.mjs tests/admin-pin.test.mjs` passed
+23/23; `npx tsc --noEmit` passed; `git diff --check` passed; `npm test`
+passed 1,439/1,439; `npm run lint` passed with the existing jsx-ast-utils
+TSNonNullExpression warning. Source inspection with `rg`/`sed` verified the
+stale/current cron, money-format, notification-link, AI-review, and docs
+allegations above.
+
+Current running tally after Entry 479: verified fixed/reduced 966, verified
+stale/false-positive/current 542, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 21. Fixed/reduced
+increases by three for the seller retention label fix, seller profile
+featured-cache invalidation, and raw #800 env-doc fix. Stale/current increases
+by thirteen for the verified raw #795-#799, #801, and #805-#811 confirmations.
+Only one approximate raw-category decrement is counted because the stale/current
+items were already represented in earlier closure buckets or current guardrails,
+while #800 was the only newly closed raw-doc gap from this pass.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence, label
+clawback runtime proof/dashboard reconciliation evidence, Stripe webhook
+subscription dashboard evidence, Stripe Connect v2 loss-liability ops/legal
+decision, explicit stale remote branch pruning/review, completed-audit archive
+housekeeping once the 60-day threshold is reached, Round 10 deferred
+cache/state-machine product designs that require product decisions rather than
+source guardrails, remaining EXPLAIN-dependent runtime query-plan validation
+beyond the existing source indexes and source guardrails, Stripe partial-refund
+live reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention provider scope, cross-seller AI duplicate-detection
+product design, durable checkout-group design for checkout batch semantics
+beyond the now-reduced ready-lock/reservation resume path, deliberate BigInt
+money-column modeling for individual order/item cents fields and high-volume
+listing analytics counters beyond the fixed seller-metrics aggregate cache and
+new webhook integer bounds, live-data reconciliation for historical seller
+shipping-rate currency drift, Guild private/custom-order sales/review
+trust-metric product policy, legacy `LabelStatus` lifecycle cleanup, Clerk staff
+MFA and breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion live Stripe replay proof after source minimization,
+Founding Maker live DB concurrency proof, Sentry cron alert evidence, Cloudflare
+R2 ListBucket/public bucket dashboard posture plus production smoke evidence and
+public-availability proof, HSTS preload submission decision, Vercel
+Analytics/Speed Insights product/privacy decision, homepage browser
+a11y/runtime proof beyond source fallback, and deployed security-header runtime
+proof beyond source/config guardrails.
+
 ## Entry 477 - checkout lock ready-transition error cleanup
 
 Entry 477 closes the second agent-discovered checkout state-machine issue found

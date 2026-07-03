@@ -58,6 +58,7 @@ describe("public cache invalidation guardrails", () => {
 
   it("invalidates featured-maker caches when listing visibility or guild level changes", () => {
     const sellerShop = source("src/app/seller/[id]/shop/actions.ts");
+    const sellerProfile = source("src/app/dashboard/profile/page.tsx");
     const adminReview = source("src/app/api/admin/listings/[id]/review/route.ts");
     const adminRemove = source("src/app/api/admin/listings/[id]/route.ts");
     const adminUndo = source("src/lib/audit.ts");
@@ -78,6 +79,10 @@ describe("public cache invalidation guardrails", () => {
     assert.match(editListing, /revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
     assert.match(memberCron, /if \(!revoked\) return 0;[\s\S]*revalidateFeaturedMakerCaches\(\)/);
     assert.match(metricsCron, /if \(!revoked\) return \{ processed: 1, warned: 0, revokedMaster: 0 \};[\s\S]*revalidateFeaturedMakerCaches\(\)/);
+    assert.match(sellerProfile, /import \{ revalidateFeaturedMakerCaches \} from "@\/lib\/searchCache"/);
+    assert.match(sellerProfile, /updateSellerProfile[\s\S]*revalidateFeaturedMakerCaches\(\)[\s\S]*revalidatePath\("\/"\)/);
+    assert.match(sellerProfile, /removeSellerAvatar[\s\S]*revalidateFeaturedMakerCaches\(\)[\s\S]*revalidatePath\("\/"\)/);
+    assert.match(sellerProfile, /toggleFeaturedListing[\s\S]*revalidateFeaturedMakerCaches\(\)[\s\S]*revalidatePath\("\/"\)/);
   });
 
   it("invalidates featured-maker caches when review ratings change", () => {
