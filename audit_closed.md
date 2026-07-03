@@ -11853,6 +11853,123 @@ product/privacy decision, homepage browser a11y/runtime proof beyond source
 fallback, and deployed security-header runtime proof beyond source/config
 guardrails.
 
+## Entry 478 - remaining external-evidence buckets reverified
+
+Entry 478 records a no-code verification pass over the remaining Stripe/Shippo,
+privacy/ops, and performance/schema/product buckets after the checkout
+state-machine fixes. Three read-only agents inspected disjoint slices, and
+parent Codex spot-checked the conclusions against current source, tests, docs,
+and the raw audit import. The raw audit import was not staged.
+
+Verified current/stale or deferred without code changes:
+
+- Latest `main` CI remained green before this pass: GitHub Actions run
+  `28629117934` for `fix: clean up checkout lock ready errors` completed
+  successfully with typecheck, lint, tests, security audit, and production
+  build green.
+- `LabelStatus.EXPIRED`/`VOIDED` remain product/schema lifecycle cleanup rather
+  than a current exploit. Current source sets `PURCHASED` when a label purchase
+  lock/success is recorded, reverts to `NULL` on explicit pre-success Shippo
+  non-success responses, and guards refund/manual-fulfillment paths on
+  `PURCHASED`. Existing tests cover `VOIDED` as non-blocking.
+- Label clawback source remains current: label-cost/currency values are bounded
+  before Stripe transfer reversals, missing transfers and invalid costs enter
+  manual review, failed reversals enter bounded retry/manual-review state, and
+  accepted reversals are preserved in recovery paths. Runtime/dashboard proof
+  for the retry/manual-review operations remains external evidence.
+- Stripe webhook source event handling remains aligned with the documented
+  exact subscription list: Checkout session complete/expired/async failure,
+  account update/deauthorization, refund, dispute, and payout-failed paths are
+  handled, while `payment_intent.*` remains intentionally out of scope for
+  card-only Checkout. Exact Stripe dashboard subscription screenshots remain
+  external launch evidence.
+- Stripe Connect v2 source remains explicit about application-collected fees and
+  losses in the Accounts v2 configuration. The loss-liability item remains a
+  counsel/accounting/ops decision, not a hidden source defect.
+- Partial-refund accounting source remains current: connected-seller partial
+  refunds use one Stripe refund with `reverse_transfer: true` and transfer
+  reversal expansion, while local refund locks/ledgers block repeated
+  source-level refund attempts. Stripe test/live reconciliation proof for
+  proportional reversal economics remains runtime evidence.
+- Privacy retention, buyer-deletion Stripe replay proof, Clerk staff
+  MFA/breached-password/multi-account spam controls, Sentry cron alert routing,
+  R2 ListBucket/public-bucket posture, and R2 upload smoke proof remain
+  external dashboard/runtime/legal evidence. Current source covers local
+  deletion/export/support request state, webhook idempotency, ops-health Sentry
+  warning emission, processed-upload validation, direct-upload verification,
+  and tracked-key cleanup without bucket listing.
+- Seller-page performance raw #1109-#1111 is stale/current: seller page uses a
+  React `cache()` loader for the shared public seller profile and parallelizes
+  independent page reads. Existing seller-page performance tests guard this.
+- EXPLAIN-dependent query-plan validation remains live-data/runtime evidence
+  beyond the source-level schema/index guardrails. BigInt work remains partly
+  fixed for seller aggregate metrics and deferred for individual order/item
+  cents fields and high-volume counters. Durable checkout-group semantics,
+  Guild private/custom-order trust metrics, founding-maker permanence policy,
+  HSTS preload submission, Vercel Analytics/Speed Insights, and homepage
+  browser a11y/runtime proof remain product/ops/runtime decisions.
+- A read-only agent found that the untracked `AGENTS.md` local file still
+  describes Founding Maker assignment as retrying unique-index collisions even
+  though current source now serializes number assignment through a PostgreSQL
+  advisory transaction lock. Because `AGENTS.md` is an expected untracked file
+  in the preserved local set, it was not edited or staged in this pass.
+- Stale local/worktree branch review remains real ops housekeeping, not a
+  source defect. The active audit tracker is not yet past the 60-day archive
+  threshold, so completed-audit archive housekeeping is not due from this pass.
+
+Guardrails/evidence reviewed:
+`tests/checkout-payment-methods.test.mjs`,
+`tests/payment-side-effect-observability.test.mjs`,
+`tests/label-clawback-state.test.mjs`,
+`tests/refund-route-state.test.mjs`,
+`tests/marketplace-refunds.test.mjs`,
+`tests/account-privacy-observability.test.mjs`,
+`tests/direct-upload-lifecycle.test.mjs`,
+`tests/seller-page-performance.test.mjs`,
+`tests/schema-numeric-index-guardrails.test.mjs`,
+`docs/runbook.md`, `docs/launch-checklist.md`,
+`docs/legal-risk-register.md`, and `docs/rls-feasibility-plan.md`.
+
+Verification:
+source/docs/test inspection with `rg`/`sed`, `gh run list --branch main --limit
+3`, and parent spot-checks of case-message UNDER_REVIEW behavior and Resend
+transient suppression. No application source changed, so no focused test run was
+required beyond the cited existing guardrails; `git diff --check` passed after
+this ledger entry.
+
+Current running tally after Entry 478: verified fixed/reduced 963, verified
+stale/false-positive/current 529, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 22. Counts stay flat
+because this pass reverified already-classified current/deferred buckets and did
+not close a new raw allegation or source defect.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence, label
+clawback runtime proof/dashboard reconciliation evidence, Stripe webhook
+subscription dashboard evidence, Stripe Connect v2 loss-liability ops/legal
+decision, explicit stale remote branch pruning/review, completed-audit archive
+housekeeping once the 60-day threshold is reached, Round 10 deferred
+cache/state-machine product designs that require product decisions rather than
+source guardrails, remaining EXPLAIN-dependent runtime query-plan validation
+beyond the existing source indexes and source guardrails, Stripe partial-refund
+live reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention provider scope, cross-seller AI duplicate-detection
+product design, durable checkout-group design for checkout batch semantics
+beyond the now-reduced ready-lock/reservation resume path, deliberate BigInt
+money-column modeling for individual order/item cents fields and high-volume
+listing analytics counters beyond the fixed seller-metrics aggregate cache and
+new webhook integer bounds, live-data reconciliation for historical seller
+shipping-rate currency drift, Guild private/custom-order sales/review
+trust-metric product policy, legacy `LabelStatus` lifecycle cleanup, Clerk staff
+MFA and breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion live Stripe replay proof after source minimization,
+Founding Maker live DB concurrency proof, Sentry cron alert evidence, Cloudflare
+R2 ListBucket/public bucket dashboard posture plus production smoke evidence and
+public-availability proof, HSTS preload submission decision, Vercel
+Analytics/Speed Insights product/privacy decision, homepage browser
+a11y/runtime proof beyond source fallback, and deployed security-header runtime
+proof beyond source/config guardrails.
+
 ## Entry 477 - checkout lock ready-transition error cleanup
 
 Entry 477 closes the second agent-discovered checkout state-machine issue found
