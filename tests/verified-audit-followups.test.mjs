@@ -30,7 +30,10 @@ describe("verified audit follow-up guardrails", () => {
     assert.equal(existsSync("prisma/seed-bulk.ts"), false);
     assert.doesNotMatch(tsconfig, /prisma\/seed\.ts/);
     assert.doesNotMatch(tsconfig, /prisma\/seed-bulk\.ts/);
-    assert.match(source("package.json"), /"seed:metros"/);
+    const packageJson = JSON.parse(source("package.json"));
+    const seedScript = packageJson.scripts?.["seed:metros"];
+    assert.match(seedScript, /node --env-file=\.env --experimental-strip-types prisma\/seeds\/metros\.ts/);
+    assert.doesNotMatch(seedScript, /npx (dotenv-cli|ts-node)\b/);
   });
 
   it("keeps Stripe checkout code lazy-loaded off listing page crawls", () => {

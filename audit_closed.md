@@ -12151,6 +12151,98 @@ product/privacy decision, homepage browser a11y/runtime proof beyond source
 fallback, and deployed security-header runtime proof beyond source/config
 guardrails.
 
+## Entry 481 - seed runner integration and remaining SEO/refund cleanup recheck
+
+Entry 481 closes a source-fix pass over old SEO, webhook, refund, and seed
+cleanup allegations plus adjacent hidden-issue scans. Two read-only agents
+handled disjoint SEO/media and webhook/refund/seed slices; parent Codex verified
+their findings against current source before editing. The raw audit import and
+expected untracked local files were not staged.
+
+Fixed/reduced in source:
+
+- `npm run seed:metros` no longer invokes undeclared `dotenv-cli` and `ts-node`
+  through `npx`. The script now uses the repo's Node 22 baseline directly:
+  `node --env-file=.env --experimental-strip-types prisma/seeds/metros.ts`.
+  This avoids surprise tool downloads and keeps the supported seed entry point
+  runnable from declared project/runtime capabilities. `CLAUDE.md` now points
+  operators at `npm run seed:metros` instead of the stale direct `npx` command.
+
+Verified current/stale during the same pass:
+
+- Old raw #73/#74 are already closed: dedicated `/tag/[slug]` and
+  `/blog/author/[slug]` routes exist, use canonical id-backed slugs, public
+  visibility predicates, block filters, pagination, and sitemap coverage.
+- Old raw #82 is already closed/current: dynamic sitemap sources are chunked
+  through shared sitemap-index helpers, seller rows account for multiple URLs,
+  the base sitemap has an explicit entry-limit guard, and
+  `/sitemap_index.xml` emits all chunks.
+- Old raw #84 remains a deferred product/performance refactor rather than a
+  current security/CLS blocker: raw `<img>` usage still exists, but high-traffic
+  listing/card surfaces reserve layout or use `MediaImage`, and first-party
+  media intake/rendering is constrained by existing upload and markdown
+  validation guardrails.
+- Old raw #100 is stale/current: the Stripe webhook uses helper functions for
+  checkout shipping address and payment-intent reference narrowing, and tests
+  explicitly block the earlier unsafe `as unknown as ExpandedPI` and shipping
+  cast patterns.
+- Old raw #105/#106 are already closed/current: seller and staff partial-refund
+  flows accept explicit `restoreStock` arrays, validate requested restore
+  quantities against purchased in-stock items, and UI panels expose multi-item
+  restore controls. Future per-variant refund inventory remains a schema/product
+  design because current inventory is listing-level.
+- Old raw #117 is stale/false-positive as written: `prisma/seed.ts` and
+  `seed-bulk.ts` are absent; `prisma/seeds/metros.ts` remains the supported
+  seed.
+
+Guardrails:
+`tests/verified-audit-followups.test.mjs` now verifies the supported seed
+script uses Node's built-in env-file/type-stripping path and does not invoke
+undeclared `dotenv-cli` or `ts-node` runners.
+
+Verification:
+`node --test tests/verified-audit-followups.test.mjs` passed 21/21; `npx tsc
+--noEmit` passed. The read-only agents ran the full pure test suite through
+their scoped `npm test -- ...` commands, which passed 1,440/1,440 in both
+slices. Source inspection with `rg`/`sed` verified the SEO routes, sitemap
+helpers, webhook helpers, refund restore paths, and seed script/package state.
+
+Current running tally after Entry 481: verified fixed/reduced 968, verified
+stale/false-positive/current 542, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 21. Fixed/reduced
+increases by one for the newly found seed-runner integration defect. The
+stale/current, deferred, and raw-left counts stay flat because #73/#74/#82/#84/
+#100/#105/#106/#117 were already represented in earlier ledger closure or
+deferred categories; this pass reverified current behavior and avoided
+double-counting old raw text that remains in the raw import.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence, label
+clawback runtime proof/dashboard reconciliation evidence, Stripe webhook
+subscription dashboard evidence, Stripe Connect v2 loss-liability ops/legal
+decision, explicit stale remote branch pruning/review, completed-audit archive
+housekeeping once the 60-day threshold is reached, Round 10 deferred
+cache/state-machine product designs that require product decisions rather than
+source guardrails, remaining EXPLAIN-dependent runtime query-plan validation
+beyond the existing source indexes and source guardrails, Stripe partial-refund
+live reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention provider scope, cross-seller AI duplicate-detection
+product design, durable checkout-group design for checkout batch semantics
+beyond the now-reduced ready-lock/reservation resume path, deliberate BigInt
+money-column modeling for individual order/item cents fields and high-volume
+listing analytics counters beyond the fixed seller-metrics aggregate cache and
+new webhook integer bounds, live-data reconciliation for historical seller
+shipping-rate currency drift, Guild private/custom-order sales/review
+trust-metric product policy, legacy `LabelStatus` lifecycle cleanup, Clerk staff
+MFA and breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion live Stripe replay proof after source minimization,
+Founding Maker live DB concurrency proof, Sentry cron alert evidence, Cloudflare
+R2 ListBucket/public bucket dashboard posture plus production smoke evidence and
+public-availability proof, HSTS preload submission decision, Vercel
+Analytics/Speed Insights product/privacy decision, homepage browser
+a11y/runtime proof beyond source fallback, and deployed security-header runtime
+proof beyond source/config guardrails.
+
 ## Entry 477 - checkout lock ready-transition error cleanup
 
 Entry 477 closes the second agent-discovered checkout state-machine issue found

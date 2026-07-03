@@ -1927,7 +1927,7 @@ Data layer for city-level SEO pages. No page routes yet — pages are built in t
 ### Seed data (`prisma/seeds/metros.ts`)
 20 Texas metros: 7 major (Austin, Houston, Dallas, San Antonio, Fort Worth, College Station, Waco) + 13 children. Run with:
 ```
-npx dotenv-cli -e .env -- npx ts-node --transpile-only prisma/seeds/metros.ts
+npm run seed:metros
 ```
 
 ### `src/lib/geo-metro.ts`
