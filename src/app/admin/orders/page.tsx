@@ -88,7 +88,12 @@ export default async function AllOrdersPage({
                     .map((item) => `${item.quantity}× ${item.listing.title}`)
                     .join(", ");
                   const remainingItems = Math.max(0, order.items.length - 3);
-                  const buyer = order.buyer?.name ?? order.buyer?.email ?? "Deleted user";
+                  const buyer = order.buyerDataPurgedAt
+                    ? "Buyer data purged"
+                    : order.buyerName ?? order.buyerEmail ?? order.buyer?.name ?? order.buyer?.email ?? "Deleted user";
+                  const buyerEmail = order.buyerDataPurgedAt
+                    ? null
+                    : order.buyerEmail ?? order.buyer?.email ?? null;
                   return (
                     <tr key={order.id} className="hover:bg-neutral-50">
                       <td className="px-4 py-3">
@@ -108,8 +113,8 @@ export default async function AllOrdersPage({
                       </td>
                       <td className="px-4 py-3">
                         <div className="font-medium text-neutral-800">{buyer}</div>
-                        {order.buyerEmail && order.buyer?.name && (
-                          <div className="text-xs text-neutral-500">{order.buyerEmail}</div>
+                        {buyerEmail && buyerEmail !== buyer && (
+                          <div className="text-xs text-neutral-500">{buyerEmail}</div>
                         )}
                       </td>
                       <td className="px-4 py-3 text-neutral-700">

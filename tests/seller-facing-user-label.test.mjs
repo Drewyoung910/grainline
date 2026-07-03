@@ -34,6 +34,8 @@ describe("seller-facing user labels", () => {
     const sales = source("src/app/dashboard/sales/page.tsx");
     const saleDetail = source("src/app/dashboard/sales/[orderId]/page.tsx");
     const customListing = source("src/app/dashboard/listings/custom/page.tsx");
+    const recentSalesRoute = source("src/app/api/seller/analytics/recent-sales/route.ts");
+    const analyticsPage = source("src/app/dashboard/analytics/page.tsx");
 
     for (const text of [customListing]) {
       assert.match(text, /import \{ sellerFacingUserLabel \} from "@\/lib\/sellerFacingUser"/);
@@ -53,6 +55,36 @@ describe("seller-facing user labels", () => {
     assert.doesNotMatch(saleDetail, /buyer: \{ select: \{[^}]*name: true/s);
 
     assert.match(customListing, /sellerFacingUserLabel\(buyer, "the buyer"\)/);
+
+    assert.match(recentSalesRoute, /import \{ sellerFacingOrderBuyerLabel \} from "@\/lib\/sellerFacingUser"/);
+    assert.match(recentSalesRoute, /buyerName: true/);
+    assert.match(recentSalesRoute, /buyerEmail: true/);
+    assert.match(recentSalesRoute, /buyerDataPurgedAt: true/);
+    assert.match(recentSalesRoute, /buyer: \{ select: \{ deletedAt: true \} \}/);
+    assert.match(recentSalesRoute, /buyerLabel: sellerFacingOrderBuyerLabel/);
+    assert.doesNotMatch(recentSalesRoute, /buyer: \{ select: \{[^}]*name: true/s);
+    assert.doesNotMatch(recentSalesRoute, /buyer: \{ select: \{[^}]*email: true/s);
+    assert.match(analyticsPage, /buyerLabel: string/);
+    assert.match(analyticsPage, /order\.buyerLabel\.split\(" "\)\[0\] \|\| "Buyer"/);
+    assert.doesNotMatch(analyticsPage, /order\.buyer\?\.name/);
+  });
+
+  it("keeps admin order views from bypassing purged order buyer identity", () => {
+    const adminOrders = source("src/app/admin/orders/page.tsx");
+    const adminOrderDetail = source("src/app/admin/orders/[id]/page.tsx");
+
+    for (const text of [adminOrders, adminOrderDetail]) {
+      assert.match(text, /order\.buyerDataPurgedAt[\s\S]*?\? "Buyer data purged"/);
+      assert.match(text, /order\.buyerEmail \?\? order\.buyer\?\.email/);
+    }
+
+    assert.match(adminOrders, /order\.buyerName \?\? order\.buyerEmail \?\? order\.buyer\?\.name/);
+    assert.match(adminOrderDetail, /order\.buyerName \?\? order\.buyer\?\.name/);
+    assert.match(adminOrders, /const buyerEmail = order\.buyerDataPurgedAt[\s\S]*?\? null/);
+    assert.match(adminOrders, /buyerEmail && buyerEmail !== buyer/);
+    assert.match(adminOrderDetail, /<Field label="Stripe email" value=\{order\.buyerDataPurgedAt \? null : order\.buyerEmail\} \/>/);
+    assert.doesNotMatch(adminOrderDetail, /<Field label="Name" value=\{order\.buyer\?\.name/);
+    assert.doesNotMatch(adminOrderDetail, /<Field label="Email" value=\{order\.buyer\?\.email/);
   });
 
   it("uses retained order snapshots and hides purged buyer identity", () => {

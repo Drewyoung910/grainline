@@ -8,6 +8,7 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { paidStripeOrderWhere } from "@/lib/orderTrust";
+import { sellerFacingOrderBuyerLabel } from "@/lib/sellerFacingUser";
 
 export const runtime = "nodejs";
 
@@ -60,7 +61,10 @@ export async function GET() {
         giftWrappingPriceCents: true,
         currency: true,
         fulfillmentStatus: true,
-        buyer: { select: { name: true } },
+        buyerName: true,
+        buyerEmail: true,
+        buyerDataPurgedAt: true,
+        buyer: { select: { deletedAt: true } },
         items: {
           where: { listing: { sellerId: sellerProfile.id } },
           take: 1,
@@ -69,7 +73,15 @@ export async function GET() {
       },
     });
 
-    return privateJson({ sales });
+    return privateJson({
+      sales: sales.map(({ buyerName, buyerEmail, buyerDataPurgedAt, buyer, ...sale }) => ({
+        ...sale,
+        buyerLabel: sellerFacingOrderBuyerLabel(
+          { buyerName, buyerEmail, buyerDataPurgedAt, buyer },
+          "Buyer",
+        ),
+      })),
+    });
   } catch (err) {
     const accountResponse = accountAccessErrorResponse(err);
     if (accountResponse) return accountResponse;

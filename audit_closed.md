@@ -12072,6 +12072,85 @@ Analytics/Speed Insights product/privacy decision, homepage browser
 a11y/runtime proof beyond source fallback, and deployed security-header runtime
 proof beyond source/config guardrails.
 
+## Entry 480 - seller/admin purged-buyer identity surfaces
+
+Entry 480 closes a source-fix pass over adjacent privacy-retention surfaces
+found by a read-only agent and then verified by parent Codex against current
+source. The raw audit import and expected untracked local files were not staged.
+
+Fixed/reduced in source:
+
+- `/api/seller/analytics/recent-sales` no longer selects or returns the
+  buyer's live account `name` for the seller analytics recent-sales table.
+  The route now selects retained `Order.buyerName`, `Order.buyerEmail`,
+  `buyerDataPurgedAt`, and only `buyer.deletedAt`, then returns a neutral
+  `buyerLabel` through `sellerFacingOrderBuyerLabel()`. This aligns the
+  analytics surface with the seller sales pages fixed in Entry 479: after order
+  PII retention has scrubbed the order snapshot, sellers see neutral buyer
+  copy instead of live account identity.
+- Admin order list/detail views now respect `buyerDataPurgedAt` for buyer
+  identity fields. They use retained order snapshot name/email before purge,
+  fall back to live account data only while the order snapshot has not been
+  purged, and show `Buyer data purged` / blank email fields after purge. This
+  makes the admin identity block match the already-existing purged shipping
+  address guard on the same detail page.
+
+Verified current/stale during the same pass:
+
+- A read-only ops/doc agent found stale wording in the untracked local
+  `AGENTS.md` around `/api/health` R2 checks and the intentional
+  `Cross-Origin-Opener-Policy: same-origin-allow-popups` header. Because
+  `AGENTS.md` is an expected untracked preserved file, it was not edited or
+  staged in this pass.
+- The same agent rechecked sitemap/tag/blog-author SEO, public cache
+  invalidation, and EXPLAIN-independent source indexes/guardrails without
+  finding a new source defect in those slices.
+
+Guardrails:
+`tests/seller-facing-user-label.test.mjs` now verifies seller analytics uses
+retained order buyer labels, avoids live buyer `name`/`email` selects, and
+keeps admin order views from bypassing purged order buyer identity fields.
+
+Verification:
+`node --test tests/seller-facing-user-label.test.mjs` passed 4/4; `npx tsc
+--noEmit` passed. Source inspection with `rg`/`sed` verified the affected
+seller analytics route, analytics UI, and admin order pages.
+
+Current running tally after Entry 480: verified fixed/reduced 967, verified
+stale/false-positive/current 542, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 21. Fixed/reduced
+increases by one for this newly discovered source defect. Raw-left stays flat
+because this was found during adjacent auditing rather than closed as a
+distinct remaining raw allegation.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence, label
+clawback runtime proof/dashboard reconciliation evidence, Stripe webhook
+subscription dashboard evidence, Stripe Connect v2 loss-liability ops/legal
+decision, explicit stale remote branch pruning/review, completed-audit archive
+housekeeping once the 60-day threshold is reached, Round 10 deferred
+cache/state-machine product designs that require product decisions rather than
+source guardrails, remaining EXPLAIN-dependent runtime query-plan validation
+beyond the existing source indexes and source guardrails, Stripe partial-refund
+live reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention provider scope after the seller/admin identity surface
+reduction, cross-seller AI duplicate-detection product design, durable
+checkout-group design for checkout batch semantics beyond the now-reduced
+ready-lock/reservation resume path, deliberate BigInt money-column modeling for
+individual order/item cents fields and high-volume listing analytics counters
+beyond the fixed seller-metrics aggregate cache and new webhook integer bounds,
+live-data reconciliation for historical seller shipping-rate currency drift,
+Guild private/custom-order sales/review trust-metric product policy, legacy
+`LabelStatus` lifecycle cleanup, Clerk staff MFA and breached-password dashboard
+evidence, Clerk multi-account spam dashboard evidence, buyer-deletion live
+Stripe replay proof after source minimization, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2 ListBucket/public
+bucket dashboard posture plus production smoke evidence and public-availability
+proof, HSTS preload submission decision, Vercel Analytics/Speed Insights
+product/privacy decision, homepage browser a11y/runtime proof beyond source
+fallback, and deployed security-header runtime proof beyond source/config
+guardrails.
+
 ## Entry 477 - checkout lock ready-transition error cleanup
 
 Entry 477 closes the second agent-discovered checkout state-machine issue found

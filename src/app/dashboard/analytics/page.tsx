@@ -890,7 +890,7 @@ function RecentSales() {
         giftWrappingPriceCents: number | null;
         currency: string;
         fulfillmentStatus: string | null;
-        buyer: { name: string | null } | null;
+        buyerLabel: string;
         items: Array<{ listing: { title: string } }>;
       }[]
   >(null);
@@ -980,7 +980,7 @@ function RecentSales() {
                   giftWrappingPriceCents: order.giftWrappingPriceCents,
                 });
                 const title = order.items[0]?.listing.title ?? "Order";
-                const buyerFirstName = order.buyer?.name?.split(" ")[0] ?? "Buyer";
+                const buyerFirstName = order.buyerLabel.split(" ")[0] || "Buyer";
                 return (
                   <tr key={order.id} className="hover:bg-neutral-50">
                     <td className="px-4 py-2 text-neutral-500 whitespace-nowrap">

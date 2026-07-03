@@ -88,6 +88,12 @@ export default async function AdminOrderDetailPage({
 
   const currency = order.currency ?? DEFAULT_CURRENCY;
   const total = orderTotalCents(order);
+  const buyerName = order.buyerDataPurgedAt
+    ? "Buyer data purged"
+    : order.buyerName ?? order.buyer?.name ?? "Deleted user";
+  const buyerEmail = order.buyerDataPurgedAt
+    ? null
+    : order.buyerEmail ?? order.buyer?.email ?? null;
 
   // Fulfillment timeline entries
   const timeline: { label: string; at: Date | null }[] = [
@@ -150,9 +156,9 @@ export default async function AdminOrderDetailPage({
       <div className="grid grid-cols-2 gap-4">
         <Section title="Buyer">
           <dl className="space-y-3">
-            <Field label="Name" value={order.buyer?.name ?? "Deleted user"} />
-            <Field label="Email" value={order.buyer?.email ?? "—"} />
-            <Field label="Stripe email" value={order.buyerEmail} />
+            <Field label="Name" value={buyerName} />
+            <Field label="Email" value={buyerEmail ?? "—"} />
+            <Field label="Stripe email" value={order.buyerDataPurgedAt ? null : order.buyerEmail} />
             <Field
               label="Ship to"
               value={
