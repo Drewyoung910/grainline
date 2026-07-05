@@ -13134,3 +13134,119 @@ proof, HSTS preload submission decision, Vercel Analytics/Speed Insights
 product/privacy decision, homepage browser a11y/runtime proof beyond source
 fallback, and deployed security-header runtime proof beyond source/config
 guardrails.
+
+## Entry 485 - numeric, analytics, founding-maker, and product-boundary reverify pass
+
+Entry 485 records a no-code verification pass over remaining numeric/schema,
+listing analytics, seller analytics/query-plan, Founding Maker, Guild metrics,
+security-header, and product/ops-boundary allegations. Two read-only agents
+inspected disjoint schema/query-plan and product/source-control/docs slices;
+parent Codex then verified their claims against current source, tests, docs,
+latest CI, and the active ledger. The raw audit import and expected untracked
+local files were not staged.
+
+Verified current/stale without code changes:
+
+- Latest pushed CI on `main` is green for `88b03a19` (`docs: record stripe
+  privacy ops reverify pass`): GitHub Actions run `28687595755` completed
+  typecheck, lint, tests, security audit, and production build successfully.
+- Listing view/click analytics allegations remain stale/current: both routes
+  use bot filtering, per-IP and per-listing dedupe, daily analytics caps before
+  database writes, `publicListingWhere()` on the counter update, signed-in
+  seller self-traffic exclusion, and no aggregate-cookie write when the listing
+  is not currently public. Schema/migration guardrails keep listing counters
+  non-negative, and the remaining high-volume counter headroom check is a
+  live-data/modeling decision rather than a source-only defect.
+- Seller analytics SQL-cast and BigInt allegations remain current for launch
+  source: `SellerMetrics.totalSalesCents` is PostgreSQL/Prisma `BigInt`, cached
+  reads normalize to numbers for UI/API metrics, Postgres aggregate counts are
+  explicitly `::bigint` where needed, and current app-level price and quantity
+  caps keep per-row `priceCents * quantity` products under PostgreSQL `int4`
+  overflow before `SUM(integer)` aggregates to bigint. Broader migration of
+  individual order/item/payout/payment-event cents columns remains deliberate
+  data-modeling work.
+- Historical seller shipping-rate currency drift remains a live-data
+  reconciliation item, not a safe source patch: migration history shows an old
+  cents-to-double-to-cents path where source cannot reconstruct seller intent,
+  while current seller-setting writes use bounded cents parsing and package
+  defaults reject negative or extreme values.
+- Founding Maker source remains current: grant eligibility uses public listing
+  visibility, the assignment transaction takes a Postgres advisory lock, the
+  next number uses `_max.foundingMakerNumber + 1`, deleted/gapped numbers are
+  not reused, and the cap is enforced before the guarded `updateMany`. Live
+  database concurrency proof and permanence policy remain runtime/product
+  evidence.
+- Guild private/custom-order sales and review metrics remain a product-policy
+  boundary, not a verified defect. Current source counts paid seller sales and
+  seller-wide reviews for trust metrics while keeping the Guild Member
+  inventory criterion public-listing-only.
+- Public security-header and stale-doc allegations sampled in this slice are
+  stale/current: source CSP does not include `'unsafe-eval'`, COOP is
+  `same-origin-allow-popups` in both config and tracked docs, HSTS preload is
+  source-configured but still requires deployed/preload evidence, and
+  `/why-grainline` is bounded by `revalidate = 300`.
+- Cross-seller AI duplicate detection, durable checkout-group semantics,
+  Vercel Analytics/Speed Insights, homepage browser a11y/runtime proof,
+  deployed security-header proof, stale remote branch pruning/review, and the
+  completed-audit archive threshold remain product/ops/runtime decisions.
+  Completed-audit archive housekeeping is not yet due under the 60-day rule.
+
+Guardrails/evidence reviewed:
+`tests/listing-analytics-guardrails.test.mjs`,
+`tests/observability-cleanup-followups.test.mjs`,
+`tests/seller-ops-hardening.test.mjs`,
+`tests/schema-numeric-index-guardrails.test.mjs`,
+`tests/money.test.mjs`,
+`tests/seller-shipping-settings-guardrails.test.mjs`,
+`tests/listing-price-guardrails.test.mjs`,
+`tests/guild-metrics-state.test.mjs`,
+`tests/public-security-config.test.mjs`,
+`tests/cache-invalidation-guardrails.test.mjs`, and
+`tests/post-launch-ui-followups.test.mjs`.
+
+Verification:
+source/docs/test inspection with `rg`/`sed`, two parent-reviewed read-only
+agent reports, `gh run list --branch main --limit 3`, `git diff --check`,
+`npx tsc --noEmit`, full `npm test` passing 1443/1443, and focused
+`node --test tests/listing-analytics-guardrails.test.mjs
+tests/observability-cleanup-followups.test.mjs
+tests/seller-ops-hardening.test.mjs
+tests/schema-numeric-index-guardrails.test.mjs tests/money.test.mjs
+tests/seller-shipping-settings-guardrails.test.mjs
+tests/listing-price-guardrails.test.mjs tests/guild-metrics-state.test.mjs
+tests/public-security-config.test.mjs tests/cache-invalidation-guardrails.test.mjs
+tests/post-launch-ui-followups.test.mjs`, which passed 104/104.
+
+Current running tally after Entry 485: verified fixed/reduced 972, verified
+stale/false-positive/current 542, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 21. Counts stay flat
+because this pass reverified already-classified current/deferred buckets and
+did not close a new raw allegation, source defect, or product/ops evidence
+item.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence, label
+clawback runtime proof/dashboard reconciliation evidence, Stripe webhook
+subscription dashboard evidence, Stripe Connect v2 loss-liability ops/legal
+decision, explicit stale remote branch pruning/review, completed-audit archive
+housekeeping once the 60-day threshold is reached, Round 10 deferred
+cache/state-machine product designs that require product decisions rather than
+source guardrails, remaining EXPLAIN-dependent runtime query-plan validation
+beyond the existing source indexes and source guardrails, Stripe partial-refund
+live reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention provider scope, cross-seller AI duplicate-detection
+product design, durable checkout-group design for checkout batch semantics
+beyond the now-reduced ready-lock/reservation resume path, deliberate BigInt
+money-column modeling for individual order/item cents fields and high-volume
+listing analytics counters beyond the fixed seller-metrics aggregate cache and
+new webhook integer bounds, live-data reconciliation for historical seller
+shipping-rate currency drift, Guild private/custom-order sales/review
+trust-metric product policy, remaining legacy `LabelStatus` lifecycle cleanup,
+Clerk staff MFA and breached-password dashboard evidence, Clerk multi-account
+spam dashboard evidence, buyer-deletion live Stripe replay proof after source
+minimization, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public bucket dashboard posture plus
+production smoke evidence and public-availability proof, HSTS preload
+submission decision, Vercel Analytics/Speed Insights product/privacy decision,
+homepage browser a11y/runtime proof beyond source fallback, and deployed
+security-header runtime proof beyond source/config guardrails.
