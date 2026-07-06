@@ -198,7 +198,9 @@ describe("Round 9 account deletion PII guardrails", () => {
     assert.match(deletion, /emails: accountEmailState\.emails/);
     assert.match(deletion, /\.\.\.accountEmails/);
     assert.match(deletion, /const accountEmailSuppressionKeys = accountEmailSuppressionKeysForEmails\(accountEmails\)/);
-    assert.match(deletion, /accountEmailSuppressionKeys\.length > 0/);
+    assert.match(deletion, /const suppressionEmailMatches = accountEmailSuppressionKeys/);
+    assert.doesNotMatch(deletion, /fallbackSuppressionEmail/);
+    assert.doesNotMatch(deletion, /normalizeEmailSuppressionAddress\(user\.email\)/);
     assert.match(deletion, /galleryImageUrls: \[\]/);
     assert.match(deletion, /galleryAltTexts: \[\]/);
     assert.match(deletion, /tx\.emailOutbox\.updateMany\(\{/);

@@ -4,9 +4,6 @@ import { redis } from "@/lib/ratelimit";
 import { removeSellerCommissionInterests } from "@/lib/commissionInterestCleanup";
 import { revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
 import {
-  normalizeEmailSuppressionAddress,
-} from "@/lib/emailSuppression";
-import {
   accountEmailFallbackEmailsForUser,
   accountEmailSuppressionKeysForEmails,
   userAccountEmailAddressState,
@@ -1600,13 +1597,8 @@ export async function anonymizeUserAccount(
       userId: user.id,
       emails: accountEmailState.emails,
     });
-    const fallbackSuppressionEmail =
-      normalizeEmailSuppressionAddress(user.email) ?? user.email.trim().normalize("NFC").toLowerCase();
     const accountEmailSuppressionKeys = accountEmailSuppressionKeysForEmails(accountEmails);
-    const suppressionEmailMatches =
-      accountEmailSuppressionKeys.length > 0
-        ? accountEmailSuppressionKeys
-        : [fallbackSuppressionEmail];
+    const suppressionEmailMatches = accountEmailSuppressionKeys;
     const accountSensitiveValues = normalizedSensitiveValues([
       user.id,
       user.clerkId,

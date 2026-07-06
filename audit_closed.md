@@ -14033,6 +14033,115 @@ submission decision, Vercel Analytics/Speed Insights product/privacy decision,
 homepage browser a11y/runtime proof beyond source fallback, and deployed
 security-header runtime proof beyond source/config guardrails.
 
+### Entry 502 - account deletion email-key collision and source reverify pass
+
+Entry 502 audited account deletion/privacy/provider-erasure behavior plus
+query/index/performance source guardrails, including hidden adjacent issues not
+listed as open raw allegations. Latest pushed CI on `main` was green for
+`ff20e112` (`28823038777`) before broadening audit scope. Two read-only agents
+inspected disjoint account-deletion/privacy and query-performance slices; parent
+Codex verified the actionable account-deletion finding locally and closed both
+agents.
+
+Fixed/reduced:
+
+- Account deletion no longer reintroduces a raw current-email fallback when the
+  collision-safe account email list is empty. `accountEmailFallbackEmailsForUser`
+  already removes exact/Gmail-canonical email keys claimed by another active
+  non-deleted user; deletion now uses only those vetted
+  `accountEmailSuppressionKeys` for email-only cleanup. User-linked outbox rows
+  are still scrubbed through `userId`, while `EmailFailureCount`,
+  `NewsletterSubscriber`, and `EmailSuppression` rows are no longer matched by a
+  fallback key that could collide with another active user's Gmail alias.
+
+Verified stale/current or deferred without source changes:
+
+- Durable account-deletion side effects remain current. Local anonymization,
+  Stripe account rejection, media deletion, and audit-redaction work use
+  deduplicated retryable `AccountDeletionSideEffect` rows, stale PROCESSING
+  reclamation, scheduled retry cron coverage, ops-health alerting, and retention
+  pruning.
+- Provider-deleted Clerk handling remains current. `user.deleted` events call
+  local anonymization, return retryable failure when deletion is already in
+  progress, and defer provider-deleted anonymization when Grainline blockers
+  remain.
+- Account-deletion R2/media cleanup remains source-scoped to first-party media
+  owned by the deleted Clerk user; direct-upload lifecycle URLs are collected
+  before direct-upload rows are deleted.
+- Stripe-reject retry state, support/data-request privacy intake, provider-side
+  erasure runbook language, and privacy-request support linkage remained
+  source-current in the inspected slice.
+- Query/index/performance allegations reviewed in this pass were source-current.
+  Browse geo predicates mirror public listing/seller visibility and block
+  filters, browse and seller-shop pagination have deterministic ordering,
+  seller pages use shared cached/bounded loaders, similar-items raw SQL has
+  public predicates and stable ordering, search suggestions are capped and
+  public-filtered, and raw-managed hot indexes exist for visible quality,
+  listing trigram/tag search, and restored blog tag GIN coverage.
+- EXPLAIN-dependent browse geo/seller-page cardinality validation remains
+  runtime evidence, not a source-proven defect. The untracked local `AGENTS.md`
+  also contains stale cache/index wording, but it was intentionally left
+  untouched because it is an untracked preserved operating file.
+
+Guardrails added/reviewed:
+
+- `tests/email-normalization-followups.test.mjs` now requires account deletion
+  to set `suppressionEmailMatches` directly from
+  `accountEmailSuppressionKeys`, and forbids `fallbackSuppressionEmail` or
+  `normalizeEmailSuppressionAddress(user.email)` in the deletion fallback path.
+- `tests/round9-account-deletion-pii-guardrails.test.mjs` now pins the same
+  no-fallback account-deletion behavior alongside existing PII scrubbing checks.
+- Reviewed existing account-deletion/privacy guardrails:
+  `tests/account-deletion-side-effects.test.mjs`,
+  `tests/account-deletion-blocker-refund-state.test.mjs`,
+  `tests/account-deletion-media.test.mjs`,
+  `tests/account-export-privacy.test.mjs`,
+  `tests/account-privacy-observability.test.mjs`,
+  `tests/support-request.test.mjs`, and
+  `tests/user-email-address-history.test.mjs`.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 3`; source and test
+inspection with `rg`/`sed`; two parent-reviewed read-only agent reports; focused
+`node --test tests/account-deletion-side-effects.test.mjs
+tests/account-deletion-blocker-refund-state.test.mjs
+tests/account-deletion-media.test.mjs
+tests/round9-account-deletion-pii-guardrails.test.mjs
+tests/account-export-privacy.test.mjs tests/email-normalization-followups.test.mjs
+tests/account-privacy-observability.test.mjs tests/support-request.test.mjs
+tests/user-email-address-history.test.mjs` passed 84/84; `npx tsc --noEmit`
+passed; `git diff --check` passed; `npm run lint` exited 0 with the known
+jsx-ast-utils TSNonNullExpression warning; full `npm test` passed 1454/1454.
+
+Current running tally after Entry 502: verified fixed/reduced 992, verified
+stale/false-positive/current 567, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the Gmail-collision-safe account-deletion email-only
+cleanup. Stale/current increases by twelve for the reverified account-deletion
+side-effect, provider-deleted Clerk handling, media cleanup, Stripe reject,
+support/privacy intake, provider erasure docs, browse geo predicate, browse and
+seller-shop pagination, seller-page loader, similar-items SQL, search
+suggestion, and raw-managed index source checks. Deferred stays flat because
+the remaining performance work requires EXPLAIN/runtime cardinality evidence.
+
+Remaining major categories are still the deferred launch/runtime/legal/product
+evidence backlog, not open raw source allegations: Stripe refund runtime
+reconciliation/backfill proof, Stripe partial-refund live reconciliation proof,
+label clawback runtime reconciliation evidence, Stripe webhook subscription
+dashboard evidence, Stripe Connect v2 loss-liability ops/legal decision,
+explicit stale remote branch pruning/review, Round 10 cache/state-machine
+product designs, EXPLAIN-dependent runtime query-plan validation, provider-side
+privacy erasure/legal-request evidence, cross-seller AI duplicate-detection
+product design, durable checkout-group product semantics beyond current
+guardrails, high-scale BigInt money/counter modeling decisions, live-data
+reconciliation for historical seller shipping-rate currency drift, Clerk staff
+MFA/breached-password/multi-account dashboard evidence, buyer-deletion live
+Stripe replay proof, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public bucket posture plus production
+smoke/public-availability proof, HSTS preload submission/status, Vercel
+Analytics/Speed Insights product privacy decision, homepage browser
+a11y/runtime proof, and deployed security-header runtime proof.
+
 ### Entry 501 - Stripe Connect mirror and v2 webhook source hardening
 
 Entry 501 continued from the deferred runtime/provider backlog by auditing
