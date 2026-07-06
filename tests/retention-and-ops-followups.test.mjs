@@ -186,6 +186,20 @@ describe("retention and ops-health follow-ups", () => {
     assert.match(claude, /cheap `HeadBucketCommand` reachability probe only/);
   });
 
+  it("keeps Vercel Analytics and Speed Insights behind an explicit privacy decision", () => {
+    const pkg = JSON.parse(readFileSync("package.json", "utf8"));
+    const deps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
+    const layout = readFileSync("src/app/layout.tsx", "utf8");
+    const privacy = readFileSync("src/app/privacy/page.tsx", "utf8");
+    const launch = readFileSync("docs/launch-checklist.md", "utf8");
+
+    assert.match(launch, /Confirm production and preview values in Vercel/);
+    assert.doesNotMatch(JSON.stringify(deps), /@vercel\/analytics|@vercel\/speed-insights/);
+    assert.doesNotMatch(layout, /<Analytics\s*\/>|<SpeedInsights\s*\/>/);
+    assert.doesNotMatch(layout, /@vercel\/analytics|@vercel\/speed-insights/);
+    assert.doesNotMatch(privacy, /Vercel Analytics|Speed Insights/);
+  });
+
   it("keeps verbose health token comparison constant-time", () => {
     const source = readFileSync("src/lib/healthState.ts", "utf8");
 

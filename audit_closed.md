@@ -14033,6 +14033,120 @@ submission decision, Vercel Analytics/Speed Insights product/privacy decision,
 homepage browser a11y/runtime proof beyond source fallback, and deployed
 security-header runtime proof beyond source/config guardrails.
 
+### Entry 494 - ops evidence and telemetry privacy guardrail pass
+
+Entry 494 rechecked the remaining ops/provider evidence bucket with two
+read-only agents plus parent source review over checkout grouping, shipping
+currency, BigInt modeling, R2, Vercel telemetry, homepage a11y, Clerk/Sentry
+ops evidence, and deployed-header evidence. Both agents were parent-reviewed
+and closed. Latest pushed CI on `main` was green for `eb9820b4` before
+broadening audit scope.
+
+Fixed/reduced:
+
+- Added a focused guardrail to keep Vercel Analytics and Speed Insights behind
+  an explicit privacy/product decision. `tests/retention-and-ops-followups.test.mjs`
+  now fails if `@vercel/analytics`, `@vercel/speed-insights`, `<Analytics />`,
+  or `<SpeedInsights />` are introduced without changing the current no-telemetry
+  source posture. This reduces the chance that analytics telemetry is added as
+  an incidental dependency without privacy/consent review.
+
+Verified stale/current or deferred without source changes:
+
+- Clerk staff MFA, breached-password, and multi-account/spam controls remain
+  external dashboard evidence. Source correctly treats app-side Admin PIN as
+  defense in depth, not a substitute for Clerk-native launch evidence.
+- Sentry cron monitors and ops-health alert routing remain source-current plus
+  runtime/dashboard evidence. Cron routes use `withSentryCronMonitor()`,
+  schedule-alignment tests cover `vercel.json`, and `/api/cron/ops-health`
+  returns unhealthy status for actionable piles, but live Sentry monitor/alert
+  screenshots still must be retained before launch.
+- R2 ListBucket/public-bucket posture and production upload smoke remain
+  provider/runtime evidence. Current source uses tracked DB rows and
+  key-scoped `HeadObject`/`GetObject`/public `HEAD` checks instead of bucket
+  listing; upload paths have magic-byte, SVG, size, and public-availability
+  guardrails.
+- Deployed security headers and HSTS preload remain runtime evidence/product
+  decisions. `next.config.ts` and tests guard the source-configured headers,
+  while `securityheaders.com`, SSL Labs, and hstspreload.org status remain
+  external evidence.
+- Homepage a11y/runtime proof remains external/browser evidence beyond current
+  static guardrails. Existing source tests cover heading order, reduced-motion
+  behavior, non-interactive decorative mosaic tiles, skip links, and
+  deterministic homepage query visibility.
+- Checkout-group semantics, shipping-rate currency binding, Shippo label money
+  normalization, and BigInt modeling were rechecked as source-current or
+  already-deferred. Cart checkout group ids are persisted through reservations
+  and Stripe metadata, shipping tokens bind server-derived currency/package
+  state, Shippo label costs are normalized and currency-scoped before reversal,
+  and broader individual money/counter `BigInt` migrations remain deliberate
+  data-model decisions.
+- Historical seller shipping-rate currency drift remains live-data
+  reconciliation, not a source patch to fake from code review.
+
+Guardrails added/reviewed:
+
+- Added `keeps Vercel Analytics and Speed Insights behind an explicit privacy
+  decision` to `tests/retention-and-ops-followups.test.mjs`.
+- Reviewed existing guardrails in `tests/public-security-config.test.mjs`,
+  `tests/direct-upload-lifecycle.test.mjs`, `tests/accessibility-followups.test.mjs`,
+  `tests/homepage-determinism.test.mjs`, `tests/shipping-token.test.mjs`,
+  `tests/shipping-quote-state.test.mjs`,
+  `tests/shippo-label-money-guardrails.test.mjs`,
+  `tests/checkout-stock-reservation-guardrails.test.mjs`,
+  `tests/client-async-guardrails.test.mjs`, and
+  `tests/schema-numeric-index-guardrails.test.mjs`.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 3` confirmed latest
+pushed CI on `main` was green for `eb9820b4`; source/docs/test inspection with
+`rg`/`sed`; two parent-reviewed read-only agent reports; focused suite
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/retention-and-ops-followups.test.mjs
+tests/public-security-config.test.mjs tests/direct-upload-lifecycle.test.mjs
+tests/accessibility-followups.test.mjs tests/homepage-determinism.test.mjs
+tests/shipping-token.test.mjs tests/shipping-quote-state.test.mjs
+tests/shippo-label-money-guardrails.test.mjs
+tests/checkout-stock-reservation-guardrails.test.mjs
+tests/client-async-guardrails.test.mjs tests/schema-numeric-index-guardrails.test.mjs`
+passed 120/120 after correcting one brittle checklist wording assertion; `npx
+tsc --noEmit`; `git diff --check`; `npm run lint` (known `jsx-ast-utils`
+TSNonNullExpression warning, exit 0); and full `npm test` passing 1452/1452.
+
+Current running tally after Entry 494: verified fixed/reduced 981, verified
+stale/false-positive/current 542, deferred product/design/ops/legal 80,
+approximate raw allegations left from current max #1126: 17. Fixed/reduced
+increases by one for the Vercel telemetry privacy/product guardrail. Raw-left
+stays flat because the R2, Clerk, Sentry, homepage browser, HSTS/preload, and
+deployed-header items still require provider/runtime evidence or an explicit
+product decision outside source.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence,
+Stripe partial-refund live reconciliation proof, label clawback runtime
+proof/dashboard reconciliation evidence, Stripe webhook subscription dashboard
+evidence, Stripe Connect v2 loss-liability ops/legal decision, explicit stale
+remote branch pruning/review, completed-audit archive housekeeping once the
+60-day threshold is reached, Round 10 deferred cache/state-machine product
+designs that require product decisions rather than source guardrails,
+EXPLAIN-dependent runtime query-plan validation beyond the existing source
+indexes and source guardrails, founding-maker permanence policy,
+provider-side privacy erasure/legal-request evidence, cross-seller AI
+duplicate-detection product design, durable checkout-group design for checkout
+batch semantics beyond grouped ready-lock/reservation resume and
+completed-session filtering, deliberate BigInt money-column modeling for
+individual order/item cents fields and high-volume listing analytics counters
+beyond the fixed seller-metrics aggregate cache and new webhook integer bounds,
+live-data reconciliation for historical seller shipping-rate currency drift,
+Clerk staff MFA and breached-password dashboard evidence, Clerk multi-account
+spam dashboard evidence, buyer-deletion live Stripe replay proof after source
+minimization, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public bucket dashboard posture plus
+production smoke evidence and public-availability proof, HSTS preload
+submission decision, Vercel Analytics/Speed Insights product/privacy decision,
+homepage browser a11y/runtime proof beyond source fallback, and deployed
+security-header runtime proof beyond source/config guardrails.
+
 ## Entry 492 - R2, privacy replay, deploy evidence, and schema reverify pass
 
 Entry 492 closes a parent-verified pass over remaining R2/public-bucket,
