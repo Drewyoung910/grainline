@@ -44,6 +44,19 @@ describe("security lifecycle follow-ups", () => {
     assert.match(reinstateBody, /publicSellerPath\(sellerProfileId, reinstatedSeller\.displayName\)/);
   });
 
+  it("keeps Guild approval writes on active seller accounts", () => {
+    const page = source("src/app/admin/verification/page.tsx");
+
+    for (const action of ["approveGuildMember", "approveGuildMaster"]) {
+      const body = functionBody(page, action);
+
+      assert.match(body, /user: \{ select: \{[^}]*banned: true, deletedAt: true/s, `${action} must load account state`);
+      assert.match(body, /sellerProfile\.user\.banned \|\| verification\.sellerProfile\.user\.deletedAt/, `${action} must block inactive accounts before approval`);
+      assert.match(body, /sellerProfile\.updateMany\(\{[\s\S]*user: \{ banned: false, deletedAt: null \}/, `${action} must guard the seller write by active account state`);
+      assert.match(body, /assertGuildVerificationTransition\(sellerUpdated\.count, "approve Guild/, `${action} must surface approval races`);
+    }
+  });
+
   it("keeps Guild verification notifications scoped to the source action", () => {
     const page = source("src/app/admin/verification/page.tsx");
 

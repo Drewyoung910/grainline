@@ -166,12 +166,20 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
       status: true,
       sellerProfileId: true,
       sellerProfile: {
-        select: { userId: true, id: true, displayName: true, user: { select: { email: true, createdAt: true } } },
+        select: {
+          userId: true,
+          id: true,
+          displayName: true,
+          user: { select: { email: true, createdAt: true, banned: true, deletedAt: true } },
+        },
       },
     },
   });
   if (!verification) return { ok: false, error: "Application was not found. Refresh and try again." };
   if (verification.status !== "PENDING") return { ok: false, error: "Application is no longer pending. Refresh this page." };
+  if (verification.sellerProfile.user.banned || verification.sellerProfile.user.deletedAt) {
+    return { ok: false, error: "This seller account is suspended or deleted. Resolve the account state before approval." };
+  }
 
   const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
   const [activeListings, salesRows, longCaseCount] = await Promise.all([
@@ -226,36 +234,45 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
   }
 
   const approvedAt = new Date();
-  const approved = await prisma.$transaction(async (tx) => {
-    const updated = await tx.makerVerification.updateMany({
-      where: { id: verificationId, status: "PENDING" },
-      data: {
-        status: "APPROVED",
-        reviewedById: me.id,
-        reviewedAt: approvedAt,
-        reviewNotes: adminOverride ? "Admin override: $250 sales requirement waived" : null,
-      },
-    });
-    if (updated.count === 0) return false;
+  let approved = false;
+  try {
+    approved = await prisma.$transaction(async (tx) => {
+      const updated = await tx.makerVerification.updateMany({
+        where: { id: verificationId, status: "PENDING" },
+        data: {
+          status: "APPROVED",
+          reviewedById: me.id,
+          reviewedAt: approvedAt,
+          reviewNotes: adminOverride ? "Admin override: $250 sales requirement waived" : null,
+        },
+      });
+      if (updated.count === 0) return false;
 
-    await tx.sellerProfile.update({
-      where: { id: verification.sellerProfileId },
-      data: {
-        isVerifiedMaker: true,
-        verifiedAt: approvedAt,
-        guildLevel: "GUILD_MEMBER",
-        guildMemberApprovedAt: approvedAt,
-      },
+      const sellerUpdated = await tx.sellerProfile.updateMany({
+        where: {
+          id: verification.sellerProfileId,
+          user: { banned: false, deletedAt: null },
+        },
+        data: {
+          isVerifiedMaker: true,
+          verifiedAt: approvedAt,
+          guildLevel: "GUILD_MEMBER",
+          guildMemberApprovedAt: approvedAt,
+        },
+      });
+      assertGuildVerificationTransition(sellerUpdated.count, "approve Guild Member");
+      await logAdminActionOrThrow({
+        client: tx,
+        adminId: me.id,
+        action: "APPROVE_GUILD_MEMBER",
+        targetType: "SELLER_PROFILE",
+        targetId: verificationId,
+      });
+      return true;
     });
-    await logAdminActionOrThrow({
-      client: tx,
-      adminId: me.id,
-      action: "APPROVE_GUILD_MEMBER",
-      targetType: "SELLER_PROFILE",
-      targetId: verificationId,
-    });
-    return true;
-  });
+  } catch (error) {
+    if (!isGuildVerificationTransitionConflict(error)) throw error;
+  }
   if (!approved) return { ok: false, error: "Application changed while approving. Refresh and try again." };
 
   await createNotification({
@@ -469,7 +486,7 @@ async function approveGuildMaster(_prevState: unknown, formData: FormData): Prom
           userId: true,
           id: true,
           displayName: true,
-          user: { select: { email: true } },
+          user: { select: { email: true, banned: true, deletedAt: true } },
           sellerMetrics: {
             select: {
               calculatedAt: true,
@@ -491,6 +508,9 @@ async function approveGuildMaster(_prevState: unknown, formData: FormData): Prom
   if (!verification) return { ok: false, error: "Application was not found. Refresh and try again." };
   if (verification.status !== "GUILD_MASTER_PENDING") {
     return { ok: false, error: "Application is no longer pending. Refresh this page." };
+  }
+  if (verification.sellerProfile.user.banned || verification.sellerProfile.user.deletedAt) {
+    return { ok: false, error: "This seller account is suspended or deleted. Resolve the account state before approval." };
   }
 
   if (
@@ -521,26 +541,35 @@ async function approveGuildMaster(_prevState: unknown, formData: FormData): Prom
   }
 
   const approvedAt = new Date();
-  const approved = await prisma.$transaction(async (tx) => {
-    const updated = await tx.makerVerification.updateMany({
-      where: { id: verificationId, status: "GUILD_MASTER_PENDING" },
-      data: { status: "GUILD_MASTER_APPROVED", reviewedById: me.id, reviewedAt: approvedAt },
-    });
-    if (updated.count === 0) return false;
+  let approved = false;
+  try {
+    approved = await prisma.$transaction(async (tx) => {
+      const updated = await tx.makerVerification.updateMany({
+        where: { id: verificationId, status: "GUILD_MASTER_PENDING" },
+        data: { status: "GUILD_MASTER_APPROVED", reviewedById: me.id, reviewedAt: approvedAt },
+      });
+      if (updated.count === 0) return false;
 
-    await tx.sellerProfile.update({
-      where: { id: verification.sellerProfileId },
-      data: { guildLevel: "GUILD_MASTER", guildMasterApprovedAt: approvedAt },
+      const sellerUpdated = await tx.sellerProfile.updateMany({
+        where: {
+          id: verification.sellerProfileId,
+          user: { banned: false, deletedAt: null },
+        },
+        data: { guildLevel: "GUILD_MASTER", guildMasterApprovedAt: approvedAt },
+      });
+      assertGuildVerificationTransition(sellerUpdated.count, "approve Guild Master");
+      await logAdminActionOrThrow({
+        client: tx,
+        adminId: me.id,
+        action: "APPROVE_GUILD_MASTER",
+        targetType: "SELLER_PROFILE",
+        targetId: verification.sellerProfileId,
+      });
+      return true;
     });
-    await logAdminActionOrThrow({
-      client: tx,
-      adminId: me.id,
-      action: "APPROVE_GUILD_MASTER",
-      targetType: "SELLER_PROFILE",
-      targetId: verification.sellerProfileId,
-    });
-    return true;
-  });
+  } catch (error) {
+    if (!isGuildVerificationTransitionConflict(error)) throw error;
+  }
   if (!approved) return { ok: false, error: "Application changed while approving. Refresh and try again." };
 
   await createNotification({

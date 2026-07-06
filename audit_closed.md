@@ -14155,6 +14155,114 @@ smoke/public-availability proof, HSTS preload submission/status, Vercel
 Analytics/Speed Insights product privacy decision, homepage browser
 a11y/runtime proof, and deployed security-header runtime proof.
 
+### Entry 504 - Guild approval account-state guard and content-ingest reverify pass
+
+Entry 504 continued source-focused review after raw allegations reached zero by
+auditing admin/support/moderation mutation surfaces plus upload/content-ingest
+and public-content write paths, including hidden adjacent issues not listed as
+open raw allegations. Latest pushed CI on `main` was green for `bb7f4909`
+(`28824704810`) before broadening audit scope. Two read-only agents inspected
+disjoint admin/moderation and upload/content-ingest slices; parent Codex
+verified the actionable finding locally, reviewed the stale/current content
+findings against source/tests, and closed both agents.
+
+Fixed/reduced:
+
+- Guild Member and Guild Master approval actions now load the seller account's
+  `banned`/`deletedAt` state and return a visible approval error when the seller
+  account is suspended or deleted. This prevents staff from approving a trust
+  badge onto an inactive account that could later become visible after unban.
+- Guild Member and Guild Master approval transactions now update
+  `SellerProfile` through `updateMany` with `user: { banned: false,
+  deletedAt: null }` and route zero-row writes through
+  `assertGuildVerificationTransition`, so a ban/deletion race between the read
+  and approval write rolls back the verification status update and surfaces a
+  refresh-required error.
+
+Verified stale/current or deferred without source changes:
+
+- Upload MIME/magic-byte bypass allegations are stale for the inspected paths.
+  Processed image uploads validate type, size, magic bytes, bounded Sharp
+  decoding, processed size, public availability, and lifecycle recording before
+  returning URLs. Direct uploads are signed by key/type/size/expiry and verified
+  through HEAD metadata plus prefix-byte signature checks before acceptance.
+- Uploaded media ownership-drift allegations are stale/current. Review,
+  listing, profile, blog, and message persistence paths re-verify first-party
+  keys, authenticated Clerk user segments, endpoint allowlists, R2 metadata,
+  content signatures, and direct-upload lifecycle owner/status before claiming
+  media in the persistence transaction.
+- Unsafe HTML/markdown rendering allegations are stale/current. General
+  user-authored text stores stripped text through shared sanitizers, blog
+  markdown renders through centralized `sanitize-html` with narrow schemes and
+  first-party image filtering, and blog comments are stored as sanitized plain
+  text pending approval.
+- AI moderation fail-open/bypass allegations are stale/current in the inspected
+  listing paths. New listings start `PENDING_REVIEW`, public edits move through
+  `PENDING_REVIEW`, approval restores public status only after successful
+  AI/confidence/flag checks, provider failures remain held, and AI image inputs
+  are first-party filtered.
+- `listingVideo` direct-upload support remains an unused/deferred feature
+  surface rather than a source-proven security defect in this pass. The direct
+  upload route still requires seller auth, verification tokens, lifecycle rows,
+  content checks, and cleanup; no listing video persistence path was found.
+
+Guardrails added/reviewed:
+
+- Added `keeps Guild approval writes on active seller accounts` to
+  `tests/security-lifecycle-followups.test.mjs`, covering approval-time account
+  state reads, visible inactive-account blocks, active-account write predicates,
+  and transition-race surfacing for both Guild Member and Guild Master
+  approvals.
+- Reviewed existing upload/content guardrails including
+  `tests/direct-upload-lifecycle.test.mjs`,
+  `tests/upload-verification-token.test.mjs`,
+  `tests/message-attachments.test.mjs`,
+  `tests/blog-markdown-sanitization.test.mjs`,
+  `tests/rendering-security.test.mjs`,
+  `tests/ai-review-outer-failclosed.test.mjs`, and
+  `tests/ai-review-safety.test.mjs`.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 3`; source and test
+inspection with `rg`/`sed`; two parent-reviewed read-only agent reports; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/security-lifecycle-followups.test.mjs` passed 8/8; broader focused
+suite `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+--experimental-strip-types --test tests/security-lifecycle-followups.test.mjs
+tests/direct-upload-lifecycle.test.mjs tests/upload-verification-token.test.mjs
+tests/message-attachments.test.mjs tests/blog-markdown-sanitization.test.mjs
+tests/rendering-security.test.mjs tests/ai-review-outer-failclosed.test.mjs
+tests/ai-review-safety.test.mjs` passed 56/56; `npx tsc --noEmit`; `git diff
+--check`; `npm run lint` exited 0 with the known jsx-ast-utils
+TSNonNullExpression warning; full `npm test` passed 1458/1458.
+
+Current running tally after Entry 504: verified fixed/reduced 999, verified
+stale/false-positive/current 577, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the Guild approval active-account guard. Stale/current
+increases by four for the reverified upload MIME/signature, media ownership,
+HTML/markdown rendering, and AI moderation fail-closed checks. Deferred stays
+flat; `listingVideo` remains an unused/deferred feature surface but was not
+counted as a new deferred source issue.
+
+Remaining major categories are still the deferred launch/runtime/legal/product
+evidence backlog, not open raw source allegations: Stripe refund runtime
+reconciliation/backfill proof, Stripe partial-refund live reconciliation proof,
+label clawback runtime reconciliation evidence, Stripe webhook subscription
+dashboard evidence, Stripe Connect v2 loss-liability ops/legal decision,
+explicit stale remote branch pruning/review, Round 10 cache/state-machine
+product designs, EXPLAIN-dependent runtime query-plan validation, provider-side
+privacy erasure/legal-request evidence, cross-seller AI duplicate-detection
+product design, durable checkout-group product semantics beyond current
+guardrails, high-scale BigInt money/counter modeling decisions, live-data
+reconciliation for historical seller shipping-rate currency drift, Clerk staff
+MFA/breached-password/multi-account dashboard evidence, buyer-deletion live
+Stripe replay proof, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public bucket posture plus production
+smoke/public-availability proof, HSTS preload submission/status, Vercel
+Analytics/Speed Insights product privacy decision, homepage browser
+a11y/runtime proof, and deployed security-header runtime proof.
+
 ### Entry 502 - account deletion email-key collision and source reverify pass
 
 Entry 502 audited account deletion/privacy/provider-erasure behavior plus
