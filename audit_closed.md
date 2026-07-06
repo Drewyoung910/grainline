@@ -13473,3 +13473,90 @@ proof, HSTS preload submission decision, Vercel Analytics/Speed Insights
 product/privacy decision, homepage browser a11y/runtime proof beyond source
 fallback, and deployed security-header runtime proof beyond source/config
 guardrails.
+
+## Entry 488 - seller performance and email throttle reverify pass
+
+Entry 488 closes a no-code, parent-verified reverify pass over remaining seller
+public-page performance and notification-email allegations. Two read-only
+agents inspected disjoint seller performance and email/message surfaces; parent
+Codex reviewed their conclusions against current source, tests, docs, and the
+active ledger before editing. Both agents were closed. The raw audit import and
+expected untracked local files were not staged.
+
+Verified stale/current without code changes:
+
+- Raw seller duplicate-query and waterfall allegations remain stale/current.
+  `src/app/seller/[id]/page.tsx` defines a React `cache()` seller-profile
+  loader shared by `generateMetadata()` and the page render, and groups the
+  independent seller page reads in one `Promise.all` batch rather than serial
+  metadata/page/profile/stat/listing fetches.
+- Raw "zero React cache usage" allegations remain false-positive/stale for the
+  current public seller and adjacent public-route loaders. Existing guardrails
+  cover the shared seller loader, seller shop/customer-photo loader sharing,
+  and avoidance of duplicate visibility reads on public seller subroutes.
+- The adjacent seller stat-band live aggregation concern remains stale/current.
+  The seller page calls `getCachedPublicSellerStats(seller.id)` instead of
+  re-deriving sold/shipping-speed/order-item aggregates inline on every public
+  seller render.
+- Raw List-Unsubscribe allegations remain stale as source defects. Live email
+  sending builds a one-click unsubscribe URL, fails closed before Resend send if
+  the URL cannot be produced, sets `List-Unsubscribe` and
+  `List-Unsubscribe-Post` headers on live sends, and sets the configured
+  `Reply-To`. Production `UNSUBSCRIBE_SECRET` presence remains an ops/runtime
+  evidence item, not a source defect in this pass.
+- Raw new-message email spam allegations remain stale/current. Message sending
+  still uses the normal message rate limiter and then claims the per-conversation
+  email throttle with an atomic `conversation.updateMany` conditioned on
+  `lastMessageEmailSentAt` being null or older than the throttle window before
+  sending the notification email.
+
+Guardrails reviewed:
+`tests/seller-page-performance.test.mjs`,
+`tests/email-delivery-guardrails.test.mjs`,
+`tests/custom-order-admin-thread-followups.test.mjs`,
+`tests/unsubscribe-token.test.mjs`,
+`tests/pr-i-media-upload-unsubscribe-followups.test.mjs`, and
+`tests/notification-email-preferences.test.mjs`.
+
+Verification:
+`gh run list --branch main --limit 3` confirmed latest pushed CI on `main`
+was green for `3332d3bc`; source/docs/test inspection with `rg`/`sed`; two
+parent-reviewed read-only agent reports; focused `node --test
+tests/seller-page-performance.test.mjs tests/email-delivery-guardrails.test.mjs
+tests/custom-order-admin-thread-followups.test.mjs tests/unsubscribe-token.test.mjs
+tests/pr-i-media-upload-unsubscribe-followups.test.mjs
+tests/notification-email-preferences.test.mjs`, which passed 47/47; and
+`git diff --check`.
+
+Current running tally after Entry 488: verified fixed/reduced 973, verified
+stale/false-positive/current 542, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 21. Counts stay flat
+because this pass reverified already-classified current behavior and produced
+no new source fix or newly classified raw allegation.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence, label
+clawback runtime proof/dashboard reconciliation evidence, Stripe webhook
+subscription dashboard evidence, Stripe Connect v2 loss-liability ops/legal
+decision, explicit stale remote branch pruning/review, completed-audit archive
+housekeeping once the 60-day threshold is reached, Round 10 deferred
+cache/state-machine product designs that require product decisions rather than
+source guardrails, remaining EXPLAIN-dependent runtime query-plan validation
+beyond the existing source indexes and source guardrails, Stripe partial-refund
+live reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention provider scope, cross-seller AI duplicate-detection
+product design, durable checkout-group design for checkout batch semantics
+beyond grouped ready-lock/reservation resume and completed-session filtering,
+deliberate BigInt money-column modeling for individual order/item cents fields
+and high-volume listing analytics counters beyond the fixed seller-metrics
+aggregate cache and new webhook integer bounds, live-data reconciliation for
+historical seller shipping-rate currency drift, Guild private/custom-order
+sales/review trust-metric product policy, Clerk staff MFA and breached-password
+dashboard evidence, Clerk multi-account spam dashboard evidence, buyer-deletion
+live Stripe replay proof after source minimization, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2 ListBucket/public
+bucket dashboard posture plus production smoke evidence and public-availability
+proof, HSTS preload submission decision, Vercel Analytics/Speed Insights
+product/privacy decision, homepage browser a11y/runtime proof beyond source
+fallback, and deployed security-header runtime proof beyond source/config
+guardrails.
