@@ -14263,6 +14263,99 @@ smoke/public-availability proof, HSTS preload submission/status, Vercel
 Analytics/Speed Insights product privacy decision, homepage browser
 a11y/runtime proof, and deployed security-header runtime proof.
 
+### Entry 505 - seller profile limits, broadcast cooldown, and deletion-order reverify pass
+
+Entry 505 reviewed a new Claude/Fable read-only report plus adjacent seller
+profile and broadcast mutation surfaces. Latest pushed CI on `main` was green
+for `15a5fbb8` (`28826500875`) before broadening audit scope. One read-only
+agent inspected the disjoint low-severity seller profile/broadcast allegations;
+parent Codex verified the agent report against current source, tests, and the
+account-deletion behavior contract, then closed the agent.
+
+Fixed/reduced:
+
+- Seller profile FAQ creation now enforces a server-side 20-FAQ cap and hides
+  the add form at the cap. The count, latest sort-order read, and create run in
+  a serializable transaction with retry, reducing concurrent over-creation and
+  duplicate sort-order risk.
+- Seller profile featured-listing toggles now perform the listing ownership
+  check, fresh featured-listing read, six-item cap check, and update in a
+  serializable transaction with retry. This reduces lost-update risk while
+  preserving the existing six-feature limit.
+- Seller broadcast creation now rechecks the durable seven-day DB cooldown
+  inside a serializable transaction immediately before insert. The Redis weekly
+  limiter remains in place, but it is no longer the only concurrency guard
+  between the preflight cooldown check and broadcast creation.
+
+Verified stale/current or deferred without source changes:
+
+- The reported account-deletion ordering regression is stale/false-positive on
+  current `main`. Current source, tests, and behavior contracts intentionally
+  delete the Clerk account before queuing local anonymization recovery, then
+  enqueue the recovery row before route-level anonymization. This avoids leaving
+  claimable local anonymization work when Clerk deletion fails, while still
+  preserving a retryable local recovery path after Clerk deletion succeeds.
+- The claim that `toggleFeaturedListing` can exceed six featured items was not
+  reproduced. The existing stale-state path could lose a concurrent toggle, but
+  parent review and the read-only agent did not find a cap-exceed path. The
+  implementation was still hardened with a serializable retry transaction.
+- Seller broadcast cooldown remains a product/runtime control with layered
+  source guardrails, not an absolute distributed guarantee. This pass reduced
+  risk by adding a durable transaction-time cooldown recheck; it did not claim
+  the broadcast path is impossible to race under every provider/runtime failure.
+
+Guardrails added/reviewed:
+
+- Extended `tests/seller-ops-hardening.test.mjs` to require seller broadcast
+  transaction-time DB cooldown rechecks, serializable retry usage, and the
+  reusable seven-day cooldown constant before broadcast insert.
+- Added seller profile guardrails requiring FAQ and featured-listing caps to run
+  under serializable retry transactions, with the UI using the same cap
+  constants.
+- Reviewed the existing account-deletion side-effect and timeout guardrails
+  that lock in Clerk-delete-before-local-recovery ordering and terminal client
+  behavior for post-Clerk local anonymization failures.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 3`; source/test/docs
+inspection with `rg`/`sed`; one parent-reviewed read-only agent report; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/account-deletion-side-effects.test.mjs
+tests/security-lifecycle-followups.test.mjs` passed 14/14; broader focused
+suite `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+--experimental-strip-types --test tests/seller-ops-hardening.test.mjs
+tests/account-deletion-side-effects.test.mjs
+tests/account-deletion-timeout-fix.test.mjs tests/transaction-retry.test.mjs`
+passed 34/34; `npx tsc --noEmit`; `git diff --check`; `npm run lint` exited
+0 with the known jsx-ast-utils TSNonNullExpression warning; and full `npm test`
+passed 1459/1459.
+
+Current running tally after Entry 505: verified fixed/reduced 1002, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by three for FAQ cap enforcement, featured-listing serializable
+toggle hardening, and seller-broadcast transaction-time cooldown hardening.
+Stale/current increases by two for the account-deletion ordering allegation and
+the featured-listing cap-exceed allegation as stated. Deferred stays flat.
+
+Remaining major categories are still the deferred launch/runtime/legal/product
+evidence backlog, not open raw source allegations: Stripe refund runtime
+reconciliation/backfill proof, Stripe partial-refund live reconciliation proof,
+label clawback runtime reconciliation evidence, Stripe webhook subscription
+dashboard evidence, Stripe Connect v2 loss-liability ops/legal decision,
+explicit stale remote branch pruning/review, Round 10 cache/state-machine
+product designs, EXPLAIN-dependent runtime query-plan validation, provider-side
+privacy erasure/legal-request evidence, cross-seller AI duplicate-detection
+product design, durable checkout-group product semantics beyond current
+guardrails, high-scale BigInt money/counter modeling decisions, live-data
+reconciliation for historical seller shipping-rate currency drift, Clerk staff
+MFA/breached-password/multi-account dashboard evidence, buyer-deletion live
+Stripe replay proof, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public bucket posture plus production
+smoke/public-availability proof, HSTS preload submission/status, Vercel
+Analytics/Speed Insights product privacy decision, homepage browser
+a11y/runtime proof, and deployed security-header runtime proof.
+
 ### Entry 502 - account deletion email-key collision and source reverify pass
 
 Entry 502 audited account deletion/privacy/provider-erasure behavior plus

@@ -1,4 +1,5 @@
 // src/app/api/seller/broadcast/route.ts
+import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { after } from "next/server";
@@ -36,6 +37,7 @@ import {
   readBoundedJson,
 } from "@/lib/requestBody";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { withSerializableRetry } from "@/lib/transactionRetry";
 import { z } from "zod";
 
 const BroadcastSchema = z.object({
@@ -52,6 +54,11 @@ const BroadcastSchema = z.object({
   sellersOnly: z.boolean().optional(),
 });
 const BROADCAST_BODY_MAX_BYTES = 32 * 1024;
+const BROADCAST_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+
+function nextBroadcastAvailableAt(sentAt: Date) {
+  return new Date(sentAt.getTime() + BROADCAST_COOLDOWN_MS);
+}
 
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
@@ -165,9 +172,7 @@ export async function POST(req: NextRequest) {
     const daysSinceLast =
       (Date.now() - lastBroadcast.sentAt.getTime()) / (1000 * 60 * 60 * 24);
     if (daysSinceLast < 7) {
-      const nextAvailable = new Date(
-        lastBroadcast.sentAt.getTime() + 7 * 24 * 60 * 60 * 1000,
-      );
+      const nextAvailable = nextBroadcastAvailableAt(lastBroadcast.sentAt);
       return privateJson(
         {
           error: "You can send one broadcast per week.",
@@ -221,8 +226,21 @@ export async function POST(req: NextRequest) {
       rateLimitResponse(reset, "You can send one broadcast per week."),
     );
 
-  // Create broadcast record
-  const broadcast = await prisma.$transaction(async (tx) => {
+  // Create broadcast record, rechecking the durable DB cooldown inside the
+  // transaction so the Redis weekly limiter is not the only concurrency guard.
+  const broadcastResult = await withSerializableRetry(() => prisma.$transaction(async (tx) => {
+    const latest = await tx.sellerBroadcast.findFirst({
+      where: { sellerProfileId: seller.id },
+      orderBy: { sentAt: "desc" },
+      select: { sentAt: true },
+    });
+    if (latest && Date.now() - latest.sentAt.getTime() < BROADCAST_COOLDOWN_MS) {
+      return {
+        ok: false as const,
+        nextAvailableAt: nextBroadcastAvailableAt(latest.sentAt),
+      };
+    }
+
     const created = await tx.sellerBroadcast.create({
       data: {
         sellerProfileId: seller.id,
@@ -230,6 +248,7 @@ export async function POST(req: NextRequest) {
         imageUrl,
         recipientCount: notificationFollowers.length,
       },
+      select: { id: true },
     });
     if (imageUrl) {
       await claimDirectUploadsForUrls({
@@ -240,8 +259,19 @@ export async function POST(req: NextRequest) {
         claimedById: created.id,
       });
     }
-    return created;
-  });
+    return { ok: true as const, broadcast: created };
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }));
+
+  if (!broadcastResult.ok) {
+    return privateJson(
+      {
+        error: "You can send one broadcast per week.",
+        nextAvailableAt: broadcastResult.nextAvailableAt.toISOString(),
+      },
+      { status: 429 },
+    );
+  }
+  const { broadcast } = broadcastResult;
 
   // Send notifications after response; avoids losing work on function teardown.
   after(async () => {

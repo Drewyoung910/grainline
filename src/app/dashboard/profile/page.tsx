@@ -1,4 +1,5 @@
 // src/app/dashboard/profile/page.tsx
+import { Prisma } from "@prisma/client";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -27,6 +28,7 @@ import { parseMoneyInputToCents } from "@/lib/money";
 import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/sellerProfileText";
 import { safeRateLimit, sellerProfileRatelimit } from "@/lib/ratelimit";
 import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
+import { withSerializableRetry } from "@/lib/transactionRetry";
 
 const inputClass =
   "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300";
@@ -36,6 +38,8 @@ const checkboxClass =
   "h-4 w-4 rounded border-neutral-300 text-neutral-900 accent-neutral-900 focus:ring-neutral-300";
 const primaryButtonClass =
   "rounded-md bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50";
+const SELLER_FAQ_LIMIT = 20;
+const SELLER_FEATURED_LISTING_LIMIT = 6;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Server actions
@@ -250,20 +254,27 @@ async function addFaq(formData: FormData) {
   const answer = truncateText(sanitizeRichText(String(formData.get("answer") ?? "")), 2000).trim();
   if (!question || !answer) return;
 
-  const last = await prisma.sellerFaq.findFirst({
-    where: { sellerProfileId: seller.id },
-    orderBy: { sortOrder: "desc" },
-    select: { sortOrder: true },
-  });
+  await withSerializableRetry(() => prisma.$transaction(async (tx) => {
+    const faqCount = await tx.sellerFaq.count({
+      where: { sellerProfileId: seller.id },
+    });
+    if (faqCount >= SELLER_FAQ_LIMIT) return;
 
-  await prisma.sellerFaq.create({
-    data: {
-      sellerProfileId: seller.id,
-      question,
-      answer,
-      sortOrder: (last?.sortOrder ?? 0) + 1,
-    },
-  });
+    const last = await tx.sellerFaq.findFirst({
+      where: { sellerProfileId: seller.id },
+      orderBy: { sortOrder: "desc" },
+      select: { sortOrder: true },
+    });
+
+    await tx.sellerFaq.create({
+      data: {
+        sellerProfileId: seller.id,
+        question,
+        answer,
+        sortOrder: (last?.sortOrder ?? 0) + 1,
+      },
+    });
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }));
 
   revalidatePath("/dashboard/profile");
   revalidatePath(`/seller/${seller.id}`);
@@ -307,28 +318,29 @@ async function toggleFeaturedListing(listingId: string) {
   if (!success) return;
   const { seller } = await ensureSeller();
 
-  // Verify seller owns the listing before featuring it
-  const owned = await prisma.listing.count({ where: { id: listingId, sellerId: seller.id } });
-  if (owned === 0) return;
+  await withSerializableRetry(() => prisma.$transaction(async (tx) => {
+    // Verify seller owns the listing before featuring it.
+    const owned = await tx.listing.count({ where: { id: listingId, sellerId: seller.id } });
+    if (owned === 0) return;
 
-  // Re-fetch to get current featuredListingIds
-  const freshSeller = await prisma.sellerProfile.findUnique({
-    where: { id: seller.id },
-    select: { featuredListingIds: true },
-  });
-  const current = freshSeller?.featuredListingIds ?? [];
-  let next: string[];
-  if (current.includes(listingId)) {
-    next = current.filter((id) => id !== listingId);
-  } else {
-    if (current.length >= 6) return; // max 6
-    next = [...current, listingId];
-  }
+    const freshSeller = await tx.sellerProfile.findUnique({
+      where: { id: seller.id },
+      select: { featuredListingIds: true },
+    });
+    const current = freshSeller?.featuredListingIds ?? [];
+    let next: string[];
+    if (current.includes(listingId)) {
+      next = current.filter((id) => id !== listingId);
+    } else {
+      if (current.length >= SELLER_FEATURED_LISTING_LIMIT) return;
+      next = [...current, listingId];
+    }
 
-  await prisma.sellerProfile.update({
-    where: { id: seller.id },
-    data: { featuredListingIds: next },
-  });
+    await tx.sellerProfile.update({
+      where: { id: seller.id },
+      data: { featuredListingIds: next },
+    });
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }));
 
   revalidatePath("/dashboard/profile");
   revalidatePath(`/seller/${seller.id}`);
@@ -724,37 +736,42 @@ export default async function ProfilePage({
           </ul>
         )}
 
-        {/* Add FAQ form */}
-        <form action={addFaq} className="space-y-3 rounded-md border border-neutral-200 bg-white p-4">
-          <h3 className="text-sm font-medium">Add a FAQ</h3>
-          <div>
-            <label className="block text-xs text-neutral-500 mb-1">Question</label>
-            <input
-              name="question"
-              autoComplete="off"
-              required
-              className={inputClass}
-              placeholder="e.g. Do you ship internationally?"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-neutral-500 mb-1">Answer</label>
-            <textarea
-              name="answer"
-              autoComplete="off"
-              required
-              rows={3}
-              className={textareaClass}
-              placeholder="Your answer..."
-            />
-          </div>
-          <button
-            type="submit"
-            className={primaryButtonClass}
-          >
-            Add FAQ
-          </button>
-        </form>
+        {fullSeller.faqs.length >= SELLER_FAQ_LIMIT ? (
+          <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            You can add up to {SELLER_FAQ_LIMIT} FAQs.
+          </p>
+        ) : (
+          <form action={addFaq} className="space-y-3 rounded-md border border-neutral-200 bg-white p-4">
+            <h3 className="text-sm font-medium">Add a FAQ</h3>
+            <div>
+              <label className="block text-xs text-neutral-500 mb-1">Question</label>
+              <input
+                name="question"
+                autoComplete="off"
+                required
+                className={inputClass}
+                placeholder="e.g. Do you ship internationally?"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-neutral-500 mb-1">Answer</label>
+              <textarea
+                name="answer"
+                autoComplete="off"
+                required
+                rows={3}
+                className={textareaClass}
+                placeholder="Your answer..."
+              />
+            </div>
+            <button
+              type="submit"
+              className={primaryButtonClass}
+            >
+              Add FAQ
+            </button>
+          </form>
+        )}
       </section>
 
       {/* ── Featured Listings ──────────────────────────────────────────────── */}
@@ -762,7 +779,7 @@ export default async function ProfilePage({
         <div>
           <h2 className="border-b border-neutral-100 pb-2 text-lg font-semibold font-display">Featured Listings</h2>
           <p className="text-sm text-neutral-500 mt-1">
-            Select up to 6 active listings to feature at the top of your profile.
+            Select up to {SELLER_FEATURED_LISTING_LIMIT} active listings to feature at the top of your profile.
           </p>
         </div>
 
@@ -805,7 +822,7 @@ export default async function ProfilePage({
                             ? "text-amber-700 border-amber-300 hover:bg-amber-50"
                             : "text-neutral-600 border-neutral-200 hover:bg-neutral-50"
                         }`}
-                        disabled={!isFeatured && featured.size >= 6}
+                        disabled={!isFeatured && featured.size >= SELLER_FEATURED_LISTING_LIMIT}
                       >
                         {isFeatured ? "Unfeature" : "Feature"}
                       </button>

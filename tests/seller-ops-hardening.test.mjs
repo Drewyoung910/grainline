@@ -97,6 +97,11 @@ describe("seller operational route hardening", () => {
     assert.match(route, /allowedEndpoints: \[\s*"listingImage",\s*"bannerImage",\s*"galleryImage",\s*\]/s);
     assert.match(route, /safeRateLimit\(\s*broadcastAttemptRatelimit,\s*seller\.id,\s*\)/s);
     assert.match(route, /safeRateLimit\(\s*broadcastRatelimit,\s*seller\.id,\s*\)/s);
+    assert.match(route, /BROADCAST_COOLDOWN_MS = 7 \* 24 \* 60 \* 60 \* 1000/);
+    assert.match(route, /withSerializableRetry\(\(\) => prisma\.\$transaction\(async \(tx\) =>/);
+    assert.match(route, /isolationLevel: Prisma\.TransactionIsolationLevel\.Serializable/);
+    assert.match(route, /const latest = await tx\.sellerBroadcast\.findFirst\(\{/);
+    assert.match(route, /Date\.now\(\) - latest\.sentAt\.getTime\(\) < BROADCAST_COOLDOWN_MS/);
     assert.match(route, /dedupScope: broadcast\.id/);
     assert.match(route, /link: `\/account\/feed\?broadcast=\$\{broadcast\.id\}`/);
     assert.match(route, /isEmailNotificationEnabled\(\s*f\.follower\.notificationPreferences,\s*"EMAIL_SELLER_BROADCAST",\s*\)/s);
@@ -142,6 +147,36 @@ describe("seller operational route hardening", () => {
       weeklyLimiter < createBroadcast,
       "weekly broadcast limiter should run before creating the broadcast",
     );
+    assert.ok(
+      route.indexOf("const latest = await tx.sellerBroadcast.findFirst") < createBroadcast,
+      "broadcast DB cooldown should be rechecked in the transaction before insert",
+    );
+  });
+
+  it("keeps seller profile FAQ and featured listing writes capped under serializable transactions", () => {
+    const profile = source("src/app/dashboard/profile/page.tsx");
+    const addFaq = profile.slice(profile.indexOf("async function addFaq"), profile.indexOf("async function deleteFaq"));
+    const toggleFeatured = profile.slice(
+      profile.indexOf("async function toggleFeaturedListing"),
+      profile.indexOf("// ──────────────────────────────────────────────────────────────────────────────", profile.indexOf("async function toggleFeaturedListing")),
+    );
+
+    assert.match(profile, /const SELLER_FAQ_LIMIT = 20/);
+    assert.match(profile, /const SELLER_FEATURED_LISTING_LIMIT = 6/);
+    assert.match(addFaq, /withSerializableRetry\(\(\) => prisma\.\$transaction\(async \(tx\) =>/);
+    assert.match(addFaq, /tx\.sellerFaq\.count\(\{\s*where: \{ sellerProfileId: seller\.id \},\s*\}\)/s);
+    assert.match(addFaq, /if \(faqCount >= SELLER_FAQ_LIMIT\) return/);
+    assert.match(addFaq, /tx\.sellerFaq\.create\(\{/);
+    assert.match(addFaq, /isolationLevel: Prisma\.TransactionIsolationLevel\.Serializable/);
+    assert.match(profile, /fullSeller\.faqs\.length >= SELLER_FAQ_LIMIT/);
+
+    assert.match(toggleFeatured, /withSerializableRetry\(\(\) => prisma\.\$transaction\(async \(tx\) =>/);
+    assert.match(toggleFeatured, /tx\.listing\.count\(\{ where: \{ id: listingId, sellerId: seller\.id \} \}/);
+    assert.match(toggleFeatured, /tx\.sellerProfile\.findUnique\(\{/);
+    assert.match(toggleFeatured, /if \(current\.length >= SELLER_FEATURED_LISTING_LIMIT\) return/);
+    assert.match(toggleFeatured, /tx\.sellerProfile\.update\(\{/);
+    assert.match(toggleFeatured, /isolationLevel: Prisma\.TransactionIsolationLevel\.Serializable/);
+    assert.match(profile, /featured\.size >= SELLER_FEATURED_LISTING_LIMIT/);
   });
 
   it("keeps seller analytics scoped to the current seller profile", () => {
