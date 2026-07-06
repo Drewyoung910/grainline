@@ -13250,3 +13250,120 @@ production smoke evidence and public-availability proof, HSTS preload
 submission decision, Vercel Analytics/Speed Insights product/privacy decision,
 homepage browser a11y/runtime proof beyond source fallback, and deployed
 security-header runtime proof beyond source/config guardrails.
+
+## Entry 486 - label lifecycle and ops-boundary reverify pass
+
+Entry 486 records a no-code verification pass over remaining label lifecycle,
+shipping/fulfillment, stale source-control branch, and runtime evidence
+categories. One read-only agent inspected the label lifecycle slice and parent
+Codex verified the conclusions against source, tests, docs, latest CI, and the
+active ledger. A second ops/docs agent was shut down after repeated timeouts and
+was not used as evidence. The raw audit import and expected untracked local
+files were not staged.
+
+Verified current/stale without code changes:
+
+- Latest pushed CI on `main` is green for `729596e7` (`docs: record numeric
+  analytics reverify pass`): GitHub Actions run `28730038269` completed
+  typecheck, lint, tests, security audit, and production build successfully.
+- Residual `LabelStatus` lifecycle allegations are current as an intentional
+  app-state boundary: `PURCHASED` is the active app-level label lock, `VOIDED`
+  is the staff-recorded external reconciliation marker, and no current source
+  path writes `EXPIRED`. Quote expiry is represented by
+  `OrderShippingRateQuote.expiresAt` plus the 202 label re-quote flow, not by
+  mutating `Order.labelStatus`.
+- Label purchase source remains guarded: preflight and the final atomic
+  `UPDATE` block purchased labels, refund/refund-lock state, pickup orders,
+  active cases, latest open Stripe dispute ledgers, Stripe-deauthorized seller
+  review holds, and terminal fulfillment states before Shippo purchase. Shippo
+  success moves the order to `SHIPPED`, records label/tracking fields, and keeps
+  `labelStatus = PURCHASED`.
+- Ambiguous or orphaned Shippo label outcomes remain observable and
+  staff-reconciled: transport/unknown Shippo purchase failures keep the
+  purchased-label lock and staff review hold, while post-purchase DB/clawback
+  failures preserve known label, tracking, and accepted Stripe reversal evidence
+  before returning the route failure.
+- Manual fulfillment source remains current: explicit cross-origin POSTs are
+  rejected, active cases/refunds/open disputes/deauthorized holds block
+  non-note mutations, manual `shipped` is blocked when a Grainline label is
+  already purchased, sellers cannot mark shipping orders delivered, tracking
+  carrier/number are required for manual shipping, and the final SQL predicate
+  repeats the purchased-label guard.
+- Seller refunds and staff case refunds remain current for the label boundary:
+  both block `labelStatus = PURCHASED` before Stripe refund work and repeat the
+  guard in the atomic refund-lock predicate. Staff can record a purchased label
+  as `VOIDED` only when active label-cost clawback retries are not pending or
+  retrying; that action writes a review note and admin audit row.
+- Stale branch housekeeping was verified as source-control state, not an app
+  defect. Remote refs still include older April/May branches such as
+  `origin/ui-polish`, `origin/feature/hero-mosaic`,
+  `origin/feature/stripe-connect-v2`, `origin/docs/claude-archive-cleanup`,
+  and several fix/style branches. Pruning or deleting those refs requires a
+  repository-owner housekeeping decision, not a source patch.
+- Completed-audit archive housekeeping is not yet due under the 60-day rule for
+  the active tracker. HSTS preload submission, deployed security-header proof,
+  Vercel Analytics/Speed Insights, homepage browser a11y/runtime proof,
+  Cloudflare R2 ListBucket/public-bucket posture and upload smoke evidence,
+  Sentry cron alert routing, and Clerk staff MFA/breached-password/spam controls
+  remain runtime/dashboard/product evidence categories already routed through
+  `docs/runbook.md` and `docs/launch-checklist.md`.
+
+Guardrails/evidence reviewed:
+`tests/label-clawback-state.test.mjs`,
+`tests/admin-action-guardrails.test.mjs`,
+`tests/refund-route-state.test.mjs`,
+`tests/order-state-followups.test.mjs`,
+`tests/payment-side-effect-observability.test.mjs`,
+`tests/round10-state-machine-guardrails.test.mjs`,
+`tests/shippo-label-money-guardrails.test.mjs`,
+`tests/verified-audit-followups.test.mjs`, and
+`tests/round8-fulfillment-privacy-guardrails.test.mjs`.
+
+Verification:
+source/docs/test inspection with `rg`/`sed`, one parent-reviewed read-only
+agent report, `gh run list --branch main --limit 3`, remote-ref inspection via
+`git branch -r` and `git for-each-ref`, `git diff --check`,
+`npx tsc --noEmit`, `npm run lint`, full `npm test` passing 1443/1443, focused
+`node --test tests/label-clawback-state.test.mjs
+tests/admin-action-guardrails.test.mjs tests/refund-route-state.test.mjs
+tests/order-state-followups.test.mjs
+tests/payment-side-effect-observability.test.mjs
+tests/round10-state-machine-guardrails.test.mjs
+tests/shippo-label-money-guardrails.test.mjs
+tests/verified-audit-followups.test.mjs`, which passed 103/103, and focused
+`node --test tests/round8-fulfillment-privacy-guardrails.test.mjs`, which
+passed 7/7.
+
+Current running tally after Entry 486: verified fixed/reduced 972, verified
+stale/false-positive/current 542, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 21. Counts stay flat
+because this pass reverified already-classified current/deferred buckets and
+did not close a new raw allegation, source defect, or product/ops evidence
+item.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence, label
+clawback runtime proof/dashboard reconciliation evidence, Stripe webhook
+subscription dashboard evidence, Stripe Connect v2 loss-liability ops/legal
+decision, explicit stale remote branch pruning/review, completed-audit archive
+housekeeping once the 60-day threshold is reached, Round 10 deferred
+cache/state-machine product designs that require product decisions rather than
+source guardrails, remaining EXPLAIN-dependent runtime query-plan validation
+beyond the existing source indexes and source guardrails, Stripe partial-refund
+live reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention provider scope, cross-seller AI duplicate-detection
+product design, durable checkout-group design for checkout batch semantics
+beyond the now-reduced ready-lock/reservation resume path, deliberate BigInt
+money-column modeling for individual order/item cents fields and high-volume
+listing analytics counters beyond the fixed seller-metrics aggregate cache and
+new webhook integer bounds, live-data reconciliation for historical seller
+shipping-rate currency drift, Guild private/custom-order sales/review
+trust-metric product policy, Clerk staff MFA and breached-password dashboard
+evidence, Clerk multi-account spam dashboard evidence, buyer-deletion live
+Stripe replay proof after source minimization, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2 ListBucket/public
+bucket dashboard posture plus production smoke evidence and public-availability
+proof, HSTS preload submission decision, Vercel Analytics/Speed Insights
+product/privacy decision, homepage browser a11y/runtime proof beyond source
+fallback, and deployed security-header runtime proof beyond source/config
+guardrails.
