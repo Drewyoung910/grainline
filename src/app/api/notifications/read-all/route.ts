@@ -35,11 +35,12 @@ export async function POST(req: Request) {
     throw error;
   }
   const bodyObject = body as { ids?: unknown };
-  const ids = Array.isArray(bodyObject.ids)
-    ? bodyObject.ids.filter((id: unknown): id is string => typeof id === "string").slice(0, 100)
+  const rawIds = Array.isArray(bodyObject.ids)
+    ? bodyObject.ids.filter((id: unknown): id is string => typeof id === "string")
     : [];
+  const ids = Array.from(new Set(rawIds)).slice(0, 100);
 
-  await prisma.notification.updateMany({
+  const updated = await prisma.notification.updateMany({
     where: {
       userId: me.id,
       read: false,
@@ -48,5 +49,9 @@ export async function POST(req: Request) {
     data: { read: true },
   });
 
-  return privateJson({ ok: true });
+  return privateJson({
+    ok: true,
+    markedCount: updated.count,
+    cappedIds: rawIds.length > ids.length,
+  });
 }

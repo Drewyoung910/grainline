@@ -13790,3 +13790,138 @@ production smoke evidence and public-availability proof, HSTS preload
 submission decision, Vercel Analytics/Speed Insights product/privacy decision,
 homepage browser a11y/runtime proof beyond source fallback, and deployed
 security-header runtime proof beyond source/config guardrails.
+
+## Entry 491 - notification read count and source-evidence reverify pass
+
+Entry 491 closes a parent-verified pass over remaining Stripe webhook/Connect,
+EXPLAIN/index/numeric, cron/notification, seller-broadcast, and dashboard
+evidence allegations. Two read-only agents inspected disjoint Stripe/Connect and
+EXPLAIN/numeric slices; parent Codex reviewed their reports against current
+source, tests, docs, and the active ledger before editing. Both agents were
+closed. The raw audit import and expected untracked local files were not staged.
+
+Fixed/reduced:
+
+- Raw notification read-all truncation finding #144 was real as a small API
+  correctness issue. `POST /api/notifications/read-all` still caps explicit
+  `ids` input at 100, but now dedupes IDs before the cap, returns
+  `markedCount`, and reports `cappedIds` so clients can distinguish a complete
+  mark-read from a partial capped update.
+
+Verified stale/current or deferred without source changes:
+
+- Raw ops-health Sentry monitor finding #128 is stale/current. The route now
+  returns `503` when actionable issues exist, and `withSentryCronMonitor()`
+  maps 5xx responses to failed Sentry check-ins. Existing tests pin the
+  unhealthy status behavior.
+- Raw recently-viewed `rv` cookie Secure-flag finding #326 is stale/current.
+  `recentlyViewedCookieAttributes()` appends `Secure` on HTTPS and preserves
+  local HTTP development behavior, with a focused test.
+- Raw email-outbox quota-dead-letter, Guild metrics revocation, listing-view
+  cleanup, and notification-prune/refund-lock allegations #126-#130 are
+  stale/current. Quota deferrals roll back the claim attempt count, Guild Master
+  revocation recalculates metrics immediately before the terminal update,
+  `ListingViewDaily` cleanup is time-budgeted, and notification-prune isolates
+  stale refund-lock release failures under `source=cron_refund_lock_release`.
+- Raw seller-broadcast and recent-sales allegations #140-#143 are
+  stale/current. Broadcast writes use a pre-parse attempt limiter plus a weekly
+  limiter after validation and cooldown checks, filter reciprocal blocks before
+  notification/email fanout, and enqueue `EMAIL_SELLER_BROADCAST` only for
+  explicit email opt-ins. Recent-sales requires whole-order seller ownership,
+  `paidStripeOrderWhere()`, `sellerRefundId: null`, and
+  `blockingRefundLedgerWhere()`.
+- Stripe webhook source remains current for handled snapshot and Connect v2
+  thin-event routes. The source keeps separate secrets/routes, bounded body
+  reads, signature verification, stale-event rejection, idempotency, card-only
+  Checkout methods, and v2 account-state mirroring. Exact Stripe Dashboard
+  endpoint subscriptions and delivery/replay evidence remain runtime evidence
+  items, not source-proven fixes.
+- Stripe Connect v2 `losses_collector: "application"` remains intentional
+  source behavior tied to `docs/legal-risk-register.md`. Closing that category
+  still requires business/legal/accounting signoff or an explicit exception.
+- EXPLAIN/index/numeric allegations are source-current but not fully closed by
+  static inspection. Raw-managed indexes, validated CHECK constraints, hot-path
+  indexes, stable public query caps/tie-breakers, and seller metrics `BigInt`
+  storage are guarded. Production-like `EXPLAIN (ANALYZE, BUFFERS)` and any
+  future `BigInt` migration for individual order/item/payment cents or
+  long-lived counters remain runtime/data-modeling decisions.
+- Clerk breached-password/staff MFA/multi-account spam controls, HSTS preload
+  submission, deployed security-header proof, Sentry alert routing, Vercel
+  Analytics/Speed Insights, and R2 dashboard/smoke evidence remain dashboard or
+  product/privacy evidence items.
+
+Guardrails added/reviewed:
+`tests/notification-delivery-preferences.test.mjs` now pins that the read-all
+route dedupes/caps explicit IDs and returns `markedCount` plus `cappedIds`.
+Reviewed guardrails included `tests/mutation-rate-limit-sweep.test.mjs`,
+`tests/private-json-cache-headers.test.mjs`,
+`tests/api-read-rate-limit-sweep.test.mjs`,
+`tests/seller-ops-hardening.test.mjs`,
+`tests/seller-analytics-refund-guardrails.test.mjs`,
+`tests/retention-and-ops-followups.test.mjs`,
+`tests/cron-schedule-guardrails.test.mjs`,
+`tests/cron-monitor-state.test.mjs`, `tests/recently-viewed.test.mjs`,
+`tests/stripe-webhook-v2-route.test.mjs`,
+`tests/checkout-payment-methods.test.mjs`, `tests/stripe-connect-v2.test.mjs`,
+`tests/schema-drift-followups.test.mjs`,
+`tests/schema-numeric-index-guardrails.test.mjs`,
+`tests/public-query-determinism.test.mjs`,
+`tests/public-visibility-followups.test.mjs`,
+`tests/public-cron-search-hardening.test.mjs`,
+`tests/listing-analytics-guardrails.test.mjs`, and
+`tests/guild-metrics-state.test.mjs`.
+
+Verification:
+`gh run list --branch main --limit 3` confirmed latest pushed CI on `main`
+was green for `e8c94de2`; source/docs/test inspection with `rg`/`sed`; two
+parent-reviewed read-only agent reports; focused `node --test
+tests/notification-delivery-preferences.test.mjs
+tests/mutation-rate-limit-sweep.test.mjs tests/private-json-cache-headers.test.mjs
+tests/api-read-rate-limit-sweep.test.mjs tests/seller-ops-hardening.test.mjs
+tests/seller-analytics-refund-guardrails.test.mjs
+tests/retention-and-ops-followups.test.mjs tests/cron-schedule-guardrails.test.mjs
+tests/cron-monitor-state.test.mjs tests/recently-viewed.test.mjs
+tests/stripe-webhook-v2-route.test.mjs tests/checkout-payment-methods.test.mjs
+tests/stripe-connect-v2.test.mjs tests/schema-drift-followups.test.mjs
+tests/schema-numeric-index-guardrails.test.mjs
+tests/public-query-determinism.test.mjs tests/public-visibility-followups.test.mjs
+tests/public-cron-search-hardening.test.mjs tests/listing-analytics-guardrails.test.mjs
+tests/guild-metrics-state.test.mjs`, which passed 143/143; and
+`npx tsc --noEmit`; `git diff --check`; `npm run lint` (known
+`jsx-ast-utils` TSNonNullExpression warning, exit 0); and full `npm test`
+passing 1448/1448.
+
+Current running tally after Entry 491: verified fixed/reduced 977, verified
+stale/false-positive/current 542, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 18. Fixed/reduced
+increases by one and raw-left decreases by one for the notification read-all
+response fix. Stale/current and deferred stay flat because the broader
+reverified slices were already represented in the ledger or remain existing
+runtime/dashboard/legal evidence items.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence,
+Stripe partial-refund live reconciliation proof, label clawback runtime
+proof/dashboard reconciliation evidence, Stripe webhook subscription dashboard
+evidence, Stripe Connect v2 loss-liability ops/legal decision, explicit stale
+remote branch pruning/review, completed-audit archive housekeeping once the
+60-day threshold is reached, Round 10 deferred cache/state-machine product
+designs that require product decisions rather than source guardrails,
+EXPLAIN-dependent runtime query-plan validation beyond the existing source
+indexes and source guardrails, founding-maker permanence policy,
+provider-side privacy erasure/legal-request evidence, cross-seller AI
+duplicate-detection product design, durable checkout-group design for checkout
+batch semantics beyond grouped ready-lock/reservation resume and
+completed-session filtering, deliberate BigInt money-column modeling for
+individual order/item cents fields and high-volume listing analytics counters
+beyond the fixed seller-metrics aggregate cache and new webhook integer bounds,
+live-data reconciliation for historical seller shipping-rate currency drift,
+Guild private/custom-order sales/review trust-metric product policy, Clerk
+staff MFA and breached-password dashboard evidence, Clerk multi-account spam
+dashboard evidence, buyer-deletion live Stripe replay proof after source
+minimization, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public bucket dashboard posture plus
+production smoke evidence and public-availability proof, HSTS preload
+submission decision, Vercel Analytics/Speed Insights product/privacy decision,
+homepage browser a11y/runtime proof beyond source fallback, and deployed
+security-header runtime proof beyond source/config guardrails.
