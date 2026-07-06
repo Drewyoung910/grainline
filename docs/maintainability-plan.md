@@ -92,7 +92,8 @@ Tackle only after security launch blockers are closed:
 - `docs/maintainability-plan.md`: stabilization and refactor plan.
 - `docs/legal-risk-register.md`: legal/compliance tracker for attorney review.
 - `CLAUDE.md`: detailed behavior contracts and implementation memory.
-- `CLOSED_AUDIT_HISTORY.md`: archived historical audit logs.
+- `CLOSED_AUDIT_HISTORY.md`: recent closed audit logs inside the rolling 60-day window.
+- `CLOSED_AUDIT_ARCHIVE.md`: older closed audit logs moved out of the rolling history.
 - `audit_open_findings.md`: verified findings and status changes.
 
 Recommendation routing rule:

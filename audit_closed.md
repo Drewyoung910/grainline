@@ -14033,6 +14033,104 @@ submission decision, Vercel Analytics/Speed Insights product/privacy decision,
 homepage browser a11y/runtime proof beyond source fallback, and deployed
 security-header runtime proof beyond source/config guardrails.
 
+### Entry 495 - closed-history archive housekeeping and remaining evidence reverify pass
+
+Entry 495 rechecked the remaining payment, ops, product-boundary, and
+documentation-housekeeping buckets with two read-only agents plus parent source
+review. Both agents were parent-reviewed and closed. Latest pushed CI on `main`
+was green for `d9141079` before broadening audit scope.
+
+Fixed/reduced:
+
+- Split completed audit-pass sections older than the rolling 60-day window out
+  of `CLOSED_AUDIT_HISTORY.md` and into the new `CLOSED_AUDIT_ARCHIVE.md`.
+  `CLOSED_AUDIT_HISTORY.md` now keeps the current May 24 entries plus a pointer
+  to the deeper archive.
+- Added a rolling documentation guardrail in `tests/docs-archive.test.mjs` that
+  parses dated `CLOSED_AUDIT_HISTORY.md` headings and fails when any dated
+  closed-audit section is older than 60 days. The test also verifies the moved
+  historical sections live in `CLOSED_AUDIT_ARCHIVE.md`.
+- Updated `docs/maintainability-plan.md` so documentation routing distinguishes
+  recent closed history from the older archive file.
+
+Verified stale/current or deferred without source changes:
+
+- Stripe partial-refund, first-party refund evidence, label clawback, and
+  webhook subscription findings remain source-current plus runtime/provider
+  evidence. Current source co-writes first-party refund evidence, label clawback
+  retry is registered in `vercel.json`, admin review holds remain visible, and
+  Stripe snapshot/v2 webhook subscription exactness remains dashboard evidence.
+- Stripe Connect v2 source isolation remains current: account creation uses
+  Accounts v2, snapshot and thin-event webhook routes use distinct secrets and
+  parsers, and `losses_collector: "application"` remains a legal/accounting
+  sign-off item rather than a source defect.
+- Founding Maker permanence/concurrency, seller-page performance, checkout
+  group threading, Round 10 state-machine guards, same-seller AI duplicate
+  checks, BigInt modeling, and shipping-rate currency binding were rechecked as
+  source-current or product/runtime decisions. Live DB concurrency, EXPLAIN
+  plans, provider privacy erasure proof, historical shipping-rate drift, and
+  stale remote branch pruning still require runtime/provider/source-control
+  evidence or explicit product/legal decisions.
+- A possible pre-ledger first-party refund backfill concern was treated as part
+  of the existing Stripe refund runtime/backfill design bucket: current source
+  records new local refund evidence, but any historical production rows would
+  need live-data audit evidence before a backfill script is justified.
+
+Guardrails added/reviewed:
+
+- Added the rolling 60-day closed-history guardrail in
+  `tests/docs-archive.test.mjs`.
+- Reviewed existing guardrails covering refund/accounting observability, label
+  clawback retry/admin holds, Stripe Connect v2 route isolation, Founding Maker
+  advisory-lock assignment, seller-page performance, checkout group threading,
+  shipping currency binding, schema numeric/index guards, support/data-request
+  closure evidence, public query determinism, quality-score queries, Round 10
+  state machines, and AI review duplicate scope.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 3` confirmed latest
+pushed CI on `main` was green for `d9141079`; source/docs/test inspection with
+`rg`/`sed`; two parent-reviewed read-only agent reports; and focused
+`node --test tests/docs-archive.test.mjs`, which passed 3/3. A broader focused
+suite covering docs archive, refund/accounting observability, label clawback,
+Stripe Connect v2, Founding Maker, seller-page performance, checkout-group,
+shipping currency, support evidence, and schema numeric/index guardrails passed
+173/173; `npx tsc --noEmit`; `git diff --check`; `npm run lint` (known
+`jsx-ast-utils` TSNonNullExpression warning, exit 0); and full `npm test`
+passing 1453/1453.
+
+Current running tally after Entry 495: verified fixed/reduced 982, verified
+stale/false-positive/current 542, deferred product/design/ops/legal 80,
+approximate raw allegations left from current max #1126: 16. Fixed/reduced
+increases by one for the completed-history archive housekeeping fix. Raw-left
+drops by one because the completed-audit archive housekeeping category is now
+source-current with a guardrail.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence,
+Stripe partial-refund live reconciliation proof, label clawback runtime
+proof/dashboard reconciliation evidence, Stripe webhook subscription dashboard
+evidence, Stripe Connect v2 loss-liability ops/legal decision, explicit stale
+remote branch pruning/review, Round 10 deferred cache/state-machine product
+designs that require product decisions rather than source guardrails,
+EXPLAIN-dependent runtime query-plan validation beyond the existing source
+indexes and source guardrails, founding-maker permanence policy,
+provider-side privacy erasure/legal-request evidence, cross-seller AI
+duplicate-detection product design, durable checkout-group design for checkout
+batch semantics beyond grouped ready-lock/reservation resume and
+completed-session filtering, deliberate BigInt money-column modeling for
+individual order/item cents fields and high-volume listing analytics counters
+beyond the fixed seller-metrics aggregate cache and new webhook integer bounds,
+live-data reconciliation for historical seller shipping-rate currency drift,
+Clerk staff MFA and breached-password dashboard evidence, Clerk multi-account
+spam dashboard evidence, buyer-deletion live Stripe replay proof after source
+minimization, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public bucket dashboard posture plus
+production smoke evidence and public-availability proof, HSTS preload
+submission decision, Vercel Analytics/Speed Insights product/privacy decision,
+homepage browser a11y/runtime proof beyond source fallback, and deployed
+security-header runtime proof beyond source/config guardrails.
+
 ### Entry 494 - ops evidence and telemetry privacy guardrail pass
 
 Entry 494 rechecked the remaining ops/provider evidence bucket with two
