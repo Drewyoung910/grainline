@@ -13560,3 +13560,114 @@ proof, HSTS preload submission decision, Vercel Analytics/Speed Insights
 product/privacy decision, homepage browser a11y/runtime proof beyond source
 fallback, and deployed security-header runtime proof beyond source/config
 guardrails.
+
+## Entry 489 - refund accounting and label clawback reverify pass
+
+Entry 489 closes a no-code, parent-verified reverify pass over remaining
+refund accounting/runtime-proof and label-cost clawback allegations. Two
+read-only agents inspected disjoint refund and label-clawback surfaces; parent
+Codex reviewed their conclusions against current source, tests, docs, and the
+active ledger before editing. Both agents were closed. The raw audit import and
+expected untracked local files were not staged.
+
+Verified stale/current without code changes:
+
+- Raw stale refund-lock race allegations remain stale/current. Seller refunds,
+  staff case refunds, and blocked-checkout refund recovery write Stripe refund
+  results only through `updateMany` predicates that still require
+  `sellerRefundId = REFUND_LOCK_SENTINEL`; if the lock is stolen or stale-state
+  changed, the route throws and records manual reconciliation evidence instead
+  of silently overwriting another refund state.
+- Raw repeated-partial-refund drain chains remain stale as source exploits.
+  Seller and staff refund entrypoints are single-refund-per-order behind local
+  `sellerRefundId`, blocking refund/dispute ledger checks, label-purchase
+  checks, and atomic refund-lock acquisition. The separate Stripe
+  partial-refund economics question remains runtime evidence only.
+- Raw refund idempotency, refund-status, case-refund cap, and case orphan
+  recovery allegations remain stale/current. `refundIdempotencyKeyBase()`
+  requires scope, id, resolution, and amount; failed/canceled Stripe refunds are
+  rejected, pending/requires-action statuses are surfaced for manual follow-up,
+  partial refunds are capped at order total, and orphan recovery failures are
+  Sentry-captured and rethrown.
+- Raw verification/Guild sales overcount allegations for partial refunds remain
+  stale for the stated premise. First-party refunds write local
+  `OrderPaymentEvent` refund evidence and the current Guild/verification sales
+  filters exclude orders with a local refund id or blocking refund ledger. This
+  is conservative rather than net-revenue accounting, so a future net-sales
+  product decision could count partially refunded orders differently.
+- Raw label-clawback missing-cron/no-retry allegations remain stale/current.
+  `vercel.json` registers `/api/cron/label-clawback-retry`; the cron route uses
+  cron auth, Sentry cron monitoring, and cron-run locking; the retry batch
+  claims eligible rows, retries Stripe transfer reversals with stable
+  idempotency keys, backs off failed attempts, and moves maxed-out rows to
+  manual review.
+- Raw label missing-transfer observability allegations remain duplicate/current
+  by source contract. There is no caught exception on a missing transfer id; the
+  route emits a bounded warning and writes durable admin review state. Failed
+  Stripe reversals use the retry state instead of relying on Sentry alone.
+- The source-visible label-clawback retry path is reduced-risk, not runtime
+  proof. Production evidence still requires Vercel/Sentry/CronRun logs showing
+  the scheduled job fired and retried real eligible rows. Successful retry
+  records `REVERSED` state and leaves `reviewNeeded` for staff to clear; that
+  can add queue noise but avoids auto-clearing unrelated review reasons on the
+  same order.
+
+Guardrails reviewed:
+`tests/marketplace-refunds.test.mjs`, `tests/refund-route-state.test.mjs`,
+`tests/stripe-webhook-state.test.mjs`,
+`tests/payment-side-effect-observability.test.mjs`,
+`tests/guild-listing-edit-followups.test.mjs`,
+`tests/seller-analytics-refund-guardrails.test.mjs`,
+`tests/label-clawback-state.test.mjs`,
+`tests/verified-audit-followups.test.mjs`,
+`tests/shippo-label-money-guardrails.test.mjs`,
+`tests/admin-action-guardrails.test.mjs`,
+`tests/post-launch-ui-followups.test.mjs`, and
+`tests/cron-schedule-guardrails.test.mjs`.
+
+Verification:
+`gh run list --branch main --limit 3` confirmed latest pushed CI on `main`
+was green for `f1a7fae3`; source/docs/test inspection with `rg`/`sed`; two
+parent-reviewed read-only agent reports; focused `node --test
+tests/marketplace-refunds.test.mjs tests/refund-route-state.test.mjs
+tests/stripe-webhook-state.test.mjs tests/payment-side-effect-observability.test.mjs
+tests/guild-listing-edit-followups.test.mjs
+tests/seller-analytics-refund-guardrails.test.mjs
+tests/label-clawback-state.test.mjs tests/verified-audit-followups.test.mjs
+tests/shippo-label-money-guardrails.test.mjs tests/admin-action-guardrails.test.mjs
+tests/post-launch-ui-followups.test.mjs tests/cron-schedule-guardrails.test.mjs`,
+which passed 191/191; and `git diff --check`.
+
+Current running tally after Entry 489: verified fixed/reduced 973, verified
+stale/false-positive/current 542, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 21. Counts stay flat
+because this pass reverified already-classified current behavior and retained
+the existing runtime/ops evidence items rather than producing a new source fix
+or newly classified raw allegation.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence,
+Stripe partial-refund live reconciliation proof, label clawback runtime
+proof/dashboard reconciliation evidence, Stripe webhook subscription dashboard
+evidence, Stripe Connect v2 loss-liability ops/legal decision, explicit stale
+remote branch pruning/review, completed-audit archive housekeeping once the
+60-day threshold is reached, Round 10 deferred cache/state-machine product
+designs that require product decisions rather than source guardrails, remaining
+EXPLAIN-dependent runtime query-plan validation beyond the existing source
+indexes and source guardrails, founding-maker permanence policy, remaining
+privacy/legal retention provider scope, cross-seller AI duplicate-detection
+product design, durable checkout-group design for checkout batch semantics
+beyond grouped ready-lock/reservation resume and completed-session filtering,
+deliberate BigInt money-column modeling for individual order/item cents fields
+and high-volume listing analytics counters beyond the fixed seller-metrics
+aggregate cache and new webhook integer bounds, live-data reconciliation for
+historical seller shipping-rate currency drift, Guild private/custom-order
+sales/review trust-metric product policy, Clerk staff MFA and breached-password
+dashboard evidence, Clerk multi-account spam dashboard evidence, buyer-deletion
+live Stripe replay proof after source minimization, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2 ListBucket/public
+bucket dashboard posture plus production smoke evidence and public-availability
+proof, HSTS preload submission decision, Vercel Analytics/Speed Insights
+product/privacy decision, homepage browser a11y/runtime proof beyond source
+fallback, and deployed security-header runtime proof beyond source/config
+guardrails.
