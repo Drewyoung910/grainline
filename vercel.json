@@ -62,6 +62,10 @@
       "schedule": "17 */6 * * *"
     },
     {
+      "path": "/api/cron/founding-maker-repair",
+      "schedule": "10 17 * * *"
+    },
+    {
       "path": "/api/cron/order-pii-prune",
       "schedule": "40 12 * * *"
     }

@@ -20,6 +20,7 @@ const lowFrequencyMaintenanceCrons = [
   "/api/cron/commission-expire",
   "/api/cron/notification-prune",
   "/api/cron/order-pii-prune",
+  "/api/cron/founding-maker-repair",
   "/api/cron/guild-member-check",
   "/api/cron/guild-metrics",
 ];

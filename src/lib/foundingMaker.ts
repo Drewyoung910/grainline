@@ -5,6 +5,8 @@ import { logServerError } from "@/lib/serverErrorLogger";
 const FOUNDING_MAKER_CAP = 250;
 const FOUNDING_MAKER_LOCK_NAMESPACE = 913337;
 const FOUNDING_MAKER_LOCK_KEY = 250;
+export const FOUNDING_MAKER_REPAIR_LISTING_SCAN_LIMIT = 250;
+export const FOUNDING_MAKER_REPAIR_SELLER_LIMIT = 25;
 
 /**
  * Idempotent + race-safe grant of the Founding Maker badge to a seller.
@@ -73,4 +75,70 @@ export async function maybeGrantFoundingMaker(sellerProfileId: string): Promise<
       extra: { sellerProfileId },
     });
   }
+}
+
+export async function repairMissedFoundingMakerGrants(opts: {
+  listingScanLimit?: number;
+  sellerLimit?: number;
+} = {}) {
+  const listingScanLimit = Math.max(
+    1,
+    Math.min(opts.listingScanLimit ?? FOUNDING_MAKER_REPAIR_LISTING_SCAN_LIMIT, FOUNDING_MAKER_REPAIR_LISTING_SCAN_LIMIT),
+  );
+  const sellerLimit = Math.max(
+    1,
+    Math.min(opts.sellerLimit ?? FOUNDING_MAKER_REPAIR_SELLER_LIMIT, FOUNDING_MAKER_REPAIR_SELLER_LIMIT),
+  );
+
+  const currentMax = await prisma.sellerProfile.aggregate({
+    where: { isFoundingMaker: true },
+    _max: { foundingMakerNumber: true },
+  });
+  const remainingSlots = FOUNDING_MAKER_CAP - (currentMax._max.foundingMakerNumber ?? 0);
+  if (remainingSlots <= 0) {
+    return { ok: true, scannedListings: 0, attemptedSellers: 0, repairedSellers: 0, remainingSlots: 0 };
+  }
+
+  const candidateListings = await prisma.listing.findMany({
+    where: publicListingWhere({
+      seller: {
+        isFoundingMaker: false,
+      },
+    }),
+    orderBy: [
+      { createdAt: "asc" },
+      { id: "asc" },
+    ],
+    take: listingScanLimit,
+    select: {
+      sellerId: true,
+    },
+  });
+
+  const sellerIds: string[] = [];
+  const seen = new Set<string>();
+  for (const listing of candidateListings) {
+    if (seen.has(listing.sellerId)) continue;
+    seen.add(listing.sellerId);
+    sellerIds.push(listing.sellerId);
+    if (sellerIds.length >= Math.min(sellerLimit, remainingSlots)) break;
+  }
+
+  let repairedSellers = 0;
+  for (const sellerId of sellerIds) {
+    await maybeGrantFoundingMaker(sellerId);
+    const seller = await prisma.sellerProfile.findUnique({
+      where: { id: sellerId },
+      select: { isFoundingMaker: true },
+    });
+    if (seller?.isFoundingMaker) repairedSellers += 1;
+  }
+
+  return {
+    ok: true,
+    scannedListings: candidateListings.length,
+    attemptedSellers: sellerIds.length,
+    repairedSellers,
+    remainingSlots: Math.max(0, remainingSlots - repairedSellers),
+  };
 }

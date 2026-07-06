@@ -479,6 +479,8 @@ describe("post-launch UI follow-ups", () => {
 
   it("serializes Founding Maker number assignment instead of relying on bounded retries", () => {
     const founding = source("src/lib/foundingMaker.ts");
+    const repairRoute = source("src/app/api/cron/founding-maker-repair/route.ts");
+    const vercel = source("vercel.json");
 
     assert.match(founding, /import \{ publicListingWhere \} from "@\/lib\/listingVisibility"/);
     assert.equal((founding.match(/where: publicListingWhere\(\{ sellerId: sellerProfileId \}\)/g) ?? []).length, 2);
@@ -497,5 +499,18 @@ describe("post-launch UI follow-ups", () => {
     assert.doesNotMatch(founding, /currentCount \+ 1/);
     assert.doesNotMatch(founding, /status: "ACTIVE"/);
     assert.doesNotMatch(founding, /isPrivate: false/);
+
+    assert.match(founding, /export const FOUNDING_MAKER_REPAIR_LISTING_SCAN_LIMIT = 250/);
+    assert.match(founding, /export const FOUNDING_MAKER_REPAIR_SELLER_LIMIT = 25/);
+    assert.match(founding, /repairMissedFoundingMakerGrants/);
+    assert.match(founding, /publicListingWhere\(\{\s*seller: \{\s*isFoundingMaker: false/s);
+    assert.match(founding, /await maybeGrantFoundingMaker\(sellerId\)/);
+    assert.match(founding, /remainingSlots/);
+    assert.match(repairRoute, /verifyCronRequest\(request\)/);
+    assert.match(repairRoute, /withSentryCronMonitor\("founding-maker-repair", \{ value: "10 17 \* \* \*"/);
+    assert.match(repairRoute, /beginCronRun\("founding-maker-repair"\)/);
+    assert.match(repairRoute, /repairMissedFoundingMakerGrants\(\)/);
+    assert.match(repairRoute, /source: "cron_founding_maker_repair"/);
+    assert.match(vercel, /"path": "\/api\/cron\/founding-maker-repair"[\s\S]*"schedule": "10 17 \* \* \*"/);
   });
 });

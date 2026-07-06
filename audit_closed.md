@@ -14033,6 +14033,99 @@ submission decision, Vercel Analytics/Speed Insights product/privacy decision,
 homepage browser a11y/runtime proof beyond source fallback, and deployed
 security-header runtime proof beyond source/config guardrails.
 
+### Entry 496 - Founding Maker repair and cron evidence reverify pass
+
+Entry 496 rechecked remaining Sentry cron/ops-health and Founding Maker
+concurrency/permanence allegations against current source. Latest pushed CI on
+`main` was green for `27c71dfb` before broadening audit scope.
+
+Fixed/reduced:
+
+- Added a bounded Founding Maker repair path for transient grant failures.
+  `repairMissedFoundingMakerGrants()` scans oldest public ACTIVE listings for
+  non-badged sellers, dedupes seller ids, respects remaining permanent badge
+  slots, and calls the existing advisory-lock `maybeGrantFoundingMaker()` helper
+  instead of inventing a separate assignment path.
+- Added `GET /api/cron/founding-maker-repair`, registered in `vercel.json` at
+  `10 17 * * *`, with standard cron auth, `CronRun` locking, and Sentry cron
+  monitor wrapping. This reduces the chance that a logged/non-fatal grant
+  failure leaves an eligible seller permanently unbadged.
+- Updated the Founding Maker behavior contract in `CLAUDE.md` to preserve the
+  bounded repair scan and permanent-number assignment semantics.
+
+Verified stale/current or deferred without source changes:
+
+- Raw ops-health Sentry monitor finding #128 is stale/current. Current
+  `/api/cron/ops-health` returns `503` when actionable issues exist, and
+  `withSentryCronMonitor()` maps 5xx responses to failed Sentry check-ins.
+  Existing tests already assert the unhealthy status and monitor mapping.
+- Sentry cron alert routing remains runtime/dashboard evidence: source emits
+  check-ins and warning/error telemetry, but the actual Sentry alert-rule
+  configuration still needs provider evidence before launch.
+- Founding Maker live DB concurrency proof remains runtime evidence beyond
+  source review. Source now has advisory-lock assignment, DB uniqueness/range
+  constraints, static guardrails, and the repair cron, but a live DB concurrency
+  replay would still be separate evidence.
+
+Guardrails added/reviewed:
+
+- Extended `tests/post-launch-ui-followups.test.mjs` to guard the bounded
+  Founding Maker repair helper, public-listing eligibility, shared grant helper
+  reuse, cron auth, Sentry monitor schedule, and `vercel.json` registration.
+- Extended `tests/cron-schedule-guardrails.test.mjs` so the new daily repair
+  job remains part of the low-frequency cron spread and monitor-schedule
+  alignment checks.
+- Reviewed existing ops-health and cron guardrails in
+  `tests/retention-and-ops-followups.test.mjs`,
+  `tests/public-cron-search-hardening.test.mjs`,
+  `tests/cron-monitor-state.test.mjs`, and `tests/http-status-constants.test.mjs`.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 3` confirmed latest
+pushed CI on `main` was green for `27c71dfb`; source/docs/test inspection with
+`rg`/`sed`; focused suite
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/post-launch-ui-followups.test.mjs
+tests/cron-schedule-guardrails.test.mjs tests/cron-monitor-state.test.mjs
+tests/public-cron-search-hardening.test.mjs tests/http-status-constants.test.mjs`
+passed 59/59 after correcting one route/`vercel.json` schedule mismatch; and
+the broader focused cron/docs/schema suite passed 84/84; `npx tsc --noEmit`;
+`git diff --check`; `npm run lint` (known `jsx-ast-utils`
+TSNonNullExpression warning, exit 0); and full `npm test` passing 1453/1453.
+
+Current running tally after Entry 496: verified fixed/reduced 983, verified
+stale/false-positive/current 542, deferred product/design/ops/legal 80,
+approximate raw allegations left from current max #1126: 15. Fixed/reduced
+increases by one for the Founding Maker repair cron. Raw-left drops by one
+because the source-actionable portion of the Founding Maker grant-loss category
+now has a bounded repair path; live DB concurrency proof remains runtime
+evidence.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence,
+Stripe partial-refund live reconciliation proof, label clawback runtime
+proof/dashboard reconciliation evidence, Stripe webhook subscription dashboard
+evidence, Stripe Connect v2 loss-liability ops/legal decision, explicit stale
+remote branch pruning/review, Round 10 deferred cache/state-machine product
+designs that require product decisions rather than source guardrails,
+EXPLAIN-dependent runtime query-plan validation beyond the existing source
+indexes and source guardrails, provider-side privacy erasure/legal-request
+evidence, cross-seller AI duplicate-detection product design, durable
+checkout-group design for checkout batch semantics beyond grouped
+ready-lock/reservation resume and completed-session filtering, deliberate
+BigInt money-column modeling for individual order/item cents fields and
+high-volume listing analytics counters beyond the fixed seller-metrics
+aggregate cache and new webhook integer bounds, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion live Stripe replay proof after source minimization,
+Founding Maker live DB concurrency proof, Sentry cron alert evidence,
+Cloudflare R2 ListBucket/public bucket dashboard posture plus production smoke
+evidence and public-availability proof, HSTS preload submission decision,
+Vercel Analytics/Speed Insights product/privacy decision, homepage browser
+a11y/runtime proof beyond source fallback, and deployed security-header runtime
+proof beyond source/config guardrails.
+
 ### Entry 495 - closed-history archive housekeeping and remaining evidence reverify pass
 
 Entry 495 rechecked the remaining payment, ops, product-boundary, and

@@ -2607,6 +2607,9 @@ First-250-seller recognition program. Permanent badge granted on the seller's FI
 5. Idempotent. Wrapped in try/catch so a grant failure never blocks the calling flow, but production failures still go to Sentry with source `founding_maker_grant` and bounded `sellerProfileId` context so eligible-maker grant loss is observable.
 6. The `foundingMakerNumber` unique index also enforces no-double-issue at the DB level.
 
+### Repair cron
+`GET /api/cron/founding-maker-repair` runs daily at `10 17 * * *` through the standard cron auth, cron-run, and Sentry monitor wrappers. It calls `repairMissedFoundingMakerGrants()`, which scans the oldest public ACTIVE listings for non-badged sellers, dedupes seller ids, and calls the same advisory-lock `maybeGrantFoundingMaker()` helper. Keep the repair bounded (`FOUNDING_MAKER_REPAIR_LISTING_SCAN_LIMIT` / `FOUNDING_MAKER_REPAIR_SELLER_LIMIT`) and ordered by listing `createdAt` so transient grant failures can be repaired without reassigning permanent numbers or blocking listing publish.
+
 ### Call sites
 The helper is called after every listing transition to ACTIVE for a seller's own listings:
 - `src/app/dashboard/listings/new/page.tsx` `createListing` — after AI review when `finalListing.status === "ACTIVE"`.
