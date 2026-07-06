@@ -10,6 +10,7 @@ const {
   emailOutboxRecipientDailyQuotaKey,
   reserveEmailOutboxDailySendAllowance,
   reserveEmailOutboxRecipientDailySendAllowance,
+  rollbackEmailOutboxRecipientDailySendAllowance,
 } = await import("../src/lib/emailOutboxQuota.ts");
 
 function source(path) {
@@ -137,13 +138,54 @@ describe("email outbox daily quota", () => {
     assert.equal(quota.limit, 3);
   });
 
+  it("rolls back per-recipient allowance through a hashed quota key", async () => {
+    const seen = [];
+    const rollback = await rollbackEmailOutboxRecipientDailySendAllowance({
+      recipientHash: "sha256:abc123",
+      requested: 1,
+      now,
+      counter: async ({ key, requested }) => {
+        seen.push({ key, requested });
+        return 0;
+      },
+    });
+
+    assert.deepEqual(seen, [
+      {
+        key: "email-outbox:sent:2026-04-28:recipient:sha256:abc123",
+        requested: 1,
+      },
+    ]);
+    assert.deepEqual(rollback, { rolledBack: true, counterAvailable: true });
+  });
+
+  it("fails closed when recipient quota rollback is unavailable", async () => {
+    const seen = [];
+    const rollback = await rollbackEmailOutboxRecipientDailySendAllowance({
+      recipientHash: "sha256:abc123",
+      requested: 2,
+      now,
+      counter: async () => {
+        throw new Error("redis down");
+      },
+      onCounterError: (error) => seen.push(String(error)),
+    });
+
+    assert.deepEqual(rollback, { rolledBack: false, counterAvailable: false });
+    assert.equal(seen.length, 1);
+    assert.match(seen[0], /redis down/);
+  });
+
   it("checks hashed recipient quota before the global outbox quota in the drain path", () => {
     const outbox = source("src/lib/emailOutbox.ts");
 
     assert.match(outbox, /recipientDailySendAllowanceScript/);
+    assert.match(outbox, /recipientDailySendAllowanceRollbackScript/);
     assert.match(outbox, /hashEmailForTelemetry\(recipientEmail\) \?\? "unknown"/);
     assert.match(outbox, /reserveRecipientDailySendAllowance\(job\.recipientEmail, 1, quotaCheckedAt\)[\s\S]*reserveDailySendAllowance\(1, quotaCheckedAt\)/);
+    assert.match(outbox, /if \(quota\.allowed < 1\) \{\s*await rollbackRecipientDailySendAllowance\(job\.recipientEmail, recipientQuota\.allowed, quotaCheckedAt\)/);
     assert.match(outbox, /email_outbox_recipient_quota/);
+    assert.match(outbox, /email_outbox_recipient_quota_rollback/);
     assert.match(outbox, /Daily per-recipient email outbox send cap reached/);
   });
 });

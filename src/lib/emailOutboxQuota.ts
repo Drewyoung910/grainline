@@ -28,11 +28,36 @@ end
 return allowed
 `;
 
+export const EMAIL_OUTBOX_DAILY_ALLOWANCE_ROLLBACK_SCRIPT = `
+local current = tonumber(redis.call("GET", KEYS[1]) or "0")
+local requested = tonumber(ARGV[1])
+
+if requested <= 0 or current <= 0 then
+  return current
+end
+
+local rollback = math.min(requested, current)
+local next = current - rollback
+
+if next <= 0 then
+  redis.call("DEL", KEYS[1])
+  return 0
+end
+
+redis.call("DECRBY", KEYS[1], rollback)
+return next
+`;
+
 export type EmailOutboxQuotaCounter = (args: {
   key: string;
   requested: number;
   limit: number;
   ttlSeconds: number;
+}) => Promise<number>;
+
+export type EmailOutboxQuotaRollbackCounter = (args: {
+  key: string;
+  requested: number;
 }) => Promise<number>;
 
 export type EmailOutboxDailyAllowance = {
@@ -136,5 +161,33 @@ export async function reserveEmailOutboxRecipientDailySendAllowance({
   } catch (error) {
     onCounterError?.(error);
     return { allowed: 0, limit, resetAt, counterAvailable: false };
+  }
+}
+
+export async function rollbackEmailOutboxRecipientDailySendAllowance({
+  recipientHash,
+  requested,
+  now,
+  counter,
+  onCounterError,
+}: {
+  recipientHash: string;
+  requested: number;
+  now: Date;
+  counter: EmailOutboxQuotaRollbackCounter;
+  onCounterError?: (error: unknown) => void;
+}): Promise<{ rolledBack: boolean; counterAvailable: boolean }> {
+  const normalizedRequested = Math.max(0, Math.floor(requested));
+  if (normalizedRequested === 0) return { rolledBack: false, counterAvailable: true };
+
+  try {
+    await counter({
+      key: emailOutboxRecipientDailyQuotaKey(recipientHash, now),
+      requested: normalizedRequested,
+    });
+    return { rolledBack: true, counterAvailable: true };
+  } catch (error) {
+    onCounterError?.(error);
+    return { rolledBack: false, counterAvailable: false };
   }
 }

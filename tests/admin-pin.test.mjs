@@ -174,4 +174,51 @@ describe("admin PIN cookie secret configuration", () => {
     assert.equal(await verifyAdminPinCookieValue(cookie, "user_1", null, now), false);
     assert.equal(await verifyAdminPinCookieValue(cookie?.replace(/^v2\./, "v1."), "user_1", "sess_1", now), false);
   });
+
+  it("requires the session-bound admin PIN for staff-only public case APIs", () => {
+    const helper = readFileSync("src/lib/adminPinApi.ts", "utf8");
+    const resolve = readFileSync("src/app/api/cases/[id]/resolve/route.ts", "utf8");
+    const escalate = readFileSync("src/app/api/cases/[id]/escalate/route.ts", "utf8");
+    const messages = readFileSync("src/app/api/cases/[id]/messages/route.ts", "utf8");
+
+    assert.match(helper, /ADMIN_PIN_COOKIE_NAME/);
+    assert.match(helper, /verifyAdminPinCookieValue\(/);
+    assert.match(helper, /request\.headers\.get\("cookie"\)/);
+    assert.match(helper, /Admin PIN required/);
+    assert.match(helper, /status: HTTP_STATUS\.FORBIDDEN/);
+
+    assert.match(resolve, /import \{ requireStaffAdminPinForApi \} from "@\/lib\/adminPinApi"/);
+    assert.match(resolve, /const \{ userId, sessionId \} = await auth\(\)/);
+    assert.match(resolve, /const pinResponse = await requireStaffAdminPinForApi\(req, userId, sessionId\)/);
+    assert.ok(
+      resolve.indexOf('me.role !== "EMPLOYEE"') <
+        resolve.indexOf("requireStaffAdminPinForApi(req, userId, sessionId)") &&
+        resolve.indexOf("requireStaffAdminPinForApi(req, userId, sessionId)") <
+          resolve.indexOf("safeRateLimit(refundRatelimit"),
+      "staff case resolution should require admin PIN before rate limit and refund mutation",
+    );
+
+    assert.match(escalate, /import \{ requireStaffAdminPinForApi \} from "@\/lib\/adminPinApi"/);
+    assert.match(escalate, /const \{ userId, sessionId \} = await auth\(\)/);
+    assert.match(escalate, /verifyCronRequest\(req\)/);
+    assert.match(escalate, /if \(me\.role === "EMPLOYEE" \|\| me\.role === "ADMIN"\) \{/);
+    assert.match(escalate, /requireStaffAdminPinForApi\(req, userId, sessionId\)/);
+    assert.ok(
+      escalate.indexOf("if (!validCron)") <
+        escalate.indexOf("requireStaffAdminPinForApi(req, userId, sessionId)"),
+      "cron escalation should not require a Clerk admin PIN cookie",
+    );
+
+    assert.match(messages, /import \{ requireStaffAdminPinForApi \} from "@\/lib\/adminPinApi"/);
+    assert.match(messages, /const \{ userId, sessionId \} = await auth\(\)/);
+    assert.match(messages, /if \(!isParty && isStaff\) \{/);
+    assert.match(messages, /requireStaffAdminPinForApi\(req, userId, sessionId\)/);
+    assert.ok(
+      messages.indexOf("if (!isParty && !isStaff)") <
+        messages.indexOf("if (!isParty && isStaff)") &&
+        messages.indexOf("if (!isParty && isStaff)") <
+          messages.indexOf("if (!canCreateCaseMessageForStatus"),
+      "only staff non-party case messages should require the admin PIN before message creation",
+    );
+  });
 });

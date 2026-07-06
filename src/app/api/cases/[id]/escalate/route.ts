@@ -15,6 +15,7 @@ import { isEscalatableCaseStatus } from "@/lib/caseActionState";
 import { unavailableCaseMessageRecipientReason } from "@/lib/caseMessagingState";
 import { logSystemActionOrThrow } from "@/lib/systemAudit";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { requireStaffAdminPinForApi } from "@/lib/adminPinApi";
 
 export const runtime = "nodejs";
 
@@ -31,9 +32,13 @@ export async function POST(
     let me: Awaited<ReturnType<typeof ensureUserByClerkId>> | null = null;
 
     if (!validCron) {
-      const { userId } = await auth();
+      const { userId, sessionId } = await auth();
       if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
       me = await ensureUserByClerkId(userId);
+      if (me.role === "EMPLOYEE" || me.role === "ADMIN") {
+        const pinResponse = await requireStaffAdminPinForApi(req, userId, sessionId);
+        if (pinResponse) return pinResponse;
+      }
       const { success, reset } = await safeRateLimit(caseActionRatelimit, me.id);
       if (!success) return privateResponse(rateLimitResponse(reset, "Too many case actions."));
     }

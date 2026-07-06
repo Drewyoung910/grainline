@@ -161,6 +161,7 @@ async function recordTransientFailure(
     ON CONFLICT (email) DO UPDATE SET
       count = CASE
         WHEN "EmailFailureCount"."firstFailedAt" < ${windowStart} THEN 1
+        WHEN "EmailFailureCount"."lastEventId" = ${eventId} THEN "EmailFailureCount".count
         ELSE "EmailFailureCount".count + 1
       END,
       "firstFailedAt" = CASE

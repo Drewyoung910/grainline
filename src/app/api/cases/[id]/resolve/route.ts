@@ -38,6 +38,7 @@ import {
 } from "@/lib/requestBody";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { requireStaffAdminPinForApi } from "@/lib/adminPinApi";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
@@ -63,13 +64,15 @@ export async function POST(
   try {
     const { id } = await params;
 
-    const { userId } = await auth();
+    const { userId, sessionId } = await auth();
     if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
     const me = await ensureUserByClerkId(userId);
 
     if (me.role !== "EMPLOYEE" && me.role !== "ADMIN") {
       return privateJson({ error: "Forbidden." }, { status: HTTP_STATUS.FORBIDDEN });
     }
+    const pinResponse = await requireStaffAdminPinForApi(req, userId, sessionId);
+    if (pinResponse) return pinResponse;
 
     const { success, reset } = await safeRateLimit(refundRatelimit, `case-resolve:${userId}`);
     if (!success) return privateResponse(rateLimitResponse(reset, "Too many case resolution attempts."));

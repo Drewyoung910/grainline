@@ -519,6 +519,10 @@ describe("account and privacy route observability guardrails", () => {
       route,
       /"EmailFailureCount"\."firstFailedAt" < \$\{windowStart\}/,
     );
+    assert.match(
+      route,
+      /WHEN "EmailFailureCount"\."lastEventId" = \$\{eventId\} THEN "EmailFailureCount"\.count/,
+    );
     assert.doesNotMatch(route, /emailFailureCount\.findUnique/);
     assert.doesNotMatch(route, /email\.delivery_delayed/);
     assert.match(launch, /Delivery-delayed provider events may be monitored in the Resend dashboard/);

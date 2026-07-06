@@ -2,7 +2,7 @@ import { Prisma, type EmailOutbox } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { mapWithConcurrency } from "@/lib/concurrency";
-import { normalizeEmailAddress } from "@/lib/emailSuppression";
+import { isEmailDeliverySuppressed, normalizeEmailAddress } from "@/lib/emailSuppression";
 import { sendRenderedEmail } from "@/lib/email";
 import { shouldSendEmail } from "@/lib/notifications";
 import { redis } from "@/lib/ratelimit";
@@ -16,8 +16,10 @@ import {
 } from "@/lib/emailOutboxState";
 import {
   EMAIL_OUTBOX_DAILY_ALLOWANCE_SCRIPT,
+  EMAIL_OUTBOX_DAILY_ALLOWANCE_ROLLBACK_SCRIPT,
   reserveEmailOutboxDailySendAllowance,
   reserveEmailOutboxRecipientDailySendAllowance,
+  rollbackEmailOutboxRecipientDailySendAllowance,
 } from "@/lib/emailOutboxQuota";
 import { isValidEmailPreferenceKey } from "@/lib/notificationPreferenceKeys";
 import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
@@ -38,6 +40,7 @@ export const EMAIL_OUTBOX_TEMPLATE_NAMES = [
 ] as const;
 const dailySendAllowanceScript = redis.createScript<number>(EMAIL_OUTBOX_DAILY_ALLOWANCE_SCRIPT);
 const recipientDailySendAllowanceScript = redis.createScript<number>(EMAIL_OUTBOX_DAILY_ALLOWANCE_SCRIPT);
+const recipientDailySendAllowanceRollbackScript = redis.createScript<number>(EMAIL_OUTBOX_DAILY_ALLOWANCE_ROLLBACK_SCRIPT);
 
 export type EmailOutboxTemplateName = typeof EMAIL_OUTBOX_TEMPLATE_NAMES[number];
 
@@ -96,6 +99,21 @@ async function reserveRecipientDailySendAllowance(recipientEmail: string, reques
       ),
     onCounterError: (error) =>
       Sentry.captureException(error, { tags: { source: "email_outbox_recipient_quota" } }),
+  });
+}
+
+async function rollbackRecipientDailySendAllowance(recipientEmail: string, requested: number, now: Date) {
+  return rollbackEmailOutboxRecipientDailySendAllowance({
+    recipientHash: hashEmailForTelemetry(recipientEmail) ?? "unknown",
+    requested,
+    now,
+    counter: ({ key, requested: requestedCount }) =>
+      recipientDailySendAllowanceRollbackScript.eval(
+        [key],
+        [String(requestedCount)],
+      ),
+    onCounterError: (error) =>
+      Sentry.captureException(error, { tags: { source: "email_outbox_recipient_quota_rollback" } }),
   });
 }
 
@@ -261,6 +279,12 @@ export async function processEmailOutboxBatch({
         return;
       }
 
+      if (await isEmailDeliverySuppressed(job.recipientEmail)) {
+        await skipEmailOutboxJob(job.id, "Recipient email is suppressed after a bounce, complaint, or account deletion");
+        skipped += 1;
+        return;
+      }
+
       const quotaCheckedAt = new Date();
       const recipientQuota = await reserveRecipientDailySendAllowance(job.recipientEmail, 1, quotaCheckedAt);
       if (recipientQuota.allowed < 1) {
@@ -300,6 +324,7 @@ export async function processEmailOutboxBatch({
 
       const quota = await reserveDailySendAllowance(1, quotaCheckedAt);
       if (quota.allowed < 1) {
+        await rollbackRecipientDailySendAllowance(job.recipientEmail, recipientQuota.allowed, quotaCheckedAt);
         const deferral = emailOutboxQuotaDeferralState({
           counterAvailable: quota.counterAvailable,
           resetAt: quota.resetAt,

@@ -27,6 +27,7 @@ import {
 import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { requireStaffAdminPinForApi } from "@/lib/adminPinApi";
 import { z } from "zod";
 
 const CaseMessageSchema = z.object({
@@ -44,7 +45,7 @@ export async function POST(
   try {
     const { id } = await params;
 
-    const { userId } = await auth();
+    const { userId, sessionId } = await auth();
     if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
     const { success, reset } = await safeRateLimit(
@@ -100,6 +101,10 @@ export async function POST(
     const isStaff = me.role === "EMPLOYEE" || me.role === "ADMIN";
     if (!isParty && !isStaff)
       return privateJson({ error: "Forbidden." }, { status: 403 });
+    if (!isParty && isStaff) {
+      const pinResponse = await requireStaffAdminPinForApi(req, userId, sessionId);
+      if (pinResponse) return pinResponse;
+    }
 
     if (!canCreateCaseMessageForStatus(caseRecord.status, { isStaff })) {
       return privateJson({ error: "This case is closed." }, { status: 400 });

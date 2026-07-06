@@ -35,7 +35,15 @@ describe("email delivery guardrails", () => {
     assert.match(sendBody, /if \(opts\.throwOnFailure\) throw emailDeliverySkippedError\("email provider not configured"\)/);
     assert.match(sendBody, /isEmailDeliverySuppressed\(recipient\)[\s\S]*?throw emailDeliverySkippedError\("recipient suppressed"\)/);
     assert.match(sendBody, /account\?\.banned \|\| account\?\.deletedAt[\s\S]*?emailDeliverySkippedError\(account\.banned \? "recipient banned" : "recipient deleted"\)/);
-    assert.match(source("src/lib/emailOutbox.ts"), /sendRenderedEmail\(\s*\{ to: job\.recipientEmail, subject: job\.subject, html: job\.html \},\s*\{ throwOnFailure: true/);
+    const outbox = source("src/lib/emailOutbox.ts");
+    assert.match(outbox, /isEmailDeliverySuppressed\(job\.recipientEmail\)/);
+    assert.match(outbox, /Recipient email is suppressed after a bounce, complaint, or account deletion/);
+    assert.ok(
+      outbox.indexOf("isEmailDeliverySuppressed(job.recipientEmail)") <
+        outbox.indexOf("reserveRecipientDailySendAllowance(job.recipientEmail"),
+      "outbox should skip hard-suppressed recipients before reserving quota",
+    );
+    assert.match(outbox, /sendRenderedEmail\(\s*\{ to: job\.recipientEmail, subject: job\.subject, html: job\.html \},\s*\{ throwOnFailure: true/);
     assert.match(source("src/app/api/support/route.ts"), /sendRenderedEmail\(\{[\s\S]*?\}, \{ throwOnFailure: true \}\)/);
     assert.match(source("src/app/api/legal/data-request/route.ts"), /sendRenderedEmail\(\{[\s\S]*?\}, \{ throwOnFailure: true \}\)/);
   });

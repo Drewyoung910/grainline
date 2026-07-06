@@ -14033,6 +14033,128 @@ submission decision, Vercel Analytics/Speed Insights product/privacy decision,
 homepage browser a11y/runtime proof beyond source fallback, and deployed
 security-header runtime proof beyond source/config guardrails.
 
+### Entry 503 - email outbox retry hygiene and staff case PIN hardening
+
+Entry 503 continued source-focused review after raw allegations reached zero by
+auditing email outbox/suppression/Resend behavior plus admin/health/staff
+security-control paths for hidden defects. Latest pushed CI on `main` was green
+for `b24e2fc5` (`28823873919`) before broadening audit scope. Two read-only
+agents inspected disjoint email and admin/health slices; parent Codex verified
+their source-actionable findings locally and closed both agents.
+
+Fixed/reduced:
+
+- Email outbox global-quota deferrals now roll back a successful per-recipient
+  quota reservation before requeueing the job. The per-recipient quota still runs
+  before the global quota and still uses hashed recipient keys, but a global cap
+  or global quota-counter outage no longer consumes a recipient's daily
+  allowance for an email that was not sent.
+- Email outbox processing now skips hard-suppressed recipients before reserving
+  quota or calling Resend. Bounce, complaint, and account-deletion suppressions
+  become terminal `SKIPPED` outbox rows instead of retrying up to `DEAD` while
+  burning quota.
+- Resend `email.failed` transient failure accounting is now idempotent for a
+  repeated webhook event id. If a multi-recipient webhook partially fails and
+  gets retried, recipients already counted for that `svix-id` keep their
+  existing `EmailFailureCount.count` instead of incrementing again and reaching
+  suppression threshold early.
+- Staff case resolution on the public `/api/cases/[id]/resolve` route now
+  requires the session-bound admin PIN cookie after local staff role validation
+  and before rate limits, refund locks, Stripe refunds, or case mutations.
+- Staff-triggered case escalation on public case routes now requires the same
+  session-bound admin PIN. Cron escalation via `CRON_SECRET` remains available
+  without a Clerk session or PIN.
+- Non-party staff case messages on public case routes now require the
+  session-bound admin PIN before message creation. Buyer/seller party messages
+  remain on the normal case-participant path without an admin PIN requirement.
+
+Verified stale/current or deferred without source changes:
+
+- One-click unsubscribe, hard-vs-manual suppression, Gmail alias suppression
+  keys, newsletter signup suppression handling, and unsubscribe epoch/manual
+  resubscribe semantics remain source-current in the inspected slice.
+- Email outbox terminal retention remains source-current: `SENT`, `SKIPPED`, and
+  `DEAD` rows are pruned after 30 days through notification-prune, while retryable
+  rows are retained and surfaced by ops-health.
+- Support/legal intake email failure evidence remains source-current. Public
+  support and data-request routes create durable request rows before notification
+  email, preserve the pending marker, sanitize send errors into `emailLastError`,
+  and expose ambiguous send state to admins.
+- Health route behavior remains source-current. Anonymous responses disclose
+  only `{ ok }`; verbose dependency details require the configured bearer/header
+  token through constant-time digest comparison; responses use private no-store
+  cache headers and `Vary`; the R2 probe remains a reachability signal only.
+- Admin support/data-request closure behavior remains current. Closing a
+  `DATA_REQUEST` requires bounded closure evidence, stores the evidence on the
+  support row, and keeps audit metadata to bounded booleans/lengths/timestamps.
+- Admin/system audit metadata guardrails remain current for the inspected slice:
+  reasons/errors are sanitized/truncated, `SystemAuditLog.metadata` is capped at
+  64KB, and `AdminAuditLog.metadata` remains DB-capped and covered by existing
+  JSON guardrails. Clerk dashboard security evidence remains deferred runtime
+  evidence, not a source-proven code defect.
+
+Guardrails added/reviewed:
+
+- `tests/email-outbox-quota.test.mjs` now covers recipient quota rollback and
+  requires the drain path to roll back recipient quota when global quota blocks
+  a send.
+- `tests/email-delivery-guardrails.test.mjs` now requires hard-suppressed outbox
+  recipients to be skipped before recipient quota reservation.
+- `tests/account-privacy-observability.test.mjs` now requires Resend transient
+  failure SQL to no-op the count when the same `lastEventId` is replayed.
+- `tests/admin-pin.test.mjs` now requires the reusable public-API admin PIN
+  helper and pins staff case resolve/escalate/message route coverage.
+- Reviewed existing guardrails included email outbox state/retention, notification
+  preferences, Resend webhook config, unsubscribe token, email normalization,
+  newsletter double opt-in, user email history, health state, support request
+  state, and system audit logging tests.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 5`; source and test
+inspection with `rg`/`sed`; two parent-reviewed read-only agent reports; focused
+`node --test tests/email-outbox-quota.test.mjs tests/email-outbox-state.test.mjs
+tests/email-outbox-retention.test.mjs tests/email-delivery-guardrails.test.mjs
+tests/notification-email-preferences.test.mjs tests/resend-webhook-config.test.mjs
+tests/unsubscribe-token.test.mjs tests/email-normalization-followups.test.mjs
+tests/account-privacy-observability.test.mjs tests/newsletter-double-opt-in.test.mjs
+tests/user-email-address-history.test.mjs tests/admin-pin.test.mjs
+tests/health-state.test.mjs tests/support-request-state.test.mjs
+tests/system-audit-log.test.mjs` passed 109/109; focused smoke
+`node --test tests/admin-pin.test.mjs tests/email-outbox-quota.test.mjs
+tests/email-delivery-guardrails.test.mjs
+tests/account-privacy-observability.test.mjs` passed 52/52; `git diff
+--check` passed; `npx tsc --noEmit` passed; `npm run lint` exited 0 with the
+known jsx-ast-utils TSNonNullExpression warning; full `npm test` passed
+1457/1457.
+
+Current running tally after Entry 503: verified fixed/reduced 998, verified
+stale/false-positive/current 573, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by six for recipient quota rollback, hard-suppressed outbox skip,
+Resend transient-failure replay idempotency, staff case resolution PIN gating,
+staff case escalation PIN gating, and non-party staff case-message PIN gating.
+Stale/current increases by six for the reverified unsubscribe/suppression,
+outbox retention, support/legal email evidence, health route, admin data-request
+closure, and admin/system audit metadata checks.
+
+Remaining major categories are still the deferred launch/runtime/legal/product
+evidence backlog, not open raw source allegations: Stripe refund runtime
+reconciliation/backfill proof, Stripe partial-refund live reconciliation proof,
+label clawback runtime reconciliation evidence, Stripe webhook subscription
+dashboard evidence, Stripe Connect v2 loss-liability ops/legal decision,
+explicit stale remote branch pruning/review, Round 10 cache/state-machine
+product designs, EXPLAIN-dependent runtime query-plan validation, provider-side
+privacy erasure/legal-request evidence, cross-seller AI duplicate-detection
+product design, durable checkout-group product semantics beyond current
+guardrails, high-scale BigInt money/counter modeling decisions, live-data
+reconciliation for historical seller shipping-rate currency drift, Clerk staff
+MFA/breached-password/multi-account dashboard evidence, buyer-deletion live
+Stripe replay proof, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public bucket posture plus production
+smoke/public-availability proof, HSTS preload submission/status, Vercel
+Analytics/Speed Insights product privacy decision, homepage browser
+a11y/runtime proof, and deployed security-header runtime proof.
+
 ### Entry 502 - account deletion email-key collision and source reverify pass
 
 Entry 502 audited account deletion/privacy/provider-erasure behavior plus
