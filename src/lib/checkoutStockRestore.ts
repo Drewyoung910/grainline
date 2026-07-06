@@ -122,6 +122,7 @@ export function parseCheckoutStockReservationItems(value: unknown): RestorableSt
 export async function createCheckoutStockReservation(input: {
   checkoutLockKey: string;
   checkoutGroupId?: string | null;
+  allowEmptyReservation?: boolean;
   payloadHash: string;
   buyerId: string;
   sellerId?: string | null;
@@ -129,7 +130,7 @@ export async function createCheckoutStockReservation(input: {
   now?: Date;
 }) {
   const reservedItems = mergeCheckoutStockReservationItems(input.items);
-  if (reservedItems.length === 0) return null;
+  if (reservedItems.length === 0 && !input.allowEmptyReservation) return null;
 
   const expiresAt = checkoutStockReservationExpiresAt(input.now ?? new Date());
   return prisma.$transaction(async (tx) => {

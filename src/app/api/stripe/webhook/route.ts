@@ -204,6 +204,23 @@ function checkoutSessionShippingAddress(session: Stripe.Checkout.Session) {
   return (session as Stripe.Checkout.Session & CheckoutSessionShippingDetails).shipping_details?.address ?? null;
 }
 
+async function listAllCheckoutSessionLineItems(sessionId: string): Promise<CheckoutStockRestoreLineItem[]> {
+  const lineItems: CheckoutStockRestoreLineItem[] = [];
+  let startingAfter: string | undefined;
+
+  do {
+    const page = await stripe.checkout.sessions.listLineItems(sessionId, {
+      limit: 100,
+      ...(startingAfter ? { starting_after: startingAfter } : {}),
+      expand: ["data.price.product"],
+    });
+    lineItems.push(...(page.data as CheckoutStockRestoreLineItem[]));
+    startingAfter = page.has_more ? page.data.at(-1)?.id : undefined;
+  } while (startingAfter);
+
+  return lineItems;
+}
+
 function objectRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" ? value as Record<string, unknown> : null;
 }
@@ -940,7 +957,7 @@ export async function POST(req: Request) {
       });
       const sessionMeta = (s.metadata ?? {}) as Record<string, string | undefined>;
       checkoutLockKey = sessionMeta.checkoutLockKey ?? checkoutLockKey;
-      const checkoutLineItems: CheckoutLineItem[] = (s as { line_items?: { data?: CheckoutLineItem[] } }).line_items?.data ?? [];
+      const checkoutLineItems: CheckoutLineItem[] = await listAllCheckoutSessionLineItems(sessionId);
 
       // Only process paid sessions — skip async/pending payments
       if (s.payment_status !== "paid") {
@@ -1417,7 +1434,7 @@ export async function POST(req: Request) {
         // legacy fallback because multiple variants of one listing can share a
         // listingId.
         // The live cart may have been modified between session creation and webhook.
-        const stripeLineItems: CheckoutLineItem[] = (s as { line_items?: { data?: CheckoutLineItem[] } }).line_items?.data ?? [];
+        const stripeLineItems: CheckoutLineItem[] = checkoutLineItems;
         type PaidItem = { listingId: string; cartItemId?: string; variantKey?: string; quantity: number; priceCents: number };
         const paidItems: PaidItem[] = [];
         for (const li of stripeLineItems) {
@@ -1817,11 +1834,18 @@ export async function POST(req: Request) {
             sessionId,
           });
 
-          await tx.cartItem.deleteMany({
-            where: sellerIdFromMeta
-              ? { cartId, listing: { sellerId: sellerIdFromMeta } }
-              : { cartId },
-          });
+          const paidCartItemIds = [...usedCartItemIds];
+          if (paidCartItemIds.length > 0) {
+            await tx.cartItem.deleteMany({
+              where: { cartId, id: { in: paidCartItemIds } },
+            });
+          } else {
+            await tx.cartItem.deleteMany({
+              where: sellerIdFromMeta
+                ? { cartId, listing: { sellerId: sellerIdFromMeta, id: { in: paidListingIds } } }
+                : { cartId, listingId: { in: paidListingIds } },
+            });
+          }
 
           return {
             id: order.id,
@@ -1916,8 +1940,7 @@ export async function POST(req: Request) {
             },
           });
         }
-        const singleLineItems: CheckoutLineItem[] =
-          (s as { line_items?: { data?: CheckoutLineItem[] } }).line_items?.data ?? [];
+        const singleLineItems: CheckoutLineItem[] = checkoutLineItems;
         const singlePaidLine = singleLineItems.find((lineItem) => {
           const product = typeof lineItem.price?.product === "object" ? lineItem.price.product : null;
           return product?.metadata?.listingId === listingId;

@@ -14033,6 +14033,101 @@ submission decision, Vercel Analytics/Speed Insights product/privacy decision,
 homepage browser a11y/runtime proof beyond source fallback, and deployed
 security-header runtime proof beyond source/config guardrails.
 
+### Entry 498 - checkout finalization and publish AI-review source pass
+
+Entry 498 followed up on parent-reviewed agent findings in the Stripe checkout
+and listing AI-review areas, then verified the claims directly against current
+source. Latest pushed CI on `main` was green for `e7bcb5e6` before broadening
+audit scope. Two read-only agents were used for exploration; parent Codex
+reviewed the source before editing. The raw audit import and expected untracked
+local files were not staged.
+
+Fixed/reduced:
+
+- `publishListingAction()` now passes `listingId: listing.id` into
+  `reviewListingWithAI()`. This keeps the existing same-seller duplicate-title
+  helper from counting the current listing as a prior duplicate when a seller
+  republishes an existing listing.
+- Stripe Checkout completion now fetches the full paginated line-item list with
+  `stripe.checkout.sessions.listLineItems(..., { limit: 100, expand:
+  ["data.price.product"] })` instead of relying on the truncated `line_items`
+  expansion from `checkout.sessions.retrieve()`. Cart and single-listing
+  finalization now share that complete list for paid item reconstruction,
+  subtotal handling, invalid-checkout refund stock restore inputs, and
+  single-line paid-price detection.
+- Cart checkout finalization now removes paid cart rows by the resolved paid
+  `cartItemId`s from Stripe product metadata. The legacy fallback is limited to
+  the paid listing ids. This reduces the race where a buyer adds another item
+  from the same seller after session creation but before webhook finalization.
+- Cart seller checkout now persists an empty checkout-reservation row when a
+  seller's paid batch has no `IN_STOCK` items. That lets the existing
+  checkout-group/session recovery path discover completed made-to-order-only
+  seller sessions after paid cart rows disappear.
+
+Verified stale/current or deferred without source changes:
+
+- The broader Stripe refund runtime/backfill, label clawback runtime evidence,
+  webhook subscription dashboard evidence, and Connect v2 loss-liability items
+  remain runtime/dashboard/legal evidence. This pass changed checkout
+  finalization and recovery source behavior only.
+- Cross-seller AI duplicate-detection remains a product/moderation design
+  decision. The source fix here only corrected the existing same-seller
+  current-listing exclusion on publish.
+
+Guardrails added/reviewed:
+
+- Tightened `tests/server-action-hardening.test.mjs` so the publish-time
+  AI-review payload must include `listingId: listing.id`.
+- Extended `tests/stripe-webhook-cart-finalization.test.mjs` to require the
+  paginated Checkout line-item fetch, product metadata expansion, reuse of the
+  complete line-item list, and paid-cart-item-id scoped cleanup.
+- Extended `tests/checkout-stock-reservation-guardrails.test.mjs` so cart
+  seller checkout keeps checkout-group recovery rows even when there is no
+  stock to reserve.
+
+Verification:
+`git status --short`; source/docs/test inspection with `rg`/`sed`; official
+Stripe API docs for Checkout Session line items; two parent-reviewed read-only
+agent reports; focused `node --test tests/server-action-hardening.test.mjs
+tests/stripe-webhook-cart-finalization.test.mjs
+tests/checkout-stock-reservation-guardrails.test.mjs`, which passed 18/18;
+`npx tsc --noEmit`; `git diff --check`; and full `npm test` passing 1454/1454.
+
+Current running tally after Entry 498: verified fixed/reduced 987, verified
+stale/false-positive/current 542, deferred product/design/ops/legal 80,
+approximate raw allegations left from current max #1126: 14. Fixed/reduced
+increases by four for the publish AI-review current-listing exclusion, complete
+Stripe line-item pagination, paid-cart-row cleanup, and made-to-order-only
+checkout-group recovery row. Raw-left drops by one for the source-actionable
+completed-session recovery portion of the durable checkout-group category; the
+other fixed items were hidden issues found while auditing adjacent code rather
+than separate raw Claude allegations.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence,
+Stripe partial-refund live reconciliation proof, label clawback runtime
+proof/dashboard reconciliation evidence, Stripe webhook subscription dashboard
+evidence, Stripe Connect v2 loss-liability ops/legal decision, explicit stale
+remote branch pruning/review, Round 10 deferred cache/state-machine product
+designs that require product decisions rather than source guardrails,
+EXPLAIN-dependent runtime query-plan validation beyond the existing source
+indexes and source guardrails, provider-side privacy erasure/legal-request
+evidence, cross-seller AI duplicate-detection product design, durable
+checkout-group product semantics beyond current grouped ready-lock,
+reservation, completed-session, and made-to-order recovery guardrails,
+deliberate BigInt money-column modeling for individual order/item cents fields
+and high-volume listing analytics counters beyond the fixed seller-metrics
+aggregate cache and new webhook integer bounds, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion live Stripe replay proof after source minimization,
+Founding Maker live DB concurrency proof, Sentry cron alert evidence,
+Cloudflare R2 ListBucket/public bucket dashboard posture plus production smoke
+evidence and public-availability proof, HSTS preload submission decision,
+Vercel Analytics/Speed Insights product/privacy decision, homepage browser
+a11y/runtime proof beyond source fallback, and deployed security-header runtime
+proof beyond source/config guardrails.
+
 ### Entry 497 - runtime evidence and stale-branch reverify pass
 
 Entry 497 rechecked the remaining payment, provider-ops, runtime-evidence, and

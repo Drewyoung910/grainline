@@ -514,6 +514,7 @@ export async function POST(req: Request) {
       const reservation = await createCheckoutStockReservation({
         checkoutLockKey: checkoutLockKeyValue,
         checkoutGroupId: body.checkoutGroupId,
+        allowEmptyReservation: true,
         payloadHash,
         buyerId: me.id,
         sellerId,

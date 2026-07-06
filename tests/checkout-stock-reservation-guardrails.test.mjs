@@ -49,8 +49,11 @@ describe("durable checkout stock reservation guardrails", () => {
     assert.match(sellerCheckout, /checkoutGroupId: body\.checkoutGroupId/);
     assert.match(sellerCheckout, /checkoutStockReservationMetadata\(checkoutReservationId, body\.checkoutGroupId\)/);
     assert.match(restore, /checkoutGroupId\?: string \| null/);
+    assert.match(restore, /allowEmptyReservation\?: boolean/);
+    assert.match(restore, /reservedItems\.length === 0 && !input\.allowEmptyReservation/);
     assert.match(restore, /checkoutGroupId: input\.checkoutGroupId \?\? null/);
     assert.match(restore, /\.\.\.\(checkoutGroupId \? \{ checkoutGroupId \} : \{\}\)/);
+    assert.match(sellerCheckout, /allowEmptyReservation: true/);
   });
 
   it("marks paid reservations complete and prefers reservation-backed stock restores", () => {

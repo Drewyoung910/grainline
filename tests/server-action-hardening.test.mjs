@@ -33,7 +33,6 @@ describe("server action hardening guardrails", () => {
     const createPage = source("src/app/dashboard/listings/new/page.tsx");
 
     assert.match(shopActions, /source: "listing_activation_follower_fanout"/);
-    assert.match(shopActions, /listingId: listing\.id/);
     assert.match(shopActions, /sellerProfileId: listing\.sellerId/);
     assert.match(shopActions, /source: "listing_publish_ai_review"/);
     assert.match(shopActions, /source: "listing_publish_ai_review_followup"/);
@@ -52,6 +51,12 @@ describe("server action hardening guardrails", () => {
       assert.match(block, /logServerError\((error|updateError), \{/);
       assert.doesNotMatch(block, /Sentry\.captureException\((error|updateError), \{/);
     }
+    const publishAiStart = shopActions.indexOf("const aiResult = await reviewListingWithAI({");
+    const publishAiEnd = shopActions.indexOf("}).catch((error) => {", publishAiStart);
+    const publishAiPayload = shopActions.slice(publishAiStart, publishAiEnd);
+    assert.ok(publishAiStart >= 0 && publishAiEnd > publishAiStart, "publish AI-review payload must be present");
+    assert.match(publishAiPayload, /listingId: listing\.id,/);
+    assert.match(publishAiPayload, /sellerId: listing\.sellerId,/);
 
     assert.match(createPage, /source: "listing_create_ai_review"/);
     assert.match(createPage, /source: "listing_create_ai_error_mark_failed"/);

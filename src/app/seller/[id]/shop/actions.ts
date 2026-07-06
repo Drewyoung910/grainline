@@ -276,6 +276,7 @@ export async function publishListingAction(listingId: string): Promise<{ status:
     });
 
     const aiResult = await reviewListingWithAI({
+      listingId: listing.id,
       sellerId: listing.sellerId,
       title: listing.title,
       description: listing.description,

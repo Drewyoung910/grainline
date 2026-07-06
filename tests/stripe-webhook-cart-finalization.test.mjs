@@ -8,6 +8,21 @@ describe("Stripe cart checkout webhook finalization", () => {
   it("creates cart order items from Stripe paid line items, not mutable live cart rows", () => {
     assert.match(
       webhookSource,
+      /async function listAllCheckoutSessionLineItems\(sessionId: string\)/,
+      "webhook must fetch the complete paginated Checkout line item list",
+    );
+    assert.match(
+      webhookSource,
+      /stripe\.checkout\.sessions\.listLineItems\(sessionId, \{[\s\S]*limit: 100,[\s\S]*expand: \["data\.price\.product"\]/,
+      "complete line item fetch must expand product metadata for listing/cart item ids",
+    );
+    assert.match(
+      webhookSource,
+      /const checkoutLineItems: CheckoutLineItem\[\] = await listAllCheckoutSessionLineItems\(sessionId\);/,
+      "checkout completion must not rely on the truncated retrieve expansion",
+    );
+    assert.match(
+      webhookSource,
       /const paidItems: PaidItem\[\] = \[\];/,
       "cart finalization must build an immutable paid-items list from Stripe line_items",
     );
@@ -25,6 +40,24 @@ describe("Stripe cart checkout webhook finalization", () => {
       webhookSource,
       /if \(!cart \|\| cart\.items\.length === 0\)/,
       "a missing or emptied cart must not cause a paid checkout to be silently acknowledged without an order",
+    );
+  });
+
+  it("removes only Stripe-paid cart rows after cart checkout finalization", () => {
+    assert.match(
+      webhookSource,
+      /const paidCartItemIds = \[\.\.\.usedCartItemIds\];/,
+      "cart cleanup must derive paid cart item ids from resolved Stripe line item metadata",
+    );
+    assert.match(
+      webhookSource,
+      /where: \{ cartId, id: \{ in: paidCartItemIds \} \}/,
+      "cart cleanup must delete paid cart items by id",
+    );
+    assert.doesNotMatch(
+      webhookSource,
+      /where: sellerIdFromMeta\s*\?\s*\{ cartId, listing: \{ sellerId: sellerIdFromMeta \} \ }\s*:\s*\{ cartId \}/,
+      "cart cleanup must not delete every current cart row for the seller",
     );
   });
 
