@@ -13925,3 +13925,137 @@ production smoke evidence and public-availability proof, HSTS preload
 submission decision, Vercel Analytics/Speed Insights product/privacy decision,
 homepage browser a11y/runtime proof beyond source fallback, and deployed
 security-header runtime proof beyond source/config guardrails.
+
+## Entry 492 - R2, privacy replay, deploy evidence, and schema reverify pass
+
+Entry 492 closes a parent-verified pass over remaining R2/public-bucket,
+provider privacy erasure, buyer-deletion Stripe replay, deployed-header,
+dependency hygiene, Shippo label, and schema numeric allegations. Two read-only
+agents inspected disjoint R2 and privacy/deletion/provider-erasure slices;
+parent Codex reviewed their reports against current source, tests, docs, and
+the active ledger. Both agents were closed. The raw audit import and expected
+untracked local files were not staged.
+
+Fixed/reduced:
+
+- Added a focused checkout-webhook guardrail for the source-current deleted
+  buyer replay behavior. `tests/stripe-webhook-cart-finalization.test.mjs` now
+  asserts both cart and single Checkout completion branches write `buyerId`
+  from the transaction-fresh invalid-state helper, keep invalid-buyer replays
+  held for staff review, preserve the invalid reason in the review/audit path,
+  and stamp `buyerDataPurgedAt` through the buyer-PII minimization helper.
+
+Verified stale/current or deferred without source changes:
+
+- R2 env validation is source-current. `src/lib/r2.ts` uses
+  `requiredProductionEnv()` for R2 account, credentials, bucket, and public URL
+  values instead of production-only non-null assertions.
+- R2 upload signature and cache-header allegations are source-current for new
+  objects. Processed uploads and direct uploads validate image/PDF/video magic
+  bytes before acceptance, reject unsupported/SVG-like payloads, set immutable
+  `CacheControl` on new objects, and verify direct-upload `HeadObject`
+  size/type/key metadata before persistence. Historical pre-cache-header object
+  headers remain bucket/runtime evidence or a backfill task.
+- R2 public-bucket/ListBucket posture remains an ops evidence item rather than
+  a source defect. Source cleanup uses stored lifecycle keys instead of bucket
+  listing, `/api/health` only proves `HeadBucket`, and docs/launch checklist
+  still require upload smoke, CORS/public-domain, ListBucket, and bucket-size
+  evidence before launch.
+- Provider privacy erasure and buyer-deletion source behavior is current:
+  account deletion uses locks, same-origin/fresh-session confirmation, durable
+  side-effect retry rows, seller orderability disablement, and a retained
+  `USER_ACCOUNT_DELETE` audit row. Clerk provider-deleted users with remaining
+  obligations are locally disabled and tracked as data requests instead of
+  being silently hard-deleted.
+- Stripe account replay cannot re-enable inactive sellers in current source:
+  `mirrorStripeChargesEnabled()` reads local `banned/deletedAt` state and
+  mirrors `chargesEnabled && localAccountActive`.
+- Buyer-deletion live Stripe replay proof remains runtime evidence, not a
+  source-proven fix. Static source now revalidates buyer state inside Checkout
+  finalization transactions and converts deleted/suspended buyer completions
+  into blocked review orders with purged buyer PII, but the live replay
+  evidence still requires a Stripe test-mode replay and recorded DB/Sentry/audit
+  artifacts.
+- HSTS/deployed-header allegations remain source-current plus runtime evidence.
+  `next.config.ts` sends the expected security headers including HSTS with the
+  `preload` directive, while tests/docs correctly avoid claiming Chromium
+  preload-list acceptance without live `hstspreload.org` status.
+- Dependency/CI hygiene allegations are stale/current. `package.json` and the
+  lockfile use Next 16.2.6, direct `@types/*` packages are in
+  `devDependencies` or removed, CI blocks on `npm audit --audit-level=high`,
+  Dependabot groups major updates for manual review instead of ignoring them,
+  and docs/tests record the intentional `npm ci --ignore-scripts` CI versus
+  normal Vercel install-script asymmetry.
+- Shippo label double-purchase source remains current. The route claims
+  `labelStatus = PURCHASED` through an atomic guarded SQL update before the
+  Shippo transaction call and records ambiguous/orphan states for manual
+  reconciliation. Parent review did not add an undocumented Shippo
+  idempotency header without primary provider evidence that `/transactions/`
+  supports it.
+- Schema numeric guard allegations are stale/current for the inspected slice:
+  `Order.platformFeeCents` is not a persisted column, so no DB CHECK can or
+  should be added for it; existing tests guard that absence. The broader
+  EXPLAIN/live query-plan and individual BigInt modeling items remain runtime
+  and data-modeling decisions.
+
+Guardrails added/reviewed:
+Added `stores deleted-buyer checkout replays as blocked review orders, not
+normal buyer orders` to `tests/stripe-webhook-cart-finalization.test.mjs`.
+Reviewed existing guardrails included
+`tests/upload-verification-token.test.mjs`, `tests/upload-ux-followups.test.mjs`,
+`tests/direct-upload-lifecycle.test.mjs`,
+`tests/stripe-webhook-cart-finalization.test.mjs`,
+`tests/stripe-webhook-state.test.mjs`,
+`tests/payment-side-effect-observability.test.mjs`,
+`tests/public-security-config.test.mjs`, `tests/dependency-hygiene.test.mjs`,
+`tests/public-cron-search-hardening.test.mjs`, and
+`tests/schema-numeric-index-guardrails.test.mjs`.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 3` confirmed latest
+pushed CI on `main` was green for `98d9ddcb`; source/docs/test inspection with
+`rg`/`sed`; two parent-reviewed read-only agent reports; focused
+`node --test tests/stripe-webhook-cart-finalization.test.mjs`, which passed
+5/5; and the broader focused suite `node --test
+tests/stripe-webhook-cart-finalization.test.mjs tests/stripe-webhook-state.test.mjs
+tests/payment-side-effect-observability.test.mjs tests/public-security-config.test.mjs
+tests/dependency-hygiene.test.mjs tests/schema-numeric-index-guardrails.test.mjs
+tests/upload-verification-token.test.mjs tests/upload-ux-followups.test.mjs
+tests/direct-upload-lifecycle.test.mjs`, which passed 132/132; `npx tsc
+--noEmit`; `git diff --check`; `npm run lint` (known `jsx-ast-utils`
+TSNonNullExpression warning, exit 0); and full `npm test` passing 1449/1449.
+
+Current running tally after Entry 492: verified fixed/reduced 978, verified
+stale/false-positive/current 542, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 18. Fixed/reduced
+increases by one for the added deleted-buyer Checkout replay guardrail. Raw-left
+stays flat because the source-current/stale/deferred R2, privacy, deploy,
+dependency, Shippo, and schema findings were already represented in the ledger
+or still require runtime/dashboard/legal evidence.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence,
+Stripe partial-refund live reconciliation proof, label clawback runtime
+proof/dashboard reconciliation evidence, Stripe webhook subscription dashboard
+evidence, Stripe Connect v2 loss-liability ops/legal decision, explicit stale
+remote branch pruning/review, completed-audit archive housekeeping once the
+60-day threshold is reached, Round 10 deferred cache/state-machine product
+designs that require product decisions rather than source guardrails,
+EXPLAIN-dependent runtime query-plan validation beyond the existing source
+indexes and source guardrails, founding-maker permanence policy,
+provider-side privacy erasure/legal-request evidence, cross-seller AI
+duplicate-detection product design, durable checkout-group design for checkout
+batch semantics beyond grouped ready-lock/reservation resume and
+completed-session filtering, deliberate BigInt money-column modeling for
+individual order/item cents fields and high-volume listing analytics counters
+beyond the fixed seller-metrics aggregate cache and new webhook integer bounds,
+live-data reconciliation for historical seller shipping-rate currency drift,
+Guild private/custom-order sales/review trust-metric product policy, Clerk
+staff MFA and breached-password dashboard evidence, Clerk multi-account spam
+dashboard evidence, buyer-deletion live Stripe replay proof after source
+minimization, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public bucket dashboard posture plus
+production smoke evidence and public-availability proof, HSTS preload
+submission decision, Vercel Analytics/Speed Insights product/privacy decision,
+homepage browser a11y/runtime proof beyond source fallback, and deployed
+security-header runtime proof beyond source/config guardrails.

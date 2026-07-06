@@ -109,4 +109,37 @@ describe("Stripe cart checkout webhook finalization", () => {
       "single-listing checkout order creation must use the buyer PII helper",
     );
   });
+
+  it("stores deleted-buyer checkout replays as blocked review orders, not normal buyer orders", () => {
+    const cartCreateStart = webhookSource.indexOf("const order = await tx.order.create({");
+    const cartCreateEnd = webhookSource.indexOf("for (const checkoutItem of checkoutItems)", cartCreateStart);
+    const cartCreate = webhookSource.slice(cartCreateStart, cartCreateEnd);
+    const singleCreateStart = webhookSource.indexOf("const order = await tx.order.create({", cartCreateEnd);
+    const singleCreateEnd = webhookSource.indexOf("// Stock was already decremented at checkout time", singleCreateStart);
+    const singleCreate = webhookSource.slice(singleCreateStart, singleCreateEnd);
+
+    assert.ok(cartCreateStart >= 0 && cartCreateEnd > cartCreateStart, "cart order creation block must be present");
+    assert.ok(singleCreateStart >= 0 && singleCreateEnd > singleCreateStart, "single order creation block must be present");
+
+    for (const [label, block, invalidStateName, buyerPiiName] of [
+      ["cart", cartCreate, "cartInvalidState", "cartBuyerPii"],
+      ["single", singleCreate, "singleInvalidState", "singleBuyerPii"],
+    ]) {
+      assert.match(block, new RegExp(`buyerId: ${invalidStateName}\\.buyerUserId`), `${label} order buyerId must come from transaction invalid state`);
+      assert.match(block, new RegExp(`reviewNeeded: reviewNeeded \\|\\| !!${invalidStateName}\\.reason`), `${label} deleted-buyer replay must be held for review`);
+      assert.match(block, new RegExp(`reviewNote: ${invalidStateName}\\.reason[\\s\\S]*blockedCheckoutReviewPrefix\\(${invalidStateName}\\.reason\\)`), `${label} blocked checkout must record the invalid reason`);
+      assert.match(block, new RegExp(`buyerDataPurgedAt: ${buyerPiiName}\\.buyerDataPurgedAt`), `${label} blocked checkout must stamp buyer PII purge time`);
+    }
+
+    assert.match(
+      webhookSource,
+      /reason: cartInvalidState\.reason \?\? null,[\s\S]*invalidReason: cartInvalidState\.reason \?\? null,/,
+      "cart checkout audit row must preserve the invalid buyer reason",
+    );
+    assert.match(
+      webhookSource,
+      /reason: singleInvalidState\.reason \?\? null,[\s\S]*invalidReason: singleInvalidState\.reason \?\? null,/,
+      "single checkout audit row must preserve the invalid buyer reason",
+    );
+  });
 });
