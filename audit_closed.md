@@ -13367,3 +13367,109 @@ proof, HSTS preload submission decision, Vercel Analytics/Speed Insights
 product/privacy decision, homepage browser a11y/runtime proof beyond source
 fallback, and deployed security-header runtime proof beyond source/config
 guardrails.
+
+## Entry 487 - cart checkout group resume and webhook event-scope pass
+
+Entry 487 closes a parent-verified source fix for a narrow cart checkout resume
+defect inside the broader durable checkout-group category, plus a no-code
+reverification of Stripe `payment_intent.*` webhook allegations. Two read-only
+agents inspected disjoint checkout-resume and Stripe webhook event-scope
+surfaces; parent Codex reviewed their conclusions against source, tests, docs,
+and the active ledger before editing. Both agents were closed. The raw audit
+import and expected untracked local files were not staged.
+
+Fixed/reduced:
+
+- Cart checkout batches now carry a `checkoutGroupId` generated once per
+  multi-seller checkout attempt. The id is required by
+  `POST /api/cart/checkout-seller`, included in the checkout payload hash,
+  persisted on `CheckoutStockReservation`, and written to Stripe Checkout
+  metadata with the reservation id. Because the group id participates in the
+  payload hash, a new checkout attempt cannot silently reuse a ready seller
+  lock from an older batch with the same cart/seller/item/rate shape.
+- `GET /api/cart/checkout/resume` now derives the active checkout group from
+  ready Stripe sessions and includes recent completed reservation rows only
+  from that same group. If no open session remains, resume chooses the most
+  recent completed group instead of mixing all completed reservations for the
+  persistent cart id. This fixes the verified pollution case where completed
+  sessions from checkout A could be returned during checkout B within the
+  two-hour completed-session lookback, confusing the receipt URL and
+  "Back to shipping" guard. This does not claim to finish the broader
+  first-class checkout-group product model.
+- `CLAUDE.md` now records the reusable behavior contract: cart checkout resume
+  must stay group-scoped and must not fall back to buyer/cart-only completed
+  reservation lookups because `Cart.userId` is persistent across checkout
+  attempts.
+
+Verified stale/current without code changes:
+
+- Raw `payment_intent.payment_failed` allegations remain stale/current under
+  the present card-only embedded Checkout model. Both cart checkout routes keep
+  `payment_method_types: ["card"]` and do not enable
+  `automatic_payment_methods`; the order writer is still driven by
+  `checkout.session.completed` / `checkout.session.async_payment_succeeded`,
+  while stock restoration is covered by `checkout.session.expired` /
+  `checkout.session.async_payment_failed`.
+- Stripe Dashboard subscription proof remains an ops/runtime evidence item:
+  `/api/stripe/webhook` must be subscribed only to the handled snapshot event
+  set and not `payment_intent.*`, while `/api/stripe/webhook/v2` remains the
+  separate thin-event destination for `v2.core.account` with
+  `STRIPE_V2_WEBHOOK_SECRET`.
+
+Guardrails added/reviewed:
+`tests/client-async-guardrails.test.mjs` now pins cart checkout group id
+generation/request payloads and group-scoped resume filtering;
+`tests/checkout-stock-reservation-guardrails.test.mjs` now pins the nullable
+reservation `checkoutGroupId` column/index, migration, seller checkout metadata,
+and reservation helper threading; `tests/order-state-followups.test.mjs` was
+updated for the reservation metadata helper signature. Existing payment-method
+and Stripe webhook subscription/event-scope guardrails remain in
+`tests/checkout-payment-methods.test.mjs` and
+`tests/stripe-webhook-v2-route.test.mjs`.
+
+Verification:
+`gh run list --branch main --limit 3` confirmed latest pushed CI on `main`
+was green for `e212efb1`; source/docs/test inspection with `rg`/`sed`; two
+parent-reviewed read-only agent reports; `npx prisma generate`; focused
+`node --test tests/client-async-guardrails.test.mjs
+tests/checkout-stock-reservation-guardrails.test.mjs
+tests/order-state-followups.test.mjs tests/stripe-webhook-v2-route.test.mjs
+tests/checkout-payment-methods.test.mjs`, which passed 46/46;
+`npx tsc --noEmit`; `git diff --check`; `npm run lint` (known
+`jsx-ast-utils` TSNonNullExpression warning, exit 0); and full `npm test`
+passing 1444/1444.
+
+Current running tally after Entry 487: verified fixed/reduced 973, verified
+stale/false-positive/current 542, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 21. Fixed/reduced
+increases by one for the source-discovered completed-session group-scoping
+defect. Stale/current and raw-left stay flat because raw #678 was already
+closed earlier, and the broader checkout-group product/design category remains
+open even though this narrower resume pollution path is fixed.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence, label
+clawback runtime proof/dashboard reconciliation evidence, Stripe webhook
+subscription dashboard evidence, Stripe Connect v2 loss-liability ops/legal
+decision, explicit stale remote branch pruning/review, completed-audit archive
+housekeeping once the 60-day threshold is reached, Round 10 deferred
+cache/state-machine product designs that require product decisions rather than
+source guardrails, remaining EXPLAIN-dependent runtime query-plan validation
+beyond the existing source indexes and source guardrails, Stripe partial-refund
+live reconciliation proof, founding-maker permanence policy, remaining
+privacy/legal retention provider scope, cross-seller AI duplicate-detection
+product design, durable checkout-group design for checkout batch semantics
+beyond grouped ready-lock/reservation resume and completed-session filtering,
+deliberate BigInt money-column modeling for individual order/item cents fields
+and high-volume listing analytics counters beyond the fixed seller-metrics
+aggregate cache and new webhook integer bounds, live-data reconciliation for
+historical seller shipping-rate currency drift, Guild private/custom-order
+sales/review trust-metric product policy, Clerk staff MFA and breached-password
+dashboard evidence, Clerk multi-account spam dashboard evidence, buyer-deletion
+live Stripe replay proof after source minimization, Founding Maker live DB
+concurrency proof, Sentry cron alert evidence, Cloudflare R2 ListBucket/public
+bucket dashboard posture plus production smoke evidence and public-availability
+proof, HSTS preload submission decision, Vercel Analytics/Speed Insights
+product/privacy decision, homepage browser a11y/runtime proof beyond source
+fallback, and deployed security-header runtime proof beyond source/config
+guardrails.

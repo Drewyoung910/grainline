@@ -144,12 +144,16 @@ describe("client async guardrails", () => {
     const cartPage = source("src/app/cart/page.tsx");
 
     assert.match(cartPage, /keepalive: true/);
+    assert.match(cartPage, /function newCheckoutGroupId\(\)/);
+    assert.match(cartPage, /crypto\.randomUUID\(\)/);
     assert.match(cartPage, /const clientSecretsRef = React\.useRef<ClientSecretEntry\[\]>\(\[\]\)/);
     assert.match(cartPage, /const \[completedSessionIds, setCompletedSessionIds\] = React\.useState<Set<string>>\(\(\) => new Set\(\)\)/);
     assert.doesNotMatch(cartPage, /window\.addEventListener\("pagehide", rollbackOpenCheckoutSessions\)/);
     assert.doesNotMatch(cartPage, /const pendingCheckoutSessionIds = React\.useCallback/);
     assert.doesNotMatch(cartPage, /const checkoutCompletedRef = React\.useRef\(false\)/);
     assert.match(cartPage, /flushSync\(\(\) => \{\s*markCheckoutSessionCompleted\(clientSecrets\[currentPaymentIndex\]\?\.sessionId\)/);
+    assert.match(cartPage, /const checkoutGroupId = newCheckoutGroupId\(\)/);
+    assert.match(cartPage, /checkoutGroupId,/);
     assert.match(cartPage, /async function handleReturnToShippingFromPayment\(\)/);
     assert.match(cartPage, /\.filter\(\(sessionId\) => !completedSessionIds\.has\(sessionId\)\)/);
     assert.match(cartPage, /completedSessionIds\.size === 0 \? \(/);
@@ -176,6 +180,7 @@ describe("client async guardrails", () => {
     assert.match(resumeRoute, /const cartId = cart\?\.id \?\? null/);
     assert.match(resumeRoute, /cartCheckoutLockKey\(cartId, sellerId\)/);
     assert.match(resumeRoute, /stripe\.checkout\.sessions\.retrieve\(lock\.sessionId\)/);
+    assert.match(resumeRoute, /let activeCheckoutGroupId: string \| null = null/);
     assert.match(resumeRoute, /metadata\.buyerId !== me\.id/);
     assert.match(resumeRoute, /metadata\.cartId !== cartId/);
     assert.match(resumeRoute, /metadata\.sellerId !== sellerId/);
@@ -183,9 +188,13 @@ describe("client async guardrails", () => {
     assert.match(resumeRoute, /completedSessionIds\.push\(session\.id\)/);
     assert.match(resumeRoute, /prisma\.checkoutStockReservation\.findMany\(\{/);
     assert.match(resumeRoute, /status: "COMPLETED"/);
+    assert.match(resumeRoute, /checkoutGroupId: activeCheckoutGroupId \? activeCheckoutGroupId : \{ not: null \}/);
+    assert.match(resumeRoute, /const completedCheckoutGroupId =/);
+    assert.match(resumeRoute, /\.filter\(\(reservation\) => reservation\.checkoutGroupId === completedCheckoutGroupId\)/);
     assert.match(resumeRoute, /createdAt: \{ gte: new Date\(Date\.now\(\) - CHECKOUT_RESUME_COMPLETED_LOOKBACK_MS\) \}/);
     assert.match(resumeRoute, /metadata\.buyerId !== me\.id/);
     assert.match(resumeRoute, /cartId && metadata\.cartId !== cartId/);
+    assert.match(resumeRoute, /metadata\.checkoutGroupId !== completedCheckoutGroupId/);
     assert.match(resumeRoute, /session\.status !== "open" \|\| session\.payment_status !== "unpaid"/);
     assert.match(resumeRoute, /shippingAddressFromMetadata\(metadata\)/);
   });

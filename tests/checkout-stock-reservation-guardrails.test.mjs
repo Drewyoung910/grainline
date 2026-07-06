@@ -14,13 +14,18 @@ describe("durable checkout stock reservation guardrails", () => {
   it("persists checkout stock reservations with restore indexes and status checks", () => {
     const schema = source("prisma/schema.prisma");
     const migration = source("prisma/migrations/20260529190000_add_checkout_stock_reservation/migration.sql");
+    const groupMigration = source("prisma/migrations/20260706003000_add_checkout_group_id_to_reservations/migration.sql");
 
     assert.match(schema, /model CheckoutStockReservation/);
+    assert.match(schema, /checkoutGroupId String\? +@db\.VarChar\(100\)/);
     assert.match(schema, /stripeSessionId String\? +@unique/);
+    assert.match(schema, /@@index\(\[buyerId, checkoutGroupId\]\)/);
     assert.match(schema, /@@index\(\[status, expiresAt\]\)/);
     assert.match(migration, /CREATE TABLE "CheckoutStockReservation"/);
     assert.match(migration, /CHECK \("status" IN \('RESERVED', 'SESSION_CREATED', 'COMPLETED', 'RESTORED'\)\)/);
     assert.match(migration, /CHECK \(jsonb_typeof\("reservedItems"\) = 'array'\)/);
+    assert.match(groupMigration, /ADD COLUMN "checkoutGroupId" VARCHAR\(100\)/);
+    assert.match(groupMigration, /"buyerId", "checkoutGroupId"/);
   });
 
   it("creates durable reservations before Stripe session creation and restores them on create failures", () => {
@@ -29,11 +34,23 @@ describe("durable checkout stock reservation guardrails", () => {
 
     for (const route of [singleCheckout, sellerCheckout]) {
       assert.match(route, /createCheckoutStockReservation\(\{/);
-      assert.match(route, /checkoutStockReservationMetadata\(checkoutReservationId\)/);
+      assert.match(route, /checkoutStockReservationMetadata\(checkoutReservationId/);
       assert.match(route, /markCheckoutStockReservationSession\(\{/);
       assert.match(route, /restoreCheckoutStockReservationOnce\(\{[\s\S]*reason: "checkout_create_error"/);
       assert.doesNotMatch(route, /SET "stockQuantity" = "stockQuantity" \+ \$\{reserved/);
     }
+  });
+
+  it("threads cart checkout group ids through seller checkout metadata and reservations", () => {
+    const sellerCheckout = source("src/app/api/cart/checkout-seller/route.ts");
+    const restore = source("src/lib/checkoutStockRestore.ts");
+
+    assert.match(sellerCheckout, /checkoutGroupId: z\.string\(\)\.uuid\(\)/);
+    assert.match(sellerCheckout, /checkoutGroupId: body\.checkoutGroupId/);
+    assert.match(sellerCheckout, /checkoutStockReservationMetadata\(checkoutReservationId, body\.checkoutGroupId\)/);
+    assert.match(restore, /checkoutGroupId\?: string \| null/);
+    assert.match(restore, /checkoutGroupId: input\.checkoutGroupId \?\? null/);
+    assert.match(restore, /\.\.\.\(checkoutGroupId \? \{ checkoutGroupId \} : \{\}\)/);
   });
 
   it("marks paid reservations complete and prefers reservation-backed stock restores", () => {

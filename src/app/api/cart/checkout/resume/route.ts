@@ -83,6 +83,7 @@ export async function GET() {
     const completedSessionIds: string[] = [];
     const completedSessionIdSet = new Set<string>();
     let shippingAddress: ResumedShippingAddress | null = null;
+    let activeCheckoutGroupId: string | null = null;
 
     for (const [sellerId, sellerName] of sellers) {
       if (!cartId) continue;
@@ -99,6 +100,12 @@ export async function GET() {
         metadata.checkoutLockKey !== checkoutLockKey
       ) {
         continue;
+      }
+      if (metadata.checkoutGroupId) {
+        if (activeCheckoutGroupId && activeCheckoutGroupId !== metadata.checkoutGroupId) {
+          continue;
+        }
+        activeCheckoutGroupId = metadata.checkoutGroupId;
       }
       if (session.payment_status === "paid" || session.status === "complete") {
         completedSessionIds.push(session.id);
@@ -120,17 +127,25 @@ export async function GET() {
       });
     }
 
-    const recentCompletedReservations = await prisma.checkoutStockReservation.findMany({
+    const recentCompletedReservationRows = await prisma.checkoutStockReservation.findMany({
       where: {
         buyerId: me.id,
         status: "COMPLETED",
         stripeSessionId: { not: null },
+        checkoutGroupId: activeCheckoutGroupId ? activeCheckoutGroupId : { not: null },
         createdAt: { gte: new Date(Date.now() - CHECKOUT_RESUME_COMPLETED_LOOKBACK_MS) },
       },
-      orderBy: { createdAt: "asc" },
+      orderBy: { createdAt: activeCheckoutGroupId ? "asc" : "desc" },
       take: 20,
-      select: { stripeSessionId: true },
+      select: { stripeSessionId: true, checkoutGroupId: true, createdAt: true },
     });
+    const completedCheckoutGroupId =
+      activeCheckoutGroupId ?? recentCompletedReservationRows[0]?.checkoutGroupId ?? null;
+    const recentCompletedReservations = completedCheckoutGroupId
+      ? recentCompletedReservationRows
+          .filter((reservation) => reservation.checkoutGroupId === completedCheckoutGroupId)
+          .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      : [];
 
     for (const reservation of recentCompletedReservations) {
       if (!reservation.stripeSessionId || completedSessionIdSet.has(reservation.stripeSessionId)) continue;
@@ -149,6 +164,7 @@ export async function GET() {
       if (metadata.buyerId !== me.id) continue;
       if (!metadata.cartId) continue;
       if (cartId && metadata.cartId !== cartId) continue;
+      if (completedCheckoutGroupId && metadata.checkoutGroupId !== completedCheckoutGroupId) continue;
       if (session.payment_status !== "paid" && session.status !== "complete") continue;
       completedSessionIds.push(session.id);
       completedSessionIdSet.add(session.id);

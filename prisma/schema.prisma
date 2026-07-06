@@ -767,6 +767,7 @@ model CartItem {
 model CheckoutStockReservation {
   id              String    @id @default(cuid())
   checkoutLockKey String    @db.VarChar(255)
+  checkoutGroupId String?   @db.VarChar(100)
   payloadHash     String    @db.VarChar(64)
   buyerId         String?   @db.VarChar(191)
   sellerId        String?   @db.VarChar(191)
@@ -780,6 +781,7 @@ model CheckoutStockReservation {
   updatedAt       DateTime  @updatedAt
 
   @@index([checkoutLockKey])
+  @@index([buyerId, checkoutGroupId])
   @@index([status, expiresAt])
   @@index([buyerId, createdAt])
   @@index([sellerId, createdAt])

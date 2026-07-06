@@ -79,8 +79,14 @@ export function checkoutStockReservationExpiresAt(now = new Date()) {
   return new Date(now.getTime() + CHECKOUT_STOCK_RESERVATION_TTL_MS);
 }
 
-export function checkoutStockReservationMetadata(reservationId: string | null | undefined): Record<string, string> {
-  return reservationId ? { checkoutReservationId: reservationId } : {};
+export function checkoutStockReservationMetadata(
+  reservationId: string | null | undefined,
+  checkoutGroupId?: string | null,
+): Record<string, string> {
+  return {
+    ...(reservationId ? { checkoutReservationId: reservationId } : {}),
+    ...(checkoutGroupId ? { checkoutGroupId } : {}),
+  };
 }
 
 export function checkoutStockReservationStaleCutoff(now = new Date()) {
@@ -115,6 +121,7 @@ export function parseCheckoutStockReservationItems(value: unknown): RestorableSt
 
 export async function createCheckoutStockReservation(input: {
   checkoutLockKey: string;
+  checkoutGroupId?: string | null;
   payloadHash: string;
   buyerId: string;
   sellerId?: string | null;
@@ -129,6 +136,7 @@ export async function createCheckoutStockReservation(input: {
     const reservation = await tx.checkoutStockReservation.create({
       data: {
         checkoutLockKey: input.checkoutLockKey,
+        checkoutGroupId: input.checkoutGroupId ?? null,
         payloadHash: input.payloadHash,
         buyerId: input.buyerId,
         sellerId: input.sellerId ?? null,

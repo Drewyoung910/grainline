@@ -138,6 +138,17 @@ function sessionIdFromClientSecret(secret: string) {
   return secret.includes("_secret_") ? secret.split("_secret_")[0] : "";
 }
 
+function newCheckoutGroupId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (char) => {
+    const value = Math.floor(Math.random() * 16);
+    const nibble = char === "x" ? value : (value & 0x3) | 0x8;
+    return nibble.toString(16);
+  });
+}
+
 function cartItemsFromAnonymous(items: AnonymousCartItem[]): CartItem[] {
   return items.map((item) => ({
     id: item.lineKey,
@@ -710,6 +721,7 @@ function CartPage() {
 
     const secrets: ClientSecretEntry[] = [];
     const openedSessionIds: string[] = [];
+    const checkoutGroupId = newCheckoutGroupId();
     try {
       for (const g of groups) {
         const rate = selectedRates[g.sellerId];
@@ -722,6 +734,7 @@ function CartPage() {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             sellerId: g.sellerId,
+            checkoutGroupId,
             shippingAddress,
             selectedRate: rate,
             giftNote: gift?.giftNote ?? "",

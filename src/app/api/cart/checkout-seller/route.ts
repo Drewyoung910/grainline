@@ -47,6 +47,7 @@ import { hashIdentifierForTelemetry } from "@/lib/privacyTelemetry";
 
 const CheckoutSellerSchema = z.object({
   sellerId: z.string().min(1),
+  checkoutGroupId: z.string().uuid(),
   shippingAddress: z.object({
     name: z.string().min(1).max(100),
     line1: z.string().min(1).max(200),
@@ -440,6 +441,7 @@ export async function POST(req: Request) {
       buyerId: me.id,
       cartId: cart.id,
       sellerId,
+      checkoutGroupId: body.checkoutGroupId,
       items: resolvedSellerItems.map((it) => ({
         cartItemId: it.id,
         listingId: it.listingId,
@@ -511,6 +513,7 @@ export async function POST(req: Request) {
     try {
       const reservation = await createCheckoutStockReservation({
         checkoutLockKey: checkoutLockKeyValue,
+        checkoutGroupId: body.checkoutGroupId,
         payloadHash,
         buyerId: me.id,
         sellerId,
@@ -557,7 +560,7 @@ export async function POST(req: Request) {
       cartSellerCount: String(cartSellerCount),
       multiSellerCheckout: cartSellerCount > 1 ? "true" : "false",
       checkoutLockKey: checkoutLockKeyValue,
-      ...checkoutStockReservationMetadata(checkoutReservationId),
+      ...checkoutStockReservationMetadata(checkoutReservationId, body.checkoutGroupId),
       ...(reservedStockMetadata.length <= 500 ? { reservedStock: reservedStockMetadata } : {}),
     };
 

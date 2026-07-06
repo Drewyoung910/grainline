@@ -122,11 +122,11 @@ describe("order-state audit follow-up guardrails", () => {
 
     assert.match(singleCheckout, /createCheckoutStockReservation\(\{/);
     assert.match(singleCheckout, /sellerId: listing\.sellerId/);
-    assert.match(singleCheckout, /checkoutStockReservationMetadata\(checkoutReservationId\)/);
+    assert.match(singleCheckout, /checkoutStockReservationMetadata\(checkoutReservationId/);
 
     assert.match(sellerCheckout, /createCheckoutStockReservation\(\{/);
     assert.match(sellerCheckout, /sellerId: it\.listing\.sellerId/);
-    assert.match(sellerCheckout, /checkoutStockReservationMetadata\(checkoutReservationId\)/);
+    assert.match(sellerCheckout, /checkoutStockReservationMetadata\(checkoutReservationId/);
 
     assert.match(stockRestore, /WHERE id = \$\{item\.listingId\}\s+AND "sellerId" = \$\{item\.sellerId\}\s+AND status = 'ACTIVE'\s+AND "listingType" = 'IN_STOCK'\s+AND "stockQuantity" >= \$\{item\.quantity\}/);
     assert.match(stockRestore, /WHERE id = \$\{item\.listingId\}\s+AND "listingType" = 'IN_STOCK'/);
