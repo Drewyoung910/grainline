@@ -14033,6 +14033,112 @@ submission decision, Vercel Analytics/Speed Insights product/privacy decision,
 homepage browser a11y/runtime proof beyond source fallback, and deployed
 security-header runtime proof beyond source/config guardrails.
 
+### Entry 499 - AI money, unsubscribe, and React cache stale reverify pass
+
+Entry 499 rechecked remaining raw allegations around AI-review money
+formatting, unsubscribe/newsletter consent semantics, and React cache
+duplicate-query performance. Latest pushed CI on `main` is green for
+`e177fff1` (`28817798670`) before broadening audit scope. Two read-only agents
+inspected disjoint slices; parent Codex verified the source locally and closed
+both agents. No product code changed.
+
+Fixed/reduced:
+
+- None. This pass did not verify a new source-actionable defect.
+
+Verified stale/current or deferred without source changes:
+
+- AI-review money formatting is stale/current. `reviewListingWithAI()` accepts
+  `currency` and formats prompt price with `formatCurrencyCents()` rather than
+  hard-coded dollar formatting.
+- Refund/case/follower/Guild currency copy allegations inspected in this pass
+  are stale/current. The inspected refund, case-resolution, follower listing,
+  and Guild metrics paths use `formatCurrencyCents()`.
+- Newsletter no-double-opt-in and unsubscribe-token allegations are
+  stale/current. Public newsletter signup stores inactive pending rows and sends
+  confirmation; only confirmation POST activates the subscriber. One-click
+  unsubscribe GET validates and renders confirmation without mutation; POST is
+  token-protected, bounded, origin-checked for explicit browser posts, and
+  rate-limited by both IP and signed email.
+- Manual resubscribe/epoch allegations are stale/current. Unsubscribe tokens
+  carry an issuance timestamp and TTL, and `unsubscribeTokenSuperseded()` rejects
+  links issued before a later signed-in opt-in, newsletter confirmation, new
+  account claim, or current-email claim.
+- One-click unsubscribe blocking transactional email is a false positive.
+  Delivery suppression blocks hard bounces, complaints, account deletion, and
+  non-one-click manual suppressions; one-click unsubscribe disables newsletter
+  and preference-controlled email without becoming a hard delivery block.
+- Dead/unsupported email preference key allegations are stale/current. Valid
+  email preference keys are centralized and settings copy distinguishes
+  preference-controlled mail from always-sent order confirmations and shipping
+  updates.
+- React `cache()` / seller duplicate-query allegations #1109/#1110 are
+  stale/current. Listing detail, public seller profile, seller shop, customer
+  photos, and blog author pages now use React `cache()` loaders where
+  metadata/page render share the same resource. Seller page independent reads
+  are batched with `Promise.all`, and public seller stats/top-tags use
+  `unstable_cache`.
+- Further reducing seller-page follow/count/rating queries remains a performance
+  design/profiling decision, not a verified duplicate-query bug.
+
+Guardrails reviewed:
+
+- `tests/ai-review-outer-failclosed.test.mjs` covers AI-review currency
+  formatting and fail-closed behavior.
+- `tests/account-privacy-observability.test.mjs`,
+  `tests/pr-i-media-upload-unsubscribe-followups.test.mjs`,
+  `tests/unsubscribe-token.test.mjs`, `tests/newsletter-double-opt-in.test.mjs`,
+  `tests/notification-preference-keys.test.mjs`, and
+  `tests/email-delivery-guardrails.test.mjs` cover the inspected email and
+  unsubscribe contracts.
+- `tests/listing-page-performance.test.mjs` and
+  `tests/seller-page-performance.test.mjs` cover the inspected React cache and
+  seller/listing page performance guardrails.
+
+Verification:
+`git status --short`; `gh run list --commit
+e177fff146e0405855bbea25747be1d66bd7fa53 --workflow CI --limit 10 --json ...`
+confirmed CI run `28817798670` completed successfully for `e177fff1`; source
+and test inspection with `rg`/`sed`; two parent-reviewed read-only agent
+reports; and the performance agent's focused `node --test
+tests/listing-page-performance.test.mjs tests/seller-page-performance.test.mjs`,
+which passed 12/12.
+
+Current running tally after Entry 499: verified fixed/reduced 987, verified
+stale/false-positive/current 549, deferred product/design/ops/legal 80,
+approximate raw allegations left from current max #1126: 7. Stale/current
+increases by seven for AI-review money formatting, inspected refund/case/fanout
+currency copy, newsletter double opt-in, unsubscribe GET/POST token semantics,
+unsubscribe resubscribe epoch semantics, one-click transactional-mail
+false-positive, and React cache/seller-page duplicate-query allegations.
+Raw-left drops by seven because those source allegations are now verified
+stale/current on `main`.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence,
+Stripe partial-refund live reconciliation proof, label clawback runtime
+proof/dashboard reconciliation evidence, Stripe webhook subscription dashboard
+evidence, Stripe Connect v2 loss-liability ops/legal decision, explicit stale
+remote branch pruning/review, Round 10 deferred cache/state-machine product
+designs that require product decisions rather than source guardrails,
+EXPLAIN-dependent runtime query-plan validation beyond the existing source
+indexes and source guardrails, provider-side privacy erasure/legal-request
+evidence, cross-seller AI duplicate-detection product design, durable
+checkout-group product semantics beyond current grouped ready-lock,
+reservation, completed-session, and made-to-order recovery guardrails,
+deliberate BigInt money-column modeling for individual order/item cents fields
+and high-volume listing analytics counters beyond the fixed seller-metrics
+aggregate cache and new webhook integer bounds, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion live Stripe replay proof after source minimization,
+Founding Maker live DB concurrency proof, Sentry cron alert evidence,
+Cloudflare R2 ListBucket/public bucket dashboard posture plus production smoke
+evidence and public-availability proof, HSTS preload submission decision,
+Vercel Analytics/Speed Insights product/privacy decision, homepage browser
+a11y/runtime proof beyond source fallback, and deployed security-header runtime
+proof beyond source/config guardrails.
+
 ### Entry 498 - checkout finalization and publish AI-review source pass
 
 Entry 498 followed up on parent-reviewed agent findings in the Stripe checkout
