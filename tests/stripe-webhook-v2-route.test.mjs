@@ -43,6 +43,15 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
     assert.match(route, /markStripeWebhookEventFailed\(stripeEventId, handlerErr\)/);
     assert.match(route, /isStripeConnectV2AccountEvent\(stripeEventType\)/);
     assert.match(route, /stripeConnectV2AccountIdFromNotification\(notification\)/);
+    assert.match(route, /if \(!accountId\) \{/);
+    assert.match(route, /Stripe v2 account notification missing account id/);
+    assert.match(route, /tags: \{ source: "stripe_v2_webhook_account_id" \}/);
+    assert.match(route, /throw new Error\("Stripe v2 account notification missing account id\."\)/);
+    assert.ok(
+      route.indexOf('throw new Error("Stripe v2 account notification missing account id.")') <
+        route.indexOf("const account = await stripe.accounts.retrieve(accountId)"),
+      "v2 account notifications without an account id should fail before retrieval and avoid being marked processed",
+    );
     assert.match(route, /stripe\.accounts\.retrieve\(accountId\)/);
     assert.match(
       route,
@@ -55,6 +64,13 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
     assert.match(mirror, /const localAccountActive = !seller\.user\.banned && !seller\.user\.deletedAt/);
     assert.match(mirror, /const effectiveChargesEnabled = chargesEnabled && localAccountActive/);
     assert.match(mirror, /changed: seller\.chargesEnabled !== effectiveChargesEnabled/);
+    assert.match(mirror, /if \(!localAccountActive && chargesEnabled\) \{/);
+    assert.match(mirror, /Ignored Stripe charges_enabled=true for inactive local account/);
+    assert.ok(
+      mirror.indexOf("if (!localAccountActive && chargesEnabled)") <
+        mirror.indexOf("if (!result.changed) return result"),
+      "ignored active Stripe state for inactive local users should be logged even when local orderability was already disabled",
+    );
     assert.match(mirror, /action: "STRIPE_ACCOUNT_CHARGES_UPDATED"/);
     assert.match(mirror, /data: \{ chargesEnabled: effectiveChargesEnabled \}/);
     assert.match(mirror, /logSecurityEvent\("ownership_violation"/);
@@ -106,6 +122,8 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
     assert.match(env, /STRIPE_V2_WEBHOOK_SECRET=whsec_xxx/);
     assert.match(claude, /Stripe Connect v2 thin events are delivered to `\/api\/stripe\/webhook\/v2` with `STRIPE_V2_WEBHOOK_SECRET`/);
     assert.match(claude, /Snapshot events continue at `\/api\/stripe\/webhook` with `STRIPE_WEBHOOK_SECRET`/);
+    assert.match(claude, /Connect v2 thin webhooks require the separate `STRIPE_V2_WEBHOOK_SECRET`/);
+    assert.doesNotMatch(claude, /No new env vars are required/);
     assert.match(claude, /Do not consolidate these destinations/);
     assert.match(securityAuditLog, /Accounts v2 thin events remain isolated on `\/api\/stripe\/webhook\/v2` with `STRIPE_V2_WEBHOOK_SECRET`/);
   });

@@ -14033,6 +14033,114 @@ submission decision, Vercel Analytics/Speed Insights product/privacy decision,
 homepage browser a11y/runtime proof beyond source fallback, and deployed
 security-header runtime proof beyond source/config guardrails.
 
+### Entry 501 - Stripe Connect mirror and v2 webhook source hardening
+
+Entry 501 continued from the deferred runtime/provider backlog by auditing
+Stripe refund, label-clawback, Connect v2, and webhook status-mirroring source
+paths for hidden defects not called out by the raw audit. Latest pushed CI on
+`main` is green for `64d0f270` (`28820734225`) before broadening audit scope.
+Two read-only agents inspected disjoint refund/label and Connect/webhook
+slices; parent Codex verified the findings locally and closed both agents.
+
+Fixed/reduced:
+
+- `/dashboard/onboarding` no longer writes `SellerProfile.chargesEnabled`
+  directly after a Stripe account-status refresh. It now routes the refresh
+  through `mirrorStripeChargesEnabled()` with `route: "/dashboard/onboarding"`,
+  so banned/deleted-account suppression, public seller/listing cache
+  invalidation, checkout-session expiry on disable, and `SystemAuditLog`
+  evidence stay centralized.
+- Stripe Connect v2 account notifications with a supported `v2.core.account`
+  event type but no extractable account id no longer get acknowledged and marked
+  processed silently. `/api/stripe/webhook/v2` now records bounded Sentry
+  telemetry and throws before account retrieval, so `markStripeWebhookEventFailed`
+  runs and Stripe can retry instead of losing the event as processed.
+- `mirrorStripeChargesEnabled()` now logs bounded security telemetry when Stripe
+  reports `charges_enabled=true` for a banned/deleted local seller even if local
+  `chargesEnabled` was already false. The helper still does not re-enable the
+  inactive seller.
+- The tracked Stripe Connect docs no longer say no new env vars are required for
+  the v2 flow. `CLAUDE.md` now states that Connect v2 thin webhooks require the
+  separate `STRIPE_V2_WEBHOOK_SECRET` and that it is not interchangeable with
+  the snapshot webhook secret. The untracked local `AGENTS.md` raw/operator file
+  was intentionally left untouched.
+
+Verified stale/current or deferred without source changes:
+
+- Refund and label-clawback source behavior remains current. Seller refunds,
+  staff case refunds, and blocked-checkout refunds co-write local
+  `OrderPaymentEvent`/`SystemAuditLog` evidence after Stripe accepts a refund,
+  and orphan branches keep the request/webhook retryable until local refund
+  evidence is durable. Label purchase success paths preserve durable label
+  fields plus `labelClawbackStatus`, with retry cron coverage for Stripe
+  reversal failures.
+- Connect v1/v2 webhook separation is current. Snapshot events stay on
+  `/api/stripe/webhook` with `STRIPE_WEBHOOK_SECRET` and `constructEvent`;
+  Accounts v2 thin events stay on `/api/stripe/webhook/v2` with
+  `STRIPE_V2_WEBHOOK_SECRET` and `parseEventNotification`.
+- New seller Connect accounts are still created through raw
+  `POST /v2/core/accounts` with v2 controller/responsibility parameters rather
+  than legacy `type: "express"` account creation.
+- Connect v2 loss-liability acceptance and live dashboard subscription evidence
+  remain deferred legal/ops evidence. A Shippo provider edge around successful
+  label purchases without `object_id` remains runtime confirmation only; current
+  source falls back to the stored rate object id for label-clawback idempotency.
+
+Guardrails added/reviewed:
+
+- `tests/cache-invalidation-guardrails.test.mjs` now requires the onboarding
+  Stripe status refresh to use `mirrorStripeChargesEnabled()` and forbids a
+  direct `{ chargesEnabled }` update there.
+- `tests/stripe-webhook-v2-route.test.mjs` now requires supported v2 account
+  notifications without account ids to emit bounded telemetry and throw before
+  retrieval, requires inactive-local `charges_enabled=true` telemetry before the
+  no-change return in `mirrorStripeChargesEnabled()`, and checks the
+  `STRIPE_V2_WEBHOOK_SECRET` docs correction.
+- Existing `tests/stripe-connect-v2.test.mjs` and
+  `tests/payment-side-effect-observability.test.mjs` continue to cover Accounts
+  v2 creation, webhook-secret separation, shared status mirroring, refund
+  evidence, and label-clawback recovery.
+
+Verification:
+`git status --short`; source and test inspection with `rg`/`sed`; two
+parent-reviewed read-only agent reports; parent-focused `node --test
+tests/stripe-webhook-v2-route.test.mjs tests/stripe-connect-v2.test.mjs
+tests/cache-invalidation-guardrails.test.mjs
+tests/payment-side-effect-observability.test.mjs` passed 55/55; `npx tsc
+--noEmit` passed; `npm run lint` exited 0 with the known jsx-ast-utils
+TSNonNullExpression warning; `git diff --check` passed; full `npm test` passed
+1454/1454. The refund/label agent also ran a read-only focused refund/label
+suite that passed 84/84.
+
+Current running tally after Entry 501: verified fixed/reduced 991, verified
+stale/false-positive/current 555, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by four for the onboarding direct Stripe-status write, v2 missing
+account-id webhook processing, inactive-local Stripe status telemetry gap, and
+Connect v2 secret docs mismatch. Stale/current increases by six for the
+reverified refund local-evidence paths, refund orphan recovery, duplicate
+webhook side-effect guards, label-clawback durable retry state, Connect
+snapshot/thin webhook separation, and Accounts v2 account creation/idempotency
+guardrails.
+
+Remaining major categories are still the deferred launch/runtime/legal/product
+evidence backlog, not open raw source allegations: Stripe refund runtime
+reconciliation/backfill proof, Stripe partial-refund live reconciliation proof,
+label clawback runtime reconciliation evidence, Stripe webhook subscription
+dashboard evidence, Stripe Connect v2 loss-liability ops/legal decision,
+explicit stale remote branch pruning/review, Round 10 cache/state-machine
+product designs, EXPLAIN-dependent runtime query-plan validation, provider-side
+privacy erasure/legal-request evidence, cross-seller AI duplicate-detection
+product design, durable checkout-group product semantics beyond current
+guardrails, high-scale BigInt money/counter modeling decisions, live-data
+reconciliation for historical seller shipping-rate currency drift, Clerk staff
+MFA/breached-password/multi-account dashboard evidence, buyer-deletion live
+Stripe replay proof, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public bucket posture plus production
+smoke/public-availability proof, HSTS preload submission/status, Vercel
+Analytics/Speed Insights product privacy decision, homepage browser
+a11y/runtime proof, and deployed security-header runtime proof.
+
 ### Entry 500 - provider-runtime evidence and numeric scale reverify pass
 
 Entry 500 rechecked the remaining raw allegations that blur source behavior

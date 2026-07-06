@@ -53,7 +53,9 @@ describe("public cache invalidation guardrails", () => {
     assert.match(vacation, /data: \{ vacationMode, vacationReturnDate, vacationMessage \}[\s\S]*revalidatePublicSellerVisibilityCaches\(\)/);
     assert.match(sellerSettings, /mirrorStripeChargesEnabled\(\{[\s\S]*route: "\/dashboard\/seller"/);
     assert.doesNotMatch(sellerSettings, /data: \{ chargesEnabled \}/);
-    assert.match(onboarding, /chargesEnabled !== sp\.chargesEnabled[\s\S]*revalidatePublicSellerVisibilityCaches\(\)/);
+    assert.match(onboarding, /mirrorStripeChargesEnabled\(\{[\s\S]*route: "\/dashboard\/onboarding"/);
+    assert.match(onboarding, /chargesEnabled = mirrorResult\.matched[\s\S]*mirrorResult\.chargesEnabled/);
+    assert.doesNotMatch(onboarding, /data: \{ chargesEnabled \}/);
   });
 
   it("invalidates featured-maker caches when listing visibility or guild level changes", () => {

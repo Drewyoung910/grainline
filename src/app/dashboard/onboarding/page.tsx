@@ -3,7 +3,8 @@ import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { stripe } from "@/lib/stripe";
 import OnboardingWizard from "./OnboardingWizard";
-import { revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
+import { mirrorStripeChargesEnabled } from "@/lib/stripeWebhookMirror";
+import { logServerError } from "@/lib/serverErrorLogger";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -55,16 +56,19 @@ export default async function OnboardingPage({
   if (sp.stripeAccountId) {
     try {
       const account = await stripe.accounts.retrieve(sp.stripeAccountId);
-      chargesEnabled = account.charges_enabled ?? false;
-      // Persist charges_enabled status to DB
-      if (chargesEnabled !== sp.chargesEnabled) {
-        await prisma.sellerProfile.update({
-          where: { id: seller.id },
-          data: { chargesEnabled },
-        });
-        revalidatePublicSellerVisibilityCaches();
-      }
-    } catch {
+      const mirrorResult = await mirrorStripeChargesEnabled({
+        accountId: sp.stripeAccountId,
+        chargesEnabled: account.charges_enabled ?? false,
+        route: "/dashboard/onboarding",
+      });
+      chargesEnabled = mirrorResult.matched
+        ? mirrorResult.chargesEnabled
+        : (account.charges_enabled ?? false);
+    } catch (error) {
+      logServerError(error, {
+        source: "onboarding_stripe_connect_status_refresh",
+        extra: { sellerId: seller.id, hasStripeAccountId: true },
+      });
       // Stripe account may be invalid; treat as not connected
       hasStripeAccount = false;
     }

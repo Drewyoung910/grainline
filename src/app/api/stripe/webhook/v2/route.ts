@@ -177,16 +177,23 @@ export async function POST(req: Request) {
       }
 
       const accountId = stripeConnectV2AccountIdFromNotification(notification);
-      if (accountId) {
-        const account = await stripe.accounts.retrieve(accountId);
-        await mirrorStripeChargesEnabled({
-          accountId,
-          chargesEnabled: Boolean(account.charges_enabled),
-          route: "/api/stripe/webhook/v2",
-          actorType: "webhook",
-          actorId: stripeEventId,
+      if (!accountId) {
+        Sentry.captureMessage("Stripe v2 account notification missing account id", {
+          level: "warning",
+          tags: { source: "stripe_v2_webhook_account_id" },
+          extra: { stripeEventId, stripeEventType },
         });
+        throw new Error("Stripe v2 account notification missing account id.");
       }
+
+      const account = await stripe.accounts.retrieve(accountId);
+      await mirrorStripeChargesEnabled({
+        accountId,
+        chargesEnabled: Boolean(account.charges_enabled),
+        route: "/api/stripe/webhook/v2",
+        actorType: "webhook",
+        actorId: stripeEventId,
+      });
 
       return NextResponse.json({ received: true });
     });

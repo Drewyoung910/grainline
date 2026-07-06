@@ -41,6 +41,13 @@ export async function mirrorStripeChargesEnabled({
     changed: seller.chargesEnabled !== effectiveChargesEnabled,
     localAccountActive,
   };
+  if (!localAccountActive && chargesEnabled) {
+    logSecurityEvent("ownership_violation", {
+      userId: seller.user.id,
+      route,
+      reason: `Ignored Stripe charges_enabled=true for inactive local account: ${accountId}`,
+    });
+  }
   if (!result.changed) return result;
 
   const auditActorType =
@@ -70,13 +77,13 @@ export async function mirrorStripeChargesEnabled({
   revalidatePublicSellerVisibilityCaches();
 
   if (!effectiveChargesEnabled) {
-    logSecurityEvent("ownership_violation", {
-      userId: seller.user.id,
-      route,
-      reason: !localAccountActive && chargesEnabled
-        ? `Ignored Stripe charges_enabled=true for inactive local account: ${accountId}`
-        : `Seller Stripe account disabled by Stripe: ${accountId}`,
-    });
+    if (!chargesEnabled || localAccountActive) {
+      logSecurityEvent("ownership_violation", {
+        userId: seller.user.id,
+        route,
+        reason: `Seller Stripe account disabled by Stripe: ${accountId}`,
+      });
+    }
     await expireOpenCheckoutSessionsForSeller({
       sellerId: seller.id,
       stripeAccountId: seller.stripeAccountId,
