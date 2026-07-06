@@ -14033,6 +14033,124 @@ submission decision, Vercel Analytics/Speed Insights product/privacy decision,
 homepage browser a11y/runtime proof beyond source fallback, and deployed
 security-header runtime proof beyond source/config guardrails.
 
+### Entry 500 - provider-runtime evidence and numeric scale reverify pass
+
+Entry 500 rechecked the remaining raw allegations that blur source behavior
+with provider/runtime/dashboard evidence: HSTS/deployed security headers,
+Cloudflare R2 bucket posture and upload reachability, Sentry cron alerting,
+Clerk staff/security-control evidence, Vercel Analytics/Speed Insights, and
+numeric/money/counter scale. Latest pushed CI on `main` is green for
+`341ace2b` (`28818350683`) before broadening audit scope. Two read-only agents
+inspected disjoint provider/runtime and numeric slices; parent Codex verified
+the source locally and closed both agents. No product code changed.
+
+Fixed/reduced:
+
+- None. This pass did not verify a new source-actionable defect.
+
+Verified stale/current or deferred without source changes:
+
+- HSTS and deployed security-header source allegations are source-current, while
+  preload-list acceptance and deployed-header proof remain runtime/legal
+  evidence. `next.config.ts` configures the global header set, including
+  `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload`;
+  `tests/public-security-config.test.mjs` pins the headers and explicitly keeps
+  preload-list proof separate from source-configured `preload`.
+- Cloudflare R2 ListBucket/public-bucket allegations remain deferred
+  provider/dashboard evidence, with source-current app guardrails. Upload paths
+  use object-level `PutObject`, `HeadObject`, `GetObject`, and `DeleteObject`
+  operations; `/api/health` intentionally proves only `HeadBucket` reachability;
+  direct-upload cleanup uses stored `DirectUpload` keys and does not depend on
+  bucket listing. `docs/runbook.md` and `docs/launch-checklist.md` correctly
+  require separate public bucket-listing/ListBucket, CORS, public-domain, and
+  production upload-smoke evidence.
+- Sentry cron monitor source allegations are source-current, while alert-rule
+  routing remains dashboard/runtime evidence. App Router cron routes wrap
+  authenticated work in `withSentryCronMonitor()`, `next.config.ts` disables
+  automatic Vercel monitors because those do not cover App Router cron routes,
+  and launch docs still require Sentry alert-rule evidence for cron monitors and
+  `source=cron_ops_health` warnings.
+- Clerk staff MFA, breached-password, multi-account, and spam-control findings
+  remain deferred Clerk-dashboard/security-ops evidence. Source still has local
+  admin role gates and admin PIN session binding as defense in depth, but those
+  app controls do not prove Clerk-native controls are enabled.
+- Vercel Analytics and Speed Insights remain an explicit product/privacy
+  decision rather than an automatic defect. Source/package scans found no
+  `@vercel/analytics`, no `@vercel/speed-insights`, no `<Analytics />`, and no
+  `<SpeedInsights />`; `tests/retention-and-ops-followups.test.mjs` keeps those
+  packages/components/privacy-policy references absent until the decision is
+  made.
+- Numeric/money/counter overflow allegations are deferred/product-scale rather
+  than source-actionable under current caps. Listing price is capped at
+  `$100,000`, cart quantity is capped, current checkout subtotal math remains
+  below PostgreSQL `Int`, provider shipping/label values are bounded by
+  `safeProviderShippingCents`, refunds are bounded against order totals, and
+  listing view/click counters have daily analytics caps. `SellerMetrics` cached
+  lifetime sales is already stored as `BigInt`; converting it to `Number` for UI
+  state only becomes a product/data-modeling concern at extreme scale.
+
+Guardrails reviewed:
+
+- `tests/public-security-config.test.mjs` covers the configured public security
+  header set, no `unsafe-eval`, and the rule that HSTS preload-list proof is
+  separate from source headers.
+- `tests/retention-and-ops-followups.test.mjs`,
+  `tests/cron-schedule-guardrails.test.mjs`,
+  `tests/cron-monitor-state.test.mjs`, and `tests/sentry-dsn.test.mjs` cover the
+  inspected ops-health, cron-monitor, Vercel telemetry, and Sentry DSN
+  contracts.
+- `tests/direct-upload-lifecycle.test.mjs`,
+  `tests/upload-verification-token.test.mjs`, and
+  `tests/upload-ux-followups.test.mjs` cover direct-upload lifecycle tracking,
+  verification, telemetry hashing, cleanup, and the no-bucket-listing cleanup
+  posture.
+- `tests/guild-metrics-state.test.mjs` and
+  `tests/listing-analytics-guardrails.test.mjs` cover the inspected seller
+  metrics `BigInt` cache behavior and listing analytics cap/counter guardrails.
+
+Verification:
+`git status --short`; `gh run list --commit
+341ace2b3facf8ca091d3e1dea94495618a6f167 --workflow CI --limit 10 --json ...`
+confirmed CI run `28818350683` completed successfully for `341ace2b`; source
+and test inspection with `rg`/`sed`; and two parent-reviewed read-only agent
+reports. Focused `node --test tests/public-security-config.test.mjs
+tests/retention-and-ops-followups.test.mjs
+tests/cron-schedule-guardrails.test.mjs tests/cron-monitor-state.test.mjs
+tests/sentry-dsn.test.mjs tests/direct-upload-lifecycle.test.mjs
+tests/upload-verification-token.test.mjs tests/upload-ux-followups.test.mjs
+tests/guild-metrics-state.test.mjs tests/listing-analytics-guardrails.test.mjs`
+passed 72/72; `npx tsc --noEmit` passed; `git diff --check` passed.
+
+Current running tally after Entry 500: verified fixed/reduced 987, verified
+stale/false-positive/current 549, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Deferred increases
+by seven for the remaining source-vs-runtime/provider/product allegations:
+HSTS/preload/deployed security-header proof, R2 ListBucket/public-bucket and
+production upload-smoke proof, Sentry cron alert routing, Clerk staff/security
+dashboard controls, Vercel Analytics/Speed Insights privacy decision,
+numeric/BigInt/high-volume counter modeling, and the remaining runtime/legal
+provider-evidence bucket covering Stripe/Clerk/R2/Sentry/live-data proofs that
+cannot be closed from source review alone.
+
+Remaining major categories are no longer raw source allegations; they are the
+deferred launch/runtime/legal/product evidence backlog: Stripe refund
+runtime/backfill proof beyond first-party orphan ledgers, Stripe partial-refund
+live reconciliation proof, label clawback runtime reconciliation evidence,
+Stripe webhook subscription dashboard evidence, Stripe Connect v2
+loss-liability ops/legal decision, explicit stale remote branch pruning/review,
+Round 10 cache/state-machine product designs, EXPLAIN-dependent runtime
+query-plan validation, provider-side privacy erasure/legal-request evidence,
+cross-seller AI duplicate-detection product design, durable checkout-group
+product semantics beyond current guardrails, high-scale BigInt money/counter
+modeling decisions, live-data reconciliation for historical seller
+shipping-rate currency drift, Clerk staff MFA/breached-password/multi-account
+dashboard evidence, buyer-deletion live Stripe replay proof, Founding Maker live
+DB concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public bucket posture plus production smoke/public-availability
+proof, HSTS preload submission/status, Vercel Analytics/Speed Insights product
+privacy decision, homepage browser a11y/runtime proof, and deployed
+security-header runtime proof.
+
 ### Entry 499 - AI money, unsubscribe, and React cache stale reverify pass
 
 Entry 499 rechecked remaining raw allegations around AI-review money
