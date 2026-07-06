@@ -70,4 +70,16 @@ describe("Guild metrics state", () => {
     assert.match(adminVerification, /totalSalesCents: number \| bigint/);
     assert.match(adminVerification, /totalSalesCents: Number\(metrics\.totalSalesCents\)/);
   });
+
+  it("keeps private and custom verified purchases in Guild trust metrics by policy", () => {
+    const metricsSource = readFileSync(new URL("../src/lib/metrics.ts", import.meta.url), "utf8");
+    const verificationPage = readFileSync(new URL("../src/app/admin/verification/page.tsx", import.meta.url), "utf8");
+
+    assert.match(metricsSource, /db\.review\.aggregate\(\{[\s\S]*where: \{ listing: \{ sellerId: sellerProfileId \} \}/);
+    assert.match(metricsSource, /JOIN "Listing" l ON l\.id = oi\."listingId"[\s\S]*WHERE l\."sellerId" = \$\{sellerProfileId\}/);
+    assert.match(metricsSource, /EXISTS \([\s\S]*JOIN "Listing" l ON l\.id = oi\."listingId"[\s\S]*AND l\."sellerId" = \$\{sellerProfileId\}/);
+    assert.doesNotMatch(metricsSource, /l\."isPrivate"\s*=\s*false/);
+
+    assert.match(verificationPage, /prisma\.listing\.count\(\{[\s\S]*sellerId: verification\.sellerProfileId[\s\S]*status: "ACTIVE"[\s\S]*isPrivate: false/);
+  });
 });

@@ -17,6 +17,49 @@ function fmtMoney(cents: number | null | undefined, currency = DEFAULT_CURRENCY)
   return formatCurrencyCents(cents, currency);
 }
 
+type RefundAccountingSummary = {
+  transferReversalId: string | null;
+  transferReversalAmountCents: number | null;
+  platformFundedRefundCents: number | null;
+  originalTransferAmountCents: number | null;
+};
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function jsonNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function refundAccountingFromMetadata(metadata: unknown): RefundAccountingSummary | null {
+  if (!isPlainRecord(metadata) || !isPlainRecord(metadata.refundAccounting)) return null;
+  const accounting = metadata.refundAccounting;
+  const transferReversalId =
+    typeof accounting.transferReversalId === "string" && accounting.transferReversalId
+      ? accounting.transferReversalId
+      : null;
+  const transferReversalAmountCents = jsonNumber(accounting.transferReversalAmountCents);
+  const platformFundedRefundCents = jsonNumber(accounting.platformFundedRefundCents);
+  const originalTransferAmountCents = jsonNumber(accounting.originalTransferAmountCents);
+
+  if (
+    !transferReversalId &&
+    transferReversalAmountCents == null &&
+    platformFundedRefundCents == null &&
+    originalTransferAmountCents == null
+  ) {
+    return null;
+  }
+
+  return {
+    transferReversalId,
+    transferReversalAmountCents,
+    platformFundedRefundCents,
+    originalTransferAmountCents,
+  };
+}
+
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
@@ -306,40 +349,68 @@ export default async function AdminOrderDetailPage({
       {order.paymentEvents.length > 0 && (
         <Section title="Stripe Payment Events">
           <div className="space-y-3">
-            {order.paymentEvents.map((event) => (
-              <div
-                key={event.id}
-                className="rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-2 text-sm"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="font-medium text-neutral-800">
-                      {orderPaymentEventTypeLabel(event.eventType)}
-                      {event.status ? ` · ${event.status}` : ""}
+            {order.paymentEvents.map((event) => {
+              const refundAccounting = refundAccountingFromMetadata(event.metadata);
+              return (
+                <div
+                  key={event.id}
+                  className="rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-2 text-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-medium text-neutral-800">
+                        {orderPaymentEventTypeLabel(event.eventType)}
+                        {event.status ? ` · ${event.status}` : ""}
+                      </div>
+                      {event.description && (
+                        <p className="mt-1 text-neutral-600">{event.description}</p>
+                      )}
+                      <div className="mt-1 text-xs text-neutral-500">
+                        {event.stripeObjectType ?? "stripe"}:{" "}
+                        <span className="font-mono">{event.stripeObjectId ?? "—"}</span>
+                        {" · "}event: <span className="font-mono">{event.stripeEventId}</span>
+                      </div>
                     </div>
-                    {event.description && (
-                      <p className="mt-1 text-neutral-600">{event.description}</p>
-                    )}
-                    <div className="mt-1 text-xs text-neutral-500">
-                      {event.stripeObjectType ?? "stripe"}:{" "}
-                      <span className="font-mono">{event.stripeObjectId ?? "—"}</span>
-                      {" · "}event: <span className="font-mono">{event.stripeEventId}</span>
+                    <div className="text-right text-xs text-neutral-500">
+                      <div className="text-sm font-medium text-neutral-800">
+                        {fmtMoney(event.amountCents, event.currency)}
+                      </div>
+                      <div>{event.createdAt.toLocaleString("en-US")}</div>
                     </div>
                   </div>
-                  <div className="text-right text-xs text-neutral-500">
-                    <div className="text-sm font-medium text-neutral-800">
-                      {fmtMoney(event.amountCents, event.currency)}
+                  {event.reason && (
+                    <div className="mt-2 text-xs text-neutral-500">
+                      Reason: <span className="font-mono">{event.reason}</span>
                     </div>
-                    <div>{event.createdAt.toLocaleString("en-US")}</div>
-                  </div>
+                  )}
+                  {refundAccounting && (
+                    <div className="mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-950">
+                      <div className="font-medium">Refund accounting</div>
+                      <div className="mt-1 grid gap-1 sm:grid-cols-2">
+                        <div>
+                          Transfer reversal:{" "}
+                          <span className="font-mono">
+                            {refundAccounting.transferReversalId ?? "—"}
+                          </span>
+                        </div>
+                        <div>
+                          Seller recovery:{" "}
+                          {fmtMoney(refundAccounting.transferReversalAmountCents, event.currency)}
+                        </div>
+                        <div>
+                          Platform funded:{" "}
+                          {fmtMoney(refundAccounting.platformFundedRefundCents, event.currency)}
+                        </div>
+                        <div>
+                          Original seller transfer:{" "}
+                          {fmtMoney(refundAccounting.originalTransferAmountCents, event.currency)}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                {event.reason && (
-                  <div className="mt-2 text-xs text-neutral-500">
-                    Reason: <span className="font-mono">{event.reason}</span>
-                  </div>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </Section>
       )}

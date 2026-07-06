@@ -138,6 +138,23 @@ describe("admin server action guardrails", () => {
     assert.match(page, /labelClawbackStatus=\{order\.labelClawbackStatus \?\? null\}/);
   });
 
+  it("surfaces first-party refund accounting evidence on admin order payment events", () => {
+    const page = source("src/app/admin/orders/[id]/page.tsx");
+
+    assert.match(page, /function refundAccountingFromMetadata\(metadata: unknown\)/);
+    assert.match(page, /metadata\.refundAccounting/);
+    assert.match(page, /transferReversalId/);
+    assert.match(page, /transferReversalAmountCents/);
+    assert.match(page, /platformFundedRefundCents/);
+    assert.match(page, /originalTransferAmountCents/);
+    assert.match(page, /const refundAccounting = refundAccountingFromMetadata\(event\.metadata\)/);
+    assert.match(page, />Refund accounting</);
+    assert.match(page, /Transfer reversal:/);
+    assert.match(page, /Seller recovery:/);
+    assert.match(page, /Platform funded:/);
+    assert.match(page, /Original seller transfer:/);
+  });
+
   it("does not allow admin email to become an arbitrary external sender", () => {
     const route = source("src/app/api/admin/email/route.ts");
     const usersPage = source("src/app/admin/users/page.tsx");

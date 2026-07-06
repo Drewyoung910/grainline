@@ -13926,6 +13926,113 @@ submission decision, Vercel Analytics/Speed Insights product/privacy decision,
 homepage browser a11y/runtime proof beyond source fallback, and deployed
 security-header runtime proof beyond source/config guardrails.
 
+### Entry 493 - refund evidence visibility and Guild trust-metric policy
+
+This parent-reviewed pass used two read-only agents plus local source review to
+recheck the remaining Stripe refund/label/webhook evidence bucket and the
+Founding Maker/Guild policy bucket. Latest pushed CI on `main` was already green
+for `983f867f` before broadening audit scope.
+
+Fixed/reduced in source:
+
+- Admin order detail now surfaces nested
+  `OrderPaymentEvent.metadata.refundAccounting` evidence instead of requiring
+  staff to inspect raw JSON or SQL. The Stripe Payment Events panel renders the
+  transfer reversal id, seller recovery amount, platform-funded amount, and
+  original seller transfer amount when first-party seller/staff/blocked-checkout
+  refund evidence contains those fields.
+- The Guild private/custom-order trust-metric policy is now explicit and
+  guarded. Verified private/custom-order purchases continue to count toward
+  seller ratings, completed-sales totals, on-time shipping, and response metrics;
+  the separate Guild Member public-inventory criterion still requires five
+  active public listings. `CLAUDE.md` now records that this should not change
+  without an explicit product/legal decision and a migration/recalculation plan.
+
+Verified stale/current or deferred without source changes:
+
+- Raw #1101 remains a dashboard-evidence item, not a source defect. Current
+  source handles the inspected Checkout, account, refund, dispute, and payout
+  event branches; proving the deployed Stripe Dashboard subscription set still
+  requires provider-side evidence.
+- Raw #1106 and the repeated partial-refund idempotency/drain allegations were
+  rechecked as source-current/stale. Seller/staff refund routes keep a
+  single-blocking-refund-per-order model with refund locks, durable
+  `OrderPaymentEvent` evidence, and blocking refund ledger checks. The remaining
+  partial-refund economics proof is still Stripe test-mode/runtime evidence.
+- Old raw #105/#106 partial stock-restore allegations remain current/stale:
+  seller and staff case refund paths accept bounded `restoreStock` arrays and
+  validate requested quantities against purchased in-stock items. No duplicate
+  raw tally increase was taken because these were already represented in earlier
+  ledger entries.
+- Founding Maker race/range and stale-counter allegations (#180/#280/#351/#425/
+  #434/#951/#1020) are source-current/stale: grants use an advisory transaction
+  lock, unique/check constraints, final `isFoundingMaker: false` guards, and the
+  `/why-grainline` counter is revalidated. Live DB concurrency proof remains
+  runtime evidence only.
+- Guild reapply/cooldown/cache/audit allegations (#1025/#1031/#1037/#1038/
+  #1041/#1049/#1050 and related active-case metric allegations #854/#856) are
+  source-current/stale under the current code. Cooldowns, cron audit logs,
+  featured-maker cache revalidation, and all-time unresolved active-case
+  counting are already guarded by existing tests.
+- Founding Maker permanence after ban/fraud remains a product/legal policy
+  decision. Public visibility hides banned/deleted sellers, but badge fields are
+  not cleared by account-state transitions.
+
+Guardrails added/reviewed:
+
+- Added `surfaces first-party refund accounting evidence on admin order payment
+  events` to `tests/admin-action-guardrails.test.mjs`.
+- Added `keeps private and custom verified purchases in Guild trust metrics by
+  policy` to `tests/guild-metrics-state.test.mjs`.
+- Updated `CLAUDE.md` with reusable behavior contracts for admin refund
+  accounting visibility and Guild private/custom-order metric semantics.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 3` confirmed latest
+pushed CI on `main` was green for `983f867f`; parent source review with
+`rg`/`sed`; two parent-reviewed read-only agent reports; focused
+`node --test tests/admin-action-guardrails.test.mjs
+tests/guild-metrics-state.test.mjs` passed 13/13 after tightening one brittle
+assertion; `npx tsc --noEmit`; `git diff --check`; `npm run lint` (known
+`jsx-ast-utils` TSNonNullExpression warning, exit 0); and full `npm test`
+passing 1451/1451.
+
+Current running tally after Entry 493: verified fixed/reduced 980, verified
+stale/false-positive/current 542, deferred product/design/ops/legal 80,
+approximate raw allegations left from current max #1126: 17. Fixed/reduced
+increases by two for the admin refund-accounting evidence surface and the now
+documented/guarded Guild private/custom-order metric policy. Deferred decreases
+by one because the Guild private/custom-order trust-metric policy is no longer
+being carried as an unresolved product-policy ambiguity. Stale/current does not
+increase because the repeated raw IDs above were already classified in earlier
+entries.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence,
+Stripe partial-refund live reconciliation proof, label clawback runtime
+proof/dashboard reconciliation evidence, Stripe webhook subscription dashboard
+evidence, Stripe Connect v2 loss-liability ops/legal decision, explicit stale
+remote branch pruning/review, completed-audit archive housekeeping once the
+60-day threshold is reached, Round 10 deferred cache/state-machine product
+designs that require product decisions rather than source guardrails,
+EXPLAIN-dependent runtime query-plan validation beyond the existing source
+indexes and source guardrails, founding-maker permanence policy,
+provider-side privacy erasure/legal-request evidence, cross-seller AI
+duplicate-detection product design, durable checkout-group design for checkout
+batch semantics beyond grouped ready-lock/reservation resume and
+completed-session filtering, deliberate BigInt money-column modeling for
+individual order/item cents fields and high-volume listing analytics counters
+beyond the fixed seller-metrics aggregate cache and new webhook integer bounds,
+live-data reconciliation for historical seller shipping-rate currency drift,
+Clerk staff MFA and breached-password dashboard evidence, Clerk multi-account
+spam dashboard evidence, buyer-deletion live Stripe replay proof after source
+minimization, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public bucket dashboard posture plus
+production smoke evidence and public-availability proof, HSTS preload
+submission decision, Vercel Analytics/Speed Insights product/privacy decision,
+homepage browser a11y/runtime proof beyond source fallback, and deployed
+security-header runtime proof beyond source/config guardrails.
+
 ## Entry 492 - R2, privacy replay, deploy evidence, and schema reverify pass
 
 Entry 492 closes a parent-verified pass over remaining R2/public-bucket,
