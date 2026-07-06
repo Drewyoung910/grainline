@@ -5,7 +5,7 @@ import { z } from "zod";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { R2_BUCKET, R2_PUBLIC_URL, r2 } from "@/lib/r2";
-import { rateLimitResponse, safeRateLimit, uploadHourlyRatelimit } from "@/lib/ratelimit";
+import { rateLimitResponse, safeRateLimit, uploadHourlyRatelimit, uploadRatelimit } from "@/lib/ratelimit";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -52,6 +52,15 @@ async function objectPrefixBytes(key: string) {
   return body.transformToByteArray();
 }
 
+function r2ObjectNotFound(error: unknown) {
+  const candidate = error as { name?: unknown; $metadata?: { httpStatusCode?: unknown } };
+  return (
+    candidate.name === "NoSuchKey" ||
+    candidate.name === "NotFound" ||
+    candidate.$metadata?.httpStatusCode === 404
+  );
+}
+
 export async function POST(req: Request) {
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
@@ -64,8 +73,10 @@ export async function POST(req: Request) {
     throw err;
   }
 
-  const { success, reset } = await safeRateLimit(uploadHourlyRatelimit, userId);
+  const { success, reset } = await safeRateLimit(uploadRatelimit, userId);
   if (!success) return privateResponse(rateLimitResponse(reset, "Too many uploads."));
+  const { success: hourlySuccess, reset: hourlyReset } = await safeRateLimit(uploadHourlyRatelimit, userId);
+  if (!hourlySuccess) return privateResponse(rateLimitResponse(hourlyReset, "Too many uploads."));
 
   let body: unknown;
   try {
@@ -104,8 +115,20 @@ export async function POST(req: Request) {
   let head;
   try {
     head = await r2.send(new HeadObjectCommand({ Bucket: R2_BUCKET, Key: key }));
-  } catch {
-    return privateJson({ error: "Uploaded object was not found" }, { status: 404 });
+  } catch (error) {
+    if (r2ObjectNotFound(error)) {
+      return privateJson({ error: "Uploaded object was not found" }, { status: 404 });
+    }
+    logServerError(error, {
+      source: "upload_verify_head_object",
+      level: "warning",
+      tags: { endpoint },
+      extra: { keyHash: uploadTelemetryKeyHash(key) },
+    });
+    return privateJson(
+      { error: "Uploaded object could not be verified" },
+      { status: HTTP_STATUS.BAD_GATEWAY },
+    );
   }
 
   const actualSize = head.ContentLength ?? 0;

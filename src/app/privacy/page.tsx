@@ -600,9 +600,13 @@ export default function PrivacyPage() {
               <strong>Transaction records.</strong> Order and payment records are retained for a
               minimum of <strong>7 years</strong> to comply with tax, accounting, and legal
               requirements.
-              Buyer street address, buyer contact, and gift note details for fulfilled orders are
-              removed from active application views after <strong>90 days</strong>, unless a dispute,
-              legal hold, fraud investigation, or tax obligation requires longer retention.
+              Buyer address components, buyer contact details, gift notes, seller fulfillment notes,
+              tracking fields, Shippo shipment/rate/label identifiers, label URLs, label tracking
+              details, and shipping-rate quote snapshots for fulfilled orders are removed from
+              active application views after <strong>90 days</strong>, unless a dispute, legal hold,
+              fraud investigation, or tax obligation requires longer retention. Shipping providers
+              and carriers may retain label, tracking, and delivery records under their own legal
+              and operational retention policies.
             </li>
             <li>
               <strong>Sales tax records.</strong> Sales tax records, including transaction details

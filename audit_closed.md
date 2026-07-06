@@ -13671,3 +13671,122 @@ proof, HSTS preload submission decision, Vercel Analytics/Speed Insights
 product/privacy decision, homepage browser a11y/runtime proof beyond source
 fallback, and deployed security-header runtime proof beyond source/config
 guardrails.
+
+## Entry 490 - upload verify and retention scope pass
+
+Entry 490 closes a parent-verified upload/R2 and privacy-retention pass. Two
+read-only agents inspected disjoint surfaces: one covered R2/ListBucket/upload
+verification behavior and one covered local/provider privacy retention scope.
+Parent Codex reviewed both reports against current source, tests, docs, and the
+active ledger before editing. Both agents were closed. The raw audit import and
+expected untracked local files were not staged.
+
+Fixed/reduced:
+
+- Raw upload verify rate-limit finding #104 was real for the direct-upload
+  verification route. `POST /api/upload/verify` now applies the shared upload
+  burst limiter and the hourly upload limiter before reading the request body or
+  calling R2, matching the stricter upload/presign posture and reducing the
+  R2 `HeadObject`/range-read amplification surface.
+- The upload-verify `HeadObject` error-handling allegation was real as a
+  narrower correctness/ops issue. The route now returns "not found" only for
+  R2 404/`NoSuchKey`/`NotFound`, logs bounded warning evidence for transient or
+  provider HEAD failures under `source=upload_verify_head_object`, and returns a
+  generic 502 instead of flattening all provider failures to a misleading 404.
+- The Privacy Policy retention copy under-disclosed the current fulfilled-order
+  PII prune. It now names the pruned buyer address/contact, gift note, seller
+  fulfillment note, tracking, Shippo label/rate/shipment, label URL/tracking,
+  and shipping-rate quote snapshot fields, and explicitly says shipping
+  providers/carriers may retain label, tracking, and delivery records under
+  their own policies.
+
+Verified stale/current or deferred without source changes:
+
+- Local account deletion and fulfilled-order PII pruning already clear buyer
+  address/contact fields, gift notes, seller notes, tracking fields, Shippo
+  shipment/rate/transaction identifiers, label URLs, label tracking details, and
+  `OrderShippingRateQuote` snapshots for the covered local paths.
+- Account-deletion case/order blockers, deleted-sender media cleanup scope,
+  email outbox skip/scrub/terminal retention, suppression normalization, account
+  export coverage, and label-tracking URL encoding remain current by source and
+  guardrails.
+- Processed-image and direct-upload validation, token binding, key/user/endpoint
+  scoping, size/content-type checks, signature checks, public availability
+  checks, direct-upload lifecycle cleanup, and cleanup without R2 bucket listing
+  remain current by source and guardrails.
+- `/api/health` R2 reachability, Cloudflare R2 public bucket
+  ListBucket/bucket-listing posture, bucket-level object-size settings,
+  production upload smoke evidence, and provider-side privacy erasure remain
+  runtime/dashboard/legal evidence items rather than source-proven fixes.
+
+Guardrails added/reviewed:
+`tests/upload-verification-token.test.mjs` now pins burst-plus-hourly limiting
+before upload-verify body parsing and verifies transient R2 HEAD failures are
+not treated as missing objects. `tests/order-pii-retention.test.mjs` now keeps
+the Privacy Policy retention copy aligned with the implemented fulfilled-order
+PII prune. Existing reviewed guardrails included `tests/media-url.test.mjs`,
+`tests/account-deletion-media.test.mjs`,
+`tests/pr-i-media-upload-unsubscribe-followups.test.mjs`,
+`tests/public-cron-search-hardening.test.mjs`,
+`tests/round9-account-deletion-pii-guardrails.test.mjs`,
+`tests/email-outbox-retention.test.mjs`,
+`tests/account-privacy-observability.test.mjs`,
+`tests/account-export-privacy.test.mjs`,
+`tests/shippo-label-money-guardrails.test.mjs`,
+`tests/retention-and-ops-followups.test.mjs`, and
+`tests/direct-upload-lifecycle.test.mjs`.
+
+Verification:
+`gh run list --branch main --limit 3` confirmed latest pushed CI on `main`
+was green for `a9f7a7e7`; source/docs/test inspection with `rg`/`sed`; two
+parent-reviewed read-only agent reports; focused `node --test
+tests/upload-verification-token.test.mjs tests/media-url.test.mjs
+tests/account-deletion-media.test.mjs
+tests/pr-i-media-upload-unsubscribe-followups.test.mjs
+tests/public-cron-search-hardening.test.mjs tests/order-pii-retention.test.mjs
+tests/round9-account-deletion-pii-guardrails.test.mjs
+tests/email-outbox-retention.test.mjs
+tests/account-privacy-observability.test.mjs
+tests/account-export-privacy.test.mjs
+tests/shippo-label-money-guardrails.test.mjs
+tests/retention-and-ops-followups.test.mjs
+tests/direct-upload-lifecycle.test.mjs`, which passed 122/122; and
+`npx tsc --noEmit`; `git diff --check`; `npm run lint` (known
+`jsx-ast-utils` TSNonNullExpression warning, exit 0); and full `npm test`
+passing 1447/1447.
+
+Current running tally after Entry 490: verified fixed/reduced 976, verified
+stale/false-positive/current 542, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 19. Fixed/reduced
+increases by three for two upload verification source fixes plus the
+privacy-retention disclosure alignment. Raw-left decreases by two because only
+the upload verify rate-limit and HEAD-error allegations were newly closed from
+the raw queue; the privacy copy fix was an adjacent issue found during the pass,
+and the provider/R2 dashboard evidence items remain existing deferred work.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence,
+Stripe partial-refund live reconciliation proof, label clawback runtime
+proof/dashboard reconciliation evidence, Stripe webhook subscription dashboard
+evidence, Stripe Connect v2 loss-liability ops/legal decision, explicit stale
+remote branch pruning/review, completed-audit archive housekeeping once the
+60-day threshold is reached, Round 10 deferred cache/state-machine product
+designs that require product decisions rather than source guardrails, remaining
+EXPLAIN-dependent runtime query-plan validation beyond the existing source
+indexes and source guardrails, founding-maker permanence policy,
+provider-side privacy erasure/legal-request evidence, cross-seller AI
+duplicate-detection product design, durable checkout-group design for checkout
+batch semantics beyond grouped ready-lock/reservation resume and
+completed-session filtering, deliberate BigInt money-column modeling for
+individual order/item cents fields and high-volume listing analytics counters
+beyond the fixed seller-metrics aggregate cache and new webhook integer bounds,
+live-data reconciliation for historical seller shipping-rate currency drift,
+Guild private/custom-order sales/review trust-metric product policy, Clerk
+staff MFA and breached-password dashboard evidence, Clerk multi-account spam
+dashboard evidence, buyer-deletion live Stripe replay proof after source
+minimization, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public bucket dashboard posture plus
+production smoke evidence and public-availability proof, HSTS preload
+submission decision, Vercel Analytics/Speed Insights product/privacy decision,
+homepage browser a11y/runtime proof beyond source fallback, and deployed
+security-header runtime proof beyond source/config guardrails.

@@ -166,6 +166,32 @@ describe("upload verification tokens", () => {
     assert.match(route, /Uploaded file content did not match the signed file type/);
   });
 
+  it("keeps direct-upload verification behind burst and hourly upload limits", () => {
+    const route = readFileSync("src/app/api/upload/verify/route.ts", "utf8");
+    const burstLimiter = route.indexOf("safeRateLimit(uploadRatelimit, userId)");
+    const hourlyLimiter = route.indexOf("safeRateLimit(uploadHourlyRatelimit, userId)");
+    const bodyRead = route.indexOf("readBoundedJson(req, UPLOAD_VERIFY_BODY_MAX_BYTES)");
+
+    assert.ok(burstLimiter > 0, "verify route should use the shared upload burst limiter");
+    assert.ok(hourlyLimiter > burstLimiter, "hourly limiter should run after the burst limiter");
+    assert.ok(bodyRead > hourlyLimiter, "rate limits should run before request body parsing");
+  });
+
+  it("does not flatten transient R2 HEAD failures into missing-object responses", () => {
+    const route = readFileSync("src/app/api/upload/verify/route.ts", "utf8");
+    const headStart = route.indexOf("new HeadObjectCommand");
+    const headCatch = route.indexOf("} catch (error)", headStart);
+    const headBlock = route.slice(headStart, route.indexOf("const actualSize", headStart));
+
+    assert.match(route, /function r2ObjectNotFound\(error: unknown\)/);
+    assert.match(headBlock, /if \(r2ObjectNotFound\(error\)\)/);
+    assert.match(headBlock, /Uploaded object was not found/);
+    assert.match(headBlock, /source: "upload_verify_head_object"/);
+    assert.match(headBlock, /uploadTelemetryKeyHash\(key\)/);
+    assert.match(headBlock, /HTTP_STATUS\.BAD_GATEWAY/);
+    assert.ok(headCatch > headStart, "HeadObject errors should be handled locally");
+  });
+
   it("does not fall back to the R2 access key as the verification secret", () => {
     const uploadSecret = process.env.UPLOAD_VERIFICATION_SECRET;
     const r2Secret = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;

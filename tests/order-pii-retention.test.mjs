@@ -44,4 +44,19 @@ describe("order buyer PII retention helpers", () => {
     assert.match(candidateSql, /c\."orderId" = "Order"\.id/);
     assert.match(candidateSql, /c\.status IN \('OPEN', 'IN_DISCUSSION', 'PENDING_CLOSE', 'UNDER_REVIEW'\)/);
   });
+
+  it("keeps privacy-policy retention copy aligned with fulfilled-order PII pruning", () => {
+    const privacy = source("src/app/privacy/page.tsx");
+
+    assert.match(privacy, /Buyer address components/);
+    assert.match(privacy, /buyer contact details/);
+    assert.match(privacy, /gift notes/);
+    assert.match(privacy, /seller fulfillment notes/);
+    assert.match(privacy, /tracking fields/);
+    assert.match(privacy, /Shippo shipment\/rate\/label identifiers/);
+    assert.match(privacy, /label URLs/);
+    assert.match(privacy, /shipping-rate quote snapshots/);
+    assert.match(privacy, /after <strong>90 days<\/strong>/);
+    assert.match(privacy, /Shipping providers\s+and carriers may retain label, tracking, and delivery records/s);
+  });
 });
