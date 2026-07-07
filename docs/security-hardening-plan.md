@@ -24,6 +24,10 @@ RLS is a possible defense-in-depth project, not an emergency switch. With Prisma
 
 A least-privilege runtime database role is useful before any RLS rollout and should be evaluated as post-launch hardening on a staging clone. Keep `DATABASE_URL` on a pooled runtime role with only the privileges normal app traffic, crons, and webhooks require, and keep `DIRECT_URL` on the migration owner role for migrations and restore operations. Do not swap production roles until route tests, cron jobs, webhooks, account deletion, and retention-prune paths pass against the restricted runtime role.
 
+The concrete execution checklist for least-privilege role validation, grant
+auditing, request-context proof, and first RLS prototypes lives in
+`docs/db-defense-in-depth-plan.md`.
+
 ## External Marketplace Benchmarks
 
 This section records the public, source-backed controls used by mature marketplaces and commerce platforms. It is a benchmark, not a requirement list. Grainline should copy the controls that reduce real risk at this stage, and defer controls that create launch friction without proportional benefit.

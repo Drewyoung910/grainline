@@ -4,6 +4,10 @@ Last updated: 2026-07-06
 
 Grainline does not currently use PostgreSQL Row Level Security. The production control plane is application-layer authorization through Clerk middleware, route handlers, server actions, shared visibility helpers, and ownership predicates. RLS is still worth evaluating as defense in depth, but it must be staged. A broad RLS rollout with Prisma and pooled Neon connections can break legitimate traffic or create false confidence if runtime roles still own tables or bypass policies.
 
+Execution tracking for the least-privilege runtime role, grant audit, request
+context proof, and first table prototypes lives in
+`docs/db-defense-in-depth-plan.md`.
+
 ## Decision
 
 Do not enable RLS directly on production tables before launch. First build and test a staging prototype on low-blast-radius tables, then expand only after request context, role separation, admin/cron/webhook bypasses, and rollback are proven.
