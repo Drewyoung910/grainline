@@ -62,8 +62,10 @@ async function withAuditFixture(options, fn) {
   const runtimeRole = `grainline_run_${suffix}`;
   const parentRole = `grainline_parent_${suffix}`;
   const tableName = `grant_audit_table_${suffix}`;
+  const untrackedTableName = `grant_audit_untracked_${suffix}`;
   const enumName = `grant_audit_enum_${suffix}`;
   const functionName = `grainline_audit_fn_${suffix}`;
+  const nonPublicSchemaName = `grant_audit_schema_${suffix}`;
   const migrationPassword = `mig_${suffix}_pw`;
   const runtimePassword = `run_${suffix}_pw`;
   const adminUrl = process.env.DATABASE_URL;
@@ -132,6 +134,14 @@ async function withAuditFixture(options, fn) {
       if (options.grantDatabaseCreate) {
         await migrationClient.query(`GRANT CREATE ON DATABASE ${assertSafeIdentifier(databaseName)} TO ${assertSafeIdentifier(runtimeRole)}`);
       }
+      if (options.grantNonPublicSchemaCreate) {
+        await migrationClient.query(`CREATE SCHEMA ${assertSafeIdentifier(nonPublicSchemaName)}`);
+        await migrationClient.query(`GRANT CREATE ON SCHEMA ${assertSafeIdentifier(nonPublicSchemaName)} TO ${assertSafeIdentifier(runtimeRole)}`);
+      }
+      if (options.grantUntrackedTableSelect) {
+        await migrationClient.query(`CREATE TABLE ${assertSafeIdentifier(untrackedTableName)} (id text PRIMARY KEY)`);
+        await migrationClient.query(`GRANT SELECT ON TABLE ${assertSafeIdentifier(untrackedTableName)} TO ${assertSafeIdentifier(runtimeRole)}`);
+      }
     });
 
     if (options.runtimeOwnsTable) {
@@ -145,7 +155,9 @@ async function withAuditFixture(options, fn) {
         auditClient,
         inventory,
         migrationRole,
+        nonPublicSchemaName,
         runtimeRole,
+        untrackedTableName,
       });
     });
   } finally {
@@ -245,6 +257,20 @@ describe("database grant inventory guardrails", () => {
       assert.match(
         (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n"),
         /has CREATE on current database/,
+      );
+    });
+
+    await withAuditFixture({ grantNonPublicSchemaCreate: true }, async ({ auditClient, inventory, migrationRole, nonPublicSchemaName, runtimeRole }) => {
+      assert.ok(
+        (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory }))
+          .includes(`runtime role ${runtimeRole} has CREATE on non-public schema ${nonPublicSchemaName}`),
+      );
+    });
+
+    await withAuditFixture({ grantUntrackedTableSelect: true }, async ({ auditClient, inventory, migrationRole, runtimeRole, untrackedTableName }) => {
+      assert.ok(
+        (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory }))
+          .includes(`runtime role has SELECT on untracked public table ${untrackedTableName}`),
       );
     });
 
