@@ -84,6 +84,24 @@ Staging implementation checklist:
   - sequence `USAGE`/`SELECT` where applicable;
   - `EXECUTE` on `grainline_*` functions used by constraints, defaults, or app
     queries.
+- Source-derived grant inventory as of this plan update:
+  - 56 Prisma model tables need runtime table DML grants;
+  - 20 Prisma enum types need runtime `USAGE`, currently covered only if live
+    DB type privileges still match Postgres defaults or explicit grants exist;
+  - 1 custom `grainline_*` function is used by the `User` notification
+    preference check constraint: `grainline_notification_preferences_valid`;
+  - 0 source-derived sequences exist today. The two `Int @id @default(1)` fields
+    are fixed singleton rows, not autoincrement/serial sequences.
+- Treat function/type accessibility through `PUBLIC` defaults as a dependency,
+  not as proof. Current source migrations do not revoke from `PUBLIC`, but the
+  live grant audit must fail if those defaults are revoked without explicit
+  runtime-role `EXECUTE`/`USAGE` grants.
+- Add default privileges for the exact migration role authenticated by
+  `DIRECT_URL`, not whichever role runs a one-off SQL shell:
+  - future tables: `SELECT`, `INSERT`, `UPDATE`, `DELETE`;
+  - future sequences: `USAGE`, `SELECT`;
+  - future functions: `EXECUTE`;
+  - future types: `USAGE`.
 - Explicitly verify the runtime role:
   - does not own application tables;
   - does not have `BYPASSRLS`;
@@ -95,6 +113,8 @@ Staging implementation checklist:
 
 Verification checklist:
 
+- Manual live grant audit against staging:
+  `GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=grainline_migration_owner npm run audit:db-grants`
 - `npx prisma validate`
 - `npx prisma generate`
 - `npx prisma migrate status` through `DIRECT_URL`
@@ -131,11 +151,15 @@ the app moves to a non-owner role.
 
 Implementation goals:
 
-- Add a grant-audit script or test that connects as an auditor/owner and checks
-  that the runtime role has required privileges on:
+- `scripts/audit-runtime-db-grants.mjs` derives the source grant inventory and
+  connects as an auditor/owner to check that the runtime role has required
+  privileges on:
   - all app tables;
   - all app sequences;
   - all `grainline_*` functions used by constraints/defaults/app queries.
+- The audit also checks enum type `USAGE`, runtime role ownership/bypass
+  mistakes, and default privileges for future tables/sequences/functions/types
+  created by the migration role.
 - Fail if the runtime role:
   - owns app tables;
   - has `BYPASSRLS`;
@@ -147,7 +171,8 @@ Implementation goals:
 
 Verification:
 
-- Add focused tests for the grant audit.
+- `tests/db-grant-inventory.test.mjs` keeps the static inventory and audit
+  script contract aligned with schema/migration drift.
 - Run grant audit in CI only after a suitable CI role model exists, or keep it
   as a staging/manual check until CI can represent owner/runtime separation.
 

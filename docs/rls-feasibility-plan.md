@@ -23,7 +23,11 @@ Do not enable RLS directly on production tables before launch. First build and t
 - **Grant hygiene**: every future migration that creates tables, sequences, or
   `grainline_*` functions must grant the runtime role the minimum required
   table/sequence privileges and `EXECUTE` on functions that constraints,
-  defaults, or app queries invoke. Add a CI grant-audit before swapping
+  defaults, or app queries invoke. Current source inventory is 56 model tables,
+  20 enum types, 1 custom `grainline_*` function, and 0 sequences. Function and
+  enum access may be covered by Postgres `PUBLIC` defaults today, but that is a
+  public-default dependency to verify against the live DB, not a substitute for
+  an explicit grant audit. Add a CI or staging grant audit before swapping
   production runtime credentials to a non-owner role.
 - **Forced policy proof**: prototype migrations should use `FORCE ROW LEVEL
   SECURITY` in staging so owner-role local tests cannot accidentally bypass

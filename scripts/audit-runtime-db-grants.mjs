@@ -1,0 +1,300 @@
+#!/usr/bin/env node
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import pg from "pg";
+
+const { Client } = pg;
+
+const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+export const REQUIRED_TABLE_PRIVILEGES = ["SELECT", "INSERT", "UPDATE", "DELETE"];
+export const REQUIRED_SEQUENCE_PRIVILEGES = ["USAGE", "SELECT"];
+export const REQUIRED_FUNCTION_PRIVILEGES = ["EXECUTE"];
+export const REQUIRED_TYPE_PRIVILEGES = ["USAGE"];
+
+function sortedUnique(values) {
+  return [...new Set(values)].sort((a, b) => a.localeCompare(b));
+}
+
+function readMigrationSql(rootDir) {
+  const migrationsDir = path.join(rootDir, "prisma", "migrations");
+  return readdirSync(migrationsDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(migrationsDir, entry.name, "migration.sql"))
+    .filter((migrationPath) => existsSync(migrationPath))
+    .map((migrationPath) => readFileSync(migrationPath, "utf8"))
+    .join("\n");
+}
+
+export function deriveGrantInventory(rootDir = ROOT_DIR) {
+  const schema = readFileSync(path.join(rootDir, "prisma", "schema.prisma"), "utf8");
+  const migrationSql = readMigrationSql(rootDir);
+
+  const modelBlocks = [...schema.matchAll(/^model\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{([\s\S]*?)^}/gm)];
+  const tables = sortedUnique(modelBlocks.map((match) => match[1]));
+  const enums = sortedUnique(
+    [...schema.matchAll(/^enum\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{/gm)].map((match) => match[1]),
+  );
+  const fixedIntSingletonIds = sortedUnique(
+    modelBlocks.flatMap((match) =>
+      [...match[2].matchAll(/^\s+([A-Za-z_][A-Za-z0-9_]*)\s+Int\s+@id\s+@default\(1\)/gm)]
+        .map((fieldMatch) => `${match[1]}.${fieldMatch[1]}`),
+    ),
+  );
+  const autoincrementFields = sortedUnique(
+    modelBlocks.flatMap((match) =>
+      [...match[2].matchAll(/^\s+([A-Za-z_][A-Za-z0-9_]*)\s+\w+.*@default\(autoincrement\(\)\)/gm)]
+        .map((fieldMatch) => `${match[1]}.${fieldMatch[1]}`),
+    ),
+  );
+  const sequenceSqlReferences = sortedUnique(
+    [
+      ...migrationSql.matchAll(/\bCREATE\s+SEQUENCE\b|\bBIGSERIAL\b|\bSERIAL\b|\bnextval\s*\(/gi),
+    ].map((match) => match[0].replace(/\s+/g, " ").trim().toUpperCase()),
+  );
+  const functions = sortedUnique(
+    [...migrationSql.matchAll(/\bCREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+"?([A-Za-z_][A-Za-z0-9_]*)"?\s*\(/gi)]
+      .map((match) => match[1])
+      .filter((name) => name.startsWith("grainline_")),
+  );
+  const publicRevokes = sortedUnique(
+    [...migrationSql.matchAll(/\bREVOKE\b[\s\S]{0,240}\bPUBLIC\b/gi)].map((match) =>
+      match[0].replace(/\s+/g, " ").trim(),
+    ),
+  );
+
+  return {
+    tables,
+    enums,
+    functions,
+    fixedIntSingletonIds,
+    autoincrementFields,
+    sequenceSqlReferences,
+    publicRevokes,
+  };
+}
+
+export function formatInventorySummary(inventory) {
+  return [
+    `${inventory.tables.length} tables`,
+    `${inventory.enums.length} enums`,
+    `${inventory.functions.length} grainline_* functions`,
+    `${inventory.sequenceSqlReferences.length} sequence references`,
+  ].join(", ");
+}
+
+function missingItems(expected, actual) {
+  const actualSet = new Set(actual);
+  return expected.filter((item) => !actualSet.has(item));
+}
+
+function collectMissingPrivileges(rows, nameField, privileges) {
+  const issues = [];
+  for (const row of rows) {
+    for (const privilege of privileges) {
+      const field = `${privilege.toLowerCase()}_priv`;
+      if (!row[field]) {
+        issues.push(`${row[nameField]} lacks ${privilege}`);
+      }
+    }
+  }
+  return issues;
+}
+
+async function auditLiveDatabase({ client, runtimeRole, migrationRole, inventory }) {
+  const issues = [];
+
+  const roleResult = await client.query(
+    `SELECT rolname, rolbypassrls, rolsuper, rolcreatedb, rolcreaterole, rolreplication
+       FROM pg_roles
+      WHERE rolname = $1`,
+    [runtimeRole],
+  );
+  if (roleResult.rowCount === 0) {
+    return [`runtime role ${runtimeRole} does not exist`];
+  }
+  const role = roleResult.rows[0];
+  for (const attr of ["rolbypassrls", "rolsuper", "rolcreatedb", "rolcreaterole", "rolreplication"]) {
+    if (role[attr]) issues.push(`runtime role ${runtimeRole} has ${attr}`);
+  }
+
+  const schemaResult = await client.query(
+    `SELECT
+        has_schema_privilege($1, 'public', 'USAGE') AS usage_priv,
+        has_schema_privilege($1, 'public', 'CREATE') AS create_priv`,
+    [runtimeRole],
+  );
+  if (!schemaResult.rows[0]?.usage_priv) issues.push(`runtime role ${runtimeRole} lacks USAGE on schema public`);
+  if (schemaResult.rows[0]?.create_priv) issues.push(`runtime role ${runtimeRole} has CREATE on schema public`);
+
+  const tableResult = await client.query(
+    `SELECT
+        c.relname AS table_name,
+        pg_get_userbyid(c.relowner) AS owner_name,
+        has_table_privilege($1, c.oid, 'SELECT') AS select_priv,
+        has_table_privilege($1, c.oid, 'INSERT') AS insert_priv,
+        has_table_privilege($1, c.oid, 'UPDATE') AS update_priv,
+        has_table_privilege($1, c.oid, 'DELETE') AS delete_priv
+       FROM pg_class c
+       JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public'
+        AND c.relkind IN ('r', 'p')
+        AND c.relname = ANY($2::text[])
+      ORDER BY c.relname`,
+    [runtimeRole, inventory.tables],
+  );
+  issues.push(
+    ...missingItems(inventory.tables, tableResult.rows.map((row) => row.table_name))
+      .map((table) => `missing expected table ${table}`),
+  );
+  issues.push(...collectMissingPrivileges(tableResult.rows, "table_name", REQUIRED_TABLE_PRIVILEGES));
+  for (const row of tableResult.rows) {
+    if (row.owner_name === runtimeRole) issues.push(`runtime role owns table ${row.table_name}`);
+  }
+
+  const sequenceResult = await client.query(
+    `SELECT
+        c.relname AS sequence_name,
+        pg_get_userbyid(c.relowner) AS owner_name,
+        has_sequence_privilege($1, c.oid, 'USAGE') AS usage_priv,
+        has_sequence_privilege($1, c.oid, 'SELECT') AS select_priv
+       FROM pg_class c
+       JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public'
+        AND c.relkind = 'S'
+      ORDER BY c.relname`,
+    [runtimeRole],
+  );
+  if (inventory.sequenceSqlReferences.length === 0 && sequenceResult.rows.length > 0) {
+    issues.push(`live DB has public sequences not represented in source inventory: ${sequenceResult.rows.map((row) => row.sequence_name).join(", ")}`);
+  }
+  issues.push(...collectMissingPrivileges(sequenceResult.rows, "sequence_name", REQUIRED_SEQUENCE_PRIVILEGES));
+  for (const row of sequenceResult.rows) {
+    if (row.owner_name === runtimeRole) issues.push(`runtime role owns sequence ${row.sequence_name}`);
+  }
+
+  const functionResult = await client.query(
+    `SELECT
+        p.proname AS function_name,
+        pg_get_function_identity_arguments(p.oid) AS args,
+        pg_get_userbyid(p.proowner) AS owner_name,
+        has_function_privilege($1, p.oid, 'EXECUTE') AS execute_priv
+       FROM pg_proc p
+       JOIN pg_namespace n ON n.oid = p.pronamespace
+      WHERE n.nspname = 'public'
+        AND p.proname LIKE 'grainline\\_%' ESCAPE '\\'
+      ORDER BY p.proname, args`,
+    [runtimeRole],
+  );
+  const functionNames = sortedUnique(functionResult.rows.map((row) => row.function_name));
+  issues.push(
+    ...missingItems(inventory.functions, functionNames).map((fn) => `missing expected function ${fn}`),
+  );
+  issues.push(
+    ...functionNames.filter((fn) => !inventory.functions.includes(fn)).map((fn) => `live DB has untracked grainline_* function ${fn}`),
+  );
+  for (const row of functionResult.rows) {
+    if (!row.execute_priv) issues.push(`${row.function_name}(${row.args}) lacks EXECUTE`);
+    if (row.owner_name === runtimeRole) issues.push(`runtime role owns function ${row.function_name}(${row.args})`);
+  }
+
+  const enumResult = await client.query(
+    `SELECT
+        t.typname AS type_name,
+        pg_get_userbyid(t.typowner) AS owner_name,
+        has_type_privilege($1, t.oid, 'USAGE') AS usage_priv
+       FROM pg_type t
+       JOIN pg_namespace n ON n.oid = t.typnamespace
+      WHERE n.nspname = 'public'
+        AND t.typtype = 'e'
+      ORDER BY t.typname`,
+    [runtimeRole],
+  );
+  const enumNames = enumResult.rows.map((row) => row.type_name);
+  issues.push(...missingItems(inventory.enums, enumNames).map((type) => `missing expected enum type ${type}`));
+  issues.push(...enumNames.filter((type) => !inventory.enums.includes(type)).map((type) => `live DB has untracked enum type ${type}`));
+  for (const row of enumResult.rows) {
+    if (!row.usage_priv) issues.push(`${row.type_name} lacks USAGE`);
+    if (row.owner_name === runtimeRole) issues.push(`runtime role owns enum type ${row.type_name}`);
+  }
+
+  const defaultRoleResult = await client.query(
+    `SELECT oid, rolname
+       FROM pg_roles
+      WHERE rolname IN ($1, $2)`,
+    [migrationRole, runtimeRole],
+  );
+  if (defaultRoleResult.rows.length < 2) {
+    issues.push(`migration role ${migrationRole} and runtime role ${runtimeRole} must both exist for default-privilege audit`);
+    return issues;
+  }
+
+  const defaultPrivilegeResult = await client.query(
+    `SELECT
+        d.defaclobjtype,
+        privilege.privilege_type
+       FROM pg_default_acl d
+       LEFT JOIN pg_namespace n ON n.oid = d.defaclnamespace
+       CROSS JOIN LATERAL aclexplode(d.defaclacl) AS privilege
+      WHERE d.defaclrole = (SELECT oid FROM pg_roles WHERE rolname = $1)
+        AND privilege.grantee = (SELECT oid FROM pg_roles WHERE rolname = $2)
+        AND (d.defaclnamespace = 0 OR n.nspname = 'public')`,
+    [migrationRole, runtimeRole],
+  );
+  const defaultGrants = new Set(
+    defaultPrivilegeResult.rows.map((row) => `${row.defaclobjtype}:${row.privilege_type}`),
+  );
+  for (const [objectType, privileges] of [
+    ["r", REQUIRED_TABLE_PRIVILEGES],
+    ["S", REQUIRED_SEQUENCE_PRIVILEGES],
+    ["f", REQUIRED_FUNCTION_PRIVILEGES],
+    ["T", REQUIRED_TYPE_PRIVILEGES],
+  ]) {
+    for (const privilege of privileges) {
+      if (!defaultGrants.has(`${objectType}:${privilege}`)) {
+        issues.push(`default privileges for migration role ${migrationRole} do not grant ${privilege} on ${objectType} objects to ${runtimeRole}`);
+      }
+    }
+  }
+
+  return issues;
+}
+
+async function main() {
+  const runtimeRole = process.env.RUNTIME_DB_ROLE;
+  const migrationRole = process.env.MIGRATION_DB_ROLE;
+  const connectionString = process.env.GRANT_AUDIT_DATABASE_URL ?? process.env.DIRECT_URL;
+
+  if (!runtimeRole || !migrationRole || !connectionString) {
+    console.error(
+      "Usage: GRANT_AUDIT_DATABASE_URL=\"$DIRECT_URL\" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=grainline_migration_owner node scripts/audit-runtime-db-grants.mjs",
+    );
+    console.error("GRANT_AUDIT_DATABASE_URL may be omitted when DIRECT_URL is already exported.");
+    process.exitCode = 2;
+    return;
+  }
+
+  const inventory = deriveGrantInventory();
+  const client = new Client({ connectionString });
+  await client.connect();
+  try {
+    const issues = await auditLiveDatabase({ client, runtimeRole, migrationRole, inventory });
+    if (issues.length > 0) {
+      console.error(`Runtime DB grant audit failed for ${runtimeRole}.`);
+      for (const issue of issues) console.error(`- ${issue}`);
+      process.exitCode = 1;
+      return;
+    }
+    console.log(`Runtime DB grant audit passed for ${runtimeRole}: ${formatInventorySummary(inventory)}.`);
+  } finally {
+    await client.end();
+  }
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((err) => {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exitCode = 1;
+  });
+}
