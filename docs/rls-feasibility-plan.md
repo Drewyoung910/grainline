@@ -55,10 +55,15 @@ Do not enable RLS directly on production tables before launch. First build and t
    explicitly designing service/cross-user `INSERT` and cleanup `DELETE`.
 2. **SavedSearch**: owner column is direct (`SavedSearch.userId`). Prototype `SELECT`/`INSERT`/`DELETE` policies for the current user.
 3. **Cart + CartItem**: `Cart.userId` is direct; `CartItem` depends on the parent cart. This tests parent-join policies.
-4. **Favorite + SavedBlogPost + Follow + Block**: direct owner rows, but reads may have product semantics beyond the owner. Document per-table read/write behavior before enabling.
-5. **Conversation + Message**: participant policies (`userAId`/`userBId`) and staff-reported-thread exceptions. Requires careful staff bypass design.
-6. **Order + OrderItem + OrderPaymentEvent + OrderShippingRateQuote**: buyer access plus seller access through listing ownership. Higher risk because checkout, refunds, labels, tax records, and support all depend on these rows.
-7. **Case + CaseMessage**: buyer/seller participant access plus staff/admin case handling. High risk; do after messages and orders.
+4. **SavedBlogPost**: direct owner row, similar to SavedSearch. Prototype after
+   Cart once account-deletion cleanup and account-export reads are wrapped.
+5. **Favorite + Follow + Block**: do not group these with simple owner tables.
+   Favorite and Follow have public aggregate/fanout semantics, and Block is
+   bidirectional. They need separate product/read-design work before any RLS
+   prototype.
+6. **Conversation + Message**: participant policies (`userAId`/`userBId`) and staff-reported-thread exceptions. Requires careful staff bypass design.
+7. **Order + OrderItem + OrderPaymentEvent + OrderShippingRateQuote**: buyer access plus seller access through listing ownership. Higher risk because checkout, refunds, labels, tax records, and support all depend on these rows.
+8. **Case + CaseMessage**: buyer/seller participant access plus staff/admin case handling. High risk; do after messages and orders.
 
 ## Candidate Table Matrix
 
@@ -68,10 +73,10 @@ Do not enable RLS directly on production tables before launch. First build and t
 | `SavedSearch` | `userId` | Low | Second prototype |
 | `Cart` | `userId` | Low | After direct-owner prototype |
 | `CartItem` | Parent `Cart.userId` | Medium | Requires parent policy test |
-| `Favorite` | `userId` | Low | Candidate after cart |
+| `Favorite` | `userId`; public listing favorite counts and ranking use cross-user aggregates | High | Defer until public aggregate/count design exists |
 | `SavedBlogPost` | `userId` | Low | Candidate after cart |
-| `Follow` | `followerId`; public follower counts remain app-layer | Medium | Write-policy candidate; public reads need design |
-| `Block` | `blockerId` for writes; both users may need reads | Medium | Requires product semantics |
+| `Follow` | `followerId`; public follower counts and follower fanout read cross-user rows | High | Defer until public count/fanout design exists |
+| `Block` | `blockerId` for writes; reads need `blockerId = me OR blockedId = me` | Medium | Bidirectional policy plus system fanout bypass required |
 | `Conversation` | `userAId` or `userBId`; staff-reported-thread exception | High | Design after prototype |
 | `Message` | Parent conversation participant; sender/recipient checks | High | Design after conversation |
 | `Order` | `buyerId` or seller owns an order item listing | High | Do not prototype first |
@@ -174,6 +179,32 @@ implementation.
 - Account deletion deletes `Cart` and relies on cascading `CartItem` deletion.
   Test the cascade with both policies enabled instead of assuming the RLS
   interaction.
+
+## Favorite, Follow, And Block Edge Cases
+
+Do not treat these as ordinary `userId = app.user_id` tables.
+
+- `Favorite` has private owner reads, such as saved-items pages, but public and
+  seller-facing aggregate reads count all users' favorites for listings.
+  Browse ranking, seller dashboards, seller analytics, homepage/top-saved
+  surfaces, and quality-score style metrics can all depend on cross-user
+  favorite counts. Owner-only `SELECT` RLS would silently zero or skew those
+  counts unless favorite counts are first denormalized into separate maintained
+  counters or served through an explicit aggregate/bypass design.
+- `Follow` has private owner reads, but public follower counts are intentional
+  product state and follower fanout reads all followers of a seller for listing
+  and blog notifications. Owner-only `SELECT` RLS would collapse follower counts
+  to at most the current viewer and break fanout unless counts/fanout move to a
+  deliberate aggregate/service path.
+- `Block` is bidirectional by design. Current block filtering needs rows where
+  `blockerId = app.user_id` and rows where `blockedId = app.user_id`. An
+  owner-only `blockerId` policy would let a user miss rows created by someone
+  who blocked them and can become a content-safety regression. A future policy
+  needs bidirectional reads plus explicit system/service bypass for fanout paths
+  that exclude reciprocal blocks without an end-user context.
+- `SavedBlogPost` should remain separate from these tables. It is the cleaner
+  direct-owner candidate after SavedSearch/Cart, subject to the same account
+  export and account-deletion cleanup caveats as other owner tables.
 
 ## Non-Goals For Launch
 

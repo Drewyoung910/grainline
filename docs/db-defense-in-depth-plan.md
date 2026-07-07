@@ -312,7 +312,6 @@ Candidate next tables:
 
 - `Cart`
 - `CartItem`
-- `Favorite`
 - `SavedBlogPost`
 
 ### Cart + CartItem Parent-Join Notes
@@ -373,6 +372,62 @@ Regression tests:
   chosen bypass/service path.
 - account deletion: deleting a cart under target-user context cascades cart
   item deletion with both `Cart` and `CartItem` RLS enabled.
+
+### Favorite, Follow, Block, And SavedBlogPost Notes
+
+`SavedBlogPost` is the clean owner-row candidate in this group. `Favorite`,
+`Follow`, and `Block` need separate design and should not be enabled by copying
+the SavedSearch/SavedBlogPost owner-policy pattern.
+
+SavedBlogPost:
+
+- Direct owner row through `SavedBlogPost.userId`.
+- Candidate after Cart/CartItem if account export, account feed/homepage save
+  state, account saved-post pages, blog save/unsave routes, and account-deletion
+  cleanup are wrapped or explicitly bypassed.
+
+Favorite:
+
+- Owner reads exist for saved listings, but many product surfaces count
+  cross-user favorites for a listing.
+- Public/seller aggregate examples include browse ranking, homepage/top-saved
+  surfaces, seller dashboards, inventory, seller analytics, and quality-score
+  style metrics.
+- Owner-only `SELECT` RLS would silently zero or skew those counts under seller
+  or anonymous contexts.
+- Defer Favorite RLS until public favorite counts are denormalized into
+  maintained counters or served through an explicit aggregate/bypass design.
+
+Follow:
+
+- Owner reads exist for "am I following this seller?", but follower count is
+  public product state and follower fanout reads all followers of a seller.
+- Owner-only `SELECT` RLS would reduce follower counts to at most the current
+  viewer and break listing/blog follower notification fanout.
+- Defer Follow RLS until public follower counts and follower fanout have an
+  explicit aggregate/service design.
+
+Block:
+
+- Block reads are bidirectional: current-user filtering needs rows where the
+  current user is the blocker and rows where the current user is blocked.
+- An owner-only `blockerId = app.user_id` policy can miss rows created by users
+  who blocked the current user, weakening block-based content filtering.
+- A future Block policy needs bidirectional read predicates
+  (`blockerId = app.user_id OR blockedId = app.user_id`) plus a system/service
+  bypass for fanout paths that need reciprocal block exclusion without an
+  ordinary viewer context.
+
+Regression tests before any Favorite/Follow/Block RLS prototype:
+
+- favorite counts stay correct on browse, seller dashboard/inventory, seller
+  analytics, homepage/top-saved, and account saved-items surfaces.
+- follower counts stay correct on seller profile/shop and follow API responses.
+- listing/blog follower fanout still reaches all eligible followers and excludes
+  blocked relationships.
+- block filtering still excludes both users blocked by me and users who blocked
+  me.
+- system fanout paths have an explicit bypass or service context.
 
 High-risk tables requiring separate design and likely second review:
 
