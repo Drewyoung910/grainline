@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 
 const {
@@ -35,6 +37,8 @@ describe("database grant inventory guardrails", () => {
     assert.match(script, /MIGRATION_DB_ROLE/);
     assert.match(script, /GRANT_AUDIT_DATABASE_URL/);
     assert.match(script, /rolbypassrls/);
+    assert.match(script, /pg_auth_members/);
+    assert.match(script, /member of role/);
     assert.match(script, /has_table_privilege/);
     assert.match(script, /has_sequence_privilege/);
     assert.match(script, /has_function_privilege/);
@@ -63,14 +67,57 @@ describe("database grant inventory guardrails", () => {
       ],
     );
     assert.deepEqual(
+      defaultPrivilegeRequirements({ ...inventory, publicRevokes: ["REVOKE SELECT ON TABLES FROM PUBLIC"] }),
+      [
+        ["r", REQUIRED_TABLE_PRIVILEGES],
+        ["S", REQUIRED_SEQUENCE_PRIVILEGES],
+      ],
+    );
+    assert.deepEqual(
       defaultPrivilegeRequirements({ ...inventory, publicRevokes: ["REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC"] }),
       [
         ["r", REQUIRED_TABLE_PRIVILEGES],
         ["S", REQUIRED_SEQUENCE_PRIVILEGES],
         ["f", REQUIRED_FUNCTION_PRIVILEGES],
+      ],
+    );
+    assert.deepEqual(
+      defaultPrivilegeRequirements({ ...inventory, publicRevokes: ["REVOKE USAGE ON TYPES FROM PUBLIC"] }),
+      [
+        ["r", REQUIRED_TABLE_PRIVILEGES],
+        ["S", REQUIRED_SEQUENCE_PRIVILEGES],
         ["T", REQUIRED_TYPE_PRIVILEGES],
       ],
     );
+  });
+
+  it("derives mapped Prisma table and enum names instead of assuming model names", () => {
+    const root = mkdtempSync(join(tmpdir(), "grainline-grant-inventory-"));
+    mkdirSync(join(root, "prisma", "migrations", "0001"), { recursive: true });
+    writeFileSync(
+      join(root, "prisma", "schema.prisma"),
+      [
+        "model InternalUser {",
+        "  id String @id @default(cuid())",
+        '  @@map("User")',
+        "}",
+        "",
+        "enum InternalRole {",
+        "  USER",
+        '  @@map("Role")',
+        "}",
+      ].join("\n"),
+    );
+    writeFileSync(
+      join(root, "prisma", "migrations", "0001", "migration.sql"),
+      'CREATE OR REPLACE FUNCTION "grainline_test"() RETURNS boolean LANGUAGE sql AS $$ SELECT true $$;',
+    );
+
+    const inventory = deriveGrantInventory(root);
+
+    assert.deepEqual(inventory.tables, ["User"]);
+    assert.deepEqual(inventory.enums, ["Role"]);
+    assert.deepEqual(inventory.functions, ["grainline_test"]);
   });
 
   it("documents source-derived inventory and the live-proof boundary", () => {
@@ -84,6 +131,7 @@ describe("database grant inventory guardrails", () => {
     assert.match(plan, /0 source-derived sequences/);
     assert.match(plan, /grainline_notification_preferences_valid/);
     assert.match(plan, /PUBLIC.*dependency/);
+    assert.match(plan, /role memberships/);
     assert.match(plan, /audit:db-grants/);
     assert.match(rls, /public-default dependency/);
     assert.match(pkg, /"audit:db-grants": "node scripts\/audit-runtime-db-grants\.mjs"/);

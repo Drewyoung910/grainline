@@ -22,8 +22,21 @@ function sortedUnique(values) {
   return [...new Set(values)].sort((a, b) => a.localeCompare(b));
 }
 
+function mappedDbName(block, fallbackName) {
+  const mapMatch = block.match(/^\s*@@map\("([^"]+)"\)/m);
+  return mapMatch?.[1] ?? fallbackName;
+}
+
+function sqlStatements(sql) {
+  return sql
+    .split(";")
+    .map((statement) => statement.trim())
+    .filter(Boolean);
+}
+
 function readMigrationSql(rootDir) {
   const migrationsDir = path.join(rootDir, "prisma", "migrations");
+  if (!existsSync(migrationsDir)) return "";
   return readdirSync(migrationsDir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => path.join(migrationsDir, entry.name, "migration.sql"))
@@ -37,9 +50,10 @@ export function deriveGrantInventory(rootDir = ROOT_DIR) {
   const migrationSql = readMigrationSql(rootDir);
 
   const modelBlocks = [...schema.matchAll(/^model\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{([\s\S]*?)^}/gm)];
-  const tables = sortedUnique(modelBlocks.map((match) => match[1]));
+  const tables = sortedUnique(modelBlocks.map((match) => mappedDbName(match[2], match[1])));
+  const enumBlocks = [...schema.matchAll(/^enum\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{([\s\S]*?)^}/gm)];
   const enums = sortedUnique(
-    [...schema.matchAll(/^enum\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{/gm)].map((match) => match[1]),
+    enumBlocks.map((match) => mappedDbName(match[2], match[1])),
   );
   const fixedIntSingletonIds = sortedUnique(
     modelBlocks.flatMap((match) =>
@@ -64,9 +78,9 @@ export function deriveGrantInventory(rootDir = ROOT_DIR) {
       .filter((name) => name.startsWith("grainline_")),
   );
   const publicRevokes = sortedUnique(
-    [...migrationSql.matchAll(/\bREVOKE\b[\s\S]{0,240}\bPUBLIC\b/gi)].map((match) =>
-      match[0].replace(/\s+/g, " ").trim(),
-    ),
+    sqlStatements(migrationSql)
+      .filter((statement) => /\bREVOKE\b/i.test(statement) && /\bPUBLIC\b/i.test(statement))
+      .map((statement) => statement.replace(/\s+/g, " ").trim()),
   );
 
   return {
@@ -95,11 +109,12 @@ export function defaultPrivilegeRequirements(inventory) {
     [OBJECT_TYPE_SEQUENCE, REQUIRED_SEQUENCE_PRIVILEGES],
   ];
 
-  if (inventory.publicRevokes.length > 0) {
-    requirements.push(
-      [OBJECT_TYPE_FUNCTION, REQUIRED_FUNCTION_PRIVILEGES],
-      [OBJECT_TYPE_TYPE, REQUIRED_TYPE_PRIVILEGES],
-    );
+  if (inventory.publicRevokes.some((statement) => /\bFUNCTIONS?\b|\bROUTINES?\b/i.test(statement))) {
+    requirements.push([OBJECT_TYPE_FUNCTION, REQUIRED_FUNCTION_PRIVILEGES]);
+  }
+
+  if (inventory.publicRevokes.some((statement) => /\bTYPES?\b/i.test(statement))) {
+    requirements.push([OBJECT_TYPE_TYPE, REQUIRED_TYPE_PRIVILEGES]);
   }
 
   return requirements;
@@ -138,6 +153,28 @@ async function auditLiveDatabase({ client, runtimeRole, migrationRole, inventory
   const role = roleResult.rows[0];
   for (const attr of ["rolbypassrls", "rolsuper", "rolcreatedb", "rolcreaterole", "rolreplication"]) {
     if (role[attr]) issues.push(`runtime role ${runtimeRole} has ${attr}`);
+  }
+
+  const membershipResult = await client.query(
+    `WITH RECURSIVE memberships AS (
+        SELECT parent.oid, parent.rolname
+          FROM pg_auth_members m
+          JOIN pg_roles child ON child.oid = m.member
+          JOIN pg_roles parent ON parent.oid = m.roleid
+         WHERE child.rolname = $1
+        UNION
+        SELECT parent.oid, parent.rolname
+          FROM memberships current_membership
+          JOIN pg_auth_members m ON m.member = current_membership.oid
+          JOIN pg_roles parent ON parent.oid = m.roleid
+      )
+      SELECT DISTINCT rolname AS role_name
+        FROM memberships
+       ORDER BY rolname`,
+    [runtimeRole],
+  );
+  for (const row of membershipResult.rows) {
+    issues.push(`runtime role ${runtimeRole} is member of role ${row.role_name}`);
   }
 
   const schemaResult = await client.query(

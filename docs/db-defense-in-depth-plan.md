@@ -161,11 +161,15 @@ Implementation goals:
   mistakes, and default privileges for future tables/sequences/functions/types
   created by the migration role.
 - Function/type default-privilege checks are conditional on source migrations
-  revoking `PUBLIC`; current live function/type privileges are still checked
-  directly through `has_function_privilege()` and `has_type_privilege()`.
+  revoking `PUBLIC` for functions or types; current live function/type
+  privileges are still checked directly through `has_function_privilege()` and
+  `has_type_privilege()`.
 - Untracked public tables, such as `_prisma_migrations`, may exist. The audit
   does not fail on existence alone, but it fails if the runtime role can access
   or owns an untracked public table.
+- The runtime role should not inherit privileges through role memberships. The
+  audit fails any `pg_auth_members` membership so table/function checks are not
+  accidentally satisfied by a broad parent role.
 - Fail if the runtime role:
   - owns app tables;
   - has `BYPASSRLS`;
