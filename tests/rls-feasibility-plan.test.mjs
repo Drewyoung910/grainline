@@ -36,6 +36,19 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(plan, /`Review`/);
   });
 
+  it("documents SavedBlogPost as direct-owner but wrapper-sensitive", () => {
+    const plan = source("docs/rls-feasibility-plan.md");
+    const defense = source("docs/db-defense-in-depth-plan.md");
+
+    assert.match(plan, /SavedBlogPost Prototype Edge Cases/);
+    assert.match(plan, /No public saved-post aggregate exists today/);
+    assert.match(plan, /homepage blog cards/);
+    assert.match(plan, /\/api\/account\/feed/);
+    assert.match(plan, /parallel Prisma queries/);
+    assert.match(defense, /blog index\/author\/detail saved-state reads/);
+    assert.match(defense, /owner-only `SELECT` RLS/);
+  });
+
   it("cross-links the RLS plan from the active audit docs", () => {
     const hardening = source("docs/security-hardening-plan.md");
     const auditLog = source("docs/security-audit-log.md");

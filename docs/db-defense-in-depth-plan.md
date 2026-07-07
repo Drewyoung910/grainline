@@ -383,8 +383,18 @@ SavedBlogPost:
 
 - Direct owner row through `SavedBlogPost.userId`.
 - Candidate after Cart/CartItem if account export, account feed/homepage save
-  state, account saved-post pages, blog save/unsave routes, and account-deletion
-  cleanup are wrapped or explicitly bypassed.
+  state, blog index/author/detail saved-state reads, account saved-post pages,
+  blog save/unsave routes, and account-deletion cleanup are wrapped or
+  explicitly bypassed.
+- No public saved-post aggregate exists today; the only saved-blog-post count is
+  current-user scoped on `/account/saved`. If public blog saved counts are added,
+  revisit this candidate before applying owner-only `SELECT` RLS.
+- Missing wrapper context on server-rendered blog saved-state reads would fail
+  closed and render bookmarks as unsaved, so route-level happy-path tests must
+  cover homepage/blog index/blog author/blog detail saved buttons.
+- `/api/account/feed` currently builds saved listing and saved blog-post state
+  with parallel Prisma queries; do not move that pattern unchanged into an
+  interactive transaction-local context helper.
 
 Favorite:
 

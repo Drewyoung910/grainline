@@ -56,7 +56,8 @@ Do not enable RLS directly on production tables before launch. First build and t
 2. **SavedSearch**: owner column is direct (`SavedSearch.userId`). Prototype `SELECT`/`INSERT`/`DELETE` policies for the current user.
 3. **Cart + CartItem**: `Cart.userId` is direct; `CartItem` depends on the parent cart. This tests parent-join policies.
 4. **SavedBlogPost**: direct owner row, similar to SavedSearch. Prototype after
-   Cart once account-deletion cleanup and account-export reads are wrapped.
+   Cart once account-deletion cleanup, account-export reads, account feed reads,
+   homepage/blog saved-state reads, and blog save/unsave routes are wrapped.
 5. **Favorite + Follow + Block**: do not group these with simple owner tables.
    Favorite and Follow have public aggregate/fanout semantics, and Block is
    bidirectional. They need separate product/read-design work before any RLS
@@ -180,6 +181,30 @@ implementation.
   Test the cascade with both policies enabled instead of assuming the RLS
   interaction.
 
+## SavedBlogPost Prototype Edge Cases
+
+`SavedBlogPost` remains a direct-owner candidate, but its read surface is larger
+than `SavedSearch` because saved-state is rendered on several server-component
+blog surfaces.
+
+- No public saved-post aggregate exists today. The only saved-blog-post count is
+  scoped to the current user's account saved page. If a public "people saved
+  this post" count is added later, reassess this table before applying an
+  owner-only `SELECT` policy.
+- Server-component saved-state reads must be wrapped before enabling RLS:
+  homepage blog cards, `/blog`, `/blog/author/[slug]`, and `/blog/[slug]`.
+  Missing context would not expose another user's rows, but it would fail closed
+  and render bookmarks as unsaved.
+- API/read-write paths to wrap include `GET/POST/DELETE /api/blog/[slug]/save`,
+  `/api/account/feed`, `/api/account/export`, and `/account/saved`.
+- `/api/account/feed` currently builds saved listing and saved blog-post state
+  with parallel Prisma queries. If this is moved inside an interactive
+  transaction-local context helper, serialize those lookups or redesign the
+  helper path so the context is set before each protected query.
+- Account deletion deletes saved blog posts as privacy cleanup. That transaction
+  must set target-user context or use an explicit cleanup bypass, or an
+  owner-scoped `DELETE` policy can leave saved-post history behind.
+
 ## Favorite, Follow, And Block Edge Cases
 
 Do not treat these as ordinary `userId = app.user_id` tables.
@@ -203,8 +228,8 @@ Do not treat these as ordinary `userId = app.user_id` tables.
   needs bidirectional reads plus explicit system/service bypass for fanout paths
   that exclude reciprocal blocks without an end-user context.
 - `SavedBlogPost` should remain separate from these tables. It is the cleaner
-  direct-owner candidate after SavedSearch/Cart, subject to the same account
-  export and account-deletion cleanup caveats as other owner tables.
+  direct-owner candidate after SavedSearch/Cart, subject to the saved-state
+  read inventory, account export, and account-deletion cleanup caveats above.
 
 ## Non-Goals For Launch
 
