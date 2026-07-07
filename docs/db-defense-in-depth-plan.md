@@ -263,6 +263,24 @@ Implementation constraints:
 - Saved-search cap checks must remain in the same transaction as insert.
 - If serializable retry is used, context must be set inside each retry attempt.
 - Forged `userId` must still be ignored/rejected by app-layer code.
+- Account deletion deletes saved searches inside the anonymization transaction.
+  That transaction must either set `app.user_id` to the target deleted user as
+  its first statement or use an explicit cleanup bypass. Otherwise a
+  user-scoped `DELETE` policy can silently leave saved-search query/location
+  data behind during self-deletion, Clerk webhook deletion, or admin-triggered
+  deletion.
+
+Read/delete paths to inventory and wrap before enabling:
+
+- `GET /api/search/saved` list reads.
+- `DELETE /api/search/saved` deletes.
+- Dashboard server-component saved-search reads.
+- Dashboard `deleteSavedSearch` server action.
+- Account export saved-search reads. These currently run in a broader export
+  `Promise.all`, so the saved-search read should be wrapped individually or the
+  export query shape must avoid parallel work inside a single RLS-context
+  transaction.
+- Account-deletion saved-search cleanup.
 
 Regression tests:
 
@@ -270,6 +288,10 @@ Regression tests:
 - route: list returns only own saved searches.
 - route: create writes only current user's `userId`.
 - route: delete cannot delete another user's row.
+- dashboard: saved-search section still renders current-user rows.
+- account export: saved-search rows still export for the current user.
+- account deletion: saved-search cleanup removes the deleted user's rows under
+  self-deletion and provider/admin deletion paths.
 - cap behavior still works under context/retry.
 
 ## Phase 6 - Expansion Decision

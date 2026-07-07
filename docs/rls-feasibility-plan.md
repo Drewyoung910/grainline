@@ -145,6 +145,13 @@ need retry/context discipline.
   insert.
 - If serializable retry is used, the RLS context must be set inside each retry
   transaction before count/read/write work.
+- Saved-search reads are not only in API routes. The dashboard server component
+  and account export also read saved searches and must be wrapped or redesigned
+  before RLS is enabled.
+- Account deletion deletes saved searches as privacy cleanup. That transaction
+  must set target-user context or use an explicit cleanup bypass, or a
+  user-scoped `DELETE` policy can silently leave saved-search query/location
+  data behind.
 
 ## Non-Goals For Launch
 
