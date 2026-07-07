@@ -211,6 +211,9 @@ Implementation goals:
   - lacks expected table/sequence/function privileges.
 - Add migration authoring guidance:
   - new tables/sequences/functions require corresponding grants;
+  - new non-model public tables inherit runtime table DML from migration-role
+    default privileges, so add them to the audit inventory or explicitly
+    `REVOKE` runtime access in the same migration;
   - raw SQL migrations must include grant review;
   - role/grant/default-privilege setup should be checked in as a reviewed SQL or
     migration artifact before production promotion;

@@ -403,10 +403,14 @@ describe("database grant inventory guardrails", () => {
     assert.match(plan, /tracked app objects owned by the migration role/);
     assert.match(plan, /database-level `CREATE`/);
     assert.match(plan, /non-public schemas/);
+    assert.match(plan, /non-model public tables inherit runtime table DML/);
+    assert.match(plan, /add them to the audit inventory or explicitly\s+`REVOKE` runtime access/);
     assert.match(plan, /audit:db-grants/);
     assert.match(runbook, /`DIRECT_URL` must authenticate as the declared migration owner role/);
     assert.match(runbook, /version-controlled SQL or migrations/);
     assert.match(runbook, /same environment\/secret set that will run migrations/);
+    assert.match(runbook, /Non-model public tables created by the migration role can inherit runtime DML/);
+    assert.match(runbook, /grant-audit\s+inventory or explicitly `REVOKE` runtime access/);
     assert.match(launch, /GRANT_AUDIT_DATABASE_URL="\$DIRECT_URL"/);
     assert.match(launch, /RUNTIME_DB_ROLE=grainline_app_runtime/);
     assert.match(launch, /MIGRATION_DB_ROLE=grainline_migration_owner/);

@@ -180,6 +180,9 @@ Production migration rules:
   types, or role/default-privilege changes, run `npm run audit:db-grants` from
   the same environment/secret set that will run migrations and retain the run
   output with deploy evidence.
+- Non-model public tables created by the migration role can inherit runtime DML
+  from default privileges. Add intentional non-model tables to the grant-audit
+  inventory or explicitly `REVOKE` runtime access in the same migration.
 - Use the pooled `DATABASE_URL` for runtime.
 - Avoid rolling back to an app version that cannot read the current schema.
 - For failed migrations, stop deploys, inspect the migration in Neon, and ship a forward migration whenever possible.
