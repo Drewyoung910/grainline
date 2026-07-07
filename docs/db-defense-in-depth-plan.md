@@ -105,11 +105,16 @@ Staging implementation checklist:
   - future functions: `EXECUTE` only if `PUBLIC` function defaults are revoked;
   - future types: `USAGE` only if `PUBLIC` type defaults are revoked.
 - Explicitly verify the runtime role:
+  - is not the same role as the migration owner;
+  - uses tracked app objects owned by the migration role authenticated by
+    `DIRECT_URL`;
   - does not own application tables;
   - does not have `BYPASSRLS`;
+  - does not have database-level `CREATE`;
   - cannot run DDL/migrations;
   - cannot alter RLS policies;
-  - cannot drop tables, functions, or schemas.
+  - cannot drop tables, functions, or schemas;
+  - cannot create objects in `public` or currently untracked non-public schemas.
 - Point staging `DATABASE_URL` at the runtime role.
 - Keep staging `DIRECT_URL` on the migration owner role.
 
@@ -162,6 +167,12 @@ Implementation goals:
 - The audit also checks enum type `USAGE`, runtime role ownership/bypass
   mistakes, and default privileges for future tables/sequences/functions/types
   created by the migration role.
+- The audit fails if the runtime role and migration role are the same role, if
+  tracked app objects are not owned by the declared migration role, if the
+  runtime role has database-level `CREATE`, or if it has `CREATE` on `public` or
+  currently untracked non-public schemas. This keeps the audit focused on the
+  declared least-privilege ownership model instead of only checking current
+  table DML.
 - Function/type default-privilege checks are conditional on source migrations
   revoking `PUBLIC` through `ALTER DEFAULT PRIVILEGES` for functions or types;
   object-level revokes on existing functions/types do not imply a future default
@@ -170,9 +181,16 @@ Implementation goals:
 - Untracked public tables, such as `_prisma_migrations`, may exist. The audit
   does not fail on existence alone, but it fails if the runtime role can access
   or owns an untracked public table.
+- Non-public schemas are not part of the current Prisma app-object inventory.
+  Extension/schema `USAGE` can be legitimate, so the audit does not fail on
+  non-public `USAGE` alone. It does fail non-public schema `CREATE`; if a future
+  app-owned schema is added, extend the inventory before granting runtime access
+  there.
 - The runtime role should not inherit privileges through role memberships. The
   audit fails any `pg_auth_members` membership so table/function checks are not
   accidentally satisfied by a broad parent role.
+- The manual audit client uses bounded connection/query/statement timeouts so a
+  broken staging endpoint fails the check instead of hanging indefinitely.
 - Fail if the runtime role:
   - owns app tables;
   - has `BYPASSRLS`;
@@ -216,6 +234,12 @@ Hard-gate tests:
 - explicitly empty `app.user_id` returns zero protected rows once RLS is enabled.
 - serializable retry re-runs `set_config` on every retry attempt.
 - route-level happy paths still return current-user rows.
+- Measure protected-read latency under the wrapper, including p95/p99 for hot
+  paths such as notification reads, and choose explicit interactive-transaction
+  `timeout`/`maxWait` values before widening usage.
+- Measure connection-hold time and pool saturation under realistic staging
+  concurrency; every protected read adds transaction setup and must not lower
+  the pool's saturation point enough to affect launch-critical traffic.
 
 Stop condition:
 

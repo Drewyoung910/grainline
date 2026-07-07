@@ -12,6 +12,9 @@ export const REQUIRED_TABLE_PRIVILEGES = ["SELECT", "INSERT", "UPDATE", "DELETE"
 export const REQUIRED_SEQUENCE_PRIVILEGES = ["USAGE", "SELECT"];
 export const REQUIRED_FUNCTION_PRIVILEGES = ["EXECUTE"];
 export const REQUIRED_TYPE_PRIVILEGES = ["USAGE"];
+const AUDIT_CONNECTION_TIMEOUT_MS = 10_000;
+const AUDIT_STATEMENT_TIMEOUT_MS = 30_000;
+const AUDIT_QUERY_TIMEOUT_MS = 35_000;
 
 const OBJECT_TYPE_TABLE = "r";
 const OBJECT_TYPE_SEQUENCE = "S";
@@ -158,6 +161,19 @@ async function auditLiveDatabase({ client, runtimeRole, migrationRole, inventory
   if (roleResult.rowCount === 0) {
     return [`runtime role ${runtimeRole} does not exist`];
   }
+  const migrationRoleResult = await client.query(
+    `SELECT rolname
+       FROM pg_roles
+      WHERE rolname = $1`,
+    [migrationRole],
+  );
+  if (migrationRoleResult.rowCount === 0) {
+    return [`migration role ${migrationRole} does not exist`];
+  }
+  if (runtimeRole === migrationRole) {
+    issues.push(`runtime role ${runtimeRole} must differ from migration role ${migrationRole}`);
+  }
+
   const role = roleResult.rows[0];
   for (const attr of ["rolbypassrls", "rolsuper", "rolcreatedb", "rolcreaterole", "rolreplication"]) {
     if (role[attr]) issues.push(`runtime role ${runtimeRole} has ${attr}`);
@@ -185,6 +201,14 @@ async function auditLiveDatabase({ client, runtimeRole, migrationRole, inventory
     issues.push(`runtime role ${runtimeRole} is member of role ${row.role_name}`);
   }
 
+  const databaseResult = await client.query(
+    `SELECT has_database_privilege($1, current_database(), 'CREATE') AS create_priv`,
+    [runtimeRole],
+  );
+  if (databaseResult.rows[0]?.create_priv) {
+    issues.push(`runtime role ${runtimeRole} has CREATE on current database`);
+  }
+
   const schemaResult = await client.query(
     `SELECT
         has_schema_privilege($1, 'public', 'USAGE') AS usage_priv,
@@ -193,6 +217,23 @@ async function auditLiveDatabase({ client, runtimeRole, migrationRole, inventory
   );
   if (!schemaResult.rows[0]?.usage_priv) issues.push(`runtime role ${runtimeRole} lacks USAGE on schema public`);
   if (schemaResult.rows[0]?.create_priv) issues.push(`runtime role ${runtimeRole} has CREATE on schema public`);
+
+  const nonPublicSchemaResult = await client.query(
+    `SELECT
+        n.nspname AS schema_name,
+        has_schema_privilege($1, n.oid, 'CREATE') AS create_priv
+       FROM pg_namespace n
+      WHERE n.nspname <> 'public'
+        AND n.nspname <> 'information_schema'
+        AND n.nspname !~ '^pg_'
+      ORDER BY n.nspname`,
+    [runtimeRole],
+  );
+  for (const row of nonPublicSchemaResult.rows) {
+    if (row.create_priv) {
+      issues.push(`runtime role ${runtimeRole} has CREATE on non-public schema ${row.schema_name}`);
+    }
+  }
 
   const tableResult = await client.query(
     `SELECT
@@ -217,6 +258,9 @@ async function auditLiveDatabase({ client, runtimeRole, migrationRole, inventory
   issues.push(...collectMissingPrivileges(tableResult.rows, "table_name", REQUIRED_TABLE_PRIVILEGES));
   for (const row of tableResult.rows) {
     if (row.owner_name === runtimeRole) issues.push(`runtime role owns table ${row.table_name}`);
+    if (row.owner_name !== migrationRole) {
+      issues.push(`table ${row.table_name} owned by ${row.owner_name}, expected ${migrationRole}`);
+    }
   }
 
   const untrackedTableResult = await client.query(
@@ -262,6 +306,9 @@ async function auditLiveDatabase({ client, runtimeRole, migrationRole, inventory
   issues.push(...collectMissingPrivileges(sequenceResult.rows, "sequence_name", REQUIRED_SEQUENCE_PRIVILEGES));
   for (const row of sequenceResult.rows) {
     if (row.owner_name === runtimeRole) issues.push(`runtime role owns sequence ${row.sequence_name}`);
+    if (row.owner_name !== migrationRole) {
+      issues.push(`sequence ${row.sequence_name} owned by ${row.owner_name}, expected ${migrationRole}`);
+    }
   }
 
   const functionResult = await client.query(
@@ -287,6 +334,9 @@ async function auditLiveDatabase({ client, runtimeRole, migrationRole, inventory
   for (const row of functionResult.rows) {
     if (!row.execute_priv) issues.push(`${row.function_name}(${row.args}) lacks EXECUTE`);
     if (row.owner_name === runtimeRole) issues.push(`runtime role owns function ${row.function_name}(${row.args})`);
+    if (row.owner_name !== migrationRole) {
+      issues.push(`function ${row.function_name}(${row.args}) owned by ${row.owner_name}, expected ${migrationRole}`);
+    }
   }
 
   const enumResult = await client.query(
@@ -307,6 +357,9 @@ async function auditLiveDatabase({ client, runtimeRole, migrationRole, inventory
   for (const row of enumResult.rows) {
     if (!row.usage_priv) issues.push(`${row.type_name} lacks USAGE`);
     if (row.owner_name === runtimeRole) issues.push(`runtime role owns enum type ${row.type_name}`);
+    if (row.owner_name !== migrationRole) {
+      issues.push(`enum type ${row.type_name} owned by ${row.owner_name}, expected ${migrationRole}`);
+    }
   }
 
   const defaultRoleResult = await client.query(
@@ -315,7 +368,8 @@ async function auditLiveDatabase({ client, runtimeRole, migrationRole, inventory
       WHERE rolname IN ($1, $2)`,
     [migrationRole, runtimeRole],
   );
-  if (defaultRoleResult.rows.length < 2) {
+  const expectedDefaultRoleRows = runtimeRole === migrationRole ? 1 : 2;
+  if (defaultRoleResult.rows.length < expectedDefaultRoleRows) {
     issues.push(`migration role ${migrationRole} and runtime role ${runtimeRole} must both exist for default-privilege audit`);
     return issues;
   }
@@ -361,7 +415,12 @@ async function main() {
   }
 
   const inventory = deriveGrantInventory();
-  const client = new Client({ connectionString });
+  const client = new Client({
+    connectionString,
+    connectionTimeoutMillis: AUDIT_CONNECTION_TIMEOUT_MS,
+    statement_timeout: AUDIT_STATEMENT_TIMEOUT_MS,
+    query_timeout: AUDIT_QUERY_TIMEOUT_MS,
+  });
   await client.connect();
   try {
     const issues = await auditLiveDatabase({ client, runtimeRole, migrationRole, inventory });

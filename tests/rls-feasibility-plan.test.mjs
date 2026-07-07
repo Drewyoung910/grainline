@@ -26,6 +26,18 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(plan, /transaction-local/);
   });
 
+  it("requires performance proof before widening interactive transaction wrappers", () => {
+    const plan = source("docs/rls-feasibility-plan.md");
+    const defense = source("docs/db-defense-in-depth-plan.md");
+
+    assert.match(plan, /protected-read p95\/p99 latency/);
+    assert.match(plan, /interactive-transaction\s+`timeout`\/`maxWait`/);
+    assert.match(plan, /connection-hold time/);
+    assert.match(plan, /pool saturation/);
+    assert.match(defense, /protected-read latency/);
+    assert.match(defense, /connection-hold time/);
+  });
+
   it("keeps public discovery tables out of the first RLS pass", () => {
     const plan = source("docs/rls-feasibility-plan.md");
 

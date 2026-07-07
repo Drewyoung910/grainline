@@ -40,6 +40,10 @@ describe("database grant inventory guardrails", () => {
     assert.match(script, /rolbypassrls/);
     assert.match(script, /pg_auth_members/);
     assert.match(script, /member of role/);
+    assert.match(script, /must differ from migration role/);
+    assert.match(script, /has_database_privilege\(\$1, current_database\(\), 'CREATE'\)/);
+    assert.match(script, /has CREATE on non-public schema/);
+    assert.match(script, /owned by \$\{row\.owner_name\}, expected \$\{migrationRole\}/);
     assert.match(script, /has_table_privilege/);
     assert.match(script, /has_sequence_privilege/);
     assert.match(script, /has_function_privilege/);
@@ -47,6 +51,9 @@ describe("database grant inventory guardrails", () => {
     assert.match(script, /pg_default_acl/);
     assert.match(script, /untracked public table/);
     assert.match(script, /lightweight REVOKE detector/);
+    assert.match(script, /connectionTimeoutMillis: AUDIT_CONNECTION_TIMEOUT_MS/);
+    assert.match(script, /statement_timeout: AUDIT_STATEMENT_TIMEOUT_MS/);
+    assert.match(script, /query_timeout: AUDIT_QUERY_TIMEOUT_MS/);
     assert.doesNotMatch(script, /console\.log\(.*connectionString/s);
     assert.doesNotMatch(script, /process\.env\.DATABASE_URL/);
   });
@@ -165,6 +172,9 @@ describe("database grant inventory guardrails", () => {
     assert.match(plan, /grainline_notification_preferences_valid/);
     assert.match(plan, /PUBLIC.*dependency/);
     assert.match(plan, /role memberships/);
+    assert.match(plan, /tracked app objects owned by the migration role/);
+    assert.match(plan, /database-level `CREATE`/);
+    assert.match(plan, /non-public schemas/);
     assert.match(plan, /audit:db-grants/);
     assert.match(rls, /public-default dependency/);
     assert.match(pkg, /"audit:db-grants": "node scripts\/audit-runtime-db-grants\.mjs"/);

@@ -1,6 +1,6 @@
 # Grainline RLS Feasibility Plan
 
-Last updated: 2026-07-06
+Last updated: 2026-07-07
 
 Grainline does not currently use PostgreSQL Row Level Security. The production control plane is application-layer authorization through Clerk middleware, route handlers, server actions, shared visibility helpers, and ownership predicates. RLS is still worth evaluating as defense in depth, but it must be staged. A broad RLS rollout with Prisma and pooled Neon connections can break legitimate traffic or create false confidence if runtime roles still own tables or bypass policies.
 
@@ -49,6 +49,11 @@ Do not enable RLS directly on production tables before launch. First build and t
 - Do not run parallel Prisma queries inside an interactive transaction used for
   RLS context. Queries that currently use `Promise.all` must be serialized or
   redesigned when wrapped in the context helper.
+- Prove the wrapper's performance characteristics, not only its isolation
+  semantics. Measure protected-read p95/p99 latency, interactive-transaction
+  `timeout`/`maxWait` behavior, connection-hold time, and pool saturation under
+  realistic staging concurrency before widening the wrapper to hot paths such as
+  notification reads.
 - Stop the RLS rollout if any of these proofs are flaky under the pooler.
 
 ## Prototype Sequence
@@ -108,6 +113,9 @@ Do not enable RLS directly on production tables before launch. First build and t
 - Route-level happy-path tests prove protected reads still return the current
   user's rows. DB-denial tests alone are insufficient because missing context
   wrappers can fail closed silently.
+- Staging load/smoke tests prove the interactive-transaction wrapper does not
+  turn slow protected reads into transaction timeouts or saturate the pooled
+  connection budget before ordinary app traffic does.
 
 ## Notification Prototype Edge Cases
 
