@@ -149,7 +149,7 @@ function collectMissingPrivileges(rows, nameField, privileges) {
   return issues;
 }
 
-async function auditLiveDatabase({ client, runtimeRole, migrationRole, inventory }) {
+export async function auditLiveDatabase({ client, runtimeRole, migrationRole, inventory }) {
   const issues = [];
 
   const roleResult = await client.query(

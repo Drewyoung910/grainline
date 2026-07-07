@@ -1,20 +1,156 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import pg from "pg";
 
 const {
   REQUIRED_FUNCTION_PRIVILEGES,
   REQUIRED_SEQUENCE_PRIVILEGES,
   REQUIRED_TABLE_PRIVILEGES,
   REQUIRED_TYPE_PRIVILEGES,
+  auditLiveDatabase,
   defaultPrivilegeRequirements,
   deriveGrantInventory,
 } = await import("../scripts/audit-runtime-db-grants.mjs");
 
+const { Client } = pg;
+
 function source(path) {
   return readFileSync(path, "utf8");
+}
+
+function auditIntegrationSkipReason() {
+  if (process.env.GITHUB_ACTIONS !== "true") return "requires the GitHub Actions Postgres service";
+  if (!process.env.DATABASE_URL) return "requires DATABASE_URL";
+  return false;
+}
+
+function assertSafeIdentifier(value) {
+  assert.match(value, /^[a-z_][a-z0-9_]*$/);
+  return `"${value}"`;
+}
+
+function sqlLiteral(value) {
+  return `'${value.replaceAll("'", "''")}'`;
+}
+
+function databaseUrl(databaseName, role, password) {
+  const url = new URL(process.env.DATABASE_URL);
+  url.pathname = `/${databaseName}`;
+  if (role) url.username = role;
+  if (password) url.password = password;
+  return url.toString();
+}
+
+async function withClient(connectionString, fn) {
+  const client = new Client({ connectionString });
+  await client.connect();
+  try {
+    return await fn(client);
+  } finally {
+    await client.end();
+  }
+}
+
+async function withAuditFixture(options, fn) {
+  const suffix = randomUUID().replaceAll("-", "").slice(0, 10);
+  const databaseName = `grainline_audit_${suffix}`;
+  const migrationRole = `grainline_mig_${suffix}`;
+  const runtimeRole = `grainline_run_${suffix}`;
+  const parentRole = `grainline_parent_${suffix}`;
+  const tableName = `grant_audit_table_${suffix}`;
+  const enumName = `grant_audit_enum_${suffix}`;
+  const functionName = `grainline_audit_fn_${suffix}`;
+  const migrationPassword = `mig_${suffix}_pw`;
+  const runtimePassword = `run_${suffix}_pw`;
+  const adminUrl = process.env.DATABASE_URL;
+
+  async function cleanup() {
+    await withClient(adminUrl, async (admin) => {
+      await admin.query(`REVOKE ${assertSafeIdentifier(parentRole)} FROM ${assertSafeIdentifier(runtimeRole)}`)
+        .catch(() => {});
+      await admin.query(`DROP DATABASE IF EXISTS ${assertSafeIdentifier(databaseName)} WITH (FORCE)`);
+      for (const role of [parentRole, runtimeRole, migrationRole]) {
+        await admin.query(`DROP ROLE IF EXISTS ${assertSafeIdentifier(role)}`).catch(() => {});
+      }
+    });
+  }
+
+  await cleanup();
+
+  await withClient(adminUrl, async (admin) => {
+    await admin.query(`CREATE ROLE ${assertSafeIdentifier(migrationRole)} LOGIN PASSWORD ${sqlLiteral(migrationPassword)}`);
+    await admin.query(`CREATE ROLE ${assertSafeIdentifier(runtimeRole)} LOGIN PASSWORD ${sqlLiteral(runtimePassword)} ${options.runtimeRoleAttributes ?? ""}`);
+    if (options.createParentRole) {
+      await admin.query(`CREATE ROLE ${assertSafeIdentifier(parentRole)} NOLOGIN`);
+      await admin.query(`GRANT ${assertSafeIdentifier(parentRole)} TO ${assertSafeIdentifier(runtimeRole)}`);
+    }
+    await admin.query(`CREATE DATABASE ${assertSafeIdentifier(databaseName)} OWNER ${assertSafeIdentifier(migrationRole)}`);
+  });
+
+  const migrationUrl = databaseUrl(databaseName, migrationRole, migrationPassword);
+  const adminDatabaseUrl = databaseUrl(databaseName);
+  const inventory = {
+    tables: [tableName],
+    enums: [enumName],
+    functions: [functionName],
+    fixedIntSingletonIds: [],
+    autoincrementFields: [],
+    sequenceSqlReferences: [],
+    publicRevokes: [],
+    publicDefaultPrivilegeRevokes: [],
+  };
+
+  try {
+    await withClient(migrationUrl, async (migrationClient) => {
+      await migrationClient.query(`CREATE TYPE ${assertSafeIdentifier(enumName)} AS ENUM ('active')`);
+      await migrationClient.query(
+        `CREATE TABLE ${assertSafeIdentifier(tableName)} (id text PRIMARY KEY, status ${assertSafeIdentifier(enumName)} NOT NULL)`,
+      );
+      await migrationClient.query(
+        `CREATE OR REPLACE FUNCTION ${assertSafeIdentifier(functionName)}() RETURNS boolean LANGUAGE sql AS $$ SELECT true $$`,
+      );
+      await migrationClient.query(`GRANT USAGE ON SCHEMA public TO ${assertSafeIdentifier(runtimeRole)}`);
+      if (options.grantTablePrivileges !== false) {
+        await migrationClient.query(
+          `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE ${assertSafeIdentifier(tableName)} TO ${assertSafeIdentifier(runtimeRole)}`,
+        );
+      }
+      await migrationClient.query(`GRANT USAGE ON TYPE ${assertSafeIdentifier(enumName)} TO ${assertSafeIdentifier(runtimeRole)}`);
+      await migrationClient.query(`GRANT EXECUTE ON FUNCTION ${assertSafeIdentifier(functionName)}() TO ${assertSafeIdentifier(runtimeRole)}`);
+      if (options.defaultPrivileges !== false) {
+        await migrationClient.query(
+          `ALTER DEFAULT PRIVILEGES FOR ROLE ${assertSafeIdentifier(migrationRole)} IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${assertSafeIdentifier(runtimeRole)}`,
+        );
+        await migrationClient.query(
+          `ALTER DEFAULT PRIVILEGES FOR ROLE ${assertSafeIdentifier(migrationRole)} IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO ${assertSafeIdentifier(runtimeRole)}`,
+        );
+      }
+      if (options.grantDatabaseCreate) {
+        await migrationClient.query(`GRANT CREATE ON DATABASE ${assertSafeIdentifier(databaseName)} TO ${assertSafeIdentifier(runtimeRole)}`);
+      }
+    });
+
+    if (options.runtimeOwnsTable) {
+      await withClient(adminDatabaseUrl, async (adminDb) => {
+        await adminDb.query(`ALTER TABLE ${assertSafeIdentifier(tableName)} OWNER TO ${assertSafeIdentifier(runtimeRole)}`);
+      });
+    }
+
+    await withClient(options.auditAsAdmin ? adminDatabaseUrl : migrationUrl, async (auditClient) => {
+      await fn({
+        auditClient,
+        inventory,
+        migrationRole,
+        runtimeRole,
+      });
+    });
+  } finally {
+    await cleanup();
+  }
 }
 
 describe("database grant inventory guardrails", () => {
@@ -37,6 +173,7 @@ describe("database grant inventory guardrails", () => {
     assert.match(script, /RUNTIME_DB_ROLE/);
     assert.match(script, /MIGRATION_DB_ROLE/);
     assert.match(script, /GRANT_AUDIT_DATABASE_URL/);
+    assert.match(script, /export async function auditLiveDatabase/);
     assert.match(script, /rolbypassrls/);
     assert.match(script, /pg_auth_members/);
     assert.match(script, /member of role/);
@@ -59,6 +196,63 @@ describe("database grant inventory guardrails", () => {
     assert.match(script, /query_timeout: AUDIT_QUERY_TIMEOUT_MS/);
     assert.doesNotMatch(script, /console\.log\(.*connectionString/s);
     assert.doesNotMatch(script, /process\.env\.DATABASE_URL/);
+  });
+
+  it("executes live grant-audit catalog checks against synthetic Postgres roles", { skip: auditIntegrationSkipReason() }, async () => {
+    await withAuditFixture({}, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+      assert.deepEqual(
+        await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory }),
+        [],
+      );
+    });
+
+    await withAuditFixture({ auditAsAdmin: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+      assert.match(
+        (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n"),
+        /audit connection uses current_user/,
+      );
+    });
+
+    await withAuditFixture({ grantTablePrivileges: false }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+      assert.match(
+        (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n"),
+        /lacks SELECT/,
+      );
+    });
+
+    await withAuditFixture({ defaultPrivileges: false }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+      assert.match(
+        (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n"),
+        /default privileges/,
+      );
+    });
+
+    await withAuditFixture({ createParentRole: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+      assert.match(
+        (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n"),
+        /is member of role/,
+      );
+    });
+
+    await withAuditFixture({ runtimeRoleAttributes: "BYPASSRLS" }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+      assert.match(
+        (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n"),
+        /rolbypassrls/,
+      );
+    });
+
+    await withAuditFixture({ grantDatabaseCreate: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+      assert.match(
+        (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n"),
+        /has CREATE on current database/,
+      );
+    });
+
+    await withAuditFixture({ runtimeOwnsTable: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+      const issues = (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n");
+      assert.match(issues, /runtime role owns table/);
+      assert.match(issues, /expected/);
+    });
   });
 
   it("records the exact privilege classes required for the runtime role", () => {
@@ -167,6 +361,7 @@ describe("database grant inventory guardrails", () => {
     const plan = source("docs/db-defense-in-depth-plan.md");
     const rls = source("docs/rls-feasibility-plan.md");
     const runbook = source("docs/runbook.md");
+    const launch = source("docs/launch-checklist.md");
     const pkg = source("package.json");
 
     assert.match(plan, /Source-derived grant inventory/);
@@ -178,6 +373,7 @@ describe("database grant inventory guardrails", () => {
     assert.match(plan, /role memberships/);
     assert.match(plan, /current_user` and `session_user`/);
     assert.match(plan, /version-controlled SQL/);
+    assert.match(plan, /synthetic Postgres roles\/databases/);
     assert.match(plan, /tracked app objects owned by the migration role/);
     assert.match(plan, /database-level `CREATE`/);
     assert.match(plan, /non-public schemas/);
@@ -185,6 +381,9 @@ describe("database grant inventory guardrails", () => {
     assert.match(runbook, /`DIRECT_URL` must authenticate as the declared migration owner role/);
     assert.match(runbook, /version-controlled SQL or migrations/);
     assert.match(runbook, /same environment\/secret set that will run migrations/);
+    assert.match(launch, /GRANT_AUDIT_DATABASE_URL="\$DIRECT_URL"/);
+    assert.match(launch, /RUNTIME_DB_ROLE=grainline_app_runtime/);
+    assert.match(launch, /MIGRATION_DB_ROLE=grainline_migration_owner/);
     assert.match(rls, /public-default dependency/);
     assert.match(pkg, /"audit:db-grants": "node scripts\/audit-runtime-db-grants\.mjs"/);
   });

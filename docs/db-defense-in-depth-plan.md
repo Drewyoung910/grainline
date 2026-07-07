@@ -220,8 +220,12 @@ Verification:
 
 - `tests/db-grant-inventory.test.mjs` keeps the static inventory and audit
   script contract aligned with schema/migration drift.
-- Run grant audit in CI only after a suitable CI role model exists, or keep it
-  as a staging/manual check until CI can represent owner/runtime separation.
+- In GitHub Actions, `tests/db-grant-inventory.test.mjs` also runs the live
+  `auditLiveDatabase()` SQL path against synthetic Postgres roles/databases so
+  catalog-query regressions fail CI without needing staging secrets.
+- Run the real-environment grant audit in CI only after a suitable CI role model
+  exists, or keep the real staging/production check manual until CI can
+  represent owner/runtime separation.
 
 ## Phase 3 - Request Context Proof
 

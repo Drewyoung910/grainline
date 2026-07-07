@@ -78,6 +78,7 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
 - `npx prisma generate`
 - `npx dotenv-cli -e .env -- npx prisma migrate deploy`
 - `npx dotenv-cli -e .env -- npx prisma migrate status`
+- `GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=grainline_migration_owner npm run audit:db-grants`
 - `npx tsc --noEmit --incremental false`
 - `npm run lint`
 - `npm run build`
