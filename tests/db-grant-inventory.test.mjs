@@ -123,6 +123,10 @@ async function withAuditFixture(options, fn) {
       }
       await migrationClient.query(`GRANT USAGE ON TYPE ${assertSafeIdentifier(enumName)} TO ${assertSafeIdentifier(runtimeRole)}`);
       await migrationClient.query(`GRANT EXECUTE ON FUNCTION ${assertSafeIdentifier(functionName)}() TO ${assertSafeIdentifier(runtimeRole)}`);
+      if (options.grantUntrackedTableSelect) {
+        await migrationClient.query(`CREATE TABLE ${assertSafeIdentifier(untrackedTableName)} (id text PRIMARY KEY)`);
+        await migrationClient.query(`GRANT SELECT ON TABLE ${assertSafeIdentifier(untrackedTableName)} TO ${assertSafeIdentifier(runtimeRole)}`);
+      }
       if (options.defaultPrivileges !== false) {
         await migrationClient.query(
           `ALTER DEFAULT PRIVILEGES FOR ROLE ${assertSafeIdentifier(migrationRole)} IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${assertSafeIdentifier(runtimeRole)}`,
@@ -137,10 +141,6 @@ async function withAuditFixture(options, fn) {
       if (options.grantNonPublicSchemaCreate) {
         await migrationClient.query(`CREATE SCHEMA ${assertSafeIdentifier(nonPublicSchemaName)}`);
         await migrationClient.query(`GRANT CREATE ON SCHEMA ${assertSafeIdentifier(nonPublicSchemaName)} TO ${assertSafeIdentifier(runtimeRole)}`);
-      }
-      if (options.grantUntrackedTableSelect) {
-        await migrationClient.query(`CREATE TABLE ${assertSafeIdentifier(untrackedTableName)} (id text PRIMARY KEY)`);
-        await migrationClient.query(`GRANT SELECT ON TABLE ${assertSafeIdentifier(untrackedTableName)} TO ${assertSafeIdentifier(runtimeRole)}`);
       }
     });
 
