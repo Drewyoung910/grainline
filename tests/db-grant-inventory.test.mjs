@@ -7,6 +7,7 @@ const {
   REQUIRED_SEQUENCE_PRIVILEGES,
   REQUIRED_TABLE_PRIVILEGES,
   REQUIRED_TYPE_PRIVILEGES,
+  defaultPrivilegeRequirements,
   deriveGrantInventory,
 } = await import("../scripts/audit-runtime-db-grants.mjs");
 
@@ -39,6 +40,7 @@ describe("database grant inventory guardrails", () => {
     assert.match(script, /has_function_privilege/);
     assert.match(script, /has_type_privilege/);
     assert.match(script, /pg_default_acl/);
+    assert.match(script, /untracked public table/);
     assert.doesNotMatch(script, /console\.log\(.*connectionString/s);
     assert.doesNotMatch(script, /process\.env\.DATABASE_URL/);
   });
@@ -48,6 +50,27 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(REQUIRED_SEQUENCE_PRIVILEGES, ["USAGE", "SELECT"]);
     assert.deepEqual(REQUIRED_FUNCTION_PRIVILEGES, ["EXECUTE"]);
     assert.deepEqual(REQUIRED_TYPE_PRIVILEGES, ["USAGE"]);
+  });
+
+  it("does not require explicit future function/type defaults while PUBLIC defaults are intact", () => {
+    const inventory = deriveGrantInventory();
+
+    assert.deepEqual(
+      defaultPrivilegeRequirements(inventory),
+      [
+        ["r", REQUIRED_TABLE_PRIVILEGES],
+        ["S", REQUIRED_SEQUENCE_PRIVILEGES],
+      ],
+    );
+    assert.deepEqual(
+      defaultPrivilegeRequirements({ ...inventory, publicRevokes: ["REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC"] }),
+      [
+        ["r", REQUIRED_TABLE_PRIVILEGES],
+        ["S", REQUIRED_SEQUENCE_PRIVILEGES],
+        ["f", REQUIRED_FUNCTION_PRIVILEGES],
+        ["T", REQUIRED_TYPE_PRIVILEGES],
+      ],
+    );
   });
 
   it("documents source-derived inventory and the live-proof boundary", () => {

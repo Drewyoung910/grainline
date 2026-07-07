@@ -13,6 +13,11 @@ export const REQUIRED_SEQUENCE_PRIVILEGES = ["USAGE", "SELECT"];
 export const REQUIRED_FUNCTION_PRIVILEGES = ["EXECUTE"];
 export const REQUIRED_TYPE_PRIVILEGES = ["USAGE"];
 
+const OBJECT_TYPE_TABLE = "r";
+const OBJECT_TYPE_SEQUENCE = "S";
+const OBJECT_TYPE_FUNCTION = "f";
+const OBJECT_TYPE_TYPE = "T";
+
 function sortedUnique(values) {
   return [...new Set(values)].sort((a, b) => a.localeCompare(b));
 }
@@ -84,6 +89,22 @@ export function formatInventorySummary(inventory) {
   ].join(", ");
 }
 
+export function defaultPrivilegeRequirements(inventory) {
+  const requirements = [
+    [OBJECT_TYPE_TABLE, REQUIRED_TABLE_PRIVILEGES],
+    [OBJECT_TYPE_SEQUENCE, REQUIRED_SEQUENCE_PRIVILEGES],
+  ];
+
+  if (inventory.publicRevokes.length > 0) {
+    requirements.push(
+      [OBJECT_TYPE_FUNCTION, REQUIRED_FUNCTION_PRIVILEGES],
+      [OBJECT_TYPE_TYPE, REQUIRED_TYPE_PRIVILEGES],
+    );
+  }
+
+  return requirements;
+}
+
 function missingItems(expected, actual) {
   const actualSet = new Set(actual);
   return expected.filter((item) => !actualSet.has(item));
@@ -151,6 +172,30 @@ async function auditLiveDatabase({ client, runtimeRole, migrationRole, inventory
   issues.push(...collectMissingPrivileges(tableResult.rows, "table_name", REQUIRED_TABLE_PRIVILEGES));
   for (const row of tableResult.rows) {
     if (row.owner_name === runtimeRole) issues.push(`runtime role owns table ${row.table_name}`);
+  }
+
+  const untrackedTableResult = await client.query(
+    `SELECT
+        c.relname AS table_name,
+        pg_get_userbyid(c.relowner) AS owner_name,
+        has_table_privilege($1, c.oid, 'SELECT') AS select_priv,
+        has_table_privilege($1, c.oid, 'INSERT') AS insert_priv,
+        has_table_privilege($1, c.oid, 'UPDATE') AS update_priv,
+        has_table_privilege($1, c.oid, 'DELETE') AS delete_priv
+       FROM pg_class c
+       JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public'
+        AND c.relkind IN ('r', 'p')
+        AND NOT (c.relname = ANY($2::text[]))
+      ORDER BY c.relname`,
+    [runtimeRole, inventory.tables],
+  );
+  for (const row of untrackedTableResult.rows) {
+    const granted = REQUIRED_TABLE_PRIVILEGES.filter((privilege) => row[`${privilege.toLowerCase()}_priv`]);
+    if (granted.length > 0) {
+      issues.push(`runtime role has ${granted.join("/")} on untracked public table ${row.table_name}`);
+    }
+    if (row.owner_name === runtimeRole) issues.push(`runtime role owns untracked public table ${row.table_name}`);
   }
 
   const sequenceResult = await client.query(
@@ -245,12 +290,7 @@ async function auditLiveDatabase({ client, runtimeRole, migrationRole, inventory
   const defaultGrants = new Set(
     defaultPrivilegeResult.rows.map((row) => `${row.defaclobjtype}:${row.privilege_type}`),
   );
-  for (const [objectType, privileges] of [
-    ["r", REQUIRED_TABLE_PRIVILEGES],
-    ["S", REQUIRED_SEQUENCE_PRIVILEGES],
-    ["f", REQUIRED_FUNCTION_PRIVILEGES],
-    ["T", REQUIRED_TYPE_PRIVILEGES],
-  ]) {
+  for (const [objectType, privileges] of defaultPrivilegeRequirements(inventory)) {
     for (const privilege of privileges) {
       if (!defaultGrants.has(`${objectType}:${privilege}`)) {
         issues.push(`default privileges for migration role ${migrationRole} do not grant ${privilege} on ${objectType} objects to ${runtimeRole}`);

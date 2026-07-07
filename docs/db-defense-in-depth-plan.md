@@ -100,8 +100,8 @@ Staging implementation checklist:
   `DIRECT_URL`, not whichever role runs a one-off SQL shell:
   - future tables: `SELECT`, `INSERT`, `UPDATE`, `DELETE`;
   - future sequences: `USAGE`, `SELECT`;
-  - future functions: `EXECUTE`;
-  - future types: `USAGE`.
+  - future functions: `EXECUTE` only if `PUBLIC` function defaults are revoked;
+  - future types: `USAGE` only if `PUBLIC` type defaults are revoked.
 - Explicitly verify the runtime role:
   - does not own application tables;
   - does not have `BYPASSRLS`;
@@ -160,6 +160,12 @@ Implementation goals:
 - The audit also checks enum type `USAGE`, runtime role ownership/bypass
   mistakes, and default privileges for future tables/sequences/functions/types
   created by the migration role.
+- Function/type default-privilege checks are conditional on source migrations
+  revoking `PUBLIC`; current live function/type privileges are still checked
+  directly through `has_function_privilege()` and `has_type_privilege()`.
+- Untracked public tables, such as `_prisma_migrations`, may exist. The audit
+  does not fail on existence alone, but it fails if the runtime role can access
+  or owns an untracked public table.
 - Fail if the runtime role:
   - owns app tables;
   - has `BYPASSRLS`;
