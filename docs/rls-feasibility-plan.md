@@ -115,6 +115,15 @@ Do not enable RLS directly on production tables before launch. First build and t
     authorization remaining the control for notification creation and cleanup;
   - or a dedicated service/bypass helper used by every cross-user writer and
     cleanup path.
+- The owner-scoped `UPDATE` policy must include both `USING` and `WITH CHECK`
+  predicates on `userId = app.user_id`; `USING` controls which rows can be
+  updated, while `WITH CHECK` prevents a buggy update from reassigning a
+  notification to another user.
+- If the prototype starts with permissive runtime `INSERT`, do not later tighten
+  `INSERT` to owner-scoped without also auditing `createNotification()` error
+  handling. RLS-denied inserts raise a permission error (`42501`), not the
+  `P2002` unique-conflict path that notification dedup currently treats as
+  non-fatal.
 - Before enabling the policy, inventory and wrap all notification read/update
   paths, including `/api/notifications`, `/api/notifications/read-all`,
   `/api/notifications/[id]/read`, dashboard notification pages, notification
