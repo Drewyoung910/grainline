@@ -94,8 +94,10 @@ Staging implementation checklist:
     are fixed singleton rows, not autoincrement/serial sequences.
 - Treat function/type accessibility through `PUBLIC` defaults as a dependency,
   not as proof. Current source migrations do not revoke from `PUBLIC`, but the
-  live grant audit must fail if those defaults are revoked without explicit
-  runtime-role `EXECUTE`/`USAGE` grants.
+  live grant audit must fail if current function/type access is missing.
+  Future function/type default-privilege requirements are added only when source
+  migrations revoke `PUBLIC` through `ALTER DEFAULT PRIVILEGES`, not for an
+  object-level revoke on one existing function or type.
 - Add default privileges for the exact migration role authenticated by
   `DIRECT_URL`, not whichever role runs a one-off SQL shell:
   - future tables: `SELECT`, `INSERT`, `UPDATE`, `DELETE`;
@@ -161,9 +163,10 @@ Implementation goals:
   mistakes, and default privileges for future tables/sequences/functions/types
   created by the migration role.
 - Function/type default-privilege checks are conditional on source migrations
-  revoking `PUBLIC` for functions or types; current live function/type
-  privileges are still checked directly through `has_function_privilege()` and
-  `has_type_privilege()`.
+  revoking `PUBLIC` through `ALTER DEFAULT PRIVILEGES` for functions or types;
+  object-level revokes on existing functions/types do not imply a future default
+  requirement. Current live function/type privileges are still checked directly
+  through `has_function_privilege()` and `has_type_privilege()`.
 - Untracked public tables, such as `_prisma_migrations`, may exist. The audit
   does not fail on existence alone, but it fails if the runtime role can access
   or owns an untracked public table.

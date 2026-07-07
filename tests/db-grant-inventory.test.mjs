@@ -28,6 +28,7 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(inventory.autoincrementFields, []);
     assert.deepEqual(inventory.fixedIntSingletonIds, ["SiteConfig.id", "SiteMetricsSnapshot.id"]);
     assert.deepEqual(inventory.publicRevokes, []);
+    assert.deepEqual(inventory.publicDefaultPrivilegeRevokes, []);
   });
 
   it("keeps the manual grant audit focused on least-privilege role evidence", () => {
@@ -45,6 +46,7 @@ describe("database grant inventory guardrails", () => {
     assert.match(script, /has_type_privilege/);
     assert.match(script, /pg_default_acl/);
     assert.match(script, /untracked public table/);
+    assert.match(script, /lightweight REVOKE detector/);
     assert.doesNotMatch(script, /console\.log\(.*connectionString/s);
     assert.doesNotMatch(script, /process\.env\.DATABASE_URL/);
   });
@@ -78,11 +80,31 @@ describe("database grant inventory guardrails", () => {
       [
         ["r", REQUIRED_TABLE_PRIVILEGES],
         ["S", REQUIRED_SEQUENCE_PRIVILEGES],
+      ],
+    );
+    assert.deepEqual(
+      defaultPrivilegeRequirements({
+        ...inventory,
+        publicDefaultPrivilegeRevokes: ["ALTER DEFAULT PRIVILEGES REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC"],
+      }),
+      [
+        ["r", REQUIRED_TABLE_PRIVILEGES],
+        ["S", REQUIRED_SEQUENCE_PRIVILEGES],
         ["f", REQUIRED_FUNCTION_PRIVILEGES],
       ],
     );
     assert.deepEqual(
       defaultPrivilegeRequirements({ ...inventory, publicRevokes: ["REVOKE USAGE ON TYPES FROM PUBLIC"] }),
+      [
+        ["r", REQUIRED_TABLE_PRIVILEGES],
+        ["S", REQUIRED_SEQUENCE_PRIVILEGES],
+      ],
+    );
+    assert.deepEqual(
+      defaultPrivilegeRequirements({
+        ...inventory,
+        publicDefaultPrivilegeRevokes: ["ALTER DEFAULT PRIVILEGES REVOKE USAGE ON TYPES FROM PUBLIC"],
+      }),
       [
         ["r", REQUIRED_TABLE_PRIVILEGES],
         ["S", REQUIRED_SEQUENCE_PRIVILEGES],
@@ -110,7 +132,11 @@ describe("database grant inventory guardrails", () => {
     );
     writeFileSync(
       join(root, "prisma", "migrations", "0001", "migration.sql"),
-      'CREATE OR REPLACE FUNCTION "grainline_test"() RETURNS boolean LANGUAGE sql AS $$ SELECT true $$;',
+      [
+        'CREATE OR REPLACE FUNCTION "grainline_test"() RETURNS boolean LANGUAGE sql AS $$ SELECT true $$;',
+        "REVOKE EXECUTE ON FUNCTION grainline_test() FROM PUBLIC;",
+        "ALTER DEFAULT PRIVILEGES REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;",
+      ].join("\n"),
     );
 
     const inventory = deriveGrantInventory(root);
@@ -118,6 +144,13 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(inventory.tables, ["User"]);
     assert.deepEqual(inventory.enums, ["Role"]);
     assert.deepEqual(inventory.functions, ["grainline_test"]);
+    assert.deepEqual(inventory.publicRevokes, [
+      "ALTER DEFAULT PRIVILEGES REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC",
+      "REVOKE EXECUTE ON FUNCTION grainline_test() FROM PUBLIC",
+    ]);
+    assert.deepEqual(inventory.publicDefaultPrivilegeRevokes, [
+      "ALTER DEFAULT PRIVILEGES REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC",
+    ]);
   });
 
   it("documents source-derived inventory and the live-proof boundary", () => {

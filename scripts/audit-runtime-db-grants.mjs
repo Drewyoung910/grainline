@@ -28,6 +28,9 @@ function mappedDbName(block, fallbackName) {
 }
 
 function sqlStatements(sql) {
+  // This is only a lightweight REVOKE detector for migration files, not a
+  // general SQL parser. Do not reuse it for statements where dollar-quoted
+  // function bodies or semicolon placement affects correctness.
   return sql
     .split(";")
     .map((statement) => statement.trim())
@@ -82,6 +85,9 @@ export function deriveGrantInventory(rootDir = ROOT_DIR) {
       .filter((statement) => /\bREVOKE\b/i.test(statement) && /\bPUBLIC\b/i.test(statement))
       .map((statement) => statement.replace(/\s+/g, " ").trim()),
   );
+  const publicDefaultPrivilegeRevokes = publicRevokes.filter((statement) =>
+    /\bALTER\s+DEFAULT\s+PRIVILEGES\b/i.test(statement),
+  );
 
   return {
     tables,
@@ -91,6 +97,7 @@ export function deriveGrantInventory(rootDir = ROOT_DIR) {
     autoincrementFields,
     sequenceSqlReferences,
     publicRevokes,
+    publicDefaultPrivilegeRevokes,
   };
 }
 
@@ -108,12 +115,13 @@ export function defaultPrivilegeRequirements(inventory) {
     [OBJECT_TYPE_TABLE, REQUIRED_TABLE_PRIVILEGES],
     [OBJECT_TYPE_SEQUENCE, REQUIRED_SEQUENCE_PRIVILEGES],
   ];
+  const publicDefaultPrivilegeRevokes = inventory.publicDefaultPrivilegeRevokes ?? [];
 
-  if (inventory.publicRevokes.some((statement) => /\bFUNCTIONS?\b|\bROUTINES?\b/i.test(statement))) {
+  if (publicDefaultPrivilegeRevokes.some((statement) => /\bFUNCTIONS?\b|\bROUTINES?\b/i.test(statement))) {
     requirements.push([OBJECT_TYPE_FUNCTION, REQUIRED_FUNCTION_PRIVILEGES]);
   }
 
-  if (inventory.publicRevokes.some((statement) => /\bTYPES?\b/i.test(statement))) {
+  if (publicDefaultPrivilegeRevokes.some((statement) => /\bTYPES?\b/i.test(statement))) {
     requirements.push([OBJECT_TYPE_TYPE, REQUIRED_TYPE_PRIVILEGES]);
   }
 
