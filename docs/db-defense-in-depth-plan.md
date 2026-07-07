@@ -315,6 +315,65 @@ Candidate next tables:
 - `Favorite`
 - `SavedBlogPost`
 
+### Cart + CartItem Parent-Join Notes
+
+`Cart` is direct-owner (`Cart.userId`), but `CartItem` is owned only through
+`CartItem.cartId -> Cart.userId`. This is the first parent-join RLS design and
+must get a separate review before implementation.
+
+Policy shape:
+
+- `Cart`: owner-scoped to `Cart.userId = app.user_id`.
+- `CartItem`: parent-join scoped through the owning cart, for example
+  `EXISTS (SELECT 1 FROM "Cart" WHERE "Cart".id = "CartItem"."cartId" AND
+  "Cart"."userId" = app.user_id)`.
+- Enable `Cart` and `CartItem` policies together in staging so half-enabled
+  behavior does not hide context or parent-policy mistakes.
+- Do not copy the parent-join pattern onto unbounded hot tables without a
+  separate query-plan review. Cart item counts are already bounded, which keeps
+  this prototype lower risk.
+
+System/cross-user paths that need explicit context or bypass:
+
+- Stripe webhook cart finalization directly deletes purchased `CartItem` rows
+  after order creation. Missing buyer context or bypass would leave paid items
+  in the buyer's cart and can create duplicate checkout confusion.
+- Admin listing removal deletes `CartItem` rows for the removed listing across
+  all users' carts. This cannot use ordinary owner context.
+- Seller/listing soft-delete cleanup deletes `CartItem` rows for the listing
+  across all users' carts. This needs an explicit service/admin cleanup design.
+- Checkout stock restoration can read `CartItem` rows from session metadata
+  during webhook/expiry repair. Missing context or bypass can under-restore
+  reserved stock.
+- Account deletion deletes the user's `Cart`; `CartItem` cleanup relies on the
+  `onDelete: Cascade` relation. Test the cascade with both `Cart` and
+  `CartItem` RLS enabled instead of assuming Postgres referential actions behave
+  as desired under the final policies.
+
+Read/write paths to inventory and wrap before enabling:
+
+- `GET /api/cart`
+- `POST /api/cart/add`
+- `POST /api/cart/update`
+- shipping quote cart reads
+- cart checkout/resume reads
+- Stripe webhook cart reads and finalization deletes
+- account export cart reads
+- account deletion cart cleanup
+- admin/listing cleanup paths
+
+Regression tests:
+
+- direct DB: user A cannot read or mutate user B's cart or cart items.
+- route: cart read/add/update still works for the current user.
+- route: shipping quote still sees the current user's cart.
+- webhook: paid cart items are cleared after order creation.
+- webhook/expiry repair: stock restoration still finds restorable cart items.
+- admin/listing cleanup removes a listing from all relevant carts through the
+  chosen bypass/service path.
+- account deletion: deleting a cart under target-user context cascades cart
+  item deletion with both `Cart` and `CartItem` RLS enabled.
+
 High-risk tables requiring separate design and likely second review:
 
 - `Conversation`

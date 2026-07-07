@@ -14,6 +14,11 @@ These rules exist to survive context compaction and multi-agent handoffs. Read t
 
 - Work from `/Users/drewyoung/grainline` on `main` unless Drew explicitly says otherwise.
 - Treat Claude/other-agent findings as allegations, not facts. Verify each one against current `main` before fixing or closing it.
+- Treat Claude/Fable as a junior read-only reviewer: useful for leads and edge
+  cases, but not authoritative. Do not let Claude/Fable edit, stage, commit, or
+  close findings. Parent Codex must independently re-read the cited code, check
+  whether Claude missed adjacent logic, and reject conclusions whose exploit
+  shape or product logic does not hold.
 - Do not commit raw Claude audit imports. `audit_open_findings.md` can contain unvetted findings; move only verified fixes or verified-stale findings into `audit_closed.md`. Regression tests must not read raw audit imports; assert stable source, docs, or the closed ledger instead.
 - Keep a running tally after each pass: verified real fixed, verified stale/false-positive closed, deferred/manual, and remaining unvetted.
 - If another worktree such as `.claude/worktrees/sleepy-hypatia-*` appears, compare it to main only when needed; do not assume it is current.

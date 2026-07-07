@@ -89,6 +89,10 @@ Every security finding must include:
 
 Rules for AI-assisted review:
 
+- Treat Claude/Fable and other AI reviewers as junior read-only reviewers:
+  useful for leads, but not authoritative. They must not edit code, close
+  findings, or make commits. Codex must independently verify cited code,
+  product logic, adjacent missed cases, and exploit shape before acting.
 - Do not accept "critical" or "high" severity without a concrete exploit path.
 - Do not fix speculative findings unless the code proves the path exists.
 - Do not rewrite broad modules during security audit unless the bug cannot be fixed locally.

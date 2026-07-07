@@ -153,6 +153,28 @@ need retry/context discipline.
   user-scoped `DELETE` policy can silently leave saved-search query/location
   data behind.
 
+## Cart + CartItem Prototype Edge Cases
+
+`Cart` is direct-owner, but `CartItem` is owned through its parent cart. This is
+the first parent-join policy and must be reviewed separately before
+implementation.
+
+- `CartItem` policies need a parent `Cart.userId = app.user_id` predicate; the
+  table has no direct `userId`.
+- Enable `Cart` and `CartItem` policies together in staging, and test the
+  parent-join policy with the final `Cart` policy enabled.
+- Stripe webhook cart finalization directly deletes paid cart items. Missing
+  buyer context or bypass would leave already-purchased items in the cart after
+  payment.
+- Admin listing removal and seller/listing soft-delete cleanup remove a listing
+  from all users' carts and need an explicit service/admin cleanup path.
+- Checkout stock restoration can read cart items from webhook/session metadata
+  and needs context or bypass so reserved stock repair does not silently
+  under-restore.
+- Account deletion deletes `Cart` and relies on cascading `CartItem` deletion.
+  Test the cascade with both policies enabled instead of assuming the RLS
+  interaction.
+
 ## Non-Goals For Launch
 
 - Do not enable RLS on public discovery tables (`Listing`, `SellerProfile`, `BlogPost`, `Review`) before a separate public/private visibility design. Those tables intentionally mix public marketplace reads with owner/staff/private states.
