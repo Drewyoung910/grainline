@@ -107,6 +107,9 @@ Do not enable RLS directly on production tables before launch. First build and t
 - App route tests keep passing with the RLS helper wrapper enabled.
 - Admin/cron/webhook tests prove their bypass path is explicit and audited.
 - Rollback test proves RLS can be disabled or policy changes reverted quickly without data loss.
+- Rollback test also proves that `ALTER TABLE ... DISABLE ROW LEVEL SECURITY`
+  leaves the app's transaction-local `set_config` wrapper harmless, so a bad
+  policy can be mitigated at the database layer before an app redeploy.
 - A grant-audit test proves the runtime role has required privileges for every
   table, sequence, and `grainline_*` function used by the app, and no ownership
   or `BYPASSRLS`.

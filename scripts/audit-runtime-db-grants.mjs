@@ -174,6 +174,20 @@ async function auditLiveDatabase({ client, runtimeRole, migrationRole, inventory
     issues.push(`runtime role ${runtimeRole} must differ from migration role ${migrationRole}`);
   }
 
+  const connectionRoleResult = await client.query(
+    `SELECT current_user AS current_user_name, session_user AS session_user_name`,
+  );
+  const connectionRole = connectionRoleResult.rows[0];
+  if (
+    connectionRole?.current_user_name !== migrationRole ||
+    connectionRole?.session_user_name !== migrationRole
+  ) {
+    issues.push(
+      `audit connection uses current_user ${connectionRole?.current_user_name ?? "unknown"} ` +
+        `and session_user ${connectionRole?.session_user_name ?? "unknown"}, expected migration role ${migrationRole}`,
+    );
+  }
+
   const role = roleResult.rows[0];
   for (const attr of ["rolbypassrls", "rolsuper", "rolcreatedb", "rolcreaterole", "rolreplication"]) {
     if (role[attr]) issues.push(`runtime role ${runtimeRole} has ${attr}`);

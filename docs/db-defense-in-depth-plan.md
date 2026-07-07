@@ -34,6 +34,9 @@ Required before any role or policy change:
 - Confirm production/staging connection topology:
   - `DATABASE_URL` uses the Neon pooled endpoint.
   - `DIRECT_URL` uses the direct endpoint for migrations only.
+  - `DIRECT_URL` authenticates as the declared migration owner role; a direct
+    URL for a different owner role invalidates default-privilege evidence even
+    if existing objects were reassigned later.
   - Prisma runtime uses `@prisma/adapter-pg` and the app `pg` pool.
 - Record current database roles:
   - table/schema owner;
@@ -84,6 +87,10 @@ Staging implementation checklist:
   - sequence `USAGE`/`SELECT` where applicable;
   - `EXECUTE` on `grainline_*` functions used by constraints, defaults, or app
     queries.
+- Keep role/grant/default-privilege setup in a reviewed, version-controlled SQL
+  or migration artifact before production promotion. Manual staging setup can be
+  used to prove the shape, but production role changes should not depend on
+  untracked dashboard or ad hoc shell state.
 - Source-derived grant inventory as of this plan update:
   - 56 Prisma model tables need runtime table DML grants;
   - 20 Prisma enum types need runtime `USAGE`, currently covered only if live
@@ -106,6 +113,8 @@ Staging implementation checklist:
   - future types: `USAGE` only if `PUBLIC` type defaults are revoked.
 - Explicitly verify the runtime role:
   - is not the same role as the migration owner;
+  - is audited through a connection whose `current_user` and `session_user`
+    both equal the declared migration owner role;
   - uses tracked app objects owned by the migration role authenticated by
     `DIRECT_URL`;
   - does not own application tables;
@@ -122,6 +131,10 @@ Verification checklist:
 
 - Manual live grant audit against staging:
   `GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=grainline_migration_owner npm run audit:db-grants`
+  Run this from the same environment/secret set that will run migrations so the
+  audit connection proves the actual `DIRECT_URL` role. A separate admin or
+  auditor URL can inspect state, but it does not prove deploy-time migration
+  provenance unless a second explicit `DIRECT_URL` identity check is run.
 - `npx prisma validate`
 - `npx prisma generate`
 - `npx prisma migrate status` through `DIRECT_URL`
@@ -168,6 +181,7 @@ Implementation goals:
   mistakes, and default privileges for future tables/sequences/functions/types
   created by the migration role.
 - The audit fails if the runtime role and migration role are the same role, if
+  the audit connection does not authenticate as the declared migration role, if
   tracked app objects are not owned by the declared migration role, if the
   runtime role has database-level `CREATE`, or if it has `CREATE` on `public` or
   currently untracked non-public schemas. This keeps the audit focused on the
@@ -198,6 +212,8 @@ Implementation goals:
 - Add migration authoring guidance:
   - new tables/sequences/functions require corresponding grants;
   - raw SQL migrations must include grant review;
+  - role/grant/default-privilege setup should be checked in as a reviewed SQL or
+    migration artifact before production promotion;
   - local owner-role success is not enough.
 
 Verification:
@@ -234,6 +250,9 @@ Hard-gate tests:
 - explicitly empty `app.user_id` returns zero protected rows once RLS is enabled.
 - serializable retry re-runs `set_config` on every retry attempt.
 - route-level happy paths still return current-user rows.
+- rollback proof: disabling RLS at the database layer leaves the app's
+  transaction-local `set_config` wrapper as a harmless no-op, so an urgent policy
+  incident can be mitigated without waiting for an app redeploy.
 - Measure protected-read latency under the wrapper, including p95/p99 for hot
   paths such as notification reads, and choose explicit interactive-transaction
   `timeout`/`maxWait` values before widening usage.

@@ -1,6 +1,6 @@
 # Grainline Operations Runbook
 
-Last updated: 2026-06-02
+Last updated: 2026-07-07
 
 This runbook covers the minimum operational steps for production incidents, deploy rollback, secret rotation, webhook recovery, database restore drills, and public support/legal request handling.
 
@@ -168,6 +168,18 @@ Run a quarterly restore drill against a non-production database. Never restore o
 Production migration rules:
 
 - Use `DIRECT_URL` for migrations.
+- `DIRECT_URL` must authenticate as the declared migration owner role. Do not
+  point migrations at a different owner role and rely on later object reassignment
+  to make grant audits pass; default privileges apply to the role that creates
+  future objects.
+- Keep runtime-role grants and default-privilege setup in reviewed,
+  version-controlled SQL or migrations before production promotion. Manual
+  staging setup is acceptable for proving the shape, but production should not
+  depend on untracked dashboard or shell changes.
+- After migrations that add tables, sequences, `grainline_*` functions, enum
+  types, or role/default-privilege changes, run `npm run audit:db-grants` from
+  the same environment/secret set that will run migrations and retain the run
+  output with deploy evidence.
 - Use the pooled `DATABASE_URL` for runtime.
 - Avoid rolling back to an app version that cannot read the current schema.
 - For failed migrations, stop deploys, inspect the migration in Neon, and ship a forward migration whenever possible.

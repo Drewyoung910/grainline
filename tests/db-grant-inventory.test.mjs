@@ -41,6 +41,9 @@ describe("database grant inventory guardrails", () => {
     assert.match(script, /pg_auth_members/);
     assert.match(script, /member of role/);
     assert.match(script, /must differ from migration role/);
+    assert.match(script, /current_user AS current_user_name/);
+    assert.match(script, /session_user AS session_user_name/);
+    assert.match(script, /expected migration role/);
     assert.match(script, /has_database_privilege\(\$1, current_database\(\), 'CREATE'\)/);
     assert.match(script, /has CREATE on non-public schema/);
     assert.match(script, /owned by \$\{row\.owner_name\}, expected \$\{migrationRole\}/);
@@ -163,6 +166,7 @@ describe("database grant inventory guardrails", () => {
   it("documents source-derived inventory and the live-proof boundary", () => {
     const plan = source("docs/db-defense-in-depth-plan.md");
     const rls = source("docs/rls-feasibility-plan.md");
+    const runbook = source("docs/runbook.md");
     const pkg = source("package.json");
 
     assert.match(plan, /Source-derived grant inventory/);
@@ -172,10 +176,15 @@ describe("database grant inventory guardrails", () => {
     assert.match(plan, /grainline_notification_preferences_valid/);
     assert.match(plan, /PUBLIC.*dependency/);
     assert.match(plan, /role memberships/);
+    assert.match(plan, /current_user` and `session_user`/);
+    assert.match(plan, /version-controlled SQL/);
     assert.match(plan, /tracked app objects owned by the migration role/);
     assert.match(plan, /database-level `CREATE`/);
     assert.match(plan, /non-public schemas/);
     assert.match(plan, /audit:db-grants/);
+    assert.match(runbook, /`DIRECT_URL` must authenticate as the declared migration owner role/);
+    assert.match(runbook, /version-controlled SQL or migrations/);
+    assert.match(runbook, /same environment\/secret set that will run migrations/);
     assert.match(rls, /public-default dependency/);
     assert.match(pkg, /"audit:db-grants": "node scripts\/audit-runtime-db-grants\.mjs"/);
   });

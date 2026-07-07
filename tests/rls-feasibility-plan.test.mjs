@@ -34,8 +34,11 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(plan, /interactive-transaction\s+`timeout`\/`maxWait`/);
     assert.match(plan, /connection-hold time/);
     assert.match(plan, /pool saturation/);
+    assert.match(plan, /ALTER TABLE \.\.\. DISABLE ROW LEVEL SECURITY/);
+    assert.match(plan, /set_config` wrapper harmless/);
     assert.match(defense, /protected-read latency/);
     assert.match(defense, /connection-hold time/);
+    assert.match(defense, /set_config` wrapper as a harmless no-op/);
   });
 
   it("keeps public discovery tables out of the first RLS pass", () => {
