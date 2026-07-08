@@ -409,13 +409,14 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
     );
     for (const row of extensionFunctionResult.rows) {
       if (!row.execute_priv) {
-        issues.push(`extension ${row.extension_name} function ${row.function_signature} lacks EXECUTE`);
-      }
-      if (!row.migration_grant_option_priv) {
-        issues.push(
-          `extension ${row.extension_name} function ${row.function_signature} owned by ${row.owner_name} ` +
-            `is not grantable by migration role ${migrationRole}`,
-        );
+        if (row.migration_grant_option_priv) {
+          issues.push(`extension ${row.extension_name} function ${row.function_signature} lacks EXECUTE`);
+        } else {
+          issues.push(
+            `extension ${row.extension_name} function ${row.function_signature} lacks EXECUTE and ` +
+              `is not grantable by migration role ${migrationRole} (owner ${row.owner_name})`,
+          );
+        }
       }
     }
 
@@ -455,12 +456,14 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
         if (!row.exists_priv) {
           issues.push(`missing required extension ${row.extension_name} runtime function ${row.function_signature}`);
         } else if (!row.execute_priv) {
-          issues.push(`extension ${row.extension_name} runtime function ${row.function_signature} lacks EXECUTE`);
-        } else if (!row.migration_grant_option_priv) {
-          issues.push(
-            `extension ${row.extension_name} runtime function ${row.function_signature} owned by ${row.owner_name} ` +
-              `is not grantable by migration role ${migrationRole}`,
-          );
+          if (row.migration_grant_option_priv) {
+            issues.push(`extension ${row.extension_name} runtime function ${row.function_signature} lacks EXECUTE`);
+          } else {
+            issues.push(
+              `extension ${row.extension_name} runtime function ${row.function_signature} lacks EXECUTE and ` +
+                `is not grantable by migration role ${migrationRole} (owner ${row.owner_name})`,
+            );
+          }
         }
       }
     }
@@ -515,16 +518,18 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
         if (!row.exists_priv) {
           issues.push(`missing required extension ${row.extension_name} runtime operator ${row.operator_signature}`);
         } else if (!row.execute_priv) {
-          issues.push(
-            `extension ${row.extension_name} runtime operator ${row.operator_signature} backing function ` +
-              `${row.function_signature ?? "unknown"} lacks EXECUTE`,
-          );
-        } else if (!row.migration_grant_option_priv) {
-          issues.push(
-            `extension ${row.extension_name} runtime operator ${row.operator_signature} backing function ` +
-              `${row.function_signature ?? "unknown"} owned by ${row.function_owner_name ?? "unknown"} ` +
-              `is not grantable by migration role ${migrationRole}`,
-          );
+          if (row.migration_grant_option_priv) {
+            issues.push(
+              `extension ${row.extension_name} runtime operator ${row.operator_signature} backing function ` +
+                `${row.function_signature ?? "unknown"} lacks EXECUTE`,
+            );
+          } else {
+            issues.push(
+              `extension ${row.extension_name} runtime operator ${row.operator_signature} backing function ` +
+                `${row.function_signature ?? "unknown"} lacks EXECUTE and is not grantable by migration role ` +
+                `${migrationRole} (owner ${row.function_owner_name ?? "unknown"})`,
+            );
+          }
         }
       }
     }

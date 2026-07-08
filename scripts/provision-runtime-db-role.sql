@@ -220,13 +220,16 @@ WHERE NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm');
 \unset grainline_role_provisioning_failure
 
 -- Public search/autocomplete SQL uses pg_trgm's similarity() function and `%`
--- operator. Grant all functions owned by the pg_trgm extension explicitly so a
--- future PUBLIC-function lockdown does not break runtime search.
+-- operator. Trusted extension functions may be owned by a bootstrap/admin role
+-- even when CREATE EXTENSION runs as the migration role. Grant explicitly where
+-- this role has grant option; otherwise verify runtime EXECUTE still exists,
+-- normally through PostgreSQL's PUBLIC function default.
 SELECT format(
-  'migration role %s cannot grant EXECUTE on pg_trgm function %s owned by %s',
-  :'migration_role',
+  'runtime role %s lacks EXECUTE on pg_trgm function %s owned by %s, and migration role %s cannot grant it; use reviewed admin-owned provisioning',
+  :'runtime_role',
   format('%I.%I(%s)', n.nspname, p.proname, pg_get_function_identity_arguments(p.oid)),
-  pg_get_userbyid(p.proowner)
+  pg_get_userbyid(p.proowner),
+  :'migration_role'
 ) AS grainline_role_provisioning_failure
 FROM pg_extension e
 JOIN pg_depend d ON d.refclassid = 'pg_extension'::regclass
@@ -236,6 +239,7 @@ JOIN pg_depend d ON d.refclassid = 'pg_extension'::regclass
 JOIN pg_proc p ON p.oid = d.objid
 JOIN pg_namespace n ON n.oid = p.pronamespace
 WHERE e.extname = 'pg_trgm'
+  AND NOT has_function_privilege(:'runtime_role', p.oid, 'EXECUTE')
   AND NOT has_function_privilege(:'migration_role', p.oid, 'EXECUTE WITH GRANT OPTION')
 ORDER BY n.nspname, p.proname, pg_get_function_identity_arguments(p.oid)
 LIMIT 1;
@@ -261,6 +265,7 @@ JOIN pg_depend d ON d.refclassid = 'pg_extension'::regclass
 JOIN pg_proc p ON p.oid = d.objid
 JOIN pg_namespace n ON n.oid = p.pronamespace
 WHERE e.extname = 'pg_trgm'
+  AND has_function_privilege(:'migration_role', p.oid, 'EXECUTE WITH GRANT OPTION')
 ORDER BY n.nspname, p.proname, pg_get_function_identity_arguments(p.oid);
 \gexec
 

@@ -125,6 +125,9 @@ async function withAuditFixture(options, fn) {
     if (options.createPgTrgmExtensionAsAdmin) {
       await withClient(adminDatabaseUrl, async (adminDb) => {
         await adminDb.query("CREATE EXTENSION IF NOT EXISTS pg_trgm");
+        if (options.revokeAdminPgTrgmPublicExecute) {
+          await adminDb.query("REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC");
+        }
       });
     }
 
@@ -230,7 +233,7 @@ describe("database grant inventory guardrails", () => {
     assert.match(script, /extension .* owned by .* expected/);
     assert.match(script, /extension .* lacks EXECUTE/);
     assert.match(script, /EXECUTE WITH GRANT OPTION/);
-    assert.match(script, /not grantable by migration role/);
+    assert.match(script, /lacks EXECUTE and [\s\S]*not grantable by migration role/);
     assert.match(script, /REQUIRED_EXTENSION_RUNTIME_FUNCTIONS/);
     assert.match(script, /REQUIRED_EXTENSION_RUNTIME_OPERATORS/);
     assert.match(script, /runtime function .* lacks EXECUTE/);
@@ -332,7 +335,16 @@ describe("database grant inventory guardrails", () => {
     await withAuditFixture({ createPgTrgmExtensionAsAdmin: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
       const issues = (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n");
       assert.match(issues, /extension pg_trgm owned by .* expected/);
-      assert.match(issues, /not grantable by migration role/);
+      assert.doesNotMatch(issues, /not grantable by migration role/);
+    });
+
+    await withAuditFixture({
+      createPgTrgmExtensionAsAdmin: true,
+      revokeAdminPgTrgmPublicExecute: true,
+    }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+      const issues = (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n");
+      assert.match(issues, /extension pg_trgm owned by .* expected/);
+      assert.match(issues, /lacks EXECUTE and .*not grantable by migration role/);
     });
   });
 
@@ -451,8 +463,8 @@ describe("database grant inventory guardrails", () => {
     assert.match(plan, /0 source-derived sequences/);
     assert.match(plan, /1 source-derived extension/);
     assert.match(plan, /pg_trgm/);
-    assert.match(plan, /EXECUTE WITH\s+GRANT OPTION/);
-    assert.match(plan, /provisioning SQL cannot\s+reproduce/);
+    assert.match(plan, /bootstrap-owned\s+trusted-extension functions/);
+    assert.match(plan, /PUBLIC` default/);
     assert.match(plan, /grainline_notification_preferences_valid/);
     assert.match(plan, /PUBLIC.*dependency/);
     assert.match(plan, /role memberships/);
@@ -468,7 +480,8 @@ describe("database grant inventory guardrails", () => {
     assert.match(runbook, /`DIRECT_URL` must authenticate as the declared migration owner role/);
     assert.match(runbook, /version-controlled SQL or migrations/);
     assert.match(runbook, /pg_trgm/);
-    assert.match(runbook, /cannot grant\s+the extension-function privileges/);
+    assert.match(runbook, /bootstrap\/admin role/);
+    assert.match(runbook, /runtime lacks\s+access that the declared migration role cannot restore/);
     assert.match(runbook, /same environment\/secret set that will run migrations/);
     assert.match(runbook, /Non-model public tables created by the migration role can inherit runtime DML/);
     assert.match(runbook, /grant-audit\s+inventory or explicitly `REVOKE` runtime access/);
@@ -476,7 +489,7 @@ describe("database grant inventory guardrails", () => {
     assert.match(launch, /RUNTIME_DB_ROLE=grainline_app_runtime/);
     assert.match(launch, /MIGRATION_DB_ROLE=grainline_migration_owner/);
     assert.match(rls, /public-default dependency/);
-    assert.match(rls, /wrong-owner extension/);
+    assert.match(rls, /runtime `EXECUTE` is missing/);
     assert.match(pkg, /"audit:db-grants": "node scripts\/audit-runtime-db-grants\.mjs"/);
   });
 
@@ -501,7 +514,8 @@ describe("database grant inventory guardrails", () => {
     assert.match(provision, /ALTER DEFAULT PRIVILEGES FOR ROLE :"migration_role" IN SCHEMA public\s+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO :"runtime_role"/);
     assert.match(provision, /ALTER DEFAULT PRIVILEGES FOR ROLE :"migration_role" IN SCHEMA public\s+GRANT USAGE, SELECT ON SEQUENCES TO :"runtime_role"/);
     assert.match(provision, /required extension pg_trgm is not installed/);
-    assert.match(provision, /cannot grant EXECUTE on pg_trgm function/);
+    assert.match(provision, /lacks EXECUTE on pg_trgm function/);
+    assert.match(provision, /has_function_privilege\(:'runtime_role', p\.oid, 'EXECUTE'\)/);
     assert.match(provision, /EXECUTE WITH GRANT OPTION/);
     assert.match(provision, /e\.extname = 'pg_trgm'/);
     assert.match(provision, /pg_get_function_identity_arguments\(p\.oid\)/);

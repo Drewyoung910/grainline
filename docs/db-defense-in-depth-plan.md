@@ -99,10 +99,11 @@ Staging implementation checklist:
   `_prisma_migrations` when present, and sets migration-owner default privileges
   for future tables/sequences. It also grants runtime `EXECUTE` on functions
   owned by the `pg_trgm` extension because public search/autocomplete SQL calls
-  `similarity()` and the `%` operator. Before emitting those grants, the script
-  verifies that the declared migration role can grant `EXECUTE` on the
-  extension functions; a preinstalled or differently owned `pg_trgm` extension
-  must be fixed in staging instead of relying on implicit `PUBLIC` access.
+  `similarity()` and the `%` operator. PostgreSQL trusted-extension functions
+  may still be owned by a bootstrap/admin role even when the extension is
+  created by the migration role, so the script grants only extension functions
+  the migration role can grant and otherwise verifies runtime `EXECUTE` is
+  already present, normally through PostgreSQL's `PUBLIC` function default.
 - Source-derived grant inventory as of this plan update:
   - 56 Prisma model tables need runtime table DML grants;
   - 20 Prisma enum types need runtime `USAGE`, currently covered only if live
@@ -112,10 +113,12 @@ Staging implementation checklist:
   - 1 source-derived extension is required by runtime search SQL: `pg_trgm`.
     Provisioning grants runtime `EXECUTE` on that extension's functions
     explicitly so a future `PUBLIC` function lockdown does not break
-    suggestions/search. The live audit also checks that the declared migration
-    role can grant those extension-function privileges, so standalone audit
-    runs do not pass a database topology that the provisioning SQL cannot
-    reproduce.
+    suggestions/search where the migration role has grant option, while
+    preserving the current `PUBLIC` default dependency for bootstrap-owned
+    trusted-extension functions. The live audit fails if runtime `EXECUTE` is
+    missing and the declared migration role cannot grant it, so standalone audit
+    runs do not pass a database topology that the standard provisioning SQL
+    cannot repair.
   - 0 source-derived sequences exist today. The two `Int @id @default(1)` fields
     are fixed singleton rows, not autoincrement/serial sequences.
 - Treat function/type accessibility through `PUBLIC` defaults as a dependency,
@@ -206,10 +209,11 @@ Implementation goals:
   created by the migration role. It also checks that source-derived extensions,
   currently `pg_trgm`, exist and that the runtime role can execute their
   extension-owned functions plus the app-used `similarity()` function and `%`
-  operator backing function. For extension functions that provisioning grants,
-  the audit also requires the declared migration role to have `EXECUTE WITH
-  GRANT OPTION`; otherwise a preinstalled or wrong-owner extension could make
-  runtime reads work today while version-controlled provisioning fails later.
+  operator backing function. For extension functions that are not grantable by
+  the declared migration role, the audit allows current runtime `EXECUTE`
+  through PostgreSQL's `PUBLIC` default but fails if that runtime access is
+  missing. A future function-lockdown pass for bootstrap-owned extension
+  functions therefore needs an explicitly reviewed admin-owned provisioning step.
 - The audit fails if the runtime role and migration role are the same role, if
   the audit connection does not authenticate as the declared migration role, if
   tracked app objects are not owned by the declared migration role, if the

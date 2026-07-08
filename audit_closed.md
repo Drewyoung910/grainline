@@ -13864,39 +13864,49 @@ was post-raw hidden-issue hardening, not closure of a remaining raw allegation.
 Entry 507 reviewed Claude's follow-up note on the corrected `pg_trgm` grant
 coverage as a junior read-only report, then parent Codex independently checked
 the provisioning SQL, grant audit, `pg_trgm` migrations, and RLS/grant docs. The
-review found one under-called source gap: current runtime `EXECUTE` evidence was
-not enough to prove the version-controlled provisioning SQL could reproduce the
-same grants if `pg_trgm` had been preinstalled or owned by a bootstrap/admin
-role. Latest pushed CI on `main` was green for `28fdf683` (`28912951479`) before
-editing. No agent was needed for this narrow pass.
+review found one under-called source gap: current runtime `EXECUTE` evidence
+needed to be tied to a reproducible provisioning story for source-derived
+extensions. The first pushed implementation was intentionally checked by CI and
+failed in the synthetic Postgres test because PostgreSQL trusted-extension
+functions can be owned by the bootstrap/admin role (`ci` in Actions) even when
+`CREATE EXTENSION` runs as the migration role. Parent Codex corrected the rule:
+runtime `EXECUTE` is the required property, while missing runtime `EXECUTE`
+must fail if the declared migration role cannot grant it. Latest pushed CI on
+`main` was green for `28fdf683` (`28912951479`) before editing. No agent was
+needed for this narrow pass.
 
 Fixed/reduced:
 
 - `scripts/audit-runtime-db-grants.mjs` now checks source-derived extensions as
   part of the declared ownership/grantability model. Required extensions must
-  not be owned by the runtime role, must be owned by the declared migration
-  role, and every extension-owned function plus app-used runtime function and
-  operator backing function must be grantable by the migration role through
-  `EXECUTE WITH GRANT OPTION`. This prevents a standalone grant audit from
-  passing only because current `PUBLIC` privileges happen to make runtime reads
-  work.
+  not be owned by the runtime role, extension ownership drift is reported, and
+  every extension-owned function plus app-used runtime function and operator
+  backing function must be executable by the runtime role. For bootstrap-owned
+  trusted-extension functions that the migration role cannot grant, the audit
+  allows current runtime access through PostgreSQL's `PUBLIC` default but fails
+  if runtime `EXECUTE` is missing and the migration role cannot restore it.
 - `scripts/provision-runtime-db-role.sql` now performs a preflight before
-  emitting `GRANT EXECUTE` statements for `pg_trgm` functions. If the declared
-  migration role cannot grant one of those function privileges, provisioning
-  stops with a specific owner/function message instead of failing later in a
-  less obvious batch grant.
+  emitting `GRANT EXECUTE` statements for `pg_trgm` functions. It grants only
+  extension functions for which the migration role has `EXECUTE WITH GRANT
+  OPTION`; for the rest, it verifies the runtime role already has `EXECUTE`.
+  If runtime access is missing and the migration role cannot grant it,
+  provisioning stops with a specific owner/function message directing operators
+  to a reviewed admin-owned provisioning step.
 - `docs/db-defense-in-depth-plan.md`, `docs/rls-feasibility-plan.md`, and
   `docs/runbook.md` now record the contract: runtime access and reproducible
-  provisioning are separate checks, and a preinstalled or wrong-owner
-  `pg_trgm` extension must be corrected in staging or handled through an
-  explicitly reviewed admin-owned provisioning step.
+  provisioning are separate checks, trusted extension functions may be
+  bootstrap/admin-owned, and a future function-lockdown pass for non-grantable
+  `pg_trgm` functions needs an explicitly reviewed admin-owned provisioning
+  step.
 
 Verified stale/current or deferred without source changes:
 
-- Claude's optional idea to reopen the flaky `PUBLIC` revoke fixture was not
-  adopted. The stronger issue was grant reproducibility, and the deterministic
-  missing-extension plus wrong-owner-extension paths cover the source topology
-  that matters for staged least-privilege role setup.
+- Claude's optional idea to reopen the old migration-role `PUBLIC` revoke
+  fixture was not adopted. CI proved the clean trusted-extension path itself can
+  have bootstrap-owned functions, so the deterministic negative fixture now
+  creates `pg_trgm` through the admin connection and revokes PUBLIC function
+  execute there before proving the audit fails when runtime access is missing
+  and the migration role cannot grant it.
 - RLS remains staged behind the existing pooling/context gate. This pass only
   tightens pre-RLS grant audit/provisioning evidence and does not enable table
   policies.
@@ -13904,12 +13914,14 @@ Verified stale/current or deferred without source changes:
 Guardrails added/reviewed:
 
 - Extended `tests/db-grant-inventory.test.mjs` static checks to pin extension
-  owner/grantability audit logic, `EXECUTE WITH GRANT OPTION` checks, the
+  owner/runtime-execute audit logic, `EXECUTE WITH GRANT OPTION` checks, the
   provisioning preflight, and the new docs/runbook language.
-- Added a GitHub-only synthetic Postgres fixture path where `pg_trgm` is created
-  by the admin connection before the migration role runs app setup, asserting
-  the audit reports both wrong extension ownership and missing migration-role
-  grantability.
+- Added GitHub-only synthetic Postgres fixture paths where `pg_trgm` is created
+  by the admin connection before the migration role runs app setup. The first
+  asserts wrong extension ownership is reported without treating still-present
+  PUBLIC execute as a runtime failure; the second revokes PUBLIC function
+  execute and asserts the audit reports missing runtime access that is not
+  grantable by the migration role.
 
 Verification:
 `git status --short`; `gh run list --branch main --limit 5` confirmed latest
@@ -13920,8 +13932,11 @@ pushed CI on `main` was green for `28fdf683`; source/docs/test inspection with
 tests/public-query-determinism.test.mjs` passed 26/27 with the expected local
 GitHub-only Postgres integration skip; `npx tsc --noEmit`; `git diff --check`;
 `npm run lint` exited 0 with the known jsx-ast-utils TSNonNullExpression
-warning; and full `npm test` passed 1469/1470 with the expected local
-GitHub-only Postgres integration skip.
+warning; full `npm test` passed 1469/1470 with the expected local GitHub-only
+Postgres integration skip; and GitHub CI run `28913820257` failed in Tests on
+the first stricter implementation, proving trusted `pg_trgm` functions can be
+bootstrap/admin-owned even on the clean migration-created path and driving the
+corrected runtime-execute-plus-repairability rule.
 
 Current running tally after Entry 507: verified fixed/reduced 1005, verified
 stale/false-positive/current 579, deferred product/design/ops/legal 87,

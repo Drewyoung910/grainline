@@ -184,10 +184,13 @@ Production migration rules:
   `EXECUTE` on `pg_trgm` extension functions because search/autocomplete uses
   `similarity()` and the `%` operator; if extension/function PUBLIC privileges
   are locked down manually, rerun provisioning and the grant audit before deploy.
-  If `pg_trgm` was preinstalled by a bootstrap/admin role, fix ownership or run
-  an explicitly reviewed admin-owned provisioning step in staging first; the
-  standard grant audit now fails when the declared migration role cannot grant
-  the extension-function privileges that the version-controlled script emits.
+  Trusted `pg_trgm` functions may be owned by a bootstrap/admin role even when
+  `CREATE EXTENSION` runs as the migration role; standard provisioning grants
+  only functions the migration role can grant and verifies runtime `EXECUTE`
+  still exists for the rest. If PUBLIC function privileges are removed for
+  non-grantable extension functions, use an explicitly reviewed admin-owned
+  provisioning step in staging first; the grant audit fails when runtime lacks
+  access that the declared migration role cannot restore.
 - After migrations that add tables, sequences, `grainline_*` functions, enum
   types, or role/default-privilege changes, run `npm run audit:db-grants` from
   the same environment/secret set that will run migrations and retain the run
