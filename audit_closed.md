@@ -13859,6 +13859,77 @@ increases by two for the explicit `pg_trgm` runtime grant/audit coverage and the
 bidirectional provisioning-inventory guard. Raw-left stays at zero because this
 was post-raw hidden-issue hardening, not closure of a remaining raw allegation.
 
+### Entry 507 - pg_trgm provisioning grantability hardening
+
+Entry 507 reviewed Claude's follow-up note on the corrected `pg_trgm` grant
+coverage as a junior read-only report, then parent Codex independently checked
+the provisioning SQL, grant audit, `pg_trgm` migrations, and RLS/grant docs. The
+review found one under-called source gap: current runtime `EXECUTE` evidence was
+not enough to prove the version-controlled provisioning SQL could reproduce the
+same grants if `pg_trgm` had been preinstalled or owned by a bootstrap/admin
+role. Latest pushed CI on `main` was green for `28fdf683` (`28912951479`) before
+editing. No agent was needed for this narrow pass.
+
+Fixed/reduced:
+
+- `scripts/audit-runtime-db-grants.mjs` now checks source-derived extensions as
+  part of the declared ownership/grantability model. Required extensions must
+  not be owned by the runtime role, must be owned by the declared migration
+  role, and every extension-owned function plus app-used runtime function and
+  operator backing function must be grantable by the migration role through
+  `EXECUTE WITH GRANT OPTION`. This prevents a standalone grant audit from
+  passing only because current `PUBLIC` privileges happen to make runtime reads
+  work.
+- `scripts/provision-runtime-db-role.sql` now performs a preflight before
+  emitting `GRANT EXECUTE` statements for `pg_trgm` functions. If the declared
+  migration role cannot grant one of those function privileges, provisioning
+  stops with a specific owner/function message instead of failing later in a
+  less obvious batch grant.
+- `docs/db-defense-in-depth-plan.md`, `docs/rls-feasibility-plan.md`, and
+  `docs/runbook.md` now record the contract: runtime access and reproducible
+  provisioning are separate checks, and a preinstalled or wrong-owner
+  `pg_trgm` extension must be corrected in staging or handled through an
+  explicitly reviewed admin-owned provisioning step.
+
+Verified stale/current or deferred without source changes:
+
+- Claude's optional idea to reopen the flaky `PUBLIC` revoke fixture was not
+  adopted. The stronger issue was grant reproducibility, and the deterministic
+  missing-extension plus wrong-owner-extension paths cover the source topology
+  that matters for staged least-privilege role setup.
+- RLS remains staged behind the existing pooling/context gate. This pass only
+  tightens pre-RLS grant audit/provisioning evidence and does not enable table
+  policies.
+
+Guardrails added/reviewed:
+
+- Extended `tests/db-grant-inventory.test.mjs` static checks to pin extension
+  owner/grantability audit logic, `EXECUTE WITH GRANT OPTION` checks, the
+  provisioning preflight, and the new docs/runbook language.
+- Added a GitHub-only synthetic Postgres fixture path where `pg_trgm` is created
+  by the admin connection before the migration role runs app setup, asserting
+  the audit reports both wrong extension ownership and missing migration-role
+  grantability.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 5` confirmed latest
+pushed CI on `main` was green for `28fdf683`; source/docs/test inspection with
+`rg`/`sed`; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/db-grant-inventory.test.mjs tests/rls-feasibility-plan.test.mjs
+tests/public-query-determinism.test.mjs` passed 26/27 with the expected local
+GitHub-only Postgres integration skip; `npx tsc --noEmit`; `git diff --check`;
+`npm run lint` exited 0 with the known jsx-ast-utils TSNonNullExpression
+warning; and full `npm test` passed 1469/1470 with the expected local
+GitHub-only Postgres integration skip.
+
+Current running tally after Entry 507: verified fixed/reduced 1005, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the grantability/provisioning reproducibility hardening.
+Raw-left stays at zero because this was post-raw hidden-issue hardening, not
+closure of a remaining raw allegation.
+
 Remaining major categories are still the deferred launch/runtime/legal/product
 evidence backlog, not open raw source allegations: Stripe refund runtime
 reconciliation/backfill proof, Stripe partial-refund live reconciliation proof,

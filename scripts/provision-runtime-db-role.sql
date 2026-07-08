@@ -223,6 +223,30 @@ WHERE NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm');
 -- operator. Grant all functions owned by the pg_trgm extension explicitly so a
 -- future PUBLIC-function lockdown does not break runtime search.
 SELECT format(
+  'migration role %s cannot grant EXECUTE on pg_trgm function %s owned by %s',
+  :'migration_role',
+  format('%I.%I(%s)', n.nspname, p.proname, pg_get_function_identity_arguments(p.oid)),
+  pg_get_userbyid(p.proowner)
+) AS grainline_role_provisioning_failure
+FROM pg_extension e
+JOIN pg_depend d ON d.refclassid = 'pg_extension'::regclass
+                  AND d.refobjid = e.oid
+                  AND d.classid = 'pg_proc'::regclass
+                  AND d.deptype = 'e'
+JOIN pg_proc p ON p.oid = d.objid
+JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE e.extname = 'pg_trgm'
+  AND NOT has_function_privilege(:'migration_role', p.oid, 'EXECUTE WITH GRANT OPTION')
+ORDER BY n.nspname, p.proname, pg_get_function_identity_arguments(p.oid)
+LIMIT 1;
+\gset
+\if :{?grainline_role_provisioning_failure}
+\echo :grainline_role_provisioning_failure
+\quit 1
+\endif
+\unset grainline_role_provisioning_failure
+
+SELECT format(
   'GRANT EXECUTE ON FUNCTION %I.%I(%s) TO %I',
   n.nspname,
   p.proname,

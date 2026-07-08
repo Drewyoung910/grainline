@@ -370,7 +370,9 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
   const requiredExtensions = inventory.extensions ?? [];
   if (requiredExtensions.length > 0) {
     const extensionResult = await client.query(
-      `SELECT extname AS extension_name
+      `SELECT
+          extname AS extension_name,
+          pg_get_userbyid(extowner) AS owner_name
          FROM pg_extension
         WHERE extname = ANY($1::text[])
         ORDER BY extname`,
@@ -380,12 +382,20 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
     issues.push(
       ...missingItems(requiredExtensions, liveExtensions).map((extension) => `missing expected extension ${extension}`),
     );
+    for (const row of extensionResult.rows) {
+      if (row.owner_name === runtimeRole) issues.push(`runtime role owns extension ${row.extension_name}`);
+      if (row.owner_name !== migrationRole) {
+        issues.push(`extension ${row.extension_name} owned by ${row.owner_name}, expected ${migrationRole}`);
+      }
+    }
 
     const extensionFunctionResult = await client.query(
       `SELECT
           e.extname AS extension_name,
           format('%I.%I(%s)', n.nspname, p.proname, pg_get_function_identity_arguments(p.oid)) AS function_signature,
-          has_function_privilege($1, p.oid, 'EXECUTE') AS execute_priv
+          pg_get_userbyid(p.proowner) AS owner_name,
+          has_function_privilege($1, p.oid, 'EXECUTE') AS execute_priv,
+          has_function_privilege($3, p.oid, 'EXECUTE WITH GRANT OPTION') AS migration_grant_option_priv
          FROM pg_extension e
          JOIN pg_depend d ON d.refclassid = 'pg_extension'::regclass
                            AND d.refobjid = e.oid
@@ -395,11 +405,17 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
          JOIN pg_namespace n ON n.oid = p.pronamespace
         WHERE e.extname = ANY($2::text[])
         ORDER BY e.extname, function_signature`,
-      [runtimeRole, requiredExtensions],
+      [runtimeRole, requiredExtensions, migrationRole],
     );
     for (const row of extensionFunctionResult.rows) {
       if (!row.execute_priv) {
         issues.push(`extension ${row.extension_name} function ${row.function_signature} lacks EXECUTE`);
+      }
+      if (!row.migration_grant_option_priv) {
+        issues.push(
+          `extension ${row.extension_name} function ${row.function_signature} owned by ${row.owner_name} ` +
+            `is not grantable by migration role ${migrationRole}`,
+        );
       }
     }
 
@@ -416,16 +432,23 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
             CASE
               WHEN target.function_oid IS NULL THEN false
               ELSE has_function_privilege($1, target.function_oid, 'EXECUTE')
-            END AS execute_priv
+            END AS execute_priv,
+            CASE
+              WHEN target.function_oid IS NULL THEN true
+              ELSE has_function_privilege($4, target.function_oid, 'EXECUTE WITH GRANT OPTION')
+            END AS migration_grant_option_priv,
+            pg_get_userbyid(p.proowner) AS owner_name
            FROM (
              SELECT extension_name, signature, to_regprocedure(signature) AS function_oid
                FROM unnest($2::text[], $3::text[]) AS target(extension_name, signature)
            ) target
+           LEFT JOIN pg_proc p ON p.oid = target.function_oid
           ORDER BY target.extension_name, target.signature`,
         [
           runtimeRole,
           runtimeFunctionTargets.map((target) => target.extension),
           runtimeFunctionTargets.map((target) => target.signature),
+          migrationRole,
         ],
       );
       for (const row of runtimeFunctionResult.rows) {
@@ -433,6 +456,11 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
           issues.push(`missing required extension ${row.extension_name} runtime function ${row.function_signature}`);
         } else if (!row.execute_priv) {
           issues.push(`extension ${row.extension_name} runtime function ${row.function_signature} lacks EXECUTE`);
+        } else if (!row.migration_grant_option_priv) {
+          issues.push(
+            `extension ${row.extension_name} runtime function ${row.function_signature} owned by ${row.owner_name} ` +
+              `is not grantable by migration role ${migrationRole}`,
+          );
         }
       }
     }
@@ -455,7 +483,12 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
             CASE
               WHEN o.oid IS NULL THEN NULL
               ELSE format('%I.%I(%s)', pn.nspname, p.proname, pg_get_function_identity_arguments(p.oid))
-            END AS function_signature
+            END AS function_signature,
+            CASE
+              WHEN o.oid IS NULL THEN true
+              ELSE has_function_privilege($7, o.oprcode, 'EXECUTE WITH GRANT OPTION')
+            END AS migration_grant_option_priv,
+            pg_get_userbyid(p.proowner) AS function_owner_name
            FROM unnest($2::text[], $3::text[], $4::text[], $5::text[], $6::text[])
              AS target(extension_name, operator_schema, operator_name, left_type, right_type)
            LEFT JOIN pg_namespace n ON n.nspname = target.operator_schema
@@ -475,6 +508,7 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
           runtimeOperatorTargets.map((target) => target.name),
           runtimeOperatorTargets.map((target) => target.leftType),
           runtimeOperatorTargets.map((target) => target.rightType),
+          migrationRole,
         ],
       );
       for (const row of runtimeOperatorResult.rows) {
@@ -484,6 +518,12 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
           issues.push(
             `extension ${row.extension_name} runtime operator ${row.operator_signature} backing function ` +
               `${row.function_signature ?? "unknown"} lacks EXECUTE`,
+          );
+        } else if (!row.migration_grant_option_priv) {
+          issues.push(
+            `extension ${row.extension_name} runtime operator ${row.operator_signature} backing function ` +
+              `${row.function_signature ?? "unknown"} owned by ${row.function_owner_name ?? "unknown"} ` +
+              `is not grantable by migration role ${migrationRole}`,
           );
         }
       }

@@ -99,7 +99,10 @@ Staging implementation checklist:
   `_prisma_migrations` when present, and sets migration-owner default privileges
   for future tables/sequences. It also grants runtime `EXECUTE` on functions
   owned by the `pg_trgm` extension because public search/autocomplete SQL calls
-  `similarity()` and the `%` operator.
+  `similarity()` and the `%` operator. Before emitting those grants, the script
+  verifies that the declared migration role can grant `EXECUTE` on the
+  extension functions; a preinstalled or differently owned `pg_trgm` extension
+  must be fixed in staging instead of relying on implicit `PUBLIC` access.
 - Source-derived grant inventory as of this plan update:
   - 56 Prisma model tables need runtime table DML grants;
   - 20 Prisma enum types need runtime `USAGE`, currently covered only if live
@@ -109,7 +112,10 @@ Staging implementation checklist:
   - 1 source-derived extension is required by runtime search SQL: `pg_trgm`.
     Provisioning grants runtime `EXECUTE` on that extension's functions
     explicitly so a future `PUBLIC` function lockdown does not break
-    suggestions/search.
+    suggestions/search. The live audit also checks that the declared migration
+    role can grant those extension-function privileges, so standalone audit
+    runs do not pass a database topology that the provisioning SQL cannot
+    reproduce.
   - 0 source-derived sequences exist today. The two `Int @id @default(1)` fields
     are fixed singleton rows, not autoincrement/serial sequences.
 - Treat function/type accessibility through `PUBLIC` defaults as a dependency,
@@ -200,7 +206,10 @@ Implementation goals:
   created by the migration role. It also checks that source-derived extensions,
   currently `pg_trgm`, exist and that the runtime role can execute their
   extension-owned functions plus the app-used `similarity()` function and `%`
-  operator backing function.
+  operator backing function. For extension functions that provisioning grants,
+  the audit also requires the declared migration role to have `EXECUTE WITH
+  GRANT OPTION`; otherwise a preinstalled or wrong-owner extension could make
+  runtime reads work today while version-controlled provisioning fails later.
 - The audit fails if the runtime role and migration role are the same role, if
   the audit connection does not authenticate as the declared migration role, if
   tracked app objects are not owned by the declared migration role, if the
