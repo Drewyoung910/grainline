@@ -13936,7 +13936,9 @@ warning; full `npm test` passed 1469/1470 with the expected local GitHub-only
 Postgres integration skip; and GitHub CI run `28913820257` failed in Tests on
 the first stricter implementation, proving trusted `pg_trgm` functions can be
 bootstrap/admin-owned even on the clean migration-created path and driving the
-corrected runtime-execute-plus-repairability rule.
+corrected runtime-execute-plus-repairability rule. Follow-up GitHub CI run
+`28914123520` for `8835023e` passed fully on `main`: typecheck, lint, tests,
+security audit, and production build.
 
 Current running tally after Entry 507: verified fixed/reduced 1005, verified
 stale/false-positive/current 579, deferred product/design/ops/legal 87,
