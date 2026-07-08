@@ -13859,6 +13859,108 @@ increases by two for the explicit `pg_trgm` runtime grant/audit coverage and the
 bidirectional provisioning-inventory guard. Raw-left stays at zero because this
 was post-raw hidden-issue hardening, not closure of a remaining raw allegation.
 
+### Entry 508 - RLS context gate tooling
+
+Entry 508 followed the slow RLS/security path after the raw allegation queue
+reached zero: parent Codex rechecked the current RLS docs, least-privilege
+grant tooling, current CI state, and adjacent notification/saved-search source
+surfaces before adding any code. One read-only explorer agent reviewed likely
+RLS gate blind spots; parent Codex independently verified the useful findings
+against source and docs, rejected broad production RLS, incorporated the
+Prisma-adapter and route-happy-path boundaries, and closed the agent. Latest
+pushed CI on `main` was green for `70a14a4d` (`28914271071`) before editing.
+
+Fixed/reduced:
+
+- Added `scripts/rls-context-acceptance-gate.mjs` plus
+  `npm run audit:rls-context` as a staging-only executable gate for the Phase 3
+  RLS request-context proof. The gate refuses ambient `DATABASE_URL`/`DIRECT_URL`
+  fallback, requires `RLS_CONTEXT_GATE_CONFIRM=staging-only`, requires a pooled
+  runtime-role URL and expected runtime role, and optionally prepares only
+  synthetic non-customer canary rows through an explicit migration-owner URL.
+- The canary preparation path creates `grainline_rls_canary.context_canary`,
+  refreshes synthetic rows with RLS disabled, then enables `FORCE ROW LEVEL
+  SECURITY` with a fail-closed `NULLIF(current_setting('app.user_id', true), '')`
+  policy so unset and explicitly empty context return zero rows.
+- The gate now measures both the app-relevant Prisma `@prisma/adapter-pg`
+  interactive-transaction path and lower-level raw `pg` behavior. It checks
+  runtime `current_user`/`session_user`, transaction-local
+  `set_config('app.user_id', $1, true)`, commit/rollback cleanup, empty-context
+  denial, synthetic retry re-setting, target/burst concurrency, prepared
+  statement/cached-plan errors, connection recycling through `maxUses: 1`, an
+  admin-URL-gated disable-RLS rollback/no-op probe on the synthetic canary, and
+  the documented p95/p99/acquisition/hold-time stop thresholds.
+- `docs/db-defense-in-depth-plan.md`, `docs/runbook.md`,
+  `docs/launch-checklist.md`, and `CLAUDE.md` now route future RLS work through
+  this staging gate and explicitly preserve the boundary that passing the
+  synthetic canary does not enable RLS or replace route-level happy-path tests
+  for `Notification`, `SavedSearch`, or any later prototype table.
+
+Verified stale/current or deferred without source changes:
+
+- Production RLS remains disabled and staged. This pass created the next proof
+  artifact; it did not enable any table policies and did not close the live
+  staging evidence requirement.
+- The read-only agent's source warnings about notification write/delete
+  asymmetry, saved-search retry/export/deletion behavior, and existing
+  `Promise.all` notification/dashboard reads remain valid future prototype
+  constraints already represented in the RLS docs. They are not solved by the
+  synthetic canary and must be tested when the actual `withDbUserContext`
+  helper and first table policies are implemented.
+
+Guardrails added/reviewed:
+
+- Added `tests/rls-context-gate.test.mjs` to pin the explicit npm script,
+  staging confirmation requirement, pooled-runtime URL requirement, lack of
+  ambient production DB URL fallback, synthetic canary user defaults, explicit
+  admin URL for prepare mode, transaction-local context policy shape, Prisma
+  adapter probe, prepared-statement/protocol error checks, connection recycle
+  probing, rollback/no-op proof gating, metric summarization, and
+  docs/runbook/launch checklist coverage.
+- Reviewed existing `tests/rls-feasibility-plan.test.mjs` and
+  `tests/db-grant-inventory.test.mjs` alongside the new guardrails.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 5` confirmed latest
+pushed CI on `main` was green for `70a14a4d` (`28914271071`); source/docs/test
+inspection with `rg`/`sed`; one parent-reviewed read-only explorer report;
+`node --check scripts/rls-context-acceptance-gate.mjs`; focused
+`node --test tests/rls-context-gate.test.mjs tests/rls-feasibility-plan.test.mjs
+tests/db-grant-inventory.test.mjs` passed 24/25 with the expected local
+GitHub-only Postgres integration skip; `npx tsc --noEmit`; `git diff --check`;
+`npm run lint` exited 0 with the known jsx-ast-utils TSNonNullExpression
+warning; full `npm test` passed 1479/1480 with the expected local GitHub-only
+Postgres integration skip; and `npm run build` completed successfully.
+
+Current running tally after Entry 508: verified fixed/reduced 1006, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the RLS staging context gate tooling. Deferred stays flat
+because the live staging run, route-level prototype tests, and actual
+Notification/SavedSearch RLS policies remain future execution work. Raw-left
+stays at zero because this was post-raw hardening, not closure of a raw
+allegation.
+
+Remaining major categories are still the deferred launch/runtime/legal/product
+evidence backlog, not open raw source allegations: live RLS staging gate
+execution plus route-level prototype tests before any table policy, Stripe
+refund runtime reconciliation/backfill proof, Stripe partial-refund live
+reconciliation proof, label clawback runtime reconciliation evidence, Stripe
+webhook subscription dashboard evidence, Stripe Connect v2 loss-liability
+ops/legal decision, explicit stale remote branch pruning/review, Round 10
+cache/state-machine product designs, EXPLAIN-dependent runtime query-plan
+validation, provider-side privacy erasure/legal-request evidence, cross-seller
+AI duplicate-detection product design, durable checkout-group product semantics
+beyond current guardrails, high-scale BigInt money/counter modeling decisions,
+live-data reconciliation for historical seller shipping-rate currency drift,
+Clerk staff MFA/breached-password/multi-account dashboard evidence,
+buyer-deletion live Stripe replay proof, Founding Maker live DB concurrency
+proof, Sentry cron alert evidence, Cloudflare R2 ListBucket/public bucket
+posture plus production smoke/public-availability proof, HSTS preload
+submission/status, Vercel Analytics/Speed Insights product privacy decision,
+homepage browser a11y/runtime proof, and deployed security-header runtime
+proof.
+
 ### Entry 507 - pg_trgm provisioning grantability hardening
 
 Entry 507 reviewed Claude's follow-up note on the corrected `pg_trgm` grant

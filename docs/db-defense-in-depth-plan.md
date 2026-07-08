@@ -266,10 +266,34 @@ Verification:
 
 ## Phase 3 - Request Context Proof
 
-Status: not started.
+Status: staging gate tooling added; live staging proof not run.
 
 Purpose: prove the core RLS mechanism under the actual runtime topology before
 enabling policies.
+
+Current reviewed staging harness:
+
+- `scripts/rls-context-acceptance-gate.mjs` is the executable canary for this
+  phase. It uses synthetic non-customer canary rows in the
+  `grainline_rls_canary.context_canary` table, a fail-closed policy based on
+  `NULLIF(current_setting('app.user_id', true), '')`, transaction-local
+  `set_config('app.user_id', $1, true)`, the Prisma adapter transaction path
+  used by the app, raw `pg` prepared-statement probes, connection recycle
+  probes, an admin-URL-gated rollback/no-op probe that temporarily disables RLS
+  on the synthetic canary and restores `ENABLE`/`FORCE ROW LEVEL SECURITY`,
+  target and burst concurrency measurements, and the latency / connection-hold
+  thresholds below.
+- The script is staging-only evidence. Passing it does not enable RLS, does not
+  replace route-level happy-path tests, and does not prove hot-path performance
+  for tables that are not in the synthetic canary.
+- To create or refresh the canary table/policy in staging:
+  `RLS_CONTEXT_GATE_CONFIRM=staging-only RLS_CONTEXT_GATE_PREPARE=1 RLS_CONTEXT_GATE_ADMIN_DATABASE_URL="$DIRECT_URL" RLS_CONTEXT_GATE_DATABASE_URL="<pooled runtime-role URL>" RLS_CONTEXT_GATE_RUNTIME_ROLE=grainline_app_runtime npm run audit:rls-context`
+- To run against an already prepared staging canary:
+  `RLS_CONTEXT_GATE_CONFIRM=staging-only RLS_CONTEXT_GATE_DATABASE_URL="<pooled runtime-role URL>" RLS_CONTEXT_GATE_RUNTIME_ROLE=grainline_app_runtime npm run audit:rls-context`
+- To rerun the rollback/no-op proof without refreshing canary rows, add
+  `RLS_CONTEXT_GATE_ROLLBACK_PROBE=1 RLS_CONTEXT_GATE_ADMIN_DATABASE_URL="$DIRECT_URL"`.
+- Do not point this gate at production. Use a production-like Neon branch or
+  staging database with the same pooled runtime-role shape as production.
 
 Required helper contract:
 

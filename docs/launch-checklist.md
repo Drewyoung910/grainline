@@ -80,6 +80,7 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
 - `npx dotenv-cli -e .env -- npx prisma migrate status`
 - `psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=grainline_migration_owner -f scripts/provision-runtime-db-role.sql` (staging first; production only after role/password setup is approved and recorded)
 - `GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=grainline_migration_owner npm run audit:db-grants`
+- `RLS_CONTEXT_GATE_CONFIRM=staging-only RLS_CONTEXT_GATE_PREPARE=1 RLS_CONTEXT_GATE_ADMIN_DATABASE_URL="$DIRECT_URL" RLS_CONTEXT_GATE_DATABASE_URL="<pooled runtime-role URL>" RLS_CONTEXT_GATE_RUNTIME_ROLE=grainline_app_runtime npm run audit:rls-context` (staging only; includes the synthetic canary rollback/no-op probe; keep production RLS disabled until this gate plus route-level prototype tests pass)
 - `npx tsc --noEmit --incremental false`
 - `npm run lint`
 - `npm run build`
