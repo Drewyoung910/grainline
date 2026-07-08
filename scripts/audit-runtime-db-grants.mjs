@@ -291,6 +291,36 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
     }
   }
 
+  const rlsPolicyResult = await client.query(
+    `SELECT
+        c.relname AS table_name,
+        c.relrowsecurity AS rls_enabled,
+        c.relforcerowsecurity AS rls_forced,
+        array_agg(p.polname ORDER BY p.polname) AS policy_names
+       FROM pg_class c
+       JOIN pg_namespace n ON n.oid = c.relnamespace
+       JOIN pg_policy p ON p.polrelid = c.oid
+      WHERE n.nspname = 'public'
+        AND c.relkind IN ('r', 'p')
+        AND c.relname = ANY($1::text[])
+      GROUP BY c.relname, c.relrowsecurity, c.relforcerowsecurity
+      ORDER BY c.relname`,
+    [inventory.tables],
+  );
+  for (const row of rlsPolicyResult.rows) {
+    const policyList = Array.isArray(row.policy_names) ? row.policy_names.join(", ") : "unknown";
+    if (!row.rls_enabled) {
+      issues.push(
+        `table ${row.table_name} has RLS policies (${policyList}) but ROW LEVEL SECURITY is not enabled`,
+      );
+    }
+    if (!row.rls_forced) {
+      issues.push(
+        `table ${row.table_name} has RLS policies (${policyList}) but FORCE ROW LEVEL SECURITY is not enabled`,
+      );
+    }
+  }
+
   const untrackedTableResult = await client.query(
     `SELECT
         c.relname AS table_name,

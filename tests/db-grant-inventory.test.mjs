@@ -74,6 +74,7 @@ async function withAuditFixture(options, fn) {
   const runtimeRole = `grainline_run_${suffix}`;
   const parentRole = `grainline_parent_${suffix}`;
   const tableName = `grant_audit_table_${suffix}`;
+  const policyName = `grant_audit_policy_${suffix}`;
   const untrackedTableName = `grant_audit_untracked_${suffix}`;
   const enumName = `grant_audit_enum_${suffix}`;
   const functionName = `grainline_audit_fn_${suffix}`;
@@ -139,6 +140,20 @@ async function withAuditFixture(options, fn) {
       await migrationClient.query(
         `CREATE OR REPLACE FUNCTION ${assertSafeIdentifier(functionName)}() RETURNS boolean LANGUAGE sql AS $$ SELECT true $$`,
       );
+      if (options.createRlsPolicy) {
+        await migrationClient.query(
+          `CREATE POLICY ${assertSafeIdentifier(policyName)}
+             ON ${assertSafeIdentifier(tableName)}
+            FOR SELECT
+          USING (id = current_setting('app.user_id', true))`,
+        );
+        if (options.enableRls) {
+          await migrationClient.query(`ALTER TABLE ${assertSafeIdentifier(tableName)} ENABLE ROW LEVEL SECURITY`);
+        }
+        if (options.forceRls) {
+          await migrationClient.query(`ALTER TABLE ${assertSafeIdentifier(tableName)} FORCE ROW LEVEL SECURITY`);
+        }
+      }
       await migrationClient.query(`GRANT USAGE ON SCHEMA public TO ${assertSafeIdentifier(runtimeRole)}`);
       if (options.grantTablePrivileges !== false) {
         await migrationClient.query(
@@ -228,6 +243,11 @@ describe("database grant inventory guardrails", () => {
     assert.match(script, /has_sequence_privilege/);
     assert.match(script, /has_function_privilege/);
     assert.match(script, /has_type_privilege/);
+    assert.match(script, /pg_policy/);
+    assert.match(script, /relrowsecurity/);
+    assert.match(script, /relforcerowsecurity/);
+    assert.match(script, /ROW LEVEL SECURITY is not enabled/);
+    assert.match(script, /FORCE ROW LEVEL SECURITY is not enabled/);
     assert.match(script, /pg_extension/);
     assert.match(script, /runtime role owns extension/);
     assert.match(script, /extension .* owned by .* expected/);
@@ -316,6 +336,25 @@ describe("database grant inventory guardrails", () => {
       const issues = (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n");
       assert.match(issues, /runtime role owns table/);
       assert.match(issues, /expected/);
+    });
+
+    await withAuditFixture({ createRlsPolicy: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+      const issues = (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n");
+      assert.match(issues, /has RLS policies .* but ROW LEVEL SECURITY is not enabled/);
+      assert.match(issues, /has RLS policies .* but FORCE ROW LEVEL SECURITY is not enabled/);
+    });
+
+    await withAuditFixture({ createRlsPolicy: true, enableRls: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+      const issues = (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n");
+      assert.doesNotMatch(issues, /ROW LEVEL SECURITY is not enabled/);
+      assert.match(issues, /has RLS policies .* but FORCE ROW LEVEL SECURITY is not enabled/);
+    });
+
+    await withAuditFixture({ createRlsPolicy: true, enableRls: true, forceRls: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+      assert.deepEqual(
+        await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory }),
+        [],
+      );
     });
 
     await withAuditFixture({ createPgTrgmExtension: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
@@ -469,6 +508,7 @@ describe("database grant inventory guardrails", () => {
     assert.match(plan, /PUBLIC.*dependency/);
     assert.match(plan, /role memberships/);
     assert.match(plan, /current_user` and `session_user`/);
+    assert.match(plan, /RLS policies.*ROW LEVEL SECURITY.*FORCE ROW LEVEL SECURITY/s);
     assert.match(plan, /version-controlled SQL/);
     assert.match(plan, /synthetic Postgres roles\/databases/);
     assert.match(plan, /tracked app objects owned by the migration role/);
@@ -483,6 +523,7 @@ describe("database grant inventory guardrails", () => {
     assert.match(runbook, /bootstrap\/admin role/);
     assert.match(runbook, /runtime lacks\s+access that the declared migration role cannot restore/);
     assert.match(runbook, /same environment\/secret set that will run migrations/);
+    assert.match(runbook, /RLS policies.*ROW LEVEL SECURITY.*FORCE ROW LEVEL SECURITY/s);
     assert.match(runbook, /Non-model public tables created by the migration role can inherit runtime DML/);
     assert.match(runbook, /grant-audit\s+inventory or explicitly `REVOKE` runtime access/);
     assert.match(launch, /GRANT_AUDIT_DATABASE_URL="\$DIRECT_URL"/);

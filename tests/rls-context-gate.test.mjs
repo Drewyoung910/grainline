@@ -229,12 +229,16 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.match(defense, /npm run audit:rls-context/);
     assert.match(defense, /synthetic non-customer canary rows/);
     assert.match(defense, /autocommit baseline/);
+    assert.match(defense, /proves read\/context\s+  isolation for the synthetic canary only/);
+    assert.match(defense, /per-table write-policy behavior/);
     assert.match(defense, /Prisma adapter transaction path/);
     assert.match(runbook, /RLS_CONTEXT_GATE_CONFIRM=staging-only/);
     assert.match(runbook, /RLS_CONTEXT_GATE_PREPARE=1/);
     assert.match(runbook, /RLS_CONTEXT_GATE_ROLLBACK_PROBE=1/);
     assert.match(runbook, /pooled runtime-role URL/);
     assert.match(runbook, /autocommit baseline/);
+    assert.match(runbook, /proves read\/context\s+  isolation on synthetic canary rows/);
+    assert.match(runbook, /per-table write-policy behavior/);
     assert.match(launch, /audit:rls-context/);
   });
 

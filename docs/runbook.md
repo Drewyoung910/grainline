@@ -195,6 +195,9 @@ Production migration rules:
   types, or role/default-privilege changes, run `npm run audit:db-grants` from
   the same environment/secret set that will run migrations and retain the run
   output with deploy evidence.
+- If a migration adds RLS policies to a tracked public app table, the grant
+  audit must also show both `ENABLE ROW LEVEL SECURITY` and
+  `FORCE ROW LEVEL SECURITY`; a policy without table-level RLS enabled is inert.
 - Non-model public tables created by the migration role can inherit runtime DML
   from default privileges. Add intentional non-model tables to the grant-audit
   inventory or explicitly `REVOKE` runtime access in the same migration.
@@ -207,7 +210,9 @@ RLS staging context proof:
 - Before enabling RLS on any additional table or wrapping hotter read paths,
   run the staging pooling/context-isolation acceptance spec in
   `docs/db-defense-in-depth-plan.md` against a production-like Neon branch that
-  uses the pooled runtime-role `DATABASE_URL`.
+  uses the pooled runtime-role `DATABASE_URL`. This gate proves read/context
+  isolation on synthetic canary rows; per-table write-policy behavior still
+  needs migration-level tests before a real table policy is enabled.
 - If the staging canary table/policy has not been prepared or needs refresh,
   run the gate with the direct migration-owner URL and pooled runtime-role URL:
   `RLS_CONTEXT_GATE_CONFIRM=staging-only RLS_CONTEXT_GATE_PREPARE=1 RLS_CONTEXT_GATE_ADMIN_DATABASE_URL="$DIRECT_URL" RLS_CONTEXT_GATE_DATABASE_URL="<pooled runtime-role URL>" RLS_CONTEXT_GATE_RUNTIME_ROLE=grainline_app_runtime npm run audit:rls-context`.

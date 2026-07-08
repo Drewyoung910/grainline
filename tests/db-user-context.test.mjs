@@ -79,6 +79,8 @@ describe("RLS database user context helper", () => {
     assert.match(helper, /use the provided transaction client for every protected\s+ \* query/);
     assert.match(helper, /Do not use `Promise\.all`/);
     assert.match(helper, /interactive transaction pins one connection/);
+    assert.match(helper, /Keep\s+ \* the callback DB-only and fast/);
+    assert.match(helper, /do not await external or network calls inside/);
   });
 
   it("keeps serializable retry outside the transaction so context is reset per attempt", () => {

@@ -33,7 +33,9 @@ export async function setDbUserContext(
  * The callback must use the provided transaction client for every protected
  * query and must run those queries sequentially. Do not use `Promise.all` or
  * other concurrent Prisma calls inside this transaction; the RLS context is
- * transaction-local and the interactive transaction pins one connection.
+ * transaction-local and the interactive transaction pins one connection. Keep
+ * the callback DB-only and fast; do not await external or network calls inside
+ * it because the pooled connection is held for the callback's duration.
  */
 export async function withDbUserContext<T>(
   userId: string,

@@ -13859,6 +13859,108 @@ increases by two for the explicit `pg_trgm` runtime grant/audit coverage and the
 bidirectional provisioning-inventory guard. Raw-left stays at zero because this
 was post-raw hidden-issue hardening, not closure of a remaining raw allegation.
 
+### Entry 512 - RLS policy activation audit hardening
+
+Entry 512 reviewed a fresh Opus read-only sweep as junior input, then parent
+Codex independently checked the current grant audit, RLS context gate, helper
+contract, RLS docs, and tests. Latest pushed CI on `main` was green for
+`ad7e2ab6` (`28980941219`) before editing. The highest-value finding was real:
+the live grant audit checked role/grant/default-privilege posture but did not
+inspect whether a tracked app table with RLS policies actually had
+`ENABLE ROW LEVEL SECURITY` and `FORCE ROW LEVEL SECURITY` set. A policy without
+table-level RLS enabled is inert, and missing `FORCE` can hide owner-bypass
+behavior in migration-owner tests.
+
+Fixed/reduced:
+
+- `scripts/audit-runtime-db-grants.mjs` now queries `pg_policy` plus
+  `pg_class.relrowsecurity` / `relforcerowsecurity` for tracked public app
+  tables and reports an issue when a table has policies but lacks either
+  `ENABLE ROW LEVEL SECURITY` or `FORCE ROW LEVEL SECURITY`.
+- `tests/db-grant-inventory.test.mjs` now pins the new catalog query and adds
+  synthetic Postgres fixture cases for policy-without-enable,
+  policy-with-enable-without-force, and policy-with-enable-and-force.
+- `src/lib/dbUserContext.ts` and `CLAUDE.md` now warn future callers to keep
+  the RLS context callback DB-only and fast, with no external/network awaits
+  inside the pinned interactive transaction. `tests/db-user-context.test.mjs`
+  guards that local contract.
+- `docs/db-defense-in-depth-plan.md` and `docs/runbook.md` now distinguish the
+  staging context gate's read/context-isolation proof from per-table
+  write-policy behavior. Passing the synthetic canary gate is not treated as
+  proof that asymmetric Notification `INSERT`/`DELETE` behavior works.
+
+Verified current or deliberately deferred without source changes:
+
+- Production RLS remains disabled. No real app table policies were added or
+  enabled in this pass.
+- Opus's missing wrapper-coverage guard is a real first-policy risk, but not a
+  current defect while the helper is dormant and current routes intentionally
+  still use raw Prisma reads. The guard should be added with the first
+  table-specific route migration so CI can fail on new unwrapped reads without
+  allowlisting every current pre-RLS call site.
+- Opus's service/cross-user write-path concern is already the documented
+  Notification sequencing rule. No service bypass helper was added here because
+  the write strategy must be chosen with the actual Notification policy
+  migration; building a bypass before the strategy is selected would create
+  unused security surface.
+- The live staging gate against a production-like Neon pooled runtime role
+  remains the go/no-go before any table policy or hot-path wrapper is enabled.
+
+Guardrails added/reviewed:
+
+- Extended `tests/db-grant-inventory.test.mjs`,
+  `tests/db-user-context.test.mjs`, and `tests/rls-context-gate.test.mjs`.
+- Re-ran the existing RLS feasibility plan guardrails alongside the grant audit,
+  helper, and context-gate tests.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 3` confirmed latest
+pushed CI on `main` was green for `ad7e2ab6` (`28980941219`);
+source/docs/test inspection with `rg`/`sed`; `node --check
+scripts/audit-runtime-db-grants.mjs`; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/db-grant-inventory.test.mjs tests/db-user-context.test.mjs
+tests/rls-context-gate.test.mjs tests/rls-feasibility-plan.test.mjs` passed
+30/32 with the expected local GitHub-only Postgres skips; `npx tsc --noEmit`;
+`git diff --check`; `npm run lint` exited 0 with the known jsx-ast-utils
+TSNonNullExpression warning; `npm audit --audit-level=high` found 0
+vulnerabilities; and full `npm test` passed 1485/1487 with the expected local
+skips. Local `npm run build` was not rerun because recent local builds compile
+and then fail sitemap page-data collection against the configured unreachable
+Neon endpoint; production build completion remains to be verified by pushed
+CI's local Postgres build.
+
+Current running tally after Entry 512: verified fixed/reduced 1012, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by two for the RLS policy activation audit check and the helper
+DB-only callback contract. The gate write-policy scope note is counted as
+supporting guardrail documentation, not a separate finding. Deferred stays flat
+because the wrapper-coverage guard, service/write strategy, live staging gate,
+route-level prototype tests, and actual Notification/SavedSearch policies remain
+future execution work already represented in the RLS backlog. Raw-left stays at
+zero because this was post-raw hardening, not closure of a raw allegation.
+
+Remaining major categories are still the deferred launch/runtime/legal/product
+evidence backlog, not open raw source allegations: live RLS staging gate
+execution plus route-level prototype tests before any table policy, Stripe
+refund runtime reconciliation/backfill proof, Stripe partial-refund live
+reconciliation proof, label clawback runtime reconciliation evidence, Stripe
+webhook subscription dashboard evidence, Stripe Connect v2 loss-liability
+ops/legal decision, explicit stale remote branch pruning/review, Round 10
+cache/state-machine product designs, EXPLAIN-dependent runtime query-plan
+validation, provider-side privacy erasure/legal-request evidence, cross-seller
+AI duplicate-detection product design, durable checkout-group product semantics
+beyond current guardrails, high-scale BigInt money/counter modeling decisions,
+live-data reconciliation for historical seller shipping-rate currency drift,
+Clerk staff MFA/breached-password/multi-account dashboard evidence,
+buyer-deletion live Stripe replay proof, Founding Maker live DB concurrency
+proof, Sentry cron alert evidence, Cloudflare R2 ListBucket/public bucket
+posture plus production smoke/public-availability proof, HSTS preload
+submission/status, Vercel Analytics/Speed Insights product privacy decision,
+homepage browser a11y/runtime proof, and deployed security-header runtime
+proof.
+
 ### Entry 511 - RLS user-context serializable retry hardening
 
 Entry 511 reviewed Claude's read-only report on the dormant RLS user-context

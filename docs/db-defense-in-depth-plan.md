@@ -221,6 +221,10 @@ Implementation goals:
   currently untracked non-public schemas. This keeps the audit focused on the
   declared least-privilege ownership model instead of only checking current
   table DML.
+- The audit fails if a tracked public app table has RLS policies but does not
+  have both `ENABLE ROW LEVEL SECURITY` and `FORCE ROW LEVEL SECURITY`. A policy
+  without table-level RLS enabled is inert, and missing `FORCE` can hide owner
+  bypass behavior in migration-owner tests.
 - Function/type default-privilege checks are conditional on source migrations
   revoking `PUBLIC` through `ALTER DEFAULT PRIVILEGES` for functions or types;
   object-level revokes on existing functions/types do not imply a future default
@@ -285,7 +289,10 @@ Current reviewed staging harness:
   concurrency measurements, and the latency / connection-hold thresholds below.
 - The script is staging-only evidence. Passing it does not enable RLS, does not
   replace route-level happy-path tests, and does not prove hot-path performance
-  for tables that are not in the synthetic canary.
+  for tables that are not in the synthetic canary. It proves read/context
+  isolation for the synthetic canary only; per-table write-policy behavior, such
+  as asymmetric Notification `INSERT`/`DELETE`, still needs migration-level
+  tests before a real table policy is enabled.
 - To create or refresh the canary table/policy in staging:
   `RLS_CONTEXT_GATE_CONFIRM=staging-only RLS_CONTEXT_GATE_PREPARE=1 RLS_CONTEXT_GATE_ADMIN_DATABASE_URL="$DIRECT_URL" RLS_CONTEXT_GATE_DATABASE_URL="<pooled runtime-role URL>" RLS_CONTEXT_GATE_RUNTIME_ROLE=grainline_app_runtime npm run audit:rls-context`
 - To run against an already prepared staging canary:
