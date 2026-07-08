@@ -13918,7 +13918,9 @@ jsx-ast-utils TSNonNullExpression warning; `npm audit --audit-level=high` found
 local skips. Local `npm run build` was not rerun because the prior local build
 compiled but failed sitemap page-data collection against an unreachable
 configured Neon endpoint; production build completion remains to be verified by
-pushed CI's local Postgres build.
+pushed CI's local Postgres build. After push, CI for `8839d8e2`
+(`28978697515`) passed typecheck, lint, tests, security audit, and production
+build on `main`.
 
 Current running tally after Entry 510: verified fixed/reduced 1008, verified
 stale/false-positive/current 579, deferred product/design/ops/legal 87,
