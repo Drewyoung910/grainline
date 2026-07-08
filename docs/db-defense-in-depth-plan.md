@@ -267,6 +267,94 @@ Hard-gate tests:
   concurrency; every protected read adds transaction setup and must not lower
   the pool's saturation point enough to affect launch-critical traffic.
 
+### Staging Pooling/Context-Isolation Acceptance Spec
+
+Run this proof against a staging or preview Neon branch that uses the same
+connection shape as production: Prisma with `@prisma/adapter-pg`, the app `pg`
+pool, and pooled runtime-role `DATABASE_URL`. A local direct Postgres test or a
+`DIRECT_URL` migration-owner test is useful for development, but it is not
+acceptance evidence for RLS rollout.
+
+Evidence to record with the run:
+
+- commit SHA and CI run id for the app under test;
+- staging database or branch name;
+- sanitized migration/runtime role names and confirmation that the runtime role
+  is the role behind pooled `DATABASE_URL`;
+- Prisma transaction `timeout` and `maxWait`, app `pg` pool size, Neon pool
+  settings, target concurrency, burst concurrency, sample size, and warmup
+  count;
+- prototype table/policy names and whether `FORCE ROW LEVEL SECURITY` is
+  enabled in staging;
+- baseline and wrapped latency/connection metrics, plus any failed request ids
+  or Sentry event ids.
+
+Correctness pass/fail conditions:
+
+- Unwrapped runtime-role reads with unset `app.user_id` return zero protected
+  rows for each prototype table.
+- Inside the wrapper, the first statement is
+  `set_config('app.user_id', $userId, true)`, and
+  `current_setting('app.user_id', true)` equals the expected user id before the
+  first protected query runs.
+- User A context returns only User A rows; User B context returns only User B
+  rows; neither context can observe the other's protected rows.
+- After commit and after rollback, a borrowed pooled connection returns null or
+  empty `current_setting('app.user_id', true)`, and protected reads return zero
+  rows until a new transaction-local context is set.
+- Explicitly empty `app.user_id` via `set_config('app.user_id', '', true)`
+  returns zero protected rows and must not match nullable, missing, or empty
+  owner ids.
+- Concurrent transactions for at least two distinct users run repeatedly through
+  the pooled `DATABASE_URL` without cross-user row visibility or context
+  leakage.
+- Serializable retry tests force at least one retry and prove
+  `set_config('app.user_id', ..., true)` ran inside every retried transaction
+  callback before any protected query.
+- Any helper path that uses RLS context must keep protected queries on the
+  transaction client and must reject or avoid `Promise.all`/parallel Prisma
+  queries inside the interactive transaction.
+- Route-level happy paths for the prototype tables still return the current
+  user's rows. DB denial tests alone are not enough because a missing wrapper can
+  fail closed silently.
+- Rollback proof shows that disabling RLS at the database layer leaves the
+  transaction-local context wrapper harmless and keeps route-level happy paths
+  passing.
+
+Performance and pool-safety stop conditions:
+
+- Compare each wrapped protected-read path with the same path's unwrapped
+  staging baseline under the same data volume, pool settings, and concurrency.
+- Use enough warm requests for stable p95/p99 measurements; the default minimum
+  is 500 measured requests per path after warmup unless the path is too rare to
+  exercise safely, in which case record the smaller sample and do not widen RLS
+  to hot paths from that evidence alone.
+- Run both target launch concurrency and a 2x burst. If no launch target exists
+  yet, choose and record a conservative staging target before the run rather than
+  retrofitting thresholds after seeing results.
+- Stop widening RLS if wrapped protected-read p95 latency is more than 2x
+  baseline or increases by more than 100ms, whichever fails first.
+- Stop widening RLS if wrapped protected-read p99 latency is more than 3x
+  baseline or increases by more than 250ms, whichever fails first.
+- Stop widening RLS if any normal protected happy path hits Prisma interactive
+  transaction `timeout` or `maxWait`, or returns a transaction-closed error such
+  as `P2028`.
+- Stop widening RLS if connection acquisition wait is above 100ms at p95 or
+  above 250ms at p99 at target concurrency, or if burst traffic causes queued
+  requests, pool exhaustion, or timeout errors that the baseline path did not
+  show.
+- Stop widening RLS if average connection-hold time for protected reads is more
+  than 2x baseline or p99 hold time exceeds 50% of the configured interactive
+  transaction timeout.
+- Stop widening RLS if protected happy-path error rate exceeds 0.1% in the
+  measured run, if any authorization mismatch appears, or if two consecutive
+  runs on the same commit/config do not produce the same pass/fail result.
+
+If this acceptance spec fails, keep app-layer authorization plus the
+least-privilege runtime role as the active database defense. Fix the root cause
+and rerun the full staging gate before adding new RLS-protected tables or
+wrapping hotter paths.
+
 Stop condition:
 
 - If any context proof is flaky under the Neon pooler plus Prisma adapter/pool,

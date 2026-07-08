@@ -187,6 +187,24 @@ Production migration rules:
 - Avoid rolling back to an app version that cannot read the current schema.
 - For failed migrations, stop deploys, inspect the migration in Neon, and ship a forward migration whenever possible.
 
+RLS staging context proof:
+
+- Before enabling RLS on any additional table or wrapping hotter read paths,
+  run the staging pooling/context-isolation acceptance spec in
+  `docs/db-defense-in-depth-plan.md` against a production-like Neon branch that
+  uses the pooled runtime-role `DATABASE_URL`.
+- Retain the commit SHA, CI run id, staging branch, sanitized role names,
+  Prisma transaction `timeout`/`maxWait`, app `pg` pool size, Neon pool
+  settings, target and burst concurrency, sample size, prototype table/policy
+  names, baseline/wrapped p95 and p99 latency, connection acquisition wait,
+  connection-hold time, pool-saturation result, and any failed request or Sentry
+  event ids.
+- Treat a correctness failure, context leak, `Promise.all`/parallel query inside
+  an interactive RLS transaction, Prisma transaction timeout/`maxWait`, pool
+  saturation, or flaky repeated result as a stop signal. Keep app-layer
+  authorization plus the least-privilege runtime role as the active database
+  defense until the root cause is fixed and the full staging gate passes again.
+
 ## Cron and Email Outbox
 
 1. Check the hourly `/api/cron/ops-health` Sentry warning first; it polls failed `CronRun` rows from the last 24 hours, completed cron rows with partial record failures, stale `RUNNING` cron rows, stale email outbox jobs, dead email outbox jobs, overdue support requests, failed or stale unprocessed `StripeWebhookEvent`, `ResendWebhookEvent`, and `ClerkWebhookEvent` rows, and failed or stale `AccountDeletionSideEffect` rows. Completed cron partial failures include non-empty `failures`/`errors` arrays plus positive scalar `failed`, `manualReview`, or `partialIssueCount` counters. Also check webhook failure spike alerts for repeated provider edge failures.

@@ -41,6 +41,30 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(defense, /set_config` wrapper as a harmless no-op/);
   });
 
+  it("defines concrete staging pass/fail criteria for pooled request context", () => {
+    const defense = source("docs/db-defense-in-depth-plan.md");
+    const runbook = source("docs/runbook.md");
+
+    assert.match(defense, /Staging Pooling\/Context-Isolation Acceptance Spec/);
+    assert.match(defense, /pooled runtime-role `DATABASE_URL`/);
+    assert.match(defense, /current_setting\('app\.user_id', true\)/);
+    assert.match(defense, /Explicitly empty `app\.user_id`/);
+    assert.match(defense, /Concurrent transactions[\s\S]*distinct users[\s\S]*pooled `DATABASE_URL`/);
+    assert.match(defense, /Serializable retry tests force at least one retry/);
+    assert.match(defense, /Promise\.all/);
+    assert.match(defense, /p95 latency is more than 2x\s+baseline or increases by more than 100ms/);
+    assert.match(defense, /p99 latency is more than 3x\s+baseline or increases by more than 250ms/);
+    assert.match(defense, /Prisma interactive\s+transaction `timeout` or `maxWait`/);
+    assert.match(defense, /P2028/);
+    assert.match(defense, /connection acquisition wait is above 100ms at p95/);
+    assert.match(defense, /p99 hold time exceeds 50%/);
+    assert.match(defense, /two consecutive\s+runs on the same commit\/config/);
+    assert.match(runbook, /RLS staging context proof/);
+    assert.match(runbook, /pooling\/context-isolation acceptance spec/);
+    assert.match(runbook, /baseline\/wrapped p95 and p99 latency/);
+    assert.match(runbook, /flaky repeated result as a stop signal/);
+  });
+
   it("keeps public discovery tables out of the first RLS pass", () => {
     const plan = source("docs/rls-feasibility-plan.md");
 
