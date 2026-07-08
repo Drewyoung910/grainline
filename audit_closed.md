@@ -13926,7 +13926,9 @@ baseline wording; `npx tsc --noEmit`; `git diff --check`; `npm run lint` exited
 1479/1481 with the expected local skips. Local `npm run build` compiled
 successfully but failed during sitemap page-data collection with Prisma `P1001`
 because the configured Neon database endpoint was unreachable, so build
-completion remains to be verified by pushed CI's local Postgres build.
+completion was verified by pushed CI's local Postgres build. After push, CI for
+`8683659d` (`28976405079`) passed typecheck, lint, tests, security audit, and
+production build on `main`.
 
 Current running tally after Entry 509: verified fixed/reduced 1007, verified
 stale/false-positive/current 579, deferred product/design/ops/legal 87,
