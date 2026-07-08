@@ -13895,8 +13895,9 @@ passed 8/9 with the expected local GitHub-only Postgres skip; `npx tsc
 --noEmit`; `git diff --check`; `npm run lint` exited 0 with the known
 jsx-ast-utils TSNonNullExpression warning; `npm audit --audit-level=high` found
 0 vulnerabilities; and full `npm test` passed 1485/1487 with the expected local
-GitHub-only Postgres skips. The CI-only Postgres integration path still requires
-the next pushed Actions run for final proof.
+GitHub-only Postgres skips. After push, CI for `aa4bb064` (`28983697256`)
+passed typecheck, lint, tests, security audit, and production build on `main`,
+including the CI-only synthetic Postgres grant-audit integration path.
 
 Current running tally after Entry 513: verified fixed/reduced 1013, verified
 stale/false-positive/current 579, deferred product/design/ops/legal 87,
