@@ -13859,6 +13859,103 @@ increases by two for the explicit `pg_trgm` runtime grant/audit coverage and the
 bidirectional provisioning-inventory guard. Raw-left stays at zero because this
 was post-raw hidden-issue hardening, not closure of a remaining raw allegation.
 
+### Entry 509 - RLS context gate baseline hardening
+
+Entry 509 reviewed Claude's follow-up as junior read-only input, then parent
+Codex independently checked the RLS context gate code, docs, tests, and current
+CI state before changing anything. The substantive baseline concern was real:
+the prior "baseline" workload was already wrapped in `BEGIN`/`COMMIT`, so it
+measured mostly marginal `set_config` overhead instead of the adoption cost of
+moving current app reads into interactive transactions. Latest pushed CI on
+`main` was green for `a7b31ed6` (`28915569351`) before editing.
+
+Fixed/reduced:
+
+- The RLS context gate now measures autocommit denied-read baselines in both
+  raw `pg` and Prisma adapter paths, while retaining the existing
+  transaction-wrapped unset-context baseline. The gate reports and compares
+  target/burst wrapped reads against both baselines, with explicit
+  "autocommit adoption cost" labels so staging evidence separates context
+  overhead from the broader cost of adopting interactive transactions.
+- Warmup and single-sample checks now include autocommit denied reads, and the
+  workload runners fail loudly on unknown modes instead of silently treating
+  typos as wrapped reads.
+- `tests/rls-context-gate.test.mjs` now pins the autocommit paths and adds a
+  GitHub-only synthetic Postgres orchestration smoke. The smoke creates a
+  temporary runtime role and canary schema, runs `runAcceptanceGate()` with a
+  deliberately tiny non-acceptance sample, verifies non-performance issues are
+  clean, and checks the new autocommit reports. This proves the full script
+  orchestration in CI without pretending local Postgres is Neon pooler
+  acceptance evidence.
+- `docs/db-defense-in-depth-plan.md` and `docs/runbook.md` now require
+  retaining autocommit baseline, transaction baseline, and wrapped metrics. The
+  docs explicitly state that the transaction baseline isolates context-setting
+  overhead, while the autocommit baseline captures the adoption cost of moving
+  current app reads into interactive transactions.
+
+Verified stale/current or deferred without source changes:
+
+- Production RLS remains disabled. This pass hardens the staging gate and CI
+  smoke coverage only; the real go/no-go remains the production-like Neon
+  staging run plus route-level prototype tests before any customer table policy
+  is widened.
+- Claude's minor note about repeated-run agreement was a wording precision
+  issue rather than a source bug: the gate still treats flaky repeated
+  pass/fail outcomes as a documented stop signal, but it does not require
+  byte-identical metrics across runs.
+
+Guardrails added/reviewed:
+
+- Extended `tests/rls-context-gate.test.mjs` for autocommit raw `pg` and Prisma
+  baselines, autocommit adoption-cost labels, docs/runbook coupling, and the
+  GitHub-only synthetic orchestration smoke.
+- Updated `tests/rls-feasibility-plan.test.mjs` to guard the new runbook
+  wording instead of the older baseline/wrapped phrasing.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 3` confirmed latest
+pushed CI on `main` was green for `a7b31ed6` (`28915569351`); source/docs/test
+inspection with `rg`/`sed`; `node --check
+scripts/rls-context-acceptance-gate.mjs`; focused `node --test
+tests/rls-context-gate.test.mjs tests/rls-feasibility-plan.test.mjs
+tests/audit-ledger-coupling.test.mjs` passed 18/19 with the expected local
+GitHub-only Postgres smoke skip after one assertion update from the old
+baseline wording; `npx tsc --noEmit`; `git diff --check`; `npm run lint` exited
+0 with the known jsx-ast-utils TSNonNullExpression warning; `npm audit
+--audit-level=high` found 0 vulnerabilities; and full `npm test` passed
+1479/1481 with the expected local skips. Local `npm run build` compiled
+successfully but failed during sitemap page-data collection with Prisma `P1001`
+because the configured Neon database endpoint was unreachable, so build
+completion remains to be verified by pushed CI's local Postgres build.
+
+Current running tally after Entry 509: verified fixed/reduced 1007, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the RLS context gate baseline hardening. Deferred stays
+flat because the live staging gate, route-level prototype tests, and actual
+Notification/SavedSearch policies remain future execution work. Raw-left stays
+at zero because this was post-raw hardening, not closure of a raw allegation.
+
+Remaining major categories are still the deferred launch/runtime/legal/product
+evidence backlog, not open raw source allegations: live RLS staging gate
+execution plus route-level prototype tests before any table policy, Stripe
+refund runtime reconciliation/backfill proof, Stripe partial-refund live
+reconciliation proof, label clawback runtime reconciliation evidence, Stripe
+webhook subscription dashboard evidence, Stripe Connect v2 loss-liability
+ops/legal decision, explicit stale remote branch pruning/review, Round 10
+cache/state-machine product designs, EXPLAIN-dependent runtime query-plan
+validation, provider-side privacy erasure/legal-request evidence, cross-seller
+AI duplicate-detection product design, durable checkout-group product semantics
+beyond current guardrails, high-scale BigInt money/counter modeling decisions,
+live-data reconciliation for historical seller shipping-rate currency drift,
+Clerk staff MFA/breached-password/multi-account dashboard evidence,
+buyer-deletion live Stripe replay proof, Founding Maker live DB concurrency
+proof, Sentry cron alert evidence, Cloudflare R2 ListBucket/public bucket
+posture plus production smoke/public-availability proof, HSTS preload
+submission/status, Vercel Analytics/Speed Insights product privacy decision,
+homepage browser a11y/runtime proof, and deployed security-header runtime
+proof.
+
 ### Entry 508 - RLS context gate tooling
 
 Entry 508 followed the slow RLS/security path after the raw allegation queue

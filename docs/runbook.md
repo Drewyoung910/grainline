@@ -225,9 +225,10 @@ RLS staging context proof:
   Prisma transaction `timeout`/`maxWait`, app `pg` pool size, Neon pool
   settings, Prisma adapter/`pg` package versions, target and burst concurrency,
   sample size, connection turnover/recycling method, prototype table/policy
-  names, baseline/wrapped p95 and p99 latency, connection acquisition wait,
-  connection-hold time, pool-saturation result, prepared-statement/cached-plan
-  error scan result, and any failed request or Sentry event ids.
+  names, autocommit baseline, transaction baseline, and wrapped p95/p99
+  latency, connection acquisition wait, connection-hold time, pool-saturation
+  result, prepared-statement/cached-plan error scan result, and any failed
+  request or Sentry event ids.
 - Treat a correctness failure, context leak, `Promise.all`/parallel query inside
   an interactive RLS transaction, Prisma transaction timeout/`maxWait`, pool
   saturation, prepared-statement/cached-plan/protocol error, connection-recycle

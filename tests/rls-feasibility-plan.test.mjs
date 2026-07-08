@@ -69,7 +69,7 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(defense, /synthetic canary/);
     assert.match(runbook, /RLS staging context proof/);
     assert.match(runbook, /pooling\/context-isolation acceptance spec/);
-    assert.match(runbook, /baseline\/wrapped p95 and p99 latency/);
+    assert.match(runbook, /autocommit baseline, transaction baseline, and wrapped p95\/p99/);
     assert.match(runbook, /connection turnover\/recycling method/);
     assert.match(runbook, /prepared-statement\/cached-plan\s+error scan result/);
     assert.match(runbook, /flaky repeated result as a stop signal/);

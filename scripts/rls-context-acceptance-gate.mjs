@@ -395,7 +395,7 @@ async function timedBaselineDeniedRead(pool, config, label = "baseline denied re
   }
 }
 
-async function timedOutsideTransactionDeniedRead(pool, config) {
+async function timedAutocommitDeniedRead(pool, config, label = "autocommit denied read") {
   const startedAt = performance.now();
   const acquireStartedAt = performance.now();
   const client = await pool.connect();
@@ -406,17 +406,21 @@ async function timedOutsideTransactionDeniedRead(pool, config) {
     const finishedAt = performance.now();
     const issues = [];
     if (normalizeSetting(setting.rows[0]?.user_id) !== "") {
-      issues.push(`outside transaction: unset app.user_id was ${setting.rows[0]?.user_id}`);
+      issues.push(`${label}: unset app.user_id was ${setting.rows[0]?.user_id}`);
     }
     if (rows.rows.length !== 0) {
-      issues.push(`outside transaction: unset app.user_id returned ${rows.rows.length} rows`);
+      issues.push(`${label}: unset app.user_id returned ${rows.rows.length} rows`);
     }
-    return sample({ acquiredAt, acquireStartedAt, finishedAt, issues, label: "outside transaction denied read", startedAt });
+    return sample({ acquiredAt, acquireStartedAt, finishedAt, issues, label, startedAt });
   } catch (error) {
-    return sample({ acquiredAt, acquireStartedAt, error, label: "outside transaction denied read", startedAt });
+    return sample({ acquiredAt, acquireStartedAt, error, label, startedAt });
   } finally {
     client.release();
   }
+}
+
+async function timedOutsideTransactionDeniedRead(pool, config) {
+  return timedAutocommitDeniedRead(pool, config, "outside transaction denied read");
 }
 
 async function timedEmptyContextRead(pool, config) {
@@ -574,6 +578,25 @@ async function timedPrismaBaselineDeniedRead(prisma, config, label = "prisma bas
   }
 }
 
+async function timedPrismaAutocommitDeniedRead(prisma, config, label = "prisma autocommit denied read") {
+  const startedAt = performance.now();
+  try {
+    const setting = await prisma.$queryRawUnsafe("SELECT current_setting('app.user_id', true) AS user_id");
+    const rows = await prisma.$queryRawUnsafe(buildSelectSql(config));
+    const finishedAt = performance.now();
+    const issues = [];
+    if (normalizeSetting(setting[0]?.user_id) !== "") {
+      issues.push(`${label}: unset app.user_id was ${setting[0]?.user_id}`);
+    }
+    if (rows.length !== 0) {
+      issues.push(`${label}: unset app.user_id returned ${rows.length} rows`);
+    }
+    return sample({ acquiredAt: startedAt, acquireStartedAt: startedAt, finishedAt, issues, label, startedAt });
+  } catch (error) {
+    return sample({ acquiredAt: startedAt, acquireStartedAt: startedAt, error, label, startedAt });
+  }
+}
+
 async function timedPrismaEmptyContextRead(prisma, config) {
   const label = "prisma empty context denied read";
   const startedAt = performance.now();
@@ -698,11 +721,20 @@ async function runPrismaWorkload(prisma, config, { concurrency, label, mode, req
       const index = next;
       next += 1;
       if (index >= requests) return;
-      if (mode === "baseline") {
-        samples.push(await timedPrismaBaselineDeniedRead(prisma, config, label));
-      } else {
-        const userId = index % 2 === 0 ? config.userA : config.userB;
-        samples.push(await timedPrismaWrappedRead(prisma, config, userId, label));
+      switch (mode) {
+        case "baseline":
+          samples.push(await timedPrismaBaselineDeniedRead(prisma, config, label));
+          break;
+        case "autocommit":
+          samples.push(await timedPrismaAutocommitDeniedRead(prisma, config, label));
+          break;
+        case "wrapped": {
+          const userId = index % 2 === 0 ? config.userA : config.userB;
+          samples.push(await timedPrismaWrappedRead(prisma, config, userId, label));
+          break;
+        }
+        default:
+          throw new Error(`Unknown Prisma RLS gate workload mode: ${mode}`);
       }
     }
   });
@@ -766,11 +798,20 @@ async function runWorkload(pool, config, { concurrency, label, mode, requests })
       const index = next;
       next += 1;
       if (index >= requests) return;
-      if (mode === "baseline") {
-        samples.push(await timedBaselineDeniedRead(pool, config, label));
-      } else {
-        const userId = index % 2 === 0 ? config.userA : config.userB;
-        samples.push(await timedWrappedRead(pool, config, userId, { label, prepared: true }));
+      switch (mode) {
+        case "baseline":
+          samples.push(await timedBaselineDeniedRead(pool, config, label));
+          break;
+        case "autocommit":
+          samples.push(await timedAutocommitDeniedRead(pool, config, label));
+          break;
+        case "wrapped": {
+          const userId = index % 2 === 0 ? config.userA : config.userB;
+          samples.push(await timedWrappedRead(pool, config, userId, { label, prepared: true }));
+          break;
+        }
+        default:
+          throw new Error(`Unknown RLS gate workload mode: ${mode}`);
       }
     }
   });
@@ -902,6 +943,7 @@ export async function runAcceptanceGate(config) {
 
     for (const check of [
       await timedOutsideTransactionDeniedRead(pool, config),
+      await timedAutocommitDeniedRead(pool, config, "single autocommit denied read"),
       await timedBaselineDeniedRead(pool, config, "single baseline denied read"),
       await timedEmptyContextRead(pool, config),
       await timedWrappedRead(pool, config, config.userA, { label: "single user A wrapped read", prepared: false }),
@@ -917,6 +959,12 @@ export async function runAcceptanceGate(config) {
     reports.push("synthetic retry probe attempts=2");
 
     if (config.warmupRequests > 0) {
+      const warmupAutocommitBaseline = await runWorkload(pool, config, {
+        concurrency: Math.min(config.targetConcurrency, config.poolSize),
+        label: "warmup autocommit baseline",
+        mode: "autocommit",
+        requests: config.warmupRequests,
+      });
       const warmupBaseline = await runWorkload(pool, config, {
         concurrency: Math.min(config.targetConcurrency, config.poolSize),
         label: "warmup baseline",
@@ -929,8 +977,8 @@ export async function runAcceptanceGate(config) {
         mode: "wrapped",
         requests: config.warmupRequests,
       });
-      issues.push(...warmupBaseline.issues, ...warmupWrapped.issues);
-      if (warmupBaseline.errors.length > 0 || warmupWrapped.errors.length > 0) {
+      issues.push(...warmupAutocommitBaseline.issues, ...warmupBaseline.issues, ...warmupWrapped.issues);
+      if (warmupAutocommitBaseline.errors.length > 0 || warmupBaseline.errors.length > 0 || warmupWrapped.errors.length > 0) {
         issues.push("warmup produced request errors");
       }
     }
@@ -938,6 +986,7 @@ export async function runAcceptanceGate(config) {
     const prismaProbe = createPrismaProbe(config, { max: Math.min(config.targetConcurrency, config.poolSize) });
     try {
       for (const check of [
+        await timedPrismaAutocommitDeniedRead(prismaProbe.prisma, config, "single prisma autocommit denied read"),
         await timedPrismaBaselineDeniedRead(prismaProbe.prisma, config, "single prisma baseline denied read"),
         await timedPrismaEmptyContextRead(prismaProbe.prisma, config),
         await timedPrismaWrappedRead(prismaProbe.prisma, config, config.userA, "single prisma user A wrapped read"),
@@ -951,6 +1000,12 @@ export async function runAcceptanceGate(config) {
       issues.push(...prismaRetry.issues);
       reports.push("Prisma adapter synthetic retry probe attempts=2");
 
+      const prismaTargetAutocommitBaseline = await runPrismaWorkload(prismaProbe.prisma, config, {
+        concurrency: Math.min(config.targetConcurrency, config.poolSize),
+        label: "Prisma target autocommit baseline",
+        mode: "autocommit",
+        requests: config.measuredRequests,
+      });
       const prismaTargetBaseline = await runPrismaWorkload(prismaProbe.prisma, config, {
         concurrency: Math.min(config.targetConcurrency, config.poolSize),
         label: "Prisma target baseline",
@@ -961,6 +1016,12 @@ export async function runAcceptanceGate(config) {
         concurrency: Math.min(config.targetConcurrency, config.poolSize),
         label: "Prisma target wrapped",
         mode: "wrapped",
+        requests: config.measuredRequests,
+      });
+      const prismaBurstAutocommitBaseline = await runPrismaWorkload(prismaProbe.prisma, config, {
+        concurrency: Math.min(config.burstConcurrency, config.poolSize),
+        label: "Prisma burst autocommit baseline",
+        mode: "autocommit",
         requests: config.measuredRequests,
       });
       const prismaBurstBaseline = await runPrismaWorkload(prismaProbe.prisma, config, {
@@ -975,15 +1036,30 @@ export async function runAcceptanceGate(config) {
         mode: "wrapped",
         requests: config.measuredRequests,
       });
-      for (const workload of [prismaTargetBaseline, prismaTargetWrapped, prismaBurstBaseline, prismaBurstWrapped]) {
+      for (const workload of [
+        prismaTargetAutocommitBaseline,
+        prismaTargetBaseline,
+        prismaTargetWrapped,
+        prismaBurstAutocommitBaseline,
+        prismaBurstBaseline,
+        prismaBurstWrapped,
+      ]) {
         reports.push(formatSummary(workload));
       }
       issues.push(...compareWorkloads("Prisma target concurrency", prismaTargetBaseline, prismaTargetWrapped, config));
+      issues.push(...compareWorkloads("Prisma target autocommit adoption cost", prismaTargetAutocommitBaseline, prismaTargetWrapped, config));
       issues.push(...compareWorkloads("Prisma burst concurrency", prismaBurstBaseline, prismaBurstWrapped, config));
+      issues.push(...compareWorkloads("Prisma burst autocommit adoption cost", prismaBurstAutocommitBaseline, prismaBurstWrapped, config));
     } finally {
       await disconnectPrismaProbe(prismaProbe);
     }
 
+    const targetAutocommitBaseline = await runWorkload(pool, config, {
+      concurrency: Math.min(config.targetConcurrency, config.poolSize),
+      label: "target autocommit baseline",
+      mode: "autocommit",
+      requests: config.measuredRequests,
+    });
     const targetBaseline = await runWorkload(pool, config, {
       concurrency: Math.min(config.targetConcurrency, config.poolSize),
       label: "target baseline",
@@ -1002,6 +1078,12 @@ export async function runAcceptanceGate(config) {
       mode: "wrapped",
       requests: config.measuredRequests,
     });
+    const burstAutocommitBaseline = await runWorkload(pool, config, {
+      concurrency: Math.min(config.burstConcurrency, config.poolSize),
+      label: "burst autocommit baseline",
+      mode: "autocommit",
+      requests: config.measuredRequests,
+    });
     const burstBaseline = await runWorkload(pool, config, {
       concurrency: Math.min(config.burstConcurrency, config.poolSize),
       label: "burst baseline",
@@ -1015,12 +1097,23 @@ export async function runAcceptanceGate(config) {
       requests: config.measuredRequests,
     });
 
-    for (const workload of [targetBaseline, targetWrapped, targetWrappedRepeat, burstBaseline, burstWrapped]) {
+    for (const workload of [
+      targetAutocommitBaseline,
+      targetBaseline,
+      targetWrapped,
+      targetWrappedRepeat,
+      burstAutocommitBaseline,
+      burstBaseline,
+      burstWrapped,
+    ]) {
       reports.push(formatSummary(workload));
     }
     issues.push(...compareWorkloads("target concurrency", targetBaseline, targetWrapped, config));
+    issues.push(...compareWorkloads("target autocommit adoption cost", targetAutocommitBaseline, targetWrapped, config));
     issues.push(...compareWorkloads("target repeat", targetBaseline, targetWrappedRepeat, config));
+    issues.push(...compareWorkloads("target repeat autocommit adoption cost", targetAutocommitBaseline, targetWrappedRepeat, config));
     issues.push(...compareWorkloads("burst concurrency", burstBaseline, burstWrapped, config));
+    issues.push(...compareWorkloads("burst autocommit adoption cost", burstAutocommitBaseline, burstWrapped, config));
   } finally {
     await pool.end();
   }

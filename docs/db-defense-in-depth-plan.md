@@ -281,8 +281,8 @@ Current reviewed staging harness:
   used by the app, raw `pg` prepared-statement probes, connection recycle
   probes, an admin-URL-gated rollback/no-op probe that temporarily disables RLS
   on the synthetic canary and restores `ENABLE`/`FORCE ROW LEVEL SECURITY`,
-  target and burst concurrency measurements, and the latency / connection-hold
-  thresholds below.
+  transaction-wrapped and autocommit baseline measurements, target and burst
+  concurrency measurements, and the latency / connection-hold thresholds below.
 - The script is staging-only evidence. Passing it does not enable RLS, does not
   replace route-level happy-path tests, and does not prove hot-path performance
   for tables that are not in the synthetic canary.
@@ -345,8 +345,8 @@ Evidence to record with the run:
   setting used by the staging harness;
 - prototype table/policy names and whether `FORCE ROW LEVEL SECURITY` is
   enabled in staging;
-- baseline and wrapped latency/connection metrics, plus any failed request ids
-  or Sentry event ids.
+- autocommit baseline, transaction baseline, and wrapped latency/connection
+  metrics, plus any failed request ids or Sentry event ids.
 
 Correctness pass/fail conditions:
 
@@ -391,7 +391,11 @@ Correctness pass/fail conditions:
 Performance and pool-safety stop conditions:
 
 - Compare each wrapped protected-read path with the same path's unwrapped
-  staging baseline under the same data volume, pool settings, and concurrency.
+  autocommit staging baseline and its transaction-wrapped unset-context
+  baseline under the same data volume, pool settings, and concurrency. The
+  transaction baseline isolates context-setting overhead; the autocommit
+  baseline captures the adoption cost of moving current app reads into
+  interactive transactions.
 - Use enough warm requests for stable p95/p99 measurements; the default minimum
   is 500 measured requests per path after warmup unless the path is too rare to
   exercise safely, in which case record the smaller sample and do not widen RLS
