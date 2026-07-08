@@ -199,7 +199,8 @@ Implementation goals:
   mistakes, and default privileges for future tables/sequences/functions/types
   created by the migration role. It also checks that source-derived extensions,
   currently `pg_trgm`, exist and that the runtime role can execute their
-  extension-owned functions.
+  extension-owned functions plus the app-used `similarity()` function and `%`
+  operator backing function.
 - The audit fails if the runtime role and migration role are the same role, if
   the audit connection does not authenticate as the declared migration role, if
   tracked app objects are not owned by the declared migration role, if the

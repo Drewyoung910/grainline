@@ -222,6 +222,10 @@ describe("database grant inventory guardrails", () => {
     assert.match(script, /has_type_privilege/);
     assert.match(script, /pg_extension/);
     assert.match(script, /extension .* lacks EXECUTE/);
+    assert.match(script, /REQUIRED_EXTENSION_RUNTIME_FUNCTIONS/);
+    assert.match(script, /REQUIRED_EXTENSION_RUNTIME_OPERATORS/);
+    assert.match(script, /runtime function .* lacks EXECUTE/);
+    assert.match(script, /runtime operator .* backing function/);
     assert.match(script, /pg_default_acl/);
     assert.match(script, /untracked public table/);
     assert.match(script, /lightweight REVOKE detector/);
@@ -312,7 +316,7 @@ describe("database grant inventory guardrails", () => {
     await withAuditFixture({ createPgTrgmExtension: true, revokePgTrgmExecute: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
       assert.match(
         (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n"),
-        /extension pg_trgm function .*similarity\(text, text\) lacks EXECUTE/,
+        /extension pg_trgm runtime function public\.similarity\(text, text\) lacks EXECUTE/,
       );
     });
   });

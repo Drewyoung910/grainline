@@ -20,6 +20,14 @@ const OBJECT_TYPE_TABLE = "r";
 const OBJECT_TYPE_SEQUENCE = "S";
 const OBJECT_TYPE_FUNCTION = "f";
 const OBJECT_TYPE_TYPE = "T";
+const REQUIRED_EXTENSION_RUNTIME_FUNCTIONS = {
+  pg_trgm: ["public.similarity(text, text)"],
+};
+const REQUIRED_EXTENSION_RUNTIME_OPERATORS = {
+  pg_trgm: [
+    { schema: "public", name: "%", leftType: "text", rightType: "text" },
+  ],
+};
 
 function sortedUnique(values) {
   return [...new Set(values)].sort((a, b) => a.localeCompare(b));
@@ -392,6 +400,92 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
     for (const row of extensionFunctionResult.rows) {
       if (!row.execute_priv) {
         issues.push(`extension ${row.extension_name} function ${row.function_signature} lacks EXECUTE`);
+      }
+    }
+
+    const runtimeFunctionTargets = requiredExtensions.flatMap((extension) =>
+      (REQUIRED_EXTENSION_RUNTIME_FUNCTIONS[extension] ?? [])
+        .map((signature) => ({ extension, signature })),
+    );
+    if (runtimeFunctionTargets.length > 0) {
+      const runtimeFunctionResult = await client.query(
+        `SELECT
+            target.extension_name,
+            target.signature AS function_signature,
+            target.function_oid IS NOT NULL AS exists_priv,
+            CASE
+              WHEN target.function_oid IS NULL THEN false
+              ELSE has_function_privilege($1, target.function_oid, 'EXECUTE')
+            END AS execute_priv
+           FROM (
+             SELECT extension_name, signature, to_regprocedure(signature) AS function_oid
+               FROM unnest($2::text[], $3::text[]) AS target(extension_name, signature)
+           ) target
+          ORDER BY target.extension_name, target.signature`,
+        [
+          runtimeRole,
+          runtimeFunctionTargets.map((target) => target.extension),
+          runtimeFunctionTargets.map((target) => target.signature),
+        ],
+      );
+      for (const row of runtimeFunctionResult.rows) {
+        if (!row.exists_priv) {
+          issues.push(`missing required extension ${row.extension_name} runtime function ${row.function_signature}`);
+        } else if (!row.execute_priv) {
+          issues.push(`extension ${row.extension_name} runtime function ${row.function_signature} lacks EXECUTE`);
+        }
+      }
+    }
+
+    const runtimeOperatorTargets = requiredExtensions.flatMap((extension) =>
+      (REQUIRED_EXTENSION_RUNTIME_OPERATORS[extension] ?? [])
+        .map((operator) => ({ extension, ...operator })),
+    );
+    if (runtimeOperatorTargets.length > 0) {
+      const runtimeOperatorResult = await client.query(
+        `SELECT
+            target.extension_name,
+            format('%I.%s(%s, %s)', target.operator_schema, target.operator_name, target.left_type, target.right_type)
+              AS operator_signature,
+            o.oid IS NOT NULL AS exists_priv,
+            CASE
+              WHEN o.oid IS NULL THEN false
+              ELSE has_function_privilege($1, o.oprcode, 'EXECUTE')
+            END AS execute_priv,
+            CASE
+              WHEN o.oid IS NULL THEN NULL
+              ELSE format('%I.%I(%s)', pn.nspname, p.proname, pg_get_function_identity_arguments(p.oid))
+            END AS function_signature
+           FROM unnest($2::text[], $3::text[], $4::text[], $5::text[], $6::text[])
+             AS target(extension_name, operator_schema, operator_name, left_type, right_type)
+           LEFT JOIN pg_namespace n ON n.nspname = target.operator_schema
+           LEFT JOIN pg_type lt ON lt.oid = to_regtype(target.left_type)
+           LEFT JOIN pg_type rt ON rt.oid = to_regtype(target.right_type)
+           LEFT JOIN pg_operator o ON o.oprnamespace = n.oid
+                                  AND o.oprname = target.operator_name
+                                  AND o.oprleft = lt.oid
+                                  AND o.oprright = rt.oid
+           LEFT JOIN pg_proc p ON p.oid = o.oprcode
+           LEFT JOIN pg_namespace pn ON pn.oid = p.pronamespace
+          ORDER BY target.extension_name, operator_signature`,
+        [
+          runtimeRole,
+          runtimeOperatorTargets.map((target) => target.extension),
+          runtimeOperatorTargets.map((target) => target.schema),
+          runtimeOperatorTargets.map((target) => target.name),
+          runtimeOperatorTargets.map((target) => target.leftType),
+          runtimeOperatorTargets.map((target) => target.rightType),
+        ],
+      );
+      for (const row of runtimeOperatorResult.rows) {
+        if (!row.exists_priv) {
+          issues.push(`missing required extension ${row.extension_name} runtime operator ${row.operator_signature}`);
+        } else if (!row.execute_priv) {
+          issues.push(
+            `extension ${row.extension_name} runtime operator ${row.operator_signature} backing function ` +
+              `${row.function_signature ?? "unknown"} lacks EXECUTE`,
+          );
+        }
       }
     }
   }
