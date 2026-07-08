@@ -13813,7 +13813,7 @@ Fixed/reduced:
   installed, and checks that the runtime role can execute extension-owned
   functions plus the app-used `pg_trgm` `similarity()` function and `%` operator
   backing function. The synthetic Postgres integration test covers the failure
-  mode by revoking `PUBLIC` execute on `similarity(text, text)`.
+  mode by revoking `PUBLIC` execute on all functions in `public`.
 - The provisioning SQL inventory guard is now bidirectional for tables and enum
   types. CI compares the extracted `ON TABLE` and `ON TYPE` allowlists to the
   source-derived grant inventory, so stale SQL entries from model/type removals

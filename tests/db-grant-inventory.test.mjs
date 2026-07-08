@@ -140,7 +140,7 @@ async function withAuditFixture(options, fn) {
         await migrationClient.query("CREATE EXTENSION IF NOT EXISTS pg_trgm");
       }
       if (options.revokePgTrgmExecute) {
-        await migrationClient.query("REVOKE EXECUTE ON FUNCTION similarity(text, text) FROM PUBLIC");
+        await migrationClient.query("REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC");
       }
       if (options.grantUntrackedTableSelect) {
         await migrationClient.query(`CREATE TABLE ${assertSafeIdentifier(untrackedTableName)} (id text PRIMARY KEY)`);
