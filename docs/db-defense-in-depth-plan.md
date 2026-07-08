@@ -97,13 +97,19 @@ Staging implementation checklist:
   as the declared `DIRECT_URL` migration owner, grants only the explicit
   source-derived app-object inventory, revokes runtime access to
   `_prisma_migrations` when present, and sets migration-owner default privileges
-  for future tables/sequences.
+  for future tables/sequences. It also grants runtime `EXECUTE` on functions
+  owned by the `pg_trgm` extension because public search/autocomplete SQL calls
+  `similarity()` and the `%` operator.
 - Source-derived grant inventory as of this plan update:
   - 56 Prisma model tables need runtime table DML grants;
   - 20 Prisma enum types need runtime `USAGE`, currently covered only if live
     DB type privileges still match Postgres defaults or explicit grants exist;
   - 1 custom `grainline_*` function is used by the `User` notification
     preference check constraint: `grainline_notification_preferences_valid`;
+  - 1 source-derived extension is required by runtime search SQL: `pg_trgm`.
+    Provisioning grants runtime `EXECUTE` on that extension's functions
+    explicitly so a future `PUBLIC` function lockdown does not break
+    suggestions/search.
   - 0 source-derived sequences exist today. The two `Int @id @default(1)` fields
     are fixed singleton rows, not autoincrement/serial sequences.
 - Treat function/type accessibility through `PUBLIC` defaults as a dependency,
@@ -191,7 +197,9 @@ Implementation goals:
   - all `grainline_*` functions used by constraints/defaults/app queries.
 - The audit also checks enum type `USAGE`, runtime role ownership/bypass
   mistakes, and default privileges for future tables/sequences/functions/types
-  created by the migration role.
+  created by the migration role. It also checks that source-derived extensions,
+  currently `pg_trgm`, exist and that the runtime role can execute their
+  extension-owned functions.
 - The audit fails if the runtime role and migration role are the same role, if
   the audit connection does not authenticate as the declared migration role, if
   tracked app objects are not owned by the declared migration role, if the

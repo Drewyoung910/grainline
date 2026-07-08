@@ -210,6 +210,36 @@ TO :"runtime_role";
 
 GRANT EXECUTE ON FUNCTION public."grainline_notification_preferences_valid"(jsonb) TO :"runtime_role";
 
+SELECT 'required extension pg_trgm is not installed' AS grainline_role_provisioning_failure
+WHERE NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm');
+\gset
+\if :{?grainline_role_provisioning_failure}
+\echo :grainline_role_provisioning_failure
+\quit 1
+\endif
+\unset grainline_role_provisioning_failure
+
+-- Public search/autocomplete SQL uses pg_trgm's similarity() function and `%`
+-- operator. Grant all functions owned by the pg_trgm extension explicitly so a
+-- future PUBLIC-function lockdown does not break runtime search.
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %I.%I(%s) TO %I',
+  n.nspname,
+  p.proname,
+  pg_get_function_identity_arguments(p.oid),
+  :'runtime_role'
+)
+FROM pg_extension e
+JOIN pg_depend d ON d.refclassid = 'pg_extension'::regclass
+                  AND d.refobjid = e.oid
+                  AND d.classid = 'pg_proc'::regclass
+                  AND d.deptype = 'e'
+JOIN pg_proc p ON p.oid = d.objid
+JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE e.extname = 'pg_trgm'
+ORDER BY n.nspname, p.proname, pg_get_function_identity_arguments(p.oid);
+\gexec
+
 SELECT format(
   'REVOKE ALL PRIVILEGES ON TABLE %s FROM %I',
   to_regclass('public._prisma_migrations'),
@@ -225,6 +255,7 @@ ALTER DEFAULT PRIVILEGES FOR ROLE :"migration_role" IN SCHEMA public
   GRANT USAGE, SELECT ON SEQUENCES TO :"runtime_role";
 
 -- Function and type default privileges are intentionally not changed while
--- Postgres PUBLIC defaults remain intact. If future migrations revoke PUBLIC
+-- Postgres PUBLIC defaults remain intact. Current extension function
+-- dependencies are granted explicitly above. If future migrations revoke PUBLIC
 -- defaults for functions or types, add explicit runtime default privileges here
 -- and update tests/db-grant-inventory.test.mjs.

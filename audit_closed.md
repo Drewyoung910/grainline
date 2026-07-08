@@ -13791,6 +13791,90 @@ submission decision, Vercel Analytics/Speed Insights product/privacy decision,
 homepage browser a11y/runtime proof beyond source fallback, and deployed
 security-header runtime proof beyond source/config guardrails.
 
+### Entry 506 - runtime grant extension dependency hardening
+
+Entry 506 reviewed a new Claude read-only report against the version-controlled
+runtime-role provisioning SQL plus the current search/autocomplete source. Parent
+Codex verified the reported grant drift and `pg_trgm` claims locally against
+`scripts/provision-runtime-db-role.sql`, `scripts/audit-runtime-db-grants.mjs`,
+the `pg_trgm` migrations, and the runtime raw SQL call sites. No agent was
+needed for this narrow pass. Latest pushed CI on `main` was green for
+`950df0be` (`28911505055`) before editing.
+
+Fixed/reduced:
+
+- Runtime role provisioning now explicitly grants `EXECUTE` on functions owned
+  by the required `pg_trgm` extension, after first failing closed if the
+  extension is missing. Public search/autocomplete uses `similarity()` and the
+  `%` trigram operator, so this removes a silent dependency on Postgres `PUBLIC`
+  function grants if a future database hardening pass revokes them.
+- The runtime DB grant audit now derives required extensions from migration SQL,
+  includes extensions in the inventory summary, verifies required extensions are
+  installed, and checks that the runtime role can execute extension-owned
+  functions. The synthetic Postgres integration test covers the failure mode by
+  revoking `PUBLIC` execute on `similarity(text, text)`.
+- The provisioning SQL inventory guard is now bidirectional for tables and enum
+  types. CI compares the extracted `ON TABLE` and `ON TYPE` allowlists to the
+  source-derived grant inventory, so stale SQL entries from model/type removals
+  fail before staging provisioning.
+
+Verified stale/current or deferred without source changes:
+
+- The existing provisioning SQL table/type/function allowlist matched current
+  source before this change: 56 model tables, 20 enum types, and the single
+  `grainline_notification_preferences_valid(jsonb)` function.
+- RLS remains a staged defense-in-depth project, not a production switch. This
+  pass only tightens least-privilege runtime-role provisioning and audit
+  evidence.
+
+Guardrails added/reviewed:
+
+- Extended `tests/db-grant-inventory.test.mjs` to pin the `pg_trgm` extension
+  inventory, assert provisioning grants extension-owned functions, compare
+  provisioning table/type allowlists bidirectionally, and cover the live
+  extension-function privilege failure in the GitHub-only synthetic Postgres
+  integration test.
+- Reviewed `tests/rls-feasibility-plan.test.mjs` and
+  `tests/public-query-determinism.test.mjs` around the staged RLS posture and
+  runtime trigram search dependency.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 3` confirmed latest
+pushed CI on `main` was green for `950df0be`; source/docs/test inspection with
+`rg`/`sed`; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/db-grant-inventory.test.mjs tests/rls-feasibility-plan.test.mjs
+tests/public-query-determinism.test.mjs` passed 26/27 with the expected
+GitHub-only Postgres integration skip; `git diff --check`; `npx tsc --noEmit`;
+`npm run lint` exited 0 with the known jsx-ast-utils TSNonNullExpression
+warning; and full `npm test` passed 1469/1470 with the expected local
+GitHub-only Postgres integration skip.
+
+Current running tally after Entry 506: verified fixed/reduced 1004, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by two for the explicit `pg_trgm` runtime grant/audit coverage and the
+bidirectional provisioning-inventory guard. Raw-left stays at zero because this
+was post-raw hidden-issue hardening, not closure of a remaining raw allegation.
+
+Remaining major categories are still the deferred launch/runtime/legal/product
+evidence backlog, not open raw source allegations: Stripe refund runtime
+reconciliation/backfill proof, Stripe partial-refund live reconciliation proof,
+label clawback runtime reconciliation evidence, Stripe webhook subscription
+dashboard evidence, Stripe Connect v2 loss-liability ops/legal decision,
+explicit stale remote branch pruning/review, Round 10 cache/state-machine
+product designs, EXPLAIN-dependent runtime query-plan validation, provider-side
+privacy erasure/legal-request evidence, cross-seller AI duplicate-detection
+product design, durable checkout-group product semantics beyond current
+guardrails, high-scale BigInt money/counter modeling decisions, live-data
+reconciliation for historical seller shipping-rate currency drift, Clerk staff
+MFA/breached-password/multi-account dashboard evidence, buyer-deletion live
+Stripe replay proof, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public bucket posture plus production
+smoke/public-availability proof, HSTS preload submission/status, Vercel
+Analytics/Speed Insights product privacy decision, homepage browser
+a11y/runtime proof, and deployed security-header runtime proof.
+
 ## Entry 491 - notification read count and source-evidence reverify pass
 
 Entry 491 closes a parent-verified pass over remaining Stripe webhook/Connect,

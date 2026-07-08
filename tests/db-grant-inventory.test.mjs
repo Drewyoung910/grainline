@@ -26,6 +26,14 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function provisionedObjects(provision, objectKind) {
+  const match = provision.match(new RegExp(`GRANT[\\s\\S]*?ON ${objectKind}\\s+([\\s\\S]*?)\\nTO :"runtime_role";`));
+  assert.ok(match, `missing ${objectKind} grant block`);
+  return [...match[1].matchAll(/public\."([^"]+)"/g)]
+    .map((objectMatch) => objectMatch[1])
+    .sort((a, b) => a.localeCompare(b));
+}
+
 function auditIntegrationSkipReason() {
   if (process.env.GITHUB_ACTIONS !== "true") return "requires the GitHub Actions Postgres service";
   if (!process.env.DATABASE_URL) return "requires DATABASE_URL";
@@ -103,6 +111,7 @@ async function withAuditFixture(options, fn) {
     tables: [tableName],
     enums: [enumName],
     functions: [functionName],
+    extensions: options.createPgTrgmExtension ? ["pg_trgm"] : [],
     fixedIntSingletonIds: [],
     autoincrementFields: [],
     sequenceSqlReferences: [],
@@ -127,6 +136,12 @@ async function withAuditFixture(options, fn) {
       }
       await migrationClient.query(`GRANT USAGE ON TYPE ${assertSafeIdentifier(enumName)} TO ${assertSafeIdentifier(runtimeRole)}`);
       await migrationClient.query(`GRANT EXECUTE ON FUNCTION ${assertSafeIdentifier(functionName)}() TO ${assertSafeIdentifier(runtimeRole)}`);
+      if (options.createPgTrgmExtension) {
+        await migrationClient.query("CREATE EXTENSION IF NOT EXISTS pg_trgm");
+      }
+      if (options.revokePgTrgmExecute) {
+        await migrationClient.query("REVOKE EXECUTE ON FUNCTION similarity(text, text) FROM PUBLIC");
+      }
       if (options.grantUntrackedTableSelect) {
         await migrationClient.query(`CREATE TABLE ${assertSafeIdentifier(untrackedTableName)} (id text PRIMARY KEY)`);
         await migrationClient.query(`GRANT SELECT ON TABLE ${assertSafeIdentifier(untrackedTableName)} TO ${assertSafeIdentifier(runtimeRole)}`);
@@ -176,6 +191,7 @@ describe("database grant inventory guardrails", () => {
     assert.equal(inventory.tables.length, 56);
     assert.equal(inventory.enums.length, 20);
     assert.deepEqual(inventory.functions, ["grainline_notification_preferences_valid"]);
+    assert.deepEqual(inventory.extensions, ["pg_trgm"]);
     assert.deepEqual(inventory.sequenceSqlReferences, []);
     assert.deepEqual(inventory.autoincrementFields, []);
     assert.deepEqual(inventory.fixedIntSingletonIds, ["SiteConfig.id", "SiteMetricsSnapshot.id"]);
@@ -204,6 +220,8 @@ describe("database grant inventory guardrails", () => {
     assert.match(script, /has_sequence_privilege/);
     assert.match(script, /has_function_privilege/);
     assert.match(script, /has_type_privilege/);
+    assert.match(script, /pg_extension/);
+    assert.match(script, /extension .* lacks EXECUTE/);
     assert.match(script, /pg_default_acl/);
     assert.match(script, /untracked public table/);
     assert.match(script, /lightweight REVOKE detector/);
@@ -282,6 +300,20 @@ describe("database grant inventory guardrails", () => {
       const issues = (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n");
       assert.match(issues, /runtime role owns table/);
       assert.match(issues, /expected/);
+    });
+
+    await withAuditFixture({ createPgTrgmExtension: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+      assert.deepEqual(
+        await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory }),
+        [],
+      );
+    });
+
+    await withAuditFixture({ createPgTrgmExtension: true, revokePgTrgmExecute: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+      assert.match(
+        (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n"),
+        /extension pg_trgm function .*similarity\(text, text\) lacks EXECUTE/,
+      );
     });
   });
 
@@ -398,6 +430,8 @@ describe("database grant inventory guardrails", () => {
     assert.match(plan, /56 Prisma model tables/);
     assert.match(plan, /20 Prisma enum types/);
     assert.match(plan, /0 source-derived sequences/);
+    assert.match(plan, /1 source-derived extension/);
+    assert.match(plan, /pg_trgm/);
     assert.match(plan, /grainline_notification_preferences_valid/);
     assert.match(plan, /PUBLIC.*dependency/);
     assert.match(plan, /role memberships/);
@@ -412,6 +446,7 @@ describe("database grant inventory guardrails", () => {
     assert.match(plan, /audit:db-grants/);
     assert.match(runbook, /`DIRECT_URL` must authenticate as the declared migration owner role/);
     assert.match(runbook, /version-controlled SQL or migrations/);
+    assert.match(runbook, /pg_trgm/);
     assert.match(runbook, /same environment\/secret set that will run migrations/);
     assert.match(runbook, /Non-model public tables created by the migration role can inherit runtime DML/);
     assert.match(runbook, /grant-audit\s+inventory or explicitly `REVOKE` runtime access/);
@@ -442,20 +477,23 @@ describe("database grant inventory guardrails", () => {
     assert.match(provision, /_prisma_migrations/);
     assert.match(provision, /ALTER DEFAULT PRIVILEGES FOR ROLE :"migration_role" IN SCHEMA public\s+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO :"runtime_role"/);
     assert.match(provision, /ALTER DEFAULT PRIVILEGES FOR ROLE :"migration_role" IN SCHEMA public\s+GRANT USAGE, SELECT ON SEQUENCES TO :"runtime_role"/);
+    assert.match(provision, /required extension pg_trgm is not installed/);
+    assert.match(provision, /e\.extname = 'pg_trgm'/);
+    assert.match(provision, /pg_get_function_identity_arguments\(p\.oid\)/);
+    assert.match(provision, /Public search\/autocomplete SQL uses pg_trgm/);
     assert.match(provision, /PUBLIC defaults remain intact/);
     assert.match(provision, /public\."grainline_notification_preferences_valid"\(jsonb\)/);
     assert.doesNotMatch(provision, /PASSWORD\s+'(?!\[REDACTED\])/i);
     assert.doesNotMatch(provision, /GRANT\s+[^;]*ON\s+ALL\s+TABLES\s+IN\s+SCHEMA\s+public\s+TO/i);
     assert.doesNotMatch(provision, /GRANT\s+[^;]*ON\s+ALL\s+SEQUENCES\s+IN\s+SCHEMA\s+public\s+TO/i);
 
-    for (const table of inventory.tables) {
-      assert.match(provision, new RegExp(`public\\."${escapeRegExp(table)}"`));
-    }
-    for (const type of inventory.enums) {
-      assert.match(provision, new RegExp(`public\\."${escapeRegExp(type)}"`));
-    }
+    assert.deepEqual(provisionedObjects(provision, "TABLE"), inventory.tables);
+    assert.deepEqual(provisionedObjects(provision, "TYPE"), inventory.enums);
     for (const fn of inventory.functions) {
       assert.match(provision, new RegExp(`public\\."${escapeRegExp(fn)}"`));
+    }
+    for (const extension of inventory.extensions) {
+      assert.match(provision, new RegExp(`e\\.extname = '${escapeRegExp(extension)}'`));
     }
 
     assert.match(plan, /scripts\/provision-runtime-db-role\.sql/);

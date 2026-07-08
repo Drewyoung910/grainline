@@ -78,6 +78,10 @@ export function deriveGrantInventory(rootDir = ROOT_DIR) {
       ...migrationSql.matchAll(/\bCREATE\s+SEQUENCE\b|\bBIGSERIAL\b|\bSERIAL\b|\bnextval\s*\(/gi),
     ].map((match) => match[0].replace(/\s+/g, " ").trim().toUpperCase()),
   );
+  const extensions = sortedUnique(
+    [...migrationSql.matchAll(/\bCREATE\s+EXTENSION\s+(?:IF\s+NOT\s+EXISTS\s+)?"?([A-Za-z_][A-Za-z0-9_]*)"?/gi)]
+      .map((match) => match[1]),
+  );
   const functions = sortedUnique(
     [...migrationSql.matchAll(/\bCREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+"?([A-Za-z_][A-Za-z0-9_]*)"?\s*\(/gi)]
       .map((match) => match[1])
@@ -99,6 +103,7 @@ export function deriveGrantInventory(rootDir = ROOT_DIR) {
     fixedIntSingletonIds,
     autoincrementFields,
     sequenceSqlReferences,
+    extensions,
     publicRevokes,
     publicDefaultPrivilegeRevokes,
   };
@@ -109,6 +114,7 @@ export function formatInventorySummary(inventory) {
     `${inventory.tables.length} tables`,
     `${inventory.enums.length} enums`,
     `${inventory.functions.length} grainline_* functions`,
+    `${(inventory.extensions ?? []).length} extensions`,
     `${inventory.sequenceSqlReferences.length} sequence references`,
   ].join(", ");
 }
@@ -350,6 +356,43 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
     if (row.owner_name === runtimeRole) issues.push(`runtime role owns function ${row.function_name}(${row.args})`);
     if (row.owner_name !== migrationRole) {
       issues.push(`function ${row.function_name}(${row.args}) owned by ${row.owner_name}, expected ${migrationRole}`);
+    }
+  }
+
+  const requiredExtensions = inventory.extensions ?? [];
+  if (requiredExtensions.length > 0) {
+    const extensionResult = await client.query(
+      `SELECT extname AS extension_name
+         FROM pg_extension
+        WHERE extname = ANY($1::text[])
+        ORDER BY extname`,
+      [requiredExtensions],
+    );
+    const liveExtensions = sortedUnique(extensionResult.rows.map((row) => row.extension_name));
+    issues.push(
+      ...missingItems(requiredExtensions, liveExtensions).map((extension) => `missing expected extension ${extension}`),
+    );
+
+    const extensionFunctionResult = await client.query(
+      `SELECT
+          e.extname AS extension_name,
+          format('%I.%I(%s)', n.nspname, p.proname, pg_get_function_identity_arguments(p.oid)) AS function_signature,
+          has_function_privilege($1, p.oid, 'EXECUTE') AS execute_priv
+         FROM pg_extension e
+         JOIN pg_depend d ON d.refclassid = 'pg_extension'::regclass
+                           AND d.refobjid = e.oid
+                           AND d.classid = 'pg_proc'::regclass
+                           AND d.deptype = 'e'
+         JOIN pg_proc p ON p.oid = d.objid
+         JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE e.extname = ANY($2::text[])
+        ORDER BY e.extname, function_signature`,
+      [runtimeRole, requiredExtensions],
+    );
+    for (const row of extensionFunctionResult.rows) {
+      if (!row.execute_priv) {
+        issues.push(`extension ${row.extension_name} function ${row.function_signature} lacks EXECUTE`);
+      }
     }
   }
 
