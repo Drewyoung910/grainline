@@ -13859,6 +13859,53 @@ increases by two for the explicit `pg_trgm` runtime grant/audit coverage and the
 bidirectional provisioning-inventory guard. Raw-left stays at zero because this
 was post-raw hidden-issue hardening, not closure of a remaining raw allegation.
 
+### Entry 513 - RLS grant-audit CI correction
+
+Entry 513 fixes the red CI follow-up from Entry 512. CI for `a3ffe5e3`
+(`28982791916`) failed only in `tests/db-grant-inventory.test.mjs`: the new
+synthetic Postgres integration assertion used `/ROW LEVEL SECURITY is not
+enabled/`, which also matched the valid `FORCE ROW LEVEL SECURITY is not
+enabled` issue. Parent Codex reviewed the failing log and current script/test
+logic before changing anything. The audit rule itself was still correct, but the
+CI failure exposed a second precision gap: node-postgres returned the
+`array_agg(name)` policy list in a shape the script did not parse, so live
+issues displayed `unknown` instead of the concrete policy name.
+
+Fixed/reduced:
+
+- `scripts/audit-runtime-db-grants.mjs` now uses `string_agg(p.polname::text,
+  ', ' ORDER BY p.polname::text)` for policy names so live RLS activation audit
+  issues identify the exact policy instead of falling back to `unknown`.
+- `tests/db-grant-inventory.test.mjs` now pins that string aggregation and
+  asserts the exact synthetic table/policy messages. The enabled-but-not-forced
+  case now checks that the unforced issue remains while the missing-ENABLE
+  message is absent, without accidentally matching the `FORCE` message.
+
+Guardrails added/reviewed:
+Updated the live grant-audit synthetic fixture assertions in
+`tests/db-grant-inventory.test.mjs`; the GitHub-only Postgres fixture is the
+source of truth for the full integration path.
+
+Verification:
+`gh run view 28982791916 --log-failed` identified the failing assertion in the
+Entry 512 CI run; `node --check scripts/audit-runtime-db-grants.mjs`; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/db-grant-inventory.test.mjs tests/audit-ledger-coupling.test.mjs`
+passed 8/9 with the expected local GitHub-only Postgres skip; `npx tsc
+--noEmit`; `git diff --check`; `npm run lint` exited 0 with the known
+jsx-ast-utils TSNonNullExpression warning; `npm audit --audit-level=high` found
+0 vulnerabilities; and full `npm test` passed 1485/1487 with the expected local
+GitHub-only Postgres skips. The CI-only Postgres integration path still requires
+the next pushed Actions run for final proof.
+
+Current running tally after Entry 513: verified fixed/reduced 1013, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the live grant-audit policy-name reporting and CI guardrail
+precision fix. Raw-left stays at zero because this was a post-raw hidden issue
+found while reviewing the red CI result, not closure of a remaining raw
+allegation.
+
 ### Entry 512 - RLS policy activation audit hardening
 
 Entry 512 reviewed a fresh Opus read-only sweep as junior input, then parent

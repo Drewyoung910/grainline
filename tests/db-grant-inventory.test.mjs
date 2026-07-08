@@ -198,7 +198,9 @@ async function withAuditFixture(options, fn) {
         inventory,
         migrationRole,
         nonPublicSchemaName,
+        policyName,
         runtimeRole,
+        tableName,
         untrackedTableName,
       });
     });
@@ -246,6 +248,7 @@ describe("database grant inventory guardrails", () => {
     assert.match(script, /pg_policy/);
     assert.match(script, /relrowsecurity/);
     assert.match(script, /relforcerowsecurity/);
+    assert.match(script, /string_agg\(p\.polname::text/);
     assert.match(script, /ROW LEVEL SECURITY is not enabled/);
     assert.match(script, /FORCE ROW LEVEL SECURITY is not enabled/);
     assert.match(script, /pg_extension/);
@@ -338,16 +341,25 @@ describe("database grant inventory guardrails", () => {
       assert.match(issues, /expected/);
     });
 
-    await withAuditFixture({ createRlsPolicy: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+    await withAuditFixture({ createRlsPolicy: true }, async ({ auditClient, inventory, migrationRole, policyName, runtimeRole, tableName }) => {
       const issues = (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n");
-      assert.match(issues, /has RLS policies .* but ROW LEVEL SECURITY is not enabled/);
-      assert.match(issues, /has RLS policies .* but FORCE ROW LEVEL SECURITY is not enabled/);
+      assert.match(
+        issues,
+        new RegExp(`table ${tableName} has RLS policies \\(${policyName}\\) but ROW LEVEL SECURITY is not enabled`),
+      );
+      assert.match(
+        issues,
+        new RegExp(`table ${tableName} has RLS policies \\(${policyName}\\) but FORCE ROW LEVEL SECURITY is not enabled`),
+      );
     });
 
-    await withAuditFixture({ createRlsPolicy: true, enableRls: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+    await withAuditFixture({ createRlsPolicy: true, enableRls: true }, async ({ auditClient, inventory, migrationRole, policyName, runtimeRole, tableName }) => {
       const issues = (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n");
-      assert.doesNotMatch(issues, /ROW LEVEL SECURITY is not enabled/);
-      assert.match(issues, /has RLS policies .* but FORCE ROW LEVEL SECURITY is not enabled/);
+      assert.doesNotMatch(issues, /but ROW LEVEL SECURITY is not enabled/);
+      assert.match(
+        issues,
+        new RegExp(`table ${tableName} has RLS policies \\(${policyName}\\) but FORCE ROW LEVEL SECURITY is not enabled`),
+      );
     });
 
     await withAuditFixture({ createRlsPolicy: true, enableRls: true, forceRls: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {

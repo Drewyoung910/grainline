@@ -296,7 +296,7 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
         c.relname AS table_name,
         c.relrowsecurity AS rls_enabled,
         c.relforcerowsecurity AS rls_forced,
-        array_agg(p.polname ORDER BY p.polname) AS policy_names
+        string_agg(p.polname::text, ', ' ORDER BY p.polname::text) AS policy_names
        FROM pg_class c
        JOIN pg_namespace n ON n.oid = c.relnamespace
        JOIN pg_policy p ON p.polrelid = c.oid
@@ -308,7 +308,9 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
     [inventory.tables],
   );
   for (const row of rlsPolicyResult.rows) {
-    const policyList = Array.isArray(row.policy_names) ? row.policy_names.join(", ") : "unknown";
+    const policyList = typeof row.policy_names === "string" && row.policy_names.length > 0
+      ? row.policy_names
+      : "unknown";
     if (!row.rls_enabled) {
       issues.push(
         `table ${row.table_name} has RLS policies (${policyList}) but ROW LEVEL SECURITY is not enabled`,
