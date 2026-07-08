@@ -22,6 +22,10 @@ function source(path) {
   return readFileSync(path, "utf8");
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function auditIntegrationSkipReason() {
   if (process.env.GITHUB_ACTIONS !== "true") return "requires the GitHub Actions Postgres service";
   if (!process.env.DATABASE_URL) return "requires DATABASE_URL";
@@ -416,5 +420,46 @@ describe("database grant inventory guardrails", () => {
     assert.match(launch, /MIGRATION_DB_ROLE=grainline_migration_owner/);
     assert.match(rls, /public-default dependency/);
     assert.match(pkg, /"audit:db-grants": "node scripts\/audit-runtime-db-grants\.mjs"/);
+  });
+
+  it("keeps the runtime-role provisioning SQL aligned with the grant inventory", () => {
+    const inventory = deriveGrantInventory();
+    const provision = source("scripts/provision-runtime-db-role.sql");
+    const plan = source("docs/db-defense-in-depth-plan.md");
+    const runbook = source("docs/runbook.md");
+    const launch = source("docs/launch-checklist.md");
+
+    assert.match(provision, /psql "\$DIRECT_URL"/);
+    assert.match(provision, /-v runtime_role=grainline_app_runtime/);
+    assert.match(provision, /-v migration_role=grainline_migration_owner/);
+    assert.match(provision, /current_user/);
+    assert.match(provision, /session_user/);
+    assert.match(provision, /rolbypassrls/);
+    assert.match(provision, /pg_auth_members/);
+    assert.match(provision, /GRANT USAGE ON SCHEMA public TO :"runtime_role"/);
+    assert.match(provision, /REVOKE CREATE ON SCHEMA public FROM :"runtime_role"/);
+    assert.match(provision, /REVOKE CREATE ON DATABASE/);
+    assert.match(provision, /_prisma_migrations/);
+    assert.match(provision, /ALTER DEFAULT PRIVILEGES FOR ROLE :"migration_role" IN SCHEMA public\s+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO :"runtime_role"/);
+    assert.match(provision, /ALTER DEFAULT PRIVILEGES FOR ROLE :"migration_role" IN SCHEMA public\s+GRANT USAGE, SELECT ON SEQUENCES TO :"runtime_role"/);
+    assert.match(provision, /PUBLIC defaults remain intact/);
+    assert.match(provision, /public\."grainline_notification_preferences_valid"\(jsonb\)/);
+    assert.doesNotMatch(provision, /PASSWORD\s+'(?!\[REDACTED\])/i);
+    assert.doesNotMatch(provision, /GRANT\s+[^;]*ON\s+ALL\s+TABLES\s+IN\s+SCHEMA\s+public\s+TO/i);
+    assert.doesNotMatch(provision, /GRANT\s+[^;]*ON\s+ALL\s+SEQUENCES\s+IN\s+SCHEMA\s+public\s+TO/i);
+
+    for (const table of inventory.tables) {
+      assert.match(provision, new RegExp(`public\\."${escapeRegExp(table)}"`));
+    }
+    for (const type of inventory.enums) {
+      assert.match(provision, new RegExp(`public\\."${escapeRegExp(type)}"`));
+    }
+    for (const fn of inventory.functions) {
+      assert.match(provision, new RegExp(`public\\."${escapeRegExp(fn)}"`));
+    }
+
+    assert.match(plan, /scripts\/provision-runtime-db-role\.sql/);
+    assert.match(runbook, /scripts\/provision-runtime-db-role\.sql/);
+    assert.match(launch, /scripts\/provision-runtime-db-role\.sql/);
   });
 });

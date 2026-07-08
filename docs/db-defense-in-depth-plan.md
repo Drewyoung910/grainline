@@ -91,6 +91,13 @@ Staging implementation checklist:
   or migration artifact before production promotion. Manual staging setup can be
   used to prove the shape, but production role changes should not depend on
   untracked dashboard or ad hoc shell state.
+- The current reviewed staging SQL template is
+  `scripts/provision-runtime-db-role.sql`. It expects the runtime role to
+  already exist with a password managed outside git, must be run while connected
+  as the declared `DIRECT_URL` migration owner, grants only the explicit
+  source-derived app-object inventory, revokes runtime access to
+  `_prisma_migrations` when present, and sets migration-owner default privileges
+  for future tables/sequences.
 - Source-derived grant inventory as of this plan update:
   - 56 Prisma model tables need runtime table DML grants;
   - 20 Prisma enum types need runtime `USAGE`, currently covered only if live
@@ -135,6 +142,11 @@ Verification checklist:
   audit connection proves the actual `DIRECT_URL` role. A separate admin or
   auditor URL can inspect state, but it does not prove deploy-time migration
   provenance unless a second explicit `DIRECT_URL` identity check is run.
+- Reviewed staging role/grant provisioning:
+  `psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=grainline_migration_owner -f scripts/provision-runtime-db-role.sql`
+  Run the grant audit after this script; do not use successful script execution
+  alone as proof because live ownership, role membership, and untracked-object
+  state still need catalog verification.
 - `npx prisma validate`
 - `npx prisma generate`
 - `npx prisma migrate status` through `DIRECT_URL`

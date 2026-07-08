@@ -176,6 +176,11 @@ Production migration rules:
   version-controlled SQL or migrations before production promotion. Manual
   staging setup is acceptable for proving the shape, but production should not
   depend on untracked dashboard or shell changes.
+- Current staging role/grant template:
+  `psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=grainline_migration_owner -f scripts/provision-runtime-db-role.sql`.
+  This script must be run while connected as the declared migration owner. It
+  does not store or generate the runtime role password; create that role through
+  Neon/admin SQL with a secret managed outside git.
 - After migrations that add tables, sequences, `grainline_*` functions, enum
   types, or role/default-privilege changes, run `npm run audit:db-grants` from
   the same environment/secret set that will run migrations and retain the run
