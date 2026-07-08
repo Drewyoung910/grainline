@@ -13812,8 +13812,10 @@ Fixed/reduced:
   includes extensions in the inventory summary, verifies required extensions are
   installed, and checks that the runtime role can execute extension-owned
   functions plus the app-used `pg_trgm` `similarity()` function and `%` operator
-  backing function. The synthetic Postgres integration test covers the failure
-  mode by revoking `PUBLIC` execute on all functions in `public`.
+  backing function. The synthetic Postgres integration test covers missing
+  required-extension state; static guardrails pin the app-used function/operator
+  checks because CI Postgres did not produce a stable negative privilege fixture
+  for existing `pg_trgm` functions after `PUBLIC` revokes.
 - The provisioning SQL inventory guard is now bidirectional for tables and enum
   types. CI compares the extracted `ON TABLE` and `ON TYPE` allowlists to the
   source-derived grant inventory, so stale SQL entries from model/type removals
@@ -13832,9 +13834,8 @@ Guardrails added/reviewed:
 
 - Extended `tests/db-grant-inventory.test.mjs` to pin the `pg_trgm` extension
   inventory, assert provisioning grants extension-owned functions, compare
-  provisioning table/type allowlists bidirectionally, and cover the live
-  app-used extension function privilege failure in the GitHub-only synthetic
-  Postgres integration test.
+  provisioning table/type allowlists bidirectionally, and cover the live missing
+  extension failure in the GitHub-only synthetic Postgres integration test.
 - Reviewed `tests/rls-feasibility-plan.test.mjs` and
   `tests/public-query-determinism.test.mjs` around the staged RLS posture and
   runtime trigram search dependency.

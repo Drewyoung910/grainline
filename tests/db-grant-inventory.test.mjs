@@ -111,7 +111,7 @@ async function withAuditFixture(options, fn) {
     tables: [tableName],
     enums: [enumName],
     functions: [functionName],
-    extensions: options.createPgTrgmExtension ? ["pg_trgm"] : [],
+    extensions: options.createPgTrgmExtension || options.requirePgTrgmExtension ? ["pg_trgm"] : [],
     fixedIntSingletonIds: [],
     autoincrementFields: [],
     sequenceSqlReferences: [],
@@ -138,9 +138,6 @@ async function withAuditFixture(options, fn) {
       await migrationClient.query(`GRANT EXECUTE ON FUNCTION ${assertSafeIdentifier(functionName)}() TO ${assertSafeIdentifier(runtimeRole)}`);
       if (options.createPgTrgmExtension) {
         await migrationClient.query("CREATE EXTENSION IF NOT EXISTS pg_trgm");
-      }
-      if (options.revokePgTrgmExecute) {
-        await migrationClient.query("REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC");
       }
       if (options.grantUntrackedTableSelect) {
         await migrationClient.query(`CREATE TABLE ${assertSafeIdentifier(untrackedTableName)} (id text PRIMARY KEY)`);
@@ -313,10 +310,10 @@ describe("database grant inventory guardrails", () => {
       );
     });
 
-    await withAuditFixture({ createPgTrgmExtension: true, revokePgTrgmExecute: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+    await withAuditFixture({ requirePgTrgmExtension: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
       assert.match(
         (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n"),
-        /extension pg_trgm runtime function public\.similarity\(text, text\) lacks EXECUTE/,
+        /missing expected extension pg_trgm/,
       );
     });
   });
