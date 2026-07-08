@@ -13919,8 +13919,8 @@ warning; `npm audit --audit-level=high` found 0 vulnerabilities; and full
 `npm test` passed 1485/1487 with the expected local skips. Local
 `npm run build` was not rerun because recent local builds compile and then fail
 sitemap page-data collection against the configured unreachable Neon endpoint;
-production build completion remains to be verified by pushed CI's local
-Postgres build.
+after push, CI for `3cde4b76` (`28980660385`) passed typecheck, lint, tests,
+security audit, and production build on `main`.
 
 Current running tally after Entry 511: verified fixed/reduced 1010, verified
 stale/false-positive/current 579, deferred product/design/ops/legal 87,
