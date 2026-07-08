@@ -195,15 +195,21 @@ RLS staging context proof:
   uses the pooled runtime-role `DATABASE_URL`.
 - Retain the commit SHA, CI run id, staging branch, sanitized role names,
   Prisma transaction `timeout`/`maxWait`, app `pg` pool size, Neon pool
-  settings, target and burst concurrency, sample size, prototype table/policy
+  settings, Prisma adapter/`pg` package versions, target and burst concurrency,
+  sample size, connection turnover/recycling method, prototype table/policy
   names, baseline/wrapped p95 and p99 latency, connection acquisition wait,
-  connection-hold time, pool-saturation result, and any failed request or Sentry
-  event ids.
+  connection-hold time, pool-saturation result, prepared-statement/cached-plan
+  error scan result, and any failed request or Sentry event ids.
 - Treat a correctness failure, context leak, `Promise.all`/parallel query inside
   an interactive RLS transaction, Prisma transaction timeout/`maxWait`, pool
-  saturation, or flaky repeated result as a stop signal. Keep app-layer
+  saturation, prepared-statement/cached-plan/protocol error, connection-recycle
+  mismatch, or flaky repeated result as a stop signal. Keep app-layer
   authorization plus the least-privilege runtime role as the active database
   defense until the root cause is fixed and the full staging gate passes again.
+- After production RLS rollout, rerun the gate after Neon pooler, Prisma,
+  `@prisma/adapter-pg`, `pg`, transaction timeout, runtime role, grant, or policy
+  changes. Keep any sampled owner-invariant checks or synthetic canary probes on
+  non-customer rows and log only bounded internal ids or hashes.
 
 ## Cron and Email Outbox
 

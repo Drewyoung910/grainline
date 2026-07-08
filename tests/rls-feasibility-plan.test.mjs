@@ -50,8 +50,13 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(defense, /current_setting\('app\.user_id', true\)/);
     assert.match(defense, /Explicitly empty `app\.user_id`/);
     assert.match(defense, /Concurrent transactions[\s\S]*distinct users[\s\S]*pooled `DATABASE_URL`/);
+    assert.match(defense, /pooled connection turnover between users/);
+    assert.match(defense, /`pg` pool\s+`maxUses`/);
     assert.match(defense, /Serializable retry tests force at least one retry/);
     assert.match(defense, /Promise\.all/);
+    assert.match(defense, /prepared-statement, cached-plan, or transaction-pool protocol errors/);
+    assert.match(defense, /prepared statement already exists/);
+    assert.match(defense, /prepared statement\s+does not exist/);
     assert.match(defense, /p95 latency is more than 2x\s+baseline or increases by more than 100ms/);
     assert.match(defense, /p99 latency is more than 3x\s+baseline or increases by more than 250ms/);
     assert.match(defense, /Prisma interactive\s+transaction `timeout` or `maxWait`/);
@@ -59,10 +64,16 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(defense, /connection acquisition wait is above 100ms at p95/);
     assert.match(defense, /p99 hold time exceeds 50%/);
     assert.match(defense, /two consecutive\s+runs on the same commit\/config/);
+    assert.match(defense, /Post-rollout drift monitoring/);
+    assert.match(defense, /sampled production invariant/);
+    assert.match(defense, /synthetic canary/);
     assert.match(runbook, /RLS staging context proof/);
     assert.match(runbook, /pooling\/context-isolation acceptance spec/);
     assert.match(runbook, /baseline\/wrapped p95 and p99 latency/);
+    assert.match(runbook, /connection turnover\/recycling method/);
+    assert.match(runbook, /prepared-statement\/cached-plan\s+error scan result/);
     assert.match(runbook, /flaky repeated result as a stop signal/);
+    assert.match(runbook, /After production RLS rollout, rerun the gate/);
   });
 
   it("keeps public discovery tables out of the first RLS pass", () => {

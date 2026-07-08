@@ -282,8 +282,9 @@ Evidence to record with the run:
 - sanitized migration/runtime role names and confirmation that the runtime role
   is the role behind pooled `DATABASE_URL`;
 - Prisma transaction `timeout` and `maxWait`, app `pg` pool size, Neon pool
-  settings, target concurrency, burst concurrency, sample size, and warmup
-  count;
+  settings, Prisma adapter/`pg` package versions, target concurrency, burst
+  concurrency, sample size, warmup count, and any connection turnover/recycling
+  setting used by the staging harness;
 - prototype table/policy names and whether `FORCE ROW LEVEL SECURITY` is
   enabled in staging;
 - baseline and wrapped latency/connection metrics, plus any failed request ids
@@ -308,12 +309,20 @@ Correctness pass/fail conditions:
 - Concurrent transactions for at least two distinct users run repeatedly through
   the pooled `DATABASE_URL` without cross-user row visibility or context
   leakage.
+- The same cross-user isolation checks pass while the staging harness forces or
+  observes pooled connection turnover between users, such as a low `pg` pool
+  `maxUses`, short idle lifetime, or documented Neon pool turnover event. Do not
+  infer turnover safety only from steady-state connection reuse.
 - Serializable retry tests force at least one retry and prove
   `set_config('app.user_id', ..., true)` ran inside every retried transaction
   callback before any protected query.
 - Any helper path that uses RLS context must keep protected queries on the
   transaction client and must reject or avoid `Promise.all`/parallel Prisma
   queries inside the interactive transaction.
+- Sustained wrapped reads through pooled `DATABASE_URL` produce no
+  prepared-statement, cached-plan, or transaction-pool protocol errors, including
+  errors shaped like "prepared statement already exists", "prepared statement
+  does not exist", or "cached plan must not change result type".
 - Route-level happy paths for the prototype tables still return the current
   user's rows. DB denial tests alone are not enough because a missing wrapper can
   fail closed silently.
@@ -349,11 +358,28 @@ Performance and pool-safety stop conditions:
 - Stop widening RLS if protected happy-path error rate exceeds 0.1% in the
   measured run, if any authorization mismatch appears, or if two consecutive
   runs on the same commit/config do not produce the same pass/fail result.
+- Stop widening RLS if prepared-statement, cached-plan, protocol, or
+  connection-recycle errors appear under wrapped pooled load, even when the same
+  path passes against a direct or single-connection database.
 
 If this acceptance spec fails, keep app-layer authorization plus the
 least-privilege runtime role as the active database defense. Fix the root cause
 and rerun the full staging gate before adding new RLS-protected tables or
 wrapping hotter paths.
+
+Post-rollout drift monitoring:
+
+- Once any RLS-protected path reaches production, rerun the staging gate after
+  changing Neon pool settings, Prisma, `@prisma/adapter-pg`, `pg`, transaction
+  timeout/maxWait values, runtime role grants, or RLS policies.
+- Consider a sampled production invariant for RLS-wrapped reads that verifies
+  returned row owners match the active request context before response rendering.
+  Capture only bounded internal ids or hashes; do not log row payloads or raw
+  user PII.
+- Consider a scheduled synthetic canary using non-customer rows on the
+  low-blast-radius prototype table to re-run the two-user isolation proof
+  through the pooled runtime role. Treat any canary mismatch as an incident and
+  disable or narrow the affected RLS rollout while investigating.
 
 Stop condition:
 
