@@ -13859,6 +13859,96 @@ increases by two for the explicit `pg_trgm` runtime grant/audit coverage and the
 bidirectional provisioning-inventory guard. Raw-left stays at zero because this
 was post-raw hidden-issue hardening, not closure of a remaining raw allegation.
 
+### Entry 510 - RLS user-context helper foundation
+
+Entry 510 acted on Claude's read-only conclusion that the RLS gate tooling had
+no outstanding reviewable defects and that the next code artifact would be the
+`withDbUserContext` helper. Parent Codex independently rechecked the current
+green CI state, RLS docs, helper contract, existing Prisma transaction/retry
+patterns, and saved-search serializable transaction shape before adding code.
+Latest pushed CI on `main` was green for `5540bd77` (`28976802737`) before
+editing.
+
+Fixed/reduced:
+
+- Added dormant `src/lib/dbUserContext.ts` for future user-scoped RLS paths. It
+  validates a bounded local user id, opens a Prisma interactive transaction,
+  runs parameterized `SELECT set_config('app.user_id', $userId, true)` as the
+  first statement inside that transaction, verifies the returned setting, and
+  then runs caller work on the transaction client.
+- Added `withSerializableDbUserContext()` / `serializableRetry` support so the
+  retry wrapper sits outside the Prisma transaction. A serialization retry
+  therefore reopens the transaction and re-runs `set_config` before protected
+  work on every attempt, matching the staged RLS contract.
+- Added `src/lib/dbUserContextState.ts` for pure validation/defaults. The helper
+  uses explicit interactive-transaction defaults aligned with the staging gate
+  (`maxWait = 10s`, `timeout = 5s`) and rejects empty, overlong, or unsafe
+  context ids instead of silently setting an empty context.
+- Updated `docs/db-defense-in-depth-plan.md` and `CLAUDE.md` to record that the
+  helper is dormant until the production-like staging gate passes and a
+  table-specific prototype wraps routes/server components. It must not be used
+  as a service/admin/cron/webhook bypass.
+
+Verified stale/current or deferred without source changes:
+
+- Production RLS remains disabled. No routes, pages, webhooks, crons, or table
+  policies were moved onto the helper in this pass.
+- The live staging gate still needs a production-like Neon branch and explicit
+  pooled runtime-role URL. Without that environment, running the local gate
+  would not be acceptance evidence.
+
+Guardrails added/reviewed:
+
+- Added `tests/db-user-context.test.mjs` to guard user-id validation, explicit
+  timeout defaults, parameterized transaction-local `set_config(..., true)`,
+  context-before-operation ordering inside `prisma.$transaction`, and
+  serializable retry outside the transaction.
+- Re-ran the RLS context gate and RLS feasibility plan guardrails alongside the
+  new helper test.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 3` confirmed latest
+pushed CI on `main` was green for `5540bd77` (`28976802737`); source/docs/test
+inspection with `rg`/`sed`; focused `node --test tests/db-user-context.test.mjs
+tests/rls-feasibility-plan.test.mjs tests/rls-context-gate.test.mjs` passed
+22/23 with the expected local GitHub-only Postgres smoke skip; `npx tsc
+--noEmit`; `git diff --check`; `npm run lint` exited 0 with the known
+jsx-ast-utils TSNonNullExpression warning; `npm audit --audit-level=high` found
+0 vulnerabilities; and full `npm test` passed 1484/1486 with the expected
+local skips. Local `npm run build` was not rerun because the prior local build
+compiled but failed sitemap page-data collection against an unreachable
+configured Neon endpoint; production build completion remains to be verified by
+pushed CI's local Postgres build.
+
+Current running tally after Entry 510: verified fixed/reduced 1008, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the dormant RLS user-context helper foundation. Deferred
+stays flat because the live staging gate, route-level prototype tests, and
+actual Notification/SavedSearch policies remain future execution work. Raw-left
+stays at zero because this was post-raw hardening, not closure of a raw
+allegation.
+
+Remaining major categories are still the deferred launch/runtime/legal/product
+evidence backlog, not open raw source allegations: live RLS staging gate
+execution plus route-level prototype tests before any table policy, Stripe
+refund runtime reconciliation/backfill proof, Stripe partial-refund live
+reconciliation proof, label clawback runtime reconciliation evidence, Stripe
+webhook subscription dashboard evidence, Stripe Connect v2 loss-liability
+ops/legal decision, explicit stale remote branch pruning/review, Round 10
+cache/state-machine product designs, EXPLAIN-dependent runtime query-plan
+validation, provider-side privacy erasure/legal-request evidence, cross-seller
+AI duplicate-detection product design, durable checkout-group product semantics
+beyond current guardrails, high-scale BigInt money/counter modeling decisions,
+live-data reconciliation for historical seller shipping-rate currency drift,
+Clerk staff MFA/breached-password/multi-account dashboard evidence,
+buyer-deletion live Stripe replay proof, Founding Maker live DB concurrency
+proof, Sentry cron alert evidence, Cloudflare R2 ListBucket/public bucket
+posture plus production smoke/public-availability proof, HSTS preload
+submission/status, Vercel Analytics/Speed Insights product privacy decision,
+homepage browser a11y/runtime proof, and deployed security-header runtime
+proof.
+
 ### Entry 509 - RLS context gate baseline hardening
 
 Entry 509 reviewed Claude's follow-up as junior read-only input, then parent

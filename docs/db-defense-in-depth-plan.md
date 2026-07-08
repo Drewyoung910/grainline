@@ -266,7 +266,7 @@ Verification:
 
 ## Phase 3 - Request Context Proof
 
-Status: staging gate tooling added; live staging proof not run.
+Status: staging gate tooling and dormant helper added; live staging proof not run.
 
 Purpose: prove the core RLS mechanism under the actual runtime topology before
 enabling policies.
@@ -297,6 +297,9 @@ Current reviewed staging harness:
 
 Required helper contract:
 
+- Use `src/lib/dbUserContext.ts` for future RLS-wrapped app reads/writes after
+  the staging gate passes. The helper is intentionally dormant until a
+  table-specific prototype wraps its route/server-component paths.
 - Open an explicit Prisma transaction.
 - Run `set_config('app.user_id', $userId, true)` as the first statement inside
   the transaction.
@@ -304,6 +307,8 @@ Required helper contract:
 - Do not run parallel Prisma queries inside that interactive transaction.
 - If combined with serializable retry, set context inside each retried
   transaction callback, not outside the retry loop.
+- Keep service/admin/cron/webhook bypass work explicit; do not use the
+  end-user helper as a generic system bypass.
 
 Hard-gate tests:
 
