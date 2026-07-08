@@ -10,7 +10,6 @@ import { withSerializableRetry } from "@/lib/transactionRetry";
 export type DbUserContextTransactionClient = Prisma.TransactionClient;
 
 export type WithDbUserContextOptions = DbUserContextTransactionOptions & {
-  serializableRetry?: boolean;
   attempts?: number;
 };
 
@@ -28,6 +27,14 @@ export async function setDbUserContext(
   return normalizedUserId;
 }
 
+/**
+ * Runs future user-scoped RLS work inside a Prisma interactive transaction.
+ *
+ * The callback must use the provided transaction client for every protected
+ * query and must run those queries sequentially. Do not use `Promise.all` or
+ * other concurrent Prisma calls inside this transaction; the RLS context is
+ * transaction-local and the interactive transaction pins one connection.
+ */
 export async function withDbUserContext<T>(
   userId: string,
   operation: (tx: Prisma.TransactionClient) => Promise<T>,
@@ -50,7 +57,7 @@ export async function withDbUserContext<T>(
 export function withSerializableDbUserContext<T>(
   userId: string,
   operation: (tx: Prisma.TransactionClient) => Promise<T>,
-  options: Omit<WithDbUserContextOptions, "serializableRetry"> = {},
+  options: Omit<WithDbUserContextOptions, "serializableRetry" | "isolationLevel"> = {},
 ) {
   return withDbUserContext(userId, operation, {
     ...options,

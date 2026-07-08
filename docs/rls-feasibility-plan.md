@@ -49,7 +49,8 @@ Do not enable RLS directly on production tables before launch. First build and t
   completes or after the pool reuses a connection for another user.
 - If a protected query runs under a serializable retry helper, set
   `app.user_id` as the first statement inside each retried transaction callback.
-  Do not set context once outside a retry loop.
+  Do not set context once outside a retry loop, and do not pair serializable
+  retry with weaker transaction isolation.
 - Do not run parallel Prisma queries inside an interactive transaction used for
   RLS context. Queries that currently use `Promise.all` must be serialized or
   redesigned when wrapped in the context helper.

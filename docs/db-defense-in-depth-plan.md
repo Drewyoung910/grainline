@@ -303,10 +303,14 @@ Required helper contract:
 - Open an explicit Prisma transaction.
 - Run `set_config('app.user_id', $userId, true)` as the first statement inside
   the transaction.
+- Pass the exact local `User.id`; the helper rejects empty, whitespace-padded,
+  overlong, or non-id-shaped values instead of trimming/canonicalizing them.
 - Use the transaction client for every protected query.
 - Do not run parallel Prisma queries inside that interactive transaction.
 - If combined with serializable retry, set context inside each retried
-  transaction callback, not outside the retry loop.
+  transaction callback, not outside the retry loop, and keep the transaction at
+  `Serializable` isolation so the retry can actually observe serialization
+  failures.
 - Keep service/admin/cron/webhook bypass work explicit; do not use the
   end-user helper as a generic system bypass.
 

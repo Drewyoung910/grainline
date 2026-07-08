@@ -13859,6 +13859,100 @@ increases by two for the explicit `pg_trgm` runtime grant/audit coverage and the
 bidirectional provisioning-inventory guard. Raw-left stays at zero because this
 was post-raw hidden-issue hardening, not closure of a remaining raw allegation.
 
+### Entry 511 - RLS user-context serializable retry hardening
+
+Entry 511 reviewed Claude's read-only report on the dormant RLS user-context
+helper as junior input, then parent Codex independently checked
+`src/lib/dbUserContext.ts`, `src/lib/dbUserContextState.ts`,
+`src/lib/transactionRetry.ts`, the current SavedSearch and seller-profile
+serializable transaction patterns, and the RLS feasibility/runbook contracts.
+The serializable wrapper concern was real: the helper enabled retry without
+defaulting the Prisma interactive transaction to `Serializable` isolation, so a
+future cap-sensitive migration could silently drop to the database default
+isolation while keeping an inert retry loop. Latest pushed CI on `main` was
+green for `2d8c4e31` (`28979188466`) before editing.
+
+Fixed/reduced:
+
+- `dbUserContextTransactionOptions({ serializableRetry: true })` now defaults
+  to `Serializable` isolation and rejects weaker isolation when retry is
+  requested. `withSerializableDbUserContext()` no longer accepts an
+  `isolationLevel` option, so the convenience wrapper cannot be paired with a
+  weaker transaction level.
+- `normalizeDbUserContextUserId()` now requires the exact local `User.id`
+  string instead of trimming it. Empty, whitespace-padded, overlong, or
+  non-id-shaped context ids fail closed instead of aliasing to a different
+  database owner id.
+- `withDbUserContext()` now carries a local API contract warning future callers
+  to keep protected queries on the provided transaction client and avoid
+  `Promise.all`/parallel Prisma calls inside the interactive transaction.
+- `docs/db-defense-in-depth-plan.md`, `docs/rls-feasibility-plan.md`, and
+  `CLAUDE.md` now record the exact-id, no-parallel-query, and Serializable
+  retry requirements as durable RLS behavior contracts.
+
+Verified stale/current or deferred without source changes:
+
+- Production RLS remains disabled. No route, webhook, cron, server component,
+  or table policy was moved onto the helper in this pass.
+- The staging pooling/context-isolation gate remains the real go/no-go before
+  enabling any table policy or wrapping hot paths.
+
+Guardrails added/reviewed:
+
+- Extended `tests/db-user-context.test.mjs` to cover exact local user-id
+  validation, Serializable isolation defaults for retry, rejection of weaker
+  retry isolation, the helper JSDoc no-parallel contract, and the
+  `withSerializableDbUserContext()` type-level omission of `isolationLevel`.
+- Re-ran the RLS feasibility and context-gate guardrails alongside the helper
+  test.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 3` confirmed latest
+pushed CI on `main` was green for `2d8c4e31` (`28979188466`);
+source/docs/test inspection with `rg`/`sed`; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/db-user-context.test.mjs tests/rls-feasibility-plan.test.mjs
+tests/rls-context-gate.test.mjs` passed 23/24 with the expected local
+GitHub-only Postgres smoke skip; `npx tsc --noEmit`; `git diff --check`;
+`npm run lint` exited 0 with the known jsx-ast-utils TSNonNullExpression
+warning; `npm audit --audit-level=high` found 0 vulnerabilities; and full
+`npm test` passed 1485/1487 with the expected local skips. Local
+`npm run build` was not rerun because recent local builds compile and then fail
+sitemap page-data collection against the configured unreachable Neon endpoint;
+production build completion remains to be verified by pushed CI's local
+Postgres build.
+
+Current running tally after Entry 511: verified fixed/reduced 1010, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by two for the Serializable retry isolation fix and the exact
+context-id hardening. The no-parallel helper contract is guardrail coverage for
+an already-documented RLS staging rule, so it is not counted as a separate
+finding. Deferred stays flat because the live staging gate, route-level
+prototype tests, and actual Notification/SavedSearch policies remain future
+execution work. Raw-left stays at zero because this was post-raw hardening, not
+closure of a raw allegation.
+
+Remaining major categories are still the deferred launch/runtime/legal/product
+evidence backlog, not open raw source allegations: live RLS staging gate
+execution plus route-level prototype tests before any table policy, Stripe
+refund runtime reconciliation/backfill proof, Stripe partial-refund live
+reconciliation proof, label clawback runtime reconciliation evidence, Stripe
+webhook subscription dashboard evidence, Stripe Connect v2 loss-liability
+ops/legal decision, explicit stale remote branch pruning/review, Round 10
+cache/state-machine product designs, EXPLAIN-dependent runtime query-plan
+validation, provider-side privacy erasure/legal-request evidence, cross-seller
+AI duplicate-detection product design, durable checkout-group product semantics
+beyond current guardrails, high-scale BigInt money/counter modeling decisions,
+live-data reconciliation for historical seller shipping-rate currency drift,
+Clerk staff MFA/breached-password/multi-account dashboard evidence,
+buyer-deletion live Stripe replay proof, Founding Maker live DB concurrency
+proof, Sentry cron alert evidence, Cloudflare R2 ListBucket/public bucket
+posture plus production smoke/public-availability proof, HSTS preload
+submission/status, Vercel Analytics/Speed Insights product privacy decision,
+homepage browser a11y/runtime proof, and deployed security-header runtime
+proof.
+
 ### Entry 510 - RLS user-context helper foundation
 
 Entry 510 acted on Claude's read-only conclusion that the RLS gate tooling had
