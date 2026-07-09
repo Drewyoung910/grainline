@@ -50,7 +50,13 @@ describe("PR H account deletion, analytics, and email follow-ups", () => {
     assert.match(notifications, /tags: \{ source: "create_notification", notificationType: type \}/);
     assert.match(notifications, /source: "notification_dedup_lookup"/);
     assert.match(notifications, /notificationType: type/);
+    assert.match(notifications, /function notificationTelemetryExtra/);
+    assert.match(notifications, /hasLink: typeof link === "string" && link\.length > 0/);
+    assert.match(notifications, /linkLength: typeof link === "string" \? Math\.min\(link\.length, NOTIFICATION_LINK_MAX_LENGTH\) : 0/);
     assert.match(notifications, /hasDedupScope: Boolean\(dedupScope\)/);
+    assert.match(notifications, /extra: notificationTelemetryExtra\(\{ userId, link, dedupScope \}\)/);
+    assert.match(notifications, /extra: notificationTelemetryExtra\(\{ userId, link: notificationLink, dedupScope \}\)/);
+    assert.doesNotMatch(notifications, /extra: \{ userId, link \}/);
     assert.doesNotMatch(notifications, /catch \{\s*return null;\s*\}/);
     assert.doesNotMatch(notifications, /return fallbackEnabled/);
     assert.match(email, /inactive-account lookup failed; skipping send/);

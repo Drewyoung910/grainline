@@ -13859,6 +13859,83 @@ increases by two for the explicit `pg_trgm` runtime grant/audit coverage and the
 bidirectional provisioning-inventory guard. Raw-left stays at zero because this
 was post-raw hidden-issue hardening, not closure of a remaining raw allegation.
 
+### Entry 515 - Notification minimization and RLS inventory pass
+
+Entry 515 continued the post-raw RLS-adjacent notification/SavedSearch pass with
+one read-only sub-agent used as junior input. Parent Codex independently
+rechecked every agent claim against current source before changing code. No
+current app-layer owner-check bypass was found in the scoped Notification or
+SavedSearch routes/pages/helpers: notification reads and mark-read writes are
+still scoped to the authenticated local user, and SavedSearch API/dashboard/
+export/delete paths remain owner-scoped.
+
+Fixed/reduced:
+
+- `src/lib/notifications.ts` no longer sends raw notification `link` values to
+  Sentry when `createNotification()` or notification dedup lookup fails. Failure
+  telemetry now records only the recipient id, whether a link existed, the
+  bounded link length, and whether a dedup scope existed. This preserves useful
+  debugging context without copying private order/message/case route ids into
+  exception metadata.
+- `GET /api/notifications` now uses `NOTIFICATION_BELL_SELECT` and returns only
+  the bell DTO fields (`id`, `type`, `title`, `body`, `link`, `read`,
+  `createdAt`) instead of the full `Notification` row. This removes owner-scoped
+  but unnecessary exposure of internal `sourceType`, `sourceId`, and `dedupKey`
+  fields from the JSON endpoint.
+- `docs/rls-feasibility-plan.md` and `docs/db-defense-in-depth-plan.md` now
+  inventory the message-thread auto-mark-read update and low-stock notification
+  dedupe read as Notification RLS paths that must be wrapped or deliberately
+  handled before the first Notification policy migration.
+
+Verified current or deliberately deferred without source changes:
+
+- The sub-agent's missing-owner-check concern did not reproduce. Current
+  notification API routes use `me.id` owner predicates, the dashboard
+  notification server action blocks banned/deleted users before mark-all-read,
+  SavedSearch create/list/delete routes use the authenticated local user, and
+  account export reads saved searches by the exported account id.
+- The RLS inventory gap is not a production exposure while RLS remains disabled;
+  it is a first-policy migration guard so future owner-scoped `SELECT`/`UPDATE`
+  policies do not silently break message-thread read-state updates or low-stock
+  dedupe.
+
+Guardrails added/reviewed:
+Updated `tests/pr-h-deletion-analytics-email-followups.test.mjs` to reject raw
+notification-link failure telemetry, `tests/client-async-guardrails.test.mjs`
+to keep `/api/notifications` on the narrow bell projection, and
+`tests/rls-feasibility-plan.test.mjs` to require the hidden Notification RLS
+paths in both RLS plans. Reviewed `src/app/api/notifications/route.ts`,
+`src/app/api/notifications/read-all/route.ts`,
+`src/app/api/notifications/[id]/read/route.ts`,
+`src/app/dashboard/notifications/page.tsx`, `src/components/NotificationBell.tsx`,
+`src/app/api/search/saved/route.ts`, `src/app/dashboard/page.tsx`,
+`src/app/api/account/export/route.ts`, `src/app/messages/[id]/page.tsx`, and
+`src/app/api/listings/[id]/stock/route.ts`.
+
+Verification:
+`git status --short`; latest pushed CI on `main` was green for `d446ccb7`
+(`28985042881`) before editing; source/docs/test inspection with `rg`/`sed`;
+focused `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+--experimental-strip-types --test tests/pr-h-deletion-analytics-email-followups.test.mjs
+tests/client-async-guardrails.test.mjs tests/server-error-logger.test.mjs
+tests/notification-payload.test.mjs tests/notification-links.test.mjs
+tests/round9-public-pii-guardrails.test.mjs tests/r49-account-state-routes.test.mjs
+tests/private-json-cache-headers.test.mjs tests/rls-feasibility-plan.test.mjs`
+passed 68/68 after correcting one line-wrap-sensitive RLS plan assertion; `npx
+tsc --noEmit`; `git diff --check`; `npm run lint` exited 0 with the known
+jsx-ast-utils TSNonNullExpression warning; `npm audit --audit-level=high` found
+0 vulnerabilities; and full `npm test` passed 1486/1489 with the expected local
+skips.
+
+Current running tally after Entry 515: verified fixed/reduced 1018, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by three for the raw notification-link telemetry reduction, the
+notification API projection minimization, and the hidden Notification RLS path
+inventory guard. Stale/current and deferred stay flat because no new raw
+allegation was closed and the future RLS policy work remains in the existing
+deferred execution bucket. Raw-left stays at zero.
+
 ### Entry 514 - RLS helper provenance and execution guardrails
 
 Entry 514 reviewed Claude's follow-up response as junior read-only input, then

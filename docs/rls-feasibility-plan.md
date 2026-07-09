@@ -162,7 +162,8 @@ Do not enable RLS directly on production tables before launch. First build and t
 - Before enabling the policy, inventory and wrap all notification read/update
   paths, including `/api/notifications`, `/api/notifications/read-all`,
   `/api/notifications/[id]/read`, dashboard notification pages, notification
-  bell data sources, and account export reads.
+  bell data sources, message-thread auto-mark-read updates, low-stock
+  notification dedupe reads, and account export reads.
 - Existing read paths that use parallel `findMany`/`count` queries must be
   serialized or otherwise adapted inside the transaction-local context helper.
 

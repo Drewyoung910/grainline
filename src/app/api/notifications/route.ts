@@ -6,6 +6,16 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 
 export const runtime = "nodejs";
 
+const NOTIFICATION_BELL_SELECT = {
+  id: true,
+  type: true,
+  title: true,
+  body: true,
+  link: true,
+  read: true,
+  createdAt: true,
+} as const;
+
 export async function GET() {
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
@@ -26,6 +36,7 @@ export async function GET() {
   const [notifications, unreadCount] = await Promise.all([
     prisma.notification.findMany({
       where: { userId: me.id },
+      select: NOTIFICATION_BELL_SELECT,
       orderBy: { createdAt: "desc" },
       take: 20,
     }),

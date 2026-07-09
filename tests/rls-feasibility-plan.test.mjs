@@ -78,6 +78,22 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(runbook, /After production RLS rollout, rerun the gate/);
   });
 
+  it("inventories hidden notification read and update paths before the first policy", () => {
+    const plan = source("docs/rls-feasibility-plan.md");
+    const defense = source("docs/db-defense-in-depth-plan.md");
+    const messageThread = source("src/app/messages/[id]/page.tsx");
+    const stockRoute = source("src/app/api/listings/[id]/stock/route.ts");
+
+    for (const doc of [plan, defense]) {
+      assert.match(doc, /message-thread auto-mark-read updates/);
+      assert.match(doc, /low-stock\s+notification dedupe reads/);
+    }
+    assert.match(messageThread, /prisma\.notification\.updateMany\(\{/);
+    assert.match(messageThread, /type: "NEW_MESSAGE"/);
+    assert.match(stockRoute, /prisma\.notification\.findFirst\(\{/);
+    assert.match(stockRoute, /type: "LOW_STOCK"/);
+  });
+
   it("keeps public discovery tables out of the first RLS pass", () => {
     const plan = source("docs/rls-feasibility-plan.md");
 

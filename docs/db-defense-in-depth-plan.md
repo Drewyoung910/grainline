@@ -493,6 +493,8 @@ Read/update paths to inventory and wrap before enabling:
 - `/api/notifications/[id]/read`
 - dashboard notification page reads
 - notification bell data sources
+- message-thread auto-mark-read updates
+- low-stock notification dedupe reads
 - account export notification reads
 
 Writer/cleanup paths to inventory before choosing `INSERT`/`DELETE` policy:

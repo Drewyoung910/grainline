@@ -31,6 +31,23 @@ function isNotificationDedupError(error: unknown) {
   return err?.code === "P2002";
 }
 
+function notificationTelemetryExtra({
+  userId,
+  link,
+  dedupScope,
+}: {
+  userId: string;
+  link?: string;
+  dedupScope?: string;
+}) {
+  return {
+    userId,
+    hasLink: typeof link === "string" && link.length > 0,
+    linkLength: typeof link === "string" ? Math.min(link.length, NOTIFICATION_LINK_MAX_LENGTH) : 0,
+    hasDedupScope: Boolean(dedupScope),
+  };
+}
+
 export async function shouldSendEmail(userId: string, prefKey: string): Promise<boolean> {
   try {
     const user = await prisma.user.findUnique({
@@ -120,7 +137,7 @@ export async function createNotification({
               source: "notification_dedup_lookup",
               notificationType: type,
             },
-            extra: { userId, hasLink: Boolean(notificationLink), hasDedupScope: Boolean(dedupScope) },
+            extra: notificationTelemetryExtra({ userId, link: notificationLink, dedupScope }),
           });
           return null;
         }
@@ -130,7 +147,7 @@ export async function createNotification({
   } catch (error) {
     Sentry.captureException(error, {
       tags: { source: "create_notification", notificationType: type },
-      extra: { userId, link },
+      extra: notificationTelemetryExtra({ userId, link, dedupScope }),
     });
     // Never let notification failures break the main flow
   }
