@@ -13859,6 +13859,66 @@ increases by two for the explicit `pg_trgm` runtime grant/audit coverage and the
 bidirectional provisioning-inventory guard. Raw-left stays at zero because this
 was post-raw hidden-issue hardening, not closure of a remaining raw allegation.
 
+### Entry 516 - Notification RLS context classification precision
+
+Entry 516 reviewed Claude's follow-up on the notification minimization pass as
+junior read-only input. Parent Codex verified that its summary of the
+minimization commit was correct, but its claim that F1-F7 all remain open was
+stale against current `main`: F1/F3/F4/F6/F7 were already closed by Entries
+512-514 with green CI. F2 wrapper coverage and F5 Notification service/write
+strategy remain deliberate first-policy migration work, not current production
+RLS defects.
+
+Fixed/reduced:
+
+- `docs/rls-feasibility-plan.md` and `docs/db-defense-in-depth-plan.md` now
+  classify the manual-stock low-stock notification dedupe read as an
+  authenticated-seller user-context path, because the route proves
+  `seller.userId = me.id` before the `notification.findFirst()` call.
+- The same docs now keep webhook/cron/admin low-stock and other notification
+  creation paths in the service/write-path inventory through
+  `createNotification()`, so future RLS work does not wrap service writes with
+  the wrong user-context helper.
+- `tests/rls-feasibility-plan.test.mjs` now guards both the docs distinction
+  and the current stock-route owner predicate/select shape that makes the
+  manual low-stock dedupe read user-context safe.
+
+Verified current or deliberately deferred without source changes:
+
+- The manual stock route is not a no-user/system path: it authenticates through
+  Clerk, resolves `me` with `ensureUserByClerkId()`, and loads the listing with
+  `where: { id, seller: { userId: me.id } }` before the low-stock dedupe read.
+- Stripe webhook low-stock notification creation remains a service/write-path
+  item under the existing F5 backlog. It creates notifications through
+  `createNotification()` and does not use the manual stock route's
+  `notification.findFirst()` dedupe read.
+- The automated wrapper-coverage guard remains deferred until the first actual
+  Notification policy route migration, when the allowlist can target wrapped
+  RLS-protected reads instead of encoding today's pre-RLS raw Prisma access.
+
+Guardrails added/reviewed:
+Updated `tests/rls-feasibility-plan.test.mjs`; reviewed
+`src/app/api/listings/[id]/stock/route.ts`,
+`src/app/api/stripe/webhook/route.ts`, `docs/rls-feasibility-plan.md`,
+`docs/db-defense-in-depth-plan.md`, and Entries 512-515 in this ledger.
+
+Verification:
+`git status --short`; latest pushed CI on `main` was green for `9afd78d2`
+(`29049504950`) before editing; source/docs/test inspection with `rg`/`sed`;
+focused `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+--experimental-strip-types --test tests/rls-feasibility-plan.test.mjs
+tests/audit-ledger-coupling.test.mjs` passed 9/9 after normalizing one
+hyphenation mismatch between docs; and `git diff --check` passed.
+
+Current running tally after Entry 516: verified fixed/reduced 1019, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the RLS user-context vs service/write-path classification
+guard. Stale/current stays flat because Claude's stale F1/F3/F4/F6/F7
+statement was already covered in Entry 514 rather than a new raw allegation.
+Deferred stays flat because F2/F5 remain in the existing first-policy migration
+backlog. Raw-left stays at zero.
+
 ### Entry 515 - Notification minimization and RLS inventory pass
 
 Entry 515 continued the post-raw RLS-adjacent notification/SavedSearch pass with

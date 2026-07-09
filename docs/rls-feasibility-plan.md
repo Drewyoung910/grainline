@@ -162,8 +162,12 @@ Do not enable RLS directly on production tables before launch. First build and t
 - Before enabling the policy, inventory and wrap all notification read/update
   paths, including `/api/notifications`, `/api/notifications/read-all`,
   `/api/notifications/[id]/read`, dashboard notification pages, notification
-  bell data sources, message-thread auto-mark-read updates, low-stock
-  notification dedupe reads, and account export reads.
+  bell data sources, message-thread auto-mark-read updates, seller manual-stock
+  low-stock notification dedupe reads, and account export reads.
+- The manual-stock low-stock dedupe read is authenticated-seller user context:
+  the stock route first proves `seller.userId = me.id`. Webhook/cron/admin
+  low-stock and other notification creation paths remain service/write-path
+  decisions through `createNotification()`, not user-context read wrappers.
 - Existing read paths that use parallel `findMany`/`count` queries must be
   serialized or otherwise adapted inside the transaction-local context helper.
 

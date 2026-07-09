@@ -494,8 +494,13 @@ Read/update paths to inventory and wrap before enabling:
 - dashboard notification page reads
 - notification bell data sources
 - message-thread auto-mark-read updates
-- low-stock notification dedupe reads
+- seller manual-stock low-stock notification dedupe reads
 - account export notification reads
+
+The manual-stock low-stock dedupe read is an authenticated-seller user context
+path because the stock route proves `seller.userId = me.id` before the read.
+Webhook/cron/admin low-stock and other notification creation paths stay in the
+service/write-path inventory through `createNotification()`.
 
 Writer/cleanup paths to inventory before choosing `INSERT`/`DELETE` policy:
 

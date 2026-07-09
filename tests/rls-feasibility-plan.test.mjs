@@ -86,8 +86,13 @@ describe("RLS feasibility plan guardrails", () => {
 
     for (const doc of [plan, defense]) {
       assert.match(doc, /message-thread auto-mark-read updates/);
-      assert.match(doc, /low-stock\s+notification dedupe reads/);
+      assert.match(doc, /seller manual-stock\s+low-stock notification dedupe reads/);
+      assert.match(doc, /authenticated-seller user context/);
+      assert.match(doc, /Webhook\/cron\/admin\s+low-stock/);
+      assert.match(doc, /service\/write-path/);
     }
+    assert.match(stockRoute, /where: \{ id, seller: \{ userId: me\.id \} \}/);
+    assert.match(stockRoute, /seller: \{ select: \{ id: true, userId: true \} \}/);
     assert.match(messageThread, /prisma\.notification\.updateMany\(\{/);
     assert.match(messageThread, /type: "NEW_MESSAGE"/);
     assert.match(stockRoute, /prisma\.notification\.findFirst\(\{/);
