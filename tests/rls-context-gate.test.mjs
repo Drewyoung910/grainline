@@ -258,7 +258,18 @@ describe("RLS context acceptance gate guardrails", () => {
     }));
     const payload = buildEvidencePayload(
       config,
-      { issues: ["synthetic issue"], reports: ["synthetic report"] },
+      {
+        issues: [
+          "synthetic issue",
+          "connection failed for postgresql://owner:secret@ep-admin-pooler.example.neon.tech/grainline_staging?sslmode=require",
+          "env RLS_CONTEXT_GATE_ADMIN_DATABASE_URL=postgres://admin:admin-secret@ep-admin.example.neon.tech/grainline_staging",
+          "dsn user=owner password=owner-password host=ep-admin.example.neon.tech",
+        ],
+        reports: [
+          "synthetic report",
+          "upstream URL had https://runtime:report-secret@example.invalid/path and PGPASSWORD=report-secret",
+        ],
+      },
       {
         finishedAt: "2026-07-09T22:00:01.000Z",
         startedAt: "2026-07-09T22:00:00.000Z",
@@ -275,12 +286,19 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.equal(payload.run.commitSha, "abc123");
     assert.equal(payload.database.databaseHost, "ep-test-pooler.example.neon.tech");
     assert.equal(payload.database.runtimeRole, "grainline_app_runtime");
-    assert.equal(payload.result.issueCount, 1);
+    assert.equal(payload.result.issueCount, 4);
+    assert.match(payload.result.issues[1], /\[redacted-postgres-url\]/);
+    assert.match(payload.result.issues[2], /\[redacted-database-url\]/);
+    assert.match(payload.result.issues[3], /\[redacted-password\]/);
+    assert.match(payload.result.reports[1], /\[redacted-credentials\]/);
     assert.equal(payload.config.measuredRequests, MIN_ACCEPTANCE_REQUESTS);
     const serialized = JSON.stringify(payload);
     assert.doesNotMatch(serialized, /postgresql:\/\//);
+    assert.doesNotMatch(serialized, /postgres:\/\//);
     assert.doesNotMatch(serialized, /runtime:secret/);
+    assert.doesNotMatch(serialized, /owner:secret|admin-secret|owner-password|report-secret|runtime:report-secret/);
     assert.doesNotMatch(serialized, /RLS_CONTEXT_GATE_DATABASE_URL/);
+    assert.doesNotMatch(serialized, /RLS_CONTEXT_GATE_ADMIN_DATABASE_URL/);
   });
 
   it("smoke-runs the gate orchestration against synthetic CI Postgres objects", { skip: gateIntegrationSkipReason() }, async () => {

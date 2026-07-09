@@ -23,6 +23,12 @@ const DEFAULT_QUERY_TIMEOUT_MS = 35_000;
 const DEFAULT_TRANSACTION_TIMEOUT_MS = 5_000;
 const PREPARED_SELECT_NAME = "rls_context_gate_canary_select_v1";
 const CONFIRMATION_VALUE = "staging-only";
+const DATABASE_URL_ASSIGNMENT_PATTERN =
+  /\b(?:DATABASE_URL|DIRECT_URL|RLS_CONTEXT_GATE_(?:DATABASE_URL|ADMIN_DATABASE_URL))\b\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi;
+const PASSWORD_ASSIGNMENT_PATTERN = /\b(?:PGPASSWORD|password|pass|pwd)\b\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi;
+const POSTGRES_URL_PATTERN = /\bpostgres(?:ql)?:\/\/[^\s"'`<>]+/gi;
+const URL_USERINFO_PATTERN = /\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@:]+:[^\s/@]+@/gi;
+const USERINFO_PATTERN = /\b[^\s:@/]+:[^\s@/]+@(?=[A-Za-z0-9.-]+\b)/g;
 
 const PREPARED_STATEMENT_ERROR_PATTERNS = [
   /prepared statement already exists/i,
@@ -126,6 +132,19 @@ function safeErrorMessage(error) {
   if (!error) return "unknown error";
   if (error instanceof Error) return error.message;
   return String(error);
+}
+
+function redactEvidenceText(value) {
+  return String(value)
+    .replace(DATABASE_URL_ASSIGNMENT_PATTERN, "[redacted-database-url]")
+    .replace(PASSWORD_ASSIGNMENT_PATTERN, "[redacted-password]")
+    .replace(POSTGRES_URL_PATTERN, "[redacted-postgres-url]")
+    .replace(URL_USERINFO_PATTERN, "$1[redacted-credentials]@")
+    .replace(USERINFO_PATTERN, "[redacted-credentials]@");
+}
+
+function redactEvidenceMessages(messages) {
+  return messages.map((message) => redactEvidenceText(message));
 }
 
 export function isPreparedStatementError(error) {
@@ -233,6 +252,9 @@ function sanitizedDatabaseHost(databaseUrl) {
 }
 
 export function buildEvidencePayload(config, result, { finishedAt, startedAt, status }, env = process.env) {
+  const issues = redactEvidenceMessages(result.issues);
+  const reports = redactEvidenceMessages(result.reports);
+
   return {
     generatedAt: finishedAt,
     run: {
@@ -264,9 +286,9 @@ export function buildEvidencePayload(config, result, { finishedAt, startedAt, st
       warmupRequests: config.warmupRequests,
     },
     result: {
-      issueCount: result.issues.length,
-      issues: result.issues,
-      reports: result.reports,
+      issueCount: issues.length,
+      issues,
+      reports,
     },
   };
 }

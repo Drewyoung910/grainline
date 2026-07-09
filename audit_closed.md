@@ -13859,6 +13859,55 @@ increases by two for the explicit `pg_trgm` runtime grant/audit coverage and the
 bidirectional provisioning-inventory guard. Raw-left stays at zero because this
 was post-raw hidden-issue hardening, not closure of a remaining raw allegation.
 
+### Entry 521 - RLS context evidence message redaction
+
+Entry 521 reviewed Claude's follow-up as junior read-only input and verified the
+claim against current `main`. The prior RLS evidence artifact was structurally
+curated and did not serialize raw `databaseUrl` or `adminDatabaseUrl` config
+fields, but the retained JSON payload still wrote `result.issues` and
+`result.reports` verbatim. Because those strings can include driver or wrapper
+error messages, a future staging failure could have copied a database URL or
+password-like fragment into the retained evidence artifact.
+
+Fixed/reduced:
+
+- `scripts/rls-context-acceptance-gate.mjs` now redacts database URL env-var
+  assignments, `postgres://` / `postgresql://` URLs, password assignments, and
+  URL userinfo credentials before persisting `issues` or `reports` in the
+  `RLS_CONTEXT_GATE_EVIDENCE_PATH` JSON artifact. Terminal output remains
+  operational, but the retained artifact now has a dedicated scrub boundary.
+
+Guardrails added/reviewed:
+
+- `tests/rls-context-gate.test.mjs` now injects URL-bearing issue/report text
+  into `buildEvidencePayload()` and asserts the serialized artifact omits
+  `postgres://`, `postgresql://`, RLS database URL env-var names, and sample
+  password/userinfo fragments while preserving redacted placeholders.
+- Reviewed `docs/db-defense-in-depth-plan.md`, `docs/runbook.md`,
+  `docs/launch-checklist.md`, `docs/deferred-launch-backlog.md`, `CLAUDE.md`,
+  and the local `AGENTS.md` RLS/audit contracts. The existing docs claim that
+  the retained artifact must not contain database URLs or credentials remains
+  accurate after this fix.
+
+Verification:
+`git status --short`; attachment/source/docs/test inspection with `rg`/`sed`;
+`node --check scripts/rls-context-acceptance-gate.mjs`; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+--experimental-strip-types --test tests/rls-context-gate.test.mjs
+tests/audit-ledger-coupling.test.mjs` passed 12/13 with the expected local
+GitHub-only synthetic Postgres skip; `npx tsc --noEmit`; `npm run lint`
+exited 0 with the known `jsx-ast-utils` TSNonNullExpression warning; full
+`npm test` passed 1490/1493 with the expected local skips; and
+`git diff --check` passed. CI is pending until this pass is pushed.
+
+Current running tally after Entry 521: verified fixed/reduced 1022, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the retained RLS evidence message-redaction hardening.
+Deferred stays flat because the live staging gate, route-level prototype tests,
+wrapper coverage guard, and first table policy remain tracked RLS execution work
+rather than newly closed items.
+
 ### Entry 520 - RLS context gate evidence artifact hardening
 
 Entry 520 starts the next slow RLS execution slice without enabling production
