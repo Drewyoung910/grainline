@@ -13898,7 +13898,8 @@ tests/audit-ledger-coupling.test.mjs` passed 12/13 with the expected local
 GitHub-only synthetic Postgres skip; `npx tsc --noEmit`; `npm run lint`
 exited 0 with the known `jsx-ast-utils` TSNonNullExpression warning; full
 `npm test` passed 1490/1493 with the expected local skips; and
-`git diff --check` passed. CI is pending until this pass is pushed.
+`git diff --check` passed; after push, CI for `222af184` (`29055521331`)
+passed typecheck, lint, tests, security audit, and production build on `main`.
 
 Current running tally after Entry 521: verified fixed/reduced 1022, verified
 stale/false-positive/current 579, deferred product/design/ops/legal 87,
