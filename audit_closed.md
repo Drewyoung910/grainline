@@ -13859,6 +13859,64 @@ increases by two for the explicit `pg_trgm` runtime grant/audit coverage and the
 bidirectional provisioning-inventory guard. Raw-left stays at zero because this
 was post-raw hidden-issue hardening, not closure of a remaining raw allegation.
 
+### Entry 520 - RLS context gate evidence artifact hardening
+
+Entry 520 starts the next slow RLS execution slice without enabling production
+RLS or adding customer-table policies. Parent Codex rechecked the current RLS
+plan, staging gate script, dormant helper, runbook, launch checklist, and
+backlog. The documented next gate remains the production-like Neon pooled
+runtime-role context proof, but that proof could previously be terminal-only
+unless the operator separately captured output. This pass makes retained,
+sanitized evidence an explicit first-class artifact for the staging gate.
+
+Fixed/reduced:
+
+- `scripts/rls-context-acceptance-gate.mjs` now accepts
+  `RLS_CONTEXT_GATE_EVIDENCE_PATH` and writes a sanitized JSON artifact for each
+  gate run. The artifact records commit/CI metadata when available, sanitized
+  database host, runtime role, canary table/policy names, run configuration,
+  reports, and issues. It intentionally does not include database URLs or
+  credentials.
+- `docs/db-defense-in-depth-plan.md`, `docs/runbook.md`,
+  `docs/launch-checklist.md`, `docs/deferred-launch-backlog.md`, and
+  `CLAUDE.md` now require/route the staging RLS context gate through that
+  retained evidence artifact before treating Phase 3 as closed.
+- `tests/rls-context-gate.test.mjs` now guards the evidence-path parsing, the
+  sanitized evidence payload, URL/credential redaction, and the docs/future-agent
+  contract that the artifact must be retained.
+
+Verified current or deliberately deferred without source changes:
+
+- Production RLS remains disabled.
+- No real customer table policy was added or enabled.
+- The production-like staging gate has not been run in this local session
+  because it requires Drew's staging pooled runtime-role URL and direct
+  migration-owner URL. That remains the next execution step before wrapping hot
+  paths or enabling a `Notification` policy.
+
+Guardrails added/reviewed:
+Updated `tests/rls-context-gate.test.mjs`; reviewed
+`tests/rls-feasibility-plan.test.mjs`,
+`tests/deferred-launch-backlog.test.mjs`, and
+`tests/audit-ledger-coupling.test.mjs` alongside the RLS script/docs.
+
+Verification:
+`git status --short`; source/docs/test inspection with `rg`/`sed`;
+`node --check scripts/rls-context-acceptance-gate.mjs`; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+--experimental-strip-types --test tests/rls-context-gate.test.mjs
+tests/rls-feasibility-plan.test.mjs tests/deferred-launch-backlog.test.mjs
+tests/audit-ledger-coupling.test.mjs` passed 23/24 with the expected local
+GitHub-only synthetic Postgres skip; and `git diff --check` passed.
+
+Current running tally after Entry 520: verified fixed/reduced 1021, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the RLS context gate retained-evidence hardening. Deferred
+stays flat because the live staging gate, route-level prototype tests, wrapper
+coverage guard, and first table policy remain tracked RLS execution work rather
+than newly closed items.
+
 ### Entry 519 - Launch tracker union and Search Console checklist guardrail
 
 Entry 519 reviewed Claude's follow-up on the new deferred backlog as junior

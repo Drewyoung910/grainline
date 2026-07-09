@@ -215,12 +215,14 @@ RLS staging context proof:
   needs migration-level tests before a real table policy is enabled.
 - If the staging canary table/policy has not been prepared or needs refresh,
   run the gate with the direct migration-owner URL and pooled runtime-role URL:
-  `RLS_CONTEXT_GATE_CONFIRM=staging-only RLS_CONTEXT_GATE_PREPARE=1 RLS_CONTEXT_GATE_ADMIN_DATABASE_URL="$DIRECT_URL" RLS_CONTEXT_GATE_DATABASE_URL="<pooled runtime-role URL>" RLS_CONTEXT_GATE_RUNTIME_ROLE=grainline_app_runtime npm run audit:rls-context`.
+  `RLS_CONTEXT_GATE_CONFIRM=staging-only RLS_CONTEXT_GATE_PREPARE=1 RLS_CONTEXT_GATE_ADMIN_DATABASE_URL="$DIRECT_URL" RLS_CONTEXT_GATE_DATABASE_URL="<pooled runtime-role URL>" RLS_CONTEXT_GATE_RUNTIME_ROLE=grainline_app_runtime RLS_CONTEXT_GATE_EVIDENCE_PATH="rls-context-gate-evidence.json" npm run audit:rls-context`.
 - For repeat runs after the canary is already prepared:
-  `RLS_CONTEXT_GATE_CONFIRM=staging-only RLS_CONTEXT_GATE_DATABASE_URL="<pooled runtime-role URL>" RLS_CONTEXT_GATE_RUNTIME_ROLE=grainline_app_runtime npm run audit:rls-context`.
+  `RLS_CONTEXT_GATE_CONFIRM=staging-only RLS_CONTEXT_GATE_DATABASE_URL="<pooled runtime-role URL>" RLS_CONTEXT_GATE_RUNTIME_ROLE=grainline_app_runtime RLS_CONTEXT_GATE_EVIDENCE_PATH="rls-context-gate-evidence-rerun.json" npm run audit:rls-context`.
   Keep `RLS_CONTEXT_GATE_DATABASE_URL` on the pooled runtime-role URL, not
   `DIRECT_URL`; `DIRECT_URL` is only for the optional `RLS_CONTEXT_GATE_PREPARE=1`
   setup path.
+- Retain the sanitized evidence JSON from `RLS_CONTEXT_GATE_EVIDENCE_PATH` with
+  launch/RLS records. It must not contain database URLs or credentials.
 - To rerun only the rollback/no-op portion with an already prepared canary, add
   `RLS_CONTEXT_GATE_ROLLBACK_PROBE=1 RLS_CONTEXT_GATE_ADMIN_DATABASE_URL="$DIRECT_URL"`.
   This temporarily disables RLS only on the synthetic canary table, verifies the

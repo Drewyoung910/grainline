@@ -299,6 +299,11 @@ Current reviewed staging harness:
   `RLS_CONTEXT_GATE_CONFIRM=staging-only RLS_CONTEXT_GATE_DATABASE_URL="<pooled runtime-role URL>" RLS_CONTEXT_GATE_RUNTIME_ROLE=grainline_app_runtime npm run audit:rls-context`
 - To rerun the rollback/no-op proof without refreshing canary rows, add
   `RLS_CONTEXT_GATE_ROLLBACK_PROBE=1 RLS_CONTEXT_GATE_ADMIN_DATABASE_URL="$DIRECT_URL"`.
+- To retain a durable sanitized JSON evidence artifact, add
+  `RLS_CONTEXT_GATE_EVIDENCE_PATH="rls-context-gate-evidence.json"`. The
+  artifact records commit/CI metadata when available, sanitized database host,
+  runtime role, canary table/policy names, run configuration, reports, and
+  issues. It intentionally does not include database URLs or credentials.
 - Do not point this gate at production. Use a production-like Neon branch or
   staging database with the same pooled runtime-role shape as production.
 
@@ -352,6 +357,8 @@ acceptance evidence for RLS rollout.
 Evidence to record with the run:
 
 - commit SHA and CI run id for the app under test;
+- path to the retained sanitized JSON evidence artifact from
+  `RLS_CONTEXT_GATE_EVIDENCE_PATH`;
 - staging database or branch name;
 - sanitized migration/runtime role names and confirmation that the runtime role
   is the role behind pooled `DATABASE_URL`;

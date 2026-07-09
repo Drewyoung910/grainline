@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { writeFileSync } from "node:fs";
 import { performance } from "node:perf_hooks";
 import { pathToFileURL } from "node:url";
 import { PrismaClient } from "@prisma/client";
@@ -48,6 +49,13 @@ function parsePositiveInt(env, name, fallback, { min = 1, max = Number.MAX_SAFE_
 
 function parseBooleanFlag(env, name) {
   return env[name] === "1" || env[name] === "true";
+}
+
+function optionalEvidencePath(env) {
+  const raw = env.RLS_CONTEXT_GATE_EVIDENCE_PATH;
+  if (raw === undefined || raw === "") return undefined;
+  if (raw.includes("\0")) throw new Error("RLS_CONTEXT_GATE_EVIDENCE_PATH must not contain null bytes");
+  return raw;
 }
 
 function assertSafeIdentifier(value, name) {
@@ -200,6 +208,7 @@ export function parseGateConfig(env = process.env) {
     burstConcurrency,
     connectionTimeoutMs,
     databaseUrl,
+    evidencePath: optionalEvidencePath(env),
     measuredRequests,
     policyName,
     poolSize,
@@ -217,6 +226,55 @@ export function parseGateConfig(env = process.env) {
     userB,
     warmupRequests,
   };
+}
+
+function sanitizedDatabaseHost(databaseUrl) {
+  return new URL(databaseUrl).hostname;
+}
+
+export function buildEvidencePayload(config, result, { finishedAt, startedAt, status }, env = process.env) {
+  return {
+    generatedAt: finishedAt,
+    run: {
+      ciRunId: env.RLS_CONTEXT_GATE_CI_RUN_ID || env.GITHUB_RUN_ID || null,
+      commitSha: env.RLS_CONTEXT_GATE_COMMIT_SHA || env.GITHUB_SHA || null,
+      finishedAt,
+      startedAt,
+      status,
+    },
+    database: {
+      databaseHost: sanitizedDatabaseHost(config.databaseUrl),
+      policyName: config.policyName,
+      runtimeRole: config.runtimeRole,
+      schemaName: config.schemaName,
+      tableName: config.tableName,
+    },
+    config: {
+      burstConcurrency: config.burstConcurrency,
+      connectionTimeoutMs: config.connectionTimeoutMs,
+      measuredRequests: config.measuredRequests,
+      poolSize: config.poolSize,
+      prepare: config.prepare,
+      queryTimeoutMs: config.queryTimeoutMs,
+      rollbackProbe: config.rollbackProbe,
+      statementTimeoutMs: config.statementTimeoutMs,
+      targetConcurrency: config.targetConcurrency,
+      transactionTimeoutMs: config.transactionTimeoutMs,
+      turnoverRequests: config.turnoverRequests,
+      warmupRequests: config.warmupRequests,
+    },
+    result: {
+      issueCount: result.issues.length,
+      issues: result.issues,
+      reports: result.reports,
+    },
+  };
+}
+
+function writeEvidencePayload(config, payload) {
+  if (!config.evidencePath) return;
+  writeFileSync(config.evidencePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+  console.log(`RLS context evidence written to ${config.evidencePath}`);
 }
 
 function createClient(connectionString, config) {
@@ -1191,6 +1249,8 @@ function printUsage() {
   );
   console.error("Optional rollback proof:");
   console.error("  RLS_CONTEXT_GATE_ROLLBACK_PROBE=1 RLS_CONTEXT_GATE_ADMIN_DATABASE_URL='<direct migration-owner url>' ... npm run audit:rls-context");
+  console.error("Optional evidence artifact:");
+  console.error("  RLS_CONTEXT_GATE_EVIDENCE_PATH='rls-context-gate-evidence.json' ... npm run audit:rls-context");
 }
 
 async function main() {
@@ -1208,8 +1268,13 @@ async function main() {
   console.log(
     `target=${config.targetConcurrency} burst=${config.burstConcurrency} pool=${config.poolSize} requests=${config.measuredRequests} turnover=${config.turnoverRequests}`,
   );
+  const startedAt = new Date().toISOString();
   const result = await runAcceptanceGate(config);
+  const finishedAt = new Date().toISOString();
   for (const report of result.reports) console.log(report);
+  const status = result.issues.length > 0 ? "failed" : "passed";
+  const evidence = buildEvidencePayload(config, result, { finishedAt, startedAt, status });
+  writeEvidencePayload(config, evidence);
   if (result.issues.length > 0) {
     console.error("RLS context acceptance gate failed.");
     for (const issue of result.issues.slice(0, 40)) console.error(`- ${issue}`);

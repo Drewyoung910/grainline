@@ -6,6 +6,7 @@ import pg from "pg";
 
 const {
   MIN_ACCEPTANCE_REQUESTS,
+  buildEvidencePayload,
   isPreparedStatementError,
   parseGateConfig,
   runAcceptanceGate,
@@ -133,6 +134,9 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.equal(config.databaseUrl, baseEnv().RLS_CONTEXT_GATE_DATABASE_URL);
     assert.equal(config.runtimeRole, "grainline_app_runtime");
     assert.equal(config.measuredRequests, MIN_ACCEPTANCE_REQUESTS);
+    assert.equal(parseGateConfig(baseEnv({
+      RLS_CONTEXT_GATE_EVIDENCE_PATH: "tmp/rls-context-gate-evidence.json",
+    })).evidencePath, "tmp/rls-context-gate-evidence.json");
   });
 
   it("does not fall back to ambient production database env vars", () => {
@@ -224,6 +228,7 @@ describe("RLS context acceptance gate guardrails", () => {
     const defense = source("docs/db-defense-in-depth-plan.md");
     const runbook = source("docs/runbook.md");
     const launch = source("docs/launch-checklist.md");
+    const agentContract = source("CLAUDE.md");
 
     assert.match(defense, /scripts\/rls-context-acceptance-gate\.mjs/);
     assert.match(defense, /npm run audit:rls-context/);
@@ -235,11 +240,47 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.match(runbook, /RLS_CONTEXT_GATE_CONFIRM=staging-only/);
     assert.match(runbook, /RLS_CONTEXT_GATE_PREPARE=1/);
     assert.match(runbook, /RLS_CONTEXT_GATE_ROLLBACK_PROBE=1/);
+    assert.match(runbook, /RLS_CONTEXT_GATE_EVIDENCE_PATH/);
+    assert.match(runbook, /must not contain database URLs or credentials/);
     assert.match(runbook, /pooled runtime-role URL/);
     assert.match(runbook, /autocommit baseline/);
     assert.match(runbook, /proves read\/context\s+  isolation on synthetic canary rows/);
     assert.match(runbook, /per-table write-policy behavior/);
     assert.match(launch, /audit:rls-context/);
+    assert.match(launch, /RLS_CONTEXT_GATE_EVIDENCE_PATH/);
+    assert.match(agentContract, /RLS_CONTEXT_GATE_EVIDENCE_PATH/);
+    assert.match(agentContract, /retain the sanitized JSON artifact/);
+  });
+
+  it("builds a sanitized evidence payload without database URLs", () => {
+    const config = parseGateConfig(baseEnv({
+      RLS_CONTEXT_GATE_EVIDENCE_PATH: "tmp/rls-context-gate-evidence.json",
+    }));
+    const payload = buildEvidencePayload(
+      config,
+      { issues: ["synthetic issue"], reports: ["synthetic report"] },
+      {
+        finishedAt: "2026-07-09T22:00:01.000Z",
+        startedAt: "2026-07-09T22:00:00.000Z",
+        status: "failed",
+      },
+      {
+        GITHUB_RUN_ID: "12345",
+        GITHUB_SHA: "abc123",
+      },
+    );
+
+    assert.equal(payload.run.status, "failed");
+    assert.equal(payload.run.ciRunId, "12345");
+    assert.equal(payload.run.commitSha, "abc123");
+    assert.equal(payload.database.databaseHost, "ep-test-pooler.example.neon.tech");
+    assert.equal(payload.database.runtimeRole, "grainline_app_runtime");
+    assert.equal(payload.result.issueCount, 1);
+    assert.equal(payload.config.measuredRequests, MIN_ACCEPTANCE_REQUESTS);
+    const serialized = JSON.stringify(payload);
+    assert.doesNotMatch(serialized, /postgresql:\/\//);
+    assert.doesNotMatch(serialized, /runtime:secret/);
+    assert.doesNotMatch(serialized, /RLS_CONTEXT_GATE_DATABASE_URL/);
   });
 
   it("smoke-runs the gate orchestration against synthetic CI Postgres objects", { skip: gateIntegrationSkipReason() }, async () => {
