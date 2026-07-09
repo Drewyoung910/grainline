@@ -13907,7 +13907,11 @@ Verification:
 --experimental-strip-types --test tests/rls-context-gate.test.mjs
 tests/rls-feasibility-plan.test.mjs tests/deferred-launch-backlog.test.mjs
 tests/audit-ledger-coupling.test.mjs` passed 23/24 with the expected local
-GitHub-only synthetic Postgres skip; and `git diff --check` passed.
+GitHub-only synthetic Postgres skip; `npx tsc --noEmit`; `npm run lint`
+exited 0 with the known `jsx-ast-utils` TSNonNullExpression warning; full
+`npm test` passed 1490/1493 with the expected local skips; `git diff --check`
+passed; and after push, CI for `1e66a5e5` (`29054445933`) passed typecheck,
+lint, tests, security audit, and production build on `main`.
 
 Current running tally after Entry 520: verified fixed/reduced 1021, verified
 stale/false-positive/current 579, deferred product/design/ops/legal 87,
