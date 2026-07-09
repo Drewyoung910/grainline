@@ -14,6 +14,9 @@ These rules exist to survive context compaction and multi-agent handoffs. Read t
 
 - Work from `/Users/drewyoung/grainline` on `main` unless Drew explicitly says otherwise.
 - Treat Claude/other-agent findings as allegations, not facts. Verify each one against current `main` before fixing or closing it.
+- Treat prior Codex/agent open/closed status summaries as snapshots, not current
+  truth. Before repeating that a finding is open, fixed, stale, or deferred,
+  re-check current `HEAD`, recent commits, relevant source/tests, and latest CI.
 - Treat Claude/Fable as a junior read-only reviewer: useful for leads and edge
   cases, but not authoritative. Do not let Claude/Fable edit, stage, commit, or
   close findings. Parent Codex must independently re-read the cited code, check

@@ -13859,6 +13859,56 @@ increases by two for the explicit `pg_trgm` runtime grant/audit coverage and the
 bidirectional provisioning-inventory guard. Raw-left stays at zero because this
 was post-raw hidden-issue hardening, not closure of a remaining raw allegation.
 
+### Entry 517 - Prior-claim verification discipline pass
+
+Entry 517 reviewed Claude's follow-up correction as junior read-only input.
+Parent Codex rechecked the current `main` state rather than relying on either
+Claude's correction or Codex's previous closure summary. The correction was
+accurate: F1/F3/F4/F6/F7 are genuinely closed by Entries 512-514 and their
+green CI runs, while F2 wrapper coverage and F5 Notification service/write
+strategy remain deliberately deferred until the first actual Notification policy
+migration.
+
+Fixed/reduced:
+
+- `CLAUDE.md` now explicitly says prior Codex/agent open/closed status summaries
+  are snapshots, not current truth. Future agents must re-check current `HEAD`,
+  recent commits, relevant source/tests, and latest CI before repeating that a
+  finding is open, fixed, stale, or deferred.
+
+Verified current or deliberately deferred without source changes:
+
+- F1 is closed by the grant audit's `pg_policy` plus
+  `relrowsecurity`/`relforcerowsecurity` checks and tests.
+- F3 is closed by the CI-only `withDbUserContext()` behavioral execution test
+  that proves user A/user B isolation, no-context fail-closed behavior,
+  transaction-local context clearing, and Serializable isolation.
+- F4 is closed by the helper/request-context authenticated local `User.id`
+  provenance contract.
+- F6 is closed by the docs/runbook caveat that the staging context gate's
+  synthetic canary is not proof of per-table write-policy behavior.
+- F7 is closed by the helper DB-only/no external or network await contract.
+- F2 and F5 remain deliberate first-policy migration work, not current
+  production RLS defects.
+
+Guardrails added/reviewed:
+Updated `CLAUDE.md`; reviewed `scripts/audit-runtime-db-grants.mjs`,
+`tests/db-grant-inventory.test.mjs`, `tests/db-user-context.test.mjs`,
+`src/lib/dbUserContext.ts`, `docs/db-defense-in-depth-plan.md`,
+`docs/runbook.md`, and Entries 512-516 in this ledger.
+
+Verification:
+`git status --short`; latest pushed CI on `main` was green for `8edecd9c`
+(`29050653636`) before editing; source/docs/test inspection with `rg`/`sed`;
+and `git diff --check` passed.
+
+Current running tally after Entry 517: verified fixed/reduced 1019, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Tally values stay
+flat because this pass added a durable process contract and reverified already
+closed/deferred RLS items, but did not close a new source defect or raw
+allegation.
+
 ### Entry 516 - Notification RLS context classification precision
 
 Entry 516 reviewed Claude's follow-up on the notification minimization pass as
