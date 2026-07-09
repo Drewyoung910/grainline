@@ -13914,8 +13914,9 @@ passed 14/15 with the expected local GitHub-only Postgres skip; `npx tsc
 --noEmit`; `git diff --check`; `npm run lint` exited 0 with the known
 jsx-ast-utils TSNonNullExpression warning; `npm audit --audit-level=high` found
 0 vulnerabilities; and full `npm test` passed 1485/1488 with the expected local
-GitHub-only Postgres skips. The new helper-execution integration path requires
-the next pushed Actions run for final CI-only Postgres proof.
+GitHub-only Postgres skips. After push, CI for `bcc863ed` (`28984619754`)
+passed typecheck, lint, tests, security audit, and production build on `main`,
+including the new CI-only helper execution test against synthetic Postgres.
 
 Current running tally after Entry 514: verified fixed/reduced 1015, verified
 stale/false-positive/current 579, deferred product/design/ops/legal 87,
