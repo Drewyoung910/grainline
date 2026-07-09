@@ -13969,8 +13969,9 @@ tests/notification-delivery-preferences.test.mjs
 tests/account-export-privacy.test.mjs tests/query-param-state.test.mjs` passed
 66/67 with the expected local skip for the GitHub Actions Postgres-only
 `withDbUserContext()` integration; `npx tsc --noEmit`; and `git diff --check`.
-Full local lint/test were skipped by design for speed; CI will run the full
-matrix after push.
+Full local lint/test were skipped by design for speed; CI run `29057495621` on
+commit `cf09d973` passed the full matrix: typecheck, lint, tests, security
+audit, and production build.
 
 Current running tally after Entry 524: verified fixed/reduced 1025, verified
 stale/false-positive/current 579, deferred product/design/ops/legal 87,
@@ -13978,6 +13979,50 @@ approximate raw allegations left from current max #1126: 0. Fixed/reduced
 increases by one for the transaction-client-compatible Notification owner-access
 prep. Deferred stays flat because production RLS, the staging context gate, and
 the first real Notification table policy migration remain future execution work.
+
+### Entry 525 - Notification RLS owner-access bypass guard
+
+Entry 525 continues the pre-policy Notification RLS prep without enabling RLS,
+adding a source guard so future owner-style Notification reads/updates do not
+drift around `src/lib/notificationOwnerAccess.ts` while the table policy remains
+future work. Parent Codex rechecked current direct Notification calls outside the
+owner helper and confirmed the remaining calls are service/write-path exceptions:
+account-deletion redaction/cleanup and `createNotification()` dedup lookup.
+
+Fixed/reduced:
+
+- `tests/rls-feasibility-plan.test.mjs` now recursively scans `src/**/*.ts(x)`
+  for direct `*.notification.count/findMany/findFirst/findUnique/update/updateMany`
+  usage outside the owner helper.
+- The guard explicitly allowlists only the current non-owner service exceptions:
+  `tx.notification.update` in `src/lib/accountDeletion.ts` for deleted-account
+  notification text redaction, and `prisma.notification.findUnique` in
+  `src/lib/notifications.ts` for idempotent create-notification dedup lookup.
+- New owner-scoped Notification reads/updates now need to go through
+  `notificationOwnerAccess`, which keeps the later `withDbUserContext()` wrapping
+  surface bounded.
+
+Guardrails added/reviewed:
+
+- Focused RLS feasibility test coverage now includes the bypass source scan and
+  the current service/write-path exception list.
+- Reviewed `src/lib/accountDeletion.ts`, `src/lib/notifications.ts`, and current
+  source search results for direct Notification read/update calls.
+
+Verification:
+`git status --short`; source inspection with `rg`/`sed`; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/rls-feasibility-plan.test.mjs` passed 10/10; and
+`git diff --check`. Full local lint/typecheck/test were skipped by design for
+speed because this pass changes only a source-scan test and the ledger; CI will
+run the full matrix after push.
+
+Current running tally after Entry 525: verified fixed/reduced 1026, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the Notification owner-access bypass guard. Deferred stays
+flat because production RLS, the staging context gate, and the first real
+Notification table policy migration remain future execution work.
 
 ### Entry 522 - RLS evidence quoted-key redaction guardrail
 

@@ -6,6 +6,17 @@ function source(path) {
   return fs.readFileSync(path, "utf8");
 }
 
+function sourceFiles(dir) {
+  return fs
+    .readdirSync(dir, { withFileTypes: true })
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .flatMap((entry) => {
+      const path = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) return sourceFiles(path);
+      return /\.(ts|tsx)$/.test(entry.name) ? [path] : [];
+    });
+}
+
 describe("RLS feasibility plan guardrails", () => {
   it("keeps RLS staged instead of enabling broad production policies before launch", () => {
     const plan = source("docs/rls-feasibility-plan.md");
@@ -134,6 +145,24 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(dashboardNotifications, /ownerNotificationPageRows\(me\.id/);
     assert.match(dashboard, /countUnreadOwnerNotifications\(me\.id\)/);
     assert.match(accountExport, /ownerNotificationExportRows\(user\.id\)/);
+  });
+
+  it("blocks new direct owner-style Notification reads and updates outside the owner helper", () => {
+    const directNotificationAccessPattern =
+      /\b[A-Za-z_$][\w$]*\.notification\.(?:count|findMany|findFirst|findUnique|update|updateMany)\b/g;
+    const allowedDirectCalls = {
+      "src/lib/accountDeletion.ts": ["tx.notification.update"],
+      "src/lib/notifications.ts": ["prisma.notification.findUnique"],
+    };
+    const directCallsByFile = {};
+
+    for (const file of sourceFiles("src")) {
+      if (file === "src/lib/notificationOwnerAccess.ts") continue;
+      const matches = [...source(file).matchAll(directNotificationAccessPattern)].map((match) => match[0]);
+      if (matches.length > 0) directCallsByFile[file] = matches;
+    }
+
+    assert.deepEqual(directCallsByFile, allowedDirectCalls);
   });
 
   it("keeps public discovery tables out of the first RLS pass", () => {
