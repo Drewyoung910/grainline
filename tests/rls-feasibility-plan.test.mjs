@@ -23,6 +23,8 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(plan, /must not own tables/i);
     assert.match(plan, /must not have `BYPASSRLS`/i);
     assert.match(plan, /set_config\('app\.user_id', \$userId, true\)/);
+    assert.match(plan, /server-resolved authenticated local `User\.id`/);
+    assert.match(plan, /request body, query string, route param, or other client-supplied value/);
     assert.match(plan, /transaction-local/);
   });
 

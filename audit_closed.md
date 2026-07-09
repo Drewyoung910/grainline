@@ -13859,6 +13859,73 @@ increases by two for the explicit `pg_trgm` runtime grant/audit coverage and the
 bidirectional provisioning-inventory guard. Raw-left stays at zero because this
 was post-raw hidden-issue hardening, not closure of a remaining raw allegation.
 
+### Entry 514 - RLS helper provenance and execution guardrails
+
+Entry 514 reviewed Claude's follow-up response as junior read-only input, then
+parent Codex rechecked current `main` rather than accepting the report against
+its stale `ad7e2ab6` baseline. Several claims were already closed by Entries
+512-513: the grant audit now verifies RLS policy activation with
+`relrowsecurity`/`relforcerowsecurity`, the context-gate scope caveat is in the
+RLS docs/runbook, and the helper DB-only/no-external-await contract is already
+guarded. The wrapper-coverage and Notification service/write strategy items
+remain deliberately deferred until the first real table policy migration.
+
+Fixed/reduced:
+
+- `src/lib/dbUserContext.ts` now documents the id-provenance contract at the
+  helper call site: callers must pass only the server-resolved authenticated
+  local `User.id` such as `me.id`, never request body, query string, route
+  param, or other client-supplied values.
+- `docs/rls-feasibility-plan.md` and `CLAUDE.md` now carry the same rule so the
+  RLS plan and future-agent contract match the helper JSDoc.
+- `tests/db-user-context.test.mjs` now guards the provenance wording and adds a
+  GitHub-only synthetic Postgres integration test that imports the actual
+  helper through a local `@/` resolver, creates a temporary non-owner runtime
+  role plus forced RLS canary table, and executes `withDbUserContext()` /
+  `withSerializableDbUserContext()` to verify scoped reads, no-context denial,
+  transaction-local context clearing, and Serializable isolation.
+- `tests/rls-feasibility-plan.test.mjs` now guards the authenticated local
+  `User.id` / no client-supplied context rule in the RLS plan.
+
+Verified current or deliberately deferred without source changes:
+
+- Claude's F1, F6, and F7 were stale against current `main` after Entries
+  512-513.
+- Claude's F2 wrapper-coverage guard remains a real first-policy migration
+  requirement, but adding a broad static allowlist now would mostly encode
+  current pre-RLS raw Prisma reads. Add it with the first table route migration.
+- Claude's F5 service/cross-user Notification write path remains the documented
+  policy-migration decision; no bypass helper was added before an actual
+  Notification policy shape exists.
+
+Guardrails added/reviewed:
+Updated `tests/db-user-context.test.mjs` and
+`tests/rls-feasibility-plan.test.mjs`; reviewed current `tests/db-grant-inventory.test.mjs`,
+`scripts/audit-runtime-db-grants.mjs`, `docs/db-defense-in-depth-plan.md`,
+`docs/runbook.md`, and `CLAUDE.md` against the Claude report.
+
+Verification:
+`git status --short`; latest pushed CI on `main` was green for `3d96b646`
+(`28983882993`) before editing; source/docs/test inspection with `rg`/`sed`;
+focused `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+--experimental-strip-types --test tests/db-user-context.test.mjs
+tests/rls-feasibility-plan.test.mjs tests/audit-ledger-coupling.test.mjs`
+passed 14/15 with the expected local GitHub-only Postgres skip; `npx tsc
+--noEmit`; `git diff --check`; `npm run lint` exited 0 with the known
+jsx-ast-utils TSNonNullExpression warning; `npm audit --audit-level=high` found
+0 vulnerabilities; and full `npm test` passed 1485/1488 with the expected local
+GitHub-only Postgres skips. The new helper-execution integration path requires
+the next pushed Actions run for final CI-only Postgres proof.
+
+Current running tally after Entry 514: verified fixed/reduced 1015, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by two for the authenticated-id provenance contract and actual helper
+execution integration guard. Stale/current and deferred stay flat because the
+remaining Claude items were already closed or already represented in the RLS
+backlog. Raw-left stays at zero because this was post-raw hardening, not closure
+of a remaining raw allegation.
+
 ### Entry 513 - RLS grant-audit CI correction
 
 Entry 513 fixes the red CI follow-up from Entry 512. CI for `a3ffe5e3`

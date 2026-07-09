@@ -17,7 +17,12 @@ Do not enable RLS directly on production tables before launch. First build and t
 - **Migration owner role**: owns tables and runs migrations. Not used by the web runtime.
 - **Runtime app role**: used by Prisma in normal web requests. Must not own tables and must not have `BYPASSRLS`.
 - **Bypass/service role**: explicit, narrowly held role for migrations, controlled admin maintenance, and emergency repair. Do not use it for normal app traffic.
-- **Request context**: every RLS-protected query must run inside a transaction that sets `app.user_id` with `set_config('app.user_id', $userId, true)`. The `true` flag is required so context is transaction-local and does not leak through the pool.
+- **Request context**: every RLS-protected query must run inside a transaction
+  that sets `app.user_id` with `set_config('app.user_id', $userId, true)`. The
+  context value must be the server-resolved authenticated local `User.id`, not a
+  request body, query string, route param, or other client-supplied value. The
+  `true` flag is required so context is transaction-local and does not leak
+  through the pool.
 - **Staff context**: staff/admin access needs either explicit `app.role` transaction context or separate audited bypass helpers. Do not silently grant all employees broad RLS bypass in normal user flows.
 - **Provider context**: webhooks, cron jobs, and provider callbacks need explicit service-path decisions; do not make them rely on arbitrary end-user context.
 - **Grant hygiene**: every future migration that creates tables, sequences, or

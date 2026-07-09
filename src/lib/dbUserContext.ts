@@ -30,6 +30,10 @@ export async function setDbUserContext(
 /**
  * Runs future user-scoped RLS work inside a Prisma interactive transaction.
  *
+ * Pass only the server-resolved authenticated local User.id, such as `me.id`.
+ * Never pass request body, query string, route param, or other client-supplied
+ * values as the RLS user context.
+ *
  * The callback must use the provided transaction client for every protected
  * query and must run those queries sequentially. Do not use `Promise.all` or
  * other concurrent Prisma calls inside this transaction; the RLS context is
