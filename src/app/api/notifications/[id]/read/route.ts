@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
+import { markOwnerNotificationRead } from "@/lib/notificationOwnerAccess";
 import { markReadRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 
@@ -27,10 +27,7 @@ export async function POST(
     throw err;
   }
 
-  await prisma.notification.updateMany({
-    where: { id, userId: me.id },
-    data: { read: true },
-  });
+  await markOwnerNotificationRead(me.id, id);
 
   return privateJson({ ok: true });
 }

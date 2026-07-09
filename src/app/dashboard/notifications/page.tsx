@@ -4,6 +4,12 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
+import {
+  countOwnerNotifications,
+  countUnreadOwnerNotifications,
+  markOwnerNotificationsRead,
+  ownerNotificationPageRows,
+} from "@/lib/notificationOwnerAccess";
 import { markReadRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { safeNotificationPath } from "@/lib/notificationLinks";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
@@ -82,10 +88,7 @@ async function markAllRead() {
   });
   if (!me) return;
   if (me.banned || me.deletedAt) return;
-  await prisma.notification.updateMany({
-    where: { userId: me.id, read: false },
-    data: { read: true },
-  });
+  await markOwnerNotificationsRead(me.id);
   revalidatePath("/dashboard/notifications");
 }
 
@@ -103,16 +106,12 @@ export default async function NotificationsPage({
   const { page: pageStr } = await searchParams;
   const requestedPage = parseBoundedPositiveIntParam(pageStr, 1, 1000);
 
-  const [total, unreadCount] = await Promise.all([
-    prisma.notification.count({ where: { userId: me.id } }),
-    prisma.notification.count({ where: { userId: me.id, read: false } }),
-  ]);
+  const total = await countOwnerNotifications(me.id);
+  const unreadCount = await countUnreadOwnerNotifications(me.id);
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const page = Math.min(requestedPage, totalPages);
 
-  const notifications = await prisma.notification.findMany({
-    where: { userId: me.id },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+  const notifications = await ownerNotificationPageRows(me.id, {
     skip: (page - 1) * PAGE_SIZE,
     take: PAGE_SIZE,
   });

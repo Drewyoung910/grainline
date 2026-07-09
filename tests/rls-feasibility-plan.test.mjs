@@ -83,6 +83,7 @@ describe("RLS feasibility plan guardrails", () => {
     const defense = source("docs/db-defense-in-depth-plan.md");
     const messageThread = source("src/app/messages/[id]/page.tsx");
     const stockRoute = source("src/app/api/listings/[id]/stock/route.ts");
+    const ownerAccess = source("src/lib/notificationOwnerAccess.ts");
 
     for (const doc of [plan, defense]) {
       assert.match(doc, /message-thread auto-mark-read updates/);
@@ -93,10 +94,37 @@ describe("RLS feasibility plan guardrails", () => {
     }
     assert.match(stockRoute, /where: \{ id, seller: \{ userId: me\.id \} \}/);
     assert.match(stockRoute, /seller: \{ select: \{ id: true, userId: true \} \}/);
-    assert.match(messageThread, /prisma\.notification\.updateMany\(\{/);
-    assert.match(messageThread, /type: "NEW_MESSAGE"/);
-    assert.match(stockRoute, /prisma\.notification\.findFirst\(\{/);
-    assert.match(stockRoute, /type: "LOW_STOCK"/);
+    assert.match(messageThread, /markOwnerMessageNotificationsRead\(me\.id, id\)/);
+    assert.match(stockRoute, /findRecentOwnerLowStockNotification\(/);
+    assert.match(ownerAccess, /export async function markOwnerMessageNotificationsRead/);
+    assert.match(ownerAccess, /type: NotificationType\.NEW_MESSAGE/);
+    assert.match(ownerAccess, /export async function findRecentOwnerLowStockNotification/);
+    assert.match(ownerAccess, /type: NotificationType\.LOW_STOCK/);
+  });
+
+  it("centralizes Notification owner reads and updates for the first RLS prototype", () => {
+    const ownerAccess = source("src/lib/notificationOwnerAccess.ts");
+    const bellRoute = source("src/app/api/notifications/route.ts");
+    const readAllRoute = source("src/app/api/notifications/read-all/route.ts");
+    const readOneRoute = source("src/app/api/notifications/[id]/read/route.ts");
+    const dashboardNotifications = source("src/app/dashboard/notifications/page.tsx");
+    const dashboard = source("src/app/dashboard/page.tsx");
+    const accountExport = source("src/app/api/account/export/route.ts");
+
+    assert.match(ownerAccess, /export async function ownerNotificationBellData/);
+    assert.match(ownerAccess, /export async function markOwnerNotificationRead/);
+    assert.match(ownerAccess, /export async function markOwnerNotificationsRead/);
+    assert.match(ownerAccess, /export async function ownerNotificationPageRows/);
+    assert.match(ownerAccess, /export async function ownerNotificationExportRows/);
+    assert.match(ownerAccess, /where: \{ userId/);
+
+    assert.match(bellRoute, /ownerNotificationBellData\(me\.id\)/);
+    assert.match(readAllRoute, /markOwnerNotificationsRead\(me\.id, ids\)/);
+    assert.match(readOneRoute, /markOwnerNotificationRead\(me\.id, id\)/);
+    assert.match(dashboardNotifications, /markOwnerNotificationsRead\(me\.id\)/);
+    assert.match(dashboardNotifications, /ownerNotificationPageRows\(me\.id/);
+    assert.match(dashboard, /countUnreadOwnerNotifications\(me\.id\)/);
+    assert.match(accountExport, /ownerNotificationExportRows\(user\.id\)/);
   });
 
   it("keeps public discovery tables out of the first RLS pass", () => {

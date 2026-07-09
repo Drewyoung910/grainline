@@ -13859,6 +13859,61 @@ increases by two for the explicit `pg_trgm` runtime grant/audit coverage and the
 bidirectional provisioning-inventory guard. Raw-left stays at zero because this
 was post-raw hidden-issue hardening, not closure of a remaining raw allegation.
 
+### Entry 523 - Notification RLS owner-access prep
+
+Entry 523 starts a larger non-enabling RLS prep pass for the first candidate
+table. Parent Codex checked the local environment without printing secrets:
+`DATABASE_URL` and `DIRECT_URL` exist, but the dedicated
+`RLS_CONTEXT_GATE_DATABASE_URL`, `RLS_CONTEXT_GATE_ADMIN_DATABASE_URL`, and
+`RLS_CONTEXT_GATE_RUNTIME_ROLE` staging variables are not present in this
+workspace. Because the production-like staging gate has not been run here, this
+pass deliberately does not add a migration, enable production RLS, or wrap
+traffic in `withDbUserContext()`.
+
+Fixed/reduced:
+
+- Added `src/lib/notificationOwnerAccess.ts` as the centralized owner-access
+  boundary for Notification owner reads/updates that will be easiest to wrap
+  after the staging gate passes.
+- Routed the current owner-scoped Notification paths through that boundary:
+  `/api/notifications`, `/api/notifications/read-all`,
+  `/api/notifications/[id]/read`, dashboard notification list/mark-all-read,
+  dashboard unread count, message-thread auto-mark-read, seller low-stock
+  dedupe read, and account export notification rows.
+- Preserved existing application-layer authorization and ownership predicates.
+  This is refactoring for RLS readiness only; `createNotification()` and
+  admin/cron/webhook/account-deletion writer/cleanup paths remain explicit
+  service/write-path work for the later Notification policy decision.
+
+Guardrails added/reviewed:
+
+- `tests/rls-feasibility-plan.test.mjs` now asserts the hidden Notification
+  owner read/update paths use the owner-access helper and that the first
+  prototype owner paths are centralized before a real policy is attempted.
+- Updated focused source-scan tests for notification read rate-limiting,
+  dropdown payload shape, mark-read partial-count behavior, account-export
+  notification ownership/export fields, and seller stock low-notification
+  behavior.
+
+Verification:
+`git status --short`; source/test/docs inspection with `rg`/`sed`; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/rls-feasibility-plan.test.mjs
+tests/api-read-rate-limit-sweep.test.mjs tests/client-async-guardrails.test.mjs
+tests/notification-delivery-preferences.test.mjs
+tests/account-export-privacy.test.mjs tests/seller-ops-hardening.test.mjs`
+passed 66/66 after correcting one brittle import-order source assertion;
+`npx tsc --noEmit`; and `git diff --check`. Full local lint/test were skipped
+by design for speed; CI will run the full matrix after push.
+
+Current running tally after Entry 523: verified fixed/reduced 1024, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the Notification RLS owner-access centralization. Deferred
+stays flat because the live staging gate, route-level prototype tests with an
+actual policy, wrapper coverage guard, and first table migration remain tracked
+RLS execution work rather than newly closed items.
+
 ### Entry 522 - RLS evidence quoted-key redaction guardrail
 
 Entry 522 reviewed Claude's residual redaction note as another junior-review
@@ -13893,7 +13948,8 @@ tests/audit-ledger-coupling.test.mjs` passed 12/13 with the expected local
 GitHub-only synthetic Postgres skip; `npx tsc --noEmit`; `npm run lint`
 exited 0 with the known `jsx-ast-utils` TSNonNullExpression warning; full
 `npm test` passed 1490/1493 with the expected local skips; and
-`git diff --check` passed. CI is pending until this follow-up is pushed.
+`git diff --check` passed; after push, CI for `2a41063c` (`29056216957`)
+passed typecheck, lint, tests, security audit, and production build on `main`.
 
 Current running tally after Entry 522: verified fixed/reduced 1023, verified
 stale/false-positive/current 579, deferred product/design/ops/legal 87,

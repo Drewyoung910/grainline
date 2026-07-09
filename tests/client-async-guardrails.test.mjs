@@ -229,6 +229,7 @@ describe("client async guardrails", () => {
   it("waits for Clerk loading and bounds notification dropdown payloads", () => {
     const bell = source("src/components/NotificationBell.tsx");
     const route = source("src/app/api/notifications/route.ts");
+    const ownerAccess = source("src/lib/notificationOwnerAccess.ts");
     const unread = source("src/components/UnreadBadge.tsx");
 
     assert.match(bell, /const \{ isLoaded, isSignedIn \} = useUser\(\)/);
@@ -236,11 +237,12 @@ describe("client async guardrails", () => {
     assert.match(bell, /function normalizeNotificationsResponse/);
     assert.match(bell, /\.filter\(isNotificationItem\)\.slice\(0, MAX_NOTIFICATION_ITEMS\)/);
     assert.match(bell, /if \(!isLoaded \|\| !isSignedIn\) return/);
-    assert.match(route, /const NOTIFICATION_BELL_SELECT = \{/);
-    assert.match(route, /select: NOTIFICATION_BELL_SELECT/);
-    assert.doesNotMatch(route, /sourceType:\s*true/);
-    assert.doesNotMatch(route, /sourceId:\s*true/);
-    assert.doesNotMatch(route, /dedupKey:\s*true/);
+    assert.match(route, /ownerNotificationBellData\(me\.id\)/);
+    assert.match(ownerAccess, /const NOTIFICATION_BELL_SELECT = \{/);
+    assert.match(ownerAccess, /select: NOTIFICATION_BELL_SELECT/);
+    assert.doesNotMatch(ownerAccess.slice(ownerAccess.indexOf("NOTIFICATION_BELL_SELECT"), ownerAccess.indexOf("NOTIFICATION_EXPORT_SELECT")), /sourceType:\s*true/);
+    assert.doesNotMatch(ownerAccess.slice(ownerAccess.indexOf("NOTIFICATION_BELL_SELECT"), ownerAccess.indexOf("NOTIFICATION_EXPORT_SELECT")), /sourceId:\s*true/);
+    assert.doesNotMatch(ownerAccess.slice(ownerAccess.indexOf("NOTIFICATION_BELL_SELECT"), ownerAccess.indexOf("NOTIFICATION_EXPORT_SELECT")), /dedupKey:\s*true/);
     assert.match(unread, /const \{ isLoaded, isSignedIn \} = useUser\(\)/);
     assert.match(unread, /if \(!isLoaded \|\| !isSignedIn\) return/);
   });

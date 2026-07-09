@@ -23,10 +23,14 @@ describe("notification delivery preferences", () => {
 
   it("reports partial mark-read updates when explicit notification ids are capped", () => {
     const route = readFileSync("src/app/api/notifications/read-all/route.ts", "utf8");
+    const ownerAccess = readFileSync("src/lib/notificationOwnerAccess.ts", "utf8");
 
     assert.match(route, /const rawIds = Array\.isArray\(bodyObject\.ids\)/);
     assert.match(route, /const ids = Array\.from\(new Set\(rawIds\)\)\.slice\(0, 100\)/);
-    assert.match(route, /const updated = await prisma\.notification\.updateMany/);
+    assert.match(route, /const updated = await markOwnerNotificationsRead\(me\.id, ids\)/);
+    assert.match(ownerAccess, /export async function markOwnerNotificationsRead/);
+    assert.match(ownerAccess, /prisma\.notification\.updateMany/);
+    assert.match(ownerAccess, /userId,\s+read: false/s);
     assert.match(route, /markedCount: updated\.count/);
     assert.match(route, /cappedIds: rawIds\.length > ids\.length/);
   });

@@ -22,6 +22,7 @@ import {
 } from "@/lib/accountExportReverification";
 import { parseCheckoutStockReservationItems } from "@/lib/checkoutStockRestore";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { ownerNotificationExportRows } from "@/lib/notificationOwnerAccess";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 
 export const runtime = "nodejs";
@@ -493,21 +494,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
           select: { commissionRequestId: true, conversationId: true, createdAt: true },
         })
       : [],
-    prisma.notification.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        type: true,
-        title: true,
-        body: true,
-        link: true,
-        sourceType: true,
-        sourceId: true,
-        read: true,
-        createdAt: true,
-      },
-    }),
+    ownerNotificationExportRows(user.id),
     prisma.block.findMany({
       where: { OR: [{ blockerId: user.id }, { blockedId: user.id }] },
       orderBy: { createdAt: "desc" },

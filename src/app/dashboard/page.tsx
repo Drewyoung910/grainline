@@ -13,6 +13,7 @@ import { archiveListingBlockReason, hideListingBlockReason, withdrawReviewBlockR
 import DismissibleBanner from "@/components/DismissibleBanner";
 import ResubmitButton from "@/components/ResubmitButton";
 import { listingMutationRatelimit, safeRateLimit, savedSearchRatelimit } from "@/lib/ratelimit";
+import { countUnreadOwnerNotifications } from "@/lib/notificationOwnerAccess";
 import { publicListingPath, publicSellerShopPath } from "@/lib/publicPaths";
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
@@ -249,7 +250,7 @@ export default async function DashboardPage({
       where: { sellerProfileId: seller.id },
       select: { status: true },
     }),
-    prisma.notification.count({ where: { userId: me.id, read: false } }),
+    countUnreadOwnerNotifications(me.id),
     prisma.sellerProfile.findUnique({
       where: { id: seller.id },
       select: { guildLevel: true, vacationMode: true, vacationReturnDate: true, chargesEnabled: true },

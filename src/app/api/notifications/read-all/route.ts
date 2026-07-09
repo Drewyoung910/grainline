@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
 import { markReadRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
+import { markOwnerNotificationsRead } from "@/lib/notificationOwnerAccess";
 import { isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 
@@ -40,14 +40,7 @@ export async function POST(req: Request) {
     : [];
   const ids = Array.from(new Set(rawIds)).slice(0, 100);
 
-  const updated = await prisma.notification.updateMany({
-    where: {
-      userId: me.id,
-      read: false,
-      ...(ids.length > 0 ? { id: { in: ids } } : {}),
-    },
-    data: { read: true },
-  });
+  const updated = await markOwnerNotificationsRead(me.id, ids);
 
   return privateJson({
     ok: true,

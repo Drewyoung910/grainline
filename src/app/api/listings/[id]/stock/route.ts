@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { findRecentOwnerLowStockNotification } from "@/lib/notificationOwnerAccess";
 import { renderBackInStockEmail } from "@/lib/email";
 import { enqueueEmailOutbox } from "@/lib/emailOutbox";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
@@ -138,15 +139,11 @@ export async function PATCH(
     // If stock is low (1–2), notify the seller
     if (updated.stockQuantity !== null && updated.stockQuantity > 0 && updated.stockQuantity <= 2) {
       const lowStockLink = lowStockNotificationLink(id);
-      const recentLowStock = await prisma.notification.findFirst({
-        where: {
-          userId: listing.seller.userId,
-          type: "LOW_STOCK",
-          link: lowStockLink,
-          createdAt: { gte: new Date(Date.now() - LOW_STOCK_DEDUP_WINDOW_MS) },
-        },
-        select: { id: true },
-      });
+      const recentLowStock = await findRecentOwnerLowStockNotification(
+        listing.seller.userId,
+        lowStockLink,
+        new Date(Date.now() - LOW_STOCK_DEDUP_WINDOW_MS),
+      );
       if (!recentLowStock) await createNotification({
         userId: listing.seller.userId,
         type: "LOW_STOCK",

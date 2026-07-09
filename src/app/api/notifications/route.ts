@@ -1,20 +1,10 @@
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
+import { ownerNotificationBellData } from "@/lib/notificationOwnerAccess";
 import { notificationReadRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 
 export const runtime = "nodejs";
-
-const NOTIFICATION_BELL_SELECT = {
-  id: true,
-  type: true,
-  title: true,
-  body: true,
-  link: true,
-  read: true,
-  createdAt: true,
-} as const;
 
 export async function GET() {
   const { userId } = await auth();
@@ -33,15 +23,7 @@ export async function GET() {
     throw err;
   }
 
-  const [notifications, unreadCount] = await Promise.all([
-    prisma.notification.findMany({
-      where: { userId: me.id },
-      select: NOTIFICATION_BELL_SELECT,
-      orderBy: { createdAt: "desc" },
-      take: 20,
-    }),
-    prisma.notification.count({ where: { userId: me.id, read: false } }),
-  ]);
+  const { notifications, unreadCount } = await ownerNotificationBellData(me.id);
 
   return privateJson({ notifications, unreadCount });
 }

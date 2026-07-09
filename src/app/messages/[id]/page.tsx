@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { markOwnerMessageNotificationsRead } from "@/lib/notificationOwnerAccess";
 import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
 import { sendNewMessageEmail } from "@/lib/email";
 import ActionForm, { SubmitButton } from "@/components/ActionForm";
@@ -86,15 +87,7 @@ export default async function ThreadPage({
 
   // Auto-mark any unread NEW_MESSAGE notifications for this conversation as read
   if (isParticipant) {
-    await prisma.notification.updateMany({
-      where: {
-        userId: me.id,
-        type: "NEW_MESSAGE",
-        read: false,
-        link: { contains: `/messages/${id}` },
-      },
-      data: { read: true },
-    });
+    await markOwnerMessageNotificationsRead(me.id, id);
   }
 
   const other = isParticipant ? (convo.userAId === me.id ? convo.userB : convo.userA) : null;

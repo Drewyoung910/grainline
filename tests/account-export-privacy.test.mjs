@@ -315,19 +315,25 @@ describe("account export privacy coverage", () => {
 
   it("exports local email outbox and transient failure records by account id or delivery email keys", () => {
     const route = source("src/app/api/account/export/route.ts");
+    const notificationAccess = source("src/lib/notificationOwnerAccess.ts");
     const payload = source("src/lib/accountExportPayload.ts");
 
-    const notificationStart = route.indexOf("prisma.notification.findMany");
+    const notificationStart = route.indexOf("ownerNotificationExportRows(user.id)");
     const outboxStart = route.indexOf("prisma.emailOutbox.findMany");
     const failureStart = route.indexOf("prisma.emailFailureCount.findMany");
-    const notificationBlock = route.slice(notificationStart, route.indexOf("prisma.block.findMany", notificationStart));
     const outboxBlock = route.slice(outboxStart, failureStart);
     const failureBlock = route.slice(failureStart, route.indexOf("prisma.stockNotification.findMany", failureStart));
+    const notificationSelectStart = notificationAccess.indexOf("export const NOTIFICATION_EXPORT_SELECT");
+    const notificationSelectBlock = notificationAccess.slice(
+      notificationSelectStart,
+      notificationAccess.indexOf("export async function countUnreadOwnerNotifications", notificationSelectStart),
+    );
 
     assert.ok(notificationStart >= 0, "account export must query Notification");
-    assert.match(notificationBlock, /where: \{ userId: user\.id \}/);
-    assert.match(notificationBlock, /sourceType: true/);
-    assert.match(notificationBlock, /sourceId: true/);
+    assert.match(notificationAccess, /ownerNotificationExportRows\(userId: string\)/);
+    assert.match(notificationAccess, /where: \{ userId \}/);
+    assert.match(notificationSelectBlock, /sourceType: true/);
+    assert.match(notificationSelectBlock, /sourceId: true/);
 
     assert.ok(outboxStart >= 0, "account export must query EmailOutbox");
     assert.match(outboxBlock, /OR: \[\{ userId: user\.id \}, \{ recipientEmail: \{ in: accountEmailSuppressionKeys \} \}\]/);

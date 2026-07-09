@@ -34,7 +34,7 @@ describe("API read route rate-limit sweep", () => {
     for (const [path, limiter, dbNeedle] of [
       ["src/app/api/cart/route.ts", "safeRateLimit(cartReadRatelimit, userId)", "prisma.cart.findUnique"],
       ["src/app/api/messages/[id]/list/route.ts", "safeRateLimit(messageListRatelimit, userId)", "prisma.conversation.findFirst"],
-      ["src/app/api/notifications/route.ts", "safeRateLimit(notificationReadRatelimit, userId)", "prisma.notification.findMany"],
+      ["src/app/api/notifications/route.ts", "safeRateLimit(notificationReadRatelimit, userId)", "await ownerNotificationBellData"],
       ["src/app/api/seller/analytics/route.ts", "safeRateLimit(sellerAnalyticsRatelimit, userId)", "prisma.sellerProfile.findUnique"],
       ["src/app/api/seller/analytics/recent-sales/route.ts", "safeRateLimit(sellerAnalyticsRatelimit, userId)", "prisma.sellerProfile.findUnique"],
       ["src/app/api/seller/broadcast/route.ts", "safeRateLimit(\n    sellerBroadcastReadRatelimit,\n    userId,\n  )", "prisma.user.findUnique"],
@@ -51,12 +51,15 @@ describe("API read route rate-limit sweep", () => {
 
   it("keeps notification polling read-only after rate limiting", () => {
     const route = source("src/app/api/notifications/route.ts");
+    const ownerAccess = source("src/lib/notificationOwnerAccess.ts");
     const cron = source("src/app/api/cron/notification-prune/route.ts");
 
     assert.doesNotMatch(route, /pruneReadNotificationsHourly/);
     assert.doesNotMatch(route, /deleteMany|DELETE FROM "Notification"/);
-    assert.match(route, /prisma\.notification\.findMany/);
-    assert.match(route, /prisma\.notification\.count/);
+    assert.match(route, /ownerNotificationBellData\(me\.id\)/);
+    assert.match(ownerAccess, /export async function ownerNotificationBellData/);
+    assert.match(ownerAccess, /select: NOTIFICATION_BELL_SELECT/);
+    assert.match(ownerAccess, /countUnreadOwnerNotifications\(userId\)/);
 
     assert.match(cron, /pruneReadNotifications\(readCutoff\)/);
     assert.match(cron, /pruneUnreadNotifications\(unreadCutoff\)/);
