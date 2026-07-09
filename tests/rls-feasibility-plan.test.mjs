@@ -116,7 +116,16 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(ownerAccess, /export async function markOwnerNotificationsRead/);
     assert.match(ownerAccess, /export async function ownerNotificationPageRows/);
     assert.match(ownerAccess, /export async function ownerNotificationExportRows/);
+    assert.match(ownerAccess, /export type NotificationOwnerAccessClient = Pick<Prisma\.TransactionClient, "notification">/);
+    assert.match(ownerAccess, /db: NotificationOwnerAccessClient = prisma/);
+    assert.match(ownerAccess, /countUnreadOwnerNotifications\(userId, db\)/);
+    assert.match(ownerAccess, /ownerNotificationPageRows\(userId, \{ skip, take \}, db\)/);
+    assert.match(ownerAccess, /db\.notification\.findMany/);
+    assert.match(ownerAccess, /db\.notification\.updateMany/);
+    assert.match(ownerAccess, /db\.notification\.findFirst/);
     assert.match(ownerAccess, /where: \{ userId/);
+    assert.doesNotMatch(ownerAccess, /Promise\.all/);
+    assert.doesNotMatch(ownerAccess, /prisma\.notification\.(?:count|findMany|findFirst|updateMany)/);
 
     assert.match(bellRoute, /ownerNotificationBellData\(me\.id\)/);
     assert.match(readAllRoute, /markOwnerNotificationsRead\(me\.id, ids\)/);

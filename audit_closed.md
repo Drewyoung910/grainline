@@ -13904,7 +13904,12 @@ tests/notification-delivery-preferences.test.mjs
 tests/account-export-privacy.test.mjs tests/seller-ops-hardening.test.mjs`
 passed 66/66 after correcting one brittle import-order source assertion;
 `npx tsc --noEmit`; and `git diff --check`. Full local lint/test were skipped
-by design for speed; CI will run the full matrix after push.
+by design for speed. Initial pushed CI run `29056859361` failed the full test
+step because `tests/query-param-state.test.mjs` still expected the notification
+page's independent count reads to use `Promise.all`; follow-up commit `3820592a`
+restored that parallel count shape while keeping the owner-access helper calls.
+CI run `29057072348` then passed the full matrix: typecheck, lint, tests,
+security audit, and production build.
 
 Current running tally after Entry 523: verified fixed/reduced 1024, verified
 stale/false-positive/current 579, deferred product/design/ops/legal 87,
@@ -13913,6 +13918,66 @@ increases by one for the Notification RLS owner-access centralization. Deferred
 stays flat because the live staging gate, route-level prototype tests with an
 actual policy, wrapper coverage guard, and first table migration remain tracked
 RLS execution work rather than newly closed items.
+
+### Entry 524 - Notification RLS transaction-client prep
+
+Entry 524 continues the slow Notification RLS execution path without enabling a
+production policy. Parent Codex rechecked the committed `withDbUserContext()`
+helper, its validation/retry state, the RLS feasibility docs, current
+Notification owner-access helper, and the CI status after Entry 523. The staging
+context gate still cannot be run from this workspace because the dedicated
+`RLS_CONTEXT_GATE_*` staging variables are not present, so this pass keeps
+runtime behavior unchanged and does not wrap hot notification reads yet.
+
+Fixed/reduced:
+
+- `src/lib/notificationOwnerAccess.ts` now accepts an optional
+  `NotificationOwnerAccessClient` for every centralized owner-scoped
+  Notification read/update helper. Existing routes still default to the normal
+  Prisma client, but the same helpers can now run against the transaction client
+  returned by `withDbUserContext()` after the staging gate and table-policy
+  prototype are ready.
+- The owner-access helper no longer calls `prisma.notification.*` directly
+  inside owner functions; it uses `db.notification.*`, which avoids a future
+  wrapper migration accidentally setting `app.user_id` on one transaction while
+  protected reads still escape through the global client.
+- The existing sequential `ownerNotificationPageData()` path now forwards the
+  same client through count/read helpers, preserving a ready path for future
+  RLS-wrapped page reads that cannot use `Promise.all` inside an interactive
+  transaction. The current dashboard page remains unwrapped and keeps its
+  pre-RLS parallel count reads.
+
+Guardrails added/reviewed:
+
+- `tests/rls-feasibility-plan.test.mjs` now asserts the owner-access helper is
+  transaction-client compatible, forwards the client through nested helper
+  calls, has no `Promise.all` in the centralized owner helper, and no longer
+  depends on direct global `prisma.notification` owner reads/updates.
+- Updated source-scan guardrails in
+  `tests/account-export-privacy.test.mjs`,
+  `tests/api-read-rate-limit-sweep.test.mjs`, and
+  `tests/notification-delivery-preferences.test.mjs` to pin the new
+  transaction-compatible helper shape while keeping their original ownership,
+  read-only, and partial-update assertions.
+
+Verification:
+`git status --short`; source/docs/test inspection with `rg`/`sed`; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/rls-feasibility-plan.test.mjs tests/db-user-context.test.mjs
+tests/api-read-rate-limit-sweep.test.mjs tests/client-async-guardrails.test.mjs
+tests/notification-delivery-preferences.test.mjs
+tests/account-export-privacy.test.mjs tests/query-param-state.test.mjs` passed
+66/67 with the expected local skip for the GitHub Actions Postgres-only
+`withDbUserContext()` integration; `npx tsc --noEmit`; and `git diff --check`.
+Full local lint/test were skipped by design for speed; CI will run the full
+matrix after push.
+
+Current running tally after Entry 524: verified fixed/reduced 1025, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the transaction-client-compatible Notification owner-access
+prep. Deferred stays flat because production RLS, the staging context gate, and
+the first real Notification table policy migration remain future execution work.
 
 ### Entry 522 - RLS evidence quoted-key redaction guardrail
 

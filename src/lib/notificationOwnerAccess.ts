@@ -1,6 +1,8 @@
 import { NotificationType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 
+export type NotificationOwnerAccessClient = Pick<Prisma.TransactionClient, "notification">;
+
 export const NOTIFICATION_BELL_SELECT = {
   id: true,
   type: true,
@@ -23,34 +25,51 @@ export const NOTIFICATION_EXPORT_SELECT = {
   createdAt: true,
 } satisfies Prisma.NotificationSelect;
 
-export async function countUnreadOwnerNotifications(userId: string) {
-  return prisma.notification.count({ where: { userId, read: false } });
+export async function countUnreadOwnerNotifications(
+  userId: string,
+  db: NotificationOwnerAccessClient = prisma,
+) {
+  return db.notification.count({ where: { userId, read: false } });
 }
 
-export async function countOwnerNotifications(userId: string) {
-  return prisma.notification.count({ where: { userId } });
+export async function countOwnerNotifications(
+  userId: string,
+  db: NotificationOwnerAccessClient = prisma,
+) {
+  return db.notification.count({ where: { userId } });
 }
 
-export async function ownerNotificationBellData(userId: string) {
-  const notifications = await prisma.notification.findMany({
+export async function ownerNotificationBellData(
+  userId: string,
+  db: NotificationOwnerAccessClient = prisma,
+) {
+  const notifications = await db.notification.findMany({
     where: { userId },
     select: NOTIFICATION_BELL_SELECT,
     orderBy: { createdAt: "desc" },
     take: 20,
   });
-  const unreadCount = await countUnreadOwnerNotifications(userId);
+  const unreadCount = await countUnreadOwnerNotifications(userId, db);
   return { notifications, unreadCount };
 }
 
-export async function markOwnerNotificationRead(userId: string, notificationId: string) {
-  return prisma.notification.updateMany({
+export async function markOwnerNotificationRead(
+  userId: string,
+  notificationId: string,
+  db: NotificationOwnerAccessClient = prisma,
+) {
+  return db.notification.updateMany({
     where: { id: notificationId, userId },
     data: { read: true },
   });
 }
 
-export async function markOwnerNotificationsRead(userId: string, notificationIds: string[] = []) {
-  return prisma.notification.updateMany({
+export async function markOwnerNotificationsRead(
+  userId: string,
+  notificationIds: string[] = [],
+  db: NotificationOwnerAccessClient = prisma,
+) {
+  return db.notification.updateMany({
     where: {
       userId,
       read: false,
@@ -60,8 +79,12 @@ export async function markOwnerNotificationsRead(userId: string, notificationIds
   });
 }
 
-export async function markOwnerMessageNotificationsRead(userId: string, conversationId: string) {
-  return prisma.notification.updateMany({
+export async function markOwnerMessageNotificationsRead(
+  userId: string,
+  conversationId: string,
+  db: NotificationOwnerAccessClient = prisma,
+) {
+  return db.notification.updateMany({
     where: {
       userId,
       type: NotificationType.NEW_MESSAGE,
@@ -75,18 +98,20 @@ export async function markOwnerMessageNotificationsRead(userId: string, conversa
 export async function ownerNotificationPageData(
   userId: string,
   { skip, take }: { skip: number; take: number },
+  db: NotificationOwnerAccessClient = prisma,
 ) {
-  const total = await countOwnerNotifications(userId);
-  const unreadCount = await countUnreadOwnerNotifications(userId);
-  const notifications = await ownerNotificationPageRows(userId, { skip, take });
+  const total = await countOwnerNotifications(userId, db);
+  const unreadCount = await countUnreadOwnerNotifications(userId, db);
+  const notifications = await ownerNotificationPageRows(userId, { skip, take }, db);
   return { notifications, total, unreadCount };
 }
 
 export async function ownerNotificationPageRows(
   userId: string,
   { skip, take }: { skip: number; take: number },
+  db: NotificationOwnerAccessClient = prisma,
 ) {
-  return prisma.notification.findMany({
+  return db.notification.findMany({
     where: { userId },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     skip,
@@ -94,8 +119,11 @@ export async function ownerNotificationPageRows(
   });
 }
 
-export async function ownerNotificationExportRows(userId: string) {
-  return prisma.notification.findMany({
+export async function ownerNotificationExportRows(
+  userId: string,
+  db: NotificationOwnerAccessClient = prisma,
+) {
+  return db.notification.findMany({
     where: { userId },
     orderBy: { createdAt: "desc" },
     select: NOTIFICATION_EXPORT_SELECT,
@@ -106,8 +134,9 @@ export async function findRecentOwnerLowStockNotification(
   userId: string,
   link: string,
   since: Date,
+  db: NotificationOwnerAccessClient = prisma,
 ) {
-  return prisma.notification.findFirst({
+  return db.notification.findFirst({
     where: {
       userId,
       type: NotificationType.LOW_STOCK,
