@@ -40,12 +40,17 @@ describe("launch readiness follow-ups", () => {
     const layout = source("src/app/layout.tsx");
     const envExample = source(".env.example");
     const docs = source("CLAUDE.md");
+    const launchChecklist = source("docs/launch-checklist.md");
 
     assert.match(layout, /verification:\s*\{/);
     assert.match(layout, /NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION/);
     assert.match(envExample, /NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION/);
     assert.match(source("src/app/robots.txt/route.ts"), /Sitemap: https:\/\/thegrainline\.com\/sitemap_index\.xml/);
     assert.match(docs, /https:\/\/thegrainline\.com\/sitemap_index\.xml/);
+    assert.match(launchChecklist, /NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION/);
+    assert.match(launchChecklist, /Google Search Console/);
+    assert.match(launchChecklist, /https:\/\/thegrainline\.com\/sitemap_index\.xml/);
     assert.doesNotMatch(docs, /submit `https:\/\/thegrainline\.com\/sitemap\.xml`/);
+    assert.doesNotMatch(launchChecklist, /sitemap\.xml/);
   });
 });

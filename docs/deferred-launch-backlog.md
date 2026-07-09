@@ -6,6 +6,11 @@ product/design/ops/legal findings and 0 unvetted raw allegations. The 87 count
 is per-finding accounting; the table below groups those findings into the
 cohesive sections we should finish one at a time.
 
+`docs/launch-checklist.md` remains the canonical master checklist for official
+launch readiness. This file owns the audit-deferred backlog only; launch legal,
+vendor, deploy, smoke-test, SEO, and business gates still live in the launch
+checklist unless a row below explicitly links to them.
+
 Deferred does not mean ignored. A deferred item must have a closure artifact:
 source fix plus tests, runtime evidence, dashboard screenshots, legal/product
 decision, or a written non-launch acceptance decision. If a deferred item proves

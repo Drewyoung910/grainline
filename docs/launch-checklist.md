@@ -1,15 +1,19 @@
 # Grainline Launch Checklist
 
 This checklist is for the final pre-launch pass before accepting live marketplace transactions.
-Resolve or explicitly accept the tracked launch/runtime/legal/product backlog in
-`docs/deferred-launch-backlog.md` before official launch; do not treat the
-audit ledger's deferred count as sufficient launch tracking on its own.
+It is the canonical master launch-readiness checklist: also resolve or explicitly
+accept the tracked launch/runtime/legal/product backlog in
+`docs/deferred-launch-backlog.md` before official launch.
+Do not treat the audit ledger's deferred count as sufficient launch tracking on
+its own.
 
 ## Environment Variables
 
 Confirm production and preview values in Vercel:
 
 - `NEXT_PUBLIC_APP_URL`
+- `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` if using the root metadata tag for
+  Search Console ownership verification.
 - `DATABASE_URL`
 - `DIRECT_URL`
 - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
@@ -74,6 +78,9 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
 - UptimeRobot: monitoring `https://thegrainline.com/api/health`.
 - GitHub: branch protection on `main`, required CI, Dependabot alerts/updates, secret scanning/push protection where available, and CodeQL/code scanning where available.
 - Security disclosure: `/security` and `/.well-known/security.txt` are live; `security@thegrainline.com` mailbox routing verified.
+- Google Search Console: production ownership verified through
+  `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` or an equivalent domain-level method,
+  and `https://thegrainline.com/sitemap_index.xml` submitted after deployment.
 
 ## Database And Deploy
 
@@ -126,6 +133,7 @@ Record links/screenshots/dates for:
 - Cloudflare R2 public bucket-listing/ListBucket posture, bucket-level max object-size setting, CORS/public-domain settings, and upload smoke-test result.
 - Neon backup/PITR setting and most recent restore drill.
 - Sentry alert rules for CSP/script/frame violations, production error spikes, Sentry cron monitors, `source=cron_ops_health` warnings including completed-cron partial record failures, `AccountDeletionSideEffect` cleanup issues, direct-upload cleanup failures, and webhook failure spike messages.
+- Google Search Console ownership verification and sitemap index submission.
 
 ## Business And Legal
 

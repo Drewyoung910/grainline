@@ -13859,6 +13859,65 @@ increases by two for the explicit `pg_trgm` runtime grant/audit coverage and the
 bidirectional provisioning-inventory guard. Raw-left stays at zero because this
 was post-raw hidden-issue hardening, not closure of a remaining raw allegation.
 
+### Entry 519 - Launch tracker union and Search Console checklist guardrail
+
+Entry 519 reviewed Claude's follow-up on the new deferred backlog as junior
+read-only input. Parent Codex verified the claims against current `main`.
+Claude's broader claim that Search Console support was absent was stale for
+source and stable docs: `src/app/layout.tsx`, `.env.example`, `CLAUDE.md`, and
+`tests/launch-readiness-followups.test.mjs` already covered
+`NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` and the crawler-facing
+`/sitemap_index.xml`. The narrower launch-readiness finding was real:
+`docs/launch-checklist.md` did not carry Search Console verification/submission,
+and the relationship between `docs/launch-checklist.md` and
+`docs/deferred-launch-backlog.md` needed a clearer single-master contract.
+
+Fixed/reduced:
+
+- `docs/launch-checklist.md` now explicitly states it is the canonical master
+  launch-readiness checklist and links the deferred backlog as a required
+  linked section, rather than leaving two parallel trackers with an ambiguous
+  ownership boundary.
+- `docs/deferred-launch-backlog.md` now states that it owns only the
+  audit-deferred backlog while legal, vendor, deploy, smoke-test, SEO, and
+  business launch gates still live in the launch checklist unless a backlog row
+  links to them.
+- `docs/launch-checklist.md` now includes Search Console ownership verification
+  through `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` or an equivalent domain-level
+  method, submission of `https://thegrainline.com/sitemap_index.xml`, and
+  retained evidence for that verification/submission.
+
+Verified stale/current without source changes:
+
+- Root metadata already emits the Google verification value when
+  `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` is configured.
+- `.env.example` already documents the env var.
+- `robots.txt` already advertises `https://thegrainline.com/sitemap_index.xml`.
+- `CLAUDE.md` already instructed launch ops to verify Search Console ownership
+  and submit the sitemap index.
+
+Guardrails added/reviewed:
+Updated `tests/launch-readiness-followups.test.mjs` to require the launch
+checklist Search Console env/sitemap language and reject stale `/sitemap.xml`
+wording there. Updated `tests/deferred-launch-backlog.test.mjs` to pin the
+canonical-master checklist relationship and audit-deferred-only backlog scope.
+Reviewed `tests/audit-ledger-coupling.test.mjs` alongside the focused suite.
+
+Verification:
+`git status --short`; source/docs/test inspection with `rg`/`sed`; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+--experimental-strip-types --test tests/launch-readiness-followups.test.mjs
+tests/deferred-launch-backlog.test.mjs tests/audit-ledger-coupling.test.mjs`
+passed 8/8; and `git diff --check` passed.
+
+Current running tally after Entry 519: verified fixed/reduced 1020, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the launch-readiness tracker/Search Console checklist
+guardrail. Stale/current, deferred, and raw-left stay flat because the broader
+Search Console source-support allegation was already current and this pass did
+not close or add a deferred item.
+
 ### Entry 518 - Deferred launch backlog tracking guardrail
 
 Entry 518 responded to Drew's concern that deferred findings can become

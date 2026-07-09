@@ -47,7 +47,10 @@ describe("deferred launch backlog", () => {
   });
 
   it("keeps future-agent and launch docs linked to the backlog", () => {
+    assert.match(backlog, /docs\/launch-checklist\.md` remains the canonical master checklist/);
+    assert.match(backlog, /audit-deferred backlog only/);
     assert.match(source("CLAUDE.md"), /docs\/deferred-launch-backlog\.md/);
+    assert.match(source("docs/launch-checklist.md"), /canonical master launch-readiness checklist/);
     assert.match(source("docs/launch-checklist.md"), /docs\/deferred-launch-backlog\.md/);
   });
 });
