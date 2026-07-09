@@ -1,6 +1,9 @@
 # Grainline Launch Checklist
 
 This checklist is for the final pre-launch pass before accepting live marketplace transactions.
+Resolve or explicitly accept the tracked launch/runtime/legal/product backlog in
+`docs/deferred-launch-backlog.md` before official launch; do not treat the
+audit ledger's deferred count as sufficient launch tracking on its own.
 
 ## Environment Variables
 

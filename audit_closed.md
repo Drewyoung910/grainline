@@ -13859,6 +13859,63 @@ increases by two for the explicit `pg_trgm` runtime grant/audit coverage and the
 bidirectional provisioning-inventory guard. Raw-left stays at zero because this
 was post-raw hidden-issue hardening, not closure of a remaining raw allegation.
 
+### Entry 518 - Deferred launch backlog tracking guardrail
+
+Entry 518 responded to Drew's concern that deferred findings can become
+forgotten if they only live as repeated prose in the audit ledger. Parent Codex
+rechecked the latest running deferred category list from Entries 500 and
+508-517 and converted it into an explicit launch/runtime/legal/product backlog
+with grouped sections, status labels, and closure criteria. The 87 deferred
+count remains per-finding ledger accounting; the new backlog groups those
+findings into cohesive sections to finish one at a time.
+
+Fixed/reduced:
+
+- Added `docs/deferred-launch-backlog.md` to track the deferred backlog outside
+  `audit_closed.md`. It records that current raw allegations are zero, explains
+  that deferred means tracked rather than ignored, separates launch blockers
+  from conditional blockers/product decisions/post-launch hardening, and gives
+  closure criteria for each grouped category.
+- `CLAUDE.md` now requires future passes to represent any remaining
+  deferred/manual item in `docs/deferred-launch-backlog.md` or an explicitly
+  linked runbook/legal record with closure criteria. It also directs future
+  agents to prefer closing one cohesive deferred section before broadening.
+- `docs/launch-checklist.md` now links the deferred backlog before official
+  launch so final readiness review cannot rely on the audit ledger's deferred
+  count alone.
+
+Verified current or deliberately deferred without source changes:
+
+- Current deferred categories are not open raw source allegations; they are the
+  grouped launch/runtime/legal/product evidence backlog already represented in
+  recent running tallies: RLS staging/prototype execution, Stripe refund and
+  label runtime evidence, Stripe/Clerk/R2/Sentry dashboard evidence, Connect v2
+  legal/accounting decisions, provider privacy evidence, product decisions,
+  performance/runtime proofs, deployed-header proof, and high-scale modeling.
+- The new tracker does not close any deferred finding by itself. Each section
+  still needs its listed source fix, runtime evidence, legal/product decision,
+  or explicit non-launch acceptance decision before it can move out of the
+  deferred count.
+
+Guardrails added/reviewed:
+Added `tests/deferred-launch-backlog.test.mjs` to keep the backlog linked from
+future-agent and launch docs, pin the current grouped categories, and assert
+that deferred work is tracked outside the audit ledger. Reviewed the existing
+`tests/audit-ledger-coupling.test.mjs` raw-import guardrail alongside it.
+
+Verification:
+`git status --short`; source/docs/test inspection with `rg`/`sed`; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+--experimental-strip-types --test tests/deferred-launch-backlog.test.mjs
+tests/audit-ledger-coupling.test.mjs` passed 4/4 after fixing a
+line-wrap-tolerant assertion; and `git diff --check` passed.
+
+Current running tally after Entry 518: verified fixed/reduced 1019, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Tally values stay
+flat because this pass added backlog tracking and a process guardrail but did
+not close a source defect, stale allegation, or deferred item.
+
 ### Entry 517 - Prior-claim verification discipline pass
 
 Entry 517 reviewed Claude's follow-up correction as junior read-only input.

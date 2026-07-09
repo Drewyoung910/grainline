@@ -24,6 +24,11 @@ These rules exist to survive context compaction and multi-agent handoffs. Read t
   shape or product logic does not hold.
 - Do not commit raw Claude audit imports. `audit_open_findings.md` can contain unvetted findings; move only verified fixes or verified-stale findings into `audit_closed.md`. Regression tests must not read raw audit imports; assert stable source, docs, or the closed ledger instead.
 - Keep a running tally after each pass: verified real fixed, verified stale/false-positive closed, deferred/manual, and remaining unvetted.
+- Deferred means tracked, not parked. Any deferred/manual item that remains
+  after a pass must be represented in `docs/deferred-launch-backlog.md` or an
+  explicitly linked runbook/legal record with closure criteria. Prefer closing
+  one cohesive deferred section before broadening to a new audit area unless CI
+  is red, Drew redirects, or external evidence is blocking.
 - If another worktree such as `.claude/worktrees/sleepy-hypatia-*` appears, compare it to main only when needed; do not assume it is current.
 
 ### Agent use
