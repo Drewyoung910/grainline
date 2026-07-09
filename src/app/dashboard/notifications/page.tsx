@@ -106,8 +106,10 @@ export default async function NotificationsPage({
   const { page: pageStr } = await searchParams;
   const requestedPage = parseBoundedPositiveIntParam(pageStr, 1, 1000);
 
-  const total = await countOwnerNotifications(me.id);
-  const unreadCount = await countUnreadOwnerNotifications(me.id);
+  const [total, unreadCount] = await Promise.all([
+    countOwnerNotifications(me.id),
+    countUnreadOwnerNotifications(me.id),
+  ]);
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const page = Math.min(requestedPage, totalPages);
 
