@@ -13859,6 +13859,48 @@ increases by two for the explicit `pg_trgm` runtime grant/audit coverage and the
 bidirectional provisioning-inventory guard. Raw-left stays at zero because this
 was post-raw hidden-issue hardening, not closure of a remaining raw allegation.
 
+### Entry 522 - RLS evidence quoted-key redaction guardrail
+
+Entry 522 reviewed Claude's residual redaction note as another junior-review
+allegation. Parent verification confirmed the calibration was mostly right: the
+quoted JSON-key form (`"password":"secret"`) is low-likelihood for current
+`safeErrorMessage(error)`-fed evidence strings, but the existing assignment
+regexes did not match it. Because the retained evidence artifact is explicitly
+meant to be safe to preserve with launch/RLS records, this pass closes the edge
+case instead of leaving the guarantee dependent on current error-message shape.
+
+Fixed/reduced:
+
+- `scripts/rls-context-acceptance-gate.mjs` now lets the database-URL and
+  password assignment redactors consume optional quotes around assignment keys.
+  This covers JSON-like `"password":"..."` and
+  `"DATABASE_URL":"postgres://..."` forms in addition to the bare assignment
+  forms covered by Entry 521.
+
+Guardrails added/reviewed:
+
+- `tests/rls-context-gate.test.mjs` now includes a JSON-like config string with
+  quoted `password` and `DATABASE_URL` keys in the evidence issues, and asserts
+  both values are replaced by redacted placeholders and do not survive in the
+  serialized artifact.
+
+Verification:
+`git status --short`; source/test inspection with `sed`; `node --check
+scripts/rls-context-acceptance-gate.mjs`; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+--experimental-strip-types --test tests/rls-context-gate.test.mjs
+tests/audit-ledger-coupling.test.mjs` passed 12/13 with the expected local
+GitHub-only synthetic Postgres skip; `npx tsc --noEmit`; `npm run lint`
+exited 0 with the known `jsx-ast-utils` TSNonNullExpression warning; full
+`npm test` passed 1490/1493 with the expected local skips; and
+`git diff --check` passed. CI is pending until this follow-up is pushed.
+
+Current running tally after Entry 522: verified fixed/reduced 1023, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the quoted-key retained-evidence redaction hardening.
+Deferred stays flat.
+
 ### Entry 521 - RLS context evidence message redaction
 
 Entry 521 reviewed Claude's follow-up as junior read-only input and verified the

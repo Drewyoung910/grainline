@@ -264,6 +264,7 @@ describe("RLS context acceptance gate guardrails", () => {
           "connection failed for postgresql://owner:secret@ep-admin-pooler.example.neon.tech/grainline_staging?sslmode=require",
           "env RLS_CONTEXT_GATE_ADMIN_DATABASE_URL=postgres://admin:admin-secret@ep-admin.example.neon.tech/grainline_staging",
           "dsn user=owner password=owner-password host=ep-admin.example.neon.tech",
+          'json config {"password":"json-secret","DATABASE_URL":"postgres://json:json-db-secret@ep-json.example.neon.tech/db"}',
         ],
         reports: [
           "synthetic report",
@@ -286,17 +287,19 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.equal(payload.run.commitSha, "abc123");
     assert.equal(payload.database.databaseHost, "ep-test-pooler.example.neon.tech");
     assert.equal(payload.database.runtimeRole, "grainline_app_runtime");
-    assert.equal(payload.result.issueCount, 4);
+    assert.equal(payload.result.issueCount, 5);
     assert.match(payload.result.issues[1], /\[redacted-postgres-url\]/);
     assert.match(payload.result.issues[2], /\[redacted-database-url\]/);
     assert.match(payload.result.issues[3], /\[redacted-password\]/);
+    assert.match(payload.result.issues[4], /\[redacted-password\]/);
+    assert.match(payload.result.issues[4], /\[redacted-database-url\]/);
     assert.match(payload.result.reports[1], /\[redacted-credentials\]/);
     assert.equal(payload.config.measuredRequests, MIN_ACCEPTANCE_REQUESTS);
     const serialized = JSON.stringify(payload);
     assert.doesNotMatch(serialized, /postgresql:\/\//);
     assert.doesNotMatch(serialized, /postgres:\/\//);
     assert.doesNotMatch(serialized, /runtime:secret/);
-    assert.doesNotMatch(serialized, /owner:secret|admin-secret|owner-password|report-secret|runtime:report-secret/);
+    assert.doesNotMatch(serialized, /owner:secret|admin-secret|owner-password|json-secret|json-db-secret|report-secret|runtime:report-secret/);
     assert.doesNotMatch(serialized, /RLS_CONTEXT_GATE_DATABASE_URL/);
     assert.doesNotMatch(serialized, /RLS_CONTEXT_GATE_ADMIN_DATABASE_URL/);
   });

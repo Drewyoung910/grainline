@@ -24,8 +24,8 @@ const DEFAULT_TRANSACTION_TIMEOUT_MS = 5_000;
 const PREPARED_SELECT_NAME = "rls_context_gate_canary_select_v1";
 const CONFIRMATION_VALUE = "staging-only";
 const DATABASE_URL_ASSIGNMENT_PATTERN =
-  /\b(?:DATABASE_URL|DIRECT_URL|RLS_CONTEXT_GATE_(?:DATABASE_URL|ADMIN_DATABASE_URL))\b\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi;
-const PASSWORD_ASSIGNMENT_PATTERN = /\b(?:PGPASSWORD|password|pass|pwd)\b\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi;
+  /["']?\b(?:DATABASE_URL|DIRECT_URL|RLS_CONTEXT_GATE_(?:DATABASE_URL|ADMIN_DATABASE_URL))\b["']?\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi;
+const PASSWORD_ASSIGNMENT_PATTERN = /["']?\b(?:PGPASSWORD|password|pass|pwd)\b["']?\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi;
 const POSTGRES_URL_PATTERN = /\bpostgres(?:ql)?:\/\/[^\s"'`<>]+/gi;
 const URL_USERINFO_PATTERN = /\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@:]+:[^\s/@]+@/gi;
 const USERINFO_PATTERN = /\b[^\s:@/]+:[^\s@/]+@(?=[A-Za-z0-9.-]+\b)/g;
