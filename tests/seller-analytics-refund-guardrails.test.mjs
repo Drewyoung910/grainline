@@ -43,7 +43,7 @@ describe("seller analytics refund guardrails", () => {
   });
 
   it("keeps first-party partial refunds visible to Guild sales filters", () => {
-    const helper = source("src/lib/localRefundEvidence.ts");
+    const helper = source("src/lib/localRefundEvidenceCore.ts");
     const sellerRefundRoute = source("src/app/api/orders/[id]/refund/route.ts");
     const caseResolveRoute = source("src/app/api/cases/[id]/resolve/route.ts");
     const verificationApplyRoute = source("src/app/api/verification/apply/route.ts");

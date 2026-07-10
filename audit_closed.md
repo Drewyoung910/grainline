@@ -14337,9 +14337,10 @@ refund helper, the money-proof script, and local refund evidence helper;
 `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
 --test tests/stripe-money-movement-proof.test.mjs
 tests/payment-side-effect-observability.test.mjs
+tests/seller-analytics-refund-guardrails.test.mjs
 tests/marketplace-refunds.test.mjs tests/label-clawback-state.test.mjs
 tests/stripe-connect-v2.test.mjs tests/deferred-launch-backlog.test.mjs`
-passed 72/72; `npx tsc --noEmit`; and `git diff --check`. The live
+passed 76/76; `npx tsc --noEmit`; and `git diff --check`. The live
 `npm run audit:stripe-money` proof still was not run locally because the
 required test-mode Stripe/staging inputs are not present.
 
