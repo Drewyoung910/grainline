@@ -23,6 +23,7 @@ import {
 import { parseCheckoutStockReservationItems } from "@/lib/checkoutStockRestore";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { ownerNotificationExportRows } from "@/lib/notificationOwnerAccess";
+import { listOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 
 export const runtime = "nodejs";
@@ -452,7 +453,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
       orderBy: { createdAt: "desc" },
       select: { listingId: true, createdAt: true, listing: { select: { title: true, status: true } } },
     }),
-    prisma.savedSearch.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" } }),
+    listOwnerSavedSearches(user.id),
     prisma.follow.findMany({
       where: { followerId: user.id },
       orderBy: { createdAt: "desc" },

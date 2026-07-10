@@ -16,6 +16,14 @@ import {
 } from "@/lib/requestBody";
 import { withSerializableRetry } from "@/lib/transactionRetry";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import {
+  countOwnerSavedSearches,
+  createOwnerSavedSearch,
+  deleteOwnerSavedSearch,
+  findDuplicateOwnerSavedSearch,
+  listOwnerSavedSearches,
+  type OwnerSavedSearchCriteria,
+} from "@/lib/savedSearchOwnerAccess";
 
 const SavedSearchSchema = z.object({
   q: z.string().max(200).optional().nullable(),
@@ -122,49 +130,30 @@ export async function POST(req: NextRequest) {
     return privateJson({ error: "Choose at least one search term or filter before saving." }, { status: 400 });
   }
 
+  const criteria: OwnerSavedSearchCriteria = {
+    query: normalizedQuery,
+    category: categoryVal,
+    listingType,
+    shipsWithinDays: normalizedShips,
+    minRating: normalizedRating,
+    lat: normalizedLat,
+    lng: normalizedLng,
+    radiusMiles: normalizedRadius,
+    sort: normalizedSort,
+    minPrice: normalizedMin,
+    maxPrice: normalizedMax,
+    tags: normalizedTags,
+  };
+
   const result = await withSerializableRetry(() =>
     prisma.$transaction(async (tx) => {
-      const existing = await tx.savedSearch.findFirst({
-        where: {
-          userId: me.id,
-          query: normalizedQuery,
-          category: categoryVal,
-          listingType,
-          shipsWithinDays: normalizedShips,
-          minRating: normalizedRating,
-          lat: normalizedLat,
-          lng: normalizedLng,
-          radiusMiles: normalizedRadius,
-          sort: normalizedSort,
-          minPrice: normalizedMin,
-          maxPrice: normalizedMax,
-          tags: { equals: normalizedTags },
-        },
-        select: { id: true },
-      });
+      const existing = await findDuplicateOwnerSavedSearch(me.id, criteria, tx);
       if (existing) return { id: existing.id, existing: true };
 
-      const count = await tx.savedSearch.count({ where: { userId: me.id } });
+      const count = await countOwnerSavedSearches(me.id, tx);
       if (count >= 25) return { error: "limit" as const };
 
-      const saved = await tx.savedSearch.create({
-        data: {
-          userId: me.id,
-          query: normalizedQuery,
-          category: categoryVal,
-          listingType,
-          shipsWithinDays: normalizedShips,
-          minRating: normalizedRating,
-          lat: normalizedLat,
-          lng: normalizedLng,
-          radiusMiles: normalizedRadius,
-          sort: normalizedSort,
-          minPrice: normalizedMin,
-          maxPrice: normalizedMax,
-          tags: normalizedTags,
-        },
-        select: { id: true },
-      });
+      const saved = await createOwnerSavedSearch(me.id, criteria, tx);
       return { id: saved.id, existing: false };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }),
   );
@@ -187,10 +176,7 @@ export async function GET() {
   const me = userResult.me;
   if (!me) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
-  const searches = await prisma.savedSearch.findMany({
-    where: { userId: me.id },
-    orderBy: { createdAt: "desc" },
-  });
+  const searches = await listOwnerSavedSearches(me.id);
 
   return privateJson({
     searches: searches.map((search) => ({
@@ -215,6 +201,6 @@ export async function DELETE(req: NextRequest) {
   const id = req.nextUrl.searchParams.get("id");
   if (!id) return privateJson({ error: "Missing id" }, { status: 400 });
 
-  await prisma.savedSearch.deleteMany({ where: { id, userId: me.id } });
+  await deleteOwnerSavedSearch(me.id, id);
   return privateJson({ ok: true });
 }

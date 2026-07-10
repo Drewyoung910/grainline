@@ -52,10 +52,14 @@ describe("R49 account-state route guardrails", () => {
     );
 
     const savedSearchRoute = source("src/app/api/search/saved/route.ts");
+    const savedSearchGet = savedSearchRoute.slice(
+      savedSearchRoute.indexOf("export async function GET"),
+      savedSearchRoute.indexOf("export async function DELETE"),
+    );
     assert.match(savedSearchRoute, /safeRateLimit\(savedSearchRatelimit, userId\)/);
     assert.ok(
-      savedSearchRoute.indexOf("safeRateLimit(savedSearchRatelimit, userId)") <
-        savedSearchRoute.indexOf("prisma.savedSearch.findMany"),
+      savedSearchGet.indexOf("safeRateLimit(savedSearchRatelimit, userId)") <
+        savedSearchGet.indexOf("listOwnerSavedSearches(me.id)"),
       "saved-search GET should rate-limit before listing current-user saved searches",
     );
 
@@ -87,12 +91,14 @@ describe("R49 account-state route guardrails", () => {
 
   it("canonicalizes saved-search tag order before duplicate lookup and create", () => {
     const savedSearchRoute = source("src/app/api/search/saved/route.ts");
+    const savedSearchOwnerAccess = source("src/lib/savedSearchOwnerAccess.ts");
 
     assert.match(savedSearchRoute, /function normalizeSavedSearchTags/);
     assert.match(savedSearchRoute, /normalizeTags\(tags \?\? \[\], 20\)\.sort\(\(a, b\) => a\.localeCompare\(b\)\)/);
     assert.match(savedSearchRoute, /const normalizedTags = normalizeSavedSearchTags\(tags\)/);
-    assert.match(savedSearchRoute, /tags: \{ equals: normalizedTags \}/);
     assert.match(savedSearchRoute, /tags: normalizedTags/);
+    assert.match(savedSearchOwnerAccess, /tags: \{ equals: criteria\.tags \}/);
+    assert.match(savedSearchOwnerAccess, /tags: criteria\.tags/);
   });
 
   it("minimizes saved-search coordinates before GET transport", () => {
@@ -109,24 +115,29 @@ describe("R49 account-state route guardrails", () => {
     assert.match(getRoute, /lat: savedSearchCoordinateForTransport\(search\.lat\)/);
     assert.match(getRoute, /lng: savedSearchCoordinateForTransport\(search\.lng\)/);
     assert.ok(
-      getRoute.indexOf("prisma.savedSearch.findMany") < getRoute.indexOf("searches.map"),
+      getRoute.indexOf("listOwnerSavedSearches(me.id)") < getRoute.indexOf("searches.map"),
       "saved-search GET should minimize coordinates after loading the current user's rows",
     );
   });
 
   it("keeps saved-search dedupe, 25 cap, and create in one serializable transaction", () => {
     const savedSearchRoute = source("src/app/api/search/saved/route.ts");
+    const savedSearchOwnerAccess = source("src/lib/savedSearchOwnerAccess.ts");
 
     assert.match(savedSearchRoute, /withSerializableRetry/);
     assert.match(savedSearchRoute, /prisma\.\$transaction\(async \(tx\) =>/);
     assert.match(savedSearchRoute, /isolationLevel: Prisma\.TransactionIsolationLevel\.Serializable/);
     assert.ok(
-      savedSearchRoute.indexOf("tx.savedSearch.findFirst") <
-        savedSearchRoute.indexOf("tx.savedSearch.count") &&
-        savedSearchRoute.indexOf("tx.savedSearch.count") <
-        savedSearchRoute.indexOf("tx.savedSearch.create"),
+      savedSearchRoute.indexOf("findDuplicateOwnerSavedSearch(me.id, criteria, tx)") <
+        savedSearchRoute.indexOf("countOwnerSavedSearches(me.id, tx)") &&
+        savedSearchRoute.indexOf("countOwnerSavedSearches(me.id, tx)") <
+        savedSearchRoute.indexOf("createOwnerSavedSearch(me.id, criteria, tx)"),
       "saved-search POST should dedupe, count, and create inside the serializable transaction",
     );
+    assert.match(savedSearchOwnerAccess, /export type SavedSearchOwnerAccessClient = Pick<Prisma\.TransactionClient, "savedSearch">/);
+    assert.match(savedSearchOwnerAccess, /db\.savedSearch\.findFirst/);
+    assert.match(savedSearchOwnerAccess, /db\.savedSearch\.count/);
+    assert.match(savedSearchOwnerAccess, /db\.savedSearch\.create/);
   });
 
   it("prevents blocked users from creating favorite notifications", () => {

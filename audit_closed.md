@@ -14014,8 +14014,9 @@ Verification:
 `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
 --test tests/rls-feasibility-plan.test.mjs` passed 10/10; and
 `git diff --check`. Full local lint/typecheck/test were skipped by design for
-speed because this pass changes only a source-scan test and the ledger; CI will
-run the full matrix after push.
+speed because this pass changes only a source-scan test and the ledger. CI run
+`29058237757` on commit `adb19421` passed the full matrix: typecheck, lint,
+tests, security audit, and production build.
 
 Current running tally after Entry 525: verified fixed/reduced 1026, verified
 stale/false-positive/current 579, deferred product/design/ops/legal 87,
@@ -14023,6 +14024,66 @@ approximate raw allegations left from current max #1126: 0. Fixed/reduced
 increases by one for the Notification owner-access bypass guard. Deferred stays
 flat because production RLS, the staging context gate, and the first real
 Notification table policy migration remain future execution work.
+
+### Entry 526 - SavedSearch RLS owner-access prep
+
+Entry 526 continues the same slow, non-enabling RLS prep on the next direct-owner
+candidate table. The staging context gate still has not been run from this
+workspace, so this pass does not enable production RLS, add a table policy, or
+wrap live traffic in `withDbUserContext()`. It narrows the future wrapping
+surface by moving current owner-scoped SavedSearch reads/writes behind one
+transaction-client-compatible helper.
+
+Fixed/reduced:
+
+- Added `src/lib/savedSearchOwnerAccess.ts` as the centralized owner-access
+  boundary for SavedSearch duplicate lookup, per-user count, create, list, and
+  delete operations. The helper accepts an optional
+  `SavedSearchOwnerAccessClient` anchored to `Prisma.TransactionClient`, so the
+  same owner operations can later run inside a transaction-local RLS user
+  context.
+- Routed the current owner-scoped SavedSearch paths through the helper:
+  `/api/search/saved` POST/GET/DELETE, dashboard saved-search list and delete
+  action, and account export saved-search rows.
+- Preserved the existing application-layer behavior: POST still rate-limits,
+  normalizes criteria, dedupes/counts/creates inside a serializable transaction,
+  caps users at 25 saved searches, and DELETE still scopes by both `id` and
+  owner `userId`. GET and account export still list only the current user's rows
+  ordered newest-first.
+- Left `src/lib/accountDeletion.ts` as the explicit service-side cleanup
+  exception for deleting a user's SavedSearch rows during account deletion.
+
+Guardrails added/reviewed:
+
+- `tests/rls-feasibility-plan.test.mjs` now asserts the SavedSearch owner helper
+  exports the transaction-client-compatible boundary, avoids `Promise.all`, uses
+  `db.savedSearch.*` instead of global owner queries, and is used by the route,
+  dashboard, and account export.
+- The same RLS feasibility test now recursively blocks new direct owner-style
+  SavedSearch reads/writes outside `savedSearchOwnerAccess`, with only the
+  account-deletion cleanup path allowlisted.
+- Updated saved-search source-scan guardrails in
+  `tests/r49-account-state-routes.test.mjs` and
+  `tests/schema-hardening-followups.test.mjs` so the existing rate-limit,
+  canonical tag ordering, coordinate minimization, and serializable dedupe-race
+  protections remain pinned after the helper extraction.
+
+Verification:
+`git status --short`; source inspection with `rg`/`sed`; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/rls-feasibility-plan.test.mjs
+tests/r49-account-state-routes.test.mjs
+tests/schema-hardening-followups.test.mjs
+tests/account-export-privacy.test.mjs` passed 39/39; `npx tsc --noEmit`; and
+`git diff --check`. Full local lint/test were skipped by design for speed; CI
+will run the full matrix after push.
+
+Current running tally after Entry 526: verified fixed/reduced 1027, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the SavedSearch owner-access prep and bypass guard.
+Deferred stays flat because production RLS, the staging context gate, and the
+first real table policy migration remain future execution work.
 
 ### Entry 522 - RLS evidence quoted-key redaction guardrail
 

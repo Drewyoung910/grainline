@@ -165,6 +165,56 @@ describe("RLS feasibility plan guardrails", () => {
     assert.deepEqual(directCallsByFile, allowedDirectCalls);
   });
 
+  it("centralizes SavedSearch owner reads and writes for the direct-owner RLS prototype", () => {
+    const ownerAccess = source("src/lib/savedSearchOwnerAccess.ts");
+    const savedRoute = source("src/app/api/search/saved/route.ts");
+    const dashboard = source("src/app/dashboard/page.tsx");
+    const accountExport = source("src/app/api/account/export/route.ts");
+
+    assert.match(ownerAccess, /export type SavedSearchOwnerAccessClient = Pick<Prisma\.TransactionClient, "savedSearch">/);
+    assert.match(ownerAccess, /export type OwnerSavedSearchCriteria/);
+    assert.match(ownerAccess, /export function ownerSavedSearchWhere/);
+    assert.match(ownerAccess, /export async function findDuplicateOwnerSavedSearch/);
+    assert.match(ownerAccess, /export async function countOwnerSavedSearches/);
+    assert.match(ownerAccess, /export async function createOwnerSavedSearch/);
+    assert.match(ownerAccess, /export async function listOwnerSavedSearches/);
+    assert.match(ownerAccess, /export async function deleteOwnerSavedSearch/);
+    assert.match(ownerAccess, /db: SavedSearchOwnerAccessClient = prisma/);
+    assert.match(ownerAccess, /db\.savedSearch\.findFirst/);
+    assert.match(ownerAccess, /db\.savedSearch\.count/);
+    assert.match(ownerAccess, /db\.savedSearch\.create/);
+    assert.match(ownerAccess, /db\.savedSearch\.findMany/);
+    assert.match(ownerAccess, /db\.savedSearch\.deleteMany/);
+    assert.doesNotMatch(ownerAccess, /Promise\.all/);
+    assert.doesNotMatch(ownerAccess, /prisma\.savedSearch\.(?:count|create|deleteMany|findFirst|findMany)/);
+
+    assert.match(savedRoute, /findDuplicateOwnerSavedSearch\(me\.id, criteria, tx\)/);
+    assert.match(savedRoute, /countOwnerSavedSearches\(me\.id, tx\)/);
+    assert.match(savedRoute, /createOwnerSavedSearch\(me\.id, criteria, tx\)/);
+    assert.match(savedRoute, /listOwnerSavedSearches\(me\.id\)/);
+    assert.match(savedRoute, /deleteOwnerSavedSearch\(me\.id, id\)/);
+    assert.match(dashboard, /listOwnerSavedSearches\(me\.id, \{ take: 20 \}\)/);
+    assert.match(dashboard, /deleteOwnerSavedSearch\(me\.id, searchId\)/);
+    assert.match(accountExport, /listOwnerSavedSearches\(user\.id\)/);
+  });
+
+  it("blocks new direct owner-style SavedSearch reads and writes outside the owner helper", () => {
+    const directSavedSearchAccessPattern =
+      /\b[A-Za-z_$][\w$]*\.savedSearch\.(?:count|create|delete|deleteMany|findFirst|findMany|findUnique|update|updateMany)\b/g;
+    const allowedDirectCalls = {
+      "src/lib/accountDeletion.ts": ["tx.savedSearch.deleteMany"],
+    };
+    const directCallsByFile = {};
+
+    for (const file of sourceFiles("src")) {
+      if (file === "src/lib/savedSearchOwnerAccess.ts") continue;
+      const matches = [...source(file).matchAll(directSavedSearchAccessPattern)].map((match) => match[0]);
+      if (matches.length > 0) directCallsByFile[file] = matches;
+    }
+
+    assert.deepEqual(directCallsByFile, allowedDirectCalls);
+  });
+
   it("keeps public discovery tables out of the first RLS pass", () => {
     const plan = source("docs/rls-feasibility-plan.md");
 
