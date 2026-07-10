@@ -129,7 +129,7 @@ describe("listing variant selection", () => {
       cartAdd.indexOf("const unitPriceError = validateVariantUnitPriceCents(totalPriceCents)") > cartAdd.indexOf("const totalPriceCents = listing.priceCents + variantResolution.variantAdjustCents"),
     );
     assert.ok(
-      cartAdd.indexOf("const unitPriceError = validateVariantUnitPriceCents(totalPriceCents)") < cartAdd.indexOf("const cart = await prisma.cart.upsert"),
+      cartAdd.indexOf("const unitPriceError = validateVariantUnitPriceCents(totalPriceCents)") < cartAdd.indexOf("const cart = await upsertOwnerCart"),
     );
 
     const cartUpdate = source("src/app/api/cart/update/route.ts");
@@ -137,7 +137,7 @@ describe("listing variant selection", () => {
       cartUpdate.indexOf("const unitPriceError = validateVariantUnitPriceCents(livePriceCents)") > cartUpdate.indexOf("livePriceCents = listing.priceCents + variantResolution.variantAdjustCents"),
     );
     assert.ok(
-      cartUpdate.indexOf("const unitPriceError = validateVariantUnitPriceCents(livePriceCents)") < cartUpdate.indexOf("tx.cartItem.updateMany"),
+      cartUpdate.indexOf("const unitPriceError = validateVariantUnitPriceCents(livePriceCents)") < cartUpdate.indexOf("const updated = await updateOwnerCartItemQuantity"),
     );
 
     const checkoutSeller = source("src/app/api/cart/checkout-seller/route.ts");
@@ -145,7 +145,7 @@ describe("listing variant selection", () => {
       checkoutSeller.indexOf("validateVariantUnitPriceCents(unitPriceCents)") > checkoutSeller.indexOf("const unitPriceCents = item.listing.priceCents + variantResolution.variantAdjustCents"),
     );
     assert.ok(
-      checkoutSeller.indexOf("validateVariantUnitPriceCents(unitPriceCents)") < checkoutSeller.indexOf("prisma.cartItem.update({"),
+      checkoutSeller.indexOf("validateVariantUnitPriceCents(unitPriceCents)") < checkoutSeller.indexOf("await updateOwnerCartItemPrice"),
     );
     assert.ok(
       checkoutSeller.indexOf("validateVariantUnitPriceCents(unitPriceCents)") < checkoutSeller.indexOf("stripe.checkout.sessions.create"),

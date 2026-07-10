@@ -13,6 +13,16 @@ import { z } from "zod";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { logServerError } from "@/lib/serverErrorLogger";
+import {
+  deleteOwnerCartItem,
+  findOwnerCartItemById,
+  lockOwnerCart,
+  lockOwnerCartItem,
+  ownerCartByUserId,
+  ownerCartItemQuantityStats,
+  ownerCartItemsByListing,
+  updateOwnerCartItemQuantity,
+} from "@/lib/cartOwnerAccess";
 
 const CartUpdateSchema = z.object({
   cartItemId: z.string().min(1).optional(),
@@ -53,20 +63,16 @@ export async function POST(req: Request) {
       return privateJson({ error: "cartItemId or listingId required" }, { status: HTTP_STATUS.BAD_REQUEST });
     }
 
-    const cart = await prisma.cart.findUnique({ where: { userId: me.id } });
+    const cart = await ownerCartByUserId(me.id);
     if (!cart) return privateJson({ error: "Cart not found" }, { status: HTTP_STATUS.NOT_FOUND });
 
     // Find the cart item — prefer cartItemId. Listing-only updates are a
     // legacy fallback and are ambiguous once variants create multiple rows.
     let item = cartItemId
-      ? await prisma.cartItem.findFirst({ where: { id: cartItemId, cartId: cart.id } })
+      ? await findOwnerCartItemById(me.id, cart.id, cartItemId)
       : null;
     if (!item && !cartItemId && listingId) {
-      const matchingItems = await prisma.cartItem.findMany({
-        where: { cartId: cart.id, listingId },
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-        take: 2,
-      });
+      const matchingItems = await ownerCartItemsByListing(me.id, cart.id, listingId);
       if (matchingItems.length > 1) {
         return privateJson(
           { error: "Use cartItemId to update variant cart lines." },
@@ -147,12 +153,9 @@ export async function POST(req: Request) {
     }
 
     const mutation = await prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM "Cart" WHERE id = ${cart.id} FOR UPDATE`;
+      await lockOwnerCart(me.id, cart.id, tx);
 
-      const lockedItem = await tx.cartItem.findFirst({
-        where: { id: item.id, cartId: item.cartId },
-        select: { id: true, cartId: true, quantity: true },
-      });
+      const lockedItem = await lockOwnerCartItem(me.id, item.cartId, item.id, tx);
 
       if (!lockedItem) {
         return {
@@ -163,14 +166,11 @@ export async function POST(req: Request) {
       }
 
       if (quantity === 0) {
-        await tx.cartItem.deleteMany({ where: { id: lockedItem.id, cartId: lockedItem.cartId } });
+        await deleteOwnerCartItem(me.id, lockedItem.cartId, lockedItem.id, tx);
         return { ok: true as const };
       }
 
-      const cartStats = await tx.cartItem.aggregate({
-        where: { cartId: cart.id },
-        _sum: { quantity: true },
-      });
+      const cartStats = await ownerCartItemQuantityStats(me.id, cart.id, tx);
       const projectedTotalQuantity = (cartStats._sum.quantity ?? 0) - lockedItem.quantity + quantity;
       if (projectedTotalQuantity > MAX_CART_TOTAL_QUANTITY) {
         return {
@@ -180,14 +180,17 @@ export async function POST(req: Request) {
         };
       }
 
-      const updated = await tx.cartItem.updateMany({
-        where: { id: lockedItem.id, cartId: lockedItem.cartId },
-        data: {
+      const updated = await updateOwnerCartItemQuantity(
+        me.id,
+        lockedItem.cartId,
+        lockedItem.id,
+        {
           quantity,
           priceCents: livePriceCents,
           priceVersion: livePriceVersion,
         },
-      });
+        tx,
+      );
       if (updated.count === 0) {
         return {
           ok: false as const,

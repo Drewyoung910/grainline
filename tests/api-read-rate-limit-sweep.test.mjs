@@ -32,7 +32,7 @@ describe("API read route rate-limit sweep", () => {
 
   it("rate-limits signed-in fan-out GET routes before Prisma work", () => {
     for (const [path, limiter, dbNeedle] of [
-      ["src/app/api/cart/route.ts", "safeRateLimit(cartReadRatelimit, userId)", "prisma.cart.findUnique"],
+      ["src/app/api/cart/route.ts", "safeRateLimit(cartReadRatelimit, userId)", "const cart = await ownerCartForDisplay"],
       ["src/app/api/messages/[id]/list/route.ts", "safeRateLimit(messageListRatelimit, userId)", "prisma.conversation.findFirst"],
       ["src/app/api/notifications/route.ts", "safeRateLimit(notificationReadRatelimit, userId)", "await ownerNotificationBellData"],
       ["src/app/api/seller/analytics/route.ts", "safeRateLimit(sellerAnalyticsRatelimit, userId)", "prisma.sellerProfile.findUnique"],

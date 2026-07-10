@@ -215,6 +215,90 @@ describe("RLS feasibility plan guardrails", () => {
     assert.deepEqual(directCallsByFile, allowedDirectCalls);
   });
 
+  it("centralizes Cart and CartItem owner reads and writes for the parent-join RLS prototype", () => {
+    const ownerAccess = source("src/lib/cartOwnerAccess.ts");
+    const cartRoute = source("src/app/api/cart/route.ts");
+    const cartAdd = source("src/app/api/cart/add/route.ts");
+    const cartUpdate = source("src/app/api/cart/update/route.ts");
+    const checkoutSeller = source("src/app/api/cart/checkout-seller/route.ts");
+    const checkoutResume = source("src/app/api/cart/checkout/resume/route.ts");
+    const shippingQuote = source("src/app/api/shipping/quote/route.ts");
+    const accountExport = source("src/app/api/account/export/route.ts");
+
+    assert.match(ownerAccess, /export type CartOwnerAccessClient = Pick<Prisma\.TransactionClient, "cart" \| "cartItem" \| "\$queryRaw">/);
+    assert.match(ownerAccess, /export function ownerCartWhere/);
+    assert.match(ownerAccess, /export function ownerCartItemWhere/);
+    assert.match(ownerAccess, /cart: \{ userId \}/);
+    assert.match(ownerAccess, /SELECT id FROM "Cart" WHERE id = \$\{cartId\} AND "userId" = \$\{userId\} FOR UPDATE/);
+    assert.match(ownerAccess, /if \(rows\.length !== 1\) throw new Error\("Cart not found"\)/);
+    assert.match(ownerAccess, /export async function ownerCartForDisplay/);
+    assert.match(ownerAccess, /export async function upsertOwnerCart/);
+    assert.match(ownerAccess, /export async function ownerCartByUserId/);
+    assert.match(ownerAccess, /export async function findOwnerCartItemByVariant/);
+    assert.match(ownerAccess, /export async function ownerCartItemStats/);
+    assert.match(ownerAccess, /export async function createOwnerCartItem/);
+    assert.match(ownerAccess, /export async function updateOwnerCartItemQuantity/);
+    assert.match(ownerAccess, /export async function updateOwnerCartItemPrice/);
+    assert.match(ownerAccess, /export async function ownerCartForCheckoutSeller/);
+    assert.match(ownerAccess, /export async function ownerCartForCheckoutResume/);
+    assert.match(ownerAccess, /export async function ownerCartForShippingQuoteById/);
+    assert.match(ownerAccess, /export async function ownerCartForShippingQuote/);
+    assert.match(ownerAccess, /export async function ownerCartExportRows/);
+    assert.match(ownerAccess, /db\.cart\.findUnique/);
+    assert.match(ownerAccess, /db\.cart\.findFirst/);
+    assert.match(ownerAccess, /db\.cart\.upsert/);
+    assert.match(ownerAccess, /db\.cartItem\.findFirst/);
+    assert.match(ownerAccess, /db\.cartItem\.findMany/);
+    assert.match(ownerAccess, /db\.cartItem\.aggregate/);
+    assert.match(ownerAccess, /db\.cartItem\.create/);
+    assert.match(ownerAccess, /db\.cartItem\.updateMany/);
+    assert.match(ownerAccess, /db\.cartItem\.deleteMany/);
+    assert.doesNotMatch(ownerAccess, /Promise\.all/);
+    assert.doesNotMatch(ownerAccess, /prisma\.(?:cart|cartItem)\.(?:findUnique|findFirst|findMany|upsert|aggregate|create|update|updateMany|delete|deleteMany)/);
+
+    assert.match(cartRoute, /ownerCartForDisplay\(me\.id\)/);
+    assert.match(cartAdd, /upsertOwnerCart\(me\.id\)/);
+    assert.match(cartAdd, /lockOwnerCart\(me\.id, cart\.id, tx\)/);
+    assert.match(cartAdd, /createOwnerCartItem\(/);
+    assert.match(cartAdd, /incrementOwnerCartItemQuantity\(/);
+    assert.match(cartUpdate, /ownerCartByUserId\(me\.id\)/);
+    assert.match(cartUpdate, /findOwnerCartItemById\(me\.id, cart\.id, cartItemId\)/);
+    assert.match(cartUpdate, /ownerCartItemsByListing\(me\.id, cart\.id, listingId\)/);
+    assert.match(cartUpdate, /updateOwnerCartItemQuantity\(/);
+    assert.match(cartUpdate, /deleteOwnerCartItem\(/);
+    assert.match(checkoutSeller, /ownerCartForCheckoutSeller\(me\.id\)/);
+    assert.match(checkoutSeller, /updateOwnerCartItemPrice\(me\.id, cart\.id, item\.id/);
+    assert.match(checkoutResume, /ownerCartForCheckoutResume\(me\.id\)/);
+    assert.match(shippingQuote, /ownerCartForShippingQuoteById\(me\.id, body\.cartId, body\.sellerId\)/);
+    assert.match(shippingQuote, /ownerCartForShippingQuote\(me\.id, body\.sellerId\)/);
+    assert.match(accountExport, /ownerCartExportRows\(user\.id\)/);
+  });
+
+  it("blocks new direct owner-style Cart and CartItem access outside the owner helper", () => {
+    const directCartAccessPattern =
+      /\b[A-Za-z_$][\w$]*\.(?:cart|cartItem)\.(?:aggregate|count|create|delete|deleteMany|findFirst|findMany|findUnique|upsert|update|updateMany)\b/g;
+    const allowedDirectCalls = {
+      "src/app/api/admin/listings/[id]/route.ts": ["tx.cartItem.deleteMany"],
+      "src/app/api/stripe/webhook/route.ts": [
+        "prisma.cart.findUnique",
+        "tx.cartItem.deleteMany",
+        "tx.cartItem.deleteMany",
+      ],
+      "src/lib/accountDeletion.ts": ["tx.cart.deleteMany"],
+      "src/lib/checkoutStockRestore.ts": ["tx.cartItem.findMany"],
+      "src/lib/listingSoftDelete.ts": ["tx.cartItem.deleteMany"],
+    };
+    const directCallsByFile = {};
+
+    for (const file of sourceFiles("src")) {
+      if (file === "src/lib/cartOwnerAccess.ts") continue;
+      const matches = [...source(file).matchAll(directCartAccessPattern)].map((match) => match[0]);
+      if (matches.length > 0) directCallsByFile[file] = matches;
+    }
+
+    assert.deepEqual(directCallsByFile, allowedDirectCalls);
+  });
+
   it("centralizes SavedBlogPost owner reads and writes for the direct-owner RLS prototype", () => {
     const ownerAccess = source("src/lib/savedBlogPostOwnerAccess.ts");
     const homepage = source("src/app/page.tsx");

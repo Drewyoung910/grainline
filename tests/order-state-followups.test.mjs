@@ -35,8 +35,8 @@ describe("order-state audit follow-up guardrails", () => {
     assert.match(cartUpdate, /stripeAccountVersion: true/);
     assert.match(cartUpdate, /sellerOrderBlockReason\(listing\.seller\)/);
     assert.match(cartUpdate, /sellerOrderBlockMessage\(sellerBlockReason\)/);
-    assert.match(cartUpdate, /tx\.cartItem\.deleteMany\(\{ where: \{ id: lockedItem\.id, cartId: lockedItem\.cartId \} \}\)/);
-    assert.match(cartUpdate, /tx\.cartItem\.updateMany\(\{\s*where: \{ id: lockedItem\.id, cartId: lockedItem\.cartId \}/s);
+    assert.match(cartUpdate, /deleteOwnerCartItem\(me\.id, lockedItem\.cartId, lockedItem\.id, tx\)/);
+    assert.match(cartUpdate, /updateOwnerCartItemQuantity\(\s*me\.id,\s*lockedItem\.cartId,\s*lockedItem\.id,/s);
     assert.match(cartUpdate, /status: HTTP_STATUS\.CONFLICT/);
 
     const singleCheckout = source("src/app/api/cart/checkout/single/route.ts");
@@ -66,19 +66,23 @@ describe("order-state audit follow-up guardrails", () => {
 
   it("keeps cart add creation and quantity caps race-safe", () => {
     const text = source("src/app/api/cart/add/route.ts");
-    assert.match(text, /prisma\.cart\.upsert/);
+    const ownerAccess = source("src/lib/cartOwnerAccess.ts");
+    assert.match(text, /upsertOwnerCart\(me\.id\)/);
     assert.doesNotMatch(text, /let cart = await prisma\.cart\.findUnique/);
     assert.match(text, /isUniqueConstraintError/);
     assert.match(text, /prisma\.\$transaction\(async \(tx\) =>/);
-    assert.match(text, /SELECT id FROM "Cart" WHERE id = \$\{cart\.id\} FOR UPDATE/);
-    assert.match(text, /tx\.cartItem\.create/);
-    assert.match(text, /tx\.cartItem\.updateMany/);
+    assert.match(text, /lockOwnerCart\(me\.id, cart\.id, tx\)/);
+    assert.match(text, /createOwnerCartItem\(/);
+    assert.match(text, /markOwnerCartItemMadeToOrder\(/);
+    assert.match(text, /incrementOwnerCartItemQuantity\(/);
     assert.doesNotMatch(text, /prisma\.cartItem\.upsert/);
-    assert.match(text, /quantity: \{ lte: 99 - quantity \}/);
-    assert.match(text, /quantity: \{ increment: quantity \}/);
+    assert.match(ownerAccess, /quantity: \{ lte: 99 - quantity \}/);
+    assert.match(ownerAccess, /quantity: \{ increment: quantity \}/);
     assert.match(text, /MAX_CART_DISTINCT_ITEMS = 50/);
     assert.match(text, /MAX_CART_TOTAL_QUANTITY = 200/);
-    assert.match(text, /tx\.cartItem\.aggregate\(\{\s*where: \{ cartId: cart\.id \}/s);
+    assert.match(text, /ownerCartItemStats\(me\.id, cart\.id, tx\)/);
+    assert.match(ownerAccess, /_count: \{ id: true \}/);
+    assert.match(ownerAccess, /_sum: \{ quantity: true \}/);
     assert.match(text, /projectedDistinctItems > MAX_CART_DISTINCT_ITEMS/);
     assert.match(text, /projectedTotalQuantity > MAX_CART_TOTAL_QUANTITY/);
     assert.match(text, /projectedItemQuantity > \(listingForCart\.stockQuantity \?\? 0\)/);
@@ -91,13 +95,13 @@ describe("order-state audit follow-up guardrails", () => {
     assert.match(text, /import \{ HTTP_STATUS \} from "@\/lib\/httpStatus"/);
     assert.match(text, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
     assert.match(text, /prisma\.\$transaction\(async \(tx\) =>/);
-    assert.match(text, /SELECT id FROM "Cart" WHERE id = \$\{cart\.id\} FOR UPDATE/);
-    assert.match(text, /const lockedItem = await tx\.cartItem\.findFirst/);
-    assert.match(text, /tx\.cartItem\.aggregate\(\{\s*where: \{ cartId: cart\.id \},\s*_sum: \{ quantity: true \},\s*\}\)/s);
+    assert.match(text, /lockOwnerCart\(me\.id, cart\.id, tx\)/);
+    assert.match(text, /const lockedItem = await lockOwnerCartItem\(me\.id, item\.cartId, item\.id, tx\)/);
+    assert.match(text, /ownerCartItemQuantityStats\(me\.id, cart\.id, tx\)/);
     assert.match(text, /\(cartStats\._sum\.quantity \?\? 0\) - lockedItem\.quantity \+ quantity/);
     assert.match(text, /projectedTotalQuantity > MAX_CART_TOTAL_QUANTITY/);
-    assert.match(text, /tx\.cartItem\.updateMany\(\{\s*where: \{ id: lockedItem\.id, cartId: lockedItem\.cartId \}/s);
-    assert.match(text, /tx\.cartItem\.deleteMany\(\{ where: \{ id: lockedItem\.id, cartId: lockedItem\.cartId \} \}\)/);
+    assert.match(text, /updateOwnerCartItemQuantity\(\s*me\.id,\s*lockedItem\.cartId,\s*lockedItem\.id,/s);
+    assert.match(text, /deleteOwnerCartItem\(me\.id, lockedItem\.cartId, lockedItem\.id, tx\)/);
     assert.match(text, /quantity > \(listing\.stockQuantity \?\? 0\)/);
     assert.match(text, /Only \$\{listing\.stockQuantity \?\? 0\} available/);
     assert.match(text, /logServerError\(err, \{[\s\S]*source: "cart_update_route"/);
@@ -106,10 +110,11 @@ describe("order-state audit follow-up guardrails", () => {
 
   it("rejects ambiguous listing-only cart updates once variants create multiple rows", () => {
     const text = source("src/app/api/cart/update/route.ts");
+    const ownerAccess = source("src/lib/cartOwnerAccess.ts");
 
-    assert.match(text, /const matchingItems = await prisma\.cartItem\.findMany\(\{/);
-    assert.match(text, /where: \{ cartId: cart\.id, listingId \}/);
-    assert.match(text, /take: 2/);
+    assert.match(text, /const matchingItems = await ownerCartItemsByListing\(me\.id, cart\.id, listingId\)/);
+    assert.match(ownerAccess, /where: ownerCartItemWhere\(userId, \{ cartId, listingId \}\)/);
+    assert.match(ownerAccess, /take: 2/);
     assert.match(text, /matchingItems\.length > 1/);
     assert.match(text, /Use cartItemId to update variant cart lines\./);
     assert.doesNotMatch(text, /findFirst\(\{ where: \{ cartId: cart\.id, listingId: listingId!/);

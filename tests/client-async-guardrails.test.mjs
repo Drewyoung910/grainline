@@ -176,7 +176,7 @@ describe("client async guardrails", () => {
 
     assert.match(resumeRoute, /await auth\(\)/);
     assert.match(resumeRoute, /ensureUserByClerkId\(userId\)/);
-    assert.match(resumeRoute, /where: \{ userId: me\.id \}/);
+    assert.match(resumeRoute, /ownerCartForCheckoutResume\(me\.id\)/);
     assert.match(resumeRoute, /const cartId = cart\?\.id \?\? null/);
     assert.match(resumeRoute, /cartCheckoutLockKey\(cartId, sellerId\)/);
     assert.match(resumeRoute, /stripe\.checkout\.sessions\.retrieve\(lock\.sessionId\)/);

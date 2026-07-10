@@ -14134,8 +14134,9 @@ Verification:
 --test tests/rls-feasibility-plan.test.mjs tests/query-param-state.test.mjs
 tests/r49-account-state-routes.test.mjs tests/account-export-privacy.test.mjs
 tests/public-cron-search-hardening.test.mjs` passed 57/57; `npx tsc --noEmit`;
-and `git diff --check`. Full local lint/test were skipped by design for speed;
-CI will run the full matrix after push.
+and `git diff --check`. Full local lint/test were skipped by design for speed.
+CI run `29114131652` on commit `d4b942a0` passed the full matrix: typecheck,
+lint, tests, security audit, and production build.
 
 Current running tally after Entry 527: verified fixed/reduced 1029, verified
 stale/false-positive/current 579, deferred product/design/ops/legal 87,
@@ -14144,6 +14145,82 @@ increases by two for the SavedBlogPost owner-access prep/bypass guard and the
 private saved-page account-state guard. Deferred stays flat because production
 RLS, the staging context gate, and the first real table policy migration remain
 future execution work.
+
+### Entry 528 - Cart and CartItem RLS owner-access prep
+
+Entry 528 continues the slow, non-enabling RLS prep on the parent-join Cart and
+CartItem candidate tables. The staging context gate still has not been run from
+this workspace, so this pass does not enable production RLS, add a table policy,
+or wrap live traffic in `withDbUserContext()`. It centralizes current
+buyer-owned cart reads and mutations behind one transaction-client-compatible
+helper while leaving non-owner service cleanup paths explicit.
+
+Fixed/reduced:
+
+- Added `src/lib/cartOwnerAccess.ts` as the centralized owner-access boundary
+  for Cart and CartItem owner reads/writes. The helper accepts an optional
+  `CartOwnerAccessClient` anchored to `Prisma.TransactionClient`, exposes
+  owner-scoped `Cart` and parent-join `CartItem` where builders, and keeps the
+  row-locking cart transaction path scoped by both `cartId` and `userId`. The
+  scoped lock now fails closed when it does not lock exactly one owner cart row.
+- Routed current buyer-owned cart surfaces through the helper: cart display,
+  add/increment, quantity update/delete, seller cart checkout stale-price
+  refresh, checkout resume seller grouping, shipping quote cart reads, and
+  account export cart rows.
+- Preserved the existing cart invariants while moving the queries: add still
+  serializes on the buyer cart row, enforces per-line and cart-wide quantity
+  caps, treats made-to-order rows as quantity one, handles duplicate create
+  races, and revalidates variant unit prices before persisting snapshots.
+  Update still rejects ambiguous listing-only updates once variants create
+  multiple rows and revalidates active listing ownership before quantity writes.
+- Kept service-side direct Cart/CartItem paths documented and allowlisted rather
+  than hiding them in the owner helper: Stripe webhook paid-cart finalization,
+  checkout stock restoration, account deletion, listing soft-delete cleanup, and
+  admin listing removal cleanup.
+- Shipping quote reads with a caller-supplied `cartId` now only look up carts
+  owned by the current user. A missing or foreign cart id returns a forbidden
+  response without reading another user's cart metadata.
+
+Guardrails added/reviewed:
+
+- `tests/rls-feasibility-plan.test.mjs` now asserts the Cart owner helper
+  exports the transaction-client-compatible boundary, uses parent-join
+  `cart: { userId }` scoping for CartItem operations, pins the scoped row lock,
+  verifies the zero-row lock path fails closed, avoids `Promise.all`, and is
+  used by the cart display/add/update, checkout-seller, checkout-resume,
+  shipping-quote, and account-export surfaces.
+- The same RLS feasibility test now recursively blocks new direct owner-style
+  Cart/CartItem access outside `cartOwnerAccess`, with only the documented
+  webhook/admin/delete/stock-restore cleanup paths allowlisted.
+- Updated existing source-scan guardrails in
+  `tests/order-state-followups.test.mjs`,
+  `tests/listing-variants.test.mjs`,
+  `tests/api-read-rate-limit-sweep.test.mjs`, and
+  `tests/client-async-guardrails.test.mjs` so the cart race-safety, variant
+  price validation, read limiter, and checkout-resume constraints remain pinned
+  after helper extraction.
+
+Verification:
+`git status --short`; source inspection with `rg`/`sed`; direct Cart/CartItem
+source scan confirming only the owner helper plus documented service exceptions
+remain; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/rls-feasibility-plan.test.mjs tests/order-state-followups.test.mjs
+tests/listing-variants.test.mjs tests/api-read-rate-limit-sweep.test.mjs
+tests/account-export-privacy.test.mjs tests/client-async-guardrails.test.mjs
+tests/checkout-stock-reservation-guardrails.test.mjs
+tests/stripe-webhook-cart-finalization.test.mjs` passed 81/81; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/http-status-constants.test.mjs` passed 8/8; `npx tsc --noEmit`;
+and `git diff --check`. Full local lint/test were skipped by design for speed;
+CI will run the full matrix after push.
+
+Current running tally after Entry 528: verified fixed/reduced 1030, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the Cart/CartItem owner-access prep and bypass guard.
+Deferred stays flat because production RLS, the staging context gate, and the
+first real table policy migration remain future execution work.
 
 ### Entry 522 - RLS evidence quoted-key redaction guardrail
 

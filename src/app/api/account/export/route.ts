@@ -25,6 +25,7 @@ import { logServerError } from "@/lib/serverErrorLogger";
 import { ownerNotificationExportRows } from "@/lib/notificationOwnerAccess";
 import { listOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
 import { ownerSavedBlogPostExportRows } from "@/lib/savedBlogPostOwnerAccess";
+import { ownerCartExportRows } from "@/lib/cartOwnerAccess";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 
 export const runtime = "nodejs";
@@ -430,25 +431,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
       orderBy: { createdAt: "desc" },
       select: { id: true, postId: true, body: true, approved: true, parentId: true, createdAt: true },
     }),
-    prisma.cart.findUnique({
-      where: { userId: user.id },
-      select: {
-        id: true,
-        createdAt: true,
-        updatedAt: true,
-        items: {
-          select: {
-            listingId: true,
-            quantity: true,
-            priceCents: true,
-            selectedVariantOptionIds: true,
-            variantKey: true,
-            createdAt: true,
-            listing: { select: { title: true } },
-          },
-        },
-      },
-    }),
+    ownerCartExportRows(user.id),
     prisma.favorite.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: "desc" },

@@ -25,6 +25,7 @@ import {
 import { z } from "zod";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { ownerCartForShippingQuote, ownerCartForShippingQuoteById } from "@/lib/cartOwnerAccess";
 
 const ShippingQuoteSchema = z.object({
   mode: z.enum(["cart", "single"]).optional(),
@@ -238,46 +239,18 @@ export async function POST(req: Request) {
     if (mode === "cart") {
       let cart;
       if (body.cartId) {
-        cart = await prisma.cart.findUnique({
-          where: { id: body.cartId },
-          include: {
-            items: {
-              include: {
-                listing: {
-                  include: {
-                    seller: { include: { user: { select: { banned: true, deletedAt: true } } } },
-                  },
-                },
-              },
-              where: body.sellerId ? { listing: { sellerId: body.sellerId } } : undefined,
-            },
-          },
-        });
-        if (cart && cart.userId !== me.id) {
+        cart = await ownerCartForShippingQuoteById(me.id, body.cartId, body.sellerId);
+        if (!cart) {
           return privateJson({ error: "Forbidden" }, { status: HTTP_STATUS.FORBIDDEN });
         }
-        if (cart && body.sellerId) {
+        if (body.sellerId) {
           const sellerInCart = cart.items.some((item) => item.listing.sellerId === body.sellerId);
           if (!sellerInCart) {
             return privateJson({ error: "sellerId not in cart" }, { status: HTTP_STATUS.BAD_REQUEST });
           }
         }
       } else {
-        cart = await prisma.cart.findFirst({
-          where: { userId: me.id },
-          include: {
-            items: {
-              include: {
-                listing: {
-                  include: {
-                    seller: { include: { user: { select: { banned: true, deletedAt: true } } } },
-                  },
-                },
-              },
-              where: body.sellerId ? { listing: { sellerId: body.sellerId } } : undefined,
-            },
-          },
-        });
+        cart = await ownerCartForShippingQuote(me.id, body.sellerId);
       }
       if (!cart || cart.items.length === 0) {
         return privateJson({ rates: [] });

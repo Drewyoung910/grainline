@@ -1,6 +1,5 @@
 // src/app/api/cart/route.ts
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { resolveListingVariantSelection, validateVariantUnitPriceCents } from "@/lib/listingVariants";
 import { cartItemExceedsLiveStock } from "@/lib/stockMutationState";
@@ -9,6 +8,7 @@ import { DEFAULT_CURRENCY } from "@/lib/money";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { ownerCartForDisplay } from "@/lib/cartOwnerAccess";
 
 export const runtime = "nodejs";
 
@@ -22,41 +22,7 @@ export async function GET() {
 
     const me = await ensureUserByClerkId(userId);
 
-    const cart = await prisma.cart.findUnique({
-      where: { userId: me.id },
-      include: {
-        items: {
-          include: {
-            listing: {
-              include: {
-                photos: { take: 1, orderBy: { sortOrder: "asc" } },
-                seller: {
-                  select: {
-                    id: true,
-                    displayName: true,
-                    vacationMode: true,
-                    chargesEnabled: true,
-                    freeShippingOverCents: true,
-                    shippingFlatRateCents: true,
-                    allowLocalPickup: true,
-                    offersGiftWrapping: true,
-                    giftWrappingPriceCents: true,
-                    user: {
-                      select: {
-                        banned: true,
-                        deletedAt: true,
-                      },
-                    },
-                  },
-                },
-                variantGroups: { include: { options: true } },
-              },
-            },
-          },
-          orderBy: { createdAt: "asc" },
-        },
-      },
-    });
+    const cart = await ownerCartForDisplay(me.id);
 
     const items = (cart?.items ?? []).map((ci) => {
       const seller = ci.listing.seller as {

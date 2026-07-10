@@ -15,6 +15,16 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import {
+  createOwnerCartItem,
+  findOwnerCartItemByVariant,
+  findOwnerCartItemByVariantWithListing,
+  incrementOwnerCartItemQuantity,
+  lockOwnerCart,
+  markOwnerCartItemMadeToOrder,
+  ownerCartItemStats,
+  upsertOwnerCart,
+} from "@/lib/cartOwnerAccess";
 
 const CartAddSchema = z.object({
   listingId: z.string().min(1),
@@ -136,11 +146,7 @@ export async function POST(req: Request) {
     const variantKey = variantResolution.variantKey;
     const listingForCart = listing;
 
-    const cart = await prisma.cart.upsert({
-      where: { userId: me.id },
-      create: { userId: me.id },
-      update: {},
-    });
+    const cart = await upsertOwnerCart(me.id);
 
     // Idempotent add: lock this buyer's cart row, re-read cap state inside the
     // transaction, then create or increment. The row lock serializes concurrent
@@ -148,19 +154,10 @@ export async function POST(req: Request) {
     // best-effort prechecks.
     async function addOrIncrement() {
       return prisma.$transaction(async (tx) => {
-        await tx.$queryRaw`SELECT id FROM "Cart" WHERE id = ${cart.id} FOR UPDATE`;
+        await lockOwnerCart(me.id, cart.id, tx);
 
-        const existingCartItem = await tx.cartItem.findUnique({
-          where: {
-            cartId_listingId_variantKey: { cartId: cart.id, listingId, variantKey },
-          },
-          select: { quantity: true },
-        });
-        const cartStats = await tx.cartItem.aggregate({
-          where: { cartId: cart.id },
-          _count: { id: true },
-          _sum: { quantity: true },
-        });
+        const existingCartItem = await findOwnerCartItemByVariant(me.id, cart.id, listingId, variantKey, tx);
+        const cartStats = await ownerCartItemStats(me.id, cart.id, tx);
 
         const projectedItemQuantity = listingForCart.listingType === "MADE_TO_ORDER"
           ? 1
@@ -181,12 +178,13 @@ export async function POST(req: Request) {
           throw new CartAddError("Your cart can hold up to 200 total items.");
         }
 
-        let item: Awaited<ReturnType<typeof tx.cartItem.create>> | null = null;
+        let item: Awaited<ReturnType<typeof createOwnerCartItem>> | null = null;
         const createQuantity = listingForCart.listingType === "MADE_TO_ORDER" ? 1 : quantity;
         try {
-          item = await tx.cartItem.create({
-            data: {
-              cartId: cart.id,
+          item = await createOwnerCartItem(
+            me.id,
+            cart.id,
+            {
               listingId,
               quantity: createQuantity,
               priceCents: totalPriceCents,
@@ -194,53 +192,47 @@ export async function POST(req: Request) {
               selectedVariantOptionIds,
               variantKey,
             },
-            include: { listing: true },
-          });
+            tx,
+          );
         } catch (err) {
           if (!isUniqueConstraintError(err)) throw err;
         }
         if (item) return item;
 
         if (listingForCart.listingType === "MADE_TO_ORDER") {
-          await tx.cartItem.updateMany({
-            where: {
-              cartId: cart.id,
-              listingId,
-              variantKey,
-            },
-            data: {
+          await markOwnerCartItemMadeToOrder(
+            me.id,
+            cart.id,
+            listingId,
+            variantKey,
+            {
               quantity: 1,
               priceCents: totalPriceCents,
               priceVersion: listingForCart.priceVersion,
               selectedVariantOptionIds,
             },
-          });
+            tx,
+          );
         } else {
-          const updated = await tx.cartItem.updateMany({
-            where: {
-              cartId: cart.id,
-              listingId,
-              variantKey,
-              quantity: { lte: 99 - quantity },
-            },
-            data: {
-              quantity: { increment: quantity },
+          const updated = await incrementOwnerCartItemQuantity(
+            me.id,
+            cart.id,
+            listingId,
+            variantKey,
+            quantity,
+            {
               priceCents: totalPriceCents,
               priceVersion: listingForCart.priceVersion,
               selectedVariantOptionIds,
             },
-          });
+            tx,
+          );
           if (updated.count === 0) {
             throw new CartAddError("Cart quantity cannot exceed 99.");
           }
         }
 
-        return tx.cartItem.findUnique({
-          where: {
-            cartId_listingId_variantKey: { cartId: cart.id, listingId, variantKey },
-          },
-          include: { listing: true },
-        });
+        return findOwnerCartItemByVariantWithListing(me.id, cart.id, listingId, variantKey, tx);
       });
     }
 

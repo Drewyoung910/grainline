@@ -7,6 +7,7 @@ import { checkoutRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratel
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { ownerCartForCheckoutResume } from "@/lib/cartOwnerAccess";
 
 export const runtime = "nodejs";
 const CHECKOUT_RESUME_COMPLETED_LOOKBACK_MS = 2 * 60 * 60 * 1000;
@@ -48,23 +49,7 @@ export async function GET() {
     if (!success) return privateResponse(rateLimitResponse(reset, "Too many checkout attempts."));
 
     const me = await ensureUserByClerkId(userId);
-    const cart = await prisma.cart.findUnique({
-      where: { userId: me.id },
-      select: {
-        id: true,
-        items: {
-          select: {
-            listing: {
-              select: {
-                sellerId: true,
-                seller: { select: { displayName: true } },
-              },
-            },
-          },
-          orderBy: { createdAt: "asc" },
-        },
-      },
-    });
+    const cart = await ownerCartForCheckoutResume(me.id);
 
     const cartId = cart?.id ?? null;
     const sellers = new Map<string, string>();

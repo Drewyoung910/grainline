@@ -28,6 +28,7 @@ import {
 import { logSecurityEvent } from "@/lib/security";
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
 import { DEFAULT_CURRENCY } from "@/lib/money";
+import { ownerCartForCheckoutSeller, updateOwnerCartItemPrice } from "@/lib/cartOwnerAccess";
 import { isPickupRateObjectId } from "@/lib/shippingQuoteState";
 import { SHIPPING_ESTIMATED_DAYS_MAX } from "@/lib/stripeWebhookState";
 import { normalizeCheckoutShippingAddress } from "@/lib/addressFields";
@@ -132,23 +133,7 @@ export async function POST(req: Request) {
     }
 
     // Load cart (filter items to this seller)
-    const cart = await prisma.cart.findUnique({
-      where: { userId: me.id },
-      include: {
-        items: {
-          include: {
-            listing: {
-              include: {
-                seller: { include: { user: { select: { banned: true, deletedAt: true } } } },
-                photos: true,
-                variantGroups: { include: { options: true } },
-              },
-            },
-          },
-          orderBy: { createdAt: "asc" },
-        },
-      },
-    });
+    const cart = await ownerCartForCheckoutSeller(me.id);
     if (!cart) return privateJson({ error: "Cart is empty" }, { status: HTTP_STATUS.BAD_REQUEST });
 
     const cartSellerCount = new Set(cart.items.map((it) => it.listing.sellerId)).size;
@@ -285,12 +270,9 @@ export async function POST(req: Request) {
         );
       }
       if (unitPriceCents !== item.priceCents || item.priceVersion !== item.listing.priceVersion) {
-        await prisma.cartItem.update({
-          where: { id: item.id },
-          data: {
-            priceCents: unitPriceCents,
-            priceVersion: item.listing.priceVersion,
-          },
+        await updateOwnerCartItemPrice(me.id, cart.id, item.id, {
+          priceCents: unitPriceCents,
+          priceVersion: item.listing.priceVersion,
         });
         return privateJson(
           {
