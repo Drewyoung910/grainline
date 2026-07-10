@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
+import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import Link from "next/link";
 import type { Metadata } from "next";
 import ClickTracker from "@/components/ClickTracker";
@@ -10,9 +11,12 @@ import ListingCard from "@/components/ListingCard";
 import { ArrowLeft } from "@/components/icons";
 import SaveBlogButton from "@/components/SaveBlogButton";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
-import type { Prisma } from "@prisma/client";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import {
+  countVisibleOwnerSavedBlogPosts,
+  ownerSavedBlogPostPageRows,
+} from "@/lib/savedBlogPostOwnerAccess";
 import { savedListingFavoriteWhere } from "@/lib/savedListingVisibility";
 import { truncateText } from "@/lib/sanitize";
 
@@ -31,8 +35,13 @@ export default async function SavedPage({
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/account/saved");
 
-  const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
-  if (!me) redirect("/sign-in");
+  let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
+  try {
+    me = await ensureUserByClerkId(userId);
+  } catch (error) {
+    if (isAccountAccessError(error)) redirect("/banned");
+    throw error;
+  }
 
   const blockedSellerIds = await getBlockedSellerProfileIdsFor(me.id);
 
@@ -40,17 +49,14 @@ export default async function SavedPage({
   const tab = sp.tab === "posts" ? "posts" : "listings";
   const page = parseBoundedPositiveIntParam(sp.page, 1, 1000);
   const savedListingWhere = savedListingFavoriteWhere(me.id, blockedSellerIds);
-  const savedPostWhere: Prisma.SavedBlogPostWhereInput = {
-    userId: me.id,
-    blogPost: publicBlogPostWhere({
-      publishedAt: { not: null },
-      ...(blockedSellerIds.length > 0 ? { sellerProfileId: { notIn: blockedSellerIds } } : {}),
-    }),
-  };
+  const savedPostBlogWhere = publicBlogPostWhere({
+    publishedAt: { not: null },
+    ...(blockedSellerIds.length > 0 ? { sellerProfileId: { notIn: blockedSellerIds } } : {}),
+  });
 
   const [listingTotal, postTotal] = await Promise.all([
     prisma.favorite.count({ where: savedListingWhere }),
-    prisma.savedBlogPost.count({ where: savedPostWhere }),
+    countVisibleOwnerSavedBlogPosts(me.id, savedPostBlogWhere),
   ]);
 
   function tabHref(t: string) {
@@ -152,27 +158,10 @@ export default async function SavedPage({
   // Posts tab
   const totalPages = Math.ceil(postTotal / PAGE_SIZE);
   const postPage = Math.min(page, Math.max(1, totalPages));
-  const savedPosts = await prisma.savedBlogPost.findMany({
-    where: savedPostWhere,
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+  const savedPosts = await ownerSavedBlogPostPageRows(me.id, {
+    blogPostWhere: savedPostBlogWhere,
     skip: (postPage - 1) * PAGE_SIZE,
     take: PAGE_SIZE,
-    select: {
-      blogPost: {
-        select: {
-          id: true,
-          slug: true,
-          title: true,
-          excerpt: true,
-          coverImageUrl: true,
-          type: true,
-          readingTimeMinutes: true,
-          publishedAt: true,
-          author: { select: { name: true, imageUrl: true } },
-          sellerProfile: { select: { displayName: true, avatarImageUrl: true } },
-        },
-      },
-    },
   });
 
   return (

@@ -14075,8 +14075,9 @@ Verification:
 tests/r49-account-state-routes.test.mjs
 tests/schema-hardening-followups.test.mjs
 tests/account-export-privacy.test.mjs` passed 39/39; `npx tsc --noEmit`; and
-`git diff --check`. Full local lint/test were skipped by design for speed; CI
-will run the full matrix after push.
+`git diff --check`. Full local lint/test were skipped by design for speed. CI
+run `29113597353` on commit `33be48c1` passed the full matrix: typecheck, lint,
+tests, security audit, and production build.
 
 Current running tally after Entry 526: verified fixed/reduced 1027, verified
 stale/false-positive/current 579, deferred product/design/ops/legal 87,
@@ -14084,6 +14085,65 @@ approximate raw allegations left from current max #1126: 0. Fixed/reduced
 increases by one for the SavedSearch owner-access prep and bypass guard.
 Deferred stays flat because production RLS, the staging context gate, and the
 first real table policy migration remain future execution work.
+
+### Entry 527 - SavedBlogPost RLS owner-access prep and saved-page account guard
+
+Entry 527 continues the slow, non-enabling RLS prep on the next direct-owner
+candidate table and includes one adjacent account-state fix found while reading
+the same private saved-content surface. The staging context gate still has not
+been run from this workspace, so this pass does not enable production RLS, add a
+table policy, or wrap live traffic in `withDbUserContext()`.
+
+Fixed/reduced:
+
+- Added `src/lib/savedBlogPostOwnerAccess.ts` as the centralized owner-access
+  boundary for SavedBlogPost saved-state lookup, save, unsave, id overlays,
+  visible saved-post count/list rows, and account-export rows. The helper
+  accepts an optional `SavedBlogPostOwnerAccessClient` anchored to
+  `Prisma.TransactionClient`, keeping the future RLS wrapping surface bounded.
+- Routed the current owner-scoped SavedBlogPost surfaces through the helper:
+  homepage recent-blog saved-state overlays, `/blog`, `/blog/author/[slug]`,
+  `/blog/[slug]`, `GET/POST/DELETE /api/blog/[slug]/save`,
+  `/api/account/feed`, `/api/account/export`, and `/account/saved`.
+- Preserved the existing public/private boundary: public `BlogPost` discovery
+  queries remain public visibility queries, while the private saved-state overlay
+  is scoped by current `userId`. The only direct SavedBlogPost call left outside
+  the helper is account-deletion cleanup.
+- Fixed an adjacent private saved-page account-state gap: `/account/saved` now
+  uses `ensureUserByClerkId(userId)` and redirects `AccountAccessError` to
+  `/banned` before loading owner saved rows, instead of resolving the local user
+  with a direct Clerk-id lookup that bypassed banned/deleted checks.
+
+Guardrails added/reviewed:
+
+- `tests/rls-feasibility-plan.test.mjs` now asserts the SavedBlogPost owner
+  helper exports the transaction-client-compatible boundary, uses
+  `db.savedBlogPost.*`, avoids `Promise.all`, and is used by the homepage/blog
+  saved-state overlays, blog save API, account feed, account export, and account
+  saved page.
+- The same RLS feasibility test now recursively blocks new direct owner-style
+  SavedBlogPost reads/writes outside `savedBlogPostOwnerAccess`, with only the
+  account-deletion cleanup path allowlisted.
+- `tests/query-param-state.test.mjs` now follows saved-post pagination/order
+  through the owner helper, and `tests/r49-account-state-routes.test.mjs` now
+  pins the `/account/saved` account-state helper/`/banned` redirect behavior.
+
+Verification:
+`git status --short`; source inspection with `rg`/`sed`; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/rls-feasibility-plan.test.mjs tests/query-param-state.test.mjs
+tests/r49-account-state-routes.test.mjs tests/account-export-privacy.test.mjs
+tests/public-cron-search-hardening.test.mjs` passed 57/57; `npx tsc --noEmit`;
+and `git diff --check`. Full local lint/test were skipped by design for speed;
+CI will run the full matrix after push.
+
+Current running tally after Entry 527: verified fixed/reduced 1029, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by two for the SavedBlogPost owner-access prep/bypass guard and the
+private saved-page account-state guard. Deferred stays flat because production
+RLS, the staging context gate, and the first real table policy migration remain
+future execution work.
 
 ### Entry 522 - RLS evidence quoted-key redaction guardrail
 

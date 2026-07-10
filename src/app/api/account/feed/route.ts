@@ -18,6 +18,7 @@ import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { ownerSavedBlogPostIdRows } from "@/lib/savedBlogPostOwnerAccess";
 
 const MAX_FOLLOWED_SELLERS_FOR_FEED = 1000;
 
@@ -200,12 +201,7 @@ export async function GET(req: NextRequest) {
           select: { listingId: true },
         })
       : Promise.resolve([] as { listingId: string }[]),
-    blogPostIds.length > 0
-      ? prisma.savedBlogPost.findMany({
-          where: { userId: me.id, blogPostId: { in: blogPostIds } },
-          select: { blogPostId: true },
-        })
-      : Promise.resolve([] as { blogPostId: string }[]),
+    ownerSavedBlogPostIdRows(me.id, blogPostIds),
   ]);
   const favoritedListingIds = new Set(favorites.map((f) => f.listingId));
   const savedBlogPostIds = new Set(savedBlogPosts.map((s) => s.blogPostId));

@@ -62,6 +62,7 @@ describe("query parameter parsing helpers", () => {
 
   it("keeps private saved-page pagination finite and clamped before Prisma skip", () => {
     const source = readFileSync("src/app/account/saved/page.tsx", "utf8");
+    const ownerAccess = readFileSync("src/lib/savedBlogPostOwnerAccess.ts", "utf8");
 
     assert.match(source, /import \{[^}]*parseBoundedPositiveIntParam[^}]*\} from "@\/lib\/queryParams";/);
     assert.match(source, /const page = parseBoundedPositiveIntParam\(sp\.page, 1, 1000\)/);
@@ -69,7 +70,8 @@ describe("query parameter parsing helpers", () => {
     assert.match(source, /skip: \(listingPage - 1\) \* PAGE_SIZE/);
     assert.match(source, /<Pagination page=\{listingPage\} totalPages=\{totalPages\} baseHref=\{tabHref\("listings"\)\} \/>/);
     assert.match(source, /const postPage = Math\.min\(page, Math\.max\(1, totalPages\)\)/);
-    assert.match(source, /skip: \(postPage - 1\) \* PAGE_SIZE/);
+    assert.match(source, /ownerSavedBlogPostPageRows\(me\.id, \{[\s\S]*skip: \(postPage - 1\) \* PAGE_SIZE/);
+    assert.match(ownerAccess, /skip,\s*take,[\s\S]*db\.savedBlogPost\.findMany/);
     assert.match(source, /<Pagination page=\{postPage\} totalPages=\{totalPages\} baseHref=\{tabHref\("posts"\)\} \/>/);
     assert.doesNotMatch(source, /Math\.max\(1,\s*parseInt\(sp\.page/);
     assert.doesNotMatch(source, /Number\(sp\.page/);
@@ -146,7 +148,9 @@ describe("query parameter parsing helpers", () => {
     assert.match(account, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: 5/);
     assert.match(account, /orderBy: \[\{ createdAt: "desc" \}, \{ listingId: "desc" \}\][\s\S]*take: 6/);
     assert.match(saved, /orderBy: \[\{ createdAt: "desc" \}, \{ listingId: "desc" \}\][\s\S]*skip: \(listingPage - 1\) \* PAGE_SIZE/);
-    assert.match(saved, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*skip: \(postPage - 1\) \* PAGE_SIZE/);
+    const savedBlogPostOwnerAccess = readFileSync("src/lib/savedBlogPostOwnerAccess.ts", "utf8");
+    assert.match(saved, /ownerSavedBlogPostPageRows\(me\.id, \{[\s\S]*skip: \(postPage - 1\) \* PAGE_SIZE/);
+    assert.match(savedBlogPostOwnerAccess, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*skip,/);
     assert.match(following, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: 50/);
     assert.match(following, /listings: \{[\s\S]*orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: 1/);
     assert.match(blocked, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: 50/);

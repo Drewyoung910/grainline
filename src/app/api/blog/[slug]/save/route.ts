@@ -7,6 +7,11 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { blogSaveRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import {
+  deleteOwnerSavedBlogPost,
+  findOwnerSavedBlogPost,
+  upsertOwnerSavedBlogPost,
+} from "@/lib/savedBlogPostOwnerAccess";
 
 async function getPost(slug: string) {
   return prisma.blogPost.findFirst({ where: publicBlogPostWhere({ slug }), select: { id: true } });
@@ -37,10 +42,7 @@ export async function GET(
   const post = await getPost(slug);
   if (!me || !post) return privateJson({ saved: false });
 
-  const existing = await prisma.savedBlogPost.findUnique({
-    where: { userId_blogPostId: { userId: me.id, blogPostId: post.id } },
-    select: { id: true },
-  });
+  const existing = await findOwnerSavedBlogPost(me.id, post.id);
   return privateJson({ saved: !!existing });
 }
 
@@ -68,11 +70,7 @@ export async function POST(
   const post = await getPost(slug);
   if (!post) return privateJson({ error: "Not found" }, { status: 404 });
 
-  await prisma.savedBlogPost.upsert({
-    where: { userId_blogPostId: { userId: me.id, blogPostId: post.id } },
-    create: { userId: me.id, blogPostId: post.id },
-    update: {},
-  });
+  await upsertOwnerSavedBlogPost(me.id, post.id);
   return privateJson({ saved: true });
 }
 
@@ -100,8 +98,6 @@ export async function DELETE(
   const post = await getPost(slug);
   if (!post) return privateJson({ saved: false });
 
-  await prisma.savedBlogPost.deleteMany({
-    where: { userId: me.id, blogPostId: post.id },
-  });
+  await deleteOwnerSavedBlogPost(me.id, post.id);
   return privateJson({ saved: false });
 }

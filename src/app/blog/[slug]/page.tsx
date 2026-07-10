@@ -15,6 +15,7 @@ import CoverLightbox from "@/components/CoverLightbox";
 import MediaImage from "@/components/MediaImage";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { getBlockedIdsFor } from "@/lib/blocks";
+import { findOwnerSavedBlogPost } from "@/lib/savedBlogPostOwnerAccess";
 import BlockReportButton from "@/components/BlockReportButton";
 import { safeJsonLd } from "@/lib/json-ld";
 import { renderBlogMarkdown } from "@/lib/blogMarkdown";
@@ -148,10 +149,7 @@ export default async function BlogPostPage({
   let isSaved = false;
   if (meId) {
     if (post.author && blockedUserIdSet.has(post.author.id)) return notFound();
-    const savedRow = await prisma.savedBlogPost.findUnique({
-      where: { userId_blogPostId: { userId: meId, blogPostId: post.id } },
-      select: { id: true },
-    });
+    const savedRow = await findOwnerSavedBlogPost(meId, post.id);
     isSaved = !!savedRow;
   }
 

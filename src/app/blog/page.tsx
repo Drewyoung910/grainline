@@ -15,6 +15,7 @@ import { safeJsonLd } from "@/lib/json-ld";
 import { truncateText, truncateTextWithEllipsis } from "@/lib/sanitize";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { getPopularBlogTagRows } from "@/lib/popularBlogTags";
+import { ownerSavedBlogPostIdRows } from "@/lib/savedBlogPostOwnerAccess";
 
 const BLOG_TITLE = "Stories from the Workshop";
 const BLOG_DESCRIPTION = "Maker spotlights, build guides, wood education, and gift guides from the Grainline community.";
@@ -220,10 +221,7 @@ export default async function BlogIndexPage({
   // Saved set for logged-in users
   let savedSet = new Set<string>();
   if (meDbId && allPosts.length > 0) {
-    const saved = await prisma.savedBlogPost.findMany({
-      where: { userId: meDbId, blogPostId: { in: allPosts.map((p) => p.id) } },
-      select: { blogPostId: true },
-    });
+    const saved = await ownerSavedBlogPostIdRows(meDbId, allPosts.map((p) => p.id));
     savedSet = new Set(saved.map((s) => s.blogPostId));
   }
 

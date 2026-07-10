@@ -215,6 +215,66 @@ describe("RLS feasibility plan guardrails", () => {
     assert.deepEqual(directCallsByFile, allowedDirectCalls);
   });
 
+  it("centralizes SavedBlogPost owner reads and writes for the direct-owner RLS prototype", () => {
+    const ownerAccess = source("src/lib/savedBlogPostOwnerAccess.ts");
+    const homepage = source("src/app/page.tsx");
+    const blogIndex = source("src/app/blog/page.tsx");
+    const blogAuthor = source("src/app/blog/author/[slug]/page.tsx");
+    const blogDetail = source("src/app/blog/[slug]/page.tsx");
+    const saveRoute = source("src/app/api/blog/[slug]/save/route.ts");
+    const accountFeed = source("src/app/api/account/feed/route.ts");
+    const accountExport = source("src/app/api/account/export/route.ts");
+    const accountSaved = source("src/app/account/saved/page.tsx");
+
+    assert.match(ownerAccess, /export type SavedBlogPostOwnerAccessClient = Pick<Prisma\.TransactionClient, "savedBlogPost">/);
+    assert.match(ownerAccess, /export function ownerSavedBlogPostWhere/);
+    assert.match(ownerAccess, /export async function findOwnerSavedBlogPost/);
+    assert.match(ownerAccess, /export async function upsertOwnerSavedBlogPost/);
+    assert.match(ownerAccess, /export async function deleteOwnerSavedBlogPost/);
+    assert.match(ownerAccess, /export async function ownerSavedBlogPostIdRows/);
+    assert.match(ownerAccess, /export async function countVisibleOwnerSavedBlogPosts/);
+    assert.match(ownerAccess, /export async function ownerSavedBlogPostPageRows/);
+    assert.match(ownerAccess, /export async function ownerSavedBlogPostExportRows/);
+    assert.match(ownerAccess, /db: SavedBlogPostOwnerAccessClient = prisma/);
+    assert.match(ownerAccess, /db\.savedBlogPost\.findUnique/);
+    assert.match(ownerAccess, /db\.savedBlogPost\.upsert/);
+    assert.match(ownerAccess, /db\.savedBlogPost\.deleteMany/);
+    assert.match(ownerAccess, /db\.savedBlogPost\.findMany/);
+    assert.match(ownerAccess, /db\.savedBlogPost\.count/);
+    assert.match(ownerAccess, /ownerSavedBlogPostWhere\(userId/);
+    assert.doesNotMatch(ownerAccess, /Promise\.all/);
+    assert.doesNotMatch(ownerAccess, /prisma\.savedBlogPost\.(?:count|findMany|findUnique|upsert|deleteMany)/);
+
+    assert.match(homepage, /ownerSavedBlogPostIdRows\(meDbId, blogPostIds\)/);
+    assert.match(blogIndex, /ownerSavedBlogPostIdRows\(meDbId, allPosts\.map\(\(p\) => p\.id\)\)/);
+    assert.match(blogAuthor, /ownerSavedBlogPostIdRows\(meDbId, posts\.map\(\(post\) => post\.id\)\)/);
+    assert.match(blogDetail, /findOwnerSavedBlogPost\(meId, post\.id\)/);
+    assert.match(saveRoute, /findOwnerSavedBlogPost\(me\.id, post\.id\)/);
+    assert.match(saveRoute, /upsertOwnerSavedBlogPost\(me\.id, post\.id\)/);
+    assert.match(saveRoute, /deleteOwnerSavedBlogPost\(me\.id, post\.id\)/);
+    assert.match(accountFeed, /ownerSavedBlogPostIdRows\(me\.id, blogPostIds\)/);
+    assert.match(accountExport, /ownerSavedBlogPostExportRows\(user\.id\)/);
+    assert.match(accountSaved, /countVisibleOwnerSavedBlogPosts\(me\.id, savedPostBlogWhere\)/);
+    assert.match(accountSaved, /ownerSavedBlogPostPageRows\(me\.id, \{/);
+  });
+
+  it("blocks new direct owner-style SavedBlogPost reads and writes outside the owner helper", () => {
+    const directSavedBlogPostAccessPattern =
+      /\b[A-Za-z_$][\w$]*\.savedBlogPost\.(?:count|create|delete|deleteMany|findFirst|findMany|findUnique|upsert|update|updateMany)\b/g;
+    const allowedDirectCalls = {
+      "src/lib/accountDeletion.ts": ["tx.savedBlogPost.deleteMany"],
+    };
+    const directCallsByFile = {};
+
+    for (const file of sourceFiles("src")) {
+      if (file === "src/lib/savedBlogPostOwnerAccess.ts") continue;
+      const matches = [...source(file).matchAll(directSavedBlogPostAccessPattern)].map((match) => match[0]);
+      if (matches.length > 0) directCallsByFile[file] = matches;
+    }
+
+    assert.deepEqual(directCallsByFile, allowedDirectCalls);
+  });
+
   it("keeps public discovery tables out of the first RLS pass", () => {
     const plan = source("docs/rls-feasibility-plan.md");
 

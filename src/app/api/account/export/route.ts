@@ -24,6 +24,7 @@ import { parseCheckoutStockReservationItems } from "@/lib/checkoutStockRestore";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { ownerNotificationExportRows } from "@/lib/notificationOwnerAccess";
 import { listOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
+import { ownerSavedBlogPostExportRows } from "@/lib/savedBlogPostOwnerAccess";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 
 export const runtime = "nodejs";
@@ -459,11 +460,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
       orderBy: { createdAt: "desc" },
       select: { sellerProfileId: true, createdAt: true, sellerProfile: { select: { displayName: true } } },
     }),
-    prisma.savedBlogPost.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: { blogPostId: true, createdAt: true, blogPost: { select: { title: true, slug: true } } },
-    }),
+    ownerSavedBlogPostExportRows(user.id),
     prisma.commissionRequest.findMany({
       where: { buyerId: user.id },
       orderBy: { createdAt: "desc" },

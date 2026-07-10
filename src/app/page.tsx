@@ -33,6 +33,7 @@ import { avatarInitial } from "@/lib/avatarInitials";
 import { HOME_FEATURED_MAKER_CACHE_TAG } from "@/lib/searchCache";
 import { compareAccountFeedItemsDesc } from "@/lib/accountFeedCursor";
 import { formatCurrencyCents } from "@/lib/money";
+import { ownerSavedBlogPostIdRows } from "@/lib/savedBlogPostOwnerAccess";
 
 function StarsInline({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
@@ -422,12 +423,7 @@ export default async function HomePage() {
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         take: 50,
       }),
-      blogPostIds.length > 0
-        ? prisma.savedBlogPost.findMany({
-            where: { userId: meDbId, blogPostId: { in: blogPostIds } },
-            select: { blogPostId: true },
-          })
-        : Promise.resolve([]),
+      ownerSavedBlogPostIdRows(meDbId, blogPostIds),
     ]);
     saved = new Set(favs.map((f) => f.listingId));
     const savedBlogIdSet = new Set(savedBlogRows.map((s) => s.blogPostId));

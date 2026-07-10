@@ -28,6 +28,19 @@ describe("R49 account-state route guardrails", () => {
     }
   });
 
+  it("uses account-state helpers before rendering private saved-page owner data", () => {
+    const savedPage = source("src/app/account/saved/page.tsx");
+
+    assert.match(savedPage, /ensureUserByClerkId\(userId\)/);
+    assert.match(savedPage, /isAccountAccessError\(error\)/);
+    assert.match(savedPage, /redirect\("\/banned"\)/);
+    assert.equal(
+      savedPage.includes("prisma.user.findUnique({ where: { clerkId: userId }"),
+      false,
+      "account saved page should not bypass banned/deleted account checks with direct Clerk lookup",
+    );
+  });
+
   it("keeps review seller side effects behind a fresh seller-account check", () => {
     const text = source("src/app/api/reviews/route.ts");
     assert.match(text, /user: \{ select: \{ banned: true, deletedAt: true \} \}/);

@@ -12,6 +12,7 @@ import { getBlockedUserIdsFor } from "@/lib/blocks";
 import { prisma } from "@/lib/db";
 import { extractRouteId, publicBlogAuthorPath, publicSellerPath } from "@/lib/publicPaths";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { ownerSavedBlogPostIdRows } from "@/lib/savedBlogPostOwnerAccess";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { truncateTextWithEllipsis } from "@/lib/sanitize";
 
@@ -144,10 +145,7 @@ export default async function BlogAuthorPage({
 
   let savedSet = new Set<string>();
   if (meDbId && posts.length > 0) {
-    const saved = await prisma.savedBlogPost.findMany({
-      where: { userId: meDbId, blogPostId: { in: posts.map((post) => post.id) } },
-      select: { blogPostId: true },
-    });
+    const saved = await ownerSavedBlogPostIdRows(meDbId, posts.map((post) => post.id));
     savedSet = new Set(saved.map((savedPost) => savedPost.blogPostId));
   }
 
