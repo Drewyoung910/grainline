@@ -14504,6 +14504,83 @@ artifact, and guardrails. Deferred stays flat because external
 securityheaders.com, SSL Labs, and hstspreload.org evidence still must be
 generated and retained before launch.
 
+### Entry 533 - Stripe webhook subscription proof harness
+
+Entry 533 moves the Stripe webhook subscription launch blocker forward without
+claiming the live provider proof or signing-secret matching evidence is already
+complete. This pass adds a read-only Stripe provider harness for exact endpoint
+URL and event-family verification; deployed signing-secret matching still needs
+Drew/operator dashboard or deploy evidence because Stripe does not return
+webhook endpoint secrets after creation.
+
+Fixed/reduced:
+
+- Added `scripts/stripe-webhook-subscriptions-proof.mjs` and the
+  `npm run audit:stripe-webhooks` command. The script fails closed unless
+  `STRIPE_WEBHOOK_SUBSCRIPTIONS_PROOF_CONFIRM=live-read`, a live `sk_live_...`
+  `STRIPE_SECRET_KEY`, the production `thegrainline.com` app URL, and an in-repo
+  `STRIPE_WEBHOOK_SUBSCRIPTIONS_PROOF_EVIDENCE_PATH` are provided. A separate
+  explicit test-mode override exists only for non-launch dry runs and is marked
+  as `test-dry-run` in evidence.
+- The harness checks the classic `/api/stripe/webhook` endpoint through
+  `stripe.webhookEndpoints.list()`, requires exactly one enabled active endpoint
+  at `https://thegrainline.com/api/stripe/webhook`, and fails on missing,
+  extra, or wildcard snapshot events. The expected set is the current handled
+  checkout, account, refund, dispute, and payout events from the launch
+  checklist; it intentionally rejects `payment_intent.*` over-subscription.
+- The harness checks the Connect v2 thin-event route through
+  `stripe.v2.core.eventDestinations.list({ include: ["webhook_endpoint.url"] })`
+  instead of incorrectly treating the v2 destination as a classic webhook
+  endpoint. It requires exactly one enabled webhook destination at
+  `https://thegrainline.com/api/stripe/webhook/v2`, thin payloads, matching
+  live/test mode, and only `v2.core.account` account-notification event-family
+  subscriptions.
+- The retained evidence payload records endpoint/destination ids, URLs, event
+  lists, live/test mode, commit/run ids, and caveats. It redacts Stripe keys,
+  webhook secrets, proof env assignments, bearer tokens, and URL userinfo.
+- Updated `docs/runbook.md`, `docs/launch-checklist.md`,
+  `docs/deferred-launch-backlog.md`, and `CLAUDE.md` so future launch evidence
+  collection uses the read-only provider proof while still retaining separate
+  Stripe/Vercel evidence that `STRIPE_WEBHOOK_SECRET` and
+  `STRIPE_V2_WEBHOOK_SECRET` match their separate endpoints.
+
+Guardrails added/reviewed:
+
+- Added `tests/stripe-webhook-subscriptions-proof.test.mjs` to pin the npm
+  command, live-read confirmation, live-key and production-host gates,
+  in-repo evidence path, exact snapshot event set, wildcard/extra-event
+  rejection, Connect v2 event-destination API usage, thin account-event-family
+  validation, redaction behavior, and the documented caveat around signing
+  secrets.
+- Updated `tests/stripe-webhook-v2-route.test.mjs` so its launch-doc guardrail
+  accepts the new "screenshots or exported evidence" wording while still
+  requiring exact event subscriptions.
+- Reviewed adjacent guardrails in `tests/stripe-connect-v2.test.mjs` and
+  `tests/deferred-launch-backlog.test.mjs`.
+
+Verification:
+`git status --short`; Stripe best-practice Connect reference review; local
+Stripe SDK type/source inspection for `webhookEndpoints` vs
+`v2.core.eventDestinations`; `node --check
+scripts/stripe-webhook-subscriptions-proof.mjs`; import check
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+-e 'await import("./scripts/stripe-webhook-subscriptions-proof.mjs")'`; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/stripe-webhook-subscriptions-proof.test.mjs
+tests/stripe-webhook-v2-route.test.mjs tests/stripe-connect-v2.test.mjs
+tests/deferred-launch-backlog.test.mjs tests/audit-ledger-coupling.test.mjs`
+passed 27/27; `npx tsc --noEmit`; and `git diff --check`. The live
+`npm run audit:stripe-webhooks` proof was not run locally because live Stripe
+credentials and signing-secret matching evidence were not present.
+
+Current running tally after Entry 533: verified fixed/reduced 1035, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the Stripe webhook subscription proof harness and
+guardrails. Deferred stays flat because the live provider artifact and separate
+signing-secret matching evidence still must be generated and retained before
+launch.
+
 ### Entry 522 - RLS evidence quoted-key redaction guardrail
 
 Entry 522 reviewed Claude's residual redaction note as another junior-review

@@ -156,7 +156,7 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
     }
 
     assert.doesNotMatch(launch, /with at least `checkout\.session\.completed`/);
-    assert.match(launch, /screenshots of the exact event subscriptions/);
+    assert.match(launch, /screenshots or exported evidence of the exact event subscriptions/);
     assert.match(runbook, /subscribed only to the handled snapshot events/);
   });
 });

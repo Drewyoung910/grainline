@@ -11,6 +11,7 @@
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/*.test.mjs",
     "audit:db-grants": "node scripts/audit-runtime-db-grants.mjs",
     "audit:rls-context": "node scripts/rls-context-acceptance-gate.mjs",
+    "audit:stripe-webhooks": "node scripts/stripe-webhook-subscriptions-proof.mjs",
     "audit:stripe-money": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/stripe-money-movement-proof.mjs",
     "audit:r2-upload": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/r2-upload-smoke.mjs",
     "audit:deployed-headers": "node scripts/deployed-security-headers-proof.mjs",
