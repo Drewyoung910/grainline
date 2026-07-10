@@ -10,6 +10,7 @@ import {
   refundIdempotencyKeyBase,
 } from "../src/lib/marketplaceRefunds.ts";
 import { calculateCheckoutAmounts } from "../src/lib/checkoutAmounts.ts";
+import { buildLocalRefundEvidenceRecords } from "../src/lib/localRefundEvidenceCore.ts";
 import {
   appendLabelClawbackReviewNote,
   labelClawbackErrorMessage,
@@ -213,6 +214,21 @@ async function upsertProofOrder(prisma, { id, payment, amounts, label = null }) 
 
 async function recordRefundEvidence(prisma, { orderId, refund, amountCents, currency, action, reason, description, metadata }) {
   const refundId = refund.primaryRefundId;
+  const { ledgerData, auditData } = buildLocalRefundEvidenceRecords({
+    action,
+    actorType: "system",
+    actorId: "stripe-money-proof",
+    orderId,
+    refundId,
+    refundIds: refund.refundIds,
+    amountCents,
+    currency,
+    status: refund.refundStatuses[0] ?? null,
+    reason,
+    description,
+    metadata,
+  });
+
   await prisma.$transaction(async (tx) => {
     await tx.order.update({
       where: { id: orderId },
@@ -225,41 +241,11 @@ async function recordRefundEvidence(prisma, { orderId, refund, amountCents, curr
       },
     });
     await tx.orderPaymentEvent.createMany({
-      data: {
-        orderId,
-        stripeEventId: `local:${action.toLowerCase()}:${refundId}`,
-        stripeObjectId: refundId,
-        stripeObjectType: "refund",
-        eventType: "REFUND",
-        amountCents,
-        currency,
-        status: refund.refundStatuses[0] ?? null,
-        reason,
-        description,
-        metadata: {
-          localAction: action,
-          refundIds: refund.refundIds.slice(0, 5),
-          ...metadata,
-        },
-      },
+      data: ledgerData,
       skipDuplicates: true,
     });
     await tx.systemAuditLog.create({
-      data: {
-        actorType: "system",
-        actorId: "stripe-money-proof",
-        action,
-        targetType: "ORDER",
-        targetId: orderId,
-        reason,
-        metadata: {
-          stripeRefundId: refundId,
-          refundIds: refund.refundIds.slice(0, 5),
-          amountCents,
-          currency,
-          ...metadata,
-        },
-      },
+      data: auditData,
     });
   });
 }

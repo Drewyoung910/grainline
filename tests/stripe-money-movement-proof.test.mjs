@@ -56,16 +56,26 @@ describe("Stripe money-movement proof harness", () => {
 
   it("co-writes local refund ledger and system audit evidence for proof orders", () => {
     const script = source("scripts/stripe-money-movement-proof.mjs");
+    const helper = source("src/lib/localRefundEvidence.ts");
+    const core = source("src/lib/localRefundEvidenceCore.ts");
 
     assert.match(script, /prisma\.order\.upsert/);
+    assert.match(script, /buildLocalRefundEvidenceRecords/);
     assert.match(script, /sellerRefundId: refundId/);
     assert.match(script, /sellerRefundAmountCents: amountCents/);
     assert.match(script, /orderPaymentEvent\.createMany/);
-    assert.match(script, /eventType: "REFUND"/);
+    assert.match(script, /data: ledgerData/);
     assert.match(script, /skipDuplicates: true/);
     assert.match(script, /systemAuditLog\.create/);
-    assert.match(script, /action: "SELLER_REFUND_RECORDED"/);
+    assert.match(script, /data: auditData/);
     assert.match(script, /verifyLocalRefundEvidence/);
+
+    assert.match(helper, /buildLocalRefundEvidenceRecords\(input\)/);
+    assert.match(core, /localRefundEvidenceEventId\(action, refundId\)/);
+    assert.match(core, /truncateText\(sanitizeText\(value\), max\)/);
+    assert.match(core, /\(currency \?\? DEFAULT_CURRENCY\)\.toLowerCase\(\)/);
+    assert.match(core, /eventType: "REFUND"/);
+    assert.match(core, /action,/);
   });
 
   it("proves label clawback success, retry, and manual-review states", () => {

@@ -235,13 +235,17 @@ describe("payment and fulfillment side-effect observability", () => {
     const caseRoute = source("src/app/api/cases/[id]/resolve/route.ts");
     const webhookRoute = source("src/app/api/stripe/webhook/route.ts");
     const helper = source("src/lib/localRefundEvidence.ts");
+    const helperCore = source("src/lib/localRefundEvidenceCore.ts");
 
     assert.match(helper, /client\.orderPaymentEvent\.createMany/);
+    assert.match(helper, /buildLocalRefundEvidenceRecords\(input\)/);
     assert.match(helper, /skipDuplicates: true/);
     assert.match(helper, /if \(ledgerWrite\.count === 0\) return/);
-    assert.match(helper, /eventType: "REFUND"/);
     assert.match(helper, /logSystemActionOrThrow/);
-    assert.match(helper, /localRefundEvidenceEventId\(action, refundId\)/);
+
+    assert.match(helperCore, /eventType: "REFUND"/);
+    assert.match(helper, /export \{ localRefundEvidenceEventId \}/);
+    assert.match(helperCore, /localRefundEvidenceEventId\(action, refundId\)/);
 
     for (const [route, action] of [
       [sellerRoute, "SELLER_REFUND_RECORDED"],

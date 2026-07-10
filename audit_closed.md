@@ -14291,6 +14291,65 @@ increases by one for the launch evidence harness and guardrail. Deferred stays
 flat because the Stripe runtime artifact still must be generated and retained,
 and the RLS staging context gate remains blocked on external inputs.
 
+### Entry 530 - Stripe proof local refund evidence core sharing
+
+Entry 530 parent-reviewed Claude's read-only money-proof comments and verified
+the main conclusion: the harness already exercised the production Stripe refund
+core through `createMarketplaceRefundWithCreator()`, and production
+`createMarketplaceRefund()` delegates to that same shared core. Parent review
+found one narrower gap Claude did not flag: the harness still duplicated the
+local refund ledger/audit evidence shape inline instead of sharing the
+production helper's event id, text bounding, currency normalization, and
+metadata structure.
+
+Fixed/reduced:
+
+- Added `src/lib/localRefundEvidenceCore.ts` as a small pure shared core for
+  local refund evidence shaping. It owns `localRefundEvidenceEventId()`, action
+  typing, reason/description sanitization and truncation, currency
+  normalization, bounded refund-id metadata, and the `OrderPaymentEvent` /
+  `SystemAuditLog` data shapes.
+- Updated `src/lib/localRefundEvidence.ts` so production seller refund, case
+  refund, and blocked-checkout refund paths call the shared core before writing
+  `OrderPaymentEvent` and `SystemAuditLog` rows.
+- Updated `scripts/stripe-money-movement-proof.mjs` so the proof harness writes
+  local refund evidence through the same shared core instead of carrying an
+  inline copy of the ledger/audit shape. The harness still does not import the
+  full production helper because that route helper pulls in Next alias-backed
+  runtime modules not needed by the standalone evidence script.
+
+Guardrails added/reviewed:
+
+- Updated `tests/stripe-money-movement-proof.test.mjs` to require the harness
+  to call `buildLocalRefundEvidenceRecords()` and to pin the shared core's
+  event id, sanitization/truncation, currency normalization, refund ledger, and
+  audit action fields.
+- Updated `tests/payment-side-effect-observability.test.mjs` so its existing
+  local refund evidence guard follows the wrapper plus shared core instead of
+  assuming every ledger field lives in `localRefundEvidence.ts`.
+
+Verification:
+`git status --short`; source inspection of Claude's attached claims, the Stripe
+refund helper, the money-proof script, and local refund evidence helper;
+`node --check scripts/stripe-money-movement-proof.mjs`; import check
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+-e 'await import("./scripts/stripe-money-movement-proof.mjs")'`; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/stripe-money-movement-proof.test.mjs
+tests/payment-side-effect-observability.test.mjs
+tests/marketplace-refunds.test.mjs tests/label-clawback-state.test.mjs
+tests/stripe-connect-v2.test.mjs tests/deferred-launch-backlog.test.mjs`
+passed 72/72; `npx tsc --noEmit`; and `git diff --check`. The live
+`npm run audit:stripe-money` proof still was not run locally because the
+required test-mode Stripe/staging inputs are not present.
+
+Current running tally after Entry 530: verified fixed/reduced 1032, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for reducing the proof-harness local-evidence fork risk.
+Deferred stays flat because the Stripe runtime artifact still must be generated
+and retained, and RLS remains blocked on the staging context-gate inputs.
+
 ### Entry 522 - RLS evidence quoted-key redaction guardrail
 
 Entry 522 reviewed Claude's residual redaction note as another junior-review
