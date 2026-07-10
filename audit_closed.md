@@ -14351,6 +14351,82 @@ increases by one for reducing the proof-harness local-evidence fork risk.
 Deferred stays flat because the Stripe runtime artifact still must be generated
 and retained, and RLS remains blocked on the staging context-gate inputs.
 
+### Entry 531 - R2 upload smoke evidence harness
+
+Entry 531 moves the Cloudflare R2 posture/smoke launch blocker forward without
+claiming provider dashboard evidence or a production smoke artifact has already
+been generated. The remaining R2 blocker still requires Drew/operator access to
+production-like R2 credentials and retained Cloudflare dashboard or CLI evidence
+for bucket policy/CORS/object-size posture.
+
+Fixed/reduced:
+
+- Added `scripts/r2-upload-smoke.mjs` and the `npm run audit:r2-upload`
+  command. The script fails closed unless `R2_UPLOAD_SMOKE_CONFIRM=write-delete`,
+  the canonical `CLOUDFLARE_R2_*` credentials/public URL values, and an in-repo
+  `R2_UPLOAD_SMOKE_EVIDENCE_PATH` are provided. `CLOUDFLARE_R2_PUBLIC_URL` must
+  be HTTPS for launch smoke evidence.
+- The harness writes a synthetic processed-image-shaped object and a synthetic
+  direct-upload-shaped PDF object with immutable cache headers, then verifies R2
+  `HeadObject` metadata, byte-signature compatibility through the same upload
+  verification helper used by application upload verification, public
+  availability through the shared public-media availability helper, and cleanup
+  through `DeleteObjectCommand`.
+- Added a public root probe that fails if the configured public media origin
+  appears to expose a `ListBucketResult` XML listing. This reduces the chance of
+  missing public bucket-listing exposure during launch evidence collection, but
+  it does not replace provider dashboard or CLI posture evidence.
+- The retained evidence payload records bucket/key hashes, public origin/path
+  prefix, object metadata checks, public-listing probe status, cleanup evidence,
+  commit/run ids, and redacted issue text. It avoids raw object keys and R2
+  credentials in the JSON artifact.
+- Updated `docs/runbook.md`, `docs/launch-checklist.md`,
+  `docs/deferred-launch-backlog.md`, and the durable `CLAUDE.md` behavior
+  contract so future R2 credential/CORS/public-domain/bucket-policy changes use
+  `npm run audit:r2-upload` plus separate Cloudflare dashboard/CLI evidence
+  instead of treating `/api/health` as proof of media health.
+
+Guardrails added/reviewed:
+
+- Added `tests/r2-upload-smoke.test.mjs` to pin the npm command, explicit
+  write/delete confirmation, in-repo evidence path, HTTPS public URL guard, S3
+  write/head/range/delete operations, Sharp-generated processed-image body,
+  direct PDF body, shared byte-signature and public-availability helpers, public
+  listing probe, redaction, and hashed evidence fields.
+- Updated `tests/retention-and-ops-followups.test.mjs` so the existing R2
+  health-limitations guardrail follows the new launch-checklist wording around
+  the `npm run audit:r2-upload` artifact.
+- Reviewed adjacent upload/source guardrails in
+  `tests/upload-verification-token.test.mjs`,
+  `tests/direct-upload-lifecycle.test.mjs`,
+  `tests/upload-ux-followups.test.mjs`,
+  `tests/public-security-config.test.mjs`, and
+  `tests/deferred-launch-backlog.test.mjs`.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 4` confirmed latest
+pushed CI on `main` was green for `8d787e65`; R2/upload source and docs
+inspection with `rg`/`sed`; `node --check scripts/r2-upload-smoke.mjs`; import
+check `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+--experimental-strip-types -e 'await import("./scripts/r2-upload-smoke.mjs")'`;
+focused `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+--experimental-strip-types --test tests/r2-upload-smoke.test.mjs
+tests/retention-and-ops-followups.test.mjs
+tests/upload-verification-token.test.mjs tests/direct-upload-lifecycle.test.mjs
+tests/upload-ux-followups.test.mjs tests/public-security-config.test.mjs
+tests/deferred-launch-backlog.test.mjs` passed 65/65; `npx tsc --noEmit`;
+`git diff --check`; and full `npm test` passed 1510/1513 with 3 expected skips.
+The live `npm run audit:r2-upload` proof was not run locally because the
+required production-like R2 credentials, write/delete confirmation, and evidence
+path inputs were not present.
+
+Current running tally after Entry 531: verified fixed/reduced 1033, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the R2 launch-evidence harness and guardrails. Deferred
+stays flat because the actual R2 smoke artifact plus Cloudflare dashboard/CLI
+posture evidence still must be generated and retained before launch.
+
 ### Entry 522 - RLS evidence quoted-key redaction guardrail
 
 Entry 522 reviewed Claude's residual redaction note as another junior-review

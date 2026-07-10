@@ -1,6 +1,6 @@
 # Grainline Operations Runbook
 
-Last updated: 2026-07-07
+Last updated: 2026-07-10
 
 This runbook covers the minimum operational steps for production incidents, deploy rollback, secret rotation, webhook recovery, database restore drills, and public support/legal request handling.
 
@@ -22,6 +22,30 @@ public bucket-listing/ListBucket posture, or bucket-level object-size settings.
 After any R2 credential, CORS, public-domain, or bucket-policy change, run a
 real upload smoke test through both processed image upload and direct
 upload/verify before calling media healthy.
+
+Pre-launch Cloudflare R2 upload smoke:
+
+- Run with production-like R2 credentials after any R2 credential, CORS,
+  public-domain, or bucket-policy change. The script writes two synthetic
+  objects, verifies R2 metadata, object bytes, public availability, and public
+  root listing behavior, then deletes the synthetic objects.
+- Required inputs:
+  - `CLOUDFLARE_R2_ACCOUNT_ID`
+  - `CLOUDFLARE_R2_ACCESS_KEY_ID`
+  - `CLOUDFLARE_R2_SECRET_ACCESS_KEY`
+  - `CLOUDFLARE_R2_BUCKET_NAME`
+  - `CLOUDFLARE_R2_PUBLIC_URL`
+  - `R2_UPLOAD_SMOKE_CONFIRM=write-delete`
+  - `R2_UPLOAD_SMOKE_EVIDENCE_PATH=r2-upload-smoke-evidence.json`
+- Command:
+  `R2_UPLOAD_SMOKE_CONFIRM=write-delete R2_UPLOAD_SMOKE_EVIDENCE_PATH="r2-upload-smoke-evidence.json" npm run audit:r2-upload`.
+- Retain the sanitized JSON artifact with launch records. The artifact records
+  bucket/key hashes, public origin, HTTP status for the public listing probe,
+  metadata checks, byte-signature checks, public-availability checks, and
+  cleanup evidence.
+- This smoke test does not replace Cloudflare dashboard or CLI evidence for
+  CORS settings, bucket policy, bucket-level object-size defenses, or public
+  ListBucket posture. Keep those provider records with the launch evidence.
 
 Every incident note should include: start time, affected surface, current deploy SHA, primary request IDs, customer-visible impact, mitigation, owner, and follow-up issue.
 

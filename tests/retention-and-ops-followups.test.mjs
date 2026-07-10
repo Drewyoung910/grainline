@@ -182,7 +182,7 @@ describe("retention and ops-health follow-ups", () => {
     assert.match(launch, /DB\/Redis\/R2 dependency checks/);
     assert.match(launch, /public bucket listing\/ListBucket exposure/);
     assert.match(launch, /bucket-level max object-size/);
-    assert.match(launch, /upload smoke-test result/);
+    assert.match(launch, /upload smoke-test artifact from `npm run audit:r2-upload`/);
     assert.match(claude, /cheap `HeadBucketCommand` reachability probe only/);
   });
 
