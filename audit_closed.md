@@ -14427,6 +14427,77 @@ increases by one for the R2 launch-evidence harness and guardrails. Deferred
 stays flat because the actual R2 smoke artifact plus Cloudflare dashboard/CLI
 posture evidence still must be generated and retained before launch.
 
+### Entry 532 - Deployed security headers proof harness
+
+Entry 532 moves the deployed-security-header launch blocker forward by adding a
+repeatable production-read proof harness and by generating a local sanitized
+artifact against `https://thegrainline.com`. This does not close the external
+scanner/preload evidence item by itself: securityheaders.com, SSL Labs, and
+hstspreload.org records remain separate launch evidence.
+
+Fixed/reduced:
+
+- Added `scripts/deployed-security-headers-proof.mjs` and the
+  `npm run audit:deployed-headers` command. The script fails closed unless
+  `DEPLOYED_HEADERS_PROOF_CONFIRM=production-read` and an in-repo
+  `DEPLOYED_HEADERS_PROOF_EVIDENCE_PATH` are provided. By default it targets
+  `https://thegrainline.com`, requires HTTPS, and requires the production host
+  unless `DEPLOYED_HEADERS_PROOF_ALLOW_CUSTOM_HOST=1` is explicitly set for a
+  non-production proof run.
+- The harness verifies the deployed root response is HTTP 200 with enforced CSP,
+  HSTS `max-age >= 63072000`, `includeSubDomains`, `preload`, the expected
+  security headers, no `Content-Security-Policy-Report-Only` substitute, no
+  `unsafe-eval`, and no `x-powered-by` header. It also verifies deployed
+  `/api/health` returns anonymous `{ ok: true }` with
+  `Cache-Control: private, no-store, max-age=0` and `Vary: Authorization,
+  X-Health-Check-Token`.
+- The retained evidence payload records target origin/host, pass/fail checks,
+  HTTP statuses, commit/run ids, and redacted issue text. It avoids retaining
+  proof env values, bearer tokens, or URL userinfo in failure artifacts.
+- Updated `docs/runbook.md`, `docs/launch-checklist.md`,
+  `docs/deferred-launch-backlog.md`, and `CLAUDE.md` so future agents treat the
+  script as deployed response evidence while keeping securityheaders.com, SSL
+  Labs, and hstspreload.org as separate external evidence.
+
+Guardrails added/reviewed:
+
+- Added `tests/deployed-security-headers-proof.test.mjs` to pin the npm command,
+  confirmation gate, HTTPS/production-host guard, in-repo evidence path,
+  root-header and health-cache checks, redaction behavior, and scanner/preload
+  evidence separation in docs.
+- Reviewed existing source/header guardrails in
+  `tests/public-security-config.test.mjs`,
+  `tests/retention-and-ops-followups.test.mjs`, and
+  `tests/deferred-launch-backlog.test.mjs`.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 5` confirmed latest
+pushed CI on `main` was green for `2bcdd5f4` and the later Dependabot run was
+also green; source/docs inspection with `rg`/`sed`; `node --check
+scripts/deployed-security-headers-proof.mjs`; import check `node -e 'await
+import("./scripts/deployed-security-headers-proof.mjs")'`; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/deployed-security-headers-proof.test.mjs
+tests/public-security-config.test.mjs tests/retention-and-ops-followups.test.mjs
+tests/deferred-launch-backlog.test.mjs` passed 35/35; live production-read
+`DEPLOYED_HEADERS_PROOF_CONFIRM=production-read
+DEPLOYED_HEADERS_PROOF_EVIDENCE_PATH=".codex/deployed-security-headers-evidence.json"
+npm run audit:deployed-headers` passed against `https://thegrainline.com`;
+`npx tsc --noEmit`; and `git diff --check`. Full local `npm test` was attempted
+and reached 1513 passing assertions with 3 expected skips, but failed one
+unrelated source-scan guardrail because preserved local dirty
+`src/components/Header.tsx` no longer contains the literal `!hasSeller &&`
+pattern expected by `tests/verified-audit-followups.test.mjs`. That header
+change was not part of this pass and was not staged.
+
+Current running tally after Entry 532: verified fixed/reduced 1034, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the deployed-header proof harness, retained local runtime
+artifact, and guardrails. Deferred stays flat because external
+securityheaders.com, SSL Labs, and hstspreload.org evidence still must be
+generated and retained before launch.
+
 ### Entry 522 - RLS evidence quoted-key redaction guardrail
 
 Entry 522 reviewed Claude's residual redaction note as another junior-review

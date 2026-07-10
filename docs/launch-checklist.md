@@ -93,6 +93,7 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
 - `RLS_CONTEXT_GATE_CONFIRM=staging-only RLS_CONTEXT_GATE_PREPARE=1 RLS_CONTEXT_GATE_ADMIN_DATABASE_URL="$DIRECT_URL" RLS_CONTEXT_GATE_DATABASE_URL="<pooled runtime-role URL>" RLS_CONTEXT_GATE_RUNTIME_ROLE=grainline_app_runtime RLS_CONTEXT_GATE_EVIDENCE_PATH="rls-context-gate-evidence.json" npm run audit:rls-context` (staging only; includes the synthetic canary rollback/no-op probe and writes sanitized JSON evidence; keep production RLS disabled until this gate plus route-level prototype tests pass)
 - `STRIPE_MONEY_PROOF_CONFIRM=test-mode STRIPE_MONEY_PROOF_DB_CONFIRM=staging-or-local STRIPE_MONEY_PROOF_CONNECTED_ACCOUNT_ID="<acct_test...>" STRIPE_MONEY_PROOF_EVIDENCE_PATH="stripe-money-proof-evidence.json" npm run audit:stripe-money` (Stripe test mode plus staging/local DB only; writes sanitized money-movement evidence for refunds and label clawbacks)
 - `R2_UPLOAD_SMOKE_CONFIRM=write-delete R2_UPLOAD_SMOKE_EVIDENCE_PATH="r2-upload-smoke-evidence.json" npm run audit:r2-upload` (production-like R2 credentials; writes and deletes synthetic objects, verifies R2 metadata, public availability, public root listing behavior, and writes sanitized evidence)
+- `DEPLOYED_HEADERS_PROOF_CONFIRM=production-read DEPLOYED_HEADERS_PROOF_EVIDENCE_PATH="deployed-security-headers-evidence.json" npm run audit:deployed-headers` (production domain only; writes sanitized evidence for enforced root security headers and `/api/health` private cache/vary headers; does not replace securityheaders.com, SSL Labs, or hstspreload.org records)
 - `npx tsc --noEmit --incremental false`
 - `npm run lint`
 - `npm run build`
@@ -126,6 +127,7 @@ Record links/screenshots/dates for:
 - SSL Labs result for `thegrainline.com`.
 - securityheaders.com result for `thegrainline.com`.
 - HSTS preload result.
+- Deployed security header proof artifact from `npm run audit:deployed-headers`, covering enforced CSP/HSTS/header presence and `/api/health` cache/vary headers.
 - Stripe PCI SAQ A completion.
 - GitHub code-security settings.
 - Cloudflare WAF/Bot/TLS settings.

@@ -47,6 +47,24 @@ Pre-launch Cloudflare R2 upload smoke:
   CORS settings, bucket policy, bucket-level object-size defenses, or public
   ListBucket posture. Keep those provider records with the launch evidence.
 
+Pre-launch deployed security headers proof:
+
+- Run against the production domain after any security-header, middleware,
+  Vercel, or Cloudflare routing change that could affect deployed responses.
+- Required inputs:
+  - `DEPLOYED_HEADERS_PROOF_CONFIRM=production-read`
+  - `DEPLOYED_HEADERS_PROOF_EVIDENCE_PATH=deployed-security-headers-evidence.json`
+  - Optional `DEPLOYED_HEADERS_PROOF_URL=https://thegrainline.com` if the default
+    target must be made explicit.
+- Command:
+  `DEPLOYED_HEADERS_PROOF_CONFIRM=production-read DEPLOYED_HEADERS_PROOF_EVIDENCE_PATH="deployed-security-headers-evidence.json" npm run audit:deployed-headers`.
+- Retain the sanitized JSON artifact with launch records. The artifact records
+  the target origin, enforced root CSP/HSTS/security-header checks, absence of
+  `x-powered-by`, and `/api/health` private cache/vary header checks.
+- This proof does not replace securityheaders.com, SSL Labs, or
+  hstspreload.org evidence. Keep those external scanner and preload-list
+  records with the same launch evidence bundle.
+
 Every incident note should include: start time, affected surface, current deploy SHA, primary request IDs, customer-visible impact, mitigation, owner, and follow-up issue.
 
 ## Security Incident Addendum

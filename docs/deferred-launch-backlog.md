@@ -65,7 +65,7 @@ leaving it in this file.
 | HSTS preload | Decision required | Actual preload submission/status, not just source-configured header. | Decide whether to submit `thegrainline.com`; if yes, record hstspreload.org pending/preloaded status; if no, record the legal/ops reason. |
 | Vercel Analytics and Speed Insights | Decision required | Product/privacy decision before introducing Vercel telemetry. | Keep absent, or update privacy/product docs and tests before adding packages/components. |
 | Homepage browser a11y/runtime proof | Launch blocker | Browser proof beyond static source guardrails. | Playwright or manual browser evidence covers desktop/mobile first viewport, reduced motion, keyboard nav, skip link, and no incoherent overlap. |
-| Deployed security headers | Launch blocker | Runtime proof beyond `next.config.ts` and static tests. | securityheaders.com, SSL Labs, and deployed response header evidence retained for production domain. |
+| Deployed security headers | Launch blocker | Runtime proof beyond `next.config.ts` and static tests. | `npm run audit:deployed-headers` passes against `https://thegrainline.com` with a retained sanitized artifact, and securityheaders.com, SSL Labs, and hstspreload.org evidence are retained separately. |
 
 ## Recommended Closure Order
 
