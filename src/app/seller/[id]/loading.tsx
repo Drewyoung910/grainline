@@ -8,7 +8,7 @@ export default function SellerLoading() {
       {/* Banner with overlapping avatar */}
       <div className="relative aspect-[3/1] mt-4">
         <div className="absolute inset-0 rounded-2xl bg-[#EFEAE0] animate-pulse" />
-        <div className="absolute bottom-0 left-6 sm:left-8 h-24 w-24 translate-y-1/2 rounded-full bg-[#E3DCCB] ring-4 ring-neutral-200 shadow-sm animate-pulse" />
+        <div className="absolute bottom-0 left-6 sm:left-8 h-24 w-24 translate-y-1/2 rounded-full bg-[#E3DCCB] ring-4 ring-[#F7F5F0] shadow-sm animate-pulse" />
       </div>
 
       {/* Identity area */}

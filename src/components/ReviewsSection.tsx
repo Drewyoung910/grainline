@@ -213,9 +213,9 @@ export default async function ReviewsSection({
         )}
       </div>
 
-      {/* My review block */}
+      {/* My review block — cream inset so "yours" reads differently from other reviews */}
       {mine ? (
-        <div className="card-section px-4 py-3">
+        <div className="rounded-lg border border-stone-200/60 shadow-sm bg-[#EFEAE0] px-4 py-3">
           <div className="mb-2 flex items-center justify-between">
             <div className="font-medium">My review</div>
             {edit ? (
@@ -223,7 +223,7 @@ export default async function ReviewsSection({
                 Cancel
               </Link>
             ) : locked ? (
-              <span className="text-xs rounded-full border px-2 py-0.5 text-neutral-500">Locked</span>
+              <span className="whitespace-nowrap rounded-full bg-white ring-1 ring-stone-200/60 px-3 py-1 text-[11px] font-medium text-neutral-500">Locked</span>
             ) : (
               <Link href={editOnHref} className="text-sm underline" scroll={false}>
                 Edit
@@ -262,7 +262,7 @@ export default async function ReviewsSection({
                   <Stars value={mine.ratingX2 / 2} />
                   <span className="text-neutral-700">{(mine.ratingX2 / 2).toFixed(1)}</span>
                   {mine.verified && (
-                    <span className="whitespace-nowrap rounded-full bg-[#EFEAE0] px-3 py-1 text-[11px] font-medium text-neutral-700">
+                    <span className="whitespace-nowrap rounded-full bg-white ring-1 ring-stone-200/60 px-3 py-1 text-[11px] font-medium text-neutral-700">
                       Verified purchase
                     </span>
                   )}

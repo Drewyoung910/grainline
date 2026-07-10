@@ -9,7 +9,7 @@ import MessageIconLink from "@/components/MessageIconLink";
 import SearchBar from "@/components/SearchBar";
 import NotificationBell from "@/components/NotificationBell";
 import UserAvatarMenu from "@/components/UserAvatarMenu";
-import { MessageCircle, ShoppingBag, Menu, X, Search, Rss, User } from "@/components/icons";
+import { MessageCircle, ShoppingBag, Menu, X, Search, Rss, User, Store, Shield, Edit, Hammer } from "@/components/icons";
 import { anonymousCartCount } from "@/lib/anonymousCart";
 import { subscribeCartUpdated } from "@/lib/cartEvents";
 import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
@@ -39,7 +39,9 @@ export default function Header() {
   const loadAllRequestRef = React.useRef(0);
   const loadAllAbortRef = React.useRef<AbortController | null>(null);
 
-  useDialogFocus(drawerOpen, drawerRef, () => setDrawerOpen(false));
+  useDialogFocus(drawerOpen, drawerRef, () => setDrawerOpen(false), {
+    initialFocus: "container",
+  });
   useBodyScrollLock(drawerOpen);
 
   React.useEffect(() => {
@@ -400,106 +402,115 @@ export default function Header() {
             aria-modal="true"
             aria-label="Main navigation"
             tabIndex={-1}
-            className="fixed right-0 top-0 z-[1001] flex h-full w-72 max-w-[85vw] flex-col bg-white shadow-2xl animate-slide-in-right rounded-l-2xl overflow-hidden"
+            className="fixed right-0 top-0 z-[1001] flex h-full w-64 max-w-[80vw] flex-col bg-[#F7F5F0] shadow-2xl animate-slide-in-right rounded-l-2xl overflow-hidden outline-none"
           >
-            {/* Header row */}
-            <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
+            {/* Header strip — matches the green site header */}
+            <div className="flex items-center justify-between bg-[#3F5D3A] px-4 py-3">
               <Link
                 href="/"
-                className="flex items-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+                className="flex items-center"
                 aria-label="Grainline home"
                 onClick={() => setDrawerOpen(false)}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/logo-espresso.svg" alt="Grainline" className="h-7 w-auto" />
+                <img
+                  src="/logo-espresso.svg"
+                  alt="Grainline"
+                  className="h-6 w-auto brightness-0 invert"
+                />
               </Link>
               {/* X button: relative z-[60] ensures it's above the fixed backdrop */}
               <button
                 onClick={() => setDrawerOpen(false)}
                 aria-label="Close menu"
-                className="relative z-[60] inline-flex items-center justify-center p-2 text-neutral-600 min-h-[44px] min-w-[44px]"
+                className="relative z-[60] inline-flex h-10 w-10 items-center justify-center rounded-full text-stone-100 hover:bg-white/10"
               >
                 <X size={20} />
               </button>
             </div>
 
             {/* Nav links */}
-            <div className="flex-1 overflow-y-auto py-2">
+            <nav className="flex-1 overflow-y-auto px-2 py-3">
+              <div className="px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
+                Explore
+              </div>
               <Link
                 href="/browse"
-                className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-stone-50 min-h-[44px]"
+                className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
                 onClick={() => setDrawerOpen(false)}
               >
+                <Search size={18} className="text-neutral-500" />
                 Browse
               </Link>
               <Link
                 href="/blog"
-                className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-stone-50 min-h-[44px]"
+                className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
                 onClick={() => setDrawerOpen(false)}
               >
+                <Edit size={18} className="text-neutral-500" />
                 Blog
               </Link>
               <Link
                 href="/commission"
-                className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-stone-50 min-h-[44px]"
+                className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
                 onClick={() => setDrawerOpen(false)}
               >
+                <Hammer size={18} className="text-neutral-500" />
                 Commission Room
               </Link>
 
               <Show when="signed-in">
-                {/* My Account */}
-                {!hasSeller && (
-                  <Link
-                    href="/dashboard"
-                    className="flex items-center gap-3 px-4 py-3 font-medium text-neutral-900 hover:bg-stone-50 min-h-[44px]"
-                    onClick={() => setDrawerOpen(false)}
-                  >
-                    Start Selling
-                  </Link>
-                )}
+                <div className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
+                  Your account
+                </div>
 
                 <Link
                   href="/account"
-                  className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-stone-50 min-h-[44px]"
+                  className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
                   onClick={() => setDrawerOpen(false)}
                 >
-                  <User size={18} />
+                  <User size={18} className="text-neutral-500" />
                   My Account
                 </Link>
 
                 {/* Messages — single Link wrapping icon + text */}
                 <Link
                   href="/messages"
-                  className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-stone-50 min-h-[44px]"
+                  className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
                   onClick={() => setDrawerOpen(false)}
                 >
-                  <span className="relative inline-flex items-center">
-                    <MessageCircle size={18} />
-                    {/* Unread badge is shown by UnreadBadge in the desktop MessageIconLink;
-                        for the drawer we keep it simple with just the icon */}
-                  </span>
+                  <MessageCircle size={18} className="text-neutral-500" />
                   Messages
                 </Link>
 
                 {/* Feed */}
                 <Link
                   href="/account/feed"
-                  className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-stone-50 min-h-[44px]"
+                  className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
                   onClick={() => setDrawerOpen(false)}
                 >
-                  <Rss size={18} />
+                  <Rss size={18} className="text-neutral-500" />
                   Your Feed
                 </Link>
 
-                {/* Workshop — only for sellers */}
-                {hasSeller && (
+                {/* Workshop — only for sellers; Start Selling otherwise */}
+                {hasSeller ? (
                   <Link
                     href="/dashboard"
-                    className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-stone-50 min-h-[44px]"
+                    className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
                     onClick={() => setDrawerOpen(false)}
                   >
+                    <Store size={18} className="text-neutral-500" />
                     Workshop
+                  </Link>
+                ) : (
+                  <Link
+                    href="/dashboard"
+                    className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] font-medium text-neutral-900 hover:bg-[#EFEAE0]"
+                    onClick={() => setDrawerOpen(false)}
+                  >
+                    <Store size={18} className="text-neutral-500" />
+                    Start Selling
                   </Link>
                 )}
 
@@ -507,31 +518,34 @@ export default function Header() {
                 {(role === "EMPLOYEE" || role === "ADMIN") && (
                   <Link
                     href="/admin"
-                    className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-stone-50 min-h-[44px]"
+                    className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
                     onClick={() => setDrawerOpen(false)}
                   >
+                    <Shield size={18} className="text-neutral-500" />
                     Admin
                   </Link>
                 )}
               </Show>
 
               <Show when="signed-out">
-                <Link
-                  href="/sign-in"
-                  className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-stone-50 min-h-[44px]"
-                  onClick={() => setDrawerOpen(false)}
-                >
-                  Sign in
-                </Link>
+                <div className="px-3 pt-4">
+                  <Link
+                    href="/sign-in"
+                    className="flex min-h-[44px] items-center justify-center rounded-full bg-[#2C1F1A] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#3A2A24] transition-colors"
+                    onClick={() => setDrawerOpen(false)}
+                  >
+                    Sign in
+                  </Link>
+                </div>
               </Show>
-            </div>
+            </nav>
 
             {/* Avatar + inline actions at bottom — no dropdown to avoid overflow-hidden clipping */}
             <Show when="signed-in">
-              <div className="border-t border-neutral-100 px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] space-y-1">
+              <div className="border-t border-stone-200/60 bg-white px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
                 {/* Avatar + name row — display only */}
-                <div className="flex items-center gap-3 px-0 py-2">
-                  <div className="h-9 w-9 rounded-full overflow-hidden bg-neutral-200 shrink-0 flex items-center justify-center">
+                <div className="flex items-center gap-3 px-3 py-2">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-200 ring-1 ring-neutral-200">
                     {(avatarImageUrl ?? imageUrl) ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -545,14 +559,14 @@ export default function Header() {
                       </span>
                     )}
                   </div>
-                  <span className="text-sm font-medium text-neutral-700 truncate">{name ?? "Account"}</span>
+                  <span className="truncate text-sm font-medium text-neutral-800">{name ?? "Account"}</span>
                 </div>
 
                 {/* Manage Account — opens Clerk modal directly, no dropdown */}
                 <button
                   type="button"
                   onClick={handleOpenUserProfile}
-                  className="flex w-full items-center gap-3 px-0 py-2.5 text-sm text-neutral-800 hover:text-neutral-600 min-h-[44px]"
+                  className="flex min-h-[44px] w-full items-center rounded-md px-3 py-2 text-sm text-neutral-700 hover:bg-[#F7F5F0]"
                 >
                   Manage Account
                 </button>
@@ -563,7 +577,7 @@ export default function Header() {
                   onClick={() => {
                     void handleSignOut();
                   }}
-                  className="flex w-full items-center gap-3 px-0 py-2.5 text-sm text-red-600 hover:text-red-700 min-h-[44px]"
+                  className="flex min-h-[44px] w-full items-center rounded-md px-3 py-2 text-sm text-red-600 hover:bg-red-50"
                 >
                   Sign Out
                 </button>

@@ -428,7 +428,7 @@ export default async function SellerPublicPage({
               fallbackClassName="w-full h-full bg-gradient-to-r from-neutral-800 to-neutral-600"
             />
           </div>
-          <div className="absolute bottom-0 left-6 sm:left-8 h-24 w-24 translate-y-1/2 overflow-hidden rounded-full bg-white ring-4 ring-neutral-200 shadow-sm">
+          <div className="absolute bottom-0 left-6 sm:left-8 h-24 w-24 translate-y-1/2 overflow-hidden rounded-full bg-white ring-4 ring-[#F7F5F0] shadow-sm">
             {seller.avatarImageUrl ?? seller.user?.imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img

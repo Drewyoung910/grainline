@@ -349,7 +349,7 @@ export default async function BlogPostPage({
           href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(post.title)}&url=${encodeURIComponent(postUrl)}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="rounded-full border px-3 py-1.5 text-xs font-medium hover:bg-neutral-50"
+          className="rounded-full bg-[#EFEAE0] px-3 py-1.5 text-xs font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
         >
           𝕏 / Twitter
         </a>
@@ -357,7 +357,7 @@ export default async function BlogPostPage({
           href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(postUrl)}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="rounded-full border px-3 py-1.5 text-xs font-medium hover:bg-neutral-50"
+          className="rounded-full bg-[#EFEAE0] px-3 py-1.5 text-xs font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
         >
           Facebook
         </a>

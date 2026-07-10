@@ -207,21 +207,20 @@ export default function OrderTimeline(props: Props) {
           }
 
           return (
-            <div key={step.label} className="flex items-start gap-3">
-              {/* Dot + connecting line column */}
-              <div className="flex flex-col items-center">
+            <div key={step.label} className="flex gap-3">
+              {/* Dot + connecting line column — stretches with the row so the
+                  line always reaches the next dot regardless of content height */}
+              <div className="flex flex-col items-center self-stretch">
                 <div
-                  className={`w-3.5 h-3.5 rounded-full border-2 shrink-0 ${dotClass}`}
+                  className={`w-3.5 h-3.5 rounded-full border-2 shrink-0 mt-0.5 ${dotClass}`}
                 />
                 {!isLast && (
-                  <div
-                    className={`w-0.5 h-8 ${lineClass}`}
-                  />
+                  <div className={`w-0.5 flex-1 min-h-4 ${lineClass}`} />
                 )}
               </div>
 
               {/* Label + date */}
-              <div className={`-mt-0.5 pb-2 ${isLast ? "" : "pb-4"}`}>
+              <div className={isLast ? "pb-0" : "pb-5"}>
                 <div
                   className={`text-sm font-medium ${
                     step.isRefund
@@ -253,12 +252,12 @@ export default function OrderTimeline(props: Props) {
 
       {/* Track package button */}
       {trackingNumber && trackUrl && (
-        <div className="mt-3 pt-3 border-t">
+        <div className="mt-3 pt-3 border-t border-neutral-100">
           <a
             href={trackUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+            className="inline-flex items-center gap-1.5 rounded-md border border-neutral-200 px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
           >
             <svg
               width={14}
@@ -282,7 +281,7 @@ export default function OrderTimeline(props: Props) {
 
       {/* Tracking number without carrier URL */}
       {trackingNumber && !trackUrl && (
-        <div className="mt-3 pt-3 border-t text-xs text-neutral-500">
+        <div className="mt-3 pt-3 border-t border-neutral-100 text-xs text-neutral-500">
           Tracking: {trackingCarrier && <span>{trackingCarrier} &middot; </span>}
           <span className="font-mono">{trackingNumber}</span>
         </div>

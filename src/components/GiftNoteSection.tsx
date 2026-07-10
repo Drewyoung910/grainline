@@ -32,6 +32,7 @@ export default function GiftNoteSection({
           type="checkbox"
           checked={isGift}
           onChange={(e) => handleGiftToggle(e.target.checked)}
+          className="h-4 w-4 accent-neutral-900"
         />
         <span>This is a gift</span>
       </label>
@@ -39,15 +40,15 @@ export default function GiftNoteSection({
       {isGift && (
         <div className="space-y-3 pl-6">
           <div>
-            <label className="block text-sm mb-1">
-              Gift note <span className="text-neutral-500">(optional)</span>
+            <label className="block text-sm font-medium text-neutral-700 mb-1">
+              Gift note <span className="font-normal text-neutral-500">(optional)</span>
             </label>
             <textarea
               value={giftNote}
               onChange={(e) => onChange(truncateText(e.target.value, 200), giftWrapping)}
               placeholder="Add a personal message..."
               rows={3}
-              className="w-full border rounded px-3 py-2 text-sm"
+              className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:border-stone-500 focus-visible:outline-none focus-visible:shadow-none"
             />
             <p className="text-xs text-neutral-500 text-right">{giftNote.length}/200</p>
           </div>
@@ -58,6 +59,7 @@ export default function GiftNoteSection({
                 type="checkbox"
                 checked={giftWrapping}
                 onChange={(e) => onChange(giftNote, e.target.checked)}
+                className="h-4 w-4 accent-neutral-900"
               />
               <span>
                 Add gift wrapping

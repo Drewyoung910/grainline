@@ -24,7 +24,7 @@ export default function BlogCopyLinkButton({ url }: { url: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="rounded-full border px-3 py-1.5 text-xs font-medium hover:bg-neutral-50"
+      className="rounded-full bg-[#EFEAE0] px-3 py-1.5 text-xs font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
     >
       {copied ? "Copied!" : "Copy link"}
     </button>

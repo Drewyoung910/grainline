@@ -35,9 +35,16 @@ function visibleFocusableElements(root: HTMLElement) {
 export function useDialogFocus(
   open: boolean,
   dialogRef: RefObject<HTMLElement | null>,
-  onClose: () => void
+  onClose: () => void,
+  options?: {
+    /** "first" (default) focuses the first focusable element on open;
+     * "container" focuses the dialog element itself (tabIndex={-1}) so a
+     * pointer-opened dialog doesn't paint a focus ring on its first link. */
+    initialFocus?: "first" | "container";
+  }
 ) {
   const onCloseRef = useRef(onClose);
+  const initialFocus = options?.initialFocus ?? "first";
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -53,7 +60,8 @@ export function useDialogFocus(
     const focusTimer = window.setTimeout(() => {
       const dialog = dialogRef.current;
       if (!dialog) return;
-      const first = visibleFocusableElements(dialog)[0];
+      const first =
+        initialFocus === "container" ? null : visibleFocusableElements(dialog)[0];
       (first ?? dialog).focus();
     }, 0);
 
@@ -97,7 +105,7 @@ export function useDialogFocus(
         previouslyFocused.focus();
       }
     };
-  }, [dialogRef, open]);
+  }, [dialogRef, open, initialFocus]);
 }
 
 export function useBodyScrollLock(locked: boolean) {
