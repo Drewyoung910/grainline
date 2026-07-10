@@ -236,7 +236,7 @@ export default async function BrowseMetroPage({
   };
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-16 pt-8">
+    <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pb-16 pt-8">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(itemListLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbLd) }} />
 
@@ -251,7 +251,7 @@ export default async function BrowseMetroPage({
         <span className="text-neutral-800">{metro.name}</span>
       </nav>
 
-      <h1 className="text-2xl font-bold text-neutral-900 mb-2">
+      <h1 className="font-display text-3xl font-semibold text-neutral-900 mb-2">
         Handmade Woodworking in {cityName}
       </h1>
 
@@ -270,7 +270,7 @@ export default async function BrowseMetroPage({
         <div className="flex overflow-x-auto gap-2 pb-2 mb-6">
           <Link
             href={`/browse/${metroSlug}`}
-            className="flex-none text-sm border border-neutral-900 bg-neutral-900 text-white px-4 py-1.5"
+            className="flex-none whitespace-nowrap rounded-full bg-neutral-900 px-4 py-1.5 text-sm font-medium text-white"
           >
             All
           </Link>
@@ -280,7 +280,7 @@ export default async function BrowseMetroPage({
               <Link
                 key={category}
                 href={`/browse/${metroSlug}/${category.toLowerCase()}`}
-                className="flex-none text-sm border border-neutral-200 px-4 py-1.5 hover:bg-neutral-50 transition-colors whitespace-nowrap"
+                className="flex-none whitespace-nowrap rounded-full bg-[#EFEAE0] px-4 py-1.5 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
               >
                 {CATEGORY_LABELS[category]} ({_count._all})
               </Link>
@@ -291,12 +291,12 @@ export default async function BrowseMetroPage({
 
       {/* Listings grid or empty state */}
       {listingCount === 0 ? (
-        <div className="border border-neutral-200 p-8 text-center mb-10">
+        <div className="card-section p-8 text-center mb-10">
           <p className="text-neutral-500 mb-4">No listings in {cityName} yet.</p>
-          <Link href="/commission/new" className="inline-block bg-amber-500 text-white text-sm font-medium px-6 py-2.5 hover:bg-amber-600 transition-colors mr-3">
+          <Link href="/commission/new" className="inline-block rounded-md bg-[#2C1F1A] text-white text-sm font-medium px-6 py-2.5 hover:bg-[#3A2A24] transition-colors mr-3">
             Post a Commission Request
           </Link>
-          <Link href="/browse" className="inline-block border border-neutral-300 text-sm px-6 py-2.5 hover:bg-neutral-50 transition-colors">
+          <Link href="/browse" className="inline-block rounded-md border border-neutral-200 text-sm px-6 py-2.5 hover:bg-neutral-50 transition-colors">
             Browse All
           </Link>
         </div>
@@ -351,7 +351,7 @@ export default async function BrowseMetroPage({
               <Link
                 key={m.id}
                 href={`/browse/${m.slug}`}
-                className="text-sm border border-neutral-200 px-3 py-1 hover:bg-neutral-50 transition-colors"
+                className="rounded-full bg-[#EFEAE0] px-3 py-1 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
               >
                 {m.name}
               </Link>

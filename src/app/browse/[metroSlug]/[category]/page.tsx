@@ -205,7 +205,7 @@ export default async function BrowseMetroCategoryPage({
   };
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-16 pt-8">
+    <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pb-16 pt-8">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(itemListLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbLd) }} />
 
@@ -220,7 +220,7 @@ export default async function BrowseMetroCategoryPage({
         <span className="text-neutral-800">{categoryLabel}</span>
       </nav>
 
-      <h1 className="text-2xl font-bold text-neutral-900 mb-2">
+      <h1 className="font-display text-3xl font-semibold text-neutral-900 mb-2">
         Handmade {categoryLabel} in {cityName}
       </h1>
       <p className="text-neutral-600 text-sm mb-6">
@@ -231,7 +231,7 @@ export default async function BrowseMetroCategoryPage({
       <div className="flex overflow-x-auto gap-2 pb-2 mb-6">
         <Link
           href={`/browse/${metroSlug}`}
-          className="flex-none text-sm border border-neutral-200 px-4 py-1.5 hover:bg-neutral-50 transition-colors"
+          className="flex-none whitespace-nowrap rounded-full bg-[#EFEAE0] px-4 py-1.5 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
         >
           All
         </Link>
@@ -239,10 +239,10 @@ export default async function BrowseMetroCategoryPage({
           <Link
             key={cat}
             href={`/browse/${metroSlug}/${cat.toLowerCase()}`}
-            className={`flex-none text-sm border px-4 py-1.5 transition-colors whitespace-nowrap ${
+            className={`flex-none whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
               cat === categoryKey
-                ? "border-neutral-900 bg-neutral-900 text-white"
-                : "border-neutral-200 hover:bg-neutral-50"
+                ? "bg-neutral-900 text-white"
+                : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
             }`}
           >
             {CATEGORY_LABELS[cat]}
@@ -251,9 +251,9 @@ export default async function BrowseMetroCategoryPage({
       </div>
 
       {listingCount === 0 ? (
-        <div className="border border-neutral-200 p-8 text-center">
+        <div className="card-section p-8 text-center">
           <p className="text-neutral-500 mb-4">No {categoryLabel.toLowerCase()} listings in {cityName} yet.</p>
-          <Link href={`/browse/${metroSlug}`} className="text-sm border border-neutral-300 px-4 py-2 hover:bg-neutral-50 transition-colors">
+          <Link href={`/browse/${metroSlug}`} className="inline-block rounded-md border border-neutral-200 text-sm px-4 py-2 hover:bg-neutral-50 transition-colors">
             View all pieces in {metro.name}
           </Link>
         </div>

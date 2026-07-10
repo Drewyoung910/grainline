@@ -241,7 +241,7 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
         <span className="text-neutral-800">{metro.name}</span>
       </nav>
 
-      <h1 className="text-2xl font-bold text-neutral-900 mb-2">
+      <h1 className="font-display text-3xl font-semibold text-neutral-900 mb-2">
         Custom Woodworking Commissions in {cityName}
       </h1>
 
@@ -260,7 +260,7 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
           <p className="text-neutral-500 mb-4">No open commission requests in {cityName} yet.</p>
           <Link
             href="/commission/new"
-            className="inline-block bg-amber-500 text-white text-sm font-medium px-6 py-2.5 hover:bg-amber-600 transition-colors"
+            className="inline-block rounded-md bg-[#2C1F1A] text-white text-sm font-medium px-6 py-2.5 hover:bg-[#3A2A24] transition-colors"
           >
             Post a Commission Request
           </Link>
@@ -272,12 +272,12 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
             const daysAgo = Math.floor((Date.now() - new Date(c.createdAt).getTime()) / 86400000);
             const timeStr = daysAgo < 1 ? "today" : daysAgo === 1 ? "yesterday" : `${daysAgo}d ago`;
             return (
-              <li key={c.id} className="border border-neutral-200">
+              <li key={c.id} className="card-section">
                 <Link href={`/commission/${c.id}`} className="block p-5 hover:bg-stone-50 transition-colors">
                   <div className="flex items-start gap-4">
                     {c.referenceImageUrls[0] && (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={c.referenceImageUrls[0]} alt="" className="w-16 h-16 object-cover flex-none" />
+                      <img src={c.referenceImageUrls[0]} alt="" className="w-16 h-16 rounded-lg object-cover flex-none" />
                     )}
                     <div className="flex-1 min-w-0">
                       <h2 className="font-semibold text-neutral-900 truncate mb-1">{c.title}</h2>
@@ -304,7 +304,7 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
       <div className="mb-10">
         <Link
           href="/commission/new"
-          className="inline-block border border-neutral-900 text-sm font-medium px-6 py-2.5 hover:bg-neutral-900 hover:text-white transition-colors"
+          className="inline-block rounded-md bg-[#2C1F1A] text-white text-sm font-medium px-6 py-2.5 hover:bg-[#3A2A24] transition-colors"
         >
           Post a Commission Request
         </Link>
@@ -319,7 +319,7 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
               <Link
                 key={m.id}
                 href={`/commission/${m.slug}`}
-                className="text-sm border border-neutral-200 px-3 py-1 hover:bg-neutral-50 transition-colors"
+                className="rounded-full bg-[#EFEAE0] px-3 py-1 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
               >
                 {m.name}
               </Link>

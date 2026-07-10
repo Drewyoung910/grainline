@@ -191,7 +191,7 @@ export default async function MakersMetroPage({
   };
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-16 pt-8">
+    <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pb-16 pt-8">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(localBusinessLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbLd) }} />
 
@@ -204,7 +204,7 @@ export default async function MakersMetroPage({
         <span className="text-neutral-800">{metro.name}</span>
       </nav>
 
-      <h1 className="text-2xl font-bold text-neutral-900 mb-2">
+      <h1 className="font-display text-3xl font-semibold text-neutral-900 mb-2">
         Woodworkers & Furniture Makers in {cityName}
       </h1>
 
@@ -219,9 +219,9 @@ export default async function MakersMetroPage({
       )}
 
       {sellerCount === 0 ? (
-        <div className="border border-neutral-200 p-8 text-center mb-10">
+        <div className="card-section p-8 text-center mb-10">
           <p className="text-neutral-500 mb-4">No makers in {cityName} yet.</p>
-          <Link href="/commission/new" className="inline-block bg-amber-500 text-white text-sm font-medium px-6 py-2.5 hover:bg-amber-600 transition-colors">
+          <Link href="/commission/new" className="inline-block rounded-md bg-[#2C1F1A] text-white text-sm font-medium px-6 py-2.5 hover:bg-[#3A2A24] transition-colors">
             Post a Commission Request
           </Link>
         </div>
@@ -232,7 +232,7 @@ export default async function MakersMetroPage({
             const coverPhoto = seller.bannerImageUrl ?? seller.listings[0]?.photos[0]?.url;
             const activeCount = seller._count.listings;
             return (
-              <li key={seller.id} className="border border-neutral-200">
+              <li key={seller.id} className="card-listing">
                 {/* Cover photo from latest listing */}
                 {coverPhoto ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -267,7 +267,7 @@ export default async function MakersMetroPage({
                     </span>
                     <Link
                       href={publicSellerPath(seller.id, seller.displayName)}
-                      className="text-xs border border-neutral-900 px-3 py-1 hover:bg-neutral-900 hover:text-white transition-colors"
+                      className="rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-700 transition-colors"
                     >
                       View Shop
                     </Link>
@@ -288,7 +288,7 @@ export default async function MakersMetroPage({
               <Link
                 key={m.id}
                 href={`/makers/${m.slug}`}
-                className="text-sm border border-neutral-200 px-3 py-1 hover:bg-neutral-50 transition-colors"
+                className="rounded-full bg-[#EFEAE0] px-3 py-1 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
               >
                 {m.name}
               </Link>
