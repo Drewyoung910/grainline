@@ -609,23 +609,23 @@ export default async function HomePage() {
       </section>
 
       {/* ── Stats bar ────────────────────────────────────────────────────── */}
-      <div className="bg-[#D9E2D5]">
+      <div className="bg-[#EFEAE0]">
         <ScrollSection className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap justify-center gap-x-8 gap-y-2">
           <div className="flex items-baseline gap-1.5">
             <span className="text-xl font-bold text-neutral-900">{activeListingsCount.toLocaleString("en-US")}</span>
             <span className="text-sm text-neutral-700">pieces listed</span>
           </div>
-          <span className="text-[#3F5D3A]/40 self-center hidden sm:block">·</span>
+          <span className="text-neutral-400 self-center hidden sm:block">·</span>
           <div className="flex items-baseline gap-1.5">
             <span className="text-xl font-bold text-neutral-900">{sellersCount.toLocaleString("en-US")}</span>
             <span className="text-sm text-neutral-700">active makers</span>
           </div>
-          <span className="text-[#3F5D3A]/40 self-center hidden sm:block">·</span>
+          <span className="text-neutral-400 self-center hidden sm:block">·</span>
           <div className="flex items-baseline gap-1.5">
             <span className="text-xl font-bold text-neutral-900">{membersCount.toLocaleString("en-US")}</span>
             <span className="text-sm text-neutral-700">members</span>
           </div>
-          <span className="text-[#3F5D3A]/40 self-center hidden sm:block">·</span>
+          <span className="text-neutral-400 self-center hidden sm:block">·</span>
           <div className="flex items-baseline gap-1.5">
             <span className="text-xl font-bold text-neutral-900">{ordersCount.toLocaleString("en-US")}</span>
             <span className="text-sm text-neutral-700">orders fulfilled</span>
@@ -718,7 +718,7 @@ export default async function HomePage() {
                 <Link
                   key={c.key}
                   href={`/browse?category=${c.key}`}
-                  className="flex flex-col items-center justify-center gap-2 rounded-xl bg-[#D9E2D5] p-4 sm:p-5 text-center hover:bg-[#C7D4C2] transition-colors flex-none w-28 sm:w-auto"
+                  className="flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center hover:bg-[#E3DCCB] transition-colors flex-none w-28 sm:w-auto"
                 >
                   <c.Icon size={28} className="text-neutral-900" />
                   <span className="text-xs font-medium text-neutral-900">{c.label}</span>
@@ -726,7 +726,7 @@ export default async function HomePage() {
               ))}
               <Link
                 href="/browse"
-                className="flex flex-col items-center justify-center gap-2 rounded-xl bg-[#D9E2D5] p-4 sm:p-5 text-center hover:bg-[#C7D4C2] transition-colors flex-none w-28 sm:w-auto"
+                className="flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center hover:bg-[#E3DCCB] transition-colors flex-none w-28 sm:w-auto"
               >
                 <span className="text-2xl text-neutral-900">→</span>
                 <span className="text-xs font-medium text-neutral-900">Browse all</span>

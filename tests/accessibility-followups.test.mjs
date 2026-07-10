@@ -281,9 +281,11 @@ describe("accessibility follow-ups", () => {
     assert.match(starInput, /Home/);
     assert.match(starInput, /End/);
     assert.match(starInput, /htmlFor=\{selectId\}/);
-    assert.match(layout, /text-stone-100/);
-    assert.doesNotMatch(layout, /text-stone-300\/60/);
-    assert.doesNotMatch(layout, /text-stone-300\/80/);
+    // Footer is cream (#EFEAE0) as of 2026-07-10 — links must use readable
+    // neutral text, and no light-on-dark stone text may remain.
+    assert.match(layout, /text-neutral-600 hover:text-neutral-900/);
+    assert.doesNotMatch(layout, /text-stone-100/);
+    assert.doesNotMatch(layout, /text-stone-300/);
     assert.doesNotMatch(source("src/app/page.tsx"), /text-amber-600">Blog post/);
     assert.doesNotMatch(source("src/components/VariantSelector.tsx"), /text-amber-600">Please select/);
   });

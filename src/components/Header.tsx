@@ -404,8 +404,8 @@ export default function Header() {
             tabIndex={-1}
             className="fixed right-0 top-0 z-[1001] flex h-full w-64 max-w-[80vw] flex-col bg-[#F7F5F0] shadow-2xl animate-slide-in-right rounded-l-2xl overflow-hidden outline-none"
           >
-            {/* Header strip — matches the green site header */}
-            <div className="flex items-center justify-between bg-[#3F5D3A] px-4 py-3">
+            {/* Header strip — darker cream to anchor the drawer */}
+            <div className="flex items-center justify-between bg-[#EFEAE0] border-b border-stone-200/60 px-4 py-3">
               <Link
                 href="/"
                 className="flex items-center"
@@ -416,14 +416,14 @@ export default function Header() {
                 <img
                   src="/logo-espresso.svg"
                   alt="Grainline"
-                  className="h-6 w-auto brightness-0 invert"
+                  className="h-6 w-auto"
                 />
               </Link>
               {/* X button: relative z-[60] ensures it's above the fixed backdrop */}
               <button
                 onClick={() => setDrawerOpen(false)}
                 aria-label="Close menu"
-                className="relative z-[60] inline-flex h-10 w-10 items-center justify-center rounded-full text-stone-100 hover:bg-white/10"
+                className="relative z-[60] inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-600 hover:bg-black/10"
               >
                 <X size={20} />
               </button>

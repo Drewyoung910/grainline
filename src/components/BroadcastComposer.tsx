@@ -116,7 +116,7 @@ export default function BroadcastComposer({ followerCount }: { followerCount: nu
         <button
           type="submit"
           disabled={sending || !message.trim()}
-          className="bg-[#3F5D3A] text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-[#345030] disabled:opacity-50 transition-colors"
+          className="bg-[#2C1F1A] text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-[#3A2A24] disabled:opacity-50 transition-colors"
         >
           {sending ? "Sending…" : "Send Update"}
         </button>

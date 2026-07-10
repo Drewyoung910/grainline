@@ -2717,6 +2717,21 @@ The footer Help section now points at buyer-facing pages instead of `/seller-han
 
 The seller-handbook content (`#shipping`, `#disputes`) stays — it's still the source of truth for makers — but it's no longer linked from the buyer-facing footer.
 
+## UI Modernization Pass (2026-07-10)
+
+Legacy-styling cleanup + chrome green removal. Behavior contracts to preserve:
+
+- **Modern pill language**: interactive/status pills are cream-filled, borderless — `rounded-full bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]` (active state `bg-neutral-900 text-white`). Applied to blog share pills (`blog/[slug]/page.tsx`) and `BlogCopyLinkButton`. Do not reintroduce bare `rounded-full border` pills.
+- **Pills inside cream cards** use white fill with a soft ring (`bg-white ring-1 ring-stone-200/60`) so they stay visible on `#EFEAE0` — see the Locked and Verified pills in the "My review" block.
+- **My review block** (`ReviewsSection.tsx`) is a cream inset card (`rounded-lg border border-stone-200/60 shadow-sm bg-[#EFEAE0]`) so the viewer's own review reads differently from other reviews (white `card-section`).
+- **Blog comment form** (`BlogCommentForm.tsx`) uses the design-system textarea (`rounded-md border-neutral-200`, `focus:border-stone-500`) and espresso submit button, matching `SellerReplyForm`.
+- **Blog post loading skeleton**: `src/app/blog/[slug]/loading.tsx` mirrors the article layout (breadcrumb, badge/meta, title, author card, cover, body lines). Without it, post navigation fell back to the blog-index grid skeleton — keep a per-segment skeleton whenever a child route's layout differs from its parent's.
+- **OrderTimeline connectors**: rows are `flex` with a `self-stretch` dot column and a `flex-1 min-h-4` connector line so lines always reach the next dot regardless of step content height. Do not restore fixed-height connector lines.
+- **GiftNoteSection**: checkboxes use `accent-neutral-900` (never browser-default blue); textarea uses the design-system input style.
+- **Mobile drawer** (`Header.tsx`): `w-64 max-w-[80vw]`, cream body (`#F7F5F0`), darker-cream header strip (`#EFEAE0`) with the espresso logo, grouped nav ("Explore" / "Your account") with uppercase section labels, icon-led rows with `rounded-md hover:bg-[#EFEAE0]`, espresso rounded-full Sign in CTA for signed-out, white account footer. Drawer opens with focus on the panel itself via `useDialogFocus(..., { initialFocus: "container" })` — this kills the amber focus ring that used to flash on the drawer logo when opened by tap. `useDialogFocus` keeps `"first"` as its default; only pointer-heavy full-screen drawers should pass `"container"`.
+- **Avatar rings**: header avatar trigger uses `ring-1 ring-black/10 hover:ring-black/20`; large banner-overlap avatars use the cream cutout `ring-4 ring-[#F7F5F0]`; small avatars keep 1px hairlines. See "Avatar visibility behavior".
+- **Chrome green removed**: no `#3F5D3A` / `#D9E2D5` / `#C7D4C2` / `#345030` outside GuildBadge artwork. Footer is `#EFEAE0`; former green buttons (StripeConnectButton, BroadcastComposer send) are espresso. Guarded by `tests/chrome-color-guardrails.test.mjs`.
+
 ## Pending Tasks
 
 ### Code Change Safety Rules
