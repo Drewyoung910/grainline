@@ -312,8 +312,12 @@ describe("verified audit follow-up guardrails", () => {
     assert.match(source("src/app/account/page.tsx"), /Become a Maker/);
     assert.match(source("src/components/UserAvatarMenu.tsx"), /!hasSeller &&/);
     assert.match(source("src/components/UserAvatarMenu.tsx"), /Start Selling/);
-    assert.match(source("src/components/Header.tsx"), /!hasSeller &&/);
-    assert.match(source("src/components/Header.tsx"), /Start Selling/);
+    const header = source("src/components/Header.tsx");
+    assert.ok(
+      /!hasSeller &&/.test(header) || /hasSeller\s*\?\s*\([\s\S]*\)\s*:\s*\([\s\S]*Start Selling/.test(header),
+      "Header must keep a signed-in non-seller Start Selling path",
+    );
+    assert.match(header, /Start Selling/);
   });
 
   it("blocks broad Prisma user relation selects in source code", () => {

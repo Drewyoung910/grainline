@@ -186,7 +186,7 @@ describe("post-launch UI follow-ups", () => {
 
   it("keeps light avatars visible on light surfaces", () => {
     assert.doesNotMatch(source("src/app/seller/[id]/page.tsx"), /ring-white/);
-    assert.match(source("src/app/seller/[id]/page.tsx"), /ring-4 ring-neutral-200 shadow-sm/);
+    assert.match(source("src/app/seller/[id]/page.tsx"), /ring-4 ring-\[#F7F5F0\] shadow-sm/);
     assert.match(source("src/components/UserAvatarMenu.tsx"), /ring-1 ring-neutral-200 shadow-sm/);
     assert.match(source("src/components/UserAvatarMenu.tsx"), /borderRadius: "9999px"/);
     assert.match(source("src/components/ThreadMessages.tsx"), /ring-1 ring-neutral-200 shadow-sm/);

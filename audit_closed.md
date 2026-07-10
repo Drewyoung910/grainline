@@ -14469,6 +14469,12 @@ Guardrails added/reviewed:
   `tests/public-security-config.test.mjs`,
   `tests/retention-and-ops-followups.test.mjs`, and
   `tests/deferred-launch-backlog.test.mjs`.
+- Updated two stale UI source-scan guardrails after the first pushed CI run
+  failed in tests: `tests/verified-audit-followups.test.mjs` now accepts both
+  the old `!hasSeller &&` and current `hasSeller ? Workshop : Start Selling`
+  header render shapes, and `tests/post-launch-ui-followups.test.mjs` now pins
+  the seller avatar ring to the current `#F7F5F0` design token instead of the
+  former `neutral-200` token. No product code changed for this CI fix.
 
 Verification:
 `git status --short`; `gh run list --branch main --limit 5` confirmed latest
@@ -14483,12 +14489,12 @@ tests/deferred-launch-backlog.test.mjs` passed 35/35; live production-read
 `DEPLOYED_HEADERS_PROOF_CONFIRM=production-read
 DEPLOYED_HEADERS_PROOF_EVIDENCE_PATH=".codex/deployed-security-headers-evidence.json"
 npm run audit:deployed-headers` passed against `https://thegrainline.com`;
-`npx tsc --noEmit`; and `git diff --check`. Full local `npm test` was attempted
-and reached 1513 passing assertions with 3 expected skips, but failed one
-unrelated source-scan guardrail because preserved local dirty
-`src/components/Header.tsx` no longer contains the literal `!hasSeller &&`
-pattern expected by `tests/verified-audit-followups.test.mjs`. That header
-change was not part of this pass and was not staged.
+`npx tsc --noEmit`; `git diff --check`; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/verified-audit-followups.test.mjs
+tests/post-launch-ui-followups.test.mjs` passed 59/59 after the stale
+source-scan updates; and full `npm test` passed 1515/1518 with 3 expected
+skips.
 
 Current running tally after Entry 532: verified fixed/reduced 1034, verified
 stale/false-positive/current 579, deferred product/design/ops/legal 87,
