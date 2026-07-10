@@ -137,6 +137,28 @@ Stripe:
 10. For label purchases with Sentry tag `shippo_label_purchase_ambiguous`, check Shippo for a transaction tied to the order/rate before clearing `labelStatus` or retrying. If Shippo created a label, write the transaction, label URL, tracking, and label-cost fields to the order and reconcile the Stripe label clawback; if Shippo did not create a label, staff may clear the review hold and label status before retry.
 11. For Stripe Connect orderability drift, check recent `SystemAuditLog` rows for `STRIPE_ACCOUNT_CHARGES_UPDATED` or `STRIPE_ACCOUNT_DEAUTHORIZED`, then check the latest `CronRun` for `stripe-connect-reconcile`. The six-hour reconciliation cron is a backstop for missed account-state events, not a substitute for replaying failed Stripe webhook deliveries.
 
+Pre-launch Stripe money-movement proof:
+
+- Run only in Stripe test mode against a staging or local database where
+  synthetic `Order`, `OrderPaymentEvent`, and `SystemAuditLog` rows may be
+  retained as launch evidence.
+- Required inputs:
+  - `STRIPE_SECRET_KEY` set to a `sk_test_...` key.
+  - `STRIPE_MONEY_PROOF_CONNECTED_ACCOUNT_ID` set to a test connected account
+    that can receive destination-charge transfers.
+  - `STRIPE_MONEY_PROOF_CONFIRM=test-mode`.
+  - `STRIPE_MONEY_PROOF_DB_CONFIRM=staging-or-local`.
+  - `STRIPE_MONEY_PROOF_EVIDENCE_PATH=stripe-money-proof-evidence.json`.
+- Command:
+  `STRIPE_MONEY_PROOF_CONFIRM=test-mode STRIPE_MONEY_PROOF_DB_CONFIRM=staging-or-local STRIPE_MONEY_PROOF_CONNECTED_ACCOUNT_ID="<acct_test...>" STRIPE_MONEY_PROOF_EVIDENCE_PATH="stripe-money-proof-evidence.json" npm run audit:stripe-money`.
+- Retain the sanitized JSON artifact with launch records. A passing run records
+  real Stripe test-mode evidence for full reverse-transfer refunds, partial
+  reverse-transfer refunds, platform-only refund/manual-reconciliation handling,
+  label-cost transfer reversal, retry-pending label clawback failure, and
+  manual-review exhaustion, plus local order ledger/audit evidence for refund
+  paths.
+- Do not run this command with live Stripe keys or against production data.
+
 Clerk:
 
 1. Confirm the production endpoint is `/api/clerk/webhook`.

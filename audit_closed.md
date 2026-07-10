@@ -14222,6 +14222,75 @@ increases by one for the Cart/CartItem owner-access prep and bypass guard.
 Deferred stays flat because production RLS, the staging context gate, and the
 first real table policy migration remain future execution work.
 
+### Entry 529 - Stripe money-movement proof harness
+
+Entry 529 moves the highest-severity code-completable launch evidence item
+forward without claiming the runtime proof is complete. RLS remains parked on
+the missing staging context-gate inputs; this pass adds a Stripe test-mode
+money-movement harness for refund and label-clawback evidence that Drew can run
+against a staging or local database with a test connected account.
+
+Fixed/reduced:
+
+- Added `scripts/stripe-money-movement-proof.mjs` and the
+  `npm run audit:stripe-money` command. The script fails closed unless
+  `STRIPE_MONEY_PROOF_CONFIRM=test-mode`,
+  `STRIPE_MONEY_PROOF_DB_CONFIRM=staging-or-local`, a `sk_test_...` Stripe
+  key, a test connected account id, and an in-repo evidence path are provided.
+- The harness creates real Stripe test-mode PaymentIntent charges using the
+  app's destination-charge accounting shape, then runs full reverse-transfer,
+  partial reverse-transfer, and platform-only refund scenarios through
+  `createMarketplaceRefundWithCreator()` so the same refund accounting helper
+  produces the Stripe calls under test.
+- The refund scenarios co-write synthetic local `Order`,
+  `OrderPaymentEvent`, and `SystemAuditLog` evidence rows and verify those rows
+  after the Stripe refund returns, reducing the chance that Stripe-side success
+  and local ledger/audit evidence drift apart unnoticed.
+- The label scenarios cover successful transfer reversal, missing-transfer
+  manual review, retry-pending Stripe reversal failure, and exhausted
+  retry/manual-review state using the shared label-clawback state helpers.
+- The evidence artifact is bounded and redacted for Postgres URLs, Stripe secret
+  keys, password-style assignments, and bearer tokens; it records Stripe ids and
+  local proof-row ids, not provider secrets.
+- Updated `docs/runbook.md` and `docs/launch-checklist.md` with the exact
+  command and retained-artifact requirement. The docs describe this as
+  test-mode launch evidence to retain, not as completed production evidence.
+
+Guardrails added/reviewed:
+
+- Added `tests/stripe-money-movement-proof.test.mjs` to pin the npm command,
+  test-mode/staging-local fail-closed gates, redaction patterns, in-repo
+  evidence path guard, PaymentIntent destination-charge creation, refund helper
+  use, local refund ledger/audit writes, label-clawback state coverage, and
+  launch/runbook documentation.
+- Reviewed existing focused guardrails in
+  `tests/marketplace-refunds.test.mjs`,
+  `tests/payment-side-effect-observability.test.mjs`,
+  `tests/label-clawback-state.test.mjs`,
+  `tests/stripe-connect-v2.test.mjs`, and
+  `tests/deferred-launch-backlog.test.mjs`.
+
+Verification:
+`git status --short`; Stripe best-practice reference review for
+PaymentIntent/Connect evidence-script scope; source/docs/schema inspection with
+`rg`/`sed`; `node --check scripts/stripe-money-movement-proof.mjs`; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/stripe-money-movement-proof.test.mjs
+tests/marketplace-refunds.test.mjs
+tests/payment-side-effect-observability.test.mjs
+tests/label-clawback-state.test.mjs tests/stripe-connect-v2.test.mjs
+tests/deferred-launch-backlog.test.mjs` passed 72/72. The live
+`npm run audit:stripe-money` proof was not run locally because the required
+`STRIPE_MONEY_PROOF_*` inputs, Stripe test connected account, and staging/local
+database confirmation were not present.
+
+Current running tally after Entry 529: verified fixed/reduced 1031, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the launch evidence harness and guardrail. Deferred stays
+flat because the Stripe runtime artifact still must be generated and retained,
+and the RLS staging context gate remains blocked on external inputs.
+
 ### Entry 522 - RLS evidence quoted-key redaction guardrail
 
 Entry 522 reviewed Claude's residual redaction note as another junior-review

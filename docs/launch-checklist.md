@@ -91,6 +91,7 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
 - `psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=grainline_migration_owner -f scripts/provision-runtime-db-role.sql` (staging first; production only after role/password setup is approved and recorded)
 - `GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=grainline_migration_owner npm run audit:db-grants`
 - `RLS_CONTEXT_GATE_CONFIRM=staging-only RLS_CONTEXT_GATE_PREPARE=1 RLS_CONTEXT_GATE_ADMIN_DATABASE_URL="$DIRECT_URL" RLS_CONTEXT_GATE_DATABASE_URL="<pooled runtime-role URL>" RLS_CONTEXT_GATE_RUNTIME_ROLE=grainline_app_runtime RLS_CONTEXT_GATE_EVIDENCE_PATH="rls-context-gate-evidence.json" npm run audit:rls-context` (staging only; includes the synthetic canary rollback/no-op probe and writes sanitized JSON evidence; keep production RLS disabled until this gate plus route-level prototype tests pass)
+- `STRIPE_MONEY_PROOF_CONFIRM=test-mode STRIPE_MONEY_PROOF_DB_CONFIRM=staging-or-local STRIPE_MONEY_PROOF_CONNECTED_ACCOUNT_ID="<acct_test...>" STRIPE_MONEY_PROOF_EVIDENCE_PATH="stripe-money-proof-evidence.json" npm run audit:stripe-money` (Stripe test mode plus staging/local DB only; writes sanitized money-movement evidence for refunds and label clawbacks)
 - `npx tsc --noEmit --incremental false`
 - `npm run lint`
 - `npm run build`
@@ -129,6 +130,7 @@ Record links/screenshots/dates for:
 - Cloudflare WAF/Bot/TLS settings.
 - Clerk production security settings evidence: bot protection, disposable email blocking, email subaddress blocking, enumeration protection, account lockout, staff/admin MFA or enforcement plan, breached-password protection, and multi-account/spam controls where available.
 - Stripe snapshot webhook and Connect v2 thin webhook delivery, including screenshots of the exact event subscriptions listed above.
+- Stripe test-mode money-movement proof artifact from `npm run audit:stripe-money`, covering full and partial reverse-transfer refunds, platform-only refund/manual-reconciliation handling, label-cost transfer reversal, retry-pending label clawback failure, manual-review exhaustion, and local `OrderPaymentEvent`/`SystemAuditLog` evidence.
 - Clerk and Resend webhook delivery.
 - Cloudflare R2 public bucket-listing/ListBucket posture, bucket-level max object-size setting, CORS/public-domain settings, and upload smoke-test result.
 - Neon backup/PITR setting and most recent restore drill.
