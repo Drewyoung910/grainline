@@ -18181,3 +18181,67 @@ approximate raw allegations left from current max #1126: 0. Fixed/reduced
 increases by two for the real metro-width behavior-contract contradiction and
 the incomplete mobile-menu popover accessibility/docs contract. Deferred stays
 flat.
+
+### Entry 548 - Fable map overlay and public-copy truth recheck
+
+Entry 548 continues the parent review of the Fable UI work, covering the live
+local maker-map-card overlay changes plus the small buyer/seller marketing-copy
+truth edits. The copy changes correctly narrowed public claims from verified
+guarantees ("every piece", "we know who's behind every listing") to policy and
+enforcement language, and from broad Stripe-verified wording to connected
+Stripe-account verification. The message-composer focus-border tweak was
+reviewed as visual-only and did not change upload, send, clear, or attachment
+behavior.
+
+The map-card conversion was a real UI-behavior boundary change: replacing the
+old MapLibre popup with a React overlay is a coherent fix for popup clipping,
+but the first local version was incomplete. Marker elements needed keyboard
+button semantics, the dialog-like overlay needed focus on open and Escape/close
+behavior, both map components needed the same overlay/cache contract, and the
+initial per-map cache implementation accessed a ref during render, which would
+fail lint.
+
+Fixed/reduced:
+
+- Accepted the narrowed `/why-grainline` and `/why-sell-on-grainline` copy after
+  verifying it matches the current fee/refund and copy-truth guardrails.
+- Replaced the old seller-map MapLibre popup helper with a shared
+  `MakerMapCard` React overlay in both `AllSellersMap` and `SellersMap`, while
+  preserving the existing public map-card route's rate limit, seller visibility,
+  and `publicMapOptIn` gates.
+- Completed the overlay accessibility/cleanup contract: map markers are
+  keyboard-reachable buttons, Enter/Space opens the card, background map clicks
+  close it, the card focuses on open, Escape/close button dismiss it, marker
+  instances are removed on cleanup, and image URLs remain `https:`-validated.
+- Fixed the React lint regression by using a stable `useMemo` per-map
+  `MakerMapCardCache` instead of reading `ref.current` during render.
+- Removed the now-dead `src/lib/mapMakerCard.ts` DOM popup helper and the
+  corresponding `.maker-card-popup` global CSS.
+
+Guardrails added/reviewed:
+
+- Rewrote the map-card source-scan guard in
+  `tests/post-launch-ui-followups.test.mjs` to pin the React overlay contract:
+  no `maplibregl.Popup` in the seller maps, stable per-map cache, marker
+  keyboard semantics, selected-pin open/close flow, cleanup, focus-on-open,
+  non-modal dialog semantics, `https:` validation for cover/avatar URLs, no raw
+  HTML sink, and retained public route inventory checks.
+- Updated `CLAUDE.md` to describe the current overlay contract and the public
+  copy truth rule: handmade/no-import promises are policy/enforcement claims,
+  and Stripe language is account/payout verification rather than an identity
+  guarantee.
+
+Verification:
+`git status --short`; source/docs/test inspection with `rg`/`sed`; focused
+`node --test tests/post-launch-ui-followups.test.mjs
+tests/public-api-auth-inventory.test.mjs tests/public-fee-policy-copy.test.mjs
+tests/cache-invalidation-guardrails.test.mjs tests/verified-audit-followups.test.mjs
+tests/accessibility-followups.test.mjs tests/upload-ux-followups.test.mjs`
+passed 107/107; `npx tsc --noEmit` passed; `npm run lint` passed with the
+known jsx-ast-utils TS non-null warning; and `git diff --check` passed.
+
+Current running tally after Entry 548: verified fixed/reduced 1052, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by two for the public-copy truth narrowing and the completed
+maker-map-card overlay/accessibility/lint contract. Deferred stays flat.

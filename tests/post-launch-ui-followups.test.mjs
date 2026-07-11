@@ -461,7 +461,7 @@ describe("post-launch UI follow-ups", () => {
     // clicks clear it; markers are retained and removed on cleanup.
     for (const mapSource of [allSellersMap, sellersMap]) {
       assert.doesNotMatch(mapSource, /maplibregl\.Popup/);
-      assert.match(mapSource, /const cardCacheRef = useRef<MakerMapCardCache>\(new Map\(\)\)/);
+      assert.match(mapSource, /const cardCache = useMemo<MakerMapCardCache>\(\(\) => new Map\(\), \[\]\)/);
       assert.match(mapSource, /setSelectedPin\(\{/);
       assert.match(mapSource, /map\.on\("click", \(\) => setSelectedPin\(null\)\)/);
       assert.match(mapSource, /markerEl\.setAttribute\("role", "button"\)/);
@@ -469,7 +469,7 @@ describe("post-launch UI follow-ups", () => {
       assert.match(mapSource, /markerEl\.setAttribute\("aria-label", `Show maker details for/);
       assert.match(mapSource, /markerEl\.addEventListener\("keydown"/);
       assert.match(mapSource, /<MakerMapCard/);
-      assert.match(mapSource, /cache=\{cardCacheRef\.current\}/);
+      assert.match(mapSource, /cache=\{cardCache\}/);
       assert.match(mapSource, /const markers: maplibregl\.Marker\[\] = \[\]/);
       assert.match(mapSource, /markers\.push\(marker\)/);
       assert.match(mapSource, /markers\.forEach\([\s\S]*?\.remove\(\)\)/);

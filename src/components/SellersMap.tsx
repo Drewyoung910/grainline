@@ -18,7 +18,7 @@ type SellerPin = {
 
 export default function SellersMap({ sellers }: { sellers: SellerPin[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const cardCacheRef = useRef<MakerMapCardCache>(new Map());
+  const cardCache = useMemo<MakerMapCardCache>(() => new Map(), []);
   const [mapUnavailable, setMapUnavailable] = useState(false);
   // Pin selected for the maker-card overlay (rendered outside maplibre).
   const [selectedPin, setSelectedPin] = useState<{
@@ -131,7 +131,7 @@ export default function SellersMap({ sellers }: { sellers: SellerPin[] }) {
             fallbackName={selectedPin.name}
             fallbackCity={selectedPin.city}
             fallbackState={selectedPin.state}
-            cache={cardCacheRef.current}
+            cache={cardCache}
             onClose={() => setSelectedPin(null)}
           />
         </div>

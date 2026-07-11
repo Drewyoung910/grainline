@@ -1,7 +1,7 @@
 // src/components/AllSellersMap.tsx
 "use client";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import { publicSellerPath } from "@/lib/publicPaths";
 import MapFallback from "@/components/MapFallback";
@@ -34,7 +34,7 @@ export default function AllSellersMap({
 }: Props) {
   const summaryId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
-  const cardCacheRef = useRef<MakerMapCardCache>(new Map());
+  const cardCache = useMemo<MakerMapCardCache>(() => new Map(), []);
   const [mapUnavailable, setMapUnavailable] = useState(false);
   // Pin selected for the maker-card overlay (rendered OUTSIDE maplibre,
   // pinned to the map container corner, so it can never be clipped).
@@ -254,7 +254,7 @@ export default function AllSellersMap({
               fallbackName={selectedPin.name}
               fallbackCity={selectedPin.city}
               fallbackState={selectedPin.state}
-              cache={cardCacheRef.current}
+              cache={cardCache}
               onClose={() => setSelectedPin(null)}
             />
           </div>
