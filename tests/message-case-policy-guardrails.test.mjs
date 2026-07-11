@@ -63,6 +63,29 @@ describe("message and case policy guardrails", () => {
     assert.match(customOrderRequest, /data: \{ updatedAt: new Date\(\), archivedAAt: null, archivedBAt: null \}/);
   });
 
+  it("revalidates message-thread send policy inside the write transaction", () => {
+    const threadPage = source("src/app/messages/[id]/page.tsx");
+    const transactionStart = threadPage.indexOf("const txResult = await prisma.$transaction");
+    const policyCheck = threadPage.indexOf("const freshConversation = await tx.conversation.findFirst", transactionStart);
+    const senderCheck = threadPage.indexOf("const freshSender = freshConversation", policyCheck);
+    const recipientCheck = threadPage.indexOf("const freshUnavailableReason = messagingUnavailableReason(freshRecipient)", senderCheck);
+    const blockCheck = threadPage.indexOf("const freshBlockExists = await tx.block.findFirst", recipientCheck);
+    const messageCreate = threadPage.indexOf("await tx.message.create", transactionStart);
+
+    assert.ok(transactionStart > -1, "message send must use a write transaction");
+    assert.ok(policyCheck > transactionStart, "message send must re-load conversation state inside the transaction");
+    assert.ok(senderCheck > policyCheck, "message send must re-check sender account state inside the transaction");
+    assert.ok(recipientCheck > senderCheck, "message send must re-check recipient account state inside the transaction");
+    assert.ok(blockCheck > recipientCheck, "message send must re-check reciprocal block state inside the transaction");
+    assert.ok(messageCreate > blockCheck, "message rows must be created only after transaction-local policy checks");
+    assert.match(threadPage, /freshSender\.banned \|\| freshSender\.deletedAt/);
+    assert.match(threadPage, /messagingUnavailableReason\(freshRecipient\)/);
+    assert.match(threadPage, /recipientId: freshRecipientId/);
+    assert.match(threadPage, /committedRecipientId = txResult\.recipientId/);
+    assert.match(threadPage, /userId: committedRecipientId/);
+    assert.match(threadPage, /shouldSendEmail\(committedRecipientId, "EMAIL_NEW_MESSAGE"\)/);
+  });
+
   it("verifies uploaded message attachments at persistence time before creating messages", () => {
     const threadPage = source("src/app/messages/[id]/page.tsx");
     const helper = source("src/lib/uploadPersistenceVerification.ts");

@@ -17814,3 +17814,53 @@ approximate raw allegations left from current max #1126: 0. Fixed/reduced
 increases by one for the launch evidence inventory gate and guardrails.
 Deferred stays flat because this pass records and enforces the missing launch
 evidence; it does not generate the provider/legal/staging artifacts themselves.
+
+### Entry 540 - Message send transaction-local policy recheck
+
+Entry 540 covers a verified race in the normal message-thread send path. Before
+this pass, `sendMessage` checked conversation participation, counterparty
+account state, and reciprocal block state before the message write transaction.
+A suspension/deletion/block change between that precheck and `tx.message.create`
+could still allow one durable message after the relationship should have become
+unavailable.
+
+Fixed/reduced:
+
+- Hardened `src/app/messages/[id]/page.tsx` so the write transaction re-loads
+  conversation participation plus both participant account states before any
+  direct-upload claim or message row is created.
+- Rechecked reciprocal `Block` rows inside the same transaction before
+  attachment or text message creation.
+- Returned the committed recipient id from the transaction and used it for
+  notification, email-preference, recipient lookup, and bounded email telemetry
+  side effects after commit.
+- Updated `CLAUDE.md` with the durable message-send rule so future message
+  mutations do not rely on pre-transaction policy checks alone.
+
+Guardrails added/reviewed:
+
+- Extended `tests/message-case-policy-guardrails.test.mjs` to require
+  transaction-local conversation reload, sender/counterparty account-state
+  checks, reciprocal block checks, message creation only after those checks, and
+  post-commit side effects keyed by the transaction-returned recipient id.
+- Updated adjacent message/email guardrails so they assert the safer
+  transaction-returned recipient id instead of the pre-transaction recipient
+  variable.
+
+Verification:
+`git status --short`; source/docs/test inspection with `rg`/`sed`; focused
+`node --test tests/message-case-policy-guardrails.test.mjs
+tests/conversation-start-state.test.mjs tests/case-messaging-state.test.mjs
+tests/client-async-guardrails.test.mjs tests/custom-order-admin-thread-followups.test.mjs
+tests/notification-email-preferences.test.mjs` passed 63/63; `npx tsc
+--noEmit` passed; and `git diff --check` passed. A local full `npm test` pass
+was not recorded for this entry because the worktree currently contains
+preserved, unrelated untracked map-card work that makes global source-inventory
+tests fail outside this change.
+
+Current running tally after Entry 540: verified fixed/reduced 1041, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the real transaction-local message-send policy race.
+Deferred stays flat because this pass fixes current app-layer behavior and does
+not claim production RLS has been enabled.

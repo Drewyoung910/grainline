@@ -182,10 +182,11 @@ export default async function ThreadPage({
       }
     }
 
-    // Validate participation
+    // Validate participation before upload checks, then re-check inside the
+    // write transaction so blocks/account-state changes cannot race the send.
     const c = await prisma.conversation.findFirst({
       where: { id, OR: [{ userAId: me.id }, { userBId: me.id }] },
-      select: { id: true, userAId: true, userBId: true, firstResponseAt: true },
+      select: { id: true, userAId: true, userBId: true },
     });
     if (!c) return { ok: false };
 
@@ -230,8 +231,51 @@ export default async function ThreadPage({
     const hasMessageContent = atts.length > 0 || !!body;
 
     const messageSentAt = new Date();
+    let committedRecipientId = recipientId;
     try {
-      await prisma.$transaction(async (tx) => {
+      const txResult = await prisma.$transaction(async (tx) => {
+        const freshConversation = await tx.conversation.findFirst({
+          where: { id, OR: [{ userAId: me.id }, { userBId: me.id }] },
+          select: {
+            id: true,
+            userAId: true,
+            userBId: true,
+            firstResponseAt: true,
+            userA: { select: { banned: true, deletedAt: true } },
+            userB: { select: { banned: true, deletedAt: true } },
+          },
+        });
+        if (!freshConversation) return { ok: false as const };
+
+        const freshSender = freshConversation.userAId === me.id
+          ? freshConversation.userA
+          : freshConversation.userB;
+        if (freshSender.banned || freshSender.deletedAt) {
+          return { ok: false as const, error: "Your account has been suspended." };
+        }
+
+        const freshRecipientId = freshConversation.userAId === me.id
+          ? freshConversation.userBId
+          : freshConversation.userAId;
+        const freshRecipient = freshConversation.userAId === me.id
+          ? freshConversation.userB
+          : freshConversation.userA;
+        const freshUnavailableReason = messagingUnavailableReason(freshRecipient);
+        if (freshUnavailableReason) {
+          return { ok: false as const, error: freshUnavailableReason };
+        }
+
+        const freshBlockExists = await tx.block.findFirst({
+          where: {
+            OR: [
+              { blockerId: me.id, blockedId: freshRecipientId },
+              { blockerId: freshRecipientId, blockedId: me.id },
+            ],
+          },
+          select: { id: true },
+        });
+        if (freshBlockExists) return { ok: false as const, error: "blocked" };
+
         // 1) attachments -> each as its own message (JSON payload in body)
         for (const a of atts) {
           await claimDirectUploadForUrl({
@@ -247,7 +291,7 @@ export default async function ThreadPage({
             type: a.type,
           });
           const createdAttachment = await tx.message.create({
-            data: { conversationId: id, senderId: me.id, recipientId, body: payload },
+            data: { conversationId: id, senderId: me.id, recipientId: freshRecipientId, body: payload },
             select: { id: true },
           });
           await claimDirectUploadForUrl({
@@ -262,12 +306,12 @@ export default async function ThreadPage({
         // 2) text message if present
         if (body) {
           await tx.message.create({
-            data: { conversationId: id, senderId: me.id, recipientId, body },
+            data: { conversationId: id, senderId: me.id, recipientId: freshRecipientId, body },
           });
         }
 
         // bump thread; set firstResponseAt if this is the first reply from the other side
-        if (!c.firstResponseAt && hasMessageContent) {
+        if (!freshConversation.firstResponseAt && hasMessageContent) {
           // Check if the other person has sent a prior message (this is a response, not an opener)
           const priorFromOther = await tx.message.findFirst({
             where: { conversationId: id, senderId: { not: me.id } },
@@ -284,7 +328,10 @@ export default async function ThreadPage({
           where: { id },
           data: { updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null },
         });
+        return { ok: true as const, recipientId: freshRecipientId };
       });
+      if (!txResult.ok) return { ok: false, error: txResult.error };
+      committedRecipientId = txResult.recipientId;
     } catch (error) {
       if (error instanceof DirectUploadClaimError) {
         return { ok: false, error: error.message };
@@ -295,7 +342,7 @@ export default async function ThreadPage({
     // Notify recipient
     if (hasMessageContent) {
       await createNotification({
-        userId: recipientId,
+        userId: committedRecipientId,
         type: "NEW_MESSAGE",
         title: `${me.name ?? "Someone"} sent you a message`,
         body: body || "Sent an attachment",
@@ -305,9 +352,9 @@ export default async function ThreadPage({
 
     // Email notification for new message (fire-and-forget, 5-min atomic throttle)
     try {
-      if (hasMessageContent && (await shouldSendEmail(recipientId, "EMAIL_NEW_MESSAGE"))) {
+      if (hasMessageContent && (await shouldSendEmail(committedRecipientId, "EMAIL_NEW_MESSAGE"))) {
         const recipientUser = await prisma.user.findUnique({
-          where: { id: recipientId },
+          where: { id: committedRecipientId },
           select: { email: true, name: true },
         });
         if (recipientUser?.email) {
@@ -334,7 +381,7 @@ export default async function ThreadPage({
       logServerError(e, {
         source: "message_thread_email",
         level: "warning",
-        extra: { conversationId: id, recipientId },
+        extra: { conversationId: id, recipientId: committedRecipientId },
       });
     }
 

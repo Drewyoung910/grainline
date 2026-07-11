@@ -74,7 +74,7 @@ describe("custom-order and staff-thread audit follow-ups", () => {
       "empty message guard should run before bumping updatedAt",
     );
     assert.match(threadPage, /source: "message_thread_email"/);
-    assert.match(threadPage, /extra: \{ conversationId: id, recipientId \}/);
+    assert.match(threadPage, /extra: \{ conversationId: id, recipientId: committedRecipientId \}/);
   });
 
   it("atomically throttles new-message email notifications per conversation", () => {

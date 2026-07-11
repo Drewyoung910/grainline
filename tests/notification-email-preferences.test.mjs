@@ -73,7 +73,7 @@ describe("notification email preferences", () => {
     const emailBlock = messageThread.slice(emailStart, messageThread.indexOf("} catch (emailError)", emailStart));
 
     assert.match(messageThread, /const hasMessageContent = atts\.length > 0 \|\| !!body/);
-    assert.match(emailBlock, /hasMessageContent && \(await shouldSendEmail\(recipientId, "EMAIL_NEW_MESSAGE"\)\)/);
+    assert.match(emailBlock, /hasMessageContent && \(await shouldSendEmail\(committedRecipientId, "EMAIL_NEW_MESSAGE"\)\)/);
     assert.match(emailBlock, /messagePreview: body \? truncateText\(body, 200\) : "Sent an attachment"/);
     assert.doesNotMatch(emailBlock, /if \(body &&/);
   });
