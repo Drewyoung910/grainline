@@ -6,7 +6,6 @@ import { useToast } from "@/components/Toast";
 
 type Props = {
   sellerProfileId: string;
-  sellerUserId: string;
   initialFollowing: boolean;
   initialCount: number;
   size?: "sm" | "md";
@@ -17,7 +16,6 @@ type Props = {
 
 export default function FollowButton({
   sellerProfileId,
-  sellerUserId: _sellerUserId,
   initialFollowing,
   initialCount,
   size = "md",

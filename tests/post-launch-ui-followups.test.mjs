@@ -479,6 +479,23 @@ describe("post-launch UI follow-ups", () => {
     const docs = source("CLAUDE.md");
 
     assert.doesNotMatch(homepage, /NewsletterSignup/);
+    assert.match(homepage, /import \{ getCachedPublicSellerStats \} from "@\/lib\/publicSellerStats"/);
+    assert.match(homepage, /import FollowButton from "@\/components\/FollowButton"/);
+    assert.match(homepage, /userId: true/);
+    assert.match(homepage, /storyBody: true/);
+    assert.match(homepage, /yearsInBusiness: true/);
+    assert.match(homepage, /createdAt: true/);
+    assert.match(homepage, /home-featured-makers-v3/);
+    assert.match(homepage, /const featuredMakerIds = featuredMakers\.map\(\(\{ maker \}\) => maker\.id\)/);
+    assert.match(homepage, /prisma\.follow\.groupBy\(\{/);
+    assert.match(homepage, /where: \{ followerId: meDbId, sellerProfileId: \{ in: featuredMakerIds \} \}/);
+    assert.match(homepage, /getCachedPublicSellerStats\(featuredMakers\[0\]\.maker\.id\)/);
+    assert.match(homepage, /<h2 className="text-xl font-semibold font-display">In the Workshop<\/h2>/);
+    assert.match(homepage, /meDbId !== spotlight\.userId && \(/);
+    assert.match(homepage, /initialFollowing=\{featuredFollowing\.has\(spotlight\.id\)\}/);
+    assert.match(homepage, /initialCount=\{featuredFollowerCounts\.get\(spotlight\.id\) \?\? 0\}/);
+    assert.match(homepage, /meDbId !== also\.userId && \(/);
+    assert.match(homepage, /initialFollowing=\{featuredFollowing\.has\(also\.id\)\}/);
     assert.match(blogPost, /const isMakerPost = post\.authorType === "MAKER" && !!post\.sellerProfile/);
     assert.match(blogPost, /const viewerIsAuthor = !!meId && post\.author\?\.id === meId/);
     assert.match(blogPost, /!viewerIsAuthor && \(/);
@@ -486,6 +503,7 @@ describe("post-launch UI follow-ups", () => {
     assert.match(blogPost, /<NewsletterSignup \/>/);
     assert.match(following, /href="\/account\/feed"[\s\S]*bg-\[#2C1F1A\]/);
     assert.doesNotMatch(following, /href="\/account\/feed"[\s\S]{0,160}text-amber-700/);
+    assert.match(docs, /In the Workshop spotlight[\s\S]*getCachedPublicSellerStats\(\)[\s\S]*FollowButton/);
     assert.match(docs, /The homepage stops here; it intentionally does not render `NewsletterSignup`/);
     assert.match(docs, /maker posts show a Follow-the-maker card[\s\S]*staff posts show `NewsletterSignup`/);
   });
@@ -528,11 +546,41 @@ describe("post-launch UI follow-ups", () => {
     assert.match(makerCard, /aria-label="Close maker details"/);
     assert.match(makerCard, /bg-\[#F7F5F0\]/);
     assert.match(makerCard, /border-\[#F7F5F0\]/);
+    assert.match(makerCard, /ring-1 ring-black\/10 bg-\[#EFEAE0\]/);
     assert.match(makerCard, /<X size=\{16\} aria-hidden="true" \/>/);
     assert.doesNotMatch(makerCard, /dangerouslySetInnerHTML|innerHTML/);
     assert.match(mapCardRoute, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
     assert.match(mapCardRoute, /activeSellerProfileWhere\(\{ id, publicMapOptIn: true \}\)/);
     assert.match(mapCardRoute, /headers: \{ "Cache-Control": "public, max-age=300" \}/);
+  });
+
+  it("keeps listing similar makers public-scoped and visually bounded", () => {
+    const listingPage = source("src/app/listing/[id]/page.tsx");
+    const similarMakers = source("src/components/SimilarMakers.tsx");
+    const docs = source("CLAUDE.md");
+
+    assert.match(listingPage, /import SimilarMakers from "@\/components\/SimilarMakers"/);
+    assert.match(listingPage, /metroId: true/);
+    assert.match(listingPage, /cityMetroId: true/);
+    assert.match(listingPage, /<SimilarMakers[\s\S]*sellerId=\{listing\.seller\.id\}[\s\S]*metroId=\{listing\.metroId\}[\s\S]*cityMetroId=\{listing\.cityMetroId\}/);
+    assert.match(listingPage, /blockedUserIds=\{blockedUserIds\.size > 0 \? \[\.\.\.blockedUserIds\] : undefined\}/);
+
+    assert.match(similarMakers, /activeSellerProfileWhere/);
+    assert.match(similarMakers, /publicListingWhere/);
+    assert.match(similarMakers, /satisfies Prisma\.SellerProfileSelect/);
+    assert.doesNotMatch(similarMakers, /include:/);
+    assert.match(similarMakers, /id: \{ not: sellerId \}/);
+    assert.match(similarMakers, /userId: \{ notIn: blockedUserIds \}/);
+    assert.match(similarMakers, /listings: \{ some: publicListingWhere\(\) \}/);
+    assert.match(similarMakers, /OR: \[\{ metroId: \{ in: metroIds \} \}, \{ cityMetroId: \{ in: metroIds \} \}\]/);
+    assert.match(similarMakers, /id: \{ notIn: \[sellerId, \.\.\.found\] \}/);
+    assert.match(similarMakers, /take: MAX_SIMILAR_MAKERS/);
+    assert.match(similarMakers, /\{ id: "asc" as const \}/);
+    assert.match(similarMakers, /ring-1 ring-black\/10 bg-white/);
+    assert.doesNotMatch(similarMakers, /import GuildBadge|<GuildBadge/);
+    assert.doesNotMatch(similarMakers, /lat: true|lng: true|radiusMeters: true/);
+    assert.match(docs, /SimilarMakers[\s\S]*activeSellerProfileWhere\(\)[\s\S]*publicListingWhere\(\)[\s\S]*SellerProfile\.userId/);
+    assert.match(docs, /Listing detail[\s\S]*SimilarMakers\.tsx[\s\S]*blockedUserIds/);
   });
 
   it("header icon-only buttons share the hover-circle pattern", () => {
@@ -543,8 +591,13 @@ describe("post-launch UI follow-ups", () => {
     // circle pattern as MessageIconLink.
     assert.match(header, /aria-label="Cart"\s+title="Cart"/);
     assert.match(header, /relative inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black\/10/);
+    assert.match(header, /bg-\[#EFEAE0\] border-b border-stone-200\/60 pl-5 pr-2 py-1/);
+    assert.match(header, /bg-gradient-to-t from-\[#F7F5F0\] via-\[#F7F5F0\]\/75 to-transparent/);
     assert.match(messageIconLink, /h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black\/10/);
     assert.match(bell, /h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black\/10/);
+    assert.match(bell, /bg-\[#EFEAE0\] border-b border-stone-200\/60 px-4 py-3/);
+    assert.match(bell, /!n\.read \? "bg-\[#EFEAE0\]\/50" : ""/);
+    assert.doesNotMatch(bell, /!n\.read \? "bg-amber-50" : ""/);
   });
 
   it("relative time labels do not render future timestamps as just now", () => {

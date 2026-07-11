@@ -320,7 +320,6 @@ export default async function SellerShopPage({
             <div className="mt-1">
               <FollowButton
                 sellerProfileId={seller.id}
-                sellerUserId={seller.userId}
                 initialFollowing={isFollowing}
                 initialCount={followerCount}
                 size="sm"

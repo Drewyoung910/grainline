@@ -1,7 +1,7 @@
 "use client";
 // src/app/dashboard/seller/VacationModeForm.tsx
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { truncateText } from "@/lib/sanitize";
 
 interface Props {
@@ -29,6 +29,9 @@ export default function VacationModeForm({
       : ""
   );
   const [message, setMessage] = useState(initialMessage ?? "");
+  const returnDateId = useId();
+  const vacationMessageId = useId();
+  const vacationMessageCounterId = useId();
   const todayInputValue = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
     .toISOString()
     .slice(0, 10);
@@ -111,6 +114,7 @@ export default function VacationModeForm({
         </div>
         {/* Toggle switch — neutral-900 when on, neutral-200 when off */}
         <label className="relative inline-flex items-center cursor-pointer shrink-0">
+          <span className="sr-only">Vacation mode</span>
           <input
             type="checkbox"
             className="sr-only peer"
@@ -153,10 +157,11 @@ export default function VacationModeForm({
       {enabled && (
         <div className="space-y-4 pt-1">
           <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-1">
+            <label htmlFor={returnDateId} className="block text-sm font-medium text-neutral-700 mb-1">
               Return date <span className="text-neutral-500 font-normal">(optional)</span>
             </label>
             <input
+              id={returnDateId}
               type="date"
               value={returnDate}
               min={todayInputValue}
@@ -168,18 +173,22 @@ export default function VacationModeForm({
             )}
           </div>
           <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-1">
+            <label htmlFor={vacationMessageId} className="block text-sm font-medium text-neutral-700 mb-1">
               Vacation message <span className="text-neutral-500 font-normal">(optional)</span>
             </label>
             <textarea
+              id={vacationMessageId}
               value={message}
               onChange={(e) => setMessage(truncateText(e.target.value, 200))}
               rows={3}
               maxLength={200}
+              aria-describedby={vacationMessageCounterId}
               placeholder="Let buyers know when you'll be back or why you're away. This is shown on your profile page."
               className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm resize-none"
             />
-            <p className="text-xs text-neutral-500 text-right">{message.length}/200</p>
+            <p id={vacationMessageCounterId} aria-live="polite" className="text-xs text-neutral-500 text-right">
+              {message.length}/200
+            </p>
           </div>
         </div>
       )}

@@ -890,7 +890,6 @@ export default async function HomePage() {
                     {meDbId !== spotlight.userId && (
                       <FollowButton
                         sellerProfileId={spotlight.id}
-                        sellerUserId={spotlight.userId}
                         initialFollowing={featuredFollowing.has(spotlight.id)}
                         initialCount={featuredFollowerCounts.get(spotlight.id) ?? 0}
                         size="sm"
@@ -971,7 +970,6 @@ export default async function HomePage() {
                       {meDbId !== also.userId && (
                         <FollowButton
                           sellerProfileId={also.id}
-                          sellerUserId={also.userId}
                           initialFollowing={featuredFollowing.has(also.id)}
                           initialCount={featuredFollowerCounts.get(also.id) ?? 0}
                           size="sm"

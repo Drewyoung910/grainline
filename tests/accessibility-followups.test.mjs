@@ -183,6 +183,7 @@ describe("accessibility follow-ups", () => {
   it("announces character counters and listing photo alt-text editors", () => {
     const charCounter = source("src/components/CharCounter.tsx");
     const giftNote = source("src/components/GiftNoteSection.tsx");
+    const vacationMode = source("src/app/dashboard/seller/VacationModeForm.tsx");
     const photoManager = source("src/components/PhotoManager.tsx");
     const editPhotoGrid = source("src/components/EditPhotoGrid.tsx");
 
@@ -201,6 +202,14 @@ describe("accessibility follow-ups", () => {
     assert.match(giftNote, /maxLength=\{200\}/);
     assert.match(giftNote, /aria-describedby=\{giftNoteCounterId\}/);
     assert.match(giftNote, /id=\{giftNoteCounterId\} aria-live="polite"/);
+    assert.match(vacationMode, /import \{ useId, useState, useTransition \} from "react"/);
+    assert.match(vacationMode, /<span className="sr-only">Vacation mode<\/span>/);
+    assert.match(vacationMode, /htmlFor=\{returnDateId\}/);
+    assert.match(vacationMode, /id=\{returnDateId\}/);
+    assert.match(vacationMode, /htmlFor=\{vacationMessageId\}/);
+    assert.match(vacationMode, /id=\{vacationMessageId\}/);
+    assert.match(vacationMode, /aria-describedby=\{vacationMessageCounterId\}/);
+    assert.match(vacationMode, /id=\{vacationMessageCounterId\} aria-live="polite"/);
     assert.match(photoManager, /aria-label=\{`Alt text for photo \$\{altModalIdx \+ 1\}`\}/);
     assert.match(editPhotoGrid, /aria-label=\{`Alt text for photo \$\{altModalIdx \+ 1\}`\}/);
   });
@@ -322,7 +331,7 @@ describe("accessibility follow-ups", () => {
     assert.match(header, /data-drawer-scroll-region/);
     assert.match(header, /scrollRegion\.scrollHeight > scrollRegion\.clientHeight \+ 1/);
     assert.match(header, /drawerNavFade &&/);
-    assert.match(header, /bg-gradient-to-t from-\[#F7F5F0\] to-transparent/);
+    assert.match(header, /bg-gradient-to-t from-\[#F7F5F0\] via-\[#F7F5F0\]\/75 to-transparent/);
     assert.match(header, /drawerRef\.current\?\.focus\(\)/);
     assert.match(header, /onBlur=\{/);
     assert.match(header, /!drawerRef\.current\.contains\(e\.relatedTarget\)/);

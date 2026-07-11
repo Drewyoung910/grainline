@@ -448,7 +448,6 @@ export default async function BlogPostPage({
             </div>
             <FollowButton
               sellerProfileId={post.sellerProfile.id}
-              sellerUserId={post.sellerProfile.userId}
               initialFollowing={isFollowingAuthor}
               initialCount={authorFollowerCount}
             />

@@ -43,7 +43,6 @@ export default async function FollowingPage() {
           state: true,
           vacationMode: true,
           vacationReturnDate: true,
-          userId: true,
           guildLevel: true,
           user: { select: { imageUrl: true } },
           _count: { select: { followers: true, listings: { where: publicListingWhere() } } },
@@ -150,7 +149,6 @@ export default async function FollowingPage() {
                 <div className="flex-none">
                   <FollowButton
                     sellerProfileId={s.id}
-                    sellerUserId={s.userId}
                     initialFollowing={true}
                     initialCount={s._count.followers}
                     size="sm"

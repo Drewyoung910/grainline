@@ -666,7 +666,6 @@ export default async function ListingPage({
               {!isOwnListing && sellerUserId && (
                 <FollowButton
                   sellerProfileId={listing.sellerId}
-                  sellerUserId={sellerUserId}
                   initialFollowing={isFollowingSeller}
                   initialCount={sellerFollowerCount}
                   size="sm"

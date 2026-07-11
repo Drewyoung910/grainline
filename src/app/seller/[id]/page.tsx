@@ -524,7 +524,6 @@ export default async function SellerPublicPage({
               <>
                 <FollowButton
                   sellerProfileId={seller.id}
-                  sellerUserId={seller.userId}
                   initialFollowing={isFollowing}
                   initialCount={followerCount}
                   variant="cream"

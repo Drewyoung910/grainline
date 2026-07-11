@@ -18534,3 +18534,77 @@ stale/false-positive/current 579, deferred product/design/ops/legal 87,
 approximate raw allegations left from current max #1126: 0. Fixed/reduced
 increases by one for the stale tracked photo-management save-boundary
 contract. Deferred stays flat.
+
+### Entry 554 - Fable homepage/listing UI review and follow-client prop reduction
+
+Entry 554 reviews the Fable-authored UI commit `e124e5a6` as a junior-dev
+artifact, then fixes the two current issues found while widening around that
+surface. The committed homepage "In the Workshop" spotlight was verified
+against current public-visibility, block-filter, and follower-state contracts:
+the featured-maker cache uses an explicit public `SellerProfileSelect`, viewer
+block filtering happens after the global cache read, follower counts are fetched
+with a grouped query, viewer follow state is fetched only for signed-in users,
+and self-follow buttons are hidden. The committed `SimilarMakers` listing
+detail row was also verified: it is scoped to the listing maker's stored
+metro/city first with same-state fallback, uses `activeSellerProfileWhere()`
+plus `publicListingWhere()`, excludes the current seller and reciprocal blocked
+user ids, uses a select allowlist, does not depend on viewer location, and keeps
+each card as a single seller link with text guild pills.
+
+Two real issues remained:
+
+- `VacationModeForm` had a screen-reader-only checkbox without an accessible
+  name, its return-date/message labels were not programmatically associated
+  with their controls, and the 200-character counter was not connected to the
+  textarea or announced.
+- `FollowButton` accepted a `sellerUserId` prop but never used it. Public pages
+  were serializing seller account ids into client component props even though
+  the follow API derives the seller user server-side from `sellerProfileId`.
+
+Fixed/reduced:
+
+- Added `useId()`-backed labels and `aria-describedby` / `aria-live` wiring to
+  the vacation-mode toggle, return date, message textarea, and message counter.
+- Removed the unused `sellerUserId` prop from `FollowButton`, removed every
+  `sellerUserId={...}` follow-button call site, and narrowed
+  `/account/following` so it no longer selects `SellerProfile.userId` only for
+  that client prop.
+- Updated `CLAUDE.md` to make the `FollowButton` data-minimization contract
+  reusable.
+
+Guardrails added/reviewed:
+
+- Extended `tests/post-launch-ui-followups.test.mjs` to pin the committed Fable
+  homepage spotlight fields, cache key, grouped follower counts, self-follow
+  hiding, header/menu cream polish, NotificationBell cream unread state, the
+  retained map-card avatar hairline, and the new `SimilarMakers` public
+  visibility/block-filter/select/single-link contract.
+- Extended `tests/accessibility-followups.test.mjs` to pin the vacation-mode
+  accessible labels and live counter, and updated the mobile drawer fade guard
+  to the committed stronger gradient.
+- Added `tests/social-interaction-hardening.test.mjs` coverage to reject
+  `sellerUserId` inside `FollowButton` or any `<FollowButton ... />` prop list
+  on the public follow surfaces.
+- Verified the `e124e5a6` commit-message claim that `MakerMapCard` removed its
+  avatar hairline was stale/current rather than a code defect: `MakerMapCard`
+  was not changed by that commit, and the current source still has the
+  `ring-1 ring-black/10` hairline guarded by tests.
+
+Verification:
+`git status --short`; commit and source review with `git show`, `rg`, and
+`sed`; exact PCRE source scan for `<FollowButton ... sellerUserId=...>` returned
+no matches; focused `node --test tests/accessibility-followups.test.mjs
+tests/post-launch-ui-followups.test.mjs tests/vacation-mode-followups.test.mjs
+tests/seller-ops-hardening.test.mjs tests/public-query-determinism.test.mjs
+tests/cache-invalidation-guardrails.test.mjs tests/social-interaction-hardening.test.mjs
+tests/r62-performance-guardrails.test.mjs tests/listing-page-performance.test.mjs
+tests/public-visibility-followups.test.mjs` passed 124/124; `npx tsc
+--noEmit` passed; `npm run lint` passed with the known jsx-ast-utils TS
+non-null warning; `git diff --check` passed; full `npm test` passed with 1564
+passing, 0 failing, and 3 skipped tests out of 1567 total.
+
+Current running tally after Entry 554: verified fixed/reduced 1066, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by two for the vacation-mode accessibility wiring and the unused
+follow-button seller-user-id client prop reduction. Deferred stays flat.

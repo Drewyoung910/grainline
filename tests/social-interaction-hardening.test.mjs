@@ -49,6 +49,29 @@ describe("social interaction route hardening", () => {
     assert.match(notifications, /userId_type_dedupKey/);
   });
 
+  it("keeps follow buttons from serializing seller user ids to clients", () => {
+    const followButton = source("src/components/FollowButton.tsx");
+    const docs = source("CLAUDE.md");
+    const publicFollowSurfaces = [
+      "src/app/page.tsx",
+      "src/app/account/following/page.tsx",
+      "src/app/listing/[id]/page.tsx",
+      "src/app/seller/[id]/page.tsx",
+      "src/app/seller/[id]/shop/page.tsx",
+      "src/app/blog/[slug]/page.tsx",
+    ];
+
+    assert.doesNotMatch(followButton, /sellerUserId/);
+    for (const path of publicFollowSurfaces) {
+      assert.doesNotMatch(source(path), /<FollowButton\b(?:(?!\/>)[\s\S])*sellerUserId=/);
+    }
+    assert.doesNotMatch(
+      source("src/app/account/following/page.tsx"),
+      /vacationReturnDate: true,\s*userId: true,\s*guildLevel: true/,
+    );
+    assert.match(docs, /Do not pass seller `userId` into this client component/);
+  });
+
   it("keeps commission-request reports limited to public open commission targets", () => {
     const route = source("src/app/api/users/[id]/report/route.ts");
 
