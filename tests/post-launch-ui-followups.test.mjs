@@ -449,24 +449,43 @@ describe("post-launch UI follow-ups", () => {
     assert.doesNotMatch(globals, /calc\(100% - 32px\)/);
   });
 
-  it("keeps map maker-card popups cached and cleaned up", () => {
+  it("keeps the map maker card an overlay pinned to the map container", () => {
     const allSellersMap = source("src/components/AllSellersMap.tsx");
     const sellersMap = source("src/components/SellersMap.tsx");
-    const makerCard = source("src/lib/mapMakerCard.ts");
+    const makerCard = source("src/components/MakerMapCard.tsx");
     const mapCardRoute = source("src/app/api/seller/[id]/map-card/route.ts");
 
+    // The maker card is a React overlay pinned inside the map container —
+    // NOT a maplibre popup — so it can never be clipped by map bounds and
+    // map pan/scroll can't dismiss it. Pins set selectedPin; map background
+    // clicks clear it; markers are retained and removed on cleanup.
     for (const mapSource of [allSellersMap, sellersMap]) {
-      assert.match(mapSource, /const cardCache = new Map<string, MakerCardData \| null>\(\)/);
-      assert.match(mapSource, /buildMakerCardSkeleton\(/);
-      assert.match(mapSource, /upgradeMakerPopup\(popup, .*?, cardCache\)/s);
+      assert.doesNotMatch(mapSource, /maplibregl\.Popup/);
+      assert.match(mapSource, /const cardCacheRef = useRef<MakerMapCardCache>\(new Map\(\)\)/);
+      assert.match(mapSource, /setSelectedPin\(\{/);
+      assert.match(mapSource, /map\.on\("click", \(\) => setSelectedPin\(null\)\)/);
+      assert.match(mapSource, /markerEl\.setAttribute\("role", "button"\)/);
+      assert.match(mapSource, /markerEl\.setAttribute\("tabindex", "0"\)/);
+      assert.match(mapSource, /markerEl\.setAttribute\("aria-label", `Show maker details for/);
+      assert.match(mapSource, /markerEl\.addEventListener\("keydown"/);
+      assert.match(mapSource, /<MakerMapCard/);
+      assert.match(mapSource, /cache=\{cardCacheRef\.current\}/);
       assert.match(mapSource, /const markers: maplibregl\.Marker\[\] = \[\]/);
       assert.match(mapSource, /markers\.push\(marker\)/);
       assert.match(mapSource, /markers\.forEach\([\s\S]*?\.remove\(\)\)/);
     }
 
-    assert.match(makerCard, /textContent = data\.name/);
-    assert.match(makerCard, /safeHttpsUrl\(data\.photoUrl\)/);
+    assert.match(makerCard, /export type MakerMapCardCache = Map<string, MakerMapCardData \| "error">/);
+    assert.match(makerCard, /cache: MakerMapCardCache/);
+    assert.match(makerCard, /cardRef\.current\?\.focus\(\)/);
+    assert.match(makerCard, /role="dialog"/);
+    assert.doesNotMatch(makerCard, /aria-modal/);
+    assert.match(makerCard, /tabIndex=\{-1\}/);
+    assert.match(makerCard, /safeHttpsUrl\(loaded\?\.photoUrl\)/);
+    assert.match(makerCard, /safeHttpsUrl\(loaded\?\.avatarUrl\)/);
     assert.match(makerCard, /fetch\(`\/api\/seller\/\$\{encodeURIComponent\(sellerId\)\}\/map-card`\)/);
+    assert.match(makerCard, /aria-label="Close maker details"/);
+    assert.doesNotMatch(makerCard, /dangerouslySetInnerHTML|innerHTML/);
     assert.match(mapCardRoute, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
     assert.match(mapCardRoute, /activeSellerProfileWhere\(\{ id, publicMapOptIn: true \}\)/);
     assert.match(mapCardRoute, /headers: \{ "Cache-Control": "public, max-age=300" \}/);

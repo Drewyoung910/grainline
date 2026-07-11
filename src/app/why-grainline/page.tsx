@@ -9,7 +9,7 @@ import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 export const metadata: Metadata = {
   title: "Why Grainline | Real handmade woodworking, not factory imports",
   description:
-    "Grainline is a US marketplace exclusively for handmade woodworking. Every seller is Stripe-verified, every listing is AI-moderated, every piece is made by a real person. No mass-produced imports, no resellers, no anonymous shops.",
+    "Grainline is a US marketplace exclusively for handmade woodworking. Sellers connect verified Stripe accounts, every listing is reviewed before it goes live, and factory imports, resellers, and anonymous shops are banned.",
   alternates: { canonical: "https://thegrainline.com/why-grainline" },
 };
 
@@ -35,8 +35,8 @@ export default async function WhyGrainlinePage() {
           Real wood. Real workshops.<br />Real people.
         </h1>
         <p className="text-lg sm:text-xl text-stone-600 leading-relaxed max-w-2xl mx-auto">
-          Grainline is the US marketplace built exclusively for handmade woodworking. No factory imports, no
-          resellers, no anonymous shops. Just craftspeople and the pieces they build by hand.
+          Grainline is the US marketplace built exclusively for handmade woodworking. Factory imports,
+          resellers, and anonymous shops are banned here. Just craftspeople and the pieces they build by hand.
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <Link
@@ -87,11 +87,11 @@ export default async function WhyGrainlinePage() {
             <ul className="space-y-3 text-sm text-neutral-800">
               <li className="flex items-start gap-2">
                 <CheckCircle size={16} className="text-amber-700 mt-0.5 flex-none" />
-                <span>Every piece made by hand in a US workshop</span>
+                <span>Handmade in a US workshop is the rule for every listing</span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle size={16} className="text-amber-700 mt-0.5 flex-none" />
-                <span>Every seller verified through Stripe</span>
+                <span>Every seller connects a verified Stripe account</span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle size={16} className="text-amber-700 mt-0.5 flex-none" />
@@ -99,7 +99,7 @@ export default async function WhyGrainlinePage() {
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle size={16} className="text-amber-700 mt-0.5 flex-none" />
-                <span>No drop-shipping, no resellers, no imports</span>
+                <span>Drop-shipping, resellers, and imports are banned and removed</span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle size={16} className="text-amber-700 mt-0.5 flex-none" />
@@ -129,8 +129,8 @@ export default async function WhyGrainlinePage() {
                 Identity verification
               </h3>
               <p className="text-sm text-neutral-600 leading-relaxed">
-                Every maker is verified through Stripe&apos;s identity checks before they can sell. No anonymous
-                shops, no shell accounts. We know who&apos;s behind every listing.
+                Every maker must complete Stripe&apos;s account verification before they can sell — the same
+                checks payment providers use before moving money. No anonymous shops, no shell accounts.
               </p>
             </div>
             <div className="card-section p-6 bg-white">

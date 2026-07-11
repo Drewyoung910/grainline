@@ -1,5 +1,5 @@
 // src/app/api/seller/[id]/map-card/route.ts
-// Public read powering the map marker popup "maker card". Returns a small,
+// Public read powering the map marker "maker card" overlay. Returns a small,
 // non-viewer-specific snapshot of a map-visible seller (name, avatar, cover
 // photo, guild level, rating, location, tagline). Only sellers who are
 // currently map-eligible (active/orderable + publicMapOptIn) resolve here,

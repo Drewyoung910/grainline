@@ -5,7 +5,7 @@ import maplibregl from "maplibre-gl";
 import { publicSellerPath } from "@/lib/publicPaths";
 import MapFallback from "@/components/MapFallback";
 import { maplibreSupported } from "@/lib/mapSupport";
-import { buildMakerCardSkeleton, upgradeMakerPopup, type MakerCardData } from "@/lib/mapMakerCard";
+import MakerMapCard, { type MakerMapCardCache } from "@/components/MakerMapCard";
 
 type SellerPin = {
   id: string;
@@ -18,7 +18,15 @@ type SellerPin = {
 
 export default function SellersMap({ sellers }: { sellers: SellerPin[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const cardCacheRef = useRef<MakerMapCardCache>(new Map());
   const [mapUnavailable, setMapUnavailable] = useState(false);
+  // Pin selected for the maker-card overlay (rendered outside maplibre).
+  const [selectedPin, setSelectedPin] = useState<{
+    id: string;
+    name: string;
+    city: string | null;
+    state: string | null;
+  } | null>(null);
 
   const center: [number, number] = useMemo(
     () => (sellers.length ? [sellers[0].lng, sellers[0].lat] : [-98.35, 39.5]),
@@ -48,35 +56,43 @@ export default function SellersMap({ sellers }: { sellers: SellerPin[] }) {
 
     map.addControl(new maplibregl.NavigationControl(), "top-right");
 
-    // Maker card data cache — one fetch per seller per map mount.
-    const cardCache = new Map<string, MakerCardData | null>();
     const markers: maplibregl.Marker[] = [];
 
     map.on("load", () => {
       for (const seller of sellers) {
-        const popup = new maplibregl.Popup({
-          offset: 25,
-          maxWidth: "280px",
-          className: "maker-card-popup",
-        }).setDOMContent(
-          buildMakerCardSkeleton(
-            seller.name,
-            seller.city ?? null,
-            seller.state ?? null,
-            publicSellerPath(seller.id, seller.name)
-          )
-        );
-        popup.on("open", () => {
-          void upgradeMakerPopup(popup, seller.id, cardCache);
-        });
-
+        // No maplibre popup — pin click opens the MakerMapCard overlay,
+        // which lives outside the map canvas and can't be clipped by it.
+        const selectPin = () =>
+          setSelectedPin({
+            id: seller.id,
+            name: seller.name,
+            city: seller.city ?? null,
+            state: seller.state ?? null,
+          });
         const marker = new maplibregl.Marker({ color: "#1C1C1A" })
           .setLngLat([seller.lng, seller.lat])
-          .setPopup(popup)
           .addTo(map);
+        const markerEl = marker.getElement();
+        markerEl.style.cursor = "pointer";
+        markerEl.setAttribute("role", "button");
+        markerEl.setAttribute("tabindex", "0");
+        markerEl.setAttribute("aria-label", `Show maker details for ${seller.name || "maker"}`);
+        markerEl.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          selectPin();
+        });
+        markerEl.addEventListener("keydown", (ev) => {
+          if (ev.key !== "Enter" && ev.key !== " ") return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          selectPin();
+        });
         markers.push(marker);
       }
     });
+
+    // Clicking the map background (not a pin) dismisses the maker card.
+    map.on("click", () => setSelectedPin(null));
 
     return () => {
       markers.forEach((marker) => marker.remove());
@@ -100,13 +116,26 @@ export default function SellersMap({ sellers }: { sellers: SellerPin[] }) {
   }
 
   return (
-    <div className="rounded-xl overflow-hidden border">
+    <div className="relative rounded-xl overflow-hidden border">
       <div
         ref={containerRef}
         role="application"
         aria-label="Map of Grainline sellers"
         style={{ height: 520, width: "100%" }}
       />
+      {selectedPin && (
+        <div className="absolute inset-x-3 bottom-3 z-10 sm:inset-x-auto sm:left-3 sm:w-64">
+          <MakerMapCard
+            key={selectedPin.id}
+            sellerId={selectedPin.id}
+            fallbackName={selectedPin.name}
+            fallbackCity={selectedPin.city}
+            fallbackState={selectedPin.state}
+            cache={cardCacheRef.current}
+            onClose={() => setSelectedPin(null)}
+          />
+        </div>
+      )}
     </div>
   );
 }
