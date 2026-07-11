@@ -17743,3 +17743,74 @@ approximate raw allegations left from current max #1126: 0. Fixed/reduced
 increases by one for the buyer-deletion replay proof verifier and guardrails.
 Deferred stays flat because the retained Stripe test-mode replay artifact still
 must be generated before closing the launch blocker.
+
+### Entry 539 - Launch evidence inventory gate
+
+Entry 539 adds the missing final inventory pass for near-finished launch
+evidence work. The last several passes created proof harnesses and checklist
+rows, but the remaining artifacts were still distributed across individual
+commands, provider dashboard captures, and legal/business decisions. This pass
+adds one local inventory command that fails until the retained evidence bundle is
+complete enough to support a launch-readiness claim.
+
+Fixed/reduced:
+
+- Added `scripts/launch-evidence-inventory.mjs` and
+  `npm run audit:launch-evidence`. The command is confirm-gated with
+  `LAUNCH_EVIDENCE_INVENTORY_CONFIRM=local-read`, keeps evidence, manifest, and
+  inventory paths inside the repository, reads retained machine proof artifacts,
+  reads manual dashboard/legal/provider records from `launch-evidence-manifest.json`
+  or `LAUNCH_EVIDENCE_MANIFEST_PATH`, writes a sanitized inventory artifact, and
+  exits nonzero while launch-required evidence is missing or failed.
+- The machine evidence inventory currently tracks Stripe webhook subscription
+  proof, Stripe money-movement proof, buyer-deletion Stripe replay proof, R2
+  upload smoke, deployed security headers, Sentry cron alert proof, and shipping
+  currency drift as launch-required artifacts. RLS context-gate and Founding
+  Maker concurrency proof are tracked as conditional artifacts unless
+  `LAUNCH_EVIDENCE_REQUIRE_CONDITIONAL=1` is set.
+- The manual evidence inventory tracks the external/dashboard/legal items that
+  cannot be proven from source alone, including securityheaders.com, SSL Labs,
+  HSTS preload status or decision, Clerk security controls, owner/admin hardware
+  MFA, Stripe signing-secret matching, Stripe PCI SAQ A, Cloudflare R2 posture,
+  Cloudflare TLS/WAF settings, Sentry notification delivery, GitHub code
+  security settings, Google Search Console, Neon backup/restore drill, attorney
+  Terms/Privacy sign-off, money-transmitter analysis, business insurance,
+  INFORM Consumers Act scope, and DMCA agent details.
+- The inventory redacts launch-evidence env assignments, generic secret/token/API
+  key/password assignments, Stripe secret-looking values, bearer tokens, and URL
+  userinfo before writing retained issues, references, or not-applicable reasons.
+- Updated `docs/launch-checklist.md`, `docs/runbook.md`,
+  `docs/deferred-launch-backlog.md`, and `CLAUDE.md` so future agents do not
+  call the launch evidence backlog complete from chat summaries, audit tally
+  counts, or individual proof commands alone.
+
+Guardrails added/reviewed:
+
+- Added `tests/launch-evidence-inventory.test.mjs` to pin the npm command,
+  confirmation/path bounds, required machine artifacts, proof-specific machine
+  validators, manual evidence shape, credential redaction, and docs/backlog
+  coupling.
+- Re-ran deferred-backlog and ops-retention guardrails to keep the new inventory
+  rule aligned with the existing launch/deferred evidence split.
+
+Verification:
+`git status --short`; source/docs/test inspection with `rg`/`sed`; `node
+--check scripts/launch-evidence-inventory.mjs`; focused `node --test
+tests/launch-evidence-inventory.test.mjs tests/deferred-launch-backlog.test.mjs
+tests/retention-and-ops-followups.test.mjs` passed 24/24; `npx tsc --noEmit`
+passed; `git diff --check` passed; `npm test` passed on compact full-suite
+rerun after one transient full-suite failure; `npm run lint` passed with the
+existing jsx-ast-utils TSNonNullExpression warning; `npm audit
+--audit-level=high` passed with 0 vulnerabilities; `npm run build` passed; and
+`LAUNCH_EVIDENCE_INVENTORY_CONFIRM=local-read
+LAUNCH_EVIDENCE_INVENTORY_PATH=tmp/launch-evidence/inventory-check.json npm run
+audit:launch-evidence` wrote an inventory and failed as intended with 25
+blocking missing/failed launch-required items because the retained machine
+artifacts and manual evidence manifest have not been assembled yet.
+
+Current running tally after Entry 539: verified fixed/reduced 1040, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the launch evidence inventory gate and guardrails.
+Deferred stays flat because this pass records and enforces the missing launch
+evidence; it does not generate the provider/legal/staging artifacts themselves.

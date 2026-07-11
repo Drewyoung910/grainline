@@ -101,6 +101,7 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
 - `SENTRY_CRON_PROOF_CONFIRM=live-read SENTRY_ORG_SLUG="<org>" SENTRY_PROJECT_SLUG="<project>" SENTRY_CRON_PROOF_EVIDENCE_PATH="sentry-cron-alert-evidence.json" npm run audit:sentry-crons` (live Sentry read-only; verifies every `vercel.json` cron has a matching monitor and configured alert routing includes the launch-critical warning terms; does not replace dashboard evidence for delivered notifications)
 - `SHIPPING_CURRENCY_PROOF_CONFIRM=read-only SHIPPING_CURRENCY_PROOF_EVIDENCE_PATH="shipping-currency-drift-evidence.json" npm run audit:shipping-currency` (production data read-only; verifies no historical non-USD or mixed-currency shipping-rate rows need reconciliation under the current USD launch posture)
 - `FOUNDING_MAKER_PROOF_CONFIRM=staging-or-local-write-delete FOUNDING_MAKER_PROOF_EVIDENCE_PATH="founding-maker-concurrency-evidence.json" npm run audit:founding-maker` (staging/local database only; creates and deletes synthetic users, sellers, listings, and grant rows to prove concurrent Founding Maker assignment, durable non-reuse, and cap behavior)
+- `LAUNCH_EVIDENCE_INVENTORY_CONFIRM=local-read LAUNCH_EVIDENCE_INVENTORY_PATH="launch-evidence-inventory.json" npm run audit:launch-evidence` (final local evidence-bundle inventory; reads retained machine artifacts plus `launch-evidence-manifest.json` manual records and fails until launch-required evidence is present)
 - `npx tsc --noEmit --incremental false`
 - `npm run lint`
 - `npm run build`
@@ -149,6 +150,7 @@ Record links/screenshots/dates for:
 - Neon backup/PITR setting and most recent restore drill.
 - Sentry alert rules for CSP/script/frame violations, production error spikes, Sentry cron monitors, `source=cron_ops_health` warnings including completed-cron partial record failures, `AccountDeletionSideEffect` cleanup issues, direct-upload cleanup failures, and webhook failure spike messages, including the read-only artifact from `npm run audit:sentry-crons` plus dashboard screenshots or exported notification-delivery evidence.
 - Google Search Console ownership verification and sitemap index submission.
+- Launch evidence inventory artifact from `npm run audit:launch-evidence`, generated after the machine artifacts and manual evidence manifest have been assembled.
 
 ## Business And Legal
 

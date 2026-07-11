@@ -109,6 +109,35 @@ Pre-launch Founding Maker concurrency proof:
   launch-scale ready until the allocator, data drift, or cleanup issue is fixed
   and rerun.
 
+Pre-launch launch evidence inventory:
+
+- Run after the machine proof artifacts and manual dashboard/legal/provider
+  evidence records have been assembled. This is a final local inventory check,
+  not a replacement for the underlying proofs.
+- Required machine artifacts are read from `LAUNCH_EVIDENCE_DIR` when set, or
+  the repository root by default: Stripe webhook subscriptions, Stripe
+  money-movement proof, buyer-deletion replay proof, R2 upload smoke, deployed
+  headers, Sentry cron alerts, and shipping currency drift.
+- Manual records live in `launch-evidence-manifest.json` by default, or
+  `LAUNCH_EVIDENCE_MANIFEST_PATH` when set. Each manual record should use:
+  `{ "status": "retained", "reference": "...", "capturedAt": "YYYY-MM-DD" }`.
+  Use `status: "not_applicable"` only with a concrete `reason`.
+- Required inputs:
+  - `LAUNCH_EVIDENCE_INVENTORY_CONFIRM=local-read`
+  - `LAUNCH_EVIDENCE_INVENTORY_PATH=launch-evidence-inventory.json`
+  - Optional `LAUNCH_EVIDENCE_DIR=<path>` if artifacts are stored in a bundled
+    launch-evidence folder instead of the repository root.
+  - Optional `LAUNCH_EVIDENCE_MANIFEST_PATH=<path>` if the manual manifest is
+    stored outside the evidence directory.
+  - Optional `LAUNCH_EVIDENCE_REQUIRE_CONDITIONAL=1` to fail on conditional
+    RLS/Founding Maker items too.
+- Command:
+  `LAUNCH_EVIDENCE_INVENTORY_CONFIRM=local-read LAUNCH_EVIDENCE_INVENTORY_PATH="launch-evidence-inventory.json" npm run audit:launch-evidence`.
+- Retain the generated inventory with launch records. A passing inventory means
+  the required evidence files and manual records are present and shaped
+  correctly; it does not independently prove provider state beyond those
+  retained records.
+
 Every incident note should include: start time, affected surface, current deploy SHA, primary request IDs, customer-visible impact, mitigation, owner, and follow-up issue.
 
 ## Security Incident Addendum

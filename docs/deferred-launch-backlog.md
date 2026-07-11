@@ -28,6 +28,9 @@ leaving it in this file.
   launch with a non-blocker open, record the decision and the reason.
 - Claude/Fable/agents may propose evidence gaps, but Codex must verify the
   current repo state and own any source changes or closure claims.
+- Before calling the launch evidence backlog complete, run the launch evidence inventory
+  (`npm run audit:launch-evidence`) against the retained artifact bundle and
+  manual evidence manifest.
 
 ## Status Labels
 
