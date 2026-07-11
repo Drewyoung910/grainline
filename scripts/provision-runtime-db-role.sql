@@ -148,6 +148,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
   public."EmailSuppression",
   public."Favorite",
   public."Follow",
+  public."FoundingMakerGrant",
   public."Listing",
   public."ListingVariantGroup",
   public."ListingVariantOption",

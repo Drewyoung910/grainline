@@ -258,6 +258,7 @@ model SellerProfile {
   isFoundingMaker     Boolean   @default(false)
   foundingMakerNumber Int?      @unique // 1..250 when granted; null otherwise
   foundingMakerAt     DateTime?
+  foundingMakerGrant  FoundingMakerGrant?
 
   // Metro geography (set automatically from lat/lng)
   metroId     String?
@@ -294,6 +295,18 @@ model SellerFaq {
   createdAt       DateTime      @default(now())
 
   @@index([sellerProfileId, sortOrder])
+}
+
+model FoundingMakerGrant {
+  id                  String         @id @default(cuid())
+  sellerProfileId     String?        @unique
+  sellerProfile       SellerProfile? @relation(fields: [sellerProfileId], references: [id], onDelete: SetNull)
+  foundingMakerNumber Int            @unique
+  grantedAt           DateTime       @default(now())
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  @@index([grantedAt])
 }
 
 model Listing {

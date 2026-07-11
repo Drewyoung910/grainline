@@ -87,6 +87,28 @@ Pre-launch shipping-rate currency drift proof:
   decision before accepting live marketplace transactions. Do not close this
   item from source review alone.
 
+Pre-launch Founding Maker concurrency proof:
+
+- Run against a staging or local database with production migrations applied.
+  Do not run against production because the proof creates and deletes synthetic
+  users, sellers, listings, and Founding Maker grant rows.
+- Required inputs:
+  - `DATABASE_URL`
+  - `FOUNDING_MAKER_PROOF_CONFIRM=staging-or-local-write-delete`
+  - `FOUNDING_MAKER_PROOF_EVIDENCE_PATH=founding-maker-concurrency-evidence.json`
+- Optional bounded tuning:
+  - `FOUNDING_MAKER_PROOF_SYNTHETIC_SELLERS` defaults to 8 and must be 2..32.
+  - `FOUNDING_MAKER_PROOF_REPEAT_CALLS` defaults to 3 and must be 1..10.
+- Command:
+  `FOUNDING_MAKER_PROOF_CONFIRM=staging-or-local-write-delete FOUNDING_MAKER_PROOF_EVIDENCE_PATH="founding-maker-concurrency-evidence.json" npm run audit:founding-maker`.
+- Retain the sanitized JSON artifact with launch records. The artifact records
+  database host hash, baseline ledger consistency, synthetic concurrent grant
+  range, hashed sample seller/grant ids, durable non-reuse after a synthetic
+  hard delete, cap fail-closed behavior, and cleanup evidence.
+- A failing run means the Founding Maker badge program should not be treated as
+  launch-scale ready until the allocator, data drift, or cleanup issue is fixed
+  and rerun.
+
 Every incident note should include: start time, affected surface, current deploy SHA, primary request IDs, customer-visible impact, mitigation, owner, and follow-up issue.
 
 ## Security Incident Addendum

@@ -17582,3 +17582,97 @@ approximate raw allegations left from current max #1126: 0. Fixed/reduced
 increases by one for the shipping currency drift proof harness and guardrails.
 Deferred stays flat because the retained production-data artifact or written
 not-applicable launch evidence still must be kept with launch records.
+
+### Entry 537 - Founding Maker durable grant ledger and concurrency proof
+
+Entry 537 closes a real precision gap found while preparing the Founding Maker
+concurrency proof. The docs claimed Founding Maker numbers would never be
+recycled even after a future hard delete, but the allocator read
+`max(foundingMakerNumber)` from live `SellerProfile` rows. That avoided ordinary
+lower-number gaps while the highest row still existed, but it would have reused
+the deleted highest number. This pass moves issued-number allocation to a
+durable grant ledger and adds a staging/local write-delete proof harness for the
+remaining runtime evidence.
+
+Fixed/reduced:
+
+- Added the `FoundingMakerGrant` model and migration
+  `20260711003000_add_founding_maker_grant_ledger`. The migration backfills
+  existing Founding Maker profile rows into the ledger, unique-indexes
+  `sellerProfileId` and `foundingMakerNumber`, keeps a 1..250 check constraint,
+  and uses `ON DELETE SET NULL` so a future hard-deleted seller profile does not
+  make an issued number reusable.
+- Extracted the allocator into `src/lib/foundingMakerCore.ts`. Production
+  `maybeGrantFoundingMaker()` and the proof harness now share the same
+  `maybeGrantFoundingMakerWithClient()` core. The core keeps the existing
+  public-listing eligibility checks and advisory transaction lock, but reads
+  max issued number from `FoundingMakerGrant`, creates a grant row, then mirrors
+  the grant onto the denormalized `SellerProfile` badge fields.
+- Updated `repairMissedFoundingMakerGrants()` so remaining-slot calculation
+  uses the durable grant ledger instead of live seller rows.
+- Updated `scripts/provision-runtime-db-role.sql` so the least-privilege runtime
+  role receives the explicit DML grant for the new `FoundingMakerGrant` table;
+  the grant-inventory guardrail caught this during the full-suite pass.
+- Added `scripts/founding-maker-concurrency-proof.mjs` and
+  `npm run audit:founding-maker`. The script is confirm-gated with
+  `FOUNDING_MAKER_PROOF_CONFIRM=staging-or-local-write-delete`, requires an
+  in-repo evidence path, creates synthetic users/sellers/listings, races
+  repeated grant calls, verifies one grant-backed badge per seller, simulates a
+  synthetic hard-delete gap and verifies the replacement gets the next new
+  number, verifies cap fail-closed behavior with a synthetic cap sentinel, then
+  deletes synthetic rows. Evidence contains hashed seller/grant ids and redacts
+  database URLs, proof env assignments, passwords, bearer tokens, and URL
+  userinfo.
+- Updated `CLAUDE.md`, `docs/runbook.md`, `docs/launch-checklist.md`, and
+  `docs/deferred-launch-backlog.md` so future agents do not close Founding Maker
+  concurrency or permanence from source review alone, and do not run the
+  write-delete proof against production.
+
+Guardrails added/reviewed:
+
+- Added `tests/founding-maker-concurrency-proof.test.mjs` to pin the npm
+  command, confirmation gate, env/path bounds, Prisma adapter use, shared-core
+  import, concurrency/gap/cap/cleanup proof surfaces, redaction behavior, and
+  docs/backlog coupling.
+- Updated `tests/post-launch-ui-followups.test.mjs` so the Founding Maker
+  source guard follows the shared core and rejects returning to
+  live-`SellerProfile` aggregate allocation.
+- Updated `tests/schema-numeric-index-guardrails.test.mjs` to pin the
+  `FoundingMakerGrant` schema model, migration backfill, unique indexes,
+  range check, and `ON DELETE SET NULL` behavior.
+- Updated `tests/db-grant-inventory.test.mjs` so the derived runtime grant
+  inventory includes the new model table and stays aligned with provisioning
+  SQL.
+
+Verification:
+`git status --short`; source/docs/test inspection with `rg`/`sed`; `node
+--check scripts/founding-maker-concurrency-proof.mjs`; `npx prisma validate`;
+focused `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+--experimental-strip-types --test tests/founding-maker-concurrency-proof.test.mjs
+tests/post-launch-ui-followups.test.mjs
+tests/schema-numeric-index-guardrails.test.mjs
+tests/deferred-launch-backlog.test.mjs
+tests/retention-and-ops-followups.test.mjs` passed 67/67; focused `node
+--disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/db-grant-inventory.test.mjs
+tests/founding-maker-concurrency-proof.test.mjs
+tests/schema-numeric-index-guardrails.test.mjs
+tests/post-launch-ui-followups.test.mjs` passed 57/58 with the expected local
+GitHub Actions Postgres-only grant-audit integration skip; `npx prisma
+generate`; import check `node
+--disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types -e
+'await import("./scripts/founding-maker-concurrency-proof.mjs")'`; and `npx tsc
+--noEmit`; `npm test` passed 1540/1543 with 3 expected local skips; `npm run
+lint` passed with the existing jsx-ast-utils TSNonNullExpression warning; `git
+diff --check` passed; and `npm run build` passed. The write-delete `npm run
+audit:founding-maker` proof was not run locally because it should run only
+against a migrated staging/local database where synthetic users, sellers,
+listings, and grant rows may be created and deleted as retained launch evidence.
+
+Current running tally after Entry 537: verified fixed/reduced 1038, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the real durable-number allocation gap plus the proof
+harness and guardrails. Deferred stays flat because the retained staging/local
+proof artifact still must be generated before relying on Founding Maker at
+launch scale.

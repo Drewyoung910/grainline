@@ -73,12 +73,21 @@ describe("schema numeric and index guardrails", () => {
   it("mirrors raw-managed Founding Maker uniqueness in the Prisma schema", () => {
     const schema = source("prisma/schema.prisma");
     const foundingMigration = source("prisma/migrations/20260511232729_add_founding_maker/migration.sql");
+    const grantLedgerMigration = source("prisma/migrations/20260711003000_add_founding_maker_grant_ledger/migration.sql");
 
     assert.match(modelBlock(schema, "SellerProfile"), /foundingMakerNumber\s+Int\?\s+@unique/);
+    assert.match(modelBlock(schema, "SellerProfile"), /foundingMakerGrant\s+FoundingMakerGrant\?/);
+    assert.match(modelBlock(schema, "FoundingMakerGrant"), /sellerProfileId\s+String\?\s+@unique/);
+    assert.match(modelBlock(schema, "FoundingMakerGrant"), /foundingMakerNumber\s+Int\s+@unique/);
     assert.match(
       foundingMigration,
       /CREATE UNIQUE INDEX "SellerProfile_foundingMakerNumber_key"[\s\S]*ON "SellerProfile" \("foundingMakerNumber"\)/,
     );
+    assert.match(grantLedgerMigration, /CREATE TABLE "FoundingMakerGrant"/);
+    assert.match(grantLedgerMigration, /INSERT INTO "FoundingMakerGrant"[\s\S]*FROM "SellerProfile" sp/);
+    assert.match(grantLedgerMigration, /CREATE UNIQUE INDEX "FoundingMakerGrant_foundingMakerNumber_key"/);
+    assert.match(grantLedgerMigration, /ON DELETE SET NULL/);
+    assert.match(grantLedgerMigration, /FoundingMakerGrant_founding_maker_number_range_chk/);
   });
 
   it("keeps verified hot-path indexes visible in schema and migration history", () => {

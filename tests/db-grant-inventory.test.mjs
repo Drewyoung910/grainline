@@ -213,7 +213,7 @@ describe("database grant inventory guardrails", () => {
   it("derives the current runtime grant surface from schema and migrations", () => {
     const inventory = deriveGrantInventory();
 
-    assert.equal(inventory.tables.length, 56);
+    assert.equal(inventory.tables.length, 57);
     assert.equal(inventory.enums.length, 20);
     assert.deepEqual(inventory.functions, ["grainline_notification_preferences_valid"]);
     assert.deepEqual(inventory.extensions, ["pg_trgm"]);

@@ -2610,18 +2610,22 @@ First-250-seller recognition program. Permanent badge granted on the seller's FI
 - `foundingMakerAt DateTime?`
 - Migration `20260511232729_add_founding_maker` adds the columns and creates `SellerProfile_foundingMakerNumber_key` unique index plus `SellerProfile_isFoundingMaker_idx`.
 - Migration `20260511235727_founding_maker_active_listing_backfill` clears the original by-`createdAt` backfill and re-backfills the first 250 sellers ordered by their FIRST public ACTIVE listing's `createdAt`. Sellers with zero public active listings stay at `isFoundingMaker = false`.
+- `FoundingMakerGrant` is the durable allocation ledger for issued numbers. Migration `20260711003000_add_founding_maker_grant_ledger` backfills it from existing `SellerProfile` founding fields, unique-indexes `sellerProfileId` and `foundingMakerNumber`, keeps a 1..250 check constraint, and uses `ON DELETE SET NULL` so a future hard-deleted seller profile does not make that number reusable.
 
 ### Grant helper (`src/lib/foundingMaker.ts`)
 `maybeGrantFoundingMaker(sellerProfileId)`:
 1. Returns immediately if the seller already has the badge.
 2. Returns immediately if the seller has zero public ACTIVE listings, using the shared `publicListingWhere({ sellerId })` policy instead of hand-rolled `ACTIVE` / `isPrivate` checks.
-3. Otherwise opens a transaction, takes the short Postgres advisory lock `pg_advisory_xact_lock(913337, 250)`, re-checks that the seller still has a public ACTIVE listing through `publicListingWhere({ sellerId })`, reads the current max `foundingMakerNumber`, assigns `max + 1` while `<= 250`, and runs an `updateMany` with `isFoundingMaker: false` guard.
-4. Numbers are never reused after gaps/deletions because the helper uses the current max number, not `count + 1`. The advisory lock serializes only the tiny number-assignment window so high-concurrency publish bursts cannot exhaust a bounded retry loop and silently drop eligible makers while slots remain.
+3. Otherwise opens a transaction, takes the short Postgres advisory lock `pg_advisory_xact_lock(913337, 250)`, re-checks that the seller still has a public ACTIVE listing through `publicListingWhere({ sellerId })`, reads the current max `FoundingMakerGrant.foundingMakerNumber`, inserts the next grant while `<= 250`, and mirrors that grant onto `SellerProfile` through an `updateMany` with `isFoundingMaker: false` guard.
+4. Numbers are never reused after gaps/deletions because the helper uses the durable `FoundingMakerGrant` ledger, not live `SellerProfile` rows or `count + 1`. The advisory lock serializes only the tiny number-assignment window so high-concurrency publish bursts cannot exhaust a bounded retry loop and silently drop eligible makers while slots remain.
 5. Idempotent. Wrapped in try/catch so a grant failure never blocks the calling flow, but production failures still go to Sentry with source `founding_maker_grant` and bounded `sellerProfileId` context so eligible-maker grant loss is observable.
-6. The `foundingMakerNumber` unique index also enforces no-double-issue at the DB level.
+6. The `FoundingMakerGrant.foundingMakerNumber` and denormalized `SellerProfile.foundingMakerNumber` unique indexes enforce no-double-issue at the DB level.
 
 ### Repair cron
-`GET /api/cron/founding-maker-repair` runs daily at `10 17 * * *` through the standard cron auth, cron-run, and Sentry monitor wrappers. It calls `repairMissedFoundingMakerGrants()`, which scans the oldest public ACTIVE listings for non-badged sellers, dedupes seller ids, and calls the same advisory-lock `maybeGrantFoundingMaker()` helper. Keep the repair bounded (`FOUNDING_MAKER_REPAIR_LISTING_SCAN_LIMIT` / `FOUNDING_MAKER_REPAIR_SELLER_LIMIT`) and ordered by listing `createdAt` so transient grant failures can be repaired without reassigning permanent numbers or blocking listing publish.
+`GET /api/cron/founding-maker-repair` runs daily at `10 17 * * *` through the standard cron auth, cron-run, and Sentry monitor wrappers. It calls `repairMissedFoundingMakerGrants()`, which reads remaining slots from `FoundingMakerGrant`, scans the oldest public ACTIVE listings for non-badged sellers, dedupes seller ids, and calls the same advisory-lock `maybeGrantFoundingMaker()` helper. Keep the repair bounded (`FOUNDING_MAKER_REPAIR_LISTING_SCAN_LIMIT` / `FOUNDING_MAKER_REPAIR_SELLER_LIMIT`) and ordered by listing `createdAt` so transient grant failures can be repaired without reassigning permanent numbers or blocking listing publish.
+
+### Launch proof
+Do not close Founding Maker concurrency or permanence from source review alone. Run `FOUNDING_MAKER_PROOF_CONFIRM=staging-or-local-write-delete FOUNDING_MAKER_PROOF_EVIDENCE_PATH="founding-maker-concurrency-evidence.json" npm run audit:founding-maker` against a staging/local database with the production migration applied, retain the sanitized artifact, and do not run it against production because it creates and deletes synthetic users, sellers, listings, and grant rows.
 
 ### Call sites
 The helper is called after every listing transition to ACTIVE for a seller's own listings:
@@ -2643,7 +2647,7 @@ The helper is called after every listing transition to ACTIVE for a seller's own
 
 ### Display rules to preserve
 - Founding Maker is independent of `guildLevel`. A seller can be Founding Maker only, Guild Member only, both, or neither.
-- The number is permanent and never reassigned (unique index enforces this). If a Founding Maker's seller profile is hard-deleted in the future, the number is NOT recycled — gaps are acceptable.
+- The number is permanent and never reassigned. `FoundingMakerGrant` is the source of truth for issued numbers; `SellerProfile` is the public display copy. If a Founding Maker's seller profile is hard-deleted in the future, the grant row remains with `sellerProfileId = null` and the number is NOT recycled. Gaps are acceptable.
 - Do not render the badge without the popover. The "first 250" explanation is the only thing that gives the badge meaning to a new buyer.
 
 ## Seller Profile Rhythm Redesign (2026-05-12)

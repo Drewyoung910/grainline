@@ -99,6 +99,7 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
 - `DEPLOYED_HEADERS_PROOF_CONFIRM=production-read DEPLOYED_HEADERS_PROOF_EVIDENCE_PATH="deployed-security-headers-evidence.json" npm run audit:deployed-headers` (production domain only; writes sanitized evidence for enforced root security headers and `/api/health` private cache/vary headers; does not replace securityheaders.com, SSL Labs, or hstspreload.org records)
 - `SENTRY_CRON_PROOF_CONFIRM=live-read SENTRY_ORG_SLUG="<org>" SENTRY_PROJECT_SLUG="<project>" SENTRY_CRON_PROOF_EVIDENCE_PATH="sentry-cron-alert-evidence.json" npm run audit:sentry-crons` (live Sentry read-only; verifies every `vercel.json` cron has a matching monitor and configured alert routing includes the launch-critical warning terms; does not replace dashboard evidence for delivered notifications)
 - `SHIPPING_CURRENCY_PROOF_CONFIRM=read-only SHIPPING_CURRENCY_PROOF_EVIDENCE_PATH="shipping-currency-drift-evidence.json" npm run audit:shipping-currency` (production data read-only; verifies no historical non-USD or mixed-currency shipping-rate rows need reconciliation under the current USD launch posture)
+- `FOUNDING_MAKER_PROOF_CONFIRM=staging-or-local-write-delete FOUNDING_MAKER_PROOF_EVIDENCE_PATH="founding-maker-concurrency-evidence.json" npm run audit:founding-maker` (staging/local database only; creates and deletes synthetic users, sellers, listings, and grant rows to prove concurrent Founding Maker assignment, durable non-reuse, and cap behavior)
 - `npx tsc --noEmit --incremental false`
 - `npm run lint`
 - `npm run build`
@@ -140,6 +141,7 @@ Record links/screenshots/dates for:
 - Stripe snapshot webhook and Connect v2 thin webhook delivery, including the read-only artifact from `npm run audit:stripe-webhooks`, screenshots or exported evidence of the exact event subscriptions listed above, and separate signing-secret matching evidence for `STRIPE_WEBHOOK_SECRET` and `STRIPE_V2_WEBHOOK_SECRET`.
 - Stripe test-mode money-movement proof artifact from `npm run audit:stripe-money`, covering full and partial reverse-transfer refunds, platform-only refund/manual-reconciliation handling, label-cost transfer reversal, retry-pending label clawback failure, manual-review exhaustion, and local `OrderPaymentEvent`/`SystemAuditLog` evidence.
 - Shipping-rate currency drift proof artifact from `npm run audit:shipping-currency`, or written not-applicable evidence if production has no historical seller/listing/order data before launch.
+- Founding Maker concurrency proof artifact from `npm run audit:founding-maker` against staging/local data with production migrations applied before relying on the badge program at launch scale.
 - Clerk and Resend webhook delivery.
 - Cloudflare R2 public bucket-listing/ListBucket posture, bucket-level max object-size setting, CORS/public-domain settings, and upload smoke-test artifact from `npm run audit:r2-upload`.
 - Neon backup/PITR setting and most recent restore drill.
