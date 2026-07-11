@@ -182,6 +182,7 @@ describe("accessibility follow-ups", () => {
 
   it("announces character counters and listing photo alt-text editors", () => {
     const charCounter = source("src/components/CharCounter.tsx");
+    const giftNote = source("src/components/GiftNoteSection.tsx");
     const photoManager = source("src/components/PhotoManager.tsx");
     const editPhotoGrid = source("src/components/EditPhotoGrid.tsx");
 
@@ -194,6 +195,12 @@ describe("accessibility follow-ups", () => {
     assert.match(source("src/app/dashboard/listings/new/page.tsx"), /htmlFor="listing-title"[\s\S]*?<InputCharCounter id="listing-title"/);
     assert.match(source("src/app/dashboard/listings/[id]/edit/page.tsx"), /htmlFor="listing-title"[\s\S]*?<InputCharCounter id="listing-title"/);
     assert.match(source("src/app/dashboard/profile/page.tsx"), /htmlFor="seller-bio"[\s\S]*?<CharCounter[\s\S]*?id="seller-bio"/);
+    assert.match(giftNote, /const giftNoteId = useId\(\)/);
+    assert.match(giftNote, /htmlFor=\{giftNoteId\}/);
+    assert.match(giftNote, /id=\{giftNoteId\}/);
+    assert.match(giftNote, /maxLength=\{200\}/);
+    assert.match(giftNote, /aria-describedby=\{giftNoteCounterId\}/);
+    assert.match(giftNote, /id=\{giftNoteCounterId\} aria-live="polite"/);
     assert.match(photoManager, /aria-label=\{`Alt text for photo \$\{altModalIdx \+ 1\}`\}/);
     assert.match(editPhotoGrid, /aria-label=\{`Alt text for photo \$\{altModalIdx \+ 1\}`\}/);
   });

@@ -18245,3 +18245,61 @@ stale/false-positive/current 579, deferred product/design/ops/legal 87,
 approximate raw allegations left from current max #1126: 0. Fixed/reduced
 increases by two for the public-copy truth narrowing and the completed
 maker-map-card overlay/accessibility/lint contract. Deferred stays flat.
+
+### Entry 549 - Fable legacy UI modernization a81a9b6b recheck
+
+Entry 549 continues the parent review of the Fable UI modernization commits,
+covering `a81a9b6b` (`fix: modernize legacy UI styling across blog, reviews,
+cart, orders, drawer`) against current `main`. The blog share pills, blog post
+loading skeleton, review inset styling, order timeline connector layout,
+seller-avatar ring changes, and current header popover/mobile-menu behavior
+were reviewed against the later UI contracts and remain coherent. The original
+full-height drawer work from this commit has since been superseded by the
+non-modal repaint-safe popover reviewed in Entries 547 and 548.
+
+Two current-state issues remained in the same UI area:
+
+- `CLAUDE.md` still had an older BlogCommentForm bullet saying the component
+  itself should carry `focus:border-stone-500`, which contradicted the newer
+  global field-focus contract from `globals.css` and could steer future agents
+  back toward per-field focus overrides.
+- `GiftNoteSection` had a visible "Gift note" label and character counter, but
+  the label was not programmatically associated with the textarea and the
+  counter was not connected through `aria-describedby` / `aria-live`.
+
+Fixed/reduced:
+
+- Updated the BlogCommentForm behavior contract so it explicitly inherits the
+  sitewide text-field focus rule and must not add per-field `focus:*` overrides.
+- Added a focused guardrail requiring BlogCommentForm to stay on the global
+  field-focus contract and requiring `CLAUDE.md` to avoid the stale
+  `focus:border-stone-500` instruction.
+- Added stable React ids to `GiftNoteSection`, connected the label to the
+  textarea, added `maxLength={200}`, and connected the live counter with
+  `aria-describedby` plus `aria-live="polite"` while keeping the existing
+  truncation and checkout data flow.
+- Updated the GiftNoteSection UI contract in `CLAUDE.md` so the label/counter
+  requirement is durable.
+
+Guardrails added/reviewed:
+
+- Extended `tests/accessibility-followups.test.mjs` to pin the gift-note
+  textarea label/counter wiring.
+- Extended `tests/post-launch-ui-followups.test.mjs` to pin the global
+  field-focus contract for BlogCommentForm and `CLAUDE.md`.
+- Re-ran adjacent accessibility, post-launch UI, currency formatting, and text
+  normalization guardrails for the checkout gift-note surface.
+
+Verification:
+`git status --short`; source/docs/test inspection with `git show`, `rg`, and
+`sed`; focused `node --test tests/accessibility-followups.test.mjs
+tests/post-launch-ui-followups.test.mjs tests/currency-format-drift.test.mjs
+tests/user-text-normalization-followups.test.mjs` passed 73/73;
+`npx tsc --noEmit` passed; `npm run lint` passed with the known
+jsx-ast-utils TS non-null warning; and `git diff --check` passed.
+
+Current running tally after Entry 549: verified fixed/reduced 1054, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by two for the stale BlogCommentForm focus contract and the
+GiftNoteSection label/counter accessibility gap. Deferred stays flat.

@@ -449,6 +449,20 @@ describe("post-launch UI follow-ups", () => {
     assert.doesNotMatch(globals, /calc\(100% - 32px\)/);
   });
 
+  it("keeps blog comment fields on the global field-focus contract", () => {
+    const globals = source("src/app/globals.css");
+    const blogComment = source("src/components/BlogCommentForm.tsx");
+    const docs = source("CLAUDE.md");
+
+    assert.match(globals, /single sitewide field-focus treatment/);
+    assert.match(globals, /border-color: #a8a29e/);
+    assert.match(globals, /box-shadow: 0 0 0 3px rgb\(168 162 158 \/ 0\.16\)/);
+    assert.match(blogComment, /rounded-md border border-neutral-200 bg-white/);
+    assert.doesNotMatch(blogComment, /focus:border|focus:ring/);
+    assert.match(docs, /Blog comment form[\s\S]*inherits the sitewide text-field focus treatment/);
+    assert.doesNotMatch(docs, /Blog comment form[\s\S]{0,160}focus:border-stone-500/);
+  });
+
   it("keeps the map maker card an overlay pinned to the map container", () => {
     const allSellersMap = source("src/components/AllSellersMap.tsx");
     const sellersMap = source("src/components/SellersMap.tsx");
