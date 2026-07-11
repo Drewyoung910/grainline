@@ -228,18 +228,19 @@ describe("accessibility follow-ups", () => {
     }
   });
 
-  it("keeps homepage hero collage decorative and non-interactive", () => {
+  it("keeps hero collage cards accessible, clickable links (approved split hero)", () => {
     const collage = source("src/components/HeroCollage.tsx");
 
-    // The collage replaced the animated mosaic (2026-07-11): real listing
-    // photos stay decorative behind the hero text, with no extra focus targets.
-    assert.match(collage, /aria-hidden="true"/);
-    assert.match(collage, /pointer-events-none absolute inset-0/);
-    assert.match(collage, /alt=""/);
+    // DREW-APPROVED split editorial hero (2026-07-11): the collage is the
+    // RIGHT GRID COLUMN of the hero — three sharp listing photos as REAL
+    // LINKS with accessible names (alt = listing title). Do not convert it
+    // into an aria-hidden background layer; that is the rejected concept.
+    assert.match(collage, /publicListingPath\(item\.listingId, item\.title\)/);
+    assert.match(collage, /alt=\{item\.title\}/);
     assert.doesNotMatch(collage, /"use client"/);
-    assert.doesNotMatch(collage, /from "next\/link"|publicListingPath|<Link\b|<a\b|href=/);
-    assert.doesNotMatch(collage, /animate-scroll|animation|onClick|onMouse/);
-    assert.doesNotMatch(collage, /group-hover|transition-transform|rounded-2xl/);
+    assert.doesNotMatch(collage, /pointer-events-none absolute inset-0/);
+    assert.doesNotMatch(collage, /animate-scroll|animation:/);
+    assert.match(collage, /aria-hidden="true"/); // decorative glow only
   });
 
   it("uses stored listing photo alt text in browse list cards", () => {
@@ -394,14 +395,15 @@ describe("accessibility follow-ups", () => {
       assert.match(home, new RegExp(`<h2[^>]*>[\\s\\S]*?${heading}[\\s\\S]*?<\\/h2>`));
     }
 
-    // Static full-bleed hero background (2026-07-11): no mosaic animation, no
-    // split text/media layout, and no scroll-cue chevron.
-    assert.doesNotMatch(home, /HeroMosaic|hasHeroMosaic|mosaicListings|animate-bounce/);
+    // DREW-APPROVED split editorial hero (2026-07-11): light cream/amber
+    // wash, copy + solid search on the left, clickable collage as the right
+    // grid column. No dark background hero, no glass search, no chevron.
+    assert.doesNotMatch(home, /HeroMosaic|hasHeroMosaic|variant="glass"|animate-bounce/);
     assert.match(home, /const hasHeroCollage = heroCollageItems\.length >= 3/);
-    assert.match(hero, /<HeroCollage items=\{heroCollageItems\} \/>/);
-    assert.match(hero, /<SearchBar variant=\{hasHeroCollage \? "glass" : "default"\} \/>/);
-    assert.match(hero, /absolute inset-0 bg-\[#1C1C1A\]\/70/);
-    assert.doesNotMatch(hero, /lg:grid-cols-\[1\.05fr_1fr\]|bg-gradient-to-br|split editorial/);
+    assert.match(hero, /\{hasHeroCollage && <HeroCollage items=\{heroCollageItems\} \/>\}/);
+    assert.match(hero, /lg:grid-cols-\[1\.05fr_1fr\]/);
+    assert.match(hero, /bg-gradient-to-br from-amber-100\/60 via-\[#F7F5F0\]/);
+    assert.doesNotMatch(hero, /bg-\[#1C1C1A\]/);
     assert.match(globals, /@media \(prefers-reduced-motion: reduce\)/);
     assert.doesNotMatch(globals, /animate-scroll-left|animate-scroll-right|@keyframes scroll-left|@keyframes scroll-right/);
     assert.match(globals, /\.animate-slide-in-right,[\s\S]*\.animate-slide-down \{[\s\S]*animation: none !important/);

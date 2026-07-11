@@ -22,17 +22,17 @@ describe("homepage deterministic query guardrails", () => {
 
   it("applies viewer block filters to the homepage hero collage query", () => {
     const home = source("src/app/page.tsx");
-    const heroStart = home.indexOf("heroListings,");
-    assert.notEqual(heroStart, -1, "homepage hero listing query anchor should exist");
-    const heroQueryStart = home.indexOf("prisma.listing.findMany({", heroStart);
-    const heroQueryEnd = home.indexOf("getFeaturedMakerBlock(blockedSellerIds)", heroQueryStart);
-    assert.notEqual(heroQueryStart, -1, "homepage hero listing query should exist after the anchor");
-    assert.notEqual(heroQueryEnd, -1, "homepage hero listing query should end before featured maker fetch");
-    const heroQuery = home.slice(heroQueryStart, heroQueryEnd);
+    const mosaicStart = home.indexOf("heroListings,");
+    assert.notEqual(mosaicStart, -1, "homepage hero collage query anchor should exist");
+    const mosaicQueryStart = home.indexOf("prisma.listing.findMany({", mosaicStart);
+    const mosaicQueryEnd = home.indexOf("getFeaturedMakerBlock(blockedSellerIds)", mosaicQueryStart);
+    assert.notEqual(mosaicQueryStart, -1, "homepage mosaic listing query should exist after the anchor");
+    assert.notEqual(mosaicQueryEnd, -1, "homepage mosaic query should end before featured maker fetch");
+    const mosaicQuery = home.slice(mosaicQueryStart, mosaicQueryEnd);
 
-    assert.match(heroQuery, /where: publicListingWhere\(\s*blockedSellerIds\.length > 0 \? \{ sellerId: \{ notIn: blockedSellerIds \} \} : \{\},\s*\)/);
-    assert.match(heroQuery, /orderBy: \[\{ qualityScore: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(heroQuery, /take: 24/);
+    assert.match(mosaicQuery, /where: publicListingWhere\(\s*blockedSellerIds\.length > 0 \? \{ sellerId: \{ notIn: blockedSellerIds \} \} : \{\},\s*\)/);
+    assert.match(mosaicQuery, /orderBy: \[\{ qualityScore: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(mosaicQuery, /take: 24/);
   });
 
   it("keeps featured maker thumbnail listings on shared public visibility filters", () => {
