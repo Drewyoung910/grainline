@@ -15,6 +15,7 @@ import RecentlyViewedTracker from "@/components/RecentlyViewedTracker";
 import { CATEGORY_LABELS } from "@/lib/categories";
 import CustomOrderRequestForm from "@/components/CustomOrderRequestForm";
 import SimilarItems from "@/components/SimilarItems";
+import SimilarMakers from "@/components/SimilarMakers";
 import GuildBadge from "@/components/GuildBadge";
 import FoundingMakerBadge from "@/components/FoundingMakerBadge";
 import FollowButton from "@/components/FollowButton";
@@ -90,6 +91,8 @@ const getListingForDetailPage = cache(async (listingId: string) =>
           user: { select: { imageUrl: true, banned: true, deletedAt: true } },
         },
       },
+      metroId: true,
+      cityMetroId: true,
       metro: { select: { slug: true, name: true, state: true } },
       cityMetro: { select: { slug: true, name: true, state: true } },
       variantGroups: {
@@ -872,6 +875,17 @@ export default async function ListingPage({
         <h2 className="font-semibold font-display text-neutral-900 mb-4">You might also like</h2>
         <SimilarItems listingId={listingId} />
       </section>
+
+      {/* ── Similar makers — scoped to the LISTING's maker city/metro ─────── */}
+      <SimilarMakers
+        sellerId={listing.seller.id}
+        metroId={listing.metroId}
+        cityMetroId={listing.cityMetroId}
+        metroName={listing.cityMetro?.name ?? listing.metro?.name ?? null}
+        city={listing.seller.city}
+        state={listing.seller.state}
+        blockedUserIds={blockedUserIds.size > 0 ? [...blockedUserIds] : undefined}
+      />
 
       {/* ── Reviews ───────────────────────────────────────────────────────── */}
       <section id="reviews">

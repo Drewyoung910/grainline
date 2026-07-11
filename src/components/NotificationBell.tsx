@@ -412,7 +412,7 @@ export default function NotificationBell({
           }`}
         >
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
+          <div className="flex items-center justify-between bg-[#EFEAE0] border-b border-stone-200/60 px-4 py-3">
             <span className="text-sm font-semibold">Notifications</span>
             <button
               onClick={markAllRead}
@@ -438,7 +438,7 @@ export default function NotificationBell({
                     <button
                       onClick={() => markRead(n)}
                       className={`w-full text-left flex gap-3 px-4 py-3 hover:bg-neutral-50 ${
-                        !n.read ? "bg-amber-50" : ""
+                        !n.read ? "bg-[#EFEAE0]/50" : ""
                       }`}
                     >
                       <Icon size={16} className={`mt-0.5 shrink-0 ${color}`} />

@@ -22,7 +22,9 @@ describe("R62 performance guardrails", () => {
     assert.match(listing, /width=\{320\}[\s\S]*height=\{400\}[\s\S]*w-full h-full object-cover/);
 
     const home = source("src/app/page.tsx");
-    assert.match(home, /width=\{80\}[\s\S]*height=\{80\}[\s\S]*h-20 w-20/);
+    // Spotlight identity-chip avatar + also-featured avatar (2026-07-11 layout)
+    assert.match(home, /width=\{36\}[\s\S]*height=\{36\}[\s\S]*h-9 w-9/);
+    assert.match(home, /width=\{40\}[\s\S]*height=\{40\}[\s\S]*h-10 w-10/);
     assert.match(home, /width=\{20\} height=\{20\} className="h-5 w-5/);
 
     const browse = source("src/app/browse/page.tsx");

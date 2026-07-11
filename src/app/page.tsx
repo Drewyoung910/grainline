@@ -27,6 +27,8 @@ import { paidStripeOrderWhere } from "@/lib/orderTrust";
 import { isTrustedMediaUrl } from "@/lib/urlValidation";
 import { getPopularListingTags } from "@/lib/popularTags";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
+import { getCachedPublicSellerStats } from "@/lib/publicSellerStats";
+import FollowButton from "@/components/FollowButton";
 import { publicListingPath, publicSellerPath, publicTagPath } from "@/lib/publicPaths";
 import { avatarInitial } from "@/lib/avatarInitials";
 import { HOME_FEATURED_MAKER_CACHE_TAG } from "@/lib/searchCache";
@@ -52,8 +54,12 @@ function StarsInline({ value }: { value: number }) {
 
 const featuredMakerSelect = {
   id: true,
+  userId: true,
   displayName: true,
   bio: true,
+  storyBody: true,
+  yearsInBusiness: true,
+  createdAt: true,
   city: true,
   state: true,
   tagline: true,
@@ -169,7 +175,7 @@ const getFeaturedMakers = unstable_cache(async (): Promise<FeaturedMaker[]> => {
   }
 
   return picked;
-}, ["home-featured-makers-v2"], { revalidate: 300, tags: [HOME_FEATURED_MAKER_CACHE_TAG] });
+}, ["home-featured-makers-v3"], { revalidate: 300, tags: [HOME_FEATURED_MAKER_CACHE_TAG] });
 
 const featuredListingSelect = {
   id: true,
@@ -488,6 +494,33 @@ export default async function HomePage() {
   );
   const sellerRatings = await getSellerRatingMap(sellerIds);
 
+  // Spotlight data: follower counts + viewer follow state for the featured
+  // makers, and cached sold-count stats for the main spotlight only.
+  const featuredMakerIds = featuredMakers.map(({ maker }) => maker.id);
+  let featuredFollowerCounts = new Map<string, number>();
+  let featuredFollowing = new Set<string>();
+  if (featuredMakerIds.length > 0) {
+    const [followCounts, myFollows] = await Promise.all([
+      prisma.follow.groupBy({
+        by: ["sellerProfileId"],
+        where: { sellerProfileId: { in: featuredMakerIds } },
+        _count: { _all: true },
+      }),
+      meDbId
+        ? prisma.follow.findMany({
+            where: { followerId: meDbId, sellerProfileId: { in: featuredMakerIds } },
+            select: { sellerProfileId: true },
+          })
+        : Promise.resolve([] as { sellerProfileId: string }[]),
+    ]);
+    featuredFollowerCounts = new Map(followCounts.map((c) => [c.sellerProfileId, c._count._all]));
+    featuredFollowing = new Set(myFollows.map((f) => f.sellerProfileId));
+  }
+  const spotlightStats =
+    featuredMakers.length > 0
+      ? await getCachedPublicSellerStats(featuredMakers[0].maker.id).catch(() => null)
+      : null;
+
   // Maker of the Week pill dates — aligned to Monday–Sunday calendar week
   const nowForPill = new Date();
   const dowForPill = nowForPill.getUTCDay();
@@ -734,126 +767,229 @@ export default async function HomePage() {
           </ScrollFadeRow>
         </ScrollSection>
 
-        {/* ── Featured Makers ────────────────────────────────────────── */}
-        {featuredMakers.length > 0 && (
-          <ScrollSection>
-            <div className="mb-5 flex items-end justify-between gap-4 flex-wrap">
-              <div className="space-y-0.5">
-                <h2 className="text-xl font-semibold font-display">
-                  {featuredMakers.length > 1 ? "Featured Makers" : "Meet a Maker"}
-                </h2>
-                <p className="text-sm text-neutral-500">The people behind the pieces, {weekStart} to {weekEnd}</p>
+        {/* ── In the Workshop — maker spotlight + also-featured strip ── */}
+        {featuredMakers.length > 0 && (() => {
+          const [spotlightBlock, alsoBlock] = featuredMakers;
+          const spotlight = spotlightBlock.maker;
+          const spotlightListings = spotlightBlock.listings;
+          const spotlightRating = sellerRatings.get(spotlight.id) ?? null;
+          const spotlightAvatar = spotlight.avatarImageUrl ?? spotlight.user?.imageUrl ?? null;
+          const spotlightImage =
+            spotlight.workshopImageUrl ?? spotlight.bannerImageUrl ?? featuredMakerFallbackImages[0];
+          const spotlightStory = spotlight.storyBody ?? spotlight.bio ?? null;
+          const memberSinceYear = new Date(spotlight.createdAt).getFullYear();
+          const soldCount = spotlightStats?.soldCount ?? 0;
+          return (
+            <ScrollSection>
+              <div className="mb-5 space-y-0.5">
+                <h2 className="text-xl font-semibold font-display">In the Workshop</h2>
+                <p className="text-sm text-neutral-500">
+                  Maker of the Week · {weekStart} to {weekEnd}
+                </p>
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {featuredMakers.map(({ maker, listings }, idx) => {
-                const fallbackImage = featuredMakerFallbackImages[idx];
-                const rating = sellerRatings.get(maker.id) ?? null;
-                const avatarSrc = maker.avatarImageUrl ?? maker.user?.imageUrl ?? null;
-                return (
-                  <article key={maker.id} className="flex flex-col">
-                    {/* Banner with 3:1 aspect, rounded, avatar overlaps bottom */}
-                    <div className="relative">
-                      <div className="rounded-2xl overflow-hidden">
-                        <MediaImage
-                          src={maker.bannerImageUrl}
-                          fallbackSrc={fallbackImage}
-                          alt={`${maker.displayName ?? "Maker"} workshop`}
-                          loading="lazy"
-                          className="aspect-[3/1] w-full object-cover"
-                          fallbackClassName="aspect-[3/1] w-full bg-gradient-to-r from-neutral-800 to-neutral-600"
-                        />
+              {/* Spotlight card — image half + story half */}
+              <article className="overflow-hidden rounded-3xl bg-[#EFEAE0] shadow-sm lg:grid lg:grid-cols-[1.05fr_1fr]">
+                {/* Workshop image */}
+                <div className="relative min-h-[240px] sm:min-h-[300px] lg:min-h-[440px]">
+                  <MediaImage
+                    src={spotlightImage}
+                    alt={`${spotlight.displayName ?? "Maker"} workshop`}
+                    loading="lazy"
+                    className="absolute inset-0 h-full w-full object-cover"
+                    fallbackClassName="absolute inset-0 h-full w-full bg-gradient-to-br from-neutral-800 to-neutral-600"
+                  />
+                  {/* Identity chip over the photo */}
+                  <div className="absolute bottom-4 left-4 flex items-center gap-2.5 rounded-full bg-white/90 py-1.5 pl-1.5 pr-4 shadow-sm backdrop-blur-sm">
+                    {spotlightAvatar ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={spotlightAvatar}
+                        alt=""
+                        loading="lazy"
+                        width={36}
+                        height={36}
+                        className="h-9 w-9 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-200 text-sm font-bold text-amber-800">
+                        {avatarInitial(spotlight.displayName, "M")}
                       </div>
-                      <div className="absolute -bottom-10 left-6">
-                        {avatarSrc ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={avatarSrc}
-                            alt={maker.displayName ?? ""}
-                            loading="lazy"
-                            width={80}
-                            height={80}
-                            className="h-20 w-20 rounded-full object-cover ring-4 ring-[#F7F5F0] shadow-sm bg-white"
-                          />
-                        ) : (
-                          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-amber-200 text-2xl font-bold text-amber-800 ring-4 ring-[#F7F5F0] shadow-sm">
-                            {avatarInitial(maker.displayName, "M")}
+                    )}
+                    <span className="text-sm font-semibold text-neutral-900">
+                      {spotlight.displayName}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Story side */}
+                <div className="flex flex-col p-6 sm:p-8 lg:p-10">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-amber-700">
+                    Maker of the Week
+                  </p>
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    <h3 className="font-display text-2xl font-semibold text-neutral-900 sm:text-3xl">
+                      {spotlight.displayName}
+                    </h3>
+                    <GuildBadge
+                      level={spotlight.guildLevel as import("@/components/GuildBadge").GuildLevelValue}
+                      size={30}
+                    />
+                  </div>
+
+                  {spotlight.tagline && (
+                    <p className="mb-4 border-l-2 border-amber-400 pl-4 text-base italic text-neutral-700 sm:text-lg">
+                      &ldquo;{spotlight.tagline}&rdquo;
+                    </p>
+                  )}
+
+                  {/* Proof stats */}
+                  <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-neutral-700">
+                    {spotlightRating && spotlightRating.count > 0 && (
+                      <span className="flex items-center gap-1">
+                        <StarsInline value={spotlightRating.avg} />
+                        <span className="font-medium">
+                          {(Math.round(spotlightRating.avg * 10) / 10).toFixed(1)}
+                        </span>
+                        <span className="text-neutral-500">({spotlightRating.count})</span>
+                      </span>
+                    )}
+                    {soldCount > 0 && (
+                      <span>
+                        {soldCount.toLocaleString("en-US")} piece{soldCount !== 1 ? "s" : ""} sold
+                      </span>
+                    )}
+                    {spotlight.yearsInBusiness != null && spotlight.yearsInBusiness > 0 ? (
+                      <span>
+                        {spotlight.yearsInBusiness} year{spotlight.yearsInBusiness !== 1 ? "s" : ""} crafting
+                      </span>
+                    ) : (
+                      <span>Member since {memberSinceYear}</span>
+                    )}
+                    {(spotlight.city || spotlight.state) && (
+                      <span className="flex items-center gap-1 text-neutral-600">
+                        <MapPin size={13} className="shrink-0" />
+                        {[spotlight.city, spotlight.state].filter(Boolean).join(", ")}
+                      </span>
+                    )}
+                  </div>
+
+                  {spotlightStory && (
+                    <p className="mb-5 text-sm leading-relaxed text-neutral-700 line-clamp-3">
+                      {truncateTextWithEllipsis(spotlightStory, 260)}
+                    </p>
+                  )}
+
+                  <div className="mb-6 flex flex-wrap items-center gap-2.5">
+                    <Link
+                      href={publicSellerPath(spotlight.id, spotlight.displayName)}
+                      className="inline-flex items-center rounded-md bg-[#2C1F1A] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#3A2A24] transition-colors"
+                    >
+                      Visit the Workshop →
+                    </Link>
+                    {meDbId !== spotlight.userId && (
+                      <FollowButton
+                        sellerProfileId={spotlight.id}
+                        sellerUserId={spotlight.userId}
+                        initialFollowing={featuredFollowing.has(spotlight.id)}
+                        initialCount={featuredFollowerCounts.get(spotlight.id) ?? 0}
+                        size="sm"
+                      />
+                    )}
+                  </div>
+
+                  {spotlightListings.length > 0 && (
+                    <div className="mt-auto grid grid-cols-3 gap-2.5">
+                      {spotlightListings.slice(0, 3).map((fl) => (
+                        <Link key={fl.id} href={publicListingPath(fl.id, fl.title)} className="group block">
+                          <div className="aspect-square overflow-hidden rounded-xl bg-white">
+                            <MediaImage
+                              src={fl.photos[0]?.url ?? null}
+                              alt={fl.photos[0]?.altText ?? fl.title}
+                              loading="lazy"
+                              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                              fallbackClassName="h-full w-full bg-stone-100"
+                            />
                           </div>
-                        )}
-                      </div>
+                        </Link>
+                      ))}
                     </div>
+                  )}
+                </div>
+              </article>
 
-                    <div className="px-6 pt-14 pb-6 flex-1 flex flex-col">
-                      <div className="flex flex-wrap items-center gap-2 mb-2">
-                        <h3 className="text-lg font-semibold">{maker.displayName}</h3>
+              {/* Also featured this week — slim strip for the second maker */}
+              {alsoBlock && (() => {
+                const also = alsoBlock.maker;
+                const alsoRating = sellerRatings.get(also.id) ?? null;
+                const alsoAvatar = also.avatarImageUrl ?? also.user?.imageUrl ?? null;
+                return (
+                  <div className="mt-4 card-section flex flex-wrap items-center gap-3 px-4 py-3 sm:px-5">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
+                      Also featured
+                    </span>
+                    {alsoAvatar ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={alsoAvatar}
+                        alt=""
+                        loading="lazy"
+                        width={40}
+                        height={40}
+                        className="h-10 w-10 rounded-full object-cover ring-1 ring-black/10"
+                      />
+                    ) : (
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-200 text-sm font-bold text-amber-800 ring-1 ring-black/10">
+                        {avatarInitial(also.displayName, "M")}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Link
+                          href={publicSellerPath(also.id, also.displayName)}
+                          className="truncate text-sm font-semibold text-neutral-900 hover:underline"
+                        >
+                          {also.displayName}
+                        </Link>
                         <GuildBadge
-                          level={maker.guildLevel as import("@/components/GuildBadge").GuildLevelValue}
-                          size={28}
+                          level={also.guildLevel as import("@/components/GuildBadge").GuildLevelValue}
+                          size={20}
                         />
                       </div>
-
-                      {maker.tagline && (
-                        <p className="text-sm text-neutral-700 italic border-l-2 border-amber-300 pl-3 mb-3">
-                          &ldquo;{maker.tagline}&rdquo;
-                        </p>
-                      )}
-
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-600 mb-3">
-                        {(maker.city || maker.state) && (
-                          <span className="flex items-center gap-1">
-                            <MapPin size={12} className="shrink-0" />
-                            {[maker.city, maker.state].filter(Boolean).join(", ")}
+                      <div className="flex flex-wrap items-center gap-x-2 text-xs text-neutral-500">
+                        {alsoRating && alsoRating.count > 0 && (
+                          <span>
+                            ★ {(Math.round(alsoRating.avg * 10) / 10).toFixed(1)} ({alsoRating.count})
                           </span>
                         )}
-                        {rating && rating.count > 0 && (
-                          <span className="flex items-center gap-1">
-                            <StarsInline value={rating.avg} />
-                            <span>{(Math.round(rating.avg * 10) / 10).toFixed(1)}</span>
-                            <span className="text-neutral-500">({rating.count})</span>
-                          </span>
+                        {(also.city || also.state) && (
+                          <span>{[also.city, also.state].filter(Boolean).join(", ")}</span>
                         )}
-                      </div>
-
-                      {maker.bio && (
-                        <p className="text-sm text-neutral-700 line-clamp-2 mb-4">
-                          {truncateTextWithEllipsis(maker.bio, 140)}
-                        </p>
-                      )}
-
-                      {listings.length > 0 && (
-                        <div className="grid grid-cols-3 gap-2 mb-4">
-                          {listings.slice(0, 3).map((fl) => (
-                            <Link key={fl.id} href={publicListingPath(fl.id, fl.title)} className="block group">
-                              <div className="aspect-square overflow-hidden rounded-lg bg-white">
-                                <MediaImage
-                                  src={fl.photos[0]?.url ?? null}
-                                  alt={fl.photos[0]?.altText ?? fl.title}
-                                  loading="lazy"
-                                  className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                  fallbackClassName="h-full w-full bg-stone-100"
-                                />
-                              </div>
-                            </Link>
-                          ))}
-                        </div>
-                      )}
-
-                      <div className="mt-auto">
-                        <Link
-                          href={publicSellerPath(maker.id, maker.displayName)}
-                          className="inline-flex items-center rounded-md bg-[#2C1F1A] px-4 py-2 text-xs font-medium text-white hover:bg-[#3A2A24] transition-colors"
-                        >
-                          Visit Their Workshop →
-                        </Link>
                       </div>
                     </div>
-                  </article>
+                    <div className="ml-auto flex items-center gap-2">
+                      {meDbId !== also.userId && (
+                        <FollowButton
+                          sellerProfileId={also.id}
+                          sellerUserId={also.userId}
+                          initialFollowing={featuredFollowing.has(also.id)}
+                          initialCount={featuredFollowerCounts.get(also.id) ?? 0}
+                          size="sm"
+                        />
+                      )}
+                      <Link
+                        href={publicSellerPath(also.id, also.displayName)}
+                        className="rounded-full bg-[#EFEAE0] px-3.5 py-1.5 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
+                      >
+                        Visit shop →
+                      </Link>
+                    </div>
+                  </div>
                 );
-              })}
-            </div>
-          </ScrollSection>
-        )}
+              })()}
+            </ScrollSection>
+          );
+        })()}
 
         {/* ── New Arrivals ───────────────────────────────────────── */}
         <ScrollSection>

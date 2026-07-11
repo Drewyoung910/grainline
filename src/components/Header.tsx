@@ -481,8 +481,8 @@ export default function Header() {
             {/* Slim header row — no logo (it's already in the site header
                 next to the hamburger); saves height so more menu rows are
                 visible before scrolling. */}
-            <div className="flex items-center justify-between border-b border-stone-200/60 pl-5 pr-2 py-1">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
+            <div className="flex items-center justify-between bg-[#EFEAE0] border-b border-stone-200/60 pl-5 pr-2 py-1">
+              <span className="text-sm font-semibold">
                 Menu
               </span>
               <button
@@ -613,7 +613,7 @@ export default function Header() {
               {drawerNavFade && (
                 <div
                   aria-hidden="true"
-                  className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[#F7F5F0] to-transparent"
+                  className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#F7F5F0] via-[#F7F5F0]/75 to-transparent"
                 />
               )}
             </div>
