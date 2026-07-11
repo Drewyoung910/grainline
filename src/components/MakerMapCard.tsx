@@ -7,6 +7,7 @@
 // persisting public seller snapshots longer than the current map mount.
 import * as React from "react";
 import { publicSellerPath } from "@/lib/publicPaths";
+import { X } from "@/components/icons";
 
 export type MakerMapCardData = {
   id: string;
@@ -103,7 +104,7 @@ export default function MakerMapCard({
       role="dialog"
       aria-label={`${name} — maker details`}
       tabIndex={-1}
-      className="pointer-events-auto w-full overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 animate-menu-in motion-reduce:animate-none"
+      className="pointer-events-auto w-full overflow-hidden rounded-2xl bg-[#F7F5F0] shadow-2xl ring-1 ring-black/10 animate-menu-in motion-reduce:animate-none"
     >
       {/* Cover photo strip */}
       <div className="relative h-20 bg-[#EFEAE0]">
@@ -119,13 +120,13 @@ export default function MakerMapCard({
           aria-label="Close maker details"
           className="absolute right-1.5 top-1.5 inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors"
         >
-          <span aria-hidden="true">✕</span>
+          <X size={16} aria-hidden="true" />
         </button>
       </div>
 
       <div className="px-4 pb-4">
         {/* Avatar overlapping the cover */}
-        <div className="relative -mt-6 h-12 w-12 overflow-hidden rounded-full border-[3px] border-white bg-[#EFEAE0]">
+        <div className="relative -mt-6 h-12 w-12 overflow-hidden rounded-full border-[3px] border-[#F7F5F0] ring-1 ring-black/10 bg-[#EFEAE0]">
           {avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={avatarUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
@@ -136,7 +137,7 @@ export default function MakerMapCard({
           <span className="text-[15px] font-semibold leading-tight text-neutral-900">{name}</span>
           {(guildLevel === "GUILD_MEMBER" || guildLevel === "GUILD_MASTER") && (
             <span
-              className={`rounded-full bg-[#EFEAE0] px-2 py-0.5 text-[10px] font-semibold ${
+              className={`rounded-full bg-white ring-1 ring-stone-200/60 px-2 py-0.5 text-[10px] font-semibold ${
                 guildLevel === "GUILD_MASTER" ? "text-[#B8960C]" : "text-green-900"
               }`}
             >
@@ -156,8 +157,8 @@ export default function MakerMapCard({
 
         {loading ? (
           <div className="mt-2 space-y-1.5">
-            <div className="h-3 w-full animate-pulse rounded bg-[#EFEAE0]" />
-            <div className="h-3 w-2/3 animate-pulse rounded bg-[#EFEAE0]" />
+            <div className="h-3 w-full animate-pulse rounded bg-[#E3DCCB]" />
+            <div className="h-3 w-2/3 animate-pulse rounded bg-[#E3DCCB]" />
           </div>
         ) : loaded?.tagline ? (
           <p className="mt-1.5 line-clamp-2 text-xs text-neutral-600">{loaded.tagline}</p>

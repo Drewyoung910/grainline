@@ -32,6 +32,24 @@ export default function Header() {
   const [unreadNotifCount, setUnreadNotifCount] = React.useState(0);
   const [isLoggedIn, setIsLoggedIn] = React.useState(false);
   const drawerRef = React.useRef<HTMLDivElement>(null);
+  const drawerNavRef = React.useRef<HTMLElement>(null);
+  const [drawerNavFade, setDrawerNavFade] = React.useState(false);
+  // Bottom fade = "there's more below" affordance. Shown while the menu's
+  // scroll region overflows and isn't scrolled to the end.
+  const updateDrawerNavFade = React.useCallback(() => {
+    const el = drawerNavRef.current;
+    if (!el) return;
+    setDrawerNavFade(el.scrollHeight - el.scrollTop - el.clientHeight > 8);
+  }, []);
+  React.useEffect(() => {
+    if (!drawerOpen) return;
+    const measure = window.setTimeout(updateDrawerNavFade, 0);
+    window.addEventListener("resize", updateDrawerNavFade);
+    return () => {
+      window.clearTimeout(measure);
+      window.removeEventListener("resize", updateDrawerNavFade);
+    };
+  }, [drawerOpen, updateDrawerNavFade]);
   const drawerId = React.useId();
   const cartCountRequestRef = React.useRef(0);
   const cartCountAbortRef = React.useRef<AbortController | null>(null);
@@ -45,6 +63,7 @@ export default function Header() {
   // the menu never vanishes in a single frame.
   const drawerCloseTimerRef = React.useRef<number | null>(null);
   const closeDrawer = React.useCallback(() => {
+    if (!drawerOpen) return;
     setDrawerClosing((alreadyClosing) => {
       if (alreadyClosing) return alreadyClosing;
       drawerCloseTimerRef.current = window.setTimeout(() => {
@@ -54,7 +73,7 @@ export default function Header() {
       }, 160);
       return true;
     });
-  }, []);
+  }, [drawerOpen]);
   React.useEffect(() => {
     return () => {
       if (drawerCloseTimerRef.current !== null) {
@@ -80,7 +99,11 @@ export default function Header() {
 
     const canScrollDrawer = (target: EventTarget | null) => {
       const scrollRegion = drawerRef.current?.querySelector("[data-drawer-scroll-region]");
-      return target instanceof Node && Boolean(scrollRegion?.contains(target));
+      if (!(target instanceof Node) || !scrollRegion?.contains(target)) return false;
+      // Only allow the gesture when the region actually overflows. If it
+      // fits (taller PWA viewport), iOS would scroll-chain the gesture to
+      // the page behind — exactly the bug this guards against.
+      return scrollRegion.scrollHeight > scrollRegion.clientHeight + 1;
     };
     const preventBackgroundScroll = (event: Event) => {
       if (!canScrollDrawer(event.target)) event.preventDefault();
@@ -455,141 +478,145 @@ export default function Header() {
               drawerClosing ? "animate-menu-out pointer-events-none" : "animate-menu-in"
             }`}
           >
-            {/* Header strip — darker cream to anchor the drawer */}
-            <div className="flex items-center justify-between bg-[#EFEAE0] border-b border-stone-200/60 px-4 py-3">
-              <Link
-                href="/"
-                className="flex items-center"
-                aria-label="Grainline home"
-                onClick={closeDrawer}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="/logo-espresso.svg"
-                  alt="Grainline"
-                  className="h-6 w-auto"
-                />
-              </Link>
-              {/* X button: relative z-[60] ensures it's above the fixed backdrop */}
+            {/* Slim header row — no logo (it's already in the site header
+                next to the hamburger); saves height so more menu rows are
+                visible before scrolling. */}
+            <div className="flex items-center justify-between border-b border-stone-200/60 pl-5 pr-2 py-1">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
+                Menu
+              </span>
               <button
                 onClick={closeDrawer}
                 aria-label="Close menu"
                 className="relative z-[60] inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-600 hover:bg-black/10"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
             {/* Nav links */}
-            <nav data-drawer-scroll-region className="flex-1 overflow-y-auto overscroll-contain px-2 py-3">
-              <div className="px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
-                Explore
-              </div>
-              <Link
-                href="/browse"
-                className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
-                onClick={closeDrawer}
+            <div className="relative flex min-h-0 flex-1 flex-col">
+              <nav
+                ref={drawerNavRef}
+                data-drawer-scroll-region
+                onScroll={updateDrawerNavFade}
+                className="flex-1 overflow-y-auto overscroll-contain px-2 py-3"
               >
-                <Search size={18} className="text-neutral-500" />
-                Browse
-              </Link>
-              <Link
-                href="/blog"
-                className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
-                onClick={closeDrawer}
-              >
-                <Edit size={18} className="text-neutral-500" />
-                Blog
-              </Link>
-              <Link
-                href="/commission"
-                className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
-                onClick={closeDrawer}
-              >
-                <Hammer size={18} className="text-neutral-500" />
-                Commission Room
-              </Link>
-
-              <Show when="signed-in">
-                <div className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
-                  Your account
+                <div className="px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
+                  Explore
                 </div>
-
                 <Link
-                  href="/account"
+                  href="/browse"
                   className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
                   onClick={closeDrawer}
                 >
-                  <User size={18} className="text-neutral-500" />
-                  My Account
+                  <Search size={18} className="text-neutral-500" />
+                  Browse
                 </Link>
-
-                {/* Messages — single Link wrapping icon + text */}
                 <Link
-                  href="/messages"
+                  href="/blog"
                   className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
                   onClick={closeDrawer}
                 >
-                  <MessageCircle size={18} className="text-neutral-500" />
-                  Messages
+                  <Edit size={18} className="text-neutral-500" />
+                  Blog
                 </Link>
-
-                {/* Feed */}
                 <Link
-                  href="/account/feed"
+                  href="/commission"
                   className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
                   onClick={closeDrawer}
                 >
-                  <Rss size={18} className="text-neutral-500" />
-                  Your Feed
+                  <Hammer size={18} className="text-neutral-500" />
+                  Commission Room
                 </Link>
 
-                {/* Workshop — only for sellers; Start Selling otherwise */}
-                {hasSeller ? (
+                <Show when="signed-in">
+                  <div className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
+                    Your account
+                  </div>
+
                   <Link
-                    href="/dashboard"
+                    href="/account"
                     className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
                     onClick={closeDrawer}
                   >
-                    <Store size={18} className="text-neutral-500" />
-                    Workshop
+                    <User size={18} className="text-neutral-500" />
+                    My Account
                   </Link>
-                ) : (
-                  <Link
-                    href="/dashboard"
-                    className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] font-medium text-neutral-900 hover:bg-[#EFEAE0]"
-                    onClick={closeDrawer}
-                  >
-                    <Store size={18} className="text-neutral-500" />
-                    Start Selling
-                  </Link>
-                )}
 
-                {/* Admin (role-gated) */}
-                {(role === "EMPLOYEE" || role === "ADMIN") && (
+                  {/* Messages — single Link wrapping icon + text */}
                   <Link
-                    href="/admin"
+                    href="/messages"
                     className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
                     onClick={closeDrawer}
                   >
-                    <Shield size={18} className="text-neutral-500" />
-                    Admin
+                    <MessageCircle size={18} className="text-neutral-500" />
+                    Messages
                   </Link>
-                )}
-              </Show>
 
-              <Show when="signed-out">
-                <div className="px-3 pt-4">
+                  {/* Feed */}
                   <Link
-                    href="/sign-in"
-                    className="flex min-h-[44px] items-center justify-center rounded-full bg-[#2C1F1A] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#3A2A24] transition-colors"
+                    href="/account/feed"
+                    className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
                     onClick={closeDrawer}
                   >
-                    Sign in
+                    <Rss size={18} className="text-neutral-500" />
+                    Your Feed
                   </Link>
-                </div>
-              </Show>
-            </nav>
+
+                  {/* Workshop — only for sellers; Start Selling otherwise */}
+                  {hasSeller ? (
+                    <Link
+                      href="/dashboard"
+                      className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
+                      onClick={closeDrawer}
+                    >
+                      <Store size={18} className="text-neutral-500" />
+                      Workshop
+                    </Link>
+                  ) : (
+                    <Link
+                      href="/dashboard"
+                      className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] font-medium text-neutral-900 hover:bg-[#EFEAE0]"
+                      onClick={closeDrawer}
+                    >
+                      <Store size={18} className="text-neutral-500" />
+                      Start Selling
+                    </Link>
+                  )}
+
+                  {/* Admin (role-gated) */}
+                  {(role === "EMPLOYEE" || role === "ADMIN") && (
+                    <Link
+                      href="/admin"
+                      className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
+                      onClick={closeDrawer}
+                    >
+                      <Shield size={18} className="text-neutral-500" />
+                      Admin
+                    </Link>
+                  )}
+                </Show>
+
+                <Show when="signed-out">
+                  <div className="px-3 pt-4">
+                    <Link
+                      href="/sign-in"
+                      className="flex min-h-[44px] items-center justify-center rounded-full bg-[#2C1F1A] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#3A2A24] transition-colors"
+                      onClick={closeDrawer}
+                    >
+                      Sign in
+                    </Link>
+                  </div>
+                </Show>
+              </nav>
+              {drawerNavFade && (
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[#F7F5F0] to-transparent"
+                />
+              )}
+            </div>
 
             {/* Avatar + inline actions at bottom — no dropdown to avoid overflow-hidden clipping */}
             <Show when="signed-in">

@@ -148,6 +148,27 @@ export default function NotificationBell({
   const { isLoaded, isSignedIn } = useUser();
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
+  const [closing, setClosing] = React.useState(false);
+  // Animated close, matching the mobile menu: play the pop-out animation,
+  // then unmount, so the dropdown never vanishes in a single frame.
+  const closeTimerRef = React.useRef<number | null>(null);
+  const closeDropdown = React.useCallback(() => {
+    if (!open) return;
+    setClosing((alreadyClosing) => {
+      if (alreadyClosing) return alreadyClosing;
+      closeTimerRef.current = window.setTimeout(() => {
+        setOpen(false);
+        setClosing(false);
+        closeTimerRef.current = null;
+      }, 160);
+      return true;
+    });
+  }, [open]);
+  React.useEffect(() => {
+    return () => {
+      if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
+    };
+  }, []);
   const [notifications, setNotifications] = React.useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = React.useState(initialUnreadCount);
   const [loaded, setLoaded] = React.useState(false);
@@ -169,11 +190,16 @@ export default function NotificationBell({
     }
   }, [isLoaded, isSignedIn]);
 
-  // Open dropdown + load
+  // Toggle dropdown + load
   const handleOpen = React.useCallback(() => {
-    setOpen((prev) => !prev);
+    if (open) {
+      closeDropdown();
+      return;
+    }
+    setClosing(false);
+    setOpen(true);
     if (!loaded) fetchNotifications();
-  }, [loaded, fetchNotifications]);
+  }, [open, closeDropdown, loaded, fetchNotifications]);
 
   // Fetch on mount to populate unread count immediately
   React.useEffect(() => {
@@ -289,33 +315,33 @@ export default function NotificationBell({
   // Close on Escape
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") closeDropdown();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, []);
+  }, [closeDropdown]);
 
   // Close on outside click
   React.useEffect(() => {
     const onClick = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
+        closeDropdown();
       }
     };
     if (open) document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
-  }, [open]);
+  }, [open, closeDropdown]);
 
   React.useEffect(() => {
     if (!open) return;
     const onFocusIn = (e: FocusEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
+        closeDropdown();
       }
     };
     document.addEventListener("focusin", onFocusIn);
     return () => document.removeEventListener("focusin", onFocusIn);
-  }, [open]);
+  }, [open, closeDropdown]);
 
   const markAllRead = async () => {
     const previousNotifications = notifications;
@@ -352,7 +378,7 @@ export default function NotificationBell({
       }
     }
     if (path) {
-      setOpen(false);
+      closeDropdown();
       router.push(path);
     }
   };
@@ -381,7 +407,9 @@ export default function NotificationBell({
           id={dropdownId}
           role="dialog"
           aria-label="Notifications"
-          className="fixed right-3 top-14 md:absolute md:right-0 md:top-8 z-50 w-80 max-w-[calc(100vw-1.5rem)] rounded-2xl ring-1 ring-black/5 bg-white text-neutral-900 shadow-2xl overflow-y-auto max-h-[70vh]"
+          className={`fixed right-3 top-14 md:absolute md:right-0 md:top-8 z-50 w-80 max-w-[calc(100vw-1.5rem)] rounded-2xl ring-1 ring-black/5 bg-white text-neutral-900 shadow-2xl overflow-y-auto max-h-[70vh] motion-reduce:animate-none ${
+            closing ? "animate-menu-out pointer-events-none" : "animate-menu-in"
+          }`}
         >
           {/* Header */}
           <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
@@ -434,8 +462,8 @@ export default function NotificationBell({
           <div className="border-t border-neutral-100 px-4 py-2">
             <Link
               href="/dashboard/notifications"
-              onClick={() => setOpen(false)}
-              className="block text-center text-xs text-blue-600 hover:underline"
+              onClick={closeDropdown}
+              className="block text-center text-xs font-medium text-neutral-700 hover:text-neutral-900 hover:underline"
             >
               See all notifications
             </Link>
