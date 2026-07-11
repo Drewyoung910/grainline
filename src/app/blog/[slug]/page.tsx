@@ -259,7 +259,7 @@ export default async function BlogPostPage({
 
       {/* Title */}
       <div className="flex items-start gap-3 mb-6">
-        <h1 className="text-3xl sm:text-4xl font-bold text-neutral-900 leading-tight flex-1">{post.title}</h1>
+        <h1 className="font-display text-3xl sm:text-4xl font-semibold text-neutral-900 leading-tight flex-1">{post.title}</h1>
         <SaveBlogButton slug={slug} initialSaved={isSaved} />
       </div>
 

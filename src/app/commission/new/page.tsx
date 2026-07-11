@@ -62,7 +62,7 @@ export default function NewCommissionPage() {
   return (
     <main className="max-w-2xl mx-auto px-4 sm:px-6 pb-16 pt-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-neutral-900">Post a Commission Request</h1>
+        <h1 className="font-display text-2xl font-semibold text-neutral-900">Post a Commission Request</h1>
         <p className="text-sm text-neutral-500 mt-1">
           Describe the custom piece you&apos;re looking for. Interested makers will reach out to discuss.
         </p>

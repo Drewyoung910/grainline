@@ -516,7 +516,7 @@ export default async function BrowsePage({
                     <Link
                       key={t}
                       href={`/browse?q=${encodeURIComponent(t)}`}
-                      className="rounded-full border px-3 py-1 text-sm hover:bg-neutral-50"
+                      className="rounded-full bg-[#EFEAE0] px-3 py-1 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
                     >
                       #{t}
                     </Link>

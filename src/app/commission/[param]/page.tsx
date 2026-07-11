@@ -475,7 +475,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
       )}
 
       <div className="flex items-start justify-between gap-4 mb-6">
-        <h1 className="text-2xl font-bold text-neutral-900 flex-1">{request.title}</h1>
+        <h1 className="font-display text-2xl font-semibold text-neutral-900 flex-1">{request.title}</h1>
         {sellerProfileId && !isOwner && request.status === "OPEN" && (
           <CommissionInterestButton
             requestId={request.id}

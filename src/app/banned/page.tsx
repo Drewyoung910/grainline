@@ -17,7 +17,7 @@ export default function BannedPage() {
           className="h-8 w-auto mx-auto mb-8"
           style={{ filter: "brightness(0)" }}
         />
-        <h1 className="text-2xl font-semibold mb-3">Account suspended</h1>
+        <h1 className="font-display text-2xl font-semibold mb-3">Account suspended</h1>
         <p className="text-neutral-500 text-sm mb-6">
           Your account has been suspended for violating our Terms of Service.
           If you believe this is an error, submit a support request or data request for review.

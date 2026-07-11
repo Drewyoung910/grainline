@@ -13,7 +13,7 @@ export default function NotFound() {
     <main className="flex min-h-[60vh] flex-col items-center justify-center px-8 text-center space-y-6">
       <div className="text-neutral-500"><Logs size={48} /></div>
       <div className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight">
+        <h1 className="font-display text-3xl font-semibold tracking-tight">
           Looks like this page got sanded down.
         </h1>
         <p className="text-neutral-500 max-w-md mx-auto">

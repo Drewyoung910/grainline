@@ -332,7 +332,7 @@ export default async function MessagesPage({
                           </span>
                         ) : null}
                         {tab === "archived" ? (
-                          <span className="ml-2 rounded-full border px-2 py-[2px] text-[11px] text-neutral-600">
+                          <span className="ml-2 rounded-full bg-[#EFEAE0] px-2.5 py-[2px] text-[11px] font-medium text-neutral-600">
                             Archived
                           </span>
                         ) : null}

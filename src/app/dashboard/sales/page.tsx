@@ -58,7 +58,7 @@ export default async function SalesPage({
     return (
       <main className="mx-auto max-w-4xl p-8 space-y-6">
         <header>
-          <h1 className="text-2xl font-semibold">My sales</h1>
+          <h1 className="font-display text-2xl font-semibold">My sales</h1>
           <p className="text-sm text-neutral-600">Orders containing your listings.</p>
         </header>
         <section className="card-section p-8">
@@ -132,7 +132,7 @@ export default async function SalesPage({
   return (
     <main className="mx-auto max-w-7xl p-8 space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold">My sales</h1>
+        <h1 className="font-display text-2xl font-semibold">My sales</h1>
         <p className="text-sm text-neutral-600">Orders containing your listings.</p>
       </header>
 

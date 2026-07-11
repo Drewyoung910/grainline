@@ -531,7 +531,7 @@ export default async function NewListingPage({
         </div>
       )}
 
-      <h1 className="text-2xl font-semibold mb-6">Create a listing</h1>
+      <h1 className="font-display text-2xl font-semibold mb-6">Create a listing</h1>
 
       <ActionForm action={createListing} className="space-y-4" preventEnterSubmit preserveOnError>
         <div>

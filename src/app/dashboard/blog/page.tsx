@@ -66,7 +66,7 @@ export default async function DashboardBlogPage() {
     <main className="max-w-7xl mx-auto p-8">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold">My Blog Posts</h1>
+          <h1 className="font-display text-2xl font-semibold">My Blog Posts</h1>
           <p className="text-neutral-500 text-sm mt-0.5">
             {me.role === "EMPLOYEE" || me.role === "ADMIN" ? "Staff posts" : "Your maker posts"}
           </p>

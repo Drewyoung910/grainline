@@ -341,7 +341,7 @@ export default async function CustomListingPage({
 
   return (
     <div className="max-w-2xl mx-auto p-8">
-      <h1 className="text-2xl font-semibold mb-2">Create a Custom Listing</h1>
+      <h1 className="font-display text-2xl font-semibold mb-2">Create a Custom Listing</h1>
       <p className="text-sm text-neutral-500 mb-6">
         This listing will be private and reserved for{" "}
         <span className="font-medium">{sellerFacingUserLabel(buyer, "the buyer")}</span>. Once
@@ -386,7 +386,7 @@ export default async function CustomListingPage({
           <input
             name="title"
             required
-            className="w-full border rounded px-3 py-2"
+            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
             placeholder="e.g. Custom walnut dining table"
           />
         </div>
@@ -399,7 +399,7 @@ export default async function CustomListingPage({
             inputMode="decimal"
             pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
             required
-            className="w-full border rounded px-3 py-2"
+            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
           />
         </div>
 
@@ -408,7 +408,7 @@ export default async function CustomListingPage({
           <textarea
             name="description"
             rows={4}
-            className="w-full border rounded px-3 py-2 resize-none"
+            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm resize-none"
             placeholder="Describe what you're making and any specifics…"
           />
         </div>
@@ -434,7 +434,7 @@ export default async function CustomListingPage({
                 inputMode="decimal"
                 step="0.1"
                 min="0"
-                className="w-full border rounded px-3 py-2"
+                className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
                 placeholder="e.g. 24"
               />
             </label>
@@ -446,7 +446,7 @@ export default async function CustomListingPage({
                 inputMode="decimal"
                 step="0.1"
                 min="0"
-                className="w-full border rounded px-3 py-2"
+                className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
                 placeholder="e.g. 12"
               />
             </label>
@@ -458,7 +458,7 @@ export default async function CustomListingPage({
                 inputMode="decimal"
                 step="0.1"
                 min="0"
-                className="w-full border rounded px-3 py-2"
+                className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
                 placeholder="e.g. 8"
               />
             </label>
@@ -470,7 +470,7 @@ export default async function CustomListingPage({
                 inputMode="decimal"
                 step="0.1"
                 min="0"
-                className="w-full border rounded px-3 py-2"
+                className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
                 placeholder="e.g. 5.5"
               />
             </label>

@@ -53,7 +53,7 @@ export default function TermsPage() {
       {/* Header */}
       <div className="mb-10">
         <p className="text-sm text-neutral-500 mb-2">Legal</p>
-        <h1 className="text-4xl font-bold mb-2">Terms of Service</h1>
+        <h1 className="font-display text-4xl font-semibold mb-2">Terms of Service</h1>
         <p className="text-sm text-neutral-500">Last Updated: June 14, 2026</p>
 
         <div className="mt-6 rounded border border-red-300 bg-red-50 px-5 py-4 text-sm text-red-900">

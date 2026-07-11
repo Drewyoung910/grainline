@@ -75,7 +75,7 @@ export default async function CheckoutSuccessPage({
       return (
         <main className="mx-auto max-w-3xl p-8 space-y-6">
           <header className="space-y-1">
-            <h1 className="text-2xl font-semibold">Thanks for your purchase!</h1>
+            <h1 className="font-display text-2xl font-semibold">Thanks for your purchase!</h1>
             <p className="text-neutral-600 text-sm">
               {orders.length} {orders.length === 1 ? "order has" : "orders have"} been paid.
             </p>
@@ -264,7 +264,7 @@ export default async function CheckoutSuccessPage({
   return (
     <main className="mx-auto max-w-3xl p-8 space-y-6">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Thanks for your purchase!</h1>
+        <h1 className="font-display text-2xl font-semibold">Thanks for your purchase!</h1>
         <p className="text-neutral-600 text-sm">
           Order <span className="font-mono">#{order.id.slice(-8)}</span>{" "}
           {order.paidAt ? "has been paid." : "is pending."}

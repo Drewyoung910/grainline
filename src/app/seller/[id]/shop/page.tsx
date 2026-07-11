@@ -304,7 +304,7 @@ export default async function SellerShopPage({
 
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-xl font-semibold">
+            <h1 className="font-display text-xl font-semibold">
               {seller.displayName ? `${seller.displayName}'s Shop` : "Shop"}
             </h1>
             <GuildBadge level={seller.guildLevel} showLabel={true} size={36} />
@@ -343,10 +343,10 @@ export default async function SellerShopPage({
         <div className="flex overflow-x-auto gap-2 pb-1 flex-1 min-w-0">
           <Link
             href={shopUrl({ category: null, page: 1 })}
-            className={`shrink-0 rounded-full border px-3 py-1 text-sm font-medium transition-colors ${
+            className={`shrink-0 rounded-full px-3 py-1 text-sm font-medium transition-colors ${
               !category
-                ? "bg-neutral-900 text-white border-neutral-900"
-                : "border-neutral-300 text-neutral-700 hover:bg-neutral-50"
+                ? "bg-neutral-900 text-white"
+                : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
             }`}
           >
             All
@@ -355,10 +355,10 @@ export default async function SellerShopPage({
             <Link
               key={cat}
               href={shopUrl({ category: cat, page: 1 })}
-              className={`shrink-0 rounded-full border px-3 py-1 text-sm font-medium transition-colors ${
+              className={`shrink-0 rounded-full px-3 py-1 text-sm font-medium transition-colors ${
                 category === cat
-                  ? "bg-neutral-900 text-white border-neutral-900"
-                  : "border-neutral-300 text-neutral-700 hover:bg-neutral-50"
+                  ? "bg-neutral-900 text-white"
+                  : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
               }`}
             >
               {CATEGORY_LABELS[cat] ?? cat}
@@ -372,7 +372,7 @@ export default async function SellerShopPage({
 
       {tag && (
         <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-neutral-600">
-          <span className="rounded-full bg-stone-100 px-3 py-1">
+          <span className="rounded-full bg-[#EFEAE0] px-3 py-1">
             Tagged: {tag.replace(/[-_]/g, " ")}
           </span>
           <Link href={shopUrl({ tag: null, page: 1 })} className="text-amber-700 hover:underline">
@@ -388,10 +388,10 @@ export default async function SellerShopPage({
             <Link
               key={tab.value}
               href={shopUrl({ status: tab.value || null, page: 1 })}
-              className={`shrink-0 rounded-full border px-3 py-0.5 text-xs font-medium transition-colors ${
+              className={`shrink-0 rounded-full px-3 py-0.5 text-xs font-medium transition-colors ${
                 statusFilter === tab.value
-                  ? "bg-neutral-700 text-white border-neutral-700"
-                  : "border-neutral-300 text-neutral-600 hover:bg-neutral-50"
+                  ? "bg-neutral-900 text-white"
+                  : "bg-[#EFEAE0] text-neutral-700 hover:bg-[#E3DCCB]"
               }`}
             >
               {tab.label}
