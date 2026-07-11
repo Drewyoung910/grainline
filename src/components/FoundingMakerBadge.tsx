@@ -46,21 +46,40 @@ export default function FoundingMakerBadge({ number, showLabel = false, size = 2
     };
   }, [open]);
 
-  function handleOpen() {
+  const recomputeCoords = () => {
     const r = triggerRef.current?.getBoundingClientRect();
-    if (r) {
-      const popWidth = 280;
-      const scrollX = window.scrollX;
-      const scrollY = window.scrollY;
-      let left = r.left + scrollX + r.width / 2 - popWidth / 2;
-      const minLeft = 8;
-      const maxLeft = window.innerWidth + scrollX - popWidth - 8;
-      if (left < minLeft) left = minLeft;
-      if (left > maxLeft) left = maxLeft;
-      setCoords({ top: r.bottom + scrollY + 8, left, width: popWidth });
-    }
+    if (!r) return;
+    const popWidth = 280;
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    // clientWidth (not innerWidth) excludes the scrollbar, so a popup near
+    // the right edge can't spawn a horizontal scrollbar and shift the page.
+    const viewportW = document.documentElement.clientWidth;
+    let left = r.left + scrollX + r.width / 2 - popWidth / 2;
+    const minLeft = 8;
+    const maxLeft = viewportW + scrollX - popWidth - 8;
+    if (left < minLeft) left = minLeft;
+    if (left > maxLeft) left = maxLeft;
+    setCoords({ top: r.bottom + scrollY + 8, left, width: popWidth });
+  };
+
+  function handleOpen() {
+    recomputeCoords();
     setOpen(true);
   }
+
+  // Keep the popup glued to the badge while open — scroll-reveal animations
+  // and resizes can move the trigger after the initial measurement.
+  useEffect(() => {
+    if (!open) return;
+    const onMove = () => recomputeCoords();
+    window.addEventListener("scroll", onMove, { passive: true, capture: true });
+    window.addEventListener("resize", onMove);
+    return () => {
+      window.removeEventListener("scroll", onMove, { capture: true } as EventListenerOptions);
+      window.removeEventListener("resize", onMove);
+    };
+  }, [open]);
 
   return (
     <span className="relative inline-flex items-center gap-1.5">

@@ -20,6 +20,25 @@ interface Props {
 
 export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, hasSeller, dropDirection = "down" }: Props) {
   const [open, setOpen] = React.useState(false);
+  const [closing, setClosing] = React.useState(false);
+  // Animated close, matching the bell + mobile menu popovers.
+  const closeTimerRef = React.useRef<number | null>(null);
+  const closeMenu = React.useCallback(() => {
+    setClosing((alreadyClosing) => {
+      if (alreadyClosing) return alreadyClosing;
+      closeTimerRef.current = window.setTimeout(() => {
+        setOpen(false);
+        setClosing(false);
+        closeTimerRef.current = null;
+      }, 160);
+      return true;
+    });
+  }, []);
+  React.useEffect(() => {
+    return () => {
+      if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
+    };
+  }, []);
   const menuId = React.useId();
   const menuRef = React.useRef<HTMLDivElement>(null);
   const { signOut, openUserProfile } = useClerk();
@@ -28,38 +47,39 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
   // Close on navigation
   React.useEffect(() => {
     setOpen(false);
+    setClosing(false);
   }, [pathname]);
 
   // Click outside to close
   React.useEffect(() => {
     function onMouseDown(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpen(false);
+        closeMenu();
       }
     }
     document.addEventListener("mousedown", onMouseDown);
     return () => document.removeEventListener("mousedown", onMouseDown);
-  }, []);
+  }, [closeMenu]);
 
   // Escape to close
   React.useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") closeMenu();
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, []);
+  }, [closeMenu]);
 
   React.useEffect(() => {
     if (!open) return;
     function onFocusIn(e: FocusEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpen(false);
+        closeMenu();
       }
     }
     document.addEventListener("focusin", onFocusIn);
     return () => document.removeEventListener("focusin", onFocusIn);
-  }, [open]);
+  }, [open, closeMenu]);
 
   const handleOpenUserProfile = React.useCallback(() => {
     try {
@@ -69,21 +89,21 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
           variables: { colorBackground: "#ffffff" },
         },
       });
-      setOpen(false);
+      closeMenu();
     } catch (error) {
       console.warn("[user-avatar-menu] open user profile failed", error);
     }
-  }, [openUserProfile]);
+  }, [openUserProfile, closeMenu]);
 
   const handleSignOut = React.useCallback(async () => {
-    setOpen(false);
+    closeMenu();
     try {
       await signOut({ redirectUrl: "/" });
       clearSignedOutLocalAccountState();
     } catch (error) {
       console.warn("[user-avatar-menu] sign out failed", error);
     }
-  }, [signOut]);
+  }, [signOut, closeMenu]);
 
   const avatarSrc = avatarImageUrl ?? imageUrl ?? null;
   const displayName = name ?? "Account";
@@ -93,7 +113,7 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
     <div ref={menuRef} className="relative group">
       {!open && <IconHoverTip label="Account" />}
       <button
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => (open ? closeMenu() : setOpen(true))}
         className="block h-8 w-8 cursor-pointer overflow-hidden rounded-full bg-transparent p-0 ring-1 ring-black/10 hover:ring-2 hover:ring-black/20 shadow-sm hover:shadow-md transition-all"
         style={{ borderRadius: "9999px" }}
         aria-label="Account menu"
@@ -117,7 +137,7 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
         <div
           id={menuId}
           aria-label="Account"
-          className={`absolute right-0 z-[200] w-52 overflow-hidden rounded-2xl ring-1 ring-black/5 bg-white text-neutral-900 shadow-2xl animate-menu-in motion-reduce:animate-none ${dropDirection === "up" ? "bottom-full mb-2" : "top-full mt-2"}`}
+          className={`absolute right-0 z-[200] w-52 overflow-hidden rounded-2xl ring-1 ring-black/5 bg-white text-neutral-900 shadow-2xl motion-reduce:animate-none ${closing ? "animate-menu-out pointer-events-none" : "animate-menu-in"} ${dropDirection === "up" ? "bottom-full mb-2" : "top-full mt-2"}`}
         >
           {/* Header — avatar + name */}
           <div className="flex items-center gap-3 bg-[#EFEAE0] px-4 py-3 border-b border-stone-200/60">
@@ -140,7 +160,7 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
               <Link
                 href="/dashboard"
                 className="flex items-center px-4 py-2.5 text-sm font-medium text-neutral-900 hover:bg-neutral-50"
-                onClick={() => setOpen(false)}
+                onClick={closeMenu}
               >
                 Start Selling
               </Link>
@@ -148,7 +168,7 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
             <Link
               href="/account"
               className="flex items-center px-4 py-2.5 text-sm text-neutral-800 hover:bg-neutral-50"
-              onClick={() => setOpen(false)}
+              onClick={closeMenu}
             >
               My Account
             </Link>
@@ -156,7 +176,7 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
               <Link
                 href="/dashboard"
                 className="flex items-center px-4 py-2.5 text-sm text-neutral-800 hover:bg-neutral-50"
-                onClick={() => setOpen(false)}
+                onClick={closeMenu}
               >
                 Workshop
               </Link>
@@ -164,7 +184,7 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
             <Link
               href="/account/feed"
               className="flex items-center px-4 py-2.5 text-sm text-neutral-800 hover:bg-neutral-50"
-              onClick={() => setOpen(false)}
+              onClick={closeMenu}
             >
               Your Feed
             </Link>
@@ -172,7 +192,7 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
               <Link
                 href="/admin"
                 className="flex items-center px-4 py-2.5 text-sm text-neutral-800 hover:bg-neutral-50"
-                onClick={() => setOpen(false)}
+                onClick={closeMenu}
               >
                 Admin
               </Link>

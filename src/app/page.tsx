@@ -784,8 +784,14 @@ export default async function HomePage() {
           const spotlightListings = spotlightBlock.listings;
           const spotlightRating = sellerRatings.get(spotlight.id) ?? null;
           const spotlightAvatar = spotlight.avatarImageUrl ?? spotlight.user?.imageUrl ?? null;
+          // Image priority favors ratios that crop well in the tall slot:
+          // workshop (3:2), then the maker's best listing photo (4:5), then
+          // the 3:1 banner as a last resort before the gradient fallback.
           const spotlightImage =
-            spotlight.workshopImageUrl ?? spotlight.bannerImageUrl ?? featuredMakerFallbackImages[0];
+            spotlight.workshopImageUrl ??
+            spotlightListings[0]?.photos[0]?.url ??
+            spotlight.bannerImageUrl ??
+            featuredMakerFallbackImages[0];
           const spotlightStory = spotlight.storyBody ?? spotlight.bio ?? null;
           const memberSinceYear = new Date(spotlight.createdAt).getFullYear();
           const soldCount = spotlightStats?.soldCount ?? 0;
@@ -948,10 +954,10 @@ export default async function HomePage() {
                         loading="lazy"
                         width={40}
                         height={40}
-                        className="h-10 w-10 rounded-full object-cover ring-1 ring-black/10"
+                        className="h-10 w-10 rounded-full object-cover"
                       />
                     ) : (
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-200 text-sm font-bold text-amber-800 ring-1 ring-black/10">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-200 text-sm font-bold text-amber-800">
                         {avatarInitial(also.displayName, "M")}
                       </div>
                     )}

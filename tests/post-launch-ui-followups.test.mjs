@@ -548,7 +548,10 @@ describe("post-launch UI follow-ups", () => {
     assert.match(makerCard, /aria-label="Close maker details"/);
     assert.match(makerCard, /bg-\[#F7F5F0\]/);
     assert.match(makerCard, /border-\[#F7F5F0\]/);
-    assert.match(makerCard, /ring-1 ring-black\/10 bg-\[#EFEAE0\]/);
+    // Content avatars have NO hairline (Drew rejected them) — thick border
+    // matches the card background instead.
+    assert.match(makerCard, /border-\[3px\] border-\[#F7F5F0\] bg-\[#EFEAE0\]/);
+    assert.doesNotMatch(makerCard, /ring-1 ring-black\/10 bg-\[#EFEAE0\]/);
     assert.match(makerCard, /<X size=\{16\} aria-hidden="true" \/>/);
     assert.doesNotMatch(makerCard, /dangerouslySetInnerHTML|innerHTML/);
     assert.match(mapCardRoute, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
@@ -578,7 +581,8 @@ describe("post-launch UI follow-ups", () => {
     assert.match(similarMakers, /id: \{ notIn: \[sellerId, \.\.\.found\] \}/);
     assert.match(similarMakers, /take: MAX_SIMILAR_MAKERS/);
     assert.match(similarMakers, /\{ id: "asc" as const \}/);
-    assert.match(similarMakers, /ring-1 ring-black\/10 bg-white/);
+    assert.match(similarMakers, /border-\[3px\] border-\[#EFEAE0\] bg-white/);
+    assert.doesNotMatch(similarMakers, /ring-1 ring-black\/10 bg-white/);
     assert.doesNotMatch(similarMakers, /import GuildBadge|<GuildBadge/);
     assert.doesNotMatch(similarMakers, /lat: true|lng: true|radiusMeters: true/);
     assert.match(docs, /SimilarMakers[\s\S]*activeSellerProfileWhere\(\)[\s\S]*publicListingWhere\(\)[\s\S]*SellerProfile\.userId/);

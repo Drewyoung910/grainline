@@ -130,7 +130,7 @@ export default async function SimilarMakers({
                   )}
                 </div>
                 <div className="px-3 pb-3">
-                  <div className="relative -mt-5 h-10 w-10 overflow-hidden rounded-full border-[3px] border-[#EFEAE0] ring-1 ring-black/10 bg-white">
+                  <div className="relative -mt-5 h-10 w-10 overflow-hidden rounded-full border-[3px] border-[#EFEAE0] bg-white">
                     {avatar ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={avatar} alt="" loading="lazy" width={40} height={40} className="h-full w-full object-cover" />

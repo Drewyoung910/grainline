@@ -126,7 +126,7 @@ export default function MakerMapCard({
 
       <div className="px-4 pb-4">
         {/* Avatar overlapping the cover */}
-        <div className="relative -mt-6 h-12 w-12 overflow-hidden rounded-full border-[3px] border-[#F7F5F0] ring-1 ring-black/10 bg-[#EFEAE0]">
+        <div className="relative -mt-6 h-12 w-12 overflow-hidden rounded-full border-[3px] border-[#F7F5F0] bg-[#EFEAE0]">
           {avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={avatarUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
