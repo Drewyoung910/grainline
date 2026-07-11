@@ -76,6 +76,7 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
 - Upstash: production Redis database configured.
 - Sentry: production project receiving errors and source maps.
 - Sentry: cron monitors configured for every `vercel.json` cron; alert routing verified for `source=cron_ops_health` warnings, including completed-cron partial record failures, `AccountDeletionSideEffect` cleanup issues, direct-upload cleanup failures, and webhook failure spike messages.
+- Sentry: `npm run audit:sentry-crons` passes with live read-only Sentry credentials and a retained sanitized artifact for cron monitor coverage and alert-routing configuration. Keep separate dashboard screenshots or exported evidence for actual notification delivery tests.
 - UptimeRobot: monitoring `https://thegrainline.com/api/health`.
 - GitHub: branch protection on `main`, required CI, Dependabot alerts/updates, secret scanning/push protection where available, and CodeQL/code scanning where available.
 - Security disclosure: `/security` and `/.well-known/security.txt` are live; `security@thegrainline.com` mailbox routing verified.
@@ -96,6 +97,7 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
 - `STRIPE_MONEY_PROOF_CONFIRM=test-mode STRIPE_MONEY_PROOF_DB_CONFIRM=staging-or-local STRIPE_MONEY_PROOF_CONNECTED_ACCOUNT_ID="<acct_test...>" STRIPE_MONEY_PROOF_EVIDENCE_PATH="stripe-money-proof-evidence.json" npm run audit:stripe-money` (Stripe test mode plus staging/local DB only; writes sanitized money-movement evidence for refunds and label clawbacks)
 - `R2_UPLOAD_SMOKE_CONFIRM=write-delete R2_UPLOAD_SMOKE_EVIDENCE_PATH="r2-upload-smoke-evidence.json" npm run audit:r2-upload` (production-like R2 credentials; writes and deletes synthetic objects, verifies R2 metadata, public availability, public root listing behavior, and writes sanitized evidence)
 - `DEPLOYED_HEADERS_PROOF_CONFIRM=production-read DEPLOYED_HEADERS_PROOF_EVIDENCE_PATH="deployed-security-headers-evidence.json" npm run audit:deployed-headers` (production domain only; writes sanitized evidence for enforced root security headers and `/api/health` private cache/vary headers; does not replace securityheaders.com, SSL Labs, or hstspreload.org records)
+- `SENTRY_CRON_PROOF_CONFIRM=live-read SENTRY_ORG_SLUG="<org>" SENTRY_PROJECT_SLUG="<project>" SENTRY_CRON_PROOF_EVIDENCE_PATH="sentry-cron-alert-evidence.json" npm run audit:sentry-crons` (live Sentry read-only; verifies every `vercel.json` cron has a matching monitor and configured alert routing includes the launch-critical warning terms; does not replace dashboard evidence for delivered notifications)
 - `npx tsc --noEmit --incremental false`
 - `npm run lint`
 - `npm run build`
@@ -139,7 +141,7 @@ Record links/screenshots/dates for:
 - Clerk and Resend webhook delivery.
 - Cloudflare R2 public bucket-listing/ListBucket posture, bucket-level max object-size setting, CORS/public-domain settings, and upload smoke-test artifact from `npm run audit:r2-upload`.
 - Neon backup/PITR setting and most recent restore drill.
-- Sentry alert rules for CSP/script/frame violations, production error spikes, Sentry cron monitors, `source=cron_ops_health` warnings including completed-cron partial record failures, `AccountDeletionSideEffect` cleanup issues, direct-upload cleanup failures, and webhook failure spike messages.
+- Sentry alert rules for CSP/script/frame violations, production error spikes, Sentry cron monitors, `source=cron_ops_health` warnings including completed-cron partial record failures, `AccountDeletionSideEffect` cleanup issues, direct-upload cleanup failures, and webhook failure spike messages, including the read-only artifact from `npm run audit:sentry-crons` plus dashboard screenshots or exported notification-delivery evidence.
 - Google Search Console ownership verification and sitemap index submission.
 
 ## Business And Legal

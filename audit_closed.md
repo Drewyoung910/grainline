@@ -14581,6 +14581,77 @@ guardrails. Deferred stays flat because the live provider artifact and separate
 signing-secret matching evidence still must be generated and retained before
 launch.
 
+### Entry 534 - Sentry cron alert proof harness
+
+Entry 534 moves the Sentry cron alerting launch blocker forward without
+claiming live Sentry evidence or delivered-notification evidence is complete.
+This pass adds a read-only Sentry provider harness for monitor and alert-routing
+configuration. It does not replace dashboard screenshots or exported evidence
+that actual notifications were delivered to the intended channel.
+
+Fixed/reduced:
+
+- Added `scripts/sentry-cron-alert-proof.mjs` and the
+  `npm run audit:sentry-crons` command. The script fails closed unless
+  `SENTRY_CRON_PROOF_CONFIRM=live-read`, `SENTRY_AUTH_TOKEN`,
+  `SENTRY_ORG_SLUG`, `SENTRY_PROJECT_SLUG`, and an in-repo
+  `SENTRY_CRON_PROOF_EVIDENCE_PATH` are provided. The base Sentry URL must be
+  HTTPS and defaults to `https://sentry.io`.
+- The harness derives its expected monitor inventory directly from
+  `vercel.json`, using each cron path's final segment as the monitor slug. It
+  reads Sentry organization monitors through the provider API and requires every
+  Vercel cron to have exactly one enabled matching monitor with the same
+  crontab schedule.
+- The harness reads Sentry workflows, detectors, and legacy project issue-alert
+  rules as available, then requires enabled alert-routing configuration with a
+  notification action and the launch-critical terms `cron_ops_health`,
+  `AccountDeletionSideEffect`, `direct-upload`, webhook failure spike, and CSP.
+  This reduces the chance of recording only generic monitor existence while
+  missing the warning paths called out in the launch checklist.
+- The retained evidence payload records monitor ids/slugs, schedules, alert
+  configuration summaries, matched terms, commit/run ids, and provider target
+  slugs. It redacts Sentry auth tokens, DSNs, proof env assignments, bearer
+  tokens, and URL userinfo.
+- Updated `docs/runbook.md`, `docs/launch-checklist.md`,
+  `docs/deferred-launch-backlog.md`, and `CLAUDE.md` so future agents do not
+  close Sentry cron alerting from source `withSentryCronMonitor()` calls or
+  local cron tests alone.
+
+Guardrails added/reviewed:
+
+- Added `tests/sentry-cron-alert-proof.test.mjs` to pin the npm command,
+  live-read confirmation, required Sentry envs, HTTPS base URL, in-repo evidence
+  path, Vercel cron inventory derivation, monitor/workflow/detector/issue-rule
+  API usage, monitor schedule validation, notification-action requirement,
+  launch alert terms, redaction behavior, and doc caveats.
+- Reviewed adjacent guardrails in `tests/cron-schedule-guardrails.test.mjs`,
+  `tests/cron-monitor-state.test.mjs`,
+  `tests/retention-and-ops-followups.test.mjs`, and
+  `tests/deferred-launch-backlog.test.mjs`.
+
+Verification:
+`git status --short`; Sentry API documentation review for organization monitors,
+workflows/detectors, and project issue-alert rules; source inspection of
+`vercel.json`, `src/lib/cronMonitor.ts`, and `/api/cron/ops-health`; `node
+--check scripts/sentry-cron-alert-proof.mjs`; import check `node
+--disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types -e
+'await import("./scripts/sentry-cron-alert-proof.mjs")'`; focused `node
+--disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/sentry-cron-alert-proof.test.mjs
+tests/cron-schedule-guardrails.test.mjs tests/cron-monitor-state.test.mjs
+tests/retention-and-ops-followups.test.mjs
+tests/deferred-launch-backlog.test.mjs tests/audit-ledger-coupling.test.mjs`
+passed 28/28; `npx tsc --noEmit`; and `git diff --check`. The live
+`npm run audit:sentry-crons` proof was not run locally because live Sentry
+credentials and delivered-notification evidence were not present.
+
+Current running tally after Entry 534: verified fixed/reduced 1036, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the Sentry cron alert proof harness and guardrails.
+Deferred stays flat because the live provider artifact and notification-delivery
+evidence still must be generated and retained before launch.
+
 ### Entry 522 - RLS evidence quoted-key redaction guardrail
 
 Entry 522 reviewed Claude's residual redaction note as another junior-review

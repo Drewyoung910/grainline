@@ -154,6 +154,29 @@ High-risk secrets:
 - `ADMIN_PIN`, `ADMIN_PIN_SHA256_BY_CLERK_ID`, `ADMIN_PIN_COOKIE_SECRET`, `UPLOAD_VERIFICATION_SECRET`, `UNSUBSCRIBE_SECRET`, and `HEALTH_CHECK_TOKEN`.
 - `SENTRY_AUTH_TOKEN`, `SENTRY_DSN`, and `NEXT_PUBLIC_SENTRY_DSN`.
 
+## Sentry Cron And Alert Proof
+
+Pre-launch Sentry cron/alert proof:
+
+- Run only with a read-only Sentry token that can list monitors, workflows,
+  detectors, and issue alert rules for the production project.
+- Required inputs:
+  - `SENTRY_AUTH_TOKEN`
+  - `SENTRY_ORG_SLUG`
+  - `SENTRY_PROJECT_SLUG`
+  - `SENTRY_CRON_PROOF_CONFIRM=live-read`
+  - `SENTRY_CRON_PROOF_EVIDENCE_PATH=sentry-cron-alert-evidence.json`
+- Command:
+  `SENTRY_CRON_PROOF_CONFIRM=live-read SENTRY_ORG_SLUG="<org>" SENTRY_PROJECT_SLUG="<project>" SENTRY_CRON_PROOF_EVIDENCE_PATH="sentry-cron-alert-evidence.json" npm run audit:sentry-crons`.
+- Retain the sanitized JSON artifact with launch evidence. A passing run proves
+  every `vercel.json` cron has an enabled Sentry monitor with the matching
+  crontab schedule, and that enabled Sentry alert/workflow configuration includes
+  notification routing plus the launch terms `cron_ops_health`,
+  `AccountDeletionSideEffect`, `direct-upload`, webhook failure spike, and CSP.
+- This proof reads Sentry monitor and alert configuration only; it does not
+  replace dashboard screenshots or exported evidence for actual notification
+  delivery tests.
+
 ## Webhook Recovery
 
 Stripe:
