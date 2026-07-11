@@ -18303,3 +18303,46 @@ stale/false-positive/current 579, deferred product/design/ops/legal 87,
 approximate raw allegations left from current max #1126: 0. Fixed/reduced
 increases by two for the stale BlogCommentForm focus contract and the
 GiftNoteSection label/counter accessibility gap. Deferred stays flat.
+
+### Entry 550 - Fable design-consistency sweep 2e2002ce recheck
+
+Entry 550 continues the parent review of the Fable UI modernization commits,
+covering `2e2002ce` (`fix: design-consistency sweep — pills, inputs,
+font-display h1s`) against current `main`. The broad sweep was mostly
+class-only and still matches the current design direction: remaining page h1s
+use `font-display`, blog/share/search/seller-shop pills use the cream pill
+language, the custom-listing form inputs use the rounded-md neutral-border
+style, and admin/status amber or warning colors remain semantic rather than
+primary action styling.
+
+One current-state issue remained: the seller shop "Clear tag" action still used
+`text-amber-700`, contradicting the later amber-is-highlight-only contract that
+action links should be neutral/espresso/cream rather than amber.
+
+Fixed/reduced:
+
+- Changed the seller shop "Clear tag" action to a neutral underlined action
+  link (`text-neutral-700 underline hover:text-neutral-900`).
+- Added a source guard beside the seller-shop tag-query tests to require the
+  neutral clear-tag action and reject the old amber action-link pattern.
+
+Guardrails added/reviewed:
+
+- Extended `tests/seller-page-performance.test.mjs` so the existing seller shop
+  tag-query guard also pins the clear-tag UI contract.
+- Re-ran adjacent seller-shop, post-launch UI, and public visibility guardrails
+  to ensure the style fix did not disturb tag filtering, blocked-viewer
+  visibility, or seller-shop query grouping.
+
+Verification:
+`git status --short`; source/docs/test inspection with `git show`, `rg`, and
+`sed`; focused `node --test tests/seller-page-performance.test.mjs
+tests/post-launch-ui-followups.test.mjs tests/public-visibility-followups.test.mjs`
+passed 62/62; `npx tsc --noEmit` passed; `npm run lint` passed with the known
+jsx-ast-utils TS non-null warning; and `git diff --check` passed.
+
+Current running tally after Entry 550: verified fixed/reduced 1055, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the remaining seller-shop amber action link. Deferred
+stays flat.

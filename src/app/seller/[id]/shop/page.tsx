@@ -375,7 +375,7 @@ export default async function SellerShopPage({
           <span className="rounded-full bg-[#EFEAE0] px-3 py-1">
             Tagged: {tag.replace(/[-_]/g, " ")}
           </span>
-          <Link href={shopUrl({ tag: null, page: 1 })} className="text-amber-700 hover:underline">
+          <Link href={shopUrl({ tag: null, page: 1 })} className="text-neutral-700 underline hover:text-neutral-900">
             Clear tag
           </Link>
         </div>

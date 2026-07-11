@@ -84,6 +84,10 @@ describe("seller public page query guardrails", () => {
     assert.match(sellerShopPage, /publicListingWhere\(\{ sellerId, \.\.\.categoryFilter, \.\.\.tagFilter \}\)/);
     assert.match(sellerShopPage, /if \(t\) params\.set\("tag", t\)/);
     assert.match(sellerShopPage, /Tagged: \{tag\.replace/);
+    assert.match(sellerShopPage, /Clear tag/);
+    assert.match(sellerShopPage, /text-neutral-700 underline hover:text-neutral-900[\s\S]{0,120}Clear tag/);
+    assert.doesNotMatch(sellerShopPage, /text-amber-700[\s\S]{0,120}Clear tag/);
+    assert.doesNotMatch(sellerShopPage, /Clear tag[\s\S]{0,120}text-amber-700/);
     assert.match(sortSelect, /tag: string \| null/);
     assert.match(sortSelect, /if \(tag\) params\.set\("tag", tag\)/);
   });
