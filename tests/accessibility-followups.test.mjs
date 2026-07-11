@@ -290,15 +290,21 @@ describe("accessibility follow-ups", () => {
     assert.doesNotMatch(source("src/components/VariantSelector.tsx"), /text-amber-600">Please select/);
   });
 
-  it("makes background content inert while the mobile drawer is open", () => {
+  it("keeps the mobile menu a repaint-safe popover (no modal inert, no painted backdrop)", () => {
     const header = source("src/components/Header.tsx");
 
-    assert.match(header, /const main = document\.getElementById\("main-content"\)/);
-    assert.match(header, /main\.setAttribute\("inert", ""\)/);
-    assert.match(header, /main\.setAttribute\("aria-hidden", "true"\)/);
-    assert.match(header, /main\.removeAttribute\("inert"\)/);
-    assert.match(header, /main\.removeAttribute\("aria-hidden"\)/);
-    assert.match(header, /\}, \[drawerOpen\]\)/);
+    // The menu is a popover like NotificationBell, NOT a modal. Toggling
+    // inert/aria-hidden on #main-content and compositing a painted
+    // full-screen backdrop both caused visible flashes on mobile
+    // open/close/navigation. Popover contract: transparent click-catcher,
+    // focus moves to the card on open, blur outside closes, Escape closes.
+    assert.doesNotMatch(header, /setAttribute\("inert"/);
+    assert.doesNotMatch(header, /aria-modal="true"/);
+    assert.doesNotMatch(header, /bg-black\/30/);
+    assert.match(header, /className="fixed inset-0 z-\[1000\] touch-none"/);
+    assert.match(header, /drawerRef\.current\?\.focus\(\)/);
+    assert.match(header, /onBlur=\{/);
+    assert.match(header, /!drawerRef\.current\.contains\(e\.relatedTarget\)/);
   });
 
   it("contains mobile drawer scrolling without pinning the document body", () => {

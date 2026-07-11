@@ -12,7 +12,6 @@ import UserAvatarMenu from "@/components/UserAvatarMenu";
 import { MessageCircle, ShoppingBag, Menu, X, Search, Rss, User, Store, Shield, Edit, Hammer } from "@/components/icons";
 import { anonymousCartCount } from "@/lib/anonymousCart";
 import { subscribeCartUpdated } from "@/lib/cartEvents";
-import { useDialogFocus } from "@/lib/dialogFocus";
 import { clearSignedOutLocalAccountState } from "@/lib/localAccountState";
 import { avatarInitial } from "@/lib/avatarInitials";
 
@@ -63,29 +62,16 @@ export default function Header() {
     };
   }, []);
 
-  useDialogFocus(drawerOpen, drawerRef, closeDrawer, {
-    initialFocus: "container",
-  });
-
+  // Popover focus, matching NotificationBell: move focus onto the card when
+  // it opens, close it when keyboard focus leaves (see onBlur on the panel),
+  // and let Escape close via the shared key handler below. Deliberately NO
+  // focus trap and NO inert/aria-hidden toggling on #main-content — this is
+  // a popover, not a modal, and flipping inert on the whole page forced
+  // full-page recalcs that flashed on mobile open/close/navigation.
   React.useEffect(() => {
     if (!drawerOpen) return;
-
-    const main = document.getElementById("main-content");
-    if (!main) return;
-
-    const hadInert = main.hasAttribute("inert");
-    const previousAriaHidden = main.getAttribute("aria-hidden");
-    main.setAttribute("inert", "");
-    main.setAttribute("aria-hidden", "true");
-
-    return () => {
-      if (!hadInert) main.removeAttribute("inert");
-      if (previousAriaHidden === null) {
-        main.removeAttribute("aria-hidden");
-      } else {
-        main.setAttribute("aria-hidden", previousAriaHidden);
-      }
-    };
+    const focusTimer = window.setTimeout(() => drawerRef.current?.focus(), 0);
+    return () => window.clearTimeout(focusTimer);
   }, [drawerOpen]);
 
   React.useEffect(() => {
@@ -431,11 +417,13 @@ export default function Header() {
       {/* ── Mobile drawer ─────────────────────────────────────────────── */}
       {drawerOpen && (
         <>
-          {/* Backdrop — z-[1000] within header's z-[50] stacking context beats any sticky element */}
+          {/* Click-catcher — TRANSPARENT on purpose. A painted full-screen
+              overlay (bg-black/30) compositing in/out is what made mobile
+              Safari's top/bottom browser bars flash on open, close, and
+              navigation; the notifications popover has no painted backdrop
+              and no flash. touch-none still swallows scroll gestures here. */}
           <div
-            className={`fixed inset-0 z-[1000] bg-black/30 touch-none overscroll-contain motion-reduce:animate-none ${
-              drawerClosing ? "animate-backdrop-out" : "animate-backdrop-in"
-            }`}
+            className="fixed inset-0 z-[1000] touch-none"
             onClick={closeDrawer}
             aria-hidden="true"
           />
@@ -444,9 +432,20 @@ export default function Header() {
           <div
             ref={drawerRef}
             role="dialog"
-            aria-modal="true"
             aria-label="Main navigation"
             tabIndex={-1}
+            onBlur={(e) => {
+              // Close when keyboard focus leaves the popover (popover
+              // pattern). relatedTarget is null for pointer taps on
+              // non-focusable areas — the click-catcher handles those.
+              if (
+                e.relatedTarget instanceof Node &&
+                drawerRef.current &&
+                !drawerRef.current.contains(e.relatedTarget)
+              ) {
+                closeDrawer();
+              }
+            }}
             className={`fixed right-3 top-14 z-[1001] flex w-64 max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-4.5rem)] flex-col rounded-2xl bg-[#F7F5F0] shadow-2xl ring-1 ring-black/5 overflow-hidden overscroll-contain outline-none motion-reduce:animate-none ${
               drawerClosing ? "animate-menu-out pointer-events-none" : "animate-menu-in"
             }`}
