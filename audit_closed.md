@@ -17991,3 +17991,49 @@ stale/false-positive/current 579, deferred product/design/ops/legal 87,
 approximate raw allegations left from current max #1126: 0. Fixed/reduced
 increases by two for the real drawer scroll-containment regression and the
 unsupported public-copy claims. Deferred stays flat.
+
+### Entry 544 - RLS context evidence inventory shape
+
+Entry 544 continues the launch-evidence inventory work while reviewing the
+next RLS staging gate path. The RLS context acceptance gate writes retained
+evidence with a nested `run` object for `status` and `commitSha`, plus nested
+`result.issues`, while the final launch inventory common machine-artifact
+validator only accepted top-level `status`, `commitSha`, and `issues`. That
+made a valid RLS staging evidence artifact fail the conditional launch
+inventory check, and could also miss retained nested issues if future mixed
+payloads carried an empty top-level issue list.
+
+Fixed/reduced:
+
+- Updated the launch evidence inventory validator to accept the current RLS
+  context-gate artifact shape: `run.status`, `run.commitSha`, and
+  `result.issues`.
+- Kept the validator conservative by combining top-level `issues` and nested
+  `result.issues` instead of preferring one location, so retained issues remain
+  visible in mixed or future payload shapes.
+- Verified this is inventory compatibility only. Production RLS is still not
+  enabled, no customer-table policy migration was added, and the staging
+  context gate still needs to be run against production-like Neon before first
+  policy rollout.
+
+Guardrails added/reviewed:
+
+- Extended `tests/launch-evidence-inventory.test.mjs` to require the actual
+  nested RLS context-gate payload shape to pass final inventory validation.
+- Added a regression case proving nested retained issues are still rejected
+  even when a top-level `issues: []` field is present.
+- Re-ran the adjacent RLS context-gate guardrails to keep the inventory fix
+  aligned with the producer script.
+
+Verification:
+`git status --short`; source/test inspection with `rg`/`sed`; `node --test
+tests/launch-evidence-inventory.test.mjs tests/rls-context-gate.test.mjs`
+passed 18/19 with the expected local skip for the GitHub Actions Postgres-only
+RLS integration; `node --check scripts/launch-evidence-inventory.mjs` passed;
+`npx tsc --noEmit` passed; and `git diff --check` passed.
+
+Current running tally after Entry 544: verified fixed/reduced 1046, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the launch-inventory/RLS-evidence schema mismatch.
+Deferred stays flat.

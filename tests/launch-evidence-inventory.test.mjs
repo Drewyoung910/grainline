@@ -91,6 +91,7 @@ describe("launch evidence inventory", () => {
     const stripeMoney = MACHINE_ARTIFACTS.find((artifact) => artifact.id === "stripe-money-movement");
     const buyerReplay = MACHINE_ARTIFACTS.find((artifact) => artifact.id === "buyer-deletion-replay");
     const r2 = MACHINE_ARTIFACTS.find((artifact) => artifact.id === "r2-upload-smoke");
+    const rls = MACHINE_ARTIFACTS.find((artifact) => artifact.id === "rls-context-gate");
 
     assert.deepEqual(
       evaluateMachineArtifact(stripeMoney, {
@@ -161,6 +162,32 @@ describe("launch evidence inventory", () => {
         checks: r2.requiredCheckNames.map((name) => ({ name })),
       }),
       [],
+    );
+
+    assert.deepEqual(
+      evaluateMachineArtifact(rls, {
+        generatedAt: "2026-07-11T00:00:00.000Z",
+        run: { commitSha: "abc123", status: "passed" },
+        result: { issues: [] },
+      }),
+      [],
+    );
+    assert.match(
+      evaluateMachineArtifact(rls, {
+        generatedAt: "2026-07-11T00:00:00.000Z",
+        issues: [],
+        run: { commitSha: "abc123", status: "passed" },
+        result: { issues: ["context leaked"] },
+      }).join("; "),
+      /artifact contains retained issues/,
+    );
+    assert.match(
+      evaluateMachineArtifact(rls, {
+        generatedAt: "2026-07-11T00:00:00.000Z",
+        run: { commitSha: "abc123", status: "passed" },
+        result: { issues: ["context leaked"] },
+      }).join("; "),
+      /artifact contains retained issues/,
     );
   });
 

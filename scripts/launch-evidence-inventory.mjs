@@ -250,10 +250,16 @@ function normalizeIssues(values) {
 
 function commonPayloadIssues(payload) {
   const issues = [];
-  if (payload?.status !== "passed") issues.push(`status must be passed, got ${payload?.status ?? "missing"}`);
+  const status = payload?.status ?? payload?.run?.status;
+  const commitSha = payload?.commitSha ?? payload?.run?.commitSha;
+  const retainedIssues = [
+    ...(Array.isArray(payload?.issues) ? payload.issues : []),
+    ...(Array.isArray(payload?.result?.issues) ? payload.result.issues : []),
+  ];
+  if (status !== "passed") issues.push(`status must be passed, got ${status ?? "missing"}`);
   if (!payload?.generatedAt && !payload?.completedAt) issues.push("generatedAt/completedAt timestamp missing");
-  if (!payload?.commitSha) issues.push("commitSha missing");
-  if (Array.isArray(payload?.issues) && payload.issues.length > 0) {
+  if (!commitSha) issues.push("commitSha missing");
+  if (retainedIssues.length > 0) {
     issues.push("artifact contains retained issues");
   }
   return issues;
