@@ -17521,3 +17521,64 @@ stale/false-positive/current 579, deferred product/design/ops/legal 87,
 approximate raw allegations left from current max #1126: 0. Tally counts stay
 flat because this was a ledger-ordering repair, not a new source or provider
 finding closure.
+
+### Entry 536 - shipping currency drift proof harness
+
+Entry 536 moves the historical seller shipping-rate currency drift conditional
+blocker forward without claiming source review alone closes the live-data item.
+Current source already binds newly signed shipping rates to server-derived
+listing/cart currency, but historical listing/order/quote rows still need a
+data scan before launch. This pass adds that read-only proof harness and keeps
+the official closure criteria tied to a retained production-data artifact.
+
+Fixed/reduced:
+
+- Added `scripts/shipping-currency-drift-proof.mjs` and the
+  `npm run audit:shipping-currency` command. The script fails closed unless
+  `SHIPPING_CURRENCY_PROOF_CONFIRM=read-only`, `DATABASE_URL`, and an in-repo
+  `SHIPPING_CURRENCY_PROOF_EVIDENCE_PATH` are provided. Allowed currencies
+  default to `usd` for the current launch posture.
+- The harness scans listing and order currency distributions, non-allowed
+  listing/order currencies, currency-less seller flat-rate/free-shipping
+  settings attached to non-allowed or mixed listing currencies, non-allowed
+  paid shipping or label-cost orders, and persisted
+  `OrderShippingRateQuote.rates` JSON whose rate currency disagrees with the
+  parent order currency.
+- The retained evidence payload records counts plus hashed sample identifiers
+  only. It redacts database URLs, database/proof env assignments, password-like
+  fragments, bearer tokens, and URL userinfo.
+- Updated `docs/runbook.md`, `docs/launch-checklist.md`,
+  `docs/deferred-launch-backlog.md`, and `CLAUDE.md` so future agents do not
+  close historical shipping-rate currency drift from current source guards
+  alone.
+
+Guardrails added/reviewed:
+
+- Added `tests/shipping-currency-drift-proof.test.mjs` to pin the npm command,
+  explicit read-only confirmation, required envs, in-repo evidence path,
+  allowed-currency parsing, Prisma adapter initialization, scanned drift
+  surfaces, hashed samples, redaction behavior, and docs/backlog coupling.
+- Reviewed adjacent shipping guardrails in `tests/shipping-token.test.mjs` and
+  `tests/shipping-quote-state.test.mjs`.
+
+Verification:
+`git status --short`; source/docs/test inspection with `rg`/`sed`; `node
+--check scripts/shipping-currency-drift-proof.mjs`; import check `node
+--disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types -e
+'await import("./scripts/shipping-currency-drift-proof.mjs")'`; focused `node
+--disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/shipping-currency-drift-proof.test.mjs tests/shipping-token.test.mjs
+tests/shipping-quote-state.test.mjs tests/deferred-launch-backlog.test.mjs
+tests/retention-and-ops-followups.test.mjs` passed 44/44; and a read-only run
+against the locally configured Neon database passed with 0 actionable findings
+and only `usd` listing/order currencies in the retained ignored local artifact.
+The local run also confirmed the real SQL path; a retained production launch
+artifact should still be generated through the runbook/checklist if this local
+database is not the official production evidence source.
+
+Current running tally after Entry 536: verified fixed/reduced 1037, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the shipping currency drift proof harness and guardrails.
+Deferred stays flat because the retained production-data artifact or written
+not-applicable launch evidence still must be kept with launch records.

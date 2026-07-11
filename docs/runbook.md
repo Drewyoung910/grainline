@@ -65,6 +65,28 @@ Pre-launch deployed security headers proof:
   hstspreload.org evidence. Keep those external scanner and preload-list
   records with the same launch evidence bundle.
 
+Pre-launch shipping-rate currency drift proof:
+
+- Run against production data before launch, and again after any migration or
+  backfill that changes listing/order currencies, seller shipping settings, or
+  persisted Shippo rate quotes.
+- The current launch posture is USD-only for seller flat-rate/free-shipping
+  settings. Leave `SHIPPING_CURRENCY_PROOF_ALLOWED_CURRENCIES` unset unless a
+  deliberate multi-currency launch decision has been documented.
+- Required inputs:
+  - `DATABASE_URL`
+  - `SHIPPING_CURRENCY_PROOF_CONFIRM=read-only`
+  - `SHIPPING_CURRENCY_PROOF_EVIDENCE_PATH=shipping-currency-drift-evidence.json`
+- Command:
+  `SHIPPING_CURRENCY_PROOF_CONFIRM=read-only SHIPPING_CURRENCY_PROOF_EVIDENCE_PATH="shipping-currency-drift-evidence.json" npm run audit:shipping-currency`.
+- Retain the sanitized JSON artifact with launch records. The artifact records
+  allowed currencies, listing/order currency counts, hashed sample ids for any
+  non-allowed or mixed-currency seller shipping rows, non-allowed paid shipping
+  or label-cost orders, and persisted Shippo quote currency mismatches.
+- A failing run means affected rows need reconciliation or a written launch
+  decision before accepting live marketplace transactions. Do not close this
+  item from source review alone.
+
 Every incident note should include: start time, affected surface, current deploy SHA, primary request IDs, customer-visible impact, mitigation, owner, and follow-up issue.
 
 ## Security Incident Addendum

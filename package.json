@@ -16,6 +16,7 @@
     "audit:r2-upload": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/r2-upload-smoke.mjs",
     "audit:deployed-headers": "node scripts/deployed-security-headers-proof.mjs",
     "audit:sentry-crons": "node scripts/sentry-cron-alert-proof.mjs",
+    "audit:shipping-currency": "node scripts/shipping-currency-drift-proof.mjs",
     "start": "next start",
     "lint": "eslint",
     "seed:metros": "node --env-file=.env --experimental-strip-types prisma/seeds/metros.ts"
