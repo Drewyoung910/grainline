@@ -217,7 +217,7 @@ export default function MarkdownToolbar({
               value={linkUrl}
               onChange={(event) => setLinkUrl(event.target.value)}
               placeholder="https://example.com"
-              className="h-8 w-44 rounded-md border border-neutral-300 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+              className="h-8 w-44 rounded-md border border-neutral-300 bg-white px-2 text-sm"
             />
             <button
               type="submit"

@@ -216,7 +216,7 @@ export default function OnboardingWizard({
   }
 
   const inputClass =
-    "w-full rounded-md border border-neutral-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-400";
+    "w-full rounded-md border border-neutral-200 px-3 py-2 text-sm";
   const btnPrimary =
     "flex-1 rounded-md bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-neutral-800 disabled:opacity-50 min-h-[44px]";
   const btnSecondary =

@@ -131,12 +131,21 @@ input, textarea, select {
    out of its own outline and put the focus ring on the container via
    `focus-within:` so the visible ring follows the container's border-radius. */
 @layer base {
-  :where(a, button, input, textarea, select, summary, [tabindex], [contenteditable="true"]):focus-visible {
+  /* Keyboard focus for links, buttons, and toggle-style inputs. Pointer
+     clicks on these don't match :focus-visible, so no ring on ordinary taps. */
+  :where(a, button, summary, [tabindex], [contenteditable="true"]):focus-visible,
+  :where(input[type="checkbox"], input[type="radio"], input[type="range"], input[type="file"]):focus-visible {
     outline: 2px solid #111827;
     outline-offset: 2px;
   }
-  :where(input, textarea, select):focus-visible {
-    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.35);
+  /* Text-entry fields ALWAYS match :focus-visible when focused, so this is
+     the single sitewide field-focus treatment: darkened border + soft warm
+     halo. No amber glow, no dark outline. Do not re-add per-field focus
+     rings in components — delete them and let this rule own it. */
+  :where(input, textarea, select):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):focus-visible {
+    outline: none;
+    border-color: #a8a29e; /* stone-400 */
+    box-shadow: 0 0 0 3px rgb(168 162 158 / 0.16);
   }
 }
 
@@ -148,6 +157,36 @@ input, textarea, select {
 .animate-slide-in-right {
   animation: slide-in-right 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+/* Mobile menu floating card pop in/out + backdrop fade. The -out variants
+   use `forwards` so the final frame holds while the close timer runs, then
+   React unmounts — no single-frame flash on close. */
+@keyframes menu-pop-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes menu-pop-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to   { opacity: 0; transform: translateY(-6px) scale(0.97); }
+}
+@keyframes backdrop-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes backdrop-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+.animate-menu-in {
+  animation: menu-pop-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: top right;
+}
+.animate-menu-out {
+  animation: menu-pop-out 0.15s ease-in forwards;
+  transform-origin: top right;
+}
+.animate-backdrop-in { animation: backdrop-fade-in 0.18s ease-out; }
+.animate-backdrop-out { animation: backdrop-fade-out 0.15s ease-in forwards; }
 
 /* Mobile filter bottom sheet slide-up animation */
 @keyframes slide-up {

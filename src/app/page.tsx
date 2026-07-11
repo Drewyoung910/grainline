@@ -7,7 +7,6 @@ import { unstable_cache } from "next/cache";
 import { Suspense } from "react";
 import MakersMapSection from "@/components/MakersMapSection";
 import SearchBar from "@/components/SearchBar";
-import NewsletterSignup from "@/components/NewsletterSignup";
 import { ScrollSection } from "@/components/ScrollSection";
 import GuildBadge from "@/components/GuildBadge";
 import { Armchair, Utensils, Candle, Toy, Box, Gift, TreePine, Palette, MapPin } from "@/components/icons";
@@ -860,7 +859,7 @@ export default async function HomePage() {
         <ScrollSection>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-xl font-semibold font-display">New Arrivals</h2>
-            <Link href="/browse?sort=newest" className="text-sm text-amber-700 hover:underline">View more →</Link>
+            <Link href="/browse?sort=newest" className="rounded-full bg-[#EFEAE0] px-3.5 py-1.5 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors">View more →</Link>
           </div>
 
           {fresh.length === 0 ? (
@@ -916,7 +915,7 @@ export default async function HomePage() {
           <ScrollSection>
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl font-semibold font-display">Top Picks</h2>
-              <Link href="/browse?sort=popular" className="text-sm text-amber-700 hover:underline">View more →</Link>
+              <Link href="/browse?sort=popular" className="rounded-full bg-[#EFEAE0] px-3.5 py-1.5 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors">View more →</Link>
             </div>
 
             <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
@@ -1020,15 +1019,6 @@ export default async function HomePage() {
       </div>
       </div>
 
-      {/* ── Newsletter ───────────────────────────────────────────────────── */}
-      <ScrollSection className="bg-[#F7F5F0]">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-16">
-          <NewsletterSignup
-            heading="Get workshop stories in your inbox"
-            subheading="Maker spotlights, build guides, and new pieces — straight to you."
-          />
-        </div>
-      </ScrollSection>
     </main>
   );
 }

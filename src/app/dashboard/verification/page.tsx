@@ -42,7 +42,7 @@ const GUILD_MASTER_PREVIEW_REQUIREMENTS = [
   "No open disputes",
 ];
 const inputClass =
-  "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300";
+  "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm";
 const checkboxClass =
   "mt-0.5 h-4 w-4 rounded border-neutral-300 text-neutral-900 accent-neutral-900 focus:ring-neutral-300";
 
@@ -525,7 +525,7 @@ export default async function VerificationPage() {
 
                 <button
                   type="submit"
-                  className="rounded-md bg-amber-800 px-5 py-2.5 text-sm font-medium text-white hover:bg-amber-700"
+                  className="rounded-md bg-[#2C1F1A] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#3A2A24] transition-colors"
                 >
                   Apply for Guild Member Badge
                 </button>

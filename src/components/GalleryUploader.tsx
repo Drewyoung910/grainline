@@ -197,7 +197,7 @@ export default function GalleryUploader({
               onChange={(event) => setAltDraft(event.target.value)}
               rows={3}
               maxLength={240}
-              className="mt-4 w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+              className="mt-4 w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
               placeholder="A maker sanding a walnut side table in the workshop"
             />
             <div className="mt-4 flex justify-end gap-2">

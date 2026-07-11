@@ -65,7 +65,7 @@ export default function ListingTypeFields({
         <select
           name="category"
           defaultValue={category ?? ""}
-          className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+          className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm"
         >
           <option value="">-- Select a category --</option>
           {CATEGORY_VALUES.map((v) => (
@@ -130,7 +130,7 @@ export default function ListingTypeFields({
                 min="1"
                 placeholder="1"
                 defaultValue={minDays ?? ""}
-                className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+                className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm"
               />
             </label>
             <label className="text-sm">
@@ -143,7 +143,7 @@ export default function ListingTypeFields({
                 min="1"
                 placeholder="7"
                 defaultValue={maxDays ?? ""}
-                className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+                className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm"
               />
             </label>
           </div>
@@ -167,7 +167,7 @@ export default function ListingTypeFields({
                 max={MAX_MANUAL_STOCK_QUANTITY}
                 placeholder="1"
                 defaultValue={stockQuantity ?? 1}
-                className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+                className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm"
               />
             </label>
             <label className="text-sm">
@@ -180,7 +180,7 @@ export default function ListingTypeFields({
                 min="1"
                 placeholder="3"
                 defaultValue={shipsWithinDays ?? ""}
-                className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+                className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm"
               />
             </label>
           </div>

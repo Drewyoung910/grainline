@@ -11,6 +11,7 @@ import BlogCommentForm from "@/components/BlogCommentForm";
 import BlogReplyToggle from "@/components/BlogReplyToggle";
 import BlogCopyLinkButton from "@/components/BlogCopyLinkButton";
 import SaveBlogButton from "@/components/SaveBlogButton";
+import FollowButton from "@/components/FollowButton";
 import CoverLightbox from "@/components/CoverLightbox";
 import MediaImage from "@/components/MediaImage";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
@@ -108,7 +109,7 @@ export default async function BlogPostPage({
     where: viewerBlogPostWhere({ slug }),
     include: {
       author: { select: { id: true, name: true, imageUrl: true, banned: true, deletedAt: true, sellerProfile: { select: { avatarImageUrl: true, displayName: true } } } },
-      sellerProfile: { select: { id: true, displayName: true, avatarImageUrl: true, user: { select: { imageUrl: true } } } },
+      sellerProfile: { select: { id: true, userId: true, displayName: true, avatarImageUrl: true, user: { select: { imageUrl: true } } } },
       comments: {
         where: { ...commentVisibilityWhere, parentId: null },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
@@ -151,6 +152,31 @@ export default async function BlogPostPage({
     if (post.author && blockedUserIdSet.has(post.author.id)) return notFound();
     const savedRow = await findOwnerSavedBlogPost(meId, post.id);
     isSaved = !!savedRow;
+  }
+
+  // Maker posts end with a follow-the-author CTA instead of the generic
+  // newsletter — following is the mechanism that actually delivers this
+  // maker's future stories (feed + optional email).
+  const isMakerPost = post.authorType === "MAKER" && !!post.sellerProfile;
+  const viewerIsAuthor = !!meId && post.author?.id === meId;
+  let authorFollowerCount = 0;
+  let isFollowingAuthor = false;
+  if (isMakerPost && post.sellerProfile && !viewerIsAuthor) {
+    authorFollowerCount = await prisma.follow.count({
+      where: { sellerProfileId: post.sellerProfile.id },
+    });
+    if (meId) {
+      const followRow = await prisma.follow.findUnique({
+        where: {
+          followerId_sellerProfileId: {
+            followerId: meId,
+            sellerProfileId: post.sellerProfile.id,
+          },
+        },
+        select: { id: true },
+      });
+      isFollowingAuthor = !!followRow;
+    }
   }
 
   const htmlBody = renderBlogMarkdown(post.body);
@@ -398,10 +424,41 @@ export default async function BlogPostPage({
         </section>
       )}
 
-      {/* Newsletter */}
-      <div className="mb-10">
-        <NewsletterSignup />
-      </div>
+      {/* Follow the maker (maker posts) / newsletter (staff posts) */}
+      {isMakerPost && post.sellerProfile ? (
+        !viewerIsAuthor && (
+          <div className="mb-10 card-section p-6 flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
+            {authorAvatar ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={authorAvatar}
+                alt={authorName}
+                className="h-14 w-14 shrink-0 rounded-full object-cover ring-1 ring-black/10"
+              />
+            ) : (
+              <div className="h-14 w-14 shrink-0 rounded-full bg-neutral-200 ring-1 ring-black/10" />
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="font-display text-lg font-semibold text-neutral-900">
+                More from {authorName}&rsquo;s workshop
+              </div>
+              <p className="text-sm text-neutral-600 mt-0.5">
+                Follow {authorName} to get new stories and pieces in your feed.
+              </p>
+            </div>
+            <FollowButton
+              sellerProfileId={post.sellerProfile.id}
+              sellerUserId={post.sellerProfile.userId}
+              initialFollowing={isFollowingAuthor}
+              initialCount={authorFollowerCount}
+            />
+          </div>
+        )
+      ) : (
+        <div className="mb-10">
+          <NewsletterSignup />
+        </div>
+      )}
 
       {/* Comments */}
       <section className="mb-10">

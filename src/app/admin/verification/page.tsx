@@ -1110,7 +1110,7 @@ export default async function AdminVerificationPage() {
                       name="reviewNotes"
                       type="text"
                       placeholder="Rejection notes (optional)"
-                      className="rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300 w-56"
+                      className="rounded-lg border px-3 py-2 text-sm w-56"
                     />
                     <button type="submit" className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50">
                       Reject
@@ -1235,7 +1235,7 @@ export default async function AdminVerificationPage() {
                       name="reviewNotes"
                       type="text"
                       placeholder="Rejection notes (optional)"
-                      className="rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300 w-56"
+                      className="rounded-lg border px-3 py-2 text-sm w-56"
                     />
                     <button type="submit" className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50">
                       Reject

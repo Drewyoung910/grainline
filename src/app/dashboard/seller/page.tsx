@@ -31,7 +31,7 @@ const MAX_DEFAULT_PACKAGE_DIMENSION_IN = 240;
 const MAX_DEFAULT_PACKAGE_WEIGHT_LB = 500;
 
 const inputClass =
-  "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300";
+  "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm";
 const checkboxClass =
   "h-4 w-4 rounded border-neutral-300 text-neutral-900 accent-neutral-900 focus:ring-neutral-300";
 

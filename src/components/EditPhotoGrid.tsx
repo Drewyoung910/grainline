@@ -124,7 +124,7 @@ export default function EditPhotoGrid({
           appearance={{
             container: "inline-block",
             button:
-              "rounded-md bg-neutral-900 text-white px-3 py-1.5 text-sm font-medium hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-300",
+              "rounded-md bg-neutral-900 text-white px-3 py-1.5 text-sm font-medium hover:bg-neutral-800",
             allowedContent: "hidden",
           }}
           content={{
@@ -305,7 +305,7 @@ export default function EditPhotoGrid({
               placeholder="Describe this image (e.g. 'Hand-carved walnut dining table with live edge')"
               maxLength={200}
               rows={3}
-              className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-300"
+              className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm placeholder:text-neutral-500"
             />
             <p className="text-xs text-neutral-500">
               Improves visibility in Google Image Search. If left blank, AI will generate alt text automatically and you can see it on the edit page.

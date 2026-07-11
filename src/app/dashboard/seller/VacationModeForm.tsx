@@ -161,7 +161,7 @@ export default function VacationModeForm({
               value={returnDate}
               min={todayInputValue}
               onChange={(e) => setReturnDate(e.target.value)}
-              className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+              className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
             />
             {returnDateFormatted && (
               <p className="text-xs text-neutral-500 mt-1">Shown to buyers as: Expected return {returnDateFormatted}</p>
@@ -177,7 +177,7 @@ export default function VacationModeForm({
               rows={3}
               maxLength={200}
               placeholder="Let buyers know when you'll be back or why you're away. This is shown on your profile page."
-              className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-neutral-300"
+              className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm resize-none"
             />
             <p className="text-xs text-neutral-500 text-right">{message.length}/200</p>
           </div>

@@ -134,7 +134,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
           onChange={(e) => setName(e.target.value)}
           aria-invalid={Boolean(errors.name)}
           aria-describedby={errors.name ? "sa-name-error" : undefined}
-          className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:border-stone-500 focus-visible:outline-none focus-visible:shadow-none"
+          className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
         />
         {errors.name && <p id="sa-name-error" role="alert" className="text-sm text-red-600 mt-1">{errors.name}</p>}
       </div>
@@ -162,7 +162,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
           onChange={(e) => setLine1(e.target.value)}
           aria-invalid={Boolean(errors.line1)}
           aria-describedby={errors.line1 ? "sa-line1-error" : undefined}
-          className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:border-stone-500 focus-visible:outline-none focus-visible:shadow-none"
+          className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
         />
         {errors.line1 && <p id="sa-line1-error" role="alert" className="text-sm text-red-600 mt-1">{errors.line1}</p>}
       </div>
@@ -177,7 +177,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
           value={line2}
           onChange={(e) => setLine2(e.target.value)}
           placeholder="Apt, suite, etc."
-          className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:border-stone-500 focus-visible:outline-none focus-visible:shadow-none"
+          className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
         />
       </div>
 
@@ -193,7 +193,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
           onChange={(e) => setCity(e.target.value)}
           aria-invalid={Boolean(errors.city)}
           aria-describedby={errors.city ? "sa-city-error" : undefined}
-          className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:border-stone-500 focus-visible:outline-none focus-visible:shadow-none"
+          className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
         />
           {errors.city && <p id="sa-city-error" role="alert" className="text-sm text-red-600 mt-1">{errors.city}</p>}
         </div>
@@ -206,7 +206,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
             onChange={(e) => setState(e.target.value)}
             aria-invalid={Boolean(errors.state)}
             aria-describedby={errors.state ? "sa-state-error" : undefined}
-            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:border-stone-500 focus-visible:outline-none focus-visible:shadow-none"
+            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
           >
             <option value="">Select...</option>
             {US_STATES.map((s) => (
@@ -230,7 +230,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
             }}
             aria-invalid={Boolean(errors.postalCode)}
             aria-describedby={errors.postalCode ? "sa-zip-error" : undefined}
-            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:border-stone-500 focus-visible:outline-none focus-visible:shadow-none"
+            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
           />
           {errors.postalCode && <p id="sa-zip-error" role="alert" className="text-sm text-red-600 mt-1">{errors.postalCode}</p>}
         </div>
@@ -246,7 +246,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           placeholder="555-123-4567"
-          className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:border-stone-500 focus-visible:outline-none focus-visible:shadow-none"
+          className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
         />
       </div>
 

@@ -96,7 +96,7 @@ export default function MessageComposer({
               button:
                 "h-10 w-10 rounded-full bg-[#F7F5F0] " +
                 "p-0 flex items-center justify-center hover:bg-white " +
-                "focus:outline-none focus:ring-2 focus:ring-stone-300 transition-colors",
+                "transition-colors",
               allowedContent: "hidden",
             }}
             content={{

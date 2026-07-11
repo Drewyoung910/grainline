@@ -132,7 +132,7 @@ export function SellerReplyForm({
         rows={3}
         value={text}
         onChange={(e) => setText(e.target.value)}
-        className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:border-stone-500 focus-visible:outline-none focus-visible:shadow-none"
+        className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
         placeholder="Write a public reply…"
       />
       <div className="flex items-center gap-2">

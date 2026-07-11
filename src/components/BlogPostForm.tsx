@@ -11,9 +11,9 @@ import type { BlogPostType } from "@prisma/client";
 const STAFF_TYPES: BlogPostType[] = ["STANDARD", "MAKER_SPOTLIGHT", "BEHIND_THE_BUILD", "GIFT_GUIDE", "WOOD_EDUCATION"];
 const MAKER_TYPES: BlogPostType[] = ["STANDARD", "BEHIND_THE_BUILD"];
 const inputClass =
-  "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300";
+  "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm";
 const selectClass =
-  "rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300";
+  "rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm";
 const checkboxClass =
   "h-4 w-4 rounded border-neutral-300 text-neutral-900 accent-neutral-900 focus:ring-neutral-300";
 

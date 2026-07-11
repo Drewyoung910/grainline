@@ -137,7 +137,7 @@ export default function AddressAutocomplete({
         autoComplete="off"
         className={
           inputClassName ||
-          "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+          "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
         }
       />
       {open && (results.length > 0 || loading || (searched && query.trim().length >= 2)) && (

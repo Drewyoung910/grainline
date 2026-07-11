@@ -40,7 +40,7 @@ export default function CharCounter({
         onChange={(e) => setCount(e.target.value.length)}
         className={
           className ??
-          "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+          "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
         }
       />
       <p id={counterId} aria-live="polite" className="text-xs text-neutral-500 text-right mt-0.5">
@@ -86,7 +86,7 @@ export function InputCharCounter({
         onChange={(e) => setCount(e.target.value.length)}
         className={
           className ??
-          "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+          "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
         }
       />
       <p id={counterId} aria-live="polite" className="text-xs text-neutral-500 text-right mt-0.5">

@@ -61,7 +61,7 @@ function CartEmptyState({ children, title = "Your cart is empty" }: { children: 
     <main className="mx-auto max-w-2xl p-4 sm:p-8">
       <h1 className="font-display text-2xl font-semibold mb-6">Your cart</h1>
       <div className="p-10 text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 text-amber-700">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#EFEAE0] text-neutral-600">
           <ShoppingBag size={28} />
         </div>
         <h2 className="text-lg font-medium text-neutral-900 mb-2">{title}</h2>

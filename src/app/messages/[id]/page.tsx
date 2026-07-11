@@ -555,7 +555,7 @@ export default async function ThreadPage({
                   {formatCurrencyCents(ctx.priceCents, ctx.currency ?? DEFAULT_CURRENCY)}
                 </div>
               </div>
-              <div className="ml-auto text-sm text-amber-700 shrink-0">View listing →</div>
+              <div className="ml-auto text-sm text-neutral-600 shrink-0">View listing →</div>
             </Link>
           ) : ctx ? (
             <div className="flex items-center gap-3 rounded-lg border border-stone-200/60 bg-[#EFEAE0] p-3">

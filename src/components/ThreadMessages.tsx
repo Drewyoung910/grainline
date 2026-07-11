@@ -294,7 +294,7 @@ export default function ThreadMessages({
       )}
       {msgs.length === 0 && (
         <div className="flex flex-col items-center justify-center py-12 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 text-amber-700 mb-4">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#EFEAE0] text-neutral-600 mb-4">
             <MessageCircle size={28} />
           </div>
           <h3 className="text-base font-medium text-neutral-800 mb-1">
@@ -382,7 +382,7 @@ export default function ThreadMessages({
                   {canCreateCustomListing && (
                     <Link
                       href={`/dashboard/listings/custom?conversationId=${convoId}&buyerId=${m.senderId}`}
-                      className="inline-flex items-center gap-1 rounded-lg bg-amber-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 mt-1"
+                      className="inline-flex items-center gap-1 rounded-md bg-[#2C1F1A] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#3A2A24] mt-1 transition-colors"
                     >
                       Create Custom Listing →
                     </Link>

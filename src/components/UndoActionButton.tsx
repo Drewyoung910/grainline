@@ -76,7 +76,7 @@ export function UndoActionButton({
             onChange={(event) => setReason(event.target.value)}
             maxLength={1000}
             rows={3}
-            className="w-full rounded border border-amber-200 bg-white px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-amber-200"
+            className="w-full rounded border border-amber-200 bg-white px-2 py-1 text-sm"
           />
           <div className="flex gap-2">
             <button

@@ -139,7 +139,7 @@ export default function VariantEditor({
                 onChange={(e) => updateGroupName(gi, e.target.value)}
                 placeholder="e.g. Size, Wood Type, Finish"
                 maxLength={50}
-                className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+                className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm"
               />
             </div>
             <button
@@ -168,7 +168,7 @@ export default function VariantEditor({
                   onChange={(e) => updateOption(gi, oi, "label", e.target.value)}
                   placeholder="Option name"
                   maxLength={50}
-                  className="flex-1 border border-neutral-200 bg-white rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+                  className="flex-1 border border-neutral-200 bg-white rounded-md px-3 py-1.5 text-sm"
                 />
                 <div className="relative w-28">
                   <label htmlFor={`${baseId}-group-${gi}-option-${oi}-price`} className="sr-only">
@@ -194,7 +194,7 @@ export default function VariantEditor({
                       setFocusedPriceKey((current) => current === key ? null : current);
                     }}
                     placeholder="+0.00"
-                    className="w-full border border-neutral-200 bg-white rounded-md pl-6 pr-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+                    className="w-full border border-neutral-200 bg-white rounded-md pl-6 pr-2 py-1.5 text-sm"
                   />
                 </div>
                 {!isMadeToOrder && (

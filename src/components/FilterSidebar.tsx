@@ -94,7 +94,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
           id={`${baseId}-category`}
           name="category"
           defaultValue={currentCategory}
-          className="w-full rounded-md border border-neutral-200 bg-[#F7F5F0] text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300"
+          className="w-full rounded-md border border-neutral-200 bg-[#F7F5F0] text-sm px-3 py-2"
         >
           <option value="">All categories</option>
           {CATEGORY_VALUES.map((v) => (
@@ -140,7 +140,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
           max="365"
           defaultValue={currentShips}
           placeholder="e.g. 7"
-          className="w-full rounded-md border border-neutral-200 bg-[#F7F5F0] text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300"
+          className="w-full rounded-md border border-neutral-200 bg-[#F7F5F0] text-sm px-3 py-2"
         />
       </div>
 
@@ -151,7 +151,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
           id={`${baseId}-rating`}
           name="rating"
           defaultValue={currentRating}
-          className="w-full rounded-md border border-neutral-200 bg-[#F7F5F0] text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300"
+          className="w-full rounded-md border border-neutral-200 bg-[#F7F5F0] text-sm px-3 py-2"
         >
           <option value="">Any rating</option>
           <option value="4">★★★★ and up</option>
@@ -173,7 +173,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
             pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
             defaultValue={currentMin}
             placeholder="Min"
-            className="w-full rounded-md border border-neutral-200 bg-[#F7F5F0] text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300"
+            className="w-full rounded-md border border-neutral-200 bg-[#F7F5F0] text-sm px-3 py-2"
           />
           <span className="text-neutral-500 shrink-0">–</span>
           <label htmlFor={`${baseId}-max`} className="sr-only">Maximum price</label>
@@ -185,7 +185,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
             pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
             defaultValue={currentMax}
             placeholder="Max"
-            className="w-full rounded-md border border-neutral-200 bg-[#F7F5F0] text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300"
+            className="w-full rounded-md border border-neutral-200 bg-[#F7F5F0] text-sm px-3 py-2"
           />
         </div>
       </fieldset>
@@ -197,7 +197,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
           id={`${baseId}-sort`}
           name="sort"
           defaultValue={currentSort}
-          className="w-full rounded-md border border-neutral-200 bg-[#F7F5F0] text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300"
+          className="w-full rounded-md border border-neutral-200 bg-[#F7F5F0] text-sm px-3 py-2"
         >
           {q && <option value="relevant">Most relevant</option>}
           <option value="newest">Newest</option>
@@ -238,7 +238,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
             max="500"
             defaultValue={currentRadius}
             placeholder="Radius (miles)"
-            className="w-full rounded-md border border-neutral-200 bg-[#F7F5F0] text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300"
+            className="w-full rounded-md border border-neutral-200 bg-[#F7F5F0] text-sm px-3 py-2"
           />
         </div>
       </fieldset>

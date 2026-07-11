@@ -84,7 +84,7 @@ export default function NewCommissionPage() {
             onChange={(e) => setTitle(e.target.value)}
             maxLength={100}
             placeholder="e.g. Custom walnut dining table for 8"
-            className="w-full border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+            className="w-full border border-neutral-300 px-3 py-2 text-sm"
             required
           />
           <p className="text-xs text-neutral-500 mt-1">{title.length}/100</p>
@@ -102,7 +102,7 @@ export default function NewCommissionPage() {
             maxLength={1000}
             rows={5}
             placeholder="Describe dimensions, wood type preferences, style, finish, any special requirements..."
-            className="w-full border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300 resize-y"
+            className="w-full border border-neutral-300 px-3 py-2 text-sm resize-y"
             required
           />
           <p className="text-xs text-neutral-500 mt-1">{description.length}/1000</p>
@@ -115,7 +115,7 @@ export default function NewCommissionPage() {
             value={category}
             autoComplete="off"
             onChange={(e) => setCategory(e.target.value)}
-            className="w-full border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+            className="w-full border border-neutral-300 px-3 py-2 text-sm"
           >
             <option value="">— Any category —</option>
             {CATEGORY_VALUES.map((cat) => (
@@ -138,7 +138,7 @@ export default function NewCommissionPage() {
                 value={budgetMin}
                 onChange={(e) => setBudgetMin(e.target.value)}
                 placeholder="Min"
-                className="w-full border border-neutral-300 pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+                className="w-full border border-neutral-300 pl-7 pr-3 py-2 text-sm"
               />
             </div>
             <span className="text-neutral-500 text-sm">to</span>
@@ -152,7 +152,7 @@ export default function NewCommissionPage() {
                 value={budgetMax}
                 onChange={(e) => setBudgetMax(e.target.value)}
                 placeholder="Max"
-                className="w-full border border-neutral-300 pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+                className="w-full border border-neutral-300 pl-7 pr-3 py-2 text-sm"
               />
             </div>
           </div>
@@ -167,7 +167,7 @@ export default function NewCommissionPage() {
             onChange={(e) => setTimeline(e.target.value)}
             maxLength={100}
             placeholder="e.g. Within 3 months, flexible"
-            className="w-full border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+            className="w-full border border-neutral-300 px-3 py-2 text-sm"
           />
         </div>
 

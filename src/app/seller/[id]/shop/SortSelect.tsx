@@ -29,7 +29,7 @@ export default function SortSelect({
     <select
       value={currentSort}
       onChange={onChange}
-      className="rounded border border-neutral-300 px-3 py-1.5 text-sm bg-white text-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-400 shrink-0"
+      className="rounded border border-neutral-300 px-3 py-1.5 text-sm bg-white text-neutral-800 shrink-0"
       aria-label="Sort listings"
     >
       <option value="newest">Newest</option>

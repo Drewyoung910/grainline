@@ -98,7 +98,7 @@ export default function AdminOrderActions({
             maxLength={2000}
             placeholder="Add an internal note..."
             required
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400"
+            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
           />
           <SubmitButton>Append Note</SubmitButton>
           <ActionMessage state={noteState} />

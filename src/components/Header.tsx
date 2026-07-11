@@ -28,6 +28,7 @@ export default function Header() {
   const [imageUrl, setImageUrl] = React.useState<string | null>(null);
   const [avatarImageUrl, setAvatarImageUrl] = React.useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const [drawerClosing, setDrawerClosing] = React.useState(false);
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [unreadNotifCount, setUnreadNotifCount] = React.useState(0);
   const [isLoggedIn, setIsLoggedIn] = React.useState(false);
@@ -39,7 +40,30 @@ export default function Header() {
   const loadAllRequestRef = React.useRef(0);
   const loadAllAbortRef = React.useRef<AbortController | null>(null);
 
-  useDialogFocus(drawerOpen, drawerRef, () => setDrawerOpen(false), {
+  // Animated close: play the pop-out animation, then unmount. All user
+  // close paths (X, backdrop, Escape, link taps) go through closeDrawer so
+  // the menu never vanishes in a single frame.
+  const drawerCloseTimerRef = React.useRef<number | null>(null);
+  const closeDrawer = React.useCallback(() => {
+    setDrawerClosing((alreadyClosing) => {
+      if (alreadyClosing) return alreadyClosing;
+      drawerCloseTimerRef.current = window.setTimeout(() => {
+        setDrawerOpen(false);
+        setDrawerClosing(false);
+        drawerCloseTimerRef.current = null;
+      }, 160);
+      return true;
+    });
+  }, []);
+  React.useEffect(() => {
+    return () => {
+      if (drawerCloseTimerRef.current !== null) {
+        window.clearTimeout(drawerCloseTimerRef.current);
+      }
+    };
+  }, []);
+
+  useDialogFocus(drawerOpen, drawerRef, closeDrawer, {
     initialFocus: "container",
   });
   useBodyScrollLock(drawerOpen);
@@ -68,25 +92,26 @@ export default function Header() {
   const handleOpenUserProfile = React.useCallback(() => {
     try {
       openUserProfile();
-      setDrawerOpen(false);
+      closeDrawer();
     } catch (error) {
       console.warn("[header] open user profile failed", error);
     }
-  }, [openUserProfile]);
+  }, [openUserProfile, closeDrawer]);
 
   const handleSignOut = React.useCallback(async () => {
-    setDrawerOpen(false);
+    closeDrawer();
     try {
       await signOut({ redirectUrl: "/" });
       clearSignedOutLocalAccountState();
     } catch (error) {
       console.warn("[header] sign out failed", error);
     }
-  }, [signOut]);
+  }, [signOut, closeDrawer]);
 
-  // Close drawer and search on navigation
+  // Close drawer and search on navigation (instant — new page context)
   React.useEffect(() => {
     setDrawerOpen(false);
+    setDrawerClosing(false);
     setSearchOpen(false);
   }, [pathname, searchParams]);
 
@@ -94,13 +119,13 @@ export default function Header() {
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        setDrawerOpen(false);
+        closeDrawer();
         setSearchOpen(false);
       }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, []);
+  }, [closeDrawer]);
 
   const loadCartCount = React.useCallback(async () => {
     cartCountAbortRef.current?.abort();
@@ -390,19 +415,23 @@ export default function Header() {
         <>
           {/* Backdrop — z-[1000] within header's z-[50] stacking context beats any sticky element */}
           <div
-            className="fixed inset-0 z-[1000] bg-black/60"
-            onClick={() => setDrawerOpen(false)}
+            className={`fixed inset-0 z-[1000] bg-black/30 motion-reduce:animate-none ${
+              drawerClosing ? "animate-backdrop-out" : "animate-backdrop-in"
+            }`}
+            onClick={closeDrawer}
             aria-hidden="true"
           />
 
-          {/* Panel */}
+          {/* Panel — floating card anchored top-right, sized to content */}
           <div
             ref={drawerRef}
             role="dialog"
             aria-modal="true"
             aria-label="Main navigation"
             tabIndex={-1}
-            className="fixed right-0 top-0 z-[1001] flex h-full w-64 max-w-[80vw] flex-col bg-[#F7F5F0] shadow-2xl animate-slide-in-right rounded-l-2xl overflow-hidden outline-none"
+            className={`fixed right-3 top-3 z-[1001] flex w-64 max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-1.5rem)] flex-col rounded-2xl bg-[#F7F5F0] shadow-2xl ring-1 ring-black/5 overflow-hidden outline-none motion-reduce:animate-none ${
+              drawerClosing ? "animate-menu-out pointer-events-none" : "animate-menu-in"
+            }`}
           >
             {/* Header strip — darker cream to anchor the drawer */}
             <div className="flex items-center justify-between bg-[#EFEAE0] border-b border-stone-200/60 px-4 py-3">
@@ -410,7 +439,7 @@ export default function Header() {
                 href="/"
                 className="flex items-center"
                 aria-label="Grainline home"
-                onClick={() => setDrawerOpen(false)}
+                onClick={closeDrawer}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -421,7 +450,7 @@ export default function Header() {
               </Link>
               {/* X button: relative z-[60] ensures it's above the fixed backdrop */}
               <button
-                onClick={() => setDrawerOpen(false)}
+                onClick={closeDrawer}
                 aria-label="Close menu"
                 className="relative z-[60] inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-600 hover:bg-black/10"
               >
@@ -437,7 +466,7 @@ export default function Header() {
               <Link
                 href="/browse"
                 className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
-                onClick={() => setDrawerOpen(false)}
+                onClick={closeDrawer}
               >
                 <Search size={18} className="text-neutral-500" />
                 Browse
@@ -445,7 +474,7 @@ export default function Header() {
               <Link
                 href="/blog"
                 className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
-                onClick={() => setDrawerOpen(false)}
+                onClick={closeDrawer}
               >
                 <Edit size={18} className="text-neutral-500" />
                 Blog
@@ -453,7 +482,7 @@ export default function Header() {
               <Link
                 href="/commission"
                 className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
-                onClick={() => setDrawerOpen(false)}
+                onClick={closeDrawer}
               >
                 <Hammer size={18} className="text-neutral-500" />
                 Commission Room
@@ -467,7 +496,7 @@ export default function Header() {
                 <Link
                   href="/account"
                   className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
-                  onClick={() => setDrawerOpen(false)}
+                  onClick={closeDrawer}
                 >
                   <User size={18} className="text-neutral-500" />
                   My Account
@@ -477,7 +506,7 @@ export default function Header() {
                 <Link
                   href="/messages"
                   className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
-                  onClick={() => setDrawerOpen(false)}
+                  onClick={closeDrawer}
                 >
                   <MessageCircle size={18} className="text-neutral-500" />
                   Messages
@@ -487,7 +516,7 @@ export default function Header() {
                 <Link
                   href="/account/feed"
                   className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
-                  onClick={() => setDrawerOpen(false)}
+                  onClick={closeDrawer}
                 >
                   <Rss size={18} className="text-neutral-500" />
                   Your Feed
@@ -498,7 +527,7 @@ export default function Header() {
                   <Link
                     href="/dashboard"
                     className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
-                    onClick={() => setDrawerOpen(false)}
+                    onClick={closeDrawer}
                   >
                     <Store size={18} className="text-neutral-500" />
                     Workshop
@@ -507,7 +536,7 @@ export default function Header() {
                   <Link
                     href="/dashboard"
                     className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] font-medium text-neutral-900 hover:bg-[#EFEAE0]"
-                    onClick={() => setDrawerOpen(false)}
+                    onClick={closeDrawer}
                   >
                     <Store size={18} className="text-neutral-500" />
                     Start Selling
@@ -519,7 +548,7 @@ export default function Header() {
                   <Link
                     href="/admin"
                     className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
-                    onClick={() => setDrawerOpen(false)}
+                    onClick={closeDrawer}
                   >
                     <Shield size={18} className="text-neutral-500" />
                     Admin
@@ -532,7 +561,7 @@ export default function Header() {
                   <Link
                     href="/sign-in"
                     className="flex min-h-[44px] items-center justify-center rounded-full bg-[#2C1F1A] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#3A2A24] transition-colors"
-                    onClick={() => setDrawerOpen(false)}
+                    onClick={closeDrawer}
                   >
                     Sign in
                   </Link>
