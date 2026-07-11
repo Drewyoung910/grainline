@@ -265,8 +265,14 @@ function commonPayloadIssues(payload) {
   return issues;
 }
 
-function checkNames(payload) {
-  return new Set((payload?.checks ?? []).map((check) => check?.name).filter(Boolean));
+function checksByName(payload) {
+  const checks = new Map();
+  for (const check of payload?.checks ?? []) {
+    if (!check?.name) continue;
+    if (!checks.has(check.name)) checks.set(check.name, []);
+    checks.get(check.name).push(check);
+  }
+  return checks;
 }
 
 function scenarioNames(payload) {
@@ -276,9 +282,15 @@ function scenarioNames(payload) {
 export function evaluateMachineArtifact(definition, payload) {
   const issues = commonPayloadIssues(payload);
   if (definition.requiredCheckNames) {
-    const actual = checkNames(payload);
+    const actual = checksByName(payload);
     for (const name of definition.requiredCheckNames) {
-      if (!actual.has(name)) issues.push(`missing check ${name}`);
+      const checks = actual.get(name) ?? [];
+      if (checks.length === 0) {
+        issues.push(`missing check ${name}`);
+      } else if (!checks.some((check) => check.status === "passed")) {
+        const observed = checks.map((check) => check.status ?? "missing").join(", ");
+        issues.push(`check ${name} status must be passed, got ${observed}`);
+      }
     }
   }
   if (definition.requiredScenarios) {

@@ -18037,3 +18037,48 @@ stale/false-positive/current 579, deferred product/design/ops/legal 87,
 approximate raw allegations left from current max #1126: 0. Fixed/reduced
 increases by one for the launch-inventory/RLS-evidence schema mismatch.
 Deferred stays flat.
+
+### Entry 545 - Launch evidence required-check status validation
+
+Entry 545 continues the final launch-evidence inventory review after confirming
+the producer scripts' evidence shapes. The inventory required machine evidence
+checks by name, but did not require those named checks to have passed. A
+retained artifact could therefore present the correct required check names with
+`status: "failed"` and still pass inventory if the top-level artifact status
+and issue list were inconsistent.
+
+Fixed/reduced:
+
+- Updated the launch evidence inventory validator to group retained check rows
+  by name and require each configured required check to have at least one
+  `status: "passed"` row.
+- Preserved the existing missing-check failure path, while adding a specific
+  failure for present-but-not-passed checks.
+- Verified the current check-producing launch proof scripts already emit
+  `status: "passed"` for successful required checks, so this tightens final
+  inventory validation without changing the producer contract.
+
+Guardrails added/reviewed:
+
+- Extended `tests/launch-evidence-inventory.test.mjs` so valid check evidence
+  includes explicit passed statuses.
+- Added a regression case proving a named required check with
+  `status: "failed"` is rejected even when the artifact's top-level status is
+  `passed`.
+- Re-ran adjacent producer guardrails for R2 upload smoke, deployed security
+  headers, Sentry cron alerts, and Stripe webhook subscription proof.
+
+Verification:
+`git status --short`; source/test inspection with `rg`/`sed`; `node --test
+tests/launch-evidence-inventory.test.mjs tests/r2-upload-smoke.test.mjs
+tests/deployed-security-headers-proof.test.mjs
+tests/sentry-cron-alert-proof.test.mjs
+tests/stripe-webhook-subscriptions-proof.test.mjs` passed 30/30; `node --check
+scripts/launch-evidence-inventory.mjs` passed; `npx tsc --noEmit` passed; and
+`git diff --check` passed.
+
+Current running tally after Entry 545: verified fixed/reduced 1047, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the required-check status validation gap. Deferred stays
+flat.

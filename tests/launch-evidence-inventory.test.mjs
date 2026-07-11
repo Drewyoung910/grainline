@@ -159,9 +159,22 @@ describe("launch evidence inventory", () => {
         generatedAt: "2026-07-11T00:00:00.000Z",
         commitSha: "abc123",
         issues: [],
-        checks: r2.requiredCheckNames.map((name) => ({ name })),
+        checks: r2.requiredCheckNames.map((name) => ({ name, status: "passed" })),
       }),
       [],
+    );
+    assert.match(
+      evaluateMachineArtifact(r2, {
+        status: "passed",
+        generatedAt: "2026-07-11T00:00:00.000Z",
+        commitSha: "abc123",
+        issues: [],
+        checks: r2.requiredCheckNames.map((name) => ({
+          name,
+          status: name === "cleanup" ? "failed" : "passed",
+        })),
+      }).join("; "),
+      /check cleanup status must be passed, got failed/,
     );
 
     assert.deepEqual(
