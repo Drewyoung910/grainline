@@ -575,72 +575,84 @@ export default async function HomePage() {
         }) }}
       />
 
-      {/* ── Hero — DREW-APPROVED split editorial layout (2026-07-11):
-          headline + search LEFT on the light cream wash, sharp CLICKABLE
-          photo collage as the RIGHT grid column. Do not convert this back
-          into a centered dark hero with a background image layer — that is
-          the rejected mosaic concept. ── */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-amber-100/60 via-[#F7F5F0] to-[#F7F5F0]">
-        <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8 pt-12 pb-14 sm:pt-16 lg:pt-20 lg:pb-20">
-          <div className={hasHeroCollage
-            ? "grid items-center gap-12 lg:grid-cols-[1.05fr_1fr] lg:gap-16"
-            : "mx-auto max-w-3xl text-center"
-          }>
-            {/* Copy + search */}
-            <div className={hasHeroCollage ? "max-w-2xl" : ""}>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-amber-800 ring-1 ring-amber-200">
+      {/* ── Hero ────────────────────────────────────────────────────────── */}
+      <section className={`relative flex min-h-[60vh] overflow-hidden ${
+        hasHeroCollage ? "bg-[#1C1C1A]" : "bg-[#F7F5F0]"
+      }`}>
+        {hasHeroCollage && (
+          <>
+            <HeroCollage items={heroCollageItems} />
+            <div aria-hidden="true" className="absolute inset-0 bg-[#1C1C1A]/70" />
+            <div aria-hidden="true" className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/30 to-transparent" />
+            <div aria-hidden="true" className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[#1C1C1A]/60 to-transparent" />
+          </>
+        )}
+        <div className="relative z-10 mx-auto flex w-full max-w-[1600px] items-center px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+          <div className="mx-auto w-full max-w-3xl space-y-6 text-center">
+            <div className="flex justify-center">
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-medium uppercase tracking-wider ${
+                  hasHeroCollage
+                    ? "bg-white/15 text-white/90 backdrop-blur-sm ring-1 ring-white/30"
+                    : "bg-white text-amber-800 ring-1 ring-amber-200"
+                }`}
+              >
                 <span aria-hidden="true">★</span>
                 Made in the USA · Built in Texas
               </span>
+            </div>
+            <h1 className={`text-display font-display ${hasHeroCollage ? "text-white" : "text-neutral-900"}`}>
+              Buy handmade.<br />Buy local. Buy quality.
+            </h1>
 
-              <h1 className="text-display font-display mt-5 text-neutral-900">
-                Buy handmade.<br />Buy local. Buy quality.
-              </h1>
+            <p className={`mx-auto max-w-xl text-lg ${hasHeroCollage ? "text-white/80" : "text-neutral-600"}`}>
+              Solid-wood furniture, boards, and decor from American workshops —
+              made by hand, sold by the maker.
+            </p>
 
-              <p className={`mt-4 text-lg text-neutral-600 ${hasHeroCollage ? "max-w-xl" : "mx-auto max-w-xl"}`}>
-                Solid-wood furniture, boards, and decor from American workshops —
-                made by hand, sold by the maker.
-              </p>
-
-              <div className={`mt-7 ${hasHeroCollage ? "max-w-xl" : "mx-auto max-w-xl"}`}>
-                <Suspense>
-                  <SearchBar />
-                </Suspense>
-              </div>
-
-              {trendingTags.length > 0 && (
-                <div className={`mt-4 flex flex-wrap items-center gap-2 ${hasHeroCollage ? "" : "justify-center"}`}>
-                  <span className="text-xs text-neutral-500">Trending:</span>
-                  {trendingTags.map((tag) => (
-                    <Link
-                      key={tag}
-                      href={publicTagPath(tag)}
-                      className="rounded-full bg-[#EFEAE0] px-3 py-1 text-xs font-medium text-neutral-700 hover:bg-[#E3DCCB] transition-colors"
-                    >
-                      #{tag}
-                    </Link>
-                  ))}
-                </div>
-              )}
-
-              <div className={`mt-7 flex flex-wrap gap-3 ${hasHeroCollage ? "" : "justify-center"}`}>
-                <Link
-                  href="/browse"
-                  className="inline-flex items-center rounded-full bg-[#2C1F1A] px-6 py-3 text-sm font-medium text-white hover:bg-[#3A2A24] transition-colors"
-                >
-                  Browse the Workshop
-                </Link>
-                <Link
-                  href="/map"
-                  className="inline-flex items-center rounded-full border-2 border-[#2C1F1A] bg-transparent px-6 py-3 text-sm font-medium text-[#2C1F1A] hover:bg-[#2C1F1A] hover:text-white transition-colors"
-                >
-                  Find Makers Near You
-                </Link>
-              </div>
+            <div className="mx-auto max-w-xl">
+              <Suspense>
+                <SearchBar variant={hasHeroCollage ? "glass" : "default"} />
+              </Suspense>
             </div>
 
-            {/* Photo collage — real pieces, tack sharp, clickable */}
-            {hasHeroCollage && <HeroCollage items={heroCollageItems} />}
+            {trendingTags.length > 0 && (
+              <div className="flex flex-wrap justify-center gap-2">
+                <span className={`self-center text-xs ${hasHeroCollage ? "text-white/65" : "text-neutral-500"}`}>Trending:</span>
+                {trendingTags.map((tag) => (
+                  <Link
+                    key={tag}
+                    href={publicTagPath(tag)}
+                    className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                      hasHeroCollage
+                        ? "border-white/40 bg-white/10 text-white hover:bg-white/20"
+                        : "border-amber-200 bg-white text-neutral-700 hover:bg-amber-50"
+                    }`}
+                  >
+                    #{tag}
+                  </Link>
+                ))}
+              </div>
+            )}
+
+            <div className="flex flex-wrap justify-center gap-3 pt-1">
+              <Link
+                href="/browse"
+                className="inline-flex items-center rounded-full bg-[#2C1F1A] px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-[#3A2A24]"
+              >
+                Browse the Workshop
+              </Link>
+              <Link
+                href="/map"
+                className={`inline-flex items-center rounded-full border-2 px-6 py-3 text-sm font-medium transition-colors ${
+                  hasHeroCollage
+                    ? "border-white text-white hover:bg-white hover:text-neutral-900"
+                    : "border-[#2C1F1A] bg-transparent text-[#2C1F1A] hover:bg-[#2C1F1A] hover:text-white"
+                }`}
+              >
+                Find Makers Near You
+              </Link>
+            </div>
           </div>
         </div>
       </section>

@@ -18608,3 +18608,69 @@ stale/false-positive/current 579, deferred product/design/ops/legal 87,
 approximate raw allegations left from current max #1126: 0. Fixed/reduced
 increases by two for the vacation-mode accessibility wiring and the unused
 follow-button seller-user-id client prop reduction. Deferred stays flat.
+
+### Entry 555 - Fable homepage hero replacement review
+
+Entry 555 continues the parent review of Fable-authored UI work, focusing on
+committed SHA `642eb3e0` (`feat: split editorial hero with clickable photo
+collage (approved design)`). The intent was useful: replace the old animated
+`HeroMosaic` with a sharper static listing-photo visual and remove the unused
+mosaic animation CSS. One current issue remained in the committed artifact:
+
+- The new `HeroCollage` was wired as a split text/media hero on a gradient
+  background, with the collage cards as extra listing links. That conflicted
+  with the active homepage hero contract: landing hero media should be
+  full-bleed/background imagery with text over it, not a split text/media
+  layout or gradient-first hero. It also added extra first-viewport focus
+  targets that were not part of the primary hero workflow. The committed
+  source also disagreed with its own accessibility guardrail: the guardrail
+  required a decorative/non-interactive full-bleed collage while the component
+  and page implemented a clickable split layout.
+
+Fixed/reduced:
+
+- Converted `HeroCollage` into a static decorative full-bleed hero background:
+  no `Link`, no `publicListingPath`, no hover animation, `aria-hidden="true"`,
+  empty image alt text, and `pointer-events-none`.
+- Kept the homepage's public listing visibility and viewer block filters for
+  hero media, renamed the server-side row set to `heroListings`, and kept the
+  trusted-media filter before activating the collage.
+- Restored the hero to centered copy/search/CTAs over the image field with a
+  dark contrast overlay and the existing glass `SearchBar` variant when the
+  collage is active; the fallback is warm cream, not a gradient hero.
+- Removed the obsolete animated mosaic CSS and deleted the unused
+  `HeroMosaic.tsx` component.
+- Updated `CLAUDE.md` so future UI work treats the current hero as a static
+  decorative full-bleed background and does not revive the split/clickable
+  collage contract.
+
+Guardrails added/reviewed:
+
+- Reviewed `tests/accessibility-followups.test.mjs`, which now requires the
+  decorative non-interactive `HeroCollage`, rejects hidden focusable/clickable
+  hero photos,
+  reject the split hero grid/gradient hero inside the hero slice, and reject the
+  removed scroll-cue/animated mosaic CSS.
+- Updated `tests/homepage-determinism.test.mjs` so the hero listing query still
+  proves public visibility, viewer block filtering, stable quality ordering,
+  and a bounded cap after the `heroListings` rename.
+- Re-ran adjacent homepage UI, accessibility, public-query determinism, and
+  cache invalidation guardrails.
+
+Verification:
+`git status --short`; source/docs/test inspection with `rg`, `sed`, and
+`git diff`; focused `node --test tests/accessibility-followups.test.mjs
+tests/homepage-determinism.test.mjs tests/post-launch-ui-followups.test.mjs
+tests/public-query-determinism.test.mjs tests/cache-invalidation-guardrails.test.mjs`
+passed 89/89; `npx tsc --noEmit` passed; `npm run lint` passed with the known
+jsx-ast-utils TS non-null warning; and `git diff --check` passed. An attempted
+full `npm test` against the inconsistent `642eb3e0` source failed exactly on
+the hero guardrail mismatch before the corrective patch; after the corrective
+patch, full `npm test` passed with 1564 passing, 0 failing, and 3 skipped tests
+out of 1567 total.
+
+Current running tally after Entry 555: verified fixed/reduced 1067, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the split/clickable homepage hero regression. Deferred
+stays flat.
