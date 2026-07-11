@@ -17864,3 +17864,37 @@ approximate raw allegations left from current max #1126: 0. Fixed/reduced
 increases by one for the real transaction-local message-send policy race.
 Deferred stays flat because this pass fixes current app-layer behavior and does
 not claim production RLS has been enabled.
+
+### Entry 541 - Map maker-card marker cleanup
+
+Entry 541 reviews the new public map maker-card popup work from `476d36f0`.
+The public route and DOM builder were already gated and bounded, but the
+`SellersMap` branch created marker instances without retaining them for
+explicit cleanup. That diverged from `AllSellersMap` and could leave stale marker
+instances/listeners across remounts or seller-list changes.
+
+Fixed/reduced:
+
+- Updated `src/components/SellersMap.tsx` to retain each `maplibregl.Marker`
+  instance and call `marker.remove()` before `map.remove()` on cleanup.
+- Updated `CLAUDE.md` so future map popup changes preserve per-mount fetch
+  caching and explicit marker cleanup.
+
+Guardrails added/reviewed:
+
+- Extended `tests/post-launch-ui-followups.test.mjs` to require both map
+  components to use maker-card skeletons, per-mount card caches, popup upgrades,
+  retained marker arrays, marker cleanup, and the public map-card route's
+  rate-limit/public-visibility/cache gates.
+
+Verification:
+`git status --short`; source inspection with `rg`/`sed`; focused `node --test
+tests/post-launch-ui-followups.test.mjs tests/public-api-auth-inventory.test.mjs
+tests/chrome-color-guardrails.test.mjs tests/accessibility-followups.test.mjs`
+passed 66/66; `npx tsc --noEmit` passed; and `git diff --check` passed.
+
+Current running tally after Entry 541: verified fixed/reduced 1042, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the real map marker cleanup regression. Deferred stays
+flat.

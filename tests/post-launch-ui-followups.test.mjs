@@ -431,6 +431,29 @@ describe("post-launch UI follow-ups", () => {
     assert.doesNotMatch(globals, /calc\(100% - 32px\)/);
   });
 
+  it("keeps map maker-card popups cached and cleaned up", () => {
+    const allSellersMap = source("src/components/AllSellersMap.tsx");
+    const sellersMap = source("src/components/SellersMap.tsx");
+    const makerCard = source("src/lib/mapMakerCard.ts");
+    const mapCardRoute = source("src/app/api/seller/[id]/map-card/route.ts");
+
+    for (const mapSource of [allSellersMap, sellersMap]) {
+      assert.match(mapSource, /const cardCache = new Map<string, MakerCardData \| null>\(\)/);
+      assert.match(mapSource, /buildMakerCardSkeleton\(/);
+      assert.match(mapSource, /upgradeMakerPopup\(popup, .*?, cardCache\)/s);
+      assert.match(mapSource, /const markers: maplibregl\.Marker\[\] = \[\]/);
+      assert.match(mapSource, /markers\.push\(marker\)/);
+      assert.match(mapSource, /markers\.forEach\([\s\S]*?\.remove\(\)\)/);
+    }
+
+    assert.match(makerCard, /textContent = data\.name/);
+    assert.match(makerCard, /safeHttpsUrl\(data\.photoUrl\)/);
+    assert.match(makerCard, /fetch\(`\/api\/seller\/\$\{encodeURIComponent\(sellerId\)\}\/map-card`\)/);
+    assert.match(mapCardRoute, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
+    assert.match(mapCardRoute, /activeSellerProfileWhere\(\{ id, publicMapOptIn: true \}\)/);
+    assert.match(mapCardRoute, /headers: \{ "Cache-Control": "public, max-age=300" \}/);
+  });
+
   it("header icon-only buttons share the hover-circle pattern", () => {
     const header = source("src/components/Header.tsx");
     const bell = source("src/components/NotificationBell.tsx");

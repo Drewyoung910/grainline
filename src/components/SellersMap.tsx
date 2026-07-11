@@ -50,6 +50,7 @@ export default function SellersMap({ sellers }: { sellers: SellerPin[] }) {
 
     // Maker card data cache — one fetch per seller per map mount.
     const cardCache = new Map<string, MakerCardData | null>();
+    const markers: maplibregl.Marker[] = [];
 
     map.on("load", () => {
       for (const seller of sellers) {
@@ -69,14 +70,18 @@ export default function SellersMap({ sellers }: { sellers: SellerPin[] }) {
           void upgradeMakerPopup(popup, seller.id, cardCache);
         });
 
-        new maplibregl.Marker({ color: "#1C1C1A" })
+        const marker = new maplibregl.Marker({ color: "#1C1C1A" })
           .setLngLat([seller.lng, seller.lat])
           .setPopup(popup)
           .addTo(map);
+        markers.push(marker);
       }
     });
 
-    return () => map.remove();
+    return () => {
+      markers.forEach((marker) => marker.remove());
+      map.remove();
+    };
   }, [sellers, center]);
 
   if (mapUnavailable) {
