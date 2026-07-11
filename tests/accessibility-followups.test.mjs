@@ -228,13 +228,18 @@ describe("accessibility follow-ups", () => {
     }
   });
 
-  it("keeps decorative hero mosaic tiles non-interactive", () => {
-    const mosaic = source("src/components/HeroMosaic.tsx");
+  it("keeps homepage hero collage decorative and non-interactive", () => {
+    const collage = source("src/components/HeroCollage.tsx");
 
-    assert.doesNotMatch(mosaic, /publicListingPath/);
-    assert.doesNotMatch(mosaic, /<a[\s\S]*tabIndex=\{-1\}[\s\S]*aria-hidden="true"/);
-    assert.match(mosaic, /<div\s+key=\{`r1-\$\{item\.listingId\}-\$\{i\}`\}/);
-    assert.match(mosaic, /<div\s+key=\{`r2-\$\{item\.listingId\}-\$\{i\}`\}/);
+    // The collage replaced the animated mosaic (2026-07-11): real listing
+    // photos stay decorative behind the hero text, with no extra focus targets.
+    assert.match(collage, /aria-hidden="true"/);
+    assert.match(collage, /pointer-events-none absolute inset-0/);
+    assert.match(collage, /alt=""/);
+    assert.doesNotMatch(collage, /"use client"/);
+    assert.doesNotMatch(collage, /from "next\/link"|publicListingPath|<Link\b|<a\b|href=/);
+    assert.doesNotMatch(collage, /animate-scroll|animation|onClick|onMouse/);
+    assert.doesNotMatch(collage, /group-hover|transition-transform|rounded-2xl/);
   });
 
   it("uses stored listing photo alt text in browse list cards", () => {
@@ -283,7 +288,7 @@ describe("accessibility follow-ups", () => {
     assert.match(saveBlog, /p-3/);
     assert.match(imageLightbox, /<span aria-hidden="true">✕<\/span>/);
     assert.match(listingGallery, /<span aria-hidden="true">✕<\/span>/);
-    assert.match(home, /<svg aria-hidden="true" width="24" height="24"/);
+    assert.doesNotMatch(home, /animate-bounce/);
   });
 
   it("keeps account popover and rating slider semantics honest", () => {
@@ -370,10 +375,12 @@ describe("accessibility follow-ups", () => {
     }
   });
 
-  it("keeps homepage heading order and reduced-motion hero controls auditable", () => {
+  it("keeps homepage heading order and static hero background auditable", () => {
     const home = source("src/app/page.tsx");
-    const heroMosaic = source("src/components/HeroMosaic.tsx");
     const globals = source("src/app/globals.css");
+    const heroStart = home.indexOf("{/* ── Hero");
+    const heroEnd = home.indexOf("{/* ── Stats bar", heroStart);
+    const hero = home.slice(heroStart, heroEnd);
 
     assert.equal((home.match(/<h1\b/g) ?? []).length, 1);
     assert.ok(home.indexOf("<h1") < home.indexOf("<h2"), "homepage h1 should precede section h2s");
@@ -387,22 +394,17 @@ describe("accessibility follow-ups", () => {
       assert.match(home, new RegExp(`<h2[^>]*>[\\s\\S]*?${heading}[\\s\\S]*?<\\/h2>`));
     }
 
-    assert.match(heroMosaic, /aria-label=\{paused \? "Play hero animation" : "Pause hero animation"\}/);
-    assert.match(heroMosaic, /aria-pressed=\{paused\}/);
-    assert.match(heroMosaic, /motion-reduce:animate-none/);
-    assert.match(heroMosaic, /motion-reduce:blur-none/);
-    assert.match(heroMosaic, /motion-reduce:scale-100/);
-    assert.match(home, /animate-bounce motion-reduce:animate-none/);
-    assert.match(home, /const hasHeroMosaic = mosaicPhotos\.length >= 12/);
-    assert.match(home, /<SearchBar variant=\{hasHeroMosaic \? "glass" : "default"\} \/>/);
-    const heroSearchStart = home.indexOf("<div className={`max-w-xl mx-auto");
-    const heroSearchEnd = home.indexOf("<Suspense>", heroSearchStart);
-    const heroSearchWrapper = home.slice(heroSearchStart, heroSearchEnd);
-    assert.match(heroSearchWrapper, /hasHeroMosaic \? "\[&_input\]:bg-white\/20/);
-    assert.match(heroSearchWrapper, /" : ""/);
-    assert.doesNotMatch(home, /className="max-w-xl mx-auto \[&_input\]:bg-white\/20/);
+    // Static full-bleed hero background (2026-07-11): no mosaic animation, no
+    // split text/media layout, and no scroll-cue chevron.
+    assert.doesNotMatch(home, /HeroMosaic|hasHeroMosaic|mosaicListings|animate-bounce/);
+    assert.match(home, /const hasHeroCollage = heroCollageItems\.length >= 3/);
+    assert.match(hero, /<HeroCollage items=\{heroCollageItems\} \/>/);
+    assert.match(hero, /<SearchBar variant=\{hasHeroCollage \? "glass" : "default"\} \/>/);
+    assert.match(hero, /absolute inset-0 bg-\[#1C1C1A\]\/70/);
+    assert.doesNotMatch(hero, /lg:grid-cols-\[1\.05fr_1fr\]|bg-gradient-to-br|split editorial/);
     assert.match(globals, /@media \(prefers-reduced-motion: reduce\)/);
-    assert.match(globals, /\.animate-scroll-left,[\s\S]*\.animate-slide-down \{[\s\S]*animation: none !important/);
+    assert.doesNotMatch(globals, /animate-scroll-left|animate-scroll-right|@keyframes scroll-left|@keyframes scroll-right/);
+    assert.match(globals, /\.animate-slide-in-right,[\s\S]*\.animate-slide-down \{[\s\S]*animation: none !important/);
     assert.match(globals, /transition-duration: 0\.01ms !important/);
   });
 
