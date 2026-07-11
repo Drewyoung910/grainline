@@ -166,6 +166,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
                 name="type"
                 value={value}
                 defaultChecked={currentType === value}
+                className="h-4 w-4 accent-neutral-900"
               />
               {label}
             </label>
@@ -369,7 +370,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
           <span className="font-semibold text-sm">Filters</span>
           <button
             onClick={() => setMobileOpen(false)}
-            className="rounded border px-3 py-1 text-sm hover:bg-neutral-50 min-h-[44px]"
+            className="rounded-full bg-[#EFEAE0] px-3.5 py-1 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors min-h-[44px]"
           >
             Close
           </button>
@@ -412,7 +413,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
           <span className="font-semibold text-sm">Sort by</span>
           <button
             onClick={() => setSortOpen(false)}
-            className="rounded border px-3 py-1 text-sm hover:bg-neutral-50 min-h-[44px]"
+            className="rounded-full bg-[#EFEAE0] px-3.5 py-1 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors min-h-[44px]"
           >
             Close
           </button>

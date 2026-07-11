@@ -69,7 +69,7 @@ export default function NewCommissionPage() {
       </div>
 
       {error && (
-        <div className="border border-red-200 bg-red-50 text-red-700 text-sm p-3 mb-5">{error}</div>
+        <div className="rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm p-3 mb-5">{error}</div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-5">
@@ -84,7 +84,7 @@ export default function NewCommissionPage() {
             onChange={(e) => setTitle(e.target.value)}
             maxLength={100}
             placeholder="e.g. Custom walnut dining table for 8"
-            className="w-full border border-neutral-300 px-3 py-2 text-sm"
+            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
             required
           />
           <p className="text-xs text-neutral-500 mt-1">{title.length}/100</p>
@@ -102,7 +102,7 @@ export default function NewCommissionPage() {
             maxLength={1000}
             rows={5}
             placeholder="Describe dimensions, wood type preferences, style, finish, any special requirements..."
-            className="w-full border border-neutral-300 px-3 py-2 text-sm resize-y"
+            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm resize-y"
             required
           />
           <p className="text-xs text-neutral-500 mt-1">{description.length}/1000</p>
@@ -115,7 +115,7 @@ export default function NewCommissionPage() {
             value={category}
             autoComplete="off"
             onChange={(e) => setCategory(e.target.value)}
-            className="w-full border border-neutral-300 px-3 py-2 text-sm"
+            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
           >
             <option value="">— Any category —</option>
             {CATEGORY_VALUES.map((cat) => (
@@ -138,7 +138,7 @@ export default function NewCommissionPage() {
                 value={budgetMin}
                 onChange={(e) => setBudgetMin(e.target.value)}
                 placeholder="Min"
-                className="w-full border border-neutral-300 pl-7 pr-3 py-2 text-sm"
+                className="w-full rounded-md border border-neutral-200 bg-white pl-7 pr-3 py-2 text-sm"
               />
             </div>
             <span className="text-neutral-500 text-sm">to</span>
@@ -152,7 +152,7 @@ export default function NewCommissionPage() {
                 value={budgetMax}
                 onChange={(e) => setBudgetMax(e.target.value)}
                 placeholder="Max"
-                className="w-full border border-neutral-300 pl-7 pr-3 py-2 text-sm"
+                className="w-full rounded-md border border-neutral-200 bg-white pl-7 pr-3 py-2 text-sm"
               />
             </div>
           </div>
@@ -167,7 +167,7 @@ export default function NewCommissionPage() {
             onChange={(e) => setTimeline(e.target.value)}
             maxLength={100}
             placeholder="e.g. Within 3 months, flexible"
-            className="w-full border border-neutral-300 px-3 py-2 text-sm"
+            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
           />
         </div>
 
@@ -185,7 +185,7 @@ export default function NewCommissionPage() {
             <UploadButton
               endpoint="messageImage"
               appearance={{
-                button: "bg-neutral-900 text-white text-xs px-3 py-2 hover:bg-neutral-700",
+                button: "rounded-md bg-neutral-900 text-white text-xs px-3 py-2 hover:bg-neutral-700",
                 container: "inline-block",
                 allowedContent: "hidden",
               }}
@@ -202,7 +202,7 @@ export default function NewCommissionPage() {
               {referenceImageUrls.map((url, i) => (
                 <div key={i} className="relative">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={url} alt="" className="w-16 h-16 object-cover border border-neutral-200" />
+                  <img src={url} alt="" className="w-16 h-16 rounded-md object-cover border border-neutral-200" />
                   <button
                     type="button"
                     onClick={() => setReferenceImageUrls((prev) => prev.filter((_, j) => j !== i))}
@@ -255,14 +255,14 @@ export default function NewCommissionPage() {
           <button
             type="submit"
             disabled={submitting || !title.trim() || !description.trim()}
-            className="bg-neutral-900 text-white px-6 py-2.5 text-sm hover:bg-neutral-700 transition-colors disabled:opacity-50"
+            className="rounded-md bg-[#2C1F1A] text-white px-6 py-2.5 text-sm font-medium hover:bg-[#3A2A24] transition-colors disabled:opacity-50"
           >
             {submitting ? "Posting…" : "Post Request"}
           </button>
           <button
             type="button"
             onClick={() => router.back()}
-            className="border border-neutral-300 px-6 py-2.5 text-sm hover:bg-neutral-50 transition-colors"
+            className="rounded-md border border-neutral-200 px-6 py-2.5 text-sm hover:bg-neutral-50 transition-colors"
           >
             Cancel
           </button>

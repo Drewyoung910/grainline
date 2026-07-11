@@ -1,7 +1,9 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import { readApiErrorMessage } from "@/lib/apiError";
+import { useToast } from "@/components/Toast";
 
 type Props = {
   targetUserId: string;
@@ -9,6 +11,10 @@ type Props = {
   initialBlocked?: boolean;
   targetType?: string;
   targetId?: string;
+  /** Where to send the user after a successful BLOCK (not unblock). Use on
+   * pages that become inaccessible once the target is blocked (seller
+   * profile, listing detail). Defaults to refreshing the current route. */
+  afterBlockHref?: string;
 };
 
 const REPORT_REASONS = [
@@ -22,7 +28,9 @@ const REPORT_REASONS = [
 const MENU_WIDTH = 224; // matches w-56
 const MENU_MARGIN = 8;
 
-export default function BlockReportButton({ targetUserId, targetName, initialBlocked = false, targetType, targetId }: Props) {
+export default function BlockReportButton({ targetUserId, targetName, initialBlocked = false, targetType, targetId, afterBlockHref }: Props) {
+  const router = useRouter();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<"menu" | "report">("menu");
   const [blocked, setBlocked] = useState(initialBlocked);
@@ -91,9 +99,20 @@ export default function BlockReportButton({ targetUserId, targetName, initialBlo
     try {
       const res = await fetch(`/api/users/${targetUserId}/block`, { method });
       if (!res.ok) throw new Error(await readApiErrorMessage(res, "Could not update block settings."));
-      setBlocked(!blocked);
+      const nowBlocked = !blocked;
+      setBlocked(nowBlocked);
       setStatus("idle");
       setOpen(false);
+      setView("menu");
+      toast(nowBlocked ? `Blocked ${targetName}` : `Unblocked ${targetName}`, "success");
+      // Refresh so the page immediately reflects the block (hidden content,
+      // disabled composer, etc.). On pages that 404 once blocked, navigate
+      // away instead of stranding the user.
+      if (nowBlocked && afterBlockHref) {
+        router.push(afterBlockHref);
+      } else {
+        router.refresh();
+      }
     } catch (e) {
       setStatus("idle");
       setError(e instanceof Error ? e.message : "Could not update block settings.");

@@ -233,6 +233,20 @@ input, textarea, select {
   color: #6b7280 !important;
 }
 
+/* Maker card popup — edge-to-edge cover photo, card handles its own padding.
+   Close button sits over the photo, so it goes white with a soft shadow. */
+.maker-card-popup .maplibregl-popup-content {
+  padding: 0 !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+}
+.maker-card-popup .maplibregl-popup-close-button {
+  color: #ffffff !important;
+  font-size: 18px !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  z-index: 1;
+}
+
 /* Hero mosaic scroll animations */
 @keyframes scroll-left {
   0% { transform: translateX(0); }

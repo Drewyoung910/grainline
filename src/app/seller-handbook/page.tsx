@@ -114,8 +114,8 @@ export default function SellerHandbookPage() {
           <h3>Meta description</h3>
           <p>
             Optional but worth it. This is the snippet Google shows under your listing in search results. 160
-            characters max. If you leave it blank, we use the first 160 characters of your description. Writing a
-            custom one usually clicks better.
+            characters max. If you leave it blank, we use the first 160 characters of your description. A custom one
+            usually earns more clicks.
           </p>
         </section>
 
@@ -161,7 +161,7 @@ export default function SellerHandbookPage() {
           <h3>Cost-plus (most common)</h3>
           <p>
             Materials + tools amortized + shop overhead + (hours × your target hourly rate) + 30–50% margin.
-            Hourly rate should reflect skilled labor, not minimum wage. For experienced makers we see $60–$120/hr is
+            Your hourly rate should reflect skilled labor, not minimum wage. For experienced makers, $60–$120/hr is
             normal. The 30–50% margin covers your time selling, packaging, customer service, and the inevitable
             redo when a piece doesn&apos;t come out right.
           </p>
@@ -341,9 +341,9 @@ export default function SellerHandbookPage() {
 
           <h3>Guild Master (top tier)</h3>
           <p>
-            Available only after you&apos;ve been a Guild Member for at least 30 days. Stricter ongoing metrics:
+            Available to Guild Members who meet stricter ongoing metrics:
             average rating ≥ 4.5, 25+ reviews, 95%+ on-time shipping, 90%+ message response rate, $1,000+ lifetime
-            sales, no active cases. Re-evaluated monthly. If metrics slip, you get a 30-day warning before
+            sales, a 180+ day account age, and no active cases. Re-evaluated monthly. If metrics slip, you get a 30-day warning before
             demotion.
           </p>
           <p>
@@ -389,8 +389,8 @@ export default function SellerHandbookPage() {
             state sales tax on all Texas-bound orders. You don&apos;t need to do anything for those orders.
           </p>
           <p>
-            For income tax: Stripe issues you a 1099-K if you cross the IRS reporting threshold ($600/year through
-            2026, may change). Save your sales records. You&apos;re responsible for federal income tax on your earnings.
+            For income tax: Stripe issues you a 1099-K if you cross the IRS reporting threshold (it has changed
+            several times recently, so check the current IRS rules). Save your sales records. You&apos;re responsible for federal income tax on your earnings.
             Consult a tax professional for anything complicated; we don&apos;t give tax advice.
           </p>
         </section>
@@ -421,10 +421,10 @@ export default function SellerHandbookPage() {
 
           <h3>Categories that move</h3>
           <p>
-            Based on early Grainline sales: cutting boards and small kitchen items convert fastest (entry-price,
-            giftable); custom furniture has the highest order value (low volume, high margin); commissioned pieces via
-            the Commission Room have the highest customer satisfaction (because the buyer specified exactly what they
-            wanted).
+            What tends to move in handmade woodworking: cutting boards and small kitchen items convert fastest
+            (entry-price, giftable); custom furniture carries the highest order value (low volume, high margin); and
+            commissioned pieces tend to earn the strongest reviews, because the buyer specified exactly what they
+            wanted.
           </p>
         </section>
 

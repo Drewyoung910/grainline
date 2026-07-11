@@ -689,6 +689,7 @@ export default async function ListingPage({
                   targetName={listing.seller.displayName ?? "this maker"}
                   targetType="LISTING"
                   targetId={listing.id}
+                  afterBlockHref="/browse"
                 />
               )}
             </div>

@@ -12,7 +12,7 @@ import UserAvatarMenu from "@/components/UserAvatarMenu";
 import { MessageCircle, ShoppingBag, Menu, X, Search, Rss, User, Store, Shield, Edit, Hammer } from "@/components/icons";
 import { anonymousCartCount } from "@/lib/anonymousCart";
 import { subscribeCartUpdated } from "@/lib/cartEvents";
-import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
+import { useDialogFocus } from "@/lib/dialogFocus";
 import { clearSignedOutLocalAccountState } from "@/lib/localAccountState";
 import { avatarInitial } from "@/lib/avatarInitials";
 
@@ -66,7 +66,10 @@ export default function Header() {
   useDialogFocus(drawerOpen, drawerRef, closeDrawer, {
     initialFocus: "container",
   });
-  useBodyScrollLock(drawerOpen);
+  // NOTE: no body scroll lock here on purpose. Pinning <body> to
+  // position:fixed causes a visible repaint jump on open AND close in mobile
+  // browsers (the URL bar makes it worse; the PWA hides it). The backdrop
+  // uses touch-none to swallow background scroll instead.
 
   React.useEffect(() => {
     if (!drawerOpen) return;
@@ -415,7 +418,7 @@ export default function Header() {
         <>
           {/* Backdrop — z-[1000] within header's z-[50] stacking context beats any sticky element */}
           <div
-            className={`fixed inset-0 z-[1000] bg-black/30 motion-reduce:animate-none ${
+            className={`fixed inset-0 z-[1000] bg-black/30 touch-none overscroll-contain motion-reduce:animate-none ${
               drawerClosing ? "animate-backdrop-out" : "animate-backdrop-in"
             }`}
             onClick={closeDrawer}
@@ -429,7 +432,7 @@ export default function Header() {
             aria-modal="true"
             aria-label="Main navigation"
             tabIndex={-1}
-            className={`fixed right-3 top-3 z-[1001] flex w-64 max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-1.5rem)] flex-col rounded-2xl bg-[#F7F5F0] shadow-2xl ring-1 ring-black/5 overflow-hidden outline-none motion-reduce:animate-none ${
+            className={`fixed right-3 top-14 z-[1001] flex w-64 max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-4.5rem)] flex-col rounded-2xl bg-[#F7F5F0] shadow-2xl ring-1 ring-black/5 overflow-hidden outline-none motion-reduce:animate-none ${
               drawerClosing ? "animate-menu-out pointer-events-none" : "animate-menu-in"
             }`}
           >

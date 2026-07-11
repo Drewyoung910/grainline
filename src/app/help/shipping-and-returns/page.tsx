@@ -94,7 +94,7 @@ export default function ShippingAndReturnsHelpPage() {
         <h2>Lost or stolen packages</h2>
         <p>
           If tracking shows the package was delivered but you didn&apos;t receive it, open a case. We
-          take buyer-protection seriously and review these claims case-by-case. For high-value pieces,
+          take buyer protection seriously and review these claims case by case. For high-value pieces,
           we strongly recommend selecting a service with delivery confirmation or signature required.
         </p>
 

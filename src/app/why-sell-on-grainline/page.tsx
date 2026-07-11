@@ -302,7 +302,7 @@ export default async function WhySellOnGrainlinePage() {
           </div>
           <div className="card-section p-6 bg-white">
             <Sparkles size={24} className="text-amber-700 mb-3" />
-            <h3 className="font-display font-semibold text-base text-neutral-900 mb-2">Stripe payouts in 2 days</h3>
+            <h3 className="font-display font-semibold text-base text-neutral-900 mb-2">Direct Stripe payouts</h3>
             <p className="text-sm text-neutral-600 leading-relaxed">
               Connected directly to your bank account. Payouts arrive on Stripe&apos;s standard schedule, typically
               2 business days after the order is paid.
@@ -334,10 +334,10 @@ export default async function WhySellOnGrainlinePage() {
           </div>
           <div className="card-section p-6 bg-white">
             <Edit size={24} className="text-amber-700 mb-3" />
-            <h3 className="font-display font-semibold text-base text-neutral-900 mb-2">A blog and newsletter</h3>
+            <h3 className="font-display font-semibold text-base text-neutral-900 mb-2">A blog that features makers</h3>
             <p className="text-sm text-neutral-600 leading-relaxed">
-              We run a Grainline blog and newsletter. Maker spotlights, build guides, behind-the-build stories.
-              Featured makers get real traffic. You can also publish your own posts.
+              Maker spotlights, build guides, and behind-the-build stories on the Grainline blog. You can also
+              publish your own posts and reach buyers directly.
             </p>
           </div>
         </div>

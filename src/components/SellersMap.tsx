@@ -5,6 +5,7 @@ import maplibregl from "maplibre-gl";
 import { publicSellerPath } from "@/lib/publicPaths";
 import MapFallback from "@/components/MapFallback";
 import { maplibreSupported } from "@/lib/mapSupport";
+import { buildMakerCardSkeleton, upgradeMakerPopup, type MakerCardData } from "@/lib/mapMakerCard";
 
 type SellerPin = {
   id: string;
@@ -47,29 +48,26 @@ export default function SellersMap({ sellers }: { sellers: SellerPin[] }) {
 
     map.addControl(new maplibregl.NavigationControl(), "top-right");
 
+    // Maker card data cache — one fetch per seller per map mount.
+    const cardCache = new Map<string, MakerCardData | null>();
+
     map.on("load", () => {
       for (const seller of sellers) {
-        const popupContent = document.createElement("div");
-
-        const name = document.createElement("div");
-        name.className = "text-sm font-medium";
-        name.textContent = seller.name;
-        popupContent.appendChild(name);
-
-        if (seller.city) {
-          const location = document.createElement("div");
-          location.className = "text-xs text-neutral-500";
-          location.textContent = `${seller.city}${seller.state ? `, ${seller.state}` : ""}`;
-          popupContent.appendChild(location);
-        }
-
-        const link = document.createElement("a");
-        link.href = publicSellerPath(seller.id, seller.name);
-        link.className = "text-xs text-amber-700 underline mt-1 block";
-        link.textContent = "View shop";
-        popupContent.appendChild(link);
-
-        const popup = new maplibregl.Popup({ offset: 25 }).setDOMContent(popupContent);
+        const popup = new maplibregl.Popup({
+          offset: 25,
+          maxWidth: "280px",
+          className: "maker-card-popup",
+        }).setDOMContent(
+          buildMakerCardSkeleton(
+            seller.name,
+            seller.city ?? null,
+            seller.state ?? null,
+            publicSellerPath(seller.id, seller.name)
+          )
+        );
+        popup.on("open", () => {
+          void upgradeMakerPopup(popup, seller.id, cardCache);
+        });
 
         new maplibregl.Marker({ color: "#1C1C1A" })
           .setLngLat([seller.lng, seller.lat])

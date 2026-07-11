@@ -586,6 +586,7 @@ export default async function SellerPublicPage({
                   targetName={seller.displayName ?? "this maker"}
                   targetType="SELLER"
                   targetId={seller.id}
+                  afterBlockHref="/browse"
                 />
               </span>
             )}

@@ -57,7 +57,7 @@ export default function TrustAndSafetyHelpPage() {
         <h2>Buyer protection</h2>
         <p>
           If a piece doesn&apos;t arrive, arrives damaged, or isn&apos;t as described, you can open a
-          case from your order page within 60 days of the delivery date. The maker has 48 hours to
+          case from your order page within 30 days of the delivery date. The maker has 48 hours to
           respond. If you can&apos;t reach an agreement, you can escalate to Grainline staff for a
           binding decision.
         </p>

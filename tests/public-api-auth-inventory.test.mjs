@@ -23,6 +23,9 @@ const intentionalNoAuthPublicRoutes = new Set([
   "src/app/api/newsletter/route.ts",
   "src/app/api/search/popular-blog-tags/route.ts",
   "src/app/api/search/popular-tags/route.ts",
+  // Map marker popup card — public non-viewer-specific seller snapshot,
+  // gated by activeSellerProfileWhere + publicMapOptIn, IP rate limited.
+  "src/app/api/seller/[id]/map-card/route.ts",
   "src/app/api/support/route.ts",
 ]);
 

@@ -6,6 +6,7 @@ import maplibregl from "maplibre-gl";
 import { publicSellerPath } from "@/lib/publicPaths";
 import MapFallback from "@/components/MapFallback";
 import { maplibreSupported } from "@/lib/mapSupport";
+import { buildMakerCardSkeleton, upgradeMakerPopup, type MakerCardData } from "@/lib/mapMakerCard";
 
 type Point = {
   id: string;
@@ -123,45 +124,8 @@ export default function AllSellersMap({
     });
 
     const markers: maplibregl.Marker[] = [];
-
-    function buildPopupContent(props: Record<string, unknown> | null) {
-      const id = typeof props?.id === "string" ? props.id : "";
-      const nameText = typeof props?.name === "string" ? props.name : "";
-      const cityText = typeof props?.city === "string" ? props.city : "";
-      const stateText = typeof props?.state === "string" ? props.state : "";
-
-      const wrapper = document.createElement("div");
-      wrapper.style.fontFamily = "inherit";
-      wrapper.style.padding = "2px 0";
-
-      const name = document.createElement("div");
-      name.style.fontWeight = "600";
-      name.style.fontSize = "14px";
-      name.style.color = "#1a1a1a";
-      name.style.marginBottom = "4px";
-      name.textContent = nameText;
-      wrapper.appendChild(name);
-
-      if (cityText) {
-        const location = document.createElement("div");
-        location.style.fontSize = "12px";
-        location.style.color = "#6b7280";
-        location.style.marginBottom = "6px";
-        location.textContent = `${cityText}${stateText ? `, ${stateText}` : ""}`;
-        wrapper.appendChild(location);
-      }
-
-      const link = document.createElement("a");
-      link.href = publicSellerPath(id, nameText);
-      link.style.fontSize = "12px";
-      link.style.color = "#92400e";
-      link.style.textDecoration = "underline";
-      link.style.fontWeight = "500";
-      link.textContent = "View shop";
-      wrapper.appendChild(link);
-
-      return wrapper;
-    }
+    // Maker card data cache — one fetch per seller per map mount.
+    const cardCache = new Map<string, MakerCardData | null>();
 
     function updateMarkers() {
       markers.forEach(m => m.remove());
@@ -181,8 +145,20 @@ export default function AllSellersMap({
         seen.add(id);
 
         const coords = (feature.geometry as GeoJSON.Point).coordinates as [number, number];
-        const popup = new maplibregl.Popup({ offset: 25, maxWidth: "240px" })
-          .setDOMContent(buildPopupContent(feature.properties as Record<string, unknown>));
+        const props = feature.properties as Record<string, unknown> | null;
+        const nameText = typeof props?.name === "string" ? props.name : "";
+        const cityText = typeof props?.city === "string" ? props.city : null;
+        const stateText = typeof props?.state === "string" ? props.state : null;
+        const popup = new maplibregl.Popup({
+          offset: 25,
+          maxWidth: "280px",
+          className: "maker-card-popup",
+        }).setDOMContent(
+          buildMakerCardSkeleton(nameText, cityText, stateText, publicSellerPath(id, nameText))
+        );
+        popup.on("open", () => {
+          void upgradeMakerPopup(popup, id, cardCache);
+        });
 
         const marker = new maplibregl.Marker({ color: "#1C1C1A" })
           .setLngLat(coords)

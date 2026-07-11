@@ -139,8 +139,8 @@ export default async function WhyGrainlinePage() {
                 AI moderation on every listing
               </h3>
               <p className="text-sm text-neutral-600 leading-relaxed">
-                New listings are scanned for counterfeits, mass-produced items, drop-shipping, AI-generated photos,
-                and prohibited categories. Anything flagged goes to staff review before buyers see it.
+                New listings are scanned for counterfeits, mass-produced items, drop-shipping, misleading or stock
+                photos, and prohibited categories. Anything flagged goes to staff review before buyers see it.
               </p>
             </div>
             <div className="card-section p-6 bg-white">
@@ -243,11 +243,11 @@ export default async function WhyGrainlinePage() {
             Made in the USA. Built in Texas.
           </p>
           <h2 className="text-3xl sm:text-4xl font-display font-bold text-neutral-900 mb-4">
-            Every maker is American.
+            Every workshop is American.
           </h2>
           <p className="text-stone-600 max-w-2xl mx-auto mb-8">
             Grainline is a Texas-registered marketplace, and every seller on it ships from a US address. When you
-            buy here, your money goes to an American craftsperson, not an overseas reseller.
+            buy here, your money goes straight to a US workshop, not an overseas reseller.
           </p>
           <div className="grid grid-cols-3 gap-4 max-w-xl mx-auto mb-8">
             <div className="bg-white rounded-xl p-5">
@@ -264,7 +264,7 @@ export default async function WhyGrainlinePage() {
             </div>
             <div className="bg-white rounded-xl p-5">
               <div className="text-2xl sm:text-3xl font-bold text-neutral-900">50</div>
-              <div className="text-xs text-stone-500 mt-1">states served</div>
+              <div className="text-xs text-stone-500 mt-1">states shipped to</div>
             </div>
           </div>
           <Link
