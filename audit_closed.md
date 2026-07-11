@@ -13791,6 +13791,1532 @@ submission decision, Vercel Analytics/Speed Insights product/privacy decision,
 homepage browser a11y/runtime proof beyond source fallback, and deployed
 security-header runtime proof beyond source/config guardrails.
 
+### Entry 493 - refund evidence visibility and Guild trust-metric policy
+
+This parent-reviewed pass used two read-only agents plus local source review to
+recheck the remaining Stripe refund/label/webhook evidence bucket and the
+Founding Maker/Guild policy bucket. Latest pushed CI on `main` was already green
+for `983f867f` before broadening audit scope.
+
+Fixed/reduced in source:
+
+- Admin order detail now surfaces nested
+  `OrderPaymentEvent.metadata.refundAccounting` evidence instead of requiring
+  staff to inspect raw JSON or SQL. The Stripe Payment Events panel renders the
+  transfer reversal id, seller recovery amount, platform-funded amount, and
+  original seller transfer amount when first-party seller/staff/blocked-checkout
+  refund evidence contains those fields.
+- The Guild private/custom-order trust-metric policy is now explicit and
+  guarded. Verified private/custom-order purchases continue to count toward
+  seller ratings, completed-sales totals, on-time shipping, and response metrics;
+  the separate Guild Member public-inventory criterion still requires five
+  active public listings. `CLAUDE.md` now records that this should not change
+  without an explicit product/legal decision and a migration/recalculation plan.
+
+Verified stale/current or deferred without source changes:
+
+- Raw #1101 remains a dashboard-evidence item, not a source defect. Current
+  source handles the inspected Checkout, account, refund, dispute, and payout
+  event branches; proving the deployed Stripe Dashboard subscription set still
+  requires provider-side evidence.
+- Raw #1106 and the repeated partial-refund idempotency/drain allegations were
+  rechecked as source-current/stale. Seller/staff refund routes keep a
+  single-blocking-refund-per-order model with refund locks, durable
+  `OrderPaymentEvent` evidence, and blocking refund ledger checks. The remaining
+  partial-refund economics proof is still Stripe test-mode/runtime evidence.
+- Old raw #105/#106 partial stock-restore allegations remain current/stale:
+  seller and staff case refund paths accept bounded `restoreStock` arrays and
+  validate requested quantities against purchased in-stock items. No duplicate
+  raw tally increase was taken because these were already represented in earlier
+  ledger entries.
+- Founding Maker race/range and stale-counter allegations (#180/#280/#351/#425/
+  #434/#951/#1020) are source-current/stale: grants use an advisory transaction
+  lock, unique/check constraints, final `isFoundingMaker: false` guards, and the
+  `/why-grainline` counter is revalidated. Live DB concurrency proof remains
+  runtime evidence only.
+- Guild reapply/cooldown/cache/audit allegations (#1025/#1031/#1037/#1038/
+  #1041/#1049/#1050 and related active-case metric allegations #854/#856) are
+  source-current/stale under the current code. Cooldowns, cron audit logs,
+  featured-maker cache revalidation, and all-time unresolved active-case
+  counting are already guarded by existing tests.
+- Founding Maker permanence after ban/fraud remains a product/legal policy
+  decision. Public visibility hides banned/deleted sellers, but badge fields are
+  not cleared by account-state transitions.
+
+Guardrails added/reviewed:
+
+- Added `surfaces first-party refund accounting evidence on admin order payment
+  events` to `tests/admin-action-guardrails.test.mjs`.
+- Added `keeps private and custom verified purchases in Guild trust metrics by
+  policy` to `tests/guild-metrics-state.test.mjs`.
+- Updated `CLAUDE.md` with reusable behavior contracts for admin refund
+  accounting visibility and Guild private/custom-order metric semantics.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 3` confirmed latest
+pushed CI on `main` was green for `983f867f`; parent source review with
+`rg`/`sed`; two parent-reviewed read-only agent reports; focused
+`node --test tests/admin-action-guardrails.test.mjs
+tests/guild-metrics-state.test.mjs` passed 13/13 after tightening one brittle
+assertion; `npx tsc --noEmit`; `git diff --check`; `npm run lint` (known
+`jsx-ast-utils` TSNonNullExpression warning, exit 0); and full `npm test`
+passing 1451/1451.
+
+Current running tally after Entry 493: verified fixed/reduced 980, verified
+stale/false-positive/current 542, deferred product/design/ops/legal 80,
+approximate raw allegations left from current max #1126: 17. Fixed/reduced
+increases by two for the admin refund-accounting evidence surface and the now
+documented/guarded Guild private/custom-order metric policy. Deferred decreases
+by one because the Guild private/custom-order trust-metric policy is no longer
+being carried as an unresolved product-policy ambiguity. Stale/current does not
+increase because the repeated raw IDs above were already classified in earlier
+entries.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence,
+Stripe partial-refund live reconciliation proof, label clawback runtime
+proof/dashboard reconciliation evidence, Stripe webhook subscription dashboard
+evidence, Stripe Connect v2 loss-liability ops/legal decision, explicit stale
+remote branch pruning/review, completed-audit archive housekeeping once the
+60-day threshold is reached, Round 10 deferred cache/state-machine product
+designs that require product decisions rather than source guardrails,
+EXPLAIN-dependent runtime query-plan validation beyond the existing source
+indexes and source guardrails, founding-maker permanence policy,
+provider-side privacy erasure/legal-request evidence, cross-seller AI
+duplicate-detection product design, durable checkout-group design for checkout
+batch semantics beyond grouped ready-lock/reservation resume and
+completed-session filtering, deliberate BigInt money-column modeling for
+individual order/item cents fields and high-volume listing analytics counters
+beyond the fixed seller-metrics aggregate cache and new webhook integer bounds,
+live-data reconciliation for historical seller shipping-rate currency drift,
+Clerk staff MFA and breached-password dashboard evidence, Clerk multi-account
+spam dashboard evidence, buyer-deletion live Stripe replay proof after source
+minimization, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public bucket dashboard posture plus
+production smoke evidence and public-availability proof, HSTS preload
+submission decision, Vercel Analytics/Speed Insights product/privacy decision,
+homepage browser a11y/runtime proof beyond source fallback, and deployed
+security-header runtime proof beyond source/config guardrails.
+
+### Entry 494 - ops evidence and telemetry privacy guardrail pass
+
+Entry 494 rechecked the remaining ops/provider evidence bucket with two
+read-only agents plus parent source review over checkout grouping, shipping
+currency, BigInt modeling, R2, Vercel telemetry, homepage a11y, Clerk/Sentry
+ops evidence, and deployed-header evidence. Both agents were parent-reviewed
+and closed. Latest pushed CI on `main` was green for `eb9820b4` before
+broadening audit scope.
+
+Fixed/reduced:
+
+- Added a focused guardrail to keep Vercel Analytics and Speed Insights behind
+  an explicit privacy/product decision. `tests/retention-and-ops-followups.test.mjs`
+  now fails if `@vercel/analytics`, `@vercel/speed-insights`, `<Analytics />`,
+  or `<SpeedInsights />` are introduced without changing the current no-telemetry
+  source posture. This reduces the chance that analytics telemetry is added as
+  an incidental dependency without privacy/consent review.
+
+Verified stale/current or deferred without source changes:
+
+- Clerk staff MFA, breached-password, and multi-account/spam controls remain
+  external dashboard evidence. Source correctly treats app-side Admin PIN as
+  defense in depth, not a substitute for Clerk-native launch evidence.
+- Sentry cron monitors and ops-health alert routing remain source-current plus
+  runtime/dashboard evidence. Cron routes use `withSentryCronMonitor()`,
+  schedule-alignment tests cover `vercel.json`, and `/api/cron/ops-health`
+  returns unhealthy status for actionable piles, but live Sentry monitor/alert
+  screenshots still must be retained before launch.
+- R2 ListBucket/public-bucket posture and production upload smoke remain
+  provider/runtime evidence. Current source uses tracked DB rows and
+  key-scoped `HeadObject`/`GetObject`/public `HEAD` checks instead of bucket
+  listing; upload paths have magic-byte, SVG, size, and public-availability
+  guardrails.
+- Deployed security headers and HSTS preload remain runtime evidence/product
+  decisions. `next.config.ts` and tests guard the source-configured headers,
+  while `securityheaders.com`, SSL Labs, and hstspreload.org status remain
+  external evidence.
+- Homepage a11y/runtime proof remains external/browser evidence beyond current
+  static guardrails. Existing source tests cover heading order, reduced-motion
+  behavior, non-interactive decorative mosaic tiles, skip links, and
+  deterministic homepage query visibility.
+- Checkout-group semantics, shipping-rate currency binding, Shippo label money
+  normalization, and BigInt modeling were rechecked as source-current or
+  already-deferred. Cart checkout group ids are persisted through reservations
+  and Stripe metadata, shipping tokens bind server-derived currency/package
+  state, Shippo label costs are normalized and currency-scoped before reversal,
+  and broader individual money/counter `BigInt` migrations remain deliberate
+  data-model decisions.
+- Historical seller shipping-rate currency drift remains live-data
+  reconciliation, not a source patch to fake from code review.
+
+Guardrails added/reviewed:
+
+- Added `keeps Vercel Analytics and Speed Insights behind an explicit privacy
+  decision` to `tests/retention-and-ops-followups.test.mjs`.
+- Reviewed existing guardrails in `tests/public-security-config.test.mjs`,
+  `tests/direct-upload-lifecycle.test.mjs`, `tests/accessibility-followups.test.mjs`,
+  `tests/homepage-determinism.test.mjs`, `tests/shipping-token.test.mjs`,
+  `tests/shipping-quote-state.test.mjs`,
+  `tests/shippo-label-money-guardrails.test.mjs`,
+  `tests/checkout-stock-reservation-guardrails.test.mjs`,
+  `tests/client-async-guardrails.test.mjs`, and
+  `tests/schema-numeric-index-guardrails.test.mjs`.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 3` confirmed latest
+pushed CI on `main` was green for `eb9820b4`; source/docs/test inspection with
+`rg`/`sed`; two parent-reviewed read-only agent reports; focused suite
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/retention-and-ops-followups.test.mjs
+tests/public-security-config.test.mjs tests/direct-upload-lifecycle.test.mjs
+tests/accessibility-followups.test.mjs tests/homepage-determinism.test.mjs
+tests/shipping-token.test.mjs tests/shipping-quote-state.test.mjs
+tests/shippo-label-money-guardrails.test.mjs
+tests/checkout-stock-reservation-guardrails.test.mjs
+tests/client-async-guardrails.test.mjs tests/schema-numeric-index-guardrails.test.mjs`
+passed 120/120 after correcting one brittle checklist wording assertion; `npx
+tsc --noEmit`; `git diff --check`; `npm run lint` (known `jsx-ast-utils`
+TSNonNullExpression warning, exit 0); and full `npm test` passing 1452/1452.
+
+Current running tally after Entry 494: verified fixed/reduced 981, verified
+stale/false-positive/current 542, deferred product/design/ops/legal 80,
+approximate raw allegations left from current max #1126: 17. Fixed/reduced
+increases by one for the Vercel telemetry privacy/product guardrail. Raw-left
+stays flat because the R2, Clerk, Sentry, homepage browser, HSTS/preload, and
+deployed-header items still require provider/runtime evidence or an explicit
+product decision outside source.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence,
+Stripe partial-refund live reconciliation proof, label clawback runtime
+proof/dashboard reconciliation evidence, Stripe webhook subscription dashboard
+evidence, Stripe Connect v2 loss-liability ops/legal decision, explicit stale
+remote branch pruning/review, completed-audit archive housekeeping once the
+60-day threshold is reached, Round 10 deferred cache/state-machine product
+designs that require product decisions rather than source guardrails,
+EXPLAIN-dependent runtime query-plan validation beyond the existing source
+indexes and source guardrails, founding-maker permanence policy,
+provider-side privacy erasure/legal-request evidence, cross-seller AI
+duplicate-detection product design, durable checkout-group design for checkout
+batch semantics beyond grouped ready-lock/reservation resume and
+completed-session filtering, deliberate BigInt money-column modeling for
+individual order/item cents fields and high-volume listing analytics counters
+beyond the fixed seller-metrics aggregate cache and new webhook integer bounds,
+live-data reconciliation for historical seller shipping-rate currency drift,
+Clerk staff MFA and breached-password dashboard evidence, Clerk multi-account
+spam dashboard evidence, buyer-deletion live Stripe replay proof after source
+minimization, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public bucket dashboard posture plus
+production smoke evidence and public-availability proof, HSTS preload
+submission decision, Vercel Analytics/Speed Insights product/privacy decision,
+homepage browser a11y/runtime proof beyond source fallback, and deployed
+security-header runtime proof beyond source/config guardrails.
+
+## Entry 492 - R2, privacy replay, deploy evidence, and schema reverify pass
+
+Entry 492 closes a parent-verified pass over remaining R2/public-bucket,
+provider privacy erasure, buyer-deletion Stripe replay, deployed-header,
+dependency hygiene, Shippo label, and schema numeric allegations. Two read-only
+agents inspected disjoint R2 and privacy/deletion/provider-erasure slices;
+parent Codex reviewed their reports against current source, tests, docs, and
+the active ledger. Both agents were closed. The raw audit import and expected
+untracked local files were not staged.
+
+Fixed/reduced:
+
+- Added a focused checkout-webhook guardrail for the source-current deleted
+  buyer replay behavior. `tests/stripe-webhook-cart-finalization.test.mjs` now
+  asserts both cart and single Checkout completion branches write `buyerId`
+  from the transaction-fresh invalid-state helper, keep invalid-buyer replays
+  held for staff review, preserve the invalid reason in the review/audit path,
+  and stamp `buyerDataPurgedAt` through the buyer-PII minimization helper.
+
+Verified stale/current or deferred without source changes:
+
+- R2 env validation is source-current. `src/lib/r2.ts` uses
+  `requiredProductionEnv()` for R2 account, credentials, bucket, and public URL
+  values instead of production-only non-null assertions.
+- R2 upload signature and cache-header allegations are source-current for new
+  objects. Processed uploads and direct uploads validate image/PDF/video magic
+  bytes before acceptance, reject unsupported/SVG-like payloads, set immutable
+  `CacheControl` on new objects, and verify direct-upload `HeadObject`
+  size/type/key metadata before persistence. Historical pre-cache-header object
+  headers remain bucket/runtime evidence or a backfill task.
+- R2 public-bucket/ListBucket posture remains an ops evidence item rather than
+  a source defect. Source cleanup uses stored lifecycle keys instead of bucket
+  listing, `/api/health` only proves `HeadBucket`, and docs/launch checklist
+  still require upload smoke, CORS/public-domain, ListBucket, and bucket-size
+  evidence before launch.
+- Provider privacy erasure and buyer-deletion source behavior is current:
+  account deletion uses locks, same-origin/fresh-session confirmation, durable
+  side-effect retry rows, seller orderability disablement, and a retained
+  `USER_ACCOUNT_DELETE` audit row. Clerk provider-deleted users with remaining
+  obligations are locally disabled and tracked as data requests instead of
+  being silently hard-deleted.
+- Stripe account replay cannot re-enable inactive sellers in current source:
+  `mirrorStripeChargesEnabled()` reads local `banned/deletedAt` state and
+  mirrors `chargesEnabled && localAccountActive`.
+- Buyer-deletion live Stripe replay proof remains runtime evidence, not a
+  source-proven fix. Static source now revalidates buyer state inside Checkout
+  finalization transactions and converts deleted/suspended buyer completions
+  into blocked review orders with purged buyer PII, but the live replay
+  evidence still requires a Stripe test-mode replay and recorded DB/Sentry/audit
+  artifacts.
+- HSTS/deployed-header allegations remain source-current plus runtime evidence.
+  `next.config.ts` sends the expected security headers including HSTS with the
+  `preload` directive, while tests/docs correctly avoid claiming Chromium
+  preload-list acceptance without live `hstspreload.org` status.
+- Dependency/CI hygiene allegations are stale/current. `package.json` and the
+  lockfile use Next 16.2.6, direct `@types/*` packages are in
+  `devDependencies` or removed, CI blocks on `npm audit --audit-level=high`,
+  Dependabot groups major updates for manual review instead of ignoring them,
+  and docs/tests record the intentional `npm ci --ignore-scripts` CI versus
+  normal Vercel install-script asymmetry.
+- Shippo label double-purchase source remains current. The route claims
+  `labelStatus = PURCHASED` through an atomic guarded SQL update before the
+  Shippo transaction call and records ambiguous/orphan states for manual
+  reconciliation. Parent review did not add an undocumented Shippo
+  idempotency header without primary provider evidence that `/transactions/`
+  supports it.
+- Schema numeric guard allegations are stale/current for the inspected slice:
+  `Order.platformFeeCents` is not a persisted column, so no DB CHECK can or
+  should be added for it; existing tests guard that absence. The broader
+  EXPLAIN/live query-plan and individual BigInt modeling items remain runtime
+  and data-modeling decisions.
+
+Guardrails added/reviewed:
+Added `stores deleted-buyer checkout replays as blocked review orders, not
+normal buyer orders` to `tests/stripe-webhook-cart-finalization.test.mjs`.
+Reviewed existing guardrails included
+`tests/upload-verification-token.test.mjs`, `tests/upload-ux-followups.test.mjs`,
+`tests/direct-upload-lifecycle.test.mjs`,
+`tests/stripe-webhook-cart-finalization.test.mjs`,
+`tests/stripe-webhook-state.test.mjs`,
+`tests/payment-side-effect-observability.test.mjs`,
+`tests/public-security-config.test.mjs`, `tests/dependency-hygiene.test.mjs`,
+`tests/public-cron-search-hardening.test.mjs`, and
+`tests/schema-numeric-index-guardrails.test.mjs`.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 3` confirmed latest
+pushed CI on `main` was green for `98d9ddcb`; source/docs/test inspection with
+`rg`/`sed`; two parent-reviewed read-only agent reports; focused
+`node --test tests/stripe-webhook-cart-finalization.test.mjs`, which passed
+5/5; and the broader focused suite `node --test
+tests/stripe-webhook-cart-finalization.test.mjs tests/stripe-webhook-state.test.mjs
+tests/payment-side-effect-observability.test.mjs tests/public-security-config.test.mjs
+tests/dependency-hygiene.test.mjs tests/schema-numeric-index-guardrails.test.mjs
+tests/upload-verification-token.test.mjs tests/upload-ux-followups.test.mjs
+tests/direct-upload-lifecycle.test.mjs`, which passed 132/132; `npx tsc
+--noEmit`; `git diff --check`; `npm run lint` (known `jsx-ast-utils`
+TSNonNullExpression warning, exit 0); and full `npm test` passing 1449/1449.
+
+Current running tally after Entry 492: verified fixed/reduced 978, verified
+stale/false-positive/current 542, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 18. Fixed/reduced
+increases by one for the added deleted-buyer Checkout replay guardrail. Raw-left
+stays flat because the source-current/stale/deferred R2, privacy, deploy,
+dependency, Shippo, and schema findings were already represented in the ledger
+or still require runtime/dashboard/legal evidence.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence,
+Stripe partial-refund live reconciliation proof, label clawback runtime
+proof/dashboard reconciliation evidence, Stripe webhook subscription dashboard
+evidence, Stripe Connect v2 loss-liability ops/legal decision, explicit stale
+remote branch pruning/review, completed-audit archive housekeeping once the
+60-day threshold is reached, Round 10 deferred cache/state-machine product
+designs that require product decisions rather than source guardrails,
+EXPLAIN-dependent runtime query-plan validation beyond the existing source
+indexes and source guardrails, founding-maker permanence policy,
+provider-side privacy erasure/legal-request evidence, cross-seller AI
+duplicate-detection product design, durable checkout-group design for checkout
+batch semantics beyond grouped ready-lock/reservation resume and
+completed-session filtering, deliberate BigInt money-column modeling for
+individual order/item cents fields and high-volume listing analytics counters
+beyond the fixed seller-metrics aggregate cache and new webhook integer bounds,
+live-data reconciliation for historical seller shipping-rate currency drift,
+Guild private/custom-order sales/review trust-metric product policy, Clerk
+staff MFA and breached-password dashboard evidence, Clerk multi-account spam
+dashboard evidence, buyer-deletion live Stripe replay proof after source
+minimization, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public bucket dashboard posture plus
+production smoke evidence and public-availability proof, HSTS preload
+submission decision, Vercel Analytics/Speed Insights product/privacy decision,
+homepage browser a11y/runtime proof beyond source fallback, and deployed
+security-header runtime proof beyond source/config guardrails.
+
+### Entry 495 - closed-history archive housekeeping and remaining evidence reverify pass
+
+Entry 495 rechecked the remaining payment, ops, product-boundary, and
+documentation-housekeeping buckets with two read-only agents plus parent source
+review. Both agents were parent-reviewed and closed. Latest pushed CI on `main`
+was green for `d9141079` before broadening audit scope.
+
+Fixed/reduced:
+
+- Split completed audit-pass sections older than the rolling 60-day window out
+  of `CLOSED_AUDIT_HISTORY.md` and into the new `CLOSED_AUDIT_ARCHIVE.md`.
+  `CLOSED_AUDIT_HISTORY.md` now keeps the current May 24 entries plus a pointer
+  to the deeper archive.
+- Added a rolling documentation guardrail in `tests/docs-archive.test.mjs` that
+  parses dated `CLOSED_AUDIT_HISTORY.md` headings and fails when any dated
+  closed-audit section is older than 60 days. The test also verifies the moved
+  historical sections live in `CLOSED_AUDIT_ARCHIVE.md`.
+- Updated `docs/maintainability-plan.md` so documentation routing distinguishes
+  recent closed history from the older archive file.
+
+Verified stale/current or deferred without source changes:
+
+- Stripe partial-refund, first-party refund evidence, label clawback, and
+  webhook subscription findings remain source-current plus runtime/provider
+  evidence. Current source co-writes first-party refund evidence, label clawback
+  retry is registered in `vercel.json`, admin review holds remain visible, and
+  Stripe snapshot/v2 webhook subscription exactness remains dashboard evidence.
+- Stripe Connect v2 source isolation remains current: account creation uses
+  Accounts v2, snapshot and thin-event webhook routes use distinct secrets and
+  parsers, and `losses_collector: "application"` remains a legal/accounting
+  sign-off item rather than a source defect.
+- Founding Maker permanence/concurrency, seller-page performance, checkout
+  group threading, Round 10 state-machine guards, same-seller AI duplicate
+  checks, BigInt modeling, and shipping-rate currency binding were rechecked as
+  source-current or product/runtime decisions. Live DB concurrency, EXPLAIN
+  plans, provider privacy erasure proof, historical shipping-rate drift, and
+  stale remote branch pruning still require runtime/provider/source-control
+  evidence or explicit product/legal decisions.
+- A possible pre-ledger first-party refund backfill concern was treated as part
+  of the existing Stripe refund runtime/backfill design bucket: current source
+  records new local refund evidence, but any historical production rows would
+  need live-data audit evidence before a backfill script is justified.
+
+Guardrails added/reviewed:
+
+- Added the rolling 60-day closed-history guardrail in
+  `tests/docs-archive.test.mjs`.
+- Reviewed existing guardrails covering refund/accounting observability, label
+  clawback retry/admin holds, Stripe Connect v2 route isolation, Founding Maker
+  advisory-lock assignment, seller-page performance, checkout group threading,
+  shipping currency binding, schema numeric/index guards, support/data-request
+  closure evidence, public query determinism, quality-score queries, Round 10
+  state machines, and AI review duplicate scope.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 3` confirmed latest
+pushed CI on `main` was green for `d9141079`; source/docs/test inspection with
+`rg`/`sed`; two parent-reviewed read-only agent reports; and focused
+`node --test tests/docs-archive.test.mjs`, which passed 3/3. A broader focused
+suite covering docs archive, refund/accounting observability, label clawback,
+Stripe Connect v2, Founding Maker, seller-page performance, checkout-group,
+shipping currency, support evidence, and schema numeric/index guardrails passed
+173/173; `npx tsc --noEmit`; `git diff --check`; `npm run lint` (known
+`jsx-ast-utils` TSNonNullExpression warning, exit 0); and full `npm test`
+passing 1453/1453.
+
+Current running tally after Entry 495: verified fixed/reduced 982, verified
+stale/false-positive/current 542, deferred product/design/ops/legal 80,
+approximate raw allegations left from current max #1126: 16. Fixed/reduced
+increases by one for the completed-history archive housekeeping fix. Raw-left
+drops by one because the completed-audit archive housekeeping category is now
+source-current with a guardrail.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence,
+Stripe partial-refund live reconciliation proof, label clawback runtime
+proof/dashboard reconciliation evidence, Stripe webhook subscription dashboard
+evidence, Stripe Connect v2 loss-liability ops/legal decision, explicit stale
+remote branch pruning/review, Round 10 deferred cache/state-machine product
+designs that require product decisions rather than source guardrails,
+EXPLAIN-dependent runtime query-plan validation beyond the existing source
+indexes and source guardrails, founding-maker permanence policy,
+provider-side privacy erasure/legal-request evidence, cross-seller AI
+duplicate-detection product design, durable checkout-group design for checkout
+batch semantics beyond grouped ready-lock/reservation resume and
+completed-session filtering, deliberate BigInt money-column modeling for
+individual order/item cents fields and high-volume listing analytics counters
+beyond the fixed seller-metrics aggregate cache and new webhook integer bounds,
+live-data reconciliation for historical seller shipping-rate currency drift,
+Clerk staff MFA and breached-password dashboard evidence, Clerk multi-account
+spam dashboard evidence, buyer-deletion live Stripe replay proof after source
+minimization, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public bucket dashboard posture plus
+production smoke evidence and public-availability proof, HSTS preload
+submission decision, Vercel Analytics/Speed Insights product/privacy decision,
+homepage browser a11y/runtime proof beyond source fallback, and deployed
+security-header runtime proof beyond source/config guardrails.
+
+### Entry 496 - Founding Maker repair and cron evidence reverify pass
+
+Entry 496 rechecked remaining Sentry cron/ops-health and Founding Maker
+concurrency/permanence allegations against current source. Latest pushed CI on
+`main` was green for `27c71dfb` before broadening audit scope.
+
+Fixed/reduced:
+
+- Added a bounded Founding Maker repair path for transient grant failures.
+  `repairMissedFoundingMakerGrants()` scans oldest public ACTIVE listings for
+  non-badged sellers, dedupes seller ids, respects remaining permanent badge
+  slots, and calls the existing advisory-lock `maybeGrantFoundingMaker()` helper
+  instead of inventing a separate assignment path.
+- Added `GET /api/cron/founding-maker-repair`, registered in `vercel.json` at
+  `10 17 * * *`, with standard cron auth, `CronRun` locking, and Sentry cron
+  monitor wrapping. This reduces the chance that a logged/non-fatal grant
+  failure leaves an eligible seller permanently unbadged.
+- Updated the Founding Maker behavior contract in `CLAUDE.md` to preserve the
+  bounded repair scan and permanent-number assignment semantics.
+
+Verified stale/current or deferred without source changes:
+
+- Raw ops-health Sentry monitor finding #128 is stale/current. Current
+  `/api/cron/ops-health` returns `503` when actionable issues exist, and
+  `withSentryCronMonitor()` maps 5xx responses to failed Sentry check-ins.
+  Existing tests already assert the unhealthy status and monitor mapping.
+- Sentry cron alert routing remains runtime/dashboard evidence: source emits
+  check-ins and warning/error telemetry, but the actual Sentry alert-rule
+  configuration still needs provider evidence before launch.
+- Founding Maker live DB concurrency proof remains runtime evidence beyond
+  source review. Source now has advisory-lock assignment, DB uniqueness/range
+  constraints, static guardrails, and the repair cron, but a live DB concurrency
+  replay would still be separate evidence.
+
+Guardrails added/reviewed:
+
+- Extended `tests/post-launch-ui-followups.test.mjs` to guard the bounded
+  Founding Maker repair helper, public-listing eligibility, shared grant helper
+  reuse, cron auth, Sentry monitor schedule, and `vercel.json` registration.
+- Extended `tests/cron-schedule-guardrails.test.mjs` so the new daily repair
+  job remains part of the low-frequency cron spread and monitor-schedule
+  alignment checks.
+- Reviewed existing ops-health and cron guardrails in
+  `tests/retention-and-ops-followups.test.mjs`,
+  `tests/public-cron-search-hardening.test.mjs`,
+  `tests/cron-monitor-state.test.mjs`, and `tests/http-status-constants.test.mjs`.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 3` confirmed latest
+pushed CI on `main` was green for `27c71dfb`; source/docs/test inspection with
+`rg`/`sed`; focused suite
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/post-launch-ui-followups.test.mjs
+tests/cron-schedule-guardrails.test.mjs tests/cron-monitor-state.test.mjs
+tests/public-cron-search-hardening.test.mjs tests/http-status-constants.test.mjs`
+passed 59/59 after correcting one route/`vercel.json` schedule mismatch; and
+the broader focused cron/docs/schema suite passed 84/84; `npx tsc --noEmit`;
+`git diff --check`; `npm run lint` (known `jsx-ast-utils`
+TSNonNullExpression warning, exit 0); and full `npm test` passing 1453/1453.
+
+Current running tally after Entry 496: verified fixed/reduced 983, verified
+stale/false-positive/current 542, deferred product/design/ops/legal 80,
+approximate raw allegations left from current max #1126: 15. Fixed/reduced
+increases by one for the Founding Maker repair cron. Raw-left drops by one
+because the source-actionable portion of the Founding Maker grant-loss category
+now has a bounded repair path; live DB concurrency proof remains runtime
+evidence.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence,
+Stripe partial-refund live reconciliation proof, label clawback runtime
+proof/dashboard reconciliation evidence, Stripe webhook subscription dashboard
+evidence, Stripe Connect v2 loss-liability ops/legal decision, explicit stale
+remote branch pruning/review, Round 10 deferred cache/state-machine product
+designs that require product decisions rather than source guardrails,
+EXPLAIN-dependent runtime query-plan validation beyond the existing source
+indexes and source guardrails, provider-side privacy erasure/legal-request
+evidence, cross-seller AI duplicate-detection product design, durable
+checkout-group design for checkout batch semantics beyond grouped
+ready-lock/reservation resume and completed-session filtering, deliberate
+BigInt money-column modeling for individual order/item cents fields and
+high-volume listing analytics counters beyond the fixed seller-metrics
+aggregate cache and new webhook integer bounds, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion live Stripe replay proof after source minimization,
+Founding Maker live DB concurrency proof, Sentry cron alert evidence,
+Cloudflare R2 ListBucket/public bucket dashboard posture plus production smoke
+evidence and public-availability proof, HSTS preload submission decision,
+Vercel Analytics/Speed Insights product/privacy decision, homepage browser
+a11y/runtime proof beyond source fallback, and deployed security-header runtime
+proof beyond source/config guardrails.
+
+### Entry 497 - runtime evidence and stale-branch reverify pass
+
+Entry 497 rechecked the remaining payment, provider-ops, runtime-evidence, and
+stale remote branch categories with two read-only agents plus parent source
+review. Both agents were parent-reviewed and closed. Latest pushed CI on `main`
+was green for `5834340c` before broadening audit scope. No source-actionable
+defect was verified in this pass, so no product code was changed.
+
+Fixed/reduced:
+
+- None. The pass intentionally did not convert runtime/dashboard/legal evidence
+  tasks into source fixes or broad security claims.
+
+Verified stale/current or deferred without source changes:
+
+- Stripe refund and partial-refund source behavior remains current. Refund paths
+  use `createMarketplaceRefund()`, record local `OrderPaymentEvent`/audit
+  evidence, expand transfer reversal data when Stripe returns it, and document
+  recovery in `docs/runbook.md`. Historical/pre-ledger rows and proportional
+  reversal economics still require Stripe test-mode/live reconciliation evidence
+  before any backfill decision.
+- Label clawback source behavior remains current. Label purchase records durable
+  retry/manual-review state, the retry cron is registered, and admin cleanup is
+  blocked while active clawback holds exist. Runtime proof still requires
+  Vercel/Sentry/`CronRun` evidence on real eligible rows.
+- Stripe webhook subscription evidence remains external. Source keeps snapshot
+  events on `/api/stripe/webhook` with `STRIPE_WEBHOOK_SECRET` and Connect v2
+  thin account notifications on `/api/stripe/webhook/v2` with
+  `STRIPE_V2_WEBHOOK_SECRET`; `docs/launch-checklist.md` and `docs/runbook.md`
+  list exact subscriptions. Dashboard screenshots/date evidence are still
+  required.
+- Stripe Connect v2 loss-liability remains an ops/legal decision. Current source
+  intentionally sets application-side loss collection and platform tax
+  liability, but counsel/accounting sign-off is outside source review.
+- Buyer-deletion live Stripe replay proof remains runtime evidence after source
+  minimization. The webhook revalidates buyer state inside finalization and
+  converts invalid/deleted buyer completions into blocked review orders with
+  purged buyer PII; live replay still needs Stripe test-mode plus DB/Sentry/audit
+  artifacts.
+- Clerk staff MFA, breached-password, and multi-account/spam controls remain
+  dashboard evidence. Source-side Admin PIN remains defense in depth and docs
+  correctly avoid treating it as a substitute for Clerk-native controls.
+- Sentry cron monitors, R2 public/ListBucket posture, HSTS/preload,
+  deployed-header checks, homepage browser a11y, and EXPLAIN query-plan
+  validation remain runtime/provider/staging evidence. Current source and tests
+  guard the configured behavior, but they cannot prove provider dashboards,
+  deployed scans, browser screenshots, or production-like planner choices.
+- Stale remote branch pruning remains a source-control decision. Parent review
+  confirmed `origin/claude/sleepy-hypatia-4aa428`, `origin/feature/hero-mosaic`,
+  and `origin/ui-polish` are already merged into `origin/main`, while
+  `origin/feature/stripe-connect-v2`, `origin/docs/claude-archive-cleanup`,
+  `origin/fix-onboarding-stripe-deadlock`, `origin/fix/terms-acceptance-bypass`,
+  `origin/fix/wizard-step-4-duplicate-button`,
+  `origin/style-site-ui-sweep`, and the Dependabot branch are unmerged or
+  divergent. No remote refs were deleted without an explicit pruning decision.
+
+Guardrails reviewed:
+
+- Payment/runtime guardrails in `tests/marketplace-refunds.test.mjs`,
+  `tests/payment-side-effect-observability.test.mjs`,
+  `tests/admin-action-guardrails.test.mjs`,
+  `tests/label-clawback-state.test.mjs`,
+  `tests/stripe-webhook-v2-route.test.mjs`,
+  `tests/checkout-payment-methods.test.mjs`,
+  `tests/account-deletion-side-effects.test.mjs`,
+  `tests/stripe-connect-v2.test.mjs`, and
+  `tests/stripe-webhook-cart-finalization.test.mjs`.
+- Ops/runtime guardrails in `tests/retention-and-ops-followups.test.mjs`,
+  `tests/public-security-config.test.mjs`,
+  `tests/cron-schedule-guardrails.test.mjs`,
+  `tests/direct-upload-lifecycle.test.mjs`, and
+  `tests/accessibility-followups.test.mjs`.
+
+Verification:
+`git status --short`; `gh run watch 28767340625 --exit-status` confirmed CI
+for `5834340c` passed typecheck, lint, tests, security audit, and production
+build; source/docs/test inspection with `rg`/`sed`; `git branch -r --merged
+origin/main`; `git branch -r --no-merged origin/main`; two parent-reviewed
+read-only agent reports; and the ops agent's focused suite `node --test
+tests/retention-and-ops-followups.test.mjs tests/public-security-config.test.mjs
+tests/cron-schedule-guardrails.test.mjs tests/direct-upload-lifecycle.test.mjs
+tests/accessibility-followups.test.mjs`, which passed 59/59 with only the
+known `MODULE_TYPELESS_PACKAGE_JSON` warning; parent-focused suite `node --test
+tests/retention-and-ops-followups.test.mjs tests/public-security-config.test.mjs
+tests/cron-schedule-guardrails.test.mjs tests/direct-upload-lifecycle.test.mjs
+tests/accessibility-followups.test.mjs tests/stripe-webhook-v2-route.test.mjs
+tests/marketplace-refunds.test.mjs tests/label-clawback-state.test.mjs
+tests/stripe-webhook-cart-finalization.test.mjs`, which passed 91/91 with the
+same known warning; and `git diff --check`.
+
+Current running tally after Entry 497: verified fixed/reduced 983, verified
+stale/false-positive/current 542, deferred product/design/ops/legal 80,
+approximate raw allegations left from current max #1126: 15. Counts stay flat
+because this pass reverified already-classified runtime/provider/legal and
+source-control items rather than closing a new source-actionable defect.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence,
+Stripe partial-refund live reconciliation proof, label clawback runtime
+proof/dashboard reconciliation evidence, Stripe webhook subscription dashboard
+evidence, Stripe Connect v2 loss-liability ops/legal decision, explicit stale
+remote branch pruning/review, Round 10 deferred cache/state-machine product
+designs that require product decisions rather than source guardrails,
+EXPLAIN-dependent runtime query-plan validation beyond the existing source
+indexes and source guardrails, provider-side privacy erasure/legal-request
+evidence, cross-seller AI duplicate-detection product design, durable
+checkout-group design for checkout batch semantics beyond grouped
+ready-lock/reservation resume and completed-session filtering, deliberate
+BigInt money-column modeling for individual order/item cents fields and
+high-volume listing analytics counters beyond the fixed seller-metrics
+aggregate cache and new webhook integer bounds, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion live Stripe replay proof after source minimization,
+Founding Maker live DB concurrency proof, Sentry cron alert evidence,
+Cloudflare R2 ListBucket/public bucket dashboard posture plus production smoke
+evidence and public-availability proof, HSTS preload submission decision,
+Vercel Analytics/Speed Insights product/privacy decision, homepage browser
+a11y/runtime proof beyond source fallback, and deployed security-header runtime
+proof beyond source/config guardrails.
+
+### Entry 498 - checkout finalization and publish AI-review source pass
+
+Entry 498 followed up on parent-reviewed agent findings in the Stripe checkout
+and listing AI-review areas, then verified the claims directly against current
+source. Latest pushed CI on `main` was green for `e7bcb5e6` before broadening
+audit scope. Two read-only agents were used for exploration; parent Codex
+reviewed the source before editing. The raw audit import and expected untracked
+local files were not staged.
+
+Fixed/reduced:
+
+- `publishListingAction()` now passes `listingId: listing.id` into
+  `reviewListingWithAI()`. This keeps the existing same-seller duplicate-title
+  helper from counting the current listing as a prior duplicate when a seller
+  republishes an existing listing.
+- Stripe Checkout completion now fetches the full paginated line-item list with
+  `stripe.checkout.sessions.listLineItems(..., { limit: 100, expand:
+  ["data.price.product"] })` instead of relying on the truncated `line_items`
+  expansion from `checkout.sessions.retrieve()`. Cart and single-listing
+  finalization now share that complete list for paid item reconstruction,
+  subtotal handling, invalid-checkout refund stock restore inputs, and
+  single-line paid-price detection.
+- Cart checkout finalization now removes paid cart rows by the resolved paid
+  `cartItemId`s from Stripe product metadata. The legacy fallback is limited to
+  the paid listing ids. This reduces the race where a buyer adds another item
+  from the same seller after session creation but before webhook finalization.
+- Cart seller checkout now persists an empty checkout-reservation row when a
+  seller's paid batch has no `IN_STOCK` items. That lets the existing
+  checkout-group/session recovery path discover completed made-to-order-only
+  seller sessions after paid cart rows disappear.
+
+Verified stale/current or deferred without source changes:
+
+- The broader Stripe refund runtime/backfill, label clawback runtime evidence,
+  webhook subscription dashboard evidence, and Connect v2 loss-liability items
+  remain runtime/dashboard/legal evidence. This pass changed checkout
+  finalization and recovery source behavior only.
+- Cross-seller AI duplicate-detection remains a product/moderation design
+  decision. The source fix here only corrected the existing same-seller
+  current-listing exclusion on publish.
+
+Guardrails added/reviewed:
+
+- Tightened `tests/server-action-hardening.test.mjs` so the publish-time
+  AI-review payload must include `listingId: listing.id`.
+- Extended `tests/stripe-webhook-cart-finalization.test.mjs` to require the
+  paginated Checkout line-item fetch, product metadata expansion, reuse of the
+  complete line-item list, and paid-cart-item-id scoped cleanup.
+- Extended `tests/checkout-stock-reservation-guardrails.test.mjs` so cart
+  seller checkout keeps checkout-group recovery rows even when there is no
+  stock to reserve.
+
+Verification:
+`git status --short`; source/docs/test inspection with `rg`/`sed`; official
+Stripe API docs for Checkout Session line items; two parent-reviewed read-only
+agent reports; focused `node --test tests/server-action-hardening.test.mjs
+tests/stripe-webhook-cart-finalization.test.mjs
+tests/checkout-stock-reservation-guardrails.test.mjs`, which passed 18/18;
+`npx tsc --noEmit`; `git diff --check`; and full `npm test` passing 1454/1454.
+
+Current running tally after Entry 498: verified fixed/reduced 987, verified
+stale/false-positive/current 542, deferred product/design/ops/legal 80,
+approximate raw allegations left from current max #1126: 14. Fixed/reduced
+increases by four for the publish AI-review current-listing exclusion, complete
+Stripe line-item pagination, paid-cart-row cleanup, and made-to-order-only
+checkout-group recovery row. Raw-left drops by one for the source-actionable
+completed-session recovery portion of the durable checkout-group category; the
+other fixed items were hidden issues found while auditing adjacent code rather
+than separate raw Claude allegations.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence,
+Stripe partial-refund live reconciliation proof, label clawback runtime
+proof/dashboard reconciliation evidence, Stripe webhook subscription dashboard
+evidence, Stripe Connect v2 loss-liability ops/legal decision, explicit stale
+remote branch pruning/review, Round 10 deferred cache/state-machine product
+designs that require product decisions rather than source guardrails,
+EXPLAIN-dependent runtime query-plan validation beyond the existing source
+indexes and source guardrails, provider-side privacy erasure/legal-request
+evidence, cross-seller AI duplicate-detection product design, durable
+checkout-group product semantics beyond current grouped ready-lock,
+reservation, completed-session, and made-to-order recovery guardrails,
+deliberate BigInt money-column modeling for individual order/item cents fields
+and high-volume listing analytics counters beyond the fixed seller-metrics
+aggregate cache and new webhook integer bounds, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion live Stripe replay proof after source minimization,
+Founding Maker live DB concurrency proof, Sentry cron alert evidence,
+Cloudflare R2 ListBucket/public bucket dashboard posture plus production smoke
+evidence and public-availability proof, HSTS preload submission decision,
+Vercel Analytics/Speed Insights product/privacy decision, homepage browser
+a11y/runtime proof beyond source fallback, and deployed security-header runtime
+proof beyond source/config guardrails.
+
+### Entry 499 - AI money, unsubscribe, and React cache stale reverify pass
+
+Entry 499 rechecked remaining raw allegations around AI-review money
+formatting, unsubscribe/newsletter consent semantics, and React cache
+duplicate-query performance. Latest pushed CI on `main` is green for
+`e177fff1` (`28817798670`) before broadening audit scope. Two read-only agents
+inspected disjoint slices; parent Codex verified the source locally and closed
+both agents. No product code changed.
+
+Fixed/reduced:
+
+- None. This pass did not verify a new source-actionable defect.
+
+Verified stale/current or deferred without source changes:
+
+- AI-review money formatting is stale/current. `reviewListingWithAI()` accepts
+  `currency` and formats prompt price with `formatCurrencyCents()` rather than
+  hard-coded dollar formatting.
+- Refund/case/follower/Guild currency copy allegations inspected in this pass
+  are stale/current. The inspected refund, case-resolution, follower listing,
+  and Guild metrics paths use `formatCurrencyCents()`.
+- Newsletter no-double-opt-in and unsubscribe-token allegations are
+  stale/current. Public newsletter signup stores inactive pending rows and sends
+  confirmation; only confirmation POST activates the subscriber. One-click
+  unsubscribe GET validates and renders confirmation without mutation; POST is
+  token-protected, bounded, origin-checked for explicit browser posts, and
+  rate-limited by both IP and signed email.
+- Manual resubscribe/epoch allegations are stale/current. Unsubscribe tokens
+  carry an issuance timestamp and TTL, and `unsubscribeTokenSuperseded()` rejects
+  links issued before a later signed-in opt-in, newsletter confirmation, new
+  account claim, or current-email claim.
+- One-click unsubscribe blocking transactional email is a false positive.
+  Delivery suppression blocks hard bounces, complaints, account deletion, and
+  non-one-click manual suppressions; one-click unsubscribe disables newsletter
+  and preference-controlled email without becoming a hard delivery block.
+- Dead/unsupported email preference key allegations are stale/current. Valid
+  email preference keys are centralized and settings copy distinguishes
+  preference-controlled mail from always-sent order confirmations and shipping
+  updates.
+- React `cache()` / seller duplicate-query allegations #1109/#1110 are
+  stale/current. Listing detail, public seller profile, seller shop, customer
+  photos, and blog author pages now use React `cache()` loaders where
+  metadata/page render share the same resource. Seller page independent reads
+  are batched with `Promise.all`, and public seller stats/top-tags use
+  `unstable_cache`.
+- Further reducing seller-page follow/count/rating queries remains a performance
+  design/profiling decision, not a verified duplicate-query bug.
+
+Guardrails reviewed:
+
+- `tests/ai-review-outer-failclosed.test.mjs` covers AI-review currency
+  formatting and fail-closed behavior.
+- `tests/account-privacy-observability.test.mjs`,
+  `tests/pr-i-media-upload-unsubscribe-followups.test.mjs`,
+  `tests/unsubscribe-token.test.mjs`, `tests/newsletter-double-opt-in.test.mjs`,
+  `tests/notification-preference-keys.test.mjs`, and
+  `tests/email-delivery-guardrails.test.mjs` cover the inspected email and
+  unsubscribe contracts.
+- `tests/listing-page-performance.test.mjs` and
+  `tests/seller-page-performance.test.mjs` cover the inspected React cache and
+  seller/listing page performance guardrails.
+
+Verification:
+`git status --short`; `gh run list --commit
+e177fff146e0405855bbea25747be1d66bd7fa53 --workflow CI --limit 10 --json ...`
+confirmed CI run `28817798670` completed successfully for `e177fff1`; source
+and test inspection with `rg`/`sed`; two parent-reviewed read-only agent
+reports; and the performance agent's focused `node --test
+tests/listing-page-performance.test.mjs tests/seller-page-performance.test.mjs`,
+which passed 12/12.
+
+Current running tally after Entry 499: verified fixed/reduced 987, verified
+stale/false-positive/current 549, deferred product/design/ops/legal 80,
+approximate raw allegations left from current max #1126: 7. Stale/current
+increases by seven for AI-review money formatting, inspected refund/case/fanout
+currency copy, newsletter double opt-in, unsubscribe GET/POST token semantics,
+unsubscribe resubscribe epoch semantics, one-click transactional-mail
+false-positive, and React cache/seller-page duplicate-query allegations.
+Raw-left drops by seven because those source allegations are now verified
+stale/current on `main`.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence,
+Stripe partial-refund live reconciliation proof, label clawback runtime
+proof/dashboard reconciliation evidence, Stripe webhook subscription dashboard
+evidence, Stripe Connect v2 loss-liability ops/legal decision, explicit stale
+remote branch pruning/review, Round 10 deferred cache/state-machine product
+designs that require product decisions rather than source guardrails,
+EXPLAIN-dependent runtime query-plan validation beyond the existing source
+indexes and source guardrails, provider-side privacy erasure/legal-request
+evidence, cross-seller AI duplicate-detection product design, durable
+checkout-group product semantics beyond current grouped ready-lock,
+reservation, completed-session, and made-to-order recovery guardrails,
+deliberate BigInt money-column modeling for individual order/item cents fields
+and high-volume listing analytics counters beyond the fixed seller-metrics
+aggregate cache and new webhook integer bounds, live-data reconciliation for
+historical seller shipping-rate currency drift, Clerk staff MFA and
+breached-password dashboard evidence, Clerk multi-account spam dashboard
+evidence, buyer-deletion live Stripe replay proof after source minimization,
+Founding Maker live DB concurrency proof, Sentry cron alert evidence,
+Cloudflare R2 ListBucket/public bucket dashboard posture plus production smoke
+evidence and public-availability proof, HSTS preload submission decision,
+Vercel Analytics/Speed Insights product/privacy decision, homepage browser
+a11y/runtime proof beyond source fallback, and deployed security-header runtime
+proof beyond source/config guardrails.
+
+### Entry 500 - provider-runtime evidence and numeric scale reverify pass
+
+Entry 500 rechecked the remaining raw allegations that blur source behavior
+with provider/runtime/dashboard evidence: HSTS/deployed security headers,
+Cloudflare R2 bucket posture and upload reachability, Sentry cron alerting,
+Clerk staff/security-control evidence, Vercel Analytics/Speed Insights, and
+numeric/money/counter scale. Latest pushed CI on `main` is green for
+`341ace2b` (`28818350683`) before broadening audit scope. Two read-only agents
+inspected disjoint provider/runtime and numeric slices; parent Codex verified
+the source locally and closed both agents. No product code changed.
+
+Fixed/reduced:
+
+- None. This pass did not verify a new source-actionable defect.
+
+Verified stale/current or deferred without source changes:
+
+- HSTS and deployed security-header source allegations are source-current, while
+  preload-list acceptance and deployed-header proof remain runtime/legal
+  evidence. `next.config.ts` configures the global header set, including
+  `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload`;
+  `tests/public-security-config.test.mjs` pins the headers and explicitly keeps
+  preload-list proof separate from source-configured `preload`.
+- Cloudflare R2 ListBucket/public-bucket allegations remain deferred
+  provider/dashboard evidence, with source-current app guardrails. Upload paths
+  use object-level `PutObject`, `HeadObject`, `GetObject`, and `DeleteObject`
+  operations; `/api/health` intentionally proves only `HeadBucket` reachability;
+  direct-upload cleanup uses stored `DirectUpload` keys and does not depend on
+  bucket listing. `docs/runbook.md` and `docs/launch-checklist.md` correctly
+  require separate public bucket-listing/ListBucket, CORS, public-domain, and
+  production upload-smoke evidence.
+- Sentry cron monitor source allegations are source-current, while alert-rule
+  routing remains dashboard/runtime evidence. App Router cron routes wrap
+  authenticated work in `withSentryCronMonitor()`, `next.config.ts` disables
+  automatic Vercel monitors because those do not cover App Router cron routes,
+  and launch docs still require Sentry alert-rule evidence for cron monitors and
+  `source=cron_ops_health` warnings.
+- Clerk staff MFA, breached-password, multi-account, and spam-control findings
+  remain deferred Clerk-dashboard/security-ops evidence. Source still has local
+  admin role gates and admin PIN session binding as defense in depth, but those
+  app controls do not prove Clerk-native controls are enabled.
+- Vercel Analytics and Speed Insights remain an explicit product/privacy
+  decision rather than an automatic defect. Source/package scans found no
+  `@vercel/analytics`, no `@vercel/speed-insights`, no `<Analytics />`, and no
+  `<SpeedInsights />`; `tests/retention-and-ops-followups.test.mjs` keeps those
+  packages/components/privacy-policy references absent until the decision is
+  made.
+- Numeric/money/counter overflow allegations are deferred/product-scale rather
+  than source-actionable under current caps. Listing price is capped at
+  `$100,000`, cart quantity is capped, current checkout subtotal math remains
+  below PostgreSQL `Int`, provider shipping/label values are bounded by
+  `safeProviderShippingCents`, refunds are bounded against order totals, and
+  listing view/click counters have daily analytics caps. `SellerMetrics` cached
+  lifetime sales is already stored as `BigInt`; converting it to `Number` for UI
+  state only becomes a product/data-modeling concern at extreme scale.
+
+Guardrails reviewed:
+
+- `tests/public-security-config.test.mjs` covers the configured public security
+  header set, no `unsafe-eval`, and the rule that HSTS preload-list proof is
+  separate from source headers.
+- `tests/retention-and-ops-followups.test.mjs`,
+  `tests/cron-schedule-guardrails.test.mjs`,
+  `tests/cron-monitor-state.test.mjs`, and `tests/sentry-dsn.test.mjs` cover the
+  inspected ops-health, cron-monitor, Vercel telemetry, and Sentry DSN
+  contracts.
+- `tests/direct-upload-lifecycle.test.mjs`,
+  `tests/upload-verification-token.test.mjs`, and
+  `tests/upload-ux-followups.test.mjs` cover direct-upload lifecycle tracking,
+  verification, telemetry hashing, cleanup, and the no-bucket-listing cleanup
+  posture.
+- `tests/guild-metrics-state.test.mjs` and
+  `tests/listing-analytics-guardrails.test.mjs` cover the inspected seller
+  metrics `BigInt` cache behavior and listing analytics cap/counter guardrails.
+
+Verification:
+`git status --short`; `gh run list --commit
+341ace2b3facf8ca091d3e1dea94495618a6f167 --workflow CI --limit 10 --json ...`
+confirmed CI run `28818350683` completed successfully for `341ace2b`; source
+and test inspection with `rg`/`sed`; and two parent-reviewed read-only agent
+reports. Focused `node --test tests/public-security-config.test.mjs
+tests/retention-and-ops-followups.test.mjs
+tests/cron-schedule-guardrails.test.mjs tests/cron-monitor-state.test.mjs
+tests/sentry-dsn.test.mjs tests/direct-upload-lifecycle.test.mjs
+tests/upload-verification-token.test.mjs tests/upload-ux-followups.test.mjs
+tests/guild-metrics-state.test.mjs tests/listing-analytics-guardrails.test.mjs`
+passed 72/72; `npx tsc --noEmit` passed; `git diff --check` passed.
+
+Current running tally after Entry 500: verified fixed/reduced 987, verified
+stale/false-positive/current 549, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Deferred increases
+by seven for the remaining source-vs-runtime/provider/product allegations:
+HSTS/preload/deployed security-header proof, R2 ListBucket/public-bucket and
+production upload-smoke proof, Sentry cron alert routing, Clerk staff/security
+dashboard controls, Vercel Analytics/Speed Insights privacy decision,
+numeric/BigInt/high-volume counter modeling, and the remaining runtime/legal
+provider-evidence bucket covering Stripe/Clerk/R2/Sentry/live-data proofs that
+cannot be closed from source review alone.
+
+Remaining major categories are no longer raw source allegations; they are the
+deferred launch/runtime/legal/product evidence backlog: Stripe refund
+runtime/backfill proof beyond first-party orphan ledgers, Stripe partial-refund
+live reconciliation proof, label clawback runtime reconciliation evidence,
+Stripe webhook subscription dashboard evidence, Stripe Connect v2
+loss-liability ops/legal decision, explicit stale remote branch pruning/review,
+Round 10 cache/state-machine product designs, EXPLAIN-dependent runtime
+query-plan validation, provider-side privacy erasure/legal-request evidence,
+cross-seller AI duplicate-detection product design, durable checkout-group
+product semantics beyond current guardrails, high-scale BigInt money/counter
+modeling decisions, live-data reconciliation for historical seller
+shipping-rate currency drift, Clerk staff MFA/breached-password/multi-account
+dashboard evidence, buyer-deletion live Stripe replay proof, Founding Maker live
+DB concurrency proof, Sentry cron alert evidence, Cloudflare R2
+ListBucket/public bucket posture plus production smoke/public-availability
+proof, HSTS preload submission/status, Vercel Analytics/Speed Insights product
+privacy decision, homepage browser a11y/runtime proof, and deployed
+security-header runtime proof.
+
+### Entry 501 - Stripe Connect mirror and v2 webhook source hardening
+
+Entry 501 continued from the deferred runtime/provider backlog by auditing
+Stripe refund, label-clawback, Connect v2, and webhook status-mirroring source
+paths for hidden defects not called out by the raw audit. Latest pushed CI on
+`main` is green for `64d0f270` (`28820734225`) before broadening audit scope.
+Two read-only agents inspected disjoint refund/label and Connect/webhook
+slices; parent Codex verified the findings locally and closed both agents.
+
+Fixed/reduced:
+
+- `/dashboard/onboarding` no longer writes `SellerProfile.chargesEnabled`
+  directly after a Stripe account-status refresh. It now routes the refresh
+  through `mirrorStripeChargesEnabled()` with `route: "/dashboard/onboarding"`,
+  so banned/deleted-account suppression, public seller/listing cache
+  invalidation, checkout-session expiry on disable, and `SystemAuditLog`
+  evidence stay centralized.
+- Stripe Connect v2 account notifications with a supported `v2.core.account`
+  event type but no extractable account id no longer get acknowledged and marked
+  processed silently. `/api/stripe/webhook/v2` now records bounded Sentry
+  telemetry and throws before account retrieval, so `markStripeWebhookEventFailed`
+  runs and Stripe can retry instead of losing the event as processed.
+- `mirrorStripeChargesEnabled()` now logs bounded security telemetry when Stripe
+  reports `charges_enabled=true` for a banned/deleted local seller even if local
+  `chargesEnabled` was already false. The helper still does not re-enable the
+  inactive seller.
+- The tracked Stripe Connect docs no longer say no new env vars are required for
+  the v2 flow. `CLAUDE.md` now states that Connect v2 thin webhooks require the
+  separate `STRIPE_V2_WEBHOOK_SECRET` and that it is not interchangeable with
+  the snapshot webhook secret. The untracked local `AGENTS.md` raw/operator file
+  was intentionally left untouched.
+
+Verified stale/current or deferred without source changes:
+
+- Refund and label-clawback source behavior remains current. Seller refunds,
+  staff case refunds, and blocked-checkout refunds co-write local
+  `OrderPaymentEvent`/`SystemAuditLog` evidence after Stripe accepts a refund,
+  and orphan branches keep the request/webhook retryable until local refund
+  evidence is durable. Label purchase success paths preserve durable label
+  fields plus `labelClawbackStatus`, with retry cron coverage for Stripe
+  reversal failures.
+- Connect v1/v2 webhook separation is current. Snapshot events stay on
+  `/api/stripe/webhook` with `STRIPE_WEBHOOK_SECRET` and `constructEvent`;
+  Accounts v2 thin events stay on `/api/stripe/webhook/v2` with
+  `STRIPE_V2_WEBHOOK_SECRET` and `parseEventNotification`.
+- New seller Connect accounts are still created through raw
+  `POST /v2/core/accounts` with v2 controller/responsibility parameters rather
+  than legacy `type: "express"` account creation.
+- Connect v2 loss-liability acceptance and live dashboard subscription evidence
+  remain deferred legal/ops evidence. A Shippo provider edge around successful
+  label purchases without `object_id` remains runtime confirmation only; current
+  source falls back to the stored rate object id for label-clawback idempotency.
+
+Guardrails added/reviewed:
+
+- `tests/cache-invalidation-guardrails.test.mjs` now requires the onboarding
+  Stripe status refresh to use `mirrorStripeChargesEnabled()` and forbids a
+  direct `{ chargesEnabled }` update there.
+- `tests/stripe-webhook-v2-route.test.mjs` now requires supported v2 account
+  notifications without account ids to emit bounded telemetry and throw before
+  retrieval, requires inactive-local `charges_enabled=true` telemetry before the
+  no-change return in `mirrorStripeChargesEnabled()`, and checks the
+  `STRIPE_V2_WEBHOOK_SECRET` docs correction.
+- Existing `tests/stripe-connect-v2.test.mjs` and
+  `tests/payment-side-effect-observability.test.mjs` continue to cover Accounts
+  v2 creation, webhook-secret separation, shared status mirroring, refund
+  evidence, and label-clawback recovery.
+
+Verification:
+`git status --short`; source and test inspection with `rg`/`sed`; two
+parent-reviewed read-only agent reports; parent-focused `node --test
+tests/stripe-webhook-v2-route.test.mjs tests/stripe-connect-v2.test.mjs
+tests/cache-invalidation-guardrails.test.mjs
+tests/payment-side-effect-observability.test.mjs` passed 55/55; `npx tsc
+--noEmit` passed; `npm run lint` exited 0 with the known jsx-ast-utils
+TSNonNullExpression warning; `git diff --check` passed; full `npm test` passed
+1454/1454. The refund/label agent also ran a read-only focused refund/label
+suite that passed 84/84.
+
+Current running tally after Entry 501: verified fixed/reduced 991, verified
+stale/false-positive/current 555, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by four for the onboarding direct Stripe-status write, v2 missing
+account-id webhook processing, inactive-local Stripe status telemetry gap, and
+Connect v2 secret docs mismatch. Stale/current increases by six for the
+reverified refund local-evidence paths, refund orphan recovery, duplicate
+webhook side-effect guards, label-clawback durable retry state, Connect
+snapshot/thin webhook separation, and Accounts v2 account creation/idempotency
+guardrails.
+
+Remaining major categories are still the deferred launch/runtime/legal/product
+evidence backlog, not open raw source allegations: Stripe refund runtime
+reconciliation/backfill proof, Stripe partial-refund live reconciliation proof,
+label clawback runtime reconciliation evidence, Stripe webhook subscription
+dashboard evidence, Stripe Connect v2 loss-liability ops/legal decision,
+explicit stale remote branch pruning/review, Round 10 cache/state-machine
+product designs, EXPLAIN-dependent runtime query-plan validation, provider-side
+privacy erasure/legal-request evidence, cross-seller AI duplicate-detection
+product design, durable checkout-group product semantics beyond current
+guardrails, high-scale BigInt money/counter modeling decisions, live-data
+reconciliation for historical seller shipping-rate currency drift, Clerk staff
+MFA/breached-password/multi-account dashboard evidence, buyer-deletion live
+Stripe replay proof, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public bucket posture plus production
+smoke/public-availability proof, HSTS preload submission/status, Vercel
+Analytics/Speed Insights product privacy decision, homepage browser
+a11y/runtime proof, and deployed security-header runtime proof.
+
+### Entry 502 - account deletion email-key collision and source reverify pass
+
+Entry 502 audited account deletion/privacy/provider-erasure behavior plus
+query/index/performance source guardrails, including hidden adjacent issues not
+listed as open raw allegations. Latest pushed CI on `main` was green for
+`ff20e112` (`28823038777`) before broadening audit scope. Two read-only agents
+inspected disjoint account-deletion/privacy and query-performance slices; parent
+Codex verified the actionable account-deletion finding locally and closed both
+agents.
+
+Fixed/reduced:
+
+- Account deletion no longer reintroduces a raw current-email fallback when the
+  collision-safe account email list is empty. `accountEmailFallbackEmailsForUser`
+  already removes exact/Gmail-canonical email keys claimed by another active
+  non-deleted user; deletion now uses only those vetted
+  `accountEmailSuppressionKeys` for email-only cleanup. User-linked outbox rows
+  are still scrubbed through `userId`, while `EmailFailureCount`,
+  `NewsletterSubscriber`, and `EmailSuppression` rows are no longer matched by a
+  fallback key that could collide with another active user's Gmail alias.
+
+Verified stale/current or deferred without source changes:
+
+- Durable account-deletion side effects remain current. Local anonymization,
+  Stripe account rejection, media deletion, and audit-redaction work use
+  deduplicated retryable `AccountDeletionSideEffect` rows, stale PROCESSING
+  reclamation, scheduled retry cron coverage, ops-health alerting, and retention
+  pruning.
+- Provider-deleted Clerk handling remains current. `user.deleted` events call
+  local anonymization, return retryable failure when deletion is already in
+  progress, and defer provider-deleted anonymization when Grainline blockers
+  remain.
+- Account-deletion R2/media cleanup remains source-scoped to first-party media
+  owned by the deleted Clerk user; direct-upload lifecycle URLs are collected
+  before direct-upload rows are deleted.
+- Stripe-reject retry state, support/data-request privacy intake, provider-side
+  erasure runbook language, and privacy-request support linkage remained
+  source-current in the inspected slice.
+- Query/index/performance allegations reviewed in this pass were source-current.
+  Browse geo predicates mirror public listing/seller visibility and block
+  filters, browse and seller-shop pagination have deterministic ordering,
+  seller pages use shared cached/bounded loaders, similar-items raw SQL has
+  public predicates and stable ordering, search suggestions are capped and
+  public-filtered, and raw-managed hot indexes exist for visible quality,
+  listing trigram/tag search, and restored blog tag GIN coverage.
+- EXPLAIN-dependent browse geo/seller-page cardinality validation remains
+  runtime evidence, not a source-proven defect. The untracked local `AGENTS.md`
+  also contains stale cache/index wording, but it was intentionally left
+  untouched because it is an untracked preserved operating file.
+
+Guardrails added/reviewed:
+
+- `tests/email-normalization-followups.test.mjs` now requires account deletion
+  to set `suppressionEmailMatches` directly from
+  `accountEmailSuppressionKeys`, and forbids `fallbackSuppressionEmail` or
+  `normalizeEmailSuppressionAddress(user.email)` in the deletion fallback path.
+- `tests/round9-account-deletion-pii-guardrails.test.mjs` now pins the same
+  no-fallback account-deletion behavior alongside existing PII scrubbing checks.
+- Reviewed existing account-deletion/privacy guardrails:
+  `tests/account-deletion-side-effects.test.mjs`,
+  `tests/account-deletion-blocker-refund-state.test.mjs`,
+  `tests/account-deletion-media.test.mjs`,
+  `tests/account-export-privacy.test.mjs`,
+  `tests/account-privacy-observability.test.mjs`,
+  `tests/support-request.test.mjs`, and
+  `tests/user-email-address-history.test.mjs`.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 3`; source and test
+inspection with `rg`/`sed`; two parent-reviewed read-only agent reports; focused
+`node --test tests/account-deletion-side-effects.test.mjs
+tests/account-deletion-blocker-refund-state.test.mjs
+tests/account-deletion-media.test.mjs
+tests/round9-account-deletion-pii-guardrails.test.mjs
+tests/account-export-privacy.test.mjs tests/email-normalization-followups.test.mjs
+tests/account-privacy-observability.test.mjs tests/support-request.test.mjs
+tests/user-email-address-history.test.mjs` passed 84/84; `npx tsc --noEmit`
+passed; `git diff --check` passed; `npm run lint` exited 0 with the known
+jsx-ast-utils TSNonNullExpression warning; full `npm test` passed 1454/1454.
+
+Current running tally after Entry 502: verified fixed/reduced 992, verified
+stale/false-positive/current 567, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the Gmail-collision-safe account-deletion email-only
+cleanup. Stale/current increases by twelve for the reverified account-deletion
+side-effect, provider-deleted Clerk handling, media cleanup, Stripe reject,
+support/privacy intake, provider erasure docs, browse geo predicate, browse and
+seller-shop pagination, seller-page loader, similar-items SQL, search
+suggestion, and raw-managed index source checks. Deferred stays flat because
+the remaining performance work requires EXPLAIN/runtime cardinality evidence.
+
+Remaining major categories are still the deferred launch/runtime/legal/product
+evidence backlog, not open raw source allegations: Stripe refund runtime
+reconciliation/backfill proof, Stripe partial-refund live reconciliation proof,
+label clawback runtime reconciliation evidence, Stripe webhook subscription
+dashboard evidence, Stripe Connect v2 loss-liability ops/legal decision,
+explicit stale remote branch pruning/review, Round 10 cache/state-machine
+product designs, EXPLAIN-dependent runtime query-plan validation, provider-side
+privacy erasure/legal-request evidence, cross-seller AI duplicate-detection
+product design, durable checkout-group product semantics beyond current
+guardrails, high-scale BigInt money/counter modeling decisions, live-data
+reconciliation for historical seller shipping-rate currency drift, Clerk staff
+MFA/breached-password/multi-account dashboard evidence, buyer-deletion live
+Stripe replay proof, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public bucket posture plus production
+smoke/public-availability proof, HSTS preload submission/status, Vercel
+Analytics/Speed Insights product privacy decision, homepage browser
+a11y/runtime proof, and deployed security-header runtime proof.
+
+### Entry 503 - email outbox retry hygiene and staff case PIN hardening
+
+Entry 503 continued source-focused review after raw allegations reached zero by
+auditing email outbox/suppression/Resend behavior plus admin/health/staff
+security-control paths for hidden defects. Latest pushed CI on `main` was green
+for `b24e2fc5` (`28823873919`) before broadening audit scope. Two read-only
+agents inspected disjoint email and admin/health slices; parent Codex verified
+their source-actionable findings locally and closed both agents.
+
+Fixed/reduced:
+
+- Email outbox global-quota deferrals now roll back a successful per-recipient
+  quota reservation before requeueing the job. The per-recipient quota still runs
+  before the global quota and still uses hashed recipient keys, but a global cap
+  or global quota-counter outage no longer consumes a recipient's daily
+  allowance for an email that was not sent.
+- Email outbox processing now skips hard-suppressed recipients before reserving
+  quota or calling Resend. Bounce, complaint, and account-deletion suppressions
+  become terminal `SKIPPED` outbox rows instead of retrying up to `DEAD` while
+  burning quota.
+- Resend `email.failed` transient failure accounting is now idempotent for a
+  repeated webhook event id. If a multi-recipient webhook partially fails and
+  gets retried, recipients already counted for that `svix-id` keep their
+  existing `EmailFailureCount.count` instead of incrementing again and reaching
+  suppression threshold early.
+- Staff case resolution on the public `/api/cases/[id]/resolve` route now
+  requires the session-bound admin PIN cookie after local staff role validation
+  and before rate limits, refund locks, Stripe refunds, or case mutations.
+- Staff-triggered case escalation on public case routes now requires the same
+  session-bound admin PIN. Cron escalation via `CRON_SECRET` remains available
+  without a Clerk session or PIN.
+- Non-party staff case messages on public case routes now require the
+  session-bound admin PIN before message creation. Buyer/seller party messages
+  remain on the normal case-participant path without an admin PIN requirement.
+
+Verified stale/current or deferred without source changes:
+
+- One-click unsubscribe, hard-vs-manual suppression, Gmail alias suppression
+  keys, newsletter signup suppression handling, and unsubscribe epoch/manual
+  resubscribe semantics remain source-current in the inspected slice.
+- Email outbox terminal retention remains source-current: `SENT`, `SKIPPED`, and
+  `DEAD` rows are pruned after 30 days through notification-prune, while retryable
+  rows are retained and surfaced by ops-health.
+- Support/legal intake email failure evidence remains source-current. Public
+  support and data-request routes create durable request rows before notification
+  email, preserve the pending marker, sanitize send errors into `emailLastError`,
+  and expose ambiguous send state to admins.
+- Health route behavior remains source-current. Anonymous responses disclose
+  only `{ ok }`; verbose dependency details require the configured bearer/header
+  token through constant-time digest comparison; responses use private no-store
+  cache headers and `Vary`; the R2 probe remains a reachability signal only.
+- Admin support/data-request closure behavior remains current. Closing a
+  `DATA_REQUEST` requires bounded closure evidence, stores the evidence on the
+  support row, and keeps audit metadata to bounded booleans/lengths/timestamps.
+- Admin/system audit metadata guardrails remain current for the inspected slice:
+  reasons/errors are sanitized/truncated, `SystemAuditLog.metadata` is capped at
+  64KB, and `AdminAuditLog.metadata` remains DB-capped and covered by existing
+  JSON guardrails. Clerk dashboard security evidence remains deferred runtime
+  evidence, not a source-proven code defect.
+
+Guardrails added/reviewed:
+
+- `tests/email-outbox-quota.test.mjs` now covers recipient quota rollback and
+  requires the drain path to roll back recipient quota when global quota blocks
+  a send.
+- `tests/email-delivery-guardrails.test.mjs` now requires hard-suppressed outbox
+  recipients to be skipped before recipient quota reservation.
+- `tests/account-privacy-observability.test.mjs` now requires Resend transient
+  failure SQL to no-op the count when the same `lastEventId` is replayed.
+- `tests/admin-pin.test.mjs` now requires the reusable public-API admin PIN
+  helper and pins staff case resolve/escalate/message route coverage.
+- Reviewed existing guardrails included email outbox state/retention, notification
+  preferences, Resend webhook config, unsubscribe token, email normalization,
+  newsletter double opt-in, user email history, health state, support request
+  state, and system audit logging tests.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 5`; source and test
+inspection with `rg`/`sed`; two parent-reviewed read-only agent reports; focused
+`node --test tests/email-outbox-quota.test.mjs tests/email-outbox-state.test.mjs
+tests/email-outbox-retention.test.mjs tests/email-delivery-guardrails.test.mjs
+tests/notification-email-preferences.test.mjs tests/resend-webhook-config.test.mjs
+tests/unsubscribe-token.test.mjs tests/email-normalization-followups.test.mjs
+tests/account-privacy-observability.test.mjs tests/newsletter-double-opt-in.test.mjs
+tests/user-email-address-history.test.mjs tests/admin-pin.test.mjs
+tests/health-state.test.mjs tests/support-request-state.test.mjs
+tests/system-audit-log.test.mjs` passed 109/109; focused smoke
+`node --test tests/admin-pin.test.mjs tests/email-outbox-quota.test.mjs
+tests/email-delivery-guardrails.test.mjs
+tests/account-privacy-observability.test.mjs` passed 52/52; `git diff
+--check` passed; `npx tsc --noEmit` passed; `npm run lint` exited 0 with the
+known jsx-ast-utils TSNonNullExpression warning; full `npm test` passed
+1457/1457.
+
+Current running tally after Entry 503: verified fixed/reduced 998, verified
+stale/false-positive/current 573, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by six for recipient quota rollback, hard-suppressed outbox skip,
+Resend transient-failure replay idempotency, staff case resolution PIN gating,
+staff case escalation PIN gating, and non-party staff case-message PIN gating.
+Stale/current increases by six for the reverified unsubscribe/suppression,
+outbox retention, support/legal email evidence, health route, admin data-request
+closure, and admin/system audit metadata checks.
+
+Remaining major categories are still the deferred launch/runtime/legal/product
+evidence backlog, not open raw source allegations: Stripe refund runtime
+reconciliation/backfill proof, Stripe partial-refund live reconciliation proof,
+label clawback runtime reconciliation evidence, Stripe webhook subscription
+dashboard evidence, Stripe Connect v2 loss-liability ops/legal decision,
+explicit stale remote branch pruning/review, Round 10 cache/state-machine
+product designs, EXPLAIN-dependent runtime query-plan validation, provider-side
+privacy erasure/legal-request evidence, cross-seller AI duplicate-detection
+product design, durable checkout-group product semantics beyond current
+guardrails, high-scale BigInt money/counter modeling decisions, live-data
+reconciliation for historical seller shipping-rate currency drift, Clerk staff
+MFA/breached-password/multi-account dashboard evidence, buyer-deletion live
+Stripe replay proof, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public bucket posture plus production
+smoke/public-availability proof, HSTS preload submission/status, Vercel
+Analytics/Speed Insights product privacy decision, homepage browser
+a11y/runtime proof, and deployed security-header runtime proof.
+
+### Entry 504 - Guild approval account-state guard and content-ingest reverify pass
+
+Entry 504 continued source-focused review after raw allegations reached zero by
+auditing admin/support/moderation mutation surfaces plus upload/content-ingest
+and public-content write paths, including hidden adjacent issues not listed as
+open raw allegations. Latest pushed CI on `main` was green for `bb7f4909`
+(`28824704810`) before broadening audit scope. Two read-only agents inspected
+disjoint admin/moderation and upload/content-ingest slices; parent Codex
+verified the actionable finding locally, reviewed the stale/current content
+findings against source/tests, and closed both agents.
+
+Fixed/reduced:
+
+- Guild Member and Guild Master approval actions now load the seller account's
+  `banned`/`deletedAt` state and return a visible approval error when the seller
+  account is suspended or deleted. This prevents staff from approving a trust
+  badge onto an inactive account that could later become visible after unban.
+- Guild Member and Guild Master approval transactions now update
+  `SellerProfile` through `updateMany` with `user: { banned: false,
+  deletedAt: null }` and route zero-row writes through
+  `assertGuildVerificationTransition`, so a ban/deletion race between the read
+  and approval write rolls back the verification status update and surfaces a
+  refresh-required error.
+
+Verified stale/current or deferred without source changes:
+
+- Upload MIME/magic-byte bypass allegations are stale for the inspected paths.
+  Processed image uploads validate type, size, magic bytes, bounded Sharp
+  decoding, processed size, public availability, and lifecycle recording before
+  returning URLs. Direct uploads are signed by key/type/size/expiry and verified
+  through HEAD metadata plus prefix-byte signature checks before acceptance.
+- Uploaded media ownership-drift allegations are stale/current. Review,
+  listing, profile, blog, and message persistence paths re-verify first-party
+  keys, authenticated Clerk user segments, endpoint allowlists, R2 metadata,
+  content signatures, and direct-upload lifecycle owner/status before claiming
+  media in the persistence transaction.
+- Unsafe HTML/markdown rendering allegations are stale/current. General
+  user-authored text stores stripped text through shared sanitizers, blog
+  markdown renders through centralized `sanitize-html` with narrow schemes and
+  first-party image filtering, and blog comments are stored as sanitized plain
+  text pending approval.
+- AI moderation fail-open/bypass allegations are stale/current in the inspected
+  listing paths. New listings start `PENDING_REVIEW`, public edits move through
+  `PENDING_REVIEW`, approval restores public status only after successful
+  AI/confidence/flag checks, provider failures remain held, and AI image inputs
+  are first-party filtered.
+- `listingVideo` direct-upload support remains an unused/deferred feature
+  surface rather than a source-proven security defect in this pass. The direct
+  upload route still requires seller auth, verification tokens, lifecycle rows,
+  content checks, and cleanup; no listing video persistence path was found.
+
+Guardrails added/reviewed:
+
+- Added `keeps Guild approval writes on active seller accounts` to
+  `tests/security-lifecycle-followups.test.mjs`, covering approval-time account
+  state reads, visible inactive-account blocks, active-account write predicates,
+  and transition-race surfacing for both Guild Member and Guild Master
+  approvals.
+- Reviewed existing upload/content guardrails including
+  `tests/direct-upload-lifecycle.test.mjs`,
+  `tests/upload-verification-token.test.mjs`,
+  `tests/message-attachments.test.mjs`,
+  `tests/blog-markdown-sanitization.test.mjs`,
+  `tests/rendering-security.test.mjs`,
+  `tests/ai-review-outer-failclosed.test.mjs`, and
+  `tests/ai-review-safety.test.mjs`.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 3`; source and test
+inspection with `rg`/`sed`; two parent-reviewed read-only agent reports; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/security-lifecycle-followups.test.mjs` passed 8/8; broader focused
+suite `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+--experimental-strip-types --test tests/security-lifecycle-followups.test.mjs
+tests/direct-upload-lifecycle.test.mjs tests/upload-verification-token.test.mjs
+tests/message-attachments.test.mjs tests/blog-markdown-sanitization.test.mjs
+tests/rendering-security.test.mjs tests/ai-review-outer-failclosed.test.mjs
+tests/ai-review-safety.test.mjs` passed 56/56; `npx tsc --noEmit`; `git diff
+--check`; `npm run lint` exited 0 with the known jsx-ast-utils
+TSNonNullExpression warning; full `npm test` passed 1458/1458.
+
+Current running tally after Entry 504: verified fixed/reduced 999, verified
+stale/false-positive/current 577, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the Guild approval active-account guard. Stale/current
+increases by four for the reverified upload MIME/signature, media ownership,
+HTML/markdown rendering, and AI moderation fail-closed checks. Deferred stays
+flat; `listingVideo` remains an unused/deferred feature surface but was not
+counted as a new deferred source issue.
+
+Remaining major categories are still the deferred launch/runtime/legal/product
+evidence backlog, not open raw source allegations: Stripe refund runtime
+reconciliation/backfill proof, Stripe partial-refund live reconciliation proof,
+label clawback runtime reconciliation evidence, Stripe webhook subscription
+dashboard evidence, Stripe Connect v2 loss-liability ops/legal decision,
+explicit stale remote branch pruning/review, Round 10 cache/state-machine
+product designs, EXPLAIN-dependent runtime query-plan validation, provider-side
+privacy erasure/legal-request evidence, cross-seller AI duplicate-detection
+product design, durable checkout-group product semantics beyond current
+guardrails, high-scale BigInt money/counter modeling decisions, live-data
+reconciliation for historical seller shipping-rate currency drift, Clerk staff
+MFA/breached-password/multi-account dashboard evidence, buyer-deletion live
+Stripe replay proof, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public bucket posture plus production
+smoke/public-availability proof, HSTS preload submission/status, Vercel
+Analytics/Speed Insights product privacy decision, homepage browser
+a11y/runtime proof, and deployed security-header runtime proof.
+
+### Entry 505 - seller profile limits, broadcast cooldown, and deletion-order reverify pass
+
+Entry 505 reviewed a new Claude/Fable read-only report plus adjacent seller
+profile and broadcast mutation surfaces. Latest pushed CI on `main` was green
+for `15a5fbb8` (`28826500875`) before broadening audit scope. One read-only
+agent inspected the disjoint low-severity seller profile/broadcast allegations;
+parent Codex verified the agent report against current source, tests, and the
+account-deletion behavior contract, then closed the agent.
+
+Fixed/reduced:
+
+- Seller profile FAQ creation now enforces a server-side 20-FAQ cap and hides
+  the add form at the cap. The count, latest sort-order read, and create run in
+  a serializable transaction with retry, reducing concurrent over-creation and
+  duplicate sort-order risk.
+- Seller profile featured-listing toggles now perform the listing ownership
+  check, fresh featured-listing read, six-item cap check, and update in a
+  serializable transaction with retry. This reduces lost-update risk while
+  preserving the existing six-feature limit.
+- Seller broadcast creation now rechecks the durable seven-day DB cooldown
+  inside a serializable transaction immediately before insert. The Redis weekly
+  limiter remains in place, but it is no longer the only concurrency guard
+  between the preflight cooldown check and broadcast creation.
+
+Verified stale/current or deferred without source changes:
+
+- The reported account-deletion ordering regression is stale/false-positive on
+  current `main`. Current source, tests, and behavior contracts intentionally
+  delete the Clerk account before queuing local anonymization recovery, then
+  enqueue the recovery row before route-level anonymization. This avoids leaving
+  claimable local anonymization work when Clerk deletion fails, while still
+  preserving a retryable local recovery path after Clerk deletion succeeds.
+- The claim that `toggleFeaturedListing` can exceed six featured items was not
+  reproduced. The existing stale-state path could lose a concurrent toggle, but
+  parent review and the read-only agent did not find a cap-exceed path. The
+  implementation was still hardened with a serializable retry transaction.
+- Seller broadcast cooldown remains a product/runtime control with layered
+  source guardrails, not an absolute distributed guarantee. This pass reduced
+  risk by adding a durable transaction-time cooldown recheck; it did not claim
+  the broadcast path is impossible to race under every provider/runtime failure.
+
+Guardrails added/reviewed:
+
+- Extended `tests/seller-ops-hardening.test.mjs` to require seller broadcast
+  transaction-time DB cooldown rechecks, serializable retry usage, and the
+  reusable seven-day cooldown constant before broadcast insert.
+- Added seller profile guardrails requiring FAQ and featured-listing caps to run
+  under serializable retry transactions, with the UI using the same cap
+  constants.
+- Reviewed the existing account-deletion side-effect and timeout guardrails
+  that lock in Clerk-delete-before-local-recovery ordering and terminal client
+  behavior for post-Clerk local anonymization failures.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 3`; source/test/docs
+inspection with `rg`/`sed`; one parent-reviewed read-only agent report; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/account-deletion-side-effects.test.mjs
+tests/security-lifecycle-followups.test.mjs` passed 14/14; broader focused
+suite `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+--experimental-strip-types --test tests/seller-ops-hardening.test.mjs
+tests/account-deletion-side-effects.test.mjs
+tests/account-deletion-timeout-fix.test.mjs tests/transaction-retry.test.mjs`
+passed 34/34; `npx tsc --noEmit`; `git diff --check`; `npm run lint` exited
+0 with the known jsx-ast-utils TSNonNullExpression warning; and full `npm test`
+passed 1459/1459.
+
+Current running tally after Entry 505: verified fixed/reduced 1002, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by three for FAQ cap enforcement, featured-listing serializable
+toggle hardening, and seller-broadcast transaction-time cooldown hardening.
+Stale/current increases by two for the account-deletion ordering allegation and
+the featured-listing cap-exceed allegation as stated. Deferred stays flat.
+
+Remaining major categories are still the deferred launch/runtime/legal/product
+evidence backlog, not open raw source allegations: Stripe refund runtime
+reconciliation/backfill proof, Stripe partial-refund live reconciliation proof,
+label clawback runtime reconciliation evidence, Stripe webhook subscription
+dashboard evidence, Stripe Connect v2 loss-liability ops/legal decision,
+explicit stale remote branch pruning/review, Round 10 cache/state-machine
+product designs, EXPLAIN-dependent runtime query-plan validation, provider-side
+privacy erasure/legal-request evidence, cross-seller AI duplicate-detection
+product design, durable checkout-group product semantics beyond current
+guardrails, high-scale BigInt money/counter modeling decisions, live-data
+reconciliation for historical seller shipping-rate currency drift, Clerk staff
+MFA/breached-password/multi-account dashboard evidence, buyer-deletion live
+Stripe replay proof, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public bucket posture plus production
+smoke/public-availability proof, HSTS preload submission/status, Vercel
+Analytics/Speed Insights product privacy decision, homepage browser
+a11y/runtime proof, and deployed security-header runtime proof.
+
 ### Entry 506 - runtime grant extension dependency hardening
 
 Entry 506 reviewed a new Claude read-only report against the version-controlled
@@ -13858,6 +15384,1315 @@ approximate raw allegations left from current max #1126: 0. Fixed/reduced
 increases by two for the explicit `pg_trgm` runtime grant/audit coverage and the
 bidirectional provisioning-inventory guard. Raw-left stays at zero because this
 was post-raw hidden-issue hardening, not closure of a remaining raw allegation.
+
+### Entry 507 - pg_trgm provisioning grantability hardening
+
+Entry 507 reviewed Claude's follow-up note on the corrected `pg_trgm` grant
+coverage as a junior read-only report, then parent Codex independently checked
+the provisioning SQL, grant audit, `pg_trgm` migrations, and RLS/grant docs. The
+review found one under-called source gap: current runtime `EXECUTE` evidence
+needed to be tied to a reproducible provisioning story for source-derived
+extensions. The first pushed implementation was intentionally checked by CI and
+failed in the synthetic Postgres test because PostgreSQL trusted-extension
+functions can be owned by the bootstrap/admin role (`ci` in Actions) even when
+`CREATE EXTENSION` runs as the migration role. Parent Codex corrected the rule:
+runtime `EXECUTE` is the required property, while missing runtime `EXECUTE`
+must fail if the declared migration role cannot grant it. Latest pushed CI on
+`main` was green for `28fdf683` (`28912951479`) before editing. No agent was
+needed for this narrow pass.
+
+Fixed/reduced:
+
+- `scripts/audit-runtime-db-grants.mjs` now checks source-derived extensions as
+  part of the declared ownership/grantability model. Required extensions must
+  not be owned by the runtime role, extension ownership drift is reported, and
+  every extension-owned function plus app-used runtime function and operator
+  backing function must be executable by the runtime role. For bootstrap-owned
+  trusted-extension functions that the migration role cannot grant, the audit
+  allows current runtime access through PostgreSQL's `PUBLIC` default but fails
+  if runtime `EXECUTE` is missing and the migration role cannot restore it.
+- `scripts/provision-runtime-db-role.sql` now performs a preflight before
+  emitting `GRANT EXECUTE` statements for `pg_trgm` functions. It grants only
+  extension functions for which the migration role has `EXECUTE WITH GRANT
+  OPTION`; for the rest, it verifies the runtime role already has `EXECUTE`.
+  If runtime access is missing and the migration role cannot grant it,
+  provisioning stops with a specific owner/function message directing operators
+  to a reviewed admin-owned provisioning step.
+- `docs/db-defense-in-depth-plan.md`, `docs/rls-feasibility-plan.md`, and
+  `docs/runbook.md` now record the contract: runtime access and reproducible
+  provisioning are separate checks, trusted extension functions may be
+  bootstrap/admin-owned, and a future function-lockdown pass for non-grantable
+  `pg_trgm` functions needs an explicitly reviewed admin-owned provisioning
+  step.
+
+Verified stale/current or deferred without source changes:
+
+- Claude's optional idea to reopen the old migration-role `PUBLIC` revoke
+  fixture was not adopted. CI proved the clean trusted-extension path itself can
+  have bootstrap-owned functions, so the deterministic negative fixture now
+  creates `pg_trgm` through the admin connection and revokes PUBLIC function
+  execute there before proving the audit fails when runtime access is missing
+  and the migration role cannot grant it.
+- RLS remains staged behind the existing pooling/context gate. This pass only
+  tightens pre-RLS grant audit/provisioning evidence and does not enable table
+  policies.
+
+Guardrails added/reviewed:
+
+- Extended `tests/db-grant-inventory.test.mjs` static checks to pin extension
+  owner/runtime-execute audit logic, `EXECUTE WITH GRANT OPTION` checks, the
+  provisioning preflight, and the new docs/runbook language.
+- Added GitHub-only synthetic Postgres fixture paths where `pg_trgm` is created
+  by the admin connection before the migration role runs app setup. The first
+  asserts wrong extension ownership is reported without treating still-present
+  PUBLIC execute as a runtime failure; the second revokes PUBLIC function
+  execute and asserts the audit reports missing runtime access that is not
+  grantable by the migration role.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 5` confirmed latest
+pushed CI on `main` was green for `28fdf683`; source/docs/test inspection with
+`rg`/`sed`; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/db-grant-inventory.test.mjs tests/rls-feasibility-plan.test.mjs
+tests/public-query-determinism.test.mjs` passed 26/27 with the expected local
+GitHub-only Postgres integration skip; `npx tsc --noEmit`; `git diff --check`;
+`npm run lint` exited 0 with the known jsx-ast-utils TSNonNullExpression
+warning; full `npm test` passed 1469/1470 with the expected local GitHub-only
+Postgres integration skip; and GitHub CI run `28913820257` failed in Tests on
+the first stricter implementation, proving trusted `pg_trgm` functions can be
+bootstrap/admin-owned even on the clean migration-created path and driving the
+corrected runtime-execute-plus-repairability rule. Follow-up GitHub CI run
+`28914123520` for `8835023e` passed fully on `main`: typecheck, lint, tests,
+security audit, and production build.
+
+Current running tally after Entry 507: verified fixed/reduced 1005, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the grantability/provisioning reproducibility hardening.
+Raw-left stays at zero because this was post-raw hidden-issue hardening, not
+closure of a remaining raw allegation.
+
+Remaining major categories are still the deferred launch/runtime/legal/product
+evidence backlog, not open raw source allegations: Stripe refund runtime
+reconciliation/backfill proof, Stripe partial-refund live reconciliation proof,
+label clawback runtime reconciliation evidence, Stripe webhook subscription
+dashboard evidence, Stripe Connect v2 loss-liability ops/legal decision,
+explicit stale remote branch pruning/review, Round 10 cache/state-machine
+product designs, EXPLAIN-dependent runtime query-plan validation, provider-side
+privacy erasure/legal-request evidence, cross-seller AI duplicate-detection
+product design, durable checkout-group product semantics beyond current
+guardrails, high-scale BigInt money/counter modeling decisions, live-data
+reconciliation for historical seller shipping-rate currency drift, Clerk staff
+MFA/breached-password/multi-account dashboard evidence, buyer-deletion live
+Stripe replay proof, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public bucket posture plus production
+smoke/public-availability proof, HSTS preload submission/status, Vercel
+Analytics/Speed Insights product privacy decision, homepage browser
+a11y/runtime proof, and deployed security-header runtime proof.
+
+## Entry 491 - notification read count and source-evidence reverify pass
+
+Entry 491 closes a parent-verified pass over remaining Stripe webhook/Connect,
+EXPLAIN/index/numeric, cron/notification, seller-broadcast, and dashboard
+evidence allegations. Two read-only agents inspected disjoint Stripe/Connect and
+EXPLAIN/numeric slices; parent Codex reviewed their reports against current
+source, tests, docs, and the active ledger before editing. Both agents were
+closed. The raw audit import and expected untracked local files were not staged.
+
+Fixed/reduced:
+
+- Raw notification read-all truncation finding #144 was real as a small API
+  correctness issue. `POST /api/notifications/read-all` still caps explicit
+  `ids` input at 100, but now dedupes IDs before the cap, returns
+  `markedCount`, and reports `cappedIds` so clients can distinguish a complete
+  mark-read from a partial capped update.
+
+Verified stale/current or deferred without source changes:
+
+- Raw ops-health Sentry monitor finding #128 is stale/current. The route now
+  returns `503` when actionable issues exist, and `withSentryCronMonitor()`
+  maps 5xx responses to failed Sentry check-ins. Existing tests pin the
+  unhealthy status behavior.
+- Raw recently-viewed `rv` cookie Secure-flag finding #326 is stale/current.
+  `recentlyViewedCookieAttributes()` appends `Secure` on HTTPS and preserves
+  local HTTP development behavior, with a focused test.
+- Raw email-outbox quota-dead-letter, Guild metrics revocation, listing-view
+  cleanup, and notification-prune/refund-lock allegations #126-#130 are
+  stale/current. Quota deferrals roll back the claim attempt count, Guild Master
+  revocation recalculates metrics immediately before the terminal update,
+  `ListingViewDaily` cleanup is time-budgeted, and notification-prune isolates
+  stale refund-lock release failures under `source=cron_refund_lock_release`.
+- Raw seller-broadcast and recent-sales allegations #140-#143 are
+  stale/current. Broadcast writes use a pre-parse attempt limiter plus a weekly
+  limiter after validation and cooldown checks, filter reciprocal blocks before
+  notification/email fanout, and enqueue `EMAIL_SELLER_BROADCAST` only for
+  explicit email opt-ins. Recent-sales requires whole-order seller ownership,
+  `paidStripeOrderWhere()`, `sellerRefundId: null`, and
+  `blockingRefundLedgerWhere()`.
+- Stripe webhook source remains current for handled snapshot and Connect v2
+  thin-event routes. The source keeps separate secrets/routes, bounded body
+  reads, signature verification, stale-event rejection, idempotency, card-only
+  Checkout methods, and v2 account-state mirroring. Exact Stripe Dashboard
+  endpoint subscriptions and delivery/replay evidence remain runtime evidence
+  items, not source-proven fixes.
+- Stripe Connect v2 `losses_collector: "application"` remains intentional
+  source behavior tied to `docs/legal-risk-register.md`. Closing that category
+  still requires business/legal/accounting signoff or an explicit exception.
+- EXPLAIN/index/numeric allegations are source-current but not fully closed by
+  static inspection. Raw-managed indexes, validated CHECK constraints, hot-path
+  indexes, stable public query caps/tie-breakers, and seller metrics `BigInt`
+  storage are guarded. Production-like `EXPLAIN (ANALYZE, BUFFERS)` and any
+  future `BigInt` migration for individual order/item/payment cents or
+  long-lived counters remain runtime/data-modeling decisions.
+- Clerk breached-password/staff MFA/multi-account spam controls, HSTS preload
+  submission, deployed security-header proof, Sentry alert routing, Vercel
+  Analytics/Speed Insights, and R2 dashboard/smoke evidence remain dashboard or
+  product/privacy evidence items.
+
+Guardrails added/reviewed:
+`tests/notification-delivery-preferences.test.mjs` now pins that the read-all
+route dedupes/caps explicit IDs and returns `markedCount` plus `cappedIds`.
+Reviewed guardrails included `tests/mutation-rate-limit-sweep.test.mjs`,
+`tests/private-json-cache-headers.test.mjs`,
+`tests/api-read-rate-limit-sweep.test.mjs`,
+`tests/seller-ops-hardening.test.mjs`,
+`tests/seller-analytics-refund-guardrails.test.mjs`,
+`tests/retention-and-ops-followups.test.mjs`,
+`tests/cron-schedule-guardrails.test.mjs`,
+`tests/cron-monitor-state.test.mjs`, `tests/recently-viewed.test.mjs`,
+`tests/stripe-webhook-v2-route.test.mjs`,
+`tests/checkout-payment-methods.test.mjs`, `tests/stripe-connect-v2.test.mjs`,
+`tests/schema-drift-followups.test.mjs`,
+`tests/schema-numeric-index-guardrails.test.mjs`,
+`tests/public-query-determinism.test.mjs`,
+`tests/public-visibility-followups.test.mjs`,
+`tests/public-cron-search-hardening.test.mjs`,
+`tests/listing-analytics-guardrails.test.mjs`, and
+`tests/guild-metrics-state.test.mjs`.
+
+Verification:
+`gh run list --branch main --limit 3` confirmed latest pushed CI on `main`
+was green for `e8c94de2`; source/docs/test inspection with `rg`/`sed`; two
+parent-reviewed read-only agent reports; focused `node --test
+tests/notification-delivery-preferences.test.mjs
+tests/mutation-rate-limit-sweep.test.mjs tests/private-json-cache-headers.test.mjs
+tests/api-read-rate-limit-sweep.test.mjs tests/seller-ops-hardening.test.mjs
+tests/seller-analytics-refund-guardrails.test.mjs
+tests/retention-and-ops-followups.test.mjs tests/cron-schedule-guardrails.test.mjs
+tests/cron-monitor-state.test.mjs tests/recently-viewed.test.mjs
+tests/stripe-webhook-v2-route.test.mjs tests/checkout-payment-methods.test.mjs
+tests/stripe-connect-v2.test.mjs tests/schema-drift-followups.test.mjs
+tests/schema-numeric-index-guardrails.test.mjs
+tests/public-query-determinism.test.mjs tests/public-visibility-followups.test.mjs
+tests/public-cron-search-hardening.test.mjs tests/listing-analytics-guardrails.test.mjs
+tests/guild-metrics-state.test.mjs`, which passed 143/143; and
+`npx tsc --noEmit`; `git diff --check`; `npm run lint` (known
+`jsx-ast-utils` TSNonNullExpression warning, exit 0); and full `npm test`
+passing 1448/1448.
+
+Current running tally after Entry 491: verified fixed/reduced 977, verified
+stale/false-positive/current 542, deferred product/design/ops/legal 81,
+approximate raw allegations left from current max #1126: 18. Fixed/reduced
+increases by one and raw-left decreases by one for the notification read-all
+response fix. Stale/current and deferred stay flat because the broader
+reverified slices were already represented in the ledger or remain existing
+runtime/dashboard/legal evidence items.
+
+Remaining major categories: Stripe refund runtime/backfill design beyond the
+now-fixed first-party orphan ledger and local transfer-reversal evidence,
+Stripe partial-refund live reconciliation proof, label clawback runtime
+proof/dashboard reconciliation evidence, Stripe webhook subscription dashboard
+evidence, Stripe Connect v2 loss-liability ops/legal decision, explicit stale
+remote branch pruning/review, completed-audit archive housekeeping once the
+60-day threshold is reached, Round 10 deferred cache/state-machine product
+designs that require product decisions rather than source guardrails,
+EXPLAIN-dependent runtime query-plan validation beyond the existing source
+indexes and source guardrails, founding-maker permanence policy,
+provider-side privacy erasure/legal-request evidence, cross-seller AI
+duplicate-detection product design, durable checkout-group design for checkout
+batch semantics beyond grouped ready-lock/reservation resume and
+completed-session filtering, deliberate BigInt money-column modeling for
+individual order/item cents fields and high-volume listing analytics counters
+beyond the fixed seller-metrics aggregate cache and new webhook integer bounds,
+live-data reconciliation for historical seller shipping-rate currency drift,
+Guild private/custom-order sales/review trust-metric product policy, Clerk
+staff MFA and breached-password dashboard evidence, Clerk multi-account spam
+dashboard evidence, buyer-deletion live Stripe replay proof after source
+minimization, Founding Maker live DB concurrency proof, Sentry cron alert
+evidence, Cloudflare R2 ListBucket/public bucket dashboard posture plus
+production smoke evidence and public-availability proof, HSTS preload
+submission decision, Vercel Analytics/Speed Insights product/privacy decision,
+homepage browser a11y/runtime proof beyond source fallback, and deployed
+security-header runtime proof beyond source/config guardrails.
+
+### Entry 508 - RLS context gate tooling
+
+Entry 508 followed the slow RLS/security path after the raw allegation queue
+reached zero: parent Codex rechecked the current RLS docs, least-privilege
+grant tooling, current CI state, and adjacent notification/saved-search source
+surfaces before adding any code. One read-only explorer agent reviewed likely
+RLS gate blind spots; parent Codex independently verified the useful findings
+against source and docs, rejected broad production RLS, incorporated the
+Prisma-adapter and route-happy-path boundaries, and closed the agent. Latest
+pushed CI on `main` was green for `70a14a4d` (`28914271071`) before editing.
+
+Fixed/reduced:
+
+- Added `scripts/rls-context-acceptance-gate.mjs` plus
+  `npm run audit:rls-context` as a staging-only executable gate for the Phase 3
+  RLS request-context proof. The gate refuses ambient `DATABASE_URL`/`DIRECT_URL`
+  fallback, requires `RLS_CONTEXT_GATE_CONFIRM=staging-only`, requires a pooled
+  runtime-role URL and expected runtime role, and optionally prepares only
+  synthetic non-customer canary rows through an explicit migration-owner URL.
+- The canary preparation path creates `grainline_rls_canary.context_canary`,
+  refreshes synthetic rows with RLS disabled, then enables `FORCE ROW LEVEL
+  SECURITY` with a fail-closed `NULLIF(current_setting('app.user_id', true), '')`
+  policy so unset and explicitly empty context return zero rows.
+- The gate now measures both the app-relevant Prisma `@prisma/adapter-pg`
+  interactive-transaction path and lower-level raw `pg` behavior. It checks
+  runtime `current_user`/`session_user`, transaction-local
+  `set_config('app.user_id', $1, true)`, commit/rollback cleanup, empty-context
+  denial, synthetic retry re-setting, target/burst concurrency, prepared
+  statement/cached-plan errors, connection recycling through `maxUses: 1`, an
+  admin-URL-gated disable-RLS rollback/no-op probe on the synthetic canary, and
+  the documented p95/p99/acquisition/hold-time stop thresholds.
+- `docs/db-defense-in-depth-plan.md`, `docs/runbook.md`,
+  `docs/launch-checklist.md`, and `CLAUDE.md` now route future RLS work through
+  this staging gate and explicitly preserve the boundary that passing the
+  synthetic canary does not enable RLS or replace route-level happy-path tests
+  for `Notification`, `SavedSearch`, or any later prototype table.
+
+Verified stale/current or deferred without source changes:
+
+- Production RLS remains disabled and staged. This pass created the next proof
+  artifact; it did not enable any table policies and did not close the live
+  staging evidence requirement.
+- The read-only agent's source warnings about notification write/delete
+  asymmetry, saved-search retry/export/deletion behavior, and existing
+  `Promise.all` notification/dashboard reads remain valid future prototype
+  constraints already represented in the RLS docs. They are not solved by the
+  synthetic canary and must be tested when the actual `withDbUserContext`
+  helper and first table policies are implemented.
+
+Guardrails added/reviewed:
+
+- Added `tests/rls-context-gate.test.mjs` to pin the explicit npm script,
+  staging confirmation requirement, pooled-runtime URL requirement, lack of
+  ambient production DB URL fallback, synthetic canary user defaults, explicit
+  admin URL for prepare mode, transaction-local context policy shape, Prisma
+  adapter probe, prepared-statement/protocol error checks, connection recycle
+  probing, rollback/no-op proof gating, metric summarization, and
+  docs/runbook/launch checklist coverage.
+- Reviewed existing `tests/rls-feasibility-plan.test.mjs` and
+  `tests/db-grant-inventory.test.mjs` alongside the new guardrails.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 5` confirmed latest
+pushed CI on `main` was green for `70a14a4d` (`28914271071`); source/docs/test
+inspection with `rg`/`sed`; one parent-reviewed read-only explorer report;
+`node --check scripts/rls-context-acceptance-gate.mjs`; focused
+`node --test tests/rls-context-gate.test.mjs tests/rls-feasibility-plan.test.mjs
+tests/db-grant-inventory.test.mjs` passed 24/25 with the expected local
+GitHub-only Postgres integration skip; `npx tsc --noEmit`; `git diff --check`;
+`npm run lint` exited 0 with the known jsx-ast-utils TSNonNullExpression
+warning; full `npm test` passed 1479/1480 with the expected local GitHub-only
+Postgres integration skip; and `npm run build` completed successfully.
+
+Current running tally after Entry 508: verified fixed/reduced 1006, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the RLS staging context gate tooling. Deferred stays flat
+because the live staging run, route-level prototype tests, and actual
+Notification/SavedSearch RLS policies remain future execution work. Raw-left
+stays at zero because this was post-raw hardening, not closure of a raw
+allegation.
+
+Remaining major categories are still the deferred launch/runtime/legal/product
+evidence backlog, not open raw source allegations: live RLS staging gate
+execution plus route-level prototype tests before any table policy, Stripe
+refund runtime reconciliation/backfill proof, Stripe partial-refund live
+reconciliation proof, label clawback runtime reconciliation evidence, Stripe
+webhook subscription dashboard evidence, Stripe Connect v2 loss-liability
+ops/legal decision, explicit stale remote branch pruning/review, Round 10
+cache/state-machine product designs, EXPLAIN-dependent runtime query-plan
+validation, provider-side privacy erasure/legal-request evidence, cross-seller
+AI duplicate-detection product design, durable checkout-group product semantics
+beyond current guardrails, high-scale BigInt money/counter modeling decisions,
+live-data reconciliation for historical seller shipping-rate currency drift,
+Clerk staff MFA/breached-password/multi-account dashboard evidence,
+buyer-deletion live Stripe replay proof, Founding Maker live DB concurrency
+proof, Sentry cron alert evidence, Cloudflare R2 ListBucket/public bucket
+posture plus production smoke/public-availability proof, HSTS preload
+submission/status, Vercel Analytics/Speed Insights product privacy decision,
+homepage browser a11y/runtime proof, and deployed security-header runtime
+proof.
+
+### Entry 509 - RLS context gate baseline hardening
+
+Entry 509 reviewed Claude's follow-up as junior read-only input, then parent
+Codex independently checked the RLS context gate code, docs, tests, and current
+CI state before changing anything. The substantive baseline concern was real:
+the prior "baseline" workload was already wrapped in `BEGIN`/`COMMIT`, so it
+measured mostly marginal `set_config` overhead instead of the adoption cost of
+moving current app reads into interactive transactions. Latest pushed CI on
+`main` was green for `a7b31ed6` (`28915569351`) before editing.
+
+Fixed/reduced:
+
+- The RLS context gate now measures autocommit denied-read baselines in both
+  raw `pg` and Prisma adapter paths, while retaining the existing
+  transaction-wrapped unset-context baseline. The gate reports and compares
+  target/burst wrapped reads against both baselines, with explicit
+  "autocommit adoption cost" labels so staging evidence separates context
+  overhead from the broader cost of adopting interactive transactions.
+- Warmup and single-sample checks now include autocommit denied reads, and the
+  workload runners fail loudly on unknown modes instead of silently treating
+  typos as wrapped reads.
+- `tests/rls-context-gate.test.mjs` now pins the autocommit paths and adds a
+  GitHub-only synthetic Postgres orchestration smoke. The smoke creates a
+  temporary runtime role and canary schema, runs `runAcceptanceGate()` with a
+  deliberately tiny non-acceptance sample, verifies non-performance issues are
+  clean, and checks the new autocommit reports. This proves the full script
+  orchestration in CI without pretending local Postgres is Neon pooler
+  acceptance evidence.
+- `docs/db-defense-in-depth-plan.md` and `docs/runbook.md` now require
+  retaining autocommit baseline, transaction baseline, and wrapped metrics. The
+  docs explicitly state that the transaction baseline isolates context-setting
+  overhead, while the autocommit baseline captures the adoption cost of moving
+  current app reads into interactive transactions.
+
+Verified stale/current or deferred without source changes:
+
+- Production RLS remains disabled. This pass hardens the staging gate and CI
+  smoke coverage only; the real go/no-go remains the production-like Neon
+  staging run plus route-level prototype tests before any customer table policy
+  is widened.
+- Claude's minor note about repeated-run agreement was a wording precision
+  issue rather than a source bug: the gate still treats flaky repeated
+  pass/fail outcomes as a documented stop signal, but it does not require
+  byte-identical metrics across runs.
+
+Guardrails added/reviewed:
+
+- Extended `tests/rls-context-gate.test.mjs` for autocommit raw `pg` and Prisma
+  baselines, autocommit adoption-cost labels, docs/runbook coupling, and the
+  GitHub-only synthetic orchestration smoke.
+- Updated `tests/rls-feasibility-plan.test.mjs` to guard the new runbook
+  wording instead of the older baseline/wrapped phrasing.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 3` confirmed latest
+pushed CI on `main` was green for `a7b31ed6` (`28915569351`); source/docs/test
+inspection with `rg`/`sed`; `node --check
+scripts/rls-context-acceptance-gate.mjs`; focused `node --test
+tests/rls-context-gate.test.mjs tests/rls-feasibility-plan.test.mjs
+tests/audit-ledger-coupling.test.mjs` passed 18/19 with the expected local
+GitHub-only Postgres smoke skip after one assertion update from the old
+baseline wording; `npx tsc --noEmit`; `git diff --check`; `npm run lint` exited
+0 with the known jsx-ast-utils TSNonNullExpression warning; `npm audit
+--audit-level=high` found 0 vulnerabilities; and full `npm test` passed
+1479/1481 with the expected local skips. Local `npm run build` compiled
+successfully but failed during sitemap page-data collection with Prisma `P1001`
+because the configured Neon database endpoint was unreachable, so build
+completion was verified by pushed CI's local Postgres build. After push, CI for
+`8683659d` (`28976405079`) passed typecheck, lint, tests, security audit, and
+production build on `main`.
+
+Current running tally after Entry 509: verified fixed/reduced 1007, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the RLS context gate baseline hardening. Deferred stays
+flat because the live staging gate, route-level prototype tests, and actual
+Notification/SavedSearch policies remain future execution work. Raw-left stays
+at zero because this was post-raw hardening, not closure of a raw allegation.
+
+Remaining major categories are still the deferred launch/runtime/legal/product
+evidence backlog, not open raw source allegations: live RLS staging gate
+execution plus route-level prototype tests before any table policy, Stripe
+refund runtime reconciliation/backfill proof, Stripe partial-refund live
+reconciliation proof, label clawback runtime reconciliation evidence, Stripe
+webhook subscription dashboard evidence, Stripe Connect v2 loss-liability
+ops/legal decision, explicit stale remote branch pruning/review, Round 10
+cache/state-machine product designs, EXPLAIN-dependent runtime query-plan
+validation, provider-side privacy erasure/legal-request evidence, cross-seller
+AI duplicate-detection product design, durable checkout-group product semantics
+beyond current guardrails, high-scale BigInt money/counter modeling decisions,
+live-data reconciliation for historical seller shipping-rate currency drift,
+Clerk staff MFA/breached-password/multi-account dashboard evidence,
+buyer-deletion live Stripe replay proof, Founding Maker live DB concurrency
+proof, Sentry cron alert evidence, Cloudflare R2 ListBucket/public bucket
+posture plus production smoke/public-availability proof, HSTS preload
+submission/status, Vercel Analytics/Speed Insights product privacy decision,
+homepage browser a11y/runtime proof, and deployed security-header runtime
+proof.
+
+### Entry 510 - RLS user-context helper foundation
+
+Entry 510 acted on Claude's read-only conclusion that the RLS gate tooling had
+no outstanding reviewable defects and that the next code artifact would be the
+`withDbUserContext` helper. Parent Codex independently rechecked the current
+green CI state, RLS docs, helper contract, existing Prisma transaction/retry
+patterns, and saved-search serializable transaction shape before adding code.
+Latest pushed CI on `main` was green for `5540bd77` (`28976802737`) before
+editing.
+
+Fixed/reduced:
+
+- Added dormant `src/lib/dbUserContext.ts` for future user-scoped RLS paths. It
+  validates a bounded local user id, opens a Prisma interactive transaction,
+  runs parameterized `SELECT set_config('app.user_id', $userId, true)` as the
+  first statement inside that transaction, verifies the returned setting, and
+  then runs caller work on the transaction client.
+- Added `withSerializableDbUserContext()` / `serializableRetry` support so the
+  retry wrapper sits outside the Prisma transaction. A serialization retry
+  therefore reopens the transaction and re-runs `set_config` before protected
+  work on every attempt, matching the staged RLS contract.
+- Added `src/lib/dbUserContextState.ts` for pure validation/defaults. The helper
+  uses explicit interactive-transaction defaults aligned with the staging gate
+  (`maxWait = 10s`, `timeout = 5s`) and rejects empty, overlong, or unsafe
+  context ids instead of silently setting an empty context.
+- Updated `docs/db-defense-in-depth-plan.md` and `CLAUDE.md` to record that the
+  helper is dormant until the production-like staging gate passes and a
+  table-specific prototype wraps routes/server components. It must not be used
+  as a service/admin/cron/webhook bypass.
+
+Verified stale/current or deferred without source changes:
+
+- Production RLS remains disabled. No routes, pages, webhooks, crons, or table
+  policies were moved onto the helper in this pass.
+- The live staging gate still needs a production-like Neon branch and explicit
+  pooled runtime-role URL. Without that environment, running the local gate
+  would not be acceptance evidence.
+
+Guardrails added/reviewed:
+
+- Added `tests/db-user-context.test.mjs` to guard user-id validation, explicit
+  timeout defaults, parameterized transaction-local `set_config(..., true)`,
+  context-before-operation ordering inside `prisma.$transaction`, and
+  serializable retry outside the transaction.
+- Re-ran the RLS context gate and RLS feasibility plan guardrails alongside the
+  new helper test.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 3` confirmed latest
+pushed CI on `main` was green for `5540bd77` (`28976802737`); source/docs/test
+inspection with `rg`/`sed`; focused `node --test tests/db-user-context.test.mjs
+tests/rls-feasibility-plan.test.mjs tests/rls-context-gate.test.mjs` passed
+22/23 with the expected local GitHub-only Postgres smoke skip; `npx tsc
+--noEmit`; `git diff --check`; `npm run lint` exited 0 with the known
+jsx-ast-utils TSNonNullExpression warning; `npm audit --audit-level=high` found
+0 vulnerabilities; and full `npm test` passed 1484/1486 with the expected
+local skips. Local `npm run build` was not rerun because the prior local build
+compiled but failed sitemap page-data collection against an unreachable
+configured Neon endpoint; production build completion remains to be verified by
+pushed CI's local Postgres build. After push, CI for `8839d8e2`
+(`28978697515`) passed typecheck, lint, tests, security audit, and production
+build on `main`.
+
+Current running tally after Entry 510: verified fixed/reduced 1008, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the dormant RLS user-context helper foundation. Deferred
+stays flat because the live staging gate, route-level prototype tests, and
+actual Notification/SavedSearch policies remain future execution work. Raw-left
+stays at zero because this was post-raw hardening, not closure of a raw
+allegation.
+
+Remaining major categories are still the deferred launch/runtime/legal/product
+evidence backlog, not open raw source allegations: live RLS staging gate
+execution plus route-level prototype tests before any table policy, Stripe
+refund runtime reconciliation/backfill proof, Stripe partial-refund live
+reconciliation proof, label clawback runtime reconciliation evidence, Stripe
+webhook subscription dashboard evidence, Stripe Connect v2 loss-liability
+ops/legal decision, explicit stale remote branch pruning/review, Round 10
+cache/state-machine product designs, EXPLAIN-dependent runtime query-plan
+validation, provider-side privacy erasure/legal-request evidence, cross-seller
+AI duplicate-detection product design, durable checkout-group product semantics
+beyond current guardrails, high-scale BigInt money/counter modeling decisions,
+live-data reconciliation for historical seller shipping-rate currency drift,
+Clerk staff MFA/breached-password/multi-account dashboard evidence,
+buyer-deletion live Stripe replay proof, Founding Maker live DB concurrency
+proof, Sentry cron alert evidence, Cloudflare R2 ListBucket/public bucket
+posture plus production smoke/public-availability proof, HSTS preload
+submission/status, Vercel Analytics/Speed Insights product privacy decision,
+homepage browser a11y/runtime proof, and deployed security-header runtime
+proof.
+
+### Entry 511 - RLS user-context serializable retry hardening
+
+Entry 511 reviewed Claude's read-only report on the dormant RLS user-context
+helper as junior input, then parent Codex independently checked
+`src/lib/dbUserContext.ts`, `src/lib/dbUserContextState.ts`,
+`src/lib/transactionRetry.ts`, the current SavedSearch and seller-profile
+serializable transaction patterns, and the RLS feasibility/runbook contracts.
+The serializable wrapper concern was real: the helper enabled retry without
+defaulting the Prisma interactive transaction to `Serializable` isolation, so a
+future cap-sensitive migration could silently drop to the database default
+isolation while keeping an inert retry loop. Latest pushed CI on `main` was
+green for `2d8c4e31` (`28979188466`) before editing.
+
+Fixed/reduced:
+
+- `dbUserContextTransactionOptions({ serializableRetry: true })` now defaults
+  to `Serializable` isolation and rejects weaker isolation when retry is
+  requested. `withSerializableDbUserContext()` no longer accepts an
+  `isolationLevel` option, so the convenience wrapper cannot be paired with a
+  weaker transaction level.
+- `normalizeDbUserContextUserId()` now requires the exact local `User.id`
+  string instead of trimming it. Empty, whitespace-padded, overlong, or
+  non-id-shaped context ids fail closed instead of aliasing to a different
+  database owner id.
+- `withDbUserContext()` now carries a local API contract warning future callers
+  to keep protected queries on the provided transaction client and avoid
+  `Promise.all`/parallel Prisma calls inside the interactive transaction.
+- `docs/db-defense-in-depth-plan.md`, `docs/rls-feasibility-plan.md`, and
+  `CLAUDE.md` now record the exact-id, no-parallel-query, and Serializable
+  retry requirements as durable RLS behavior contracts.
+
+Verified stale/current or deferred without source changes:
+
+- Production RLS remains disabled. No route, webhook, cron, server component,
+  or table policy was moved onto the helper in this pass.
+- The staging pooling/context-isolation gate remains the real go/no-go before
+  enabling any table policy or wrapping hot paths.
+
+Guardrails added/reviewed:
+
+- Extended `tests/db-user-context.test.mjs` to cover exact local user-id
+  validation, Serializable isolation defaults for retry, rejection of weaker
+  retry isolation, the helper JSDoc no-parallel contract, and the
+  `withSerializableDbUserContext()` type-level omission of `isolationLevel`.
+- Re-ran the RLS feasibility and context-gate guardrails alongside the helper
+  test.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 3` confirmed latest
+pushed CI on `main` was green for `2d8c4e31` (`28979188466`);
+source/docs/test inspection with `rg`/`sed`; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/db-user-context.test.mjs tests/rls-feasibility-plan.test.mjs
+tests/rls-context-gate.test.mjs` passed 23/24 with the expected local
+GitHub-only Postgres smoke skip; `npx tsc --noEmit`; `git diff --check`;
+`npm run lint` exited 0 with the known jsx-ast-utils TSNonNullExpression
+warning; `npm audit --audit-level=high` found 0 vulnerabilities; and full
+`npm test` passed 1485/1487 with the expected local skips. Local
+`npm run build` was not rerun because recent local builds compile and then fail
+sitemap page-data collection against the configured unreachable Neon endpoint;
+after push, CI for `3cde4b76` (`28980660385`) passed typecheck, lint, tests,
+security audit, and production build on `main`.
+
+Current running tally after Entry 511: verified fixed/reduced 1010, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by two for the Serializable retry isolation fix and the exact
+context-id hardening. The no-parallel helper contract is guardrail coverage for
+an already-documented RLS staging rule, so it is not counted as a separate
+finding. Deferred stays flat because the live staging gate, route-level
+prototype tests, and actual Notification/SavedSearch policies remain future
+execution work. Raw-left stays at zero because this was post-raw hardening, not
+closure of a raw allegation.
+
+Remaining major categories are still the deferred launch/runtime/legal/product
+evidence backlog, not open raw source allegations: live RLS staging gate
+execution plus route-level prototype tests before any table policy, Stripe
+refund runtime reconciliation/backfill proof, Stripe partial-refund live
+reconciliation proof, label clawback runtime reconciliation evidence, Stripe
+webhook subscription dashboard evidence, Stripe Connect v2 loss-liability
+ops/legal decision, explicit stale remote branch pruning/review, Round 10
+cache/state-machine product designs, EXPLAIN-dependent runtime query-plan
+validation, provider-side privacy erasure/legal-request evidence, cross-seller
+AI duplicate-detection product design, durable checkout-group product semantics
+beyond current guardrails, high-scale BigInt money/counter modeling decisions,
+live-data reconciliation for historical seller shipping-rate currency drift,
+Clerk staff MFA/breached-password/multi-account dashboard evidence,
+buyer-deletion live Stripe replay proof, Founding Maker live DB concurrency
+proof, Sentry cron alert evidence, Cloudflare R2 ListBucket/public bucket
+posture plus production smoke/public-availability proof, HSTS preload
+submission/status, Vercel Analytics/Speed Insights product privacy decision,
+homepage browser a11y/runtime proof, and deployed security-header runtime
+proof.
+
+### Entry 512 - RLS policy activation audit hardening
+
+Entry 512 reviewed a fresh Opus read-only sweep as junior input, then parent
+Codex independently checked the current grant audit, RLS context gate, helper
+contract, RLS docs, and tests. Latest pushed CI on `main` was green for
+`ad7e2ab6` (`28980941219`) before editing. The highest-value finding was real:
+the live grant audit checked role/grant/default-privilege posture but did not
+inspect whether a tracked app table with RLS policies actually had
+`ENABLE ROW LEVEL SECURITY` and `FORCE ROW LEVEL SECURITY` set. A policy without
+table-level RLS enabled is inert, and missing `FORCE` can hide owner-bypass
+behavior in migration-owner tests.
+
+Fixed/reduced:
+
+- `scripts/audit-runtime-db-grants.mjs` now queries `pg_policy` plus
+  `pg_class.relrowsecurity` / `relforcerowsecurity` for tracked public app
+  tables and reports an issue when a table has policies but lacks either
+  `ENABLE ROW LEVEL SECURITY` or `FORCE ROW LEVEL SECURITY`.
+- `tests/db-grant-inventory.test.mjs` now pins the new catalog query and adds
+  synthetic Postgres fixture cases for policy-without-enable,
+  policy-with-enable-without-force, and policy-with-enable-and-force.
+- `src/lib/dbUserContext.ts` and `CLAUDE.md` now warn future callers to keep
+  the RLS context callback DB-only and fast, with no external/network awaits
+  inside the pinned interactive transaction. `tests/db-user-context.test.mjs`
+  guards that local contract.
+- `docs/db-defense-in-depth-plan.md` and `docs/runbook.md` now distinguish the
+  staging context gate's read/context-isolation proof from per-table
+  write-policy behavior. Passing the synthetic canary gate is not treated as
+  proof that asymmetric Notification `INSERT`/`DELETE` behavior works.
+
+Verified current or deliberately deferred without source changes:
+
+- Production RLS remains disabled. No real app table policies were added or
+  enabled in this pass.
+- Opus's missing wrapper-coverage guard is a real first-policy risk, but not a
+  current defect while the helper is dormant and current routes intentionally
+  still use raw Prisma reads. The guard should be added with the first
+  table-specific route migration so CI can fail on new unwrapped reads without
+  allowlisting every current pre-RLS call site.
+- Opus's service/cross-user write-path concern is already the documented
+  Notification sequencing rule. No service bypass helper was added here because
+  the write strategy must be chosen with the actual Notification policy
+  migration; building a bypass before the strategy is selected would create
+  unused security surface.
+- The live staging gate against a production-like Neon pooled runtime role
+  remains the go/no-go before any table policy or hot-path wrapper is enabled.
+
+Guardrails added/reviewed:
+
+- Extended `tests/db-grant-inventory.test.mjs`,
+  `tests/db-user-context.test.mjs`, and `tests/rls-context-gate.test.mjs`.
+- Re-ran the existing RLS feasibility plan guardrails alongside the grant audit,
+  helper, and context-gate tests.
+
+Verification:
+`git status --short`; `gh run list --branch main --limit 3` confirmed latest
+pushed CI on `main` was green for `ad7e2ab6` (`28980941219`);
+source/docs/test inspection with `rg`/`sed`; `node --check
+scripts/audit-runtime-db-grants.mjs`; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/db-grant-inventory.test.mjs tests/db-user-context.test.mjs
+tests/rls-context-gate.test.mjs tests/rls-feasibility-plan.test.mjs` passed
+30/32 with the expected local GitHub-only Postgres skips; `npx tsc --noEmit`;
+`git diff --check`; `npm run lint` exited 0 with the known jsx-ast-utils
+TSNonNullExpression warning; `npm audit --audit-level=high` found 0
+vulnerabilities; and full `npm test` passed 1485/1487 with the expected local
+skips. Local `npm run build` was not rerun because recent local builds compile
+and then fail sitemap page-data collection against the configured unreachable
+Neon endpoint; production build completion remains to be verified by pushed
+CI's local Postgres build.
+
+Current running tally after Entry 512: verified fixed/reduced 1012, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by two for the RLS policy activation audit check and the helper
+DB-only callback contract. The gate write-policy scope note is counted as
+supporting guardrail documentation, not a separate finding. Deferred stays flat
+because the wrapper-coverage guard, service/write strategy, live staging gate,
+route-level prototype tests, and actual Notification/SavedSearch policies remain
+future execution work already represented in the RLS backlog. Raw-left stays at
+zero because this was post-raw hardening, not closure of a raw allegation.
+
+Remaining major categories are still the deferred launch/runtime/legal/product
+evidence backlog, not open raw source allegations: live RLS staging gate
+execution plus route-level prototype tests before any table policy, Stripe
+refund runtime reconciliation/backfill proof, Stripe partial-refund live
+reconciliation proof, label clawback runtime reconciliation evidence, Stripe
+webhook subscription dashboard evidence, Stripe Connect v2 loss-liability
+ops/legal decision, explicit stale remote branch pruning/review, Round 10
+cache/state-machine product designs, EXPLAIN-dependent runtime query-plan
+validation, provider-side privacy erasure/legal-request evidence, cross-seller
+AI duplicate-detection product design, durable checkout-group product semantics
+beyond current guardrails, high-scale BigInt money/counter modeling decisions,
+live-data reconciliation for historical seller shipping-rate currency drift,
+Clerk staff MFA/breached-password/multi-account dashboard evidence,
+buyer-deletion live Stripe replay proof, Founding Maker live DB concurrency
+proof, Sentry cron alert evidence, Cloudflare R2 ListBucket/public bucket
+posture plus production smoke/public-availability proof, HSTS preload
+submission/status, Vercel Analytics/Speed Insights product privacy decision,
+homepage browser a11y/runtime proof, and deployed security-header runtime
+proof.
+
+### Entry 513 - RLS grant-audit CI correction
+
+Entry 513 fixes the red CI follow-up from Entry 512. CI for `a3ffe5e3`
+(`28982791916`) failed only in `tests/db-grant-inventory.test.mjs`: the new
+synthetic Postgres integration assertion used `/ROW LEVEL SECURITY is not
+enabled/`, which also matched the valid `FORCE ROW LEVEL SECURITY is not
+enabled` issue. Parent Codex reviewed the failing log and current script/test
+logic before changing anything. The audit rule itself was still correct, but the
+CI failure exposed a second precision gap: node-postgres returned the
+`array_agg(name)` policy list in a shape the script did not parse, so live
+issues displayed `unknown` instead of the concrete policy name.
+
+Fixed/reduced:
+
+- `scripts/audit-runtime-db-grants.mjs` now uses `string_agg(p.polname::text,
+  ', ' ORDER BY p.polname::text)` for policy names so live RLS activation audit
+  issues identify the exact policy instead of falling back to `unknown`.
+- `tests/db-grant-inventory.test.mjs` now pins that string aggregation and
+  asserts the exact synthetic table/policy messages. The enabled-but-not-forced
+  case now checks that the unforced issue remains while the missing-ENABLE
+  message is absent, without accidentally matching the `FORCE` message.
+
+Guardrails added/reviewed:
+Updated the live grant-audit synthetic fixture assertions in
+`tests/db-grant-inventory.test.mjs`; the GitHub-only Postgres fixture is the
+source of truth for the full integration path.
+
+Verification:
+`gh run view 28982791916 --log-failed` identified the failing assertion in the
+Entry 512 CI run; `node --check scripts/audit-runtime-db-grants.mjs`; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/db-grant-inventory.test.mjs tests/audit-ledger-coupling.test.mjs`
+passed 8/9 with the expected local GitHub-only Postgres skip; `npx tsc
+--noEmit`; `git diff --check`; `npm run lint` exited 0 with the known
+jsx-ast-utils TSNonNullExpression warning; `npm audit --audit-level=high` found
+0 vulnerabilities; and full `npm test` passed 1485/1487 with the expected local
+GitHub-only Postgres skips. After push, CI for `aa4bb064` (`28983697256`)
+passed typecheck, lint, tests, security audit, and production build on `main`,
+including the CI-only synthetic Postgres grant-audit integration path.
+
+Current running tally after Entry 513: verified fixed/reduced 1013, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the live grant-audit policy-name reporting and CI guardrail
+precision fix. Raw-left stays at zero because this was a post-raw hidden issue
+found while reviewing the red CI result, not closure of a remaining raw
+allegation.
+
+### Entry 514 - RLS helper provenance and execution guardrails
+
+Entry 514 reviewed Claude's follow-up response as junior read-only input, then
+parent Codex rechecked current `main` rather than accepting the report against
+its stale `ad7e2ab6` baseline. Several claims were already closed by Entries
+512-513: the grant audit now verifies RLS policy activation with
+`relrowsecurity`/`relforcerowsecurity`, the context-gate scope caveat is in the
+RLS docs/runbook, and the helper DB-only/no-external-await contract is already
+guarded. The wrapper-coverage and Notification service/write strategy items
+remain deliberately deferred until the first real table policy migration.
+
+Fixed/reduced:
+
+- `src/lib/dbUserContext.ts` now documents the id-provenance contract at the
+  helper call site: callers must pass only the server-resolved authenticated
+  local `User.id` such as `me.id`, never request body, query string, route
+  param, or other client-supplied values.
+- `docs/rls-feasibility-plan.md` and `CLAUDE.md` now carry the same rule so the
+  RLS plan and future-agent contract match the helper JSDoc.
+- `tests/db-user-context.test.mjs` now guards the provenance wording and adds a
+  GitHub-only synthetic Postgres integration test that imports the actual
+  helper through a local `@/` resolver, creates a temporary non-owner runtime
+  role plus forced RLS canary table, and executes `withDbUserContext()` /
+  `withSerializableDbUserContext()` to verify scoped reads, no-context denial,
+  transaction-local context clearing, and Serializable isolation.
+- `tests/rls-feasibility-plan.test.mjs` now guards the authenticated local
+  `User.id` / no client-supplied context rule in the RLS plan.
+
+Verified current or deliberately deferred without source changes:
+
+- Claude's F1, F6, and F7 were stale against current `main` after Entries
+  512-513.
+- Claude's F2 wrapper-coverage guard remains a real first-policy migration
+  requirement, but adding a broad static allowlist now would mostly encode
+  current pre-RLS raw Prisma reads. Add it with the first table route migration.
+- Claude's F5 service/cross-user Notification write path remains the documented
+  policy-migration decision; no bypass helper was added before an actual
+  Notification policy shape exists.
+
+Guardrails added/reviewed:
+Updated `tests/db-user-context.test.mjs` and
+`tests/rls-feasibility-plan.test.mjs`; reviewed current `tests/db-grant-inventory.test.mjs`,
+`scripts/audit-runtime-db-grants.mjs`, `docs/db-defense-in-depth-plan.md`,
+`docs/runbook.md`, and `CLAUDE.md` against the Claude report.
+
+Verification:
+`git status --short`; latest pushed CI on `main` was green for `3d96b646`
+(`28983882993`) before editing; source/docs/test inspection with `rg`/`sed`;
+focused `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+--experimental-strip-types --test tests/db-user-context.test.mjs
+tests/rls-feasibility-plan.test.mjs tests/audit-ledger-coupling.test.mjs`
+passed 14/15 with the expected local GitHub-only Postgres skip; `npx tsc
+--noEmit`; `git diff --check`; `npm run lint` exited 0 with the known
+jsx-ast-utils TSNonNullExpression warning; `npm audit --audit-level=high` found
+0 vulnerabilities; and full `npm test` passed 1485/1488 with the expected local
+GitHub-only Postgres skips. After push, CI for `bcc863ed` (`28984619754`)
+passed typecheck, lint, tests, security audit, and production build on `main`,
+including the new CI-only helper execution test against synthetic Postgres.
+
+Current running tally after Entry 514: verified fixed/reduced 1015, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by two for the authenticated-id provenance contract and actual helper
+execution integration guard. Stale/current and deferred stay flat because the
+remaining Claude items were already closed or already represented in the RLS
+backlog. Raw-left stays at zero because this was post-raw hardening, not closure
+of a remaining raw allegation.
+
+### Entry 515 - Notification minimization and RLS inventory pass
+
+Entry 515 continued the post-raw RLS-adjacent notification/SavedSearch pass with
+one read-only sub-agent used as junior input. Parent Codex independently
+rechecked every agent claim against current source before changing code. No
+current app-layer owner-check bypass was found in the scoped Notification or
+SavedSearch routes/pages/helpers: notification reads and mark-read writes are
+still scoped to the authenticated local user, and SavedSearch API/dashboard/
+export/delete paths remain owner-scoped.
+
+Fixed/reduced:
+
+- `src/lib/notifications.ts` no longer sends raw notification `link` values to
+  Sentry when `createNotification()` or notification dedup lookup fails. Failure
+  telemetry now records only the recipient id, whether a link existed, the
+  bounded link length, and whether a dedup scope existed. This preserves useful
+  debugging context without copying private order/message/case route ids into
+  exception metadata.
+- `GET /api/notifications` now uses `NOTIFICATION_BELL_SELECT` and returns only
+  the bell DTO fields (`id`, `type`, `title`, `body`, `link`, `read`,
+  `createdAt`) instead of the full `Notification` row. This removes owner-scoped
+  but unnecessary exposure of internal `sourceType`, `sourceId`, and `dedupKey`
+  fields from the JSON endpoint.
+- `docs/rls-feasibility-plan.md` and `docs/db-defense-in-depth-plan.md` now
+  inventory the message-thread auto-mark-read update and low-stock notification
+  dedupe read as Notification RLS paths that must be wrapped or deliberately
+  handled before the first Notification policy migration.
+
+Verified current or deliberately deferred without source changes:
+
+- The sub-agent's missing-owner-check concern did not reproduce. Current
+  notification API routes use `me.id` owner predicates, the dashboard
+  notification server action blocks banned/deleted users before mark-all-read,
+  SavedSearch create/list/delete routes use the authenticated local user, and
+  account export reads saved searches by the exported account id.
+- The RLS inventory gap is not a production exposure while RLS remains disabled;
+  it is a first-policy migration guard so future owner-scoped `SELECT`/`UPDATE`
+  policies do not silently break message-thread read-state updates or low-stock
+  dedupe.
+
+Guardrails added/reviewed:
+Updated `tests/pr-h-deletion-analytics-email-followups.test.mjs` to reject raw
+notification-link failure telemetry, `tests/client-async-guardrails.test.mjs`
+to keep `/api/notifications` on the narrow bell projection, and
+`tests/rls-feasibility-plan.test.mjs` to require the hidden Notification RLS
+paths in both RLS plans. Reviewed `src/app/api/notifications/route.ts`,
+`src/app/api/notifications/read-all/route.ts`,
+`src/app/api/notifications/[id]/read/route.ts`,
+`src/app/dashboard/notifications/page.tsx`, `src/components/NotificationBell.tsx`,
+`src/app/api/search/saved/route.ts`, `src/app/dashboard/page.tsx`,
+`src/app/api/account/export/route.ts`, `src/app/messages/[id]/page.tsx`, and
+`src/app/api/listings/[id]/stock/route.ts`.
+
+Verification:
+`git status --short`; latest pushed CI on `main` was green for `d446ccb7`
+(`28985042881`) before editing; source/docs/test inspection with `rg`/`sed`;
+focused `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+--experimental-strip-types --test tests/pr-h-deletion-analytics-email-followups.test.mjs
+tests/client-async-guardrails.test.mjs tests/server-error-logger.test.mjs
+tests/notification-payload.test.mjs tests/notification-links.test.mjs
+tests/round9-public-pii-guardrails.test.mjs tests/r49-account-state-routes.test.mjs
+tests/private-json-cache-headers.test.mjs tests/rls-feasibility-plan.test.mjs`
+passed 68/68 after correcting one line-wrap-sensitive RLS plan assertion; `npx
+tsc --noEmit`; `git diff --check`; `npm run lint` exited 0 with the known
+jsx-ast-utils TSNonNullExpression warning; `npm audit --audit-level=high` found
+0 vulnerabilities; and full `npm test` passed 1486/1489 with the expected local
+skips. After push, CI for `16d1297c` (`29049201171`) passed typecheck, lint,
+tests, security audit, and production build on `main`.
+
+Current running tally after Entry 515: verified fixed/reduced 1018, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by three for the raw notification-link telemetry reduction, the
+notification API projection minimization, and the hidden Notification RLS path
+inventory guard. Stale/current and deferred stay flat because no new raw
+allegation was closed and the future RLS policy work remains in the existing
+deferred execution bucket. Raw-left stays at zero.
+
+### Entry 516 - Notification RLS context classification precision
+
+Entry 516 reviewed Claude's follow-up on the notification minimization pass as
+junior read-only input. Parent Codex verified that its summary of the
+minimization commit was correct, but its claim that F1-F7 all remain open was
+stale against current `main`: F1/F3/F4/F6/F7 were already closed by Entries
+512-514 with green CI. F2 wrapper coverage and F5 Notification service/write
+strategy remain deliberate first-policy migration work, not current production
+RLS defects.
+
+Fixed/reduced:
+
+- `docs/rls-feasibility-plan.md` and `docs/db-defense-in-depth-plan.md` now
+  classify the manual-stock low-stock notification dedupe read as an
+  authenticated-seller user-context path, because the route proves
+  `seller.userId = me.id` before the `notification.findFirst()` call.
+- The same docs now keep webhook/cron/admin low-stock and other notification
+  creation paths in the service/write-path inventory through
+  `createNotification()`, so future RLS work does not wrap service writes with
+  the wrong user-context helper.
+- `tests/rls-feasibility-plan.test.mjs` now guards both the docs distinction
+  and the current stock-route owner predicate/select shape that makes the
+  manual low-stock dedupe read user-context safe.
+
+Verified current or deliberately deferred without source changes:
+
+- The manual stock route is not a no-user/system path: it authenticates through
+  Clerk, resolves `me` with `ensureUserByClerkId()`, and loads the listing with
+  `where: { id, seller: { userId: me.id } }` before the low-stock dedupe read.
+- Stripe webhook low-stock notification creation remains a service/write-path
+  item under the existing F5 backlog. It creates notifications through
+  `createNotification()` and does not use the manual stock route's
+  `notification.findFirst()` dedupe read.
+- The automated wrapper-coverage guard remains deferred until the first actual
+  Notification policy route migration, when the allowlist can target wrapped
+  RLS-protected reads instead of encoding today's pre-RLS raw Prisma access.
+
+Guardrails added/reviewed:
+Updated `tests/rls-feasibility-plan.test.mjs`; reviewed
+`src/app/api/listings/[id]/stock/route.ts`,
+`src/app/api/stripe/webhook/route.ts`, `docs/rls-feasibility-plan.md`,
+`docs/db-defense-in-depth-plan.md`, and Entries 512-515 in this ledger.
+
+Verification:
+`git status --short`; latest pushed CI on `main` was green for `9afd78d2`
+(`29049504950`) before editing; source/docs/test inspection with `rg`/`sed`;
+focused `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+--experimental-strip-types --test tests/rls-feasibility-plan.test.mjs
+tests/audit-ledger-coupling.test.mjs` passed 9/9 after normalizing one
+hyphenation mismatch between docs; and `git diff --check` passed.
+
+Current running tally after Entry 516: verified fixed/reduced 1019, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the RLS user-context vs service/write-path classification
+guard. Stale/current stays flat because Claude's stale F1/F3/F4/F6/F7
+statement was already covered in Entry 514 rather than a new raw allegation.
+Deferred stays flat because F2/F5 remain in the existing first-policy migration
+backlog. Raw-left stays at zero.
+
+### Entry 517 - Prior-claim verification discipline pass
+
+Entry 517 reviewed Claude's follow-up correction as junior read-only input.
+Parent Codex rechecked the current `main` state rather than relying on either
+Claude's correction or Codex's previous closure summary. The correction was
+accurate: F1/F3/F4/F6/F7 are genuinely closed by Entries 512-514 and their
+green CI runs, while F2 wrapper coverage and F5 Notification service/write
+strategy remain deliberately deferred until the first actual Notification policy
+migration.
+
+Fixed/reduced:
+
+- `CLAUDE.md` now explicitly says prior Codex/agent open/closed status summaries
+  are snapshots, not current truth. Future agents must re-check current `HEAD`,
+  recent commits, relevant source/tests, and latest CI before repeating that a
+  finding is open, fixed, stale, or deferred.
+
+Verified current or deliberately deferred without source changes:
+
+- F1 is closed by the grant audit's `pg_policy` plus
+  `relrowsecurity`/`relforcerowsecurity` checks and tests.
+- F3 is closed by the CI-only `withDbUserContext()` behavioral execution test
+  that proves user A/user B isolation, no-context fail-closed behavior,
+  transaction-local context clearing, and Serializable isolation.
+- F4 is closed by the helper/request-context authenticated local `User.id`
+  provenance contract.
+- F6 is closed by the docs/runbook caveat that the staging context gate's
+  synthetic canary is not proof of per-table write-policy behavior.
+- F7 is closed by the helper DB-only/no external or network await contract.
+- F2 and F5 remain deliberate first-policy migration work, not current
+  production RLS defects.
+
+Guardrails added/reviewed:
+Updated `CLAUDE.md`; reviewed `scripts/audit-runtime-db-grants.mjs`,
+`tests/db-grant-inventory.test.mjs`, `tests/db-user-context.test.mjs`,
+`src/lib/dbUserContext.ts`, `docs/db-defense-in-depth-plan.md`,
+`docs/runbook.md`, and Entries 512-516 in this ledger.
+
+Verification:
+`git status --short`; latest pushed CI on `main` was green for `8edecd9c`
+(`29050653636`) before editing; source/docs/test inspection with `rg`/`sed`;
+and `git diff --check` passed.
+
+Current running tally after Entry 517: verified fixed/reduced 1019, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Tally values stay
+flat because this pass added a durable process contract and reverified already
+closed/deferred RLS items, but did not close a new source defect or raw
+allegation.
+
+### Entry 518 - Deferred launch backlog tracking guardrail
+
+Entry 518 responded to Drew's concern that deferred findings can become
+forgotten if they only live as repeated prose in the audit ledger. Parent Codex
+rechecked the latest running deferred category list from Entries 500 and
+508-517 and converted it into an explicit launch/runtime/legal/product backlog
+with grouped sections, status labels, and closure criteria. The 87 deferred
+count remains per-finding ledger accounting; the new backlog groups those
+findings into cohesive sections to finish one at a time.
+
+Fixed/reduced:
+
+- Added `docs/deferred-launch-backlog.md` to track the deferred backlog outside
+  `audit_closed.md`. It records that current raw allegations are zero, explains
+  that deferred means tracked rather than ignored, separates launch blockers
+  from conditional blockers/product decisions/post-launch hardening, and gives
+  closure criteria for each grouped category.
+- `CLAUDE.md` now requires future passes to represent any remaining
+  deferred/manual item in `docs/deferred-launch-backlog.md` or an explicitly
+  linked runbook/legal record with closure criteria. It also directs future
+  agents to prefer closing one cohesive deferred section before broadening.
+- `docs/launch-checklist.md` now links the deferred backlog before official
+  launch so final readiness review cannot rely on the audit ledger's deferred
+  count alone.
+
+Verified current or deliberately deferred without source changes:
+
+- Current deferred categories are not open raw source allegations; they are the
+  grouped launch/runtime/legal/product evidence backlog already represented in
+  recent running tallies: RLS staging/prototype execution, Stripe refund and
+  label runtime evidence, Stripe/Clerk/R2/Sentry dashboard evidence, Connect v2
+  legal/accounting decisions, provider privacy evidence, product decisions,
+  performance/runtime proofs, deployed-header proof, and high-scale modeling.
+- The new tracker does not close any deferred finding by itself. Each section
+  still needs its listed source fix, runtime evidence, legal/product decision,
+  or explicit non-launch acceptance decision before it can move out of the
+  deferred count.
+
+Guardrails added/reviewed:
+Added `tests/deferred-launch-backlog.test.mjs` to keep the backlog linked from
+future-agent and launch docs, pin the current grouped categories, and assert
+that deferred work is tracked outside the audit ledger. Reviewed the existing
+`tests/audit-ledger-coupling.test.mjs` raw-import guardrail alongside it.
+
+Verification:
+`git status --short`; source/docs/test inspection with `rg`/`sed`; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+--experimental-strip-types --test tests/deferred-launch-backlog.test.mjs
+tests/audit-ledger-coupling.test.mjs` passed 4/4 after fixing a
+line-wrap-tolerant assertion; `git diff --check` passed; and after push, CI for
+`97d9c6c1` (`29052384473`) passed typecheck, lint, tests, security audit, and
+production build on `main`.
+
+Current running tally after Entry 518: verified fixed/reduced 1019, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Tally values stay
+flat because this pass added backlog tracking and a process guardrail but did
+not close a source defect, stale allegation, or deferred item.
+
+### Entry 519 - Launch tracker union and Search Console checklist guardrail
+
+Entry 519 reviewed Claude's follow-up on the new deferred backlog as junior
+read-only input. Parent Codex verified the claims against current `main`.
+Claude's broader claim that Search Console support was absent was stale for
+source and stable docs: `src/app/layout.tsx`, `.env.example`, `CLAUDE.md`, and
+`tests/launch-readiness-followups.test.mjs` already covered
+`NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` and the crawler-facing
+`/sitemap_index.xml`. The narrower launch-readiness finding was real:
+`docs/launch-checklist.md` did not carry Search Console verification/submission,
+and the relationship between `docs/launch-checklist.md` and
+`docs/deferred-launch-backlog.md` needed a clearer single-master contract.
+
+Fixed/reduced:
+
+- `docs/launch-checklist.md` now explicitly states it is the canonical master
+  launch-readiness checklist and links the deferred backlog as a required
+  linked section, rather than leaving two parallel trackers with an ambiguous
+  ownership boundary.
+- `docs/deferred-launch-backlog.md` now states that it owns only the
+  audit-deferred backlog while legal, vendor, deploy, smoke-test, SEO, and
+  business launch gates still live in the launch checklist unless a backlog row
+  links to them.
+- `docs/launch-checklist.md` now includes Search Console ownership verification
+  through `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` or an equivalent domain-level
+  method, submission of `https://thegrainline.com/sitemap_index.xml`, and
+  retained evidence for that verification/submission.
+
+Verified stale/current without source changes:
+
+- Root metadata already emits the Google verification value when
+  `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` is configured.
+- `.env.example` already documents the env var.
+- `robots.txt` already advertises `https://thegrainline.com/sitemap_index.xml`.
+- `CLAUDE.md` already instructed launch ops to verify Search Console ownership
+  and submit the sitemap index.
+
+Guardrails added/reviewed:
+Updated `tests/launch-readiness-followups.test.mjs` to require the launch
+checklist Search Console env/sitemap language and reject stale `/sitemap.xml`
+wording there. Updated `tests/deferred-launch-backlog.test.mjs` to pin the
+canonical-master checklist relationship and audit-deferred-only backlog scope.
+Reviewed `tests/audit-ledger-coupling.test.mjs` alongside the focused suite.
+
+Verification:
+`git status --short`; source/docs/test inspection with `rg`/`sed`; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+--experimental-strip-types --test tests/launch-readiness-followups.test.mjs
+tests/deferred-launch-backlog.test.mjs tests/audit-ledger-coupling.test.mjs`
+passed 8/8; `git diff --check` passed; and after push, CI for `4fff9036`
+(`29053445438`) passed typecheck, lint, tests, security audit, and production
+build on `main`.
+
+Current running tally after Entry 519: verified fixed/reduced 1020, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the launch-readiness tracker/Search Console checklist
+guardrail. Stale/current, deferred, and raw-left stay flat because the broader
+Search Console source-support allegation was already current and this pass did
+not close or add a deferred item.
+
+### Entry 520 - RLS context gate evidence artifact hardening
+
+Entry 520 starts the next slow RLS execution slice without enabling production
+RLS or adding customer-table policies. Parent Codex rechecked the current RLS
+plan, staging gate script, dormant helper, runbook, launch checklist, and
+backlog. The documented next gate remains the production-like Neon pooled
+runtime-role context proof, but that proof could previously be terminal-only
+unless the operator separately captured output. This pass makes retained,
+sanitized evidence an explicit first-class artifact for the staging gate.
+
+Fixed/reduced:
+
+- `scripts/rls-context-acceptance-gate.mjs` now accepts
+  `RLS_CONTEXT_GATE_EVIDENCE_PATH` and writes a sanitized JSON artifact for each
+  gate run. The artifact records commit/CI metadata when available, sanitized
+  database host, runtime role, canary table/policy names, run configuration,
+  reports, and issues. It intentionally does not include database URLs or
+  credentials.
+- `docs/db-defense-in-depth-plan.md`, `docs/runbook.md`,
+  `docs/launch-checklist.md`, `docs/deferred-launch-backlog.md`, and
+  `CLAUDE.md` now require/route the staging RLS context gate through that
+  retained evidence artifact before treating Phase 3 as closed.
+- `tests/rls-context-gate.test.mjs` now guards the evidence-path parsing, the
+  sanitized evidence payload, URL/credential redaction, and the docs/future-agent
+  contract that the artifact must be retained.
+
+Verified current or deliberately deferred without source changes:
+
+- Production RLS remains disabled.
+- No real customer table policy was added or enabled.
+- The production-like staging gate has not been run in this local session
+  because it requires Drew's staging pooled runtime-role URL and direct
+  migration-owner URL. That remains the next execution step before wrapping hot
+  paths or enabling a `Notification` policy.
+
+Guardrails added/reviewed:
+Updated `tests/rls-context-gate.test.mjs`; reviewed
+`tests/rls-feasibility-plan.test.mjs`,
+`tests/deferred-launch-backlog.test.mjs`, and
+`tests/audit-ledger-coupling.test.mjs` alongside the RLS script/docs.
+
+Verification:
+`git status --short`; source/docs/test inspection with `rg`/`sed`;
+`node --check scripts/rls-context-acceptance-gate.mjs`; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+--experimental-strip-types --test tests/rls-context-gate.test.mjs
+tests/rls-feasibility-plan.test.mjs tests/deferred-launch-backlog.test.mjs
+tests/audit-ledger-coupling.test.mjs` passed 23/24 with the expected local
+GitHub-only synthetic Postgres skip; `npx tsc --noEmit`; `npm run lint`
+exited 0 with the known `jsx-ast-utils` TSNonNullExpression warning; full
+`npm test` passed 1490/1493 with the expected local skips; `git diff --check`
+passed; and after push, CI for `1e66a5e5` (`29054445933`) passed typecheck,
+lint, tests, security audit, and production build on `main`.
+
+Current running tally after Entry 520: verified fixed/reduced 1021, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the RLS context gate retained-evidence hardening. Deferred
+stays flat because the live staging gate, route-level prototype tests, wrapper
+coverage guard, and first table policy remain tracked RLS execution work rather
+than newly closed items.
+
+### Entry 521 - RLS context evidence message redaction
+
+Entry 521 reviewed Claude's follow-up as junior read-only input and verified the
+claim against current `main`. The prior RLS evidence artifact was structurally
+curated and did not serialize raw `databaseUrl` or `adminDatabaseUrl` config
+fields, but the retained JSON payload still wrote `result.issues` and
+`result.reports` verbatim. Because those strings can include driver or wrapper
+error messages, a future staging failure could have copied a database URL or
+password-like fragment into the retained evidence artifact.
+
+Fixed/reduced:
+
+- `scripts/rls-context-acceptance-gate.mjs` now redacts database URL env-var
+  assignments, `postgres://` / `postgresql://` URLs, password assignments, and
+  URL userinfo credentials before persisting `issues` or `reports` in the
+  `RLS_CONTEXT_GATE_EVIDENCE_PATH` JSON artifact. Terminal output remains
+  operational, but the retained artifact now has a dedicated scrub boundary.
+
+Guardrails added/reviewed:
+
+- `tests/rls-context-gate.test.mjs` now injects URL-bearing issue/report text
+  into `buildEvidencePayload()` and asserts the serialized artifact omits
+  `postgres://`, `postgresql://`, RLS database URL env-var names, and sample
+  password/userinfo fragments while preserving redacted placeholders.
+- Reviewed `docs/db-defense-in-depth-plan.md`, `docs/runbook.md`,
+  `docs/launch-checklist.md`, `docs/deferred-launch-backlog.md`, `CLAUDE.md`,
+  and the local `AGENTS.md` RLS/audit contracts. The existing docs claim that
+  the retained artifact must not contain database URLs or credentials remains
+  accurate after this fix.
+
+Verification:
+`git status --short`; attachment/source/docs/test inspection with `rg`/`sed`;
+`node --check scripts/rls-context-acceptance-gate.mjs`; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+--experimental-strip-types --test tests/rls-context-gate.test.mjs
+tests/audit-ledger-coupling.test.mjs` passed 12/13 with the expected local
+GitHub-only synthetic Postgres skip; `npx tsc --noEmit`; `npm run lint`
+exited 0 with the known `jsx-ast-utils` TSNonNullExpression warning; full
+`npm test` passed 1490/1493 with the expected local skips; and
+`git diff --check` passed; after push, CI for `222af184` (`29055521331`)
+passed typecheck, lint, tests, security audit, and production build on `main`.
+
+Current running tally after Entry 521: verified fixed/reduced 1022, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the retained RLS evidence message-redaction hardening.
+Deferred stays flat because the live staging gate, route-level prototype tests,
+wrapper coverage guard, and first table policy remain tracked RLS execution work
+rather than newly closed items.
+
+### Entry 522 - RLS evidence quoted-key redaction guardrail
+
+Entry 522 reviewed Claude's residual redaction note as another junior-review
+allegation. Parent verification confirmed the calibration was mostly right: the
+quoted JSON-key form (`"password":"secret"`) is low-likelihood for current
+`safeErrorMessage(error)`-fed evidence strings, but the existing assignment
+regexes did not match it. Because the retained evidence artifact is explicitly
+meant to be safe to preserve with launch/RLS records, this pass closes the edge
+case instead of leaving the guarantee dependent on current error-message shape.
+
+Fixed/reduced:
+
+- `scripts/rls-context-acceptance-gate.mjs` now lets the database-URL and
+  password assignment redactors consume optional quotes around assignment keys.
+  This covers JSON-like `"password":"..."` and
+  `"DATABASE_URL":"postgres://..."` forms in addition to the bare assignment
+  forms covered by Entry 521.
+
+Guardrails added/reviewed:
+
+- `tests/rls-context-gate.test.mjs` now includes a JSON-like config string with
+  quoted `password` and `DATABASE_URL` keys in the evidence issues, and asserts
+  both values are replaced by redacted placeholders and do not survive in the
+  serialized artifact.
+
+Verification:
+`git status --short`; source/test inspection with `sed`; `node --check
+scripts/rls-context-acceptance-gate.mjs`; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+--experimental-strip-types --test tests/rls-context-gate.test.mjs
+tests/audit-ledger-coupling.test.mjs` passed 12/13 with the expected local
+GitHub-only synthetic Postgres skip; `npx tsc --noEmit`; `npm run lint`
+exited 0 with the known `jsx-ast-utils` TSNonNullExpression warning; full
+`npm test` passed 1490/1493 with the expected local skips; and
+`git diff --check` passed; after push, CI for `2a41063c` (`29056216957`)
+passed typecheck, lint, tests, security audit, and production build on `main`.
+
+Current running tally after Entry 522: verified fixed/reduced 1023, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the quoted-key retained-evidence redaction hardening.
+Deferred stays flat.
 
 ### Entry 523 - Notification RLS owner-access prep
 
@@ -14652,2837 +17487,37 @@ increases by one for the Sentry cron alert proof harness and guardrails.
 Deferred stays flat because the live provider artifact and notification-delivery
 evidence still must be generated and retained before launch.
 
-### Entry 522 - RLS evidence quoted-key redaction guardrail
+### Entry 535 - audit ledger tail-order repair
 
-Entry 522 reviewed Claude's residual redaction note as another junior-review
-allegation. Parent verification confirmed the calibration was mostly right: the
-quoted JSON-key form (`"password":"secret"`) is low-likelihood for current
-`safeErrorMessage(error)`-fed evidence strings, but the existing assignment
-regexes did not match it. Because the retained evidence artifact is explicitly
-meant to be safe to preserve with launch/RLS records, this pass closes the edge
-case instead of leaving the guarantee dependent on current error-message shape.
+Entry 535 fixes a ledger maintenance issue found during the next launch-evidence
+pass. The post-Entry-492 blocks had been inserted in non-numeric chunks, so
+`tail audit_closed.md` showed stale Entry 492/520-era counts even though Entries
+531-534 existed and current CI was green. Parent Codex verified the Entry
+493-534 headings were unique, mechanically reordered those blocks numerically,
+and kept the entry text intact so future agents can rely on the file tail for
+the latest running tally again.
 
 Fixed/reduced:
 
-- `scripts/rls-context-acceptance-gate.mjs` now lets the database-URL and
-  password assignment redactors consume optional quotes around assignment keys.
-  This covers JSON-like `"password":"..."` and
-  `"DATABASE_URL":"postgres://..."` forms in addition to the bare assignment
-  forms covered by Entry 521.
+- Reordered the existing Entry 493-534 blocks so the active ledger tail ends on
+  the latest completed pass instead of an older tally.
 
 Guardrails added/reviewed:
 
-- `tests/rls-context-gate.test.mjs` now includes a JSON-like config string with
-  quoted `password` and `DATABASE_URL` keys in the evidence issues, and asserts
-  both values are replaced by redacted placeholders and do not survive in the
-  serialized artifact.
+- Reviewed `tests/audit-ledger-coupling.test.mjs`,
+  `tests/deferred-launch-backlog.test.mjs`, and
+  `tests/retention-and-ops-followups.test.mjs` after the mechanical reorder.
 
 Verification:
-`git status --short`; source/test inspection with `sed`; `node --check
-scripts/rls-context-acceptance-gate.mjs`; focused
-`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
---experimental-strip-types --test tests/rls-context-gate.test.mjs
-tests/audit-ledger-coupling.test.mjs` passed 12/13 with the expected local
-GitHub-only synthetic Postgres skip; `npx tsc --noEmit`; `npm run lint`
-exited 0 with the known `jsx-ast-utils` TSNonNullExpression warning; full
-`npm test` passed 1490/1493 with the expected local skips; and
-`git diff --check` passed; after push, CI for `2a41063c` (`29056216957`)
-passed typecheck, lint, tests, security audit, and production build on `main`.
+`git status --short`; `rg -n "^### Entry" audit_closed.md`; mechanical
+uniqueness/order check over Entry headings; focused `node
+--disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/audit-ledger-coupling.test.mjs
+tests/deferred-launch-backlog.test.mjs tests/retention-and-ops-followups.test.mjs`
+passed 18/18; and `git diff --check` passed.
 
-Current running tally after Entry 522: verified fixed/reduced 1023, verified
+Current running tally after Entry 535: verified fixed/reduced 1036, verified
 stale/false-positive/current 579, deferred product/design/ops/legal 87,
-approximate raw allegations left from current max #1126: 0. Fixed/reduced
-increases by one for the quoted-key retained-evidence redaction hardening.
-Deferred stays flat.
-
-### Entry 521 - RLS context evidence message redaction
-
-Entry 521 reviewed Claude's follow-up as junior read-only input and verified the
-claim against current `main`. The prior RLS evidence artifact was structurally
-curated and did not serialize raw `databaseUrl` or `adminDatabaseUrl` config
-fields, but the retained JSON payload still wrote `result.issues` and
-`result.reports` verbatim. Because those strings can include driver or wrapper
-error messages, a future staging failure could have copied a database URL or
-password-like fragment into the retained evidence artifact.
-
-Fixed/reduced:
-
-- `scripts/rls-context-acceptance-gate.mjs` now redacts database URL env-var
-  assignments, `postgres://` / `postgresql://` URLs, password assignments, and
-  URL userinfo credentials before persisting `issues` or `reports` in the
-  `RLS_CONTEXT_GATE_EVIDENCE_PATH` JSON artifact. Terminal output remains
-  operational, but the retained artifact now has a dedicated scrub boundary.
-
-Guardrails added/reviewed:
-
-- `tests/rls-context-gate.test.mjs` now injects URL-bearing issue/report text
-  into `buildEvidencePayload()` and asserts the serialized artifact omits
-  `postgres://`, `postgresql://`, RLS database URL env-var names, and sample
-  password/userinfo fragments while preserving redacted placeholders.
-- Reviewed `docs/db-defense-in-depth-plan.md`, `docs/runbook.md`,
-  `docs/launch-checklist.md`, `docs/deferred-launch-backlog.md`, `CLAUDE.md`,
-  and the local `AGENTS.md` RLS/audit contracts. The existing docs claim that
-  the retained artifact must not contain database URLs or credentials remains
-  accurate after this fix.
-
-Verification:
-`git status --short`; attachment/source/docs/test inspection with `rg`/`sed`;
-`node --check scripts/rls-context-acceptance-gate.mjs`; focused
-`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
---experimental-strip-types --test tests/rls-context-gate.test.mjs
-tests/audit-ledger-coupling.test.mjs` passed 12/13 with the expected local
-GitHub-only synthetic Postgres skip; `npx tsc --noEmit`; `npm run lint`
-exited 0 with the known `jsx-ast-utils` TSNonNullExpression warning; full
-`npm test` passed 1490/1493 with the expected local skips; and
-`git diff --check` passed; after push, CI for `222af184` (`29055521331`)
-passed typecheck, lint, tests, security audit, and production build on `main`.
-
-Current running tally after Entry 521: verified fixed/reduced 1022, verified
-stale/false-positive/current 579, deferred product/design/ops/legal 87,
-approximate raw allegations left from current max #1126: 0. Fixed/reduced
-increases by one for the retained RLS evidence message-redaction hardening.
-Deferred stays flat because the live staging gate, route-level prototype tests,
-wrapper coverage guard, and first table policy remain tracked RLS execution work
-rather than newly closed items.
-
-### Entry 520 - RLS context gate evidence artifact hardening
-
-Entry 520 starts the next slow RLS execution slice without enabling production
-RLS or adding customer-table policies. Parent Codex rechecked the current RLS
-plan, staging gate script, dormant helper, runbook, launch checklist, and
-backlog. The documented next gate remains the production-like Neon pooled
-runtime-role context proof, but that proof could previously be terminal-only
-unless the operator separately captured output. This pass makes retained,
-sanitized evidence an explicit first-class artifact for the staging gate.
-
-Fixed/reduced:
-
-- `scripts/rls-context-acceptance-gate.mjs` now accepts
-  `RLS_CONTEXT_GATE_EVIDENCE_PATH` and writes a sanitized JSON artifact for each
-  gate run. The artifact records commit/CI metadata when available, sanitized
-  database host, runtime role, canary table/policy names, run configuration,
-  reports, and issues. It intentionally does not include database URLs or
-  credentials.
-- `docs/db-defense-in-depth-plan.md`, `docs/runbook.md`,
-  `docs/launch-checklist.md`, `docs/deferred-launch-backlog.md`, and
-  `CLAUDE.md` now require/route the staging RLS context gate through that
-  retained evidence artifact before treating Phase 3 as closed.
-- `tests/rls-context-gate.test.mjs` now guards the evidence-path parsing, the
-  sanitized evidence payload, URL/credential redaction, and the docs/future-agent
-  contract that the artifact must be retained.
-
-Verified current or deliberately deferred without source changes:
-
-- Production RLS remains disabled.
-- No real customer table policy was added or enabled.
-- The production-like staging gate has not been run in this local session
-  because it requires Drew's staging pooled runtime-role URL and direct
-  migration-owner URL. That remains the next execution step before wrapping hot
-  paths or enabling a `Notification` policy.
-
-Guardrails added/reviewed:
-Updated `tests/rls-context-gate.test.mjs`; reviewed
-`tests/rls-feasibility-plan.test.mjs`,
-`tests/deferred-launch-backlog.test.mjs`, and
-`tests/audit-ledger-coupling.test.mjs` alongside the RLS script/docs.
-
-Verification:
-`git status --short`; source/docs/test inspection with `rg`/`sed`;
-`node --check scripts/rls-context-acceptance-gate.mjs`; focused
-`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
---experimental-strip-types --test tests/rls-context-gate.test.mjs
-tests/rls-feasibility-plan.test.mjs tests/deferred-launch-backlog.test.mjs
-tests/audit-ledger-coupling.test.mjs` passed 23/24 with the expected local
-GitHub-only synthetic Postgres skip; `npx tsc --noEmit`; `npm run lint`
-exited 0 with the known `jsx-ast-utils` TSNonNullExpression warning; full
-`npm test` passed 1490/1493 with the expected local skips; `git diff --check`
-passed; and after push, CI for `1e66a5e5` (`29054445933`) passed typecheck,
-lint, tests, security audit, and production build on `main`.
-
-Current running tally after Entry 520: verified fixed/reduced 1021, verified
-stale/false-positive/current 579, deferred product/design/ops/legal 87,
-approximate raw allegations left from current max #1126: 0. Fixed/reduced
-increases by one for the RLS context gate retained-evidence hardening. Deferred
-stays flat because the live staging gate, route-level prototype tests, wrapper
-coverage guard, and first table policy remain tracked RLS execution work rather
-than newly closed items.
-
-### Entry 519 - Launch tracker union and Search Console checklist guardrail
-
-Entry 519 reviewed Claude's follow-up on the new deferred backlog as junior
-read-only input. Parent Codex verified the claims against current `main`.
-Claude's broader claim that Search Console support was absent was stale for
-source and stable docs: `src/app/layout.tsx`, `.env.example`, `CLAUDE.md`, and
-`tests/launch-readiness-followups.test.mjs` already covered
-`NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` and the crawler-facing
-`/sitemap_index.xml`. The narrower launch-readiness finding was real:
-`docs/launch-checklist.md` did not carry Search Console verification/submission,
-and the relationship between `docs/launch-checklist.md` and
-`docs/deferred-launch-backlog.md` needed a clearer single-master contract.
-
-Fixed/reduced:
-
-- `docs/launch-checklist.md` now explicitly states it is the canonical master
-  launch-readiness checklist and links the deferred backlog as a required
-  linked section, rather than leaving two parallel trackers with an ambiguous
-  ownership boundary.
-- `docs/deferred-launch-backlog.md` now states that it owns only the
-  audit-deferred backlog while legal, vendor, deploy, smoke-test, SEO, and
-  business launch gates still live in the launch checklist unless a backlog row
-  links to them.
-- `docs/launch-checklist.md` now includes Search Console ownership verification
-  through `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` or an equivalent domain-level
-  method, submission of `https://thegrainline.com/sitemap_index.xml`, and
-  retained evidence for that verification/submission.
-
-Verified stale/current without source changes:
-
-- Root metadata already emits the Google verification value when
-  `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` is configured.
-- `.env.example` already documents the env var.
-- `robots.txt` already advertises `https://thegrainline.com/sitemap_index.xml`.
-- `CLAUDE.md` already instructed launch ops to verify Search Console ownership
-  and submit the sitemap index.
-
-Guardrails added/reviewed:
-Updated `tests/launch-readiness-followups.test.mjs` to require the launch
-checklist Search Console env/sitemap language and reject stale `/sitemap.xml`
-wording there. Updated `tests/deferred-launch-backlog.test.mjs` to pin the
-canonical-master checklist relationship and audit-deferred-only backlog scope.
-Reviewed `tests/audit-ledger-coupling.test.mjs` alongside the focused suite.
-
-Verification:
-`git status --short`; source/docs/test inspection with `rg`/`sed`; focused
-`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
---experimental-strip-types --test tests/launch-readiness-followups.test.mjs
-tests/deferred-launch-backlog.test.mjs tests/audit-ledger-coupling.test.mjs`
-passed 8/8; `git diff --check` passed; and after push, CI for `4fff9036`
-(`29053445438`) passed typecheck, lint, tests, security audit, and production
-build on `main`.
-
-Current running tally after Entry 519: verified fixed/reduced 1020, verified
-stale/false-positive/current 579, deferred product/design/ops/legal 87,
-approximate raw allegations left from current max #1126: 0. Fixed/reduced
-increases by one for the launch-readiness tracker/Search Console checklist
-guardrail. Stale/current, deferred, and raw-left stay flat because the broader
-Search Console source-support allegation was already current and this pass did
-not close or add a deferred item.
-
-### Entry 518 - Deferred launch backlog tracking guardrail
-
-Entry 518 responded to Drew's concern that deferred findings can become
-forgotten if they only live as repeated prose in the audit ledger. Parent Codex
-rechecked the latest running deferred category list from Entries 500 and
-508-517 and converted it into an explicit launch/runtime/legal/product backlog
-with grouped sections, status labels, and closure criteria. The 87 deferred
-count remains per-finding ledger accounting; the new backlog groups those
-findings into cohesive sections to finish one at a time.
-
-Fixed/reduced:
-
-- Added `docs/deferred-launch-backlog.md` to track the deferred backlog outside
-  `audit_closed.md`. It records that current raw allegations are zero, explains
-  that deferred means tracked rather than ignored, separates launch blockers
-  from conditional blockers/product decisions/post-launch hardening, and gives
-  closure criteria for each grouped category.
-- `CLAUDE.md` now requires future passes to represent any remaining
-  deferred/manual item in `docs/deferred-launch-backlog.md` or an explicitly
-  linked runbook/legal record with closure criteria. It also directs future
-  agents to prefer closing one cohesive deferred section before broadening.
-- `docs/launch-checklist.md` now links the deferred backlog before official
-  launch so final readiness review cannot rely on the audit ledger's deferred
-  count alone.
-
-Verified current or deliberately deferred without source changes:
-
-- Current deferred categories are not open raw source allegations; they are the
-  grouped launch/runtime/legal/product evidence backlog already represented in
-  recent running tallies: RLS staging/prototype execution, Stripe refund and
-  label runtime evidence, Stripe/Clerk/R2/Sentry dashboard evidence, Connect v2
-  legal/accounting decisions, provider privacy evidence, product decisions,
-  performance/runtime proofs, deployed-header proof, and high-scale modeling.
-- The new tracker does not close any deferred finding by itself. Each section
-  still needs its listed source fix, runtime evidence, legal/product decision,
-  or explicit non-launch acceptance decision before it can move out of the
-  deferred count.
-
-Guardrails added/reviewed:
-Added `tests/deferred-launch-backlog.test.mjs` to keep the backlog linked from
-future-agent and launch docs, pin the current grouped categories, and assert
-that deferred work is tracked outside the audit ledger. Reviewed the existing
-`tests/audit-ledger-coupling.test.mjs` raw-import guardrail alongside it.
-
-Verification:
-`git status --short`; source/docs/test inspection with `rg`/`sed`; focused
-`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
---experimental-strip-types --test tests/deferred-launch-backlog.test.mjs
-tests/audit-ledger-coupling.test.mjs` passed 4/4 after fixing a
-line-wrap-tolerant assertion; `git diff --check` passed; and after push, CI for
-`97d9c6c1` (`29052384473`) passed typecheck, lint, tests, security audit, and
-production build on `main`.
-
-Current running tally after Entry 518: verified fixed/reduced 1019, verified
-stale/false-positive/current 579, deferred product/design/ops/legal 87,
-approximate raw allegations left from current max #1126: 0. Tally values stay
-flat because this pass added backlog tracking and a process guardrail but did
-not close a source defect, stale allegation, or deferred item.
-
-### Entry 517 - Prior-claim verification discipline pass
-
-Entry 517 reviewed Claude's follow-up correction as junior read-only input.
-Parent Codex rechecked the current `main` state rather than relying on either
-Claude's correction or Codex's previous closure summary. The correction was
-accurate: F1/F3/F4/F6/F7 are genuinely closed by Entries 512-514 and their
-green CI runs, while F2 wrapper coverage and F5 Notification service/write
-strategy remain deliberately deferred until the first actual Notification policy
-migration.
-
-Fixed/reduced:
-
-- `CLAUDE.md` now explicitly says prior Codex/agent open/closed status summaries
-  are snapshots, not current truth. Future agents must re-check current `HEAD`,
-  recent commits, relevant source/tests, and latest CI before repeating that a
-  finding is open, fixed, stale, or deferred.
-
-Verified current or deliberately deferred without source changes:
-
-- F1 is closed by the grant audit's `pg_policy` plus
-  `relrowsecurity`/`relforcerowsecurity` checks and tests.
-- F3 is closed by the CI-only `withDbUserContext()` behavioral execution test
-  that proves user A/user B isolation, no-context fail-closed behavior,
-  transaction-local context clearing, and Serializable isolation.
-- F4 is closed by the helper/request-context authenticated local `User.id`
-  provenance contract.
-- F6 is closed by the docs/runbook caveat that the staging context gate's
-  synthetic canary is not proof of per-table write-policy behavior.
-- F7 is closed by the helper DB-only/no external or network await contract.
-- F2 and F5 remain deliberate first-policy migration work, not current
-  production RLS defects.
-
-Guardrails added/reviewed:
-Updated `CLAUDE.md`; reviewed `scripts/audit-runtime-db-grants.mjs`,
-`tests/db-grant-inventory.test.mjs`, `tests/db-user-context.test.mjs`,
-`src/lib/dbUserContext.ts`, `docs/db-defense-in-depth-plan.md`,
-`docs/runbook.md`, and Entries 512-516 in this ledger.
-
-Verification:
-`git status --short`; latest pushed CI on `main` was green for `8edecd9c`
-(`29050653636`) before editing; source/docs/test inspection with `rg`/`sed`;
-and `git diff --check` passed.
-
-Current running tally after Entry 517: verified fixed/reduced 1019, verified
-stale/false-positive/current 579, deferred product/design/ops/legal 87,
-approximate raw allegations left from current max #1126: 0. Tally values stay
-flat because this pass added a durable process contract and reverified already
-closed/deferred RLS items, but did not close a new source defect or raw
-allegation.
-
-### Entry 516 - Notification RLS context classification precision
-
-Entry 516 reviewed Claude's follow-up on the notification minimization pass as
-junior read-only input. Parent Codex verified that its summary of the
-minimization commit was correct, but its claim that F1-F7 all remain open was
-stale against current `main`: F1/F3/F4/F6/F7 were already closed by Entries
-512-514 with green CI. F2 wrapper coverage and F5 Notification service/write
-strategy remain deliberate first-policy migration work, not current production
-RLS defects.
-
-Fixed/reduced:
-
-- `docs/rls-feasibility-plan.md` and `docs/db-defense-in-depth-plan.md` now
-  classify the manual-stock low-stock notification dedupe read as an
-  authenticated-seller user-context path, because the route proves
-  `seller.userId = me.id` before the `notification.findFirst()` call.
-- The same docs now keep webhook/cron/admin low-stock and other notification
-  creation paths in the service/write-path inventory through
-  `createNotification()`, so future RLS work does not wrap service writes with
-  the wrong user-context helper.
-- `tests/rls-feasibility-plan.test.mjs` now guards both the docs distinction
-  and the current stock-route owner predicate/select shape that makes the
-  manual low-stock dedupe read user-context safe.
-
-Verified current or deliberately deferred without source changes:
-
-- The manual stock route is not a no-user/system path: it authenticates through
-  Clerk, resolves `me` with `ensureUserByClerkId()`, and loads the listing with
-  `where: { id, seller: { userId: me.id } }` before the low-stock dedupe read.
-- Stripe webhook low-stock notification creation remains a service/write-path
-  item under the existing F5 backlog. It creates notifications through
-  `createNotification()` and does not use the manual stock route's
-  `notification.findFirst()` dedupe read.
-- The automated wrapper-coverage guard remains deferred until the first actual
-  Notification policy route migration, when the allowlist can target wrapped
-  RLS-protected reads instead of encoding today's pre-RLS raw Prisma access.
-
-Guardrails added/reviewed:
-Updated `tests/rls-feasibility-plan.test.mjs`; reviewed
-`src/app/api/listings/[id]/stock/route.ts`,
-`src/app/api/stripe/webhook/route.ts`, `docs/rls-feasibility-plan.md`,
-`docs/db-defense-in-depth-plan.md`, and Entries 512-515 in this ledger.
-
-Verification:
-`git status --short`; latest pushed CI on `main` was green for `9afd78d2`
-(`29049504950`) before editing; source/docs/test inspection with `rg`/`sed`;
-focused `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
---experimental-strip-types --test tests/rls-feasibility-plan.test.mjs
-tests/audit-ledger-coupling.test.mjs` passed 9/9 after normalizing one
-hyphenation mismatch between docs; and `git diff --check` passed.
-
-Current running tally after Entry 516: verified fixed/reduced 1019, verified
-stale/false-positive/current 579, deferred product/design/ops/legal 87,
-approximate raw allegations left from current max #1126: 0. Fixed/reduced
-increases by one for the RLS user-context vs service/write-path classification
-guard. Stale/current stays flat because Claude's stale F1/F3/F4/F6/F7
-statement was already covered in Entry 514 rather than a new raw allegation.
-Deferred stays flat because F2/F5 remain in the existing first-policy migration
-backlog. Raw-left stays at zero.
-
-### Entry 515 - Notification minimization and RLS inventory pass
-
-Entry 515 continued the post-raw RLS-adjacent notification/SavedSearch pass with
-one read-only sub-agent used as junior input. Parent Codex independently
-rechecked every agent claim against current source before changing code. No
-current app-layer owner-check bypass was found in the scoped Notification or
-SavedSearch routes/pages/helpers: notification reads and mark-read writes are
-still scoped to the authenticated local user, and SavedSearch API/dashboard/
-export/delete paths remain owner-scoped.
-
-Fixed/reduced:
-
-- `src/lib/notifications.ts` no longer sends raw notification `link` values to
-  Sentry when `createNotification()` or notification dedup lookup fails. Failure
-  telemetry now records only the recipient id, whether a link existed, the
-  bounded link length, and whether a dedup scope existed. This preserves useful
-  debugging context without copying private order/message/case route ids into
-  exception metadata.
-- `GET /api/notifications` now uses `NOTIFICATION_BELL_SELECT` and returns only
-  the bell DTO fields (`id`, `type`, `title`, `body`, `link`, `read`,
-  `createdAt`) instead of the full `Notification` row. This removes owner-scoped
-  but unnecessary exposure of internal `sourceType`, `sourceId`, and `dedupKey`
-  fields from the JSON endpoint.
-- `docs/rls-feasibility-plan.md` and `docs/db-defense-in-depth-plan.md` now
-  inventory the message-thread auto-mark-read update and low-stock notification
-  dedupe read as Notification RLS paths that must be wrapped or deliberately
-  handled before the first Notification policy migration.
-
-Verified current or deliberately deferred without source changes:
-
-- The sub-agent's missing-owner-check concern did not reproduce. Current
-  notification API routes use `me.id` owner predicates, the dashboard
-  notification server action blocks banned/deleted users before mark-all-read,
-  SavedSearch create/list/delete routes use the authenticated local user, and
-  account export reads saved searches by the exported account id.
-- The RLS inventory gap is not a production exposure while RLS remains disabled;
-  it is a first-policy migration guard so future owner-scoped `SELECT`/`UPDATE`
-  policies do not silently break message-thread read-state updates or low-stock
-  dedupe.
-
-Guardrails added/reviewed:
-Updated `tests/pr-h-deletion-analytics-email-followups.test.mjs` to reject raw
-notification-link failure telemetry, `tests/client-async-guardrails.test.mjs`
-to keep `/api/notifications` on the narrow bell projection, and
-`tests/rls-feasibility-plan.test.mjs` to require the hidden Notification RLS
-paths in both RLS plans. Reviewed `src/app/api/notifications/route.ts`,
-`src/app/api/notifications/read-all/route.ts`,
-`src/app/api/notifications/[id]/read/route.ts`,
-`src/app/dashboard/notifications/page.tsx`, `src/components/NotificationBell.tsx`,
-`src/app/api/search/saved/route.ts`, `src/app/dashboard/page.tsx`,
-`src/app/api/account/export/route.ts`, `src/app/messages/[id]/page.tsx`, and
-`src/app/api/listings/[id]/stock/route.ts`.
-
-Verification:
-`git status --short`; latest pushed CI on `main` was green for `d446ccb7`
-(`28985042881`) before editing; source/docs/test inspection with `rg`/`sed`;
-focused `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
---experimental-strip-types --test tests/pr-h-deletion-analytics-email-followups.test.mjs
-tests/client-async-guardrails.test.mjs tests/server-error-logger.test.mjs
-tests/notification-payload.test.mjs tests/notification-links.test.mjs
-tests/round9-public-pii-guardrails.test.mjs tests/r49-account-state-routes.test.mjs
-tests/private-json-cache-headers.test.mjs tests/rls-feasibility-plan.test.mjs`
-passed 68/68 after correcting one line-wrap-sensitive RLS plan assertion; `npx
-tsc --noEmit`; `git diff --check`; `npm run lint` exited 0 with the known
-jsx-ast-utils TSNonNullExpression warning; `npm audit --audit-level=high` found
-0 vulnerabilities; and full `npm test` passed 1486/1489 with the expected local
-skips. After push, CI for `16d1297c` (`29049201171`) passed typecheck, lint,
-tests, security audit, and production build on `main`.
-
-Current running tally after Entry 515: verified fixed/reduced 1018, verified
-stale/false-positive/current 579, deferred product/design/ops/legal 87,
-approximate raw allegations left from current max #1126: 0. Fixed/reduced
-increases by three for the raw notification-link telemetry reduction, the
-notification API projection minimization, and the hidden Notification RLS path
-inventory guard. Stale/current and deferred stay flat because no new raw
-allegation was closed and the future RLS policy work remains in the existing
-deferred execution bucket. Raw-left stays at zero.
-
-### Entry 514 - RLS helper provenance and execution guardrails
-
-Entry 514 reviewed Claude's follow-up response as junior read-only input, then
-parent Codex rechecked current `main` rather than accepting the report against
-its stale `ad7e2ab6` baseline. Several claims were already closed by Entries
-512-513: the grant audit now verifies RLS policy activation with
-`relrowsecurity`/`relforcerowsecurity`, the context-gate scope caveat is in the
-RLS docs/runbook, and the helper DB-only/no-external-await contract is already
-guarded. The wrapper-coverage and Notification service/write strategy items
-remain deliberately deferred until the first real table policy migration.
-
-Fixed/reduced:
-
-- `src/lib/dbUserContext.ts` now documents the id-provenance contract at the
-  helper call site: callers must pass only the server-resolved authenticated
-  local `User.id` such as `me.id`, never request body, query string, route
-  param, or other client-supplied values.
-- `docs/rls-feasibility-plan.md` and `CLAUDE.md` now carry the same rule so the
-  RLS plan and future-agent contract match the helper JSDoc.
-- `tests/db-user-context.test.mjs` now guards the provenance wording and adds a
-  GitHub-only synthetic Postgres integration test that imports the actual
-  helper through a local `@/` resolver, creates a temporary non-owner runtime
-  role plus forced RLS canary table, and executes `withDbUserContext()` /
-  `withSerializableDbUserContext()` to verify scoped reads, no-context denial,
-  transaction-local context clearing, and Serializable isolation.
-- `tests/rls-feasibility-plan.test.mjs` now guards the authenticated local
-  `User.id` / no client-supplied context rule in the RLS plan.
-
-Verified current or deliberately deferred without source changes:
-
-- Claude's F1, F6, and F7 were stale against current `main` after Entries
-  512-513.
-- Claude's F2 wrapper-coverage guard remains a real first-policy migration
-  requirement, but adding a broad static allowlist now would mostly encode
-  current pre-RLS raw Prisma reads. Add it with the first table route migration.
-- Claude's F5 service/cross-user Notification write path remains the documented
-  policy-migration decision; no bypass helper was added before an actual
-  Notification policy shape exists.
-
-Guardrails added/reviewed:
-Updated `tests/db-user-context.test.mjs` and
-`tests/rls-feasibility-plan.test.mjs`; reviewed current `tests/db-grant-inventory.test.mjs`,
-`scripts/audit-runtime-db-grants.mjs`, `docs/db-defense-in-depth-plan.md`,
-`docs/runbook.md`, and `CLAUDE.md` against the Claude report.
-
-Verification:
-`git status --short`; latest pushed CI on `main` was green for `3d96b646`
-(`28983882993`) before editing; source/docs/test inspection with `rg`/`sed`;
-focused `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
---experimental-strip-types --test tests/db-user-context.test.mjs
-tests/rls-feasibility-plan.test.mjs tests/audit-ledger-coupling.test.mjs`
-passed 14/15 with the expected local GitHub-only Postgres skip; `npx tsc
---noEmit`; `git diff --check`; `npm run lint` exited 0 with the known
-jsx-ast-utils TSNonNullExpression warning; `npm audit --audit-level=high` found
-0 vulnerabilities; and full `npm test` passed 1485/1488 with the expected local
-GitHub-only Postgres skips. After push, CI for `bcc863ed` (`28984619754`)
-passed typecheck, lint, tests, security audit, and production build on `main`,
-including the new CI-only helper execution test against synthetic Postgres.
-
-Current running tally after Entry 514: verified fixed/reduced 1015, verified
-stale/false-positive/current 579, deferred product/design/ops/legal 87,
-approximate raw allegations left from current max #1126: 0. Fixed/reduced
-increases by two for the authenticated-id provenance contract and actual helper
-execution integration guard. Stale/current and deferred stay flat because the
-remaining Claude items were already closed or already represented in the RLS
-backlog. Raw-left stays at zero because this was post-raw hardening, not closure
-of a remaining raw allegation.
-
-### Entry 513 - RLS grant-audit CI correction
-
-Entry 513 fixes the red CI follow-up from Entry 512. CI for `a3ffe5e3`
-(`28982791916`) failed only in `tests/db-grant-inventory.test.mjs`: the new
-synthetic Postgres integration assertion used `/ROW LEVEL SECURITY is not
-enabled/`, which also matched the valid `FORCE ROW LEVEL SECURITY is not
-enabled` issue. Parent Codex reviewed the failing log and current script/test
-logic before changing anything. The audit rule itself was still correct, but the
-CI failure exposed a second precision gap: node-postgres returned the
-`array_agg(name)` policy list in a shape the script did not parse, so live
-issues displayed `unknown` instead of the concrete policy name.
-
-Fixed/reduced:
-
-- `scripts/audit-runtime-db-grants.mjs` now uses `string_agg(p.polname::text,
-  ', ' ORDER BY p.polname::text)` for policy names so live RLS activation audit
-  issues identify the exact policy instead of falling back to `unknown`.
-- `tests/db-grant-inventory.test.mjs` now pins that string aggregation and
-  asserts the exact synthetic table/policy messages. The enabled-but-not-forced
-  case now checks that the unforced issue remains while the missing-ENABLE
-  message is absent, without accidentally matching the `FORCE` message.
-
-Guardrails added/reviewed:
-Updated the live grant-audit synthetic fixture assertions in
-`tests/db-grant-inventory.test.mjs`; the GitHub-only Postgres fixture is the
-source of truth for the full integration path.
-
-Verification:
-`gh run view 28982791916 --log-failed` identified the failing assertion in the
-Entry 512 CI run; `node --check scripts/audit-runtime-db-grants.mjs`; focused
-`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
---test tests/db-grant-inventory.test.mjs tests/audit-ledger-coupling.test.mjs`
-passed 8/9 with the expected local GitHub-only Postgres skip; `npx tsc
---noEmit`; `git diff --check`; `npm run lint` exited 0 with the known
-jsx-ast-utils TSNonNullExpression warning; `npm audit --audit-level=high` found
-0 vulnerabilities; and full `npm test` passed 1485/1487 with the expected local
-GitHub-only Postgres skips. After push, CI for `aa4bb064` (`28983697256`)
-passed typecheck, lint, tests, security audit, and production build on `main`,
-including the CI-only synthetic Postgres grant-audit integration path.
-
-Current running tally after Entry 513: verified fixed/reduced 1013, verified
-stale/false-positive/current 579, deferred product/design/ops/legal 87,
-approximate raw allegations left from current max #1126: 0. Fixed/reduced
-increases by one for the live grant-audit policy-name reporting and CI guardrail
-precision fix. Raw-left stays at zero because this was a post-raw hidden issue
-found while reviewing the red CI result, not closure of a remaining raw
-allegation.
-
-### Entry 512 - RLS policy activation audit hardening
-
-Entry 512 reviewed a fresh Opus read-only sweep as junior input, then parent
-Codex independently checked the current grant audit, RLS context gate, helper
-contract, RLS docs, and tests. Latest pushed CI on `main` was green for
-`ad7e2ab6` (`28980941219`) before editing. The highest-value finding was real:
-the live grant audit checked role/grant/default-privilege posture but did not
-inspect whether a tracked app table with RLS policies actually had
-`ENABLE ROW LEVEL SECURITY` and `FORCE ROW LEVEL SECURITY` set. A policy without
-table-level RLS enabled is inert, and missing `FORCE` can hide owner-bypass
-behavior in migration-owner tests.
-
-Fixed/reduced:
-
-- `scripts/audit-runtime-db-grants.mjs` now queries `pg_policy` plus
-  `pg_class.relrowsecurity` / `relforcerowsecurity` for tracked public app
-  tables and reports an issue when a table has policies but lacks either
-  `ENABLE ROW LEVEL SECURITY` or `FORCE ROW LEVEL SECURITY`.
-- `tests/db-grant-inventory.test.mjs` now pins the new catalog query and adds
-  synthetic Postgres fixture cases for policy-without-enable,
-  policy-with-enable-without-force, and policy-with-enable-and-force.
-- `src/lib/dbUserContext.ts` and `CLAUDE.md` now warn future callers to keep
-  the RLS context callback DB-only and fast, with no external/network awaits
-  inside the pinned interactive transaction. `tests/db-user-context.test.mjs`
-  guards that local contract.
-- `docs/db-defense-in-depth-plan.md` and `docs/runbook.md` now distinguish the
-  staging context gate's read/context-isolation proof from per-table
-  write-policy behavior. Passing the synthetic canary gate is not treated as
-  proof that asymmetric Notification `INSERT`/`DELETE` behavior works.
-
-Verified current or deliberately deferred without source changes:
-
-- Production RLS remains disabled. No real app table policies were added or
-  enabled in this pass.
-- Opus's missing wrapper-coverage guard is a real first-policy risk, but not a
-  current defect while the helper is dormant and current routes intentionally
-  still use raw Prisma reads. The guard should be added with the first
-  table-specific route migration so CI can fail on new unwrapped reads without
-  allowlisting every current pre-RLS call site.
-- Opus's service/cross-user write-path concern is already the documented
-  Notification sequencing rule. No service bypass helper was added here because
-  the write strategy must be chosen with the actual Notification policy
-  migration; building a bypass before the strategy is selected would create
-  unused security surface.
-- The live staging gate against a production-like Neon pooled runtime role
-  remains the go/no-go before any table policy or hot-path wrapper is enabled.
-
-Guardrails added/reviewed:
-
-- Extended `tests/db-grant-inventory.test.mjs`,
-  `tests/db-user-context.test.mjs`, and `tests/rls-context-gate.test.mjs`.
-- Re-ran the existing RLS feasibility plan guardrails alongside the grant audit,
-  helper, and context-gate tests.
-
-Verification:
-`git status --short`; `gh run list --branch main --limit 3` confirmed latest
-pushed CI on `main` was green for `ad7e2ab6` (`28980941219`);
-source/docs/test inspection with `rg`/`sed`; `node --check
-scripts/audit-runtime-db-grants.mjs`; focused
-`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
---test tests/db-grant-inventory.test.mjs tests/db-user-context.test.mjs
-tests/rls-context-gate.test.mjs tests/rls-feasibility-plan.test.mjs` passed
-30/32 with the expected local GitHub-only Postgres skips; `npx tsc --noEmit`;
-`git diff --check`; `npm run lint` exited 0 with the known jsx-ast-utils
-TSNonNullExpression warning; `npm audit --audit-level=high` found 0
-vulnerabilities; and full `npm test` passed 1485/1487 with the expected local
-skips. Local `npm run build` was not rerun because recent local builds compile
-and then fail sitemap page-data collection against the configured unreachable
-Neon endpoint; production build completion remains to be verified by pushed
-CI's local Postgres build.
-
-Current running tally after Entry 512: verified fixed/reduced 1012, verified
-stale/false-positive/current 579, deferred product/design/ops/legal 87,
-approximate raw allegations left from current max #1126: 0. Fixed/reduced
-increases by two for the RLS policy activation audit check and the helper
-DB-only callback contract. The gate write-policy scope note is counted as
-supporting guardrail documentation, not a separate finding. Deferred stays flat
-because the wrapper-coverage guard, service/write strategy, live staging gate,
-route-level prototype tests, and actual Notification/SavedSearch policies remain
-future execution work already represented in the RLS backlog. Raw-left stays at
-zero because this was post-raw hardening, not closure of a raw allegation.
-
-Remaining major categories are still the deferred launch/runtime/legal/product
-evidence backlog, not open raw source allegations: live RLS staging gate
-execution plus route-level prototype tests before any table policy, Stripe
-refund runtime reconciliation/backfill proof, Stripe partial-refund live
-reconciliation proof, label clawback runtime reconciliation evidence, Stripe
-webhook subscription dashboard evidence, Stripe Connect v2 loss-liability
-ops/legal decision, explicit stale remote branch pruning/review, Round 10
-cache/state-machine product designs, EXPLAIN-dependent runtime query-plan
-validation, provider-side privacy erasure/legal-request evidence, cross-seller
-AI duplicate-detection product design, durable checkout-group product semantics
-beyond current guardrails, high-scale BigInt money/counter modeling decisions,
-live-data reconciliation for historical seller shipping-rate currency drift,
-Clerk staff MFA/breached-password/multi-account dashboard evidence,
-buyer-deletion live Stripe replay proof, Founding Maker live DB concurrency
-proof, Sentry cron alert evidence, Cloudflare R2 ListBucket/public bucket
-posture plus production smoke/public-availability proof, HSTS preload
-submission/status, Vercel Analytics/Speed Insights product privacy decision,
-homepage browser a11y/runtime proof, and deployed security-header runtime
-proof.
-
-### Entry 511 - RLS user-context serializable retry hardening
-
-Entry 511 reviewed Claude's read-only report on the dormant RLS user-context
-helper as junior input, then parent Codex independently checked
-`src/lib/dbUserContext.ts`, `src/lib/dbUserContextState.ts`,
-`src/lib/transactionRetry.ts`, the current SavedSearch and seller-profile
-serializable transaction patterns, and the RLS feasibility/runbook contracts.
-The serializable wrapper concern was real: the helper enabled retry without
-defaulting the Prisma interactive transaction to `Serializable` isolation, so a
-future cap-sensitive migration could silently drop to the database default
-isolation while keeping an inert retry loop. Latest pushed CI on `main` was
-green for `2d8c4e31` (`28979188466`) before editing.
-
-Fixed/reduced:
-
-- `dbUserContextTransactionOptions({ serializableRetry: true })` now defaults
-  to `Serializable` isolation and rejects weaker isolation when retry is
-  requested. `withSerializableDbUserContext()` no longer accepts an
-  `isolationLevel` option, so the convenience wrapper cannot be paired with a
-  weaker transaction level.
-- `normalizeDbUserContextUserId()` now requires the exact local `User.id`
-  string instead of trimming it. Empty, whitespace-padded, overlong, or
-  non-id-shaped context ids fail closed instead of aliasing to a different
-  database owner id.
-- `withDbUserContext()` now carries a local API contract warning future callers
-  to keep protected queries on the provided transaction client and avoid
-  `Promise.all`/parallel Prisma calls inside the interactive transaction.
-- `docs/db-defense-in-depth-plan.md`, `docs/rls-feasibility-plan.md`, and
-  `CLAUDE.md` now record the exact-id, no-parallel-query, and Serializable
-  retry requirements as durable RLS behavior contracts.
-
-Verified stale/current or deferred without source changes:
-
-- Production RLS remains disabled. No route, webhook, cron, server component,
-  or table policy was moved onto the helper in this pass.
-- The staging pooling/context-isolation gate remains the real go/no-go before
-  enabling any table policy or wrapping hot paths.
-
-Guardrails added/reviewed:
-
-- Extended `tests/db-user-context.test.mjs` to cover exact local user-id
-  validation, Serializable isolation defaults for retry, rejection of weaker
-  retry isolation, the helper JSDoc no-parallel contract, and the
-  `withSerializableDbUserContext()` type-level omission of `isolationLevel`.
-- Re-ran the RLS feasibility and context-gate guardrails alongside the helper
-  test.
-
-Verification:
-`git status --short`; `gh run list --branch main --limit 3` confirmed latest
-pushed CI on `main` was green for `2d8c4e31` (`28979188466`);
-source/docs/test inspection with `rg`/`sed`; focused
-`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
---test tests/db-user-context.test.mjs tests/rls-feasibility-plan.test.mjs
-tests/rls-context-gate.test.mjs` passed 23/24 with the expected local
-GitHub-only Postgres smoke skip; `npx tsc --noEmit`; `git diff --check`;
-`npm run lint` exited 0 with the known jsx-ast-utils TSNonNullExpression
-warning; `npm audit --audit-level=high` found 0 vulnerabilities; and full
-`npm test` passed 1485/1487 with the expected local skips. Local
-`npm run build` was not rerun because recent local builds compile and then fail
-sitemap page-data collection against the configured unreachable Neon endpoint;
-after push, CI for `3cde4b76` (`28980660385`) passed typecheck, lint, tests,
-security audit, and production build on `main`.
-
-Current running tally after Entry 511: verified fixed/reduced 1010, verified
-stale/false-positive/current 579, deferred product/design/ops/legal 87,
-approximate raw allegations left from current max #1126: 0. Fixed/reduced
-increases by two for the Serializable retry isolation fix and the exact
-context-id hardening. The no-parallel helper contract is guardrail coverage for
-an already-documented RLS staging rule, so it is not counted as a separate
-finding. Deferred stays flat because the live staging gate, route-level
-prototype tests, and actual Notification/SavedSearch policies remain future
-execution work. Raw-left stays at zero because this was post-raw hardening, not
-closure of a raw allegation.
-
-Remaining major categories are still the deferred launch/runtime/legal/product
-evidence backlog, not open raw source allegations: live RLS staging gate
-execution plus route-level prototype tests before any table policy, Stripe
-refund runtime reconciliation/backfill proof, Stripe partial-refund live
-reconciliation proof, label clawback runtime reconciliation evidence, Stripe
-webhook subscription dashboard evidence, Stripe Connect v2 loss-liability
-ops/legal decision, explicit stale remote branch pruning/review, Round 10
-cache/state-machine product designs, EXPLAIN-dependent runtime query-plan
-validation, provider-side privacy erasure/legal-request evidence, cross-seller
-AI duplicate-detection product design, durable checkout-group product semantics
-beyond current guardrails, high-scale BigInt money/counter modeling decisions,
-live-data reconciliation for historical seller shipping-rate currency drift,
-Clerk staff MFA/breached-password/multi-account dashboard evidence,
-buyer-deletion live Stripe replay proof, Founding Maker live DB concurrency
-proof, Sentry cron alert evidence, Cloudflare R2 ListBucket/public bucket
-posture plus production smoke/public-availability proof, HSTS preload
-submission/status, Vercel Analytics/Speed Insights product privacy decision,
-homepage browser a11y/runtime proof, and deployed security-header runtime
-proof.
-
-### Entry 510 - RLS user-context helper foundation
-
-Entry 510 acted on Claude's read-only conclusion that the RLS gate tooling had
-no outstanding reviewable defects and that the next code artifact would be the
-`withDbUserContext` helper. Parent Codex independently rechecked the current
-green CI state, RLS docs, helper contract, existing Prisma transaction/retry
-patterns, and saved-search serializable transaction shape before adding code.
-Latest pushed CI on `main` was green for `5540bd77` (`28976802737`) before
-editing.
-
-Fixed/reduced:
-
-- Added dormant `src/lib/dbUserContext.ts` for future user-scoped RLS paths. It
-  validates a bounded local user id, opens a Prisma interactive transaction,
-  runs parameterized `SELECT set_config('app.user_id', $userId, true)` as the
-  first statement inside that transaction, verifies the returned setting, and
-  then runs caller work on the transaction client.
-- Added `withSerializableDbUserContext()` / `serializableRetry` support so the
-  retry wrapper sits outside the Prisma transaction. A serialization retry
-  therefore reopens the transaction and re-runs `set_config` before protected
-  work on every attempt, matching the staged RLS contract.
-- Added `src/lib/dbUserContextState.ts` for pure validation/defaults. The helper
-  uses explicit interactive-transaction defaults aligned with the staging gate
-  (`maxWait = 10s`, `timeout = 5s`) and rejects empty, overlong, or unsafe
-  context ids instead of silently setting an empty context.
-- Updated `docs/db-defense-in-depth-plan.md` and `CLAUDE.md` to record that the
-  helper is dormant until the production-like staging gate passes and a
-  table-specific prototype wraps routes/server components. It must not be used
-  as a service/admin/cron/webhook bypass.
-
-Verified stale/current or deferred without source changes:
-
-- Production RLS remains disabled. No routes, pages, webhooks, crons, or table
-  policies were moved onto the helper in this pass.
-- The live staging gate still needs a production-like Neon branch and explicit
-  pooled runtime-role URL. Without that environment, running the local gate
-  would not be acceptance evidence.
-
-Guardrails added/reviewed:
-
-- Added `tests/db-user-context.test.mjs` to guard user-id validation, explicit
-  timeout defaults, parameterized transaction-local `set_config(..., true)`,
-  context-before-operation ordering inside `prisma.$transaction`, and
-  serializable retry outside the transaction.
-- Re-ran the RLS context gate and RLS feasibility plan guardrails alongside the
-  new helper test.
-
-Verification:
-`git status --short`; `gh run list --branch main --limit 3` confirmed latest
-pushed CI on `main` was green for `5540bd77` (`28976802737`); source/docs/test
-inspection with `rg`/`sed`; focused `node --test tests/db-user-context.test.mjs
-tests/rls-feasibility-plan.test.mjs tests/rls-context-gate.test.mjs` passed
-22/23 with the expected local GitHub-only Postgres smoke skip; `npx tsc
---noEmit`; `git diff --check`; `npm run lint` exited 0 with the known
-jsx-ast-utils TSNonNullExpression warning; `npm audit --audit-level=high` found
-0 vulnerabilities; and full `npm test` passed 1484/1486 with the expected
-local skips. Local `npm run build` was not rerun because the prior local build
-compiled but failed sitemap page-data collection against an unreachable
-configured Neon endpoint; production build completion remains to be verified by
-pushed CI's local Postgres build. After push, CI for `8839d8e2`
-(`28978697515`) passed typecheck, lint, tests, security audit, and production
-build on `main`.
-
-Current running tally after Entry 510: verified fixed/reduced 1008, verified
-stale/false-positive/current 579, deferred product/design/ops/legal 87,
-approximate raw allegations left from current max #1126: 0. Fixed/reduced
-increases by one for the dormant RLS user-context helper foundation. Deferred
-stays flat because the live staging gate, route-level prototype tests, and
-actual Notification/SavedSearch policies remain future execution work. Raw-left
-stays at zero because this was post-raw hardening, not closure of a raw
-allegation.
-
-Remaining major categories are still the deferred launch/runtime/legal/product
-evidence backlog, not open raw source allegations: live RLS staging gate
-execution plus route-level prototype tests before any table policy, Stripe
-refund runtime reconciliation/backfill proof, Stripe partial-refund live
-reconciliation proof, label clawback runtime reconciliation evidence, Stripe
-webhook subscription dashboard evidence, Stripe Connect v2 loss-liability
-ops/legal decision, explicit stale remote branch pruning/review, Round 10
-cache/state-machine product designs, EXPLAIN-dependent runtime query-plan
-validation, provider-side privacy erasure/legal-request evidence, cross-seller
-AI duplicate-detection product design, durable checkout-group product semantics
-beyond current guardrails, high-scale BigInt money/counter modeling decisions,
-live-data reconciliation for historical seller shipping-rate currency drift,
-Clerk staff MFA/breached-password/multi-account dashboard evidence,
-buyer-deletion live Stripe replay proof, Founding Maker live DB concurrency
-proof, Sentry cron alert evidence, Cloudflare R2 ListBucket/public bucket
-posture plus production smoke/public-availability proof, HSTS preload
-submission/status, Vercel Analytics/Speed Insights product privacy decision,
-homepage browser a11y/runtime proof, and deployed security-header runtime
-proof.
-
-### Entry 509 - RLS context gate baseline hardening
-
-Entry 509 reviewed Claude's follow-up as junior read-only input, then parent
-Codex independently checked the RLS context gate code, docs, tests, and current
-CI state before changing anything. The substantive baseline concern was real:
-the prior "baseline" workload was already wrapped in `BEGIN`/`COMMIT`, so it
-measured mostly marginal `set_config` overhead instead of the adoption cost of
-moving current app reads into interactive transactions. Latest pushed CI on
-`main` was green for `a7b31ed6` (`28915569351`) before editing.
-
-Fixed/reduced:
-
-- The RLS context gate now measures autocommit denied-read baselines in both
-  raw `pg` and Prisma adapter paths, while retaining the existing
-  transaction-wrapped unset-context baseline. The gate reports and compares
-  target/burst wrapped reads against both baselines, with explicit
-  "autocommit adoption cost" labels so staging evidence separates context
-  overhead from the broader cost of adopting interactive transactions.
-- Warmup and single-sample checks now include autocommit denied reads, and the
-  workload runners fail loudly on unknown modes instead of silently treating
-  typos as wrapped reads.
-- `tests/rls-context-gate.test.mjs` now pins the autocommit paths and adds a
-  GitHub-only synthetic Postgres orchestration smoke. The smoke creates a
-  temporary runtime role and canary schema, runs `runAcceptanceGate()` with a
-  deliberately tiny non-acceptance sample, verifies non-performance issues are
-  clean, and checks the new autocommit reports. This proves the full script
-  orchestration in CI without pretending local Postgres is Neon pooler
-  acceptance evidence.
-- `docs/db-defense-in-depth-plan.md` and `docs/runbook.md` now require
-  retaining autocommit baseline, transaction baseline, and wrapped metrics. The
-  docs explicitly state that the transaction baseline isolates context-setting
-  overhead, while the autocommit baseline captures the adoption cost of moving
-  current app reads into interactive transactions.
-
-Verified stale/current or deferred without source changes:
-
-- Production RLS remains disabled. This pass hardens the staging gate and CI
-  smoke coverage only; the real go/no-go remains the production-like Neon
-  staging run plus route-level prototype tests before any customer table policy
-  is widened.
-- Claude's minor note about repeated-run agreement was a wording precision
-  issue rather than a source bug: the gate still treats flaky repeated
-  pass/fail outcomes as a documented stop signal, but it does not require
-  byte-identical metrics across runs.
-
-Guardrails added/reviewed:
-
-- Extended `tests/rls-context-gate.test.mjs` for autocommit raw `pg` and Prisma
-  baselines, autocommit adoption-cost labels, docs/runbook coupling, and the
-  GitHub-only synthetic orchestration smoke.
-- Updated `tests/rls-feasibility-plan.test.mjs` to guard the new runbook
-  wording instead of the older baseline/wrapped phrasing.
-
-Verification:
-`git status --short`; `gh run list --branch main --limit 3` confirmed latest
-pushed CI on `main` was green for `a7b31ed6` (`28915569351`); source/docs/test
-inspection with `rg`/`sed`; `node --check
-scripts/rls-context-acceptance-gate.mjs`; focused `node --test
-tests/rls-context-gate.test.mjs tests/rls-feasibility-plan.test.mjs
-tests/audit-ledger-coupling.test.mjs` passed 18/19 with the expected local
-GitHub-only Postgres smoke skip after one assertion update from the old
-baseline wording; `npx tsc --noEmit`; `git diff --check`; `npm run lint` exited
-0 with the known jsx-ast-utils TSNonNullExpression warning; `npm audit
---audit-level=high` found 0 vulnerabilities; and full `npm test` passed
-1479/1481 with the expected local skips. Local `npm run build` compiled
-successfully but failed during sitemap page-data collection with Prisma `P1001`
-because the configured Neon database endpoint was unreachable, so build
-completion was verified by pushed CI's local Postgres build. After push, CI for
-`8683659d` (`28976405079`) passed typecheck, lint, tests, security audit, and
-production build on `main`.
-
-Current running tally after Entry 509: verified fixed/reduced 1007, verified
-stale/false-positive/current 579, deferred product/design/ops/legal 87,
-approximate raw allegations left from current max #1126: 0. Fixed/reduced
-increases by one for the RLS context gate baseline hardening. Deferred stays
-flat because the live staging gate, route-level prototype tests, and actual
-Notification/SavedSearch policies remain future execution work. Raw-left stays
-at zero because this was post-raw hardening, not closure of a raw allegation.
-
-Remaining major categories are still the deferred launch/runtime/legal/product
-evidence backlog, not open raw source allegations: live RLS staging gate
-execution plus route-level prototype tests before any table policy, Stripe
-refund runtime reconciliation/backfill proof, Stripe partial-refund live
-reconciliation proof, label clawback runtime reconciliation evidence, Stripe
-webhook subscription dashboard evidence, Stripe Connect v2 loss-liability
-ops/legal decision, explicit stale remote branch pruning/review, Round 10
-cache/state-machine product designs, EXPLAIN-dependent runtime query-plan
-validation, provider-side privacy erasure/legal-request evidence, cross-seller
-AI duplicate-detection product design, durable checkout-group product semantics
-beyond current guardrails, high-scale BigInt money/counter modeling decisions,
-live-data reconciliation for historical seller shipping-rate currency drift,
-Clerk staff MFA/breached-password/multi-account dashboard evidence,
-buyer-deletion live Stripe replay proof, Founding Maker live DB concurrency
-proof, Sentry cron alert evidence, Cloudflare R2 ListBucket/public bucket
-posture plus production smoke/public-availability proof, HSTS preload
-submission/status, Vercel Analytics/Speed Insights product privacy decision,
-homepage browser a11y/runtime proof, and deployed security-header runtime
-proof.
-
-### Entry 508 - RLS context gate tooling
-
-Entry 508 followed the slow RLS/security path after the raw allegation queue
-reached zero: parent Codex rechecked the current RLS docs, least-privilege
-grant tooling, current CI state, and adjacent notification/saved-search source
-surfaces before adding any code. One read-only explorer agent reviewed likely
-RLS gate blind spots; parent Codex independently verified the useful findings
-against source and docs, rejected broad production RLS, incorporated the
-Prisma-adapter and route-happy-path boundaries, and closed the agent. Latest
-pushed CI on `main` was green for `70a14a4d` (`28914271071`) before editing.
-
-Fixed/reduced:
-
-- Added `scripts/rls-context-acceptance-gate.mjs` plus
-  `npm run audit:rls-context` as a staging-only executable gate for the Phase 3
-  RLS request-context proof. The gate refuses ambient `DATABASE_URL`/`DIRECT_URL`
-  fallback, requires `RLS_CONTEXT_GATE_CONFIRM=staging-only`, requires a pooled
-  runtime-role URL and expected runtime role, and optionally prepares only
-  synthetic non-customer canary rows through an explicit migration-owner URL.
-- The canary preparation path creates `grainline_rls_canary.context_canary`,
-  refreshes synthetic rows with RLS disabled, then enables `FORCE ROW LEVEL
-  SECURITY` with a fail-closed `NULLIF(current_setting('app.user_id', true), '')`
-  policy so unset and explicitly empty context return zero rows.
-- The gate now measures both the app-relevant Prisma `@prisma/adapter-pg`
-  interactive-transaction path and lower-level raw `pg` behavior. It checks
-  runtime `current_user`/`session_user`, transaction-local
-  `set_config('app.user_id', $1, true)`, commit/rollback cleanup, empty-context
-  denial, synthetic retry re-setting, target/burst concurrency, prepared
-  statement/cached-plan errors, connection recycling through `maxUses: 1`, an
-  admin-URL-gated disable-RLS rollback/no-op probe on the synthetic canary, and
-  the documented p95/p99/acquisition/hold-time stop thresholds.
-- `docs/db-defense-in-depth-plan.md`, `docs/runbook.md`,
-  `docs/launch-checklist.md`, and `CLAUDE.md` now route future RLS work through
-  this staging gate and explicitly preserve the boundary that passing the
-  synthetic canary does not enable RLS or replace route-level happy-path tests
-  for `Notification`, `SavedSearch`, or any later prototype table.
-
-Verified stale/current or deferred without source changes:
-
-- Production RLS remains disabled and staged. This pass created the next proof
-  artifact; it did not enable any table policies and did not close the live
-  staging evidence requirement.
-- The read-only agent's source warnings about notification write/delete
-  asymmetry, saved-search retry/export/deletion behavior, and existing
-  `Promise.all` notification/dashboard reads remain valid future prototype
-  constraints already represented in the RLS docs. They are not solved by the
-  synthetic canary and must be tested when the actual `withDbUserContext`
-  helper and first table policies are implemented.
-
-Guardrails added/reviewed:
-
-- Added `tests/rls-context-gate.test.mjs` to pin the explicit npm script,
-  staging confirmation requirement, pooled-runtime URL requirement, lack of
-  ambient production DB URL fallback, synthetic canary user defaults, explicit
-  admin URL for prepare mode, transaction-local context policy shape, Prisma
-  adapter probe, prepared-statement/protocol error checks, connection recycle
-  probing, rollback/no-op proof gating, metric summarization, and
-  docs/runbook/launch checklist coverage.
-- Reviewed existing `tests/rls-feasibility-plan.test.mjs` and
-  `tests/db-grant-inventory.test.mjs` alongside the new guardrails.
-
-Verification:
-`git status --short`; `gh run list --branch main --limit 5` confirmed latest
-pushed CI on `main` was green for `70a14a4d` (`28914271071`); source/docs/test
-inspection with `rg`/`sed`; one parent-reviewed read-only explorer report;
-`node --check scripts/rls-context-acceptance-gate.mjs`; focused
-`node --test tests/rls-context-gate.test.mjs tests/rls-feasibility-plan.test.mjs
-tests/db-grant-inventory.test.mjs` passed 24/25 with the expected local
-GitHub-only Postgres integration skip; `npx tsc --noEmit`; `git diff --check`;
-`npm run lint` exited 0 with the known jsx-ast-utils TSNonNullExpression
-warning; full `npm test` passed 1479/1480 with the expected local GitHub-only
-Postgres integration skip; and `npm run build` completed successfully.
-
-Current running tally after Entry 508: verified fixed/reduced 1006, verified
-stale/false-positive/current 579, deferred product/design/ops/legal 87,
-approximate raw allegations left from current max #1126: 0. Fixed/reduced
-increases by one for the RLS staging context gate tooling. Deferred stays flat
-because the live staging run, route-level prototype tests, and actual
-Notification/SavedSearch RLS policies remain future execution work. Raw-left
-stays at zero because this was post-raw hardening, not closure of a raw
-allegation.
-
-Remaining major categories are still the deferred launch/runtime/legal/product
-evidence backlog, not open raw source allegations: live RLS staging gate
-execution plus route-level prototype tests before any table policy, Stripe
-refund runtime reconciliation/backfill proof, Stripe partial-refund live
-reconciliation proof, label clawback runtime reconciliation evidence, Stripe
-webhook subscription dashboard evidence, Stripe Connect v2 loss-liability
-ops/legal decision, explicit stale remote branch pruning/review, Round 10
-cache/state-machine product designs, EXPLAIN-dependent runtime query-plan
-validation, provider-side privacy erasure/legal-request evidence, cross-seller
-AI duplicate-detection product design, durable checkout-group product semantics
-beyond current guardrails, high-scale BigInt money/counter modeling decisions,
-live-data reconciliation for historical seller shipping-rate currency drift,
-Clerk staff MFA/breached-password/multi-account dashboard evidence,
-buyer-deletion live Stripe replay proof, Founding Maker live DB concurrency
-proof, Sentry cron alert evidence, Cloudflare R2 ListBucket/public bucket
-posture plus production smoke/public-availability proof, HSTS preload
-submission/status, Vercel Analytics/Speed Insights product privacy decision,
-homepage browser a11y/runtime proof, and deployed security-header runtime
-proof.
-
-### Entry 507 - pg_trgm provisioning grantability hardening
-
-Entry 507 reviewed Claude's follow-up note on the corrected `pg_trgm` grant
-coverage as a junior read-only report, then parent Codex independently checked
-the provisioning SQL, grant audit, `pg_trgm` migrations, and RLS/grant docs. The
-review found one under-called source gap: current runtime `EXECUTE` evidence
-needed to be tied to a reproducible provisioning story for source-derived
-extensions. The first pushed implementation was intentionally checked by CI and
-failed in the synthetic Postgres test because PostgreSQL trusted-extension
-functions can be owned by the bootstrap/admin role (`ci` in Actions) even when
-`CREATE EXTENSION` runs as the migration role. Parent Codex corrected the rule:
-runtime `EXECUTE` is the required property, while missing runtime `EXECUTE`
-must fail if the declared migration role cannot grant it. Latest pushed CI on
-`main` was green for `28fdf683` (`28912951479`) before editing. No agent was
-needed for this narrow pass.
-
-Fixed/reduced:
-
-- `scripts/audit-runtime-db-grants.mjs` now checks source-derived extensions as
-  part of the declared ownership/grantability model. Required extensions must
-  not be owned by the runtime role, extension ownership drift is reported, and
-  every extension-owned function plus app-used runtime function and operator
-  backing function must be executable by the runtime role. For bootstrap-owned
-  trusted-extension functions that the migration role cannot grant, the audit
-  allows current runtime access through PostgreSQL's `PUBLIC` default but fails
-  if runtime `EXECUTE` is missing and the migration role cannot restore it.
-- `scripts/provision-runtime-db-role.sql` now performs a preflight before
-  emitting `GRANT EXECUTE` statements for `pg_trgm` functions. It grants only
-  extension functions for which the migration role has `EXECUTE WITH GRANT
-  OPTION`; for the rest, it verifies the runtime role already has `EXECUTE`.
-  If runtime access is missing and the migration role cannot grant it,
-  provisioning stops with a specific owner/function message directing operators
-  to a reviewed admin-owned provisioning step.
-- `docs/db-defense-in-depth-plan.md`, `docs/rls-feasibility-plan.md`, and
-  `docs/runbook.md` now record the contract: runtime access and reproducible
-  provisioning are separate checks, trusted extension functions may be
-  bootstrap/admin-owned, and a future function-lockdown pass for non-grantable
-  `pg_trgm` functions needs an explicitly reviewed admin-owned provisioning
-  step.
-
-Verified stale/current or deferred without source changes:
-
-- Claude's optional idea to reopen the old migration-role `PUBLIC` revoke
-  fixture was not adopted. CI proved the clean trusted-extension path itself can
-  have bootstrap-owned functions, so the deterministic negative fixture now
-  creates `pg_trgm` through the admin connection and revokes PUBLIC function
-  execute there before proving the audit fails when runtime access is missing
-  and the migration role cannot grant it.
-- RLS remains staged behind the existing pooling/context gate. This pass only
-  tightens pre-RLS grant audit/provisioning evidence and does not enable table
-  policies.
-
-Guardrails added/reviewed:
-
-- Extended `tests/db-grant-inventory.test.mjs` static checks to pin extension
-  owner/runtime-execute audit logic, `EXECUTE WITH GRANT OPTION` checks, the
-  provisioning preflight, and the new docs/runbook language.
-- Added GitHub-only synthetic Postgres fixture paths where `pg_trgm` is created
-  by the admin connection before the migration role runs app setup. The first
-  asserts wrong extension ownership is reported without treating still-present
-  PUBLIC execute as a runtime failure; the second revokes PUBLIC function
-  execute and asserts the audit reports missing runtime access that is not
-  grantable by the migration role.
-
-Verification:
-`git status --short`; `gh run list --branch main --limit 5` confirmed latest
-pushed CI on `main` was green for `28fdf683`; source/docs/test inspection with
-`rg`/`sed`; focused
-`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
---test tests/db-grant-inventory.test.mjs tests/rls-feasibility-plan.test.mjs
-tests/public-query-determinism.test.mjs` passed 26/27 with the expected local
-GitHub-only Postgres integration skip; `npx tsc --noEmit`; `git diff --check`;
-`npm run lint` exited 0 with the known jsx-ast-utils TSNonNullExpression
-warning; full `npm test` passed 1469/1470 with the expected local GitHub-only
-Postgres integration skip; and GitHub CI run `28913820257` failed in Tests on
-the first stricter implementation, proving trusted `pg_trgm` functions can be
-bootstrap/admin-owned even on the clean migration-created path and driving the
-corrected runtime-execute-plus-repairability rule. Follow-up GitHub CI run
-`28914123520` for `8835023e` passed fully on `main`: typecheck, lint, tests,
-security audit, and production build.
-
-Current running tally after Entry 507: verified fixed/reduced 1005, verified
-stale/false-positive/current 579, deferred product/design/ops/legal 87,
-approximate raw allegations left from current max #1126: 0. Fixed/reduced
-increases by one for the grantability/provisioning reproducibility hardening.
-Raw-left stays at zero because this was post-raw hidden-issue hardening, not
-closure of a remaining raw allegation.
-
-Remaining major categories are still the deferred launch/runtime/legal/product
-evidence backlog, not open raw source allegations: Stripe refund runtime
-reconciliation/backfill proof, Stripe partial-refund live reconciliation proof,
-label clawback runtime reconciliation evidence, Stripe webhook subscription
-dashboard evidence, Stripe Connect v2 loss-liability ops/legal decision,
-explicit stale remote branch pruning/review, Round 10 cache/state-machine
-product designs, EXPLAIN-dependent runtime query-plan validation, provider-side
-privacy erasure/legal-request evidence, cross-seller AI duplicate-detection
-product design, durable checkout-group product semantics beyond current
-guardrails, high-scale BigInt money/counter modeling decisions, live-data
-reconciliation for historical seller shipping-rate currency drift, Clerk staff
-MFA/breached-password/multi-account dashboard evidence, buyer-deletion live
-Stripe replay proof, Founding Maker live DB concurrency proof, Sentry cron alert
-evidence, Cloudflare R2 ListBucket/public bucket posture plus production
-smoke/public-availability proof, HSTS preload submission/status, Vercel
-Analytics/Speed Insights product privacy decision, homepage browser
-a11y/runtime proof, and deployed security-header runtime proof.
-
-## Entry 491 - notification read count and source-evidence reverify pass
-
-Entry 491 closes a parent-verified pass over remaining Stripe webhook/Connect,
-EXPLAIN/index/numeric, cron/notification, seller-broadcast, and dashboard
-evidence allegations. Two read-only agents inspected disjoint Stripe/Connect and
-EXPLAIN/numeric slices; parent Codex reviewed their reports against current
-source, tests, docs, and the active ledger before editing. Both agents were
-closed. The raw audit import and expected untracked local files were not staged.
-
-Fixed/reduced:
-
-- Raw notification read-all truncation finding #144 was real as a small API
-  correctness issue. `POST /api/notifications/read-all` still caps explicit
-  `ids` input at 100, but now dedupes IDs before the cap, returns
-  `markedCount`, and reports `cappedIds` so clients can distinguish a complete
-  mark-read from a partial capped update.
-
-Verified stale/current or deferred without source changes:
-
-- Raw ops-health Sentry monitor finding #128 is stale/current. The route now
-  returns `503` when actionable issues exist, and `withSentryCronMonitor()`
-  maps 5xx responses to failed Sentry check-ins. Existing tests pin the
-  unhealthy status behavior.
-- Raw recently-viewed `rv` cookie Secure-flag finding #326 is stale/current.
-  `recentlyViewedCookieAttributes()` appends `Secure` on HTTPS and preserves
-  local HTTP development behavior, with a focused test.
-- Raw email-outbox quota-dead-letter, Guild metrics revocation, listing-view
-  cleanup, and notification-prune/refund-lock allegations #126-#130 are
-  stale/current. Quota deferrals roll back the claim attempt count, Guild Master
-  revocation recalculates metrics immediately before the terminal update,
-  `ListingViewDaily` cleanup is time-budgeted, and notification-prune isolates
-  stale refund-lock release failures under `source=cron_refund_lock_release`.
-- Raw seller-broadcast and recent-sales allegations #140-#143 are
-  stale/current. Broadcast writes use a pre-parse attempt limiter plus a weekly
-  limiter after validation and cooldown checks, filter reciprocal blocks before
-  notification/email fanout, and enqueue `EMAIL_SELLER_BROADCAST` only for
-  explicit email opt-ins. Recent-sales requires whole-order seller ownership,
-  `paidStripeOrderWhere()`, `sellerRefundId: null`, and
-  `blockingRefundLedgerWhere()`.
-- Stripe webhook source remains current for handled snapshot and Connect v2
-  thin-event routes. The source keeps separate secrets/routes, bounded body
-  reads, signature verification, stale-event rejection, idempotency, card-only
-  Checkout methods, and v2 account-state mirroring. Exact Stripe Dashboard
-  endpoint subscriptions and delivery/replay evidence remain runtime evidence
-  items, not source-proven fixes.
-- Stripe Connect v2 `losses_collector: "application"` remains intentional
-  source behavior tied to `docs/legal-risk-register.md`. Closing that category
-  still requires business/legal/accounting signoff or an explicit exception.
-- EXPLAIN/index/numeric allegations are source-current but not fully closed by
-  static inspection. Raw-managed indexes, validated CHECK constraints, hot-path
-  indexes, stable public query caps/tie-breakers, and seller metrics `BigInt`
-  storage are guarded. Production-like `EXPLAIN (ANALYZE, BUFFERS)` and any
-  future `BigInt` migration for individual order/item/payment cents or
-  long-lived counters remain runtime/data-modeling decisions.
-- Clerk breached-password/staff MFA/multi-account spam controls, HSTS preload
-  submission, deployed security-header proof, Sentry alert routing, Vercel
-  Analytics/Speed Insights, and R2 dashboard/smoke evidence remain dashboard or
-  product/privacy evidence items.
-
-Guardrails added/reviewed:
-`tests/notification-delivery-preferences.test.mjs` now pins that the read-all
-route dedupes/caps explicit IDs and returns `markedCount` plus `cappedIds`.
-Reviewed guardrails included `tests/mutation-rate-limit-sweep.test.mjs`,
-`tests/private-json-cache-headers.test.mjs`,
-`tests/api-read-rate-limit-sweep.test.mjs`,
-`tests/seller-ops-hardening.test.mjs`,
-`tests/seller-analytics-refund-guardrails.test.mjs`,
-`tests/retention-and-ops-followups.test.mjs`,
-`tests/cron-schedule-guardrails.test.mjs`,
-`tests/cron-monitor-state.test.mjs`, `tests/recently-viewed.test.mjs`,
-`tests/stripe-webhook-v2-route.test.mjs`,
-`tests/checkout-payment-methods.test.mjs`, `tests/stripe-connect-v2.test.mjs`,
-`tests/schema-drift-followups.test.mjs`,
-`tests/schema-numeric-index-guardrails.test.mjs`,
-`tests/public-query-determinism.test.mjs`,
-`tests/public-visibility-followups.test.mjs`,
-`tests/public-cron-search-hardening.test.mjs`,
-`tests/listing-analytics-guardrails.test.mjs`, and
-`tests/guild-metrics-state.test.mjs`.
-
-Verification:
-`gh run list --branch main --limit 3` confirmed latest pushed CI on `main`
-was green for `e8c94de2`; source/docs/test inspection with `rg`/`sed`; two
-parent-reviewed read-only agent reports; focused `node --test
-tests/notification-delivery-preferences.test.mjs
-tests/mutation-rate-limit-sweep.test.mjs tests/private-json-cache-headers.test.mjs
-tests/api-read-rate-limit-sweep.test.mjs tests/seller-ops-hardening.test.mjs
-tests/seller-analytics-refund-guardrails.test.mjs
-tests/retention-and-ops-followups.test.mjs tests/cron-schedule-guardrails.test.mjs
-tests/cron-monitor-state.test.mjs tests/recently-viewed.test.mjs
-tests/stripe-webhook-v2-route.test.mjs tests/checkout-payment-methods.test.mjs
-tests/stripe-connect-v2.test.mjs tests/schema-drift-followups.test.mjs
-tests/schema-numeric-index-guardrails.test.mjs
-tests/public-query-determinism.test.mjs tests/public-visibility-followups.test.mjs
-tests/public-cron-search-hardening.test.mjs tests/listing-analytics-guardrails.test.mjs
-tests/guild-metrics-state.test.mjs`, which passed 143/143; and
-`npx tsc --noEmit`; `git diff --check`; `npm run lint` (known
-`jsx-ast-utils` TSNonNullExpression warning, exit 0); and full `npm test`
-passing 1448/1448.
-
-Current running tally after Entry 491: verified fixed/reduced 977, verified
-stale/false-positive/current 542, deferred product/design/ops/legal 81,
-approximate raw allegations left from current max #1126: 18. Fixed/reduced
-increases by one and raw-left decreases by one for the notification read-all
-response fix. Stale/current and deferred stay flat because the broader
-reverified slices were already represented in the ledger or remain existing
-runtime/dashboard/legal evidence items.
-
-Remaining major categories: Stripe refund runtime/backfill design beyond the
-now-fixed first-party orphan ledger and local transfer-reversal evidence,
-Stripe partial-refund live reconciliation proof, label clawback runtime
-proof/dashboard reconciliation evidence, Stripe webhook subscription dashboard
-evidence, Stripe Connect v2 loss-liability ops/legal decision, explicit stale
-remote branch pruning/review, completed-audit archive housekeeping once the
-60-day threshold is reached, Round 10 deferred cache/state-machine product
-designs that require product decisions rather than source guardrails,
-EXPLAIN-dependent runtime query-plan validation beyond the existing source
-indexes and source guardrails, founding-maker permanence policy,
-provider-side privacy erasure/legal-request evidence, cross-seller AI
-duplicate-detection product design, durable checkout-group design for checkout
-batch semantics beyond grouped ready-lock/reservation resume and
-completed-session filtering, deliberate BigInt money-column modeling for
-individual order/item cents fields and high-volume listing analytics counters
-beyond the fixed seller-metrics aggregate cache and new webhook integer bounds,
-live-data reconciliation for historical seller shipping-rate currency drift,
-Guild private/custom-order sales/review trust-metric product policy, Clerk
-staff MFA and breached-password dashboard evidence, Clerk multi-account spam
-dashboard evidence, buyer-deletion live Stripe replay proof after source
-minimization, Founding Maker live DB concurrency proof, Sentry cron alert
-evidence, Cloudflare R2 ListBucket/public bucket dashboard posture plus
-production smoke evidence and public-availability proof, HSTS preload
-submission decision, Vercel Analytics/Speed Insights product/privacy decision,
-homepage browser a11y/runtime proof beyond source fallback, and deployed
-security-header runtime proof beyond source/config guardrails.
-
-### Entry 493 - refund evidence visibility and Guild trust-metric policy
-
-This parent-reviewed pass used two read-only agents plus local source review to
-recheck the remaining Stripe refund/label/webhook evidence bucket and the
-Founding Maker/Guild policy bucket. Latest pushed CI on `main` was already green
-for `983f867f` before broadening audit scope.
-
-Fixed/reduced in source:
-
-- Admin order detail now surfaces nested
-  `OrderPaymentEvent.metadata.refundAccounting` evidence instead of requiring
-  staff to inspect raw JSON or SQL. The Stripe Payment Events panel renders the
-  transfer reversal id, seller recovery amount, platform-funded amount, and
-  original seller transfer amount when first-party seller/staff/blocked-checkout
-  refund evidence contains those fields.
-- The Guild private/custom-order trust-metric policy is now explicit and
-  guarded. Verified private/custom-order purchases continue to count toward
-  seller ratings, completed-sales totals, on-time shipping, and response metrics;
-  the separate Guild Member public-inventory criterion still requires five
-  active public listings. `CLAUDE.md` now records that this should not change
-  without an explicit product/legal decision and a migration/recalculation plan.
-
-Verified stale/current or deferred without source changes:
-
-- Raw #1101 remains a dashboard-evidence item, not a source defect. Current
-  source handles the inspected Checkout, account, refund, dispute, and payout
-  event branches; proving the deployed Stripe Dashboard subscription set still
-  requires provider-side evidence.
-- Raw #1106 and the repeated partial-refund idempotency/drain allegations were
-  rechecked as source-current/stale. Seller/staff refund routes keep a
-  single-blocking-refund-per-order model with refund locks, durable
-  `OrderPaymentEvent` evidence, and blocking refund ledger checks. The remaining
-  partial-refund economics proof is still Stripe test-mode/runtime evidence.
-- Old raw #105/#106 partial stock-restore allegations remain current/stale:
-  seller and staff case refund paths accept bounded `restoreStock` arrays and
-  validate requested quantities against purchased in-stock items. No duplicate
-  raw tally increase was taken because these were already represented in earlier
-  ledger entries.
-- Founding Maker race/range and stale-counter allegations (#180/#280/#351/#425/
-  #434/#951/#1020) are source-current/stale: grants use an advisory transaction
-  lock, unique/check constraints, final `isFoundingMaker: false` guards, and the
-  `/why-grainline` counter is revalidated. Live DB concurrency proof remains
-  runtime evidence only.
-- Guild reapply/cooldown/cache/audit allegations (#1025/#1031/#1037/#1038/
-  #1041/#1049/#1050 and related active-case metric allegations #854/#856) are
-  source-current/stale under the current code. Cooldowns, cron audit logs,
-  featured-maker cache revalidation, and all-time unresolved active-case
-  counting are already guarded by existing tests.
-- Founding Maker permanence after ban/fraud remains a product/legal policy
-  decision. Public visibility hides banned/deleted sellers, but badge fields are
-  not cleared by account-state transitions.
-
-Guardrails added/reviewed:
-
-- Added `surfaces first-party refund accounting evidence on admin order payment
-  events` to `tests/admin-action-guardrails.test.mjs`.
-- Added `keeps private and custom verified purchases in Guild trust metrics by
-  policy` to `tests/guild-metrics-state.test.mjs`.
-- Updated `CLAUDE.md` with reusable behavior contracts for admin refund
-  accounting visibility and Guild private/custom-order metric semantics.
-
-Verification:
-`git status --short`; `gh run list --branch main --limit 3` confirmed latest
-pushed CI on `main` was green for `983f867f`; parent source review with
-`rg`/`sed`; two parent-reviewed read-only agent reports; focused
-`node --test tests/admin-action-guardrails.test.mjs
-tests/guild-metrics-state.test.mjs` passed 13/13 after tightening one brittle
-assertion; `npx tsc --noEmit`; `git diff --check`; `npm run lint` (known
-`jsx-ast-utils` TSNonNullExpression warning, exit 0); and full `npm test`
-passing 1451/1451.
-
-Current running tally after Entry 493: verified fixed/reduced 980, verified
-stale/false-positive/current 542, deferred product/design/ops/legal 80,
-approximate raw allegations left from current max #1126: 17. Fixed/reduced
-increases by two for the admin refund-accounting evidence surface and the now
-documented/guarded Guild private/custom-order metric policy. Deferred decreases
-by one because the Guild private/custom-order trust-metric policy is no longer
-being carried as an unresolved product-policy ambiguity. Stale/current does not
-increase because the repeated raw IDs above were already classified in earlier
-entries.
-
-Remaining major categories: Stripe refund runtime/backfill design beyond the
-now-fixed first-party orphan ledger and local transfer-reversal evidence,
-Stripe partial-refund live reconciliation proof, label clawback runtime
-proof/dashboard reconciliation evidence, Stripe webhook subscription dashboard
-evidence, Stripe Connect v2 loss-liability ops/legal decision, explicit stale
-remote branch pruning/review, completed-audit archive housekeeping once the
-60-day threshold is reached, Round 10 deferred cache/state-machine product
-designs that require product decisions rather than source guardrails,
-EXPLAIN-dependent runtime query-plan validation beyond the existing source
-indexes and source guardrails, founding-maker permanence policy,
-provider-side privacy erasure/legal-request evidence, cross-seller AI
-duplicate-detection product design, durable checkout-group design for checkout
-batch semantics beyond grouped ready-lock/reservation resume and
-completed-session filtering, deliberate BigInt money-column modeling for
-individual order/item cents fields and high-volume listing analytics counters
-beyond the fixed seller-metrics aggregate cache and new webhook integer bounds,
-live-data reconciliation for historical seller shipping-rate currency drift,
-Clerk staff MFA and breached-password dashboard evidence, Clerk multi-account
-spam dashboard evidence, buyer-deletion live Stripe replay proof after source
-minimization, Founding Maker live DB concurrency proof, Sentry cron alert
-evidence, Cloudflare R2 ListBucket/public bucket dashboard posture plus
-production smoke evidence and public-availability proof, HSTS preload
-submission decision, Vercel Analytics/Speed Insights product/privacy decision,
-homepage browser a11y/runtime proof beyond source fallback, and deployed
-security-header runtime proof beyond source/config guardrails.
-
-### Entry 503 - email outbox retry hygiene and staff case PIN hardening
-
-Entry 503 continued source-focused review after raw allegations reached zero by
-auditing email outbox/suppression/Resend behavior plus admin/health/staff
-security-control paths for hidden defects. Latest pushed CI on `main` was green
-for `b24e2fc5` (`28823873919`) before broadening audit scope. Two read-only
-agents inspected disjoint email and admin/health slices; parent Codex verified
-their source-actionable findings locally and closed both agents.
-
-Fixed/reduced:
-
-- Email outbox global-quota deferrals now roll back a successful per-recipient
-  quota reservation before requeueing the job. The per-recipient quota still runs
-  before the global quota and still uses hashed recipient keys, but a global cap
-  or global quota-counter outage no longer consumes a recipient's daily
-  allowance for an email that was not sent.
-- Email outbox processing now skips hard-suppressed recipients before reserving
-  quota or calling Resend. Bounce, complaint, and account-deletion suppressions
-  become terminal `SKIPPED` outbox rows instead of retrying up to `DEAD` while
-  burning quota.
-- Resend `email.failed` transient failure accounting is now idempotent for a
-  repeated webhook event id. If a multi-recipient webhook partially fails and
-  gets retried, recipients already counted for that `svix-id` keep their
-  existing `EmailFailureCount.count` instead of incrementing again and reaching
-  suppression threshold early.
-- Staff case resolution on the public `/api/cases/[id]/resolve` route now
-  requires the session-bound admin PIN cookie after local staff role validation
-  and before rate limits, refund locks, Stripe refunds, or case mutations.
-- Staff-triggered case escalation on public case routes now requires the same
-  session-bound admin PIN. Cron escalation via `CRON_SECRET` remains available
-  without a Clerk session or PIN.
-- Non-party staff case messages on public case routes now require the
-  session-bound admin PIN before message creation. Buyer/seller party messages
-  remain on the normal case-participant path without an admin PIN requirement.
-
-Verified stale/current or deferred without source changes:
-
-- One-click unsubscribe, hard-vs-manual suppression, Gmail alias suppression
-  keys, newsletter signup suppression handling, and unsubscribe epoch/manual
-  resubscribe semantics remain source-current in the inspected slice.
-- Email outbox terminal retention remains source-current: `SENT`, `SKIPPED`, and
-  `DEAD` rows are pruned after 30 days through notification-prune, while retryable
-  rows are retained and surfaced by ops-health.
-- Support/legal intake email failure evidence remains source-current. Public
-  support and data-request routes create durable request rows before notification
-  email, preserve the pending marker, sanitize send errors into `emailLastError`,
-  and expose ambiguous send state to admins.
-- Health route behavior remains source-current. Anonymous responses disclose
-  only `{ ok }`; verbose dependency details require the configured bearer/header
-  token through constant-time digest comparison; responses use private no-store
-  cache headers and `Vary`; the R2 probe remains a reachability signal only.
-- Admin support/data-request closure behavior remains current. Closing a
-  `DATA_REQUEST` requires bounded closure evidence, stores the evidence on the
-  support row, and keeps audit metadata to bounded booleans/lengths/timestamps.
-- Admin/system audit metadata guardrails remain current for the inspected slice:
-  reasons/errors are sanitized/truncated, `SystemAuditLog.metadata` is capped at
-  64KB, and `AdminAuditLog.metadata` remains DB-capped and covered by existing
-  JSON guardrails. Clerk dashboard security evidence remains deferred runtime
-  evidence, not a source-proven code defect.
-
-Guardrails added/reviewed:
-
-- `tests/email-outbox-quota.test.mjs` now covers recipient quota rollback and
-  requires the drain path to roll back recipient quota when global quota blocks
-  a send.
-- `tests/email-delivery-guardrails.test.mjs` now requires hard-suppressed outbox
-  recipients to be skipped before recipient quota reservation.
-- `tests/account-privacy-observability.test.mjs` now requires Resend transient
-  failure SQL to no-op the count when the same `lastEventId` is replayed.
-- `tests/admin-pin.test.mjs` now requires the reusable public-API admin PIN
-  helper and pins staff case resolve/escalate/message route coverage.
-- Reviewed existing guardrails included email outbox state/retention, notification
-  preferences, Resend webhook config, unsubscribe token, email normalization,
-  newsletter double opt-in, user email history, health state, support request
-  state, and system audit logging tests.
-
-Verification:
-`git status --short`; `gh run list --branch main --limit 5`; source and test
-inspection with `rg`/`sed`; two parent-reviewed read-only agent reports; focused
-`node --test tests/email-outbox-quota.test.mjs tests/email-outbox-state.test.mjs
-tests/email-outbox-retention.test.mjs tests/email-delivery-guardrails.test.mjs
-tests/notification-email-preferences.test.mjs tests/resend-webhook-config.test.mjs
-tests/unsubscribe-token.test.mjs tests/email-normalization-followups.test.mjs
-tests/account-privacy-observability.test.mjs tests/newsletter-double-opt-in.test.mjs
-tests/user-email-address-history.test.mjs tests/admin-pin.test.mjs
-tests/health-state.test.mjs tests/support-request-state.test.mjs
-tests/system-audit-log.test.mjs` passed 109/109; focused smoke
-`node --test tests/admin-pin.test.mjs tests/email-outbox-quota.test.mjs
-tests/email-delivery-guardrails.test.mjs
-tests/account-privacy-observability.test.mjs` passed 52/52; `git diff
---check` passed; `npx tsc --noEmit` passed; `npm run lint` exited 0 with the
-known jsx-ast-utils TSNonNullExpression warning; full `npm test` passed
-1457/1457.
-
-Current running tally after Entry 503: verified fixed/reduced 998, verified
-stale/false-positive/current 573, deferred product/design/ops/legal 87,
-approximate raw allegations left from current max #1126: 0. Fixed/reduced
-increases by six for recipient quota rollback, hard-suppressed outbox skip,
-Resend transient-failure replay idempotency, staff case resolution PIN gating,
-staff case escalation PIN gating, and non-party staff case-message PIN gating.
-Stale/current increases by six for the reverified unsubscribe/suppression,
-outbox retention, support/legal email evidence, health route, admin data-request
-closure, and admin/system audit metadata checks.
-
-Remaining major categories are still the deferred launch/runtime/legal/product
-evidence backlog, not open raw source allegations: Stripe refund runtime
-reconciliation/backfill proof, Stripe partial-refund live reconciliation proof,
-label clawback runtime reconciliation evidence, Stripe webhook subscription
-dashboard evidence, Stripe Connect v2 loss-liability ops/legal decision,
-explicit stale remote branch pruning/review, Round 10 cache/state-machine
-product designs, EXPLAIN-dependent runtime query-plan validation, provider-side
-privacy erasure/legal-request evidence, cross-seller AI duplicate-detection
-product design, durable checkout-group product semantics beyond current
-guardrails, high-scale BigInt money/counter modeling decisions, live-data
-reconciliation for historical seller shipping-rate currency drift, Clerk staff
-MFA/breached-password/multi-account dashboard evidence, buyer-deletion live
-Stripe replay proof, Founding Maker live DB concurrency proof, Sentry cron alert
-evidence, Cloudflare R2 ListBucket/public bucket posture plus production
-smoke/public-availability proof, HSTS preload submission/status, Vercel
-Analytics/Speed Insights product privacy decision, homepage browser
-a11y/runtime proof, and deployed security-header runtime proof.
-
-### Entry 504 - Guild approval account-state guard and content-ingest reverify pass
-
-Entry 504 continued source-focused review after raw allegations reached zero by
-auditing admin/support/moderation mutation surfaces plus upload/content-ingest
-and public-content write paths, including hidden adjacent issues not listed as
-open raw allegations. Latest pushed CI on `main` was green for `bb7f4909`
-(`28824704810`) before broadening audit scope. Two read-only agents inspected
-disjoint admin/moderation and upload/content-ingest slices; parent Codex
-verified the actionable finding locally, reviewed the stale/current content
-findings against source/tests, and closed both agents.
-
-Fixed/reduced:
-
-- Guild Member and Guild Master approval actions now load the seller account's
-  `banned`/`deletedAt` state and return a visible approval error when the seller
-  account is suspended or deleted. This prevents staff from approving a trust
-  badge onto an inactive account that could later become visible after unban.
-- Guild Member and Guild Master approval transactions now update
-  `SellerProfile` through `updateMany` with `user: { banned: false,
-  deletedAt: null }` and route zero-row writes through
-  `assertGuildVerificationTransition`, so a ban/deletion race between the read
-  and approval write rolls back the verification status update and surfaces a
-  refresh-required error.
-
-Verified stale/current or deferred without source changes:
-
-- Upload MIME/magic-byte bypass allegations are stale for the inspected paths.
-  Processed image uploads validate type, size, magic bytes, bounded Sharp
-  decoding, processed size, public availability, and lifecycle recording before
-  returning URLs. Direct uploads are signed by key/type/size/expiry and verified
-  through HEAD metadata plus prefix-byte signature checks before acceptance.
-- Uploaded media ownership-drift allegations are stale/current. Review,
-  listing, profile, blog, and message persistence paths re-verify first-party
-  keys, authenticated Clerk user segments, endpoint allowlists, R2 metadata,
-  content signatures, and direct-upload lifecycle owner/status before claiming
-  media in the persistence transaction.
-- Unsafe HTML/markdown rendering allegations are stale/current. General
-  user-authored text stores stripped text through shared sanitizers, blog
-  markdown renders through centralized `sanitize-html` with narrow schemes and
-  first-party image filtering, and blog comments are stored as sanitized plain
-  text pending approval.
-- AI moderation fail-open/bypass allegations are stale/current in the inspected
-  listing paths. New listings start `PENDING_REVIEW`, public edits move through
-  `PENDING_REVIEW`, approval restores public status only after successful
-  AI/confidence/flag checks, provider failures remain held, and AI image inputs
-  are first-party filtered.
-- `listingVideo` direct-upload support remains an unused/deferred feature
-  surface rather than a source-proven security defect in this pass. The direct
-  upload route still requires seller auth, verification tokens, lifecycle rows,
-  content checks, and cleanup; no listing video persistence path was found.
-
-Guardrails added/reviewed:
-
-- Added `keeps Guild approval writes on active seller accounts` to
-  `tests/security-lifecycle-followups.test.mjs`, covering approval-time account
-  state reads, visible inactive-account blocks, active-account write predicates,
-  and transition-race surfacing for both Guild Member and Guild Master
-  approvals.
-- Reviewed existing upload/content guardrails including
-  `tests/direct-upload-lifecycle.test.mjs`,
-  `tests/upload-verification-token.test.mjs`,
-  `tests/message-attachments.test.mjs`,
-  `tests/blog-markdown-sanitization.test.mjs`,
-  `tests/rendering-security.test.mjs`,
-  `tests/ai-review-outer-failclosed.test.mjs`, and
-  `tests/ai-review-safety.test.mjs`.
-
-Verification:
-`git status --short`; `gh run list --branch main --limit 3`; source and test
-inspection with `rg`/`sed`; two parent-reviewed read-only agent reports; focused
-`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
---test tests/security-lifecycle-followups.test.mjs` passed 8/8; broader focused
-suite `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
---experimental-strip-types --test tests/security-lifecycle-followups.test.mjs
-tests/direct-upload-lifecycle.test.mjs tests/upload-verification-token.test.mjs
-tests/message-attachments.test.mjs tests/blog-markdown-sanitization.test.mjs
-tests/rendering-security.test.mjs tests/ai-review-outer-failclosed.test.mjs
-tests/ai-review-safety.test.mjs` passed 56/56; `npx tsc --noEmit`; `git diff
---check`; `npm run lint` exited 0 with the known jsx-ast-utils
-TSNonNullExpression warning; full `npm test` passed 1458/1458.
-
-Current running tally after Entry 504: verified fixed/reduced 999, verified
-stale/false-positive/current 577, deferred product/design/ops/legal 87,
-approximate raw allegations left from current max #1126: 0. Fixed/reduced
-increases by one for the Guild approval active-account guard. Stale/current
-increases by four for the reverified upload MIME/signature, media ownership,
-HTML/markdown rendering, and AI moderation fail-closed checks. Deferred stays
-flat; `listingVideo` remains an unused/deferred feature surface but was not
-counted as a new deferred source issue.
-
-Remaining major categories are still the deferred launch/runtime/legal/product
-evidence backlog, not open raw source allegations: Stripe refund runtime
-reconciliation/backfill proof, Stripe partial-refund live reconciliation proof,
-label clawback runtime reconciliation evidence, Stripe webhook subscription
-dashboard evidence, Stripe Connect v2 loss-liability ops/legal decision,
-explicit stale remote branch pruning/review, Round 10 cache/state-machine
-product designs, EXPLAIN-dependent runtime query-plan validation, provider-side
-privacy erasure/legal-request evidence, cross-seller AI duplicate-detection
-product design, durable checkout-group product semantics beyond current
-guardrails, high-scale BigInt money/counter modeling decisions, live-data
-reconciliation for historical seller shipping-rate currency drift, Clerk staff
-MFA/breached-password/multi-account dashboard evidence, buyer-deletion live
-Stripe replay proof, Founding Maker live DB concurrency proof, Sentry cron alert
-evidence, Cloudflare R2 ListBucket/public bucket posture plus production
-smoke/public-availability proof, HSTS preload submission/status, Vercel
-Analytics/Speed Insights product privacy decision, homepage browser
-a11y/runtime proof, and deployed security-header runtime proof.
-
-### Entry 505 - seller profile limits, broadcast cooldown, and deletion-order reverify pass
-
-Entry 505 reviewed a new Claude/Fable read-only report plus adjacent seller
-profile and broadcast mutation surfaces. Latest pushed CI on `main` was green
-for `15a5fbb8` (`28826500875`) before broadening audit scope. One read-only
-agent inspected the disjoint low-severity seller profile/broadcast allegations;
-parent Codex verified the agent report against current source, tests, and the
-account-deletion behavior contract, then closed the agent.
-
-Fixed/reduced:
-
-- Seller profile FAQ creation now enforces a server-side 20-FAQ cap and hides
-  the add form at the cap. The count, latest sort-order read, and create run in
-  a serializable transaction with retry, reducing concurrent over-creation and
-  duplicate sort-order risk.
-- Seller profile featured-listing toggles now perform the listing ownership
-  check, fresh featured-listing read, six-item cap check, and update in a
-  serializable transaction with retry. This reduces lost-update risk while
-  preserving the existing six-feature limit.
-- Seller broadcast creation now rechecks the durable seven-day DB cooldown
-  inside a serializable transaction immediately before insert. The Redis weekly
-  limiter remains in place, but it is no longer the only concurrency guard
-  between the preflight cooldown check and broadcast creation.
-
-Verified stale/current or deferred without source changes:
-
-- The reported account-deletion ordering regression is stale/false-positive on
-  current `main`. Current source, tests, and behavior contracts intentionally
-  delete the Clerk account before queuing local anonymization recovery, then
-  enqueue the recovery row before route-level anonymization. This avoids leaving
-  claimable local anonymization work when Clerk deletion fails, while still
-  preserving a retryable local recovery path after Clerk deletion succeeds.
-- The claim that `toggleFeaturedListing` can exceed six featured items was not
-  reproduced. The existing stale-state path could lose a concurrent toggle, but
-  parent review and the read-only agent did not find a cap-exceed path. The
-  implementation was still hardened with a serializable retry transaction.
-- Seller broadcast cooldown remains a product/runtime control with layered
-  source guardrails, not an absolute distributed guarantee. This pass reduced
-  risk by adding a durable transaction-time cooldown recheck; it did not claim
-  the broadcast path is impossible to race under every provider/runtime failure.
-
-Guardrails added/reviewed:
-
-- Extended `tests/seller-ops-hardening.test.mjs` to require seller broadcast
-  transaction-time DB cooldown rechecks, serializable retry usage, and the
-  reusable seven-day cooldown constant before broadcast insert.
-- Added seller profile guardrails requiring FAQ and featured-listing caps to run
-  under serializable retry transactions, with the UI using the same cap
-  constants.
-- Reviewed the existing account-deletion side-effect and timeout guardrails
-  that lock in Clerk-delete-before-local-recovery ordering and terminal client
-  behavior for post-Clerk local anonymization failures.
-
-Verification:
-`git status --short`; `gh run list --branch main --limit 3`; source/test/docs
-inspection with `rg`/`sed`; one parent-reviewed read-only agent report; focused
-`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
---test tests/account-deletion-side-effects.test.mjs
-tests/security-lifecycle-followups.test.mjs` passed 14/14; broader focused
-suite `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
---experimental-strip-types --test tests/seller-ops-hardening.test.mjs
-tests/account-deletion-side-effects.test.mjs
-tests/account-deletion-timeout-fix.test.mjs tests/transaction-retry.test.mjs`
-passed 34/34; `npx tsc --noEmit`; `git diff --check`; `npm run lint` exited
-0 with the known jsx-ast-utils TSNonNullExpression warning; and full `npm test`
-passed 1459/1459.
-
-Current running tally after Entry 505: verified fixed/reduced 1002, verified
-stale/false-positive/current 579, deferred product/design/ops/legal 87,
-approximate raw allegations left from current max #1126: 0. Fixed/reduced
-increases by three for FAQ cap enforcement, featured-listing serializable
-toggle hardening, and seller-broadcast transaction-time cooldown hardening.
-Stale/current increases by two for the account-deletion ordering allegation and
-the featured-listing cap-exceed allegation as stated. Deferred stays flat.
-
-Remaining major categories are still the deferred launch/runtime/legal/product
-evidence backlog, not open raw source allegations: Stripe refund runtime
-reconciliation/backfill proof, Stripe partial-refund live reconciliation proof,
-label clawback runtime reconciliation evidence, Stripe webhook subscription
-dashboard evidence, Stripe Connect v2 loss-liability ops/legal decision,
-explicit stale remote branch pruning/review, Round 10 cache/state-machine
-product designs, EXPLAIN-dependent runtime query-plan validation, provider-side
-privacy erasure/legal-request evidence, cross-seller AI duplicate-detection
-product design, durable checkout-group product semantics beyond current
-guardrails, high-scale BigInt money/counter modeling decisions, live-data
-reconciliation for historical seller shipping-rate currency drift, Clerk staff
-MFA/breached-password/multi-account dashboard evidence, buyer-deletion live
-Stripe replay proof, Founding Maker live DB concurrency proof, Sentry cron alert
-evidence, Cloudflare R2 ListBucket/public bucket posture plus production
-smoke/public-availability proof, HSTS preload submission/status, Vercel
-Analytics/Speed Insights product privacy decision, homepage browser
-a11y/runtime proof, and deployed security-header runtime proof.
-
-### Entry 502 - account deletion email-key collision and source reverify pass
-
-Entry 502 audited account deletion/privacy/provider-erasure behavior plus
-query/index/performance source guardrails, including hidden adjacent issues not
-listed as open raw allegations. Latest pushed CI on `main` was green for
-`ff20e112` (`28823038777`) before broadening audit scope. Two read-only agents
-inspected disjoint account-deletion/privacy and query-performance slices; parent
-Codex verified the actionable account-deletion finding locally and closed both
-agents.
-
-Fixed/reduced:
-
-- Account deletion no longer reintroduces a raw current-email fallback when the
-  collision-safe account email list is empty. `accountEmailFallbackEmailsForUser`
-  already removes exact/Gmail-canonical email keys claimed by another active
-  non-deleted user; deletion now uses only those vetted
-  `accountEmailSuppressionKeys` for email-only cleanup. User-linked outbox rows
-  are still scrubbed through `userId`, while `EmailFailureCount`,
-  `NewsletterSubscriber`, and `EmailSuppression` rows are no longer matched by a
-  fallback key that could collide with another active user's Gmail alias.
-
-Verified stale/current or deferred without source changes:
-
-- Durable account-deletion side effects remain current. Local anonymization,
-  Stripe account rejection, media deletion, and audit-redaction work use
-  deduplicated retryable `AccountDeletionSideEffect` rows, stale PROCESSING
-  reclamation, scheduled retry cron coverage, ops-health alerting, and retention
-  pruning.
-- Provider-deleted Clerk handling remains current. `user.deleted` events call
-  local anonymization, return retryable failure when deletion is already in
-  progress, and defer provider-deleted anonymization when Grainline blockers
-  remain.
-- Account-deletion R2/media cleanup remains source-scoped to first-party media
-  owned by the deleted Clerk user; direct-upload lifecycle URLs are collected
-  before direct-upload rows are deleted.
-- Stripe-reject retry state, support/data-request privacy intake, provider-side
-  erasure runbook language, and privacy-request support linkage remained
-  source-current in the inspected slice.
-- Query/index/performance allegations reviewed in this pass were source-current.
-  Browse geo predicates mirror public listing/seller visibility and block
-  filters, browse and seller-shop pagination have deterministic ordering,
-  seller pages use shared cached/bounded loaders, similar-items raw SQL has
-  public predicates and stable ordering, search suggestions are capped and
-  public-filtered, and raw-managed hot indexes exist for visible quality,
-  listing trigram/tag search, and restored blog tag GIN coverage.
-- EXPLAIN-dependent browse geo/seller-page cardinality validation remains
-  runtime evidence, not a source-proven defect. The untracked local `AGENTS.md`
-  also contains stale cache/index wording, but it was intentionally left
-  untouched because it is an untracked preserved operating file.
-
-Guardrails added/reviewed:
-
-- `tests/email-normalization-followups.test.mjs` now requires account deletion
-  to set `suppressionEmailMatches` directly from
-  `accountEmailSuppressionKeys`, and forbids `fallbackSuppressionEmail` or
-  `normalizeEmailSuppressionAddress(user.email)` in the deletion fallback path.
-- `tests/round9-account-deletion-pii-guardrails.test.mjs` now pins the same
-  no-fallback account-deletion behavior alongside existing PII scrubbing checks.
-- Reviewed existing account-deletion/privacy guardrails:
-  `tests/account-deletion-side-effects.test.mjs`,
-  `tests/account-deletion-blocker-refund-state.test.mjs`,
-  `tests/account-deletion-media.test.mjs`,
-  `tests/account-export-privacy.test.mjs`,
-  `tests/account-privacy-observability.test.mjs`,
-  `tests/support-request.test.mjs`, and
-  `tests/user-email-address-history.test.mjs`.
-
-Verification:
-`git status --short`; `gh run list --branch main --limit 3`; source and test
-inspection with `rg`/`sed`; two parent-reviewed read-only agent reports; focused
-`node --test tests/account-deletion-side-effects.test.mjs
-tests/account-deletion-blocker-refund-state.test.mjs
-tests/account-deletion-media.test.mjs
-tests/round9-account-deletion-pii-guardrails.test.mjs
-tests/account-export-privacy.test.mjs tests/email-normalization-followups.test.mjs
-tests/account-privacy-observability.test.mjs tests/support-request.test.mjs
-tests/user-email-address-history.test.mjs` passed 84/84; `npx tsc --noEmit`
-passed; `git diff --check` passed; `npm run lint` exited 0 with the known
-jsx-ast-utils TSNonNullExpression warning; full `npm test` passed 1454/1454.
-
-Current running tally after Entry 502: verified fixed/reduced 992, verified
-stale/false-positive/current 567, deferred product/design/ops/legal 87,
-approximate raw allegations left from current max #1126: 0. Fixed/reduced
-increases by one for the Gmail-collision-safe account-deletion email-only
-cleanup. Stale/current increases by twelve for the reverified account-deletion
-side-effect, provider-deleted Clerk handling, media cleanup, Stripe reject,
-support/privacy intake, provider erasure docs, browse geo predicate, browse and
-seller-shop pagination, seller-page loader, similar-items SQL, search
-suggestion, and raw-managed index source checks. Deferred stays flat because
-the remaining performance work requires EXPLAIN/runtime cardinality evidence.
-
-Remaining major categories are still the deferred launch/runtime/legal/product
-evidence backlog, not open raw source allegations: Stripe refund runtime
-reconciliation/backfill proof, Stripe partial-refund live reconciliation proof,
-label clawback runtime reconciliation evidence, Stripe webhook subscription
-dashboard evidence, Stripe Connect v2 loss-liability ops/legal decision,
-explicit stale remote branch pruning/review, Round 10 cache/state-machine
-product designs, EXPLAIN-dependent runtime query-plan validation, provider-side
-privacy erasure/legal-request evidence, cross-seller AI duplicate-detection
-product design, durable checkout-group product semantics beyond current
-guardrails, high-scale BigInt money/counter modeling decisions, live-data
-reconciliation for historical seller shipping-rate currency drift, Clerk staff
-MFA/breached-password/multi-account dashboard evidence, buyer-deletion live
-Stripe replay proof, Founding Maker live DB concurrency proof, Sentry cron alert
-evidence, Cloudflare R2 ListBucket/public bucket posture plus production
-smoke/public-availability proof, HSTS preload submission/status, Vercel
-Analytics/Speed Insights product privacy decision, homepage browser
-a11y/runtime proof, and deployed security-header runtime proof.
-
-### Entry 501 - Stripe Connect mirror and v2 webhook source hardening
-
-Entry 501 continued from the deferred runtime/provider backlog by auditing
-Stripe refund, label-clawback, Connect v2, and webhook status-mirroring source
-paths for hidden defects not called out by the raw audit. Latest pushed CI on
-`main` is green for `64d0f270` (`28820734225`) before broadening audit scope.
-Two read-only agents inspected disjoint refund/label and Connect/webhook
-slices; parent Codex verified the findings locally and closed both agents.
-
-Fixed/reduced:
-
-- `/dashboard/onboarding` no longer writes `SellerProfile.chargesEnabled`
-  directly after a Stripe account-status refresh. It now routes the refresh
-  through `mirrorStripeChargesEnabled()` with `route: "/dashboard/onboarding"`,
-  so banned/deleted-account suppression, public seller/listing cache
-  invalidation, checkout-session expiry on disable, and `SystemAuditLog`
-  evidence stay centralized.
-- Stripe Connect v2 account notifications with a supported `v2.core.account`
-  event type but no extractable account id no longer get acknowledged and marked
-  processed silently. `/api/stripe/webhook/v2` now records bounded Sentry
-  telemetry and throws before account retrieval, so `markStripeWebhookEventFailed`
-  runs and Stripe can retry instead of losing the event as processed.
-- `mirrorStripeChargesEnabled()` now logs bounded security telemetry when Stripe
-  reports `charges_enabled=true` for a banned/deleted local seller even if local
-  `chargesEnabled` was already false. The helper still does not re-enable the
-  inactive seller.
-- The tracked Stripe Connect docs no longer say no new env vars are required for
-  the v2 flow. `CLAUDE.md` now states that Connect v2 thin webhooks require the
-  separate `STRIPE_V2_WEBHOOK_SECRET` and that it is not interchangeable with
-  the snapshot webhook secret. The untracked local `AGENTS.md` raw/operator file
-  was intentionally left untouched.
-
-Verified stale/current or deferred without source changes:
-
-- Refund and label-clawback source behavior remains current. Seller refunds,
-  staff case refunds, and blocked-checkout refunds co-write local
-  `OrderPaymentEvent`/`SystemAuditLog` evidence after Stripe accepts a refund,
-  and orphan branches keep the request/webhook retryable until local refund
-  evidence is durable. Label purchase success paths preserve durable label
-  fields plus `labelClawbackStatus`, with retry cron coverage for Stripe
-  reversal failures.
-- Connect v1/v2 webhook separation is current. Snapshot events stay on
-  `/api/stripe/webhook` with `STRIPE_WEBHOOK_SECRET` and `constructEvent`;
-  Accounts v2 thin events stay on `/api/stripe/webhook/v2` with
-  `STRIPE_V2_WEBHOOK_SECRET` and `parseEventNotification`.
-- New seller Connect accounts are still created through raw
-  `POST /v2/core/accounts` with v2 controller/responsibility parameters rather
-  than legacy `type: "express"` account creation.
-- Connect v2 loss-liability acceptance and live dashboard subscription evidence
-  remain deferred legal/ops evidence. A Shippo provider edge around successful
-  label purchases without `object_id` remains runtime confirmation only; current
-  source falls back to the stored rate object id for label-clawback idempotency.
-
-Guardrails added/reviewed:
-
-- `tests/cache-invalidation-guardrails.test.mjs` now requires the onboarding
-  Stripe status refresh to use `mirrorStripeChargesEnabled()` and forbids a
-  direct `{ chargesEnabled }` update there.
-- `tests/stripe-webhook-v2-route.test.mjs` now requires supported v2 account
-  notifications without account ids to emit bounded telemetry and throw before
-  retrieval, requires inactive-local `charges_enabled=true` telemetry before the
-  no-change return in `mirrorStripeChargesEnabled()`, and checks the
-  `STRIPE_V2_WEBHOOK_SECRET` docs correction.
-- Existing `tests/stripe-connect-v2.test.mjs` and
-  `tests/payment-side-effect-observability.test.mjs` continue to cover Accounts
-  v2 creation, webhook-secret separation, shared status mirroring, refund
-  evidence, and label-clawback recovery.
-
-Verification:
-`git status --short`; source and test inspection with `rg`/`sed`; two
-parent-reviewed read-only agent reports; parent-focused `node --test
-tests/stripe-webhook-v2-route.test.mjs tests/stripe-connect-v2.test.mjs
-tests/cache-invalidation-guardrails.test.mjs
-tests/payment-side-effect-observability.test.mjs` passed 55/55; `npx tsc
---noEmit` passed; `npm run lint` exited 0 with the known jsx-ast-utils
-TSNonNullExpression warning; `git diff --check` passed; full `npm test` passed
-1454/1454. The refund/label agent also ran a read-only focused refund/label
-suite that passed 84/84.
-
-Current running tally after Entry 501: verified fixed/reduced 991, verified
-stale/false-positive/current 555, deferred product/design/ops/legal 87,
-approximate raw allegations left from current max #1126: 0. Fixed/reduced
-increases by four for the onboarding direct Stripe-status write, v2 missing
-account-id webhook processing, inactive-local Stripe status telemetry gap, and
-Connect v2 secret docs mismatch. Stale/current increases by six for the
-reverified refund local-evidence paths, refund orphan recovery, duplicate
-webhook side-effect guards, label-clawback durable retry state, Connect
-snapshot/thin webhook separation, and Accounts v2 account creation/idempotency
-guardrails.
-
-Remaining major categories are still the deferred launch/runtime/legal/product
-evidence backlog, not open raw source allegations: Stripe refund runtime
-reconciliation/backfill proof, Stripe partial-refund live reconciliation proof,
-label clawback runtime reconciliation evidence, Stripe webhook subscription
-dashboard evidence, Stripe Connect v2 loss-liability ops/legal decision,
-explicit stale remote branch pruning/review, Round 10 cache/state-machine
-product designs, EXPLAIN-dependent runtime query-plan validation, provider-side
-privacy erasure/legal-request evidence, cross-seller AI duplicate-detection
-product design, durable checkout-group product semantics beyond current
-guardrails, high-scale BigInt money/counter modeling decisions, live-data
-reconciliation for historical seller shipping-rate currency drift, Clerk staff
-MFA/breached-password/multi-account dashboard evidence, buyer-deletion live
-Stripe replay proof, Founding Maker live DB concurrency proof, Sentry cron alert
-evidence, Cloudflare R2 ListBucket/public bucket posture plus production
-smoke/public-availability proof, HSTS preload submission/status, Vercel
-Analytics/Speed Insights product privacy decision, homepage browser
-a11y/runtime proof, and deployed security-header runtime proof.
-
-### Entry 500 - provider-runtime evidence and numeric scale reverify pass
-
-Entry 500 rechecked the remaining raw allegations that blur source behavior
-with provider/runtime/dashboard evidence: HSTS/deployed security headers,
-Cloudflare R2 bucket posture and upload reachability, Sentry cron alerting,
-Clerk staff/security-control evidence, Vercel Analytics/Speed Insights, and
-numeric/money/counter scale. Latest pushed CI on `main` is green for
-`341ace2b` (`28818350683`) before broadening audit scope. Two read-only agents
-inspected disjoint provider/runtime and numeric slices; parent Codex verified
-the source locally and closed both agents. No product code changed.
-
-Fixed/reduced:
-
-- None. This pass did not verify a new source-actionable defect.
-
-Verified stale/current or deferred without source changes:
-
-- HSTS and deployed security-header source allegations are source-current, while
-  preload-list acceptance and deployed-header proof remain runtime/legal
-  evidence. `next.config.ts` configures the global header set, including
-  `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload`;
-  `tests/public-security-config.test.mjs` pins the headers and explicitly keeps
-  preload-list proof separate from source-configured `preload`.
-- Cloudflare R2 ListBucket/public-bucket allegations remain deferred
-  provider/dashboard evidence, with source-current app guardrails. Upload paths
-  use object-level `PutObject`, `HeadObject`, `GetObject`, and `DeleteObject`
-  operations; `/api/health` intentionally proves only `HeadBucket` reachability;
-  direct-upload cleanup uses stored `DirectUpload` keys and does not depend on
-  bucket listing. `docs/runbook.md` and `docs/launch-checklist.md` correctly
-  require separate public bucket-listing/ListBucket, CORS, public-domain, and
-  production upload-smoke evidence.
-- Sentry cron monitor source allegations are source-current, while alert-rule
-  routing remains dashboard/runtime evidence. App Router cron routes wrap
-  authenticated work in `withSentryCronMonitor()`, `next.config.ts` disables
-  automatic Vercel monitors because those do not cover App Router cron routes,
-  and launch docs still require Sentry alert-rule evidence for cron monitors and
-  `source=cron_ops_health` warnings.
-- Clerk staff MFA, breached-password, multi-account, and spam-control findings
-  remain deferred Clerk-dashboard/security-ops evidence. Source still has local
-  admin role gates and admin PIN session binding as defense in depth, but those
-  app controls do not prove Clerk-native controls are enabled.
-- Vercel Analytics and Speed Insights remain an explicit product/privacy
-  decision rather than an automatic defect. Source/package scans found no
-  `@vercel/analytics`, no `@vercel/speed-insights`, no `<Analytics />`, and no
-  `<SpeedInsights />`; `tests/retention-and-ops-followups.test.mjs` keeps those
-  packages/components/privacy-policy references absent until the decision is
-  made.
-- Numeric/money/counter overflow allegations are deferred/product-scale rather
-  than source-actionable under current caps. Listing price is capped at
-  `$100,000`, cart quantity is capped, current checkout subtotal math remains
-  below PostgreSQL `Int`, provider shipping/label values are bounded by
-  `safeProviderShippingCents`, refunds are bounded against order totals, and
-  listing view/click counters have daily analytics caps. `SellerMetrics` cached
-  lifetime sales is already stored as `BigInt`; converting it to `Number` for UI
-  state only becomes a product/data-modeling concern at extreme scale.
-
-Guardrails reviewed:
-
-- `tests/public-security-config.test.mjs` covers the configured public security
-  header set, no `unsafe-eval`, and the rule that HSTS preload-list proof is
-  separate from source headers.
-- `tests/retention-and-ops-followups.test.mjs`,
-  `tests/cron-schedule-guardrails.test.mjs`,
-  `tests/cron-monitor-state.test.mjs`, and `tests/sentry-dsn.test.mjs` cover the
-  inspected ops-health, cron-monitor, Vercel telemetry, and Sentry DSN
-  contracts.
-- `tests/direct-upload-lifecycle.test.mjs`,
-  `tests/upload-verification-token.test.mjs`, and
-  `tests/upload-ux-followups.test.mjs` cover direct-upload lifecycle tracking,
-  verification, telemetry hashing, cleanup, and the no-bucket-listing cleanup
-  posture.
-- `tests/guild-metrics-state.test.mjs` and
-  `tests/listing-analytics-guardrails.test.mjs` cover the inspected seller
-  metrics `BigInt` cache behavior and listing analytics cap/counter guardrails.
-
-Verification:
-`git status --short`; `gh run list --commit
-341ace2b3facf8ca091d3e1dea94495618a6f167 --workflow CI --limit 10 --json ...`
-confirmed CI run `28818350683` completed successfully for `341ace2b`; source
-and test inspection with `rg`/`sed`; and two parent-reviewed read-only agent
-reports. Focused `node --test tests/public-security-config.test.mjs
-tests/retention-and-ops-followups.test.mjs
-tests/cron-schedule-guardrails.test.mjs tests/cron-monitor-state.test.mjs
-tests/sentry-dsn.test.mjs tests/direct-upload-lifecycle.test.mjs
-tests/upload-verification-token.test.mjs tests/upload-ux-followups.test.mjs
-tests/guild-metrics-state.test.mjs tests/listing-analytics-guardrails.test.mjs`
-passed 72/72; `npx tsc --noEmit` passed; `git diff --check` passed.
-
-Current running tally after Entry 500: verified fixed/reduced 987, verified
-stale/false-positive/current 549, deferred product/design/ops/legal 87,
-approximate raw allegations left from current max #1126: 0. Deferred increases
-by seven for the remaining source-vs-runtime/provider/product allegations:
-HSTS/preload/deployed security-header proof, R2 ListBucket/public-bucket and
-production upload-smoke proof, Sentry cron alert routing, Clerk staff/security
-dashboard controls, Vercel Analytics/Speed Insights privacy decision,
-numeric/BigInt/high-volume counter modeling, and the remaining runtime/legal
-provider-evidence bucket covering Stripe/Clerk/R2/Sentry/live-data proofs that
-cannot be closed from source review alone.
-
-Remaining major categories are no longer raw source allegations; they are the
-deferred launch/runtime/legal/product evidence backlog: Stripe refund
-runtime/backfill proof beyond first-party orphan ledgers, Stripe partial-refund
-live reconciliation proof, label clawback runtime reconciliation evidence,
-Stripe webhook subscription dashboard evidence, Stripe Connect v2
-loss-liability ops/legal decision, explicit stale remote branch pruning/review,
-Round 10 cache/state-machine product designs, EXPLAIN-dependent runtime
-query-plan validation, provider-side privacy erasure/legal-request evidence,
-cross-seller AI duplicate-detection product design, durable checkout-group
-product semantics beyond current guardrails, high-scale BigInt money/counter
-modeling decisions, live-data reconciliation for historical seller
-shipping-rate currency drift, Clerk staff MFA/breached-password/multi-account
-dashboard evidence, buyer-deletion live Stripe replay proof, Founding Maker live
-DB concurrency proof, Sentry cron alert evidence, Cloudflare R2
-ListBucket/public bucket posture plus production smoke/public-availability
-proof, HSTS preload submission/status, Vercel Analytics/Speed Insights product
-privacy decision, homepage browser a11y/runtime proof, and deployed
-security-header runtime proof.
-
-### Entry 499 - AI money, unsubscribe, and React cache stale reverify pass
-
-Entry 499 rechecked remaining raw allegations around AI-review money
-formatting, unsubscribe/newsletter consent semantics, and React cache
-duplicate-query performance. Latest pushed CI on `main` is green for
-`e177fff1` (`28817798670`) before broadening audit scope. Two read-only agents
-inspected disjoint slices; parent Codex verified the source locally and closed
-both agents. No product code changed.
-
-Fixed/reduced:
-
-- None. This pass did not verify a new source-actionable defect.
-
-Verified stale/current or deferred without source changes:
-
-- AI-review money formatting is stale/current. `reviewListingWithAI()` accepts
-  `currency` and formats prompt price with `formatCurrencyCents()` rather than
-  hard-coded dollar formatting.
-- Refund/case/follower/Guild currency copy allegations inspected in this pass
-  are stale/current. The inspected refund, case-resolution, follower listing,
-  and Guild metrics paths use `formatCurrencyCents()`.
-- Newsletter no-double-opt-in and unsubscribe-token allegations are
-  stale/current. Public newsletter signup stores inactive pending rows and sends
-  confirmation; only confirmation POST activates the subscriber. One-click
-  unsubscribe GET validates and renders confirmation without mutation; POST is
-  token-protected, bounded, origin-checked for explicit browser posts, and
-  rate-limited by both IP and signed email.
-- Manual resubscribe/epoch allegations are stale/current. Unsubscribe tokens
-  carry an issuance timestamp and TTL, and `unsubscribeTokenSuperseded()` rejects
-  links issued before a later signed-in opt-in, newsletter confirmation, new
-  account claim, or current-email claim.
-- One-click unsubscribe blocking transactional email is a false positive.
-  Delivery suppression blocks hard bounces, complaints, account deletion, and
-  non-one-click manual suppressions; one-click unsubscribe disables newsletter
-  and preference-controlled email without becoming a hard delivery block.
-- Dead/unsupported email preference key allegations are stale/current. Valid
-  email preference keys are centralized and settings copy distinguishes
-  preference-controlled mail from always-sent order confirmations and shipping
-  updates.
-- React `cache()` / seller duplicate-query allegations #1109/#1110 are
-  stale/current. Listing detail, public seller profile, seller shop, customer
-  photos, and blog author pages now use React `cache()` loaders where
-  metadata/page render share the same resource. Seller page independent reads
-  are batched with `Promise.all`, and public seller stats/top-tags use
-  `unstable_cache`.
-- Further reducing seller-page follow/count/rating queries remains a performance
-  design/profiling decision, not a verified duplicate-query bug.
-
-Guardrails reviewed:
-
-- `tests/ai-review-outer-failclosed.test.mjs` covers AI-review currency
-  formatting and fail-closed behavior.
-- `tests/account-privacy-observability.test.mjs`,
-  `tests/pr-i-media-upload-unsubscribe-followups.test.mjs`,
-  `tests/unsubscribe-token.test.mjs`, `tests/newsletter-double-opt-in.test.mjs`,
-  `tests/notification-preference-keys.test.mjs`, and
-  `tests/email-delivery-guardrails.test.mjs` cover the inspected email and
-  unsubscribe contracts.
-- `tests/listing-page-performance.test.mjs` and
-  `tests/seller-page-performance.test.mjs` cover the inspected React cache and
-  seller/listing page performance guardrails.
-
-Verification:
-`git status --short`; `gh run list --commit
-e177fff146e0405855bbea25747be1d66bd7fa53 --workflow CI --limit 10 --json ...`
-confirmed CI run `28817798670` completed successfully for `e177fff1`; source
-and test inspection with `rg`/`sed`; two parent-reviewed read-only agent
-reports; and the performance agent's focused `node --test
-tests/listing-page-performance.test.mjs tests/seller-page-performance.test.mjs`,
-which passed 12/12.
-
-Current running tally after Entry 499: verified fixed/reduced 987, verified
-stale/false-positive/current 549, deferred product/design/ops/legal 80,
-approximate raw allegations left from current max #1126: 7. Stale/current
-increases by seven for AI-review money formatting, inspected refund/case/fanout
-currency copy, newsletter double opt-in, unsubscribe GET/POST token semantics,
-unsubscribe resubscribe epoch semantics, one-click transactional-mail
-false-positive, and React cache/seller-page duplicate-query allegations.
-Raw-left drops by seven because those source allegations are now verified
-stale/current on `main`.
-
-Remaining major categories: Stripe refund runtime/backfill design beyond the
-now-fixed first-party orphan ledger and local transfer-reversal evidence,
-Stripe partial-refund live reconciliation proof, label clawback runtime
-proof/dashboard reconciliation evidence, Stripe webhook subscription dashboard
-evidence, Stripe Connect v2 loss-liability ops/legal decision, explicit stale
-remote branch pruning/review, Round 10 deferred cache/state-machine product
-designs that require product decisions rather than source guardrails,
-EXPLAIN-dependent runtime query-plan validation beyond the existing source
-indexes and source guardrails, provider-side privacy erasure/legal-request
-evidence, cross-seller AI duplicate-detection product design, durable
-checkout-group product semantics beyond current grouped ready-lock,
-reservation, completed-session, and made-to-order recovery guardrails,
-deliberate BigInt money-column modeling for individual order/item cents fields
-and high-volume listing analytics counters beyond the fixed seller-metrics
-aggregate cache and new webhook integer bounds, live-data reconciliation for
-historical seller shipping-rate currency drift, Clerk staff MFA and
-breached-password dashboard evidence, Clerk multi-account spam dashboard
-evidence, buyer-deletion live Stripe replay proof after source minimization,
-Founding Maker live DB concurrency proof, Sentry cron alert evidence,
-Cloudflare R2 ListBucket/public bucket dashboard posture plus production smoke
-evidence and public-availability proof, HSTS preload submission decision,
-Vercel Analytics/Speed Insights product/privacy decision, homepage browser
-a11y/runtime proof beyond source fallback, and deployed security-header runtime
-proof beyond source/config guardrails.
-
-### Entry 498 - checkout finalization and publish AI-review source pass
-
-Entry 498 followed up on parent-reviewed agent findings in the Stripe checkout
-and listing AI-review areas, then verified the claims directly against current
-source. Latest pushed CI on `main` was green for `e7bcb5e6` before broadening
-audit scope. Two read-only agents were used for exploration; parent Codex
-reviewed the source before editing. The raw audit import and expected untracked
-local files were not staged.
-
-Fixed/reduced:
-
-- `publishListingAction()` now passes `listingId: listing.id` into
-  `reviewListingWithAI()`. This keeps the existing same-seller duplicate-title
-  helper from counting the current listing as a prior duplicate when a seller
-  republishes an existing listing.
-- Stripe Checkout completion now fetches the full paginated line-item list with
-  `stripe.checkout.sessions.listLineItems(..., { limit: 100, expand:
-  ["data.price.product"] })` instead of relying on the truncated `line_items`
-  expansion from `checkout.sessions.retrieve()`. Cart and single-listing
-  finalization now share that complete list for paid item reconstruction,
-  subtotal handling, invalid-checkout refund stock restore inputs, and
-  single-line paid-price detection.
-- Cart checkout finalization now removes paid cart rows by the resolved paid
-  `cartItemId`s from Stripe product metadata. The legacy fallback is limited to
-  the paid listing ids. This reduces the race where a buyer adds another item
-  from the same seller after session creation but before webhook finalization.
-- Cart seller checkout now persists an empty checkout-reservation row when a
-  seller's paid batch has no `IN_STOCK` items. That lets the existing
-  checkout-group/session recovery path discover completed made-to-order-only
-  seller sessions after paid cart rows disappear.
-
-Verified stale/current or deferred without source changes:
-
-- The broader Stripe refund runtime/backfill, label clawback runtime evidence,
-  webhook subscription dashboard evidence, and Connect v2 loss-liability items
-  remain runtime/dashboard/legal evidence. This pass changed checkout
-  finalization and recovery source behavior only.
-- Cross-seller AI duplicate-detection remains a product/moderation design
-  decision. The source fix here only corrected the existing same-seller
-  current-listing exclusion on publish.
-
-Guardrails added/reviewed:
-
-- Tightened `tests/server-action-hardening.test.mjs` so the publish-time
-  AI-review payload must include `listingId: listing.id`.
-- Extended `tests/stripe-webhook-cart-finalization.test.mjs` to require the
-  paginated Checkout line-item fetch, product metadata expansion, reuse of the
-  complete line-item list, and paid-cart-item-id scoped cleanup.
-- Extended `tests/checkout-stock-reservation-guardrails.test.mjs` so cart
-  seller checkout keeps checkout-group recovery rows even when there is no
-  stock to reserve.
-
-Verification:
-`git status --short`; source/docs/test inspection with `rg`/`sed`; official
-Stripe API docs for Checkout Session line items; two parent-reviewed read-only
-agent reports; focused `node --test tests/server-action-hardening.test.mjs
-tests/stripe-webhook-cart-finalization.test.mjs
-tests/checkout-stock-reservation-guardrails.test.mjs`, which passed 18/18;
-`npx tsc --noEmit`; `git diff --check`; and full `npm test` passing 1454/1454.
-
-Current running tally after Entry 498: verified fixed/reduced 987, verified
-stale/false-positive/current 542, deferred product/design/ops/legal 80,
-approximate raw allegations left from current max #1126: 14. Fixed/reduced
-increases by four for the publish AI-review current-listing exclusion, complete
-Stripe line-item pagination, paid-cart-row cleanup, and made-to-order-only
-checkout-group recovery row. Raw-left drops by one for the source-actionable
-completed-session recovery portion of the durable checkout-group category; the
-other fixed items were hidden issues found while auditing adjacent code rather
-than separate raw Claude allegations.
-
-Remaining major categories: Stripe refund runtime/backfill design beyond the
-now-fixed first-party orphan ledger and local transfer-reversal evidence,
-Stripe partial-refund live reconciliation proof, label clawback runtime
-proof/dashboard reconciliation evidence, Stripe webhook subscription dashboard
-evidence, Stripe Connect v2 loss-liability ops/legal decision, explicit stale
-remote branch pruning/review, Round 10 deferred cache/state-machine product
-designs that require product decisions rather than source guardrails,
-EXPLAIN-dependent runtime query-plan validation beyond the existing source
-indexes and source guardrails, provider-side privacy erasure/legal-request
-evidence, cross-seller AI duplicate-detection product design, durable
-checkout-group product semantics beyond current grouped ready-lock,
-reservation, completed-session, and made-to-order recovery guardrails,
-deliberate BigInt money-column modeling for individual order/item cents fields
-and high-volume listing analytics counters beyond the fixed seller-metrics
-aggregate cache and new webhook integer bounds, live-data reconciliation for
-historical seller shipping-rate currency drift, Clerk staff MFA and
-breached-password dashboard evidence, Clerk multi-account spam dashboard
-evidence, buyer-deletion live Stripe replay proof after source minimization,
-Founding Maker live DB concurrency proof, Sentry cron alert evidence,
-Cloudflare R2 ListBucket/public bucket dashboard posture plus production smoke
-evidence and public-availability proof, HSTS preload submission decision,
-Vercel Analytics/Speed Insights product/privacy decision, homepage browser
-a11y/runtime proof beyond source fallback, and deployed security-header runtime
-proof beyond source/config guardrails.
-
-### Entry 497 - runtime evidence and stale-branch reverify pass
-
-Entry 497 rechecked the remaining payment, provider-ops, runtime-evidence, and
-stale remote branch categories with two read-only agents plus parent source
-review. Both agents were parent-reviewed and closed. Latest pushed CI on `main`
-was green for `5834340c` before broadening audit scope. No source-actionable
-defect was verified in this pass, so no product code was changed.
-
-Fixed/reduced:
-
-- None. The pass intentionally did not convert runtime/dashboard/legal evidence
-  tasks into source fixes or broad security claims.
-
-Verified stale/current or deferred without source changes:
-
-- Stripe refund and partial-refund source behavior remains current. Refund paths
-  use `createMarketplaceRefund()`, record local `OrderPaymentEvent`/audit
-  evidence, expand transfer reversal data when Stripe returns it, and document
-  recovery in `docs/runbook.md`. Historical/pre-ledger rows and proportional
-  reversal economics still require Stripe test-mode/live reconciliation evidence
-  before any backfill decision.
-- Label clawback source behavior remains current. Label purchase records durable
-  retry/manual-review state, the retry cron is registered, and admin cleanup is
-  blocked while active clawback holds exist. Runtime proof still requires
-  Vercel/Sentry/`CronRun` evidence on real eligible rows.
-- Stripe webhook subscription evidence remains external. Source keeps snapshot
-  events on `/api/stripe/webhook` with `STRIPE_WEBHOOK_SECRET` and Connect v2
-  thin account notifications on `/api/stripe/webhook/v2` with
-  `STRIPE_V2_WEBHOOK_SECRET`; `docs/launch-checklist.md` and `docs/runbook.md`
-  list exact subscriptions. Dashboard screenshots/date evidence are still
-  required.
-- Stripe Connect v2 loss-liability remains an ops/legal decision. Current source
-  intentionally sets application-side loss collection and platform tax
-  liability, but counsel/accounting sign-off is outside source review.
-- Buyer-deletion live Stripe replay proof remains runtime evidence after source
-  minimization. The webhook revalidates buyer state inside finalization and
-  converts invalid/deleted buyer completions into blocked review orders with
-  purged buyer PII; live replay still needs Stripe test-mode plus DB/Sentry/audit
-  artifacts.
-- Clerk staff MFA, breached-password, and multi-account/spam controls remain
-  dashboard evidence. Source-side Admin PIN remains defense in depth and docs
-  correctly avoid treating it as a substitute for Clerk-native controls.
-- Sentry cron monitors, R2 public/ListBucket posture, HSTS/preload,
-  deployed-header checks, homepage browser a11y, and EXPLAIN query-plan
-  validation remain runtime/provider/staging evidence. Current source and tests
-  guard the configured behavior, but they cannot prove provider dashboards,
-  deployed scans, browser screenshots, or production-like planner choices.
-- Stale remote branch pruning remains a source-control decision. Parent review
-  confirmed `origin/claude/sleepy-hypatia-4aa428`, `origin/feature/hero-mosaic`,
-  and `origin/ui-polish` are already merged into `origin/main`, while
-  `origin/feature/stripe-connect-v2`, `origin/docs/claude-archive-cleanup`,
-  `origin/fix-onboarding-stripe-deadlock`, `origin/fix/terms-acceptance-bypass`,
-  `origin/fix/wizard-step-4-duplicate-button`,
-  `origin/style-site-ui-sweep`, and the Dependabot branch are unmerged or
-  divergent. No remote refs were deleted without an explicit pruning decision.
-
-Guardrails reviewed:
-
-- Payment/runtime guardrails in `tests/marketplace-refunds.test.mjs`,
-  `tests/payment-side-effect-observability.test.mjs`,
-  `tests/admin-action-guardrails.test.mjs`,
-  `tests/label-clawback-state.test.mjs`,
-  `tests/stripe-webhook-v2-route.test.mjs`,
-  `tests/checkout-payment-methods.test.mjs`,
-  `tests/account-deletion-side-effects.test.mjs`,
-  `tests/stripe-connect-v2.test.mjs`, and
-  `tests/stripe-webhook-cart-finalization.test.mjs`.
-- Ops/runtime guardrails in `tests/retention-and-ops-followups.test.mjs`,
-  `tests/public-security-config.test.mjs`,
-  `tests/cron-schedule-guardrails.test.mjs`,
-  `tests/direct-upload-lifecycle.test.mjs`, and
-  `tests/accessibility-followups.test.mjs`.
-
-Verification:
-`git status --short`; `gh run watch 28767340625 --exit-status` confirmed CI
-for `5834340c` passed typecheck, lint, tests, security audit, and production
-build; source/docs/test inspection with `rg`/`sed`; `git branch -r --merged
-origin/main`; `git branch -r --no-merged origin/main`; two parent-reviewed
-read-only agent reports; and the ops agent's focused suite `node --test
-tests/retention-and-ops-followups.test.mjs tests/public-security-config.test.mjs
-tests/cron-schedule-guardrails.test.mjs tests/direct-upload-lifecycle.test.mjs
-tests/accessibility-followups.test.mjs`, which passed 59/59 with only the
-known `MODULE_TYPELESS_PACKAGE_JSON` warning; parent-focused suite `node --test
-tests/retention-and-ops-followups.test.mjs tests/public-security-config.test.mjs
-tests/cron-schedule-guardrails.test.mjs tests/direct-upload-lifecycle.test.mjs
-tests/accessibility-followups.test.mjs tests/stripe-webhook-v2-route.test.mjs
-tests/marketplace-refunds.test.mjs tests/label-clawback-state.test.mjs
-tests/stripe-webhook-cart-finalization.test.mjs`, which passed 91/91 with the
-same known warning; and `git diff --check`.
-
-Current running tally after Entry 497: verified fixed/reduced 983, verified
-stale/false-positive/current 542, deferred product/design/ops/legal 80,
-approximate raw allegations left from current max #1126: 15. Counts stay flat
-because this pass reverified already-classified runtime/provider/legal and
-source-control items rather than closing a new source-actionable defect.
-
-Remaining major categories: Stripe refund runtime/backfill design beyond the
-now-fixed first-party orphan ledger and local transfer-reversal evidence,
-Stripe partial-refund live reconciliation proof, label clawback runtime
-proof/dashboard reconciliation evidence, Stripe webhook subscription dashboard
-evidence, Stripe Connect v2 loss-liability ops/legal decision, explicit stale
-remote branch pruning/review, Round 10 deferred cache/state-machine product
-designs that require product decisions rather than source guardrails,
-EXPLAIN-dependent runtime query-plan validation beyond the existing source
-indexes and source guardrails, provider-side privacy erasure/legal-request
-evidence, cross-seller AI duplicate-detection product design, durable
-checkout-group design for checkout batch semantics beyond grouped
-ready-lock/reservation resume and completed-session filtering, deliberate
-BigInt money-column modeling for individual order/item cents fields and
-high-volume listing analytics counters beyond the fixed seller-metrics
-aggregate cache and new webhook integer bounds, live-data reconciliation for
-historical seller shipping-rate currency drift, Clerk staff MFA and
-breached-password dashboard evidence, Clerk multi-account spam dashboard
-evidence, buyer-deletion live Stripe replay proof after source minimization,
-Founding Maker live DB concurrency proof, Sentry cron alert evidence,
-Cloudflare R2 ListBucket/public bucket dashboard posture plus production smoke
-evidence and public-availability proof, HSTS preload submission decision,
-Vercel Analytics/Speed Insights product/privacy decision, homepage browser
-a11y/runtime proof beyond source fallback, and deployed security-header runtime
-proof beyond source/config guardrails.
-
-### Entry 496 - Founding Maker repair and cron evidence reverify pass
-
-Entry 496 rechecked remaining Sentry cron/ops-health and Founding Maker
-concurrency/permanence allegations against current source. Latest pushed CI on
-`main` was green for `27c71dfb` before broadening audit scope.
-
-Fixed/reduced:
-
-- Added a bounded Founding Maker repair path for transient grant failures.
-  `repairMissedFoundingMakerGrants()` scans oldest public ACTIVE listings for
-  non-badged sellers, dedupes seller ids, respects remaining permanent badge
-  slots, and calls the existing advisory-lock `maybeGrantFoundingMaker()` helper
-  instead of inventing a separate assignment path.
-- Added `GET /api/cron/founding-maker-repair`, registered in `vercel.json` at
-  `10 17 * * *`, with standard cron auth, `CronRun` locking, and Sentry cron
-  monitor wrapping. This reduces the chance that a logged/non-fatal grant
-  failure leaves an eligible seller permanently unbadged.
-- Updated the Founding Maker behavior contract in `CLAUDE.md` to preserve the
-  bounded repair scan and permanent-number assignment semantics.
-
-Verified stale/current or deferred without source changes:
-
-- Raw ops-health Sentry monitor finding #128 is stale/current. Current
-  `/api/cron/ops-health` returns `503` when actionable issues exist, and
-  `withSentryCronMonitor()` maps 5xx responses to failed Sentry check-ins.
-  Existing tests already assert the unhealthy status and monitor mapping.
-- Sentry cron alert routing remains runtime/dashboard evidence: source emits
-  check-ins and warning/error telemetry, but the actual Sentry alert-rule
-  configuration still needs provider evidence before launch.
-- Founding Maker live DB concurrency proof remains runtime evidence beyond
-  source review. Source now has advisory-lock assignment, DB uniqueness/range
-  constraints, static guardrails, and the repair cron, but a live DB concurrency
-  replay would still be separate evidence.
-
-Guardrails added/reviewed:
-
-- Extended `tests/post-launch-ui-followups.test.mjs` to guard the bounded
-  Founding Maker repair helper, public-listing eligibility, shared grant helper
-  reuse, cron auth, Sentry monitor schedule, and `vercel.json` registration.
-- Extended `tests/cron-schedule-guardrails.test.mjs` so the new daily repair
-  job remains part of the low-frequency cron spread and monitor-schedule
-  alignment checks.
-- Reviewed existing ops-health and cron guardrails in
-  `tests/retention-and-ops-followups.test.mjs`,
-  `tests/public-cron-search-hardening.test.mjs`,
-  `tests/cron-monitor-state.test.mjs`, and `tests/http-status-constants.test.mjs`.
-
-Verification:
-`git status --short`; `gh run list --branch main --limit 3` confirmed latest
-pushed CI on `main` was green for `27c71dfb`; source/docs/test inspection with
-`rg`/`sed`; focused suite
-`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
---test tests/post-launch-ui-followups.test.mjs
-tests/cron-schedule-guardrails.test.mjs tests/cron-monitor-state.test.mjs
-tests/public-cron-search-hardening.test.mjs tests/http-status-constants.test.mjs`
-passed 59/59 after correcting one route/`vercel.json` schedule mismatch; and
-the broader focused cron/docs/schema suite passed 84/84; `npx tsc --noEmit`;
-`git diff --check`; `npm run lint` (known `jsx-ast-utils`
-TSNonNullExpression warning, exit 0); and full `npm test` passing 1453/1453.
-
-Current running tally after Entry 496: verified fixed/reduced 983, verified
-stale/false-positive/current 542, deferred product/design/ops/legal 80,
-approximate raw allegations left from current max #1126: 15. Fixed/reduced
-increases by one for the Founding Maker repair cron. Raw-left drops by one
-because the source-actionable portion of the Founding Maker grant-loss category
-now has a bounded repair path; live DB concurrency proof remains runtime
-evidence.
-
-Remaining major categories: Stripe refund runtime/backfill design beyond the
-now-fixed first-party orphan ledger and local transfer-reversal evidence,
-Stripe partial-refund live reconciliation proof, label clawback runtime
-proof/dashboard reconciliation evidence, Stripe webhook subscription dashboard
-evidence, Stripe Connect v2 loss-liability ops/legal decision, explicit stale
-remote branch pruning/review, Round 10 deferred cache/state-machine product
-designs that require product decisions rather than source guardrails,
-EXPLAIN-dependent runtime query-plan validation beyond the existing source
-indexes and source guardrails, provider-side privacy erasure/legal-request
-evidence, cross-seller AI duplicate-detection product design, durable
-checkout-group design for checkout batch semantics beyond grouped
-ready-lock/reservation resume and completed-session filtering, deliberate
-BigInt money-column modeling for individual order/item cents fields and
-high-volume listing analytics counters beyond the fixed seller-metrics
-aggregate cache and new webhook integer bounds, live-data reconciliation for
-historical seller shipping-rate currency drift, Clerk staff MFA and
-breached-password dashboard evidence, Clerk multi-account spam dashboard
-evidence, buyer-deletion live Stripe replay proof after source minimization,
-Founding Maker live DB concurrency proof, Sentry cron alert evidence,
-Cloudflare R2 ListBucket/public bucket dashboard posture plus production smoke
-evidence and public-availability proof, HSTS preload submission decision,
-Vercel Analytics/Speed Insights product/privacy decision, homepage browser
-a11y/runtime proof beyond source fallback, and deployed security-header runtime
-proof beyond source/config guardrails.
-
-### Entry 495 - closed-history archive housekeeping and remaining evidence reverify pass
-
-Entry 495 rechecked the remaining payment, ops, product-boundary, and
-documentation-housekeeping buckets with two read-only agents plus parent source
-review. Both agents were parent-reviewed and closed. Latest pushed CI on `main`
-was green for `d9141079` before broadening audit scope.
-
-Fixed/reduced:
-
-- Split completed audit-pass sections older than the rolling 60-day window out
-  of `CLOSED_AUDIT_HISTORY.md` and into the new `CLOSED_AUDIT_ARCHIVE.md`.
-  `CLOSED_AUDIT_HISTORY.md` now keeps the current May 24 entries plus a pointer
-  to the deeper archive.
-- Added a rolling documentation guardrail in `tests/docs-archive.test.mjs` that
-  parses dated `CLOSED_AUDIT_HISTORY.md` headings and fails when any dated
-  closed-audit section is older than 60 days. The test also verifies the moved
-  historical sections live in `CLOSED_AUDIT_ARCHIVE.md`.
-- Updated `docs/maintainability-plan.md` so documentation routing distinguishes
-  recent closed history from the older archive file.
-
-Verified stale/current or deferred without source changes:
-
-- Stripe partial-refund, first-party refund evidence, label clawback, and
-  webhook subscription findings remain source-current plus runtime/provider
-  evidence. Current source co-writes first-party refund evidence, label clawback
-  retry is registered in `vercel.json`, admin review holds remain visible, and
-  Stripe snapshot/v2 webhook subscription exactness remains dashboard evidence.
-- Stripe Connect v2 source isolation remains current: account creation uses
-  Accounts v2, snapshot and thin-event webhook routes use distinct secrets and
-  parsers, and `losses_collector: "application"` remains a legal/accounting
-  sign-off item rather than a source defect.
-- Founding Maker permanence/concurrency, seller-page performance, checkout
-  group threading, Round 10 state-machine guards, same-seller AI duplicate
-  checks, BigInt modeling, and shipping-rate currency binding were rechecked as
-  source-current or product/runtime decisions. Live DB concurrency, EXPLAIN
-  plans, provider privacy erasure proof, historical shipping-rate drift, and
-  stale remote branch pruning still require runtime/provider/source-control
-  evidence or explicit product/legal decisions.
-- A possible pre-ledger first-party refund backfill concern was treated as part
-  of the existing Stripe refund runtime/backfill design bucket: current source
-  records new local refund evidence, but any historical production rows would
-  need live-data audit evidence before a backfill script is justified.
-
-Guardrails added/reviewed:
-
-- Added the rolling 60-day closed-history guardrail in
-  `tests/docs-archive.test.mjs`.
-- Reviewed existing guardrails covering refund/accounting observability, label
-  clawback retry/admin holds, Stripe Connect v2 route isolation, Founding Maker
-  advisory-lock assignment, seller-page performance, checkout group threading,
-  shipping currency binding, schema numeric/index guards, support/data-request
-  closure evidence, public query determinism, quality-score queries, Round 10
-  state machines, and AI review duplicate scope.
-
-Verification:
-`git status --short`; `gh run list --branch main --limit 3` confirmed latest
-pushed CI on `main` was green for `d9141079`; source/docs/test inspection with
-`rg`/`sed`; two parent-reviewed read-only agent reports; and focused
-`node --test tests/docs-archive.test.mjs`, which passed 3/3. A broader focused
-suite covering docs archive, refund/accounting observability, label clawback,
-Stripe Connect v2, Founding Maker, seller-page performance, checkout-group,
-shipping currency, support evidence, and schema numeric/index guardrails passed
-173/173; `npx tsc --noEmit`; `git diff --check`; `npm run lint` (known
-`jsx-ast-utils` TSNonNullExpression warning, exit 0); and full `npm test`
-passing 1453/1453.
-
-Current running tally after Entry 495: verified fixed/reduced 982, verified
-stale/false-positive/current 542, deferred product/design/ops/legal 80,
-approximate raw allegations left from current max #1126: 16. Fixed/reduced
-increases by one for the completed-history archive housekeeping fix. Raw-left
-drops by one because the completed-audit archive housekeeping category is now
-source-current with a guardrail.
-
-Remaining major categories: Stripe refund runtime/backfill design beyond the
-now-fixed first-party orphan ledger and local transfer-reversal evidence,
-Stripe partial-refund live reconciliation proof, label clawback runtime
-proof/dashboard reconciliation evidence, Stripe webhook subscription dashboard
-evidence, Stripe Connect v2 loss-liability ops/legal decision, explicit stale
-remote branch pruning/review, Round 10 deferred cache/state-machine product
-designs that require product decisions rather than source guardrails,
-EXPLAIN-dependent runtime query-plan validation beyond the existing source
-indexes and source guardrails, founding-maker permanence policy,
-provider-side privacy erasure/legal-request evidence, cross-seller AI
-duplicate-detection product design, durable checkout-group design for checkout
-batch semantics beyond grouped ready-lock/reservation resume and
-completed-session filtering, deliberate BigInt money-column modeling for
-individual order/item cents fields and high-volume listing analytics counters
-beyond the fixed seller-metrics aggregate cache and new webhook integer bounds,
-live-data reconciliation for historical seller shipping-rate currency drift,
-Clerk staff MFA and breached-password dashboard evidence, Clerk multi-account
-spam dashboard evidence, buyer-deletion live Stripe replay proof after source
-minimization, Founding Maker live DB concurrency proof, Sentry cron alert
-evidence, Cloudflare R2 ListBucket/public bucket dashboard posture plus
-production smoke evidence and public-availability proof, HSTS preload
-submission decision, Vercel Analytics/Speed Insights product/privacy decision,
-homepage browser a11y/runtime proof beyond source fallback, and deployed
-security-header runtime proof beyond source/config guardrails.
-
-### Entry 494 - ops evidence and telemetry privacy guardrail pass
-
-Entry 494 rechecked the remaining ops/provider evidence bucket with two
-read-only agents plus parent source review over checkout grouping, shipping
-currency, BigInt modeling, R2, Vercel telemetry, homepage a11y, Clerk/Sentry
-ops evidence, and deployed-header evidence. Both agents were parent-reviewed
-and closed. Latest pushed CI on `main` was green for `eb9820b4` before
-broadening audit scope.
-
-Fixed/reduced:
-
-- Added a focused guardrail to keep Vercel Analytics and Speed Insights behind
-  an explicit privacy/product decision. `tests/retention-and-ops-followups.test.mjs`
-  now fails if `@vercel/analytics`, `@vercel/speed-insights`, `<Analytics />`,
-  or `<SpeedInsights />` are introduced without changing the current no-telemetry
-  source posture. This reduces the chance that analytics telemetry is added as
-  an incidental dependency without privacy/consent review.
-
-Verified stale/current or deferred without source changes:
-
-- Clerk staff MFA, breached-password, and multi-account/spam controls remain
-  external dashboard evidence. Source correctly treats app-side Admin PIN as
-  defense in depth, not a substitute for Clerk-native launch evidence.
-- Sentry cron monitors and ops-health alert routing remain source-current plus
-  runtime/dashboard evidence. Cron routes use `withSentryCronMonitor()`,
-  schedule-alignment tests cover `vercel.json`, and `/api/cron/ops-health`
-  returns unhealthy status for actionable piles, but live Sentry monitor/alert
-  screenshots still must be retained before launch.
-- R2 ListBucket/public-bucket posture and production upload smoke remain
-  provider/runtime evidence. Current source uses tracked DB rows and
-  key-scoped `HeadObject`/`GetObject`/public `HEAD` checks instead of bucket
-  listing; upload paths have magic-byte, SVG, size, and public-availability
-  guardrails.
-- Deployed security headers and HSTS preload remain runtime evidence/product
-  decisions. `next.config.ts` and tests guard the source-configured headers,
-  while `securityheaders.com`, SSL Labs, and hstspreload.org status remain
-  external evidence.
-- Homepage a11y/runtime proof remains external/browser evidence beyond current
-  static guardrails. Existing source tests cover heading order, reduced-motion
-  behavior, non-interactive decorative mosaic tiles, skip links, and
-  deterministic homepage query visibility.
-- Checkout-group semantics, shipping-rate currency binding, Shippo label money
-  normalization, and BigInt modeling were rechecked as source-current or
-  already-deferred. Cart checkout group ids are persisted through reservations
-  and Stripe metadata, shipping tokens bind server-derived currency/package
-  state, Shippo label costs are normalized and currency-scoped before reversal,
-  and broader individual money/counter `BigInt` migrations remain deliberate
-  data-model decisions.
-- Historical seller shipping-rate currency drift remains live-data
-  reconciliation, not a source patch to fake from code review.
-
-Guardrails added/reviewed:
-
-- Added `keeps Vercel Analytics and Speed Insights behind an explicit privacy
-  decision` to `tests/retention-and-ops-followups.test.mjs`.
-- Reviewed existing guardrails in `tests/public-security-config.test.mjs`,
-  `tests/direct-upload-lifecycle.test.mjs`, `tests/accessibility-followups.test.mjs`,
-  `tests/homepage-determinism.test.mjs`, `tests/shipping-token.test.mjs`,
-  `tests/shipping-quote-state.test.mjs`,
-  `tests/shippo-label-money-guardrails.test.mjs`,
-  `tests/checkout-stock-reservation-guardrails.test.mjs`,
-  `tests/client-async-guardrails.test.mjs`, and
-  `tests/schema-numeric-index-guardrails.test.mjs`.
-
-Verification:
-`git status --short`; `gh run list --branch main --limit 3` confirmed latest
-pushed CI on `main` was green for `eb9820b4`; source/docs/test inspection with
-`rg`/`sed`; two parent-reviewed read-only agent reports; focused suite
-`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
---test tests/retention-and-ops-followups.test.mjs
-tests/public-security-config.test.mjs tests/direct-upload-lifecycle.test.mjs
-tests/accessibility-followups.test.mjs tests/homepage-determinism.test.mjs
-tests/shipping-token.test.mjs tests/shipping-quote-state.test.mjs
-tests/shippo-label-money-guardrails.test.mjs
-tests/checkout-stock-reservation-guardrails.test.mjs
-tests/client-async-guardrails.test.mjs tests/schema-numeric-index-guardrails.test.mjs`
-passed 120/120 after correcting one brittle checklist wording assertion; `npx
-tsc --noEmit`; `git diff --check`; `npm run lint` (known `jsx-ast-utils`
-TSNonNullExpression warning, exit 0); and full `npm test` passing 1452/1452.
-
-Current running tally after Entry 494: verified fixed/reduced 981, verified
-stale/false-positive/current 542, deferred product/design/ops/legal 80,
-approximate raw allegations left from current max #1126: 17. Fixed/reduced
-increases by one for the Vercel telemetry privacy/product guardrail. Raw-left
-stays flat because the R2, Clerk, Sentry, homepage browser, HSTS/preload, and
-deployed-header items still require provider/runtime evidence or an explicit
-product decision outside source.
-
-Remaining major categories: Stripe refund runtime/backfill design beyond the
-now-fixed first-party orphan ledger and local transfer-reversal evidence,
-Stripe partial-refund live reconciliation proof, label clawback runtime
-proof/dashboard reconciliation evidence, Stripe webhook subscription dashboard
-evidence, Stripe Connect v2 loss-liability ops/legal decision, explicit stale
-remote branch pruning/review, completed-audit archive housekeeping once the
-60-day threshold is reached, Round 10 deferred cache/state-machine product
-designs that require product decisions rather than source guardrails,
-EXPLAIN-dependent runtime query-plan validation beyond the existing source
-indexes and source guardrails, founding-maker permanence policy,
-provider-side privacy erasure/legal-request evidence, cross-seller AI
-duplicate-detection product design, durable checkout-group design for checkout
-batch semantics beyond grouped ready-lock/reservation resume and
-completed-session filtering, deliberate BigInt money-column modeling for
-individual order/item cents fields and high-volume listing analytics counters
-beyond the fixed seller-metrics aggregate cache and new webhook integer bounds,
-live-data reconciliation for historical seller shipping-rate currency drift,
-Clerk staff MFA and breached-password dashboard evidence, Clerk multi-account
-spam dashboard evidence, buyer-deletion live Stripe replay proof after source
-minimization, Founding Maker live DB concurrency proof, Sentry cron alert
-evidence, Cloudflare R2 ListBucket/public bucket dashboard posture plus
-production smoke evidence and public-availability proof, HSTS preload
-submission decision, Vercel Analytics/Speed Insights product/privacy decision,
-homepage browser a11y/runtime proof beyond source fallback, and deployed
-security-header runtime proof beyond source/config guardrails.
-
-## Entry 492 - R2, privacy replay, deploy evidence, and schema reverify pass
-
-Entry 492 closes a parent-verified pass over remaining R2/public-bucket,
-provider privacy erasure, buyer-deletion Stripe replay, deployed-header,
-dependency hygiene, Shippo label, and schema numeric allegations. Two read-only
-agents inspected disjoint R2 and privacy/deletion/provider-erasure slices;
-parent Codex reviewed their reports against current source, tests, docs, and
-the active ledger. Both agents were closed. The raw audit import and expected
-untracked local files were not staged.
-
-Fixed/reduced:
-
-- Added a focused checkout-webhook guardrail for the source-current deleted
-  buyer replay behavior. `tests/stripe-webhook-cart-finalization.test.mjs` now
-  asserts both cart and single Checkout completion branches write `buyerId`
-  from the transaction-fresh invalid-state helper, keep invalid-buyer replays
-  held for staff review, preserve the invalid reason in the review/audit path,
-  and stamp `buyerDataPurgedAt` through the buyer-PII minimization helper.
-
-Verified stale/current or deferred without source changes:
-
-- R2 env validation is source-current. `src/lib/r2.ts` uses
-  `requiredProductionEnv()` for R2 account, credentials, bucket, and public URL
-  values instead of production-only non-null assertions.
-- R2 upload signature and cache-header allegations are source-current for new
-  objects. Processed uploads and direct uploads validate image/PDF/video magic
-  bytes before acceptance, reject unsupported/SVG-like payloads, set immutable
-  `CacheControl` on new objects, and verify direct-upload `HeadObject`
-  size/type/key metadata before persistence. Historical pre-cache-header object
-  headers remain bucket/runtime evidence or a backfill task.
-- R2 public-bucket/ListBucket posture remains an ops evidence item rather than
-  a source defect. Source cleanup uses stored lifecycle keys instead of bucket
-  listing, `/api/health` only proves `HeadBucket`, and docs/launch checklist
-  still require upload smoke, CORS/public-domain, ListBucket, and bucket-size
-  evidence before launch.
-- Provider privacy erasure and buyer-deletion source behavior is current:
-  account deletion uses locks, same-origin/fresh-session confirmation, durable
-  side-effect retry rows, seller orderability disablement, and a retained
-  `USER_ACCOUNT_DELETE` audit row. Clerk provider-deleted users with remaining
-  obligations are locally disabled and tracked as data requests instead of
-  being silently hard-deleted.
-- Stripe account replay cannot re-enable inactive sellers in current source:
-  `mirrorStripeChargesEnabled()` reads local `banned/deletedAt` state and
-  mirrors `chargesEnabled && localAccountActive`.
-- Buyer-deletion live Stripe replay proof remains runtime evidence, not a
-  source-proven fix. Static source now revalidates buyer state inside Checkout
-  finalization transactions and converts deleted/suspended buyer completions
-  into blocked review orders with purged buyer PII, but the live replay
-  evidence still requires a Stripe test-mode replay and recorded DB/Sentry/audit
-  artifacts.
-- HSTS/deployed-header allegations remain source-current plus runtime evidence.
-  `next.config.ts` sends the expected security headers including HSTS with the
-  `preload` directive, while tests/docs correctly avoid claiming Chromium
-  preload-list acceptance without live `hstspreload.org` status.
-- Dependency/CI hygiene allegations are stale/current. `package.json` and the
-  lockfile use Next 16.2.6, direct `@types/*` packages are in
-  `devDependencies` or removed, CI blocks on `npm audit --audit-level=high`,
-  Dependabot groups major updates for manual review instead of ignoring them,
-  and docs/tests record the intentional `npm ci --ignore-scripts` CI versus
-  normal Vercel install-script asymmetry.
-- Shippo label double-purchase source remains current. The route claims
-  `labelStatus = PURCHASED` through an atomic guarded SQL update before the
-  Shippo transaction call and records ambiguous/orphan states for manual
-  reconciliation. Parent review did not add an undocumented Shippo
-  idempotency header without primary provider evidence that `/transactions/`
-  supports it.
-- Schema numeric guard allegations are stale/current for the inspected slice:
-  `Order.platformFeeCents` is not a persisted column, so no DB CHECK can or
-  should be added for it; existing tests guard that absence. The broader
-  EXPLAIN/live query-plan and individual BigInt modeling items remain runtime
-  and data-modeling decisions.
-
-Guardrails added/reviewed:
-Added `stores deleted-buyer checkout replays as blocked review orders, not
-normal buyer orders` to `tests/stripe-webhook-cart-finalization.test.mjs`.
-Reviewed existing guardrails included
-`tests/upload-verification-token.test.mjs`, `tests/upload-ux-followups.test.mjs`,
-`tests/direct-upload-lifecycle.test.mjs`,
-`tests/stripe-webhook-cart-finalization.test.mjs`,
-`tests/stripe-webhook-state.test.mjs`,
-`tests/payment-side-effect-observability.test.mjs`,
-`tests/public-security-config.test.mjs`, `tests/dependency-hygiene.test.mjs`,
-`tests/public-cron-search-hardening.test.mjs`, and
-`tests/schema-numeric-index-guardrails.test.mjs`.
-
-Verification:
-`git status --short`; `gh run list --branch main --limit 3` confirmed latest
-pushed CI on `main` was green for `98d9ddcb`; source/docs/test inspection with
-`rg`/`sed`; two parent-reviewed read-only agent reports; focused
-`node --test tests/stripe-webhook-cart-finalization.test.mjs`, which passed
-5/5; and the broader focused suite `node --test
-tests/stripe-webhook-cart-finalization.test.mjs tests/stripe-webhook-state.test.mjs
-tests/payment-side-effect-observability.test.mjs tests/public-security-config.test.mjs
-tests/dependency-hygiene.test.mjs tests/schema-numeric-index-guardrails.test.mjs
-tests/upload-verification-token.test.mjs tests/upload-ux-followups.test.mjs
-tests/direct-upload-lifecycle.test.mjs`, which passed 132/132; `npx tsc
---noEmit`; `git diff --check`; `npm run lint` (known `jsx-ast-utils`
-TSNonNullExpression warning, exit 0); and full `npm test` passing 1449/1449.
-
-Current running tally after Entry 492: verified fixed/reduced 978, verified
-stale/false-positive/current 542, deferred product/design/ops/legal 81,
-approximate raw allegations left from current max #1126: 18. Fixed/reduced
-increases by one for the added deleted-buyer Checkout replay guardrail. Raw-left
-stays flat because the source-current/stale/deferred R2, privacy, deploy,
-dependency, Shippo, and schema findings were already represented in the ledger
-or still require runtime/dashboard/legal evidence.
-
-Remaining major categories: Stripe refund runtime/backfill design beyond the
-now-fixed first-party orphan ledger and local transfer-reversal evidence,
-Stripe partial-refund live reconciliation proof, label clawback runtime
-proof/dashboard reconciliation evidence, Stripe webhook subscription dashboard
-evidence, Stripe Connect v2 loss-liability ops/legal decision, explicit stale
-remote branch pruning/review, completed-audit archive housekeeping once the
-60-day threshold is reached, Round 10 deferred cache/state-machine product
-designs that require product decisions rather than source guardrails,
-EXPLAIN-dependent runtime query-plan validation beyond the existing source
-indexes and source guardrails, founding-maker permanence policy,
-provider-side privacy erasure/legal-request evidence, cross-seller AI
-duplicate-detection product design, durable checkout-group design for checkout
-batch semantics beyond grouped ready-lock/reservation resume and
-completed-session filtering, deliberate BigInt money-column modeling for
-individual order/item cents fields and high-volume listing analytics counters
-beyond the fixed seller-metrics aggregate cache and new webhook integer bounds,
-live-data reconciliation for historical seller shipping-rate currency drift,
-Guild private/custom-order sales/review trust-metric product policy, Clerk
-staff MFA and breached-password dashboard evidence, Clerk multi-account spam
-dashboard evidence, buyer-deletion live Stripe replay proof after source
-minimization, Founding Maker live DB concurrency proof, Sentry cron alert
-evidence, Cloudflare R2 ListBucket/public bucket dashboard posture plus
-production smoke evidence and public-availability proof, HSTS preload
-submission decision, Vercel Analytics/Speed Insights product/privacy decision,
-homepage browser a11y/runtime proof beyond source fallback, and deployed
-security-header runtime proof beyond source/config guardrails.
+approximate raw allegations left from current max #1126: 0. Tally counts stay
+flat because this was a ledger-ordering repair, not a new source or provider
+finding closure.
