@@ -2374,20 +2374,24 @@ Replaced raw `rounded-xl border` / `rounded-xl border bg-white` / `border border
 - `ai-review.ts`: both the no-API-key early return and the catch block now explicitly return `altTexts: []` — prevents `undefined` from silently skipping alt text backfill
 
 ### Edit page photo management (`EditPhotoGrid` component)
-- New `src/components/EditPhotoGrid.tsx` — "use client" component with:
-  - HTML5 drag-and-drop reorder (drag photos between positions)
-  - Arrow button reorder (fallback for mobile/accessibility)
-  - Inline alt text editing per photo with "Save alt texts" button
-  - Delete photos with X button
-  - "Make cover" to move any photo to first position
-  - Toast notifications for all actions
-- Replaced the old server-rendered photo grid + separate `ActionForm` for alt texts
-- Old server actions `deletePhoto`, `saveAltTexts`, `setCoverPhoto` replaced with `reorderPhotos`, `deletePhotoAction`, `saveAltTextsAction`
+- `src/components/EditPhotoGrid.tsx` is a client-side staging component inside
+  the main listing edit form:
+  - HTML5 drag-and-drop reorder plus arrow-button reorder.
+  - Alt text editing through the same modal pattern as `PhotoManager`.
+  - Delete, Re-crop, and Cover controls update local staged state only.
+  - Hidden `photoManifestJson` serializes the full ordered photo manifest for
+    the parent edit form.
+- Replaced the old server-rendered photo grid + separate alt-text `ActionForm`.
+- Do not reintroduce immediate server actions for reorder/delete/re-crop/alt
+  text. The parent edit form's `updateListing` action is the persistence
+  boundary, and ACTIVE listings re-run AI review from that Save path.
 
-### Alt text input styling (both create + edit)
-- Placeholder: "Describe this image (e.g. 'Hand-carved walnut dining table')"
-- Helper text: "Alt text improves visibility in Google Image Search"
-- Consistent styling across `PhotoManager` and `EditPhotoGrid`
+### Alt text modal styling (both create + edit)
+- Placeholder: "Describe this image (e.g. 'Hand-carved walnut dining table with live edge')"
+- Helper text explains that blank alt text can be AI-generated.
+- `PhotoManager` and `EditPhotoGrid` alt editors are real modal dialogs:
+  `useDialogFocus`, `useBodyScrollLock`, `role="dialog"`, `aria-modal`, a
+  labelled title, and a labelled textarea.
 
 ### Materials and dimensions on listing detail
 - Materials shown in Details table when present (comma-separated)
@@ -4022,7 +4026,10 @@ All three order list pages (buyer dashboard, seller sales, account orders) now s
 ### Alt Text for Images (SEO)
 - **Schema**: `altText String?` added to both `Photo` and `ReviewPhoto` models. Migration: `20260422042621_add_photo_alt_text`.
 - **ListingGallery** — main photo and lightbox use `photo.altText ?? title` for alt attribute.
-- **Listing edit page** — alt text input field below each photo thumbnail. "Save alt texts" server action updates each photo's `altText` field. Ownership guard on the save action.
+- **Listing edit page** — alt text is edited through the `EditPhotoGrid` modal
+  and staged in `photoManifestJson`; it is saved only when the parent listing
+  edit form submits to `updateListing`. There is no separate "Save alt texts"
+  server action on the edit page.
 - **ActionForm** — `id` prop support added for form-attribute linking.
 
 ## Site-Wide Border Audit + Final Fixes (2026-04-22)

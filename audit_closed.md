@@ -18486,3 +18486,51 @@ stale/false-positive/current 579, deferred product/design/ops/legal 87,
 approximate raw allegations left from current max #1126: 0. Fixed/reduced
 increases by two for the stale seller-profile report target docs and the
 report/block popover ARIA role mismatch. Deferred stays flat.
+
+### Entry 553 - Older Fable photo-management contract recheck
+
+Entry 553 continues the parent review of older Fable/Claude UI work, widening
+back to the April photo-management and alt-text UI changes from `cdcd8e47`.
+The current `PhotoManager` and `EditPhotoGrid` implementations were verified
+against the present upload/edit contracts: listing photos are staged client-side
+until Save, initial listing-photo uploads do not force a crop, Re-crop remains
+available for explicit 4:5 framing, both alt-text editors are real modal
+dialogs (`useDialogFocus`, `useBodyScrollLock`, `role="dialog"`,
+`aria-modal`, labelled title, labelled textarea), and `EditPhotoGrid` still
+submits the full ordered `photoManifestJson` through the parent edit form.
+
+One residual current-state issue remained:
+
+- Older tracked `CLAUDE.md` sections still described `EditPhotoGrid` as an
+  inline alt-text editor with a separate "Save alt texts" server action and
+  immediate replacement server actions for photo operations. That contradicted
+  the later save-boundary rule that upload, delete, re-crop, reorder, and
+  alt-text edits on existing listings are staged until the seller presses Save.
+
+Fixed/reduced:
+
+- Rewrote the stale `EditPhotoGrid` and Alt Text for Images docs so they
+  describe the current staged-manifest boundary, modal alt-text editors, and
+  the absence of a separate "Save alt texts" edit-page server action.
+
+Guardrails added/reviewed:
+
+- Extended `tests/post-launch-ui-followups.test.mjs` so the existing
+  `EditPhotoGrid` staged-manifest guard also pins the tracked docs and rejects
+  the old inline/server-action wording.
+- Re-ran adjacent post-launch UI, accessibility, upload UX, and small-fix
+  guardrails for the photo-management surface.
+
+Verification:
+`git status --short`; source/docs/test inspection with `git show`, `rg`, and
+`sed`; focused `node --test tests/post-launch-ui-followups.test.mjs
+tests/accessibility-followups.test.mjs tests/upload-ux-followups.test.mjs
+tests/r56-r67-small-fixes.test.mjs` passed 82/82; `npx tsc --noEmit` passed;
+`npm run lint` passed with the known jsx-ast-utils TS non-null warning; and
+`git diff --check` passed.
+
+Current running tally after Entry 553: verified fixed/reduced 1064, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the stale tracked photo-management save-boundary
+contract. Deferred stays flat.

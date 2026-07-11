@@ -389,6 +389,7 @@ describe("post-launch UI follow-ups", () => {
 
   it("EditPhotoGrid stages photo changes in the listing form until Save", () => {
     const grid = source("src/components/EditPhotoGrid.tsx");
+    const docs = source("CLAUDE.md");
     // Photo interactions stay client-side until the parent edit form submits
     // photoManifestJson to updateListing.
     assert.match(grid, /photosKey = initialPhotos\.map\(\(p\) => `\$\{p\.id\}:\$\{p\.url\}`\)\.join\("\|"\)/);
@@ -401,6 +402,10 @@ describe("post-launch UI follow-ups", () => {
     assert.doesNotMatch(grid, /onSaveAltTexts/);
     // Alt-text merge keeps in-progress local edits per existing photo id.
     assert.match(grid, /next\[p\.id\] = prev\[p\.id\] \?\? p\.altText/);
+    assert.match(docs, /Do not reintroduce immediate server actions for reorder\/delete\/re-crop\/alt\s+text\./);
+    assert.match(docs, /There is no separate "Save alt texts"\s+server action on the edit page\./);
+    assert.doesNotMatch(docs, /Inline alt text editing per photo with "Save alt texts" button/);
+    assert.doesNotMatch(docs, /saveAltTextsAction/);
   });
 
   it("ThreadMessages silently falls back to polling on SSE error instead of warning the user", () => {
