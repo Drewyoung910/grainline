@@ -18082,3 +18082,48 @@ stale/false-positive/current 579, deferred product/design/ops/legal 87,
 approximate raw allegations left from current max #1126: 0. Fixed/reduced
 increases by one for the required-check status validation gap. Deferred stays
 flat.
+
+### Entry 546 - Fable UI chrome contract doc recheck
+
+Entry 546 starts the parent review of the Fable UI modernization commits,
+beginning with `af7f4c71` (`feat: remove chrome green, unify on warm cream
+palette`). The source changes and chrome color guardrail correctly moved site
+chrome toward cream/espresso, but `CLAUDE.md` still retained older canonical
+behavior bullets saying the header/footer should use green chrome, inverted
+logos, light-on-green header icon buttons, and a thick gray seller
+banner-avatar ring. That contradicted the new UI contract and could steer
+future agents back toward the removed chrome.
+
+Fixed/reduced:
+
+- Rewrote the tracked `CLAUDE.md` avatar visibility behavior to match the
+  current cream cutout ring for large banner-overlap avatars and the softer
+  hairline ring option for normal avatars.
+- Rewrote the tracked `CLAUDE.md` warm palette behavior so it identifies
+  cream/espresso as the current site chrome, preserves green only for
+  GuildBadge artwork and semantic status colors, and explicitly rejects old
+  inverted-logo and light-on-green header/footer instructions.
+- Verified the untracked `AGENTS.md` copy contains the same stale wording, but
+  left it untouched and unstaged because it is one of the preserved untracked
+  local files.
+
+Guardrails added/reviewed:
+
+- Extended `tests/chrome-color-guardrails.test.mjs` to check the tracked
+  `CLAUDE.md` chrome and avatar contracts, not just `src` hex usage.
+- Re-ran adjacent accessibility/header/footer guardrails to keep the doc
+  correction aligned with the current UI source.
+
+Verification:
+`git status --short`; source/docs/test inspection with `rg`/`sed`;
+`node --test tests/chrome-color-guardrails.test.mjs
+tests/accessibility-followups.test.mjs` passed 25/25; `npx tsc --noEmit`
+passed; `npm run lint` passed after the known jsx-ast-utils TS non-null warning;
+`git diff --check` passed; and `npm test` passed 1559/1562 with the existing
+three skipped tests.
+
+Current running tally after Entry 546: verified fixed/reduced 1048, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the tracked UI behavior-contract contradiction. Deferred
+stays flat.

@@ -42,4 +42,17 @@ describe("chrome color guardrails", () => {
 
     assert.deepEqual(offenders, []);
   });
+
+  it("keeps CLAUDE.md aligned with the cream/espresso chrome contract", () => {
+    const docs = fs.readFileSync("CLAUDE.md", "utf8");
+
+    assert.match(docs, /site chrome uses two cream tones plus espresso/);
+    assert.match(docs, /former chrome green `#3F5D3A`/);
+    assert.match(docs, /Header and footer are cream/);
+    assert.match(docs, /ring-4 ring-\[#F7F5F0\] shadow-sm/);
+    assert.doesNotMatch(docs, /header and footer both use `bg-\[#3F5D3A\]`/i);
+    assert.doesNotMatch(docs, /espresso logo uses `brightness-0 invert`/i);
+    assert.doesNotMatch(docs, /Icon buttons inside the header use `text-stone-100 hover:bg-white\/10 rounded-full`/);
+    assert.doesNotMatch(docs, /seller banner-overlap avatar may use `ring-4 ring-neutral-200 shadow-sm`/);
+  });
 });
