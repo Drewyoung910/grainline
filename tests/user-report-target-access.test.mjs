@@ -58,6 +58,7 @@ describe("user report target access guardrails", () => {
   it("keeps seller profile report UI and admin links aligned with the API target", () => {
     const sellerPage = readFileSync("src/app/seller/[id]/page.tsx", "utf8");
     const adminReports = readFileSync("src/app/admin/reports/page.tsx", "utf8");
+    const docs = readFileSync("CLAUDE.md", "utf8");
 
     assert.match(sellerPage, /targetType="SELLER_PROFILE"/);
     assert.match(sellerPage, /targetId=\{seller\.id\}/);
@@ -65,5 +66,8 @@ describe("user report target access guardrails", () => {
     assert.match(adminReports, /targetType === "SELLER_PROFILE" \|\| targetType === "SELLER"/);
     assert.match(adminReports, /isSellerProfileReportTarget\(r\.targetType\)/);
     assert.match(adminReports, /publicSellerPath\(seller\.id, seller\.displayName\)/);
+    assert.match(docs, /\| Seller profiles \| `SELLER_PROFILE` \| `BlockReportButton` on `\/seller\/\[id\]` \|/);
+    assert.doesNotMatch(docs, /\| Seller profiles \| `SELLER` \|/);
+    assert.doesNotMatch(docs, /targetType="SELLER" targetId=\{seller\.id\}/);
   });
 });

@@ -1912,7 +1912,7 @@ Reports show reason + details inline. Each report card now includes a contextual
 
 ### `UserReport` schema (2026-04-13)
 Added `targetType String?` and `targetId String?` to `UserReport` model. Migration: `20260413200254_add_user_report_target`. `BlockReportButton` accepts optional `targetType` and `targetId` props and includes them in the POST body. Report API route (`/api/users/[id]/report`) reads and saves both fields. Wired on:
-- `seller/[id]/page.tsx` → `targetType="SELLER" targetId={seller.id}`
+- `seller/[id]/page.tsx` → `targetType="SELLER_PROFILE" targetId={seller.id}`
 - `messages/[id]/page.tsx` → `targetType="MESSAGE_THREAD" targetId={id}` (conversation ID)
 - `listing/[id]/page.tsx` → `targetType="LISTING" targetId={listing.id}` (added BlockReportButton to seller card, gated on `meId && !isOwnListing`)
 
@@ -3904,7 +3904,7 @@ Sellers can restrict shipping quotes to specific carriers.
 ### Reporting coverage (complete)
 | Surface | targetType | Component |
 |---|---|---|
-| Seller profiles | `SELLER` | `BlockReportButton` on `/seller/[id]` |
+| Seller profiles | `SELLER_PROFILE` | `BlockReportButton` on `/seller/[id]` |
 | Listings | `LISTING` | `BlockReportButton` on `/listing/[id]` |
 | Message threads | `MESSAGE_THREAD` | `BlockReportButton` in `/messages/[id]` |
 | Reviews | `REVIEW` | `BlockReportButton` in `ReviewsSection` |

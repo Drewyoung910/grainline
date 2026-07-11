@@ -152,7 +152,7 @@ export default function BlockReportButton({ targetUserId, targetName, initialBlo
         className="text-xs text-neutral-500 hover:text-neutral-600 px-2 py-1 rounded"
         aria-label="More options"
         aria-expanded={open}
-        aria-haspopup="menu"
+        aria-haspopup="dialog"
       >
         •••
       </button>
@@ -162,9 +162,11 @@ export default function BlockReportButton({ targetUserId, targetName, initialBlo
           <div
             className="fixed inset-0 z-[9998]"
             onClick={() => { setOpen(false); setView("menu"); }}
+            aria-hidden="true"
           />
           <div
-            role="menu"
+            role="dialog"
+            aria-label="Report and block options"
             style={{
               position: "fixed",
               top: menuPos?.top ?? 0,

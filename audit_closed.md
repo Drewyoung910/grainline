@@ -18432,3 +18432,57 @@ increases by six for the missed following amber action link, the
 MessageComposer field-focus override, the stale homepage/blog newsletter
 contracts, the NotificationBell and Header closed-popover close-state guards,
 and the maker-map-card avatar cutout mismatch. Deferred stays flat.
+
+### Entry 552 - Residual Fable block/report UI contract recheck
+
+Entry 552 continues the parent review of the Fable UI work, returning to the
+surviving block/report behavior from `476d36f0` after Entries 541-543 already
+closed the map popup, seller-profile report target, mobile drawer containment,
+and public-copy truth issues. The current block/unblock behavior itself was
+verified: `BlockReportButton` toasts on block/unblock, refreshes ordinary
+surfaces, and seller/listing pages pass `afterBlockHref="/browse"` so a
+successful block does not strand the user on a page that will become
+inaccessible.
+
+Two residual issues remained:
+
+- Older `CLAUDE.md` reporting docs still listed seller profile reports as
+  `targetType="SELLER"` / `SELLER`, contradicting the canonical
+  `SELLER_PROFILE` API/UI contract closed in Entry 542.
+- `BlockReportButton` exposed the portal popover as `role="menu"` with
+  `aria-haspopup="menu"`, but that same surface can contain a report form with
+  labels, a select, and a textarea. Without arrow-key menu behavior and with
+  embedded form controls, dialog semantics are the accurate ARIA shape.
+
+Fixed/reduced:
+
+- Updated the stale seller-profile report wiring docs and reporting coverage
+  table to `SELLER_PROFILE`.
+- Changed `BlockReportButton` to expose the popover as a named dialog
+  (`aria-haspopup="dialog"`, `role="dialog"`, `aria-label="Report and block
+  options"`) and marked the fixed click-catcher `aria-hidden`.
+
+Guardrails added/reviewed:
+
+- Extended `tests/user-report-target-access.test.mjs` to reject the stale
+  `SELLER` seller-profile docs and require the canonical `SELLER_PROFILE`
+  table entry.
+- Extended `tests/accessibility-followups.test.mjs` to reject `role="menu"` on
+  `BlockReportButton` and require dialog semantics for the report/block
+  popover.
+- Re-ran adjacent report target, social-interaction, rate-limit, and
+  accessibility guardrails.
+
+Verification:
+`git status --short`; source/docs/test inspection with `rg`/`sed`; focused
+`node --test tests/accessibility-followups.test.mjs
+tests/user-report-target-access.test.mjs tests/social-interaction-hardening.test.mjs
+tests/http-rate-limit-followups.test.mjs` passed 33/33; `npx tsc --noEmit`
+passed; `npm run lint` passed with the known jsx-ast-utils TS non-null
+warning; and `git diff --check` passed.
+
+Current running tally after Entry 552: verified fixed/reduced 1063, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by two for the stale seller-profile report target docs and the
+report/block popover ARIA role mismatch. Deferred stays flat.
