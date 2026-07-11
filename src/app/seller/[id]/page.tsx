@@ -584,7 +584,7 @@ export default async function SellerPublicPage({
                 <BlockReportButton
                   targetUserId={seller.userId}
                   targetName={seller.displayName ?? "this maker"}
-                  targetType="SELLER"
+                  targetType="SELLER_PROFILE"
                   targetId={seller.id}
                   afterBlockHref="/browse"
                 />

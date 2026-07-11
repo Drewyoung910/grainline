@@ -43,5 +43,27 @@ describe("user report target access guardrails", () => {
       /post: publicBlogPostWhere\(\)/,
       "blog comment reports must be limited to comments on public posts",
     );
+    assert.match(
+      source,
+      /"SELLER_PROFILE"/,
+      "seller-profile reports must use the canonical seller profile target",
+    );
+    assert.match(
+      source,
+      /visibleSellerProfileWhere\(\{ id: body\.targetId, userId: reportedId \}\)/,
+      "seller-profile reports must require a public seller profile owned by the reported user",
+    );
+  });
+
+  it("keeps seller profile report UI and admin links aligned with the API target", () => {
+    const sellerPage = readFileSync("src/app/seller/[id]/page.tsx", "utf8");
+    const adminReports = readFileSync("src/app/admin/reports/page.tsx", "utf8");
+
+    assert.match(sellerPage, /targetType="SELLER_PROFILE"/);
+    assert.match(sellerPage, /targetId=\{seller\.id\}/);
+    assert.doesNotMatch(sellerPage, /targetType="SELLER"/);
+    assert.match(adminReports, /targetType === "SELLER_PROFILE" \|\| targetType === "SELLER"/);
+    assert.match(adminReports, /isSellerProfileReportTarget\(r\.targetType\)/);
+    assert.match(adminReports, /publicSellerPath\(seller\.id, seller\.displayName\)/);
   });
 });

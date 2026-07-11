@@ -8,6 +8,7 @@ import { createNotification } from "@/lib/notifications";
 import { canViewListingDetail } from "@/lib/listingVisibility";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { openCommissionWhere } from "@/lib/commissionExpiry";
+import { visibleSellerProfileWhere } from "@/lib/sellerVisibility";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -30,6 +31,7 @@ const Schema = z.object({
     "BLOG_COMMENT",
     "REVIEW",
     "COMMISSION_REQUEST",
+    "SELLER_PROFILE",
   ]).optional(),
   targetId: z.string().max(100).optional(),
 });
@@ -205,6 +207,12 @@ export async function POST(
       case "COMMISSION_REQUEST":
         exists = await prisma.commissionRequest.count({
           where: openCommissionWhere({ id: body.targetId, buyerId: reportedId }),
+        }) > 0;
+        reporterCanAccess = exists;
+        break;
+      case "SELLER_PROFILE":
+        exists = await prisma.sellerProfile.count({
+          where: visibleSellerProfileWhere({ id: body.targetId, userId: reportedId }),
         }) > 0;
         reporterCanAccess = exists;
         break;

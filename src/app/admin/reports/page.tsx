@@ -25,6 +25,10 @@ function reportUserSearchValue(user: ReportUserLabel | null | undefined) {
   return user.email ?? user.name ?? "";
 }
 
+function isSellerProfileReportTarget(targetType: string | null) {
+  return targetType === "SELLER_PROFILE" || targetType === "SELLER";
+}
+
 export default async function AdminReportsPage() {
   const { userId } = await auth();
   if (!userId) redirect("/");
@@ -62,7 +66,7 @@ export default async function AdminReportsPage() {
     .filter((r) => r.targetType === "LISTING" && r.targetId)
     .map((r) => r.targetId!);
   const sellerTargetIds = reports
-    .filter((r) => r.targetType === "SELLER" && r.targetId)
+    .filter((r) => isSellerProfileReportTarget(r.targetType) && r.targetId)
     .map((r) => r.targetId!);
 
   const reviewListingMap = new Map<string, { id: string; title: string }>();
@@ -177,7 +181,7 @@ export default async function AdminReportsPage() {
                     {r.targetType === "LISTING" && (
                       <Link href={listingPathMap.get(r.targetId) ?? `/listing/${r.targetId}`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View listing →</Link>
                     )}
-                    {r.targetType === "SELLER" && (
+                    {isSellerProfileReportTarget(r.targetType) && (
                       <Link href={sellerPathMap.get(r.targetId) ?? `/seller/${r.targetId}`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View seller →</Link>
                     )}
                     {r.targetType === "MESSAGE_THREAD" && (

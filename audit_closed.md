@@ -17898,3 +17898,47 @@ stale/false-positive/current 579, deferred product/design/ops/legal 87,
 approximate raw allegations left from current max #1126: 0. Fixed/reduced
 increases by one for the real map marker cleanup regression. Deferred stays
 flat.
+
+### Entry 542 - Seller profile report target contract
+
+Entry 542 continues the parent review of the map/block/report UI work from
+`476d36f0`. The seller profile page rendered a report action with
+`targetType="SELLER"` and `targetId={seller.id}`, but `/api/users/[id]/report`
+accepted only the existing report target enum values. As a result, seller
+profile reports failed validation before creating a moderation row, while the
+admin reports page already had a partial seller-target display branch.
+
+Fixed/reduced:
+
+- Updated the seller profile report button to use the canonical
+  `SELLER_PROFILE` target type.
+- Added `SELLER_PROFILE` to the user-report API schema and verified it by
+  requiring the target seller profile id to belong to the reported user and pass
+  `visibleSellerProfileWhere(...)` before the report is accepted.
+- Updated the admin reports page to resolve and link canonical
+  `SELLER_PROFILE` targets, while retaining display support for any legacy
+  `SELLER` report rows.
+- Updated `CLAUDE.md` with the durable report-target contract so future report
+  target additions keep client strings, API validation, and staff context links
+  aligned.
+
+Guardrails added/reviewed:
+
+- Extended `tests/user-report-target-access.test.mjs` to require the
+  `SELLER_PROFILE` route enum value, seller-profile visibility/ownership check,
+  seller page UI wiring, and admin seller-profile target link mapping.
+- Re-ran adjacent report, moderation, rate-limit, and observability guardrails
+  to confirm the new target did not weaken existing private-target checks.
+
+Verification:
+`git status --short`; source inspection with `rg`/`sed`; focused `node --test
+tests/user-report-target-access.test.mjs tests/social-interaction-hardening.test.mjs
+tests/admin-moderation-observability.test.mjs tests/http-rate-limit-followups.test.mjs
+tests/review-report-observability.test.mjs` passed 23/23; `npx tsc --noEmit`
+passed; and `git diff --check` passed.
+
+Current running tally after Entry 542: verified fixed/reduced 1043, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the broken seller-profile report target contract. Deferred
+stays flat.
