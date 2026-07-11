@@ -18346,3 +18346,89 @@ stale/false-positive/current 579, deferred product/design/ops/legal 87,
 approximate raw allegations left from current max #1126: 0. Fixed/reduced
 increases by one for the remaining seller-shop amber action link. Deferred
 stays flat.
+
+### Entry 551 - Fable field-focus/newsletter/dropdown 3119de2c recheck
+
+Entry 551 continues the parent review of the Fable UI modernization commits,
+covering `3119de2c` (`fix: unify field focus states, floating mobile menu,
+amber action cleanup`) plus the follow-on `dfd32d07` Header,
+NotificationBell, and MakerMapCard popover refinements against current `main`.
+The later mobile-menu work has already superseded the original drawer
+implementation, and the maker-blog follow CTA itself was rechecked against the
+current blog write paths: ordinary maker posts still write `authorId` to the
+seller user's account and `sellerProfileId` to that user's seller profile,
+while the follow API remains the server-side self-follow/block authority. Staff
+posts still keep the generic newsletter.
+
+Six current-state issues remained in the same UI contract area:
+
+- `/account/following` still had a `text-amber-700` "View Feed" action link
+  even though the updated amber-only-highlight contract explicitly calls out
+  following CTAs as espresso/neutral actions.
+- `MessageComposer` still suppressed the global field-focus treatment with
+  `focus:border-stone-500` and `focus-visible:shadow-none` on a visible
+  bordered textarea, despite not being one of the documented pill-container
+  exceptions.
+- Older `CLAUDE.md` sections still described a homepage newsletter and a
+  generic `/blog/[slug]` `NewsletterSignup`, contradicting the newer contract
+  that the homepage has no newsletter, maker posts use the follow-the-maker
+  card, and only staff posts/blog index use `NewsletterSignup`.
+- The NotificationBell popover close animation could enter `closing` state from
+  the global Escape handler even when the dropdown was already closed.
+- The mobile header drawer had the same closed-popover close-state edge on the
+  global Escape path, and its new scroll fade/overflow behavior needed a
+  durable source guard.
+- The map maker card changed to a cream surface but kept a white overlapping
+  avatar cutout, contradicting the current cream-cutout avatar rule.
+
+Fixed/reduced:
+
+- Converted the `/account/following` "View Feed" action to an espresso rounded
+  button instead of an amber text action.
+- Removed the remaining per-field focus override from the message composer
+  textarea so it inherits the shared `globals.css` text-field focus behavior.
+- Updated stale homepage, blog-detail, and message-composer behavior contracts
+  in `CLAUDE.md` to match current code and prevent future reintroduction.
+- Verified `dfd32d07` guards `NotificationBell.closeDropdown()` so closed
+  popovers ignore Escape and outside-close paths instead of scheduling a
+  pointless close timer.
+- Verified `dfd32d07` guards `Header.closeDrawer()` the same way, keeps the
+  new shorter mobile menu header and bottom fade affordance, and keeps the new
+  nav wrapper structure coherent.
+- Verified `dfd32d07` changed the map maker card avatar cutout to
+  `border-[#F7F5F0]` to match the cream card surface while preserving the new
+  icon close button.
+
+Guardrails added/reviewed:
+
+- Extended `tests/post-launch-ui-followups.test.mjs` to pin `MessageComposer`
+  to the shared field-focus rule alongside `BlogCommentForm`.
+- Added a source guard for the Fable newsletter/follow placement: no
+  `NewsletterSignup` on the homepage, maker blog posts use the follow card
+  hidden for the author, staff posts retain `NewsletterSignup`, and the
+  following feed CTA is no longer amber.
+- Extended the notification dropdown guard to pin the open-state no-op and
+  the shared `animate-menu-in` / `animate-menu-out` popover animation contract.
+- Extended the mobile-menu popover guard to pin the closed-state no-op,
+  overflowing-scroll-region check, and bottom fade affordance.
+- Extended the maker-map-card overlay guard to pin the cream surface/cutout and
+  icon close button.
+- Re-ran the targeted 3119 touched-surface focus scan; the remaining
+  `focus:ring-*` hits are checkbox/toggle controls, which are the documented
+  exception.
+
+Verification:
+`git status --short`; source/docs/test inspection with `git show`, `rg`, and
+`sed`; focused `node --test tests/post-launch-ui-followups.test.mjs
+tests/accessibility-followups.test.mjs tests/client-async-guardrails.test.mjs
+tests/blog-action-guardrails.test.mjs tests/public-visibility-followups.test.mjs`
+passed 107/107; `npx tsc --noEmit` passed; `npm run lint` passed with the
+known jsx-ast-utils TS non-null warning; and `git diff --check` passed.
+
+Current running tally after Entry 551: verified fixed/reduced 1061, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by six for the missed following amber action link, the
+MessageComposer field-focus override, the stale homepage/blog newsletter
+contracts, the NotificationBell and Header closed-popover close-state guards,
+and the maker-map-card avatar cutout mismatch. Deferred stays flat.

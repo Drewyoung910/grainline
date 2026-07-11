@@ -237,6 +237,8 @@ describe("client async guardrails", () => {
     assert.match(bell, /function normalizeNotificationsResponse/);
     assert.match(bell, /\.filter\(isNotificationItem\)\.slice\(0, MAX_NOTIFICATION_ITEMS\)/);
     assert.match(bell, /if \(!isLoaded \|\| !isSignedIn\) return/);
+    assert.match(bell, /if \(!open\) return/);
+    assert.match(bell, /closing \? "animate-menu-out pointer-events-none" : "animate-menu-in"/);
     assert.match(route, /ownerNotificationBellData\(me\.id\)/);
     assert.match(ownerAccess, /const NOTIFICATION_BELL_SELECT = \{/);
     assert.match(ownerAccess, /select: NOTIFICATION_BELL_SELECT/);

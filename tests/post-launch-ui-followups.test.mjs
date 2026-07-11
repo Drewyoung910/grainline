@@ -452,6 +452,7 @@ describe("post-launch UI follow-ups", () => {
   it("keeps blog comment fields on the global field-focus contract", () => {
     const globals = source("src/app/globals.css");
     const blogComment = source("src/components/BlogCommentForm.tsx");
+    const messageComposer = source("src/components/MessageComposer.tsx");
     const docs = source("CLAUDE.md");
 
     assert.match(globals, /single sitewide field-focus treatment/);
@@ -459,8 +460,29 @@ describe("post-launch UI follow-ups", () => {
     assert.match(globals, /box-shadow: 0 0 0 3px rgb\(168 162 158 \/ 0\.16\)/);
     assert.match(blogComment, /rounded-md border border-neutral-200 bg-white/);
     assert.doesNotMatch(blogComment, /focus:border|focus:ring/);
+    assert.match(messageComposer, /border-2 border-stone-300/);
+    assert.doesNotMatch(messageComposer, /focus:border|focus:ring|focus-visible:shadow-none/);
     assert.match(docs, /Blog comment form[\s\S]*inherits the sitewide text-field focus treatment/);
+    assert.match(docs, /MessageComposer\.tsx[\s\S]*sitewide field-focus treatment/);
     assert.doesNotMatch(docs, /Blog comment form[\s\S]{0,160}focus:border-stone-500/);
+  });
+
+  it("keeps the Fable newsletter and follow CTA placement honest", () => {
+    const homepage = source("src/app/page.tsx");
+    const blogPost = source("src/app/blog/[slug]/page.tsx");
+    const following = source("src/app/account/following/page.tsx");
+    const docs = source("CLAUDE.md");
+
+    assert.doesNotMatch(homepage, /NewsletterSignup/);
+    assert.match(blogPost, /const isMakerPost = post\.authorType === "MAKER" && !!post\.sellerProfile/);
+    assert.match(blogPost, /const viewerIsAuthor = !!meId && post\.author\?\.id === meId/);
+    assert.match(blogPost, /!viewerIsAuthor && \(/);
+    assert.match(blogPost, /<FollowButton[\s\S]*sellerProfileId=\{post\.sellerProfile\.id\}[\s\S]*initialCount=\{authorFollowerCount\}/);
+    assert.match(blogPost, /<NewsletterSignup \/>/);
+    assert.match(following, /href="\/account\/feed"[\s\S]*bg-\[#2C1F1A\]/);
+    assert.doesNotMatch(following, /href="\/account\/feed"[\s\S]{0,160}text-amber-700/);
+    assert.match(docs, /The homepage stops here; it intentionally does not render `NewsletterSignup`/);
+    assert.match(docs, /maker posts show a Follow-the-maker card[\s\S]*staff posts show `NewsletterSignup`/);
   });
 
   it("keeps the map maker card an overlay pinned to the map container", () => {
@@ -499,6 +521,9 @@ describe("post-launch UI follow-ups", () => {
     assert.match(makerCard, /safeHttpsUrl\(loaded\?\.avatarUrl\)/);
     assert.match(makerCard, /fetch\(`\/api\/seller\/\$\{encodeURIComponent\(sellerId\)\}\/map-card`\)/);
     assert.match(makerCard, /aria-label="Close maker details"/);
+    assert.match(makerCard, /bg-\[#F7F5F0\]/);
+    assert.match(makerCard, /border-\[#F7F5F0\]/);
+    assert.match(makerCard, /<X size=\{16\} aria-hidden="true" \/>/);
     assert.doesNotMatch(makerCard, /dangerouslySetInnerHTML|innerHTML/);
     assert.match(mapCardRoute, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
     assert.match(mapCardRoute, /activeSellerProfileWhere\(\{ id, publicMapOptIn: true \}\)/);

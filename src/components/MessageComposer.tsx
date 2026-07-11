@@ -173,7 +173,7 @@ export default function MessageComposer({
             }
           }}
           placeholder={placeholder}
-          className="w-full resize-none rounded-2xl bg-[#F7F5F0] border-2 border-stone-300 px-4 py-2.5 text-sm focus:outline-none focus:border-stone-500 focus-visible:outline-none focus-visible:shadow-none max-h-40 overflow-y-auto transition-colors"
+          className="w-full resize-none rounded-2xl bg-[#F7F5F0] border-2 border-stone-300 px-4 py-2.5 text-sm max-h-40 overflow-y-auto transition-colors"
         />
 
         {canSend ? (
@@ -215,5 +215,4 @@ export default function MessageComposer({
     </div>
   );
 }
-
 

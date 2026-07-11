@@ -310,10 +310,15 @@ describe("accessibility follow-ups", () => {
     assert.match(header, /aria-haspopup="dialog"/);
     assert.match(header, /aria-controls=\{drawerOpen \? drawerId : undefined\}/);
     assert.match(header, /id=\{drawerId\}/);
+    assert.match(header, /if \(!drawerOpen\) return/);
     assert.doesNotMatch(header, /setAttribute\("inert"/);
     assert.doesNotMatch(header, /aria-modal="true"/);
     assert.doesNotMatch(header, /bg-black\/30/);
     assert.match(header, /className="fixed inset-0 z-\[1000\] touch-none"/);
+    assert.match(header, /data-drawer-scroll-region/);
+    assert.match(header, /scrollRegion\.scrollHeight > scrollRegion\.clientHeight \+ 1/);
+    assert.match(header, /drawerNavFade &&/);
+    assert.match(header, /bg-gradient-to-t from-\[#F7F5F0\] to-transparent/);
     assert.match(header, /drawerRef\.current\?\.focus\(\)/);
     assert.match(header, /onBlur=\{/);
     assert.match(header, /!drawerRef\.current\.contains\(e\.relatedTarget\)/);
