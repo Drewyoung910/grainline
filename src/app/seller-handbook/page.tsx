@@ -350,6 +350,16 @@ export default function SellerHandbookPage() {
             Guild Master listings get featured rotation on the homepage, an additional ranking boost in browse,
             and access to the Maker of the Week spotlight.
           </p>
+
+          <h3>How the homepage spotlight is chosen</h3>
+          <p>
+            The &quot;In the Workshop&quot; homepage feature shows a Maker of the Week plus an
+            &quot;Also featured&quot; maker. Selection order: a maker manually featured by Grainline staff
+            always takes the spotlight; otherwise the slots rotate weekly (Monday to Sunday) through all
+            Guild Members and Guild Masters in a fixed cycle, so every Guild maker gets spotlight weeks over
+            time. If no Guild makers exist yet, the feature rotates weekly among the most-reviewed shops.
+            Spots cannot be bought, and the rotation is automatic.
+          </p>
         </section>
 
         <section id="disputes">

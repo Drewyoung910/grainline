@@ -485,7 +485,9 @@ describe("post-launch UI follow-ups", () => {
     assert.match(homepage, /storyBody: true/);
     assert.match(homepage, /yearsInBusiness: true/);
     assert.match(homepage, /createdAt: true/);
-    assert.match(homepage, /home-featured-makers-v3/);
+    assert.match(homepage, /home-featured-makers-v4/);
+    assert.match(homepage, /isFoundingMaker: true/);
+    assert.match(homepage, /foundingMakerNumber: true/);
     assert.match(homepage, /const featuredMakerIds = featuredMakers\.map\(\(\{ maker \}\) => maker\.id\)/);
     assert.match(homepage, /prisma\.follow\.groupBy\(\{/);
     assert.match(homepage, /where: \{ followerId: meDbId, sellerProfileId: \{ in: featuredMakerIds \} \}/);
@@ -589,7 +591,14 @@ describe("post-launch UI follow-ups", () => {
     const messageIconLink = source("src/components/MessageIconLink.tsx");
     // Cart and signed-out message icons in header now use the same hover
     // circle pattern as MessageIconLink.
-    assert.match(header, /aria-label="Cart"\s+title="Cart"/);
+    // Native title tooltips were replaced by the styled IconHoverTip labels
+    assert.match(header, /aria-label="Cart"/);
+    assert.doesNotMatch(header, /title="Cart"/);
+    assert.match(header, /<IconHoverTip label="Cart" \/>/);
+    assert.match(header, /<IconHoverTip label="Messages" \/>/);
+    assert.match(bell, /\{!open && <IconHoverTip label="Notifications" \/>\}/);
+    assert.match(messageIconLink, /<IconHoverTip label="Messages" \/>/);
+    assert.match(source("src/components/UserAvatarMenu.tsx"), /\{!open && <IconHoverTip label="Account" \/>\}/);
     assert.match(header, /relative inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black\/10/);
     assert.match(header, /bg-\[#EFEAE0\] border-b border-stone-200\/60 pl-5 pr-2 py-1/);
     assert.match(header, /bg-gradient-to-t from-\[#F7F5F0\] via-\[#F7F5F0\]\/75 to-transparent/);

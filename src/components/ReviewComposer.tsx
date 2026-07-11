@@ -55,7 +55,7 @@ export default function ReviewComposer(props: {
   // If user cannot create AND not editing, just show the info box.
   if (creating && (!canReview || hasReview)) {
     return (
-      <div className="card-section px-4 py-3 text-sm text-neutral-600">
+      <div className="rounded-lg border border-stone-200/60 shadow-sm bg-[#EFEAE0] px-4 py-3 text-sm text-neutral-600">
         You can post a review within 90 days of a completed purchase.
       </div>
     );

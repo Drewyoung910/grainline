@@ -3,9 +3,10 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Show, useClerk } from "@clerk/nextjs";
+import { Show, useClerk, useUser } from "@clerk/nextjs";
 import * as React from "react";
 import MessageIconLink from "@/components/MessageIconLink";
+import IconHoverTip from "@/components/IconHoverTip";
 import SearchBar from "@/components/SearchBar";
 import NotificationBell from "@/components/NotificationBell";
 import UserAvatarMenu from "@/components/UserAvatarMenu";
@@ -19,6 +20,11 @@ export default function Header() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { signOut, openUserProfile } = useClerk();
+  // Clerk auth state — used to re-fetch /api/me when the session appears or
+  // disappears client-side. Without this, signing in could leave the header
+  // showing stale signed-out data (e.g. "Start Selling" for an established
+  // seller) until a hard refresh.
+  const { isSignedIn } = useUser();
 
   const [cartCount, setCartCount] = React.useState<number | null>(null);
   const [role, setRole] = React.useState<string | null>(null);
@@ -259,7 +265,7 @@ export default function Header() {
 
   React.useEffect(() => {
     loadAll();
-  }, [loadAll]);
+  }, [loadAll, isSignedIn]);
 
   React.useEffect(() => {
     return () => {
@@ -328,9 +334,9 @@ export default function Header() {
                 href="/sign-in?redirect_url=/messages"
                 className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black/10 transition-colors"
                 aria-label="Messages"
-                title="Messages"
               >
                 <MessageCircle size={22} />
+                <IconHoverTip label="Messages" />
               </Link>
             }
           >
@@ -340,11 +346,11 @@ export default function Header() {
           {/* Cart — always visible; signed-out users see sign-in prompt on /cart */}
           <Link
             href="/cart"
-            className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black/10 transition-colors"
+            className="group relative inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black/10 transition-colors"
             aria-label="Cart"
-            title="Cart"
           >
             <ShoppingBag size={22} />
+            <IconHoverTip label="Cart" />
             {cartCount != null && cartCount > 0 && (
               <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-medium leading-none text-white">
                 {cartCount}

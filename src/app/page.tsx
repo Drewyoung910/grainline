@@ -9,6 +9,7 @@ import MakersMapSection from "@/components/MakersMapSection";
 import SearchBar from "@/components/SearchBar";
 import { ScrollSection } from "@/components/ScrollSection";
 import GuildBadge from "@/components/GuildBadge";
+import FoundingMakerBadge from "@/components/FoundingMakerBadge";
 import { Armchair, Utensils, Candle, Toy, Box, Gift, TreePine, Palette, MapPin } from "@/components/icons";
 import ClickTracker from "@/components/ClickTracker";
 import HeroMosaic from "@/components/HeroMosaic";
@@ -68,6 +69,8 @@ const featuredMakerSelect = {
   workshopImageUrl: true,
   featuredListingIds: true,
   guildLevel: true,
+  isFoundingMaker: true,
+  foundingMakerNumber: true,
   user: { select: { imageUrl: true } },
 } satisfies Prisma.SellerProfileSelect;
 
@@ -158,7 +161,14 @@ const getFeaturedMakers = unstable_cache(async (): Promise<FeaturedMaker[]> => {
       ORDER BY COALESCE(srs."reviewCount", 0) DESC, sp.id ASC
       LIMIT 4
     `;
-    const candidateIds = topReviewedRows.map((r) => r.sellerId).filter((id) => !seen.has(id));
+    let candidateIds = topReviewedRows.map((r) => r.sellerId).filter((id) => !seen.has(id));
+    // Weekly rotation within the fallback pool too — without this, the
+    // single most-reviewed maker would hold the spotlight indefinitely
+    // whenever no Guild members exist yet.
+    if (candidateIds.length > 1) {
+      const offset = makerWeekIndex(candidateIds.length);
+      candidateIds = [...candidateIds.slice(offset), ...candidateIds.slice(0, offset)];
+    }
     if (candidateIds.length > 0) {
       const candidates = await prisma.sellerProfile.findMany({
         where: activeSellerProfileWhere({ id: { in: candidateIds } }),
@@ -175,7 +185,7 @@ const getFeaturedMakers = unstable_cache(async (): Promise<FeaturedMaker[]> => {
   }
 
   return picked;
-}, ["home-featured-makers-v3"], { revalidate: 300, tags: [HOME_FEATURED_MAKER_CACHE_TAG] });
+}, ["home-featured-makers-v4"], { revalidate: 300, tags: [HOME_FEATURED_MAKER_CACHE_TAG] });
 
 const featuredListingSelect = {
   id: true,
@@ -835,6 +845,9 @@ export default async function HomePage() {
                       level={spotlight.guildLevel as import("@/components/GuildBadge").GuildLevelValue}
                       size={30}
                     />
+                    {spotlight.isFoundingMaker && (
+                      <FoundingMakerBadge number={spotlight.foundingMakerNumber} size={26} />
+                    )}
                   </div>
 
                   {spotlight.tagline && (
@@ -954,6 +967,9 @@ export default async function HomePage() {
                           level={also.guildLevel as import("@/components/GuildBadge").GuildLevelValue}
                           size={20}
                         />
+                        {also.isFoundingMaker && (
+                          <FoundingMakerBadge number={also.foundingMakerNumber} size={18} />
+                        )}
                       </div>
                       <div className="flex flex-wrap items-center gap-x-2 text-xs text-neutral-500">
                         {alsoRating && alsoRating.count > 0 && (

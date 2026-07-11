@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { useClerk } from "@clerk/nextjs";
 import { clearSignedOutLocalAccountState } from "@/lib/localAccountState";
 import { avatarInitial } from "@/lib/avatarInitials";
+import IconHoverTip from "@/components/IconHoverTip";
 
 interface Props {
   name: string | null;
@@ -89,7 +90,8 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
   const isAdmin = role === "ADMIN" || role === "EMPLOYEE";
 
   return (
-    <div ref={menuRef} className="relative">
+    <div ref={menuRef} className="relative group">
+      {!open && <IconHoverTip label="Account" />}
       <button
         onClick={() => setOpen((o) => !o)}
         className="block h-8 w-8 cursor-pointer overflow-hidden rounded-full bg-transparent p-0 ring-1 ring-black/10 hover:ring-2 hover:ring-black/20 shadow-sm hover:shadow-md transition-all"
@@ -115,10 +117,10 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
         <div
           id={menuId}
           aria-label="Account"
-          className={`absolute right-0 z-[200] w-52 rounded-xl border border-neutral-100 bg-white text-neutral-900 shadow-lg ${dropDirection === "up" ? "bottom-full mb-2" : "top-full mt-2"}`}
+          className={`absolute right-0 z-[200] w-52 overflow-hidden rounded-2xl ring-1 ring-black/5 bg-white text-neutral-900 shadow-2xl animate-menu-in motion-reduce:animate-none ${dropDirection === "up" ? "bottom-full mb-2" : "top-full mt-2"}`}
         >
           {/* Header — avatar + name */}
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-neutral-100">
+          <div className="flex items-center gap-3 bg-[#EFEAE0] px-4 py-3 border-b border-stone-200/60">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-200 ring-1 ring-neutral-200 shadow-sm">
               {avatarSrc ? (
                 // eslint-disable-next-line @next/next/no-img-element

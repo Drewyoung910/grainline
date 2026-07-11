@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import UnreadBadge from "@/components/UnreadBadge";
+import IconHoverTip from "@/components/IconHoverTip";
 
 export default function MessageIconLink() {
   return (
     <Link
       href="/messages"
       aria-label="Messages"
-      title="Messages"
-      className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black/10 transition-colors"
+      className="group relative inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black/10 transition-colors"
     >
       {/* Envelope icon */}
       <svg
@@ -25,6 +25,7 @@ export default function MessageIconLink() {
 
       {/* Red unread dot */}
       <UnreadBadge />
+      <IconHoverTip label="Messages" />
     </Link>
   );
 }

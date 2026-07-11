@@ -84,19 +84,20 @@ export default async function SimilarMakers({
       : [];
   let scopeLabel = metroName ?? city;
 
-  // Fill with same-state makers when the metro is thin
-  if (makers.length < 2 && state) {
+  // Always fill to the max with same-state makers (case-insensitive — state
+  // is free text on profiles, so "Tx" and "TX" must match).
+  if (makers.length < MAX_SIMILAR_MAKERS && state) {
     const found = new Set(makers.map((m) => m.id));
     const stateMakers = await prisma.sellerProfile.findMany({
       where: baseWhere({
-        state,
+        state: { equals: state, mode: "insensitive" },
         id: { notIn: [sellerId, ...found] },
       }),
       orderBy,
       take: MAX_SIMILAR_MAKERS - makers.length,
       select: similarMakerSelect,
     });
-    if (makers.length === 0 && stateMakers.length > 0) scopeLabel = state;
+    if (makers.length === 0 && stateMakers.length > 0) scopeLabel = state.toUpperCase();
     makers = [...makers, ...stateMakers];
   }
 
