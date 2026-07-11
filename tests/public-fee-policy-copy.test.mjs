@@ -33,15 +33,23 @@ describe("public fee-policy copy", () => {
     assert.match(handbook, /absorbed by Grainline under our payout model/);
     assert.match(handbook, /sale price minus the 5% Grainline fee\)/);
     assert.match(handbook, /We waive our fee on refunded amounts/);
+    assert.match(handbook, /take-rate can rise\s+materially above the headline marketplace fee/);
     assert.doesNotMatch(handbook, /minus Stripe processing/);
     assert.doesNotMatch(handbook, /non-refundable \(their policy, not ours\)/);
+    assert.doesNotMatch(handbook, /up to 3× more views/);
+    assert.doesNotMatch(handbook, /20% to 30%\+/);
+    assert.doesNotMatch(handbook, /10%\+ of revenue going to ads just to stay visible in search/);
 
     assert.match(whySell, /Grainline currently absorbs it/);
     assert.match(whySell, /\$62\.50 before tax or refund\s+adjustments/);
     assert.match(whySell, /Stripe processing is absorbed\s+by Grainline under our payout model/);
+    assert.match(whySell, /Offsite Ads applies only to attributed orders/);
+    assert.match(whySell, /attributed Offsite Ads fees/);
     assert.doesNotMatch(whySell, /platform fees on top of Stripe/);
     assert.doesNotMatch(whySell, /nets you about \$61/);
     assert.doesNotMatch(whySell, /after our 5% and Stripe\s+processing/);
+    assert.doesNotMatch(whySell, /closer to 22% to 28% of every order/);
+    assert.doesNotMatch(whySell, /you don&apos;t show up in search/);
     assert.match(claude, /must not say Stripe processing fees are deducted from maker payouts/);
     assert.match(claude, /gift wrapping is included in the platform-fee base/);
   });

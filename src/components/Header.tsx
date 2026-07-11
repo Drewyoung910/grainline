@@ -66,10 +66,6 @@ export default function Header() {
   useDialogFocus(drawerOpen, drawerRef, closeDrawer, {
     initialFocus: "container",
   });
-  // NOTE: no body scroll lock here on purpose. Pinning <body> to
-  // position:fixed causes a visible repaint jump on open AND close in mobile
-  // browsers (the URL bar makes it worse; the PWA hides it). The backdrop
-  // uses touch-none to swallow background scroll instead.
 
   React.useEffect(() => {
     if (!drawerOpen) return;
@@ -89,6 +85,25 @@ export default function Header() {
       } else {
         main.setAttribute("aria-hidden", previousAriaHidden);
       }
+    };
+  }, [drawerOpen]);
+
+  React.useEffect(() => {
+    if (!drawerOpen) return;
+
+    const canScrollDrawer = (target: EventTarget | null) => {
+      const scrollRegion = drawerRef.current?.querySelector("[data-drawer-scroll-region]");
+      return target instanceof Node && Boolean(scrollRegion?.contains(target));
+    };
+    const preventBackgroundScroll = (event: Event) => {
+      if (!canScrollDrawer(event.target)) event.preventDefault();
+    };
+
+    document.addEventListener("wheel", preventBackgroundScroll, { passive: false });
+    document.addEventListener("touchmove", preventBackgroundScroll, { passive: false });
+    return () => {
+      document.removeEventListener("wheel", preventBackgroundScroll);
+      document.removeEventListener("touchmove", preventBackgroundScroll);
     };
   }, [drawerOpen]);
 
@@ -432,7 +447,7 @@ export default function Header() {
             aria-modal="true"
             aria-label="Main navigation"
             tabIndex={-1}
-            className={`fixed right-3 top-14 z-[1001] flex w-64 max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-4.5rem)] flex-col rounded-2xl bg-[#F7F5F0] shadow-2xl ring-1 ring-black/5 overflow-hidden outline-none motion-reduce:animate-none ${
+            className={`fixed right-3 top-14 z-[1001] flex w-64 max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-4.5rem)] flex-col rounded-2xl bg-[#F7F5F0] shadow-2xl ring-1 ring-black/5 overflow-hidden overscroll-contain outline-none motion-reduce:animate-none ${
               drawerClosing ? "animate-menu-out pointer-events-none" : "animate-menu-in"
             }`}
           >
@@ -462,7 +477,7 @@ export default function Header() {
             </div>
 
             {/* Nav links */}
-            <nav className="flex-1 overflow-y-auto px-2 py-3">
+            <nav data-drawer-scroll-region className="flex-1 overflow-y-auto overscroll-contain px-2 py-3">
               <div className="px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
                 Explore
               </div>

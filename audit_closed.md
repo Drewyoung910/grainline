@@ -17942,3 +17942,52 @@ stale/false-positive/current 579, deferred product/design/ops/legal 87,
 approximate raw allegations left from current max #1126: 0. Fixed/reduced
 increases by one for the broken seller-profile report target contract. Deferred
 stays flat.
+
+### Entry 543 - Mobile drawer scroll containment and public copy truth pass
+
+Entry 543 reviews the remaining unreviewed UI/copy surfaces from `476d36f0`,
+with one read-only explorer used only for the disjoint client UI slice. Parent
+Codex independently verified the explorer's mobile drawer finding against
+current source before editing, and separately reviewed adjacent public
+seller/buyer copy for unsupported launch claims.
+
+Fixed/reduced:
+
+- Restored modal scroll containment for the mobile header drawer without
+  bringing back the old `useBodyScrollLock(drawerOpen)` body pin that caused
+  visible mobile repaint jumps. The drawer now prevents document `wheel` and
+  `touchmove` scrolling outside the drawer scroll region, while the drawer
+  panel/nav use `overscroll-contain`.
+- Removed an unsupported seller-handbook claim that complete profiles get
+  "up to 3x more views" when no local analytics/reporting source backs that
+  number.
+- Softened public comparative fee copy so competitor Offsite Ads / paid-promo
+  costs are described as attributed or optional costs rather than as fees that
+  apply to every order or as a hard requirement for search visibility.
+- Updated `CLAUDE.md` so the durable mobile-menu and public-copy truth rules
+  match the corrected behavior.
+
+Guardrails added/reviewed:
+
+- Extended `tests/accessibility-followups.test.mjs` to require drawer scroll
+  containment without `useBodyScrollLock(drawerOpen)`.
+- Extended `tests/public-fee-policy-copy.test.mjs` to reject unsupported
+  quantified view/traffic/effective-rate claims and require attributed Offsite
+  Ads wording.
+- Re-ran adjacent post-launch UI guardrails to keep the drawer change aligned
+  with the existing header/map/menu polish tests.
+
+Verification:
+`git status --short`; source/test/docs inspection with `rg`/`sed`; one
+parent-reviewed read-only explorer report; focused `node --test
+tests/accessibility-followups.test.mjs tests/public-fee-policy-copy.test.mjs
+tests/post-launch-ui-followups.test.mjs` passed 63/63; rerun `node --test
+tests/accessibility-followups.test.mjs tests/public-fee-policy-copy.test.mjs`
+passed 24/24 after the final `CLAUDE.md` wording update; `npx tsc --noEmit`
+passed; and `git diff --check` passed.
+
+Current running tally after Entry 543: verified fixed/reduced 1045, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by two for the real drawer scroll-containment regression and the
+unsupported public-copy claims. Deferred stays flat.

@@ -67,7 +67,7 @@ export default function SellerHandbookPage() {
             <li>A connected Stripe account. We use Stripe Connect for all payouts. Connect it from{" "}
               <Link href="/dashboard/seller">Shop Settings</Link>. Verification typically clears in 2 to 3 business days.</li>
             <li>A shop profile. Add a display name, tagline, a banner photo (3:1, 15MB max), and an avatar.
-              Sellers with complete profiles get up to 3× more views than those without.</li>
+              A complete profile gives buyers more context and makes your shop easier to trust.</li>
           </ol>
           <p>
             Once Stripe is connected and your profile is filled in, you can publish your first listing.
@@ -206,14 +206,14 @@ export default function SellerHandbookPage() {
             </li>
             <li>
               <strong>Etsy Ads</strong> (optional, on top of Offsite Ads): a daily budget Etsy spends to promote your
-              listings. Sellers commonly report 10%+ of revenue going to ads just to stay visible in search.
+              listings. That paid promotion budget is separate from marketplace and payment-processing fees.
             </li>
           </ul>
           <p>
-            For an established Etsy shop running Offsite Ads + Etsy Ads, the effective take-rate is commonly{" "}
-            <strong>20% to 30%+</strong> of gross sales. A meaningful chunk of that is charged on the shipping you
-            collect from the buyer, not just your item price. Grainline&apos;s 5% applies only to the item subtotal.
-            No mandatory ads, no shipping markup, no recurring listing fees.
+            For shops with Offsite Ads attribution or separate paid ad spend, the effective take-rate can rise
+            materially above the headline marketplace fee. Some of those costs can apply to the shipping you collect
+            from the buyer, not just your item price. Grainline&apos;s 5% applies only to the item subtotal. No mandatory
+            ads, no shipping markup, no recurring listing fees.
           </p>
           <p>
             Faire takes 15% on first orders from a new buyer (25% on direct-from-store). Amazon Handmade is 15% plus

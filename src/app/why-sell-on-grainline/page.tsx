@@ -98,8 +98,8 @@ export default async function WhySellOnGrainlinePage() {
                     <div className="text-xs text-stone-500 mt-0.5">General handmade + vintage</div>
                   </td>
                   <td className="p-4">
-                    <div className="text-neutral-700">6.5% + Offsite Ads 12% (mandatory at $10K+)</div>
-                    <div className="text-xs text-stone-500 mt-0.5">~20% to 30% effective</div>
+                    <div className="text-neutral-700">6.5% + applicable processing and ad fees</div>
+                    <div className="text-xs text-stone-500 mt-0.5">Offsite Ads applies only to attributed orders</div>
                   </td>
                   <td className="p-4 text-neutral-700">$0.20 / 4 months</td>
                   <td className="p-4 text-neutral-700">Yes, above $10K/yr</td>
@@ -142,19 +142,18 @@ export default async function WhySellOnGrainlinePage() {
             The Etsy take-rate trap.
           </h2>
           <p className="text-stone-700 leading-relaxed mb-4">
-            If you run an Etsy shop today, you already feel this. The headline rate is 6.5%. The reality, once
-            you cross $10,000 in annual sales, is closer to 22% to 28% of every order.
+            If you run an Etsy shop today, you already know the headline transaction fee is only part of the math.
+            Processing fees, attributed Offsite Ads fees, and separate paid promotion can all change the actual
+            take-home amount.
           </p>
           <p className="text-stone-700 leading-relaxed mb-4">
             Here&apos;s how it stacks up. Etsy charges 6.5% transaction fee, applied to your item price AND your
-            shipping. Then payment processing on top of that, also applied to shipping. Then Offsite Ads, which
-            became mandatory for shops over $10K/yr. That&apos;s another 12% (15% for smaller shops) on the full
-            order total, again including shipping. Then Etsy Ads, technically optional, but if you don&apos;t pay
-            you don&apos;t show up in search.
+            shipping. Then payment processing on top of that, also applied to shipping. Offsite Ads can add another
+            fee on orders attributed to an ad partner, and Etsy Ads is a separate paid-promotion budget if you choose
+            to use it.
           </p>
           <p className="text-stone-700 leading-relaxed mb-4">
-            The math gets ugly fast. On a $50 piece with $15 shipping, an established Etsy seller running ads
-            takes home roughly $48 to $52 after every fee. The fees that are charged on your shipping are pure
+            The math gets ugly fast. On a $50 piece with $15 shipping, every extra fee charged on shipping is pure
             seller cost. Buyers paid for shipping; you funded the platform&apos;s cut on it.
           </p>
           <p className="text-stone-700 leading-relaxed">

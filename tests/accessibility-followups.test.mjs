@@ -301,6 +301,17 @@ describe("accessibility follow-ups", () => {
     assert.match(header, /\}, \[drawerOpen\]\)/);
   });
 
+  it("contains mobile drawer scrolling without pinning the document body", () => {
+    const header = source("src/components/Header.tsx");
+
+    assert.doesNotMatch(header, /useBodyScrollLock\(drawerOpen\)/);
+    assert.match(header, /document\.addEventListener\("wheel", preventBackgroundScroll, \{ passive: false \}\)/);
+    assert.match(header, /document\.addEventListener\("touchmove", preventBackgroundScroll, \{ passive: false \}\)/);
+    assert.match(header, /event\.preventDefault\(\)/);
+    assert.match(header, /data-drawer-scroll-region/);
+    assert.match(header, /overflow-y-auto overscroll-contain/);
+  });
+
   it("keeps data tables captioned and column headers scoped", () => {
     const tableFiles = [
       "src/app/why-sell-on-grainline/page.tsx",
