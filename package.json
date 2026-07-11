@@ -13,6 +13,7 @@
     "audit:rls-context": "node scripts/rls-context-acceptance-gate.mjs",
     "audit:stripe-webhooks": "node scripts/stripe-webhook-subscriptions-proof.mjs",
     "audit:stripe-money": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/stripe-money-movement-proof.mjs",
+    "audit:buyer-deletion-replay": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/buyer-deletion-stripe-replay-proof.mjs",
     "audit:r2-upload": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/r2-upload-smoke.mjs",
     "audit:deployed-headers": "node scripts/deployed-security-headers-proof.mjs",
     "audit:sentry-crons": "node scripts/sentry-cron-alert-proof.mjs",

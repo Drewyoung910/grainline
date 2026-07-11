@@ -276,6 +276,33 @@ Pre-launch Stripe money-movement proof:
   paths.
 - Do not run this command with live Stripe keys or against production data.
 
+Pre-launch buyer-deletion Stripe replay proof:
+
+- Run only in Stripe test mode against a staging or local database that has
+  production migrations applied and can receive the test webhook replay.
+- This proof does not create or fake a paid Checkout Session. First create a
+  real test Checkout Session through the app, delete/suspend/remove the source
+  buyer before webhook processing, complete or replay the Stripe test checkout
+  event, then run the verifier against that `cs_test_...` session.
+- Required inputs:
+  - `STRIPE_SECRET_KEY` set to a `sk_test_...` key.
+  - `DATABASE_URL` set to the staging/local database that processed the replay.
+  - `BUYER_DELETION_REPLAY_PROOF_CONFIRM=test-mode-replay`.
+  - `BUYER_DELETION_REPLAY_PROOF_DB_CONFIRM=staging-or-local-read`.
+  - `BUYER_DELETION_REPLAY_PROOF_SESSION_ID=<cs_test...>`.
+  - `BUYER_DELETION_REPLAY_PROOF_EVIDENCE_PATH=buyer-deletion-replay-evidence.json`.
+  - Optional: `BUYER_DELETION_REPLAY_PROOF_EXPECTED_BUYER_STATE=deleted`,
+    `suspended`, or `missing`, and `BUYER_DELETION_REPLAY_PROOF_EVENT_ID=<evt_...>`.
+- Command:
+  `BUYER_DELETION_REPLAY_PROOF_CONFIRM=test-mode-replay BUYER_DELETION_REPLAY_PROOF_DB_CONFIRM=staging-or-local-read BUYER_DELETION_REPLAY_PROOF_SESSION_ID="<cs_test...>" BUYER_DELETION_REPLAY_PROOF_EVIDENCE_PATH="buyer-deletion-replay-evidence.json" npm run audit:buyer-deletion-replay`.
+- Retain the sanitized JSON artifact with launch records. A passing run verifies
+  the Stripe session is test-mode and paid, the source buyer is no longer valid,
+  the local order is blocked for review with buyer snapshots purged, the webhook
+  event row is processed, and the blocked-checkout refund ledger plus system
+  audit evidence were written.
+- Do not close this launch blocker from source tests alone, and do not run this
+  verifier with live Stripe keys or against production data.
+
 Clerk:
 
 1. Confirm the production endpoint is `/api/clerk/webhook`.

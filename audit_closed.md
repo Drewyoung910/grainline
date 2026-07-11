@@ -17676,3 +17676,70 @@ increases by one for the real durable-number allocation gap plus the proof
 harness and guardrails. Deferred stays flat because the retained staging/local
 proof artifact still must be generated before relying on Founding Maker at
 launch scale.
+
+### Entry 538 - Buyer-deletion Stripe replay proof verifier
+
+Entry 538 adds the missing retained-evidence harness for the buyer-deletion
+Stripe replay launch blocker. Current source tests already verify that
+buyer-invalid checkout completion orders are blocked for review and minimize
+buyer PII, but source tests alone do not prove the real Stripe test-mode replay
+path wrote the expected durable rows. This pass adds a read-only verifier that
+must run after a real paid test Checkout Session is completed or replayed while
+the original buyer is deleted, suspended, or missing.
+
+Fixed/reduced:
+
+- Added `scripts/buyer-deletion-stripe-replay-proof.mjs` and
+  `npm run audit:buyer-deletion-replay`. The script is confirm-gated with
+  `BUYER_DELETION_REPLAY_PROOF_CONFIRM=test-mode-replay`, requires
+  `BUYER_DELETION_REPLAY_PROOF_DB_CONFIRM=staging-or-local-read`, rejects live
+  Stripe keys and non-`cs_test_` sessions, and writes sanitized evidence inside
+  the repository.
+- The verifier retrieves the real Stripe Checkout Session, requires test mode
+  and `payment_status = paid`, checks the source buyer is now deleted,
+  suspended, or missing, then verifies the local `Order` for that session has
+  no attached buyer id, all buyer snapshot/quoted/gift/Shippo PII fields
+  cleared, `buyerDataPurgedAt` stamped, blocked-review state, matching Stripe
+  payment references, a recorded automatic refund id/amount, a processed
+  `StripeWebhookEvent`, a blocked-checkout refund `OrderPaymentEvent`, and both
+  checkout-created and blocked-refund `SystemAuditLog` rows.
+- Retained evidence stores hashed Stripe/local ids, bounded status facts, and
+  redacted issues. It redacts database URLs, proof env assignments, Stripe
+  secrets, passwords, bearer tokens, and URL userinfo.
+- Updated `CLAUDE.md`, `docs/runbook.md`, `docs/launch-checklist.md`, and
+  `docs/deferred-launch-backlog.md` to make clear that this blocker is not
+  closed by source tests, synthetic order rows, or fake paid sessions. It needs
+  a real Stripe test-mode checkout completion/replay plus the verifier artifact.
+
+Guardrails added/reviewed:
+
+- Added `tests/buyer-deletion-replay-proof.test.mjs` to pin the npm command,
+  confirmation gates, test-mode/read-only constraints, real Stripe session
+  retrieval, refusal to fabricate checkout completion, source-buyer invalid
+  state checks, local PII purge checks, processed webhook/refund/audit evidence,
+  redaction behavior, hashed retained identifiers, and docs/backlog coupling.
+- Re-ran adjacent checkout/refund observability guardrails to confirm the new
+  verifier aligns with the existing blocked-checkout source contracts rather
+  than replacing them.
+
+Verification:
+`git status --short`; source/docs/test inspection with `rg`/`sed`; Stripe
+integration guidance review from the local Stripe skill; `node --check
+scripts/buyer-deletion-stripe-replay-proof.mjs`; import check `node
+--disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types -e
+'await import("./scripts/buyer-deletion-stripe-replay-proof.mjs")'`; focused
+`node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types
+--test tests/buyer-deletion-replay-proof.test.mjs
+tests/stripe-webhook-cart-finalization.test.mjs
+tests/payment-side-effect-observability.test.mjs
+tests/deferred-launch-backlog.test.mjs` passed 47/47; `npx tsc --noEmit`
+passed; and `git diff --check` passed. The verifier itself was not run because
+it requires a real Stripe test-mode paid Checkout Session and the staging/local
+database that processed that replay.
+
+Current running tally after Entry 538: verified fixed/reduced 1039, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the buyer-deletion replay proof verifier and guardrails.
+Deferred stays flat because the retained Stripe test-mode replay artifact still
+must be generated before closing the launch blocker.
