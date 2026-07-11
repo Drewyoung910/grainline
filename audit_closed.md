@@ -18127,3 +18127,57 @@ stale/false-positive/current 579, deferred product/design/ops/legal 87,
 approximate raw allegations left from current max #1126: 0. Fixed/reduced
 increases by one for the tracked UI behavior-contract contradiction. Deferred
 stays flat.
+
+### Entry 547 - Fable UI metro contract and menu popover recheck
+
+Entry 547 continues the parent review of the Fable UI modernization work,
+covering `dafe5d54` (`fix: modernize metro/city SEO pages to current design
+system`) and the live local mobile-menu popover follow-up. The metro/browse
+source changes were mostly class-only and preserved the listing, saved-state,
+block-filter, and JSON-LD behavior, but `CLAUDE.md` overstated the commission
+metro branch's width by saying it used the same `max-w-[1600px]` grid container
+as the browse/makers pages. The commission metro branch is a single-column
+request list and intentionally remains `max-w-4xl`.
+
+The local Header popover change was reviewed as an allegation, not accepted
+blindly. The no-modal/no-painted-backdrop direction is coherent for the
+repaint-safe floating menu, but the first local version lacked the explicit
+hamburger `aria-expanded`/`aria-controls` wiring required by the existing
+popover accessibility contract, and older `CLAUDE.md` bullets still described
+the removed modal/backdrop behavior.
+
+Fixed/reduced:
+
+- Corrected the tracked `CLAUDE.md` metro/city SEO contract so browse and
+  makers metro pages keep `max-w-[1600px]`, while the commission metro branch
+  stays `max-w-4xl` for the single-column request list.
+- Added a source-scan guard requiring the metro page widths to match that
+  content-density contract.
+- Completed the Header mobile-menu popover contract by adding a stable
+  `React.useId()` panel id plus hamburger `aria-expanded`, `aria-haspopup`, and
+  `aria-controls` wiring.
+- Removed the stale `CLAUDE.md` mobile drawer/menu wording that still pointed
+  future agents back to `useDialogFocus`, `aria-modal`, inert main content, and
+  a painted `bg-black/30` backdrop for the header menu.
+
+Guardrails added/reviewed:
+
+- Extended `tests/post-launch-ui-followups.test.mjs` to pin the metro width
+  split and matching `CLAUDE.md` wording.
+- Extended `tests/accessibility-followups.test.mjs` so the mobile menu popover
+  test checks both repaint-safe no-modal behavior and the trigger-to-dialog
+  `aria-*` contract.
+- Re-ran adjacent accessibility, post-launch UI, and chrome color guardrails.
+
+Verification:
+`git status --short`; source/docs/test inspection with `rg`/`sed`; focused
+`node --test tests/accessibility-followups.test.mjs
+tests/post-launch-ui-followups.test.mjs tests/chrome-color-guardrails.test.mjs`
+passed 65/65; `npx tsc --noEmit` passed; and `git diff --check` passed.
+
+Current running tally after Entry 547: verified fixed/reduced 1050, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by two for the real metro-width behavior-contract contradiction and
+the incomplete mobile-menu popover accessibility/docs contract. Deferred stays
+flat.

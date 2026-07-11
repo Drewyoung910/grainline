@@ -298,6 +298,11 @@ describe("accessibility follow-ups", () => {
     // full-screen backdrop both caused visible flashes on mobile
     // open/close/navigation. Popover contract: transparent click-catcher,
     // focus moves to the card on open, blur outside closes, Escape closes.
+    assert.match(header, /const drawerId = React\.useId\(\)/);
+    assert.match(header, /aria-expanded=\{drawerOpen\}/);
+    assert.match(header, /aria-haspopup="dialog"/);
+    assert.match(header, /aria-controls=\{drawerOpen \? drawerId : undefined\}/);
+    assert.match(header, /id=\{drawerId\}/);
     assert.doesNotMatch(header, /setAttribute\("inert"/);
     assert.doesNotMatch(header, /aria-modal="true"/);
     assert.doesNotMatch(header, /bg-black\/30/);

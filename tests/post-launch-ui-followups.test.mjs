@@ -361,6 +361,24 @@ describe("post-launch UI follow-ups", () => {
     assert.match(header, /flex-1 max-w-\[820px\]/);
   });
 
+  it("keeps metro SEO page widths matched to their content density", () => {
+    const metroBrowse = source("src/app/browse/[metroSlug]/page.tsx");
+    const metroCategory = source("src/app/browse/[metroSlug]/[category]/page.tsx");
+    const makersMetro = source("src/app/makers/[metroSlug]/page.tsx");
+    const commissionParam = source("src/app/commission/[param]/page.tsx");
+    const docs = source("CLAUDE.md");
+
+    for (const gridPage of [metroBrowse, metroCategory, makersMetro]) {
+      assert.match(gridPage, /max-w-\[1600px\]/);
+      assert.match(gridPage, /font-display text-3xl/);
+    }
+
+    assert.match(commissionParam, /<main className="max-w-4xl mx-auto px-4 sm:px-6 pb-16 pt-8">/);
+    assert.match(commissionParam, /font-display text-3xl/);
+    assert.match(docs, /metro branch of `\/commission\/\[param\]` intentionally stays `max-w-4xl`/);
+    assert.doesNotMatch(docs, /metro branch of `\/commission\/\[param\]` use `max-w-\[1600px\]`/);
+  });
+
   it("ImageCropModal renders through a portal so re-crop pointer events don't bubble into draggable parents", () => {
     const modal = source("src/components/ImageCropModal.tsx");
     assert.match(modal, /import \{ createPortal \} from "react-dom"/);

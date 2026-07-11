@@ -32,6 +32,7 @@ export default function Header() {
   const [unreadNotifCount, setUnreadNotifCount] = React.useState(0);
   const [isLoggedIn, setIsLoggedIn] = React.useState(false);
   const drawerRef = React.useRef<HTMLDivElement>(null);
+  const drawerId = React.useId();
   const cartCountRequestRef = React.useRef(0);
   const cartCountAbortRef = React.useRef<AbortController | null>(null);
   const notifCountRequestRef = React.useRef(0);
@@ -392,6 +393,9 @@ export default function Header() {
           <button
             onClick={() => setDrawerOpen(true)}
             aria-label="Open menu"
+            aria-expanded={drawerOpen}
+            aria-haspopup="dialog"
+            aria-controls={drawerOpen ? drawerId : undefined}
             className="inline-flex items-center justify-center p-2 text-neutral-900 hover:bg-black/10 rounded-full min-h-[44px] min-w-[44px]"
           >
             <Menu size={24} />
@@ -417,8 +421,8 @@ export default function Header() {
       {/* ── Mobile drawer ─────────────────────────────────────────────── */}
       {drawerOpen && (
         <>
-          {/* Click-catcher — TRANSPARENT on purpose. A painted full-screen
-              overlay (bg-black/30) compositing in/out is what made mobile
+          {/* Click-catcher — transparent on purpose. A painted full-screen
+              overlay compositing in/out is what made mobile
               Safari's top/bottom browser bars flash on open, close, and
               navigation; the notifications popover has no painted backdrop
               and no flash. touch-none still swallows scroll gestures here. */}
@@ -430,6 +434,7 @@ export default function Header() {
 
           {/* Panel — floating card anchored top-right, sized to content */}
           <div
+            id={drawerId}
             ref={drawerRef}
             role="dialog"
             aria-label="Main navigation"
