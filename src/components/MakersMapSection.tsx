@@ -10,7 +10,7 @@ import dynamic from "next/dynamic";
 const AllSellersMap = dynamic(() => import("./AllSellersMap"), {
   ssr: false,
   loading: () => (
-    <div className="w-full h-full bg-[#EFEAE0] animate-pulse rounded-2xl" />
+    <div className="h-full w-full rounded-lg bg-[#EFEAE0] animate-pulse" />
   ),
 });
 
@@ -56,9 +56,9 @@ export default function MakersMapSection({
   };
 
   return (
-    <section className="rounded-2xl bg-[#EFEAE0] overflow-hidden">
-      <div className="p-6 sm:p-8 flex flex-col lg:flex-row gap-6 lg:gap-10">
-        <div className="lg:w-[38%]">
+    <section>
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:gap-10">
+        <div className="lg:w-[34%]">
           <h2 className={`text-2xl font-semibold ${headingClassName ?? ""}`}>{heading ?? "Find local artisans near you"}</h2>
           <p className="mt-2 text-neutral-600">
             {subheading ?? "Explore makers in your area. Share your location to see who’s nearby—or browse the full map."}
@@ -73,7 +73,7 @@ export default function MakersMapSection({
             </button>
             <a
               href="/map"
-              className="inline-flex items-center rounded-md border border-stone-300 bg-[#F7F5F0] px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-white transition-colors"
+              className="inline-flex items-center rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-[#EFEAE0] transition-colors"
             >
               Open Makers Map
             </a>
@@ -81,7 +81,7 @@ export default function MakersMapSection({
           {geoErr && <div role="alert" className="mt-2 text-xs text-red-600">{geoErr}</div>}
         </div>
 
-        <div className="flex-1 min-h-[280px] rounded-2xl overflow-hidden">
+        <div className="min-h-[280px] flex-1 overflow-hidden rounded-lg shadow-sm ring-1 ring-stone-200/70">
           <AllSellersMap points={points} initialZoom={3} mobileInitialZoom={2.05} height={280} />
         </div>
       </div>

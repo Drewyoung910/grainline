@@ -3840,34 +3840,30 @@ Full amber color pass on `src/app/page.tsx`:
 
 Also applied amber gradient to browse (`src/app/browse/page.tsx`) and listing detail (`src/app/listing/[id]/page.tsx`) pages: `bg-gradient-to-b from-amber-100/60 via-amber-50/30 to-white min-h-screen` on both `<main>` elements.
 
-### Hero photo mosaic (merged to main — 2026-04-03)
+### Static hero collage (updated 2026-07-12)
 
-**New component**: `src/components/HeroMosaic.tsx` — `"use client"` dual-row infinite scroll background mosaic:
-- Row 1 scrolls left (`animate-scroll-left`), Row 2 scrolls right (`animate-scroll-right`)
-- Photos duplicated for seamless CSS loop (`[...row1Base, ...row1Base]` at `width: 200%`)
-- `blur-[4px] scale-105` on each photo for soft background effect
-- `gap-px` between photos (no visible gap)
-- **Overlay layers** (z-order from bottom up):
-  1. Light warm amber overlay: `from-amber-900/20 via-amber-800/10 to-amber-900/20` (z-10)
-  2. Top fade (h-32): `from-white/50 to-transparent` — blends into header (z-20)
-  3. Bottom fade (h-24): `from-[#F7F5F0]/60 to-transparent` — blends into stats bar (z-20)
-- Photos rendered as `tabIndex={-1} aria-hidden="true"` links (decorative, not navigable)
+**Component**: `src/components/HeroMosaic.tsx` is a server-rendered decorative
+static collage, not a client animation. It must not use `"use client"`,
+`useState`, random animation offsets, duplicated scrolling rows, pause/play
+controls, blur-on-every-image, or full-hero animation classes.
 
-**CSS animations** added to `src/app/globals.css`:
-```css
-@keyframes scroll-left  { 0% { transform: translateX(0); }    100% { transform: translateX(-50%); } }
-@keyframes scroll-right { 0% { transform: translateX(-50%); } 100% { transform: translateX(0); } }
-.animate-scroll-left  { animation: scroll-left  40s linear infinite; }
-.animate-scroll-right { animation: scroll-right 40s linear infinite; }
-```
-
-**Homepage data fetch** (`src/app/page.tsx`): 7th `Promise.all` query fetches 16 most recent ACTIVE non-private listings (`orderBy: { createdAt: "desc" }`), selecting `id` + first photo `url`. CDN URLs filtered (`cdn.thegrainline.com` only). Threshold: ≥12 real photos required to activate mosaic; falls back to amber gradient below that.
-
-**Adaptive hero**: when mosaic active, hero section is `bg-[#1C1C1A]` (espresso), `min-h-[60vh]` (shorter than before — removed `min-h-screen`); h1, p, tags, and CTAs switch to white/glass variants. The "Browse the Workshop" CTA uses white text on dark background; "Find Makers Near You" becomes a white-bordered ghost button.
-
-**Glass `SearchBar` variant**: `SearchBar` accepts `variant?: "default" | "glass"` prop. Glass variant: `bg-white/15 backdrop-blur-sm border-white/40`, white text + placeholder, submit button `bg-white/20`. Passed as `<SearchBar variant={mosaicPhotos.length >= 12 ? "glass" : "default"} />` in hero.
-
-**Header**: `bg-white` → `bg-gradient-to-b from-amber-50 to-white` for subtle warmth on all pages.
+Hero behavior:
+- The homepage uses up to 10 trusted public listing photos and requires at
+  least 8 real photos before showing the collage. Otherwise it falls back to
+  the warm cream/amber gradient.
+- The collage is edge-to-edge behind the hero, with clean rounded-lg image
+  tiles, fixed width/height attributes, eager loading only for the first five
+  visible tiles, and lazy loading for the rest.
+- The left side uses a static cream wash gradient so the headline and default
+  white `SearchBar` stay crisp while the right side of the collage remains
+  brighter and clearer. Do not restore the centered glass card or glass search
+  variant in the homepage hero without explicit direction.
+- The header is part of the same cream page surface with no bottom divider.
+- The stats bar floats over the bottom of the collage as a centered white
+  rounded-lg panel; keep it text-only unless Drew explicitly asks for icons.
+- The homepage map section sits directly on the cream page background. The map
+  itself can be framed, but do not wrap the entire map/text area in another
+  darker background panel.
 
 ## Bad Word Filter (complete — 2026-04-21)
 
@@ -4306,7 +4302,7 @@ This section summarizes architecture-level changes from the reconciliation/audit
 - **Seller onboarding entry behavior**: `/become-a-maker` is the public discovery route for seller onboarding. Signed-out users redirect to `/sign-up?redirect_url=/dashboard`; signed-in users redirect to `/dashboard`, where `ensureSeller()` creates/loads the seller profile and sends incomplete sellers to onboarding. Keep the footer link, desktop avatar-menu "Start Selling", mobile drawer "Start Selling", and non-seller `/account` CTA visible so seller onboarding is not only discoverable by manually typing `/dashboard`.
 - **Onboarding visual behavior**: `/dashboard/onboarding` uses the site warm page background, `card-section` surfaces, `font-display` headings, rounded-md action controls, and a visible final-summary Stripe reconnect CTA. Keep future wizard edits aligned with the Grainline design tokens instead of falling back to generic gray hard-corner panels.
 - **Site background behavior**: every page inherits `bg-[#F7F5F0]` warm cream from the `<body>` element in `src/app/layout.tsx` AND from the `html, body { background: #F7F5F0 }` base rule in `globals.css`. The body is `flex flex-col min-h-[100svh]` and the `<div id="main-content">` is `flex-1` so the footer always sticks to the bottom of the viewport even when page content is short — don't break this flex chain by adding intermediate wrappers without `flex-1`. Do not override the page bg to `bg-white` on `<main>` elements; cards and `card-section` panels already provide the white surface where needed. **Never** put an unlayered `html, body { background: ... }` rule in `globals.css` — unlayered CSS beats Tailwind's `@layer utilities` and silently overrides every `<body className="bg-...">` class. The current rule is wrapped in `@layer base` precisely to avoid that trap; if you change the default page bg, change it there.
-- **Warm color palette behavior**: site chrome uses two cream tones plus espresso — body cream `#F7F5F0`, darker accent `#EFEAE0` (`.section-warm`) for inset panels/strips that sit one step darker than body, and espresso `#2C1F1A` (hover `#3A2A24`) for primary action buttons and brand moments. The former chrome green `#3F5D3A` and related green-family hexes were removed from site chrome on 2026-07-10 and are guarded by `tests/chrome-color-guardrails.test.mjs`; GuildBadge wreath artwork and semantic Tailwind `green-*` status colors remain intentionally exempt. Header and footer are cream (`#F7F5F0` header with `border-stone-200`; `#EFEAE0` footer with `border-t border-stone-200/60`) with neutral text and the espresso logo rendered unmodified, with no invert filters. Header icon buttons use `text-neutral-900 hover:bg-black/10 rounded-full`. Do not promote `#EFEAE0` to body bg — it is the section accent only. Do not reintroduce green chrome tones; pick from `#F7F5F0`, `#EFEAE0`, `#2C1F1A`, or the existing amber-50 / amber-100 utilities.
+- **Warm color palette behavior**: site chrome uses two cream tones plus espresso — body cream `#F7F5F0`, darker accent `#EFEAE0` (`.section-warm`) for inset panels/strips that sit one step darker than body, and espresso `#2C1F1A` (hover `#3A2A24`) for primary action buttons and brand moments. The former chrome green `#3F5D3A` and related green-family hexes were removed from site chrome on 2026-07-10 and are guarded by `tests/chrome-color-guardrails.test.mjs`; GuildBadge wreath artwork and semantic Tailwind `green-*` status colors remain intentionally exempt. Header and footer are cream (`#F7F5F0` header without a bottom divider; `#EFEAE0` footer with `border-t border-stone-200/60`) with neutral text and the espresso logo rendered unmodified, with no invert filters. Header icon buttons use `text-neutral-900 hover:bg-black/10 rounded-full`. Do not promote `#EFEAE0` to body bg — it is the section accent only. Do not reintroduce green chrome tones; pick from `#F7F5F0`, `#EFEAE0`, `#2C1F1A`, or the existing amber-50 / amber-100 utilities.
 - **Focus indicator behavior**: the global `:focus-visible` outline + amber box-shadow rules live inside `@layer base` in `globals.css` **without** `!important`. Per-component focus utilities (`focus-visible:outline-none`, `focus-visible:shadow-none`, `focus-within:ring-*`) win because Tailwind utilities are in a later layer. When an input lives inside a rounded pill/round container (e.g. `SearchBar`, messages search input, `TagsInput`), put the focus ring on the container via `focus-within:ring-2` and add `focus-visible:outline-none focus-visible:shadow-none` to the inner input so the visible ring follows the container's border-radius instead of drawing a rectangle inside a pill.
 - **FavoriteButton hover affordance**: the heart button uses `inline-flex items-center justify-center p-2.5 rounded-full hover:bg-black/15 transition-colors` with `right-2 top-2` positioning. Padding-based sizing (not fixed `h-11 w-11`) makes the hover circle hug the heart symmetrically. Default heart `size={22}` keeps the visible button ~42×42 so the circle isn't an oversized halo around a small heart. `SaveBlogButton` uses the same `p-2 rounded-full hover:bg-black/15` pattern.
 - **Audit-only follow-up queue**: the 2026-05-06 extended audit-only sweep reopened 10 verified follow-ups in `audit_open_findings.md` after the prior mechanical queue hit zero. They were closed in the follow-up route/docs pass. A later 2026-05-06 order-state/case-resolution follow-up closed the verified `acceptingNewOrders`, case-resolution race/refund amount, shipping quote parity, cart-add concurrency, admin UI error, and checkout-seller token logging findings. Stripe Connect v2 modernization is already on `main`; the stale `feature/stripe-connect-v2` branch must not be merged without rebasing onto current `main` and re-auditing its diff. Treat the audit file as the source of truth before assuming the queue is empty, and do not duplicate its per-finding detail here.
@@ -4462,7 +4458,7 @@ This section summarizes architecture-level changes from the reconciliation/audit
 - **Status label behavior**: case and fulfillment status labels should flow through `caseStatusLabel()` and `fulfillmentStatusLabel()` instead of ad hoc `status.replaceAll("_", " ")` in buyer/seller/admin order and case surfaces, so copy stays consistent when enum labels need product-specific wording.
 - **Stock notification scope**: back-in-stock subscriptions are intentionally for `IN_STOCK` listings only. Listing pages should only query/render stock notification state when `listingType === "IN_STOCK"` and the item is out of stock, matching `/api/listings/[id]/notify`.
 - **Header/accessibility behavior**: header logo links should keep explicit `aria-label="Grainline home"` copy, the root skip link should reveal on `focus-visible`, and `UserAvatarMenu` should rely on `/api/me` avatar/image props instead of subscribing to Clerk `useUser()` for a fallback image.
-- **Popover/motion accessibility behavior**: header/account/badge popovers should expose `aria-controls`/expanded state, use dialog semantics for plain link/button popovers instead of ARIA menu semantics, and close when keyboard focus leaves them. Animated close handlers must no-op while already closed and clear pending close timers before reopening so outside-click/Escape paths cannot poison the next open state. Animated hero mosaic media must keep a pause/play control, reduced-motion transforms, and stable listing/image keys. Decorative homepage motion, including scroll cues such as `animate-bounce`, must provide reduced-motion opt-outs. Scroll-reveal wrappers must keep content visible in SSR/no-JS markup and may hide/reveal content only after client-side observation is available. Admin mobile navigation stays semantic navigation with `aria-current="page"` instead of tab roles.
+- **Popover/motion accessibility behavior**: header/account/badge popovers should expose `aria-controls`/expanded state, use dialog semantics for plain link/button popovers instead of ARIA menu semantics, and close when keyboard focus leaves them. Animated close handlers must no-op while already closed and clear pending close timers before reopening so outside-click/Escape paths cannot poison the next open state. Homepage hero media is a static decorative collage with stable listing/image keys, not animated media; do not restore motion unless it has an explicit reduced-motion path and a user-visible pause control. Other decorative homepage motion, including scroll cues if reintroduced, must provide reduced-motion opt-outs. Scroll-reveal wrappers must keep content visible in SSR/no-JS markup and may hide/reveal content only after client-side observation is available. Admin mobile navigation stays semantic navigation with `aria-current="page"` instead of tab roles.
 - **CSP report observability**: `/api/csp-report` may still return 204 for malformed browser/provider reports, but parse failures must be Sentry-captured with non-PII context after rate limiting. Do not restore a bare catch around report parsing.
 - **Clerk Turnstile CSP behavior**: Clerk bot protection depends on Cloudflare Turnstile. Keep `https://challenges.cloudflare.com` allowlisted only in the required CSP directives (`script-src`, `script-src-elem`, `frame-src`, and `connect-src`); do not replace it with wildcard Cloudflare hosts or broader script/frame allowances.
 - **Rate-limit UX behavior**: `rateLimitResponse()` returns structured `RATE_LIMITED` payloads with `retryAfterSeconds`, `retryAt`, `Retry-After`, and human retry copy. High-signal checkout/admin routes, blog search/suggestions, user reports, and message streams should use it instead of bare route-local 429 JSON so retry metadata stays visible. UI fetch code should surface that message through `readApiErrorMessage()` on non-OK responses. Fire-and-forget listing analytics telemetry should favor no-op success over user-visible 429 responses after rate limits trip.

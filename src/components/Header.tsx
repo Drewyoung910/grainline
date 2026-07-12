@@ -294,7 +294,7 @@ export default function Header() {
   }, [isLoggedIn, loadAnonymousCartCount, loadCartCount]);
 
   return (
-    <header className="bg-[#F7F5F0] text-neutral-900 border-b border-stone-200 relative z-[50]">
+    <header className="bg-[#F7F5F0] text-neutral-900 relative z-[50]">
       <nav aria-label="Main navigation" className="mx-auto max-w-[1600px] px-4 py-4 sm:px-6 lg:px-8 flex items-center gap-4 lg:gap-6">
         {/* Logo */}
         <Link href="/" className="shrink-0 flex items-center min-h-[44px]" aria-label="Grainline home">
@@ -451,7 +451,7 @@ export default function Header() {
             onClick={() => setSearchOpen(false)}
             aria-hidden="true"
           />
-          <div className="absolute top-full left-0 right-0 bg-[#F7F5F0] border-b border-stone-200 shadow-sm p-3 z-50 md:hidden animate-slide-down">
+          <div className="absolute top-full left-0 right-0 bg-[#F7F5F0] shadow-sm p-3 z-50 md:hidden animate-slide-down">
             <SearchBar />
           </div>
         </>

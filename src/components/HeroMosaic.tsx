@@ -1,7 +1,3 @@
-"use client";
-
-import { useEffect, useState } from "react";
-
 type PhotoItem = {
   url: string;
   listingId: string;
@@ -12,111 +8,68 @@ type Props = {
   photos: PhotoItem[];
 };
 
+const HERO_TILE_CLASSES = [
+  "col-span-2 row-span-2 -translate-y-3 sm:-translate-y-5 lg:col-span-2 lg:row-span-2",
+  "col-span-4 row-span-3 lg:col-span-4 lg:row-span-3",
+  "col-span-3 row-span-2 translate-y-2 lg:col-span-3 lg:row-span-2",
+  "col-span-3 row-span-3 -translate-y-1 lg:col-span-3 lg:row-span-3",
+  "col-span-3 row-span-2 lg:col-span-3 lg:row-span-2",
+  "col-span-3 row-span-2 translate-y-4 lg:col-span-2 lg:row-span-2",
+  "col-span-3 row-span-2 -translate-y-2 lg:col-span-3 lg:row-span-2",
+  "col-span-3 row-span-2 translate-y-3 lg:col-span-3 lg:row-span-2",
+  "col-span-3 row-span-2 lg:col-span-2 lg:row-span-2",
+  "col-span-3 row-span-2 translate-y-5 lg:col-span-4 lg:row-span-2",
+] as const;
+
+const HERO_TILE_SIZES = [
+  { width: 320, height: 260 },
+  { width: 720, height: 480 },
+  { width: 520, height: 280 },
+  { width: 520, height: 420 },
+  { width: 520, height: 300 },
+  { width: 340, height: 300 },
+  { width: 520, height: 300 },
+  { width: 520, height: 300 },
+  { width: 340, height: 300 },
+  { width: 720, height: 300 },
+] as const;
+
 export default function HeroMosaic({ photos }: Props) {
-  const [paused, setPaused] = useState(false);
-  // Random animation-delay (negative) so each visit starts mid-loop instead of
-  // always at translateX(0). Applied via useEffect to avoid hydration mismatch.
-  const [delays, setDelays] = useState<{ row1: string; row2: string }>({
-    row1: "0s",
-    row2: "0s",
-  });
-
-  useEffect(() => {
-    // Negative animation-delay seeks into the loop. 40s duration = pick a random
-    // offset within the cycle so first paint shows a non-zero scroll position.
-    const row1Offset = Math.random() * 40;
-    const row2Offset = Math.random() * 38; // slightly different range so rows desync
-    setDelays({ row1: `-${row1Offset.toFixed(2)}s`, row2: `-${row2Offset.toFixed(2)}s` });
-  }, []);
-
-  const mid = Math.ceil(photos.length / 2);
-  const row1Base = photos.slice(0, mid);
-  const row2Base = photos.slice(mid);
-
-  // Duplicate for seamless CSS loop
-  const row1 = [...row1Base, ...row1Base];
-  const row2 = [...row2Base, ...row2Base];
-
-  // Use animation-play-state to pause/resume so the current scroll position is
-  // preserved instead of restarting from translateX(0).
-  const row1Style: React.CSSProperties = {
-    animationDelay: delays.row1,
-    animationPlayState: paused ? "paused" : "running",
-    // Slightly different duration so the two rows don't sync up over time
-    animationDuration: "40s",
-  };
-  const row2Style: React.CSSProperties = {
-    animationDelay: delays.row2,
-    animationPlayState: paused ? "paused" : "running",
-    animationDuration: "44s",
-  };
+  const tiles = photos.slice(0, HERO_TILE_CLASSES.length);
 
   return (
-    <div className="absolute inset-0 overflow-hidden">
-      {/* Top fade — blends into header */}
-      <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-white/50 to-transparent z-20" />
-      {/* Bottom fade — blends into stats bar */}
-      <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-[#F7F5F0]/60 to-transparent z-20" />
-      {/* Light warm overlay */}
-      <div className="absolute inset-0 bg-gradient-to-b from-amber-900/20 via-amber-800/10 to-amber-900/20 z-10" />
-
-      {/* Row 1 — scrolls left */}
-      <div
-        className="absolute top-0 left-0 h-1/2 flex gap-0 w-max animate-scroll-left motion-reduce:animate-none"
-        style={row1Style}
-      >
-        {row1.map((item, i) => (
-          <div
-            key={`r1-${item.listingId}-${i}`}
-            className="flex-none w-64 h-full overflow-hidden block"
-            aria-hidden="true"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={item.url}
-              alt=""
-              className="w-full h-full object-cover blur-[4px] scale-105 motion-reduce:blur-none motion-reduce:scale-100"
-              loading={i < 4 ? "eager" : "lazy"}
-              fetchPriority={i < 4 ? "high" : "auto"}
-              decoding="async"
-            />
-          </div>
-        ))}
+    <div className="absolute inset-0 overflow-hidden" aria-hidden="true">
+      <div className="absolute inset-x-3 top-2 bottom-0 sm:inset-x-6 sm:top-4 lg:inset-x-8">
+        <div className="grid h-full grid-cols-6 grid-rows-8 gap-2 sm:gap-3 lg:grid-cols-12 lg:grid-rows-5">
+          {tiles.map((item, index) => {
+            const tileClass = HERO_TILE_CLASSES[index] ?? HERO_TILE_CLASSES[0];
+            const size = HERO_TILE_SIZES[index] ?? HERO_TILE_SIZES[0];
+            return (
+              <div
+                key={`tile-${item.listingId}-${index}`}
+                className={`${tileClass} min-h-0 overflow-hidden rounded-lg bg-[#EFEAE0] shadow-[0_10px_30px_rgba(28,25,23,0.10)] ring-1 ring-white/50`}
+              >
+                {/* Decorative marketplace imagery; nearby text provides the semantic hero content. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={item.url}
+                  alt=""
+                  width={size.width}
+                  height={size.height}
+                  loading={index < 5 ? "eager" : "lazy"}
+                  fetchPriority={index < 3 ? "high" : "auto"}
+                  decoding="async"
+                  className="h-full w-full object-cover"
+                />
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Row 2 — scrolls right */}
-      <div
-        className="absolute bottom-0 left-0 h-1/2 flex gap-0 w-max animate-scroll-right motion-reduce:animate-none"
-        style={row2Style}
-      >
-        {row2.map((item, i) => (
-          <div
-            key={`r2-${item.listingId}-${i}`}
-            className="flex-none w-64 h-full overflow-hidden block"
-            aria-hidden="true"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={item.url}
-              alt=""
-              className="w-full h-full object-cover blur-[4px] scale-105 motion-reduce:blur-none motion-reduce:scale-100"
-              loading={i < 4 ? "eager" : "lazy"}
-              fetchPriority={i < 4 ? "high" : "auto"}
-              decoding="async"
-            />
-          </div>
-        ))}
-      </div>
-
-      <button
-        type="button"
-        onClick={() => setPaused((value) => !value)}
-        aria-label={paused ? "Play hero animation" : "Pause hero animation"}
-        aria-pressed={paused}
-        className="absolute bottom-4 right-4 z-30 inline-flex h-10 min-w-10 items-center justify-center rounded-full bg-black/55 px-3 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-black/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-      >
-        <span aria-hidden="true">{paused ? ">" : "||"}</span>
-      </button>
+      <div className="absolute inset-y-0 left-0 w-[88%] bg-[linear-gradient(90deg,#F7F5F0_0%,rgba(247,245,240,0.98)_18%,rgba(247,245,240,0.86)_39%,rgba(247,245,240,0.52)_63%,rgba(247,245,240,0.12)_100%)] sm:w-[76%] lg:w-[62%]" />
+      <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-[#F7F5F0] to-transparent" />
+      <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[#F7F5F0] to-transparent" />
     </div>
   );
 }

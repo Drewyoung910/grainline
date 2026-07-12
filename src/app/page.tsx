@@ -277,6 +277,9 @@ const CATEGORIES = [
   { key: "STORAGE",   label: "Gifts",         Icon: Gift      },
 ];
 
+const HERO_COLLAGE_MIN_PHOTOS = 8;
+const HERO_COLLAGE_PHOTO_COUNT = 10;
+
 export default async function HomePage() {
   const { userId } = await auth();
   let meDbId: string | null = null;
@@ -396,7 +399,8 @@ export default async function HomePage() {
     .filter(l => l.photos.length > 0)
     .map(l => ({ url: l.photos[0].url, listingId: l.id, title: l.title }))
     .filter(item => isTrustedMediaUrl(item.url));
-  const hasHeroMosaic = mosaicPhotos.length >= 12;
+  const heroCollagePhotos = mosaicPhotos.slice(0, HERO_COLLAGE_PHOTO_COUNT);
+  const hasHeroMosaic = heroCollagePhotos.length >= HERO_COLLAGE_MIN_PHOTOS;
 
   const mapPoints = mapRows
     .map((r) => ({
@@ -573,110 +577,88 @@ export default async function HomePage() {
         }) }}
       />
 
-      {/* ── Hero ───────────────────────────────────��─────────────────────── */}
-      <section className={`relative flex flex-col justify-center min-h-[60vh] ${
-        hasHeroMosaic
-          ? "bg-[#1C1C1A]"
-          : "bg-gradient-to-br from-amber-100 via-amber-50 to-stone-50"
-      }`}>
-        {hasHeroMosaic && <HeroMosaic photos={mosaicPhotos} />}
-        <div className="relative z-20 max-w-3xl mx-auto px-4 sm:px-6 py-16 sm:py-20 text-center space-y-6 w-full">
-          <div className="flex justify-center">
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-medium uppercase tracking-wider ${
-                hasHeroMosaic
-                  ? "bg-white/15 text-white/90 backdrop-blur-sm ring-1 ring-white/30"
-                  : "bg-white text-amber-800 ring-1 ring-amber-200"
-              }`}
-            >
-              <span aria-hidden="true">★</span>
-              Made in the USA · Built in Texas
-            </span>
-          </div>
-          <h1 className={`text-display font-display ${hasHeroMosaic ? "text-white" : "text-neutral-900"}`}>
-            Buy handmade.<br />Buy local. Buy quality.
-          </h1>
-
-          <div className={`max-w-xl mx-auto ${hasHeroMosaic ? "[&_input]:bg-white/20 [&_input]:backdrop-blur-sm [&_input]:border-white/30 [&_input]:text-white [&_input]:placeholder-white/60" : ""}`}>
-            <Suspense>
-              <SearchBar variant={hasHeroMosaic ? "glass" : "default"} />
-            </Suspense>
-          </div>
-
-          {trendingTags.length > 0 && (
-            <div className="flex flex-wrap justify-center gap-2 pt-1">
-              <span className={`text-xs self-center ${hasHeroMosaic ? "text-white/60" : "text-neutral-500"}`}>Trending:</span>
-              {trendingTags.map((tag) => (
-                <Link
-                  key={tag}
-                  href={publicTagPath(tag)}
-                  className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                    hasHeroMosaic
-                      ? "border-white/40 bg-white/10 text-white hover:bg-white/20"
-                      : "border-amber-200 bg-white text-neutral-700 hover:bg-amber-50"
-                  }`}
-                >
-                  #{tag}
-                </Link>
-              ))}
+      {/* ── Hero ────────────────────────────────────────────────────────── */}
+      <section className="relative isolate overflow-visible bg-[#F7F5F0]">
+        {hasHeroMosaic && <HeroMosaic photos={heroCollagePhotos} />}
+        {!hasHeroMosaic && (
+          <div className="absolute inset-0 bg-gradient-to-br from-amber-100 via-amber-50 to-[#F7F5F0]" aria-hidden="true" />
+        )}
+        <div className="relative z-20 mx-auto flex min-h-[610px] max-w-[1600px] items-center px-4 pb-24 pt-14 sm:min-h-[640px] sm:px-6 sm:pb-28 sm:pt-18 lg:min-h-[660px] lg:px-8">
+          <div className="w-full max-w-[620px] space-y-6 text-left">
+            <div className="flex">
+              <span
+                className="inline-flex items-center rounded-full bg-white/75 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-neutral-700 shadow-sm ring-1 ring-stone-200/70"
+              >
+                Made in the USA · Built in Texas
+              </span>
             </div>
-          )}
+            <h1 className="font-display text-[clamp(3rem,8vw,6.75rem)] font-bold leading-[0.94] text-neutral-950">
+              Buy handmade.<br />Buy local.<br />Buy quality.
+            </h1>
 
-          <div className="flex flex-wrap justify-center gap-3 pt-2">
-            <Link
-              href="/browse"
-              className="inline-flex items-center rounded-full bg-[#2C1F1A] px-6 py-3 text-sm font-medium text-white hover:bg-[#3A2A24]"
-            >
-              Browse the Workshop
-            </Link>
-            <Link
-              href="/map"
-              className={`inline-flex items-center rounded-full border-2 px-6 py-3 text-sm font-medium transition-colors ${
-                hasHeroMosaic
-                  ? "border-white text-white hover:bg-white hover:text-neutral-900"
-                  : "border-[#2C1F1A] bg-transparent text-[#2C1F1A] hover:bg-[#2C1F1A] hover:text-white"
-              }`}
-            >
-              Find Makers Near You
-            </Link>
+            <div className="max-w-xl">
+              <Suspense>
+                <SearchBar />
+              </Suspense>
+            </div>
+
+            {trendingTags.length > 0 && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                <span className="self-center text-xs text-neutral-600">Trending:</span>
+                {trendingTags.map((tag) => (
+                  <Link
+                    key={tag}
+                    href={publicTagPath(tag)}
+                    className="rounded-full bg-white/80 px-3 py-1 text-xs font-medium text-neutral-700 shadow-sm ring-1 ring-stone-200/70 transition-colors hover:bg-white"
+                  >
+                    #{tag}
+                  </Link>
+                ))}
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-3 pt-2">
+              <Link
+                href="/browse"
+                className="inline-flex items-center rounded-md bg-[#2C1F1A] px-6 py-3 text-sm font-medium text-white hover:bg-[#3A2A24]"
+              >
+                Browse the Workshop
+              </Link>
+              <Link
+                href="/map"
+                className="inline-flex items-center rounded-md border-2 border-[#2C1F1A] bg-white/55 px-6 py-3 text-sm font-medium text-[#2C1F1A] transition-colors hover:bg-[#2C1F1A] hover:text-white"
+              >
+                Find Makers Near You
+              </Link>
+            </div>
           </div>
-        </div>
-
-        {/* Scroll indicator */}
-        <div className={`absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce motion-reduce:animate-none ${hasHeroMosaic ? "text-white/60" : "text-neutral-500"}`}>
-          <svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <path d="M6 9l6 6 6-6" />
-          </svg>
         </div>
       </section>
 
       {/* ── Stats bar ────────────────────────────────────────────────────── */}
-      <div className="bg-[#EFEAE0]">
-        <ScrollSection className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap justify-center gap-x-8 gap-y-2">
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-xl font-bold text-neutral-900">{activeListingsCount.toLocaleString("en-US")}</span>
-            <span className="text-sm text-neutral-700">pieces listed</span>
+      <div className="relative z-30 -mt-12 bg-[#F7F5F0] px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto grid max-w-5xl grid-cols-2 gap-y-4 rounded-lg bg-white/95 px-5 py-4 shadow-[0_18px_45px_rgba(28,25,23,0.12)] ring-1 ring-stone-200/70 backdrop-blur-sm sm:grid-cols-4 sm:px-8">
+          <div className="text-center sm:border-r sm:border-stone-200/70">
+            <span className="block text-2xl font-bold leading-none text-neutral-900">{activeListingsCount.toLocaleString("en-US")}</span>
+            <span className="mt-1 block text-xs text-neutral-600">pieces listed</span>
           </div>
-          <span className="text-neutral-400 self-center hidden sm:block">·</span>
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-xl font-bold text-neutral-900">{sellersCount.toLocaleString("en-US")}</span>
-            <span className="text-sm text-neutral-700">active makers</span>
+          <div className="text-center sm:border-r sm:border-stone-200/70">
+            <span className="block text-2xl font-bold leading-none text-neutral-900">{sellersCount.toLocaleString("en-US")}</span>
+            <span className="mt-1 block text-xs text-neutral-600">active makers</span>
           </div>
-          <span className="text-neutral-400 self-center hidden sm:block">·</span>
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-xl font-bold text-neutral-900">{membersCount.toLocaleString("en-US")}</span>
-            <span className="text-sm text-neutral-700">members</span>
+          <div className="text-center sm:border-r sm:border-stone-200/70">
+            <span className="block text-2xl font-bold leading-none text-neutral-900">{membersCount.toLocaleString("en-US")}</span>
+            <span className="mt-1 block text-xs text-neutral-600">members</span>
           </div>
-          <span className="text-neutral-400 self-center hidden sm:block">·</span>
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-xl font-bold text-neutral-900">{ordersCount.toLocaleString("en-US")}</span>
-            <span className="text-sm text-neutral-700">orders fulfilled</span>
+          <div className="text-center">
+            <span className="block text-2xl font-bold leading-none text-neutral-900">{ordersCount.toLocaleString("en-US")}</span>
+            <span className="mt-1 block text-xs text-neutral-600">orders fulfilled</span>
           </div>
-        </ScrollSection>
+        </div>
       </div>
 
       {/* ── Find Makers Near You ──────────────────────────────────────────── */}
-      <ScrollSection className="py-12">
+      <ScrollSection className="py-14 sm:py-16">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
           <MakersMapSection
             points={mapPoints}

@@ -233,8 +233,11 @@ describe("accessibility follow-ups", () => {
 
     assert.doesNotMatch(mosaic, /publicListingPath/);
     assert.doesNotMatch(mosaic, /<a[\s\S]*tabIndex=\{-1\}[\s\S]*aria-hidden="true"/);
-    assert.match(mosaic, /<div\s+key=\{`r1-\$\{item\.listingId\}-\$\{i\}`\}/);
-    assert.match(mosaic, /<div\s+key=\{`r2-\$\{item\.listingId\}-\$\{i\}`\}/);
+    assert.doesNotMatch(mosaic, /"use client"/);
+    assert.doesNotMatch(mosaic, /useState|useEffect|onClick/);
+    assert.match(mosaic, /aria-hidden="true"/);
+    assert.match(mosaic, /key=\{`tile-\$\{item\.listingId\}-\$\{index\}`\}/);
+    assert.match(mosaic, /alt=""/);
   });
 
   it("uses stored listing photo alt text in browse list cards", () => {
@@ -283,7 +286,8 @@ describe("accessibility follow-ups", () => {
     assert.match(saveBlog, /p-3/);
     assert.match(imageLightbox, /<span aria-hidden="true">✕<\/span>/);
     assert.match(listingGallery, /<span aria-hidden="true">✕<\/span>/);
-    assert.match(home, /<svg aria-hidden="true" width="24" height="24"/);
+    assert.doesNotMatch(home, /<span aria-hidden="true">★<\/span>/);
+    assert.doesNotMatch(home, /animate-bounce/);
   });
 
   it("keeps account popover and rating slider semantics honest", () => {
@@ -383,7 +387,7 @@ describe("accessibility follow-ups", () => {
     }
   });
 
-  it("keeps homepage heading order and reduced-motion hero controls auditable", () => {
+  it("keeps homepage heading order and static hero collage auditable", () => {
     const home = source("src/app/page.tsx");
     const heroMosaic = source("src/components/HeroMosaic.tsx");
     const globals = source("src/app/globals.css");
@@ -400,22 +404,20 @@ describe("accessibility follow-ups", () => {
       assert.match(home, new RegExp(`<h2[^>]*>[\\s\\S]*?${heading}[\\s\\S]*?<\\/h2>`));
     }
 
-    assert.match(heroMosaic, /aria-label=\{paused \? "Play hero animation" : "Pause hero animation"\}/);
-    assert.match(heroMosaic, /aria-pressed=\{paused\}/);
-    assert.match(heroMosaic, /motion-reduce:animate-none/);
-    assert.match(heroMosaic, /motion-reduce:blur-none/);
-    assert.match(heroMosaic, /motion-reduce:scale-100/);
-    assert.match(home, /animate-bounce motion-reduce:animate-none/);
-    assert.match(home, /const hasHeroMosaic = mosaicPhotos\.length >= 12/);
-    assert.match(home, /<SearchBar variant=\{hasHeroMosaic \? "glass" : "default"\} \/>/);
-    const heroSearchStart = home.indexOf("<div className={`max-w-xl mx-auto");
-    const heroSearchEnd = home.indexOf("<Suspense>", heroSearchStart);
-    const heroSearchWrapper = home.slice(heroSearchStart, heroSearchEnd);
-    assert.match(heroSearchWrapper, /hasHeroMosaic \? "\[&_input\]:bg-white\/20/);
-    assert.match(heroSearchWrapper, /" : ""/);
-    assert.doesNotMatch(home, /className="max-w-xl mx-auto \[&_input\]:bg-white\/20/);
+    assert.match(heroMosaic, /const HERO_TILE_CLASSES =/);
+    assert.match(heroMosaic, /loading=\{index < 5 \? "eager" : "lazy"\}/);
+    assert.match(heroMosaic, /fetchPriority=\{index < 3 \? "high" : "auto"\}/);
+    assert.doesNotMatch(heroMosaic, /animate-scroll|animationPlayState|Math\.random|aria-pressed/);
+    assert.match(home, /const HERO_COLLAGE_MIN_PHOTOS = 8/);
+    assert.match(home, /const HERO_COLLAGE_PHOTO_COUNT = 10/);
+    assert.match(home, /const hasHeroMosaic = heroCollagePhotos\.length >= HERO_COLLAGE_MIN_PHOTOS/);
+    assert.match(home, /<HeroMosaic photos=\{heroCollagePhotos\} \/>/);
+    assert.match(home, /<SearchBar \/>/);
+    assert.doesNotMatch(home, /<SearchBar variant=\{hasHeroMosaic \? "glass" : "default"\} \/>/);
+    assert.doesNotMatch(home, /animate-bounce motion-reduce:animate-none/);
     assert.match(globals, /@media \(prefers-reduced-motion: reduce\)/);
-    assert.match(globals, /\.animate-scroll-left,[\s\S]*\.animate-slide-down \{[\s\S]*animation: none !important/);
+    assert.doesNotMatch(globals, /animate-scroll-left|animate-scroll-right|@keyframes scroll-left|@keyframes scroll-right/);
+    assert.match(globals, /\.animate-slide-in-right,[\s\S]*\.animate-slide-down \{[\s\S]*animation: none !important/);
     assert.match(globals, /transition-duration: 0\.01ms !important/);
   });
 

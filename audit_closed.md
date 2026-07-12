@@ -19129,3 +19129,57 @@ stale/false-positive/current 579, deferred product/design/ops/legal 87,
 approximate raw allegations left from current max #1126: 0. Fixed/reduced
 increases by seventeen for adding explicit cross-origin guards to user
 interaction mutation handlers. Deferred stays flat.
+
+### Entry 564 - Homepage static collage hero rework
+
+Entry 564 records a non-audit homepage UI/performance pass requested by Drew
+after the animated hero mosaic made the site feel slower/choppier. This did not
+come from a raw security allegation and does not change the audit allegation
+tally.
+
+Changed:
+
+- Replaced the client-side animated two-row `HeroMosaic` with a server-rendered
+  static decorative collage: no `"use client"`, no random animation offsets, no
+  duplicated scroll rows, no pause/play control, no full-hero image blur/scale,
+  and no hero scroll animation CSS.
+- Kept the collage edge-to-edge with a left-side cream wash so the hero text
+  and default white `SearchBar` stay readable while the right side remains clear.
+- Lowered the collage activation requirement to 8 trusted listing photos and
+  rendered up to 10 fixed-size decorative tiles.
+- Removed the header bottom divider so the header sits on the same cream page
+  surface as the hero.
+- Reworked the homepage stat bar into a centered floating white rounded panel
+  overlapping the hero bottom, with text-only stats and no icons.
+- Flattened the "Find Makers Near You" homepage section so its text/buttons sit
+  directly on the cream page background; only the map itself remains framed.
+- Updated `CLAUDE.md` to make the static collage/no-divider/no-extra-map-panel
+  behavior the current reusable UI contract.
+
+Guardrails added/reviewed:
+
+- Updated `tests/accessibility-followups.test.mjs` to pin the static,
+  non-interactive collage contract, absence of hero animation controls, default
+  homepage `SearchBar`, fixed eager/lazy tile loading split, and removal of the
+  old scroll cue.
+- Existing homepage deterministic query guardrails still verify the collage
+  query uses public listing visibility and viewer block filters.
+
+Verification:
+`git status --short`; source/docs/test inspection with `sed`, `rg`, and
+`git diff`; focused `node --test tests/accessibility-followups.test.mjs
+tests/homepage-determinism.test.mjs tests/chrome-color-guardrails.test.mjs
+tests/client-async-guardrails.test.mjs tests/recently-viewed.test.mjs
+tests/link-security.test.mjs tests/public-visibility-followups.test.mjs` passed
+70/70; `node --test tests/docs-archive.test.mjs
+tests/audit-ledger-coupling.test.mjs` passed 4/4; `npx tsc --noEmit` passed;
+`npm run lint` passed with the known
+`jsx-ast-utils` TS non-null warning; `git diff --check` passed; `npm run build`
+passed. Browser screenshot QA was attempted but blocked in this session: the
+Browser connector returned no available browser, and headless Chrome execution
+approval was rejected.
+
+Current running tally after Entry 564: verified fixed/reduced 1103, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Tally unchanged
+because this was a UI/performance rework, not an audit allegation closure.
