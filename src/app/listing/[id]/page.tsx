@@ -329,6 +329,20 @@ export default async function ListingPage({
   const isFavorited = favoriteRow !== null;
   const isNotified = stockNotificationRow !== null;
 
+  // Saved state for the "More from this maker" cards so their hearts render
+  // filled correctly for signed-in viewers (bounded: ≤4 ids, indexed lookup).
+  const moreFromSavedIds =
+    meId && moreFromSeller.length > 0
+      ? new Set(
+          (
+            await prisma.favorite.findMany({
+              where: { userId: meId, listingId: { in: moreFromSeller.map((ml) => ml.id) } },
+              select: { listingId: true },
+            })
+          ).map((f) => f.listingId),
+        )
+      : new Set<string>();
+
   const sellerName = listing.seller.displayName ?? "Maker";
   const sellerHref = publicSellerPath(listing.sellerId, sellerName);
   const sellerAvatar = listing.seller.avatarImageUrl ?? listing.seller.user?.imageUrl ?? null;
@@ -847,23 +861,27 @@ export default async function ListingPage({
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {moreFromSeller.map((ml) => (
-              <Link key={ml.id} href={publicListingPath(ml.id, ml.title)} className="group">
-                <div className="rounded-2xl overflow-hidden aspect-[4/5] bg-neutral-100">
-                  {ml.photos[0]?.url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={ml.photos[0].url} alt={ml.title} loading="lazy"
-                      width={320}
-                      height={400}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                  ) : (
-                    <div className="w-full h-full bg-neutral-200" />
-                  )}
-                </div>
-                <p className="mt-2 text-sm font-medium text-neutral-900 line-clamp-1">{ml.title}</p>
-                <p className="text-sm text-neutral-500">
-                  {formatCurrencyCents(ml.priceCents, ml.currency)}
-                </p>
-              </Link>
+              <div key={ml.id} className="relative group">
+                {/* Sibling of the Link (not nested) — same pattern as browse cards */}
+                <FavoriteButton listingId={ml.id} initialSaved={moreFromSavedIds.has(ml.id)} />
+                <Link href={publicListingPath(ml.id, ml.title)} className="block">
+                  <div className="rounded-2xl overflow-hidden aspect-[4/5] bg-neutral-100">
+                    {ml.photos[0]?.url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={ml.photos[0].url} alt={ml.title} loading="lazy"
+                        width={320}
+                        height={400}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                    ) : (
+                      <div className="w-full h-full bg-neutral-200" />
+                    )}
+                  </div>
+                  <p className="mt-2 text-sm font-medium text-neutral-900 line-clamp-1">{ml.title}</p>
+                  <p className="text-sm text-neutral-500">
+                    {formatCurrencyCents(ml.priceCents, ml.currency)}
+                  </p>
+                </Link>
+              </div>
             ))}
           </div>
         </section>

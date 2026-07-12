@@ -25,10 +25,12 @@ export async function GET(req: NextRequest) {
   }
 
   const { userId } = await auth();
+  let meId: string | null = null;
   let blockedSellerIds: string[] = [];
   if (userId) {
     try {
       const me = await ensureUserByClerkId(userId);
+      meId = me.id;
       blockedSellerIds = await getBlockedSellerProfileIdsFor(me.id);
     } catch (err) {
       const accountResponse = accountAccessErrorResponse(err);
@@ -63,6 +65,18 @@ export async function GET(req: NextRequest) {
   const ordered = ids
     .map((id) => byId.get(id))
     .filter((r): r is NonNullable<typeof r> => r != null);
+  const orderedIds = ordered.map((r) => r.id);
+  const savedListingIds =
+    meId && orderedIds.length > 0
+      ? new Set(
+          (
+            await prisma.favorite.findMany({
+              where: { userId: meId, listingId: { in: orderedIds } },
+              select: { listingId: true },
+            })
+          ).map((favorite) => favorite.listingId),
+        )
+      : new Set<string>();
 
   const listings = ordered.map((r) => ({
     id: r.id,
@@ -72,7 +86,8 @@ export async function GET(req: NextRequest) {
     photoUrl: r.photos[0]?.url ?? null,
     sellerDisplayName: r.seller.displayName ?? "Maker",
     sellerAvatarImageUrl: r.seller.avatarImageUrl ?? r.seller.user?.imageUrl ?? null,
+    saved: savedListingIds.has(r.id),
   }));
 
-  return privateJson({ listings, ids: ordered.map((r) => r.id) });
+  return privateJson({ listings, ids: orderedIds });
 }

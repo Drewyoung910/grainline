@@ -5,6 +5,7 @@ import { getRecentlyViewed, setRecentlyViewed } from "@/lib/recentlyViewed";
 import { useToast } from "@/components/Toast";
 import { publicListingPath } from "@/lib/publicPaths";
 import { formatCurrencyCents } from "@/lib/money";
+import FavoriteButton from "@/components/FavoriteButton";
 
 type RecentListing = {
   id: string;
@@ -14,6 +15,7 @@ type RecentListing = {
   photoUrl: string | null;
   sellerDisplayName: string;
   sellerAvatarImageUrl: string | null;
+  saved: boolean;
 };
 
 export default function RecentlyViewed() {
@@ -80,7 +82,8 @@ export default function RecentlyViewed() {
       ) : (
         <ul className="flex gap-4 overflow-x-auto pb-0">
           {listings.map((l) => (
-            <li key={l.id} className="shrink-0 w-48 group">
+            <li key={l.id} className="relative shrink-0 w-48 group">
+              <FavoriteButton listingId={l.id} initialSaved={l.saved} />
               <Link href={publicListingPath(l.id, l.title)} className="block">
                 <div className="rounded-2xl overflow-hidden aspect-[4/5] bg-neutral-100">
                   {l.photoUrl ? (

@@ -107,9 +107,15 @@ describe("post-launch UI follow-ups", () => {
   it("keeps search dropdowns useful even when data-backed popular tags are empty", () => {
     const searchBar = source("src/components/SearchBar.tsx");
     const blogSearchBar = source("src/components/BlogSearchBar.tsx");
+    const globals = source("src/app/globals.css");
 
     assert.match(searchBar, /FALLBACK_POPULAR_SEARCHES/);
     assert.match(searchBar, /popularTags\.length > 0 \? popularTags : FALLBACK_POPULAR_SEARCHES/);
+    assert.match(searchBar, /aria-label="Clear search"/);
+    assert.match(searchBar, /params\.delete\("q"\)/);
+    assert.match(searchBar, /openDropdown\(\)/);
+    assert.match(globals, /@keyframes search-pop-in/);
+    assert.match(globals, /\.animate-search-pop-out/);
     assert.match(blogSearchBar, /FALLBACK_BLOG_TOPICS/);
     assert.match(blogSearchBar, /popularTags\.length > 0 \? popularTags : FALLBACK_BLOG_TOPICS/);
     assert.match(blogSearchBar, /absolute right-2 top-1\/2/);
@@ -493,11 +499,14 @@ describe("post-launch UI follow-ups", () => {
     assert.match(homepage, /where: \{ followerId: meDbId, sellerProfileId: \{ in: featuredMakerIds \} \}/);
     assert.match(homepage, /getCachedPublicSellerStats\(featuredMakers\[0\]\.maker\.id\)/);
     assert.match(homepage, /<h2 className="text-xl font-semibold font-display">In the Workshop<\/h2>/);
+    assert.match(homepage, /href=\{publicSellerPath\(spotlight\.id, spotlight\.displayName\)\}[\s\S]*absolute bottom-4 left-4/);
+    assert.match(homepage, /hover:underline[\s\S]*Visit the Workshop →/);
     assert.match(homepage, /meDbId !== spotlight\.userId && \(/);
     assert.match(homepage, /initialFollowing=\{featuredFollowing\.has\(spotlight\.id\)\}/);
     assert.match(homepage, /initialCount=\{featuredFollowerCounts\.get\(spotlight\.id\) \?\? 0\}/);
     assert.match(homepage, /meDbId !== also\.userId && \(/);
     assert.match(homepage, /initialFollowing=\{featuredFollowing\.has\(also\.id\)\}/);
+    assert.match(homepage, /hover:underline[\s\S]*Visit shop →/);
     assert.match(blogPost, /const isMakerPost = post\.authorType === "MAKER" && !!post\.sellerProfile/);
     assert.match(blogPost, /const viewerIsAuthor = !!meId && post\.author\?\.id === meId/);
     assert.match(blogPost, /!viewerIsAuthor && \(/);

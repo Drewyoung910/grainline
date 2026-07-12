@@ -816,7 +816,10 @@ export default async function HomePage() {
                     fallbackClassName="absolute inset-0 h-full w-full bg-gradient-to-br from-neutral-800 to-neutral-600"
                   />
                   {/* Identity chip over the photo */}
-                  <div className="absolute bottom-4 left-4 flex items-center gap-2.5 rounded-full bg-white/90 py-1.5 pl-1.5 pr-4 shadow-sm backdrop-blur-sm">
+                  <Link
+                    href={publicSellerPath(spotlight.id, spotlight.displayName)}
+                    className="absolute bottom-4 left-4 flex items-center gap-2.5 rounded-full bg-white/90 py-1.5 pl-1.5 pr-4 shadow-sm backdrop-blur-sm transition-colors hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+                  >
                     {spotlightAvatar ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -835,7 +838,7 @@ export default async function HomePage() {
                     <span className="text-sm font-semibold text-neutral-900">
                       {spotlight.displayName}
                     </span>
-                  </div>
+                  </Link>
                 </div>
 
                 {/* Story side */}
@@ -902,7 +905,7 @@ export default async function HomePage() {
                   <div className="mb-6 flex flex-wrap items-center gap-2.5">
                     <Link
                       href={publicSellerPath(spotlight.id, spotlight.displayName)}
-                      className="inline-flex items-center rounded-md bg-[#2C1F1A] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#3A2A24] transition-colors"
+                      className="inline-flex items-center text-sm font-semibold text-neutral-900 underline-offset-4 transition-colors hover:text-amber-800 hover:underline"
                     >
                       Visit the Workshop →
                     </Link>
@@ -954,7 +957,7 @@ export default async function HomePage() {
                         loading="lazy"
                         width={40}
                         height={40}
-                        className="h-10 w-10 rounded-full object-cover"
+                        className="h-10 w-10 rounded-full object-cover ring-1 ring-neutral-200"
                       />
                     ) : (
                       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-200 text-sm font-bold text-amber-800">
@@ -999,7 +1002,7 @@ export default async function HomePage() {
                       )}
                       <Link
                         href={publicSellerPath(also.id, also.displayName)}
-                        className="rounded-full bg-[#EFEAE0] px-3.5 py-1.5 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
+                        className="text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline"
                       >
                         Visit shop →
                       </Link>
@@ -1015,7 +1018,7 @@ export default async function HomePage() {
         <ScrollSection>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-xl font-semibold font-display">New Arrivals</h2>
-            <Link href="/browse?sort=newest" className="rounded-full bg-[#EFEAE0] px-3.5 py-1.5 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors">View more →</Link>
+            <Link href="/browse?sort=newest" className="text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline">View more →</Link>
           </div>
 
           {fresh.length === 0 ? (
@@ -1071,7 +1074,7 @@ export default async function HomePage() {
           <ScrollSection>
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl font-semibold font-display">Top Picks</h2>
-              <Link href="/browse?sort=popular" className="rounded-full bg-[#EFEAE0] px-3.5 py-1.5 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors">View more →</Link>
+              <Link href="/browse?sort=popular" className="text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline">View more →</Link>
             </div>
 
             <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">

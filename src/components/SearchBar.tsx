@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Search } from "@/components/icons";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Search, X } from "@/components/icons";
 
 type BlogResult = { slug: string; title: string };
 type CategoryResult = { value: string; label: string };
@@ -41,6 +41,7 @@ function humanizeTag(raw: string): string {
 
 export default function SearchBar({ variant = "default" }: { variant?: "default" | "glass" }) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const reactId = React.useId();
   const searchListboxId = `${reactId}-site-search-listbox`;
@@ -53,10 +54,39 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
   const [activeIndex, setActiveIndex] = React.useState(-1);
   const [popularTags, setPopularTags] = React.useState<string[]>([]);
   const [popularLoaded, setPopularLoaded] = React.useState(false);
+  const [closing, setClosing] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const suggestionsAbortRef = React.useRef<AbortController | null>(null);
   const suggestionsRequestRef = React.useRef(0);
+  const closeTimerRef = React.useRef<number | null>(null);
+  // Mirror of open/closing for stable callbacks registered with [] deps.
+  const dropdownStateRef = React.useRef({ open: false, closing: false });
+  dropdownStateRef.current = { open, closing };
+
+  // Animated open/close matching the header popovers: close renders one
+  // last frame with the -out animation, then unmounts after the timer.
+  const openDropdown = React.useCallback(() => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    setClosing(false);
+    setOpen(true);
+  }, []);
+
+  const closeDropdown = React.useCallback(() => {
+    const state = dropdownStateRef.current;
+    if (!state.open || state.closing) return;
+    setClosing(true);
+    closeTimerRef.current = window.setTimeout(() => {
+      setOpen(false);
+      setClosing(false);
+      setActiveIndex(-1);
+      closeTimerRef.current = null;
+    }, 140);
+  }, []);
 
   // Sync input value when URL q param changes (back/forward nav)
   React.useEffect(() => {
@@ -79,17 +109,17 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
   React.useEffect(() => {
     function onMouseDown(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-        setActiveIndex(-1);
+        closeDropdown();
       }
     }
     document.addEventListener("mousedown", onMouseDown);
     return () => document.removeEventListener("mousedown", onMouseDown);
-  }, []);
+  }, [closeDropdown]);
 
   React.useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
       suggestionsAbortRef.current?.abort();
     };
   }, []);
@@ -107,8 +137,15 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
       setSuggestions([]);
       setBlogs([]);
       setCategories([]);
-      setOpen(false);
       setActiveIndex(-1);
+      if (v.length === 0) {
+        // Field cleared while still focused — bring the popular-searches
+        // panel back instead of leaving the dropdown dead until refocus.
+        void loadPopularTags();
+        openDropdown();
+      } else {
+        closeDropdown();
+      }
       return;
     }
 
@@ -130,7 +167,11 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
         setSuggestions(suggs);
         setBlogs(blogResults);
         setCategories(cats);
-        setOpen(suggs.length > 0 || blogResults.length > 0 || cats.length > 0);
+        if (suggs.length > 0 || blogResults.length > 0 || cats.length > 0) {
+          openDropdown();
+        } else {
+          closeDropdown();
+        }
         setActiveIndex(-1);
       } catch (error) {
         if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) return;
@@ -138,7 +179,7 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
         setSuggestions([]);
         setBlogs([]);
         setCategories([]);
-        setOpen(false);
+        closeDropdown();
         setActiveIndex(-1);
       } finally {
         if (suggestionsAbortRef.current === controller) {
@@ -198,18 +239,17 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Escape") {
-      setOpen(false);
-      setActiveIndex(-1);
+      closeDropdown();
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
       if (!open) {
         if (value.length === 0) void loadPopularTags();
-        setOpen(true);
+        openDropdown();
       }
       setActiveIndex((index) => (options.length === 0 ? -1 : (index + 1) % options.length));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      if (!open) setOpen(true);
+      if (!open) openDropdown();
       setActiveIndex((index) => (options.length === 0 ? -1 : (index <= 0 ? options.length - 1 : index - 1)));
     } else if (e.key === "Home" && open && options.length > 0) {
       e.preventDefault();
@@ -220,8 +260,7 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
     } else if (e.key === "Enter") {
       e.preventDefault();
       const activeOption = activeIndex >= 0 ? options[activeIndex] : null;
-      setOpen(false);
-      setActiveIndex(-1);
+      closeDropdown();
       if (activeOption) {
         chooseOption(activeOption);
       } else {
@@ -232,20 +271,39 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setOpen(false);
-    setActiveIndex(-1);
+    closeDropdown();
     router.push(browseSearchUrl(value));
+  }
+
+  function handleClear() {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    suggestionsAbortRef.current?.abort();
+    suggestionsRequestRef.current += 1;
+    setValue("");
+    setSuggestions([]);
+    setBlogs([]);
+    setCategories([]);
+    setActiveIndex(-1);
+    void loadPopularTags();
+    openDropdown();
+    inputRef.current?.focus();
+    if (pathname === "/browse" && searchParams.has("q")) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("q");
+      params.delete("page");
+      const query = params.toString();
+      router.push(query ? `/browse?${query}` : "/browse");
+    }
   }
 
   function pick(s: string) {
     setValue(s);
-    setOpen(false);
+    closeDropdown();
     router.push(browseSearchUrl(s));
   }
 
   function pickBlog(slug: string) {
-    setOpen(false);
-    setActiveIndex(-1);
+    closeDropdown();
     router.push(blogPostPath(slug));
   }
 
@@ -257,8 +315,7 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
         return;
       case "category":
         setValue("");
-        setOpen(false);
-        setActiveIndex(-1);
+        closeDropdown();
         router.push(browseCategoryUrl(option.value));
         return;
       case "blog":
@@ -276,15 +333,16 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
       <form onSubmit={handleSubmit}>
         <div className={`flex items-stretch rounded-full border-2 overflow-hidden shadow-sm transition-shadow focus-within:shadow-md ${variant === "glass" ? "bg-white/15 backdrop-blur-sm border-white/40 focus-within:border-white/70" : "bg-white border-stone-400 focus-within:border-stone-600"}`}>
           <input
+            ref={inputRef}
             value={value}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
             onFocus={() => {
               if (value.length === 0) {
                 loadPopularTags();
-                setOpen(true);
+                openDropdown();
               } else if (hasItems) {
-                setOpen(true);
+                openDropdown();
               }
             }}
             placeholder="Search handmade goods…"
@@ -293,10 +351,23 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
             maxLength={MAX_SEARCH_QUERY_LENGTH}
             role="combobox"
             aria-autocomplete="list"
-            aria-expanded={open && options.length > 0}
+            aria-expanded={open && !closing && options.length > 0}
             aria-controls={searchListboxId}
             aria-activedescendant={activeOptionId}
           />
+          {value.length > 0 && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              // preventDefault keeps focus in the input so the popular panel
+              // opens in place instead of blurring the field.
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={handleClear}
+              className={`flex items-center px-2 transition-colors ${variant === "glass" ? "text-white/70 hover:text-white" : "text-neutral-400 hover:text-neutral-700"}`}
+            >
+              <X size={15} />
+            </button>
+          )}
           <button
             type="submit"
             aria-label="Search"
@@ -312,7 +383,7 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
         <ul
           id={searchListboxId}
           role="listbox"
-          className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-neutral-200 bg-white text-neutral-900 shadow-lg"
+          className={`absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-neutral-200 bg-white text-neutral-900 shadow-lg motion-reduce:animate-none ${closing ? "animate-search-pop-out pointer-events-none" : "animate-search-pop-in"}`}
         >
           {options.map((option, index) => (
             <React.Fragment key={option.key}>

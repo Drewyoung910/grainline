@@ -188,6 +188,23 @@ input, textarea, select {
 .animate-backdrop-in { animation: backdrop-fade-in 0.18s ease-out; }
 .animate-backdrop-out { animation: backdrop-fade-out 0.15s ease-in forwards; }
 
+@keyframes search-pop-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes search-pop-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to   { opacity: 0; transform: translateY(-4px) scale(0.98); }
+}
+.animate-search-pop-in {
+  animation: search-pop-in 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: top center;
+}
+.animate-search-pop-out {
+  animation: search-pop-out 0.14s ease-in forwards;
+  transform-origin: top center;
+}
+
 /* Mobile filter bottom sheet slide-up animation */
 @keyframes slide-up {
   from { transform: translateY(100%); }

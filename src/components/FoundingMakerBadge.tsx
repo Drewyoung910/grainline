@@ -51,17 +51,15 @@ export default function FoundingMakerBadge({ number, showLabel = false, size = 2
     const r = triggerRef.current?.getBoundingClientRect();
     if (!r) return;
     const popWidth = 280;
-    const scrollX = window.scrollX;
-    const scrollY = window.scrollY;
     // clientWidth (not innerWidth) excludes the scrollbar, so a popup near
     // the right edge can't spawn a horizontal scrollbar and shift the page.
     const viewportW = document.documentElement.clientWidth;
-    let left = r.left + scrollX + r.width / 2 - popWidth / 2;
+    let left = r.left + r.width / 2 - popWidth / 2;
     const minLeft = 8;
-    const maxLeft = viewportW + scrollX - popWidth - 8;
+    const maxLeft = viewportW - popWidth - 8;
     if (left < minLeft) left = minLeft;
     if (left > maxLeft) left = maxLeft;
-    setCoords({ top: r.bottom + scrollY + 8, left, width: popWidth });
+    setCoords({ top: r.bottom + 8, left, width: popWidth });
   };
 
   function handleOpen() {
@@ -145,7 +143,7 @@ export default function FoundingMakerBadge({ number, showLabel = false, size = 2
           aria-label="Founding Maker"
           className="z-[1000] rounded-xl bg-white shadow-xl ring-1 ring-stone-200 p-4 text-left"
           style={{
-            position: "absolute",
+            position: "fixed",
             top: coords.top,
             left: coords.left,
             width: coords.width,

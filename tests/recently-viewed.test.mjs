@@ -9,6 +9,7 @@ const {
 } = await import("../src/lib/recentlyViewed.ts");
 
 const recentlyViewedComponent = readFileSync("src/components/RecentlyViewed.tsx", "utf8");
+const recentlyViewedRoute = readFileSync("src/app/api/listings/recently-viewed/route.ts", "utf8");
 
 describe("recently viewed cookie helpers", () => {
   it("keeps only unique non-empty string listing ids", () => {
@@ -52,5 +53,11 @@ describe("recently viewed cookie helpers", () => {
       /import \{ getRecentlyViewed, setRecentlyViewed \} from "@\/lib\/recentlyViewed"/,
     );
     assert.match(recentlyViewedComponent, /setRecentlyViewed\(Array\.isArray\(data\.ids\) \? data\.ids/);
+  });
+
+  it("returns and renders saved state for recently viewed favorite buttons", () => {
+    assert.match(recentlyViewedRoute, /prisma\.favorite\.findMany/);
+    assert.match(recentlyViewedRoute, /saved: savedListingIds\.has\(r\.id\)/);
+    assert.match(recentlyViewedComponent, /<FavoriteButton listingId=\{l\.id\} initialSaved=\{l\.saved\} \/>/);
   });
 });
