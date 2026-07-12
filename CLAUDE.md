@@ -3851,19 +3851,31 @@ Hero behavior:
 - The homepage uses up to 10 trusted public listing photos and requires at
   least 8 real photos before showing the collage. Otherwise it falls back to
   the warm cream/amber gradient.
-- The collage is edge-to-edge behind the hero, with clean rounded-lg image
-  tiles, fixed width/height attributes, eager loading only for the first five
+- The collage is edge-to-edge behind the hero but should read as one coherent
+  floating rounded rectangle, not a loose blob. Use a consistent grid/gutter
+  system and clean `rounded-lg` image tiles. Gutters should be the same cream
+  page color; do not add visible tile rings/outlines or per-tile card shadows.
+  Keep fixed width/height attributes, eager loading only for the first five
   visible tiles, and lazy loading for the rest.
-- The left side uses a static cream wash gradient so the headline and default
-  white `SearchBar` stay crisp while the right side of the collage remains
-  brighter and clearer. Do not restore the centered glass card or glass search
-  variant in the homepage hero without explicit direction.
+- The hero headline is left-aligned as three intentional lines: "Buy
+  handmade.", "Buy local.", and "Buy quality.". Keep desktop lines from
+  wrapping into extra rows.
+- The left side uses a soft cream wash plus localized blur behind the content
+  so the headline and default white `SearchBar` stay crisp while the right side
+  of the collage remains brighter and clearer. The wash must fade to fully
+  transparent; do not add top/bottom fade overlays into the header or stats
+  area. Do not restore the centered glass card or glass search variant in the
+  homepage hero without explicit direction.
 - The header is part of the same cream page surface with no bottom divider.
 - The stats bar floats over the bottom of the collage as a centered white
-  rounded-lg panel; keep it text-only unless Drew explicitly asks for icons.
+  rounded-lg panel, with the collage ending roughly halfway down from the top
+  of the stat panel. Do not add breathing room between the collage and stat
+  panel. Keep it text-only unless Drew explicitly asks for icons. On mobile,
+  all four stats stay in one row.
 - The homepage map section sits directly on the cream page background. The map
   itself can be framed, but do not wrap the entire map/text area in another
-  darker background panel.
+  darker background panel. Keep the map frame tall enough to feel substantial
+  and align the copy/buttons to the top of the map.
 
 ## Bad Word Filter (complete — 2026-04-21)
 

@@ -329,7 +329,7 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
     : undefined;
 
   return (
-    <div ref={containerRef} className="relative ml-auto mr-auto w-full max-w-lg">
+    <div ref={containerRef} className="relative ml-auto mr-auto w-full min-w-0 max-w-lg">
       <form onSubmit={handleSubmit}>
         <div className={`flex items-stretch rounded-full border-2 overflow-hidden shadow-sm transition-shadow focus-within:shadow-md ${variant === "glass" ? "bg-white/15 backdrop-blur-sm border-white/40 focus-within:border-white/70" : "bg-white border-stone-400 focus-within:border-stone-600"}`}>
           <input
@@ -346,7 +346,7 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
               }
             }}
             placeholder="Search handmade goods…"
-            className={`flex-1 pl-4 pr-2 py-2 bg-transparent focus:outline-none focus-visible:outline-none focus-visible:shadow-none ${variant === "glass" ? "text-white placeholder:text-white/60" : "text-neutral-900 placeholder:text-neutral-500"}`}
+            className={`min-w-0 flex-1 pl-4 pr-2 py-2 bg-transparent focus:outline-none focus-visible:outline-none focus-visible:shadow-none ${variant === "glass" ? "text-white placeholder:text-white/60" : "text-neutral-900 placeholder:text-neutral-500"}`}
             autoComplete="off"
             maxLength={MAX_SEARCH_QUERY_LENGTH}
             role="combobox"

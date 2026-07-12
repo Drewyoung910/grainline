@@ -9,29 +9,29 @@ type Props = {
 };
 
 const HERO_TILE_CLASSES = [
-  "col-span-2 row-span-2 -translate-y-3 sm:-translate-y-5 lg:col-span-2 lg:row-span-2",
-  "col-span-4 row-span-3 lg:col-span-4 lg:row-span-3",
-  "col-span-3 row-span-2 translate-y-2 lg:col-span-3 lg:row-span-2",
-  "col-span-3 row-span-3 -translate-y-1 lg:col-span-3 lg:row-span-3",
-  "col-span-3 row-span-2 lg:col-span-3 lg:row-span-2",
-  "col-span-3 row-span-2 translate-y-4 lg:col-span-2 lg:row-span-2",
-  "col-span-3 row-span-2 -translate-y-2 lg:col-span-3 lg:row-span-2",
-  "col-span-3 row-span-2 translate-y-3 lg:col-span-3 lg:row-span-2",
-  "col-span-3 row-span-2 lg:col-span-2 lg:row-span-2",
-  "col-span-3 row-span-2 translate-y-5 lg:col-span-4 lg:row-span-2",
+  "col-span-2 row-span-2 lg:col-start-1 lg:col-span-2 lg:row-start-1 lg:row-span-2",
+  "col-span-4 row-span-3 lg:col-start-3 lg:col-span-4 lg:row-start-1 lg:row-span-3",
+  "col-span-3 row-span-2 lg:col-start-7 lg:col-span-3 lg:row-start-1 lg:row-span-2",
+  "col-span-3 row-span-3 lg:col-start-10 lg:col-span-3 lg:row-start-1 lg:row-span-3",
+  "col-span-3 row-span-3 lg:col-start-1 lg:col-span-3 lg:row-start-3 lg:row-span-3",
+  "col-span-3 row-span-3 lg:col-start-4 lg:col-span-3 lg:row-start-4 lg:row-span-3",
+  "col-span-3 row-span-2 lg:col-start-7 lg:col-span-3 lg:row-start-3 lg:row-span-2",
+  "col-span-3 row-span-2 lg:col-start-10 lg:col-span-3 lg:row-start-4 lg:row-span-1",
+  "hidden lg:block lg:col-start-1 lg:col-span-3 lg:row-start-6 lg:row-span-1",
+  "hidden lg:block lg:col-start-7 lg:col-span-6 lg:row-start-5 lg:row-span-2",
 ] as const;
 
 const HERO_TILE_SIZES = [
-  { width: 320, height: 260 },
-  { width: 720, height: 480 },
+  { width: 420, height: 300 },
+  { width: 700, height: 430 },
   { width: 520, height: 280 },
-  { width: 520, height: 420 },
-  { width: 520, height: 300 },
-  { width: 340, height: 300 },
-  { width: 520, height: 300 },
-  { width: 520, height: 300 },
-  { width: 340, height: 300 },
-  { width: 720, height: 300 },
+  { width: 500, height: 460 },
+  { width: 620, height: 360 },
+  { width: 600, height: 380 },
+  { width: 520, height: 320 },
+  { width: 400, height: 280 },
+  { width: 420, height: 430 },
+  { width: 560, height: 300 },
 ] as const;
 
 export default function HeroMosaic({ photos }: Props) {
@@ -39,15 +39,15 @@ export default function HeroMosaic({ photos }: Props) {
 
   return (
     <div className="absolute inset-0 overflow-hidden" aria-hidden="true">
-      <div className="absolute inset-x-3 top-2 bottom-0 sm:inset-x-6 sm:top-4 lg:inset-x-8">
-        <div className="grid h-full grid-cols-6 grid-rows-8 gap-2 sm:gap-3 lg:grid-cols-12 lg:grid-rows-5">
+      <div className="absolute inset-x-4 top-3 -bottom-1 sm:inset-x-6 sm:top-4 lg:inset-x-8">
+        <div className="mx-auto grid h-full max-w-[1540px] grid-cols-6 grid-rows-8 gap-2.5 sm:gap-3 lg:grid-cols-12 lg:grid-rows-6 lg:gap-3.5">
           {tiles.map((item, index) => {
             const tileClass = HERO_TILE_CLASSES[index] ?? HERO_TILE_CLASSES[0];
             const size = HERO_TILE_SIZES[index] ?? HERO_TILE_SIZES[0];
             return (
               <div
                 key={`tile-${item.listingId}-${index}`}
-                className={`${tileClass} min-h-0 overflow-hidden rounded-lg bg-[#EFEAE0] shadow-[0_10px_30px_rgba(28,25,23,0.10)] ring-1 ring-white/50`}
+                className={`${tileClass} min-h-0 overflow-hidden rounded-lg bg-[#F7F5F0]`}
               >
                 {/* Decorative marketplace imagery; nearby text provides the semantic hero content. */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -67,9 +67,7 @@ export default function HeroMosaic({ photos }: Props) {
         </div>
       </div>
 
-      <div className="absolute inset-y-0 left-0 w-[88%] bg-[linear-gradient(90deg,#F7F5F0_0%,rgba(247,245,240,0.98)_18%,rgba(247,245,240,0.86)_39%,rgba(247,245,240,0.52)_63%,rgba(247,245,240,0.12)_100%)] sm:w-[76%] lg:w-[62%]" />
-      <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-[#F7F5F0] to-transparent" />
-      <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[#F7F5F0] to-transparent" />
+      <div className="absolute inset-y-0 left-0 w-[78%] bg-[linear-gradient(90deg,#F7F5F0_0%,rgba(247,245,240,0.86)_24%,rgba(247,245,240,0.48)_52%,rgba(247,245,240,0.18)_76%,rgba(247,245,240,0)_100%)] sm:w-[66%] lg:w-[56%]" />
     </div>
   );
 }

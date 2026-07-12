@@ -19183,3 +19183,65 @@ Current running tally after Entry 564: verified fixed/reduced 1103, verified
 stale/false-positive/current 579, deferred product/design/ops/legal 87,
 approximate raw allegations left from current max #1126: 0. Tally unchanged
 because this was a UI/performance rework, not an audit allegation closure.
+
+### Entry 565 - Homepage static hero visual refinement
+
+Entry 565 records Drew's visual follow-up on the static collage hero. The first
+static implementation reduced motion and client-side work, but the rendered
+desktop view made the headline too large, allowed "Buy handmade." to wrap into
+extra lines, used top/bottom hero fades Drew did not want, showed a visible
+wash cutoff, and left the map section feeling too small.
+
+Changed:
+
+- Reduced the homepage hero height and headline scale so the desktop headline
+  renders as three intentional lines: "Buy handmade.", "Buy local.", and "Buy
+  quality.".
+- Reworked the collage into a static server-rendered photo grid with consistent
+  cream page-color gutters, rounded image cells, no visible per-tile
+  ring/outline, no per-tile card shadow, and no client-side animation.
+- Removed the hero top and bottom fade overlays. The remaining left cream wash
+  now fades to fully transparent instead of ending with a visible cutoff edge.
+- Added a lighter localized blurred cream wash behind the left-side content
+  instead of a centered glass card, keeping the collage brighter on the right.
+- Removed the stat wrapper's cream background mask so the floating stat panel
+  actually overlays the lower collage instead of cutting the photos at the
+  panel top. The mobile stat panel keeps all four stats on one row.
+- Increased the homepage map frame height and aligned the map copy/buttons to
+  the top of the map.
+- Updated `CLAUDE.md` with the refined current contract: no extra desktop
+  headline wrapping, no top/bottom hero fades, fully transparent wash endpoint,
+  no tile rings/outlines/shadows, real stat-panel overlap, one-row mobile
+  stats, and taller/top-aligned map behavior.
+
+Guardrails added/reviewed:
+
+- Extended `tests/accessibility-followups.test.mjs` to pin the intentional
+  three-line hero copy, fully transparent wash endpoint, and absence of the
+  removed top/bottom fade overlays.
+- The same source guard now pins the static grid/gutter classes, no tile
+  ring/shadow regression, the transparent stat wrapper, one-row stat grid, and
+  the unchanged non-interactive decorative mosaic behavior.
+
+Verification:
+
+- Headless Chrome screenshots against the local dev server were inspected after
+  the final changes:
+  `/tmp/grainline-hero-desktop-overlay-final.png` and
+  `/tmp/grainline-hero-narrow-overlay-final.png`. The in-app Browser connector
+  had no attached browser (`agent.browsers.list()` returned `[]`), so visual QA
+  used local headless Chrome instead.
+- `curl -I http://localhost:3000/` returned HTTP 200 when run with local server
+  access.
+- `node --test tests/accessibility-followups.test.mjs` passed: 23/23.
+- `npx tsc --noEmit` passed.
+- `npm run lint` passed; eslint still printed the existing jsx-ast-utils
+  TSNonNullExpression warning while exiting 0.
+- `git diff --check` passed.
+- `npm test` passed: 1,569 passed, 3 skipped, 0 failed.
+- `npm run build` passed.
+
+Current running tally after Entry 565: verified fixed/reduced 1103, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Tally unchanged
+because this was a UI refinement, not an audit allegation closure.

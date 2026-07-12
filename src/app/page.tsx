@@ -548,7 +548,7 @@ export default async function HomePage() {
   const weekEnd = sundayForPill.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
   return (
-    <main>
+    <main className="overflow-x-hidden">
       {/* JSON-LD: Organization */}
       <script
         type="application/ld+json"
@@ -578,13 +578,17 @@ export default async function HomePage() {
       />
 
       {/* ── Hero ────────────────────────────────────────────────────────── */}
-      <section className="relative isolate overflow-visible bg-[#F7F5F0]">
+      <section className="relative isolate overflow-hidden bg-[#F7F5F0]">
         {hasHeroMosaic && <HeroMosaic photos={heroCollagePhotos} />}
         {!hasHeroMosaic && (
           <div className="absolute inset-0 bg-gradient-to-br from-amber-100 via-amber-50 to-[#F7F5F0]" aria-hidden="true" />
         )}
-        <div className="relative z-20 mx-auto flex min-h-[610px] max-w-[1600px] items-center px-4 pb-24 pt-14 sm:min-h-[640px] sm:px-6 sm:pb-28 sm:pt-18 lg:min-h-[660px] lg:px-8">
-          <div className="w-full max-w-[620px] space-y-6 text-left">
+        <div className="relative z-20 mx-auto flex min-h-[520px] max-w-[1600px] items-center px-4 pb-20 pt-10 sm:min-h-[535px] sm:px-6 sm:pb-20 sm:pt-12 lg:min-h-[545px] lg:px-8">
+          <div className="relative isolate w-full min-w-0 max-w-[760px] space-y-5 text-left">
+            <span
+              className="pointer-events-none absolute -inset-x-4 -inset-y-5 -z-10 rounded-[1.5rem] bg-[#F7F5F0]/58 blur-xl sm:-inset-x-8 sm:-inset-y-7 lg:-inset-x-10"
+              aria-hidden="true"
+            />
             <div className="flex">
               <span
                 className="inline-flex items-center rounded-full bg-white/75 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-neutral-700 shadow-sm ring-1 ring-stone-200/70"
@@ -592,8 +596,10 @@ export default async function HomePage() {
                 Made in the USA · Built in Texas
               </span>
             </div>
-            <h1 className="font-display text-[clamp(3rem,8vw,6.75rem)] font-bold leading-[0.94] text-neutral-950">
-              Buy handmade.<br />Buy local.<br />Buy quality.
+            <h1 className="font-display text-[clamp(2.2rem,5vw,5.35rem)] font-bold leading-[0.98] text-neutral-950">
+              <span className="block sm:whitespace-nowrap">Buy handmade.</span>
+              <span className="block sm:whitespace-nowrap">Buy local.</span>
+              <span className="block sm:whitespace-nowrap">Buy quality.</span>
             </h1>
 
             <div className="max-w-xl">
@@ -620,13 +626,13 @@ export default async function HomePage() {
             <div className="flex flex-wrap gap-3 pt-2">
               <Link
                 href="/browse"
-                className="inline-flex items-center rounded-md bg-[#2C1F1A] px-6 py-3 text-sm font-medium text-white hover:bg-[#3A2A24]"
+                className="inline-flex w-full items-center justify-center rounded-md bg-[#2C1F1A] px-6 py-3 text-sm font-medium text-white hover:bg-[#3A2A24] sm:w-auto"
               >
                 Browse the Workshop
               </Link>
               <Link
                 href="/map"
-                className="inline-flex items-center rounded-md border-2 border-[#2C1F1A] bg-white/55 px-6 py-3 text-sm font-medium text-[#2C1F1A] transition-colors hover:bg-[#2C1F1A] hover:text-white"
+                className="inline-flex w-full items-center justify-center rounded-md border-2 border-[#2C1F1A] bg-white/55 px-6 py-3 text-sm font-medium text-[#2C1F1A] transition-colors hover:bg-[#2C1F1A] hover:text-white sm:w-auto"
               >
                 Find Makers Near You
               </Link>
@@ -636,23 +642,23 @@ export default async function HomePage() {
       </section>
 
       {/* ── Stats bar ────────────────────────────────────────────────────── */}
-      <div className="relative z-30 -mt-12 bg-[#F7F5F0] px-4 sm:px-6 lg:px-8">
-        <div className="mx-auto grid max-w-5xl grid-cols-2 gap-y-4 rounded-lg bg-white/95 px-5 py-4 shadow-[0_18px_45px_rgba(28,25,23,0.12)] ring-1 ring-stone-200/70 backdrop-blur-sm sm:grid-cols-4 sm:px-8">
-          <div className="text-center sm:border-r sm:border-stone-200/70">
-            <span className="block text-2xl font-bold leading-none text-neutral-900">{activeListingsCount.toLocaleString("en-US")}</span>
-            <span className="mt-1 block text-xs text-neutral-600">pieces listed</span>
+      <div className="relative z-30 -mt-8 px-4 sm:-mt-10 sm:px-6 lg:px-8">
+        <div className="mx-auto grid w-full max-w-5xl grid-cols-4 rounded-lg bg-white/95 px-2 py-3 shadow-[0_18px_45px_rgba(28,25,23,0.12)] ring-1 ring-stone-200/70 backdrop-blur-sm sm:px-8 sm:py-4">
+          <div className="min-w-0 border-r border-stone-200/70 text-center">
+            <span className="block text-xl font-bold leading-none text-neutral-900 sm:text-2xl">{activeListingsCount.toLocaleString("en-US")}</span>
+            <span className="mt-1 block text-[10px] leading-tight text-neutral-600 sm:text-xs">pieces listed</span>
           </div>
-          <div className="text-center sm:border-r sm:border-stone-200/70">
-            <span className="block text-2xl font-bold leading-none text-neutral-900">{sellersCount.toLocaleString("en-US")}</span>
-            <span className="mt-1 block text-xs text-neutral-600">active makers</span>
+          <div className="min-w-0 border-r border-stone-200/70 text-center">
+            <span className="block text-xl font-bold leading-none text-neutral-900 sm:text-2xl">{sellersCount.toLocaleString("en-US")}</span>
+            <span className="mt-1 block text-[10px] leading-tight text-neutral-600 sm:text-xs">active makers</span>
           </div>
-          <div className="text-center sm:border-r sm:border-stone-200/70">
-            <span className="block text-2xl font-bold leading-none text-neutral-900">{membersCount.toLocaleString("en-US")}</span>
-            <span className="mt-1 block text-xs text-neutral-600">members</span>
+          <div className="min-w-0 border-r border-stone-200/70 text-center">
+            <span className="block text-xl font-bold leading-none text-neutral-900 sm:text-2xl">{membersCount.toLocaleString("en-US")}</span>
+            <span className="mt-1 block text-[10px] leading-tight text-neutral-600 sm:text-xs">members</span>
           </div>
-          <div className="text-center">
-            <span className="block text-2xl font-bold leading-none text-neutral-900">{ordersCount.toLocaleString("en-US")}</span>
-            <span className="mt-1 block text-xs text-neutral-600">orders fulfilled</span>
+          <div className="min-w-0 text-center">
+            <span className="block text-xl font-bold leading-none text-neutral-900 sm:text-2xl">{ordersCount.toLocaleString("en-US")}</span>
+            <span className="mt-1 block text-[10px] leading-tight text-neutral-600 sm:text-xs">orders fulfilled</span>
           </div>
         </div>
       </div>
