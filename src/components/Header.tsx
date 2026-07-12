@@ -68,6 +68,12 @@ export default function Header() {
   // close paths (X, backdrop, Escape, link taps) go through closeDrawer so
   // the menu never vanishes in a single frame.
   const drawerCloseTimerRef = React.useRef<number | null>(null);
+  const clearDrawerCloseTimer = React.useCallback(() => {
+    if (drawerCloseTimerRef.current !== null) {
+      window.clearTimeout(drawerCloseTimerRef.current);
+      drawerCloseTimerRef.current = null;
+    }
+  }, []);
   const closeDrawer = React.useCallback(() => {
     if (!drawerOpen) return;
     setDrawerClosing((alreadyClosing) => {
@@ -80,13 +86,16 @@ export default function Header() {
       return true;
     });
   }, [drawerOpen]);
+  const openDrawer = React.useCallback(() => {
+    clearDrawerCloseTimer();
+    setDrawerClosing(false);
+    setDrawerOpen(true);
+  }, [clearDrawerCloseTimer]);
   React.useEffect(() => {
     return () => {
-      if (drawerCloseTimerRef.current !== null) {
-        window.clearTimeout(drawerCloseTimerRef.current);
-      }
+      clearDrawerCloseTimer();
     };
-  }, []);
+  }, [clearDrawerCloseTimer]);
 
   // Popover focus, matching NotificationBell: move focus onto the card when
   // it opens, close it when keyboard focus leaves (see onBlur on the panel),
@@ -144,10 +153,11 @@ export default function Header() {
 
   // Close drawer and search on navigation (instant — new page context)
   React.useEffect(() => {
+    clearDrawerCloseTimer();
     setDrawerOpen(false);
     setDrawerClosing(false);
     setSearchOpen(false);
-  }, [pathname, searchParams]);
+  }, [pathname, searchParams, clearDrawerCloseTimer]);
 
   // Escape closes both drawer and search
   React.useEffect(() => {
@@ -420,7 +430,7 @@ export default function Header() {
 
           {/* Hamburger */}
           <button
-            onClick={() => setDrawerOpen(true)}
+            onClick={openDrawer}
             aria-label="Open menu"
             aria-expanded={drawerOpen}
             aria-haspopup="dialog"

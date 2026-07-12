@@ -14,6 +14,7 @@ type Props = {
 // Sized to match the GuildBadge so it can sit next to it without visual clash.
 export default function FoundingMakerBadge({ number, showLabel = false, size = 22 }: Props) {
   const gradId = useId();
+  const popoverId = useId();
   const [open, setOpen] = useState(false);
   const [coords, setCoords] = useState<{ top: number; left: number; width: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -97,6 +98,9 @@ export default function FoundingMakerBadge({ number, showLabel = false, size = 2
         }}
         className="inline-flex items-center gap-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 rounded-full"
         aria-label={number ? `Founding Maker #${number}` : "Founding Maker"}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-controls={open ? popoverId : undefined}
       >
         <svg
           width={size}
@@ -135,6 +139,7 @@ export default function FoundingMakerBadge({ number, showLabel = false, size = 2
 
       {open && mounted && coords && createPortal(
         <div
+          id={popoverId}
           ref={popoverRef}
           role="dialog"
           aria-label="Founding Maker"

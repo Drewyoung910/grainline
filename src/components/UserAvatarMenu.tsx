@@ -23,7 +23,14 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
   const [closing, setClosing] = React.useState(false);
   // Animated close, matching the bell + mobile menu popovers.
   const closeTimerRef = React.useRef<number | null>(null);
+  const clearCloseTimer = React.useCallback(() => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  }, []);
   const closeMenu = React.useCallback(() => {
+    if (!open) return;
     setClosing((alreadyClosing) => {
       if (alreadyClosing) return alreadyClosing;
       closeTimerRef.current = window.setTimeout(() => {
@@ -33,25 +40,32 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
       }, 160);
       return true;
     });
-  }, []);
+  }, [open]);
+  const openMenu = React.useCallback(() => {
+    clearCloseTimer();
+    setClosing(false);
+    setOpen(true);
+  }, [clearCloseTimer]);
   React.useEffect(() => {
     return () => {
-      if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
+      clearCloseTimer();
     };
-  }, []);
-  const menuId = React.useId();
+  }, [clearCloseTimer]);
+  const popoverId = React.useId();
   const menuRef = React.useRef<HTMLDivElement>(null);
   const { signOut, openUserProfile } = useClerk();
   const pathname = usePathname();
 
   // Close on navigation
   React.useEffect(() => {
+    clearCloseTimer();
     setOpen(false);
     setClosing(false);
-  }, [pathname]);
+  }, [pathname, clearCloseTimer]);
 
   // Click outside to close
   React.useEffect(() => {
+    if (!open) return;
     function onMouseDown(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         closeMenu();
@@ -59,16 +73,17 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
     }
     document.addEventListener("mousedown", onMouseDown);
     return () => document.removeEventListener("mousedown", onMouseDown);
-  }, [closeMenu]);
+  }, [open, closeMenu]);
 
   // Escape to close
   React.useEffect(() => {
+    if (!open) return;
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") closeMenu();
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [closeMenu]);
+  }, [open, closeMenu]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -113,13 +128,13 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
     <div ref={menuRef} className="relative group">
       {!open && <IconHoverTip label="Account" />}
       <button
-        onClick={() => (open ? closeMenu() : setOpen(true))}
+        onClick={() => (open ? closeMenu() : openMenu())}
         className="block h-8 w-8 cursor-pointer overflow-hidden rounded-full bg-transparent p-0 ring-1 ring-black/10 hover:ring-2 hover:ring-black/20 shadow-sm hover:shadow-md transition-all"
         style={{ borderRadius: "9999px" }}
         aria-label="Account menu"
         aria-expanded={open}
-        aria-haspopup="menu"
-        aria-controls={open ? menuId : undefined}
+        aria-haspopup="dialog"
+        aria-controls={open ? popoverId : undefined}
       >
         {avatarSrc ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -135,7 +150,8 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
 
       {open && (
         <div
-          id={menuId}
+          id={popoverId}
+          role="dialog"
           aria-label="Account"
           className={`absolute right-0 z-[200] w-52 overflow-hidden rounded-2xl ring-1 ring-black/5 bg-white text-neutral-900 shadow-2xl motion-reduce:animate-none ${closing ? "animate-menu-out pointer-events-none" : "animate-menu-in"} ${dropDirection === "up" ? "bottom-full mb-2" : "top-full mt-2"}`}
         >

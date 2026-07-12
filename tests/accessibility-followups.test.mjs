@@ -288,11 +288,23 @@ describe("accessibility follow-ups", () => {
 
   it("keeps account popover and rating slider semantics honest", () => {
     const avatarMenu = source("src/components/UserAvatarMenu.tsx");
+    const foundingBadge = source("src/components/FoundingMakerBadge.tsx");
     const starInput = source("src/components/StarInput.tsx");
     const layout = source("src/app/layout.tsx");
 
+    assert.match(avatarMenu, /if \(!open\) return/);
+    assert.match(avatarMenu, /aria-haspopup="dialog"/);
+    assert.match(avatarMenu, /role="dialog"/);
+    assert.match(avatarMenu, /id=\{popoverId\}/);
+    assert.match(avatarMenu, /aria-controls=\{open \? popoverId : undefined\}/);
+    assert.doesNotMatch(avatarMenu, /aria-haspopup="menu"/);
     assert.doesNotMatch(avatarMenu, /role="menu"/);
     assert.doesNotMatch(avatarMenu, /role="menuitem"/);
+    assert.match(foundingBadge, /aria-expanded=\{open\}/);
+    assert.match(foundingBadge, /aria-haspopup="dialog"/);
+    assert.match(foundingBadge, /aria-controls=\{open \? popoverId : undefined\}/);
+    assert.match(foundingBadge, /id=\{popoverId\}/);
+    assert.match(foundingBadge, /role="dialog"/);
     assert.match(starInput, /role="slider"/);
     assert.match(starInput, /tabIndex=\{0\}/);
     assert.match(starInput, /aria-valuetext=\{`\$\{\(valueX2 \/ 2\)\.toFixed\(1\)\} out of 5 stars`\}/);
@@ -324,6 +336,7 @@ describe("accessibility follow-ups", () => {
     assert.match(header, /aria-controls=\{drawerOpen \? drawerId : undefined\}/);
     assert.match(header, /id=\{drawerId\}/);
     assert.match(header, /if \(!drawerOpen\) return/);
+    assert.match(header, /clearDrawerCloseTimer\(\);[\s\S]*setDrawerClosing\(false\);[\s\S]*setDrawerOpen\(true\);/);
     assert.doesNotMatch(header, /setAttribute\("inert"/);
     assert.doesNotMatch(header, /aria-modal="true"/);
     assert.doesNotMatch(header, /bg-black\/30/);

@@ -18674,3 +18674,67 @@ stale/false-positive/current 579, deferred product/design/ops/legal 87,
 approximate raw allegations left from current max #1126: 0. Fixed/reduced
 increases by one for the split/clickable homepage hero regression. Deferred
 stays flat.
+
+### Entry 556 - Pre-mosaic UI popover hardening pass
+
+Entry 556 returns to the Fable-authored UI surfaces that predated the reverted
+homepage mosaic experiments, without re-opening hero design work. Source review
+focused on the account avatar popover and Founding Maker badge popover because
+they are compact interactive controls reused across high-traffic public and
+header surfaces.
+
+Two current issues remained:
+
+- `UserAvatarMenu` mounted outside-click and Escape listeners even while closed,
+  and `closeMenu()` did not no-op when the popover was already closed. A closed
+  page click or Escape keypress could start the close animation state; the next
+  fast open could inherit `closing=true` and close itself after the pending
+  timer. The trigger also still advertised `aria-haspopup="menu"` even though
+  the popover is plain links/buttons and intentionally does not implement ARIA
+  menu keyboard behavior.
+- `FoundingMakerBadge` rendered a portal `role="dialog"` popover but the trigger
+  did not expose expanded/controls/haspopup state, leaving the relationship
+  between the compact badge button and its explanatory popover under-described
+  to assistive technology.
+- The mobile drawer already no-opped close paths while closed, but its
+  route-change reset could leave the prior animated-close timer alive. A quick
+  reopen after navigation could then be closed by that stale timer.
+
+Fixed/reduced:
+
+- `UserAvatarMenu` now clears pending close timers before opening, no-ops close
+  paths while already closed, only installs outside-click/Escape listeners while
+  open, resets close timers on route changes, and exposes the account popover as
+  a named dialog (`aria-haspopup="dialog"`, `role="dialog"`,
+  `aria-controls`).
+- `FoundingMakerBadge` now gives its trigger `aria-expanded`,
+  `aria-haspopup="dialog"`, and `aria-controls` tied to the portal popover id.
+- `Header` now clears the mobile drawer close timer before opening, during
+  route-change resets, and on unmount, matching the same animated-popover state
+  contract.
+- Updated the durable `CLAUDE.md` popover contract so future compact popovers
+  keep dialog semantics for plain link/button surfaces and clear/no-op animated
+  close state instead of poisoning the next open.
+
+Guardrails added/reviewed:
+
+- Extended `tests/accessibility-followups.test.mjs` to reject account menu
+  semantics, require dialog semantics and closed-state no-op guards for
+  `UserAvatarMenu`, require trigger/popover linkage for
+  `FoundingMakerBadge`, and pin the mobile drawer timer-clear reopen path.
+- Extended `tests/post-launch-ui-followups.test.mjs` to pin the account popover
+  reopen path clearing pending close state before setting open.
+
+Verification:
+`git status --short --branch`; source/test/doc inspection with `sed`, `rg`, and
+`git diff`; focused `node --test tests/accessibility-followups.test.mjs
+tests/post-launch-ui-followups.test.mjs tests/client-async-guardrails.test.mjs`
+passed 86/86; `npx tsc --noEmit` passed; `npm run lint` passed with the known
+jsx-ast-utils TS non-null warning; `git diff --check` passed.
+
+Current running tally after Entry 556: verified fixed/reduced 1070, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by three for the account popover close-state race/menu semantics,
+the Founding Maker badge trigger semantics, and the mobile drawer stale close
+timer on route-change reset. Deferred stays flat.

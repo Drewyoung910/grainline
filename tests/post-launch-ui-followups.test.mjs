@@ -603,6 +603,7 @@ describe("post-launch UI follow-ups", () => {
     assert.match(bell, /\{!open && <IconHoverTip label="Notifications" \/>\}/);
     assert.match(messageIconLink, /<IconHoverTip label="Messages" \/>/);
     assert.match(source("src/components/UserAvatarMenu.tsx"), /\{!open && <IconHoverTip label="Account" \/>\}/);
+    assert.match(source("src/components/UserAvatarMenu.tsx"), /clearCloseTimer\(\);[\s\S]*setClosing\(false\);[\s\S]*setOpen\(true\);/);
     assert.match(header, /relative inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black\/10/);
     assert.match(header, /bg-\[#EFEAE0\] border-b border-stone-200\/60 pl-5 pr-2 py-1/);
     assert.match(header, /bg-gradient-to-t from-\[#F7F5F0\] via-\[#F7F5F0\]\/75 to-transparent/);
