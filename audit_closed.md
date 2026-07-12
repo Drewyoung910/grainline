@@ -18934,3 +18934,60 @@ approximate raw allegations left from current max #1126: 0. Fixed/reduced
 increases by three for adding explicit cross-origin POST guards to seller
 refund, seller label-purchase, and staff case-resolution money/order mutation
 routes. Deferred stays flat.
+
+### Entry 561 - Case dispute mutation origin guards
+
+Entry 561 continues the request-origin hardening on dispute-state routes. Staff
+case resolution was already covered in Entry 560 because it can move money; the
+remaining buyer/seller/staff case mutation routes still needed the same early
+browser-origin boundary.
+
+Four current issues remained:
+
+- `POST /api/cases` creates buyer cases and writes the initial case/audit state,
+  but did not reject explicit cross-origin browser headers before auth, rate
+  limiting, body parsing, or order lookup.
+- `POST /api/cases/[id]/messages` appends durable case messages and can reopen
+  a pending-close case, but did not reject explicit cross-origin browser
+  headers before auth, rate limiting, body parsing, or case-state work.
+- `POST /api/cases/[id]/escalate` supports buyer/seller/staff escalation and
+  cron/staff bulk escalation. It did not reject explicit cross-origin browser
+  headers before cron/auth branching or case-state updates.
+- `POST /api/cases/[id]/mark-resolved` changes buyer/seller resolution flags
+  and can close a case as dismissed, but did not reject explicit cross-origin
+  browser headers before auth, rate limiting, case lookup, or the raw case
+  update.
+
+Fixed/reduced:
+
+- Added `getExplicitCrossOriginPostRejection(req)` at the start of the case
+  create, case message, case escalate, and mark-resolved handlers.
+- Explicit cross-origin browser requests now receive private 403 responses
+  before auth/cron/body parsing/case-state work. Absent-origin cron/server
+  requests remain allowed by the shared helper.
+- Updated `CLAUDE.md` so future case mutation work preserves this early origin
+  boundary.
+
+Guardrails added/reviewed:
+
+- Extended `tests/request-origin-guard.test.mjs` to pin the origin guard before
+  auth, cron branching, body parsing, case/order reads, raw SQL updates, and
+  transactional case updates across case create, message, escalate, and
+  mark-resolved routes.
+
+Verification:
+`git status --short`; source/docs/test inspection with `sed`, `rg`, and
+`git diff`; focused `node --test tests/request-origin-guard.test.mjs
+tests/private-json-cache-headers.test.mjs tests/authenticated-json-body-bounds.test.mjs
+tests/message-case-policy-guardrails.test.mjs tests/admin-pin.test.mjs
+tests/round10-state-machine-guardrails.test.mjs tests/case-observability-followups.test.mjs
+tests/server-error-logger.test.mjs` passed 79/79; `npx tsc --noEmit` passed;
+`npm run lint` passed with the known jsx-ast-utils TS non-null warning;
+`git diff --check` passed.
+
+Current running tally after Entry 561: verified fixed/reduced 1080, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by four for adding explicit cross-origin POST guards to case create,
+case message, case escalation, and mark-resolved dispute-state routes. Deferred
+stays flat.

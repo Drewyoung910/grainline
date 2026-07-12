@@ -16,6 +16,7 @@ import { unavailableCaseMessageRecipientReason } from "@/lib/caseMessagingState"
 import { logSystemActionOrThrow } from "@/lib/systemAudit";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { requireStaffAdminPinForApi } from "@/lib/adminPinApi";
+import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 
 export const runtime = "nodejs";
 
@@ -24,6 +25,11 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
+    if (crossOriginRejection) {
+      return privateJson({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { id } = await params;
 
     // Auth: accept CRON_SECRET bearer token OR an authenticated user session

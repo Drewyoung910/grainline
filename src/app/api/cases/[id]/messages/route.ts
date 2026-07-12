@@ -24,6 +24,7 @@ import {
   isRequestBodyTooLargeError,
   readBoundedJson,
 } from "@/lib/requestBody";
+import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
@@ -43,6 +44,11 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
+    if (crossOriginRejection) {
+      return privateJson({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { id } = await params;
 
     const { userId, sessionId } = await auth();

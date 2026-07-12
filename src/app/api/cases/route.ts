@@ -27,6 +27,7 @@ import {
   isRequestBodyTooLargeError,
   readBoundedJson,
 } from "@/lib/requestBody";
+import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { z } from "zod";
@@ -48,6 +49,11 @@ const CASE_CREATE_BODY_MAX_BYTES = 24 * 1024;
 
 export async function POST(req: Request) {
   try {
+    const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
+    if (crossOriginRejection) {
+      return privateJson({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { userId } = await auth();
     if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 

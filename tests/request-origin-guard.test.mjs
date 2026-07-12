@@ -98,4 +98,31 @@ describe("request origin guard", () => {
       "prisma.case.findUnique",
     ]);
   });
+
+  it("checks case mutation POST origins before parsing or case-state work", () => {
+    assertGuardBefore("src/app/api/cases/route.ts", [
+      "await auth()",
+      "safeRateLimit(",
+      "readBoundedJson(req",
+      "prisma.order.findUnique",
+    ]);
+    assertGuardBefore("src/app/api/cases/[id]/messages/route.ts", [
+      "await auth()",
+      "safeRateLimit(",
+      "readBoundedJson(req",
+      "prisma.case.findUnique",
+    ]);
+    assertGuardBefore("src/app/api/cases/[id]/escalate/route.ts", [
+      "verifyCronRequest(req)",
+      "await auth()",
+      "prisma.case.findUnique",
+      "tx.case.updateMany",
+    ]);
+    assertGuardBefore("src/app/api/cases/[id]/mark-resolved/route.ts", [
+      "await auth()",
+      "safeRateLimit(",
+      "prisma.case.findUnique",
+      "UPDATE \"Case\"",
+    ]);
+  });
 });

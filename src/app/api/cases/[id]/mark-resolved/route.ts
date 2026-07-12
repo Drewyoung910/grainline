@@ -13,6 +13,7 @@ import { caseActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/rat
 import { caseResolutionMessage, isResolvableCaseStatus } from "@/lib/caseActionState";
 import { createNotification } from "@/lib/notifications";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 
 export const runtime = "nodejs";
 
@@ -61,6 +62,11 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
+    if (crossOriginRejection) {
+      return privateJson({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { id } = await params;
 
     const { userId } = await auth();
