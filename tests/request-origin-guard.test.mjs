@@ -125,4 +125,55 @@ describe("request origin guard", () => {
       "UPDATE \"Case\"",
     ]);
   });
+
+  it("checks cart, checkout, rollback, and quote POST origins before buyer-cost work", () => {
+    assertGuardBefore("src/app/api/cart/add/route.ts", [
+      "await auth()",
+      "safeRateLimit(",
+      "readBoundedJson(req",
+      "prisma.listing.findUnique",
+      "upsertOwnerCart(me.id)",
+      "await lockOwnerCart(me.id, cart.id, tx)",
+    ]);
+    assertGuardBefore("src/app/api/cart/update/route.ts", [
+      "await auth()",
+      "safeRateLimit(",
+      "readBoundedJson(req",
+      "ownerCartByUserId(me.id)",
+      "prisma.listing.findUnique",
+      "await lockOwnerCart(me.id, cart.id, tx)",
+    ]);
+    assertGuardBefore("src/app/api/cart/checkout/single/route.ts", [
+      "await auth()",
+      "safeRateLimit(",
+      "readBoundedJson(req",
+      "prisma.listing.findUnique",
+      "createCheckoutStockReservation({",
+      "stripe.checkout.sessions.create",
+    ]);
+    assertGuardBefore("src/app/api/cart/checkout-seller/route.ts", [
+      "await auth()",
+      "safeRateLimit(",
+      "readBoundedJson(req",
+      "ownerCartForCheckoutSeller(me.id)",
+      "createCheckoutStockReservation({",
+      "stripe.checkout.sessions.create",
+    ]);
+    assertGuardBefore("src/app/api/cart/checkout/rollback/route.ts", [
+      "await auth()",
+      "safeRateLimit(",
+      "readBoundedJson(req",
+      "stripe.checkout.sessions.retrieve",
+      "stripe.checkout.sessions.expire",
+      "restoreUnorderedCheckoutStockOnce({",
+    ]);
+    assertGuardBefore("src/app/api/shipping/quote/route.ts", [
+      "await auth()",
+      "safeRateLimit(",
+      "readBoundedJson(req",
+      "cart = await ownerCartForShippingQuote",
+      "const shipment = await shippoRequest<ShippoShipment>",
+      "const siteConfig = await prisma.siteConfig.findUnique",
+    ]);
+  });
 });

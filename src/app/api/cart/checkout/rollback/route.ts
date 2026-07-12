@@ -18,6 +18,7 @@ import {
   isRequestBodyTooLargeError,
   readBoundedJson,
 } from "@/lib/requestBody";
+import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 
@@ -32,6 +33,11 @@ const CHECKOUT_ROLLBACK_BODY_MAX_BYTES = 16 * 1024;
 
 export async function POST(req: Request) {
   try {
+    const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
+    if (crossOriginRejection) {
+      return privateJson({ error: "Forbidden" }, { status: HTTP_STATUS.FORBIDDEN });
+    }
+
     const { userId } = await auth();
     if (!userId)
       return privateJson({ error: "Sign in required" }, { status: HTTP_STATUS.UNAUTHORIZED });

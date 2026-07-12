@@ -18991,3 +18991,78 @@ approximate raw allegations left from current max #1126: 0. Fixed/reduced
 increases by four for adding explicit cross-origin POST guards to case create,
 case message, case escalation, and mark-resolved dispute-state routes. Deferred
 stays flat.
+
+### Entry 562 - Checkout and shipping quote origin guards
+
+Entry 562 continues the request-origin hardening as one coherent checkout/cart
+batch. The routes in this pass were already authenticated, rate-limited, and
+server-validated; this was not an ownership bypass. The narrower gap was that
+they still performed auth/rate-limit/body parsing, cart/listing reads, or
+provider-adjacent work before rejecting explicit cross-origin browser POST
+metadata.
+
+Six current issues remained:
+
+- `POST /api/cart/add` can create/increment signed-in cart rows and lock the
+  buyer cart, but did not reject explicit cross-origin browser headers before
+  auth, rate limiting, JSON parsing, listing lookup, or cart mutation work.
+- `POST /api/cart/update` can update/delete signed-in cart rows under the
+  cart-row lock, but did not reject explicit cross-origin browser headers
+  before auth, rate limiting, JSON parsing, cart lookup, live listing lookup,
+  or cart mutation work.
+- `POST /api/cart/checkout/single` can reserve stock and create a Stripe
+  Checkout Session for buy-now checkout, but did not reject explicit
+  cross-origin browser headers before auth, JSON parsing, listing reads, stock
+  reservation, or Stripe session creation.
+- `POST /api/cart/checkout-seller` can refresh seller cart prices, reserve
+  stock, and create a seller-scoped Stripe Checkout Session, but did not reject
+  explicit cross-origin browser headers before auth, JSON parsing, cart reads,
+  stock reservation, or Stripe session creation.
+- `POST /api/cart/checkout/rollback` can retrieve/expire Stripe Checkout
+  Sessions and restore unordered checkout stock, but did not reject explicit
+  cross-origin browser headers before auth, JSON parsing, Stripe retrieve/expire
+  calls, or stock restoration work.
+- `POST /api/shipping/quote` can read cart/listing package state, call Shippo,
+  fall back to configured shipping, and sign checkout shipping rates, but did
+  not reject explicit cross-origin browser headers before auth, JSON parsing,
+  cart/listing reads, provider calls, or rate signing.
+
+Fixed/reduced:
+
+- Added `getExplicitCrossOriginPostRejection(req)` at the start of all six
+  checkout/cart/shipping quote handlers.
+- Explicit cross-origin browser requests now receive private 403 responses
+  before auth, rate limiting, JSON parsing, DB reads, stock reservation or
+  restoration, Stripe Checkout work, Shippo quote work, or signed-rate
+  generation. Requests without browser origin metadata remain allowed by the
+  shared helper.
+- Updated `CLAUDE.md` with a reusable checkout/cart origin-boundary behavior
+  contract for future route work.
+
+Guardrails added/reviewed:
+
+- Extended `tests/request-origin-guard.test.mjs` to pin the origin guard before
+  auth, rate limiting, JSON parsing, cart/listing reads, cart locks, stock
+  reservation/restoration, Stripe Checkout calls, Shippo calls, and fallback
+  shipping reads across cart add/update, buy-now checkout, seller cart checkout,
+  checkout rollback, and shipping quote.
+
+Verification:
+`git status --short`; source/docs/test inspection with `sed`, `rg`, and
+`git diff`; focused `node --test tests/request-origin-guard.test.mjs
+tests/private-json-cache-headers.test.mjs tests/http-status-constants.test.mjs
+tests/authenticated-json-body-bounds.test.mjs tests/request-body-bounds.test.mjs
+tests/shipping-token.test.mjs tests/shipping-quote-state.test.mjs
+tests/checkout-stock-reservation-guardrails.test.mjs tests/checkout-lock-state.test.mjs
+tests/checkout-est-days-bounds.test.mjs tests/checkout-session-expiry.test.mjs
+tests/checkout-completion-state.test.mjs tests/checkout-success-state.test.mjs
+tests/checkout-payment-methods.test.mjs` passed 108/108; `npx tsc --noEmit`
+passed; `npm run lint` passed with the known jsx-ast-utils TS non-null warning;
+`git diff --check` passed.
+
+Current running tally after Entry 562: verified fixed/reduced 1086, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by six for adding explicit cross-origin POST guards to cart add,
+cart update, buy-now checkout, seller cart checkout, checkout rollback, and
+shipping quote. Deferred stays flat.

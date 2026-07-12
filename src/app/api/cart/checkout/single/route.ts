@@ -37,6 +37,7 @@ import {
   isRequestBodyTooLargeError,
   readBoundedJson,
 } from "@/lib/requestBody";
+import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 import { APP_BASE_URL } from "@/lib/appBaseUrl";
@@ -88,6 +89,11 @@ export async function POST(req: Request) {
   let checkoutLockAcquired = false;
 
   try {
+    const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
+    if (crossOriginRejection) {
+      return privateJson({ error: "Forbidden" }, { status: HTTP_STATUS.FORBIDDEN });
+    }
+
     const { userId } = await auth();
     if (!userId) return privateJson({ error: "Sign in required" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
