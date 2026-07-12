@@ -6,8 +6,8 @@ const {
   getExplicitCrossOriginPostRejection,
 } = await import("../src/lib/requestOriginGuard.ts");
 
-function fulfillmentRouteSource() {
-  return readFileSync(new URL("../src/app/api/orders/[id]/fulfillment/route.ts", import.meta.url), "utf8");
+function routeSource(path) {
+  return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
 describe("request origin guard", () => {
@@ -53,13 +53,22 @@ describe("request origin guard", () => {
     );
   });
 
-  it("checks fulfillment form POST origin before form parsing or mutation work", () => {
-    const route = fulfillmentRouteSource();
-    const guardIndex = route.indexOf("getExplicitCrossOriginPostRejection(req)");
+  it("checks order mutation POST origins before parsing or mutation work", () => {
+    const fulfillment = routeSource("src/app/api/orders/[id]/fulfillment/route.ts");
+    const fulfillmentGuardIndex = fulfillment.indexOf("getExplicitCrossOriginPostRejection(req)");
 
-    assert.ok(guardIndex > -1);
-    assert.ok(guardIndex < route.indexOf("await auth()"));
-    assert.ok(guardIndex < route.indexOf("await req.formData()"));
-    assert.ok(guardIndex < route.indexOf("prisma.order.updateMany"));
+    assert.ok(fulfillmentGuardIndex > -1);
+    assert.ok(fulfillmentGuardIndex < fulfillment.indexOf("await auth()"));
+    assert.ok(fulfillmentGuardIndex < fulfillment.indexOf("await req.formData()"));
+    assert.ok(fulfillmentGuardIndex < fulfillment.indexOf("prisma.order.updateMany"));
+
+    const confirmDelivery = routeSource("src/app/api/orders/[id]/confirm-delivery/route.ts");
+    const confirmGuardIndex = confirmDelivery.indexOf("getExplicitCrossOriginPostRejection(req)");
+
+    assert.ok(confirmGuardIndex > -1);
+    assert.ok(confirmGuardIndex < confirmDelivery.indexOf("await auth()"));
+    assert.ok(confirmGuardIndex < confirmDelivery.indexOf("safeRateLimit("));
+    assert.ok(confirmGuardIndex < confirmDelivery.indexOf("prisma.order.findUnique"));
+    assert.ok(confirmGuardIndex < confirmDelivery.indexOf("prisma.order.updateMany"));
   });
 });

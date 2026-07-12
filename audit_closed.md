@@ -18831,3 +18831,52 @@ stale/false-positive/current 579, deferred product/design/ops/legal 87,
 approximate raw allegations left from current max #1126: 0. Fixed/reduced
 increases by one for canonicalizing order post-mutation redirect origins.
 Deferred stays flat.
+
+### Entry 559 - Buyer delivery confirmation origin guard
+
+Entry 559 continues the order request-origin hardening from Entry 558. Seller
+fulfillment POSTs already rejected explicit cross-origin browser headers before
+auth, body parsing, and mutation work, but the adjacent buyer delivery
+confirmation POST did not use the same guard.
+
+One current issue remained:
+
+- `POST /api/orders/[id]/confirm-delivery` is a state-changing buyer order
+  route that moves shipped orders to delivered. It still enforced auth,
+  buyer ownership, rate limits, active-case blockers, refund blockers, and a
+  guarded `updateMany`, so this was not an ownership bypass. The narrower gap
+  was missing defense-in-depth rejection for explicit cross-origin browser
+  headers before the route reached auth, DB reads, or mutation work.
+
+Fixed/reduced:
+
+- `POST /api/orders/[id]/confirm-delivery` now calls
+  `getExplicitCrossOriginPostRejection(req)` at the start of the handler and
+  returns a private 403 response before auth, rate limiting, order lookup, or
+  state mutation when explicit cross-origin headers are present.
+- Updated `CLAUDE.md` so buyer delivery-confirmation POSTs share the same
+  early origin-guard behavior contract as seller fulfillment POSTs.
+
+Guardrails added/reviewed:
+
+- Extended `tests/request-origin-guard.test.mjs` to require both fulfillment
+  and buyer delivery-confirmation order mutation routes to call the shared
+  origin guard before auth, body parsing/rate limiting, order reads, or
+  `updateMany`.
+- Extended `tests/round8-fulfillment-privacy-guardrails.test.mjs` so the
+  buyer delivery-confirmation route remains part of the fulfillment fraud-chain
+  guardrail set.
+
+Verification:
+`git status --short`; source/docs/test inspection with `sed`, `rg`, and
+`git diff`; focused `node --test tests/request-origin-guard.test.mjs
+tests/round8-fulfillment-privacy-guardrails.test.mjs tests/app-base-url.test.mjs
+tests/private-json-cache-headers.test.mjs` passed 28/28; `npx tsc --noEmit`
+passed; `npm run lint` passed with the known jsx-ast-utils TS non-null warning;
+`git diff --check` passed.
+
+Current running tally after Entry 559: verified fixed/reduced 1073, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for adding the buyer delivery-confirmation explicit
+cross-origin POST guard. Deferred stays flat.

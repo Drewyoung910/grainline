@@ -6,6 +6,7 @@ import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { fulfillmentRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { blockingRefundLedgerWhere, orderHasRefundLedger } from "@/lib/refundRouteState";
+import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { APP_BASE_URL } from "@/lib/appBaseUrl";
 
@@ -20,10 +21,15 @@ const ACTIVE_CASE_STATUSES = [
 const ACTIVE_CASE_STATUS_SET = new Set<CaseStatus>(ACTIVE_CASE_STATUSES);
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
+    if (crossOriginRejection) {
+      return privateJson({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { userId: clerkId } = await auth();
     if (!clerkId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 

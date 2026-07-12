@@ -19,6 +19,7 @@ describe("Round 8 fulfillment fraud-chain guardrails", () => {
     assert.match(fulfillment, /BUYER_DELIVERY_CONFIRMATION_ERROR/);
 
     assert.match(buyerConfirm, /ensureUserByClerkId\(clerkId\)/);
+    assert.match(buyerConfirm, /getExplicitCrossOriginPostRejection\(req\)/);
     assert.match(buyerConfirm, /safeRateLimit\(fulfillmentRatelimit, `confirm-delivery:\$\{me\.id\}`\)/);
     assert.match(buyerConfirm, /buyerId: me\.id/);
     assert.match(buyerConfirm, /fulfillmentStatus: "SHIPPED"/);
