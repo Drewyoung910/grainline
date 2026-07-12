@@ -34,6 +34,7 @@ export default function ReviewComposer(props: {
   // Derived mode
   const editing = !!isEditing && !!existing;
   const creating = !editing;
+  const locked = Boolean(editing && existing?.locked);
 
   // Local form state
   const [comment, setComment] = React.useState<string>(existing?.comment ?? "");
@@ -67,6 +68,10 @@ export default function ReviewComposer(props: {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (locked) {
+      toast("This review is locked because the seller has replied.", "error");
+      return;
+    }
     if (submitting) return;
     setSubmitting(true);
 
@@ -125,6 +130,11 @@ export default function ReviewComposer(props: {
 
   return (
     <form onSubmit={onSubmit} className="card-section p-4 space-y-3">
+      {locked && (
+        <div className="rounded-lg border border-stone-200/60 bg-[#EFEAE0] px-3 py-2 text-sm text-neutral-700">
+          This review is locked because the seller has replied. Existing review content is read-only.
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <h3 className="font-medium">{editing ? "Edit your review" : "Write a review"}</h3>
         {/* Star preview + numeric select */}
@@ -141,6 +151,7 @@ export default function ReviewComposer(props: {
             className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-sm"
             value={ratingX2}
             onChange={(e) => setRatingX2(parseInt(e.target.value, 10))}
+            disabled={locked || submitting}
           >
             {[2,3,4,5,6,7,8,9,10].map((x) => (
               <option key={x} value={x}>
@@ -159,6 +170,8 @@ export default function ReviewComposer(props: {
         rows={4}
         placeholder="Share details about the item, quality, fit, etc."
         className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
+        readOnly={locked}
+        disabled={submitting}
       />
 
       {/* Thumbs */}
@@ -168,15 +181,17 @@ export default function ReviewComposer(props: {
             <div key={url + i} className="relative">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={url} alt="" className="h-16 w-16 rounded-lg object-cover ring-1 ring-stone-200" />
-              <button
-                type="button"
-                title="Remove"
-                aria-label="Remove photo"
-                onClick={() => setPhotoUrls(photoUrls.filter((u) => u !== url))}
-                className="absolute -top-3 -right-3 inline-flex h-11 w-11 items-center justify-center rounded-full bg-neutral-900 text-white text-lg shadow-sm hover:bg-neutral-800 transition-colors"
-              >
-                ×
-              </button>
+              {!locked && !submitting && (
+                <button
+                  type="button"
+                  title="Remove"
+                  aria-label="Remove photo"
+                  onClick={() => setPhotoUrls(photoUrls.filter((u) => u !== url))}
+                  className="absolute -top-3 -right-3 inline-flex h-11 w-11 items-center justify-center rounded-full bg-neutral-900 text-white text-lg shadow-sm hover:bg-neutral-800 transition-colors"
+                >
+                  ×
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -186,6 +201,7 @@ export default function ReviewComposer(props: {
       <UploadButton
         endpoint="reviewPhoto"
         onClientUploadComplete={(res) => {
+          if (locked) return;
           const first = res?.[0];
           const url = uploadedFileUrl(first);
           const result = appendReviewPhotoUrl(photoUrlsRef.current, url);
@@ -209,6 +225,7 @@ export default function ReviewComposer(props: {
           button: <span>+ Add photos</span>,
           allowedContent: <>Images up to 8MB, max 6</>,
         }}
+        disabled={locked || submitting}
       />
 
       <div className="text-xs text-neutral-600">
@@ -219,8 +236,8 @@ export default function ReviewComposer(props: {
         <button
           type="submit"
           className="inline-flex items-center rounded-md bg-[#2C1F1A] hover:bg-[#3A2A24] text-white px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50"
-          disabled={submitting || (editing && existing?.locked)}
-          title={editing && existing?.locked ? "This review is locked" : undefined}
+          disabled={submitting || locked}
+          title={locked ? "This review is locked" : undefined}
         >
           {submitting ? (editing ? "Saving..." : "Posting...") : editing ? "Save changes" : "Post review"}
         </button>

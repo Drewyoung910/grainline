@@ -18738,3 +18738,51 @@ approximate raw allegations left from current max #1126: 0. Fixed/reduced
 increases by three for the account popover close-state race/menu semantics,
 the Founding Maker badge trigger semantics, and the mobile drawer stale close
 timer on route-change reset. Deferred stays flat.
+
+### Entry 557 - Locked review composer read-only state
+
+Entry 557 continues the pre-mosaic Fable UI review on the smaller
+header-adjacent/review components from `52f00d90`. `MessageIconLink` and
+`IconHoverTip` were verified as thin, accessible icon-control helpers. The
+current `NotificationBell` remains bounded to signed-in users, caps normalized
+payload size/counts, sanitizes notification links through `safeNotificationPath`,
+and uses the same named-dialog popover semantics as the rest of the header
+surface.
+
+One current issue remained in `ReviewComposer`:
+
+- Locked existing reviews disabled only the submit button. Rating/comment/photo
+  controls still appeared editable, and review-photo uploads could still start
+  even though the server would reject a locked review update after a seller
+  reply. That was not an authorization bypass, but it was misleading UI and
+  could create avoidable orphan upload work.
+
+Fixed/reduced:
+
+- Added an explicit `locked` client state for existing review edits.
+- Locked reviews now show a read-only notice, block client submits before
+  setting loading state, disable the rating select and review-photo upload,
+  render the comment textarea read-only, and hide photo-removal controls while
+  locked or while a submit is in flight.
+- Updated `CLAUDE.md` so future review-editor work keeps locked review editors
+  read-only and disables review-photo uploads.
+
+Guardrails added/reviewed:
+
+- Extended `tests/r56-r67-small-fixes.test.mjs` to pin locked review composer
+  behavior: client submit guard, read-only notice, disabled upload/control
+  states, and no photo removal while submitting.
+
+Verification:
+`git status --short --branch`; source/test/doc inspection with `sed`, `rg`, and
+`git diff`; focused `node --test tests/r56-r67-small-fixes.test.mjs
+tests/accessibility-followups.test.mjs tests/post-launch-ui-followups.test.mjs
+tests/upload-ux-followups.test.mjs tests/client-async-guardrails.test.mjs`
+passed 103/103; `npx tsc --noEmit` passed; `npm run lint` passed with the
+known jsx-ast-utils TS non-null warning; `git diff --check` passed.
+
+Current running tally after Entry 557: verified fixed/reduced 1071, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for the locked review composer read-only/upload-disable state.
+Deferred stays flat.

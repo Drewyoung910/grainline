@@ -23,8 +23,15 @@ describe("R56-R67 small audit follow-up guardrails", () => {
     const text = source("src/components/ReviewComposer.tsx");
 
     assert.match(text, /const \[submitting, setSubmitting\] = React\.useState\(false\)/);
+    assert.match(text, /const locked = Boolean\(editing && existing\?\.locked\)/);
+    assert.match(text, /if \(locked\) \{[\s\S]*?toast\("This review is locked because the seller has replied\.", "error"\);[\s\S]*?return;/);
     assert.match(text, /if \(submitting\) return/);
-    assert.match(text, /disabled=\{submitting \|\| \(editing && existing\?\.locked\)\}/);
+    assert.match(text, /This review is locked because the seller has replied\. Existing review content is read-only\./);
+    assert.match(text, /disabled=\{locked \|\| submitting\}/);
+    assert.match(text, /readOnly=\{locked\}/);
+    assert.match(text, /if \(locked\) return;/);
+    assert.match(text, /disabled=\{submitting \|\| locked\}/);
+    assert.match(text, /!locked && !submitting &&/);
     assert.match(text, /h-11 w-11/);
     assert.doesNotMatch(text, /h-6 w-6 rounded-full bg-black\/80/);
   });
