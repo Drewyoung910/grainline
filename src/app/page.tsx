@@ -245,7 +245,7 @@ async function getFeaturedMakerBlock(blockedSellerIds: string[] = []): Promise<F
         listings = maker.featuredListingIds
           .map((listingId) => featuredById.get(listingId))
           .filter((listing): listing is FeaturedListing => listing !== undefined)
-          .slice(0, 3);
+          .slice(0, 6);
       }
       if (listings.length < 3) {
         const existingIds = listings.map((l) => l.id);
