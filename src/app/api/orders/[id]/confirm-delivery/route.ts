@@ -7,6 +7,7 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { fulfillmentRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { blockingRefundLedgerWhere, orderHasRefundLedger } from "@/lib/refundRouteState";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { APP_BASE_URL } from "@/lib/appBaseUrl";
 
 export const runtime = "nodejs";
 
@@ -19,7 +20,7 @@ const ACTIVE_CASE_STATUSES = [
 const ACTIVE_CASE_STATUS_SET = new Set<CaseStatus>(ACTIVE_CASE_STATUSES);
 
 export async function POST(
-  req: Request,
+  _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
@@ -107,8 +108,7 @@ export async function POST(
       return privateJson({ error: "Order status changed. Refresh and try again." }, { status: 409 });
     }
 
-    const origin = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
-    return NextResponse.redirect(new URL(`/dashboard/orders/${id}`, origin), { status: 303 });
+    return NextResponse.redirect(new URL(`/dashboard/orders/${id}`, APP_BASE_URL), { status: 303 });
   } catch (error) {
     logServerError(error, { source: "buyer_confirm_delivery_route" });
     return privateJson({ error: "Server error" }, { status: 500 });

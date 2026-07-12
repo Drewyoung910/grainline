@@ -41,4 +41,21 @@ describe("app base URL resolution", () => {
       );
     }
   });
+
+  it("keeps post-mutation app redirects on the canonical app origin", () => {
+    const files = [
+      "src/app/api/orders/[id]/confirm-delivery/route.ts",
+      "src/app/api/orders/[id]/fulfillment/route.ts",
+    ];
+
+    for (const file of files) {
+      const text = source(file);
+      assert.match(text, /APP_BASE_URL/);
+      assert.doesNotMatch(
+        text,
+        /NEXT_PUBLIC_APP_URL\s*\|\|\s*new URL\(req\.url\)\.origin/,
+        `${file} must not fall back to request origin for redirects`,
+      );
+    }
+  });
 });

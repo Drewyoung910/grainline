@@ -18786,3 +18786,48 @@ stale/false-positive/current 579, deferred product/design/ops/legal 87,
 approximate raw allegations left from current max #1126: 0. Fixed/reduced
 increases by one for the locked review composer read-only/upload-disable state.
 Deferred stays flat.
+
+### Entry 558 - Canonical origin for order post-mutation redirects
+
+Entry 558 continues code-based pre-launch hardening around request-origin trust.
+Most absolute links already use the canonical app base URL helpers, but two
+order POST routes still had request-origin fallback behavior.
+
+One current issue remained:
+
+- Buyer delivery confirmation and seller fulfillment POST redirects used
+  `process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin`. Production
+  should have `NEXT_PUBLIC_APP_URL` configured, and falling back to the request
+  origin is weaker than the canonical `APP_BASE_URL` helper because it makes the
+  redirect origin depend on request URL/Host-derived state if the env is missing
+  outside production.
+
+Fixed/reduced:
+
+- `POST /api/orders/[id]/confirm-delivery` now redirects through
+  `APP_BASE_URL`.
+- `POST /api/orders/[id]/fulfillment` now redirects through `APP_BASE_URL` and
+  documents why request-origin fallback is avoided.
+- Updated `CLAUDE.md` so same-app post-mutation redirects stay on canonical
+  base URL helpers instead of request-origin fallbacks.
+
+Guardrails added/reviewed:
+
+- Extended `tests/app-base-url.test.mjs` to require the two order mutation
+  routes to use `APP_BASE_URL` and reject the old
+  `NEXT_PUBLIC_APP_URL || new URL(req.url).origin` redirect fallback.
+
+Verification:
+`git status --short --branch`; source/test/doc inspection with `sed`, `rg`, and
+`git diff`; focused `node --test tests/app-base-url.test.mjs
+tests/order-fulfillment-guardrails.test.mjs
+tests/round8-fulfillment-privacy-guardrails.test.mjs
+tests/post-launch-ui-followups.test.mjs` passed 53/53; `npx tsc --noEmit`
+passed; `npm run lint` passed with the known jsx-ast-utils TS non-null warning;
+`git diff --check` passed.
+
+Current running tally after Entry 558: verified fixed/reduced 1072, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by one for canonicalizing order post-mutation redirect origins.
+Deferred stays flat.

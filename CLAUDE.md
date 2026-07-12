@@ -769,7 +769,7 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 ## Email System (complete)
 
 `src/lib/email.ts` — 18 email functions with a sharp-edged HTML template (off-white `#FAFAF8` background, no `border-radius` anywhere, dark `#1C1C1A` header bar with Grainline wordmark, warm gray `#3D3D3A` body text, footer with unsubscribe link). `RESEND_API_KEY` guard: logs a warning and skips send if env var is missing — never crashes the app.
-Live email link generation must have an explicit `NEXT_PUBLIC_APP_URL`. `resolveEmailAppUrl()` only falls back to `http://localhost:3000` for non-production, non-sending local renders; if `RESEND_API_KEY` and `EMAIL_FROM` are configured or production is running, missing `NEXT_PUBLIC_APP_URL` is an error. External absolute links for checkout, Stripe Connect, admin email, case email, private-message email, review email, and unsubscribe flows must use `APP_BASE_URL` or `EMAIL_APP_URL`; do not reintroduce `https://thegrainline.com` as a hard-coded fallback in render or redirect paths.
+Live email link generation must have an explicit `NEXT_PUBLIC_APP_URL`. `resolveEmailAppUrl()` only falls back to `http://localhost:3000` for non-production, non-sending local renders; if `RESEND_API_KEY` and `EMAIL_FROM` are configured or production is running, missing `NEXT_PUBLIC_APP_URL` is an error. External absolute links for checkout, Stripe Connect, admin email, case email, private-message email, review email, unsubscribe flows, and same-app post-mutation redirects must use `APP_BASE_URL` or `EMAIL_APP_URL`; do not reintroduce `https://thegrainline.com` as a hard-coded fallback or request-origin fallback in render or redirect paths.
 
 ### Email functions
 

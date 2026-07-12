@@ -25,6 +25,7 @@ import { CaseStatus, Prisma, type FulfillmentStatus } from "@prisma/client";
 import { z } from "zod";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { APP_BASE_URL } from "@/lib/appBaseUrl";
 import {
   DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE,
   DEAUTHORIZED_SELLER_REVIEW_NOTE_SQL_PATTERN,
@@ -433,12 +434,10 @@ export async function POST(
       }
     }
 
-    // Redirect with 303 so the browser converts POST → GET. Falls back to
-    // the request's origin when NEXT_PUBLIC_APP_URL is missing so the redirect
-    // never throws on a missing env var.
-    const origin = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
+    // Redirect with 303 so the browser converts POST to GET. Use the canonical
+    // app origin instead of trusting request Host/Origin fallback headers.
     return NextResponse.redirect(
-      new URL(`/dashboard/sales/${id}`, origin),
+      new URL(`/dashboard/sales/${id}`, APP_BASE_URL),
       { status: 303 },
     );
   } catch (err) {
