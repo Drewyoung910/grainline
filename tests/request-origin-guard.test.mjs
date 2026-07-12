@@ -10,6 +10,18 @@ function routeSource(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
+function assertGuardBefore(path, snippets) {
+  const text = routeSource(path);
+  const guardIndex = text.indexOf("getExplicitCrossOriginPostRejection(req)");
+
+  assert.ok(guardIndex > -1, `${path} must call getExplicitCrossOriginPostRejection(req)`);
+  for (const snippet of snippets) {
+    const snippetIndex = text.indexOf(snippet);
+    assert.ok(snippetIndex > -1, `${path} must contain ${snippet}`);
+    assert.ok(guardIndex < snippetIndex, `${path} must check origin before ${snippet}`);
+  }
+}
+
 describe("request origin guard", () => {
   it("rejects explicit cross-origin browser POST headers", () => {
     assert.deepEqual(
@@ -54,21 +66,36 @@ describe("request origin guard", () => {
   });
 
   it("checks order mutation POST origins before parsing or mutation work", () => {
-    const fulfillment = routeSource("src/app/api/orders/[id]/fulfillment/route.ts");
-    const fulfillmentGuardIndex = fulfillment.indexOf("getExplicitCrossOriginPostRejection(req)");
-
-    assert.ok(fulfillmentGuardIndex > -1);
-    assert.ok(fulfillmentGuardIndex < fulfillment.indexOf("await auth()"));
-    assert.ok(fulfillmentGuardIndex < fulfillment.indexOf("await req.formData()"));
-    assert.ok(fulfillmentGuardIndex < fulfillment.indexOf("prisma.order.updateMany"));
-
-    const confirmDelivery = routeSource("src/app/api/orders/[id]/confirm-delivery/route.ts");
-    const confirmGuardIndex = confirmDelivery.indexOf("getExplicitCrossOriginPostRejection(req)");
-
-    assert.ok(confirmGuardIndex > -1);
-    assert.ok(confirmGuardIndex < confirmDelivery.indexOf("await auth()"));
-    assert.ok(confirmGuardIndex < confirmDelivery.indexOf("safeRateLimit("));
-    assert.ok(confirmGuardIndex < confirmDelivery.indexOf("prisma.order.findUnique"));
-    assert.ok(confirmGuardIndex < confirmDelivery.indexOf("prisma.order.updateMany"));
+    assertGuardBefore("src/app/api/orders/[id]/fulfillment/route.ts", [
+      "await auth()",
+      "await req.formData()",
+      "prisma.order.updateMany",
+    ]);
+    assertGuardBefore("src/app/api/orders/[id]/confirm-delivery/route.ts", [
+      "await auth()",
+      "safeRateLimit(",
+      "prisma.order.findUnique",
+      "prisma.order.updateMany",
+    ]);
+    assertGuardBefore("src/app/api/orders/[id]/refund/route.ts", [
+      "await auth()",
+      "readBoundedJson(req",
+      "prisma.order.findUnique",
+      "UPDATE \"Order\"",
+      "createMarketplaceRefund({",
+    ]);
+    assertGuardBefore("src/app/api/orders/[id]/label/route.ts", [
+      "await auth()",
+      "readOptionalBoundedJson(req",
+      "ensureSellerOwnsOrder(userId, id)",
+      "UPDATE \"Order\" SET \"labelStatus\"",
+      "shippoRequest<ShippoTransaction>",
+    ]);
+    assertGuardBefore("src/app/api/cases/[id]/resolve/route.ts", [
+      "await auth()",
+      "requireStaffAdminPinForApi(req",
+      "readBoundedJson(req",
+      "prisma.case.findUnique",
+    ]);
   });
 });

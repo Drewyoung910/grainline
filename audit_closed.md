@@ -18880,3 +18880,57 @@ stale/false-positive/current 579, deferred product/design/ops/legal 87,
 approximate raw allegations left from current max #1126: 0. Fixed/reduced
 increases by one for adding the buyer delivery-confirmation explicit
 cross-origin POST guard. Deferred stays flat.
+
+### Entry 560 - Money-moving order mutation origin guards
+
+Entry 560 expands the same request-origin boundary hardening to the remaining
+high-impact money/order mutation POSTs that are authenticated browser routes,
+not provider webhooks or intentionally public one-click flows.
+
+Three current issues remained:
+
+- `POST /api/orders/[id]/refund` is a seller money-moving route with ownership,
+  lock, body-size, refund-cap, idempotency, and Stripe evidence guards, but it
+  did not reject explicit cross-origin browser headers before auth/body parsing
+  and refund work.
+- `POST /api/orders/[id]/label` is a seller label-purchase route that can buy a
+  Shippo label, mark the order shipped, and queue/reconcile label clawback, but
+  it did not reject explicit cross-origin browser headers before auth/body
+  parsing, label-lock SQL, or provider work.
+- `POST /api/cases/[id]/resolve` is a staff/admin case-resolution route that
+  can issue refunds and restore stock, with staff role/PIN/rate-limit guards,
+  but it did not reject explicit cross-origin browser headers before auth/PIN
+  checks, body parsing, or case/refund work.
+
+Fixed/reduced:
+
+- Added `getExplicitCrossOriginPostRejection(req)` at the start of the seller
+  refund, seller label-purchase, and staff case-resolution handlers.
+- Cross-origin browser requests now receive private 403 responses before auth,
+  rate-limit/body parsing/provider calls/mutation work. Requests without
+  browser origin metadata remain allowed by the shared helper.
+- Updated `CLAUDE.md` so high-impact seller/staff money/order mutation POSTs
+  keep this early origin-guard contract.
+
+Guardrails added/reviewed:
+
+- Extended `tests/request-origin-guard.test.mjs` to pin the origin guard before
+  auth, body parsing, route-local SQL/provider calls, and mutation work for
+  refund, label purchase, staff case resolution, seller fulfillment, and buyer
+  delivery confirmation.
+
+Verification:
+`git status --short`; source/docs/test inspection with `sed`, `rg`, and
+`git diff`; focused `node --test tests/request-origin-guard.test.mjs
+tests/private-json-cache-headers.test.mjs tests/http-status-constants.test.mjs
+tests/order-seller-route-ownership.test.mjs
+tests/payment-side-effect-observability.test.mjs` passed 60/60; `npx tsc
+--noEmit` passed; `npm run lint` passed with the known jsx-ast-utils TS
+non-null warning; `git diff --check` passed.
+
+Current running tally after Entry 560: verified fixed/reduced 1076, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by three for adding explicit cross-origin POST guards to seller
+refund, seller label-purchase, and staff case-resolution money/order mutation
+routes. Deferred stays flat.
