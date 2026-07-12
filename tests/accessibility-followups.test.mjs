@@ -228,19 +228,13 @@ describe("accessibility follow-ups", () => {
     }
   });
 
-  it("keeps hero collage cards accessible, clickable links (approved split hero)", () => {
-    const collage = source("src/components/HeroCollage.tsx");
+  it("keeps decorative hero mosaic tiles non-interactive", () => {
+    const mosaic = source("src/components/HeroMosaic.tsx");
 
-    // DREW-APPROVED split editorial hero (2026-07-11): the collage is the
-    // RIGHT GRID COLUMN of the hero — three sharp listing photos as REAL
-    // LINKS with accessible names (alt = listing title). Do not convert it
-    // into an aria-hidden background layer; that is the rejected concept.
-    assert.match(collage, /publicListingPath\(item\.listingId, item\.title\)/);
-    assert.match(collage, /alt=\{item\.title\}/);
-    assert.doesNotMatch(collage, /"use client"/);
-    assert.doesNotMatch(collage, /pointer-events-none absolute inset-0/);
-    assert.doesNotMatch(collage, /animate-scroll|animation:/);
-    assert.match(collage, /aria-hidden="true"/); // decorative glow only
+    assert.doesNotMatch(mosaic, /publicListingPath/);
+    assert.doesNotMatch(mosaic, /<a[\s\S]*tabIndex=\{-1\}[\s\S]*aria-hidden="true"/);
+    assert.match(mosaic, /<div\s+key=\{`r1-\$\{item\.listingId\}-\$\{i\}`\}/);
+    assert.match(mosaic, /<div\s+key=\{`r2-\$\{item\.listingId\}-\$\{i\}`\}/);
   });
 
   it("uses stored listing photo alt text in browse list cards", () => {
@@ -289,7 +283,7 @@ describe("accessibility follow-ups", () => {
     assert.match(saveBlog, /p-3/);
     assert.match(imageLightbox, /<span aria-hidden="true">✕<\/span>/);
     assert.match(listingGallery, /<span aria-hidden="true">✕<\/span>/);
-    assert.doesNotMatch(home, /animate-bounce/);
+    assert.match(home, /<svg aria-hidden="true" width="24" height="24"/);
   });
 
   it("keeps account popover and rating slider semantics honest", () => {
@@ -376,12 +370,10 @@ describe("accessibility follow-ups", () => {
     }
   });
 
-  it("keeps homepage heading order and static hero background auditable", () => {
+  it("keeps homepage heading order and reduced-motion hero controls auditable", () => {
     const home = source("src/app/page.tsx");
+    const heroMosaic = source("src/components/HeroMosaic.tsx");
     const globals = source("src/app/globals.css");
-    const heroStart = home.indexOf("{/* ── Hero");
-    const heroEnd = home.indexOf("{/* ── Stats bar", heroStart);
-    const hero = home.slice(heroStart, heroEnd);
 
     assert.equal((home.match(/<h1\b/g) ?? []).length, 1);
     assert.ok(home.indexOf("<h1") < home.indexOf("<h2"), "homepage h1 should precede section h2s");
@@ -395,18 +387,22 @@ describe("accessibility follow-ups", () => {
       assert.match(home, new RegExp(`<h2[^>]*>[\\s\\S]*?${heading}[\\s\\S]*?<\\/h2>`));
     }
 
-    // DREW-APPROVED split editorial hero (2026-07-11): light cream/amber
-    // wash, copy + solid search on the left, clickable collage as the right
-    // grid column. No dark background hero, no glass search, no chevron.
-    assert.doesNotMatch(home, /HeroMosaic|hasHeroMosaic|variant="glass"|animate-bounce/);
-    assert.match(home, /const hasHeroCollage = heroCollageItems\.length >= 3/);
-    assert.match(hero, /\{hasHeroCollage && <HeroCollage items=\{heroCollageItems\} \/>\}/);
-    assert.match(hero, /lg:grid-cols-\[1\.05fr_1fr\]/);
-    assert.match(hero, /bg-gradient-to-br from-amber-100\/60 via-\[#F7F5F0\]/);
-    assert.doesNotMatch(hero, /bg-\[#1C1C1A\]/);
+    assert.match(heroMosaic, /aria-label=\{paused \? "Play hero animation" : "Pause hero animation"\}/);
+    assert.match(heroMosaic, /aria-pressed=\{paused\}/);
+    assert.match(heroMosaic, /motion-reduce:animate-none/);
+    assert.match(heroMosaic, /motion-reduce:blur-none/);
+    assert.match(heroMosaic, /motion-reduce:scale-100/);
+    assert.match(home, /animate-bounce motion-reduce:animate-none/);
+    assert.match(home, /const hasHeroMosaic = mosaicPhotos\.length >= 12/);
+    assert.match(home, /<SearchBar variant=\{hasHeroMosaic \? "glass" : "default"\} \/>/);
+    const heroSearchStart = home.indexOf("<div className={`max-w-xl mx-auto");
+    const heroSearchEnd = home.indexOf("<Suspense>", heroSearchStart);
+    const heroSearchWrapper = home.slice(heroSearchStart, heroSearchEnd);
+    assert.match(heroSearchWrapper, /hasHeroMosaic \? "\[&_input\]:bg-white\/20/);
+    assert.match(heroSearchWrapper, /" : ""/);
+    assert.doesNotMatch(home, /className="max-w-xl mx-auto \[&_input\]:bg-white\/20/);
     assert.match(globals, /@media \(prefers-reduced-motion: reduce\)/);
-    assert.doesNotMatch(globals, /animate-scroll-left|animate-scroll-right|@keyframes scroll-left|@keyframes scroll-right/);
-    assert.match(globals, /\.animate-slide-in-right,[\s\S]*\.animate-slide-down \{[\s\S]*animation: none !important/);
+    assert.match(globals, /\.animate-scroll-left,[\s\S]*\.animate-slide-down \{[\s\S]*animation: none !important/);
     assert.match(globals, /transition-duration: 0\.01ms !important/);
   });
 

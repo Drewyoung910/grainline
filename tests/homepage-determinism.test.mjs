@@ -20,10 +20,10 @@ describe("homepage deterministic query guardrails", () => {
     );
   });
 
-  it("applies viewer block filters to the homepage hero collage query", () => {
+  it("applies viewer block filters to the homepage hero mosaic query", () => {
     const home = source("src/app/page.tsx");
-    const mosaicStart = home.indexOf("heroListings,");
-    assert.notEqual(mosaicStart, -1, "homepage hero collage query anchor should exist");
+    const mosaicStart = home.indexOf("mosaicListings,");
+    assert.notEqual(mosaicStart, -1, "homepage mosaic query anchor should exist");
     const mosaicQueryStart = home.indexOf("prisma.listing.findMany({", mosaicStart);
     const mosaicQueryEnd = home.indexOf("getFeaturedMakerBlock(blockedSellerIds)", mosaicQueryStart);
     assert.notEqual(mosaicQueryStart, -1, "homepage mosaic listing query should exist after the anchor");
