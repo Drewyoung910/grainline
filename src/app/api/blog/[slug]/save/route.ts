@@ -12,6 +12,7 @@ import {
   findOwnerSavedBlogPost,
   upsertOwnerSavedBlogPost,
 } from "@/lib/savedBlogPostOwnerAccess";
+import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 
 async function getPost(slug: string) {
   return prisma.blogPost.findFirst({ where: publicBlogPostWhere({ slug }), select: { id: true } });
@@ -48,9 +49,14 @@ export async function GET(
 
 // POST — save
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
+  const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
+  if (crossOriginRejection) {
+    return privateJson({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { slug } = await params;
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
@@ -76,9 +82,14 @@ export async function POST(
 
 // DELETE — unsave
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
+  const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
+  if (crossOriginRejection) {
+    return privateJson({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { slug } = await params;
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });

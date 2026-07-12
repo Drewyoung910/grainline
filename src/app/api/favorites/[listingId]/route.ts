@@ -5,10 +5,16 @@ import { rateLimitResponse, safeRateLimit, saveRatelimit } from "@/lib/ratelimit
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 
 type Params = { listingId: string };
 
-export async function DELETE(_req: Request, ctx: { params: Promise<Params> }) {
+export async function DELETE(req: Request, ctx: { params: Promise<Params> }) {
+  const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
+  if (crossOriginRejection) {
+    return privateJson({ error: "Forbidden" }, { status: HTTP_STATUS.FORBIDDEN });
+  }
+
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 

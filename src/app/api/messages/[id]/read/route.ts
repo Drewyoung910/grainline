@@ -3,11 +3,17 @@ import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { markReadRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
+  if (crossOriginRejection) {
+    return privateJson({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { id } = await params;
   const { userId } = await auth();
   if (!userId) return privateJson({ ok: false }, { status: 401 });

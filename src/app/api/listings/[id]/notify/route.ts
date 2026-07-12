@@ -5,11 +5,17 @@ import { notifyRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelim
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { publicListingDetailWhere } from "@/lib/listingVisibility";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
+  if (crossOriginRejection) {
+    return privateJson({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { userId: clerkId } = await auth();
   if (!clerkId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
@@ -47,9 +53,14 @@ export async function POST(
 }
 
 export async function DELETE(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
+  if (crossOriginRejection) {
+    return privateJson({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { userId: clerkId } = await auth();
   if (!clerkId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 

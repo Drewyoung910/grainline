@@ -5,11 +5,17 @@ import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { blockRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
+  if (crossOriginRejection) {
+    return privateJson({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
@@ -65,9 +71,14 @@ export async function POST(
 }
 
 export async function DELETE(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
+  if (crossOriginRejection) {
+    return privateJson({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 

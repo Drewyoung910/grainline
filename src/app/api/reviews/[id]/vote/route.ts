@@ -5,8 +5,14 @@ import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { rateLimitResponse, reviewVoteRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { canViewListingDetail } from "@/lib/listingVisibility";
+import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 
-export async function POST(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
+  if (crossOriginRejection) {
+    return privateJson({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { id } = await ctx.params; // review id
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });

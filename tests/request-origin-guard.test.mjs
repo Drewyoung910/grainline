@@ -12,6 +12,18 @@ function routeSource(path) {
 
 function assertGuardBefore(path, snippets) {
   const text = routeSource(path);
+  assertGuardBeforeInText(path, text, snippets);
+}
+
+function assertHandlerGuardBefore(path, handlerSignature, snippets) {
+  const text = routeSource(path);
+  const handlerIndex = text.indexOf(handlerSignature);
+
+  assert.ok(handlerIndex > -1, `${path} must contain ${handlerSignature}`);
+  assertGuardBeforeInText(path, text.slice(handlerIndex), snippets);
+}
+
+function assertGuardBeforeInText(path, text, snippets) {
   const guardIndex = text.indexOf("getExplicitCrossOriginPostRejection(req)");
 
   assert.ok(guardIndex > -1, `${path} must call getExplicitCrossOriginPostRejection(req)`);
@@ -174,6 +186,111 @@ describe("request origin guard", () => {
       "cart = await ownerCartForShippingQuote",
       "const shipment = await shippoRequest<ShippoShipment>",
       "const siteConfig = await prisma.siteConfig.findUnique",
+    ]);
+  });
+
+  it("checks social, saved-state, and read-state mutation origins before interaction work", () => {
+    assertGuardBefore("src/app/api/favorites/route.ts", [
+      "await auth()",
+      "safeRateLimit(",
+      "readBoundedJson(req",
+      "prisma.listing.findFirst",
+      "prisma.favorite.upsert",
+    ]);
+    assertGuardBefore("src/app/api/favorites/[listingId]/route.ts", [
+      "await auth()",
+      "safeRateLimit(",
+      "await ctx.params",
+      "prisma.favorite.deleteMany",
+    ]);
+    assertHandlerGuardBefore("src/app/api/blog/[slug]/save/route.ts", "export async function POST(", [
+      "await params",
+      "await auth()",
+      "safeRateLimit(",
+      "upsertOwnerSavedBlogPost",
+    ]);
+    assertHandlerGuardBefore("src/app/api/blog/[slug]/save/route.ts", "export async function DELETE(", [
+      "await params",
+      "await auth()",
+      "safeRateLimit(",
+      "deleteOwnerSavedBlogPost",
+    ]);
+    assertHandlerGuardBefore("src/app/api/follow/[sellerId]/route.ts", "export async function POST(", [
+      "await params",
+      "await auth()",
+      "safeRateLimit(",
+      "prisma.follow.upsert",
+    ]);
+    assertHandlerGuardBefore("src/app/api/follow/[sellerId]/route.ts", "export async function DELETE(", [
+      "await params",
+      "await auth()",
+      "safeRateLimit(",
+      "prisma.follow.deleteMany",
+    ]);
+    assertHandlerGuardBefore("src/app/api/search/saved/route.ts", "export async function POST(", [
+      "await auth()",
+      "safeRateLimit(",
+      "readBoundedJson(req",
+      "createOwnerSavedSearch",
+    ]);
+    assertHandlerGuardBefore("src/app/api/search/saved/route.ts", "export async function DELETE(", [
+      "await auth()",
+      "safeRateLimit(",
+      "deleteOwnerSavedSearch",
+    ]);
+    assertGuardBefore("src/app/api/notifications/[id]/read/route.ts", [
+      "await params",
+      "await auth()",
+      "safeRateLimit(",
+      "await markOwnerNotificationRead",
+    ]);
+    assertGuardBefore("src/app/api/notifications/read-all/route.ts", [
+      "await auth()",
+      "safeRateLimit(",
+      "readOptionalBoundedJson(req",
+      "await markOwnerNotificationsRead",
+    ]);
+    assertGuardBefore("src/app/api/messages/[id]/read/route.ts", [
+      "await params",
+      "await auth()",
+      "safeRateLimit(",
+      "prisma.conversation.findFirst",
+      "prisma.message.updateMany",
+    ]);
+    assertGuardBefore("src/app/api/reviews/[id]/vote/route.ts", [
+      "await ctx.params",
+      "await auth()",
+      "safeRateLimit(",
+      "prisma.review.findUnique",
+      "prisma.$transaction",
+    ]);
+    assertHandlerGuardBefore("src/app/api/listings/[id]/notify/route.ts", "export async function POST(", [
+      "await auth()",
+      "await params",
+      "safeRateLimit(",
+      "prisma.stockNotification.upsert",
+    ]);
+    assertHandlerGuardBefore("src/app/api/listings/[id]/notify/route.ts", "export async function DELETE(", [
+      "await auth()",
+      "await params",
+      "safeRateLimit(",
+      "prisma.stockNotification.deleteMany",
+    ]);
+    assertHandlerGuardBefore("src/app/api/users/[id]/block/route.ts", "export async function POST(", [
+      "await auth()",
+      "safeRateLimit(",
+      "prisma.block.upsert",
+    ]);
+    assertHandlerGuardBefore("src/app/api/users/[id]/block/route.ts", "export async function DELETE(", [
+      "await auth()",
+      "safeRateLimit(",
+      "prisma.block.deleteMany",
+    ]);
+    assertGuardBefore("src/app/api/users/[id]/report/route.ts", [
+      "await auth()",
+      "safeRateLimit(",
+      "readBoundedJson(req",
+      "prisma.userReport.create",
     ]);
   });
 });

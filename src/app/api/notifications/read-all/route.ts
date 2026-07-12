@@ -4,11 +4,17 @@ import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { markOwnerNotificationsRead } from "@/lib/notificationOwnerAccess";
 import { isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 
 export const runtime = "nodejs";
 const NOTIFICATION_READ_ALL_BODY_MAX_BYTES = 16 * 1024;
 
 export async function POST(req: Request) {
+  const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
+  if (crossOriginRejection) {
+    return privateJson({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 

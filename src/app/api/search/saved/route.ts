@@ -14,6 +14,7 @@ import {
   isRequestBodyTooLargeError,
   readBoundedJson,
 } from "@/lib/requestBody";
+import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { withSerializableRetry } from "@/lib/transactionRetry";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import {
@@ -66,6 +67,11 @@ function savedSearchCoordinateForTransport(value: number | null) {
 }
 
 export async function POST(req: NextRequest) {
+  const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
+  if (crossOriginRejection) {
+    return privateJson({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
   const { success, reset } = await safeRateLimit(savedSearchRatelimit, userId);
@@ -188,6 +194,11 @@ export async function GET() {
 }
 
 export async function DELETE(req: NextRequest) {
+  const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
+  if (crossOriginRejection) {
+    return privateJson({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
   const { success, reset } = await safeRateLimit(savedSearchRatelimit, userId);

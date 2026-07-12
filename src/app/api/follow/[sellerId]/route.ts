@@ -20,6 +20,7 @@ import { logSecurityEvent } from "@/lib/security";
 import { visibleSellerProfileWhere } from "@/lib/sellerVisibility";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 
 async function getFollowerCount(sellerProfileId: string) {
   return prisma.follow.count({ where: { sellerProfileId } });
@@ -75,9 +76,14 @@ export async function GET(
 
 // POST — follow
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ sellerId: string }> },
 ) {
+  const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
+  if (crossOriginRejection) {
+    return privateJson({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { sellerId } = await params;
 
   const { userId } = await auth();
@@ -201,9 +207,14 @@ export async function POST(
 
 // DELETE — unfollow
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ sellerId: string }> },
 ) {
+  const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
+  if (crossOriginRejection) {
+    return privateJson({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { sellerId } = await params;
 
   const { userId } = await auth();

@@ -13,6 +13,7 @@ import {
   isRequestBodyTooLargeError,
   readBoundedJson,
 } from "@/lib/requestBody";
+import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { z } from "zod";
@@ -23,6 +24,11 @@ const FavoriteSchema = z.object({
 const FAVORITE_BODY_MAX_BYTES = 8 * 1024;
 
 export async function POST(req: Request) {
+  const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
+  if (crossOriginRejection) {
+    return privateJson({ error: "Forbidden" }, { status: HTTP_STATUS.FORBIDDEN });
+  }
+
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 

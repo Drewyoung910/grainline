@@ -19066,3 +19066,66 @@ approximate raw allegations left from current max #1126: 0. Fixed/reduced
 increases by six for adding explicit cross-origin POST guards to cart add,
 cart update, buy-now checkout, seller cart checkout, checkout rollback, and
 shipping quote. Deferred stays flat.
+
+### Entry 563 - User interaction mutation origin guards
+
+Entry 563 closes the follow-up lower-risk user interaction request-origin
+hardening that was identified after the UI save-button pass. These routes were
+already authenticated, rate-limited where appropriate, and scoped by owner,
+visibility, block, or participant checks. This was not an auth bypass. The
+narrower gap was that explicit cross-origin browser metadata was not rejected
+before the routes reached auth, params/body parsing, reads, writes,
+notifications, or counter updates.
+
+Seventeen current handler surfaces remained:
+
+- Listing favorite save and unsave.
+- Blog post save and unsave.
+- Seller follow and unfollow.
+- Saved-search create and delete.
+- Single notification read and bulk notification read-state updates.
+- Message-thread read-state update.
+- Review helpful-vote toggle.
+- Back-in-stock notification subscribe and unsubscribe.
+- User block and unblock.
+- User report creation.
+
+Fixed/reduced:
+
+- Added `getExplicitCrossOriginPostRejection(req)` at the start of each
+  changed mutating handler.
+- Explicit cross-origin browser requests now receive private 403 responses
+  before auth, route params/body parsing, rate limiting, DB reads/writes,
+  notification creation, follow cleanup, saved-state changes, read-state
+  updates, or review counter changes. Requests without browser origin metadata
+  remain allowed by the shared helper.
+- Updated `CLAUDE.md` with a reusable user interaction origin-boundary behavior
+  contract so future save/follow/read-state style routes keep the same early
+  rejection order.
+
+Guardrails added/reviewed:
+
+- Extended `tests/request-origin-guard.test.mjs` with handler-specific source
+  assertions for all changed POST/DELETE handlers, including files with both
+  methods. The guard is pinned before auth, params/body parsing, rate limiting,
+  DB mutation helpers, notification work, and counter updates.
+
+Verification:
+`git status --short`; source/docs/test inspection with `sed`, `rg`, and
+`git diff`; focused `node --test tests/request-origin-guard.test.mjs
+tests/private-json-cache-headers.test.mjs tests/http-status-constants.test.mjs
+tests/authenticated-json-body-bounds.test.mjs tests/request-body-bounds.test.mjs
+tests/social-interaction-hardening.test.mjs tests/user-report-target-access.test.mjs
+tests/review-vote-visibility.test.mjs tests/stock-notification-state.test.mjs
+tests/notification-dedup.test.mjs tests/notification-payload.test.mjs
+tests/message-recipient-state.test.mjs tests/message-bodies.test.mjs
+tests/blog-action-guardrails.test.mjs tests/blog-visibility.test.mjs
+tests/block-filter-guardrails.test.mjs tests/recently-viewed.test.mjs` passed
+100/100; `npx tsc --noEmit` passed; `npm run lint` passed with the known
+`jsx-ast-utils` TS non-null warning; `git diff --check` passed.
+
+Current running tally after Entry 563: verified fixed/reduced 1103, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Fixed/reduced
+increases by seventeen for adding explicit cross-origin guards to user
+interaction mutation handlers. Deferred stays flat.
