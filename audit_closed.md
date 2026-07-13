@@ -19379,3 +19379,47 @@ Current running tally after Entry 567: verified fixed/reduced 1103, verified
 stale/false-positive/current 579, deferred product/design/ops/legal 87,
 approximate raw allegations left from current max #1126: 0. Tally unchanged
 because this was a UI refinement, not an audit allegation closure.
+
+### Entry 568 - Homepage hero restore to approved wash baseline
+
+Entry 568 records Drew's rejection of the post-`81ba55b` homepage hero
+experiments. This did not come from a raw security allegation and does not
+change the audit allegation tally.
+
+Changed:
+
+- Restored the homepage hero implementation to the `81ba55b` visual baseline:
+  left-aligned copy over the cream wash, default hero `SearchBar`, non-card
+  content treatment, the earlier coherent static collage, and the original
+  stat-bar overlap relationship.
+- Backed out the later centered card/panel direction, frosted hero search
+  variant usage, larger multi-photo packed collage query, and sparse/packed
+  replacement layouts that made the hero feel generic or disconnected.
+- Updated `CLAUDE.md` so future agents preserve the wash composition and do not
+  replace it with a centered card/panel or glass/frosted search direction
+  without explicit instruction from Drew.
+
+Guardrails reviewed:
+
+- Restored the homepage source guardrails to the `81ba55b` contract: 10 trusted
+  hero photos with an 8-photo activation threshold, default `SearchBar`, tight
+  consistent cream gutters, outward-only edge variation, bounded suggestion
+  dropdown, no animation, no interactive hero image links, no rings/outlines,
+  and no full-card hero panel.
+
+Verification:
+
+- Headless Chrome DevTools Protocol screenshots against the local dev server
+  confirmed the restored baseline: `/tmp/grainline-hero-desktop-restored-81ba.png`
+  and `/tmp/grainline-hero-mobile-restored-81ba.png`.
+- The 1440px desktop metric check reported `innerWidth: 1440`,
+  `scrollWidth: 1440`, 10 visible hero tiles, and a 40px stat overlap against
+  the photo field.
+- The 390px mobile metric check reported `innerWidth: 390`,
+  `scrollWidth: 390`, 7 visible hero tiles, and a 32px stat overlap against the
+  photo field.
+
+Current running tally after Entry 568: verified fixed/reduced 1103, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Tally unchanged
+because this was a UI correction, not an audit allegation closure.

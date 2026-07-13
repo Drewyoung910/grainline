@@ -39,7 +39,7 @@ function humanizeTag(raw: string): string {
   return raw.replace(/[-_]+/g, " ").trim();
 }
 
-export default function SearchBar({ variant = "default" }: { variant?: "default" | "glass" | "frosted" }) {
+export default function SearchBar({ variant = "default" }: { variant?: "default" | "glass" }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -327,19 +327,11 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
   const activeOptionId = activeIndex >= 0 && options[activeIndex]
     ? `${searchListboxId}-${activeIndex}`
     : undefined;
-  const isGlass = variant === "glass";
-  const isFrosted = variant === "frosted";
 
   return (
     <div ref={containerRef} className="relative ml-auto mr-auto w-full min-w-0 max-w-lg">
       <form onSubmit={handleSubmit}>
-        <div className={`flex items-stretch rounded-full border-2 overflow-hidden shadow-sm transition-shadow focus-within:shadow-md ${
-          isGlass
-            ? "bg-white/15 backdrop-blur-sm border-white/40 focus-within:border-white/70"
-            : isFrosted
-              ? "bg-white/28 backdrop-blur-lg border-white/50 shadow-[0_8px_24px_rgba(28,25,23,0.12)] focus-within:bg-white/42 focus-within:border-white/70"
-              : "bg-white border-stone-400 focus-within:border-stone-600"
-        }`}>
+        <div className={`flex items-stretch rounded-full border-2 overflow-hidden shadow-sm transition-shadow focus-within:shadow-md ${variant === "glass" ? "bg-white/15 backdrop-blur-sm border-white/40 focus-within:border-white/70" : "bg-white border-stone-400 focus-within:border-stone-600"}`}>
           <input
             ref={inputRef}
             value={value}
@@ -354,7 +346,7 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
               }
             }}
             placeholder="Search handmade goods…"
-            className={`min-w-0 flex-1 pl-4 pr-2 py-2 bg-transparent focus:outline-none focus-visible:outline-none focus-visible:shadow-none ${isGlass ? "text-white placeholder:text-white/60" : "text-neutral-900 placeholder:text-neutral-500"}`}
+            className={`min-w-0 flex-1 pl-4 pr-2 py-2 bg-transparent focus:outline-none focus-visible:outline-none focus-visible:shadow-none ${variant === "glass" ? "text-white placeholder:text-white/60" : "text-neutral-900 placeholder:text-neutral-500"}`}
             autoComplete="off"
             maxLength={MAX_SEARCH_QUERY_LENGTH}
             role="combobox"
@@ -371,7 +363,7 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
               // opens in place instead of blurring the field.
               onMouseDown={(e) => e.preventDefault()}
               onClick={handleClear}
-              className={`flex items-center px-2 transition-colors ${isGlass ? "text-white/70 hover:text-white" : "text-neutral-400 hover:text-neutral-700"}`}
+              className={`flex items-center px-2 transition-colors ${variant === "glass" ? "text-white/70 hover:text-white" : "text-neutral-400 hover:text-neutral-700"}`}
             >
               <X size={15} />
             </button>
@@ -380,13 +372,7 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
             type="submit"
             aria-label="Search"
             style={{ borderRadius: 0 }}
-            className={`flex items-center justify-center px-4 rounded-none transition-colors shrink-0 ${
-              isGlass
-                ? "bg-white/20 text-white hover:bg-white/30"
-                : isFrosted
-                  ? "bg-neutral-950/90 text-white hover:bg-neutral-950"
-                  : "bg-neutral-900 text-white hover:bg-neutral-800"
-            }`}
+            className={`flex items-center justify-center px-4 rounded-none transition-colors shrink-0 ${variant === "glass" ? "bg-white/20 text-white hover:bg-white/30" : "bg-neutral-900 text-white hover:bg-neutral-800"}`}
           >
             <Search size={16} />
           </button>

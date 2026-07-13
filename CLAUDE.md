@@ -3851,31 +3851,27 @@ Hero behavior:
 - The homepage uses up to 10 trusted public listing photos and requires at
   least 8 real photos before showing the collage. Otherwise it falls back to
   the warm cream/amber gradient.
-- The collage spans the hero as a wide editorial mosaic, but mobile must keep
-  enough side inset that the photo field does not run edge-to-edge. It should
-  read as one coherent floating rounded rectangle, not a loose blob or sparse
-  grid. Use a dense, static absolute-positioned mosaic with explicit varied
-  tile sizes, controlled overlaps, and a tiny cream `#F7F5F0` frame around each
-  tile so intersections keep a consistent body-color gap around corners and
-  edges. Do not use negative per-tile offsets without a body-color overlap
-  frame, visible rings/outlines, per-tile card shadows, animation, or random
-  placement. Keep visible tile bottoms inside the hero bounds so bottom corners
-  render rounded even where the stat bar overlaps. Keep fixed width/height
-  attributes, eager loading only for the first five visible tiles, and lazy
-  loading for the rest.
+- The collage is edge-to-edge behind the hero but should read as one coherent
+  floating rounded rectangle, not a loose blob. Use a tight, consistent
+  internal grid/gutter system and clean `rounded-lg` image tiles. Faint
+  outward-only edge bleed on exterior photo surfaces is acceptable so the outer
+  collage silhouette is not perfectly linear, but do not offset internal tile
+  seams or create uneven internal gaps. Gutters should be the same cream page
+  color; do not add visible tile rings/outlines or per-tile card shadows. Keep
+  visible tile bottoms inside the hero bounds so bottom corners render rounded
+  even where the stat bar overlaps. Keep fixed width/height attributes, eager
+  loading only for the first five visible tiles, and lazy loading for the rest.
 - The hero headline is left-aligned as three intentional lines: "Buy
   handmade.", "Buy local.", and "Buy quality.". Keep desktop lines from
   wrapping into extra rows.
 - The left side uses a soft cream wash plus localized blur behind the content
-  so the headline and frosted hero `SearchBar` stay crisp while the right side
-  of the collage remains brighter and clearer. The hero search bar and
-  trending pills may use subtle frosted white transparency, but do not switch
-  the full copy/search area to a centered glass card without explicit
-  direction. The wash must fade to fully transparent; do not add top/bottom
-  fade overlays into the header or stats area. Do not restore the old glass
-  search variant in the homepage hero without explicit direction. The hero
-  section must not clip the `SearchBar` suggestion list; keep the list bounded
-  with its own scrollable max-height instead.
+  so the headline and default white `SearchBar` stay crisp while the right side
+  of the collage remains brighter and clearer. The wash must fade to fully
+  transparent; do not add top/bottom fade overlays into the header or stats
+  area. Do not replace this wash composition with a centered card/panel or
+  glass search variant in the homepage hero without explicit direction. The
+  hero section must not clip the `SearchBar` suggestion list; keep the list
+  bounded with its own scrollable max-height instead.
 - The header is part of the same cream page surface with no bottom divider.
 - The stats bar floats over the bottom of the collage as a centered white
   rounded-lg panel, with the collage ending roughly halfway down from the top
