@@ -19245,3 +19245,69 @@ Current running tally after Entry 565: verified fixed/reduced 1103, verified
 stale/false-positive/current 579, deferred product/design/ops/legal 87,
 approximate raw allegations left from current max #1126: 0. Tally unchanged
 because this was a UI refinement, not an audit allegation closure.
+
+### Entry 566 - Homepage hero collage/stat fine-tuning
+
+Entry 566 records Drew's follow-up visual corrections on the static homepage
+hero. This did not come from a raw security allegation and does not change the
+audit allegation tally.
+
+Changed:
+
+- Kept the homepage collage static and server-rendered, but tuned the mobile
+  tile map away from a rigid two-column grid while keeping the lower edge
+  balanced enough that the floating stat panel does not reveal a large mobile
+  gap.
+- Kept consistent cream gutters between image tiles, no tile outlines/rings,
+  no per-tile shadows, and rounded image corners visible at the lower collage
+  edge by keeping tile bottoms inside the hero bounds.
+- Tightened internal collage gutters while keeping them consistent, and moved
+  the faint non-linear outer silhouette to outward-only exterior photo bleeds
+  so internal seams do not become uneven.
+- Narrowed the mobile stat panel to a centered floating card while preserving a
+  single four-column stat row; desktop keeps the wider centered panel.
+- Adjusted the stat overlap so the collage bottom crosses roughly halfway down
+  the stat panel instead of near the panel bottom.
+- Let the homepage hero remain `overflow-visible` and raised the hero content
+  stacking level so the `SearchBar` suggestion list is not clipped by the hero
+  section or hidden below the stat panel. The dropdown itself now has a bounded
+  scrollable max-height.
+- Center-balanced the homepage map copy/buttons against the desktop map frame
+  while keeping the section directly on the cream page background.
+- Updated `CLAUDE.md` with the durable hero/search/stat/map behavior contract.
+
+Guardrails added/reviewed:
+
+- Extended `tests/accessibility-followups.test.mjs` to pin the staggered mobile
+  collage tile map, static desktop grid, tight consistent grid gutters,
+  outward-only exterior photo surfaces, visible tile-bottom bounds, absence of
+  image rings/shadows, narrowed mobile stat panel with desktop width restoration,
+  `overflow-visible` hero behavior, raised hero stacking context, bounded
+  scrollable search suggestion list, and desktop map center-balancing.
+
+Verification:
+
+- Headless Chrome DevTools Protocol screenshots/metrics against the local dev
+  server were inspected after the final changes:
+  `/tmp/grainline-hero-mobile-390-cdp4.png`,
+  `/tmp/grainline-hero-mobile-500-cdp4.png`, and
+  `/tmp/grainline-hero-desktop-cdp4.png`.
+- The 390px mobile metric check reported `innerWidth: 390`,
+  `scrollWidth: 390`, stat side margins of 32px/32px, and a 32px stat overlap
+  against the actual mosaic bottom on a 60.5px stat card
+  (`photoOverlapRatio: 0.53`).
+- The 500px mobile metric check reported `innerWidth: 500`,
+  `scrollWidth: 500`, stat side margins of 32px/32px, and the same 32px stat
+  overlap against the actual mosaic bottom on a 60.5px stat card
+  (`photoOverlapRatio: 0.53`).
+- The 1440px desktop metric check reported `innerWidth: 1440`,
+  `scrollWidth: 1440`, stat side margins of 208px/208px, and a 40px stat
+  overlap against the actual mosaic bottom on a 75px stat card
+  (`photoOverlapRatio: 0.53`).
+- Focused source guard `node --test tests/accessibility-followups.test.mjs`
+  passed: 23/23.
+
+Current running tally after Entry 566: verified fixed/reduced 1103, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Tally unchanged
+because this was a UI refinement, not an audit allegation closure.

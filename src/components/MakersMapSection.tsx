@@ -57,8 +57,8 @@ export default function MakersMapSection({
 
   return (
     <section className="min-w-0">
-      <div className="flex min-w-0 flex-col gap-6 lg:flex-row lg:items-start lg:gap-10">
-        <div className="min-w-0 lg:w-[34%]">
+      <div className="flex min-w-0 flex-col gap-6 lg:flex-row lg:items-center lg:gap-10">
+        <div className="min-w-0 lg:w-[34%] lg:pb-8">
           <h2 className={`text-2xl font-semibold ${headingClassName ?? ""}`}>{heading ?? "Find local artisans near you"}</h2>
           <p className="mt-2 text-neutral-600">
             {subheading ?? "Explore makers in your area. Share your location to see who’s nearby—or browse the full map."}

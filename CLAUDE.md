@@ -3852,11 +3852,15 @@ Hero behavior:
   least 8 real photos before showing the collage. Otherwise it falls back to
   the warm cream/amber gradient.
 - The collage is edge-to-edge behind the hero but should read as one coherent
-  floating rounded rectangle, not a loose blob. Use a consistent grid/gutter
-  system and clean `rounded-lg` image tiles. Gutters should be the same cream
-  page color; do not add visible tile rings/outlines or per-tile card shadows.
-  Keep fixed width/height attributes, eager loading only for the first five
-  visible tiles, and lazy loading for the rest.
+  floating rounded rectangle, not a loose blob. Use a tight, consistent
+  internal grid/gutter system and clean `rounded-lg` image tiles. Faint
+  outward-only edge bleed on exterior photo surfaces is acceptable so the outer
+  collage silhouette is not perfectly linear, but do not offset internal tile
+  seams or create uneven internal gaps. Gutters should be the same cream page
+  color; do not add visible tile rings/outlines or per-tile card shadows. Keep
+  visible tile bottoms inside the hero bounds so bottom corners render rounded
+  even where the stat bar overlaps. Keep fixed width/height attributes, eager
+  loading only for the first five visible tiles, and lazy loading for the rest.
 - The hero headline is left-aligned as three intentional lines: "Buy
   handmade.", "Buy local.", and "Buy quality.". Keep desktop lines from
   wrapping into extra rows.
@@ -3865,7 +3869,9 @@ Hero behavior:
   of the collage remains brighter and clearer. The wash must fade to fully
   transparent; do not add top/bottom fade overlays into the header or stats
   area. Do not restore the centered glass card or glass search variant in the
-  homepage hero without explicit direction.
+  homepage hero without explicit direction. The hero section must not clip the
+  `SearchBar` suggestion list; keep the list bounded with its own scrollable
+  max-height instead.
 - The header is part of the same cream page surface with no bottom divider.
 - The stats bar floats over the bottom of the collage as a centered white
   rounded-lg panel, with the collage ending roughly halfway down from the top
@@ -3875,7 +3881,7 @@ Hero behavior:
 - The homepage map section sits directly on the cream page background. The map
   itself can be framed, but do not wrap the entire map/text area in another
   darker background panel. Keep the map frame tall enough to feel substantial
-  and align the copy/buttons to the top of the map.
+  and center-balance the copy/buttons against the map on desktop.
 
 ## Bad Word Filter (complete — 2026-04-21)
 

@@ -578,12 +578,12 @@ export default async function HomePage() {
       />
 
       {/* ── Hero ────────────────────────────────────────────────────────── */}
-      <section className="relative isolate overflow-hidden bg-[#F7F5F0]">
+      <section className="relative overflow-visible bg-[#F7F5F0]">
         {hasHeroMosaic && <HeroMosaic photos={heroCollagePhotos} />}
         {!hasHeroMosaic && (
           <div className="absolute inset-0 bg-gradient-to-br from-amber-100 via-amber-50 to-[#F7F5F0]" aria-hidden="true" />
         )}
-        <div className="relative z-20 mx-auto flex min-h-[520px] max-w-[1600px] items-center px-4 pb-20 pt-10 sm:min-h-[535px] sm:px-6 sm:pb-20 sm:pt-12 lg:min-h-[545px] lg:px-8">
+        <div className="relative z-40 mx-auto flex min-h-[520px] max-w-[1600px] items-center px-4 pb-20 pt-10 sm:min-h-[535px] sm:px-6 sm:pb-20 sm:pt-12 lg:min-h-[545px] lg:px-8">
           <div className="relative isolate w-full min-w-0 max-w-[760px] space-y-5 text-left">
             <span
               className="pointer-events-none absolute -inset-x-4 -inset-y-5 -z-10 rounded-[1.5rem] bg-[#F7F5F0]/58 blur-xl sm:-inset-x-8 sm:-inset-y-7 lg:-inset-x-10"
@@ -643,7 +643,7 @@ export default async function HomePage() {
 
       {/* ── Stats bar ────────────────────────────────────────────────────── */}
       <div className="relative z-30 -mt-8 px-4 sm:-mt-10 sm:px-6 lg:px-8">
-        <div className="mx-auto grid w-full max-w-5xl grid-cols-4 rounded-lg bg-white/95 px-2 py-3 shadow-[0_18px_45px_rgba(28,25,23,0.12)] ring-1 ring-stone-200/70 backdrop-blur-sm sm:px-8 sm:py-4">
+        <div className="mx-auto grid w-[calc(100%-2rem)] max-w-md grid-cols-4 rounded-lg bg-white/95 px-2 py-3 shadow-[0_18px_45px_rgba(28,25,23,0.12)] ring-1 ring-stone-200/70 backdrop-blur-sm sm:w-full sm:max-w-5xl sm:px-8 sm:py-4">
           <div className="min-w-0 border-r border-stone-200/70 text-center">
             <span className="block text-xl font-bold leading-none text-neutral-900 sm:text-2xl">{activeListingsCount.toLocaleString("en-US")}</span>
             <span className="mt-1 block text-[10px] leading-tight text-neutral-600 sm:text-xs">pieces listed</span>

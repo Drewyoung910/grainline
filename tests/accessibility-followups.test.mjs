@@ -408,9 +408,18 @@ describe("accessibility follow-ups", () => {
     }
 
     assert.match(heroMosaic, /const HERO_TILE_CLASSES =/);
-    assert.match(heroMosaic, /grid-cols-6 grid-rows-8 gap-2\.5/);
-    assert.match(heroMosaic, /lg:grid-cols-12 lg:grid-rows-6 lg:gap-3\.5/);
-    assert.match(heroMosaic, /-bottom-1/);
+    assert.match(heroMosaic, /col-start-1 col-span-3 row-start-1 row-span-2/);
+    assert.match(heroMosaic, /col-start-4 col-span-5 row-start-1 row-span-3/);
+    assert.match(heroMosaic, /col-start-1 col-span-4 row-start-3 row-span-4/);
+    assert.match(heroMosaic, /col-start-4 col-span-5 row-start-8 row-span-3/);
+    assert.match(heroMosaic, /hidden lg:block lg:col-start-10/);
+    assert.match(heroMosaic, /const HERO_TILE_SURFACE_CLASSES =/);
+    assert.match(heroMosaic, /absolute -left-1 -top-1 bottom-0 right-0/);
+    assert.match(heroMosaic, /absolute left-0 -right-1 top-0 bottom-0/);
+    assert.match(heroMosaic, /relative min-h-0/);
+    assert.match(heroMosaic, /grid-cols-8 grid-rows-\[repeat\(10,minmax\(0,1fr\)\)\] gap-1\.5/);
+    assert.match(heroMosaic, /lg:grid-cols-12 lg:grid-rows-6 lg:gap-2\.5/);
+    assert.match(heroMosaic, /bottom-0/);
     assert.match(heroMosaic, /rounded-lg bg-\[#F7F5F0\]/);
     assert.doesNotMatch(heroMosaic, /ring-\[6px\]|shadow-\[0_8px_22px/);
     assert.match(heroMosaic, /loading=\{index < 5 \? "eager" : "lazy"\}/);
@@ -423,16 +432,23 @@ describe("accessibility follow-ups", () => {
     assert.match(home, /const hasHeroMosaic = heroCollagePhotos\.length >= HERO_COLLAGE_MIN_PHOTOS/);
     assert.match(home, /<HeroMosaic photos=\{heroCollagePhotos\} \/>/);
     assert.match(home, /<SearchBar \/>/);
+    assert.match(home, /<section className="relative overflow-visible bg-\[#F7F5F0\]">/);
+    assert.doesNotMatch(home, /<section className="relative isolate overflow-hidden bg-\[#F7F5F0\]">/);
+    assert.match(home, /relative z-40 mx-auto flex/);
     assert.match(home, /<span className="block sm:whitespace-nowrap">Buy handmade\.<\/span>/);
     assert.match(home, /<span className="block sm:whitespace-nowrap">Buy local\.<\/span>/);
     assert.match(home, /<span className="block sm:whitespace-nowrap">Buy quality\.<\/span>/);
-    assert.match(home, /max-w-5xl grid-cols-4/);
+    assert.match(home, /w-\[calc\(100%-2rem\)\] max-w-md grid-cols-4/);
+    assert.match(home, /sm:w-full sm:max-w-5xl/);
     assert.match(home, /relative z-30 -mt-8 px-4 sm:-mt-10/);
     assert.doesNotMatch(home, /relative z-30 -mt-8 bg-\[#F7F5F0\]/);
     assert.doesNotMatch(home, /grid-cols-2 gap-x-2 gap-y-4/);
     assert.match(searchBar, /className="relative ml-auto mr-auto w-full min-w-0 max-w-lg"/);
     assert.match(searchBar, /className=\{`min-w-0 flex-1/);
+    assert.match(searchBar, /max-h-\[min\(28rem,calc\(100dvh-9rem\)\)\]/);
+    assert.match(searchBar, /overflow-y-auto overscroll-contain/);
     assert.match(makersMap, /<section className="min-w-0">/);
+    assert.match(makersMap, /lg:items-center/);
     assert.match(makersMap, /w-full min-w-0 flex-1/);
     assert.doesNotMatch(home, /<SearchBar variant=\{hasHeroMosaic \? "glass" : "default"\} \/>/);
     assert.doesNotMatch(home, /animate-bounce motion-reduce:animate-none/);
