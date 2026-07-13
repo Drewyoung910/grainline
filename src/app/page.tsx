@@ -586,12 +586,12 @@ export default async function HomePage() {
         <div className="relative z-40 mx-auto flex min-h-[520px] max-w-[1600px] items-center px-4 pb-20 pt-10 sm:min-h-[535px] sm:px-6 sm:pb-20 sm:pt-12 lg:min-h-[545px] lg:px-8">
           <div className="relative isolate w-full min-w-0 max-w-[760px] space-y-5 text-left">
             <span
-              className="pointer-events-none absolute -inset-x-4 -inset-y-5 -z-10 rounded-[1.5rem] bg-[#F7F5F0]/58 blur-xl sm:-inset-x-8 sm:-inset-y-7 lg:-inset-x-10"
+              className="pointer-events-none absolute -inset-x-4 -inset-y-5 -z-10 rounded-[1.5rem] bg-[#F7F5F0]/68 blur-2xl sm:-inset-x-8 sm:-inset-y-7 lg:-inset-x-10"
               aria-hidden="true"
             />
             <div className="flex">
               <span
-                className="inline-flex items-center rounded-full bg-white/75 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-neutral-700 shadow-sm ring-1 ring-stone-200/70"
+                className="inline-flex items-center rounded-full bg-white/28 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-neutral-700 shadow-sm ring-1 ring-white/45 backdrop-blur-md"
               >
                 Made in the USA · Built in Texas
               </span>
@@ -604,7 +604,7 @@ export default async function HomePage() {
 
             <div className="max-w-xl">
               <Suspense>
-                <SearchBar />
+                <SearchBar variant="frosted" />
               </Suspense>
             </div>
 
@@ -615,7 +615,7 @@ export default async function HomePage() {
                   <Link
                     key={tag}
                     href={publicTagPath(tag)}
-                    className="rounded-full bg-white/80 px-3 py-1 text-xs font-medium text-neutral-700 shadow-sm ring-1 ring-stone-200/70 transition-colors hover:bg-white"
+                    className="rounded-full bg-white/24 px-3 py-1 text-xs font-medium text-neutral-700 shadow-sm ring-1 ring-white/40 backdrop-blur-md transition-colors hover:bg-white/38"
                   >
                     #{tag}
                   </Link>

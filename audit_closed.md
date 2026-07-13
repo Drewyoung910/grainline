@@ -19311,3 +19311,71 @@ Current running tally after Entry 566: verified fixed/reduced 1103, verified
 stale/false-positive/current 579, deferred product/design/ops/legal 87,
 approximate raw allegations left from current max #1126: 0. Tally unchanged
 because this was a UI refinement, not an audit allegation closure.
+
+### Entry 567 - Homepage hero frosted controls and collage geometry polish
+
+Entry 567 records Drew's next visual correction pass on the static homepage
+hero. This did not come from a raw security allegation and does not change the
+audit allegation tally.
+
+Changed:
+
+- Added a `frosted` `SearchBar` variant and used it only in the homepage hero,
+  so the hero search field has subtle translucent white depth without switching
+  the whole copy/search area to a centered glass card.
+- Matched the hero badge and trending tag pills to the frosted treatment while
+  leaving ordinary site search and other search surfaces on their existing
+  variants.
+- Replaced the overcorrected sparse grid attempt with a dense static absolute
+  mosaic. Tiles now have explicit varied sizes, controlled overlaps, a tiny
+  cream body-color frame around each image, no tile rings/outlines, no per-tile
+  shadows, no animation, and no random placement. The cream frame preserves a
+  consistent gap around overlap corners and edges.
+- Adjusted the tile map so desktop tile widths vary intentionally, the collage
+  fills the hero rectangle from edge to edge on desktop, the mobile collage
+  keeps side inset instead of running edge-to-edge, the mobile bottom edge
+  stays balanced under the stat panel, and the non-linear outside silhouette is
+  deliberate rather than accidental-looking.
+- Tuned the local copy wash and reduced the frosted hero control opacities so
+  the headline remains readable while the search bar and tag pills are
+  genuinely translucent rather than visually solid white.
+- Updated `CLAUDE.md` with the durable contract: keep the hero collage
+  dense and static, use body-color overlap frames for consistent intersections,
+  avoid rings/shadows/random placement, keep mobile side inset, and keep
+  frosted controls scoped to the hero unless explicitly changed.
+
+Guardrails added/reviewed:
+
+- Extended `tests/accessibility-followups.test.mjs` to pin the cleaned
+  `HeroMosaic` absolute-positioned desktop/mobile tile maps, the explicit
+  mobile inset, visible body-color overlap frames plus `rounded-lg` images,
+  absence of `HERO_TILE_SURFACE_CLASSES`, absence of grid/row regressions,
+  absence of tile rings/shadows, and the frosted hero `SearchBar`/tag treatment.
+
+Verification:
+
+- Focused source guard `node --test tests/accessibility-followups.test.mjs`
+  passed: 23/23.
+- Headless Chrome DevTools Protocol screenshots/metrics against the local dev
+  server were inspected after the final changes:
+  `/tmp/grainline-hero-desktop-cdp9.png`,
+  `/tmp/grainline-hero-mobile-500-cdp9.png`, and
+  `/tmp/grainline-hero-mobile-390-cdp9.png`.
+- The 1440px desktop metric check reported `innerWidth: 1440`,
+  `scrollWidth: 1440`, 10 visible hero tiles, 20px collage side margins,
+  208px stat side margins, a 40px stat overlap against a 75px stat card
+  (`statOverlapRatio: 0.53`), and computed translucent backgrounds for the
+  hero search and first tag pill (`0.28` and `0.24` alpha).
+- The 500px mobile metric check reported `innerWidth: 500`,
+  `scrollWidth: 500`, 8 visible hero tiles, 28px collage side margins, 32px
+  stat side margins, and a 32px stat overlap against a 61px stat card
+  (`statOverlapRatio: 0.52`).
+- The 390px mobile metric check reported `innerWidth: 390`,
+  `scrollWidth: 390`, 8 visible hero tiles, 28px collage side margins, 32px
+  stat side margins, and a 32px stat overlap against a 61px stat card
+  (`statOverlapRatio: 0.52`).
+
+Current running tally after Entry 567: verified fixed/reduced 1103, verified
+stale/false-positive/current 579, deferred product/design/ops/legal 87,
+approximate raw allegations left from current max #1126: 0. Tally unchanged
+because this was a UI refinement, not an audit allegation closure.
