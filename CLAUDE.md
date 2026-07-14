@@ -3863,18 +3863,26 @@ Hero behavior:
   scattered across the render.
 - **Base grid** (`BASE_TILES`): a size-varied grid (mobile
   `grid-cols-6 grid-rows-[repeat(6,minmax(0,1fr))]`, `lg:grid-cols-12
-  lg:grid-rows-6`) with **clean, uniform gutters and no overlaps**. Variety comes
-  from span recipes (the source photos are all ~4:3), not native aspect ratio.
-  Base tiles must never overlap each other, so the grid cannot collide or form
-  concave "interior corner" notches. Tiles are `rounded-lg bg-[#EFEAE0]`.
+  lg:grid-rows-6`) with **uniform interior gutters and no tile-on-tile overlaps**.
+  Variety comes from span recipes (the source photos are all ~4:3), not native
+  aspect ratio. Base tiles must never overlap each other, so the grid cannot
+  collide or form concave "interior corner" notches. Tiles are
+  `rounded-lg bg-[#EFEAE0]`. **Perimeter tiles carry small, varied outward
+  negative margins** (`lg:-mt-*`, `lg:-mr-*`, `lg:-ml-*`, `lg:-mb-*`) so the
+  OUTER silhouette staggers and reads as a collage rather than a clean rectangle.
+  These only bleed toward the collage boundary (the side with no interior
+  neighbor), so they never create interior overlaps or sharp seams.
 - **Overlap accents** (`OVERLAP_TILES`): 1–2 tiles positioned absolutely so they
-  intentionally float over a seam in the base grid. Each **must** carry a cream
-  cutout ring (`ring-[6px] ring-[#F7F5F0]`, matching the page background) plus a
-  soft shadow so the overlap reads as one tile floating above another instead of
-  a messy concave junction. The ring is how the interior corner is "handled" — it
-  replaces the notch with a clean cream halo. This intentionally reverses the old
-  "no visible tile rings" rule, which applied only to the non-overlapping base
-  grid. Accents sit right of center so the left wash never washes them out.
+  intentionally float over the base grid. Each accent **must sit within a single
+  host base tile** — never spanning a gutter between two tiles — so its mat only
+  ever meets one photo and cannot form a sharp concave cusp (spanning gutters was
+  the original sharp-interior-corner bug). Each **must** carry a cream cutout mat
+  (`ring-[10px] ring-[#F7F5F0]`, matching the page background, kept wider than the
+  base gutters) plus a soft shadow so it reads as a matted photo floating above.
+  This intentionally reverses the old "no visible tile rings" rule, which applied
+  only to the non-overlapping base grid. Accents sit right of center so the left
+  wash never washes them out. Keep them modestly sized ("less overlaid") rather
+  than large blocks dropped across the middle of the grid.
 - **Left wash** (Layer 3): a left-anchored horizontal gradient
   (`bg-[linear-gradient(90deg,#F7F5F0_0%,…,rgba(247,245,240,0)_100%)]`) that
   fades to **fully transparent** — the headline stays crisp while the right side

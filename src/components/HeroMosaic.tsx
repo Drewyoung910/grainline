@@ -42,20 +42,24 @@ type OverlapTile = {
 };
 
 // Base grid — clean gutters, no overlaps. Mobile shows 6 tiles; lg fills 12×6.
+// Perimeter tiles carry small outward negative margins (varied amounts) so the
+// OUTER silhouette staggers and reads as a collage, not a clean rectangle. These
+// only bleed toward the collage boundary (no interior neighbor), so they never
+// create interior overlaps or sharp seams.
 const BASE_TILES: Tile[] = [
   {
     src: "/hero/walnut-cabinet.webp",
-    area: "col-start-1 col-span-3 row-start-1 row-span-3 lg:col-start-1 lg:col-span-4 lg:row-start-1 lg:row-span-4",
+    area: "col-start-1 col-span-3 row-start-1 row-span-3 lg:col-start-1 lg:col-span-4 lg:row-start-1 lg:row-span-4 lg:-ml-1 lg:-mt-1",
     position: "object-center",
   },
   {
     src: "/hero/maple-cabinet-detail.webp",
-    area: "col-start-4 col-span-3 row-start-1 row-span-2 lg:col-start-5 lg:col-span-4 lg:row-start-1 lg:row-span-2",
+    area: "col-start-4 col-span-3 row-start-1 row-span-2 lg:col-start-5 lg:col-span-4 lg:row-start-1 lg:row-span-2 lg:mt-3",
     position: "object-[48%_center]",
   },
   {
     src: "/hero/geometric-cutting-board.webp",
-    area: "col-start-4 col-span-3 row-start-3 row-span-2 lg:col-start-9 lg:col-span-4 lg:row-start-1 lg:row-span-3",
+    area: "col-start-4 col-span-3 row-start-3 row-span-2 lg:col-start-9 lg:col-span-4 lg:row-start-1 lg:row-span-3 lg:-mt-2 lg:-mr-3",
     position: "object-center",
   },
   {
@@ -65,7 +69,7 @@ const BASE_TILES: Tile[] = [
   },
   {
     src: "/hero/outdoor-planters.webp",
-    area: "col-start-4 col-span-3 row-start-5 row-span-2 lg:col-start-1 lg:col-span-3 lg:row-start-5 lg:row-span-2",
+    area: "col-start-4 col-span-3 row-start-5 row-span-2 lg:col-start-1 lg:col-span-3 lg:row-start-5 lg:row-span-2 lg:-ml-3 lg:-mb-3",
     position: "object-center",
   },
   {
@@ -75,38 +79,42 @@ const BASE_TILES: Tile[] = [
   },
   {
     src: "/hero/shelf-detail.webp",
-    area: "hidden lg:block lg:col-start-4 lg:col-span-3 lg:row-start-5 lg:row-span-2",
+    area: "hidden lg:block lg:col-start-4 lg:col-span-3 lg:row-start-5 lg:row-span-2 lg:-mb-1",
     position: "object-center",
   },
   {
     src: "/hero/seated-desk.webp",
-    area: "hidden lg:block lg:col-start-9 lg:col-span-2 lg:row-start-4 lg:row-span-3",
+    area: "hidden lg:block lg:col-start-9 lg:col-span-2 lg:row-start-4 lg:row-span-3 lg:-mb-4",
     position: "object-[50%_64%]",
   },
   {
     src: "/hero/dj-console.webp",
-    area: "hidden lg:block lg:col-start-7 lg:col-span-2 lg:row-start-5 lg:row-span-2",
+    area: "hidden lg:block lg:col-start-7 lg:col-span-2 lg:row-start-5 lg:row-span-2 lg:-mb-2",
     position: "object-[50%_56%]",
   },
   {
     src: "/hero/maple-desk.webp",
-    area: "hidden lg:block lg:col-start-11 lg:col-span-2 lg:row-start-4 lg:row-span-3",
+    area: "hidden lg:block lg:col-start-11 lg:col-span-2 lg:row-start-4 lg:row-span-3 lg:-mr-2 lg:-mb-1",
     position: "object-[50%_62%]",
   },
 ];
 
-// Floating accents — intentional overlap, cream cutout ring handles the corners.
-// dj-console-lifestyle is portrait (contrast to the ~4:3 grid); placed right of
-// center so the left wash never washes it out.
+// Floating accents — each sits *within a single host base tile* (never spanning
+// a gutter), so its generous cream mat only meets one photo and cannot form a
+// sharp concave cusp. The mat (ring) is the gap around it — kept wider than the
+// base gutters. dj-console-lifestyle is portrait for contrast with the ~4:3 grid
+// and sits right of center so the left wash never washes it out.
 const OVERLAP_TILES: OverlapTile[] = [
   {
+    // hosted inside the geometric-cutting-board tile (lg top-right big block)
     src: "/hero/dj-console-lifestyle.webp",
-    box: "right-[5%] top-[30%] h-[40%] w-[34%] sm:right-[7%] sm:w-[26%] lg:right-[23%] lg:top-[24%] lg:h-[48%] lg:w-[14%]",
+    box: "right-[8%] top-[33%] h-[24%] w-[30%] sm:right-[9%] sm:w-[24%] lg:right-[4%] lg:top-[7%] lg:h-[34%] lg:w-[10%]",
     position: "object-[50%_55%]",
   },
   {
+    // hosted inside the maple-cabinet-detail tile (lg wide top-center block)
     src: "/hero/purpleheart-tray.webp",
-    box: "hidden lg:block lg:left-[39%] lg:top-[6%] lg:h-[34%] lg:w-[12%]",
+    box: "hidden lg:block lg:left-[43%] lg:top-[5%] lg:h-[20%] lg:w-[11%]",
     position: "object-center",
   },
 ];
@@ -140,7 +148,7 @@ export default function HeroMosaic() {
           {OVERLAP_TILES.map((tile, index) => (
             <div
               key={`hero-overlap-${index}`}
-              className={`${tile.box} absolute z-10 overflow-hidden rounded-lg bg-[#EFEAE0] ring-[6px] ring-[#F7F5F0] shadow-[0_14px_34px_rgba(44,31,26,0.18)]`}
+              className={`${tile.box} absolute z-10 overflow-hidden rounded-lg bg-[#EFEAE0] ring-[10px] ring-[#F7F5F0] shadow-[0_16px_38px_rgba(44,31,26,0.20)]`}
             >
               <Image
                 src={tile.src}

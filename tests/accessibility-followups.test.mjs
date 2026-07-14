@@ -414,7 +414,7 @@ describe("accessibility follow-ups", () => {
     assert.match(heroMosaic, /rounded-lg bg-\[#EFEAE0\]/);
     // Intentional overlap accents must carry a cream cutout ring so the
     // interior corner reads as a clean halo, not a concave notch.
-    assert.match(heroMosaic, /ring-\[6px\] ring-\[#F7F5F0\]/);
+    assert.match(heroMosaic, /ring-\[10px\] ring-\[#F7F5F0\]/);
     assert.match(heroMosaic, /loading=\{index < 5 \? "eager" : "lazy"\}/);
     assert.match(heroMosaic, /fetchPriority=\{index < 3 \? "high" : "auto"\}/);
     // Left wash fades to fully transparent; never a fade into header/stats.
