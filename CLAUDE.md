@@ -1517,10 +1517,10 @@ Post-deployment bug fixes and gap fills:
 - **Mobile drawer bottom** — replaced `UserAvatarMenu` with inline avatar display + "Manage Account" and "Sign Out" buttons; `openUserProfile()` and `signOut()` called directly via `useClerk()` — avoids dropdown clipping by `overflow-hidden` on the drawer panel; Clerk modal opens as a portal above everything
 
 ### Search submit buttons (complete — 2026-04-02)
-- **`SearchBar.tsx`** and **`BlogSearchBar.tsx`**: pill shape uses an **outer div** approach — `rounded-full overflow-hidden border bg-white focus-within:ring-2 focus-within:ring-neutral-300` clips both the input and button into the pill naturally. The `<input>` has **no border, no border-radius, no focus ring** of its own (`bg-transparent flex-1 focus:outline-none`). The submit button uses `rounded-none`; the outer `overflow-hidden` clips it into the right cap and prevents double-border or broken pill shape. `BlogSearchBar` keeps the clear affordance inside the input area rather than between the input and submit button so it cannot create a right-edge vertical artifact.
-- **Button height**: outer div uses `items-stretch` (not `items-center`) so the submit button fills the full height of the pill without needing fixed `py-` padding — button has `px-4` only.
+- **`SearchBar.tsx`** (restyled 2026-07-14): **floating pill, no border** — `rounded-full bg-white` with `shadow-[0_6px_24px_rgba(28,25,23,0.10)]` (deeper on `focus-within`) and a **dark circular submit button** (`h-9 w-9 rounded-full bg-neutral-900`). The `<input>` is `min-w-0 flex-1 bg-transparent` with no border/ring of its own. Do not restore the bordered `overflow-hidden` outer-div pill or the `rounded-none` full-height submit button here.
+- **`BlogSearchBar.tsx`** still uses the older bordered **outer div** approach — `rounded-full overflow-hidden border bg-white focus-within:ring-2 focus-within:ring-neutral-300`, `items-stretch` full-height `rounded-none` submit button, clear affordance inside the input area. If you restyle it to match SearchBar, update this note.
 - **User avatar button** (`UserAvatarMenu.tsx`): `rounded-full overflow-hidden bg-transparent border-0 p-0 cursor-pointer` — eliminates grey square/border artifact behind profile picture. `<img>` has `block` to remove inline baseline gap.
-- Mobile search icon dropdown unchanged
+- Mobile search: on the **home page** the header shows a **permanent SearchBar below the nav** (`pathname === "/"`, `md:hidden`); the search-icon→`animate-slide-down` dropdown remains on every other page (see the "Static hero collage" contract for details)
 
 ### Blog Search System
 
@@ -3853,36 +3853,34 @@ in `page.tsx`.
 
 Hero behavior:
 - The collage uses a **curated `/hero/*.webp` image set** rendered with
-  `next/image` (`fill`, `object-cover`), centralized in two arrays: `BASE_TILES`
-  and `OVERLAP_TILES`. It is not driven by dynamic listing photos and has no
-  photo-count minimum or gradient fallback (that older dynamic-photo contract
-  was retired 2026-07-14). Keep eager/high-priority loading for the first few
-  tiles (`loading={index < 5 ? "eager" : "lazy"}`,
-  `fetchPriority={index < 3 ? "high" : "auto"}`) and lazy-load the rest. Retune
-  the look by editing the two arrays — positions are centralized there, not
-  scattered across the render.
-- **Base grid** (`BASE_TILES`): a size-varied grid (mobile
-  `grid-cols-6 grid-rows-[repeat(6,minmax(0,1fr))]`, `lg:grid-cols-12
-  lg:grid-rows-6`) with **uniform interior gutters and no tile-on-tile overlaps**.
-  Variety comes from span recipes (the source photos are all ~4:3), not native
-  aspect ratio. Base tiles must never overlap each other, so the grid cannot
-  collide or form concave "interior corner" notches. Tiles are
-  `rounded-lg bg-[#EFEAE0]`. **Perimeter tiles carry small, varied outward
-  negative margins** (`lg:-mt-*`, `lg:-mr-*`, `lg:-ml-*`, `lg:-mb-*`) so the
-  OUTER silhouette staggers and reads as a collage rather than a clean rectangle.
-  These only bleed toward the collage boundary (the side with no interior
-  neighbor), so they never create interior overlaps or sharp seams.
-- **Overlap accents** (`OVERLAP_TILES`): 1–2 tiles positioned absolutely so they
-  intentionally float over the base grid. Each accent **must sit within a single
-  host base tile** — never spanning a gutter between two tiles — so its mat only
-  ever meets one photo and cannot form a sharp concave cusp (spanning gutters was
-  the original sharp-interior-corner bug). Each **must** carry a cream cutout mat
-  (`ring-[10px] ring-[#F7F5F0]`, matching the page background, kept wider than the
-  base gutters) plus a soft shadow so it reads as a matted photo floating above.
-  This intentionally reverses the old "no visible tile rings" rule, which applied
-  only to the non-overlapping base grid. Accents sit right of center so the left
-  wash never washes them out. Keep them modestly sized ("less overlaid") rather
-  than large blocks dropped across the middle of the grid.
+  `next/image` (`fill`, `object-cover`), centralized in two arrays: `DESKTOP_TILES`
+  and `MOBILE_TILES` (a `TileLayer` renders each; mobile is `lg:hidden`, desktop
+  is `hidden lg:block`). It is not driven by dynamic listing photos and has no
+  photo-count minimum or gradient fallback (that older dynamic-photo contract was
+  retired 2026-07-14). Keep eager/high-priority loading for the first few tiles
+  (`loading={index < 4 ? "eager" : "lazy"}`,
+  `fetchPriority={index < 3 ? "high" : "auto"}`) and lazy-load the rest. Retune by
+  editing the two arrays — every tile's placement lives in one `style` object.
+- **This is an overlapping matted-photo collage, NOT a CSS grid** (the grid was
+  retired 2026-07-14). A grid forced tiles onto shared row/column axes (read as a
+  grid) and, when tiles overlapped, carved L-shaped negative space with sharp
+  concave corners that could not be rounded with `border-radius`. Instead, every
+  photo is an **independently positioned rounded rectangle** (`style` with
+  `left/top/width/height/zIndex` in %) carrying a **consistent cream mat**
+  (`rounded-xl border-[6px] border-[#F7F5F0] bg-[#EFEAE0]`) and a soft shadow
+  (`shadow-[0_10px_26px_rgba(44,31,26,0.15)]`), stacked with z-index like a pile
+  of prints. Because each tile is a self-contained rounded rect painted on top,
+  **every visible edge is convex — there are no concave corners to fix**, overlaps
+  read as intentional layering, and free x/y placement breaks the grid axes for a
+  random feel. Do not reintroduce a CSS grid, gutters, `grid-cols-*`/`grid-rows-*`,
+  or `ring`-based mats here. The mat is a `border` (constant width = consistent
+  gap whether tiles touch or overlap).
+- Compose it **dense in the middle, thinning toward the edges**, with varied tile
+  sizes and staggered tops/lefts so photos don't share an axis. Keep vertical
+  extents under ~95% so the bottom row keeps its rounded corners instead of being
+  clipped flat by the section's `overflow-hidden` (the inner wrapper also reserves
+  `bottom-2 sm:bottom-3`). Larger/texture-y pieces sit left (under the wash);
+  clearer pieces sit center/right where they stay bright.
 - **Left wash** (Layer 3): a left-anchored horizontal gradient
   (`bg-[linear-gradient(90deg,#F7F5F0_0%,…,rgba(247,245,240,0)_100%)]`) that
   fades to **fully transparent** — the headline stays crisp while the right side
@@ -3900,6 +3898,17 @@ Hero behavior:
   add it back only on explicit direction, and if added keep its suggestion list
   bounded with its own scrollable max-height so the hero section does not clip it.
 - The header is part of the same cream page surface with no bottom divider.
+- **SearchBar** (`src/components/SearchBar.tsx`) is a **floating pill**: no border,
+  `bg-white` with a soft shadow (`shadow-[0_6px_24px_rgba(28,25,23,0.10)]`, deeper
+  on `focus-within`), `rounded-full`, and a **dark circular submit button**
+  (`h-9 w-9 rounded-full bg-neutral-900`). Do not reintroduce the bordered pill or
+  the full-height square submit button. The combobox/listbox suggestion behavior,
+  the `min-w-0 flex-1` input, and the bounded scrollable listbox are unchanged.
+- On the **home page on mobile**, the header renders a **permanent SearchBar below
+  the nav** (`pathname === "/"`, `md:hidden`, in `Header.tsx`) instead of the
+  search-icon→popup. The search-icon toggle and its `animate-slide-down` dropdown
+  remain for every other page. Desktop is unchanged (SearchBar lives in the nav
+  row, `hidden md:flex`).
 - The stats bar floats over the bottom of the collage as a centered white
   `rounded-lg` panel (`absolute inset-x-0 bottom-0 z-40 translate-y-1/2`,
   straddling the collage edge). Keep it text-only unless Drew explicitly asks for

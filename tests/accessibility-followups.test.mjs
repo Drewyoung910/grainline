@@ -406,16 +406,16 @@ describe("accessibility follow-ups", () => {
       assert.match(home, new RegExp(`<h2[^>]*>[\\s\\S]*?${heading}[\\s\\S]*?<\\/h2>`));
     }
 
-    // Curated collage: size-varied base grid + isolated overlap accents.
-    assert.match(heroMosaic, /const BASE_TILES:/);
-    assert.match(heroMosaic, /const OVERLAP_TILES:/);
-    assert.match(heroMosaic, /grid-cols-6 grid-rows-\[repeat\(6,minmax\(0,1fr\)\)\]/);
-    assert.match(heroMosaic, /lg:grid-cols-12 lg:grid-rows-6/);
-    assert.match(heroMosaic, /rounded-lg bg-\[#EFEAE0\]/);
-    // Intentional overlap accents must carry a cream cutout ring so the
-    // interior corner reads as a clean halo, not a concave notch.
-    assert.match(heroMosaic, /ring-\[10px\] ring-\[#F7F5F0\]/);
-    assert.match(heroMosaic, /loading=\{index < 5 \? "eager" : "lazy"\}/);
+    // Overlapping matted-photo collage (not a grid): each photo is an
+    // independently positioned rounded rect with a consistent cream mat + soft
+    // shadow, stacked with z-index so every visible edge is convex (no sharp
+    // concave corners) and placement is off-grid.
+    assert.match(heroMosaic, /const DESKTOP_TILES:/);
+    assert.match(heroMosaic, /const MOBILE_TILES:/);
+    assert.doesNotMatch(heroMosaic, /grid-cols-|grid-rows-/);
+    assert.match(heroMosaic, /rounded-xl border-\[6px\] border-\[#F7F5F0\] bg-\[#EFEAE0\]/);
+    assert.match(heroMosaic, /shadow-\[0_10px_26px_rgba\(44,31,26,0\.15\)\]/);
+    assert.match(heroMosaic, /loading=\{index < 4 \? "eager" : "lazy"\}/);
     assert.match(heroMosaic, /fetchPriority=\{index < 3 \? "high" : "auto"\}/);
     // Left wash fades to fully transparent; never a fade into header/stats.
     assert.match(heroMosaic, /rgba\(247,245,240,0\)_100%/);

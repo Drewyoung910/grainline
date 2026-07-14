@@ -391,14 +391,17 @@ export default function Header() {
 
         {/* ── Mobile right: search | bell | cart | hamburger (< md) ──────── */}
         <div className="ml-auto flex items-center gap-1 md:hidden">
-          {/* Search toggle */}
-          <button
-            onClick={() => setSearchOpen((o) => !o)}
-            aria-label={searchOpen ? "Close search" : "Search"}
-            className="inline-flex items-center justify-center p-2 text-neutral-900 hover:bg-black/10 rounded-full min-h-[44px] min-w-[44px]"
-          >
-            {searchOpen ? <X size={20} /> : <Search size={20} />}
-          </button>
+          {/* Search toggle — hidden on home, where a permanent search bar
+              sits below the header instead of an icon/popup. */}
+          {pathname !== "/" && (
+            <button
+              onClick={() => setSearchOpen((o) => !o)}
+              aria-label={searchOpen ? "Close search" : "Search"}
+              className="inline-flex items-center justify-center p-2 text-neutral-900 hover:bg-black/10 rounded-full min-h-[44px] min-w-[44px]"
+            >
+              {searchOpen ? <X size={20} /> : <Search size={20} />}
+            </button>
+          )}
 
           {/* Notification bell */}
           <Show when="signed-in">
@@ -441,6 +444,13 @@ export default function Header() {
           </button>
         </div>
       </nav>
+
+      {/* ── Permanent mobile search on home (replaces the icon/popup) ───── */}
+      {pathname === "/" && (
+        <div className="px-4 pb-3 md:hidden">
+          <SearchBar />
+        </div>
+      )}
 
       {/* ── Mobile search dropdown ─────────────────────────────────────── */}
       {searchOpen && (

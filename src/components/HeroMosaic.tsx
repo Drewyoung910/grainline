@@ -1,169 +1,105 @@
 import Image from "next/image";
+import type { CSSProperties } from "react";
 
 /**
- * Decorative homepage hero collage. Rendered as an `absolute inset-0`
- * background behind the left-anchored hero copy in `page.tsx`.
+ * Decorative homepage hero collage — an overlapping matted-photo layout.
  *
- * Structure (three layers, painted back-to-front):
- *   1. BASE_TILES  — a size-varied grid with clean, uniform gutters. No tile
- *      overlaps another here, so the grid can never collide or form concave
- *      "interior corner" notches. Variety comes from span recipes, not native
- *      aspect ratio (all source photos are ~4:3).
- *   2. OVERLAP_TILES — 1–2 tiles positioned absolutely so they intentionally
- *      float over a seam in the base grid. Each carries a cream cutout ring
- *      (`ring-[6px] ring-[#F7F5F0]`, matching the page background) plus a soft
- *      shadow, so the overlap reads as one tile floating above another instead
- *      of a messy concave junction. This is how the interior corners are
- *      "handled" — the ring replaces the notch with a clean cream halo.
- *   3. WASH — a left-anchored horizontal gradient that fades to fully
- *      transparent, keeping the headline crisp while the right side of the
- *      collage stays bright. It must never fade into the header or stats bar.
+ * Why not a grid: a CSS grid forces tiles onto shared row/column axes (reads as
+ * a grid, not a collage) and, when tiles overlap, carves L-shaped negative space
+ * with sharp concave corners. Instead, every photo here is an independently
+ * positioned rounded rectangle with its own cream mat (`border-[#F7F5F0]`) and a
+ * soft shadow, stacked with z-index like a pile of prints on a table. Because
+ * each tile is a self-contained rounded rect painted on top, every visible edge
+ * is a convex rounded corner — there are NO concave corners to "fix", overlaps
+ * read as intentional layering, and free x/y placement breaks the grid axes for
+ * a random feel. The mat width is constant, so the gap reads consistent whether
+ * two tiles touch or overlap. Tiles cluster densely in the middle and thin out
+ * toward the edges.
  *
- * Everything here is decorative: `aria-hidden`, empty alt text, and no
- * interactive elements. The nearby hero heading/CTAs carry the semantics.
+ * Fully decorative: `aria-hidden`, empty `alt`, no interactive elements. The
+ * nearby hero heading/CTAs carry the semantics. Rendered as `absolute inset-0`
+ * behind the hero copy in `page.tsx`.
  *
- * To retune the look, edit the arrays below — positions are centralized here,
- * not scattered across the render.
+ * Retune by editing the two arrays (desktop / mobile). Vertical extents stay
+ * under ~95% so the bottom row keeps its rounded corners instead of being clipped
+ * flat by the section's overflow.
  */
 
-type Tile = {
+type CollageTile = {
   src: string;
-  /** Responsive grid-area classes (mobile 6-col / lg 12-col). */
-  area: string;
   /** object-position for the crop. */
   position: string;
+  /** left / top / width / height (%) + zIndex — free placement, may overlap. */
+  style: CSSProperties;
 };
 
-type OverlapTile = {
-  src: string;
-  /** Absolute placement over the base grid (mobile + lg). */
-  box: string;
-  position: string;
-};
-
-// Base grid — clean gutters, no overlaps. Mobile shows 6 tiles; lg fills 12×6.
-// Perimeter tiles carry small outward negative margins (varied amounts) so the
-// OUTER silhouette staggers and reads as a collage, not a clean rectangle. These
-// only bleed toward the collage boundary (no interior neighbor), so they never
-// create interior overlaps or sharp seams.
-const BASE_TILES: Tile[] = [
-  {
-    src: "/hero/walnut-cabinet.webp",
-    area: "col-start-1 col-span-3 row-start-1 row-span-3 lg:col-start-1 lg:col-span-4 lg:row-start-1 lg:row-span-4 lg:-ml-1 lg:-mt-1",
-    position: "object-center",
-  },
-  {
-    src: "/hero/maple-cabinet-detail.webp",
-    area: "col-start-4 col-span-3 row-start-1 row-span-2 lg:col-start-5 lg:col-span-4 lg:row-start-1 lg:row-span-2 lg:mt-3",
-    position: "object-[48%_center]",
-  },
-  {
-    src: "/hero/geometric-cutting-board.webp",
-    area: "col-start-4 col-span-3 row-start-3 row-span-2 lg:col-start-9 lg:col-span-4 lg:row-start-1 lg:row-span-3 lg:-mt-2 lg:-mr-3",
-    position: "object-center",
-  },
-  {
-    src: "/hero/drawer-detail.webp",
-    area: "col-start-1 col-span-3 row-start-4 row-span-3 lg:col-start-5 lg:col-span-2 lg:row-start-3 lg:row-span-2",
-    position: "object-[52%_72%]",
-  },
-  {
-    src: "/hero/outdoor-planters.webp",
-    area: "col-start-4 col-span-3 row-start-5 row-span-2 lg:col-start-1 lg:col-span-3 lg:row-start-5 lg:row-span-2 lg:-ml-3 lg:-mb-3",
-    position: "object-center",
-  },
-  {
-    src: "/hero/pencil-box-process.webp",
-    area: "hidden lg:block lg:col-start-7 lg:col-span-2 lg:row-start-3 lg:row-span-2",
-    position: "object-[62%_center]",
-  },
-  {
-    src: "/hero/shelf-detail.webp",
-    area: "hidden lg:block lg:col-start-4 lg:col-span-3 lg:row-start-5 lg:row-span-2 lg:-mb-1",
-    position: "object-center",
-  },
-  {
-    src: "/hero/seated-desk.webp",
-    area: "hidden lg:block lg:col-start-9 lg:col-span-2 lg:row-start-4 lg:row-span-3 lg:-mb-4",
-    position: "object-[50%_64%]",
-  },
-  {
-    src: "/hero/dj-console.webp",
-    area: "hidden lg:block lg:col-start-7 lg:col-span-2 lg:row-start-5 lg:row-span-2 lg:-mb-2",
-    position: "object-[50%_56%]",
-  },
-  {
-    src: "/hero/maple-desk.webp",
-    area: "hidden lg:block lg:col-start-11 lg:col-span-2 lg:row-start-4 lg:row-span-3 lg:-mr-2 lg:-mb-1",
-    position: "object-[50%_62%]",
-  },
+// Desktop cluster (landscape band). Center is dense/overlapping; edges thin out.
+// Larger, texture-y pieces sit left (under the wash); clearer pieces sit center
+// and right where they stay bright.
+const DESKTOP_TILES: CollageTile[] = [
+  { src: "/hero/walnut-cabinet.webp", position: "object-center", style: { left: "0%", top: "4%", width: "20%", height: "60%", zIndex: 1 } },
+  { src: "/hero/outdoor-planters.webp", position: "object-center", style: { left: "2%", top: "58%", width: "16%", height: "36%", zIndex: 2 } },
+  { src: "/hero/maple-cabinet-detail.webp", position: "object-[48%_center]", style: { left: "16%", top: "28%", width: "16%", height: "46%", zIndex: 3 } },
+  { src: "/hero/pencil-box-process.webp", position: "object-[62%_center]", style: { left: "19%", top: "66%", width: "22%", height: "28%", zIndex: 4 } },
+  { src: "/hero/dj-console-lifestyle.webp", position: "object-[50%_55%]", style: { left: "30%", top: "6%", width: "13%", height: "70%", zIndex: 7 } },
+  { src: "/hero/geometric-cutting-board.webp", position: "object-center", style: { left: "41%", top: "2%", width: "20%", height: "42%", zIndex: 2 } },
+  { src: "/hero/drawer-detail.webp", position: "object-[52%_72%]", style: { left: "42%", top: "42%", width: "17%", height: "37%", zIndex: 4 } },
+  { src: "/hero/walnut-grain.webp", position: "object-center", style: { left: "37%", top: "62%", width: "18%", height: "32%", zIndex: 5 } },
+  { src: "/hero/shelf-detail.webp", position: "object-center", style: { left: "60%", top: "2%", width: "18%", height: "40%", zIndex: 3 } },
+  { src: "/hero/purpleheart-tray.webp", position: "object-center", style: { left: "58%", top: "38%", width: "15%", height: "44%", zIndex: 8 } },
+  { src: "/hero/studio-desk.webp", position: "object-center", style: { left: "55%", top: "70%", width: "16%", height: "26%", zIndex: 6 } },
+  { src: "/hero/maple-desk.webp", position: "object-[50%_62%]", style: { left: "76%", top: "3%", width: "17%", height: "44%", zIndex: 2 } },
+  { src: "/hero/seated-desk.webp", position: "object-[50%_64%]", style: { left: "71%", top: "46%", width: "16%", height: "46%", zIndex: 6 } },
+  { src: "/hero/dj-console.webp", position: "object-[50%_56%]", style: { left: "86%", top: "44%", width: "14%", height: "46%", zIndex: 4 } },
 ];
 
-// Floating accents — each sits *within a single host base tile* (never spanning
-// a gutter), so its generous cream mat only meets one photo and cannot form a
-// sharp concave cusp. The mat (ring) is the gap around it — kept wider than the
-// base gutters. dj-console-lifestyle is portrait for contrast with the ~4:3 grid
-// and sits right of center so the left wash never washes it out.
-const OVERLAP_TILES: OverlapTile[] = [
-  {
-    // hosted inside the geometric-cutting-board tile (lg top-right big block)
-    src: "/hero/dj-console-lifestyle.webp",
-    box: "right-[8%] top-[33%] h-[24%] w-[30%] sm:right-[9%] sm:w-[24%] lg:right-[4%] lg:top-[7%] lg:h-[34%] lg:w-[10%]",
-    position: "object-[50%_55%]",
-  },
-  {
-    // hosted inside the maple-cabinet-detail tile (lg wide top-center block)
-    src: "/hero/purpleheart-tray.webp",
-    box: "hidden lg:block lg:left-[43%] lg:top-[5%] lg:h-[20%] lg:w-[11%]",
-    position: "object-center",
-  },
+// Mobile cluster (portrait band). Fewer tiles; clearer pieces biased right where
+// the wash is thinnest.
+const MOBILE_TILES: CollageTile[] = [
+  { src: "/hero/walnut-cabinet.webp", position: "object-center", style: { left: "2%", top: "2%", width: "50%", height: "26%", zIndex: 1 } },
+  { src: "/hero/maple-cabinet-detail.webp", position: "object-[48%_center]", style: { left: "54%", top: "2%", width: "44%", height: "30%", zIndex: 2 } },
+  { src: "/hero/drawer-detail.webp", position: "object-[52%_72%]", style: { left: "2%", top: "30%", width: "46%", height: "34%", zIndex: 2 } },
+  { src: "/hero/geometric-cutting-board.webp", position: "object-center", style: { left: "54%", top: "34%", width: "44%", height: "24%", zIndex: 2 } },
+  { src: "/hero/dj-console-lifestyle.webp", position: "object-[50%_55%]", style: { left: "38%", top: "28%", width: "40%", height: "28%", zIndex: 5 } },
+  { src: "/hero/outdoor-planters.webp", position: "object-center", style: { left: "54%", top: "60%", width: "44%", height: "30%", zIndex: 2 } },
+  { src: "/hero/shelf-detail.webp", position: "object-center", style: { left: "4%", top: "66%", width: "48%", height: "28%", zIndex: 2 } },
 ];
+
+function TileLayer({ tiles, className, sizes }: { tiles: CollageTile[]; className: string; sizes: string }) {
+  return (
+    <div className={className}>
+      {tiles.map((tile, index) => (
+        <div
+          key={`hero-tile-${index}`}
+          style={tile.style}
+          className="absolute overflow-hidden rounded-xl border-[6px] border-[#F7F5F0] bg-[#EFEAE0] shadow-[0_10px_26px_rgba(44,31,26,0.15)]"
+        >
+          <Image
+            src={tile.src}
+            alt=""
+            fill
+            sizes={sizes}
+            loading={index < 4 ? "eager" : "lazy"}
+            fetchPriority={index < 3 ? "high" : "auto"}
+            className={`object-cover ${tile.position}`}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function HeroMosaic() {
   return (
     <div className="absolute inset-0 overflow-hidden" aria-hidden="true">
-      <div className="absolute inset-x-3 top-3 bottom-0 sm:inset-x-5 sm:top-4 lg:inset-x-8">
+      <div className="absolute inset-x-3 top-3 bottom-2 sm:inset-x-5 sm:top-4 sm:bottom-3 lg:inset-x-8">
         <div className="relative mx-auto h-full max-w-[1540px]">
-          {/* Layer 1: base grid */}
-          <div className="grid h-full grid-cols-6 grid-rows-[repeat(6,minmax(0,1fr))] gap-2 sm:gap-2.5 lg:grid-cols-12 lg:grid-rows-6">
-            {BASE_TILES.map((tile, index) => (
-              <div
-                key={`hero-base-${index}`}
-                className={`${tile.area} relative min-h-0 overflow-hidden rounded-lg bg-[#EFEAE0]`}
-              >
-                <Image
-                  src={tile.src}
-                  alt=""
-                  fill
-                  sizes="(max-width: 1023px) 50vw, 25vw"
-                  loading={index < 5 ? "eager" : "lazy"}
-                  fetchPriority={index < 3 ? "high" : "auto"}
-                  className={`object-cover ${tile.position}`}
-                />
-              </div>
-            ))}
-          </div>
-
-          {/* Layer 2: floating overlap accents with cream cutout rings */}
-          {OVERLAP_TILES.map((tile, index) => (
-            <div
-              key={`hero-overlap-${index}`}
-              className={`${tile.box} absolute z-10 overflow-hidden rounded-lg bg-[#EFEAE0] ring-[10px] ring-[#F7F5F0] shadow-[0_16px_38px_rgba(44,31,26,0.20)]`}
-            >
-              <Image
-                src={tile.src}
-                alt=""
-                fill
-                sizes="(max-width: 1023px) 34vw, 14vw"
-                loading="lazy"
-                className={`object-cover ${tile.position}`}
-              />
-            </div>
-          ))}
+          <TileLayer tiles={MOBILE_TILES} className="absolute inset-0 lg:hidden" sizes="(max-width: 1023px) 48vw, 22vw" />
+          <TileLayer tiles={DESKTOP_TILES} className="absolute inset-0 hidden lg:block" sizes="22vw" />
         </div>
       </div>
 
-      {/* Layer 3: left wash — fades to fully transparent, never into header/stats */}
+      {/* Left wash — fades to fully transparent, never into header/stats */}
       <div className="absolute inset-y-0 left-0 z-20 w-[80%] bg-[linear-gradient(90deg,#F7F5F0_0%,rgba(247,245,240,0.88)_26%,rgba(247,245,240,0.5)_54%,rgba(247,245,240,0.18)_78%,rgba(247,245,240,0)_100%)] sm:w-[68%] lg:w-[56%]" />
     </div>
   );
