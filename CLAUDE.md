@@ -3860,39 +3860,21 @@ Hero behavior:
   retired 2026-07-14). Keep eager/high-priority loading for the first few tiles
   (`loading={index < 4 ? "eager" : "lazy"}`,
   `fetchPriority={index < 3 ? "high" : "auto"}`) and lazy-load the rest. Retune by
-  editing the two arrays — **each tile's placement lives in one shared `rect`
-  (`{left, top, width, height, z}` in collage %), and BOTH the tile's CSS box and
-  its concave-notch masks are derived from that same `rect`** (one geometry model,
-  updated 2026-07-14). Do not maintain notch coordinates separately from tile
-  positions.
+  editing the two arrays — every tile's placement lives in one `style` object.
 - **This is an overlapping matted-photo collage, NOT a CSS grid** (the grid was
   retired 2026-07-14). A grid forced tiles onto shared row/column axes (read as a
-  grid) and could not round the concave corners. Instead, every photo is an
-  **independently positioned rounded rectangle** (`rect` → `left/top/width/height`
-  % + `zIndex`) carrying a **consistent cream mat**
+  grid) and, when tiles overlapped, carved L-shaped negative space with sharp
+  concave corners that could not be rounded with `border-radius`. Instead, every
+  photo is an **independently positioned rounded rectangle** (`style` with
+  `left/top/width/height/zIndex` in %) carrying a **consistent cream mat**
   (`rounded-xl border-[6px] border-[#F7F5F0] bg-[#EFEAE0]`) and a soft shadow
-  (`shadow-[0_10px_26px_rgba(44,31,26,0.12)]`), stacked by z-index like a pile of
-  prints. Do not reintroduce a CSS grid, gutters, `grid-cols-*`/`grid-rows-*`, or
-  `ring`-based mats. The mat is a `border` (constant width = consistent gap).
-- **Concave-corner notches (computed, server-side).** Convex corners round
-  themselves via `border-radius`; the CONCAVE corners — where a higher card's
-  straight edge crosses a lower photo's edge (a T-junction) — cannot be rounded
-  with `border-radius` because the sharp corner is in the negative space, not on
-  any element. `computeNotchMask()` finds every such crossing from the shared
-  `rect` geometry (a "mixed" overlap corner: one coordinate from the card's edge,
-  the other from the photo's edge) and emits `radial-gradient` **mask cutouts**
-  (`--inner-radius`, bled ~`--notch-bleed` 0.75px into the gutter to kill AA
-  slivers without changing visible gutter width) that CARVE a quarter-circle notch
-  out of the underlying photo, revealing the cream page behind — so it is always
-  seam-free (no overlaid cream shapes → no blobs). Discs are composited with
-  `mask-composite: intersect` / `-webkit-mask-composite: source-in`, applied via
-  both `maskImage` and `WebkitMaskImage`. This is a **server component** — do NOT
-  convert it to a client component or use `ResizeObserver`; the geometry is static
-  and percentage-based, so masks stay correct/attached on resize. Do not
-  hand-tune notch coordinates or paint cream fillets/circles over junctions (both
-  produce blobs); always carve from the shared geometry. CSS vars live on the
-  root: `--inner-radius` (14–20px), `--notch-bleed`, `--collage-gap`,
-  `--outer-radius`.
+  (`shadow-[0_10px_26px_rgba(44,31,26,0.15)]`), stacked with z-index like a pile
+  of prints. Because each tile is a self-contained rounded rect painted on top,
+  **every visible edge is convex — there are no concave corners to fix**, overlaps
+  read as intentional layering, and free x/y placement breaks the grid axes for a
+  random feel. Do not reintroduce a CSS grid, gutters, `grid-cols-*`/`grid-rows-*`,
+  or `ring`-based mats here. The mat is a `border` (constant width = consistent
+  gap whether tiles touch or overlap).
 - Compose it **dense in the middle, thinning toward the edges**, with varied tile
   sizes and staggered tops/lefts so photos don't share an axis. Keep vertical
   extents under ~95% so the bottom row keeps its rounded corners instead of being

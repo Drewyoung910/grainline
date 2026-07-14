@@ -408,23 +408,13 @@ describe("accessibility follow-ups", () => {
 
     // Overlapping matted-photo collage (not a grid): each photo is an
     // independently positioned rounded rect with a consistent cream mat + soft
-    // shadow, stacked with z-index so every visible edge is convex, and the
-    // CONCAVE T-junction corners are carved with computed radial-gradient mask
-    // notches (shared geometry model -> both placement and masks derive from
-    // `tile.rect`). Placement is off-grid.
+    // shadow, stacked with z-index so every visible edge is convex (no sharp
+    // concave corners) and placement is off-grid.
     assert.match(heroMosaic, /const DESKTOP_TILES:/);
     assert.match(heroMosaic, /const MOBILE_TILES:/);
     assert.doesNotMatch(heroMosaic, /grid-cols-|grid-rows-/);
     assert.match(heroMosaic, /rounded-xl border-\[6px\] border-\[#F7F5F0\] bg-\[#EFEAE0\]/);
-    assert.match(heroMosaic, /shadow-\[0_10px_26px_rgba\(44,31,26,0\.12\)\]/);
-    // Concave notch engine: computed from the shared geometry, applied via both
-    // maskImage and WebkitMaskImage with intersect compositing.
-    assert.match(heroMosaic, /function computeNotchMask/);
-    assert.match(heroMosaic, /radial-gradient/);
-    assert.match(heroMosaic, /maskImage:/);
-    assert.match(heroMosaic, /WebkitMaskImage:/);
-    assert.match(heroMosaic, /"--inner-radius"/);
-    assert.doesNotMatch(heroMosaic, /"use client"|useEffect|ResizeObserver/);
+    assert.match(heroMosaic, /shadow-\[0_10px_26px_rgba\(44,31,26,0\.15\)\]/);
     assert.match(heroMosaic, /loading=\{index < 4 \? "eager" : "lazy"\}/);
     assert.match(heroMosaic, /fetchPriority=\{index < 3 \? "high" : "auto"\}/);
     // Left wash fades to fully transparent; never a fade into header/stats.
