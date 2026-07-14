@@ -3840,44 +3840,62 @@ Full amber color pass on `src/app/page.tsx`:
 
 Also applied amber gradient to browse (`src/app/browse/page.tsx`) and listing detail (`src/app/listing/[id]/page.tsx`) pages: `bg-gradient-to-b from-amber-100/60 via-amber-50/30 to-white min-h-screen` on both `<main>` elements.
 
-### Static hero collage (updated 2026-07-12)
+### Static hero collage (updated 2026-07-14)
 
 **Component**: `src/components/HeroMosaic.tsx` is a server-rendered decorative
-static collage, not a client animation. It must not use `"use client"`,
-`useState`, random animation offsets, duplicated scrolling rows, pause/play
-controls, blur-on-every-image, or full-hero animation classes.
+static collage, not a client animation. It takes no props and must not use
+`"use client"`, `useState`, `useEffect`, `onClick`, random animation offsets,
+duplicated scrolling rows, pause/play controls, or full-hero animation classes.
+It is fully decorative: `aria-hidden="true"`, empty `alt=""`, and no interactive
+elements (no `<Link>`/`<a>`/`href`) — the nearby hero heading/CTAs carry the
+semantics. It renders as an `absolute inset-0` background behind the hero copy
+in `page.tsx`.
 
 Hero behavior:
-- The homepage uses up to 10 trusted public listing photos and requires at
-  least 8 real photos before showing the collage. Otherwise it falls back to
-  the warm cream/amber gradient.
-- The collage is edge-to-edge behind the hero but should read as one coherent
-  floating rounded rectangle, not a loose blob. Use a tight, consistent
-  internal grid/gutter system and clean `rounded-lg` image tiles. Faint
-  outward-only edge bleed on exterior photo surfaces is acceptable so the outer
-  collage silhouette is not perfectly linear, but do not offset internal tile
-  seams or create uneven internal gaps. Gutters should be the same cream page
-  color; do not add visible tile rings/outlines or per-tile card shadows. Keep
-  visible tile bottoms inside the hero bounds so bottom corners render rounded
-  even where the stat bar overlaps. Keep fixed width/height attributes, eager
-  loading only for the first five visible tiles, and lazy loading for the rest.
-- The hero headline is left-aligned as three intentional lines: "Buy
-  handmade.", "Buy local.", and "Buy quality.". Keep desktop lines from
-  wrapping into extra rows.
-- The left side uses a soft cream wash plus localized blur behind the content
-  so the headline and default white `SearchBar` stay crisp while the right side
-  of the collage remains brighter and clearer. The wash must fade to fully
-  transparent; do not add top/bottom fade overlays into the header or stats
-  area. Do not replace this wash composition with a centered card/panel or
-  glass search variant in the homepage hero without explicit direction. The
-  hero section must not clip the `SearchBar` suggestion list; keep the list
-  bounded with its own scrollable max-height instead.
+- The collage uses a **curated `/hero/*.webp` image set** rendered with
+  `next/image` (`fill`, `object-cover`), centralized in two arrays: `BASE_TILES`
+  and `OVERLAP_TILES`. It is not driven by dynamic listing photos and has no
+  photo-count minimum or gradient fallback (that older dynamic-photo contract
+  was retired 2026-07-14). Keep eager/high-priority loading for the first few
+  tiles (`loading={index < 5 ? "eager" : "lazy"}`,
+  `fetchPriority={index < 3 ? "high" : "auto"}`) and lazy-load the rest. Retune
+  the look by editing the two arrays — positions are centralized there, not
+  scattered across the render.
+- **Base grid** (`BASE_TILES`): a size-varied grid (mobile
+  `grid-cols-6 grid-rows-[repeat(6,minmax(0,1fr))]`, `lg:grid-cols-12
+  lg:grid-rows-6`) with **clean, uniform gutters and no overlaps**. Variety comes
+  from span recipes (the source photos are all ~4:3), not native aspect ratio.
+  Base tiles must never overlap each other, so the grid cannot collide or form
+  concave "interior corner" notches. Tiles are `rounded-lg bg-[#EFEAE0]`.
+- **Overlap accents** (`OVERLAP_TILES`): 1–2 tiles positioned absolutely so they
+  intentionally float over a seam in the base grid. Each **must** carry a cream
+  cutout ring (`ring-[6px] ring-[#F7F5F0]`, matching the page background) plus a
+  soft shadow so the overlap reads as one tile floating above another instead of
+  a messy concave junction. The ring is how the interior corner is "handled" — it
+  replaces the notch with a clean cream halo. This intentionally reverses the old
+  "no visible tile rings" rule, which applied only to the non-overlapping base
+  grid. Accents sit right of center so the left wash never washes them out.
+- **Left wash** (Layer 3): a left-anchored horizontal gradient
+  (`bg-[linear-gradient(90deg,#F7F5F0_0%,…,rgba(247,245,240,0)_100%)]`) that
+  fades to **fully transparent** — the headline stays crisp while the right side
+  of the collage stays bright. Do not add top/bottom fade overlays into the
+  header or stats area (no `bg-gradient-to-b/t from-[#F7F5F0]`). Do not replace
+  this wash with a centered card/panel or a frosted-glass panel in the hero
+  without explicit direction (a glass card was tried and rejected 2026-07-14 —
+  it covers the strongest photos and reads as a dated template).
+- The hero copy in `page.tsx` is **left-anchored** (`text-left`, `max-w-[640px]`)
+  over the wash, with a soft localized cream blur backing behind the text for
+  legibility. Content is the three-line headline ("Buy handmade.", "Buy local.",
+  "Buy quality." — `block sm:whitespace-nowrap`, keep desktop lines from
+  wrapping) plus two CTA buttons (espresso "Browse the Workshop" + bordered
+  "Find Makers Near You"). The hero does not currently render the `SearchBar`;
+  add it back only on explicit direction, and if added keep its suggestion list
+  bounded with its own scrollable max-height so the hero section does not clip it.
 - The header is part of the same cream page surface with no bottom divider.
 - The stats bar floats over the bottom of the collage as a centered white
-  rounded-lg panel, with the collage ending roughly halfway down from the top
-  of the stat panel. Do not add breathing room between the collage and stat
-  panel. Keep it text-only unless Drew explicitly asks for icons. On mobile,
-  all four stats stay in one row.
+  `rounded-lg` panel (`absolute inset-x-0 bottom-0 z-40 translate-y-1/2`,
+  straddling the collage edge). Keep it text-only unless Drew explicitly asks for
+  icons. On mobile, all four stats stay in one row.
 - The homepage map section sits directly on the cream page background. The map
   itself can be framed, but do not wrap the entire map/text area in another
   darker background panel. Keep the map frame tall enough to feel substantial
