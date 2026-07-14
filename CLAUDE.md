@@ -1517,10 +1517,10 @@ Post-deployment bug fixes and gap fills:
 - **Mobile drawer bottom** — replaced `UserAvatarMenu` with inline avatar display + "Manage Account" and "Sign Out" buttons; `openUserProfile()` and `signOut()` called directly via `useClerk()` — avoids dropdown clipping by `overflow-hidden` on the drawer panel; Clerk modal opens as a portal above everything
 
 ### Search submit buttons (complete — 2026-04-02)
-- **`SearchBar.tsx`** (restyled 2026-07-14): **floating pill, no border** — `rounded-full bg-white` with `shadow-[0_6px_24px_rgba(28,25,23,0.10)]` (deeper on `focus-within`) and a **dark circular submit button** (`h-9 w-9 rounded-full bg-neutral-900`). The `<input>` is `min-w-0 flex-1 bg-transparent` with no border/ring of its own. Do not restore the bordered `overflow-hidden` outer-div pill or the `rounded-none` full-height submit button here.
-- **`BlogSearchBar.tsx`** still uses the older bordered **outer div** approach — `rounded-full overflow-hidden border bg-white focus-within:ring-2 focus-within:ring-neutral-300`, `items-stretch` full-height `rounded-none` submit button, clear affordance inside the input area. If you restyle it to match SearchBar, update this note.
+- **`SearchBar.tsx`** and **`BlogSearchBar.tsx`**: pill shape uses an **outer div** approach — `rounded-full overflow-hidden border bg-white focus-within:ring-2 focus-within:ring-neutral-300` clips both the input and button into the pill naturally. The `<input>` has **no border, no border-radius, no focus ring** of its own (`bg-transparent flex-1 focus:outline-none`). The submit button uses `rounded-none`; the outer `overflow-hidden` clips it into the right cap and prevents double-border or broken pill shape. `BlogSearchBar` keeps the clear affordance inside the input area rather than between the input and submit button so it cannot create a right-edge vertical artifact.
+- **Button height**: outer div uses `items-stretch` (not `items-center`) so the submit button fills the full height of the pill without needing fixed `py-` padding — button has `px-4` only.
 - **User avatar button** (`UserAvatarMenu.tsx`): `rounded-full overflow-hidden bg-transparent border-0 p-0 cursor-pointer` — eliminates grey square/border artifact behind profile picture. `<img>` has `block` to remove inline baseline gap.
-- Mobile search: on the **home page** the header shows a **permanent SearchBar below the nav** (`pathname === "/"`, `md:hidden`); the search-icon→`animate-slide-down` dropdown remains on every other page (see the "Static hero collage" contract for details)
+- Mobile search icon dropdown unchanged
 
 ### Blog Search System
 
@@ -3840,79 +3840,44 @@ Full amber color pass on `src/app/page.tsx`:
 
 Also applied amber gradient to browse (`src/app/browse/page.tsx`) and listing detail (`src/app/listing/[id]/page.tsx`) pages: `bg-gradient-to-b from-amber-100/60 via-amber-50/30 to-white min-h-screen` on both `<main>` elements.
 
-### Static hero collage (updated 2026-07-14)
+### Static hero collage (updated 2026-07-12)
 
 **Component**: `src/components/HeroMosaic.tsx` is a server-rendered decorative
-static collage, not a client animation. It takes no props and must not use
-`"use client"`, `useState`, `useEffect`, `onClick`, random animation offsets,
-duplicated scrolling rows, pause/play controls, or full-hero animation classes.
-It is fully decorative: `aria-hidden="true"`, empty `alt=""`, and no interactive
-elements (no `<Link>`/`<a>`/`href`) — the nearby hero heading/CTAs carry the
-semantics. It renders as an `absolute inset-0` background behind the hero copy
-in `page.tsx`.
+static collage, not a client animation. It must not use `"use client"`,
+`useState`, random animation offsets, duplicated scrolling rows, pause/play
+controls, blur-on-every-image, or full-hero animation classes.
 
 Hero behavior:
-- The collage uses a **curated `/hero/*.webp` image set** rendered with
-  `next/image` (`fill`, `object-cover`), centralized in two arrays: `DESKTOP_TILES`
-  and `MOBILE_TILES` (a `TileLayer` renders each; mobile is `lg:hidden`, desktop
-  is `hidden lg:block`). It is not driven by dynamic listing photos and has no
-  photo-count minimum or gradient fallback (that older dynamic-photo contract was
-  retired 2026-07-14). Keep eager/high-priority loading for the first few tiles
-  (`loading={index < 4 ? "eager" : "lazy"}`,
-  `fetchPriority={index < 3 ? "high" : "auto"}`) and lazy-load the rest. Retune by
-  editing the two arrays — every tile's placement lives in one `style` object.
-- **This is an overlapping matted-photo collage, NOT a CSS grid** (the grid was
-  retired 2026-07-14). A grid forced tiles onto shared row/column axes (read as a
-  grid) and, when tiles overlapped, carved L-shaped negative space with sharp
-  concave corners that could not be rounded with `border-radius`. Instead, every
-  photo is an **independently positioned rounded rectangle** (`style` with
-  `left/top/width/height/zIndex` in %) carrying a **consistent cream mat**
-  (`rounded-xl border-[6px] border-[#F7F5F0] bg-[#EFEAE0]`) and a soft shadow
-  (`shadow-[0_10px_26px_rgba(44,31,26,0.15)]`), stacked with z-index like a pile
-  of prints. Because each tile is a self-contained rounded rect painted on top,
-  **every visible edge is convex — there are no concave corners to fix**, overlaps
-  read as intentional layering, and free x/y placement breaks the grid axes for a
-  random feel. Do not reintroduce a CSS grid, gutters, `grid-cols-*`/`grid-rows-*`,
-  or `ring`-based mats here. The mat is a `border` (constant width = consistent
-  gap whether tiles touch or overlap).
-- Compose it **dense in the middle, thinning toward the edges**, with varied tile
-  sizes and staggered tops/lefts so photos don't share an axis. Keep vertical
-  extents under ~95% so the bottom row keeps its rounded corners instead of being
-  clipped flat by the section's `overflow-hidden` (the inner wrapper also reserves
-  `bottom-2 sm:bottom-3`). Larger/texture-y pieces sit left (under the wash);
-  clearer pieces sit center/right where they stay bright.
-- **Left wash** (Layer 3): a left-anchored horizontal gradient
-  (`bg-[linear-gradient(90deg,#F7F5F0_0%,…,rgba(247,245,240,0)_100%)]`) that
-  fades to **fully transparent** — the headline stays crisp while the right side
-  of the collage stays bright. Do not add top/bottom fade overlays into the
-  header or stats area (no `bg-gradient-to-b/t from-[#F7F5F0]`). Do not replace
-  this wash with a centered card/panel or a frosted-glass panel in the hero
-  without explicit direction (a glass card was tried and rejected 2026-07-14 —
-  it covers the strongest photos and reads as a dated template).
-- The hero copy in `page.tsx` is **left-anchored** (`text-left`, `max-w-[640px]`)
-  over the wash, with a soft localized cream blur backing behind the text for
-  legibility. Content is the three-line headline ("Buy handmade.", "Buy local.",
-  "Buy quality." — `block sm:whitespace-nowrap`, keep desktop lines from
-  wrapping) plus two CTA buttons (espresso "Browse the Workshop" + bordered
-  "Find Makers Near You"). The hero does not currently render the `SearchBar`;
-  add it back only on explicit direction, and if added keep its suggestion list
-  bounded with its own scrollable max-height so the hero section does not clip it.
+- The homepage uses up to 10 trusted public listing photos and requires at
+  least 8 real photos before showing the collage. Otherwise it falls back to
+  the warm cream/amber gradient.
+- The collage is edge-to-edge behind the hero but should read as one coherent
+  floating rounded rectangle, not a loose blob. Use a tight, consistent
+  internal grid/gutter system and clean `rounded-lg` image tiles. Faint
+  outward-only edge bleed on exterior photo surfaces is acceptable so the outer
+  collage silhouette is not perfectly linear, but do not offset internal tile
+  seams or create uneven internal gaps. Gutters should be the same cream page
+  color; do not add visible tile rings/outlines or per-tile card shadows. Keep
+  visible tile bottoms inside the hero bounds so bottom corners render rounded
+  even where the stat bar overlaps. Keep fixed width/height attributes, eager
+  loading only for the first five visible tiles, and lazy loading for the rest.
+- The hero headline is left-aligned as three intentional lines: "Buy
+  handmade.", "Buy local.", and "Buy quality.". Keep desktop lines from
+  wrapping into extra rows.
+- The left side uses a soft cream wash plus localized blur behind the content
+  so the headline and default white `SearchBar` stay crisp while the right side
+  of the collage remains brighter and clearer. The wash must fade to fully
+  transparent; do not add top/bottom fade overlays into the header or stats
+  area. Do not replace this wash composition with a centered card/panel or
+  glass search variant in the homepage hero without explicit direction. The
+  hero section must not clip the `SearchBar` suggestion list; keep the list
+  bounded with its own scrollable max-height instead.
 - The header is part of the same cream page surface with no bottom divider.
-- **SearchBar** (`src/components/SearchBar.tsx`) is a **floating pill**: no border,
-  `bg-white` with a soft shadow (`shadow-[0_6px_24px_rgba(28,25,23,0.10)]`, deeper
-  on `focus-within`), `rounded-full`, and a **dark circular submit button**
-  (`h-9 w-9 rounded-full bg-neutral-900`). Do not reintroduce the bordered pill or
-  the full-height square submit button. The combobox/listbox suggestion behavior,
-  the `min-w-0 flex-1` input, and the bounded scrollable listbox are unchanged.
-- On the **home page on mobile**, the header renders a **permanent SearchBar below
-  the nav** (`pathname === "/"`, `md:hidden`, in `Header.tsx`) instead of the
-  search-icon→popup. The search-icon toggle and its `animate-slide-down` dropdown
-  remain for every other page. Desktop is unchanged (SearchBar lives in the nav
-  row, `hidden md:flex`).
 - The stats bar floats over the bottom of the collage as a centered white
-  `rounded-lg` panel (`absolute inset-x-0 bottom-0 z-40 translate-y-1/2`,
-  straddling the collage edge). Keep it text-only unless Drew explicitly asks for
-  icons. On mobile, all four stats stay in one row.
+  rounded-lg panel, with the collage ending roughly halfway down from the top
+  of the stat panel. Do not add breathing room between the collage and stat
+  panel. Keep it text-only unless Drew explicitly asks for icons. On mobile,
+  all four stats stay in one row.
 - The homepage map section sits directly on the cream page background. The map
   itself can be framed, but do not wrap the entire map/text area in another
   darker background panel. Keep the map frame tall enough to feel substantial

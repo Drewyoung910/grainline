@@ -232,10 +232,11 @@ describe("accessibility follow-ups", () => {
     const mosaic = source("src/components/HeroMosaic.tsx");
 
     assert.doesNotMatch(mosaic, /publicListingPath/);
-    assert.doesNotMatch(mosaic, /<a\b|<Link\b|href=/);
+    assert.doesNotMatch(mosaic, /<a[\s\S]*tabIndex=\{-1\}[\s\S]*aria-hidden="true"/);
     assert.doesNotMatch(mosaic, /"use client"/);
     assert.doesNotMatch(mosaic, /useState|useEffect|onClick/);
     assert.match(mosaic, /aria-hidden="true"/);
+    assert.match(mosaic, /key=\{`tile-\$\{item\.listingId\}-\$\{index\}`\}/);
     assert.match(mosaic, /alt=""/);
   });
 
@@ -406,34 +407,41 @@ describe("accessibility follow-ups", () => {
       assert.match(home, new RegExp(`<h2[^>]*>[\\s\\S]*?${heading}[\\s\\S]*?<\\/h2>`));
     }
 
-    // Overlapping matted-photo collage (not a grid): each photo is an
-    // independently positioned rounded rect with a consistent cream mat + soft
-    // shadow, stacked with z-index so every visible edge is convex (no sharp
-    // concave corners) and placement is off-grid.
-    assert.match(heroMosaic, /const DESKTOP_TILES:/);
-    assert.match(heroMosaic, /const MOBILE_TILES:/);
-    assert.doesNotMatch(heroMosaic, /grid-cols-|grid-rows-/);
-    assert.match(heroMosaic, /rounded-xl border-\[6px\] border-\[#F7F5F0\] bg-\[#EFEAE0\]/);
-    assert.match(heroMosaic, /shadow-\[0_10px_26px_rgba\(44,31,26,0\.15\)\]/);
-    assert.match(heroMosaic, /loading=\{index < 4 \? "eager" : "lazy"\}/);
+    assert.match(heroMosaic, /const HERO_TILE_CLASSES =/);
+    assert.match(heroMosaic, /col-start-1 col-span-3 row-start-1 row-span-2/);
+    assert.match(heroMosaic, /col-start-4 col-span-5 row-start-1 row-span-3/);
+    assert.match(heroMosaic, /col-start-1 col-span-4 row-start-3 row-span-4/);
+    assert.match(heroMosaic, /col-start-4 col-span-5 row-start-8 row-span-3/);
+    assert.match(heroMosaic, /hidden lg:block lg:col-start-10/);
+    assert.match(heroMosaic, /const HERO_TILE_SURFACE_CLASSES =/);
+    assert.match(heroMosaic, /absolute -left-1 -top-1 bottom-0 right-0/);
+    assert.match(heroMosaic, /absolute left-0 -right-1 top-0 bottom-0/);
+    assert.match(heroMosaic, /relative min-h-0/);
+    assert.match(heroMosaic, /grid-cols-8 grid-rows-\[repeat\(10,minmax\(0,1fr\)\)\] gap-1\.5/);
+    assert.match(heroMosaic, /lg:grid-cols-12 lg:grid-rows-6 lg:gap-2\.5/);
+    assert.match(heroMosaic, /bottom-0/);
+    assert.match(heroMosaic, /rounded-lg bg-\[#F7F5F0\]/);
+    assert.doesNotMatch(heroMosaic, /ring-\[6px\]|shadow-\[0_8px_22px/);
+    assert.match(heroMosaic, /loading=\{index < 5 \? "eager" : "lazy"\}/);
     assert.match(heroMosaic, /fetchPriority=\{index < 3 \? "high" : "auto"\}/);
-    // Left wash fades to fully transparent; never a fade into header/stats.
     assert.match(heroMosaic, /rgba\(247,245,240,0\)_100%/);
     assert.doesNotMatch(heroMosaic, /animate-scroll|animationPlayState|Math\.random|aria-pressed/);
     assert.doesNotMatch(heroMosaic, /bg-gradient-to-b from-\[#F7F5F0\]|bg-gradient-to-t from-\[#F7F5F0\]/);
-    // Self-contained curated collage — no card, no children, no glass panel.
-    assert.match(home, /<HeroMosaic \/>/);
-    assert.doesNotMatch(home, /backdrop-blur-\[12px\]/);
+    assert.match(home, /const HERO_COLLAGE_MIN_PHOTOS = 8/);
+    assert.match(home, /const HERO_COLLAGE_PHOTO_COUNT = 10/);
+    assert.match(home, /const hasHeroMosaic = heroCollagePhotos\.length >= HERO_COLLAGE_MIN_PHOTOS/);
+    assert.match(home, /<HeroMosaic photos=\{heroCollagePhotos\} \/>/);
+    assert.match(home, /<SearchBar \/>/);
     assert.match(home, /<section className="relative overflow-visible bg-\[#F7F5F0\]">/);
     assert.doesNotMatch(home, /<section className="relative isolate overflow-hidden bg-\[#F7F5F0\]">/);
-    assert.match(home, /relative z-30 mx-auto flex/);
+    assert.match(home, /relative z-40 mx-auto flex/);
     assert.match(home, /<span className="block sm:whitespace-nowrap">Buy handmade\.<\/span>/);
     assert.match(home, /<span className="block sm:whitespace-nowrap">Buy local\.<\/span>/);
     assert.match(home, /<span className="block sm:whitespace-nowrap">Buy quality\.<\/span>/);
-    // Stats bar floats over the collage bottom edge (straddles it).
-    assert.match(home, /absolute inset-x-0 bottom-0 z-40 translate-y-1\/2/);
-    assert.match(home, /max-w-\[22rem\] grid-cols-4 rounded-lg bg-white\/95/);
-    assert.match(home, /sm:max-w-4xl/);
+    assert.match(home, /w-\[calc\(100%-2rem\)\] max-w-md grid-cols-4/);
+    assert.match(home, /sm:w-full sm:max-w-5xl/);
+    assert.match(home, /relative z-30 -mt-8 px-4 sm:-mt-10/);
+    assert.doesNotMatch(home, /relative z-30 -mt-8 bg-\[#F7F5F0\]/);
     assert.doesNotMatch(home, /grid-cols-2 gap-x-2 gap-y-4/);
     assert.match(searchBar, /className="relative ml-auto mr-auto w-full min-w-0 max-w-lg"/);
     assert.match(searchBar, /className=\{`min-w-0 flex-1/);

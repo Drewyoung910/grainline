@@ -331,7 +331,7 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
   return (
     <div ref={containerRef} className="relative ml-auto mr-auto w-full min-w-0 max-w-lg">
       <form onSubmit={handleSubmit}>
-        <div className={`flex items-center gap-1.5 rounded-full pl-5 pr-1.5 py-1.5 transition-shadow ${variant === "glass" ? "bg-white/15 backdrop-blur-sm" : "bg-white shadow-[0_6px_24px_rgba(28,25,23,0.10)] focus-within:shadow-[0_10px_30px_rgba(28,25,23,0.15)]"}`}>
+        <div className={`flex items-stretch rounded-full border-2 overflow-hidden shadow-sm transition-shadow focus-within:shadow-md ${variant === "glass" ? "bg-white/15 backdrop-blur-sm border-white/40 focus-within:border-white/70" : "bg-white border-stone-400 focus-within:border-stone-600"}`}>
           <input
             ref={inputRef}
             value={value}
@@ -346,7 +346,7 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
               }
             }}
             placeholder="Search handmade goods…"
-            className={`min-w-0 flex-1 bg-transparent py-1.5 pr-2 focus:outline-none focus-visible:outline-none focus-visible:shadow-none ${variant === "glass" ? "text-white placeholder:text-white/60" : "text-neutral-900 placeholder:text-neutral-500"}`}
+            className={`min-w-0 flex-1 pl-4 pr-2 py-2 bg-transparent focus:outline-none focus-visible:outline-none focus-visible:shadow-none ${variant === "glass" ? "text-white placeholder:text-white/60" : "text-neutral-900 placeholder:text-neutral-500"}`}
             autoComplete="off"
             maxLength={MAX_SEARCH_QUERY_LENGTH}
             role="combobox"
@@ -371,7 +371,8 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
           <button
             type="submit"
             aria-label="Search"
-            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors ${variant === "glass" ? "bg-white/25 text-white hover:bg-white/35" : "bg-neutral-900 text-white hover:bg-neutral-800"}`}
+            style={{ borderRadius: 0 }}
+            className={`flex items-center justify-center px-4 rounded-none transition-colors shrink-0 ${variant === "glass" ? "bg-white/20 text-white hover:bg-white/30" : "bg-neutral-900 text-white hover:bg-neutral-800"}`}
           >
             <Search size={16} />
           </button>
