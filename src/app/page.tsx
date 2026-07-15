@@ -546,7 +546,7 @@ export default async function HomePage() {
           preload
           quality={88}
           sizes="(max-width: 639px) 150vw, 100vw"
-          className="object-cover object-[28%_58%] sm:object-[26%_58%] md:object-[35%_58%] lg:object-[center_58%]"
+          className="object-cover object-[13%_58%] sm:object-[26%_58%] md:object-[35%_58%] lg:object-[center_58%]"
         />
         <div
           className="absolute inset-0 bg-[linear-gradient(90deg,rgba(44,31,26,0.78)_0%,rgba(44,31,26,0.62)_44%,rgba(44,31,26,0.24)_76%,rgba(44,31,26,0.04)_100%)] lg:bg-[linear-gradient(90deg,rgba(44,31,26,0.78)_0%,rgba(44,31,26,0.60)_28%,rgba(44,31,26,0.18)_48%,rgba(44,31,26,0)_66%)]"
@@ -571,14 +571,14 @@ export default async function HomePage() {
               <Link
                 href="/browse"
                 data-home-primary-cta
-                className="inline-flex min-h-[46px] w-fit items-center justify-center rounded-md border border-[#E5DFD2]/65 bg-[#E5DFD2]/70 px-5 py-3 text-sm font-semibold text-[#2C1F1A] shadow-sm backdrop-blur-md transition-[background-color,border-color] hover:bg-[#E5DFD2]/85 active:bg-[#E5DFD2]/80 sm:px-6"
+                className="inline-flex min-h-[46px] w-fit items-center justify-center rounded-full border border-[#E5DFD2]/65 bg-[#E5DFD2]/70 px-5 py-3 text-sm font-semibold text-[#2C1F1A] shadow-sm backdrop-blur-md transition-[background-color,border-color] hover:bg-[#E5DFD2]/85 active:bg-[#E5DFD2]/80 sm:px-6"
               >
-                Browse the Workshop
+                Browse
               </Link>
               <Link
                 href="/map"
                 data-home-secondary-cta
-                className="inline-flex min-h-[46px] w-fit items-center justify-center rounded-md border border-[#E5DFD2]/55 bg-[#E5DFD2]/[0.08] px-5 py-3 text-sm font-semibold text-[#E5DFD2] backdrop-blur-md transition-[background-color,border-color] hover:border-[#E5DFD2]/70 hover:bg-[#E5DFD2]/15 active:bg-[#E5DFD2]/20 sm:px-6"
+                className="inline-flex min-h-[46px] w-fit items-center justify-center rounded-full border border-[#E5DFD2]/55 bg-[#E5DFD2]/[0.08] px-5 py-3 text-sm font-semibold text-[#E5DFD2] backdrop-blur-md transition-[background-color,border-color] hover:border-[#E5DFD2]/70 hover:bg-[#E5DFD2]/15 active:bg-[#E5DFD2]/20 sm:px-6"
               >
                 Find Shops Near You
               </Link>
@@ -1002,8 +1002,8 @@ export default async function HomePage() {
                 const alsoRating = sellerRatings.get(also.id) ?? null;
                 const alsoAvatar = also.avatarImageUrl ?? also.user?.imageUrl ?? null;
                 return (
-                  <div className="mt-4 card-section !bg-[#EFEAE0] flex flex-wrap items-center gap-3 px-4 py-3 sm:px-5">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
+                  <div className="mt-4 card-section !bg-[#EFEAE0] flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:px-5">
+                    <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
                       Also featured
                     </span>
                     {alsoAvatar ? (
@@ -1021,7 +1021,7 @@ export default async function HomePage() {
                         {avatarInitial(also.displayName, "M")}
                       </div>
                     )}
-                    <div className="min-w-0">
+                    <div className="min-w-[10rem] flex-1">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <Link
                           href={publicSellerPath(also.id, also.displayName)}
@@ -1048,7 +1048,7 @@ export default async function HomePage() {
                         )}
                       </div>
                     </div>
-                    <div className="ml-auto flex items-center gap-2">
+                    <div className="flex w-full items-center justify-between gap-2 border-t border-[#2C1F1A]/10 pt-2 sm:ml-auto sm:w-auto sm:justify-end sm:border-0 sm:pt-0">
                       {meDbId !== also.userId && (
                         <FollowButton
                           sellerProfileId={also.id}

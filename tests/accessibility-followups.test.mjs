@@ -413,12 +413,12 @@ describe("accessibility follow-ups", () => {
     assert.match(home, /src="\/hero-maple-cabinets\.jpg"/);
     assert.match(home, /quality=\{88\}/);
     assert.match(home, /sizes="\(max-width: 639px\) 150vw, 100vw"/);
-    assert.match(home, /object-\[28%_58%\]/);
+    assert.match(home, /object-\[13%_58%\]/);
     assert.match(home, /lg:object-\[center_58%\]/);
     assert.match(home, /<span className="block whitespace-nowrap">Buy handmade\.<\/span>/);
     assert.match(home, /<span className="block whitespace-nowrap">Buy local\.<\/span>/);
     assert.match(home, /<span className="block whitespace-nowrap">Buy quality\.<\/span>/);
-    assert.match(home, /href="\/browse"[\s\S]*Browse the Workshop/);
+    assert.match(home, /href="\/browse"[\s\S]*>\s*Browse\s*<\/Link>/);
     assert.match(home, /href="\/map"[\s\S]*Find Shops Near You/);
     assert.doesNotMatch(home, /HeroMosaic|mosaicListings|getPopularListingTags|<SearchBar|Trending:/);
     assert.match(home, /data-home-stats/);

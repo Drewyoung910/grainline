@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import { Navigation } from "@/components/icons";
 
 // Lazy-load the map component — maplibre-gl is ~1MB JS.
 // Deferred until MakersMapSection hydrates client-side.
@@ -69,8 +70,9 @@ export default function MakersMapSection({
             <button
               type="button"
               onClick={onUseMyLocation}
-              className="inline-flex min-h-11 items-center rounded-md bg-[#2C1F1A] text-white px-4 py-2 text-sm font-medium hover:bg-[#3A2A24] transition-colors"
+              className="inline-flex min-h-11 items-center gap-2 rounded-md bg-[#2C1F1A] text-white px-4 py-2 text-sm font-medium hover:bg-[#3A2A24] transition-colors"
             >
+              <Navigation size={15} className="shrink-0" />
               Use my location
             </button>
             <a

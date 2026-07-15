@@ -27,7 +27,7 @@ describe("homepage hero and header contracts", () => {
     assert.match(home, /import Image from "next\/image"/);
     assert.match(home, /src="\/hero-maple-cabinets\.jpg"[\s\S]*alt=""[\s\S]*aria-hidden="true"[\s\S]*fill[\s\S]*preload[\s\S]*quality=\{88\}[\s\S]*sizes="\(max-width: 639px\) 150vw, 100vw"/);
     assert.match(nextConfig, /images:\s*\{[\s\S]*qualities: \[75, 88\]/);
-    assert.match(home, /object-\[28%_58%\][\s\S]*sm:object-\[26%_58%\][\s\S]*md:object-\[35%_58%\][\s\S]*lg:object-\[center_58%\]/);
+    assert.match(home, /object-\[13%_58%\][\s\S]*sm:object-\[26%_58%\][\s\S]*md:object-\[35%_58%\][\s\S]*lg:object-\[center_58%\]/);
     assert.match(home, /h-\[clamp\(520px,68svh,600px\)\]/);
     assert.match(home, /sm:h-\[clamp\(600px,78svh,760px\)\]/);
     assert.ok(home.includes("rgba(44,31,26,0.78)_0%,rgba(44,31,26,0.62)_44%,rgba(44,31,26,0.24)_76%,rgba(44,31,26,0.04)_100%"));
@@ -78,12 +78,18 @@ describe("homepage hero and header contracts", () => {
     assert.match(header, /min-h-\[44px\]/);
     assert.match(header, /min-w-\[44px\]/);
     assert.match(header, /const mobileSearchId = React\.useId\(\)/);
+    assert.match(header, /const \[searchClosing, setSearchClosing\] = React\.useState\(false\)/);
+    assert.match(header, /const mobileSearchCloseTimerRef = React\.useRef<number \| null>\(null\)/);
+    assert.match(header, /const closeMobileSearch = React\.useCallback/);
+    assert.match(header, /const openMobileSearch = React\.useCallback/);
     assert.match(header, /aria-expanded=\{searchOpen\}/);
     assert.match(header, /aria-controls=\{mobileSearchId\}/);
     assert.match(header, /id=\{mobileSearchId\}/);
     assert.match(header, /data-mobile-search-popup/);
     assert.match(header, /left-3 right-3 top-\[calc\(100%\+0\.25rem\)\]/);
     assert.match(header, /bg-transparent p-0 shadow-none/);
+    assert.match(header, /onClick=\{closeMobileSearch\}/);
+    assert.match(header, /searchClosing \? "animate-search-pop-out pointer-events-none" : "animate-search-pop-in"/);
     assert.match(header, /<SearchBar autoFocus overlay=\{isHome\} \/>/);
   });
 
@@ -97,15 +103,17 @@ describe("homepage hero and header contracts", () => {
     assert.doesNotMatch(home, /text-\[#F7F1E6\]/);
     assert.match(primary, /min-h-\[46px\]/);
     assert.match(primary, /w-fit/);
+    assert.match(primary, /rounded-full/);
     assert.match(primary, /bg-\[#E5DFD2\]\/70/);
     assert.match(primary, /backdrop-blur-md/);
     assert.match(primary, /hover:bg-\[#E5DFD2\]\/85/);
-    assert.doesNotMatch(primary, /w-full|hover:bg-white/);
+    assert.doesNotMatch(primary, /w-full|rounded-md|hover:bg-white/);
     assert.match(secondary, /w-fit/);
+    assert.match(secondary, /rounded-full/);
     assert.match(secondary, /bg-\[#E5DFD2\]\/\[0\.08\]/);
     assert.match(secondary, /hover:bg-\[#E5DFD2\]\/15/);
     assert.match(secondary, /active:bg-\[#E5DFD2\]\/20/);
-    assert.doesNotMatch(secondary, /w-full|hover:bg-\[#F7F5F0\]|hover:text-\[#2C1F1A\]/);
+    assert.doesNotMatch(secondary, /w-full|rounded-md|hover:bg-\[#F7F5F0\]|hover:text-\[#2C1F1A\]/);
   });
 
   it("uses shop-forward local discovery copy on the homepage", () => {
@@ -113,10 +121,14 @@ describe("homepage hero and header contracts", () => {
     const mapSection = source("src/components/MakersMapSection.tsx");
 
     assert.match(home, /Discover distinctive pieces, handcrafted by independent woodworkers\./);
+    assert.match(home, /data-home-primary-cta[\s\S]*>\s*Browse\s*<\/Link>/);
+    assert.doesNotMatch(home, /Browse the Workshop/);
     assert.match(home, /data-home-secondary-cta[\s\S]*>\s*Find Shops Near You\s*<\/Link>/);
     assert.match(home, /heading="Find Shops Near You"/);
     assert.match(home, /See what independent woodworkers are making nearby, or explore shops across the country\./);
     assert.doesNotMatch(home, /Find Makers Near You|One-of-a-kind pieces, made with care/);
+    assert.match(mapSection, /import \{ Navigation \} from "@\/components\/icons"/);
+    assert.match(mapSection, /<Navigation size=\{15\} className="shrink-0" \/>[\s\S]*Use my location/);
     assert.match(mapSection, />\s*Explore the full map\s*</);
   });
 
@@ -168,6 +180,10 @@ describe("homepage hero and header contracts", () => {
     assert.match(
       home.slice(alsoFeaturedIndex, alsoFeaturedIndex + 1_000),
       /className="[^"]*card-section !bg-\[#EFEAE0\][^"]*"/,
+    );
+    assert.match(
+      home.slice(alsoFeaturedIndex),
+      /w-full items-center justify-between[\s\S]*sm:w-auto/,
     );
   });
 

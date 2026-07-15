@@ -39,6 +39,7 @@ export default function Header() {
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [drawerClosing, setDrawerClosing] = React.useState(false);
   const [searchOpen, setSearchOpen] = React.useState(false);
+  const [searchClosing, setSearchClosing] = React.useState(false);
   const [unreadNotifCount, setUnreadNotifCount] = React.useState(0);
   const [isLoggedIn, setIsLoggedIn] = React.useState(false);
   const drawerRef = React.useRef<HTMLDivElement>(null);
@@ -73,10 +74,17 @@ export default function Header() {
   // close paths (X, backdrop, Escape, link taps) go through closeDrawer so
   // the menu never vanishes in a single frame.
   const drawerCloseTimerRef = React.useRef<number | null>(null);
+  const mobileSearchCloseTimerRef = React.useRef<number | null>(null);
   const clearDrawerCloseTimer = React.useCallback(() => {
     if (drawerCloseTimerRef.current !== null) {
       window.clearTimeout(drawerCloseTimerRef.current);
       drawerCloseTimerRef.current = null;
+    }
+  }, []);
+  const clearMobileSearchCloseTimer = React.useCallback(() => {
+    if (mobileSearchCloseTimerRef.current !== null) {
+      window.clearTimeout(mobileSearchCloseTimerRef.current);
+      mobileSearchCloseTimerRef.current = null;
     }
   }, []);
   const closeDrawer = React.useCallback(() => {
@@ -96,11 +104,29 @@ export default function Header() {
     setDrawerClosing(false);
     setDrawerOpen(true);
   }, [clearDrawerCloseTimer]);
+  const closeMobileSearch = React.useCallback(() => {
+    if (!searchOpen) return;
+    setSearchClosing((alreadyClosing) => {
+      if (alreadyClosing) return alreadyClosing;
+      mobileSearchCloseTimerRef.current = window.setTimeout(() => {
+        setSearchOpen(false);
+        setSearchClosing(false);
+        mobileSearchCloseTimerRef.current = null;
+      }, 140);
+      return true;
+    });
+  }, [searchOpen]);
+  const openMobileSearch = React.useCallback(() => {
+    clearMobileSearchCloseTimer();
+    setSearchClosing(false);
+    setSearchOpen(true);
+  }, [clearMobileSearchCloseTimer]);
   React.useEffect(() => {
     return () => {
       clearDrawerCloseTimer();
+      clearMobileSearchCloseTimer();
     };
-  }, [clearDrawerCloseTimer]);
+  }, [clearDrawerCloseTimer, clearMobileSearchCloseTimer]);
 
   // Popover focus, matching NotificationBell: move focus onto the card when
   // it opens, close it when keyboard focus leaves (see onBlur on the panel),
@@ -159,22 +185,24 @@ export default function Header() {
   // Close drawer and search on navigation (instant — new page context)
   React.useEffect(() => {
     clearDrawerCloseTimer();
+    clearMobileSearchCloseTimer();
     setDrawerOpen(false);
     setDrawerClosing(false);
     setSearchOpen(false);
-  }, [pathname, searchParams, clearDrawerCloseTimer]);
+    setSearchClosing(false);
+  }, [pathname, searchParams, clearDrawerCloseTimer, clearMobileSearchCloseTimer]);
 
   // Escape closes both drawer and search
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         closeDrawer();
-        setSearchOpen(false);
+        closeMobileSearch();
       }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [closeDrawer]);
+  }, [closeDrawer, closeMobileSearch]);
 
   const loadCartCount = React.useCallback(async () => {
     cartCountAbortRef.current?.abort();
@@ -456,7 +484,10 @@ export default function Header() {
           )}
           {/* Search toggle */}
           <button
-            onClick={() => setSearchOpen((o) => !o)}
+            onClick={() => {
+              if (searchOpen) closeMobileSearch();
+              else openMobileSearch();
+            }}
             aria-label={searchOpen ? "Close search" : "Search"}
             aria-expanded={searchOpen}
             aria-controls={mobileSearchId}
@@ -513,13 +544,15 @@ export default function Header() {
           {/* Transparent backdrop — click outside closes the bar */}
           <div
             className="fixed inset-0 z-40 lg:hidden"
-            onClick={() => setSearchOpen(false)}
+            onClick={closeMobileSearch}
             aria-hidden="true"
           />
           <div
             id={mobileSearchId}
             data-mobile-search-popup
-            className="absolute left-3 right-3 top-[calc(100%+0.25rem)] z-50 bg-transparent p-0 shadow-none lg:hidden animate-slide-down sm:left-6 sm:right-6"
+            className={`absolute left-3 right-3 top-[calc(100%+0.25rem)] z-50 bg-transparent p-0 shadow-none lg:hidden motion-reduce:animate-none sm:left-6 sm:right-6 ${
+              searchClosing ? "animate-search-pop-out pointer-events-none" : "animate-search-pop-in"
+            }`}
           >
             <SearchBar autoFocus overlay={isHome} />
           </div>
