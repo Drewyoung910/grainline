@@ -493,6 +493,26 @@ describe("post-launch UI follow-ups", () => {
     assert.doesNotMatch(fullMapCall, /\bcompact\b/);
   });
 
+  it("prefers shop avatars over Clerk photos on homepage blog cards", () => {
+    const homepage = source("src/app/page.tsx");
+
+    assert.match(
+      homepage,
+      /author:\s*\{\s*select:\s*\{\s*name:\s*true,\s*imageUrl:\s*true,\s*sellerProfile:\s*\{\s*select:\s*\{\s*displayName:\s*true,\s*avatarImageUrl:\s*true\s*\},?\s*\},?\s*\},?\s*\}/,
+      "homepage blog queries should load the author's shop identity",
+    );
+    assert.match(
+      homepage,
+      /const authorProfile = p\.sellerProfile \?\? p\.author\?\.sellerProfile;/,
+      "a post-linked shop should take precedence over the author's shop",
+    );
+    assert.match(
+      homepage,
+      /const authorAvatar = authorProfile\?\.avatarImageUrl \?\? p\.author\?\.imageUrl \?\? null;/,
+      "the Clerk photo should remain only the final avatar fallback",
+    );
+  });
+
   it("keeps blog comment fields on the global field-focus contract", () => {
     const globals = source("src/app/globals.css");
     const blogComment = source("src/components/BlogCommentForm.tsx");

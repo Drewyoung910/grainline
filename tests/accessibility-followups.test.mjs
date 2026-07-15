@@ -419,7 +419,7 @@ describe("accessibility follow-ups", () => {
     assert.match(home, /<span className="block whitespace-nowrap">Buy local\.<\/span>/);
     assert.match(home, /<span className="block whitespace-nowrap">Buy quality\.<\/span>/);
     assert.match(home, /href="\/browse"[\s\S]*Browse the Workshop/);
-    assert.match(home, /href="\/map"[\s\S]*Find Makers Near You/);
+    assert.match(home, /href="\/map"[\s\S]*Find Shops Near You/);
     assert.doesNotMatch(home, /HeroMosaic|mosaicListings|getPopularListingTags|<SearchBar|Trending:/);
     assert.match(home, /data-home-stats/);
     assert.match(home, /aria-label="Grainline marketplace statistics"/);

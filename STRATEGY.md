@@ -8,7 +8,7 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 Keep the local-maker map directly beneath the hero and floating marketplace stats. It is Grainline's clearest marketplace differentiator, but it should remain a compact discovery band so inventory appears after a short scroll rather than becoming a second full-screen gate.
 
-Preserve this homepage order: hero → stats → local-maker map → New Arrivals → Shop by Category → Top Picks → Makers You Follow → In the Workshop → From the Blog. Do not put a large editorial feature ahead of the first listing row.
+Preserve this homepage order: hero → stats → local-maker map → Top Picks → Shop by Category → New Arrivals → Makers You Follow → In the Workshop → From the Blog. Do not put a large editorial feature ahead of the first listing row.
 
 ### Brand terminology decision (2026-07-15)
 
@@ -18,7 +18,7 @@ Do not globally rename makers to shops. Preserve a three-part vocabulary:
 - **Shop** means the maker's storefront or a commercial destination/action. Use it for "Visit Shop," profile/settings language, opening a shop, and search copy such as "Search pieces, shops, and more…".
 - **Seller** means the transactional/legal role. Keep it in payments, refunds, disputes, staff tooling, schema, APIs, and internal code; avoid it in ordinary buyer discovery copy.
 
-Keep "Find Makers Near You": the map represents makers, workshops, and pickup areas rather than guaranteed brick-and-mortar retail shops. Internal `SellerProfile` naming and `/makers/...` SEO routes stay unchanged.
+Use "Find Shops Near You" for the homepage hero CTA and local-map heading, where the buyer is choosing a commercial destination. Keep the supporting copy centered on independent woodworkers and do not imply that map pins are guaranteed walk-in retail locations. Internal `SellerProfile` naming and `/makers/...` SEO routes stay unchanged.
 
 ### Compliance systems to build before scale
 

@@ -77,7 +77,7 @@ export default function MakersMapSection({
               href="/map"
               className="inline-flex min-h-11 items-center rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-[#EFEAE0] transition-colors"
             >
-              Open Makers Map
+              Explore the full map
             </a>
           </div>
           {geoErr && <div role="alert" className="mt-2 text-xs text-red-600">{geoErr}</div>}

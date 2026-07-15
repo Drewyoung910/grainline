@@ -342,7 +342,13 @@ export default async function HomePage() {
       take: 3,
       select: {
         id: true, slug: true, title: true, excerpt: true, coverImageUrl: true, publishedAt: true,
-        author: { select: { name: true, imageUrl: true } },
+        author: {
+          select: {
+            name: true,
+            imageUrl: true,
+            sellerProfile: { select: { displayName: true, avatarImageUrl: true } },
+          },
+        },
         sellerProfile: { select: { displayName: true, avatarImageUrl: true } },
       },
     }),
@@ -559,7 +565,7 @@ export default async function HomePage() {
               <span className="block whitespace-nowrap">Buy quality.</span>
             </h1>
             <p className="mt-6 max-w-md text-base leading-relaxed text-[#E5DFD2]/85 sm:text-lg">
-              One-of-a-kind pieces, made with care by independent woodworkers.
+              Discover distinctive pieces, handcrafted by independent woodworkers.
             </p>
             <div className="mt-7 flex flex-col items-start gap-3 sm:mt-8 sm:flex-row">
               <Link
@@ -574,7 +580,7 @@ export default async function HomePage() {
                 data-home-secondary-cta
                 className="inline-flex min-h-[46px] w-fit items-center justify-center rounded-md border border-[#E5DFD2]/55 bg-[#E5DFD2]/[0.08] px-5 py-3 text-sm font-semibold text-[#E5DFD2] backdrop-blur-md transition-[background-color,border-color] hover:border-[#E5DFD2]/70 hover:bg-[#E5DFD2]/15 active:bg-[#E5DFD2]/20 sm:px-6"
               >
-                Find Makers Near You
+                Find Shops Near You
               </Link>
             </div>
           </div>
@@ -619,13 +625,13 @@ export default async function HomePage() {
         </dl>
       </section>
 
-      {/* ── Find Makers Near You ──────────────────────────────────────────── */}
+      {/* ── Find Shops Near You ───────────────────────────────────────────── */}
       <ScrollSection className="pb-6 pt-16 sm:pb-8 sm:pt-20">
         <div data-home-map className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
           <MakersMapSection
             points={mapPoints}
-            heading="Find Makers Near You"
-            subheading="Share your location to see makers in your area, or browse the full national map."
+            heading="Find Shops Near You"
+            subheading="See what independent woodworkers are making nearby, or explore shops across the country."
             headingClassName="font-display text-2xl sm:text-3xl font-bold text-neutral-900"
             compact
           />
@@ -635,6 +641,84 @@ export default async function HomePage() {
       {/* ── Main content ──────────────────────────────────────────────────── */}
       <div className="bg-[#F7F5F0]">
       <div className="max-w-[1600px] mx-auto px-4 pb-12 pt-4 sm:px-6 sm:pt-6 lg:px-8 space-y-10">
+
+        {/* ── Top Picks ───────────────────────────────────────────── */}
+        {topSaved.length > 0 && (
+          <ScrollSection>
+            <div data-home-top-picks className="mb-4 flex items-center justify-between">
+              <h2 className="text-xl font-semibold font-display">Top Picks</h2>
+              <Link href="/browse?sort=popular" className="text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline">View more →</Link>
+            </div>
+
+            <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
+              <ul className="flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
+                {topSaved.map((l) => {
+                  return (
+                    <ClickTracker key={l.id} listingId={l.id} className="snap-start flex-none w-44 sm:w-48">
+                      <ListingCard
+                        listing={{
+                          id: l.id,
+                          title: l.title,
+                          priceCents: l.priceCents,
+                          currency: l.currency,
+                          status: l.status,
+                          listingType: l.listingType,
+                          stockQuantity: l.stockQuantity ?? null,
+                          photoUrl: l.photos[0]?.url ?? null,
+                          photoAltText: l.photos[0]?.altText ?? null,
+                          secondPhotoUrl: l.photos[1]?.url ?? null,
+                          secondPhotoAltText: l.photos[1]?.altText ?? null,
+                          seller: {
+                            id: l.sellerId,
+                            displayName: l.seller.displayName ?? null,
+                            avatarImageUrl: l.seller.avatarImageUrl ?? l.seller.user?.imageUrl ?? null,
+                            guildLevel: l.seller.guildLevel ?? null,
+                            city: l.seller.city ?? null,
+                            state: l.seller.state ?? null,
+                            acceptingNewOrders: l.seller.acceptingNewOrders ?? null,
+                          },
+                          rating: (() => {
+                            const s = sellerRatings.get(l.sellerId);
+                            return s && s.count > 0 ? { avg: s.avg, count: s.count } : null;
+                          })(),
+                        }}
+                        initialSaved={saved.has(l.id)}
+                        variant="scroll"
+                      />
+                    </ClickTracker>
+                  );
+                })}
+              </ul>
+            </ScrollFadeRow>
+          </ScrollSection>
+        )}
+
+        {/* ── Shop by Category ─────────────────────────────────────────────── */}
+        <ScrollSection>
+          <h2 data-home-categories className="text-xl font-semibold font-display mb-5">Shop by Category</h2>
+          {/* Mobile: horizontal scroll with fade; Desktop: 9-col grid (no fade) */}
+          <ScrollFadeRow hideAtBreakpoint="sm" className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+            <div className="flex sm:grid sm:grid-cols-9 gap-3" style={{ minWidth: 480 }}>
+              {CATEGORIES.map((c) => (
+                <Link
+                  key={c.key}
+                  href={`/browse?category=${c.key}`}
+                  className="flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center hover:bg-[#E3DCCB] transition-colors flex-none w-28 sm:w-auto"
+                >
+                  <c.Icon size={28} className="text-neutral-900" />
+                  <span className="text-xs font-medium text-neutral-900">{c.label}</span>
+                </Link>
+              ))}
+              <Link
+                href="/browse"
+                className="flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center hover:bg-[#E3DCCB] transition-colors flex-none w-28 sm:w-auto"
+              >
+                <span className="text-2xl text-neutral-900">→</span>
+                <span className="text-xs font-medium text-neutral-900">Browse all</span>
+              </Link>
+            </div>
+          </ScrollFadeRow>
+        </ScrollSection>
 
         {/* ── New Arrivals ───────────────────────────────────────── */}
         <ScrollSection>
@@ -690,84 +774,6 @@ export default async function HomePage() {
             </ScrollFadeRow>
           )}
         </ScrollSection>
-
-        {/* ── Shop by Category ─────────────────────────────────────────────── */}
-        <ScrollSection>
-          <h2 data-home-categories className="text-xl font-semibold font-display mb-5">Shop by Category</h2>
-          {/* Mobile: horizontal scroll with fade; Desktop: 9-col grid (no fade) */}
-          <ScrollFadeRow hideAtBreakpoint="sm" className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-            <div className="flex sm:grid sm:grid-cols-9 gap-3" style={{ minWidth: 480 }}>
-              {CATEGORIES.map((c) => (
-                <Link
-                  key={c.key}
-                  href={`/browse?category=${c.key}`}
-                  className="flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center hover:bg-[#E3DCCB] transition-colors flex-none w-28 sm:w-auto"
-                >
-                  <c.Icon size={28} className="text-neutral-900" />
-                  <span className="text-xs font-medium text-neutral-900">{c.label}</span>
-                </Link>
-              ))}
-              <Link
-                href="/browse"
-                className="flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center hover:bg-[#E3DCCB] transition-colors flex-none w-28 sm:w-auto"
-              >
-                <span className="text-2xl text-neutral-900">→</span>
-                <span className="text-xs font-medium text-neutral-900">Browse all</span>
-              </Link>
-            </div>
-          </ScrollFadeRow>
-        </ScrollSection>
-
-        {/* ── Top Picks ───────────────────────────────────────────── */}
-        {topSaved.length > 0 && (
-          <ScrollSection>
-            <div data-home-top-picks className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold font-display">Top Picks</h2>
-              <Link href="/browse?sort=popular" className="text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline">View more →</Link>
-            </div>
-
-            <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
-              <ul className="flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
-                {topSaved.map((l) => {
-                  return (
-                    <ClickTracker key={l.id} listingId={l.id} className="snap-start flex-none w-44 sm:w-48">
-                      <ListingCard
-                        listing={{
-                          id: l.id,
-                          title: l.title,
-                          priceCents: l.priceCents,
-                          currency: l.currency,
-                          status: l.status,
-                          listingType: l.listingType,
-                          stockQuantity: l.stockQuantity ?? null,
-                          photoUrl: l.photos[0]?.url ?? null,
-                          photoAltText: l.photos[0]?.altText ?? null,
-                          secondPhotoUrl: l.photos[1]?.url ?? null,
-                          secondPhotoAltText: l.photos[1]?.altText ?? null,
-                          seller: {
-                            id: l.sellerId,
-                            displayName: l.seller.displayName ?? null,
-                            avatarImageUrl: l.seller.avatarImageUrl ?? l.seller.user?.imageUrl ?? null,
-                            guildLevel: l.seller.guildLevel ?? null,
-                            city: l.seller.city ?? null,
-                            state: l.seller.state ?? null,
-                            acceptingNewOrders: l.seller.acceptingNewOrders ?? null,
-                          },
-                          rating: (() => {
-                            const s = sellerRatings.get(l.sellerId);
-                            return s && s.count > 0 ? { avg: s.avg, count: s.count } : null;
-                          })(),
-                        }}
-                        initialSaved={saved.has(l.id)}
-                        variant="scroll"
-                      />
-                    </ClickTracker>
-                  );
-                })}
-              </ul>
-            </ScrollFadeRow>
-          </ScrollSection>
-        )}
 
         {/* ── From Your Makers ─────────────────────────────────────────────── */}
         {fromYourMakers.length > 0 && (
@@ -996,7 +1002,7 @@ export default async function HomePage() {
                 const alsoRating = sellerRatings.get(also.id) ?? null;
                 const alsoAvatar = also.avatarImageUrl ?? also.user?.imageUrl ?? null;
                 return (
-                  <div className="mt-4 card-section flex flex-wrap items-center gap-3 px-4 py-3 sm:px-5">
+                  <div className="mt-4 card-section !bg-[#EFEAE0] flex flex-wrap items-center gap-3 px-4 py-3 sm:px-5">
                     <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
                       Also featured
                     </span>
@@ -1070,14 +1076,15 @@ export default async function HomePage() {
           <ScrollSection className="bg-amber-50/30 rounded-xl px-4 py-6 -mx-4">
             <div data-home-blog className="mb-5 flex items-center justify-between">
               <h2 className="text-xl font-semibold font-display">From the Blog</h2>
-              <Link href="/blog" className="text-sm text-neutral-600 hover:underline">
-                Read more stories
+              <Link href="/blog" className="text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline">
+                Read more stories →
               </Link>
             </div>
             <ul className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               {recentBlogPosts.map((p) => {
-                const authorName = p.sellerProfile?.displayName ?? p.author?.name ?? "Former author";
-                const authorAvatar = p.sellerProfile?.avatarImageUrl ?? p.author?.imageUrl;
+                const authorProfile = p.sellerProfile ?? p.author?.sellerProfile;
+                const authorName = authorProfile?.displayName ?? p.author?.name ?? "Former author";
+                const authorAvatar = authorProfile?.avatarImageUrl ?? p.author?.imageUrl ?? null;
                 return (
                   <li key={p.slug} className="relative card-listing">
                     <div className="absolute top-2 right-2 z-10">

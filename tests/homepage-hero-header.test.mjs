@@ -108,13 +108,25 @@ describe("homepage hero and header contracts", () => {
     assert.doesNotMatch(secondary, /w-full|hover:bg-\[#F7F5F0\]|hover:text-\[#2C1F1A\]/);
   });
 
+  it("uses shop-forward local discovery copy on the homepage", () => {
+    const home = source("src/app/page.tsx");
+    const mapSection = source("src/components/MakersMapSection.tsx");
+
+    assert.match(home, /Discover distinctive pieces, handcrafted by independent woodworkers\./);
+    assert.match(home, /data-home-secondary-cta[\s\S]*>\s*Find Shops Near You\s*<\/Link>/);
+    assert.match(home, /heading="Find Shops Near You"/);
+    assert.match(home, /See what independent woodworkers are making nearby, or explore shops across the country\./);
+    assert.doesNotMatch(home, /Find Makers Near You|One-of-a-kind pieces, made with care/);
+    assert.match(mapSection, />\s*Explore the full map\s*</);
+  });
+
   it("keeps homepage discovery and commerce sections in the intended source order", () => {
     const home = source("src/app/page.tsx");
     const markers = [
       "data-home-map",
-      "data-home-new-arrivals",
-      "data-home-categories",
       "data-home-top-picks",
+      "data-home-categories",
+      "data-home-new-arrivals",
       "data-home-followed-makers",
       "data-home-workshop",
       "data-home-blog",
@@ -138,6 +150,25 @@ describe("homepage hero and header contracts", () => {
         `expected ${markers[index - 1]} before ${markers[index]}`,
       );
     }
+  });
+
+  it("keeps homepage editorial links and featured surfaces visually consistent", () => {
+    const home = source("src/app/page.tsx");
+    const sharedLinkClass =
+      "text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline";
+    const storiesLink = openingTagWith(home, "Read more stories");
+    const alsoFeaturedIndex = home.indexOf("Also featured this week");
+
+    assert.ok(
+      storiesLink.includes(`className="${sharedLinkClass}"`),
+      "Read more stories should share the View more and Visit shop link treatment",
+    );
+    assert.match(home, /Read more stories →/);
+    assert.notEqual(alsoFeaturedIndex, -1, "expected the Also featured strip");
+    assert.match(
+      home.slice(alsoFeaturedIndex, alsoFeaturedIndex + 1_000),
+      /className="[^"]*card-section !bg-\[#EFEAE0\][^"]*"/,
+    );
   });
 
   it("keeps homepage popovers translucent while retaining opaque defaults", () => {
