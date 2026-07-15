@@ -30,6 +30,7 @@ import { HOME_FEATURED_MAKER_CACHE_TAG } from "@/lib/searchCache";
 import { compareAccountFeedItemsDesc } from "@/lib/accountFeedCursor";
 import { formatCurrencyCents } from "@/lib/money";
 import { ownerSavedBlogPostIdRows } from "@/lib/savedBlogPostOwnerAccess";
+import { getCachedHomepageStats } from "@/lib/homepageStats";
 
 function StarsInline({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
@@ -286,6 +287,7 @@ export default async function HomePage() {
     mapRows,
     recentBlogPosts,
     featuredMakerBlock,
+    homepageStats,
   ] = await Promise.all([
     // New Arrivals: prefer last 30 days, fall back to newest if fewer than 12
     prisma.listing.findMany({
@@ -345,6 +347,7 @@ export default async function HomePage() {
       },
     }),
     getFeaturedMakerBlock(blockedSellerIds),
+    getCachedHomepageStats(),
   ]);
 
   const featuredMakers = featuredMakerBlock;
@@ -527,7 +530,7 @@ export default async function HomePage() {
       {/* ── Hero ────────────────────────────────────────────────────────── */}
       <section
         data-home-hero
-        className="relative isolate h-[100svh] min-h-[clamp(500px,100svh,680px)] max-h-[900px] overflow-hidden bg-[#18201f]"
+        className="relative isolate h-[clamp(570px,82svh,700px)] overflow-hidden bg-[#18201f] sm:h-[clamp(600px,78svh,760px)]"
       >
         <Image
           src="/hero-maple-cabinets.jpg"
@@ -547,7 +550,7 @@ export default async function HomePage() {
           aria-hidden="true"
         />
 
-        <div className="relative z-10 mx-auto flex h-full max-w-[1600px] items-center px-4 pb-16 pt-28 sm:px-6 sm:pb-20 sm:pt-32 lg:px-8 lg:pb-16 lg:pt-28">
+        <div className="relative z-10 mx-auto flex h-full max-w-[1600px] items-center px-4 pb-14 pt-24 sm:px-6 sm:pb-16 sm:pt-28 lg:px-8">
           <div className="w-full max-w-[630px] text-left text-[#F7F1E6]">
             <h1 className="font-display text-[clamp(2.25rem,11.5vw,4.5rem)] font-semibold leading-[0.96] drop-shadow-[0_2px_18px_rgba(0,0,0,0.24)] sm:text-[clamp(4rem,8vw,5.25rem)] lg:text-[clamp(4.5rem,5.6vw,5.75rem)]">
               <span className="block whitespace-nowrap">Buy handmade.</span>
@@ -575,8 +578,43 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* Zero-height anchor + 50% translation keeps the bar exactly half
+          inside and half outside the hero at every responsive height. */}
+      <section
+        data-home-stats
+        aria-label="Grainline marketplace statistics"
+        className="relative z-30 h-0 px-4 sm:px-6 lg:px-8"
+      >
+        <dl className="mx-auto grid w-full max-w-md -translate-y-1/2 grid-cols-4 divide-x divide-stone-200/70 rounded-lg bg-white/95 px-1 py-3 shadow-[0_18px_45px_rgba(28,25,23,0.14)] ring-1 ring-stone-200/70 backdrop-blur-sm sm:max-w-5xl sm:px-5 sm:py-4">
+          <div className="flex min-w-0 flex-col items-center justify-center px-1 text-center sm:px-4">
+            <dt className="order-2 mt-1 text-[9px] leading-tight text-neutral-500 sm:text-xs">pieces listed</dt>
+            <dd className="order-1 text-lg font-semibold leading-none text-neutral-900 sm:text-2xl">
+              {homepageStats.pieces.toLocaleString("en-US")}
+            </dd>
+          </div>
+          <div className="flex min-w-0 flex-col items-center justify-center px-1 text-center sm:px-4">
+            <dt className="order-2 mt-1 text-[9px] leading-tight text-neutral-500 sm:text-xs">active makers</dt>
+            <dd className="order-1 text-lg font-semibold leading-none text-neutral-900 sm:text-2xl">
+              {homepageStats.makers.toLocaleString("en-US")}
+            </dd>
+          </div>
+          <div className="flex min-w-0 flex-col items-center justify-center px-1 text-center sm:px-4">
+            <dt className="order-2 mt-1 text-[9px] leading-tight text-neutral-500 sm:text-xs">members</dt>
+            <dd className="order-1 text-lg font-semibold leading-none text-neutral-900 sm:text-2xl">
+              {homepageStats.members.toLocaleString("en-US")}
+            </dd>
+          </div>
+          <div className="flex min-w-0 flex-col items-center justify-center px-1 text-center sm:px-4">
+            <dt className="order-2 mt-1 text-[9px] leading-tight text-neutral-500 sm:text-xs">orders fulfilled</dt>
+            <dd className="order-1 text-lg font-semibold leading-none text-neutral-900 sm:text-2xl">
+              {homepageStats.fulfilledOrders.toLocaleString("en-US")}
+            </dd>
+          </div>
+        </dl>
+      </section>
+
       {/* ── Find Makers Near You ──────────────────────────────────────────── */}
-      <ScrollSection className="py-14 sm:py-16">
+      <ScrollSection className="pb-14 pt-20 sm:pb-16 sm:pt-24">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
           <MakersMapSection
             points={mapPoints}

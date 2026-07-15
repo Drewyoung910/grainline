@@ -302,10 +302,10 @@ export default function Header() {
     >
       <nav
         aria-label="Main navigation"
-        className={`mx-auto flex max-w-[1600px] items-center gap-2 px-3 sm:px-6 lg:gap-5 lg:px-8 ${
+        className={`mx-auto flex max-w-[1600px] items-center gap-2 px-3 sm:px-6 ${
           isHome
-            ? "pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] sm:pb-4 sm:pt-[calc(1rem+env(safe-area-inset-top))] lg:pb-5 lg:pt-[calc(1.25rem+env(safe-area-inset-top))]"
-            : "py-3 sm:py-4 lg:py-5"
+            ? "pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] sm:pb-4 sm:pt-[calc(1rem+env(safe-area-inset-top))] lg:gap-8 lg:pb-5 lg:pl-10 lg:pr-8 lg:pt-[calc(1.25rem+env(safe-area-inset-top))] xl:gap-10 xl:pl-14 xl:pr-10"
+            : "py-3 sm:py-4 lg:gap-5 lg:px-8 lg:py-5"
         }`}
       >
         {/* Logo */}
@@ -342,30 +342,30 @@ export default function Header() {
           {isHome && (
             <span
               aria-hidden="true"
-              className="pointer-events-none absolute inset-0 -z-10 rounded-lg border border-white/35 bg-[#F7F5F0]/88 shadow-[0_16px_50px_rgba(12,10,9,0.16)] backdrop-blur-xl"
+              className="pointer-events-none absolute inset-0 -z-10 rounded-2xl border border-white/25 bg-[#F7F5F0]/38 shadow-[0_16px_50px_rgba(12,10,9,0.12)] backdrop-blur-lg"
             />
           )}
           <span className="flex flex-1 max-w-[820px] min-w-[220px]">
-            <SearchBar />
+            <SearchBar overlay={isHome} />
           </span>
 
           {/* ── Desktop nav (lg+) ──────────────────────────────────────── */}
           <div className="ml-auto flex items-center gap-1 xl:gap-2">
           <Link
             href="/browse"
-            className="inline-flex items-center rounded-md px-2 py-2 text-sm font-medium text-neutral-900 transition-colors hover:bg-black/10 hover:text-black xl:px-3"
+            className="inline-flex items-center rounded-full px-2 py-2 text-sm font-medium text-neutral-900 transition-colors hover:bg-black/10 hover:text-black xl:px-3"
           >
             Browse
           </Link>
           <Link
             href="/blog"
-            className="inline-flex items-center rounded-md px-2 py-2 text-sm font-medium text-neutral-900 transition-colors hover:bg-black/10 hover:text-black xl:px-3"
+            className="inline-flex items-center rounded-full px-2 py-2 text-sm font-medium text-neutral-900 transition-colors hover:bg-black/10 hover:text-black xl:px-3"
           >
             Blog
           </Link>
           <Link
             href="/commission"
-            className="inline-flex items-center rounded-md px-2 py-2 text-sm font-medium text-neutral-900 transition-colors hover:bg-black/10 hover:text-black xl:px-3"
+            className="inline-flex items-center rounded-full px-2 py-2 text-sm font-medium text-neutral-900 transition-colors hover:bg-black/10 hover:text-black xl:px-3"
           >
             Commission Room
           </Link>
@@ -438,7 +438,7 @@ export default function Header() {
           {isHome && (
             <span
               aria-hidden="true"
-              className="pointer-events-none absolute inset-0 -z-10 rounded-lg border border-white/30 bg-[#F7F5F0]/88 shadow-[0_10px_32px_rgba(12,10,9,0.16)] backdrop-blur-xl"
+              className="pointer-events-none absolute inset-0 -z-10 rounded-2xl border border-white/20 bg-[#F7F5F0]/32 shadow-[0_10px_32px_rgba(12,10,9,0.12)] backdrop-blur-lg"
             />
           )}
           {/* Search toggle */}
@@ -505,9 +505,10 @@ export default function Header() {
           />
           <div
             id={mobileSearchId}
-            className="absolute left-0 right-0 top-full z-50 bg-[#F7F5F0] p-3 shadow-sm lg:hidden animate-slide-down"
+            data-mobile-search-popup
+            className="absolute left-3 right-3 top-[calc(100%+0.25rem)] z-50 bg-transparent p-0 shadow-none lg:hidden animate-slide-down sm:left-6 sm:right-6"
           >
-            <SearchBar autoFocus />
+            <SearchBar autoFocus overlay={isHome} />
           </div>
         </>
       )}

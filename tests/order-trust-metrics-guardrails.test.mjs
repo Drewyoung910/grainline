@@ -49,6 +49,7 @@ describe("order trust metrics guardrails", () => {
       "src/app/api/reviews/route.ts",
       "src/app/account/page.tsx",
       "src/components/ReviewsSection.tsx",
+      "src/lib/homepageStats.ts",
     ];
 
     for (const path of paths) {

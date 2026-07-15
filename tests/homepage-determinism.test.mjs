@@ -31,6 +31,24 @@ describe("homepage deterministic query guardrails", () => {
     assert.doesNotMatch(home, /HeroMosaic|mosaicListings|heroCollagePhotos/);
     assert.doesNotMatch(home, /getPopularListingTags|trendingTagsRaw|statsResults/);
     assert.doesNotMatch(home, /prisma\.listing\.count|prisma\.user\.count|paidStripeOrderWhere/);
+    assert.match(home, /getCachedHomepageStats\(\)/);
+  });
+
+  it("loads homepage statistics through one short-lived trusted cache", () => {
+    const stats = source("src/lib/homepageStats.ts");
+
+    assert.match(stats, /import \{ unstable_cache \} from "next\/cache"/);
+    assert.match(stats, /HOMEPAGE_STATS_REVALIDATE_SECONDS = 5 \* 60/);
+    assert.match(stats, /await Promise\.all\(\[/);
+    assert.match(stats, /prisma\.listing\.count\(\{ where: publicListingWhere\(\) \}\)/);
+    assert.match(stats, /prisma\.sellerProfile\.count\(\{[\s\S]*activeSellerProfileWhere\([\s\S]*listings: \{ some: publicListingWhere\(\) \}/);
+    assert.match(stats, /prisma\.user\.count\(\{[\s\S]*banned: false, deletedAt: null/);
+    assert.match(stats, /\.\.\.paidStripeOrderWhere\(\)/);
+    assert.match(stats, /sellerRefundId: null/);
+    assert.match(stats, /paymentEvents: \{ none: blockingRefundLedgerWhere\(\) \}/);
+    assert.match(stats, /fulfillmentStatus: \{ in: \["DELIVERED", "PICKED_UP"\] \}/);
+    assert.match(stats, /\["homepage-stats-v1"\]/);
+    assert.match(stats, /revalidate: HOMEPAGE_STATS_REVALIDATE_SECONDS/);
   });
 
   it("keeps featured maker thumbnail listings on shared public visibility filters", () => {

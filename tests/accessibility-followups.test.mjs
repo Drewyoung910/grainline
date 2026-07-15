@@ -407,7 +407,8 @@ describe("accessibility follow-ups", () => {
     }
 
     assert.match(home, /data-home-hero/);
-    assert.match(home, /h-\[100svh\] min-h-\[clamp\(500px,100svh,680px\)\] max-h-\[900px\]/);
+    assert.match(home, /h-\[clamp\(570px,82svh,700px\)\]/);
+    assert.match(home, /sm:h-\[clamp\(600px,78svh,760px\)\]/);
     assert.match(home, /src="\/hero-maple-cabinets\.jpg"/);
     assert.match(home, /sizes="100vw"/);
     assert.match(home, /object-\[18%_center\]/);
@@ -417,7 +418,12 @@ describe("accessibility follow-ups", () => {
     assert.match(home, /<span className="block whitespace-nowrap">Buy quality\.<\/span>/);
     assert.match(home, /href="\/browse"[\s\S]*Browse the Workshop/);
     assert.match(home, /href="\/map"[\s\S]*Find Makers Near You/);
-    assert.doesNotMatch(home, /HeroMosaic|mosaicListings|getPopularListingTags|<SearchBar|Trending:|pieces listed|orders fulfilled/);
+    assert.doesNotMatch(home, /HeroMosaic|mosaicListings|getPopularListingTags|<SearchBar|Trending:/);
+    assert.match(home, /data-home-stats/);
+    assert.match(home, /aria-label="Grainline marketplace statistics"/);
+    assert.match(home, /<dl\b/);
+    assert.equal((home.match(/<dt\b/g) ?? []).length, 4);
+    assert.equal((home.match(/<dd\b/g) ?? []).length, 4);
     assert.match(searchBar, /role="search"/);
     assert.match(searchBar, /aria-label="Search Grainline"/);
     assert.match(searchBar, /min-h-\[46px\]/);

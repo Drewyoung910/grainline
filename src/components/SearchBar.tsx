@@ -39,7 +39,13 @@ function humanizeTag(raw: string): string {
   return raw.replace(/[-_]+/g, " ").trim();
 }
 
-export default function SearchBar({ autoFocus = false }: { autoFocus?: boolean }) {
+export default function SearchBar({
+  autoFocus = false,
+  overlay = false,
+}: {
+  autoFocus?: boolean;
+  overlay?: boolean;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -335,7 +341,13 @@ export default function SearchBar({ autoFocus = false }: { autoFocus?: boolean }
         <label htmlFor={searchInputId} className="sr-only">
           Search Grainline
         </label>
-        <div className="flex min-h-[46px] items-stretch overflow-hidden rounded-md border border-neutral-200 bg-white/90 shadow-sm transition-[border-color,box-shadow,background-color] focus-within:border-neutral-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-neutral-900/10">
+        <div
+          className={`flex min-h-[46px] items-stretch overflow-hidden rounded-2xl border shadow-sm transition-[border-color,box-shadow,background-color] ${
+            overlay
+              ? "border-white/25 bg-[#F7F5F0]/42 backdrop-blur-lg focus-within:border-white/45 focus-within:bg-[#F7F5F0]/60 focus-within:ring-2 focus-within:ring-white/20"
+              : "border-neutral-200 bg-white/90 focus-within:border-neutral-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-neutral-900/10"
+          }`}
+        >
           <button
             type="submit"
             aria-label="Search"
@@ -390,7 +402,7 @@ export default function SearchBar({ autoFocus = false }: { autoFocus?: boolean }
         <ul
           id={searchListboxId}
           role="listbox"
-          className={`absolute left-0 right-0 top-full z-[60] mt-2 max-h-[min(28rem,calc(100dvh-9rem))] overflow-y-auto overscroll-contain rounded-lg border border-stone-200/60 bg-white text-neutral-900 shadow-lg motion-reduce:animate-none ${closing ? "animate-search-pop-out pointer-events-none" : "animate-search-pop-in"}`}
+          className={`absolute left-0 right-0 top-full z-[60] mt-2 max-h-[min(28rem,calc(100dvh-9rem))] overflow-y-auto overscroll-contain rounded-xl border border-stone-200/60 bg-white/95 text-neutral-900 shadow-lg backdrop-blur-lg motion-reduce:animate-none ${closing ? "animate-search-pop-out pointer-events-none" : "animate-search-pop-in"}`}
         >
           {options.map((option, index) => (
             <React.Fragment key={option.key}>

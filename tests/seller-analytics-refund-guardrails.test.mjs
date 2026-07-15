@@ -42,6 +42,14 @@ describe("seller analytics refund guardrails", () => {
     assert.doesNotMatch(recentSales, /OrderPaymentEvent/);
   });
 
+  it("keeps homepage fulfilled-order statistics on the Prisma blocking refund helper", () => {
+    const homepageStats = source("src/lib/homepageStats.ts");
+
+    assert.match(homepageStats, /sellerRefundId: null/);
+    assert.match(homepageStats, /paymentEvents: \{ none: blockingRefundLedgerWhere\(\) \}/);
+    assert.match(homepageStats, /fulfillmentStatus: \{ in: \["DELIVERED", "PICKED_UP"\] \}/);
+  });
+
   it("keeps first-party partial refunds visible to Guild sales filters", () => {
     const helper = source("src/lib/localRefundEvidenceCore.ts");
     const sellerRefundRoute = source("src/app/api/orders/[id]/refund/route.ts");
