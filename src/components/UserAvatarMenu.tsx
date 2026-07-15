@@ -133,13 +133,13 @@ export default function UserAvatarMenu({
   const displayName = name ?? "Account";
   const isAdmin = role === "ADMIN" || role === "EMPLOYEE";
   const accountSurfaceClass = overlay
-    ? "border border-white/25 bg-[#F7F5F0]/[0.78] ring-1 ring-white/20 backdrop-blur-xl"
+    ? "border border-white/30 bg-[#F7F5F0]/58 ring-1 ring-white/20 backdrop-blur-xl"
     : "ring-1 ring-black/5 bg-white";
   const accountHeaderClass = overlay
-    ? "border-b border-white/25 bg-[#EFEAE0]/45"
+    ? "border-b border-[#2C1F1A]/[0.12] bg-[#EFEAE0]/30"
     : "bg-[#EFEAE0] border-b border-stone-200/60";
   const accountItemHoverClass = overlay
-    ? "hover:bg-white/25"
+    ? "hover:bg-white/20"
     : "hover:bg-neutral-50";
   const accountSeparatorClass = overlay
     ? "border-[#2C1F1A]/10"

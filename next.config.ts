@@ -72,6 +72,11 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
+  images: {
+    // Keep responsive image optimization while preserving fine wood grain in
+    // the full-bleed homepage photograph. Other images retain quality 75.
+    qualities: [75, 88],
+  },
   async headers() {
     return [
       {

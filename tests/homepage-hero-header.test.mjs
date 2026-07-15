@@ -18,15 +18,17 @@ function openingTagWith(text, marker) {
 describe("homepage hero and header contracts", () => {
   it("ships one optimized local cabinet photograph as the decorative hero", () => {
     const home = source("src/app/page.tsx");
+    const nextConfig = source("next.config.ts");
     const asset = statSync("public/hero-maple-cabinets.jpg");
 
     assert.ok(asset.size > 100_000, "hero asset should contain the full-resolution photograph");
     assert.ok(asset.size < 1_500_000, "hero asset should stay reasonably compressed before Next image optimization");
     assert.equal((home.match(/src="\/hero-maple-cabinets\.jpg"/g) ?? []).length, 1);
     assert.match(home, /import Image from "next\/image"/);
-    assert.match(home, /src="\/hero-maple-cabinets\.jpg"[\s\S]*alt=""[\s\S]*aria-hidden="true"[\s\S]*fill[\s\S]*preload[\s\S]*sizes="100vw"/);
-    assert.match(home, /object-\[18%_58%\][\s\S]*sm:object-\[26%_58%\][\s\S]*md:object-\[35%_58%\][\s\S]*lg:object-\[center_58%\]/);
-    assert.match(home, /h-\[clamp\(570px,82svh,700px\)\]/);
+    assert.match(home, /src="\/hero-maple-cabinets\.jpg"[\s\S]*alt=""[\s\S]*aria-hidden="true"[\s\S]*fill[\s\S]*preload[\s\S]*quality=\{88\}[\s\S]*sizes="\(max-width: 639px\) 150vw, 100vw"/);
+    assert.match(nextConfig, /images:\s*\{[\s\S]*qualities: \[75, 88\]/);
+    assert.match(home, /object-\[28%_58%\][\s\S]*sm:object-\[26%_58%\][\s\S]*md:object-\[35%_58%\][\s\S]*lg:object-\[center_58%\]/);
+    assert.match(home, /h-\[clamp\(520px,68svh,600px\)\]/);
     assert.match(home, /sm:h-\[clamp\(600px,78svh,760px\)\]/);
     assert.match(home, /text-\[clamp\(2\.125rem,10\.5vw,4rem\)\]/);
     assert.match(home, /sm:text-\[clamp\(3\.5rem,7vw,4\.75rem\)\]/);
@@ -44,8 +46,11 @@ describe("homepage hero and header contracts", () => {
     assert.match(header, /isHome \? "absolute inset-x-0 top-0 bg-transparent" : "relative bg-\[#F7F5F0\]"/);
     assert.match(header, /data-home-overlay=\{isHome \? "true" : undefined\}/);
     assert.match(header, /data-home-logo-mark/);
+    assert.equal((header.match(/data-home-logo-mark/g) ?? []).length, 1);
     assert.equal((header.match(/src="\/logo-espresso\.svg"/g) ?? []).length, 2);
     assert.match(globals, /\.hero-logo-mark \{[\s\S]*background-color: #E5DFD2;[\s\S]*mask: url\("\/logo\.svg"\) center \/ contain no-repeat;/);
+    assert.doesNotMatch(globals, /\.hero-logo-mark \{[^}]*display:\s*block/);
+    assert.match(header, /hero-logo-mark block h-5 w-\[92px\][^"\n]*lg:h-8 lg:w-\[148px\]/);
     assert.match(header, /aria-label="Grainline home"/);
     assert.match(header, /rounded-2xl border border-white\/25 bg-\[#F7F5F0\]\/38/);
     assert.match(header, /rounded-2xl border border-white\/20 bg-\[#F7F5F0\]\/32/);
@@ -106,17 +111,24 @@ describe("homepage hero and header contracts", () => {
 
     for (const text of [bell, account]) {
       assert.match(text, /overlay = false/);
-      assert.match(text, /bg-\[#F7F5F0\]\/\[0\.78\]/);
+      assert.match(text, /border border-white\/30 bg-\[#F7F5F0\]\/58/);
       assert.match(text, /backdrop-blur-xl/);
+      assert.match(text, /bg-\[#EFEAE0\]\/30/);
+      assert.match(text, /hover:bg-white\/20/);
       assert.match(text, /ring-1 ring-black\/5 bg-white/);
     }
     assert.match(bell, /data-home-notification-surface=\{overlay \? "true" : undefined\}/);
     assert.match(account, /data-home-account-surface=\{overlay \? "true" : undefined\}/);
     assert.match(header, /data-home-menu-surface=\{isHome \? "true" : undefined\}/);
-    assert.match(header, /bg-\[#F7F5F0\]\/\[0\.78\][\s\S]*backdrop-blur-xl/);
-    assert.match(header, /from-\[#F7F5F0\]\/90 via-\[#F7F5F0\]\/55/);
+    assert.match(header, /bg-\[#F7F5F0\]\/58[\s\S]*backdrop-blur-xl/);
+    assert.match(header, /from-\[#F7F5F0\]\/70 via-\[#F7F5F0\]\/35/);
     assert.match(header, /bg-\[#F7F5F0\] ring-1 ring-black\/5/);
     assert.doesNotMatch(header, /fixed inset-0[^\n]*backdrop-blur/);
+    assert.match(bell, /border-l-\[3px\] border-amber-200 bg-amber-50\/80/);
+    assert.match(bell, /border-l-\[3px\] border-transparent/);
+    assert.match(bell, /font-semibold text-amber-700/);
+    assert.match(bell, /<span className="sr-only">Unread: <\/span>/);
+    assert.match(bell, /notificationMutedTextClass[\s\S]*\? "text-neutral-800"/);
   });
 
   it("keeps site search visually quiet without weakening its interaction contract", () => {

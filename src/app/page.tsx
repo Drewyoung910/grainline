@@ -530,7 +530,7 @@ export default async function HomePage() {
       {/* ── Hero ────────────────────────────────────────────────────────── */}
       <section
         data-home-hero
-        className="relative isolate h-[clamp(570px,82svh,700px)] overflow-hidden bg-[#18201f] sm:h-[clamp(600px,78svh,760px)]"
+        className="relative isolate h-[clamp(520px,68svh,600px)] overflow-hidden bg-[#18201f] sm:h-[clamp(600px,78svh,760px)]"
       >
         <Image
           src="/hero-maple-cabinets.jpg"
@@ -538,8 +538,9 @@ export default async function HomePage() {
           aria-hidden="true"
           fill
           preload
-          sizes="100vw"
-          className="object-cover object-[18%_58%] sm:object-[26%_58%] md:object-[35%_58%] lg:object-[center_58%]"
+          quality={88}
+          sizes="(max-width: 639px) 150vw, 100vw"
+          className="object-cover object-[28%_58%] sm:object-[26%_58%] md:object-[35%_58%] lg:object-[center_58%]"
         />
         <div
           className="absolute inset-0 bg-[linear-gradient(90deg,rgba(10,16,15,0.9)_0%,rgba(10,16,15,0.76)_46%,rgba(10,16,15,0.3)_76%,rgba(10,16,15,0.08)_100%)] lg:bg-[linear-gradient(90deg,rgba(10,16,15,0.86)_0%,rgba(10,16,15,0.68)_28%,rgba(10,16,15,0.18)_55%,rgba(10,16,15,0.02)_76%)]"

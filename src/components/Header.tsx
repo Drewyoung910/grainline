@@ -19,7 +19,9 @@ import { avatarInitial } from "@/lib/avatarInitials";
 export default function Header() {
   const pathname = usePathname();
   const isHome = pathname === "/";
-  const drawerItemHover = isHome ? "hover:bg-white/25" : "hover:bg-[#EFEAE0]";
+  const drawerItemHover = isHome ? "hover:bg-white/20" : "hover:bg-[#EFEAE0]";
+  const drawerSectionText = isHome ? "text-neutral-700" : "text-neutral-400";
+  const drawerIconText = isHome ? "text-neutral-700" : "text-neutral-500";
   const searchParams = useSearchParams();
   const { signOut, openUserProfile } = useClerk();
   // Clerk auth state — used to re-fetch /api/me when the session appears or
@@ -316,18 +318,11 @@ export default function Header() {
           aria-label="Grainline home"
         >
           {isHome ? (
-            <>
-              <span
-                aria-hidden="true"
-                data-home-logo-mark
-                className="hero-logo-mark h-5 w-[92px] min-[360px]:h-6 min-[360px]:w-[111px] sm:h-7 sm:w-[129px] lg:hidden"
-              />
-              <span
-                aria-hidden="true"
-                data-home-logo-mark
-                className="hero-logo-mark hidden h-8 w-[148px] lg:block"
-              />
-            </>
+            <span
+              aria-hidden="true"
+              data-home-logo-mark
+              className="hero-logo-mark block h-5 w-[92px] min-[360px]:h-6 min-[360px]:w-[111px] sm:h-7 sm:w-[129px] lg:h-8 lg:w-[148px]"
+            />
           ) : (
             <>
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -567,7 +562,7 @@ export default function Header() {
             }}
             className={`fixed right-3 top-14 z-[1001] flex w-64 max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-4.5rem)] flex-col overflow-hidden overscroll-contain rounded-2xl shadow-2xl outline-none motion-reduce:animate-none ${
               isHome
-                ? "border border-white/25 bg-[#F7F5F0]/[0.78] ring-1 ring-white/20 backdrop-blur-xl"
+                ? "border border-white/30 bg-[#F7F5F0]/58 ring-1 ring-white/20 backdrop-blur-xl"
                 : "bg-[#F7F5F0] ring-1 ring-black/5"
             } ${
               drawerClosing ? "animate-menu-out pointer-events-none" : "animate-menu-in"
@@ -579,7 +574,7 @@ export default function Header() {
             <div
               className={`flex items-center justify-between border-b pl-5 pr-2 py-1 ${
                 isHome
-                  ? "border-[#2C1F1A]/10 bg-[#EFEAE0]/45"
+                  ? "border-[#2C1F1A]/[0.12] bg-[#EFEAE0]/30"
                   : "border-stone-200/60 bg-[#EFEAE0]"
               }`}
             >
@@ -603,7 +598,7 @@ export default function Header() {
                 onScroll={updateDrawerNavFade}
                 className="flex-1 overflow-y-auto overscroll-contain px-2 py-3"
               >
-                <div className="px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
+                <div className={`px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wider ${drawerSectionText}`}>
                   Explore
                 </div>
                 <Link
@@ -611,7 +606,7 @@ export default function Header() {
                   className={`flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 ${drawerItemHover}`}
                   onClick={closeDrawer}
                 >
-                  <Search size={18} className="text-neutral-500" />
+                  <Search size={18} className={drawerIconText} />
                   Browse
                 </Link>
                 <Link
@@ -619,7 +614,7 @@ export default function Header() {
                   className={`flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 ${drawerItemHover}`}
                   onClick={closeDrawer}
                 >
-                  <Edit size={18} className="text-neutral-500" />
+                  <Edit size={18} className={drawerIconText} />
                   Blog
                 </Link>
                 <Link
@@ -627,12 +622,12 @@ export default function Header() {
                   className={`flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 ${drawerItemHover}`}
                   onClick={closeDrawer}
                 >
-                  <Hammer size={18} className="text-neutral-500" />
+                  <Hammer size={18} className={drawerIconText} />
                   Commission Room
                 </Link>
 
                 <Show when="signed-in">
-                  <div className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
+                  <div className={`px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider ${drawerSectionText}`}>
                     Your account
                   </div>
 
@@ -641,7 +636,7 @@ export default function Header() {
                     className={`flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 ${drawerItemHover}`}
                     onClick={closeDrawer}
                   >
-                    <User size={18} className="text-neutral-500" />
+                    <User size={18} className={drawerIconText} />
                     My Account
                   </Link>
 
@@ -651,7 +646,7 @@ export default function Header() {
                     className={`flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 ${drawerItemHover}`}
                     onClick={closeDrawer}
                   >
-                    <MessageCircle size={18} className="text-neutral-500" />
+                    <MessageCircle size={18} className={drawerIconText} />
                     Messages
                   </Link>
 
@@ -661,7 +656,7 @@ export default function Header() {
                     className={`flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 ${drawerItemHover}`}
                     onClick={closeDrawer}
                   >
-                    <Rss size={18} className="text-neutral-500" />
+                    <Rss size={18} className={drawerIconText} />
                     Your Feed
                   </Link>
 
@@ -672,7 +667,7 @@ export default function Header() {
                       className={`flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 ${drawerItemHover}`}
                       onClick={closeDrawer}
                     >
-                      <Store size={18} className="text-neutral-500" />
+                      <Store size={18} className={drawerIconText} />
                       Workshop
                     </Link>
                   ) : (
@@ -681,7 +676,7 @@ export default function Header() {
                       className={`flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] font-medium text-neutral-900 ${drawerItemHover}`}
                       onClick={closeDrawer}
                     >
-                      <Store size={18} className="text-neutral-500" />
+                      <Store size={18} className={drawerIconText} />
                       Start Selling
                     </Link>
                   )}
@@ -693,7 +688,7 @@ export default function Header() {
                       className={`flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 ${drawerItemHover}`}
                       onClick={closeDrawer}
                     >
-                      <Shield size={18} className="text-neutral-500" />
+                      <Shield size={18} className={drawerIconText} />
                       Admin
                     </Link>
                   )}
@@ -716,7 +711,7 @@ export default function Header() {
                   aria-hidden="true"
                   className={`pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t to-transparent ${
                     isHome
-                      ? "from-[#F7F5F0]/90 via-[#F7F5F0]/55"
+                      ? "from-[#F7F5F0]/70 via-[#F7F5F0]/35"
                       : "from-[#F7F5F0] via-[#F7F5F0]/75"
                   }`}
                 />
@@ -728,7 +723,7 @@ export default function Header() {
               <div
                 className={`border-t px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] ${
                   isHome
-                    ? "border-[#2C1F1A]/10 bg-[#F7F5F0]/50"
+                    ? "border-[#2C1F1A]/[0.12] bg-[#F7F5F0]/38"
                     : "border-stone-200/60 bg-white"
                 }`}
               >
@@ -756,7 +751,7 @@ export default function Header() {
                   type="button"
                   onClick={handleOpenUserProfile}
                   className={`flex min-h-[44px] w-full items-center rounded-md px-3 py-2 text-sm text-neutral-700 ${
-                    isHome ? "hover:bg-white/25" : "hover:bg-[#F7F5F0]"
+                    isHome ? "hover:bg-white/20" : "hover:bg-[#F7F5F0]"
                   }`}
                 >
                   Manage Account

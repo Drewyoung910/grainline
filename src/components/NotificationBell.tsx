@@ -387,22 +387,25 @@ export default function NotificationBell({
   };
 
   const notificationSurfaceClass = overlay
-    ? "border border-white/25 bg-[#F7F5F0]/[0.78] ring-1 ring-white/20 backdrop-blur-xl"
+    ? "border border-white/30 bg-[#F7F5F0]/58 ring-1 ring-white/20 backdrop-blur-xl"
     : "ring-1 ring-black/5 bg-white";
   const notificationHeaderClass = overlay
-    ? "border-b border-white/25 bg-[#EFEAE0]/45"
+    ? "border-b border-[#2C1F1A]/[0.12] bg-[#EFEAE0]/30"
     : "bg-[#EFEAE0] border-b border-stone-200/60";
   const notificationDividerClass = overlay
     ? "divide-[#2C1F1A]/10"
     : "divide-neutral-100";
   const notificationRowHoverClass = overlay
-    ? "hover:bg-white/25"
+    ? "hover:bg-white/20"
     : "hover:bg-neutral-50";
   const notificationUnreadClass = overlay
-    ? "bg-[#EFEAE0]/35"
+    ? "border-l-[3px] border-amber-200 bg-amber-50/80"
     : "bg-[#EFEAE0]/50";
+  const notificationReadClass = overlay
+    ? "border-l-[3px] border-transparent"
+    : "";
   const notificationMutedTextClass = overlay
-    ? "text-neutral-600"
+    ? "text-neutral-800"
     : "text-neutral-500";
   const notificationFooterClass = overlay
     ? "border-t border-[#2C1F1A]/10"
@@ -464,12 +467,19 @@ export default function NotificationBell({
                     <button
                       onClick={() => markRead(n)}
                       className={`w-full text-left flex gap-3 px-4 py-3 ${notificationRowHoverClass} ${
-                        !n.read ? notificationUnreadClass : ""
+                        !n.read ? notificationUnreadClass : notificationReadClass
                       }`}
                     >
                       <Icon size={16} className={`mt-0.5 shrink-0 ${color}`} />
                       <div className="min-w-0 flex-1">
-                        <p className="text-[13px] font-medium leading-tight">{n.title}</p>
+                        <p
+                          className={`text-[13px] leading-tight ${
+                            overlay && !n.read ? "font-semibold text-amber-700" : "font-medium"
+                          }`}
+                        >
+                          {overlay && !n.read && <span className="sr-only">Unread: </span>}
+                          {n.title}
+                        </p>
                         <p className={`mt-0.5 truncate text-xs ${notificationMutedTextClass}`}>
                           {truncateText(n.body, 60)}
                         </p>

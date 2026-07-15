@@ -408,11 +408,12 @@ describe("accessibility follow-ups", () => {
     }
 
     assert.match(home, /data-home-hero/);
-    assert.match(home, /h-\[clamp\(570px,82svh,700px\)\]/);
+    assert.match(home, /h-\[clamp\(520px,68svh,600px\)\]/);
     assert.match(home, /sm:h-\[clamp\(600px,78svh,760px\)\]/);
     assert.match(home, /src="\/hero-maple-cabinets\.jpg"/);
-    assert.match(home, /sizes="100vw"/);
-    assert.match(home, /object-\[18%_58%\]/);
+    assert.match(home, /quality=\{88\}/);
+    assert.match(home, /sizes="\(max-width: 639px\) 150vw, 100vw"/);
+    assert.match(home, /object-\[28%_58%\]/);
     assert.match(home, /lg:object-\[center_58%\]/);
     assert.match(home, /<span className="block whitespace-nowrap">Buy handmade\.<\/span>/);
     assert.match(home, /<span className="block whitespace-nowrap">Buy local\.<\/span>/);
