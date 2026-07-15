@@ -1,36 +1,30 @@
 // src/app/page.tsx
 import Link from "next/link";
+import Image from "next/image";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import { auth } from "@clerk/nextjs/server";
 import { unstable_cache } from "next/cache";
-import { Suspense } from "react";
 import MakersMapSection from "@/components/MakersMapSection";
-import SearchBar from "@/components/SearchBar";
 import { ScrollSection } from "@/components/ScrollSection";
 import GuildBadge from "@/components/GuildBadge";
 import FoundingMakerBadge from "@/components/FoundingMakerBadge";
 import { Armchair, Utensils, Candle, Toy, Box, Gift, TreePine, Palette, MapPin } from "@/components/icons";
 import ClickTracker from "@/components/ClickTracker";
-import HeroMosaic from "@/components/HeroMosaic";
 import ListingCard from "@/components/ListingCard";
 import MediaImage from "@/components/MediaImage";
 import { truncateText, truncateTextWithEllipsis } from "@/lib/sanitize";
 import SaveBlogButton from "@/components/SaveBlogButton";
 import { getBlockedIdsFor } from "@/lib/blocks";
-import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
 import ScrollFadeRow from "@/components/ScrollFadeRow";
 import { safeJsonLd } from "@/lib/json-ld";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
-import { paidStripeOrderWhere } from "@/lib/orderTrust";
-import { isTrustedMediaUrl } from "@/lib/urlValidation";
-import { getPopularListingTags } from "@/lib/popularTags";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { getCachedPublicSellerStats } from "@/lib/publicSellerStats";
 import FollowButton from "@/components/FollowButton";
-import { publicListingPath, publicSellerPath, publicTagPath } from "@/lib/publicPaths";
+import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { avatarInitial } from "@/lib/avatarInitials";
 import { HOME_FEATURED_MAKER_CACHE_TAG } from "@/lib/searchCache";
 import { compareAccountFeedItemsDesc } from "@/lib/accountFeedCursor";
@@ -277,9 +271,6 @@ const CATEGORIES = [
   { key: "STORAGE",   label: "Gifts",         Icon: Gift      },
 ];
 
-const HERO_COLLAGE_MIN_PHOTOS = 8;
-const HERO_COLLAGE_PHOTO_COUNT = 10;
-
 export default async function HomePage() {
   const { userId } = await auth();
   let meDbId: string | null = null;
@@ -293,10 +284,7 @@ export default async function HomePage() {
     fresh,
     topSaved,
     mapRows,
-    trendingTagsRaw,
-    statsResults,
     recentBlogPosts,
-    mosaicListings,
     featuredMakerBlock,
   ] = await Promise.all([
     // New Arrivals: prefer last 30 days, fall back to newest if fewer than 12
@@ -341,22 +329,6 @@ export default async function HomePage() {
       orderBy: { id: "asc" },
       take: 200,
     }),
-    getPopularListingTags(5),
-    Promise.all([
-      prisma.listing.count({ where: publicListingWhere() }),
-      prisma.sellerProfile.count({
-        where: activeSellerProfileWhere({ listings: { some: publicListingWhere() } }),
-      }),
-      prisma.order.count({
-        where: {
-          ...paidStripeOrderWhere(),
-          sellerRefundId: null,
-          paymentEvents: { none: blockingRefundLedgerWhere() },
-          fulfillmentStatus: { in: ["DELIVERED", "PICKED_UP"] },
-        },
-      }),
-      prisma.user.count({ where: { banned: false, deletedAt: null } }),
-    ]),
     prisma.blogPost.findMany({
       where: publicBlogPostWhere({
         ...(blockedUserIds.size > 0 ? { authorId: { notIn: [...blockedUserIds] } } : {}),
@@ -372,35 +344,10 @@ export default async function HomePage() {
         sellerProfile: { select: { displayName: true, avatarImageUrl: true } },
       },
     }),
-    prisma.listing.findMany({
-      where: publicListingWhere(
-        blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {},
-      ),
-      orderBy: [{ qualityScore: "desc" }, { createdAt: "desc" }, { id: "desc" }],
-      take: 24,
-      select: {
-        id: true,
-        title: true,
-        photos: {
-          take: 1,
-          orderBy: { sortOrder: "asc" },
-          select: { url: true },
-        },
-      },
-    }),
     getFeaturedMakerBlock(blockedSellerIds),
   ]);
 
-  const [activeListingsCount, sellersCount, ordersCount, membersCount] = statsResults;
-  const trendingTags = trendingTagsRaw;
   const featuredMakers = featuredMakerBlock;
-
-  const mosaicPhotos: { url: string; listingId: string; title: string }[] = mosaicListings
-    .filter(l => l.photos.length > 0)
-    .map(l => ({ url: l.photos[0].url, listingId: l.id, title: l.title }))
-    .filter(item => isTrustedMediaUrl(item.url));
-  const heroCollagePhotos = mosaicPhotos.slice(0, HERO_COLLAGE_PHOTO_COUNT);
-  const hasHeroMosaic = heroCollagePhotos.length >= HERO_COLLAGE_MIN_PHOTOS;
 
   const mapPoints = mapRows
     .map((r) => ({
@@ -578,61 +525,48 @@ export default async function HomePage() {
       />
 
       {/* ── Hero ────────────────────────────────────────────────────────── */}
-      <section className="relative overflow-visible bg-[#F7F5F0]">
-        {hasHeroMosaic && <HeroMosaic photos={heroCollagePhotos} />}
-        {!hasHeroMosaic && (
-          <div className="absolute inset-0 bg-gradient-to-br from-amber-100 via-amber-50 to-[#F7F5F0]" aria-hidden="true" />
-        )}
-        <div className="relative z-40 mx-auto flex min-h-[520px] max-w-[1600px] items-center px-4 pb-20 pt-10 sm:min-h-[535px] sm:px-6 sm:pb-20 sm:pt-12 lg:min-h-[545px] lg:px-8">
-          <div className="relative isolate w-full min-w-0 max-w-[760px] space-y-5 text-left">
-            <span
-              className="pointer-events-none absolute -inset-x-4 -inset-y-5 -z-10 rounded-[1.5rem] bg-[#F7F5F0]/58 blur-xl sm:-inset-x-8 sm:-inset-y-7 lg:-inset-x-10"
-              aria-hidden="true"
-            />
-            <div className="flex">
-              <span
-                className="inline-flex items-center rounded-full bg-white/75 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-neutral-700 shadow-sm ring-1 ring-stone-200/70"
-              >
-                Made in the USA · Built in Texas
-              </span>
-            </div>
-            <h1 className="font-display text-[clamp(2.2rem,5vw,5.35rem)] font-bold leading-[0.98] text-neutral-950">
-              <span className="block sm:whitespace-nowrap">Buy handmade.</span>
-              <span className="block sm:whitespace-nowrap">Buy local.</span>
-              <span className="block sm:whitespace-nowrap">Buy quality.</span>
+      <section
+        data-home-hero
+        className="relative isolate h-[100svh] min-h-[clamp(500px,100svh,680px)] max-h-[900px] overflow-hidden bg-[#18201f]"
+      >
+        <Image
+          src="/hero-maple-cabinets.jpg"
+          alt=""
+          aria-hidden="true"
+          fill
+          preload
+          sizes="100vw"
+          className="object-cover object-[18%_center] sm:object-[26%_center] md:object-[35%_center] lg:object-center"
+        />
+        <div
+          className="absolute inset-0 bg-[linear-gradient(90deg,rgba(10,16,15,0.9)_0%,rgba(10,16,15,0.76)_46%,rgba(10,16,15,0.3)_76%,rgba(10,16,15,0.08)_100%)] lg:bg-[linear-gradient(90deg,rgba(10,16,15,0.86)_0%,rgba(10,16,15,0.68)_28%,rgba(10,16,15,0.18)_55%,rgba(10,16,15,0.02)_76%)]"
+          aria-hidden="true"
+        />
+        <div
+          className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,10,9,0.28)_0%,rgba(6,10,9,0)_30%,rgba(6,10,9,0)_72%,rgba(6,10,9,0.22)_100%)]"
+          aria-hidden="true"
+        />
+
+        <div className="relative z-10 mx-auto flex h-full max-w-[1600px] items-center px-4 pb-16 pt-28 sm:px-6 sm:pb-20 sm:pt-32 lg:px-8 lg:pb-16 lg:pt-28">
+          <div className="w-full max-w-[630px] text-left text-[#F7F1E6]">
+            <h1 className="font-display text-[clamp(2.25rem,11.5vw,4.5rem)] font-semibold leading-[0.96] drop-shadow-[0_2px_18px_rgba(0,0,0,0.24)] sm:text-[clamp(4rem,8vw,5.25rem)] lg:text-[clamp(4.5rem,5.6vw,5.75rem)]">
+              <span className="block whitespace-nowrap">Buy handmade.</span>
+              <span className="block whitespace-nowrap">Buy local.</span>
+              <span className="block whitespace-nowrap">Buy quality.</span>
             </h1>
-
-            <div className="max-w-xl">
-              <Suspense>
-                <SearchBar />
-              </Suspense>
-            </div>
-
-            {trendingTags.length > 0 && (
-              <div className="flex flex-wrap gap-2 pt-1">
-                <span className="self-center text-xs text-neutral-600">Trending:</span>
-                {trendingTags.map((tag) => (
-                  <Link
-                    key={tag}
-                    href={publicTagPath(tag)}
-                    className="rounded-full bg-white/80 px-3 py-1 text-xs font-medium text-neutral-700 shadow-sm ring-1 ring-stone-200/70 transition-colors hover:bg-white"
-                  >
-                    #{tag}
-                  </Link>
-                ))}
-              </div>
-            )}
-
-            <div className="flex flex-wrap gap-3 pt-2">
+            <p className="mt-6 max-w-md text-base leading-relaxed text-[#F7F1E6]/82 sm:text-lg">
+              One-of-a-kind pieces, made with care by independent woodworkers.
+            </p>
+            <div className="mt-8 flex max-w-[310px] flex-col gap-3 sm:max-w-none sm:flex-row">
               <Link
                 href="/browse"
-                className="inline-flex w-full items-center justify-center rounded-md bg-[#2C1F1A] px-6 py-3 text-sm font-medium text-white hover:bg-[#3A2A24] sm:w-auto"
+                className="inline-flex min-h-[46px] w-full items-center justify-center rounded-md bg-[#F7F5F0] px-6 py-3 text-sm font-semibold text-[#2C1F1A] shadow-sm transition-colors hover:bg-white sm:w-auto"
               >
                 Browse the Workshop
               </Link>
               <Link
                 href="/map"
-                className="inline-flex w-full items-center justify-center rounded-md border-2 border-[#2C1F1A] bg-white/55 px-6 py-3 text-sm font-medium text-[#2C1F1A] transition-colors hover:bg-[#2C1F1A] hover:text-white sm:w-auto"
+                className="inline-flex min-h-[46px] w-full items-center justify-center rounded-md border border-[#F7F1E6]/75 bg-black/10 px-6 py-3 text-sm font-semibold text-[#F7F1E6] backdrop-blur-[2px] transition-colors hover:bg-[#F7F5F0] hover:text-[#2C1F1A] sm:w-auto"
               >
                 Find Makers Near You
               </Link>
@@ -640,28 +574,6 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
-
-      {/* ── Stats bar ────────────────────────────────────────────────────── */}
-      <div className="relative z-30 -mt-8 px-4 sm:-mt-10 sm:px-6 lg:px-8">
-        <div className="mx-auto grid w-[calc(100%-2rem)] max-w-md grid-cols-4 rounded-lg bg-white/95 px-2 py-3 shadow-[0_18px_45px_rgba(28,25,23,0.12)] ring-1 ring-stone-200/70 backdrop-blur-sm sm:w-full sm:max-w-5xl sm:px-8 sm:py-4">
-          <div className="min-w-0 border-r border-stone-200/70 text-center">
-            <span className="block text-xl font-bold leading-none text-neutral-900 sm:text-2xl">{activeListingsCount.toLocaleString("en-US")}</span>
-            <span className="mt-1 block text-[10px] leading-tight text-neutral-600 sm:text-xs">pieces listed</span>
-          </div>
-          <div className="min-w-0 border-r border-stone-200/70 text-center">
-            <span className="block text-xl font-bold leading-none text-neutral-900 sm:text-2xl">{sellersCount.toLocaleString("en-US")}</span>
-            <span className="mt-1 block text-[10px] leading-tight text-neutral-600 sm:text-xs">active makers</span>
-          </div>
-          <div className="min-w-0 border-r border-stone-200/70 text-center">
-            <span className="block text-xl font-bold leading-none text-neutral-900 sm:text-2xl">{membersCount.toLocaleString("en-US")}</span>
-            <span className="mt-1 block text-[10px] leading-tight text-neutral-600 sm:text-xs">members</span>
-          </div>
-          <div className="min-w-0 text-center">
-            <span className="block text-xl font-bold leading-none text-neutral-900 sm:text-2xl">{ordersCount.toLocaleString("en-US")}</span>
-            <span className="mt-1 block text-[10px] leading-tight text-neutral-600 sm:text-xs">orders fulfilled</span>
-          </div>
-        </div>
-      </div>
 
       {/* ── Find Makers Near You ──────────────────────────────────────────── */}
       <ScrollSection className="py-14 sm:py-16">

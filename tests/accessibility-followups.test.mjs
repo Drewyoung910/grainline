@@ -228,16 +228,16 @@ describe("accessibility follow-ups", () => {
     }
   });
 
-  it("keeps decorative hero mosaic tiles non-interactive", () => {
-    const mosaic = source("src/components/HeroMosaic.tsx");
+  it("keeps the decorative homepage hero photograph non-interactive", () => {
+    const home = source("src/app/page.tsx");
 
-    assert.doesNotMatch(mosaic, /publicListingPath/);
-    assert.doesNotMatch(mosaic, /<a[\s\S]*tabIndex=\{-1\}[\s\S]*aria-hidden="true"/);
-    assert.doesNotMatch(mosaic, /"use client"/);
-    assert.doesNotMatch(mosaic, /useState|useEffect|onClick/);
-    assert.match(mosaic, /aria-hidden="true"/);
-    assert.match(mosaic, /key=\{`tile-\$\{item\.listingId\}-\$\{index\}`\}/);
-    assert.match(mosaic, /alt=""/);
+    assert.match(home, /import Image from "next\/image"/);
+    assert.match(home, /src="\/hero-maple-cabinets\.jpg"/);
+    assert.match(home, /alt=""/);
+    assert.match(home, /aria-hidden="true"/);
+    assert.match(home, /\sfill\s/);
+    assert.match(home, /\spreload\s/);
+    assert.doesNotMatch(home, /HeroMosaic|heroCollagePhotos|mosaicListings/);
   });
 
   it("uses stored listing photo alt text in browse list cards", () => {
@@ -387,9 +387,8 @@ describe("accessibility follow-ups", () => {
     }
   });
 
-  it("keeps homepage heading order and static hero collage auditable", () => {
+  it("keeps homepage heading order and the single-photo hero accessible", () => {
     const home = source("src/app/page.tsx");
-    const heroMosaic = source("src/components/HeroMosaic.tsx");
     const globals = source("src/app/globals.css");
     const searchBar = source("src/components/SearchBar.tsx");
     const makersMap = source("src/components/MakersMapSection.tsx");
@@ -407,50 +406,28 @@ describe("accessibility follow-ups", () => {
       assert.match(home, new RegExp(`<h2[^>]*>[\\s\\S]*?${heading}[\\s\\S]*?<\\/h2>`));
     }
 
-    assert.match(heroMosaic, /const HERO_TILE_CLASSES =/);
-    assert.match(heroMosaic, /col-start-1 col-span-3 row-start-1 row-span-2/);
-    assert.match(heroMosaic, /col-start-4 col-span-5 row-start-1 row-span-3/);
-    assert.match(heroMosaic, /col-start-1 col-span-4 row-start-3 row-span-4/);
-    assert.match(heroMosaic, /col-start-4 col-span-5 row-start-8 row-span-3/);
-    assert.match(heroMosaic, /hidden lg:block lg:col-start-10/);
-    assert.match(heroMosaic, /const HERO_TILE_SURFACE_CLASSES =/);
-    assert.match(heroMosaic, /absolute -left-1 -top-1 bottom-0 right-0/);
-    assert.match(heroMosaic, /absolute left-0 -right-1 top-0 bottom-0/);
-    assert.match(heroMosaic, /relative min-h-0/);
-    assert.match(heroMosaic, /grid-cols-8 grid-rows-\[repeat\(10,minmax\(0,1fr\)\)\] gap-1\.5/);
-    assert.match(heroMosaic, /lg:grid-cols-12 lg:grid-rows-6 lg:gap-2\.5/);
-    assert.match(heroMosaic, /bottom-0/);
-    assert.match(heroMosaic, /rounded-lg bg-\[#F7F5F0\]/);
-    assert.doesNotMatch(heroMosaic, /ring-\[6px\]|shadow-\[0_8px_22px/);
-    assert.match(heroMosaic, /loading=\{index < 5 \? "eager" : "lazy"\}/);
-    assert.match(heroMosaic, /fetchPriority=\{index < 3 \? "high" : "auto"\}/);
-    assert.match(heroMosaic, /rgba\(247,245,240,0\)_100%/);
-    assert.doesNotMatch(heroMosaic, /animate-scroll|animationPlayState|Math\.random|aria-pressed/);
-    assert.doesNotMatch(heroMosaic, /bg-gradient-to-b from-\[#F7F5F0\]|bg-gradient-to-t from-\[#F7F5F0\]/);
-    assert.match(home, /const HERO_COLLAGE_MIN_PHOTOS = 8/);
-    assert.match(home, /const HERO_COLLAGE_PHOTO_COUNT = 10/);
-    assert.match(home, /const hasHeroMosaic = heroCollagePhotos\.length >= HERO_COLLAGE_MIN_PHOTOS/);
-    assert.match(home, /<HeroMosaic photos=\{heroCollagePhotos\} \/>/);
-    assert.match(home, /<SearchBar \/>/);
-    assert.match(home, /<section className="relative overflow-visible bg-\[#F7F5F0\]">/);
-    assert.doesNotMatch(home, /<section className="relative isolate overflow-hidden bg-\[#F7F5F0\]">/);
-    assert.match(home, /relative z-40 mx-auto flex/);
-    assert.match(home, /<span className="block sm:whitespace-nowrap">Buy handmade\.<\/span>/);
-    assert.match(home, /<span className="block sm:whitespace-nowrap">Buy local\.<\/span>/);
-    assert.match(home, /<span className="block sm:whitespace-nowrap">Buy quality\.<\/span>/);
-    assert.match(home, /w-\[calc\(100%-2rem\)\] max-w-md grid-cols-4/);
-    assert.match(home, /sm:w-full sm:max-w-5xl/);
-    assert.match(home, /relative z-30 -mt-8 px-4 sm:-mt-10/);
-    assert.doesNotMatch(home, /relative z-30 -mt-8 bg-\[#F7F5F0\]/);
-    assert.doesNotMatch(home, /grid-cols-2 gap-x-2 gap-y-4/);
-    assert.match(searchBar, /className="relative ml-auto mr-auto w-full min-w-0 max-w-lg"/);
-    assert.match(searchBar, /className=\{`min-w-0 flex-1/);
+    assert.match(home, /data-home-hero/);
+    assert.match(home, /h-\[100svh\] min-h-\[clamp\(500px,100svh,680px\)\] max-h-\[900px\]/);
+    assert.match(home, /src="\/hero-maple-cabinets\.jpg"/);
+    assert.match(home, /sizes="100vw"/);
+    assert.match(home, /object-\[18%_center\]/);
+    assert.match(home, /lg:object-center/);
+    assert.match(home, /<span className="block whitespace-nowrap">Buy handmade\.<\/span>/);
+    assert.match(home, /<span className="block whitespace-nowrap">Buy local\.<\/span>/);
+    assert.match(home, /<span className="block whitespace-nowrap">Buy quality\.<\/span>/);
+    assert.match(home, /href="\/browse"[\s\S]*Browse the Workshop/);
+    assert.match(home, /href="\/map"[\s\S]*Find Makers Near You/);
+    assert.doesNotMatch(home, /HeroMosaic|mosaicListings|getPopularListingTags|<SearchBar|Trending:|pieces listed|orders fulfilled/);
+    assert.match(searchBar, /role="search"/);
+    assert.match(searchBar, /aria-label="Search Grainline"/);
+    assert.match(searchBar, /min-h-\[46px\]/);
+    assert.match(searchBar, /min-w-11/);
+    assert.match(searchBar, /className="min-w-0 flex-1/);
     assert.match(searchBar, /max-h-\[min\(28rem,calc\(100dvh-9rem\)\)\]/);
     assert.match(searchBar, /overflow-y-auto overscroll-contain/);
     assert.match(makersMap, /<section className="min-w-0">/);
     assert.match(makersMap, /lg:items-center/);
     assert.match(makersMap, /w-full min-w-0 flex-1/);
-    assert.doesNotMatch(home, /<SearchBar variant=\{hasHeroMosaic \? "glass" : "default"\} \/>/);
     assert.doesNotMatch(home, /animate-bounce motion-reduce:animate-none/);
     assert.match(globals, /@media \(prefers-reduced-motion: reduce\)/);
     assert.doesNotMatch(globals, /animate-scroll-left|animate-scroll-right|@keyframes scroll-left|@keyframes scroll-right/);

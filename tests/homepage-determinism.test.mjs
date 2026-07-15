@@ -11,7 +11,11 @@ describe("homepage deterministic query guardrails", () => {
     const home = source("src/app/page.tsx");
     const publicMapOptIn = home.indexOf("publicMapOptIn: true");
     const mapQueryStart = home.lastIndexOf("prisma.sellerProfile.findMany({", publicMapOptIn);
-    const mapQuery = home.slice(mapQueryStart, home.indexOf("getPopularListingTags(5)", mapQueryStart));
+    const mapQueryEnd = home.indexOf("prisma.blogPost.findMany({", mapQueryStart);
+
+    assert.notEqual(mapQueryStart, -1, "homepage map query should exist");
+    assert.notEqual(mapQueryEnd, -1, "homepage map query should end before the blog query");
+    const mapQuery = home.slice(mapQueryStart, mapQueryEnd);
 
     assert.match(mapQuery, /publicMapOptIn: true/);
     assert.ok(
@@ -20,19 +24,13 @@ describe("homepage deterministic query guardrails", () => {
     );
   });
 
-  it("applies viewer block filters to the homepage hero mosaic query", () => {
+  it("keeps the static homepage hero free of decoration-only database work", () => {
     const home = source("src/app/page.tsx");
-    const mosaicStart = home.indexOf("mosaicListings,");
-    assert.notEqual(mosaicStart, -1, "homepage mosaic query anchor should exist");
-    const mosaicQueryStart = home.indexOf("prisma.listing.findMany({", mosaicStart);
-    const mosaicQueryEnd = home.indexOf("getFeaturedMakerBlock(blockedSellerIds)", mosaicQueryStart);
-    assert.notEqual(mosaicQueryStart, -1, "homepage mosaic listing query should exist after the anchor");
-    assert.notEqual(mosaicQueryEnd, -1, "homepage mosaic query should end before featured maker fetch");
-    const mosaicQuery = home.slice(mosaicQueryStart, mosaicQueryEnd);
 
-    assert.match(mosaicQuery, /where: publicListingWhere\(\s*blockedSellerIds\.length > 0 \? \{ sellerId: \{ notIn: blockedSellerIds \} \} : \{\},\s*\)/);
-    assert.match(mosaicQuery, /orderBy: \[\{ qualityScore: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(mosaicQuery, /take: 24/);
+    assert.match(home, /src="\/hero-maple-cabinets\.jpg"/);
+    assert.doesNotMatch(home, /HeroMosaic|mosaicListings|heroCollagePhotos/);
+    assert.doesNotMatch(home, /getPopularListingTags|trendingTagsRaw|statsResults/);
+    assert.doesNotMatch(home, /prisma\.listing\.count|prisma\.user\.count|paidStripeOrderWhere/);
   });
 
   it("keeps featured maker thumbnail listings on shared public visibility filters", () => {

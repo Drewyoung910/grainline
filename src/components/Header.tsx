@@ -18,6 +18,7 @@ import { avatarInitial } from "@/lib/avatarInitials";
 
 export default function Header() {
   const pathname = usePathname();
+  const isHome = pathname === "/";
   const searchParams = useSearchParams();
   const { signOut, openUserProfile } = useClerk();
   // Clerk auth state — used to re-fetch /api/me when the session appears or
@@ -57,6 +58,7 @@ export default function Header() {
     };
   }, [drawerOpen, updateDrawerNavFade]);
   const drawerId = React.useId();
+  const mobileSearchId = React.useId();
   const cartCountRequestRef = React.useRef(0);
   const cartCountAbortRef = React.useRef<AbortController | null>(null);
   const notifCountRequestRef = React.useRef(0);
@@ -294,41 +296,76 @@ export default function Header() {
   }, [isLoggedIn, loadAnonymousCartCount, loadCartCount]);
 
   return (
-    <header className="bg-[#F7F5F0] text-neutral-900 relative z-[50]">
-      <nav aria-label="Main navigation" className="mx-auto max-w-[1600px] px-4 py-4 sm:px-6 lg:px-8 flex items-center gap-4 lg:gap-6">
+    <header
+      className={`${isHome ? "absolute inset-x-0 top-0 bg-transparent" : "relative bg-[#F7F5F0]"} z-[50] text-neutral-900`}
+      data-home-overlay={isHome ? "true" : undefined}
+    >
+      <nav
+        aria-label="Main navigation"
+        className={`mx-auto flex max-w-[1600px] items-center gap-2 px-3 sm:px-6 lg:gap-5 lg:px-8 ${
+          isHome
+            ? "pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] sm:pb-4 sm:pt-[calc(1rem+env(safe-area-inset-top))] lg:pb-5 lg:pt-[calc(1.25rem+env(safe-area-inset-top))]"
+            : "py-3 sm:py-4 lg:py-5"
+        }`}
+      >
         {/* Logo */}
-        <Link href="/" className="shrink-0 flex items-center min-h-[44px]" aria-label="Grainline home">
+        <Link
+          href="/"
+          className={`flex min-h-[44px] shrink-0 items-center ${isHome ? "drop-shadow-[0_2px_12px_rgba(0,0,0,0.28)]" : ""}`}
+          aria-label="Grainline home"
+        >
           {/* Mobile */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-espresso.svg" alt="Grainline" className="h-7 w-auto md:hidden" />
+          <img
+            src={isHome ? "/logo.svg" : "/logo-espresso.svg"}
+            alt="Grainline"
+            className="h-5 w-auto min-[360px]:h-6 sm:h-7 lg:hidden"
+          />
           {/* Desktop */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-espresso.svg" alt="Grainline" className="h-8 w-auto hidden md:block" />
+          <img
+            src={isHome ? "/logo.svg" : "/logo-espresso.svg"}
+            alt="Grainline"
+            className="hidden h-8 w-auto lg:block"
+          />
         </Link>
 
-        {/* Search bar — desktop only, fluid width with a larger cap so it
-            has real presence in the header. */}
-        <span className="hidden md:flex flex-1 max-w-[820px]">
-          <SearchBar />
-        </span>
+        {/* Search and navigation share one quiet floating surface on the
+            homepage. Other pages keep the same controls in normal flow. */}
+        <div
+          className={`hidden min-w-0 flex-1 items-center gap-3 lg:flex ${
+            isHome
+              ? "relative isolate p-2 pl-3"
+              : ""
+          }`}
+        >
+          {isHome && (
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 -z-10 rounded-lg border border-white/35 bg-[#F7F5F0]/88 shadow-[0_16px_50px_rgba(12,10,9,0.16)] backdrop-blur-xl"
+            />
+          )}
+          <span className="flex flex-1 max-w-[820px] min-w-[220px]">
+            <SearchBar />
+          </span>
 
-        {/* ── Desktop nav (md+) ────────────────────────────────────────── */}
-        <div className="ml-auto hidden md:flex items-center gap-2 lg:gap-3">
+          {/* ── Desktop nav (lg+) ──────────────────────────────────────── */}
+          <div className="ml-auto flex items-center gap-1 xl:gap-2">
           <Link
             href="/browse"
-            className="inline-flex items-center px-3 py-2 rounded-full text-sm font-medium text-neutral-900 hover:bg-black/10 hover:text-black transition-colors"
+            className="inline-flex items-center rounded-md px-2 py-2 text-sm font-medium text-neutral-900 transition-colors hover:bg-black/10 hover:text-black xl:px-3"
           >
             Browse
           </Link>
           <Link
             href="/blog"
-            className="inline-flex items-center px-3 py-2 rounded-full text-sm font-medium text-neutral-900 hover:bg-black/10 hover:text-black transition-colors"
+            className="inline-flex items-center rounded-md px-2 py-2 text-sm font-medium text-neutral-900 transition-colors hover:bg-black/10 hover:text-black xl:px-3"
           >
             Blog
           </Link>
           <Link
             href="/commission"
-            className="inline-flex items-center px-3 py-2 rounded-full text-sm font-medium text-neutral-900 hover:bg-black/10 hover:text-black transition-colors"
+            className="inline-flex items-center rounded-md px-2 py-2 text-sm font-medium text-neutral-900 transition-colors hover:bg-black/10 hover:text-black xl:px-3"
           >
             Commission Room
           </Link>
@@ -387,14 +424,29 @@ export default function Header() {
               hasSeller={hasSeller}
             />
           </Show>
+          </div>
         </div>
 
-        {/* ── Mobile right: search | bell | cart | hamburger (< md) ──────── */}
-        <div className="ml-auto flex items-center gap-1 md:hidden">
+        {/* ── Mobile/tablet right: search | bell | cart | menu (< lg) ───── */}
+        <div
+          className={`ml-auto flex items-center gap-0.5 lg:hidden ${
+            isHome
+              ? "relative isolate p-0.5"
+              : ""
+          }`}
+        >
+          {isHome && (
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 -z-10 rounded-lg border border-white/30 bg-[#F7F5F0]/88 shadow-[0_10px_32px_rgba(12,10,9,0.16)] backdrop-blur-xl"
+            />
+          )}
           {/* Search toggle */}
           <button
             onClick={() => setSearchOpen((o) => !o)}
             aria-label={searchOpen ? "Close search" : "Search"}
+            aria-expanded={searchOpen}
+            aria-controls={mobileSearchId}
             className="inline-flex items-center justify-center p-2 text-neutral-900 hover:bg-black/10 rounded-full min-h-[44px] min-w-[44px]"
           >
             {searchOpen ? <X size={20} /> : <Search size={20} />}
@@ -447,12 +499,15 @@ export default function Header() {
         <>
           {/* Transparent backdrop — click outside closes the bar */}
           <div
-            className="fixed inset-0 z-40 md:hidden"
+            className="fixed inset-0 z-40 lg:hidden"
             onClick={() => setSearchOpen(false)}
             aria-hidden="true"
           />
-          <div className="absolute top-full left-0 right-0 bg-[#F7F5F0] shadow-sm p-3 z-50 md:hidden animate-slide-down">
-            <SearchBar />
+          <div
+            id={mobileSearchId}
+            className="absolute left-0 right-0 top-full z-50 bg-[#F7F5F0] p-3 shadow-sm lg:hidden animate-slide-down"
+          >
+            <SearchBar autoFocus />
           </div>
         </>
       )}

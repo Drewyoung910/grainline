@@ -39,11 +39,12 @@ function humanizeTag(raw: string): string {
   return raw.replace(/[-_]+/g, " ").trim();
 }
 
-export default function SearchBar({ variant = "default" }: { variant?: "default" | "glass" }) {
+export default function SearchBar({ autoFocus = false }: { autoFocus?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const reactId = React.useId();
+  const searchInputId = `${reactId}-site-search-input`;
   const searchListboxId = `${reactId}-site-search-listbox`;
 
   const [value, setValue] = React.useState(searchParams.get("q") ?? "");
@@ -329,10 +330,21 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
     : undefined;
 
   return (
-    <div ref={containerRef} className="relative ml-auto mr-auto w-full min-w-0 max-w-lg">
-      <form onSubmit={handleSubmit}>
-        <div className={`flex items-stretch rounded-full border-2 overflow-hidden shadow-sm transition-shadow focus-within:shadow-md ${variant === "glass" ? "bg-white/15 backdrop-blur-sm border-white/40 focus-within:border-white/70" : "bg-white border-stone-400 focus-within:border-stone-600"}`}>
+    <div ref={containerRef} className="relative w-full min-w-0">
+      <form onSubmit={handleSubmit} role="search">
+        <label htmlFor={searchInputId} className="sr-only">
+          Search Grainline
+        </label>
+        <div className="flex min-h-[46px] items-stretch overflow-hidden rounded-md border border-neutral-200 bg-white/90 shadow-sm transition-[border-color,box-shadow,background-color] focus-within:border-neutral-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-neutral-900/10">
+          <button
+            type="submit"
+            aria-label="Search"
+            className="flex min-w-11 shrink-0 items-center justify-center rounded-none text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900"
+          >
+            <Search size={18} />
+          </button>
           <input
+            id={searchInputId}
             ref={inputRef}
             value={value}
             onChange={handleChange}
@@ -345,15 +357,18 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
                 openDropdown();
               }
             }}
-            placeholder="Search handmade goods…"
-            className={`min-w-0 flex-1 pl-4 pr-2 py-2 bg-transparent focus:outline-none focus-visible:outline-none focus-visible:shadow-none ${variant === "glass" ? "text-white placeholder:text-white/60" : "text-neutral-900 placeholder:text-neutral-500"}`}
+            placeholder="Search pieces, shops, and more…"
+            className="min-w-0 flex-1 bg-transparent py-2.5 pl-0 pr-2 text-neutral-900 placeholder:text-neutral-500 focus:outline-none focus-visible:outline-none focus-visible:shadow-none"
             autoComplete="off"
+            enterKeyHint="search"
             maxLength={MAX_SEARCH_QUERY_LENGTH}
             role="combobox"
+            aria-label="Search Grainline"
             aria-autocomplete="list"
             aria-expanded={open && !closing && options.length > 0}
             aria-controls={searchListboxId}
             aria-activedescendant={activeOptionId}
+            autoFocus={autoFocus}
           />
           {value.length > 0 && (
             <button
@@ -363,19 +378,11 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
               // opens in place instead of blurring the field.
               onMouseDown={(e) => e.preventDefault()}
               onClick={handleClear}
-              className={`flex items-center px-2 transition-colors ${variant === "glass" ? "text-white/70 hover:text-white" : "text-neutral-400 hover:text-neutral-700"}`}
+              className="flex min-w-11 items-center justify-center rounded-none text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
             >
               <X size={15} />
             </button>
           )}
-          <button
-            type="submit"
-            aria-label="Search"
-            style={{ borderRadius: 0 }}
-            className={`flex items-center justify-center px-4 rounded-none transition-colors shrink-0 ${variant === "glass" ? "bg-white/20 text-white hover:bg-white/30" : "bg-neutral-900 text-white hover:bg-neutral-800"}`}
-          >
-            <Search size={16} />
-          </button>
         </div>
       </form>
 
@@ -383,7 +390,7 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
         <ul
           id={searchListboxId}
           role="listbox"
-          className={`absolute left-0 right-0 top-full z-[60] mt-1 max-h-[min(28rem,calc(100dvh-9rem))] overflow-y-auto overscroll-contain rounded-xl border border-neutral-200 bg-white text-neutral-900 shadow-lg motion-reduce:animate-none ${closing ? "animate-search-pop-out pointer-events-none" : "animate-search-pop-in"}`}
+          className={`absolute left-0 right-0 top-full z-[60] mt-2 max-h-[min(28rem,calc(100dvh-9rem))] overflow-y-auto overscroll-contain rounded-lg border border-stone-200/60 bg-white text-neutral-900 shadow-lg motion-reduce:animate-none ${closing ? "animate-search-pop-out pointer-events-none" : "animate-search-pop-in"}`}
         >
           {options.map((option, index) => (
             <React.Fragment key={option.key}>

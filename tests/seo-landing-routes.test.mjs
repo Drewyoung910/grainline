@@ -46,7 +46,6 @@ describe("SEO landing route guardrails", () => {
     assert.match(source("src/components/BlogSearchBar.tsx"), /publicBlogAuthorPath\(s\.sellerProfileId, s\.label\)/);
     assert.match(source("src/app/blog/[slug]/page.tsx"), /publicBlogAuthorPath\(post\.sellerProfile\.id, authorName\)/);
     assert.match(source("src/app/listing/[id]/page.tsx"), /href=\{publicTagPath\(t\.toLowerCase\(\)\)\}/);
-    assert.match(source("src/app/page.tsx"), /href=\{publicTagPath\(tag\)\}/);
     assert.match(source("src/middleware.ts"), /"\/tag\(\.\*\)"/);
   });
 

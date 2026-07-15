@@ -46,7 +46,6 @@ describe("order trust metrics guardrails", () => {
   it("requires Prisma marketplace trust metrics to count only Stripe-backed paid orders", () => {
     const paths = [
       "src/app/api/seller/analytics/recent-sales/route.ts",
-      "src/app/page.tsx",
       "src/app/api/reviews/route.ts",
       "src/app/account/page.tsx",
       "src/components/ReviewsSection.tsx",
