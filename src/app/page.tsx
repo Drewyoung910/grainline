@@ -590,7 +590,7 @@ export default async function HomePage() {
       >
         <dl
           data-home-stats-surface
-          className="mx-auto grid w-full max-w-md -translate-y-1/2 grid-cols-4 divide-x divide-[#2C1F1A]/[0.12] rounded-2xl border border-white/30 bg-[#F7F5F0]/58 px-1 py-3 shadow-[0_18px_45px_rgba(28,25,23,0.14)] ring-1 ring-white/20 backdrop-blur-xl sm:max-w-5xl sm:px-5 sm:py-4"
+          className="mx-auto grid w-full max-w-md -translate-y-1/2 grid-cols-4 divide-x divide-[#2C1F1A]/[0.12] rounded-2xl border border-white/30 bg-[#F7F5F0]/46 px-1 py-3 shadow-[0_18px_45px_rgba(28,25,23,0.14)] ring-1 ring-white/20 backdrop-blur-xl sm:max-w-5xl sm:px-5 sm:py-4"
         >
           <div className="flex min-w-0 flex-col items-center justify-center px-1 text-center sm:px-4">
             <dt className="order-2 mt-1 text-[9px] leading-tight text-[#2C1F1A]/65 sm:text-xs">pieces listed</dt>

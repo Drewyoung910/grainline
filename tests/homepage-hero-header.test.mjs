@@ -56,8 +56,8 @@ describe("homepage hero and header contracts", () => {
     assert.doesNotMatch(globals, /\.hero-logo-mark \{[^}]*display:\s*block/);
     assert.match(header, /hero-logo-mark block h-5 w-\[92px\][^"\n]*lg:h-8 lg:w-\[148px\]/);
     assert.match(header, /aria-label="Grainline home"/);
-    assert.match(header, /rounded-2xl border border-white\/25 bg-\[#F7F5F0\]\/38/);
-    assert.match(header, /rounded-2xl border border-white\/20 bg-\[#F7F5F0\]\/32/);
+    assert.match(header, /rounded-2xl border border-white\/25 bg-\[#F7F5F0\]\/26/);
+    assert.match(header, /rounded-2xl border border-white\/20 bg-\[#F7F5F0\]\/22/);
     assert.match(header, /backdrop-blur-lg/);
     assert.match(header, /lg:gap-12/);
     assert.match(header, /xl:gap-16/);
@@ -150,8 +150,8 @@ describe("homepage hero and header contracts", () => {
     assert.match(search, /role="listbox"/);
     assert.match(search, /min-h-\[46px\]/);
     assert.match(search, /rounded-2xl border shadow-sm/);
-    assert.match(search, /border-white\/25 bg-\[#F7F5F0\]\/42 backdrop-blur-lg/);
-    assert.match(search, /focus-within:bg-\[#F7F5F0\]\/60/);
+    assert.match(search, /border-white\/25 bg-\[#F7F5F0\]\/34 backdrop-blur-lg/);
+    assert.match(search, /focus-within:bg-\[#F7F5F0\]\/48/);
     assert.match(search, /border-neutral-200 bg-white\/90/);
     assert.match(search, /border-white\/30 bg-\[#F7F5F0\]\/64 ring-1 ring-white\/20 backdrop-blur-xl/);
     assert.match(search, /border-stone-200\/60 bg-white\/95 backdrop-blur-lg/);
@@ -159,6 +159,8 @@ describe("homepage hero and header contracts", () => {
     assert.match(search, /w-full rounded-none px-4 py-2/);
     assert.match(search, /type="submit"[\s\S]*min-w-11[\s\S]*<Search size=\{18\}/);
     assert.match(search, /aria-label="Clear search"[\s\S]*min-w-11/);
+    assert.match(search, /group flex min-w-11[\s\S]*flex size-9 items-center justify-center rounded-full/);
+    assert.match(search, /group-hover:bg-white\/30[\s\S]*group-hover:bg-neutral-100/);
     assert.doesNotMatch(search, /variant === "glass"|bg-neutral-900 text-white|rounded-full border-2/);
     assert.match(search, /maxLength=\{MAX_SEARCH_QUERY_LENGTH\}/);
     assert.match(search, /encodeURIComponent\(normalized\)/);
@@ -178,7 +180,7 @@ describe("homepage hero and header contracts", () => {
     assert.match(home, /aria-label="Grainline marketplace statistics"/);
     assert.match(home, /className="relative z-30 h-0/);
     assert.match(home, /<dl[\s\S]{0,160}className="[^"]*-translate-y-1\/2/);
-    assert.match(statsSurface, /bg-\[#F7F5F0\]\/58/);
+    assert.match(statsSurface, /bg-\[#F7F5F0\]\/46/);
     assert.match(statsSurface, /rounded-2xl/);
     assert.match(statsSurface, /backdrop-blur-xl/);
     assert.doesNotMatch(statsSurface, /bg-white\/95|backdrop-blur-sm/);

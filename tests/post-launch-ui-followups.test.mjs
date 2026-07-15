@@ -603,6 +603,7 @@ describe("post-launch UI follow-ups", () => {
     const header = source("src/components/Header.tsx");
     const bell = source("src/components/NotificationBell.tsx");
     const messageIconLink = source("src/components/MessageIconLink.tsx");
+    const unreadBadge = source("src/components/UnreadBadge.tsx");
     // Cart and signed-out message icons in header now use the same hover
     // circle pattern as MessageIconLink.
     // Native title tooltips were replaced by the styled IconHoverTip labels
@@ -619,6 +620,11 @@ describe("post-launch UI follow-ups", () => {
     assert.match(header, /from-\[#F7F5F0\] via-\[#F7F5F0\]\/75/);
     assert.match(messageIconLink, /h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black\/10/);
     assert.match(bell, /h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black\/10/);
+    assert.match(bell, /<div className="relative flex" ref=\{containerRef\}>/);
+    for (const text of [header, bell, unreadBadge]) {
+      assert.match(text, /absolute -top-1 -right-1 inline-flex h-5 min-w-5/);
+    }
+    assert.match(header, /inner span is the 40×40 visible hover circle/);
     assert.match(bell, /"bg-\[#EFEAE0\] border-b border-stone-200\/60"/);
     assert.match(bell, /notificationUnreadClass[\s\S]*"bg-\[#EFEAE0\]\/50"/);
     assert.doesNotMatch(bell, /!n\.read \? "bg-amber-50" : ""/);

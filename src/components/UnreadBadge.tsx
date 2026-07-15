@@ -38,7 +38,7 @@ export default function UnreadBadge({
   return (
     <span
       aria-label={`${count} unread message${count === 1 ? "" : "s"}`}
-      className={`absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] leading-none text-white ${className}`}
+      className={`absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-medium leading-none text-white ${className}`}
     >
       <span aria-hidden="true">{count}</span>
     </span>

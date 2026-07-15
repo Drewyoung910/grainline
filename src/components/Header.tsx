@@ -354,7 +354,7 @@ export default function Header() {
           {isHome && (
             <span
               aria-hidden="true"
-              className="pointer-events-none absolute inset-0 -z-10 rounded-2xl border border-white/25 bg-[#F7F5F0]/38 shadow-[0_16px_50px_rgba(12,10,9,0.12)] backdrop-blur-lg"
+              className="pointer-events-none absolute inset-0 -z-10 rounded-2xl border border-white/25 bg-[#F7F5F0]/26 shadow-[0_16px_50px_rgba(12,10,9,0.12)] backdrop-blur-lg"
             />
           )}
           <span data-header-search-slot className="flex min-w-[220px] flex-1">
@@ -411,7 +411,7 @@ export default function Header() {
             <ShoppingBag size={22} />
             <IconHoverTip label="Cart" />
             {cartCount != null && cartCount > 0 && (
-              <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-medium leading-none text-white">
+              <span className="absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-medium leading-none text-white">
                 {cartCount}
               </span>
             )}
@@ -451,7 +451,7 @@ export default function Header() {
           {isHome && (
             <span
               aria-hidden="true"
-              className="pointer-events-none absolute inset-0 -z-10 rounded-2xl border border-white/20 bg-[#F7F5F0]/32 shadow-[0_10px_32px_rgba(12,10,9,0.12)] backdrop-blur-lg"
+              className="pointer-events-none absolute inset-0 -z-10 rounded-2xl border border-white/20 bg-[#F7F5F0]/22 shadow-[0_10px_32px_rgba(12,10,9,0.12)] backdrop-blur-lg"
             />
           )}
           {/* Search toggle */}
@@ -474,7 +474,7 @@ export default function Header() {
 
           {/* Cart — always visible. Two-layer structure mirrors
               NotificationBell + MessageIconLink: outer Link is the 44×44
-              tap target, inner span is the 36×36 visible hover circle.
+              tap target, inner span is the 40×40 visible hover circle.
               Badge is positioned -top-1 -right-1 on the inner span (NOT
               the outer Link) so all three mobile badges sit at the same
               vertical position in the header row. */}
@@ -483,7 +483,7 @@ export default function Header() {
             className="inline-flex items-center justify-center min-h-[44px] min-w-[44px]"
             aria-label="Cart"
           >
-            <span className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-900 hover:bg-black/10 transition-colors">
+            <span className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black/10 transition-colors">
               <ShoppingBag size={20} />
               {cartCount != null && cartCount > 0 && (
                 <span className="absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-medium leading-none text-white">

@@ -351,16 +351,25 @@ export default function SearchBar({
         <div
           className={`flex min-h-[46px] items-stretch overflow-hidden rounded-2xl border shadow-sm transition-[border-color,box-shadow,background-color] ${
             overlay
-              ? "border-white/25 bg-[#F7F5F0]/42 backdrop-blur-lg focus-within:border-white/45 focus-within:bg-[#F7F5F0]/60 focus-within:ring-2 focus-within:ring-white/20"
+              ? "border-white/25 bg-[#F7F5F0]/34 backdrop-blur-lg focus-within:border-white/45 focus-within:bg-[#F7F5F0]/48 focus-within:ring-2 focus-within:ring-white/20"
               : "border-neutral-200 bg-white/90 focus-within:border-neutral-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-neutral-900/10"
           }`}
         >
           <button
             type="submit"
             aria-label="Search"
-            className="flex min-w-11 shrink-0 items-center justify-center rounded-none text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900"
+            className="group flex min-w-11 shrink-0 items-center justify-center rounded-full text-neutral-500 transition-colors hover:text-neutral-900 focus-visible:outline-none"
           >
-            <Search size={18} />
+            <span
+              aria-hidden="true"
+              className={`flex size-9 items-center justify-center rounded-full transition-colors ${
+                overlay
+                  ? "group-hover:bg-white/30 group-active:bg-white/40 group-focus-visible:ring-2 group-focus-visible:ring-white/45"
+                  : "group-hover:bg-neutral-100 group-active:bg-neutral-200/70 group-focus-visible:ring-2 group-focus-visible:ring-neutral-900/20"
+              }`}
+            >
+              <Search size={18} />
+            </span>
           </button>
           <input
             id={searchInputId}
@@ -397,9 +406,18 @@ export default function SearchBar({
               // opens in place instead of blurring the field.
               onMouseDown={(e) => e.preventDefault()}
               onClick={handleClear}
-              className="flex min-w-11 items-center justify-center rounded-none text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
+              className="group flex min-w-11 items-center justify-center rounded-full text-neutral-400 transition-colors hover:text-neutral-700 focus-visible:outline-none"
             >
-              <X size={15} />
+              <span
+                aria-hidden="true"
+                className={`flex size-9 items-center justify-center rounded-full transition-colors ${
+                  overlay
+                    ? "group-hover:bg-white/30 group-active:bg-white/40 group-focus-visible:ring-2 group-focus-visible:ring-white/45"
+                    : "group-hover:bg-neutral-100 group-active:bg-neutral-200/70 group-focus-visible:ring-2 group-focus-visible:ring-neutral-900/20"
+                }`}
+              >
+                <X size={15} />
+              </span>
             </button>
           )}
         </div>

@@ -410,7 +410,7 @@ export default function NotificationBell({
     : "border-t border-neutral-100";
 
   return (
-    <div className="relative" ref={containerRef}>
+    <div className="relative flex" ref={containerRef}>
       <button
         onClick={handleOpen}
         className="group relative inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black/10 transition-colors"
