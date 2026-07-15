@@ -91,6 +91,16 @@
   letter-spacing: -0.025em;
 }
 
+/* Homepage-only logo treatment. A mask keeps the shared logo artwork intact
+   while giving the mark the hero's deeper cream without recoloring the asset
+   used by offline and account-state pages. */
+.hero-logo-mark {
+  display: block;
+  background-color: #E5DFD2;
+  -webkit-mask: url("/logo.svg") center / contain no-repeat;
+  mask: url("/logo.svg") center / contain no-repeat;
+}
+
 /* Base button rounding — placed in @layer base so Tailwind utilities in
    @layer utilities (e.g. .rounded-full, .rounded-lg) can override it without
    needing inline style hacks. */

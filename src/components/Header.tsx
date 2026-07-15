@@ -19,6 +19,7 @@ import { avatarInitial } from "@/lib/avatarInitials";
 export default function Header() {
   const pathname = usePathname();
   const isHome = pathname === "/";
+  const drawerItemHover = isHome ? "hover:bg-white/25" : "hover:bg-[#EFEAE0]";
   const searchParams = useSearchParams();
   const { signOut, openUserProfile } = useClerk();
   // Clerk auth state — used to re-fetch /api/me when the session appears or
@@ -304,7 +305,7 @@ export default function Header() {
         aria-label="Main navigation"
         className={`mx-auto flex max-w-[1600px] items-center gap-2 px-3 sm:px-6 ${
           isHome
-            ? "pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] sm:pb-4 sm:pt-[calc(1rem+env(safe-area-inset-top))] lg:gap-8 lg:pb-5 lg:pl-10 lg:pr-8 lg:pt-[calc(1.25rem+env(safe-area-inset-top))] xl:gap-10 xl:pl-14 xl:pr-10"
+            ? "pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] sm:pb-4 sm:pt-[calc(1rem+env(safe-area-inset-top))] lg:gap-12 lg:pb-5 lg:pl-10 lg:pr-8 lg:pt-[calc(1.25rem+env(safe-area-inset-top))] xl:gap-16 xl:pl-14 xl:pr-10"
             : "py-3 sm:py-4 lg:gap-5 lg:px-8 lg:py-5"
         }`}
       >
@@ -314,28 +315,44 @@ export default function Header() {
           className={`flex min-h-[44px] shrink-0 items-center ${isHome ? "drop-shadow-[0_2px_12px_rgba(0,0,0,0.28)]" : ""}`}
           aria-label="Grainline home"
         >
-          {/* Mobile */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={isHome ? "/logo.svg" : "/logo-espresso.svg"}
-            alt="Grainline"
-            className="h-5 w-auto min-[360px]:h-6 sm:h-7 lg:hidden"
-          />
-          {/* Desktop */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={isHome ? "/logo.svg" : "/logo-espresso.svg"}
-            alt="Grainline"
-            className="hidden h-8 w-auto lg:block"
-          />
+          {isHome ? (
+            <>
+              <span
+                aria-hidden="true"
+                data-home-logo-mark
+                className="hero-logo-mark h-5 w-[92px] min-[360px]:h-6 min-[360px]:w-[111px] sm:h-7 sm:w-[129px] lg:hidden"
+              />
+              <span
+                aria-hidden="true"
+                data-home-logo-mark
+                className="hero-logo-mark hidden h-8 w-[148px] lg:block"
+              />
+            </>
+          ) : (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/logo-espresso.svg"
+                alt="Grainline"
+                className="h-5 w-auto min-[360px]:h-6 sm:h-7 lg:hidden"
+              />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/logo-espresso.svg"
+                alt="Grainline"
+                className="hidden h-8 w-auto lg:block"
+              />
+            </>
+          )}
         </Link>
 
         {/* Search and navigation share one quiet floating surface on the
             homepage. Other pages keep the same controls in normal flow. */}
         <div
+          data-home-header-surface={isHome ? "true" : undefined}
           className={`hidden min-w-0 flex-1 items-center gap-3 lg:flex ${
             isHome
-              ? "relative isolate p-2 pl-3"
+              ? "relative isolate p-2"
               : ""
           }`}
         >
@@ -345,12 +362,12 @@ export default function Header() {
               className="pointer-events-none absolute inset-0 -z-10 rounded-2xl border border-white/25 bg-[#F7F5F0]/38 shadow-[0_16px_50px_rgba(12,10,9,0.12)] backdrop-blur-lg"
             />
           )}
-          <span className="flex flex-1 max-w-[820px] min-w-[220px]">
+          <span data-header-search-slot className="flex min-w-[220px] flex-1">
             <SearchBar overlay={isHome} />
           </span>
 
           {/* ── Desktop nav (lg+) ──────────────────────────────────────── */}
-          <div className="ml-auto flex items-center gap-1 xl:gap-2">
+          <div data-header-actions className="flex items-center gap-1 xl:gap-2">
           <Link
             href="/browse"
             className="inline-flex items-center rounded-full px-2 py-2 text-sm font-medium text-neutral-900 transition-colors hover:bg-black/10 hover:text-black xl:px-3"
@@ -371,7 +388,7 @@ export default function Header() {
           </Link>
 
           <Show when="signed-in">
-            <NotificationBell initialUnreadCount={0} />
+            <NotificationBell initialUnreadCount={0} overlay={isHome} />
           </Show>
 
           <Show
@@ -422,6 +439,7 @@ export default function Header() {
               avatarImageUrl={avatarImageUrl}
               role={role}
               hasSeller={hasSeller}
+              overlay={isHome}
             />
           </Show>
           </div>
@@ -455,7 +473,7 @@ export default function Header() {
           {/* Notification bell */}
           <Show when="signed-in">
             <span className="inline-flex items-center justify-center min-h-[44px] min-w-[44px]">
-              <NotificationBell initialUnreadCount={unreadNotifCount} />
+              <NotificationBell initialUnreadCount={unreadNotifCount} overlay={isHome} />
             </span>
           </Show>
 
@@ -530,6 +548,7 @@ export default function Header() {
           {/* Panel — floating card anchored top-right, sized to content */}
           <div
             id={drawerId}
+            data-home-menu-surface={isHome ? "true" : undefined}
             ref={drawerRef}
             role="dialog"
             aria-label="Main navigation"
@@ -546,14 +565,24 @@ export default function Header() {
                 closeDrawer();
               }
             }}
-            className={`fixed right-3 top-14 z-[1001] flex w-64 max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-4.5rem)] flex-col rounded-2xl bg-[#F7F5F0] shadow-2xl ring-1 ring-black/5 overflow-hidden overscroll-contain outline-none motion-reduce:animate-none ${
+            className={`fixed right-3 top-14 z-[1001] flex w-64 max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-4.5rem)] flex-col overflow-hidden overscroll-contain rounded-2xl shadow-2xl outline-none motion-reduce:animate-none ${
+              isHome
+                ? "border border-white/25 bg-[#F7F5F0]/[0.78] ring-1 ring-white/20 backdrop-blur-xl"
+                : "bg-[#F7F5F0] ring-1 ring-black/5"
+            } ${
               drawerClosing ? "animate-menu-out pointer-events-none" : "animate-menu-in"
             }`}
           >
             {/* Slim header row — no logo (it's already in the site header
                 next to the hamburger); saves height so more menu rows are
                 visible before scrolling. */}
-            <div className="flex items-center justify-between bg-[#EFEAE0] border-b border-stone-200/60 pl-5 pr-2 py-1">
+            <div
+              className={`flex items-center justify-between border-b pl-5 pr-2 py-1 ${
+                isHome
+                  ? "border-[#2C1F1A]/10 bg-[#EFEAE0]/45"
+                  : "border-stone-200/60 bg-[#EFEAE0]"
+              }`}
+            >
               <span className="text-sm font-semibold">
                 Menu
               </span>
@@ -579,7 +608,7 @@ export default function Header() {
                 </div>
                 <Link
                   href="/browse"
-                  className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
+                  className={`flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 ${drawerItemHover}`}
                   onClick={closeDrawer}
                 >
                   <Search size={18} className="text-neutral-500" />
@@ -587,7 +616,7 @@ export default function Header() {
                 </Link>
                 <Link
                   href="/blog"
-                  className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
+                  className={`flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 ${drawerItemHover}`}
                   onClick={closeDrawer}
                 >
                   <Edit size={18} className="text-neutral-500" />
@@ -595,7 +624,7 @@ export default function Header() {
                 </Link>
                 <Link
                   href="/commission"
-                  className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
+                  className={`flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 ${drawerItemHover}`}
                   onClick={closeDrawer}
                 >
                   <Hammer size={18} className="text-neutral-500" />
@@ -609,7 +638,7 @@ export default function Header() {
 
                   <Link
                     href="/account"
-                    className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
+                    className={`flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 ${drawerItemHover}`}
                     onClick={closeDrawer}
                   >
                     <User size={18} className="text-neutral-500" />
@@ -619,7 +648,7 @@ export default function Header() {
                   {/* Messages — single Link wrapping icon + text */}
                   <Link
                     href="/messages"
-                    className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
+                    className={`flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 ${drawerItemHover}`}
                     onClick={closeDrawer}
                   >
                     <MessageCircle size={18} className="text-neutral-500" />
@@ -629,7 +658,7 @@ export default function Header() {
                   {/* Feed */}
                   <Link
                     href="/account/feed"
-                    className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
+                    className={`flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 ${drawerItemHover}`}
                     onClick={closeDrawer}
                   >
                     <Rss size={18} className="text-neutral-500" />
@@ -640,7 +669,7 @@ export default function Header() {
                   {hasSeller ? (
                     <Link
                       href="/dashboard"
-                      className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
+                      className={`flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 ${drawerItemHover}`}
                       onClick={closeDrawer}
                     >
                       <Store size={18} className="text-neutral-500" />
@@ -649,7 +678,7 @@ export default function Header() {
                   ) : (
                     <Link
                       href="/dashboard"
-                      className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] font-medium text-neutral-900 hover:bg-[#EFEAE0]"
+                      className={`flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] font-medium text-neutral-900 ${drawerItemHover}`}
                       onClick={closeDrawer}
                     >
                       <Store size={18} className="text-neutral-500" />
@@ -661,7 +690,7 @@ export default function Header() {
                   {(role === "EMPLOYEE" || role === "ADMIN") && (
                     <Link
                       href="/admin"
-                      className="flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 hover:bg-[#EFEAE0]"
+                      className={`flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 ${drawerItemHover}`}
                       onClick={closeDrawer}
                     >
                       <Shield size={18} className="text-neutral-500" />
@@ -685,14 +714,24 @@ export default function Header() {
               {drawerNavFade && (
                 <div
                   aria-hidden="true"
-                  className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#F7F5F0] via-[#F7F5F0]/75 to-transparent"
+                  className={`pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t to-transparent ${
+                    isHome
+                      ? "from-[#F7F5F0]/90 via-[#F7F5F0]/55"
+                      : "from-[#F7F5F0] via-[#F7F5F0]/75"
+                  }`}
                 />
               )}
             </div>
 
             {/* Avatar + inline actions at bottom — no dropdown to avoid overflow-hidden clipping */}
             <Show when="signed-in">
-              <div className="border-t border-stone-200/60 bg-white px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+              <div
+                className={`border-t px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] ${
+                  isHome
+                    ? "border-[#2C1F1A]/10 bg-[#F7F5F0]/50"
+                    : "border-stone-200/60 bg-white"
+                }`}
+              >
                 {/* Avatar + name row — display only */}
                 <div className="flex items-center gap-3 px-3 py-2">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-200 ring-1 ring-neutral-200">
@@ -716,7 +755,9 @@ export default function Header() {
                 <button
                   type="button"
                   onClick={handleOpenUserProfile}
-                  className="flex min-h-[44px] w-full items-center rounded-md px-3 py-2 text-sm text-neutral-700 hover:bg-[#F7F5F0]"
+                  className={`flex min-h-[44px] w-full items-center rounded-md px-3 py-2 text-sm text-neutral-700 ${
+                    isHome ? "hover:bg-white/25" : "hover:bg-[#F7F5F0]"
+                  }`}
                 >
                   Manage Account
                 </button>
@@ -727,7 +768,9 @@ export default function Header() {
                   onClick={() => {
                     void handleSignOut();
                   }}
-                  className="flex min-h-[44px] w-full items-center rounded-md px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                  className={`flex min-h-[44px] w-full items-center rounded-md px-3 py-2 text-sm text-red-600 ${
+                    isHome ? "hover:bg-red-50/40" : "hover:bg-red-50"
+                  }`}
                 >
                   Sign Out
                 </button>

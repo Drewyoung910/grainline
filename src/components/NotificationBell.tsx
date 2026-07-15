@@ -143,8 +143,10 @@ function timeAgo(dateStr: string): string {
 
 export default function NotificationBell({
   initialUnreadCount,
+  overlay = false,
 }: {
   initialUnreadCount: number;
+  overlay?: boolean;
 }) {
   const { isLoaded, isSignedIn } = useUser();
   const router = useRouter();
@@ -384,6 +386,28 @@ export default function NotificationBell({
     }
   };
 
+  const notificationSurfaceClass = overlay
+    ? "border border-white/25 bg-[#F7F5F0]/[0.78] ring-1 ring-white/20 backdrop-blur-xl"
+    : "ring-1 ring-black/5 bg-white";
+  const notificationHeaderClass = overlay
+    ? "border-b border-white/25 bg-[#EFEAE0]/45"
+    : "bg-[#EFEAE0] border-b border-stone-200/60";
+  const notificationDividerClass = overlay
+    ? "divide-[#2C1F1A]/10"
+    : "divide-neutral-100";
+  const notificationRowHoverClass = overlay
+    ? "hover:bg-white/25"
+    : "hover:bg-neutral-50";
+  const notificationUnreadClass = overlay
+    ? "bg-[#EFEAE0]/35"
+    : "bg-[#EFEAE0]/50";
+  const notificationMutedTextClass = overlay
+    ? "text-neutral-600"
+    : "text-neutral-500";
+  const notificationFooterClass = overlay
+    ? "border-t border-[#2C1F1A]/10"
+    : "border-t border-neutral-100";
+
   return (
     <div className="relative" ref={containerRef}>
       <button
@@ -408,27 +432,28 @@ export default function NotificationBell({
           id={dropdownId}
           role="dialog"
           aria-label="Notifications"
-          className={`fixed right-3 top-14 md:absolute md:right-0 md:top-8 z-50 w-80 max-w-[calc(100vw-1.5rem)] rounded-2xl ring-1 ring-black/5 bg-white text-neutral-900 shadow-2xl overflow-y-auto max-h-[70vh] motion-reduce:animate-none ${
+          data-home-notification-surface={overlay ? "true" : undefined}
+          className={`fixed right-3 top-14 md:absolute md:right-0 md:top-8 z-50 w-80 max-w-[calc(100vw-1.5rem)] overflow-y-auto max-h-[70vh] rounded-2xl text-neutral-900 shadow-2xl motion-reduce:animate-none ${notificationSurfaceClass} ${
             closing ? "animate-menu-out pointer-events-none" : "animate-menu-in"
           }`}
         >
           {/* Header */}
-          <div className="flex items-center justify-between bg-[#EFEAE0] border-b border-stone-200/60 px-4 py-3">
+          <div className={`flex items-center justify-between px-4 py-3 ${notificationHeaderClass}`}>
             <span className="text-sm font-semibold">Notifications</span>
             <button
               onClick={markAllRead}
-              className="text-xs text-neutral-500 hover:text-neutral-800 underline"
+              className={`text-xs underline hover:text-neutral-900 ${notificationMutedTextClass}`}
             >
               Mark all as read
             </button>
           </div>
 
           {/* List */}
-          <ul className="divide-y divide-neutral-100">
+          <ul className={`divide-y ${notificationDividerClass}`}>
             {!loaded ? (
-              <li className="px-4 py-6 text-center text-sm text-neutral-500">Loading…</li>
+              <li className={`px-4 py-6 text-center text-sm ${notificationMutedTextClass}`}>Loading…</li>
             ) : notifications.length === 0 ? (
-              <li className="px-4 py-6 text-center text-sm text-neutral-500">
+              <li className={`px-4 py-6 text-center text-sm ${notificationMutedTextClass}`}>
                 No notifications yet
               </li>
             ) : (
@@ -438,17 +463,17 @@ export default function NotificationBell({
                   <li key={n.id}>
                     <button
                       onClick={() => markRead(n)}
-                      className={`w-full text-left flex gap-3 px-4 py-3 hover:bg-neutral-50 ${
-                        !n.read ? "bg-[#EFEAE0]/50" : ""
+                      className={`w-full text-left flex gap-3 px-4 py-3 ${notificationRowHoverClass} ${
+                        !n.read ? notificationUnreadClass : ""
                       }`}
                     >
                       <Icon size={16} className={`mt-0.5 shrink-0 ${color}`} />
                       <div className="min-w-0 flex-1">
                         <p className="text-[13px] font-medium leading-tight">{n.title}</p>
-                        <p className="text-xs text-neutral-500 mt-0.5 truncate">
+                        <p className={`mt-0.5 truncate text-xs ${notificationMutedTextClass}`}>
                           {truncateText(n.body, 60)}
                         </p>
-                        <p className="text-[11px] text-neutral-500 mt-0.5">
+                        <p className={`mt-0.5 text-[11px] ${notificationMutedTextClass}`}>
                           {timeAgo(n.createdAt)}
                         </p>
                       </div>
@@ -460,7 +485,7 @@ export default function NotificationBell({
           </ul>
 
           {/* Footer */}
-          <div className="border-t border-neutral-100 px-4 py-2">
+          <div className={`px-4 py-2 ${notificationFooterClass}`}>
             <Link
               href="/dashboard/notifications"
               onClick={closeDropdown}

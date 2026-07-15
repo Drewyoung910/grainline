@@ -348,7 +348,8 @@ describe("accessibility follow-ups", () => {
     assert.match(header, /data-drawer-scroll-region/);
     assert.match(header, /scrollRegion\.scrollHeight > scrollRegion\.clientHeight \+ 1/);
     assert.match(header, /drawerNavFade &&/);
-    assert.match(header, /bg-gradient-to-t from-\[#F7F5F0\] via-\[#F7F5F0\]\/75 to-transparent/);
+    assert.match(header, /bg-gradient-to-t to-transparent/);
+    assert.match(header, /from-\[#F7F5F0\] via-\[#F7F5F0\]\/75/);
     assert.match(header, /drawerRef\.current\?\.focus\(\)/);
     assert.match(header, /onBlur=\{/);
     assert.match(header, /!drawerRef\.current\.contains\(e\.relatedTarget\)/);
@@ -411,8 +412,8 @@ describe("accessibility follow-ups", () => {
     assert.match(home, /sm:h-\[clamp\(600px,78svh,760px\)\]/);
     assert.match(home, /src="\/hero-maple-cabinets\.jpg"/);
     assert.match(home, /sizes="100vw"/);
-    assert.match(home, /object-\[18%_center\]/);
-    assert.match(home, /lg:object-center/);
+    assert.match(home, /object-\[18%_58%\]/);
+    assert.match(home, /lg:object-\[center_58%\]/);
     assert.match(home, /<span className="block whitespace-nowrap">Buy handmade\.<\/span>/);
     assert.match(home, /<span className="block whitespace-nowrap">Buy local\.<\/span>/);
     assert.match(home, /<span className="block whitespace-nowrap">Buy quality\.<\/span>/);

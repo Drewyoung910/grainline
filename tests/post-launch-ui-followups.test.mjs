@@ -357,14 +357,15 @@ describe("post-launch UI follow-ups", () => {
     assert.match(listingPage, /Under review/);
   });
 
-  it("header uses a wider container and grows the search bar for desktop presence", () => {
+  it("header uses a wider container and lets the desktop search fill its slot", () => {
     const header = source("src/components/Header.tsx");
     assert.match(header, /max-w-\[1600px\]/);
-    assert.match(header, /max-w-\[820px\]/);
     assert.doesNotMatch(header, /max-w-6xl/);
-    // Search bar still wraps SearchBar inside flex-1 so it grows in available
-    // space within the new max width.
-    assert.match(header, /flex-1 max-w-\[820px\]/);
+    assert.doesNotMatch(header, /max-w-\[820px\]/);
+    // The search consumes all remaining room, and parent gap-3 is the exact
+    // search-to-actions spacing instead of a variable ml-auto spacer.
+    assert.match(header, /data-header-search-slot className="flex min-w-\[220px\] flex-1"/);
+    assert.match(header, /data-header-actions className="flex items-center gap-1 xl:gap-2"/);
   });
 
   it("keeps metro SEO page widths matched to their content density", () => {
@@ -614,12 +615,12 @@ describe("post-launch UI follow-ups", () => {
     assert.match(source("src/components/UserAvatarMenu.tsx"), /\{!open && <IconHoverTip label="Account" \/>\}/);
     assert.match(source("src/components/UserAvatarMenu.tsx"), /clearCloseTimer\(\);[\s\S]*setClosing\(false\);[\s\S]*setOpen\(true\);/);
     assert.match(header, /relative inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black\/10/);
-    assert.match(header, /bg-\[#EFEAE0\] border-b border-stone-200\/60 pl-5 pr-2 py-1/);
-    assert.match(header, /bg-gradient-to-t from-\[#F7F5F0\] via-\[#F7F5F0\]\/75 to-transparent/);
+    assert.match(header, /border-stone-200\/60 bg-\[#EFEAE0\]/);
+    assert.match(header, /from-\[#F7F5F0\] via-\[#F7F5F0\]\/75/);
     assert.match(messageIconLink, /h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black\/10/);
     assert.match(bell, /h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black\/10/);
-    assert.match(bell, /bg-\[#EFEAE0\] border-b border-stone-200\/60 px-4 py-3/);
-    assert.match(bell, /!n\.read \? "bg-\[#EFEAE0\]\/50" : ""/);
+    assert.match(bell, /"bg-\[#EFEAE0\] border-b border-stone-200\/60"/);
+    assert.match(bell, /notificationUnreadClass[\s\S]*"bg-\[#EFEAE0\]\/50"/);
     assert.doesNotMatch(bell, /!n\.read \? "bg-amber-50" : ""/);
   });
 
