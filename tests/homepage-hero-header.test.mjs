@@ -108,6 +108,38 @@ describe("homepage hero and header contracts", () => {
     assert.doesNotMatch(secondary, /w-full|hover:bg-\[#F7F5F0\]|hover:text-\[#2C1F1A\]/);
   });
 
+  it("keeps homepage discovery and commerce sections in the intended source order", () => {
+    const home = source("src/app/page.tsx");
+    const markers = [
+      "data-home-map",
+      "data-home-new-arrivals",
+      "data-home-categories",
+      "data-home-top-picks",
+      "data-home-followed-makers",
+      "data-home-workshop",
+      "data-home-blog",
+    ];
+
+    // Several sections are conditional at runtime. Their source positions are
+    // still the stable ordering contract whenever those sections render.
+    const positions = markers.map((marker) => {
+      openingTagWith(home, marker);
+      assert.equal(
+        home.split(marker).length - 1,
+        1,
+        `expected exactly one ${marker} section`,
+      );
+      return home.indexOf(marker);
+    });
+
+    for (let index = 1; index < markers.length; index += 1) {
+      assert.ok(
+        positions[index - 1] < positions[index],
+        `expected ${markers[index - 1]} before ${markers[index]}`,
+      );
+    }
+  });
+
   it("keeps homepage popovers translucent while retaining opaque defaults", () => {
     const header = source("src/components/Header.tsx");
     const bell = source("src/components/NotificationBell.tsx");

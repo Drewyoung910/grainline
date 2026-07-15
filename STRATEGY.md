@@ -4,6 +4,12 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
+### Homepage discovery hierarchy decision (2026-07-15)
+
+Keep the local-maker map directly beneath the hero and floating marketplace stats. It is Grainline's clearest marketplace differentiator, but it should remain a compact discovery band so inventory appears after a short scroll rather than becoming a second full-screen gate.
+
+Preserve this homepage order: hero → stats → local-maker map → New Arrivals → Shop by Category → Top Picks → Makers You Follow → In the Workshop → From the Blog. Do not put a large editorial feature ahead of the first listing row.
+
 ### Brand terminology decision (2026-07-15)
 
 Do not globally rename makers to shops. Preserve a three-part vocabulary:

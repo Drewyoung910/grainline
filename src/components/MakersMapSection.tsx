@@ -28,11 +28,13 @@ export default function MakersMapSection({
   heading,
   subheading,
   headingClassName,
+  compact = false,
 }: {
   points: Point[];
   heading?: string;
   subheading?: string;
   headingClassName?: string;
+  compact?: boolean;
 }) {
   const [geoErr, setGeoErr] = useState<string | null>(null);
   const router = useRouter();
@@ -57,7 +59,7 @@ export default function MakersMapSection({
 
   return (
     <section className="min-w-0">
-      <div className="flex min-w-0 flex-col gap-6 lg:flex-row lg:items-center lg:gap-10">
+      <div className={`flex min-w-0 flex-col lg:flex-row lg:items-center ${compact ? "gap-5 lg:gap-8" : "gap-6 lg:gap-10"}`}>
         <div className="min-w-0 lg:w-[34%] lg:pb-8">
           <h2 className={`text-2xl font-semibold ${headingClassName ?? ""}`}>{heading ?? "Find local artisans near you"}</h2>
           <p className="mt-2 text-neutral-600">
@@ -67,13 +69,13 @@ export default function MakersMapSection({
             <button
               type="button"
               onClick={onUseMyLocation}
-              className="inline-flex items-center rounded-md bg-[#2C1F1A] text-white px-4 py-2 text-sm font-medium hover:bg-[#3A2A24] transition-colors"
+              className="inline-flex min-h-11 items-center rounded-md bg-[#2C1F1A] text-white px-4 py-2 text-sm font-medium hover:bg-[#3A2A24] transition-colors"
             >
               Use my location
             </button>
             <a
               href="/map"
-              className="inline-flex items-center rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-[#EFEAE0] transition-colors"
+              className="inline-flex min-h-11 items-center rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-[#EFEAE0] transition-colors"
             >
               Open Makers Map
             </a>
@@ -81,8 +83,8 @@ export default function MakersMapSection({
           {geoErr && <div role="alert" className="mt-2 text-xs text-red-600">{geoErr}</div>}
         </div>
 
-        <div className="min-h-[360px] w-full min-w-0 flex-1 overflow-hidden rounded-lg shadow-sm ring-1 ring-stone-200/70 lg:min-h-[420px]">
-          <AllSellersMap points={points} initialZoom={3} mobileInitialZoom={2.05} height={420} />
+        <div className={`${compact ? "h-[300px] sm:h-[320px] lg:h-[340px]" : "h-[420px]"} w-full min-w-0 flex-1 overflow-hidden rounded-lg shadow-sm ring-1 ring-stone-200/70`}>
+          <AllSellersMap points={points} initialZoom={3} mobileInitialZoom={2.05} height="100%" />
         </div>
       </div>
     </section>

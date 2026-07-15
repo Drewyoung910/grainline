@@ -1,7 +1,7 @@
 // src/components/AllSellersMap.tsx
 "use client";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
 import maplibregl from "maplibre-gl";
 import { publicSellerPath } from "@/lib/publicPaths";
 import MapFallback from "@/components/MapFallback";
@@ -22,7 +22,7 @@ type Props = {
   initialCenter?: { lat: number; lng: number } | null;
   initialZoom?: number;
   mobileInitialZoom?: number;
-  height?: number;
+  height?: CSSProperties["height"];
 };
 
 export default function AllSellersMap({
@@ -223,22 +223,24 @@ export default function AllSellersMap({
 
   if (mapUnavailable) {
     return (
-      <MapFallback
-        className="w-full rounded-xl border border-neutral-200"
-        message="Map is unavailable because WebGL is disabled or unsupported."
-        lat={initialCenter?.lat ?? points[0]?.lat}
-        lng={initialCenter?.lng ?? points[0]?.lng}
-        links={points.slice(0, 8).map((point) => ({
-          href: publicSellerPath(point.id, point.name),
-          label: point.name,
-        }))}
-      />
+      <div style={{ height, width: "100%" }}>
+        <MapFallback
+          className="h-full w-full rounded-xl border border-neutral-200"
+          message="Map is unavailable because WebGL is disabled or unsupported."
+          lat={initialCenter?.lat ?? points[0]?.lat}
+          lng={initialCenter?.lng ?? points[0]?.lng}
+          links={points.slice(0, 8).map((point) => ({
+            href: publicSellerPath(point.id, point.name),
+            label: point.name,
+          }))}
+        />
+      </div>
     );
   }
 
   return (
     <>
-      <div className="relative">
+      <div className="relative h-full">
         <div
           ref={containerRef}
           role="application"

@@ -620,25 +620,159 @@ export default async function HomePage() {
       </section>
 
       {/* ── Find Makers Near You ──────────────────────────────────────────── */}
-      <ScrollSection className="pb-14 pt-20 sm:pb-16 sm:pt-24">
-        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+      <ScrollSection className="pb-6 pt-16 sm:pb-8 sm:pt-20">
+        <div data-home-map className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
           <MakersMapSection
             points={mapPoints}
             heading="Find Makers Near You"
             subheading="Share your location to see makers in your area, or browse the full national map."
             headingClassName="font-display text-2xl sm:text-3xl font-bold text-neutral-900"
+            compact
           />
         </div>
       </ScrollSection>
 
       {/* ── Main content ──────────────────────────────────────────────────── */}
       <div className="bg-[#F7F5F0]">
-      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-10">
+      <div className="max-w-[1600px] mx-auto px-4 pb-12 pt-4 sm:px-6 sm:pt-6 lg:px-8 space-y-10">
+
+        {/* ── New Arrivals ───────────────────────────────────────── */}
+        <ScrollSection>
+          <div data-home-new-arrivals className="mb-4 flex items-center justify-between">
+            <h2 className="text-xl font-semibold font-display">New Arrivals</h2>
+            <Link href="/browse?sort=newest" className="text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline">View more →</Link>
+          </div>
+
+          {fresh.length === 0 ? (
+            <div className="card-section p-6 text-neutral-600">
+              Nothing listed yet — check back soon.
+            </div>
+          ) : (
+            <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
+              <ul className="flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
+                {fresh.map((l) => {
+                  return (
+                    <ClickTracker key={l.id} listingId={l.id} className="snap-start flex-none w-44 sm:w-48">
+                      <ListingCard
+                        listing={{
+                          id: l.id,
+                          title: l.title,
+                          priceCents: l.priceCents,
+                          currency: l.currency,
+                          status: l.status,
+                          listingType: l.listingType,
+                          stockQuantity: l.stockQuantity ?? null,
+                          photoUrl: l.photos[0]?.url ?? null,
+                          photoAltText: l.photos[0]?.altText ?? null,
+                          secondPhotoUrl: l.photos[1]?.url ?? null,
+                          secondPhotoAltText: l.photos[1]?.altText ?? null,
+                          seller: {
+                            id: l.sellerId,
+                            displayName: l.seller.displayName ?? null,
+                            avatarImageUrl: l.seller.avatarImageUrl ?? l.seller.user?.imageUrl ?? null,
+                            guildLevel: l.seller.guildLevel ?? null,
+                            city: l.seller.city ?? null,
+                            state: l.seller.state ?? null,
+                            acceptingNewOrders: l.seller.acceptingNewOrders ?? null,
+                          },
+                          rating: (() => {
+                            const s = sellerRatings.get(l.sellerId);
+                            return s && s.count > 0 ? { avg: s.avg, count: s.count } : null;
+                          })(),
+                        }}
+                        initialSaved={saved.has(l.id)}
+                        variant="scroll"
+                      />
+                    </ClickTracker>
+                  );
+                })}
+              </ul>
+            </ScrollFadeRow>
+          )}
+        </ScrollSection>
+
+        {/* ── Shop by Category ─────────────────────────────────────────────── */}
+        <ScrollSection>
+          <h2 data-home-categories className="text-xl font-semibold font-display mb-5">Shop by Category</h2>
+          {/* Mobile: horizontal scroll with fade; Desktop: 9-col grid (no fade) */}
+          <ScrollFadeRow hideAtBreakpoint="sm" className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+            <div className="flex sm:grid sm:grid-cols-9 gap-3" style={{ minWidth: 480 }}>
+              {CATEGORIES.map((c) => (
+                <Link
+                  key={c.key}
+                  href={`/browse?category=${c.key}`}
+                  className="flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center hover:bg-[#E3DCCB] transition-colors flex-none w-28 sm:w-auto"
+                >
+                  <c.Icon size={28} className="text-neutral-900" />
+                  <span className="text-xs font-medium text-neutral-900">{c.label}</span>
+                </Link>
+              ))}
+              <Link
+                href="/browse"
+                className="flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center hover:bg-[#E3DCCB] transition-colors flex-none w-28 sm:w-auto"
+              >
+                <span className="text-2xl text-neutral-900">→</span>
+                <span className="text-xs font-medium text-neutral-900">Browse all</span>
+              </Link>
+            </div>
+          </ScrollFadeRow>
+        </ScrollSection>
+
+        {/* ── Top Picks ───────────────────────────────────────────── */}
+        {topSaved.length > 0 && (
+          <ScrollSection>
+            <div data-home-top-picks className="mb-4 flex items-center justify-between">
+              <h2 className="text-xl font-semibold font-display">Top Picks</h2>
+              <Link href="/browse?sort=popular" className="text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline">View more →</Link>
+            </div>
+
+            <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
+              <ul className="flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
+                {topSaved.map((l) => {
+                  return (
+                    <ClickTracker key={l.id} listingId={l.id} className="snap-start flex-none w-44 sm:w-48">
+                      <ListingCard
+                        listing={{
+                          id: l.id,
+                          title: l.title,
+                          priceCents: l.priceCents,
+                          currency: l.currency,
+                          status: l.status,
+                          listingType: l.listingType,
+                          stockQuantity: l.stockQuantity ?? null,
+                          photoUrl: l.photos[0]?.url ?? null,
+                          photoAltText: l.photos[0]?.altText ?? null,
+                          secondPhotoUrl: l.photos[1]?.url ?? null,
+                          secondPhotoAltText: l.photos[1]?.altText ?? null,
+                          seller: {
+                            id: l.sellerId,
+                            displayName: l.seller.displayName ?? null,
+                            avatarImageUrl: l.seller.avatarImageUrl ?? l.seller.user?.imageUrl ?? null,
+                            guildLevel: l.seller.guildLevel ?? null,
+                            city: l.seller.city ?? null,
+                            state: l.seller.state ?? null,
+                            acceptingNewOrders: l.seller.acceptingNewOrders ?? null,
+                          },
+                          rating: (() => {
+                            const s = sellerRatings.get(l.sellerId);
+                            return s && s.count > 0 ? { avg: s.avg, count: s.count } : null;
+                          })(),
+                        }}
+                        initialSaved={saved.has(l.id)}
+                        variant="scroll"
+                      />
+                    </ClickTracker>
+                  );
+                })}
+              </ul>
+            </ScrollFadeRow>
+          </ScrollSection>
+        )}
 
         {/* ── From Your Makers ─────────────────────────────────────────────── */}
         {fromYourMakers.length > 0 && (
           <ScrollSection>
-            <div className="mb-5 flex items-center justify-between">
+            <div data-home-followed-makers className="mb-5 flex items-center justify-between">
               <h2 className="text-xl font-semibold font-display">Makers You Follow</h2>
               <Link href="/account/feed" className="text-sm text-neutral-600 hover:underline">
                 See full feed →
@@ -694,33 +828,6 @@ export default async function HomePage() {
           </ScrollSection>
         )}
 
-        {/* ── Shop by Category ─────────────────────────────────────────────── */}
-        <ScrollSection>
-          <h2 className="text-xl font-semibold font-display mb-5">Shop by Category</h2>
-          {/* Mobile: horizontal scroll with fade; Desktop: 9-col grid (no fade) */}
-          <ScrollFadeRow hideAtBreakpoint="sm" className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-            <div className="flex sm:grid sm:grid-cols-9 gap-3" style={{ minWidth: 480 }}>
-              {CATEGORIES.map((c) => (
-                <Link
-                  key={c.key}
-                  href={`/browse?category=${c.key}`}
-                  className="flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center hover:bg-[#E3DCCB] transition-colors flex-none w-28 sm:w-auto"
-                >
-                  <c.Icon size={28} className="text-neutral-900" />
-                  <span className="text-xs font-medium text-neutral-900">{c.label}</span>
-                </Link>
-              ))}
-              <Link
-                href="/browse"
-                className="flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center hover:bg-[#E3DCCB] transition-colors flex-none w-28 sm:w-auto"
-              >
-                <span className="text-2xl text-neutral-900">→</span>
-                <span className="text-xs font-medium text-neutral-900">Browse all</span>
-              </Link>
-            </div>
-          </ScrollFadeRow>
-        </ScrollSection>
-
         {/* ── In the Workshop — maker spotlight + also-featured strip ── */}
         {featuredMakers.length > 0 && (() => {
           const [spotlightBlock, alsoBlock] = featuredMakers;
@@ -741,7 +848,7 @@ export default async function HomePage() {
           const soldCount = spotlightStats?.soldCount ?? 0;
           return (
             <ScrollSection>
-              <div className="mb-5 space-y-0.5">
+              <div data-home-workshop className="mb-5 space-y-0.5">
                 <h2 className="text-xl font-semibold font-display">In the Workshop</h2>
                 <p className="text-sm text-neutral-500">
                   Maker of the Week · {weekStart} to {weekEnd}
@@ -958,116 +1065,10 @@ export default async function HomePage() {
           );
         })()}
 
-        {/* ── New Arrivals ───────────────────────────────────────── */}
-        <ScrollSection>
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold font-display">New Arrivals</h2>
-            <Link href="/browse?sort=newest" className="text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline">View more →</Link>
-          </div>
-
-          {fresh.length === 0 ? (
-            <div className="card-section p-6 text-neutral-600">
-              Nothing listed yet — check back soon.
-            </div>
-          ) : (
-            <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
-              <ul className="flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
-                {fresh.map((l) => {
-                  return (
-                    <ClickTracker key={l.id} listingId={l.id} className="snap-start flex-none w-44 sm:w-48">
-                      <ListingCard
-                        listing={{
-                          id: l.id,
-                          title: l.title,
-                          priceCents: l.priceCents,
-                          currency: l.currency,
-                          status: l.status,
-                          listingType: l.listingType,
-                          stockQuantity: l.stockQuantity ?? null,
-                          photoUrl: l.photos[0]?.url ?? null,
-                          photoAltText: l.photos[0]?.altText ?? null,
-                          secondPhotoUrl: l.photos[1]?.url ?? null,
-                          secondPhotoAltText: l.photos[1]?.altText ?? null,
-                          seller: {
-                            id: l.sellerId,
-                            displayName: l.seller.displayName ?? null,
-                            avatarImageUrl: l.seller.avatarImageUrl ?? l.seller.user?.imageUrl ?? null,
-                            guildLevel: l.seller.guildLevel ?? null,
-                            city: l.seller.city ?? null,
-                            state: l.seller.state ?? null,
-                            acceptingNewOrders: l.seller.acceptingNewOrders ?? null,
-                          },
-                          rating: (() => {
-                            const s = sellerRatings.get(l.sellerId);
-                            return s && s.count > 0 ? { avg: s.avg, count: s.count } : null;
-                          })(),
-                        }}
-                        initialSaved={saved.has(l.id)}
-                        variant="scroll"
-                      />
-                    </ClickTracker>
-                  );
-                })}
-              </ul>
-            </ScrollFadeRow>
-          )}
-        </ScrollSection>
-
-        {/* ── Top Picks ───────────────────────────────────────────── */}
-        {topSaved.length > 0 && (
-          <ScrollSection>
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold font-display">Top Picks</h2>
-              <Link href="/browse?sort=popular" className="text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline">View more →</Link>
-            </div>
-
-            <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
-              <ul className="flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
-                {topSaved.map((l) => {
-                  return (
-                    <ClickTracker key={l.id} listingId={l.id} className="snap-start flex-none w-44 sm:w-48">
-                      <ListingCard
-                        listing={{
-                          id: l.id,
-                          title: l.title,
-                          priceCents: l.priceCents,
-                          currency: l.currency,
-                          status: l.status,
-                          listingType: l.listingType,
-                          stockQuantity: l.stockQuantity ?? null,
-                          photoUrl: l.photos[0]?.url ?? null,
-                          photoAltText: l.photos[0]?.altText ?? null,
-                          secondPhotoUrl: l.photos[1]?.url ?? null,
-                          secondPhotoAltText: l.photos[1]?.altText ?? null,
-                          seller: {
-                            id: l.sellerId,
-                            displayName: l.seller.displayName ?? null,
-                            avatarImageUrl: l.seller.avatarImageUrl ?? l.seller.user?.imageUrl ?? null,
-                            guildLevel: l.seller.guildLevel ?? null,
-                            city: l.seller.city ?? null,
-                            state: l.seller.state ?? null,
-                            acceptingNewOrders: l.seller.acceptingNewOrders ?? null,
-                          },
-                          rating: (() => {
-                            const s = sellerRatings.get(l.sellerId);
-                            return s && s.count > 0 ? { avg: s.avg, count: s.count } : null;
-                          })(),
-                        }}
-                        initialSaved={saved.has(l.id)}
-                        variant="scroll"
-                      />
-                    </ClickTracker>
-                  );
-                })}
-              </ul>
-            </ScrollFadeRow>
-          </ScrollSection>
-        )}
-
         {/* ── From the Blog ────────────────────────────────────────────────── */}
         {recentBlogPosts.length > 0 && (
           <ScrollSection className="bg-amber-50/30 rounded-xl px-4 py-6 -mx-4">
-            <div className="mb-5 flex items-center justify-between">
+            <div data-home-blog className="mb-5 flex items-center justify-between">
               <h2 className="text-xl font-semibold font-display">From the Blog</h2>
               <Link href="/blog" className="text-sm text-neutral-600 hover:underline">
                 Read more stories

@@ -461,6 +461,38 @@ describe("post-launch UI follow-ups", () => {
     assert.doesNotMatch(globals, /calc\(100% - 32px\)/);
   });
 
+  it("keeps the homepage map compact without shrinking the full map page", () => {
+    const homepage = source("src/app/page.tsx");
+    const mapSection = source("src/components/MakersMapSection.tsx");
+    const allSellersMap = source("src/components/AllSellersMap.tsx");
+    const mapPage = source("src/app/map/page.tsx");
+
+    const homepageMapCall = homepage.match(/<MakersMapSection\b[\s\S]*?\/>/)?.[0];
+    const sectionMapCall = mapSection.match(/<AllSellersMap\b[\s\S]*?\/>/)?.[0];
+    const fallbackCall = allSellersMap.match(/<MapFallback\b[\s\S]*?\/>/)?.[0];
+    const fullMapCall = mapPage.match(/<AllSellersMap\b[\s\S]*?\/>/)?.[0];
+
+    assert.ok(homepageMapCall, "homepage should render MakersMapSection");
+    assert.ok(sectionMapCall, "MakersMapSection should render AllSellersMap");
+    assert.ok(fallbackCall, "AllSellersMap should retain a WebGL fallback");
+    assert.ok(fullMapCall, "the full map page should render AllSellersMap");
+
+    assert.match(homepageMapCall, /\bcompact\b/);
+    assert.match(mapSection, /compact = false/);
+    assert.match(mapSection, /compact\?: boolean/);
+    assert.match(mapSection, /h-\[300px\] sm:h-\[320px\] lg:h-\[340px\]/);
+    assert.match(mapSection, /h-\[420px\]/);
+    assert.match(sectionMapCall, /height="100%"/);
+    assert.match(fallbackCall, /className="[^"]*h-full/);
+    assert.match(fallbackCall, /className="[^"]*w-full/);
+    assert.match(allSellersMap, /className="relative h-full"/);
+    assert.equal((mapSection.match(/min-h-11/g) ?? []).length, 2);
+
+    assert.match(allSellersMap, /height = 520/);
+    assert.doesNotMatch(fullMapCall, /\bheight=/);
+    assert.doesNotMatch(fullMapCall, /\bcompact\b/);
+  });
+
   it("keeps blog comment fields on the global field-focus contract", () => {
     const globals = source("src/app/globals.css");
     const blogComment = source("src/components/BlogCommentForm.tsx");
