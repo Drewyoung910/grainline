@@ -399,11 +399,9 @@ export default function NotificationBell({
     ? "hover:bg-white/20"
     : "hover:bg-neutral-50";
   const notificationUnreadClass = overlay
-    ? "border-l-[3px] border-amber-200 bg-amber-50/80"
+    ? "bg-[#EFEAE0]/55"
     : "bg-[#EFEAE0]/50";
-  const notificationReadClass = overlay
-    ? "border-l-[3px] border-transparent"
-    : "";
+  const notificationRowShapeClass = overlay ? "rounded-none" : "";
   const notificationMutedTextClass = overlay
     ? "text-neutral-800"
     : "text-neutral-500";
@@ -466,17 +464,13 @@ export default function NotificationBell({
                   <li key={n.id}>
                     <button
                       onClick={() => markRead(n)}
-                      className={`w-full text-left flex gap-3 px-4 py-3 ${notificationRowHoverClass} ${
-                        !n.read ? notificationUnreadClass : notificationReadClass
+                      className={`w-full text-left flex gap-3 px-4 py-3 ${notificationRowShapeClass} ${notificationRowHoverClass} ${
+                        !n.read ? notificationUnreadClass : ""
                       }`}
                     >
                       <Icon size={16} className={`mt-0.5 shrink-0 ${color}`} />
                       <div className="min-w-0 flex-1">
-                        <p
-                          className={`text-[13px] leading-tight ${
-                            overlay && !n.read ? "font-semibold text-amber-700" : "font-medium"
-                          }`}
-                        >
+                        <p className="text-[13px] font-medium leading-tight">
                           {overlay && !n.read && <span className="sr-only">Unread: </span>}
                           {n.title}
                         </p>

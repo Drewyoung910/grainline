@@ -8,7 +8,7 @@ type BlogResult = { slug: string; title: string };
 type CategoryResult = { value: string; label: string };
 type SuggestionsResponse = { suggestions: string[]; blogs?: BlogResult[]; categories?: CategoryResult[] };
 type SearchOption =
-  | { kind: "tag"; key: string; section: "Popular searches"; label: string }
+  | { kind: "tag"; key: string; section: "Recommended searches"; label: string }
   | { kind: "category"; key: string; section: "Categories"; value: string; label: string }
   | { kind: "suggestion"; key: string; section: "Suggestions"; label: string }
   | { kind: "blog"; key: string; section: "Stories"; slug: string; label: string };
@@ -112,6 +112,13 @@ export default function SearchBar({
     }
   }
 
+  // Mobile Safari does not reliably dispatch focus when an input is mounted
+  // with autoFocus. Open the fallback recommendations independently so the
+  // mobile search popup is useful even when the keyboard stays closed.
+  React.useEffect(() => {
+    if (autoFocus && value.length === 0) openDropdown();
+  }, [autoFocus, openDropdown, value.length]);
+
   // Dismiss on click outside
   React.useEffect(() => {
     function onMouseDown(e: MouseEvent) {
@@ -208,7 +215,7 @@ export default function SearchBar({
       return visiblePopularTags.map((tag) => ({
         kind: "tag",
         key: `tag:${tag}`,
-        section: "Popular searches",
+        section: "Recommended searches",
         label: tag,
       }));
     }
@@ -402,7 +409,11 @@ export default function SearchBar({
         <ul
           id={searchListboxId}
           role="listbox"
-          className={`absolute left-0 right-0 top-full z-[60] mt-2 max-h-[min(28rem,calc(100dvh-9rem))] overflow-y-auto overscroll-contain rounded-xl border border-stone-200/60 bg-white/95 text-neutral-900 shadow-lg backdrop-blur-lg motion-reduce:animate-none ${closing ? "animate-search-pop-out pointer-events-none" : "animate-search-pop-in"}`}
+          className={`absolute left-0 right-0 top-full z-[60] mt-2 max-h-[min(28rem,calc(100dvh-9rem))] overflow-y-auto overscroll-contain rounded-xl border text-neutral-900 shadow-lg motion-reduce:animate-none ${
+            overlay
+              ? "border-white/30 bg-[#F7F5F0]/64 ring-1 ring-white/20 backdrop-blur-xl"
+              : "border-stone-200/60 bg-white/95 backdrop-blur-lg"
+          } ${closing ? "animate-search-pop-out pointer-events-none" : "animate-search-pop-in"}`}
         >
           {options.map((option, index) => (
             <React.Fragment key={option.key}>
@@ -429,8 +440,10 @@ export default function SearchBar({
                     e.preventDefault();
                     chooseOption(option);
                   }}
-                  className={`w-full px-4 py-2 text-left text-sm hover:bg-neutral-50 ${
-                    activeIndex === index ? "bg-neutral-100" : ""
+                  className={`w-full rounded-none px-4 py-2 text-left text-sm ${
+                    overlay ? "hover:bg-white/20" : "hover:bg-neutral-50"
+                  } ${
+                    activeIndex === index ? (overlay ? "bg-white/30" : "bg-neutral-100") : ""
                   } ${option.kind === "tag" || option.kind === "category" || option.kind === "blog" ? "flex items-center gap-2" : ""}`}
                 >
                   {option.kind === "tag" && <Search size={12} className="text-neutral-500" />}

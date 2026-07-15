@@ -543,11 +543,11 @@ export default async function HomePage() {
           className="object-cover object-[28%_58%] sm:object-[26%_58%] md:object-[35%_58%] lg:object-[center_58%]"
         />
         <div
-          className="absolute inset-0 bg-[linear-gradient(90deg,rgba(10,16,15,0.9)_0%,rgba(10,16,15,0.76)_46%,rgba(10,16,15,0.3)_76%,rgba(10,16,15,0.08)_100%)] lg:bg-[linear-gradient(90deg,rgba(10,16,15,0.86)_0%,rgba(10,16,15,0.68)_28%,rgba(10,16,15,0.18)_55%,rgba(10,16,15,0.02)_76%)]"
+          className="absolute inset-0 bg-[linear-gradient(90deg,rgba(44,31,26,0.78)_0%,rgba(44,31,26,0.62)_44%,rgba(44,31,26,0.24)_76%,rgba(44,31,26,0.04)_100%)] lg:bg-[linear-gradient(90deg,rgba(44,31,26,0.78)_0%,rgba(44,31,26,0.60)_28%,rgba(44,31,26,0.18)_48%,rgba(44,31,26,0)_66%)]"
           aria-hidden="true"
         />
         <div
-          className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,10,9,0.28)_0%,rgba(6,10,9,0)_30%,rgba(6,10,9,0)_72%,rgba(6,10,9,0.22)_100%)]"
+          className="absolute inset-0 bg-[linear-gradient(180deg,rgba(44,31,26,0.12)_0%,rgba(44,31,26,0)_24%,rgba(44,31,26,0)_82%,rgba(44,31,26,0.10)_100%)]"
           aria-hidden="true"
         />
 

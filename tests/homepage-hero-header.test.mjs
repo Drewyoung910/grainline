@@ -30,6 +30,10 @@ describe("homepage hero and header contracts", () => {
     assert.match(home, /object-\[28%_58%\][\s\S]*sm:object-\[26%_58%\][\s\S]*md:object-\[35%_58%\][\s\S]*lg:object-\[center_58%\]/);
     assert.match(home, /h-\[clamp\(520px,68svh,600px\)\]/);
     assert.match(home, /sm:h-\[clamp\(600px,78svh,760px\)\]/);
+    assert.ok(home.includes("rgba(44,31,26,0.78)_0%,rgba(44,31,26,0.62)_44%,rgba(44,31,26,0.24)_76%,rgba(44,31,26,0.04)_100%"));
+    assert.ok(home.includes("lg:bg-[linear-gradient(90deg,rgba(44,31,26,0.78)_0%,rgba(44,31,26,0.60)_28%,rgba(44,31,26,0.18)_48%,rgba(44,31,26,0)_66%)]"));
+    assert.ok(home.includes("rgba(44,31,26,0.12)_0%,rgba(44,31,26,0)_24%,rgba(44,31,26,0)_82%,rgba(44,31,26,0.10)_100%"));
+    assert.doesNotMatch(home, /rgba\(10,16,15|rgba\(6,10,9/);
     assert.match(home, /text-\[clamp\(2\.125rem,10\.5vw,4rem\)\]/);
     assert.match(home, /sm:text-\[clamp\(3\.5rem,7vw,4\.75rem\)\]/);
     assert.match(home, /lg:text-\[clamp\(4rem,5vw,5\.25rem\)\]/);
@@ -124,9 +128,10 @@ describe("homepage hero and header contracts", () => {
     assert.match(header, /from-\[#F7F5F0\]\/70 via-\[#F7F5F0\]\/35/);
     assert.match(header, /bg-\[#F7F5F0\] ring-1 ring-black\/5/);
     assert.doesNotMatch(header, /fixed inset-0[^\n]*backdrop-blur/);
-    assert.match(bell, /border-l-\[3px\] border-amber-200 bg-amber-50\/80/);
-    assert.match(bell, /border-l-\[3px\] border-transparent/);
-    assert.match(bell, /font-semibold text-amber-700/);
+    assert.match(bell, /notificationUnreadClass[\s\S]*\? "bg-\[#EFEAE0\]\/55"[\s\S]*: "bg-\[#EFEAE0\]\/50"/);
+    assert.match(bell, /notificationRowShapeClass = overlay \? "rounded-none" : ""/);
+    assert.match(bell, /className="text-\[13px\] font-medium leading-tight"/);
+    assert.doesNotMatch(bell, /border-amber-200|bg-amber-50\/80|text-amber-700/);
     assert.match(bell, /<span className="sr-only">Unread: <\/span>/);
     assert.match(bell, /notificationMutedTextClass[\s\S]*\? "text-neutral-800"/);
   });
@@ -139,6 +144,8 @@ describe("homepage hero and header contracts", () => {
     assert.match(search, /aria-label="Search Grainline"/);
     assert.match(search, /autoFocus = false,[\s\S]*overlay = false,[\s\S]*autoFocus\?: boolean;[\s\S]*overlay\?: boolean;/);
     assert.match(search, /autoFocus=\{autoFocus\}/);
+    assert.match(search, /if \(autoFocus && value\.length === 0\) openDropdown\(\)/);
+    assert.match(search, /section: "Recommended searches"/);
     assert.match(search, /role="combobox"/);
     assert.match(search, /role="listbox"/);
     assert.match(search, /min-h-\[46px\]/);
@@ -146,7 +153,10 @@ describe("homepage hero and header contracts", () => {
     assert.match(search, /border-white\/25 bg-\[#F7F5F0\]\/42 backdrop-blur-lg/);
     assert.match(search, /focus-within:bg-\[#F7F5F0\]\/60/);
     assert.match(search, /border-neutral-200 bg-white\/90/);
-    assert.match(search, /rounded-xl border border-stone-200\/60 bg-white\/95/);
+    assert.match(search, /border-white\/30 bg-\[#F7F5F0\]\/64 ring-1 ring-white\/20 backdrop-blur-xl/);
+    assert.match(search, /border-stone-200\/60 bg-white\/95 backdrop-blur-lg/);
+    assert.match(search, /overlay \? "hover:bg-white\/20" : "hover:bg-neutral-50"/);
+    assert.match(search, /w-full rounded-none px-4 py-2/);
     assert.match(search, /type="submit"[\s\S]*min-w-11[\s\S]*<Search size=\{18\}/);
     assert.match(search, /aria-label="Clear search"[\s\S]*min-w-11/);
     assert.doesNotMatch(search, /variant === "glass"|bg-neutral-900 text-white|rounded-full border-2/);
