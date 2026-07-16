@@ -53,7 +53,9 @@ export default function SearchBar({
   const searchInputId = `${reactId}-site-search-input`;
   const searchListboxId = `${reactId}-site-search-listbox`;
 
-  const [value, setValue] = React.useState(searchParams.get("q") ?? "");
+  const [value, setValue] = React.useState(
+    pathname === "/browse" ? (searchParams.get("q") ?? "") : "",
+  );
   const [suggestions, setSuggestions] = React.useState<string[]>([]);
   const [blogs, setBlogs] = React.useState<BlogResult[]>([]);
   const [categories, setCategories] = React.useState<CategoryResult[]>([]);
@@ -95,10 +97,12 @@ export default function SearchBar({
     }, 140);
   }, []);
 
-  // Sync input value when URL q param changes (back/forward nav)
+  // Only the marketplace browse route owns the global search query. Other
+  // pages also use `q` for local filters (for example the messages inbox),
+  // and those route-local values must never populate the header search.
   React.useEffect(() => {
-    setValue(searchParams.get("q") ?? "");
-  }, [searchParams]);
+    setValue(pathname === "/browse" ? (searchParams.get("q") ?? "") : "");
+  }, [pathname, searchParams]);
 
   async function loadPopularTags() {
     if (popularLoaded) return;

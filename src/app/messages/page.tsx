@@ -8,6 +8,8 @@ import { getBlockedUserIdsFor } from "@/lib/blocks";
 import { parseFileMessageBody } from "@/lib/messageBodies";
 import { truncateText } from "@/lib/sanitize";
 import MessageTime from "@/components/MessageTime";
+import { Search, X } from "@/components/icons";
+import { Suspense } from "react";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -40,11 +42,62 @@ function formatSnippet(body?: string | null, kind?: string | null) {
   return txt;
 }
 
-export default async function MessagesPage({
-  searchParams,
-}: {
+type MessagesPageProps = {
   searchParams: Promise<{ tab?: string; q?: string }>;
-}) {
+};
+
+function MessagesInboxSkeleton() {
+  return (
+    <main className="mx-auto max-w-4xl p-8" aria-busy="true" aria-label="Loading messages">
+      <div className="mb-6 flex items-end justify-between">
+        <div className="h-8 w-36 rounded-md bg-[#EFEAE0] animate-pulse" />
+        <div className="h-4 w-28 rounded bg-[#EFEAE0] animate-pulse" />
+      </div>
+
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex flex-wrap gap-2">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div
+              key={index}
+              className="h-8 w-20 rounded-full bg-[#EFEAE0] animate-pulse"
+            />
+          ))}
+        </div>
+        <div className="h-11 w-full rounded-full bg-[#EFEAE0] animate-pulse sm:ml-auto sm:w-64" />
+      </div>
+
+      <ul className="divide-y divide-stone-300/50 overflow-hidden rounded-lg bg-[#EFEAE0]">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <li key={index} className="px-4 py-3">
+            <div className="flex items-start gap-3">
+              <div className="h-9 w-9 shrink-0 rounded-full bg-white/70 animate-pulse" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className="h-4 w-2/5 rounded bg-white/70 animate-pulse" />
+                <div className="h-3 w-3/5 rounded bg-white/70 animate-pulse" />
+              </div>
+              <div className="ml-auto flex shrink-0 items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-white/70 animate-pulse" />
+                <div className="hidden h-3 w-16 rounded bg-white/70 animate-pulse sm:block" />
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </main>
+  );
+}
+
+export default function MessagesPage(props: MessagesPageProps) {
+  return (
+    <Suspense fallback={<MessagesInboxSkeleton />}>
+      <MessagesInbox {...props} />
+    </Suspense>
+  );
+}
+
+async function MessagesInbox({
+  searchParams,
+}: MessagesPageProps) {
   const { tab = "inbox", q: qParam = "" } = await searchParams;
   const q = truncateText(qParam.trim(), 200);
 
@@ -258,20 +311,38 @@ export default async function MessagesPage({
         <form method="get" className="w-full sm:w-auto sm:ml-auto flex items-center gap-2">
           {/* keep current tab when searching */}
           {tab !== "inbox" && <input type="hidden" name="tab" value={tab} />}
-          <div className="flex items-center gap-2 rounded-full border-2 border-stone-400 bg-white px-4 py-1.5 w-full sm:w-auto shadow-sm focus-within:border-stone-600 focus-within:shadow-md transition-shadow">
+          <div className="flex min-h-11 w-full items-center overflow-hidden rounded-full border-2 border-stone-400 bg-white shadow-sm transition-shadow focus-within:border-stone-600 focus-within:shadow-md sm:w-auto">
+            <button
+              type="submit"
+              aria-label="Search messages"
+              className="group flex min-w-11 shrink-0 items-center justify-center rounded-full text-neutral-500 transition-colors hover:text-neutral-900 focus-visible:outline-none"
+            >
+              <span
+                aria-hidden="true"
+                className="flex size-9 items-center justify-center rounded-full transition-colors group-hover:bg-neutral-100 group-active:bg-neutral-200/70 group-focus-visible:ring-2 group-focus-visible:ring-neutral-900/20"
+              >
+                <Search size={17} />
+              </span>
+            </button>
             <input
               name="q"
               defaultValue={q}
               maxLength={200}
               placeholder="Search messages"
-              className="w-full sm:w-52 bg-transparent text-sm outline-none focus:outline-none focus-visible:outline-none focus-visible:shadow-none"
+              className="min-w-0 flex-1 bg-transparent py-2 pr-2 text-sm outline-none focus:outline-none focus-visible:outline-none focus-visible:shadow-none sm:w-52"
             />
             {q ? (
               <Link
                 href={tab === "inbox" ? "/messages" : `/messages?tab=${tab}`}
-                className="text-xs text-neutral-500 hover:underline"
+                aria-label="Clear message search"
+                className="group flex min-w-11 items-center justify-center rounded-full text-neutral-400 transition-colors hover:text-neutral-700 focus-visible:outline-none"
               >
-                Clear
+                <span
+                  aria-hidden="true"
+                  className="flex size-9 items-center justify-center rounded-full transition-colors group-hover:bg-neutral-100 group-active:bg-neutral-200/70 group-focus-visible:ring-2 group-focus-visible:ring-neutral-900/20"
+                >
+                  <X size={15} />
+                </span>
               </Link>
             ) : null}
           </div>

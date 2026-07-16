@@ -277,7 +277,7 @@ async function AccountPageContent() {
             No saved items yet. Heart pieces while browsing to save them here.
           </div>
         ) : (
-          <ul className="flex gap-4 overflow-x-auto pb-0 bg-white">
+          <ul className="flex gap-4 overflow-x-auto pb-0">
             {savedItems.map(({ listing }) => {
               const thumb = listing.photos[0]?.url;
               return (

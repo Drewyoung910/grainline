@@ -28,6 +28,7 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
   const [value, setValue] = React.useState(initialQ ?? "");
   const [suggestions, setSuggestions] = React.useState<BlogSuggestion[]>([]);
   const [open, setOpen] = React.useState(false);
+  const [closing, setClosing] = React.useState(false);
   const [activeIndex, setActiveIndex] = React.useState(-1);
   const [popularTags, setPopularTags] = React.useState<string[]>([]);
   const [popularLoaded, setPopularLoaded] = React.useState(false);
@@ -35,6 +36,32 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const suggestionsAbortRef = React.useRef<AbortController | null>(null);
   const suggestionsRequestRef = React.useRef(0);
+  const closeTimerRef = React.useRef<number | null>(null);
+  const dropdownStateRef = React.useRef({ open: false, closing: false });
+
+  const openDropdown = React.useCallback(() => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    dropdownStateRef.current = { open: true, closing: false };
+    setClosing(false);
+    setOpen(true);
+  }, []);
+
+  const closeDropdown = React.useCallback(() => {
+    const state = dropdownStateRef.current;
+    if (!state.open || state.closing) return;
+    dropdownStateRef.current = { open: true, closing: true };
+    setClosing(true);
+    closeTimerRef.current = window.setTimeout(() => {
+      dropdownStateRef.current = { open: false, closing: false };
+      setOpen(false);
+      setClosing(false);
+      setActiveIndex(-1);
+      closeTimerRef.current = null;
+    }, 140);
+  }, []);
 
   // Sync on navigation
   React.useEffect(() => {
@@ -57,17 +84,17 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
   React.useEffect(() => {
     function onMouseDown(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-        setActiveIndex(-1);
+        closeDropdown();
       }
     }
     document.addEventListener("mousedown", onMouseDown);
     return () => document.removeEventListener("mousedown", onMouseDown);
-  }, []);
+  }, [closeDropdown]);
 
   React.useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
       suggestionsAbortRef.current?.abort();
     };
   }, []);
@@ -81,7 +108,7 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
     if (q.length < 2) {
       suggestionsRequestRef.current += 1;
       setSuggestions([]);
-      setOpen(false);
+      closeDropdown();
       setActiveIndex(-1);
       return;
     }
@@ -99,13 +126,17 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
         if (controller.signal.aborted || requestId !== suggestionsRequestRef.current) return;
         const suggs = data.suggestions ?? [];
         setSuggestions(suggs);
-        setOpen(suggs.length > 0);
+        if (suggs.length > 0) {
+          openDropdown();
+        } else {
+          closeDropdown();
+        }
         setActiveIndex(-1);
       } catch (error) {
         if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) return;
         if (requestId !== suggestionsRequestRef.current) return;
         setSuggestions([]);
-        setOpen(false);
+        closeDropdown();
         setActiveIndex(-1);
       } finally {
         if (suggestionsAbortRef.current === controller) {
@@ -159,14 +190,12 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setOpen(false);
-    setActiveIndex(-1);
+    closeDropdown();
     navigate(value.trim());
   }
 
   function pick(s: BlogSuggestion) {
-    setOpen(false);
-    setActiveIndex(-1);
+    closeDropdown();
     if (s.type === "post" && s.slug) {
       router.push(blogPostPath(s.slug));
     } else if (s.type === "tag" && s.tag) {
@@ -183,8 +212,7 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
   }
 
   function pickTopic(tag: string) {
-    setOpen(false);
-    setActiveIndex(-1);
+    closeDropdown();
     router.push(`/blog?bq=${encodeURIComponent(tag)}&sort=relevant`);
   }
 
@@ -198,18 +226,17 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Escape") {
-      setOpen(false);
-      setActiveIndex(-1);
+      closeDropdown();
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
       if (!open) {
         if (value.length === 0) void loadPopularTags();
-        setOpen(true);
+        openDropdown();
       }
       setActiveIndex((index) => (options.length === 0 ? -1 : (index + 1) % options.length));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      if (!open) setOpen(true);
+      if (!open) openDropdown();
       setActiveIndex((index) => (options.length === 0 ? -1 : (index <= 0 ? options.length - 1 : index - 1)));
     } else if (e.key === "Home" && open && options.length > 0) {
       e.preventDefault();
@@ -250,19 +277,19 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
               onFocus={() => {
                 if (value.length === 0) {
                   loadPopularTags();
-                  setOpen(true);
+                  openDropdown();
                 } else if (suggestions.length > 0) {
-                  setOpen(true);
+                  openDropdown();
                 }
               }}
               onKeyDown={handleKeyDown}
               placeholder="Search posts, topics, makers..."
-              className="h-full w-full bg-transparent py-2.5 pl-0 pr-2 text-sm text-neutral-900 placeholder:text-neutral-500 focus:outline-none"
+              className="h-full w-full bg-transparent py-2.5 pl-0 pr-2 text-sm text-neutral-900 placeholder:text-neutral-500 focus:outline-none focus-visible:outline-none focus-visible:shadow-none"
               autoComplete="off"
               maxLength={MAX_BLOG_SEARCH_QUERY_LENGTH}
               role="combobox"
               aria-autocomplete="list"
-              aria-expanded={open && options.length > 0}
+              aria-expanded={open && !closing && options.length > 0}
               aria-controls={blogSearchListboxId}
               aria-activedescendant={activeOptionId}
             />
@@ -270,7 +297,7 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
               <button
                 type="button"
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={() => { setValue(""); setSuggestions([]); setOpen(false); setActiveIndex(-1); navigate(""); }}
+                onClick={() => { setValue(""); setSuggestions([]); closeDropdown(); navigate(""); }}
                 className="group absolute right-0 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full text-neutral-400 transition-colors hover:text-neutral-700 focus-visible:outline-none"
                 aria-label="Clear search"
               >
@@ -287,7 +314,9 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
         <ul
           id={blogSearchListboxId}
           role="listbox"
-          className="absolute left-0 right-0 top-full z-50 mt-2 max-h-[min(28rem,calc(100dvh-9rem))] overflow-y-auto overscroll-contain rounded-xl border border-stone-200/60 bg-white/95 text-neutral-900 shadow-lg backdrop-blur-lg animate-search-pop-in motion-reduce:animate-none"
+          className={`absolute left-0 right-0 top-full z-50 mt-2 max-h-[min(28rem,calc(100dvh-9rem))] overflow-y-auto overscroll-contain rounded-xl border border-stone-200/60 bg-white/95 text-neutral-900 shadow-lg backdrop-blur-lg motion-reduce:animate-none ${
+            closing ? "animate-search-pop-out pointer-events-none" : "animate-search-pop-in"
+          }`}
         >
           {options.map((option, index) => (
             <React.Fragment key={option.key}>

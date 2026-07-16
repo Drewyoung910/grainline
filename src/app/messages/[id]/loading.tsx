@@ -36,13 +36,13 @@ export default function ThreadLoading() {
               <div className="h-9 w-56 max-w-[70%] rounded-2xl bg-[#EFEAE0] animate-pulse" />
             </div>
             <div className="flex justify-end">
-              <div className="h-9 w-40 max-w-[70%] rounded-2xl bg-[#E3DCCB] animate-pulse" />
+              <div className="h-9 w-40 max-w-[70%] rounded-2xl bg-[#EFEAE0] animate-pulse" />
             </div>
             <div className="flex justify-start">
               <div className="h-16 w-72 max-w-[70%] rounded-2xl bg-[#EFEAE0] animate-pulse" />
             </div>
             <div className="flex justify-end">
-              <div className="h-9 w-28 max-w-[70%] rounded-2xl bg-[#E3DCCB] animate-pulse" />
+              <div className="h-9 w-28 max-w-[70%] rounded-2xl bg-[#EFEAE0] animate-pulse" />
             </div>
           </div>
         </div>

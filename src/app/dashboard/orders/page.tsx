@@ -8,6 +8,8 @@ import { publicListingPath } from "@/lib/publicPaths";
 import { blockingRefundLedgerWhere, latestRefundLedgerEvent } from "@/lib/refundRouteState";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
+import { BuyerOrdersSkeleton } from "@/components/SellerRouteSkeletons";
+import { Suspense } from "react";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -16,7 +18,15 @@ function fmtMoney(cents: number, currency = DEFAULT_CURRENCY) {
   return formatCurrencyCents(cents, currency);
 }
 
-export default async function OrdersPage() {
+export default function OrdersPage() {
+  return (
+    <Suspense fallback={<BuyerOrdersSkeleton />}>
+      <OrdersContent />
+    </Suspense>
+  );
+}
+
+async function OrdersContent() {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/dashboard/orders");
 

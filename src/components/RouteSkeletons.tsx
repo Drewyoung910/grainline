@@ -16,8 +16,8 @@ export function AccountOverviewSkeleton() {
         <SectionHeader />
         <div className="card-section divide-y divide-neutral-100">
           {Array.from({ length: 3 }).map((_, index) => (
-            <div key={index} className="flex items-center gap-3 p-4">
-              <Pulse className="h-12 w-12 shrink-0 rounded-lg" />
+            <div key={index} className="flex items-center gap-4 p-3">
+              <Pulse className="h-14 w-14 shrink-0 rounded-lg" />
               <div className="min-w-0 flex-1 space-y-2">
                 <Pulse className="h-4 w-64 max-w-full" />
                 <Pulse className="h-3 w-36 max-w-full" />
@@ -30,28 +30,95 @@ export function AccountOverviewSkeleton() {
       <section className="space-y-4">
         <SectionHeader />
         <div className="flex gap-4 overflow-hidden">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="card-section w-44 shrink-0 overflow-hidden sm:w-52">
-              <Pulse className="aspect-[4/3] w-full rounded-none" />
-              <div className="space-y-2 p-3">
-                <Pulse className="h-4 w-3/4" />
+          {Array.from({ length: 6 }).map((_, index) => (
+            <div key={index} className="card-listing w-40 shrink-0 overflow-hidden">
+              <Pulse className="h-32 w-full rounded-none" />
+              <div className="space-y-2 border-t border-neutral-100 bg-white p-2">
+                <Pulse className="h-3 w-3/4" />
                 <Pulse className="h-3 w-1/2" />
               </div>
             </div>
           ))}
         </div>
       </section>
-      {Array.from({ length: 5 }).map((_, index) => (
-        <section key={index} className="space-y-4">
-          <Pulse className="h-6 w-44" />
-          <div className="card-section space-y-3 p-5">
-            <Pulse className="h-4 w-72 max-w-full" />
-            <Pulse className="h-4 w-52 max-w-full" />
-            <Pulse className="h-9 w-32" />
+
+      <section className="space-y-4">
+        <SectionHeader />
+        <div className="card-section divide-y divide-neutral-100">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div key={index} className="flex items-center justify-between gap-4 p-4">
+              <div className="min-w-0 flex-1 space-y-2">
+                <Pulse className="h-4 w-72 max-w-full" />
+                <Pulse className="h-3 w-32" />
+              </div>
+              <Pulse className="h-8 w-16 shrink-0" />
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <SectionHeader />
+        <div className="card-section flex items-center justify-between p-5">
+          <div className="space-y-2">
+            <Pulse className="h-7 w-10" />
+            <Pulse className="h-3 w-28" />
           </div>
-        </section>
-      ))}
+          <Pulse className="h-10 w-28" />
+        </div>
+      </section>
+
+      <AccountInfoSection />
+      <AccountInfoSection lines={2} />
+
+      <section className="space-y-4">
+        <Pulse className="h-6 w-40" />
+        <div className="card-section space-y-3 p-5">
+          <Pulse className="h-4 w-40" />
+          <Pulse className="h-4 w-64 max-w-full" />
+          <Pulse className="h-3 w-96 max-w-full" />
+          <div className="flex flex-col items-start gap-2">
+            <Pulse className="h-4 w-32" />
+            <Pulse className="h-4 w-28" />
+          </div>
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <Pulse className="h-6 w-40" />
+        <div className="card-section space-y-4 p-5">
+          <div className="flex gap-6">
+            <div className="space-y-2">
+              <Pulse className="h-7 w-10" />
+              <Pulse className="h-3 w-24" />
+            </div>
+            <div className="space-y-2">
+              <Pulse className="h-7 w-10" />
+              <Pulse className="h-3 w-28" />
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Pulse className="h-10 w-36" />
+            <Pulse className="h-10 w-28" />
+            <Pulse className="h-10 w-28" />
+          </div>
+        </div>
+      </section>
     </main>
+  );
+}
+
+function AccountInfoSection({ lines = 1 }: { lines?: number }) {
+  return (
+    <section className="space-y-4">
+      <Pulse className="h-6 w-44" />
+      <div className="card-section space-y-3 p-4">
+        {Array.from({ length: lines }).map((_, index) => (
+          <Pulse key={index} className={`h-4 max-w-full ${index === 0 ? "w-72" : "w-52"}`} />
+        ))}
+        <Pulse className="h-4 w-40" />
+      </div>
+    </section>
   );
 }
 

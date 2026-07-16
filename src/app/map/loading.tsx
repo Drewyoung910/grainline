@@ -1,5 +1,5 @@
-import PageLoadingSkeleton from "@/components/PageLoadingSkeleton";
+import { MakerMapSkeleton } from "@/components/SellerRouteSkeletons";
 
 export default function MapLoading() {
-  return <PageLoadingSkeleton variant="detail" />;
+  return <MakerMapSkeleton />;
 }

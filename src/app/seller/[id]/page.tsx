@@ -2,6 +2,7 @@
 import { notFound, permanentRedirect } from "next/navigation";
 import Link from "next/link";
 import { cache } from "react";
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
 import { safeJsonLd } from "@/lib/json-ld";
@@ -34,6 +35,7 @@ import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { isFirstPartyMediaUrl, normalizePublicHttpsUrl } from "@/lib/urlValidation";
 import { getCachedPublicSellerStats } from "@/lib/publicSellerStats";
 import { getCachedPublicSellerTopTags } from "@/lib/popularTags";
+import { SellerProfileSkeleton } from "@/components/SellerRouteSkeletons";
 
 const SOCIAL_LINK_ALLOWED_HOSTS = {
   Instagram: ["instagram.com"],
@@ -190,6 +192,18 @@ export async function generateMetadata({
 }
 
 export default async function SellerPublicPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  return (
+    <Suspense fallback={<SellerProfileSkeleton />}>
+      <SellerPublicContent params={params} />
+    </Suspense>
+  );
+}
+
+async function SellerPublicContent({
   params,
 }: {
   params: Promise<{ id: string }>;

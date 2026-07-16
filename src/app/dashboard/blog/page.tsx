@@ -10,6 +10,8 @@ import ToastOnMount from "@/components/ToastOnMount";
 import { blogCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { revalidateBlogSearchCaches } from "@/lib/searchCache";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { BlogManagerSkeleton } from "@/components/SellerRouteSkeletons";
+import { Suspense } from "react";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -70,7 +72,19 @@ async function unarchivePost(postId: string) {
   redirect("/dashboard/blog?postAction=unarchived");
 }
 
-export default async function DashboardBlogPage({
+export default function DashboardBlogPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ page?: string; postAction?: string }>;
+}) {
+  return (
+    <Suspense fallback={<BlogManagerSkeleton />}>
+      <DashboardBlogContent searchParams={searchParams} />
+    </Suspense>
+  );
+}
+
+async function DashboardBlogContent({
   searchParams,
 }: {
   searchParams?: Promise<{ page?: string; postAction?: string }>;
