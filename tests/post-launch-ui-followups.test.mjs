@@ -658,13 +658,14 @@ describe("post-launch UI follow-ups", () => {
     const bell = source("src/components/NotificationBell.tsx");
     const messageIconLink = source("src/components/MessageIconLink.tsx");
     const unreadBadge = source("src/components/UnreadBadge.tsx");
-    // Cart and signed-out message icons in header now use the same hover
-    // circle pattern as MessageIconLink.
+    // The cart remains public, while the messages control is rendered only
+    // through the signed-in MessageIconLink.
     // Native title tooltips were replaced by the styled IconHoverTip labels
     assert.match(header, /aria-label="Cart"/);
     assert.doesNotMatch(header, /title="Cart"/);
     assert.match(header, /<IconHoverTip label="Cart" \/>/);
-    assert.match(header, /<IconHoverTip label="Messages" \/>/);
+    assert.match(header, /<Show when="signed-in">\s*<MessageIconLink \/>\s*<\/Show>/);
+    assert.doesNotMatch(header, /sign-in\?redirect_url=\/messages/);
     assert.match(bell, /\{!open && <IconHoverTip label="Notifications" \/>\}/);
     assert.match(messageIconLink, /<IconHoverTip label="Messages" \/>/);
     assert.match(source("src/components/UserAvatarMenu.tsx"), /\{!open && <IconHoverTip label="Account" \/>\}/);
@@ -701,6 +702,10 @@ describe("post-launch UI follow-ups", () => {
     assert.match(cart, /Browse the workshop/);
     // Suspense fallback also uses the skeleton, not the plain "Loading…" text.
     assert.match(cart, /<Suspense fallback=\{<CartLoadingSkeleton \/>}/);
+    assert.match(cart, /aria-label="Loading cart"/);
+    assert.match(cart, /Mirrors the Cart \/ Address \/ Shipping \/ Payment progress pill/);
+    assert.match(cart, /border-b border-neutral-200\/70 pb-3/);
+    assert.match(cart, /h-16 w-16 shrink-0 animate-pulse/);
   });
 
   it("keeps customer-photo galleries scoped to publicly viewable listing detail pages", () => {

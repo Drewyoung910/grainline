@@ -51,6 +51,7 @@ describe("route loading boundaries", () => {
       ["src/app/account/blocked/loading.tsx", "Loading blocked users"],
       ["src/app/account/orders/loading.tsx", "Loading orders"],
       ["src/app/account/saved/loading.tsx", "Loading saved items"],
+      ["src/app/account/reviews/loading.tsx", "Loading reviews"],
     ];
 
     for (const [path, label] of loaders) {

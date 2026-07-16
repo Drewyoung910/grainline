@@ -65,9 +65,15 @@ export default function FavoriteButton({
       title={saved ? "Saved" : "Save"}
       onClick={toggle}
       disabled={isPending}
-      className="absolute right-0 top-0 z-10 inline-flex items-center justify-center rounded-full p-3 transition-colors hover:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+      className="group absolute right-0 top-0 z-10 inline-flex h-11 w-11 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
       style={{ lineHeight: 0 }}
     >
+      {/* Keep the accessible 44px tap target while reducing only the visible
+          hover circle so it has breathing room against the photo edges. */}
+      <span
+        aria-hidden="true"
+        className="absolute h-9 w-9 rounded-full transition-colors group-hover:bg-black/10"
+      />
       {/* Heart icon — filled grey background for visibility on all photos.
           Heart shape is top-heavy (wide bumps, narrow point) so we shift it
           down 1px to make it look visually centered inside the hover circle. */}
@@ -75,7 +81,7 @@ export default function FavoriteButton({
         width={size}
         height={size}
         viewBox="0 0 24 24"
-        className="drop-shadow-[0_1px_3px_rgba(0,0,0,0.4)] translate-y-[1px]"
+        className="relative drop-shadow-[0_1px_3px_rgba(0,0,0,0.4)] translate-y-[1px]"
         xmlns="http://www.w3.org/2000/svg"
       >
         {/* Grey heart background for contrast on all photo backgrounds */}

@@ -362,39 +362,91 @@ export async function GET(req: Request) {
       total_revenue: bigint;
       units_sold: bigint;
       avg_price: bigint;
-      view_count: number;
-      click_count: number;
+      view_count: bigint;
+      click_count: bigint;
       favorite_count: bigint;
       stock_notification_count: bigint;
       created_at: Date;
     };
 
     const topListingRowsPromise = prisma.$queryRaw<TopListingRow[]>`
+      WITH scoped_listing_stats AS (
+        SELECT
+          l.id,
+          l.title,
+          l."createdAt" AS created_at,
+          COALESCE(SUM(CASE WHEN o.id IS NOT NULL THEN oi."priceCents" * oi.quantity ELSE 0 END), 0) AS total_revenue,
+          COALESCE(SUM(CASE WHEN o.id IS NOT NULL THEN oi.quantity ELSE 0 END), 0) AS units_sold,
+          COALESCE(
+            SUM(CASE WHEN o.id IS NOT NULL THEN oi."priceCents" * oi.quantity ELSE 0 END)
+            / NULLIF(SUM(CASE WHEN o.id IS NOT NULL THEN oi.quantity ELSE 0 END), 0),
+            0
+          ) AS avg_price,
+          CASE
+            WHEN ${range} = 'alltime' THEN l."viewCount"::bigint
+            ELSE COALESCE((
+              SELECT SUM(lvd.views)::bigint
+              FROM "ListingViewDaily" lvd
+              WHERE lvd."listingId" = l.id
+                AND lvd.date >= ${startDate}
+                AND lvd.date ${rangeEndSql}
+            ), 0)
+          END AS view_count,
+          CASE
+            WHEN ${range} = 'alltime' THEN l."clickCount"::bigint
+            ELSE COALESCE((
+              SELECT SUM(lvd.clicks)::bigint
+              FROM "ListingViewDaily" lvd
+              WHERE lvd."listingId" = l.id
+                AND lvd.date >= ${startDate}
+                AND lvd.date ${rangeEndSql}
+            ), 0)
+          END AS click_count,
+          (
+            SELECT COUNT(*)::bigint
+            FROM "Favorite" f
+            WHERE f."listingId" = l.id
+              AND f."createdAt" >= ${startDate}
+              AND f."createdAt" ${rangeEndSql}
+          ) AS favorite_count,
+          (
+            SELECT COUNT(*)::bigint
+            FROM "StockNotification" sn
+            WHERE sn."listingId" = l.id
+              AND sn."createdAt" >= ${startDate}
+              AND sn."createdAt" ${rangeEndSql}
+          ) AS stock_notification_count
+        FROM "Listing" l
+        LEFT JOIN "OrderItem" oi ON oi."listingId" = l.id
+        LEFT JOIN "Order" o ON o.id = oi."orderId"
+          ${PAID_STRIPE_ORDER_SQL}
+          AND o."sellerRefundId" IS NULL
+          ${BLOCKING_REFUND_LEDGER_SQL}
+          AND o."createdAt" >= ${startDate}
+          AND o."createdAt" ${rangeEndSql}
+        WHERE l."sellerId" = ${sellerId}
+        GROUP BY l.id, l.title, l."createdAt", l."viewCount", l."clickCount"
+      )
       SELECT
-        l.id,
-        l.title,
-        (SELECT p.url FROM "Photo" p WHERE p."listingId" = l.id ORDER BY p."sortOrder" ASC LIMIT 1) AS image_url,
-        COALESCE(SUM(CASE WHEN o.id IS NOT NULL THEN oi."priceCents" * oi.quantity ELSE 0 END), 0) AS total_revenue,
-        COALESCE(SUM(CASE WHEN o.id IS NOT NULL THEN oi.quantity ELSE 0 END), 0) AS units_sold,
-        COALESCE(
-          SUM(CASE WHEN o.id IS NOT NULL THEN oi."priceCents" * oi.quantity ELSE 0 END)
-          / NULLIF(SUM(CASE WHEN o.id IS NOT NULL THEN oi.quantity ELSE 0 END), 0),
-          0
-        ) AS avg_price,
-        l."viewCount" AS view_count,
-        l."clickCount" AS click_count,
-        (SELECT COUNT(*)::bigint FROM "Favorite" f WHERE f."listingId" = l.id) AS favorite_count,
-        (SELECT COUNT(*)::bigint FROM "StockNotification" sn WHERE sn."listingId" = l.id) AS stock_notification_count,
-        l."createdAt" AS created_at
-      FROM "Listing" l
-      LEFT JOIN "OrderItem" oi ON oi."listingId" = l.id
-      LEFT JOIN "Order" o ON o.id = oi."orderId"
-        ${PAID_STRIPE_ORDER_SQL}
-        AND o."sellerRefundId" IS NULL
-        ${BLOCKING_REFUND_LEDGER_SQL}
-      WHERE l."sellerId" = ${sellerId}
-      GROUP BY l.id, l.title, l."viewCount", l."clickCount", l."createdAt"
-      ORDER BY total_revenue DESC
+        scoped.id,
+        scoped.title,
+        (SELECT p.url FROM "Photo" p WHERE p."listingId" = scoped.id ORDER BY p."sortOrder" ASC LIMIT 1) AS image_url,
+        scoped.total_revenue,
+        scoped.units_sold,
+        scoped.avg_price,
+        scoped.view_count,
+        scoped.click_count,
+        scoped.favorite_count,
+        scoped.stock_notification_count,
+        scoped.created_at
+      FROM scoped_listing_stats scoped
+      WHERE scoped.total_revenue > 0
+        OR scoped.units_sold > 0
+        OR scoped.view_count > 0
+        OR scoped.click_count > 0
+        OR scoped.favorite_count > 0
+        OR scoped.stock_notification_count > 0
+      ORDER BY scoped.total_revenue DESC, scoped.view_count DESC, scoped.click_count DESC, scoped.id ASC
       LIMIT 8
     `;
 
@@ -577,9 +629,10 @@ export async function GET(req: Request) {
     }
 
     const topListings = topListingRows.map((r) => {
-      const daysSinceCreated = Math.max(
+      const activeStartMs = Math.max(startDate.getTime(), new Date(r.created_at).getTime());
+      const activeDaysInRange = Math.max(
         1,
-        Math.ceil((Date.now() - new Date(r.created_at).getTime()) / (1000 * 60 * 60 * 24)),
+        Math.ceil((endDate.getTime() - activeStartMs) / (1000 * 60 * 60 * 24)),
       );
       return {
         id: r.id,
@@ -592,7 +645,7 @@ export async function GET(req: Request) {
         clickCount: Number(r.click_count),
         favoritesCount: Number(r.favorite_count),
         stockNotificationCount: Number(r.stock_notification_count),
-        revenuePerActiveDayCents: Math.round(Number(r.total_revenue) / daysSinceCreated),
+        revenuePerActiveDayCents: Math.round(Number(r.total_revenue) / activeDaysInRange),
       };
     });
 

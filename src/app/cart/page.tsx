@@ -31,27 +31,50 @@ import { ShoppingBag } from "@/components/icons";
 
 function CartLoadingSkeleton() {
   return (
-    <main className="mx-auto max-w-3xl p-4 sm:p-8 space-y-6">
-      <div className="h-8 w-40 rounded-md bg-[#EFEAE0] animate-pulse" />
-      <div className="p-6 space-y-4">
-        <div className="h-6 w-48 rounded-md bg-[#EFEAE0] animate-pulse" />
-        <div className="space-y-3">
-          <div className="flex gap-4">
-            <div className="h-20 w-20 rounded-md bg-[#EFEAE0] animate-pulse shrink-0" />
-            <div className="flex-1 space-y-2">
-              <div className="h-4 w-3/4 rounded bg-[#EFEAE0] animate-pulse" />
-              <div className="h-4 w-1/2 rounded bg-[#EFEAE0] animate-pulse" />
-            </div>
-          </div>
-          <div className="flex gap-4">
-            <div className="h-20 w-20 rounded-md bg-[#EFEAE0] animate-pulse shrink-0" />
-            <div className="flex-1 space-y-2">
-              <div className="h-4 w-2/3 rounded bg-[#EFEAE0] animate-pulse" />
-              <div className="h-4 w-1/3 rounded bg-[#EFEAE0] animate-pulse" />
-            </div>
-          </div>
+    <main
+      className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8"
+      aria-busy="true"
+      aria-label="Loading cart"
+    >
+      <div className="h-8 w-28 animate-pulse rounded-md bg-[#EFEAE0]" />
+
+      {/* Mirrors the Cart / Address / Shipping / Payment progress pill. */}
+      <div className="h-9 w-[18rem] max-w-full animate-pulse rounded-full bg-[#EFEAE0]" />
+
+      <section>
+        <div className="flex items-center justify-between gap-4 border-b border-neutral-200/70 pb-3">
+          <div className="h-4 w-36 animate-pulse rounded bg-[#EFEAE0]" />
+          <div className="h-4 w-24 animate-pulse rounded bg-[#EFEAE0]" />
         </div>
+
+        <ul className="divide-y divide-neutral-200/60">
+          {[0, 1].map((item) => (
+            <li key={item} className="flex items-center gap-3 py-3">
+              <div className="h-16 w-16 shrink-0 animate-pulse rounded bg-[#EFEAE0]" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className={`h-4 animate-pulse rounded bg-[#EFEAE0] ${item === 0 ? "w-3/4" : "w-2/3"}`} />
+                <div className="h-3 w-28 animate-pulse rounded bg-[#EFEAE0]" />
+                <div className="flex items-center gap-2 pt-1">
+                  <div className="h-7 w-20 animate-pulse rounded-md bg-[#EFEAE0]" />
+                  <div className="h-7 w-16 animate-pulse rounded-md bg-[#EFEAE0]" />
+                </div>
+              </div>
+              <div className="h-4 w-16 shrink-0 animate-pulse rounded bg-[#EFEAE0]" />
+            </li>
+          ))}
+        </ul>
+
+        <div className="space-y-2 border-t border-neutral-100 px-4 py-3">
+          <div className="h-4 w-24 animate-pulse rounded bg-[#EFEAE0]" />
+          <div className="h-3 w-52 max-w-full animate-pulse rounded bg-[#EFEAE0]" />
+        </div>
+      </section>
+
+      <div className="flex items-center justify-end gap-4">
+        <div className="h-4 w-32 animate-pulse rounded bg-[#EFEAE0]" />
+        <div className="h-6 w-20 animate-pulse rounded bg-[#EFEAE0]" />
       </div>
+      <div className="h-11 w-full animate-pulse rounded-md bg-[#EFEAE0] sm:w-48" />
     </main>
   );
 }

@@ -414,19 +414,7 @@ export default function Header() {
             <NotificationBell initialUnreadCount={0} overlay={isHome} />
           </Show>
 
-          <Show
-            when="signed-in"
-            fallback={
-              <Link
-                href="/sign-in?redirect_url=/messages"
-                className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black/10 transition-colors"
-                aria-label="Messages"
-              >
-                <MessageCircle size={22} />
-                <IconHoverTip label="Messages" />
-              </Link>
-            }
-          >
+          <Show when="signed-in">
             <MessageIconLink />
           </Show>
 

@@ -1,12 +1,13 @@
 "use client";
 // src/app/dashboard/analytics/page.tsx
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useLayoutEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { Eye, Heart, Bell, MousePointer } from "@/components/icons";
 import { publicListingPath, publicSellerShopPath } from "@/lib/publicPaths";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
+import { clampTooltipCenter } from "./chartLayout";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -156,12 +157,14 @@ function LineChartSection({
   const [tooltip, setTooltip] = useState<{
     label: string;
     value: string;
-    xPct: number;
-    yPct: number;
+    xSvg: number;
+    ySvg: number;
+    placement: "above" | "below";
   } | null>(null);
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
 
   const metrics: { key: ChartMetric; label: string }[] = [
@@ -178,11 +181,12 @@ function LineChartSection({
   const color = METRIC_COLORS[metric];
 
   const SVG_W = 800;
-  const SVG_H = 220;
+  const SVG_H = 232;
   const PAD_L = 58;
   const PAD_R = 20;
   const PAD_T = 20;
-  const PAD_B = 44; // room for X labels
+  const PAD_B = 56;
+  const X_LABEL_Y = SVG_H - 30;
   const CW = SVG_W - PAD_L - PAD_R;
   const CH = SVG_H - PAD_T - PAD_B;
 
@@ -222,10 +226,45 @@ function LineChartSection({
     setTooltip({
       label: point.label,
       value: formatValue(point.value),
-      xPct: (point.x / SVG_W) * 100,
-      yPct: (point.y / SVG_H) * 100,
+      xSvg: point.x,
+      ySvg: point.y,
+      placement: point.y <= PAD_T + 56 ? "below" : "above",
     });
   }
+
+  useLayoutEffect(() => {
+    const activeTooltip = tooltip;
+    const container = containerRef.current;
+    const svg = svgRef.current;
+    const tooltipElement = tooltipRef.current;
+    if (!activeTooltip || !container || !svg || !tooltipElement) return;
+    const chartContainer = container;
+    const chartSvg = svg;
+    const visibleTooltip = tooltipElement;
+    const tooltipPosition = activeTooltip;
+
+    function positionTooltip() {
+      const containerRect = chartContainer.getBoundingClientRect();
+      const svgRect = chartSvg.getBoundingClientRect();
+      const desiredCenter =
+        svgRect.left - containerRect.left + (tooltipPosition.xSvg / SVG_W) * svgRect.width;
+      const pointTop =
+        svgRect.top - containerRect.top + (tooltipPosition.ySvg / SVG_H) * svgRect.height;
+      const clampedCenter = clampTooltipCenter(
+        desiredCenter,
+        chartContainer.clientWidth,
+        visibleTooltip.offsetWidth,
+      );
+
+      visibleTooltip.style.left = `${clampedCenter}px`;
+      visibleTooltip.style.top = `${pointTop}px`;
+      visibleTooltip.style.visibility = "visible";
+    }
+
+    positionTooltip();
+    window.addEventListener("resize", positionTooltip);
+    return () => window.removeEventListener("resize", positionTooltip);
+  }, [tooltip]);
 
   function closestPointIndex(clientX: number) {
     const svg = svgRef.current;
@@ -443,12 +482,12 @@ function LineChartSection({
               <text
                 key={i}
                 x={p.x}
-                y={SVG_H - 6}
+                y={X_LABEL_Y}
                 textAnchor={shouldRotate ? "end" : "middle"}
                 fontSize={11}
                 fill="#9ca3af"
                 transform={
-                  shouldRotate ? `rotate(-35, ${p.x.toFixed(1)}, ${(SVG_H - 6).toFixed(1)})` : undefined
+                  shouldRotate ? `rotate(-35, ${p.x.toFixed(1)}, ${X_LABEL_Y.toFixed(1)})` : undefined
                 }
               >
                 {p.label}
@@ -460,11 +499,15 @@ function LineChartSection({
         {/* Tooltip */}
         {tooltip && (
           <div
+            ref={tooltipRef}
             className="absolute z-20 pointer-events-none bg-white text-neutral-900 text-sm px-3 py-2 rounded-lg shadow-md border border-stone-200/60 whitespace-nowrap"
             style={{
-              left: `${tooltip.xPct}%`,
-              top: `${tooltip.yPct}%`,
-              transform: "translate(-50%, -130%)",
+              left: 0,
+              top: 0,
+              visibility: "hidden",
+              transform: `translate(-50%, ${
+                tooltip.placement === "below" ? "12px" : "calc(-100% - 12px)"
+              })`,
             }}
           >
             <div className="font-medium">{tooltip.label}</div>
@@ -736,7 +779,7 @@ export default function AnalyticsPage() {
         ) : data ? (
           data.topListings.length === 0 ? (
             <div className="card-section p-6 text-sm text-neutral-500">
-              No sales data yet.
+              No listing activity for this period.
             </div>
           ) : (
             <ul className="divide-y divide-neutral-100 card-section">

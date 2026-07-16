@@ -2139,9 +2139,9 @@ Single-file redesign applied to `src/components/ListingCard.tsx`, propagating to
 - From Your Makers: bg-white removed from scroll ul for consistency
 - Browse + page.tsx photo queries: `take: 2` to enable hover swap
 
-## Mobile Mosaic + Card Layout + Gradient Fix (2026-04-09)
+## Mobile Media + Card Layout + Gradient Fix (2026-04-09, historical)
 
-- HeroMosaic: style={{ width: "200%" }} → w-max on both rows — fixes mobile showing only 3 photos
+- The former multi-tile homepage media width fix from this pass is obsolete; that component was removed. The current homepage media contract is the single-photo hero documented below, and the old tiled layout must not be restored from this history note.
 - Browse gradient: softened to from-amber-50/30 via-amber-50/10 to match header seamlessly
 - ListingCard: badge moved to photo overlay bottom-left (bg-black/70 solid, green/amber text)
 - ListingCard: metadata collapsed to 3 lines — title / price+rating inline / location·seller
@@ -3238,7 +3238,7 @@ Focused audit on code paths NOT covered by the prior 44-finding audit. 6 agents 
 ## Performance Optimization — Batch 1 (2026-04-18)
 
 ### Image loading
-- **`loading="lazy"`** added to 15 image locations across ListingCard (all listing grids/scroll rows), HeroMosaic (all except first 6 — 3 per row visible above fold), RecentlyViewed, FeedClient (listings, blog, broadcasts), browse featured/list-view, homepage Meet a Maker (banner + avatar), homepage blog covers + author avatars, homepage From Your Makers cards. Previously: 0 images had lazy loading; all ~51 homepage images loaded eagerly.
+- **`loading="lazy"`** added to 15 image locations across ListingCard (all listing grids/scroll rows), RecentlyViewed, FeedClient (listings, blog, broadcasts), browse featured/list-view, homepage Meet a Maker (banner + avatar), homepage blog covers + author avatars, homepage From Your Makers cards, and the former multi-tile homepage media (since removed). The current local hero photograph is intentionally preloaded through `next/image`; do not apply this historical lazy-loading note to it. Previously: 0 images had lazy loading; all ~51 homepage images loaded eagerly.
 - **R2 cache headers**: `CacheControl: "public, max-age=31536000, immutable"` set on all new uploads via `PutObjectCommand` in `src/app/api/upload/presign/route.ts`. Keys include timestamp+random suffix so they are content-addressed and never change. Previously: no cache headers — images may have been re-fetched from R2 origin on every visit. Note: existing images uploaded before this change still lack cache headers; they would need a one-time migration script to set headers on existing R2 objects.
 
 ### JavaScript bundle
@@ -3396,7 +3396,7 @@ All emoji replaced with SVG icon components from `src/components/icons/` or plai
 - **Multi-seller success page** — deferred. Only shows last seller's receipt. Fixing requires checkout flow refactor; other orders visible via "View my orders".
 
 ### Final homepage safety audit (2026-04-21)
-- **Mosaic photo query** — added `seller: { chargesEnabled, vacationMode: false, banned: false }` (banned/vacation seller photos could appear in hero background)
+- **Former homepage tile query (removed)** — this historical pass added `seller: { chargesEnabled, vacationMode: false, banned: false }`. The current single-photo hero performs no listing-photo query; do not recreate one from this note.
 - **Featured maker fallback SQL** — added SellerProfile + User JOINs with safety filters (banned most-reviewed seller could be featured in Meet a Maker spotlight)
 - **From Your Makers** — added seller safety filters to both `recentListings` and `recentBlogPosts` queries
 
@@ -3842,44 +3842,47 @@ Full amber color pass on `src/app/page.tsx`:
 
 Also applied amber gradient to browse (`src/app/browse/page.tsx`) and listing detail (`src/app/listing/[id]/page.tsx`) pages: `bg-gradient-to-b from-amber-100/60 via-amber-50/30 to-white min-h-screen` on both `<main>` elements.
 
-### Static hero collage (updated 2026-07-12)
+### Homepage photo hero + floating glass header (current contract — supersedes 2026-07-12)
 
-**Component**: `src/components/HeroMosaic.tsx` is a server-rendered decorative
-static collage, not a client animation. It must not use `"use client"`,
-`useState`, random animation offsets, duplicated scrolling rows, pause/play
-controls, blur-on-every-image, or full-hero animation classes.
+The July 12 multi-tile collage contract is retired. Its anti-glass rule, its
+cream-page-surface header rule, and its permanent mobile homepage search-bar
+rule are explicitly superseded by the shipped design below. The old tiled hero
+component was removed; do not recreate it or add listing-photo queries to the
+homepage hero.
 
 Hero behavior:
-- The homepage uses up to 10 trusted public listing photos and requires at
-  least 8 real photos before showing the collage. Otherwise it falls back to
-  the warm cream/amber gradient.
-- The collage is edge-to-edge behind the hero but should read as one coherent
-  floating rounded rectangle, not a loose blob. Use a tight, consistent
-  internal grid/gutter system and clean `rounded-lg` image tiles. Faint
-  outward-only edge bleed on exterior photo surfaces is acceptable so the outer
-  collage silhouette is not perfectly linear, but do not offset internal tile
-  seams or create uneven internal gaps. Gutters should be the same cream page
-  color; do not add visible tile rings/outlines or per-tile card shadows. Keep
-  visible tile bottoms inside the hero bounds so bottom corners render rounded
-  even where the stat bar overlaps. Keep fixed width/height attributes, eager
-  loading only for the first five visible tiles, and lazy loading for the rest.
-- The hero headline is left-aligned as three intentional lines: "Buy
-  handmade.", "Buy local.", and "Buy quality.". Keep desktop lines from
-  wrapping into extra rows.
-- The left side uses a soft cream wash plus localized blur behind the content
-  so the headline and default white `SearchBar` stay crisp while the right side
-  of the collage remains brighter and clearer. The wash must fade to fully
-  transparent; do not add top/bottom fade overlays into the header or stats
-  area. Do not replace this wash composition with a centered card/panel or
-  glass search variant in the homepage hero without explicit direction. The
-  hero section must not clip the `SearchBar` suggestion list; keep the list
-  bounded with its own scrollable max-height instead.
-- The header is part of the same cream page surface with no bottom divider.
-- The stats bar floats over the bottom of the collage as a centered white
-  rounded-lg panel, with the collage ending roughly halfway down from the top
-  of the stat panel. Do not add breathing room between the collage and stat
-  panel. Keep it text-only unless Drew explicitly asks for icons. On mobile,
-  all four stats stay in one row.
+- `src/app/page.tsx` owns the hero directly and renders exactly one optimized
+  local photograph, `/hero-maple-cabinets.jpg`, with `next/image`. It is
+  decorative (`alt=""`, `aria-hidden="true"`), fills the hero, is preloaded at
+  quality 88, and uses the tuned responsive crop positions already in the page.
+  Preserve the breakpoint-specific crop and the warm espresso horizontal and
+  vertical overlays so the cabinetry remains legible without sacrificing text
+  contrast. Do not replace the photo with remote listing media, a photo grid,
+  animated rows, or a generated fallback without explicit direction.
+- The responsive hero height stays bounded with the current `clamp(...)` values
+  rather than forcing a full viewport. The headline is left-aligned as exactly
+  three non-wrapping lines: "Buy handmade.", "Buy local.", and "Buy quality.".
+  The subtitle is "More than what's made for everyone." and belongs directly
+  beneath the headline. The only hero actions are the frosted pill CTAs
+  "Browse" and "Find Shops Near You". There is no search bar, trending-tag row,
+  centered content card, or listing-data dependency inside the hero.
+- The homepage header is an absolute, transparent overlay on the photograph;
+  other routes keep the header in normal cream (`#F7F5F0`) document flow. The
+  homepage logo uses the light cream masked mark. On desktop, search and
+  navigation share a rounded translucent cream surface with a subtle white
+  border, shadow, and backdrop blur. On mobile/tablet, the compact header
+  controls use the matching translucent glass surface.
+- Homepage search uses `SearchBar`'s `overlay` treatment. Desktop search lives
+  inside the floating header surface. Mobile search is opened on demand by the
+  header search button and appears in the animated dropdown; it is not a
+  permanently visible bar in the hero. Homepage notification, account, search,
+  and menu popovers retain their translucent overlay variants, while their
+  non-homepage defaults remain opaque.
+- The semantic four-item stats `<dl>` sits exactly half inside and half below
+  the hero via the zero-height anchor plus `-translate-y-1/2`. Its surface is a
+  rounded translucent cream panel with backdrop blur, not an opaque white card.
+  Keep all four stats in one row on mobile and do not add spacing between the
+  hero edge and the overlapping panel.
 - The homepage map section sits directly on the cream page background. The map
   itself can be framed, but do not wrap the entire map/text area in another
   darker background panel. Keep the map frame tall enough to feel substantial
@@ -3975,7 +3978,7 @@ All card surfaces across the site now use the design system's `card-section` cla
 - **Blog page** — featured card + no-results state
 
 ### Visual consistency fixes
-- **Mosaic animation seam** — `translateX(-50%)` → `translateX(-50.05%)` in both keyframes. Sub-pixel overlap hides the vertical line where the duplicated row meets itself.
+- **Former homepage animation seam (removed)** — this historical sub-pixel overlap fix belonged to the deleted multi-tile hero. The current single photograph has no scrolling seam or hero animation.
 - **SearchBar button** — added `rounded-none` to the submit button. The outer `rounded-full overflow-hidden` container clips it; the global `button { border-radius }` rule was creating visible inner-left corners.
 - **"Makers You Follow" cards** — `h-36` fixed height → current listing-photo aspect (`aspect-[4/5]` as of 2026-05-09), `rounded-2xl overflow-hidden`, hover lift effect. Matches ListingCard modern look.
 - **Meet a Maker featured listings** — added `hover:shadow-lg hover:-translate-y-1 transition-all` hover lift.
@@ -4001,8 +4004,8 @@ Added `style={{ borderRadius: 0 }}` inline on the submit button. The global `but
 - Blog: post list + empty state
 - Seller settings: Shop Updates section
 
-### Mosaic seam
-Increased overlap from `-50.05%` to `-50.1%` in both keyframes.
+### Former homepage media seam (removed)
+The old duplicated-row overlap adjustment is obsolete. The current single-photo hero has no duplicated row or seam keyframes.
 
 ## Full Site Card/Divider Audit + Fixes (2026-04-22)
 
@@ -4473,12 +4476,12 @@ This section summarizes architecture-level changes from the reconciliation/audit
 - **Recently-viewed privacy behavior**: `rv` is a client-readable cookie and must be cleared on account deletion, explicit sign-out, signed-out auth transitions, and signed-in user switches. `RecentlyViewedAuthBoundary` owns the cross-redirect/user-switch cleanup using `RECENTLY_VIEWED_USER_STORAGE_KEY`; sign-out UI should call `clearSignedOutLocalAccountState()` before `signOut()` for immediate cleanup of recently viewed, anonymous cart, and cart session state.
 - **UI/runtime state behavior**: stock notification toggles should trust the server `subscribed` response via `stockNotificationState.ts`; review uploads should route through `reviewPhotoState.ts` so duplicate/capped/empty upload outcomes are visible, and locked review editors must render read-only and disable review-photo uploads because the server will reject changes after a seller reply; message stream preflight failures should be structured JSON and client fallback polling must stop on terminal 401/403/429 states instead of looping silently. `ActionForm` success/error events include `detail.formId`; message-thread refresh and composer clearing must filter to the message composer form id so unrelated forms on the page cannot clear drafts or trigger thread fetches.
 - **Small UI async behavior**: review submission stays single-flight while in progress, case replies must catch network failures and clear loading state, broadcast history loads should abort on cleanup, message-thread fallback polling should abort in-flight requests on cleanup, and edit-photo reorder callbacks should not show stale success/error state after unmount or a newer reorder. Search suggestions and header badge/account loaders use abort/request-token latest-wins behavior; recently viewed and saved-address loads abort on unmount; Buy Now checkout keeps the modal mounted after first open so close/unmount/pagehide and address/rate/gift changes invalidate stale session-creation responses and roll back any stale Stripe session id returned to the client unless checkout completed. Cart multi-seller checkout must recover completed seller sessions from server-side checkout state, must not persist Stripe client secrets, and must rollback only unpaid/pending session ids from the explicit back-to-shipping action; after any seller payment completes, the cart should not offer the pre-payment rollback-to-shipping path.
-- **Public discovery determinism behavior**: public listing/blog/seller discovery routes that page with `skip`/`take` or cap with SQL `LIMIT` must order on a unique deterministic suffix before the cap, and out-of-range public page params must be clamped before fetching rows and rendering pagination. Browse `tag=` query params must pass through `normalizeTags(..., 10)` before Prisma filters or filter UI preservation, and client filter components should import the browser-safe `tags.ts` path backed by `textNormalization.ts`, not pull `sanitize-html` into browse filter bundles. Browse location/radius raw SQL pre-passes must filter to public seller state, active public listings, and viewer block lists before returning seller IDs to Prisma. Homepage mosaic/fallback discovery and browse no-results featured fallbacks must also respect viewer block exclusions, and decorative homepage mosaic tiles should not be hidden focusable links. Public map/metro/commission URL params should parse through bounded helpers; metro overflow CTAs must pass real coordinates instead of internal metro IDs. `/map` city-link content, `/sellers/map` exact pins, and `/makers/[metroSlug]` seller/nearby-city rows must apply `getBlockedSellerProfileIdsFor()` before capped public results. Seller profile tag chips must be backed by `/seller/[id]/shop?tag=` filtering, and shop sort/category/status/page links must preserve or intentionally clear `tag`. Commission near-me raw SQL must mirror `openCommissionWhere()` buyer account-state filters and block filtering in both select and count paths before `LIMIT/OFFSET`, use row-local `LEFT JOIN LATERAL` interest counts instead of pre-aggregating all `CommissionInterest` rows, and capped commission lists/interests need stable id tie-breakers. Search/autocomplete components mounted in more than one responsive slot must use instance-scoped listbox/option IDs, combobox/listbox semantics, and latest-request-wins suggestion fetches.
+- **Public discovery determinism behavior**: public listing/blog/seller discovery routes that page with `skip`/`take` or cap with SQL `LIMIT` must order on a unique deterministic suffix before the cap, and out-of-range public page params must be clamped before fetching rows and rendering pagination. Browse `tag=` query params must pass through `normalizeTags(..., 10)` before Prisma filters or filter UI preservation, and client filter components should import the browser-safe `tags.ts` path backed by `textNormalization.ts`, not pull `sanitize-html` into browse filter bundles. Browse location/radius raw SQL pre-passes must filter to public seller state, active public listings, and viewer block lists before returning seller IDs to Prisma. Browse no-results featured fallbacks must respect viewer block exclusions. The homepage hero is a local decorative asset and performs no listing-discovery query. Public map/metro/commission URL params should parse through bounded helpers; metro overflow CTAs must pass real coordinates instead of internal metro IDs. `/map` city-link content, `/sellers/map` exact pins, and `/makers/[metroSlug]` seller/nearby-city rows must apply `getBlockedSellerProfileIdsFor()` before capped public results. Seller profile tag chips must be backed by `/seller/[id]/shop?tag=` filtering, and shop sort/category/status/page links must preserve or intentionally clear `tag`. Commission near-me raw SQL must mirror `openCommissionWhere()` buyer account-state filters and block filtering in both select and count paths before `LIMIT/OFFSET`, use row-local `LEFT JOIN LATERAL` interest counts instead of pre-aggregating all `CommissionInterest` rows, and capped commission lists/interests need stable id tie-breakers. Search/autocomplete components mounted in more than one responsive slot must use instance-scoped listbox/option IDs, combobox/listbox semantics, and latest-request-wins suggestion fetches.
 - **Private/admin pagination behavior**: private and admin pages that expose user-entered `page` params must parse through bounded helpers, count before fetching, clamp to the available page range, and keep a unique deterministic tie-breaker such as `id desc` in the `orderBy` chain before applying `skip`. Do not let invalid or huge page params flow directly into Prisma `skip`. Admin users, audit logs, broadcasts, reviews, and support active queues should follow this count/clamp/fetch pattern; support active counts must come from an exact count query, not the current page length. Admin queues that intentionally use a fixed `take` instead of pagination must still cap rows, end ordering with a unique tie-breaker, and keep a matching schema/migration index for the filter/order shape.
 - **Status label behavior**: case and fulfillment status labels should flow through `caseStatusLabel()` and `fulfillmentStatusLabel()` instead of ad hoc `status.replaceAll("_", " ")` in buyer/seller/admin order and case surfaces, so copy stays consistent when enum labels need product-specific wording.
 - **Stock notification scope**: back-in-stock subscriptions are intentionally for `IN_STOCK` listings only. Listing pages should only query/render stock notification state when `listingType === "IN_STOCK"` and the item is out of stock, matching `/api/listings/[id]/notify`.
 - **Header/accessibility behavior**: header logo links should keep explicit `aria-label="Grainline home"` copy, the root skip link should reveal on `focus-visible`, and `UserAvatarMenu` should rely on `/api/me` avatar/image props instead of subscribing to Clerk `useUser()` for a fallback image.
-- **Popover/motion accessibility behavior**: header/account/badge popovers should expose `aria-controls`/expanded state, use dialog semantics for plain link/button popovers instead of ARIA menu semantics, and close when keyboard focus leaves them. Animated close handlers must no-op while already closed and clear pending close timers before reopening so outside-click/Escape paths cannot poison the next open state. Homepage hero media is a static decorative collage with stable listing/image keys, not animated media; do not restore motion unless it has an explicit reduced-motion path and a user-visible pause control. Other decorative homepage motion, including scroll cues if reintroduced, must provide reduced-motion opt-outs. Scroll-reveal wrappers must keep content visible in SSR/no-JS markup and may hide/reveal content only after client-side observation is available. Admin mobile navigation stays semantic navigation with `aria-current="page"` instead of tab roles.
+- **Popover/motion accessibility behavior**: header/account/badge popovers should expose `aria-controls`/expanded state, use dialog semantics for plain link/button popovers instead of ARIA menu semantics, and close when keyboard focus leaves them. Animated close handlers must no-op while already closed and clear pending close timers before reopening so outside-click/Escape paths cannot poison the next open state. Homepage hero media is one static decorative `next/image` photograph with empty alt text and `aria-hidden="true"`, not interactive or animated media; do not restore tiled or scrolling hero motion. Other decorative homepage motion, including scroll cues if reintroduced, must provide reduced-motion opt-outs. Scroll-reveal wrappers must keep content visible in SSR/no-JS markup and may hide/reveal content only after client-side observation is available. Admin mobile navigation stays semantic navigation with `aria-current="page"` instead of tab roles.
 - **CSP report observability**: `/api/csp-report` may still return 204 for malformed browser/provider reports, but parse failures must be Sentry-captured with non-PII context after rate limiting. Do not restore a bare catch around report parsing.
 - **Clerk Turnstile CSP behavior**: Clerk bot protection depends on Cloudflare Turnstile. Keep `https://challenges.cloudflare.com` allowlisted only in the required CSP directives (`script-src`, `script-src-elem`, `frame-src`, and `connect-src`); do not replace it with wildcard Cloudflare hosts or broader script/frame allowances.
 - **Rate-limit UX behavior**: `rateLimitResponse()` returns structured `RATE_LIMITED` payloads with `retryAfterSeconds`, `retryAt`, `Retry-After`, and human retry copy. High-signal checkout/admin routes, blog search/suggestions, user reports, and message streams should use it instead of bare route-local 429 JSON so retry metadata stays visible. UI fetch code should surface that message through `readApiErrorMessage()` on non-OK responses. Fire-and-forget listing analytics telemetry should favor no-op success over user-visible 429 responses after rate limits trip.

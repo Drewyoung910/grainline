@@ -278,11 +278,11 @@ describe("seller operational route hardening", () => {
     assert.match(analytics, /AND o\."buyerId" IS NOT NULL/);
     assert.match(
       analytics,
-      /\(SELECT COUNT\(\*\)::bigint FROM "Favorite" f WHERE f\."listingId" = l\.id\) AS favorite_count/,
+      /FROM "Favorite" f\s+WHERE f\."listingId" = l\.id\s+AND f\."createdAt" >= \$\{startDate\}\s+AND f\."createdAt" \$\{rangeEndSql\}/,
     );
     assert.match(
       analytics,
-      /\(SELECT COUNT\(\*\)::bigint FROM "StockNotification" sn WHERE sn\."listingId" = l\.id\) AS stock_notification_count/,
+      /FROM "StockNotification" sn\s+WHERE sn\."listingId" = l\.id\s+AND sn\."createdAt" >= \$\{startDate\}\s+AND sn\."createdAt" \$\{rangeEndSql\}/,
     );
     assert.match(analytics, /import \{[\s\S]*getFreshSellerMetrics[\s\S]*SELLER_METRICS_SELECT[\s\S]*\} from "@\/lib\/metrics"/);
     assert.match(analytics, /const existingMetricsPromise = prisma\.sellerMetrics\.findUnique\(\{[\s\S]*?select: SELLER_METRICS_SELECT/s);

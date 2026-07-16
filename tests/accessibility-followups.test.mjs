@@ -282,7 +282,8 @@ describe("accessibility follow-ups", () => {
     assert.match(thread, /Open<span className="sr-only"> in a new tab<\/span>/);
     assert.match(thread, /aria-label=\{`Open \$\{file\.name \?\? "file attachment"\} in a new tab`\}/);
     assert.doesNotMatch(thread, /⬇️/);
-    assert.match(favorite, /p-3/);
+    assert.match(favorite, /h-11 w-11/);
+    assert.match(favorite, /h-9 w-9 rounded-full/);
     assert.match(saveBlog, /p-3/);
     assert.match(imageLightbox, /<span aria-hidden="true">✕<\/span>/);
     assert.match(listingGallery, /<span aria-hidden="true">✕<\/span>/);
