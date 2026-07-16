@@ -483,7 +483,7 @@ async function BlogIndexPageContent({
                       <SaveBlogButton slug={post.slug} initialSaved={savedSet.has(post.id)} />
                     </div>
                     <Link href={`/blog/${post.slug}`} className="block">
-                      <div className="aspect-[16/9] bg-neutral-100 overflow-hidden">
+                      <div className="aspect-[4/3] bg-neutral-100 overflow-hidden">
                         <MediaImage
                           src={post.coverImageUrl}
                           alt={post.title}
@@ -532,18 +532,18 @@ async function BlogIndexPageContent({
               {clampedPage > 1 && (
                 <Link
                   href={buildHref({ page: String(clampedPage - 1) })}
-                  className="rounded-lg border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50"
+                  className="rounded-md border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50"
                 >
                   ← Previous
                 </Link>
               )}
-              <span className="rounded-lg border border-neutral-200 px-4 py-2 text-sm bg-neutral-50 text-neutral-500">
+              <span className="rounded-md border border-neutral-200 px-4 py-2 text-sm bg-neutral-50 text-neutral-500">
                 Page {clampedPage} of {totalPages}
               </span>
               {clampedPage < totalPages && (
                 <Link
                   href={buildHref({ page: String(clampedPage + 1) })}
-                  className="rounded-lg border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50"
+                  className="rounded-md border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50"
                 >
                   Next →
                 </Link>

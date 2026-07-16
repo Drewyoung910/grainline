@@ -53,7 +53,7 @@ export default function SellerHandbookPage() {
         </ul>
       </nav>
 
-      <div className="prose prose-neutral max-w-none prose-headings:font-display prose-headings:font-semibold prose-h2:text-2xl prose-h2:mt-12 prose-h2:mb-4 prose-h3:text-lg prose-h3:mt-8 prose-h3:mb-3 prose-p:leading-relaxed prose-a:text-amber-700 prose-a:no-underline hover:prose-a:underline">
+      <div className="prose prose-neutral max-w-none prose-headings:font-semibold prose-h2:font-display prose-h2:text-2xl prose-h2:mt-12 prose-h2:mb-4 prose-h3:text-lg prose-h3:mt-8 prose-h3:mb-3 prose-p:leading-relaxed prose-a:text-amber-700 prose-a:no-underline hover:prose-a:underline">
 
         <section id="getting-started">
           <h2>1. Getting started</h2>

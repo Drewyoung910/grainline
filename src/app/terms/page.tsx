@@ -64,7 +64,7 @@ export default function TermsPage() {
       </div>
 
       {/* Table of Contents */}
-      <nav className="mb-12 rounded border border-neutral-200 bg-stone-50 px-6 py-5 print:hidden">
+      <nav className="card-section mb-12 px-6 py-5 print:hidden">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-500 mb-3">Table of Contents</h2>
         <ol className="space-y-1.5">
           {TOC.map((item) => (

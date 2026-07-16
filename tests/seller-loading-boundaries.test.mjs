@@ -56,10 +56,12 @@ describe("seller route loading boundaries", () => {
       "BlogManagerSkeleton",
       "BlogEditorSkeleton",
       "CreateListingSkeleton",
+      "EditListingSkeleton",
       "ShopProfileSkeleton",
       "SellerSettingsSkeleton",
       "BuyerOrdersSkeleton",
       "MakerMapSkeleton",
+      "SellersMapSkeleton",
       "SellerShopSkeleton",
       "SellerProfileSkeleton",
     ]) {

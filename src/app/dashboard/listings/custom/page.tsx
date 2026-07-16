@@ -340,7 +340,7 @@ export default async function CustomListingPage({
   });
 
   return (
-    <div className="max-w-2xl mx-auto p-8">
+    <main className="mx-auto max-w-2xl p-8">
       <h1 className="font-display text-2xl font-semibold mb-2">Create a Custom Listing</h1>
       <p className="text-sm text-neutral-500 mb-6">
         This listing will be private and reserved for{" "}
@@ -350,7 +350,7 @@ export default async function CustomListingPage({
 
       {/* Buyer's request context */}
       {requestData && (
-        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-2">
+        <div className="mb-6 space-y-2 rounded-md border border-amber-200 bg-amber-50 p-4">
           <div className="text-sm font-semibold text-amber-800 flex items-center gap-1.5"><Palette size={14} /> Buyer&apos;s Request</div>
           <p className="text-sm text-amber-900">{requestData.description}</p>
           {requestData.dimensions && (
@@ -418,12 +418,12 @@ export default async function CustomListingPage({
           <PhotoManager max={10} />
         </div>
 
-        <div className="border rounded p-3">
+        <div className="card-section p-4">
           <div className="font-medium mb-2">Listing type</div>
           <ListingTypeFields />
         </div>
 
-        <div className="border rounded p-3">
+        <div className="card-section p-4">
           <div className="font-medium mb-2">Packaged size &amp; weight (for calculated shipping)</div>
           <div className="grid grid-cols-2 gap-3">
             <label className="text-sm">
@@ -477,10 +477,13 @@ export default async function CustomListingPage({
           </div>
         </div>
 
-        <button type="submit" className="rounded px-4 py-2 bg-black text-white">
+        <button
+          type="submit"
+          className="min-h-[44px] rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-800"
+        >
           Create Custom Listing &amp; Notify Buyer
         </button>
       </ActionForm>
-    </div>
+    </main>
   );
 }

@@ -66,8 +66,7 @@ describe("public query determinism", () => {
     assert.match(browse, /sort === "price_desc" \? \[\{ priceCents: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(browse, /sort === "popular" \? \[\{ favorites: \{ _count: "desc" \} \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(browse, /: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(browse, /orderBy: \[\{ favorites: \{ _count: "desc" \} \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(browse, /const featured = await prisma\.listing\.findMany\(\{\s*where: publicListingWhere\(\s*blockedSellerIds\.length > 0 \? \{ sellerId: \{ notIn: blockedSellerIds \} \} : \{\},\s*\)/);
+    assert.match(browse, /const featured = await fetchListings\(\s*publicListingWhere\(\s*blockedSellerIds\.length > 0 \? \{ sellerId: \{ notIn: blockedSellerIds \} \} : \{\},\s*\),\s*\[\{ favorites: \{ _count: "desc" \} \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(browse, /b\.listing\.createdAt\.getTime\(\) - a\.listing\.createdAt\.getTime\(\)/);
     assert.match(browse, /b\.listing\.id\.localeCompare\(a\.listing\.id\)/);
 

@@ -20,7 +20,7 @@ const DATA_REQUEST_TOPICS = [
 
 export default function DataRequestPage() {
   return (
-    <main className="min-h-[100svh] bg-stone-50 px-4 py-12 sm:px-6">
+    <main className="min-h-[100svh] bg-[#F7F5F0] px-4 py-12 sm:px-6">
       <div className="mx-auto max-w-3xl space-y-8">
         <header className="space-y-3">
           <p className="text-sm font-medium text-neutral-500">Legal</p>
@@ -41,8 +41,8 @@ export default function DataRequestPage() {
           includeOrderField={false}
         />
 
-        <section className="rounded-lg border border-neutral-200 bg-white px-5 py-4 text-sm leading-6 text-neutral-700">
-          <h2 className="mb-2 font-semibold text-neutral-950">Direct legal contact</h2>
+        <section className="card-section px-5 py-4 text-sm leading-6 text-neutral-700">
+          <h2 className="font-display mb-2 font-semibold text-neutral-950">Direct legal contact</h2>
           <p>
             The form creates a trackable request. You can also contact{" "}
             <a href="mailto:legal@thegrainline.com" className="underline hover:text-neutral-950">

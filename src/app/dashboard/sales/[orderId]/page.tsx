@@ -552,7 +552,7 @@ export default async function SellerOrderDetailPage({
 
       {/* Fulfillment context */}
       {isPickup ? (
-        <div className="card-section bg-neutral-50 px-4 py-3 text-sm">
+        <div className="card-section px-4 py-3 text-sm">
           <div className="font-medium text-neutral-800">Local pickup selected</div>
           <div className="text-neutral-700">Coordinate pickup with the buyer via Messages.</div>
           {order.pickupReadyAt && (
@@ -562,7 +562,7 @@ export default async function SellerOrderDetailPage({
           )}
         </div>
       ) : shippingDetailsPurged && order.buyerDataPurgedAt ? (
-        <div className="card-section bg-neutral-50 px-4 py-3 text-sm">
+        <div className="card-section px-4 py-3 text-sm">
           <div className="font-medium text-neutral-800">Shipping details purged</div>
           <div className="text-neutral-700">
             Street address, buyer contact, and gift note details were removed under the retention policy.
@@ -572,7 +572,7 @@ export default async function SellerOrderDetailPage({
           </div>
         </div>
       ) : hasAddress ? (
-        <div className="card-section bg-neutral-50 px-4 py-3 text-sm">
+        <div className="card-section px-4 py-3 text-sm">
           <div className="font-medium text-neutral-800 mb-1">Ship to</div>
           <div className="text-neutral-700">
             {order.shipToLine1}

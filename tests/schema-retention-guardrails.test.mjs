@@ -95,10 +95,10 @@ describe("schema retention guardrails", () => {
     assert.match(dashboardBlog, /data: \{ status: "ARCHIVED" \}/);
     assert.match(dashboardBlog, /confirm="Archive this post\?"/);
     assert.match(dashboardBlog, /async function unarchivePost\(postId: string\)/);
-    assert.match(dashboardBlog, /data: \{ status: post\.publishedAt \? "PUBLISHED" : "DRAFT" \}/);
+    assert.match(dashboardBlog, /data: \{ status: "DRAFT" \}/);
     assert.match(dashboardBlog, /confirm="Unarchive this post\?"/);
     assert.match(dashboardBlog, /ToastOnMount message="Post archived\."/);
-    assert.match(dashboardBlog, /ToastOnMount message="Post unarchived\."/);
+    assert.match(dashboardBlog, /ToastOnMount message="Post restored as a draft\."/);
   });
 
   it("detaches blog comment replies when a parent comment is removed", () => {

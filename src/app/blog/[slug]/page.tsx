@@ -532,7 +532,7 @@ export default async function BlogPostPage({
               return (
                 <li key={r.slug} className="card-listing">
                   <Link href={`/blog/${r.slug}`} className="block">
-                    <div className="h-32 bg-neutral-100 overflow-hidden">
+                    <div className="aspect-[4/3] bg-neutral-100 overflow-hidden">
                       {r.coverImageUrl ? (
                         <MediaImage
                           src={r.coverImageUrl}

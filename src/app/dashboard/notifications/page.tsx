@@ -122,7 +122,7 @@ export default async function NotificationsPage({
     <main className="max-w-2xl mx-auto p-8">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Notifications</h1>
+          <h1 className="font-display text-2xl font-bold">Notifications</h1>
           {unreadCount > 0 && (
             <p className="text-sm text-neutral-500 mt-0.5">{unreadCount} unread</p>
           )}

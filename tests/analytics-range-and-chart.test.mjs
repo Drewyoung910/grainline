@@ -45,6 +45,58 @@ describe("seller analytics chart layout", () => {
     assert.match(page, /rotate\(-35, \$\{p\.x\.toFixed\(1\)\}, \$\{X_LABEL_Y\.toFixed\(1\)\}\)/);
     assert.doesNotMatch(page, /y=\{SVG_H - 6\}/);
   });
+
+  it("pins click, drag, touch, and keyboard selections until a new selection", () => {
+    const page = source("src/app/dashboard/analytics/page.tsx");
+
+    assert.match(page, /const pinnedIndexRef = useRef<number \| null>\(null\)/);
+    assert.match(page, /onPointerDown=\{\(event\) => \{[\s\S]*?updatePointerSelection\(event\)/);
+    assert.match(page, /onPointerUp=\{\(event\) => \{[\s\S]*?pinCurrentPoint\(\)/);
+    assert.match(page, /onPointerCancel=\{\(event\) => \{[\s\S]*?pinCurrentPoint\(\)/);
+    assert.match(page, /pinnedIndexRef\.current === null/);
+    assert.match(page, /role="slider"/);
+    assert.match(page, /tabIndex=\{0\}/);
+    assert.match(page, /aria-orientation="horizontal"/);
+    assert.match(page, /onFocus=\{\(\) => \{/);
+    assert.match(page, /event\.key === "ArrowLeft"/);
+    assert.match(page, /event\.key === "ArrowDown"/);
+    assert.match(page, /event\.key === "ArrowRight"/);
+    assert.match(page, /event\.key === "ArrowUp"/);
+    assert.match(page, /key=\{data\.range\}/);
+    assert.doesNotMatch(page, /key=\{`\$\{data\.range\}-\$\{chartMetric\}`\}/);
+    assert.match(page, /useEffect\(\(\) => \{[\s\S]*?pinnedIndexRef\.current = null;[\s\S]*?\}, \[metric\]\)/);
+    assert.doesNotMatch(
+      page,
+      /onPointerLeave=\{\(\) => \{\s*if \(!draggingRef\.current\) \{\s*setActiveIdx\(null\)/,
+    );
+  });
+
+  it("keeps metric-button focus while clearing a stale pinned point", () => {
+    const page = source("src/app/dashboard/analytics/page.tsx");
+
+    assert.match(page, /key=\{data\.range\}/);
+    assert.match(page, /selectedIndexRef\.current = null/);
+    assert.match(page, /pinnedIndexRef\.current = null/);
+    assert.match(page, /setActiveIdx\(null\)/);
+    assert.match(page, /setTooltip\(null\)/);
+  });
+
+  it("keeps analytics page and section titles on the shared display hierarchy", () => {
+    const page = source("src/app/dashboard/analytics/page.tsx");
+
+    assert.match(page, /<h1 className="font-display text-3xl font-bold">Analytics<\/h1>/);
+    for (const title of [
+      "Performance Over Time",
+      "Overview",
+      "Engagement",
+      "Top Listings",
+      "Guild Metrics",
+      "Rating Over Time",
+      "Recent Sales",
+    ]) {
+      assert.match(page, new RegExp(`<h2 className="font-display [^"]+">${title}<\\/h2>`));
+    }
+  });
 });
 
 describe("seller analytics Top Listings range", () => {

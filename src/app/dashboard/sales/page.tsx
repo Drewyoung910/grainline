@@ -13,6 +13,8 @@ import { fulfillmentStatusLabel } from "@/lib/fulfillmentLabels";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { sellerFacingOrderBuyerLabel } from "@/lib/sellerFacingUser";
 import type { Metadata } from "next";
+import { Suspense } from "react";
+import { SalesListSkeleton } from "@/components/CommerceRouteSkeletons";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -37,7 +39,17 @@ function StatusBadge({ status }: { status: FulfillmentStatus }) {
   );
 }
 
-export default async function SalesPage({
+export default function SalesPage(props: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  return (
+    <Suspense fallback={<SalesListSkeleton />}>
+      <SalesContent {...props} />
+    </Suspense>
+  );
+}
+
+async function SalesContent({
   searchParams,
 }: {
   searchParams: Promise<{ page?: string }>;

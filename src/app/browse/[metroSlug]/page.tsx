@@ -17,6 +17,8 @@ import { publicListingPath } from "@/lib/publicPaths";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { formatCurrencyMinorUnitAmount } from "@/lib/money";
+import { Suspense } from "react";
+import { BrowseCitySkeleton } from "@/components/LocalDiscoverySkeletons";
 
 const BASE_URL = "https://thegrainline.com";
 
@@ -83,7 +85,17 @@ export async function generateMetadata({
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
-export default async function BrowseMetroPage({
+export default function BrowseMetroPage(props: {
+  params: Promise<{ metroSlug: string }>;
+}) {
+  return (
+    <Suspense fallback={<BrowseCitySkeleton />}>
+      <BrowseMetroContent {...props} />
+    </Suspense>
+  );
+}
+
+async function BrowseMetroContent({
   params,
 }: {
   params: Promise<{ metroSlug: string }>;

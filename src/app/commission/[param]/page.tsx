@@ -24,6 +24,11 @@ import { publicSellerPath } from "@/lib/publicPaths";
 import { getBlockedIdsFor } from "@/lib/blocks";
 import { formatCurrencyMinorUnitAmount } from "@/lib/money";
 import { formatCommissionBudgetRange } from "@/lib/commissionBudget";
+import { Suspense } from "react";
+import {
+  CommissionDetailSkeleton,
+  CommissionMetroSkeleton,
+} from "@/components/CommissionRouteSkeletons";
 
 const COMMISSION_INTEREST_DISPLAY_LIMIT = 100;
 
@@ -600,7 +605,15 @@ export default async function CommissionParamPage({
 }) {
   const { param } = await params;
   if (isMetroSlug(param)) {
-    return <MetroCommissionsPage metroSlug={param} />;
+    return (
+      <Suspense fallback={<CommissionMetroSkeleton />}>
+        <MetroCommissionsPage metroSlug={param} />
+      </Suspense>
+    );
   }
-  return <CommissionDetailPage id={param} />;
+  return (
+    <Suspense fallback={<CommissionDetailSkeleton />}>
+      <CommissionDetailPage id={param} />
+    </Suspense>
+  );
 }

@@ -177,8 +177,8 @@ export default async function CheckoutSuccessPage({
           </section>
 
           <div className="flex gap-3">
-            <Link href="/dashboard/orders" className="inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50">View my orders</Link>
-            <Link href="/browse" className="inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50">Keep shopping</Link>
+            <Link href="/dashboard/orders" className="inline-flex items-center rounded-md border px-4 py-2 text-sm font-medium hover:bg-neutral-50">View my orders</Link>
+            <Link href="/browse" className="inline-flex items-center rounded-md border px-4 py-2 text-sm font-medium hover:bg-neutral-50">Keep shopping</Link>
           </div>
         </main>
       );
@@ -228,7 +228,7 @@ export default async function CheckoutSuccessPage({
     return (
       <main className="mx-auto max-w-3xl p-8 space-y-6">
         <header className="space-y-1">
-          <h1 className="text-2xl font-semibold">
+          <h1 className="font-display text-2xl font-semibold">
             Payment successful!
           </h1>
           <p className="text-neutral-600 text-sm">
@@ -239,13 +239,13 @@ export default async function CheckoutSuccessPage({
         <div className="flex gap-3">
           <Link
             href="/dashboard/orders"
-            className="inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+            className="inline-flex items-center rounded-md border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
           >
             View my orders
           </Link>
           <Link
             href="/browse"
-            className="inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+            className="inline-flex items-center rounded-md border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
           >
             Keep shopping
           </Link>
@@ -335,8 +335,8 @@ export default async function CheckoutSuccessPage({
       </section>
 
       <div className="flex gap-3">
-        <Link href="/dashboard/orders" className="inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50">View my orders</Link>
-        <Link href="/browse" className="inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50">Keep shopping</Link>
+        <Link href="/dashboard/orders" className="inline-flex items-center rounded-md border px-4 py-2 text-sm font-medium hover:bg-neutral-50">View my orders</Link>
+        <Link href="/browse" className="inline-flex items-center rounded-md border px-4 py-2 text-sm font-medium hover:bg-neutral-50">Keep shopping</Link>
       </div>
     </main>
   );

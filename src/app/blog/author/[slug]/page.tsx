@@ -163,7 +163,7 @@ export default async function BlogAuthorPage({
           <SaveBlogButton slug={post.slug} initialSaved={savedSet.has(post.id)} />
         </div>
         <Link href={`/blog/${post.slug}`} className="block">
-          <div className="aspect-[16/9] overflow-hidden bg-neutral-100">
+          <div className="aspect-[4/3] overflow-hidden bg-neutral-100">
             <MediaImage
               src={post.coverImageUrl}
               alt={post.title}

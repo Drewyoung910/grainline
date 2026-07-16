@@ -14,6 +14,7 @@ import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
 import { paidStripeOrderWhere } from "@/lib/orderTrust";
 import { Suspense } from "react";
 import { AccountOverviewSkeleton } from "@/components/RouteSkeletons";
+import ScrollFadeRow from "@/components/ScrollFadeRow";
 
 export const metadata: Metadata = {
   title: "My Account",
@@ -83,9 +84,6 @@ async function AccountPageContent() {
               take: 1,
               orderBy: { sortOrder: "asc" },
               select: { url: true },
-            },
-            seller: {
-              select: { displayName: true },
             },
           },
         },
@@ -277,29 +275,38 @@ async function AccountPageContent() {
             No saved items yet. Heart pieces while browsing to save them here.
           </div>
         ) : (
-          <ul className="flex gap-4 overflow-x-auto pb-0">
-            {savedItems.map(({ listing }) => {
-              const thumb = listing.photos[0]?.url;
-              return (
-                <ClickTracker key={listing.id} listingId={listing.id} className="card-listing shrink-0 w-40 transition-colors">
-                  <Link href={publicListingPath(listing.id, listing.title)} className="block">
-                    {thumb ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={thumb} alt={listing.title} className="h-32 w-full object-cover" />
-                    ) : (
-                      <div className="h-32 w-full bg-neutral-100" />
-                    )}
-                    <div className="p-2 bg-white border-t border-neutral-100">
-                      <p className="text-xs font-medium truncate">{listing.title}</p>
-                      <p className="text-xs text-neutral-500">
-                        {formatCurrencyCents(listing.priceCents, listing.currency)}
-                      </p>
-                    </div>
-                  </Link>
-                </ClickTracker>
-              );
-            })}
-          </ul>
+          <ScrollFadeRow className="-mx-1 overflow-x-auto px-1">
+            <ul className="flex snap-x snap-mandatory gap-4 pb-0" style={{ width: "max-content" }}>
+              {savedItems.map(({ listing }) => {
+                const thumb = listing.photos[0]?.url;
+                return (
+                  <ClickTracker key={listing.id} listingId={listing.id} className="group w-40 shrink-0 snap-start">
+                    <Link
+                      href={publicListingPath(listing.id, listing.title)}
+                      className="block rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900/25 focus-visible:ring-offset-2"
+                    >
+                      <div className="aspect-[4/3] w-full overflow-hidden rounded-lg bg-[#EFEAE0]">
+                        {thumb ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={thumb}
+                            alt={listing.title}
+                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          />
+                        ) : null}
+                      </div>
+                      <div className="mt-2 space-y-0.5 px-0.5">
+                        <p className="truncate text-sm font-medium text-neutral-900">{listing.title}</p>
+                        <p className="text-sm text-neutral-500">
+                          {formatCurrencyCents(listing.priceCents, listing.currency)}
+                        </p>
+                      </div>
+                    </Link>
+                  </ClickTracker>
+                );
+              })}
+            </ul>
+          </ScrollFadeRow>
         )}
       </section>
 

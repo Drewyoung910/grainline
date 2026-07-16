@@ -31,11 +31,11 @@ export function AccountOverviewSkeleton() {
         <SectionHeader />
         <div className="flex gap-4 overflow-hidden">
           {Array.from({ length: 6 }).map((_, index) => (
-            <div key={index} className="card-listing w-40 shrink-0 overflow-hidden">
-              <Pulse className="h-32 w-full rounded-none" />
-              <div className="space-y-2 border-t border-neutral-100 bg-white p-2">
-                <Pulse className="h-3 w-3/4" />
-                <Pulse className="h-3 w-1/2" />
+            <div key={index} className="w-40 shrink-0">
+              <Pulse className="aspect-[4/3] w-full rounded-lg" />
+              <div className="mt-2 space-y-1 px-0.5">
+                <Pulse className="h-4 w-3/4" />
+                <Pulse className="h-4 w-1/2" />
               </div>
             </div>
           ))}

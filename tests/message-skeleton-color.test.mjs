@@ -31,4 +31,24 @@ describe("message skeleton colors", () => {
     assert.doesNotMatch(inbox, /bg-\[#E3DCCB\] animate-pulse/);
     assert.doesNotMatch(thread, /bg-\[#E3DCCB\] animate-pulse/);
   });
+
+  it("keeps the thread context and composer hierarchy aligned with the loaded UI", () => {
+    const loadedThread = source("src/app/messages/[id]/page.tsx");
+    const composer = source("src/components/MessageComposer.tsx");
+    const fallback = source("src/app/messages/[id]/loading.tsx");
+
+    assert.match(
+      loadedThread,
+      /p-3 rounded-lg bg-\[#EFEAE0\] border border-stone-200\/60/,
+    );
+    assert.match(
+      fallback,
+      /p-3 rounded-lg bg-\[#EFEAE0\] border border-stone-200\/60/,
+    );
+    assert.match(composer, /sticky bottom-0[\s\S]*bg-\[#EFEAE0\]/);
+    assert.match(fallback, /sticky bottom-0[\s\S]*bg-\[#EFEAE0\]/);
+    assert.match(fallback, /h-10 flex-1 rounded-2xl bg-\[#F7F5F0\] animate-pulse/);
+    assert.match(fallback, /h-10 w-20 rounded-full bg-\[#2C1F1A\]\/40 animate-pulse/);
+    assert.doesNotMatch(fallback, /sticky bottom-0[^\n]*bg-white/);
+  });
 });

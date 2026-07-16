@@ -133,6 +133,42 @@ export function CreateListingSkeleton() {
   );
 }
 
+export function EditListingSkeleton() {
+  return (
+    <main className="mx-auto max-w-4xl p-8" aria-busy="true" aria-label="Loading listing editor">
+      <Pulse className="mb-6 h-7 w-44" />
+      <div className="space-y-4">
+        <Field />
+        <Field multiline />
+        <Field multiline />
+        <Field />
+        <div className="space-y-2">
+          <Pulse className="h-4 w-48" />
+          <div className="grid grid-cols-3 gap-3">
+            {Array.from({ length: 3 }).map((_, index) => <Pulse key={index} className="h-10 w-full" />)}
+          </div>
+        </div>
+        <Field />
+        <div className="space-y-2">
+          <Pulse className="h-4 w-16" />
+          <Pulse className="aspect-[4/3] w-full" />
+        </div>
+        <Field />
+        <section className="card-section space-y-4 p-4">
+          <Pulse className="h-5 w-64 max-w-full" />
+          <div className="grid grid-cols-2 gap-3">
+            {Array.from({ length: 4 }).map((_, index) => <Pulse key={index} className="h-10 w-full" />)}
+          </div>
+        </section>
+        <div className="flex gap-3 pt-2">
+          <Pulse className="h-11 flex-1" />
+          <Pulse className="h-11 flex-1" />
+        </div>
+      </div>
+    </main>
+  );
+}
+
 function ProfileSection({ rows = 3, media = false }: { rows?: number; media?: boolean }) {
   return (
     <section className="card-section space-y-4 p-6">
@@ -282,6 +318,20 @@ export function MakerMapSkeleton() {
             <Pulse className="h-3 w-64 max-w-full" />
           </div>
         ))}
+      </section>
+    </main>
+  );
+}
+
+export function SellersMapSkeleton() {
+  return (
+    <main className="mx-auto max-w-7xl space-y-6 p-8" aria-busy="true" aria-label="Loading sellers map">
+      <header className="space-y-2">
+        <Pulse className="h-7 w-52" />
+        <Pulse className="h-4 w-[34rem] max-w-full" />
+      </header>
+      <section className="overflow-hidden rounded-xl border">
+        <Pulse className="h-[520px] w-full rounded-none" />
       </section>
     </main>
   );

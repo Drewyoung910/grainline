@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 
 export default function NotAvailablePage() {
   return (
-    <main className='min-h-[100svh] flex items-center justify-center px-4 bg-stone-50'>
+    <main className='min-h-[100svh] flex items-center justify-center px-4 bg-[#F7F5F0]'>
       <div className='text-center max-w-md'>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -16,7 +16,7 @@ export default function NotAvailablePage() {
           className='h-8 w-auto mx-auto mb-8'
           style={{ filter: 'brightness(0)' }}
         />
-        <h1 className='text-2xl font-semibold text-neutral-900 mb-3'>
+        <h1 className='font-display text-2xl font-semibold text-neutral-900 mb-3'>
           Not available in your region
         </h1>
         <p className='text-neutral-500 text-sm leading-relaxed mb-6'>

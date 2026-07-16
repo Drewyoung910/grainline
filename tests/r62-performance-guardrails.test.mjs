@@ -28,7 +28,9 @@ describe("R62 performance guardrails", () => {
     assert.match(home, /width=\{20\} height=\{20\} className="h-5 w-5/);
 
     const browse = source("src/app/browse/page.tsx");
-    assert.match(browse, /width=\{288\}[\s\S]*height=\{144\}[\s\S]*h-36 w-full/);
+    const listingCard = source("src/components/ListingCard.tsx");
+    assert.match(browse, /<ListingCard[\s\S]*variant="grid"/);
+    assert.match(listingCard, /className="w-full aspect-\[4\/5\] object-cover/);
     assert.match(browse, /width=\{176\} height=\{220\} className="h-full w-full/);
   });
 });

@@ -15,8 +15,8 @@ export default function BrowseError({
 
   return (
     <main className="p-8 max-w-2xl mx-auto">
-      <div className="rounded-xl border p-6 bg-red-50 border-red-200">
-        <h2 className="text-lg font-semibold text-red-700 mb-2">
+      <div className="rounded-lg border p-6 bg-red-50 border-red-200">
+        <h2 className="font-display text-lg font-semibold text-red-700 mb-2">
           {isDbDown ? "We’re having trouble reaching the database" : "Something went wrong"}
         </h2>
         <p className="text-sm text-red-700/80">
@@ -28,11 +28,11 @@ export default function BrowseError({
         <div className="mt-4 flex gap-2">
           <button
             onClick={reset}
-            className="rounded border px-3 py-1.5 text-sm hover:bg-neutral-50"
+            className="rounded-md border px-3 py-1.5 text-sm hover:bg-neutral-50"
           >
             Try again
           </button>
-          <Link href="/" className="rounded border px-3 py-1.5 text-sm hover:bg-neutral-50">
+          <Link href="/" className="rounded-md border px-3 py-1.5 text-sm hover:bg-neutral-50">
             Go home
           </Link>
         </div>

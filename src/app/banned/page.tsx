@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function BannedPage() {
   return (
-    <main className="min-h-[100svh] flex items-center justify-center px-4 bg-stone-50">
+    <main className="min-h-[100svh] flex items-center justify-center px-4 bg-[#F7F5F0]">
       <div className="text-center max-w-md">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -25,13 +25,13 @@ export default function BannedPage() {
         <div className="flex flex-wrap justify-center gap-2">
           <Link
             href="/support"
-            className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700"
+            className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700"
           >
             Contact support
           </Link>
           <Link
             href="/legal/data-request"
-            className="rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
+            className="rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
           >
             Data request
           </Link>

@@ -176,7 +176,7 @@ export default function SupportRequestForm({
         <button
           type="submit"
           disabled={status === "loading"}
-          className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-700 disabled:opacity-60"
+          className="inline-flex min-h-11 items-center gap-2 rounded-md bg-neutral-900 px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-700 disabled:opacity-60"
         >
           {status === "loading" ? "Submitting..." : submitLabel}
           <ArrowRight size={16} />

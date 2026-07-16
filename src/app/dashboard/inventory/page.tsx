@@ -31,7 +31,7 @@ export default async function InventoryPage() {
   return (
     <main className="mx-auto max-w-7xl p-8 space-y-8">
       <header>
-        <h1 className="text-2xl font-semibold">Inventory</h1>
+        <h1 className="font-display text-2xl font-semibold">Inventory</h1>
         <p className="text-sm text-neutral-500 mt-1">
           Manage stock quantities for your In Stock listings.
         </p>

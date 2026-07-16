@@ -402,7 +402,7 @@ export default async function BuyerOrderDetailPage({
       </section>
 
       {method === "PICKUP" ? (
-        <section className="card-section bg-neutral-50 px-4 py-3 text-sm">
+        <section className="card-section px-4 py-3 text-sm">
           <div className="font-medium text-neutral-800">Local pickup</div>
           <div className="text-neutral-700">
             Your maker will coordinate pickup with you via Messages.
@@ -414,7 +414,7 @@ export default async function BuyerOrderDetailPage({
           )}
         </section>
       ) : shippingDetailsPurged && order.buyerDataPurgedAt ? (
-        <section className="card-section bg-neutral-50 px-4 py-3 text-sm">
+        <section className="card-section px-4 py-3 text-sm">
           <div className="font-medium text-neutral-800">Shipping details purged</div>
           <div className="text-neutral-700">
             Street address, buyer contact, and gift note details were removed under the retention policy.
@@ -424,7 +424,7 @@ export default async function BuyerOrderDetailPage({
           </div>
         </section>
       ) : hasAddress ? (
-        <section className="card-section bg-neutral-50 px-4 py-3 text-sm">
+        <section className="card-section px-4 py-3 text-sm">
           <div className="font-medium text-neutral-800 mb-1">Ship to</div>
           <div className="text-neutral-700">
             {order.shipToLine1}

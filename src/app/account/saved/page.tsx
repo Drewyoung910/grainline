@@ -105,7 +105,7 @@ export default async function SavedPage({
         <Link href="/account" className="text-sm text-neutral-500 hover:text-neutral-700 mb-4 inline-flex items-center gap-1">
           <ArrowLeft size={14} /> Back to My Account
         </Link>
-        <h1 className="text-2xl font-bold mb-6">Saved</h1>
+        <h1 className="font-display text-2xl font-bold mb-6">Saved</h1>
         <Tabs tab={tab} tabHref={tabHref} listingTotal={listingTotal} postTotal={postTotal} />
 
         {favorites.length === 0 ? (
@@ -169,7 +169,7 @@ export default async function SavedPage({
       <Link href="/account" className="text-sm text-neutral-500 hover:text-neutral-700 mb-4 inline-flex items-center gap-1">
         <ArrowLeft size={14} /> Back to My Account
       </Link>
-      <h1 className="text-2xl font-bold mb-6">Saved</h1>
+      <h1 className="font-display text-2xl font-bold mb-6">Saved</h1>
       <Tabs tab={tab} tabHref={tabHref} listingTotal={listingTotal} postTotal={postTotal} />
 
       {savedPosts.length === 0 ? (
@@ -189,7 +189,7 @@ export default async function SavedPage({
                     <SaveBlogButton slug={p.slug} initialSaved={true} />
                   </div>
                   <Link href={`/blog/${p.slug}`} className="block">
-                    <div className="h-44 bg-neutral-100 overflow-hidden">
+                    <div className="aspect-[4/3] bg-neutral-100 overflow-hidden">
                       {p.coverImageUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={p.coverImageUrl} alt={p.title} className="w-full h-full object-cover" />
@@ -282,15 +282,15 @@ function Pagination({
   return (
     <div className="flex justify-center gap-2 mt-8">
       {page > 1 && (
-        <Link href={`${baseHref}&page=${page - 1}`} className="rounded-lg border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50">
+        <Link href={`${baseHref}&page=${page - 1}`} className="rounded-md border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50">
           ← Previous
         </Link>
       )}
-      <span className="rounded-lg border border-neutral-200 px-4 py-2 text-sm bg-neutral-50 text-neutral-500">
+      <span className="rounded-md border border-neutral-200 px-4 py-2 text-sm bg-neutral-50 text-neutral-500">
         Page {page} of {totalPages}
       </span>
       {page < totalPages && (
-        <Link href={`${baseHref}&page=${page + 1}`} className="rounded-lg border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50">
+        <Link href={`${baseHref}&page=${page + 1}`} className="rounded-md border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50">
           Next →
         </Link>
       )}

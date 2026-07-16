@@ -11,13 +11,13 @@ export default function OfflinePage() {
           className="h-8 w-auto mx-auto mb-6"
           style={{ filter: "brightness(0)" }}
         />
-        <h1 className="text-xl font-semibold mb-2">You&apos;re offline</h1>
+        <h1 className="font-display text-xl font-semibold mb-2">You&apos;re offline</h1>
         <p className="text-neutral-500 text-sm mb-6">
           Check your connection and try again.
         </p>
         <Link
           href="/"
-          className="border border-neutral-900 px-6 py-2 text-sm hover:bg-neutral-50 inline-block"
+          className="inline-block rounded-md border border-neutral-900 px-6 py-2 text-sm hover:bg-neutral-50"
         >
           Try again
         </Link>

@@ -23,6 +23,7 @@ import { normalizeDisplayNameForLookup, truncateText } from "@/lib/sanitize";
 import { formatCurrencyCents, parseMoneyInputToCents } from "@/lib/money";
 import { parseBoundedDecimalParam, parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { normalizeTags } from "@/lib/tags";
+import { BrowseIndexSkeleton } from "@/components/LocalDiscoverySkeletons";
 
 const PAGE_SIZE = 24;
 const MAX_SHIPS_WITHIN_DAYS = 365;
@@ -208,7 +209,17 @@ export async function generateMetadata({
   };
 }
 
-export default async function BrowsePage({
+export default function BrowsePage(props: {
+  searchParams: Promise<Search>;
+}) {
+  return (
+    <Suspense fallback={<BrowseIndexSkeleton />}>
+      <BrowseContent {...props} />
+    </Suspense>
+  );
+}
+
+async function BrowseContent({
   searchParams,
 }: {
   searchParams: Promise<Search>;
@@ -429,7 +440,7 @@ export default async function BrowsePage({
 
   // Seller ratings for display
   const sellerIds = Array.from(new Set(listings.map((l) => l.sellerId)));
-  const sellerRatings = await getSellerRatingMap(sellerIds);
+  let sellerRatings = await getSellerRatingMap(sellerIds);
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -477,18 +488,26 @@ export default async function BrowsePage({
 
   // ── No results experience ──────────────────────────────────────────────────
   if (total === 0) {
-    const featured = await prisma.listing.findMany({
-      where: publicListingWhere(
+    const featured = await fetchListings(
+      publicListingWhere(
         blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {},
       ),
-      orderBy: [{ favorites: { _count: "desc" } }, { createdAt: "desc" }, { id: "desc" }],
-      take: 4,
-      select: {
-        id: true,
-        title: true,
-        photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
-      },
-    });
+      [{ favorites: { _count: "desc" } }, { createdAt: "desc" }, { id: "desc" }],
+      4,
+      0,
+      false,
+    );
+    const [featuredFavorites, featuredRatings] = await Promise.all([
+      meDbId && featured.length > 0
+        ? prisma.favorite.findMany({
+            where: { userId: meDbId, listingId: { in: featured.map((listing) => listing.id) } },
+            select: { listingId: true },
+          })
+        : Promise.resolve([]),
+      getSellerRatingMap(Array.from(new Set(featured.map((listing) => listing.sellerId)))),
+    ]);
+    savedSet = new Set(featuredFavorites.map((favorite) => favorite.listingId));
+    sellerRatings = featuredRatings;
 
     return (
       <div className="bg-[#F7F5F0] min-h-[100svh]">
@@ -500,7 +519,7 @@ export default async function BrowsePage({
           </div>
           <div className="flex-1 min-w-0 space-y-8">
             <div className="space-y-2">
-              <h1 className="text-2xl font-semibold">
+              <h1 className="font-display text-2xl font-semibold">
                 {q ? `No pieces found for "${q}"` : "No pieces found"}
               </h1>
               <p className="text-neutral-500 text-sm">
@@ -528,28 +547,15 @@ export default async function BrowsePage({
             {featured.length > 0 && (
               <div>
                 <div className="font-medium mb-3">Featured listings</div>
-                <ul className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  {featured.map((l) => (
-                    <li key={l.id} className="border border-neutral-200 overflow-hidden">
-                      <Link href={publicListingPath(l.id, l.title)} className="block">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={l.photos[0]?.url ?? "/favicon.ico"}
-                          alt={l.photos[0]?.altText ?? l.title}
-                          loading="lazy"
-                          width={288}
-                          height={144}
-                          className="h-36 w-full object-cover"
-                        />
-                        <div className="p-2 text-sm font-medium truncate">{l.title}</div>
-                      </Link>
-                    </li>
+                <ul className="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-4 sm:gap-x-4 sm:gap-y-8">
+                  {featured.map((listing) => (
+                    <GridCard key={listing.id} l={listing} />
                   ))}
                 </ul>
               </div>
             )}
 
-            <Link href="/browse" className="inline-flex items-center rounded-lg border px-4 py-2 text-sm hover:bg-neutral-50">
+            <Link href="/browse" className="inline-flex items-center rounded-md border px-4 py-2 text-sm hover:bg-neutral-50">
               Browse all listings
             </Link>
           </div>

@@ -61,19 +61,22 @@ Visual standards for all UI work on this codebase. Do not deviate without explic
 ### Colors
 
 - **Page background**: `bg-[#F7F5F0]` (warm cream `#F7F5F0`) — creates contrast against `#ffffff` card surfaces
-- **Card surface**: `bg-white` (`#ffffff`) — all card info sections, never `bg-stone-50` or any grey tint
+- **Section-card surface**: `bg-white` (`#ffffff`) — use for `.card-section` content/info panels, never `bg-stone-50` or a grey tint
+- **Warm contained-card surface**: `#EFEAE0` via `.card-listing` — used by editorial, maker, and other contained cards that need separation from the page. This is not the current product-listing treatment.
 - **Borders**: `border-stone-200/60` on cards; `border-neutral-200` on inputs and buttons
 - **Text primary**: `text-neutral-900`; secondary: `text-neutral-500`; muted: `text-neutral-400`
 - **Accent**: amber — `bg-amber-50`, `border-amber-200`, `text-amber-700` for highlights/badges
 
 ### Card Classes (defined in `src/app/globals.css`)
 
-- **`.card-listing`** — listing cards: `background: #fff`, `border: 1px solid rgba(214,211,209,0.6)`, warm box-shadow `0 8px 30px rgba(28,25,23,0.04)`, `border-radius: 0.5rem` (8px), `overflow: hidden`, `hover:shadow-md`, `transition: box-shadow 0.2s`
+- **`.card-listing`** — contained editorial/maker cards: `background: #EFEAE0`, `border: 1px solid rgba(231,229,228,0.6)`, warm box-shadow, `border-radius: 0.5rem` (8px), `overflow: hidden`, and a subtle hover shadow. Do not use it to wrap the shared floating product `ListingCard`.
 - **`.card-section`** — content/info blocks: same border + shadow, no hover effect, no overflow:hidden
+- **Shared product `ListingCard`** — intentionally borderless with metadata floating directly on the cream page. Its photo is `aspect-[4/5]`, `rounded-2xl`, and `object-cover`. This current marketplace-card design supersedes the older white/4:3 `.card-listing` product-card notes below.
 
 ### Rounding
 
-- **Cards**: `rounded-lg` (8px) via `.card-listing` / `.card-section`
+- **Contained cards**: `rounded-lg` (8px) via `.card-listing` / `.card-section`
+- **Product listing photos**: `rounded-2xl` (16px) in the shared floating `ListingCard`; this is a deliberate exception, not a general card radius
 - **Buttons & inputs**: `rounded-md` (6px) — enforced via `button { border-radius: 0.375rem }` global CSS base style in `globals.css`
 - **Pills & tags**: `rounded-full` only — never on buttons or cards
 
@@ -84,9 +87,9 @@ Visual standards for all UI work on this codebase. Do not deviate without explic
 
 ### Card Image Standards
 
-- **Grid cards** (`card-listing`): `aspect-[4/3] object-cover` — no fixed heights
+- **Product grid cards** (`ListingCard`): `aspect-[4/5] object-cover` with floating text — no fixed heights
 - **List card thumbnail** (browse list view): full-height left column (`relative w-40 sm:w-48` parent, `absolute inset-0 h-full w-full object-cover` image) — expands to match the text content height
-- **Blog/feed cards**: `aspect-[4/3] object-cover`
+- **Blog/feed editorial cards**: `aspect-[4/3] object-cover`; a featured editorial hero may intentionally use a wider ratio
 
 ### Purchase Panel (listing detail)
 
@@ -4327,7 +4330,7 @@ This section summarizes architecture-level changes from the reconciliation/audit
 - **Site background behavior**: every page inherits `bg-[#F7F5F0]` warm cream from the `<body>` element in `src/app/layout.tsx` AND from the `html, body { background: #F7F5F0 }` base rule in `globals.css`. The body is `flex flex-col min-h-[100svh]` and the `<div id="main-content">` is `flex-1` so the footer always sticks to the bottom of the viewport even when page content is short — don't break this flex chain by adding intermediate wrappers without `flex-1`. Do not override the page bg to `bg-white` on `<main>` elements; cards and `card-section` panels already provide the white surface where needed. **Never** put an unlayered `html, body { background: ... }` rule in `globals.css` — unlayered CSS beats Tailwind's `@layer utilities` and silently overrides every `<body className="bg-...">` class. The current rule is wrapped in `@layer base` precisely to avoid that trap; if you change the default page bg, change it there.
 - **Warm color palette behavior**: site chrome uses two cream tones plus espresso — body cream `#F7F5F0`, darker accent `#EFEAE0` (`.section-warm`) for inset panels/strips that sit one step darker than body, and espresso `#2C1F1A` (hover `#3A2A24`) for primary action buttons and brand moments. The former chrome green `#3F5D3A` and related green-family hexes were removed from site chrome on 2026-07-10 and are guarded by `tests/chrome-color-guardrails.test.mjs`; GuildBadge wreath artwork and semantic Tailwind `green-*` status colors remain intentionally exempt. Header and footer are cream (`#F7F5F0` header without a bottom divider; `#EFEAE0` footer with `border-t border-stone-200/60`) with neutral text and the espresso logo rendered unmodified, with no invert filters. Header icon buttons use `text-neutral-900 hover:bg-black/10 rounded-full`. Do not promote `#EFEAE0` to body bg — it is the section accent only. Do not reintroduce green chrome tones; pick from `#F7F5F0`, `#EFEAE0`, `#2C1F1A`, or the existing amber-50 / amber-100 utilities.
 - **Focus indicator behavior**: the global `:focus-visible` outline + amber box-shadow rules live inside `@layer base` in `globals.css` **without** `!important`. Per-component focus utilities (`focus-visible:outline-none`, `focus-visible:shadow-none`, `focus-within:ring-*`) win because Tailwind utilities are in a later layer. When an input lives inside a rounded pill/round container (e.g. `SearchBar`, messages search input, `TagsInput`), put the focus ring on the container via `focus-within:ring-2` and add `focus-visible:outline-none focus-visible:shadow-none` to the inner input so the visible ring follows the container's border-radius instead of drawing a rectangle inside a pill.
-- **FavoriteButton hover affordance**: the heart button uses `inline-flex items-center justify-center p-2.5 rounded-full hover:bg-black/15 transition-colors` with `right-2 top-2` positioning. Padding-based sizing (not fixed `h-11 w-11`) makes the hover circle hug the heart symmetrically. Default heart `size={22}` keeps the visible button ~42×42 so the circle isn't an oversized halo around a small heart. `SaveBlogButton` uses the same `p-2 rounded-full hover:bg-black/15` pattern.
+- **FavoriteButton hover affordance**: keep the button itself as a fixed 44×44 accessible target (`h-11 w-11`) anchored at the photo corner. The visible hover treatment is a separate centered 36×36 circle (`h-9 w-9`) so it has breathing room against the image edges without shrinking the tap target. Do not move the hover background back onto the full button or replace the fixed target with padding-based sizing. `SaveBlogButton` remains a separate control with its own compact treatment.
 - **Audit-only follow-up queue**: the 2026-05-06 extended audit-only sweep reopened 10 verified follow-ups in `audit_open_findings.md` after the prior mechanical queue hit zero. They were closed in the follow-up route/docs pass. A later 2026-05-06 order-state/case-resolution follow-up closed the verified `acceptingNewOrders`, case-resolution race/refund amount, shipping quote parity, cart-add concurrency, admin UI error, and checkout-seller token logging findings. Stripe Connect v2 modernization is already on `main`; the stale `feature/stripe-connect-v2` branch must not be merged without rebasing onto current `main` and re-auditing its diff. Treat the audit file as the source of truth before assuming the queue is empty, and do not duplicate its per-finding detail here.
 - **Seller order-availability behavior**: `SellerProfile.acceptingNewOrders === false` is a hard server-side purchase blocker, not just a badge. Cart add, buy-now checkout, seller cart checkout, shipping quotes, and custom-order requests should call `sellerOrderBlockReason()` / `sellerOrderBlockMessage()` before mutating cart state, requesting Shippo rates, or creating Stripe sessions. Listing detail should hide purchase controls when the same state says the seller is blocked.
 - **Cart add concurrency behavior**: signed-in cart creation uses `cart.upsert`, then `/api/cart/add` locks the buyer's `Cart` row inside a transaction (`SELECT ... FOR UPDATE`) before re-reading cart caps and creating/incrementing `CartItem` rows. Existing cart item quantity increments use an `updateMany` guard against the 99-item cap. Do not reintroduce find-then-create cart creation, read-then-increment quantity checks, or cart-wide cap checks that run only outside the transaction lock.

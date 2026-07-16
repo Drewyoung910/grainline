@@ -205,6 +205,16 @@ export const blogCreateRatelimit = new Ratelimit({
   prefix: "rl:blog_create",
 });
 
+// Blog status toggles are routine management actions, not new posts. Keep
+// them separate from the strict publishing quota so archiving cannot consume
+// (or be blocked by) the three-post daily creation allowance.
+export const blogStatusRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(60, "60 m"),
+  analytics: true,
+  prefix: "rl:blog_status",
+});
+
 // Commission creation — prevent request spam
 export const commissionCreateRatelimit = new Ratelimit({
   redis,

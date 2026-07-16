@@ -166,6 +166,16 @@ function LineChartSection({
   const svgRef = useRef<SVGSVGElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
+  const selectedIndexRef = useRef<number | null>(null);
+  const pinnedIndexRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    draggingRef.current = false;
+    selectedIndexRef.current = null;
+    pinnedIndexRef.current = null;
+    setActiveIdx(null);
+    setTooltip(null);
+  }, [metric]);
 
   const metrics: { key: ChartMetric; label: string }[] = [
     { key: "revenue", label: "Sales" },
@@ -222,6 +232,7 @@ function LineChartSection({
   function showPoint(index: number) {
     const point = points[index];
     if (!point) return;
+    selectedIndexRef.current = index;
     setActiveIdx(index);
     setTooltip({
       label: point.label,
@@ -289,10 +300,27 @@ function LineChartSection({
     if (index >= 0) showPoint(index);
   }
 
+  function pinCurrentPoint() {
+    pinnedIndexRef.current = selectedIndexRef.current;
+  }
+
+  function moveKeyboardSelection(direction: -1 | 1 | "first" | "last") {
+    if (points.length === 0) return;
+    const current = selectedIndexRef.current ?? pinnedIndexRef.current ?? 0;
+    const next =
+      direction === "first"
+        ? 0
+        : direction === "last"
+          ? points.length - 1
+          : Math.max(0, Math.min(points.length - 1, current + direction));
+    showPoint(next);
+    pinnedIndexRef.current = next;
+  }
+
   return (
     <section>
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <h2 className="text-xl font-semibold">Performance Over Time</h2>
+        <h2 className="font-display text-xl font-semibold">Performance Over Time</h2>
         <div className="flex gap-2">
           {metrics.map((m) => (
             <button
@@ -415,32 +443,75 @@ function LineChartSection({
               height={CH + 28}
               fill="transparent"
               style={{ cursor: "crosshair", touchAction: "none" }}
+              role="slider"
+              tabIndex={0}
+              aria-orientation="horizontal"
+              aria-label={`${metrics.find((item) => item.key === metric)?.label ?? metric} over time`}
+              aria-valuemin={0}
+              aria-valuemax={Math.max(0, points.length - 1)}
+              aria-valuenow={activeIdx ?? 0}
+              aria-valuetext={
+                activeIdx !== null && points[activeIdx]
+                  ? `${points[activeIdx].label}: ${formatValue(points[activeIdx].value)}`
+                  : "Use the arrow keys to inspect the chart"
+              }
               onPointerDown={(event) => {
                 draggingRef.current = true;
                 event.currentTarget.setPointerCapture(event.pointerId);
                 updatePointerSelection(event);
               }}
               onPointerMove={(event) => {
-                if (draggingRef.current || event.pointerType === "mouse") {
+                if (
+                  draggingRef.current ||
+                  (event.pointerType === "mouse" && pinnedIndexRef.current === null)
+                ) {
                   updatePointerSelection(event);
                 }
               }}
               onPointerUp={(event) => {
                 draggingRef.current = false;
+                pinCurrentPoint();
                 if (event.currentTarget.hasPointerCapture(event.pointerId)) {
                   event.currentTarget.releasePointerCapture(event.pointerId);
                 }
               }}
               onPointerCancel={(event) => {
                 draggingRef.current = false;
+                pinCurrentPoint();
                 if (event.currentTarget.hasPointerCapture(event.pointerId)) {
                   event.currentTarget.releasePointerCapture(event.pointerId);
                 }
               }}
               onPointerLeave={() => {
-                if (!draggingRef.current) {
+                if (!draggingRef.current && pinnedIndexRef.current === null) {
+                  selectedIndexRef.current = null;
                   setActiveIdx(null);
                   setTooltip(null);
+                }
+              }}
+              onFocus={() => {
+                if (selectedIndexRef.current === null) showPoint(pinnedIndexRef.current ?? 0);
+              }}
+              onBlur={() => {
+                if (pinnedIndexRef.current === null) {
+                  selectedIndexRef.current = null;
+                  setActiveIdx(null);
+                  setTooltip(null);
+                }
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
+                  event.preventDefault();
+                  moveKeyboardSelection(-1);
+                } else if (event.key === "ArrowRight" || event.key === "ArrowUp") {
+                  event.preventDefault();
+                  moveKeyboardSelection(1);
+                } else if (event.key === "Home") {
+                  event.preventDefault();
+                  moveKeyboardSelection("first");
+                } else if (event.key === "End") {
+                  event.preventDefault();
+                  moveKeyboardSelection("last");
                 }
               }}
             />
@@ -577,7 +648,7 @@ export default function AnalyticsPage() {
           <Link href="/dashboard" className="text-sm text-neutral-500 hover:text-neutral-700">
             ← Workshop
           </Link>
-          <h1 className="text-3xl font-bold">Analytics</h1>
+          <h1 className="font-display text-3xl font-bold">Analytics</h1>
         </div>
 
         {/* Range selector */}
@@ -633,7 +704,7 @@ export default function AnalyticsPage() {
         <>
       {/* ── Section A: Overview ── */}
       <section>
-        <h2 className="text-xl font-semibold mb-4">Overview</h2>
+        <h2 className="font-display text-xl font-semibold mb-4">Overview</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {loading ? (
             <>
@@ -669,7 +740,7 @@ export default function AnalyticsPage() {
 
       {/* ── Section B: Engagement ── */}
       <section>
-        <h2 className="text-xl font-semibold mb-4">Engagement</h2>
+        <h2 className="font-display text-xl font-semibold mb-4">Engagement</h2>
         {loading ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {Array.from({ length: 8 }).map((_, i) => (
@@ -752,6 +823,7 @@ export default function AnalyticsPage() {
           <Skeleton className="h-64 w-full" />
         ) : data ? (
           <LineChartSection
+            key={data.range}
             chartData={data.chartData}
             metric={chartMetric}
             onMetricChange={setChartMetric}
@@ -762,7 +834,7 @@ export default function AnalyticsPage() {
       {/* ── Section D: Top Listings ── */}
       <section>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">Top Listings</h2>
+          <h2 className="font-display text-xl font-semibold">Top Listings</h2>
           <Link
             href={data?.sellerProfileId ? publicSellerShopPath(data.sellerProfileId, null) : "/dashboard"}
             className="text-sm text-neutral-600 underline hover:text-neutral-900"
@@ -833,7 +905,7 @@ export default function AnalyticsPage() {
 
       {/* ── Section E: Guild Metrics ── */}
       <section>
-        <h2 className="text-xl font-semibold mb-4">Guild Metrics</h2>
+        <h2 className="font-display text-xl font-semibold mb-4">Guild Metrics</h2>
         {loading ? (
           <Skeleton className="h-40 w-full" />
         ) : data ? (
@@ -921,7 +993,7 @@ export default function AnalyticsPage() {
       {/* ── Section F: Rating Over Time ── */}
       {!loading && data && data.ratingOverTime.length > 0 && (
         <section>
-          <h2 className="text-xl font-semibold mb-4">Rating Over Time</h2>
+          <h2 className="font-display text-xl font-semibold mb-4">Rating Over Time</h2>
           <div className="card-section divide-y divide-neutral-100">
             {data.ratingOverTime.map((r) => (
               <div key={r.label} className="flex items-center justify-between px-5 py-2 text-sm">
@@ -1009,7 +1081,7 @@ function RecentSales() {
   return (
     <section>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold">Recent Sales</h2>
+        <h2 className="font-display text-xl font-semibold">Recent Sales</h2>
         <Link
           href="/dashboard/sales"
           className="text-sm text-neutral-600 underline hover:text-neutral-900"

@@ -22,11 +22,11 @@ export default function ThreadLoading() {
 
         <div className="px-4 sm:px-5 pt-4 space-y-4">
           {/* Listing context card */}
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-white border border-stone-200/60">
-            <div className="h-14 w-14 rounded-md bg-[#EFEAE0] animate-pulse" />
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-[#EFEAE0] border border-stone-200/60">
+            <div className="h-14 w-14 rounded-md bg-[#F7F5F0] animate-pulse" />
             <div className="min-w-0 flex-1 space-y-2">
-              <div className="h-4 w-2/3 rounded bg-[#EFEAE0] animate-pulse" />
-              <div className="h-3 w-20 rounded bg-[#EFEAE0] animate-pulse" />
+              <div className="h-4 w-2/3 rounded bg-[#F7F5F0] animate-pulse" />
+              <div className="h-3 w-20 rounded bg-[#F7F5F0] animate-pulse" />
             </div>
           </div>
 
@@ -48,11 +48,11 @@ export default function ThreadLoading() {
         </div>
 
         {/* Composer */}
-        <div className="sticky bottom-0 sm:bottom-6 bg-white border-t border-neutral-200 sm:border sm:border-stone-200/70 sm:rounded-2xl sm:mt-3 px-3 sm:px-4 pt-3 pb-4 shadow-md">
+        <div className="sticky bottom-0 sm:bottom-6 bg-[#EFEAE0] border-t border-neutral-200 sm:border sm:border-stone-200/70 sm:rounded-2xl sm:mt-3 px-3 sm:px-4 pt-3 pb-4 shadow-md">
           <div className="flex items-end gap-2">
-            <div className="h-10 w-10 shrink-0 rounded-full bg-[#EFEAE0] animate-pulse" />
-            <div className="h-10 flex-1 rounded-2xl bg-[#EFEAE0] animate-pulse" />
-            <div className="h-10 w-20 rounded-full bg-[#EFEAE0] animate-pulse" />
+            <div className="h-10 w-10 shrink-0 rounded-full bg-[#F7F5F0] animate-pulse" />
+            <div className="h-10 flex-1 rounded-2xl bg-[#F7F5F0] animate-pulse" />
+            <div className="h-10 w-20 rounded-full bg-[#2C1F1A]/40 animate-pulse" />
           </div>
         </div>
       </div>

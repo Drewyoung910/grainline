@@ -19,16 +19,29 @@ describe("server-action rate-limit sweep", () => {
     );
   });
 
-  it("rate-limits dashboard blog deletes before author lookup", () => {
+  it("rate-limits dashboard blog status changes separately from publishing", () => {
     const page = source("src/app/dashboard/blog/page.tsx");
+    const limiter = source("src/lib/ratelimit.ts");
+    const button = source("src/components/BlogStatusButton.tsx");
 
-    assert.match(page, /blogCreateRatelimit/);
-    assert.match(page, /safeRateLimit\(blogCreateRatelimit, userId\)/);
+    assert.match(page, /blogStatusRatelimit/);
+    assert.match(page, /safeRateLimit\(blogStatusRatelimit, userId\)/);
+    assert.doesNotMatch(page, /blogCreateRatelimit/);
     assert.ok(
-      page.indexOf("safeRateLimit(blogCreateRatelimit, userId)") <
+      page.indexOf("safeRateLimit(blogStatusRatelimit, userId)") <
         page.indexOf("prisma.user.findUnique"),
-      "blog delete server action should rate-limit before local user lookup",
+      "blog status server action should rate-limit before local user lookup",
     );
+    assert.match(limiter, /prefix: "rl:blog_status"/);
+    assert.match(page, /postAction=rate-limited/);
+    assert.match(page, /archived\.count !== 1/);
+    assert.match(page, /unarchived\.count !== 1/);
+    assert.match(page, /data: \{ status: "DRAFT" \}/);
+    assert.doesNotMatch(page, /status: post\.publishedAt \? "PUBLISHED" : "DRAFT"/);
+    assert.match(button, /useFormStatus\(\)/);
+    assert.match(button, /disabled=\{pending\}/);
+    assert.match(page, /pendingLabel="Archiving…"/);
+    assert.match(page, /pendingLabel="Unarchiving…"/);
   });
 
   it("rate-limits custom listing creation before seller and conversation work", () => {

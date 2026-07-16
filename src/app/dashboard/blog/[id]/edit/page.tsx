@@ -224,7 +224,7 @@ export default async function EditBlogPostPage({
 
   return (
     <main className="max-w-3xl mx-auto p-8">
-      <h1 className="text-2xl font-bold mb-6">Edit Post</h1>
+      <h1 className="font-display text-2xl font-bold mb-6">Edit Post</h1>
       <BlogPostForm
         action={updateBlogPost}
         isStaff={isStaff}

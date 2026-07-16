@@ -5,9 +5,9 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
-import ConfirmButton from "@/components/ConfirmButton";
+import BlogStatusButton from "@/components/BlogStatusButton";
 import ToastOnMount from "@/components/ToastOnMount";
-import { blogCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import { blogStatusRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { revalidateBlogSearchCaches } from "@/lib/searchCache";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { BlogManagerSkeleton } from "@/components/SellerRouteSkeletons";
@@ -21,23 +21,24 @@ async function archivePost(postId: string) {
   "use server";
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
-  const { success } = await safeRateLimit(blogCreateRatelimit, userId);
-  if (!success) return;
+  const { success } = await safeRateLimit(blogStatusRatelimit, userId);
+  if (!success) redirect("/dashboard/blog?postAction=rate-limited");
   const me = await prisma.user.findUnique({
     where: { clerkId: userId },
     select: { id: true, banned: true, deletedAt: true },
   });
   if (!me) redirect("/sign-in");
-  if (me.banned || me.deletedAt) return;
+  if (me.banned || me.deletedAt) redirect("/dashboard/blog?postAction=unavailable");
 
   const post = await prisma.blogPost.findUnique({ where: { id: postId }, select: { authorId: true, status: true } });
-  if (!post || post.authorId !== me.id) return;
-  if (post.status === "ARCHIVED") redirect("/dashboard/blog");
+  if (!post || post.authorId !== me.id) redirect("/dashboard/blog?postAction=unavailable");
+  if (post.status === "ARCHIVED") redirect("/dashboard/blog?postAction=archived");
 
-  await prisma.blogPost.updateMany({
+  const archived = await prisma.blogPost.updateMany({
     where: { id: postId, authorId: me.id, status: { not: "ARCHIVED" } },
     data: { status: "ARCHIVED" },
   });
+  if (archived.count !== 1) redirect("/dashboard/blog?postAction=conflict");
   revalidatePath("/dashboard/blog");
   revalidateBlogSearchCaches();
   redirect("/dashboard/blog?postAction=archived");
@@ -47,26 +48,29 @@ async function unarchivePost(postId: string) {
   "use server";
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
-  const { success } = await safeRateLimit(blogCreateRatelimit, userId);
-  if (!success) return;
+  const { success } = await safeRateLimit(blogStatusRatelimit, userId);
+  if (!success) redirect("/dashboard/blog?postAction=rate-limited");
   const me = await prisma.user.findUnique({
     where: { clerkId: userId },
     select: { id: true, banned: true, deletedAt: true },
   });
   if (!me) redirect("/sign-in");
-  if (me.banned || me.deletedAt) return;
+  if (me.banned || me.deletedAt) redirect("/dashboard/blog?postAction=unavailable");
 
   const post = await prisma.blogPost.findUnique({
     where: { id: postId },
-    select: { authorId: true, status: true, publishedAt: true },
+    select: { authorId: true, status: true },
   });
-  if (!post || post.authorId !== me.id) return;
-  if (post.status !== "ARCHIVED") redirect("/dashboard/blog");
+  if (!post || post.authorId !== me.id) redirect("/dashboard/blog?postAction=unavailable");
+  if (post.status !== "ARCHIVED") redirect("/dashboard/blog?postAction=unarchived");
 
-  await prisma.blogPost.updateMany({
+  const unarchived = await prisma.blogPost.updateMany({
     where: { id: postId, authorId: me.id, status: "ARCHIVED" },
-    data: { status: post.publishedAt ? "PUBLISHED" : "DRAFT" },
+    // Restoring to draft keeps publication explicit and ensures every future
+    // publish runs through the current moderation and rate-limit gates.
+    data: { status: "DRAFT" },
   });
+  if (unarchived.count !== 1) redirect("/dashboard/blog?postAction=conflict");
   revalidatePath("/dashboard/blog");
   revalidateBlogSearchCaches();
   redirect("/dashboard/blog?postAction=unarchived");
@@ -127,7 +131,28 @@ async function DashboardBlogContent({
         <ToastOnMount message="Post archived." type="success" clearParam="postAction" />
       )}
       {params.postAction === "unarchived" && (
-        <ToastOnMount message="Post unarchived." type="success" clearParam="postAction" />
+        <ToastOnMount message="Post restored as a draft." type="success" clearParam="postAction" />
+      )}
+      {params.postAction === "rate-limited" && (
+        <ToastOnMount
+          message="Too many post changes. Please wait a moment and try again."
+          type="error"
+          clearParam="postAction"
+        />
+      )}
+      {params.postAction === "unavailable" && (
+        <ToastOnMount
+          message="That post is no longer available."
+          type="error"
+          clearParam="postAction"
+        />
+      )}
+      {params.postAction === "conflict" && (
+        <ToastOnMount
+          message="That post changed before the update completed. Please try again."
+          type="error"
+          clearParam="postAction"
+        />
       )}
       <div className="flex items-center justify-between mb-8">
         <div>
@@ -194,21 +219,23 @@ async function DashboardBlogContent({
                 </Link>
                 {p.status === "ARCHIVED" ? (
                   <form action={unarchivePost.bind(null, p.id)}>
-                    <ConfirmButton
+                    <BlogStatusButton
                       confirm="Unarchive this post?"
+                      pendingLabel="Unarchiving…"
                       className="inline-flex min-h-[30px] items-center justify-center rounded-md border border-amber-200 bg-white px-3 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50"
                     >
                       Unarchive
-                    </ConfirmButton>
+                    </BlogStatusButton>
                   </form>
                 ) : (
                   <form action={archivePost.bind(null, p.id)}>
-                    <ConfirmButton
+                    <BlogStatusButton
                       confirm="Archive this post?"
+                      pendingLabel="Archiving…"
                       className="inline-flex min-h-[30px] items-center justify-center rounded-md border border-amber-200 bg-white px-3 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50"
                     >
                       Archive
-                    </ConfirmButton>
+                    </BlogStatusButton>
                   </form>
                 )}
               </div>
