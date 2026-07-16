@@ -14,6 +14,8 @@ import { openCommissionWhere } from "@/lib/commissionExpiry";
 import { publicCommissionInterestWhere, resolvedInterestedCount } from "@/lib/commissionInterestCount";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { formatCommissionBudgetRange } from "@/lib/commissionBudget";
+import { Suspense } from "react";
+import { CommissionRoomSkeleton } from "@/components/RouteSkeletons";
 
 export const metadata: Metadata = {
   title: "Custom Woodworking Commissions — Find a Maker | Grainline",
@@ -31,11 +33,21 @@ function timeAgo(dateStr: Date | string): string {
   return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-export default async function CommissionPage({
-  searchParams,
-}: {
+type CommissionPageProps = {
   searchParams: Promise<{ page?: string; category?: string; tab?: string }>;
-}) {
+};
+
+export default function CommissionPage(props: CommissionPageProps) {
+  return (
+    <Suspense fallback={<CommissionRoomSkeleton />}>
+      <CommissionPageContent {...props} />
+    </Suspense>
+  );
+}
+
+async function CommissionPageContent({
+  searchParams,
+}: CommissionPageProps) {
   const sp = await searchParams;
   const requestedPage = parseBoundedPositiveIntParam(sp.page, 1, 1000);
   let page = requestedPage;

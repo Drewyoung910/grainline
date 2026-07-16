@@ -565,7 +565,7 @@ export default async function HomePage() {
               <span className="block whitespace-nowrap">Buy local.</span>
               <span className="block whitespace-nowrap">Buy quality.</span>
             </h1>
-            <p className="relative z-10 mt-7 max-w-md text-base leading-relaxed text-[#E5DFD2]/85 sm:mt-8 sm:text-lg">
+            <p className="relative z-10 ml-1 mt-7 max-w-md text-base leading-relaxed text-[#E5DFD2]/85 sm:ml-2 sm:mt-8 sm:text-lg">
               More than what&apos;s made for everyone.
             </p>
             <div className="mt-7 flex flex-col items-start gap-3 sm:mt-8 sm:flex-row">

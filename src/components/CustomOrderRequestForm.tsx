@@ -87,6 +87,12 @@ export default function CustomOrderRequestForm({
     setError(null);
   }
 
+  function handleViewConversation() {
+    if (!conversationId) return;
+    handleClose();
+    router.push(`/messages/${conversationId}`);
+  }
+
   return (
     <>
       <button
@@ -137,7 +143,7 @@ export default function CustomOrderRequestForm({
                   {conversationId && (
                     <button
                       type="button"
-                      onClick={() => router.push(`/messages/${conversationId}`)}
+                      onClick={handleViewConversation}
                       className="rounded-md bg-[#2C1F1A] hover:bg-[#3A2A24] px-4 py-2 text-sm font-semibold text-white transition-colors"
                     >
                       View conversation

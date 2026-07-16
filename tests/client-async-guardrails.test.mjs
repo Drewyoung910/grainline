@@ -316,4 +316,12 @@ describe("client async guardrails", () => {
     assert.match(markStatusButtons, /toast\(data\?\.error \?\? "Could not update commission request\.", "error"\)/);
     assert.match(markStatusButtons, /catch \{[\s\S]*?toast\("Network error\. Please try again\.", "error"\)/);
   });
+
+  it("dismisses the custom-order success dialog before opening its conversation", () => {
+    const customOrder = source("src/components/CustomOrderRequestForm.tsx");
+
+    assert.match(customOrder, /function handleViewConversation\(\) \{[\s\S]*?handleClose\(\);[\s\S]*?router\.push\(`\/messages\/\$\{conversationId\}`\);[\s\S]*?\}/);
+    assert.match(customOrder, /onClick=\{handleViewConversation\}/);
+    assert.doesNotMatch(customOrder, /onClick=\{\(\) => router\.push\(`\/messages\/\$\{conversationId\}`\)\}/);
+  });
 });

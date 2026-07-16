@@ -21,6 +21,8 @@ import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { formatCurrencyCents, formatCurrencyMinorUnitAmount } from "@/lib/money";
 import type { Metadata } from "next";
+import { Suspense } from "react";
+import { WorkshopSkeleton } from "@/components/RouteSkeletons";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -208,11 +210,21 @@ async function deleteSavedSearch(searchId: string) {
   revalidatePath("/dashboard");
 }
 
-export default async function DashboardPage({
-  searchParams,
-}: {
+type DashboardPageProps = {
   searchParams?: Promise<{ setup?: string }>;
-}) {
+};
+
+export default function DashboardPage(props: DashboardPageProps) {
+  return (
+    <Suspense fallback={<WorkshopSkeleton />}>
+      <DashboardPageContent {...props} />
+    </Suspense>
+  );
+}
+
+async function DashboardPageContent({
+  searchParams,
+}: DashboardPageProps) {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/dashboard");
   const params = searchParams ? await searchParams : {};

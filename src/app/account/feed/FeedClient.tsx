@@ -7,6 +7,7 @@ import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import FavoriteButton from "@/components/FavoriteButton";
 import SaveBlogButton from "@/components/SaveBlogButton";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
+import { FeedSkeleton } from "@/components/RouteSkeletons";
 
 export default function FeedClient() {
   const [items, setItems] = useState<FeedItem[]>([]);
@@ -80,17 +81,7 @@ export default function FeedClient() {
   }, [loading, hasMore, loadMore]);
 
   if (initialLoading) {
-    return (
-      <div className="max-w-2xl mx-auto px-4 py-8 space-y-4">
-        {[...Array(5)].map((_, i) => (
-          <div key={i} className="card-section p-4 animate-pulse">
-            <div className="h-4 bg-neutral-200 w-1/3 mb-3" />
-            <div className="h-32 bg-neutral-100 mb-3" />
-            <div className="h-3 bg-neutral-200 w-2/3" />
-          </div>
-        ))}
-      </div>
-    );
+    return <FeedSkeleton />;
   }
 
   if (!initialLoading && items.length === 0 && !error) {

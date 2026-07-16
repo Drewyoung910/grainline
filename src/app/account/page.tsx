@@ -12,13 +12,23 @@ import { listOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
 import { formatCurrencyCents, formatCurrencyMinorUnitAmount } from "@/lib/money";
 import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
 import { paidStripeOrderWhere } from "@/lib/orderTrust";
+import { Suspense } from "react";
+import { AccountOverviewSkeleton } from "@/components/RouteSkeletons";
 
 export const metadata: Metadata = {
   title: "My Account",
   robots: { index: false, follow: false },
 };
 
-export default async function AccountPage() {
+export default function AccountPage() {
+  return (
+    <Suspense fallback={<AccountOverviewSkeleton />}>
+      <AccountPageContent />
+    </Suspense>
+  );
+}
+
+async function AccountPageContent() {
   const me = await ensureUserForPage("/account");
   const blockedSellerIds = await getBlockedSellerProfileIdsFor(me.id);
 

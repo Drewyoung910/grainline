@@ -16,6 +16,8 @@ import { truncateText, truncateTextWithEllipsis } from "@/lib/sanitize";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { getPopularBlogTagRows } from "@/lib/popularBlogTags";
 import { ownerSavedBlogPostIdRows } from "@/lib/savedBlogPostOwnerAccess";
+import { Suspense } from "react";
+import { BlogIndexSkeleton } from "@/components/RouteSkeletons";
 
 const BLOG_TITLE = "Stories from the Workshop";
 const BLOG_DESCRIPTION = "Spotlights, gift guides, build stories, and woodworking education from the Grainline community.";
@@ -39,11 +41,21 @@ const TYPE_TABS: Array<{ label: string; value: string }> = [
   { label: "Education", value: "WOOD_EDUCATION" },
 ];
 
-export default async function BlogIndexPage({
-  searchParams,
-}: {
+type BlogIndexPageProps = {
   searchParams: Promise<{ type?: string; page?: string; bq?: string; tags?: string; sort?: string; author?: string }>;
-}) {
+};
+
+export default function BlogIndexPage(props: BlogIndexPageProps) {
+  return (
+    <Suspense fallback={<BlogIndexSkeleton />}>
+      <BlogIndexPageContent {...props} />
+    </Suspense>
+  );
+}
+
+async function BlogIndexPageContent({
+  searchParams,
+}: BlogIndexPageProps) {
   const sp = await searchParams;
   const q = truncateText((sp.bq ?? "").trim(), BLOG_SEARCH_QUERY_MAX_CHARS);
   const typeFilter = sp.type ?? "";
