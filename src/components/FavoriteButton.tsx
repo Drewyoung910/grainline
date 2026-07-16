@@ -65,7 +65,7 @@ export default function FavoriteButton({
       title={saved ? "Saved" : "Save"}
       onClick={toggle}
       disabled={isPending}
-      className="absolute right-0 top-0 z-10 inline-flex items-center justify-center rounded-full p-2 transition-colors hover:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+      className="absolute right-0 top-0 z-10 inline-flex items-center justify-center rounded-full p-3 transition-colors hover:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
       style={{ lineHeight: 0 }}
     >
       {/* Heart icon — filled grey background for visibility on all photos.
