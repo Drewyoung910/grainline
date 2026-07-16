@@ -133,7 +133,7 @@ function getYTicks(maxVal: number): number[] {
 // ── Skeleton ────────────────────────────────────────────────────────────────────
 
 function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded bg-neutral-200 ${className}`} />;
+  return <div className={`animate-pulse rounded bg-[#EFEAE0] ${className}`} />;
 }
 
 // ── SVG Line Chart ─────────────────────────────────────────────────────────────

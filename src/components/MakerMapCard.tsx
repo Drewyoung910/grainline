@@ -142,12 +142,12 @@ export default function MakerMapCard({
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           <span className="text-[15px] font-semibold leading-tight text-neutral-900">{name}</span>
           {isGuildLevel && (
-            <span className="inline-flex items-center rounded-full bg-white/80 px-1.5 py-0.5 ring-1 ring-stone-200/70">
+            <span className="inline-flex items-center">
               <GuildBadge level={guildLevel as GuildLevelValue} size={20} />
             </span>
           )}
           {isFoundingMaker && (
-            <span className="inline-flex items-center rounded-full bg-white/80 px-1.5 py-0.5 ring-1 ring-stone-200/70">
+            <span className="inline-flex items-center">
               <FoundingMakerBadge number={loaded?.foundingMakerNumber ?? null} size={18} />
             </span>
           )}

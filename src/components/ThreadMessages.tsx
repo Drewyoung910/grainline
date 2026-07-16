@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { MessageCircle, Palette, Logs } from "@/components/icons";
+import { MessageCircle, Logs } from "@/components/icons";
 import {
   parseCommissionInterestMessageBody,
   parseCustomOrderLinkMessageBody,
@@ -359,38 +359,26 @@ export default function ThreadMessages({
             const canCreateCustomListing = canCreateCustomListings && !mine;
             return (
               <li key={m.id} className="max-w-[90%]">
-                <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50/80 p-4 shadow-sm">
-                  <div className="flex items-center gap-1.5 text-sm font-semibold text-amber-900"><Palette size={15} /> Custom Order Request</div>
+                <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <div className="text-sm font-semibold text-amber-800">Custom Order Request</div>
                   {req.description && (
-                    <p className="text-sm text-neutral-800">{req.description}</p>
+                    <p className="text-sm text-amber-900">{req.description}</p>
                   )}
                   {(req.dimensions || req.budget != null || req.timelineLabel || req.listingTitle) && (
-                    <dl className="grid gap-2 rounded-lg bg-white/70 p-3 text-xs text-neutral-700 ring-1 ring-amber-200/70 sm:grid-cols-2">
+                    <div className="space-y-1 text-xs text-amber-700">
                       {req.dimensions && (
-                        <div>
-                          <dt className="font-medium text-neutral-900">Dimensions</dt>
-                          <dd>{req.dimensions}</dd>
-                        </div>
+                        <div><span className="font-medium">Dimensions:</span> {req.dimensions}</div>
                       )}
                       {req.budget != null && (
-                        <div>
-                          <dt className="font-medium text-neutral-900">Budget</dt>
-                          <dd>${req.budget}</dd>
-                        </div>
+                        <div><span className="font-medium">Budget:</span> ${req.budget}</div>
                       )}
                       {req.timelineLabel && (
-                        <div>
-                          <dt className="font-medium text-neutral-900">Timeline</dt>
-                          <dd>{req.timelineLabel}</dd>
-                        </div>
+                        <div><span className="font-medium">Timeline:</span> {req.timelineLabel}</div>
                       )}
                       {req.listingTitle && (
-                        <div>
-                          <dt className="font-medium text-neutral-900">Inspired by</dt>
-                          <dd>{req.listingTitle}</dd>
-                        </div>
+                        <div><span className="font-medium">Inspired by:</span> {req.listingTitle}</div>
                       )}
-                    </dl>
+                    </div>
                   )}
                   {canCreateCustomListing && (
                     <Link

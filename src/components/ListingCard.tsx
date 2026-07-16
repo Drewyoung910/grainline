@@ -83,9 +83,7 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
           />
         )}
         {/* Heart — top right */}
-        <div className="absolute top-2 right-2">
-          <FavoriteButton listingId={l.id} initialSaved={initialSaved} />
-        </div>
+        <FavoriteButton listingId={l.id} initialSaved={initialSaved} />
       </div>
 
       {/* Metadata area — two columns: text left, guild badge right */}

@@ -560,12 +560,12 @@ export default async function HomePage() {
 
         <div className="relative z-10 mx-auto flex h-full max-w-[1600px] items-center px-4 pb-14 pt-24 sm:px-6 sm:pb-16 sm:pt-28 lg:px-8">
           <div className="w-full max-w-[630px] text-left text-[#E5DFD2]">
-            <h1 className="font-display text-[clamp(2.125rem,10.5vw,4rem)] font-semibold leading-[0.96] drop-shadow-[0_2px_18px_rgba(0,0,0,0.24)] sm:text-[clamp(3.5rem,7vw,4.75rem)] lg:text-[clamp(4rem,5vw,5.25rem)]">
+            <h1 className="font-display text-[clamp(2.125rem,10.5vw,4rem)] font-semibold leading-[1] drop-shadow-[0_2px_18px_rgba(0,0,0,0.24)] sm:text-[clamp(3.5rem,7vw,4.75rem)] lg:text-[clamp(4rem,5vw,5.25rem)]">
               <span className="block whitespace-nowrap">Buy handmade.</span>
               <span className="block whitespace-nowrap">Buy local.</span>
               <span className="block whitespace-nowrap">Buy quality.</span>
             </h1>
-            <p className="mt-6 max-w-md text-base leading-relaxed text-[#E5DFD2]/85 sm:text-lg">
+            <p className="relative z-10 mt-7 max-w-md text-base leading-relaxed text-[#E5DFD2]/85 sm:mt-8 sm:text-lg">
               More than what&apos;s made for everyone.
             </p>
             <div className="mt-7 flex flex-col items-start gap-3 sm:mt-8 sm:flex-row">

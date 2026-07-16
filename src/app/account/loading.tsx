@@ -1,5 +1,5 @@
-import PageLoadingSkeleton from "@/components/PageLoadingSkeleton";
+import { AccountOverviewSkeleton } from "@/components/RouteSkeletons";
 
 export default function AccountLoading() {
-  return <PageLoadingSkeleton variant="table" />;
+  return <AccountOverviewSkeleton />;
 }

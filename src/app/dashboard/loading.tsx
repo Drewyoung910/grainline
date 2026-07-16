@@ -1,5 +1,5 @@
-import PageLoadingSkeleton from "@/components/PageLoadingSkeleton";
+import { WorkshopSkeleton } from "@/components/RouteSkeletons";
 
 export default function DashboardLoading() {
-  return <PageLoadingSkeleton variant="grid" />;
+  return <WorkshopSkeleton />;
 }

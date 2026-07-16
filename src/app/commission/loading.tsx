@@ -1,5 +1,5 @@
-import PageLoadingSkeleton from "@/components/PageLoadingSkeleton";
+import { CommissionRoomSkeleton } from "@/components/RouteSkeletons";
 
 export default function CommissionLoading() {
-  return <PageLoadingSkeleton variant="grid" />;
+  return <CommissionRoomSkeleton />;
 }
