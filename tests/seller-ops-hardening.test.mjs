@@ -187,6 +187,15 @@ describe("seller operational route hardening", () => {
     assert.match(analytics, /where: \{ userId: me\.id \}/);
     assert.match(analytics, /const sellerId = sellerProfile\.id/);
     assert.match(analytics, /accountAccessErrorResponse\(err\)/);
+    assert.match(analytics, /const profileViewAggPromise = prisma\.sellerProfileViewDaily\.aggregate\(\{/);
+    assert.match(analytics, /where: \{ sellerProfileId: sellerId, date: analyticsDateRange \}/);
+    assert.match(analytics, /const profileVisits =\s*range === "alltime" \? sellerProfile\.profileViews : profileViewAgg\._sum\.views \?\? 0/s);
+
+    const sellerProfileView = source("src/app/api/seller/[id]/view/route.ts");
+    assert.match(sellerProfileView, /function todayUtcBucket\(\)/);
+    assert.match(sellerProfileView, /tx\.sellerProfile\.updateMany\(\{/);
+    assert.match(sellerProfileView, /tx\.sellerProfileViewDaily\.upsert\(\{/);
+    assert.match(sellerProfileView, /where: \{ sellerProfileId_date: \{ sellerProfileId: id, date: today \} \}/);
 
     assert.match(recentSales, /ensureUserByClerkId\(userId\)/);
     assert.match(recentSales, /where: \{ userId: me\.id \}/);
@@ -198,15 +207,16 @@ describe("seller operational route hardening", () => {
     assert.match(recentSales, /accountAccessErrorResponse\(err\)/);
   });
 
-  it("labels seller analytics UTC bucket ranges explicitly", () => {
+  it("keeps seller analytics labels clean while preserving UTC bucket math", () => {
     const page = source("src/app/dashboard/analytics/page.tsx");
 
-    assert.match(page, /label: "Today UTC"/);
-    assert.match(page, /label: "Yesterday UTC"/);
-    assert.match(page, /label: "This week UTC"/);
-    assert.match(page, /label: "Last 7 UTC days"/);
-    assert.doesNotMatch(page, /label: "Today"/);
-    assert.doesNotMatch(page, /label: "Yesterday"/);
+    assert.match(page, /label: "Today"/);
+    assert.match(page, /label: "Yesterday"/);
+    assert.match(page, /label: "This week"/);
+    assert.match(page, /label: "Last 7 days"/);
+    assert.doesNotMatch(page, /label: "Today UTC"/);
+    assert.doesNotMatch(page, /label: "Yesterday UTC"/);
+    assert.doesNotMatch(page, /label: "Last 7 UTC days"/);
 
     const analytics = source("src/app/api/seller/analytics/route.ts");
     assert.match(analytics, /case "last30":[\s\S]*?setUTCDate\(s\.getUTCDate\(\) - 29\)/);
@@ -232,6 +242,7 @@ describe("seller operational route hardening", () => {
       "overviewRowsPromise",
       "activeListingCountPromise",
       "rangeViewAggPromise",
+      "profileViewAggPromise",
       "favoritesCountPromise",
       "stockNotificationSubsPromise",
       "cartAbandonmentPromise",

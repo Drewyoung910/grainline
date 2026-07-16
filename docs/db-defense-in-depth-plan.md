@@ -105,7 +105,7 @@ Staging implementation checklist:
   the migration role can grant and otherwise verifies runtime `EXECUTE` is
   already present, normally through PostgreSQL's `PUBLIC` function default.
 - Source-derived grant inventory as of this plan update:
-  - 56 Prisma model tables need runtime table DML grants;
+  - 58 Prisma model tables need runtime table DML grants;
   - 20 Prisma enum types need runtime `USAGE`, currently covered only if live
     DB type privileges still match Postgres defaults or explicit grants exist;
   - 1 custom `grainline_*` function is used by the `User` notification

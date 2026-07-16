@@ -57,6 +57,9 @@ describe("retention and ops-health follow-ups", () => {
     assert.match(source, /runBoundedDeletionBatches\(\{/);
     assert.match(source, /timeBudgetMs: VIEW_CLEANUP_TIME_BUDGET_MS/);
     assert.match(source, /deletedViewRowsComplete/);
+    assert.match(source, /deleteOldSellerProfileViewDaily\(twoYearsAgo\)/);
+    assert.match(source, /DELETE FROM "SellerProfileViewDaily"/);
+    assert.match(source, /deletedProfileViewRowsComplete/);
   });
 
   it("uses a fixed listing-view retention window without calendar rollover", () => {

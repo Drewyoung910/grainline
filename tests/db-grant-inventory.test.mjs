@@ -213,7 +213,7 @@ describe("database grant inventory guardrails", () => {
   it("derives the current runtime grant surface from schema and migrations", () => {
     const inventory = deriveGrantInventory();
 
-    assert.equal(inventory.tables.length, 57);
+    assert.equal(inventory.tables.length, 58);
     assert.equal(inventory.enums.length, 20);
     assert.deepEqual(inventory.functions, ["grainline_notification_preferences_valid"]);
     assert.deepEqual(inventory.extensions, ["pg_trgm"]);
@@ -509,7 +509,7 @@ describe("database grant inventory guardrails", () => {
     const pkg = source("package.json");
 
     assert.match(plan, /Source-derived grant inventory/);
-    assert.match(plan, /56 Prisma model tables/);
+    assert.match(plan, /58 Prisma model tables/);
     assert.match(plan, /20 Prisma enum types/);
     assert.match(plan, /0 source-derived sequences/);
     assert.match(plan, /1 source-derived extension/);

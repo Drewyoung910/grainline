@@ -31,6 +31,7 @@ import { compareAccountFeedItemsDesc } from "@/lib/accountFeedCursor";
 import { formatCurrencyCents } from "@/lib/money";
 import { ownerSavedBlogPostIdRows } from "@/lib/savedBlogPostOwnerAccess";
 import { getCachedHomepageStats } from "@/lib/homepageStats";
+import { BLOG_TYPE_COLORS, BLOG_TYPE_LABELS } from "@/lib/blog";
 
 function StarsInline({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
@@ -341,7 +342,7 @@ export default async function HomePage() {
       orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
       take: 3,
       select: {
-        id: true, slug: true, title: true, excerpt: true, coverImageUrl: true, publishedAt: true,
+        id: true, slug: true, title: true, excerpt: true, coverImageUrl: true, type: true, readingTimeMinutes: true, publishedAt: true,
         author: {
           select: {
             name: true,
@@ -565,7 +566,7 @@ export default async function HomePage() {
               <span className="block whitespace-nowrap">Buy quality.</span>
             </h1>
             <p className="mt-6 max-w-md text-base leading-relaxed text-[#E5DFD2]/85 sm:text-lg">
-              Timeless pieces with beauty in the grain, made by independent woodworkers.
+              More than what&apos;s made for everyone.
             </p>
             <div className="mt-7 flex flex-col items-start gap-3 sm:mt-8 sm:flex-row">
               <Link
@@ -631,7 +632,7 @@ export default async function HomePage() {
           <MakersMapSection
             points={mapPoints}
             heading="Find Shops Near You"
-            subheading="See what independent woodworkers are making nearby, or explore shops across the country."
+            subheading="See what people are building nearby, or explore shops across the country."
             headingClassName="font-display text-2xl sm:text-3xl font-bold text-neutral-900"
             compact
           />
@@ -1101,6 +1102,14 @@ export default async function HomePage() {
                         />
                       </div>
                       <div className="p-4 space-y-2 bg-[#EFEAE0]">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${BLOG_TYPE_COLORS[p.type]}`}>
+                            {BLOG_TYPE_LABELS[p.type]}
+                          </span>
+                          {p.readingTimeMinutes && (
+                            <span className="text-xs text-stone-500">{p.readingTimeMinutes} min read</span>
+                          )}
+                        </div>
                         <h3 className="font-medium text-sm text-neutral-900 line-clamp-2">{p.title}</h3>
                         {p.excerpt && (
                           <p className="text-xs text-stone-500 line-clamp-2">{truncateText(p.excerpt, 100)}</p>

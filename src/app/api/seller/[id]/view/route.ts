@@ -14,6 +14,12 @@ function telemetryJson(body: Record<string, unknown>) {
   return privateResponse(NextResponse.json(body));
 }
 
+function todayUtcBucket() {
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  return today;
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -56,11 +62,22 @@ export async function POST(
     return res;
   }
 
-  const result = await prisma.sellerProfile.updateMany({
-    where: visibleSellerProfileWhere({ id }),
-    data: { profileViews: { increment: 1 } },
+  const tracked = await prisma.$transaction(async (tx) => {
+    const result = await tx.sellerProfile.updateMany({
+      where: visibleSellerProfileWhere({ id }),
+      data: { profileViews: { increment: 1 } },
+    });
+    if (result.count === 0) return false;
+
+    const today = todayUtcBucket();
+    await tx.sellerProfileViewDaily.upsert({
+      where: { sellerProfileId_date: { sellerProfileId: id, date: today } },
+      create: { sellerProfileId: id, date: today, views: 1 },
+      update: { views: { increment: 1 } },
+    });
+    return true;
   });
-  if (result.count === 0) return telemetryJson({ ok: true, skipped: true });
+  if (!tracked) return telemetryJson({ ok: true, skipped: true });
 
   const res = telemetryJson({ ok: true });
   setTrackingCookie(res.cookies, VIEWED_SELLER_IDS_COOKIE, tracking.aggregateIds, id, legacyCookieName);

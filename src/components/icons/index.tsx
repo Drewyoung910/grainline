@@ -100,6 +100,11 @@ export const Info = icon(<>
   <line x1="12" y1="16" x2="12.01" y2="16" />
 </>);
 
+export const MousePointer = icon(<>
+  <path d="M3 3l7.5 17 2.4-7.1L20 10.5 3 3z" />
+  <path d="M13 13l5 5" />
+</>);
+
 // ── Shipping / Fulfillment ────────────────────────────────────────────────────
 
 export const Package = icon(<>

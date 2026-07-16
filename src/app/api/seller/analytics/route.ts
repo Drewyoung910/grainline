@@ -217,6 +217,10 @@ export async function GET(req: Request) {
       where: { sellerProfileId: sellerId, date: analyticsDateRange },
       _sum: { views: true, clicks: true },
     });
+    const profileViewAggPromise = prisma.sellerProfileViewDaily.aggregate({
+      where: { sellerProfileId: sellerId, date: analyticsDateRange },
+      _sum: { views: true },
+    });
     const favoritesCountPromise = prisma.favorite.count({
       where: { listing: { sellerId }, createdAt: analyticsDateRange },
     });
@@ -417,6 +421,7 @@ export async function GET(req: Request) {
       overviewRows,
       activeListingCount,
       rangeViewAgg,
+      profileViewAgg,
       favoritesCount,
       stockNotificationSubs,
       cartAbandonmentRows,
@@ -431,6 +436,7 @@ export async function GET(req: Request) {
       overviewRowsPromise,
       activeListingCountPromise,
       rangeViewAggPromise,
+      profileViewAggPromise,
       favoritesCountPromise,
       stockNotificationSubsPromise,
       cartAbandonmentPromise,
@@ -449,6 +455,8 @@ export async function GET(req: Request) {
 
     const totalViews = rangeViewAgg._sum.views ?? 0;
     const totalClicks = rangeViewAgg._sum.clicks ?? 0;
+    const profileVisits =
+      range === "alltime" ? sellerProfile.profileViews : profileViewAgg._sum.views ?? 0;
     // Conversion rate: null when no view data but orders exist (ListingViewDaily tracking wasn't active yet)
     // Cap at 100% to handle edge cases. Returns 0 when both are 0.
     const conversionRate: number | null =
@@ -614,6 +622,7 @@ export async function GET(req: Request) {
     };
 
     return privateJson({
+      sellerProfileId: sellerId,
       range,
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
@@ -629,7 +638,7 @@ export async function GET(req: Request) {
       engagement: {
         totalViews,
         totalClicks,
-        profileVisits: sellerProfile.profileViews,
+        profileVisits,
         conversionRate: conversionRate !== null ? Math.round(conversionRate * 100) / 100 : null,
         clickThroughRate: clickThroughRate !== null ? Math.round(clickThroughRate * 10) / 10 : null,
         cartAbandonment,

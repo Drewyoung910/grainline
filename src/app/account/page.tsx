@@ -220,33 +220,32 @@ export default async function AccountPage() {
               const total = orderTotalCents(order);
 
               return (
-                <li key={order.id} className="flex items-center gap-4 p-3 hover:bg-neutral-50 transition-colors">
-                  {thumb ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={thumb} alt="" className="h-14 w-14 object-cover border border-neutral-200 shrink-0" />
-                  ) : (
-                    <div className="h-14 w-14 bg-neutral-100 border border-neutral-200 shrink-0" />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">
-                      {firstItem?.listing.title ?? "Order"}
-                    </p>
-                    <p className="text-xs text-neutral-500 mt-0.5">
-                      {new Date(order.createdAt).toLocaleDateString("en-US")} ·{" "}
-                      {formatCurrencyCents(total, order.currency)}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor(order.fulfillmentStatus)}`}>
-                      {formatStatus(order.fulfillmentStatus)}
-                    </span>
-                    <Link
-                      href={`/dashboard/orders/${order.id}`}
-                      className="text-xs border border-neutral-200 rounded-md px-2 py-1 hover:bg-neutral-50"
-                    >
-                      View
-                    </Link>
-                  </div>
+                <li key={order.id}>
+                  <Link
+                    href={`/dashboard/orders/${order.id}`}
+                    className="flex items-center gap-4 p-3 transition-colors hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-300"
+                  >
+                    {thumb ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={thumb} alt="" className="h-14 w-14 shrink-0 rounded-lg border border-neutral-200 object-cover" />
+                    ) : (
+                      <div className="h-14 w-14 shrink-0 rounded-lg border border-neutral-200 bg-neutral-100" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">
+                        {firstItem?.listing.title ?? "Order"}
+                      </p>
+                      <p className="mt-0.5 text-xs text-neutral-500">
+                        {new Date(order.createdAt).toLocaleDateString("en-US")} ·{" "}
+                        {formatCurrencyCents(total, order.currency)}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-3">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColor(order.fulfillmentStatus)}`}>
+                        {formatStatus(order.fulfillmentStatus)}
+                      </span>
+                    </div>
+                  </Link>
                 </li>
               );
             })}
@@ -298,7 +297,7 @@ export default async function AccountPage() {
       <section>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold font-display">Saved Searches</h2>
-          <Link href="/dashboard#saved-searches" className="text-sm text-neutral-600 underline hover:text-neutral-900">
+          <Link href="/account/saved-searches" className="text-sm text-neutral-600 underline hover:text-neutral-900">
             Manage saved searches →
           </Link>
         </div>
@@ -391,12 +390,14 @@ export default async function AccountPage() {
           <p className="text-xs text-neutral-500">
             Update your name, email, and password through your account settings.
           </p>
-          <Link href="/account/settings" className="text-sm underline text-neutral-600 hover:text-neutral-900">
-            Account settings →
-          </Link>
-          <Link href="/account/blocked" className="text-sm underline text-neutral-600 hover:text-neutral-900">
-            Blocked users →
-          </Link>
+          <div className="flex flex-col items-start gap-2">
+            <Link href="/account/settings" className="text-sm underline text-neutral-600 hover:text-neutral-900">
+              Account settings →
+            </Link>
+            <Link href="/account/blocked" className="text-sm underline text-neutral-600 hover:text-neutral-900">
+              Blocked users →
+            </Link>
+          </div>
         </div>
       </section>
 

@@ -221,7 +221,7 @@ describe("verified audit follow-up guardrails", () => {
   it("keeps stale public links and singular routes from returning dead pages", () => {
     assert.match(source("src/app/account/following/page.tsx"), /href="\/map"/);
     assert.doesNotMatch(source("src/app/account/following/page.tsx"), /href="\/sellers"/);
-    assert.match(source("src/app/dashboard/analytics/page.tsx"), /href="\/dashboard\/inventory"/);
+    assert.match(source("src/app/dashboard/analytics/page.tsx"), /publicSellerShopPath\(data\.sellerProfileId, null\)/);
     assert.match(source("src/app/seller/map/page.tsx"), /redirect\("\/map"\)/);
     assert.match(source("src/app/seller/payouts/page.tsx"), /redirect\("\/dashboard\/seller"\)/);
     assert.match(source("src/app/api/stripe/connect/create/route.ts"), /new URL\("\/dashboard\/seller"/);

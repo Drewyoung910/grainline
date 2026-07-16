@@ -120,12 +120,12 @@ describe("homepage hero and header contracts", () => {
     const home = source("src/app/page.tsx");
     const mapSection = source("src/components/MakersMapSection.tsx");
 
-    assert.match(home, /Timeless pieces with beauty in the grain, made by independent woodworkers\./);
+    assert.match(home, /More than what&apos;s made for everyone\./);
     assert.match(home, /data-home-primary-cta[\s\S]*>\s*Browse\s*<\/Link>/);
     assert.doesNotMatch(home, /Browse the Workshop/);
     assert.match(home, /data-home-secondary-cta[\s\S]*>\s*Find Shops Near You\s*<\/Link>/);
     assert.match(home, /heading="Find Shops Near You"/);
-    assert.match(home, /See what independent woodworkers are making nearby, or explore shops across the country\./);
+    assert.match(home, /See what people are building nearby, or explore shops across the country\./);
     assert.doesNotMatch(home, /Find Makers Near You|One-of-a-kind pieces, made with care/);
     assert.match(mapSection, /import \{ Navigation \} from "@\/components\/icons"/);
     assert.match(mapSection, /<Navigation size=\{15\} className="shrink-0" \/>[\s\S]*Use my location/);

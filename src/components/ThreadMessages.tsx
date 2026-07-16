@@ -315,8 +315,13 @@ export default function ThreadMessages({
             const card = parseCommissionInterestMessageBody(body);
             return (
               <li key={m.id} className="max-w-[90%]">
-                <div className="border-l-4 border-teal-400 bg-neutral-50 p-4 space-y-2">
-                  <div className="text-xs font-semibold text-teal-700 uppercase tracking-wide">Commission Interest</div>
+                <div className="space-y-3 rounded-xl border border-teal-200 bg-teal-50/70 p-4 shadow-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-teal-800">Commission Interest</div>
+                    <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-medium text-teal-800 ring-1 ring-teal-200">
+                      New response
+                    </span>
+                  </div>
                   <p className="text-sm text-neutral-700">
                     <strong>{card.sellerName ?? "A maker"}</strong> expressed interest in your commission request
                   </p>
@@ -335,9 +340,9 @@ export default function ThreadMessages({
                   {card.commissionId && (
                     <Link
                       href={`/commission/${card.commissionId}`}
-                      className="inline-flex items-center gap-1 text-xs text-teal-700 underline hover:text-teal-900 mt-1"
+                      className="mt-1 inline-flex min-h-[32px] items-center gap-1 rounded-md border border-teal-200 bg-white px-3 py-1 text-xs font-medium text-teal-800 transition-colors hover:bg-teal-50"
                     >
-                      View full request →
+                      View full request
                     </Link>
                   )}
                 </div>
@@ -354,37 +359,45 @@ export default function ThreadMessages({
             const canCreateCustomListing = canCreateCustomListings && !mine;
             return (
               <li key={m.id} className="max-w-[90%]">
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-2">
-                  <div className="text-sm font-semibold text-amber-800 flex items-center gap-1.5"><Palette size={15} /> Custom Order Request</div>
+                <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50/80 p-4 shadow-sm">
+                  <div className="flex items-center gap-1.5 text-sm font-semibold text-amber-900"><Palette size={15} /> Custom Order Request</div>
                   {req.description && (
-                    <p className="text-sm text-amber-900">{req.description}</p>
+                    <p className="text-sm text-neutral-800">{req.description}</p>
                   )}
-                  {req.dimensions && (
-                    <p className="text-xs text-amber-700">
-                      <span className="font-medium">Dimensions:</span> {req.dimensions}
-                    </p>
-                  )}
-                  {req.budget != null && (
-                    <p className="text-xs text-amber-700">
-                      <span className="font-medium">Budget:</span> ${req.budget}
-                    </p>
-                  )}
-                  {req.timelineLabel && (
-                    <p className="text-xs text-amber-700">
-                      <span className="font-medium">Timeline:</span> {req.timelineLabel}
-                    </p>
-                  )}
-                  {req.listingTitle && (
-                    <p className="text-xs text-amber-700">
-                      <span className="font-medium">Inspired by:</span> {req.listingTitle}
-                    </p>
+                  {(req.dimensions || req.budget != null || req.timelineLabel || req.listingTitle) && (
+                    <dl className="grid gap-2 rounded-lg bg-white/70 p-3 text-xs text-neutral-700 ring-1 ring-amber-200/70 sm:grid-cols-2">
+                      {req.dimensions && (
+                        <div>
+                          <dt className="font-medium text-neutral-900">Dimensions</dt>
+                          <dd>{req.dimensions}</dd>
+                        </div>
+                      )}
+                      {req.budget != null && (
+                        <div>
+                          <dt className="font-medium text-neutral-900">Budget</dt>
+                          <dd>${req.budget}</dd>
+                        </div>
+                      )}
+                      {req.timelineLabel && (
+                        <div>
+                          <dt className="font-medium text-neutral-900">Timeline</dt>
+                          <dd>{req.timelineLabel}</dd>
+                        </div>
+                      )}
+                      {req.listingTitle && (
+                        <div>
+                          <dt className="font-medium text-neutral-900">Inspired by</dt>
+                          <dd>{req.listingTitle}</dd>
+                        </div>
+                      )}
+                    </dl>
                   )}
                   {canCreateCustomListing && (
                     <Link
                       href={`/dashboard/listings/custom?conversationId=${convoId}&buyerId=${m.senderId}`}
-                      className="inline-flex items-center gap-1 rounded-md bg-[#2C1F1A] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#3A2A24] mt-1 transition-colors"
+                      className="mt-1 inline-flex min-h-[32px] items-center gap-1 rounded-md bg-[#2C1F1A] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#3A2A24]"
                     >
-                      Create Custom Listing →
+                      Create Custom Listing
                     </Link>
                   )}
                 </div>
@@ -400,8 +413,8 @@ export default function ThreadMessages({
             const link = parseCustomOrderLinkMessageBody(body);
             return (
               <li key={m.id} className={`max-w-[90%] ${mine ? "ml-auto" : ""}`}>
-                <div className="rounded-xl border border-neutral-200 bg-white p-4 space-y-2 shadow-sm">
-                  <div className="text-sm font-semibold text-neutral-800 flex items-center gap-1.5"><Logs size={15} /> Custom Piece Ready</div>
+                <div className="space-y-2 rounded-xl border border-stone-200/60 bg-white p-4 shadow-sm">
+                  <div className="flex items-center gap-1.5 text-sm font-semibold text-neutral-900"><Logs size={15} /> Custom Piece Ready</div>
                   {link.title && (
                     <p className="text-sm font-medium text-neutral-700">{link.title}</p>
                   )}
@@ -413,9 +426,9 @@ export default function ThreadMessages({
                   {link.listingId && (
                     <Link
                       href={publicListingPath(link.listingId, link.title)}
-                      className="inline-flex items-center gap-1 rounded-lg bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-700 mt-1"
+                      className="mt-1 inline-flex min-h-[32px] items-center gap-1 rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-neutral-700"
                     >
-                      Purchase This Piece →
+                      Purchase This Piece
                     </Link>
                   )}
                 </div>

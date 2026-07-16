@@ -75,6 +75,11 @@ describe("account-state residue hardening", () => {
         `account deletion should reset ${field}`,
       );
     }
+
+    assert.match(
+      deletion,
+      /sellerProfileViewDaily\.deleteMany\(\{\s*where: \{ sellerProfileId: user\.sellerProfile\.id \},\s*\}\)/s,
+    );
   });
 
   it("removes deleted seller FAQs from retained seller profiles", () => {

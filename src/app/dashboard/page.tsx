@@ -7,7 +7,7 @@ import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { ListingStatus } from "@prisma/client";
 import InlineActionButton from "@/components/InlineActionButton";
-import { Store, Package, Tag, MessageCircle, User, Grid, Edit, Shield, Bell, BarChart, Eye, Heart } from "@/components/icons";
+import { Store, Package, Tag, MessageCircle, User, Grid, Edit, Shield, Bell, BarChart, Eye, Heart, MousePointer } from "@/components/icons";
 import { softDeleteListingWithCleanup } from "@/lib/listingSoftDelete";
 import { archiveListingBlockReason, hideListingBlockReason, withdrawReviewBlockReason } from "@/lib/listingActionState";
 import DismissibleBanner from "@/components/DismissibleBanner";
@@ -594,7 +594,7 @@ export default async function DashboardPage({
                     </div>
 
                     <div className="text-xs text-neutral-500 flex items-center gap-1 flex-wrap">
-                      <Eye size={11} className="inline align-middle" /> {l.viewCount} · clicks {l.clickCount} · <Heart size={11} className="inline align-middle" /> {l._count.favorites} · <Bell size={11} className="inline align-middle" /> {l._count.stockNotifications}
+                      <Eye size={11} className="inline align-middle" /> {l.viewCount} · <MousePointer size={11} className="inline align-middle" /> {l.clickCount} · <Heart size={11} className="inline align-middle" /> {l._count.favorites} · <Bell size={11} className="inline align-middle" /> {l._count.stockNotifications}
                     </div>
 
                     <div className="pt-3 flex flex-wrap gap-2">

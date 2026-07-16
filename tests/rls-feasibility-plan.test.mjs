@@ -169,6 +169,7 @@ describe("RLS feasibility plan guardrails", () => {
     const ownerAccess = source("src/lib/savedSearchOwnerAccess.ts");
     const savedRoute = source("src/app/api/search/saved/route.ts");
     const dashboard = source("src/app/dashboard/page.tsx");
+    const accountSavedSearches = source("src/app/account/saved-searches/page.tsx");
     const accountExport = source("src/app/api/account/export/route.ts");
 
     assert.match(ownerAccess, /export type SavedSearchOwnerAccessClient = Pick<Prisma\.TransactionClient, "savedSearch">/);
@@ -195,6 +196,8 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(savedRoute, /deleteOwnerSavedSearch\(me\.id, id\)/);
     assert.match(dashboard, /listOwnerSavedSearches\(me\.id, \{ take: 20 \}\)/);
     assert.match(dashboard, /deleteOwnerSavedSearch\(me\.id, searchId\)/);
+    assert.match(accountSavedSearches, /listOwnerSavedSearches\(me\.id\)/);
+    assert.match(accountSavedSearches, /deleteOwnerSavedSearch\(me\.id, searchId\)/);
     assert.match(accountExport, /listOwnerSavedSearches\(user\.id\)/);
   });
 

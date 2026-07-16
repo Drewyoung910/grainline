@@ -174,6 +174,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
   public."SellerMetrics",
   public."SellerPayoutEvent",
   public."SellerProfile",
+  public."SellerProfileViewDaily",
   public."SellerRatingSummary",
   public."SiteConfig",
   public."SiteMetricsSnapshot",

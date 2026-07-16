@@ -76,15 +76,18 @@ export default async function MyCommissionsPage() {
   }));
 
   return (
-    <main className="max-w-3xl mx-auto px-4 sm:px-6 pb-16 pt-8">
+    <main className="mx-auto max-w-3xl px-4 pb-16 pt-8 sm:px-6">
       <Link href="/account" className="text-sm text-neutral-500 hover:text-neutral-700 mb-4 inline-flex items-center gap-1">
         ← My Account
       </Link>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold font-display text-neutral-900">My Commission Requests</h1>
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="font-display text-3xl font-bold text-neutral-900">My Commission Requests</h1>
+          <p className="mt-1 text-sm text-neutral-500">Track custom project requests and interested makers.</p>
+        </div>
         <Link
           href="/commission/new"
-          className="text-sm bg-neutral-900 text-white px-4 py-2 hover:bg-neutral-700 transition-colors"
+          className="inline-flex min-h-10 w-fit items-center rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-800"
         >
           Post a Request
         </Link>
@@ -95,20 +98,20 @@ export default async function MyCommissionsPage() {
           <p className="text-neutral-500 mb-4">You haven&apos;t posted any commission requests yet.</p>
           <Link
             href="/commission/new"
-            className="inline-block border border-neutral-900 px-4 py-2 text-sm hover:bg-neutral-50"
+            className="inline-flex min-h-10 items-center rounded-md border border-neutral-900 bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-800"
           >
-            Post your first request →
+            Post your first request
           </Link>
         </div>
       ) : (
         <div className="space-y-4">
           {requests.map((r) => (
-            <div key={r.id} className="card-section p-4">
-              <div className="flex items-start justify-between gap-3 mb-2">
-                <Link href={`/commission/${r.id}`} className="font-semibold text-neutral-900 hover:underline flex-1">
+            <article key={r.id} className="card-section p-4 transition-shadow hover:shadow-md">
+              <div className="mb-2 flex items-start justify-between gap-3">
+                <Link href={`/commission/${r.id}`} className="min-w-0 flex-1 text-base font-semibold text-neutral-900 hover:underline">
                   {r.title}
                 </Link>
-                <span className={`text-xs border rounded-full px-2 py-0.5 shrink-0 ${STATUS_COLORS[r.status]}`}>
+                <span className={`shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-medium ${STATUS_COLORS[r.status]}`}>
                   {STATUS_LABELS[r.status]}
                 </span>
               </div>
@@ -117,7 +120,7 @@ export default async function MyCommissionsPage() {
                 {truncateTextWithEllipsis(r.description, 150)}
               </p>
 
-              <div className="flex flex-wrap items-center gap-3 text-xs text-neutral-500">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-500">
                 {r.category && <span>{CATEGORY_LABELS[r.category]}</span>}
                 {formatCommissionBudgetRange(r.budgetMinCents, r.budgetMaxCents) && (
                   <span>{formatCommissionBudgetRange(r.budgetMinCents, r.budgetMaxCents)}</span>
@@ -125,14 +128,17 @@ export default async function MyCommissionsPage() {
                 <span>
                   {new Date(r.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                 </span>
-                <Link href={`/commission/${r.id}`} className="ml-auto text-neutral-600 hover:underline">
-                  View →
+                <Link
+                  href={`/commission/${r.id}`}
+                  className="ml-auto inline-flex min-h-[32px] items-center rounded-md border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-50"
+                >
+                  View details
                 </Link>
               </div>
 
               {/* Interested seller avatars */}
               {r.interests.length > 0 && (
-                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-neutral-100">
+                <div className="mt-3 flex items-center gap-2 border-t border-neutral-100 pt-3">
                   <div className="flex -space-x-1.5">
                     {r.interests.map((interest) => {
                       const sp = interest.sellerProfile;
@@ -155,7 +161,7 @@ export default async function MyCommissionsPage() {
                   </span>
                 </div>
               )}
-            </div>
+            </article>
           ))}
         </div>
       )}

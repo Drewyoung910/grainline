@@ -18,7 +18,7 @@ import { getPopularBlogTagRows } from "@/lib/popularBlogTags";
 import { ownerSavedBlogPostIdRows } from "@/lib/savedBlogPostOwnerAccess";
 
 const BLOG_TITLE = "Stories from the Workshop";
-const BLOG_DESCRIPTION = "Maker spotlights, build guides, wood education, and gift guides from the Grainline community.";
+const BLOG_DESCRIPTION = "Spotlights, gift guides, build stories, and woodworking education from the Grainline community.";
 const BLOG_URL = "https://thegrainline.com/blog";
 const BLOG_SEARCH_QUERY_MAX_CHARS = 200;
 const BLOG_TAG_MAX_CHARS = 50;
@@ -34,9 +34,9 @@ export const metadata: Metadata = {
 const TYPE_TABS: Array<{ label: string; value: string }> = [
   { label: "All", value: "" },
   { label: "Gift Guides", value: "GIFT_GUIDE" },
-  { label: "Maker Spotlights", value: "MAKER_SPOTLIGHT" },
+  { label: "Spotlights", value: "MAKER_SPOTLIGHT" },
   { label: "Behind the Build", value: "BEHIND_THE_BUILD" },
-  { label: "Wood Education", value: "WOOD_EDUCATION" },
+  { label: "Education", value: "WOOD_EDUCATION" },
 ];
 
 export default async function BlogIndexPage({
@@ -278,7 +278,7 @@ export default async function BlogIndexPage({
           Stories from the Workshop
         </h1>
         <p className="text-lg text-neutral-600 max-w-xl mx-auto mb-6">
-          Maker spotlights, build guides, wood education, and inspiration from the Grainline community.
+          Spotlights, gift guides, build stories, and practical education from the Grainline community.
         </p>
         {/* Search bar */}
         <div className="max-w-xl mx-auto">

@@ -2,7 +2,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, Heart, Bell } from "@/components/icons";
+import { Eye, Heart, Bell, MousePointer } from "@/components/icons";
 import { publicListingPath } from "@/lib/publicPaths";
 import { formatCurrencyCents } from "@/lib/money";
 
@@ -121,7 +121,7 @@ export default function InventoryRow({ listing }: { listing: Listing }) {
             )}
           </div>
           <div className="text-[11px] text-neutral-500 mt-0.5">
-            <Eye size={11} className="inline align-middle" /> {listing.viewCount} · clicks {listing.clickCount} · <Heart size={11} className="inline align-middle" /> {listing._count.favorites} · <Bell size={11} className="inline align-middle" /> {listing._count.stockNotifications}
+            <Eye size={11} className="inline align-middle" /> {listing.viewCount} · <MousePointer size={11} className="inline align-middle" /> {listing.clickCount} · <Heart size={11} className="inline align-middle" /> {listing._count.favorites} · <Bell size={11} className="inline align-middle" /> {listing._count.stockNotifications}
           </div>
         </div>
       </div>

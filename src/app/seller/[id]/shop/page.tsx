@@ -12,6 +12,7 @@ import GuildBadge from "@/components/GuildBadge";
 import FoundingMakerBadge from "@/components/FoundingMakerBadge";
 import FollowButton from "@/components/FollowButton";
 import LocalDate from "@/components/LocalDate";
+import ScrollFadeRow from "@/components/ScrollFadeRow";
 import ShopListingActions from "./ShopListingActions";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import SortSelect from "./SortSelect";
@@ -339,7 +340,7 @@ export default async function SellerShopPage({
       {/* ── Category tabs + sort ────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4 mb-3">
         {/* Tabs */}
-        <div className="flex overflow-x-auto gap-2 pb-1 flex-1 min-w-0">
+        <ScrollFadeRow className="flex flex-1 min-w-0 gap-2 overflow-x-auto pb-1">
           <Link
             href={shopUrl({ category: null, page: 1 })}
             className={`shrink-0 rounded-full px-3 py-1 text-sm font-medium transition-colors ${
@@ -363,10 +364,17 @@ export default async function SellerShopPage({
               {CATEGORY_LABELS[cat] ?? cat}
             </Link>
           ))}
-        </div>
+        </ScrollFadeRow>
 
         {/* Sort */}
-        <SortSelect currentSort={sort} sellerId={seller.id} sellerName={seller.displayName} category={category} tag={tag || null} />
+        <SortSelect
+          currentSort={sort}
+          sellerId={seller.id}
+          sellerName={seller.displayName}
+          category={category}
+          tag={tag || null}
+          status={statusFilter || null}
+        />
       </div>
 
       {tag && (
@@ -382,7 +390,7 @@ export default async function SellerShopPage({
 
       {/* ── Status tabs (owner only) ────────────────────────────────── */}
       {isOwner && (
-        <div className="flex overflow-x-auto gap-2 pb-1 mb-5">
+        <ScrollFadeRow className="mb-5 flex gap-2 overflow-x-auto pb-1">
           {STATUS_TABS.map((tab) => (
             <Link
               key={tab.value}
@@ -396,7 +404,7 @@ export default async function SellerShopPage({
               {tab.label}
             </Link>
           ))}
-        </div>
+        </ScrollFadeRow>
       )}
 
       {/* ── Results count ───────────────────────────────────────────── */}

@@ -1856,6 +1856,9 @@ export async function anonymizeUserAccount(
         });
       }
       await removeSellerCommissionInterests(tx, user.sellerProfile.id);
+      await tx.sellerProfileViewDaily.deleteMany({
+        where: { sellerProfileId: user.sellerProfile.id },
+      });
       await tx.sellerMetrics.deleteMany({
         where: { sellerProfileId: user.sellerProfile.id },
       });

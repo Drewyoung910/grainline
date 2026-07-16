@@ -183,9 +183,9 @@ function FeedCard({ item }: { item: FeedItem }) {
   if (item.kind === "listing") {
     const listingHref = item.id ? publicListingPath(item.id, item.title) : "#";
     return (
-      <div className="card-listing">
-        <div className="flex items-center gap-2 px-4 py-2 border-b border-neutral-100">
-          <span className="text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
+      <article className="card-listing overflow-hidden">
+        <div className="flex items-center gap-2 border-b border-neutral-100 px-4 py-2">
+          <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">
             New Listing
           </span>
           <Link href={sellerHref} className="text-xs text-neutral-500 hover:underline">
@@ -200,7 +200,7 @@ function FeedCard({ item }: { item: FeedItem }) {
               <img src={item.imageUrl} alt={item.title ?? ""} loading="lazy" className="w-full aspect-[4/3] object-cover" />
             )}
             <div className="p-4">
-              <p className="font-medium text-neutral-900">{item.title}</p>
+              <p className="font-medium text-neutral-900 line-clamp-2">{item.title}</p>
               {item.priceCents != null && (
                 <p className="text-sm text-neutral-600 mt-1">
                   {formatCurrencyCents(item.priceCents, item.currency ?? DEFAULT_CURRENCY)}
@@ -212,15 +212,15 @@ function FeedCard({ item }: { item: FeedItem }) {
             <FavoriteButton listingId={item.id} initialSaved={!!item.isSaved} />
           )}
         </div>
-      </div>
+      </article>
     );
   }
 
   if (item.kind === "blog") {
     return (
-      <div className="card-listing">
-        <div className="flex items-center gap-2 px-4 py-2 border-b border-neutral-100">
-          <span className="text-xs font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded">
+      <article className="card-listing overflow-hidden">
+        <div className="flex items-center gap-2 border-b border-neutral-100 px-4 py-2">
+          <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
             New Post
           </span>
           <Link href={sellerHref} className="text-xs text-neutral-500 hover:underline">
@@ -235,7 +235,7 @@ function FeedCard({ item }: { item: FeedItem }) {
               <img src={item.coverImageUrl} alt={item.title ?? ""} loading="lazy" className="w-full aspect-[4/3] object-cover" />
             )}
             <div className="p-4">
-              <p className="font-medium text-neutral-900">{item.title}</p>
+              <p className="font-medium text-neutral-900 line-clamp-2">{item.title}</p>
               {item.excerpt && (
                 <p className="text-sm text-neutral-500 mt-1 line-clamp-2">{item.excerpt}</p>
               )}
@@ -247,15 +247,15 @@ function FeedCard({ item }: { item: FeedItem }) {
             </div>
           )}
         </div>
-      </div>
+      </article>
     );
   }
 
   if (item.kind === "broadcast") {
     return (
-      <div className="card-section">
-        <div className="flex items-center gap-2 px-4 py-2 border-b border-neutral-100">
-          <span className="text-xs font-medium text-teal-700">Shop Update</span>
+      <article className="card-section overflow-hidden">
+        <div className="flex items-center gap-2 border-b border-neutral-100 px-4 py-2">
+          <span className="rounded-full border border-teal-200 bg-teal-50 px-2.5 py-0.5 text-xs font-medium text-teal-700">Shop Update</span>
           <Link href={sellerHref} className="text-xs text-neutral-500 hover:underline">
             {item.sellerName}
           </Link>
@@ -269,11 +269,11 @@ function FeedCard({ item }: { item: FeedItem }) {
               src={item.broadcastImageUrl}
               alt="Shop update"
               loading="lazy"
-              className="mt-3 w-full aspect-[4/3] object-cover"
+              className="mt-3 w-full rounded-lg aspect-[4/3] object-cover"
             />
           )}
         </div>
-      </div>
+      </article>
     );
   }
 

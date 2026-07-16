@@ -3,10 +3,10 @@
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { BlogSuggestion } from "@/app/api/blog/search/suggestions/route";
-import { Search } from "@/components/icons";
+import { Search, X } from "@/components/icons";
 import { publicBlogAuthorPath } from "@/lib/publicPaths";
 
-const FALLBACK_BLOG_TOPICS = ["woodworking", "behind the build", "care guide", "maker story"];
+const FALLBACK_BLOG_TOPICS = ["gift guides", "how to", "care guide", "maker story"];
 const MAX_BLOG_SEARCH_QUERY_LENGTH = 200;
 type BlogSearchOption =
   | { kind: "topic"; key: string; section: "Popular topics"; label: string }
@@ -228,17 +228,23 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
 
   return (
     <div ref={containerRef} className="relative w-full">
-      <form onSubmit={handleSubmit}>
-        <div className="flex items-stretch rounded-full border border-neutral-200 bg-white overflow-hidden focus-within:ring-2 focus-within:ring-neutral-300">
-          <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 pointer-events-none"
-            width={16} height={16} viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" strokeWidth={2} strokeLinecap="round"
+      <form onSubmit={handleSubmit} role="search">
+        <label htmlFor={`${blogSearchListboxId}-input`} className="sr-only">
+          Search blog posts
+        </label>
+        <div className="flex min-h-[46px] items-stretch overflow-hidden rounded-2xl border border-neutral-200 bg-white/90 shadow-sm transition-[border-color,box-shadow,background-color] focus-within:border-neutral-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-neutral-900/10">
+          <button
+            type="submit"
+            aria-label="Search"
+            className="group flex min-w-11 shrink-0 items-center justify-center rounded-full text-neutral-500 transition-colors hover:text-neutral-900 focus-visible:outline-none"
           >
-            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
+            <span className="flex size-9 items-center justify-center rounded-full transition-colors group-hover:bg-neutral-100 group-active:bg-neutral-200/70 group-focus-visible:ring-2 group-focus-visible:ring-neutral-900/20">
+              <Search size={18} />
+            </span>
+          </button>
           <div className="relative flex-1">
             <input
+              id={`${blogSearchListboxId}-input`}
               value={value}
               onChange={handleChange}
               onFocus={() => {
@@ -251,7 +257,7 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
               }}
               onKeyDown={handleKeyDown}
               placeholder="Search posts, topics, makers..."
-              className="w-full bg-transparent py-2 pl-10 pr-8 text-sm text-neutral-900 placeholder:text-neutral-500 focus:outline-none"
+              className="h-full w-full bg-transparent py-2.5 pl-0 pr-2 text-sm text-neutral-900 placeholder:text-neutral-500 focus:outline-none"
               autoComplete="off"
               maxLength={MAX_BLOG_SEARCH_QUERY_LENGTH}
               role="combobox"
@@ -263,22 +269,17 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
             {value && (
               <button
                 type="button"
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => { setValue(""); setSuggestions([]); setOpen(false); setActiveIndex(-1); navigate(""); }}
-                className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-base leading-none text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800"
+                className="group absolute right-0 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full text-neutral-400 transition-colors hover:text-neutral-700 focus-visible:outline-none"
                 aria-label="Clear search"
               >
-                ×
+                <span className="flex size-8 items-center justify-center rounded-full transition-colors group-hover:bg-neutral-100 group-active:bg-neutral-200/70 group-focus-visible:ring-2 group-focus-visible:ring-neutral-900/20">
+                  <X size={15} />
+                </span>
               </button>
             )}
           </div>
-          <button
-            type="submit"
-            aria-label="Search"
-            className="flex shrink-0 items-center justify-center rounded-none bg-neutral-900 px-4 text-white transition-colors hover:bg-neutral-800"
-            style={{ borderRadius: 0 }}
-          >
-            <Search size={16} />
-          </button>
         </div>
       </form>
 
@@ -286,7 +287,7 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
         <ul
           id={blogSearchListboxId}
           role="listbox"
-          className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-md border border-neutral-200 bg-white shadow-lg"
+          className="absolute left-0 right-0 top-full z-50 mt-2 max-h-[min(28rem,calc(100dvh-9rem))] overflow-y-auto overscroll-contain rounded-xl border border-stone-200/60 bg-white/95 text-neutral-900 shadow-lg backdrop-blur-lg animate-search-pop-in motion-reduce:animate-none"
         >
           {options.map((option, index) => (
             <React.Fragment key={option.key}>
@@ -308,8 +309,8 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
                     e.preventDefault();
                     chooseOption(option);
                   }}
-                  className={`w-full px-4 py-2 text-left text-sm hover:bg-neutral-50 ${
-                    activeIndex === index ? "bg-neutral-100" : ""
+                  className={`w-full px-4 py-2 text-left text-sm transition-colors hover:bg-[#F7F5F0] ${
+                    activeIndex === index ? "bg-[#EFEAE0]" : ""
                   } ${option.kind === "topic" ? "flex items-center gap-2" : "flex items-center gap-3 py-2.5"}`}
                 >
                   {option.kind === "topic" ? (

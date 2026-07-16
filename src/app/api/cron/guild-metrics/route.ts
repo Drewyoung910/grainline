@@ -97,14 +97,21 @@ async function runGuildMetricsCron() {
     },
   });
 
-  // Clean up view daily records older than the fixed retention window.
+  // Clean up daily analytics records older than the fixed retention window.
   const twoYearsAgo = listingViewDailyRetentionCutoff();
   let deletedViewRows = 0;
   let deletedViewRowsComplete = true;
+  let deletedProfileViewRows = 0;
+  let deletedProfileViewRowsComplete = true;
   try {
-    const viewCleanup = await deleteOldListingViewDaily(twoYearsAgo);
+    const [viewCleanup, profileViewCleanup] = await Promise.all([
+      deleteOldListingViewDaily(twoYearsAgo),
+      deleteOldSellerProfileViewDaily(twoYearsAgo),
+    ]);
     deletedViewRows = viewCleanup.count;
     deletedViewRowsComplete = viewCleanup.complete;
+    deletedProfileViewRows = profileViewCleanup.count;
+    deletedProfileViewRowsComplete = profileViewCleanup.complete;
     if (deletedViewRows > 0) {
       await logSystemAction({
         actorType: "cron",
@@ -121,13 +128,38 @@ async function runGuildMetricsCron() {
         },
       });
     }
+    if (deletedProfileViewRows > 0) {
+      await logSystemAction({
+        actorType: "cron",
+        actorId: "guild-metrics",
+        action: "PRUNE_SELLER_PROFILE_VIEW_DAILY",
+        targetType: "SELLER_PROFILE_VIEW_DAILY",
+        targetId: twoYearsAgo.toISOString().slice(0, 10),
+        reason: "Seller profile view daily retention cleanup",
+        metadata: {
+          jobName: "guild-metrics",
+          cutoff: twoYearsAgo.toISOString(),
+          deletedRows: deletedProfileViewRows,
+          complete: deletedProfileViewRowsComplete,
+        },
+      });
+    }
   } catch (err) {
     const code = getErrorCode(err);
-    errors.push({ sellerId: "listing-view-cleanup", code });
+    errors.push({ sellerId: "analytics-view-cleanup", code });
     Sentry.captureException(err, { tags: { source: "cron_guild_metrics_cleanup", code } });
   }
 
-  return { processed, warned, revokedMaster, deletedViewRows, deletedViewRowsComplete, errors };
+  return {
+    processed,
+    warned,
+    revokedMaster,
+    deletedViewRows,
+    deletedViewRowsComplete,
+    deletedProfileViewRows,
+    deletedProfileViewRowsComplete,
+    errors,
+  };
 }
 
 async function fetchGuildSellerBatch(cursorId: string | null) {
@@ -339,6 +371,23 @@ async function deleteOldListingViewDaily(cutoff: Date): Promise<{ count: number;
       WHERE id IN (
         SELECT id
         FROM "ListingViewDaily"
+        WHERE date < ${cutoff}
+        ORDER BY date ASC
+        LIMIT ${VIEW_CLEANUP_BATCH_SIZE}
+      )
+    `,
+  });
+}
+
+async function deleteOldSellerProfileViewDaily(cutoff: Date): Promise<{ count: number; complete: boolean }> {
+  return runBoundedDeletionBatches({
+    batchSize: VIEW_CLEANUP_BATCH_SIZE,
+    timeBudgetMs: VIEW_CLEANUP_TIME_BUDGET_MS,
+    deleteBatch: async () => prisma.$executeRaw<number>`
+      DELETE FROM "SellerProfileViewDaily"
+      WHERE id IN (
+        SELECT id
+        FROM "SellerProfileViewDaily"
         WHERE date < ${cutoff}
         ORDER BY date ASC
         LIMIT ${VIEW_CLEANUP_BATCH_SIZE}

@@ -273,6 +273,7 @@ model SellerProfile {
   sellerMetrics       SellerMetrics?
   ratingSummary       SellerRatingSummary?
   viewDailies         ListingViewDaily[]
+  profileViewDailies  SellerProfileViewDaily[]
   followers           Follow[]
   broadcasts          SellerBroadcast[]
   commissionInterests CommissionInterest[]
@@ -1390,6 +1391,18 @@ model ListingViewDaily {
   clicks          Int           @default(0)
 
   @@unique([listingId, date])
+  @@index([sellerProfileId, date])
+  @@index([date])
+}
+
+model SellerProfileViewDaily {
+  id              String        @id @default(cuid())
+  sellerProfileId String
+  sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+  date            DateTime // stored as midnight UTC of that day
+  views           Int           @default(0)
+
+  @@unique([sellerProfileId, date])
   @@index([sellerProfileId, date])
   @@index([date])
 }

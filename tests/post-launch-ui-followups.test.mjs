@@ -118,7 +118,9 @@ describe("post-launch UI follow-ups", () => {
     assert.match(globals, /\.animate-search-pop-out/);
     assert.match(blogSearchBar, /FALLBACK_BLOG_TOPICS/);
     assert.match(blogSearchBar, /popularTags\.length > 0 \? popularTags : FALLBACK_BLOG_TOPICS/);
-    assert.match(blogSearchBar, /absolute right-2 top-1\/2/);
+    assert.match(blogSearchBar, /aria-label="Search"/);
+    assert.match(blogSearchBar, /group-hover:bg-neutral-100/);
+    assert.match(blogSearchBar, /group-active:bg-neutral-200\/70/);
   });
 
   it("invalidates popular search caches when public listing or blog visibility changes", () => {

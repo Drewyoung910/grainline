@@ -433,10 +433,10 @@ export default async function BlogPostPage({
               <img
                 src={authorAvatar}
                 alt={authorName}
-                className="h-14 w-14 shrink-0 rounded-full object-cover ring-1 ring-black/10"
+                className="h-14 w-14 shrink-0 rounded-full object-cover ring-1 ring-neutral-200"
               />
             ) : (
-              <div className="h-14 w-14 shrink-0 rounded-full bg-neutral-200 ring-1 ring-black/10" />
+              <div className="h-14 w-14 shrink-0 rounded-full bg-neutral-200 ring-1 ring-neutral-200" />
             )}
             <div className="flex-1 min-w-0">
               <div className="font-display text-lg font-semibold text-neutral-900">

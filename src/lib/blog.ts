@@ -59,10 +59,10 @@ export function calculateReadingTime(body: string): number {
 
 export const BLOG_TYPE_LABELS: Record<BlogPostType, string> = {
   STANDARD: "Article",
-  MAKER_SPOTLIGHT: "Maker Spotlight",
+  MAKER_SPOTLIGHT: "Spotlight",
   BEHIND_THE_BUILD: "Behind the Build",
   GIFT_GUIDE: "Gift Guide",
-  WOOD_EDUCATION: "Workshop Tips",
+  WOOD_EDUCATION: "Education",
 };
 
 export const BLOG_TYPE_COLORS: Record<BlogPostType, string> = {

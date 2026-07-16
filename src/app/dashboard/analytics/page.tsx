@@ -3,8 +3,8 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import Link from "next/link";
-import { Eye, Heart, Bell } from "@/components/icons";
-import { publicListingPath } from "@/lib/publicPaths";
+import { Eye, Heart, Bell, MousePointer } from "@/components/icons";
+import { publicListingPath, publicSellerShopPath } from "@/lib/publicPaths";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 
@@ -57,6 +57,7 @@ type GuildMetrics = {
 };
 
 type AnalyticsData = {
+  sellerProfileId: string;
   range: RangeKey;
   startDate: string;
   endDate: string;
@@ -160,6 +161,8 @@ function LineChartSection({
   } | null>(null);
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const draggingRef = useRef(false);
 
   const metrics: { key: ChartMetric; label: string }[] = [
     { key: "revenue", label: "Sales" },
@@ -212,6 +215,41 @@ function LineChartSection({
     return v.toLocaleString("en-US");
   }
 
+  function showPoint(index: number) {
+    const point = points[index];
+    if (!point) return;
+    setActiveIdx(index);
+    setTooltip({
+      label: point.label,
+      value: formatValue(point.value),
+      xPct: (point.x / SVG_W) * 100,
+      yPct: (point.y / SVG_H) * 100,
+    });
+  }
+
+  function closestPointIndex(clientX: number) {
+    const svg = svgRef.current;
+    if (!svg || points.length === 0) return -1;
+    const rect = svg.getBoundingClientRect();
+    if (rect.width <= 0) return -1;
+    const svgX = ((clientX - rect.left) / rect.width) * SVG_W;
+    let nearest = 0;
+    let smallestDistance = Math.abs(points[0].x - svgX);
+    for (let i = 1; i < points.length; i += 1) {
+      const distance = Math.abs(points[i].x - svgX);
+      if (distance < smallestDistance) {
+        nearest = i;
+        smallestDistance = distance;
+      }
+    }
+    return nearest;
+  }
+
+  function updatePointerSelection(event: React.PointerEvent<SVGRectElement>) {
+    const index = closestPointIndex(event.clientX);
+    if (index >= 0) showPoint(index);
+  }
+
   return (
     <section>
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
@@ -241,10 +279,10 @@ function LineChartSection({
         )}
 
         <svg
+          ref={svgRef}
           width="100%"
           viewBox={`0 0 ${SVG_W} ${SVG_H}`}
           style={{ overflow: "visible", display: "block" }}
-          onMouseLeave={() => { setActiveIdx(null); setTooltip(null); }}
         >
           {/* Gradient definition for area fill */}
           <defs>
@@ -325,62 +363,49 @@ function LineChartSection({
                 fill="white"
                 stroke={color}
                 strokeWidth={2}
-                style={{ cursor: "pointer" }}
-                onMouseEnter={() => {
-                  setActiveIdx(i);
-                  setTooltip({
-                    label: p.label,
-                    value: formatValue(p.value),
-                    xPct: (p.x / SVG_W) * 100,
-                    yPct: (p.y / SVG_H) * 100,
-                  });
-                }}
-                onMouseLeave={() => { setActiveIdx(null); setTooltip(null); }}
-                onClick={() => {
-                  setActiveIdx(i);
-                  setTooltip({
-                    label: p.label,
-                    value: formatValue(p.value),
-                    xPct: (p.x / SVG_W) * 100,
-                    yPct: (p.y / SVG_H) * 100,
-                  });
-                }}
+                style={{ pointerEvents: "none" }}
               />
             ))}
 
-          {/* Invisible hit-targets (>20 points) */}
-          {hasData &&
-            n > 20 &&
-            points.map((p, i) => (
-              <rect
-                key={i}
-                x={p.x - CW / n / 2}
-                y={PAD_T}
-                width={CW / n}
-                height={CH}
-                fill="transparent"
-                style={{ cursor: "crosshair" }}
-                onMouseEnter={() => {
-                  setActiveIdx(i);
-                  setTooltip({
-                    label: p.label,
-                    value: formatValue(p.value),
-                    xPct: (p.x / SVG_W) * 100,
-                    yPct: (p.y / SVG_H) * 100,
-                  });
-                }}
-                onMouseLeave={() => { setActiveIdx(null); setTooltip(null); }}
-                onClick={() => {
-                  setActiveIdx(i);
-                  setTooltip({
-                    label: p.label,
-                    value: formatValue(p.value),
-                    xPct: (p.x / SVG_W) * 100,
-                    yPct: (p.y / SVG_H) * 100,
-                  });
-                }}
-              />
-            ))}
+          {/* Large pointer surface for tap, click, and drag selection. */}
+          {hasData && points.length > 0 && (
+            <rect
+              x={PAD_L - 18}
+              y={PAD_T - 14}
+              width={CW + 36}
+              height={CH + 28}
+              fill="transparent"
+              style={{ cursor: "crosshair", touchAction: "none" }}
+              onPointerDown={(event) => {
+                draggingRef.current = true;
+                event.currentTarget.setPointerCapture(event.pointerId);
+                updatePointerSelection(event);
+              }}
+              onPointerMove={(event) => {
+                if (draggingRef.current || event.pointerType === "mouse") {
+                  updatePointerSelection(event);
+                }
+              }}
+              onPointerUp={(event) => {
+                draggingRef.current = false;
+                if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                  event.currentTarget.releasePointerCapture(event.pointerId);
+                }
+              }}
+              onPointerCancel={(event) => {
+                draggingRef.current = false;
+                if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                  event.currentTarget.releasePointerCapture(event.pointerId);
+                }
+              }}
+              onPointerLeave={() => {
+                if (!draggingRef.current) {
+                  setActiveIdx(null);
+                  setTooltip(null);
+                }
+              }}
+            />
+          )}
 
           {/* Active data point: vertical guide line + filled dot */}
           {hasData && activeIdx !== null && points[activeIdx] && (() => {
@@ -395,6 +420,7 @@ function LineChartSection({
                   stroke="#d6d3d1"
                   strokeWidth={1}
                   strokeDasharray="3 3"
+                  style={{ pointerEvents: "none" }}
                 />
                 <circle
                   cx={ap.x}
@@ -453,14 +479,14 @@ function LineChartSection({
 // ── Main component ─────────────────────────────────────────────────────────────
 
 const RANGE_OPTIONS: { key: RangeKey; label: string }[] = [
-  { key: "today", label: "Today UTC" },
-  { key: "yesterday", label: "Yesterday UTC" },
-  { key: "week", label: "This week UTC" },
-  { key: "last7", label: "Last 7 UTC days" },
-  { key: "month", label: "This month UTC" },
-  { key: "last30", label: "Last 30 UTC days" },
-  { key: "year", label: "This year UTC" },
-  { key: "last365", label: "Last 365 UTC days" },
+  { key: "today", label: "Today" },
+  { key: "yesterday", label: "Yesterday" },
+  { key: "week", label: "This week" },
+  { key: "last7", label: "Last 7 days" },
+  { key: "month", label: "This month" },
+  { key: "last30", label: "Last 30 days" },
+  { key: "year", label: "This year" },
+  { key: "last365", label: "Last 365 days" },
   { key: "alltime", label: "All time" },
 ];
 
@@ -634,7 +660,7 @@ export default function AnalyticsPage() {
               {
                 label: "Profile Visits",
                 value: data.engagement.profileVisits.toLocaleString("en-US"),
-                note: "all-time total",
+                note: data.range === "alltime" ? "all-time total" : "visits this period",
               },
               {
                 label: "Cart Abandoned",
@@ -695,7 +721,7 @@ export default function AnalyticsPage() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold">Top Listings</h2>
           <Link
-            href="/dashboard/inventory"
+            href={data?.sellerProfileId ? publicSellerShopPath(data.sellerProfileId, null) : "/dashboard"}
             className="text-sm text-neutral-600 underline hover:text-neutral-900"
           >
             View all →
@@ -738,7 +764,7 @@ export default function AnalyticsPage() {
                       {l.unitsSold !== 1 ? "s" : ""}
                     </p>
                     <p className="text-xs text-neutral-500 mt-0.5">
-                      <Eye size={11} className="inline align-middle" /> {l.viewCount.toLocaleString("en-US")} · clicks {l.clickCount.toLocaleString("en-US")} · <Heart size={11} className="inline align-middle" />{" "}
+                      <Eye size={11} className="inline align-middle" /> {l.viewCount.toLocaleString("en-US")} · <MousePointer size={11} className="inline align-middle" /> {l.clickCount.toLocaleString("en-US")} · <Heart size={11} className="inline align-middle" />{" "}
                       {l.favoritesCount} · <Bell size={11} className="inline align-middle" /> {l.stockNotificationCount}
                       {l.revenuePerActiveDayCents > 0 && (
                         <>

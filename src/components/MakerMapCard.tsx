@@ -8,6 +8,8 @@
 import * as React from "react";
 import { publicSellerPath } from "@/lib/publicPaths";
 import { X } from "@/components/icons";
+import GuildBadge, { type GuildLevelValue } from "@/components/GuildBadge";
+import FoundingMakerBadge from "@/components/FoundingMakerBadge";
 
 export type MakerMapCardData = {
   id: string;
@@ -16,6 +18,8 @@ export type MakerMapCardData = {
   avatarUrl: string | null;
   photoUrl: string | null;
   guildLevel: string | null;
+  isFoundingMaker: boolean;
+  foundingMakerNumber: number | null;
   city: string | null;
   state: string | null;
   tagline: string | null;
@@ -96,6 +100,8 @@ export default function MakerMapCard({
   const photoUrl = safeHttpsUrl(loaded?.photoUrl);
   const avatarUrl = safeHttpsUrl(loaded?.avatarUrl);
   const guildLevel = loaded?.guildLevel ?? null;
+  const isGuildLevel = guildLevel === "GUILD_MEMBER" || guildLevel === "GUILD_MASTER";
+  const isFoundingMaker = loaded?.isFoundingMaker === true;
   const rating = loaded?.rating ?? null;
 
   return (
@@ -135,13 +141,14 @@ export default function MakerMapCard({
 
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           <span className="text-[15px] font-semibold leading-tight text-neutral-900">{name}</span>
-          {(guildLevel === "GUILD_MEMBER" || guildLevel === "GUILD_MASTER") && (
-            <span
-              className={`rounded-full bg-white ring-1 ring-stone-200/60 px-2 py-0.5 text-[10px] font-semibold ${
-                guildLevel === "GUILD_MASTER" ? "text-[#B8960C]" : "text-green-900"
-              }`}
-            >
-              {guildLevel === "GUILD_MASTER" ? "Guild Master" : "Guild Member"}
+          {isGuildLevel && (
+            <span className="inline-flex items-center rounded-full bg-white/80 px-1.5 py-0.5 ring-1 ring-stone-200/70">
+              <GuildBadge level={guildLevel as GuildLevelValue} size={20} />
+            </span>
+          )}
+          {isFoundingMaker && (
+            <span className="inline-flex items-center rounded-full bg-white/80 px-1.5 py-0.5 ring-1 ring-stone-200/70">
+              <FoundingMakerBadge number={loaded?.foundingMakerNumber ?? null} size={18} />
             </span>
           )}
         </div>
