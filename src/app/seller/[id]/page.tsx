@@ -10,7 +10,7 @@ import DynamicMapCard from "@/components/DynamicMapCard";
 import CustomOrderRequestForm from "@/components/CustomOrderRequestForm";
 import ClickTracker from "@/components/ClickTracker";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
-import { Instagram, Facebook, Pinterest, TikTok, Globe, Hammer, MapPin } from "@/components/icons";
+import { Instagram, Facebook, Pinterest, TikTok, Globe, Wrench, MapPin } from "@/components/icons";
 import GuildBadge from "@/components/GuildBadge";
 import FoundingMakerBadge from "@/components/FoundingMakerBadge";
 import FollowButton from "@/components/FollowButton";
@@ -547,7 +547,7 @@ export default async function SellerPublicPage({
                       href={`/sign-in?redirect_url=${encodeURIComponent(publicSellerPath(seller.id, seller.displayName))}`}
                       className="inline-flex items-center gap-2 rounded-md bg-[#EFEAE0] px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
                     >
-                      <Hammer size={15} />
+                      <Wrench size={15} />
                       Request a Custom Piece
                     </Link>
                   )

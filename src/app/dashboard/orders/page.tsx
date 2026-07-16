@@ -55,14 +55,14 @@ export default async function OrdersPage() {
     <main className="mx-auto max-w-4xl p-8 space-y-6">
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">My orders</h1>
+          <h1 className="text-2xl font-semibold font-display">My orders</h1>
           <p className="text-sm text-neutral-600">
             View purchases you’ve made on Grainline.
           </p>
         </div>
         <Link
           href="/browse"
-          className="inline-flex items-center justify-center rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50 w-full sm:w-auto text-center shrink-0"
+          className="inline-flex min-h-[40px] w-full shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-center text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-50 sm:w-auto"
         >
           Continue shopping
         </Link>
@@ -89,7 +89,7 @@ export default async function OrdersPage() {
 
             return (
               <li key={o.id} className="card-section">
-                <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
+                <div className="flex flex-col gap-2 border-b border-neutral-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="text-sm">
                     <div className="font-medium">
                       <Link
@@ -119,10 +119,10 @@ export default async function OrdersPage() {
                           <img
                             src={img}
                             alt=""
-                            className="h-16 w-16 rounded border object-cover"
+                            className="h-16 w-16 shrink-0 rounded-lg border border-neutral-200 object-cover"
                           />
                         ) : (
-                          <div className="h-16 w-16 rounded border bg-neutral-100" />
+                          <div className="h-16 w-16 shrink-0 rounded-lg border border-neutral-200 bg-neutral-100" />
                         )}
                         <div className="min-w-0 flex-1">
                           <Link

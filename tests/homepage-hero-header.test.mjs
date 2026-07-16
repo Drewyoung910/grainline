@@ -27,7 +27,7 @@ describe("homepage hero and header contracts", () => {
     assert.match(home, /import Image from "next\/image"/);
     assert.match(home, /src="\/hero-maple-cabinets\.jpg"[\s\S]*alt=""[\s\S]*aria-hidden="true"[\s\S]*fill[\s\S]*preload[\s\S]*quality=\{88\}[\s\S]*sizes="\(max-width: 639px\) 150vw, 100vw"/);
     assert.match(nextConfig, /images:\s*\{[\s\S]*qualities: \[75, 88\]/);
-    assert.match(home, /object-\[13%_58%\][\s\S]*sm:object-\[26%_58%\][\s\S]*md:object-\[35%_58%\][\s\S]*lg:object-\[center_58%\]/);
+    assert.match(home, /object-\[43%_58%\][\s\S]*sm:object-\[26%_58%\][\s\S]*md:object-\[35%_58%\][\s\S]*lg:object-\[center_58%\]/);
     assert.match(home, /h-\[clamp\(520px,68svh,600px\)\]/);
     assert.match(home, /sm:h-\[clamp\(600px,78svh,760px\)\]/);
     assert.ok(home.includes("rgba(44,31,26,0.78)_0%,rgba(44,31,26,0.62)_44%,rgba(44,31,26,0.24)_76%,rgba(44,31,26,0.04)_100%"));
@@ -120,7 +120,7 @@ describe("homepage hero and header contracts", () => {
     const home = source("src/app/page.tsx");
     const mapSection = source("src/components/MakersMapSection.tsx");
 
-    assert.match(home, /Discover distinctive pieces, handcrafted by independent woodworkers\./);
+    assert.match(home, /Timeless pieces with beauty in the grain, made by independent woodworkers\./);
     assert.match(home, /data-home-primary-cta[\s\S]*>\s*Browse\s*<\/Link>/);
     assert.doesNotMatch(home, /Browse the Workshop/);
     assert.match(home, /data-home-secondary-cta[\s\S]*>\s*Find Shops Near You\s*<\/Link>/);

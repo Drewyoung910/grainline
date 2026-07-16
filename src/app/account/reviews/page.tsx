@@ -58,7 +58,7 @@ export default async function MyReviewsPage({
       ) : (
         <div className="space-y-4">
           {reviews.map((r) => (
-            <div key={r.id} className="rounded-lg border border-stone-200/60 bg-[#EFEAE0] p-4 flex gap-4">
+            <div key={r.id} className="card-section flex gap-4 p-4">
               {r.listing.photos[0]?.url && (
                 <Link href={publicListingPath(r.listing.id, r.listing.title)} className="shrink-0">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -94,7 +94,7 @@ export default async function MyReviewsPage({
                         <img
                           src={photo.url}
                           alt=""
-                          className="h-12 w-12 rounded border object-cover hover:opacity-80 transition-opacity"
+                          className="h-12 w-12 rounded-md border border-neutral-200 object-cover transition-opacity hover:opacity-80"
                         />
                       </a>
                     ))}
@@ -117,7 +117,7 @@ export default async function MyReviewsPage({
           {page > 1 && (
             <Link
               href={`/account/reviews?page=${page - 1}`}
-              className="border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50"
+              className="inline-flex min-h-[40px] items-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
             >
               ← Previous
             </Link>
@@ -128,7 +128,7 @@ export default async function MyReviewsPage({
           {page < totalPages && (
             <Link
               href={`/account/reviews?page=${page + 1}`}
-              className="border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50"
+              className="inline-flex min-h-[40px] items-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
             >
               Next →
             </Link>

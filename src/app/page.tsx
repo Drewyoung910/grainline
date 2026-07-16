@@ -546,7 +546,7 @@ export default async function HomePage() {
           preload
           quality={88}
           sizes="(max-width: 639px) 150vw, 100vw"
-          className="object-cover object-[13%_58%] sm:object-[26%_58%] md:object-[35%_58%] lg:object-[center_58%]"
+          className="object-cover object-[43%_58%] sm:object-[26%_58%] md:object-[35%_58%] lg:object-[center_58%]"
         />
         <div
           className="absolute inset-0 bg-[linear-gradient(90deg,rgba(44,31,26,0.78)_0%,rgba(44,31,26,0.62)_44%,rgba(44,31,26,0.24)_76%,rgba(44,31,26,0.04)_100%)] lg:bg-[linear-gradient(90deg,rgba(44,31,26,0.78)_0%,rgba(44,31,26,0.60)_28%,rgba(44,31,26,0.18)_48%,rgba(44,31,26,0)_66%)]"
@@ -565,7 +565,7 @@ export default async function HomePage() {
               <span className="block whitespace-nowrap">Buy quality.</span>
             </h1>
             <p className="mt-6 max-w-md text-base leading-relaxed text-[#E5DFD2]/85 sm:text-lg">
-              Discover distinctive pieces, handcrafted by independent woodworkers.
+              Timeless pieces with beauty in the grain, made by independent woodworkers.
             </p>
             <div className="mt-7 flex flex-col items-start gap-3 sm:mt-8 sm:flex-row">
               <Link

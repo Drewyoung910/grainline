@@ -486,7 +486,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
         {!userId && request.status === "OPEN" && (
           <Link
             href={`/sign-in?redirect_url=/commission/${id}`}
-            className="text-sm border border-neutral-900 px-3 py-1.5 hover:bg-neutral-900 hover:text-white transition-colors"
+            className="inline-flex min-h-[42px] items-center justify-center rounded-md border border-neutral-900 bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-neutral-700"
           >
             Sign in to Express Interest
           </Link>

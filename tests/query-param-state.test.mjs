@@ -151,7 +151,9 @@ describe("query parameter parsing helpers", () => {
     const savedBlogPostOwnerAccess = readFileSync("src/lib/savedBlogPostOwnerAccess.ts", "utf8");
     assert.match(saved, /ownerSavedBlogPostPageRows\(me\.id, \{[\s\S]*skip: \(postPage - 1\) \* PAGE_SIZE/);
     assert.match(savedBlogPostOwnerAccess, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*skip,/);
-    assert.match(following, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: 50/);
+    assert.match(following, /const PAGE_SIZE = 20/);
+    assert.match(following, /skip: \(page - 1\) \* PAGE_SIZE/);
+    assert.match(following, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: PAGE_SIZE/);
     assert.match(following, /listings: \{[\s\S]*orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: 1/);
     assert.match(blocked, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: 50/);
     assert.match(dashboardOrders, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: LIMIT/);

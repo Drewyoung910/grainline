@@ -25,6 +25,12 @@ import type { Metadata } from "next";
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 type DashboardActionState = { ok: boolean; error?: string };
+const DASHBOARD_ACTION_CLASS =
+  "inline-flex min-h-[30px] items-center rounded-md border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50";
+const DASHBOARD_WARNING_ACTION_CLASS =
+  "inline-flex min-h-[30px] items-center rounded-md border border-amber-200 bg-white px-3 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50";
+const DASHBOARD_DANGER_ACTION_CLASS =
+  "inline-flex min-h-[30px] items-center rounded-md border border-red-200 bg-white px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50";
 
 // Server action: set status (Active / Hidden / Sold)
 async function setStatus(
@@ -597,7 +603,7 @@ export default async function DashboardPage({
                           {l.status !== "PENDING_REVIEW" && (
                             <Link
                               href={`/dashboard/listings/${l.id}/edit`}
-                              className="text-xs rounded border border-neutral-200 px-2 py-1 hover:bg-neutral-50"
+                              className={DASHBOARD_ACTION_CLASS}
                             >
                               Edit
                             </Link>
@@ -605,7 +611,7 @@ export default async function DashboardPage({
                           {(l.status === "DRAFT" || l.status === "HIDDEN" || l.status === "PENDING_REVIEW" || l.status === "REJECTED") && (
                             <Link
                               href={`${publicListingPath(l.id, l.title)}?preview=1`}
-                              className="text-xs rounded border border-neutral-200 px-2 py-1 hover:bg-neutral-50"
+                              className={DASHBOARD_ACTION_CLASS}
                               target="_blank"
                               rel="noopener noreferrer"
                             >
@@ -623,7 +629,7 @@ export default async function DashboardPage({
                         <InlineActionButton
                           action={withdrawListingReview.bind(null, l.id)}
                           confirm="Withdraw this listing from review and move it back to drafts?"
-                          className="text-xs rounded border border-amber-300 px-2 py-1 text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+                          className={DASHBOARD_WARNING_ACTION_CLASS}
                         >
                           Withdraw
                         </InlineActionButton>
@@ -636,7 +642,7 @@ export default async function DashboardPage({
                           {(l.status === "ACTIVE" || l.status === "SOLD_OUT") && (
                             <InlineActionButton
                               action={setStatus.bind(null, l.id, ListingStatus.SOLD)}
-                              className="text-xs rounded border border-neutral-200 px-2 py-1 hover:bg-neutral-50 disabled:opacity-50"
+                              className={DASHBOARD_ACTION_CLASS}
                             >
                               Mark sold
                             </InlineActionButton>
@@ -647,7 +653,7 @@ export default async function DashboardPage({
                           ) : l.status === "ACTIVE" ? (
                             <InlineActionButton
                               action={setStatus.bind(null, l.id, ListingStatus.HIDDEN)}
-                              className="text-xs rounded border border-neutral-200 px-2 py-1 hover:bg-neutral-50 disabled:opacity-50"
+                              className={DASHBOARD_ACTION_CLASS}
                             >
                               Hide
                             </InlineActionButton>
@@ -662,7 +668,7 @@ export default async function DashboardPage({
                           action={deleteListing.bind(null, l.id)}
                           confirm="Archive this listing? It will be removed from public pages and current carts, but retained for order history."
                           disabled={isArchived}
-                          className="text-xs rounded border px-2 py-1 hover:bg-red-50 text-red-600 border-red-300 disabled:opacity-50"
+                          className={DASHBOARD_DANGER_ACTION_CLASS}
                         >
                           {isArchived ? "Archived" : "Archive"}
                         </InlineActionButton>
@@ -677,7 +683,7 @@ export default async function DashboardPage({
       </section>
 
       {/* Saved Searches */}
-      <section className="mt-10">
+      <section id="saved-searches" className="mt-10 scroll-mt-24">
         <h2 className="text-xl font-semibold font-display mb-4">Saved Searches</h2>
         {savedSearches.length === 0 ? (
           <div className="card-section p-6 text-neutral-600 text-sm">
@@ -717,7 +723,7 @@ export default async function DashboardPage({
               })();
 
               return (
-                <li key={s.id} className="flex items-center justify-between card-section px-4 py-3">
+                <li key={s.id} className="card-section flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
                     <Link href={href} className="text-sm font-medium hover:underline">
                       {parts.length > 0 ? parts.join(" · ") : "All listings"}
@@ -726,15 +732,15 @@ export default async function DashboardPage({
                       Saved {new Date(s.createdAt).toLocaleDateString("en-US")}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 ml-4">
+                  <div className="flex items-center gap-2 sm:ml-4">
                     <Link
                       href={href}
-                      className="rounded border px-3 py-1 text-xs hover:bg-neutral-50"
+                      className={DASHBOARD_ACTION_CLASS}
                     >
                       Browse
                     </Link>
                     <form action={deleteSavedSearch.bind(null, s.id)}>
-                      <button className="rounded border px-3 py-1 text-xs text-red-600 border-red-200 hover:bg-red-50">
+                      <button className={DASHBOARD_DANGER_ACTION_CLASS}>
                         Delete
                       </button>
                     </form>

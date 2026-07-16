@@ -67,7 +67,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={value}>
       {children}
       <div
-        className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-4 z-[9999] space-y-2 pointer-events-none"
+        className="fixed left-4 right-4 top-[calc(1rem+env(safe-area-inset-top))] z-[9999] space-y-2 pointer-events-none sm:bottom-[calc(1rem+env(safe-area-inset-bottom))] sm:left-auto sm:right-4 sm:top-auto"
         aria-live="polite"
         aria-atomic="false"
       >
@@ -75,7 +75,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           <div
             key={t.id}
             role={t.type === "error" ? "alert" : "status"}
-            className={`pointer-events-auto rounded-md px-4 py-2.5 text-sm font-medium shadow-lg animate-slide-up ${
+            className={`pointer-events-auto animate-slide-down rounded-md px-4 py-2.5 text-sm font-medium shadow-lg sm:min-w-72 ${
               t.type === "error"
                 ? "bg-red-600 text-white"
                 : t.type === "success"

@@ -45,8 +45,8 @@ export default function CommissionInterestButton({ requestId, initialInterested 
 
   if (interested) {
     return (
-      <span className="text-sm text-green-700 border border-green-200 bg-green-50 rounded-md px-4 py-2 shrink-0 font-medium">
-        Interest Sent ✓
+      <span className="shrink-0 rounded-full border border-green-200 bg-green-50 px-4 py-2 text-sm font-medium text-green-700">
+        Interest sent
       </span>
     );
   }
@@ -56,9 +56,9 @@ export default function CommissionInterestButton({ requestId, initialInterested 
       <button
         onClick={handleClick}
         disabled={loading}
-        className="text-sm font-medium rounded-md bg-neutral-900 text-white px-4 py-2 hover:bg-neutral-700 transition-colors disabled:opacity-50 whitespace-nowrap"
+        className="inline-flex min-h-[42px] items-center justify-center rounded-md bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-neutral-700 disabled:opacity-50 whitespace-nowrap"
       >
-        {loading ? "Sending…" : "Express Interest →"}
+        {loading ? "Sending…" : "Express Interest"}
       </button>
       {error && (
         <p role="alert" className="max-w-48 text-right text-xs text-red-600">

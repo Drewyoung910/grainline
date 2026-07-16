@@ -23,7 +23,7 @@ import { safeJsonLd } from "@/lib/json-ld";
 import ListingGallery from "@/components/ListingGallery";
 import DescriptionExpander from "@/components/DescriptionExpander";
 import BlockReportButton from "@/components/BlockReportButton";
-import { Hammer } from "@/components/icons";
+import { Wrench } from "@/components/icons";
 import { canViewListingDetail, isPublicListingDetail, publicListingWhere } from "@/lib/listingVisibility";
 import { extractRouteId, publicListingPath, publicSellerPath, publicTagPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 import { truncateText } from "@/lib/sanitize";
@@ -602,7 +602,7 @@ export default async function ListingPage({
                   href={`/sign-in?redirect_url=${encodeURIComponent(publicListingPath(listing.id, listing.title))}`}
                   className="inline-flex items-center gap-2 rounded-md bg-[#F7F5F0] px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-white transition-colors"
                 >
-                  <Hammer size={15} />
+                  <Wrench size={15} />
                   Request Something Similar
                 </Link>
               )}

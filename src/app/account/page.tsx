@@ -8,7 +8,8 @@ import { publicListingPath } from "@/lib/publicPaths";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import { savedListingFavoriteWhere } from "@/lib/savedListingVisibility";
-import { formatCurrencyCents } from "@/lib/money";
+import { listOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
+import { formatCurrencyCents, formatCurrencyMinorUnitAmount } from "@/lib/money";
 import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
 import { paidStripeOrderWhere } from "@/lib/orderTrust";
 
@@ -21,7 +22,7 @@ export default async function AccountPage() {
   const me = await ensureUserForPage("/account");
   const blockedSellerIds = await getBlockedSellerProfileIdsFor(me.id);
 
-  const [recentOrders, savedItems, followCount, sellerProfile] = await Promise.all([
+  const [recentOrders, savedItems, savedSearches, followCount, sellerProfile] = await Promise.all([
     // Most recent 5 orders as a buyer
     prisma.order.findMany({
       where: { buyerId: me.id },
@@ -81,6 +82,8 @@ export default async function AccountPage() {
       },
     }),
 
+    listOwnerSavedSearches(me.id, { take: 3 }),
+
     // Follow count
     prisma.follow.count({ where: { followerId: me.id } }),
 
@@ -114,6 +117,39 @@ export default async function AccountPage() {
         fulfillmentStatus: { in: ["DELIVERED", "PICKED_UP"] },
       },
     });
+  }
+
+  function savedSearchHref(search: (typeof savedSearches)[number]) {
+    const params = new URLSearchParams();
+    if (search.query) params.set("q", search.query);
+    if (search.category) params.set("category", search.category);
+    if (search.listingType) params.set("type", search.listingType);
+    if (search.shipsWithinDays != null) params.set("ships", String(search.shipsWithinDays));
+    if (search.minRating != null) params.set("rating", String(search.minRating));
+    if (search.lat != null && search.lng != null && search.radiusMiles != null) {
+      params.set("lat", String(search.lat));
+      params.set("lng", String(search.lng));
+      params.set("radius", String(search.radiusMiles));
+    }
+    if (search.sort) params.set("sort", search.sort);
+    if (search.minPrice != null) params.set("min", formatCurrencyMinorUnitAmount(search.minPrice));
+    if (search.maxPrice != null) params.set("max", formatCurrencyMinorUnitAmount(search.maxPrice));
+    for (const tag of search.tags) params.append("tag", tag);
+    return `/browse?${params.toString()}`;
+  }
+
+  function savedSearchLabel(search: (typeof savedSearches)[number]) {
+    const parts: string[] = [];
+    if (search.query) parts.push(`"${search.query}"`);
+    if (search.category) parts.push(search.category.charAt(0) + search.category.slice(1).toLowerCase());
+    if (search.listingType) parts.push(search.listingType === "IN_STOCK" ? "In stock" : "Made to order");
+    if (search.shipsWithinDays != null) parts.push(`ships within ${search.shipsWithinDays}d`);
+    if (search.minRating != null) parts.push(`${search.minRating}★+`);
+    if (search.minPrice != null) parts.push(`${formatCurrencyCents(search.minPrice)}+`);
+    if (search.maxPrice != null) parts.push(`up to ${formatCurrencyCents(search.maxPrice)}`);
+    if (search.lat != null && search.lng != null && search.radiusMiles != null) parts.push(`within ${search.radiusMiles} mi`);
+    if (search.tags.length > 0) parts.push(search.tags.map((tag) => `#${tag}`).join(" "));
+    return parts.length > 0 ? parts.join(" · ") : "All listings";
   }
 
   function formatStatus(status: string | null) {
@@ -258,6 +294,42 @@ export default async function AccountPage() {
         )}
       </section>
 
+      {/* ── Section 3: Saved Searches ── */}
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold font-display">Saved Searches</h2>
+          <Link href="/dashboard#saved-searches" className="text-sm text-neutral-600 underline hover:text-neutral-900">
+            Manage saved searches →
+          </Link>
+        </div>
+        {savedSearches.length === 0 ? (
+          <div className="card-section p-6 text-sm text-neutral-600">
+            No saved searches yet. Save useful filters from Browse to come back to them quickly.
+          </div>
+        ) : (
+          <ul className="card-section divide-y divide-neutral-100">
+            {savedSearches.map((search) => (
+              <li key={search.id} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <Link href={savedSearchHref(search)} className="text-sm font-medium text-neutral-900 hover:underline">
+                    {savedSearchLabel(search)}
+                  </Link>
+                  <p className="mt-0.5 text-xs text-neutral-500">
+                    Saved {search.createdAt.toLocaleDateString("en-US")}
+                  </p>
+                </div>
+                <Link
+                  href={savedSearchHref(search)}
+                  className="inline-flex min-h-[34px] w-fit items-center rounded-md border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-50"
+                >
+                  Browse
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       {/* ── Section 3: Following ── */}
       <section>
         <div className="flex items-center justify-between mb-4">
@@ -273,7 +345,7 @@ export default async function AccountPage() {
           </div>
           <Link
             href="/account/following"
-            className="border border-neutral-200 rounded-md px-4 py-2 text-sm hover:bg-neutral-50 transition-colors"
+            className="inline-flex min-h-[40px] items-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-50"
           >
             Manage →
           </Link>
@@ -283,13 +355,10 @@ export default async function AccountPage() {
       {/* ── Section 4: My Reviews ── */}
       <section>
         <h2 className="text-xl font-semibold font-display mb-4">My Reviews</h2>
-        <div className="rounded-lg border border-stone-200/60 bg-[#EFEAE0] p-4 space-y-2">
+        <div className="card-section p-4 space-y-2">
           <p className="text-sm text-neutral-700 mb-1">Reviews you&apos;ve written for items you&apos;ve purchased</p>
           <Link href="/account/reviews" className="text-sm underline hover:text-neutral-900 block">
             View my reviews →
-          </Link>
-          <Link href="/account/blocked" className="text-sm underline hover:text-neutral-900 block">
-            Blocked users →
           </Link>
         </div>
       </section>
@@ -325,6 +394,9 @@ export default async function AccountPage() {
           <Link href="/account/settings" className="text-sm underline text-neutral-600 hover:text-neutral-900">
             Account settings →
           </Link>
+          <Link href="/account/blocked" className="text-sm underline text-neutral-600 hover:text-neutral-900">
+            Blocked users →
+          </Link>
         </div>
       </section>
 
@@ -346,19 +418,19 @@ export default async function AccountPage() {
             <div className="flex gap-3 flex-wrap">
               <Link
                 href="/dashboard"
-                className="rounded-md border border-neutral-900 bg-neutral-900 text-white px-4 py-2 text-sm hover:bg-neutral-800 transition-colors"
+                className="inline-flex min-h-[40px] items-center rounded-md border border-neutral-900 bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-800"
               >
                 Go to Workshop →
               </Link>
               <Link
                 href="/dashboard/blog"
-                className="rounded-md border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50 transition-colors"
+                className="inline-flex min-h-[40px] items-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-50"
               >
                 My Blog Posts
               </Link>
               <Link
                 href="/dashboard/blog/new"
-                className="rounded-md border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50 transition-colors"
+                className="inline-flex min-h-[40px] items-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-50"
               >
                 Write a Post
               </Link>

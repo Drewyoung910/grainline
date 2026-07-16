@@ -10,7 +10,7 @@ import IconHoverTip from "@/components/IconHoverTip";
 import SearchBar from "@/components/SearchBar";
 import NotificationBell from "@/components/NotificationBell";
 import UserAvatarMenu from "@/components/UserAvatarMenu";
-import { MessageCircle, ShoppingBag, Menu, X, Search, Rss, User, Store, Shield, Edit, Hammer } from "@/components/icons";
+import { MessageCircle, ShoppingBag, Menu, X, Search, Rss, User, Store, Shield, Edit, Wrench } from "@/components/icons";
 import { anonymousCartCount } from "@/lib/anonymousCart";
 import { subscribeCartUpdated } from "@/lib/cartEvents";
 import { clearSignedOutLocalAccountState } from "@/lib/localAccountState";
@@ -655,7 +655,7 @@ export default function Header() {
                   className={`flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 ${drawerItemHover}`}
                   onClick={closeDrawer}
                 >
-                  <Hammer size={18} className={drawerIconText} />
+                  <Wrench size={18} className={drawerIconText} />
                   Commission Room
                 </Link>
 

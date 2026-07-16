@@ -16,6 +16,15 @@ interface Props {
   isPrivate?: boolean;
 }
 
+const SHOP_ACTION_CLASS =
+  "inline-flex min-h-[30px] items-center rounded-md border border-neutral-200 bg-white px-3 py-1 text-[11px] font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50";
+const SHOP_WARNING_ACTION_CLASS =
+  "inline-flex min-h-[30px] items-center rounded-md border border-amber-200 bg-white px-3 py-1 text-[11px] font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50";
+const SHOP_SUCCESS_ACTION_CLASS =
+  "inline-flex min-h-[30px] items-center rounded-md border border-green-200 bg-white px-3 py-1 text-[11px] font-medium text-green-700 hover:bg-green-50 disabled:opacity-50";
+const SHOP_DANGER_ACTION_CLASS =
+  "inline-flex min-h-[30px] items-center rounded-md border border-red-200 bg-white px-3 py-1 text-[11px] font-medium text-red-600 hover:bg-red-50 disabled:opacity-50";
+
 export default function ShopListingActions({ listingId, status, isPrivate = false }: Props) {
   const [isPending, startTransition] = React.useTransition();
   const [toast, setToast] = React.useState<string | null>(null);
@@ -52,7 +61,7 @@ export default function ShopListingActions({ listingId, status, isPrivate = fals
               }
             })
           }
-          className="text-[11px] rounded border border-green-400 text-green-700 px-2 py-0.5 hover:bg-green-50 disabled:opacity-50"
+          className={SHOP_SUCCESS_ACTION_CLASS}
         >
           Publish
         </button>
@@ -68,7 +77,7 @@ export default function ShopListingActions({ listingId, status, isPrivate = fals
               showToast(result.ok ? "Hidden." : (result.error ?? "Could not hide this listing."));
             })
           }
-          className="text-[11px] rounded border border-neutral-300 text-neutral-600 px-2 py-0.5 hover:bg-neutral-50 disabled:opacity-50"
+          className={SHOP_ACTION_CLASS}
         >
           Hide
         </button>
@@ -90,7 +99,7 @@ export default function ShopListingActions({ listingId, status, isPrivate = fals
               }
             })
           }
-          className="text-[11px] rounded border border-neutral-300 text-neutral-600 px-2 py-0.5 hover:bg-neutral-50 disabled:opacity-50"
+          className={SHOP_ACTION_CLASS}
         >
           Unhide
         </button>
@@ -106,7 +115,7 @@ export default function ShopListingActions({ listingId, status, isPrivate = fals
               showToast(result?.ok ? "Marked as sold." : (result?.error ?? "Could not mark this listing sold."));
             })
           }
-          className="text-[11px] rounded border border-neutral-300 text-neutral-600 px-2 py-0.5 hover:bg-neutral-50 disabled:opacity-50"
+          className={SHOP_ACTION_CLASS}
         >
           Mark sold
         </button>
@@ -128,7 +137,7 @@ export default function ShopListingActions({ listingId, status, isPrivate = fals
               }
             })
           }
-          className="text-[11px] rounded border border-neutral-300 text-neutral-600 px-2 py-0.5 hover:bg-neutral-50 disabled:opacity-50"
+          className={SHOP_ACTION_CLASS}
         >
           Mark available
         </button>
@@ -154,7 +163,7 @@ export default function ShopListingActions({ listingId, status, isPrivate = fals
               }
             })
           }
-          className="text-[11px] rounded border border-amber-400 text-amber-700 px-2 py-0.5 hover:bg-amber-50 disabled:opacity-50"
+          className={SHOP_WARNING_ACTION_CLASS}
         >
           Resubmit for Review
         </button>
@@ -171,7 +180,7 @@ export default function ShopListingActions({ listingId, status, isPrivate = fals
               showToast(result.ok ? "Moved back to drafts." : (result.error ?? "Could not withdraw this listing."));
             });
           }}
-          className="text-[11px] rounded border border-amber-300 text-amber-700 px-2 py-0.5 hover:bg-amber-50 disabled:opacity-50"
+          className={SHOP_WARNING_ACTION_CLASS}
         >
           Withdraw
         </button>
@@ -188,7 +197,7 @@ export default function ShopListingActions({ listingId, status, isPrivate = fals
               showToast(result.ok ? "Archived." : (result.error ?? "Could not archive this listing."));
             });
           }}
-          className="text-[11px] rounded border border-red-300 text-red-600 px-2 py-0.5 hover:bg-red-50 disabled:opacity-50"
+          className={SHOP_DANGER_ACTION_CLASS}
         >
           Archive
         </button>
@@ -198,7 +207,7 @@ export default function ShopListingActions({ listingId, status, isPrivate = fals
       {!isArchived && status !== "PENDING_REVIEW" && (
         <a
           href={`/dashboard/listings/${listingId}/edit`}
-          className="text-[11px] text-neutral-500 hover:text-neutral-800 hover:underline ml-auto"
+          className="ml-auto inline-flex min-h-[30px] items-center rounded-md border border-neutral-200 bg-white px-3 py-1 text-[11px] font-medium text-neutral-700 hover:bg-neutral-50"
         >
           Edit →
         </a>

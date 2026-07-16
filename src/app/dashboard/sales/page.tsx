@@ -169,6 +169,11 @@ export default async function SalesPage({
                           Order <span className="text-neutral-500">#{o.id.slice(-8)}</span>
                         </Link>
                         <StatusBadge status={status} />
+                        {o.sellerNotes && (
+                          <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
+                            Notes
+                          </span>
+                        )}
                       </div>
                       <div className="text-neutral-500">
                         <LocalDate date={o.createdAt} />

@@ -33,7 +33,7 @@ export default function ResubmitButton({
             }
           });
         }}
-        className="text-xs rounded border border-amber-400 text-amber-700 px-2 py-1 hover:bg-amber-50 disabled:opacity-50"
+        className="inline-flex min-h-[30px] items-center rounded-md border border-amber-200 bg-white px-3 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50"
       >
         {isPending ? "..." : label}
       </button>

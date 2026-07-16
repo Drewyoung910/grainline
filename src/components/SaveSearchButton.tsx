@@ -75,7 +75,7 @@ export default function SaveSearchButton({ signedIn }: { signedIn: boolean }) {
     <button
       onClick={save}
       disabled={state !== "idle"}
-      className="rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors disabled:opacity-60"
+      className="inline-flex min-h-[38px] items-center justify-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-800 shadow-sm transition-colors hover:bg-neutral-50 disabled:opacity-60"
     >
       {state === "saving" ? "Saving…" : state === "saved" ? "Saved!" : "Save search"}
     </button>

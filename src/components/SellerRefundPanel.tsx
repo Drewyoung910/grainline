@@ -168,13 +168,13 @@ export default function SellerRefundPanel({
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => { setMode("full"); setError(null); }}
-            className="rounded border px-3 py-1.5 text-sm hover:bg-neutral-50"
+            className="inline-flex min-h-[38px] items-center justify-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-50"
           >
             Full Refund ({fmtMoney(effectiveMax, currency)})
           </button>
           <button
             onClick={() => { setMode("partial"); setError(null); }}
-            className="rounded border px-3 py-1.5 text-sm hover:bg-neutral-50"
+            className="inline-flex min-h-[38px] items-center justify-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-50"
           >
             Partial Refund…
           </button>
@@ -196,14 +196,14 @@ export default function SellerRefundPanel({
             <button
               onClick={() => submit("FULL")}
               disabled={loading}
-              className="rounded bg-red-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              className="inline-flex min-h-[38px] items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
             >
               {loading ? "Processing…" : "Confirm Full Refund"}
             </button>
             <button
               onClick={() => setMode("idle")}
               disabled={loading}
-              className="rounded border px-3 py-1.5 text-sm text-neutral-600 hover:bg-neutral-50"
+              className="inline-flex min-h-[38px] items-center justify-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50"
             >
               Cancel
             </button>
@@ -222,7 +222,7 @@ export default function SellerRefundPanel({
               value={partialAmount}
               onChange={(e) => { setPartialAmount(e.target.value); setError(null); }}
               placeholder="0.00"
-              className="w-28 rounded border px-2 py-1 text-base sm:text-sm"
+              className="w-28 rounded-md border border-neutral-200 bg-white px-3 py-2 text-base shadow-sm outline-none transition focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200 sm:text-sm"
             />
             <span className="text-xs text-neutral-500">
               max {fmtMoney(effectiveMax, currency)}
@@ -270,14 +270,14 @@ export default function SellerRefundPanel({
             <button
               onClick={() => submit("PARTIAL")}
               disabled={loading || !partialAmount}
-              className="rounded bg-red-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              className="inline-flex min-h-[38px] items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
             >
               {loading ? "Processing…" : "Confirm Partial Refund"}
             </button>
             <button
               onClick={() => setMode("idle")}
               disabled={loading}
-              className="rounded border px-3 py-1.5 text-sm text-neutral-600 hover:bg-neutral-50"
+              className="inline-flex min-h-[38px] items-center justify-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50"
             >
               Cancel
             </button>
