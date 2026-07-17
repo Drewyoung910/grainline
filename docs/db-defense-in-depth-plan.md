@@ -9,8 +9,8 @@ RLS staging and table ordering.
 ## Objective
 
 Reduce database blast radius without destabilizing launch-critical flows. The
-near-term target is a least-privilege runtime database role, followed by a
-staging-only RLS prototype on low-blast-radius direct-owner tables.
+near-term target is a least-privilege runtime database role followed by a gated
+first production RLS table on the low-blast-radius `SavedSearch` model.
 
 ## Non-Goals
 
@@ -83,7 +83,8 @@ schema.
 
 Target roles:
 
-- `grainline_migration_owner`
+- migration owner (the logical target name is `grainline_migration_owner`; the
+  current reviewed Neon staging and production owner is `neondb_owner`)
   - owns schema/tables;
   - used by `DIRECT_URL`;
   - runs migrations, restore drills, and controlled maintenance.
@@ -170,14 +171,14 @@ Staging implementation checklist:
 
 Verification checklist:
 
-- Manual live grant audit against staging:
-  `GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=grainline_migration_owner npm run audit:db-grants`
+- Manual live grant audit against the current reviewed staging branch:
+  `GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=neondb_owner npm run audit:db-grants`
   Run this from the same environment/secret set that will run migrations so the
   audit connection proves the actual `DIRECT_URL` role. A separate admin or
   auditor URL can inspect state, but it does not prove deploy-time migration
   provenance unless a second explicit `DIRECT_URL` identity check is run.
 - Reviewed staging role/grant provisioning:
-  `psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=grainline_migration_owner -f scripts/provision-runtime-db-role.sql`
+  `psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=neondb_owner -f scripts/provision-runtime-db-role.sql`
   Run the grant audit after this script; do not use successful script execution
   alone as proof because live ownership, role membership, and untracked-object
   state still need catalog verification.
@@ -255,10 +256,13 @@ Implementation goals:
   currently untracked non-public schemas. This keeps the audit focused on the
   declared least-privilege ownership model instead of only checking current
   table DML.
-- The audit fails if a tracked public app table has RLS policies but does not
-  have both `ENABLE ROW LEVEL SECURITY` and `FORCE ROW LEVEL SECURITY`. A policy
-  without table-level RLS enabled is inert, and missing `FORCE` can hide owner
-  bypass behavior in migration-owner tests.
+- The audit fails if a tracked public app table has RLS policies without
+  `ENABLE ROW LEVEL SECURITY`. Its `FORCE ROW LEVEL SECURITY` expectation is
+  rollout-phase specific. `SavedSearch` phase A intentionally requires
+  `NO FORCE` while the 12-hour Vercel skew window drains owner-backed app
+  deployments; all behavior proof authenticates as the non-owner runtime role.
+  Phase B changes the exact audit expectation to `FORCE` in a separate commit
+  and migration after the drain is proven.
 - Function/type default-privilege checks are conditional on source migrations
   revoking `PUBLIC` through `ALTER DEFAULT PRIVILEGES` for functions or types;
   object-level revokes on existing functions/types do not imply a future default
@@ -309,8 +313,10 @@ SavedSearch adoption are implemented. The first live staging attempt preserved
 correct isolation but failed 17 performance thresholds, so it is not promotion
 evidence. The attempt also exposed and led to a local fix for a client-pool
 default that silently reduced the configured 2x burst. Two consecutive passing
-runs on the corrected commit are still required, and the context-wrapped paths
-have not been deployed.
+runs from the provider-owned production runtime on the corrected, reviewed
+commit are still required, and the context-wrapped paths have not been deployed.
+The prior workstation artifact `context-gate-failed-pre-pool-fix.json` is
+failed, pre-pool-fix, diagnostic-only evidence and cannot satisfy either pass.
 
 Purpose: prove the core RLS mechanism under the actual runtime topology before
 enabling policies.
@@ -326,38 +332,64 @@ Current reviewed staging harness:
   probes, an admin-URL-gated rollback/no-op probe that temporarily disables RLS
   on the synthetic canary and restores `ENABLE`/`FORCE ROW LEVEL SECURITY`,
   transaction-wrapped and autocommit baseline measurements, target and burst
-  concurrency measurements, and the latency / connection-hold thresholds below.
-- The script is staging-only evidence. Passing it does not enable RLS, does not
+  concurrency measurements, a warmed checked-out sequential `SELECT 1` query-RTT
+  proxy, and the latency / connection-hold thresholds below.
+- The script targets a staging database. Passing it does not enable RLS, does not
   replace route-level happy-path tests, and does not prove hot-path performance
   for tables that are not in the synthetic canary. It proves read/context
   isolation for the synthetic canary only; per-table write-policy behavior, such
   as asymmetric Notification `INSERT`/`DELETE`, still needs migration-level
   tests before a real table policy is enabled.
-- To create or refresh the canary table/policy in staging:
-  `RLS_CONTEXT_GATE_CONFIRM=staging-only RLS_CONTEXT_GATE_PREPARE=1 RLS_CONTEXT_GATE_ADMIN_DATABASE_URL="$DIRECT_URL" RLS_CONTEXT_GATE_DATABASE_URL="<pooled runtime-role URL>" RLS_CONTEXT_GATE_RUNTIME_ROLE=grainline_app_runtime RLS_CONTEXT_GATE_EVIDENCE_PATH="rls-context-gate-evidence.json" npm run audit:rls-context`
-- To run against an already prepared staging canary:
-  `RLS_CONTEXT_GATE_CONFIRM=staging-only RLS_CONTEXT_GATE_DATABASE_URL="<pooled runtime-role URL>" RLS_CONTEXT_GATE_RUNTIME_ROLE=grainline_app_runtime RLS_CONTEXT_GATE_EVIDENCE_PATH="rls-context-gate-evidence-rerun.json" npm run audit:rls-context`
+- Create or refresh the canary with one owner-only local `diagnostic-only`
+  setup invocation. Supply `RLS_CONTEXT_GATE_PREPARE=1`, the direct admin URL,
+  pooled runtime URL, and exact reviewed staging endpoint id
+  (`ep-bold-recipe-aavx4plv`), database (`neondb`), and region
+  (`westus3.azure`). Setup creates the canary plus durable two-slot run ledger,
+  proves disable/restore, and is explicitly non-counted. Invoke it through
+  `npm run audit:rls-context`.
+- Run the two counted, otherwise-identical repeats through the repeat-only
+  Git-integrated Vercel Preview route. Slot 2 is not claimable until slot 1 is
+  durably passed, and either slot is permanently non-replayable for that opaque
+  run id. The route never receives the admin URL.
+- Laptop/workstation runs must use `diagnostic-only`. Their artifacts are marked
+  `diagnostic_passed` or `diagnostic_failed` and are never acceptance-eligible.
+  Promotion evidence must use `production-runtime` inside provider-owned Vercel;
+  do not synthesize Vercel system variables on a workstation. Provider-owned
+  `VERCEL_REGION` must match the reviewed expected execution region, and the
+  region identity parsed from the Neon pooled hostname must match the reviewed
+  expected database region.
+- Runtime evidence is candidate evidence only. The gate always emits
+  `acceptanceEligible=false`; retain independent Vercel deployment
+  source/ref/SHA/id attestation and require it to match both artifacts before
+  promotion. Ordinary environment variables and CLI deployments are not
+  sufficient provenance.
 - The gate defaults its pool size to at least the configured burst concurrency
   and rejects an explicit `RLS_CONTEXT_GATE_POOL_SIZE` below
   `RLS_CONTEXT_GATE_BURST_CONCURRENCY`; otherwise the claimed 2x burst would be
   silently capped by the client pool.
-- To rerun the rollback/no-op proof without refreshing canary rows, add
+- To rerun the non-counted rollback/no-op setup proof without refreshing canary rows, add
   `RLS_CONTEXT_GATE_ROLLBACK_PROBE=1 RLS_CONTEXT_GATE_ADMIN_DATABASE_URL="$DIRECT_URL"`.
 - To retain a durable sanitized JSON evidence artifact, add
   `RLS_CONTEXT_GATE_EVIDENCE_PATH="rls-context-gate-evidence.json"`. The
   artifact records commit/CI metadata when available, sanitized database host,
   runtime role, canary table/policy names, run configuration, reports, and
-  issues. It intentionally does not include database URLs or credentials.
+  issues. It is written with mode `0600` and intentionally does not include
+  database URLs or credentials.
 - Do not point this gate at production. Use a production-like Neon branch or
   staging database with the same pooled runtime-role shape as production.
-- `RLS_CONTEXT_GATE_PREPARE=1` leaves the synthetic schema, table, policy, and
-  canary rows in staging for repeatable evidence runs. The rollback probe
+- `RLS_CONTEXT_GATE_PREPARE=1` leaves the synthetic schema, table, policy,
+  run-claim ledger, and canary rows in staging. The rollback probe
   temporarily disables RLS and restores `ENABLE`/`FORCE ROW LEVEL SECURITY`; it
   is not canary cleanup.
 - Treat the gate's autocommit, transaction, and wrapped target/2x-burst reports
-  as the generic connection/performance baseline. Require two consecutive runs
-  on the same commit and configuration, with both evidence artifacts retained.
-  Real-table route/data-shape smoke remains required.
+  as the generic connection/performance baseline. The query-RTT proxy is
+  locality diagnostics only; never subtract it from, normalize, discount, or
+  otherwise change the unchanged acceptance thresholds. Require two consecutive
+  runs on the same commit/config: specifically, repeat-mode production-runtime
+  slots from the same reviewed deployment SHA with identical gate, pool,
+  concurrency, timeout, package, and locality configuration. Retain both
+  candidate artifacts and external deployment attestation. Real-table
+  route/data-shape smoke remains required.
 
 Required helper contract:
 
@@ -402,13 +434,16 @@ Hard-gate tests:
 
 Run this proof against a staging or preview Neon branch that uses the same
 connection shape as production: Prisma with `@prisma/adapter-pg`, the app `pg`
-pool, and pooled runtime-role `DATABASE_URL`. A local direct Postgres test or a
-`DIRECT_URL` migration-owner test is useful for development, but it is not
-acceptance evidence for RLS rollout.
+pool, and pooled runtime-role `DATABASE_URL`. Acceptance measurements must be
+executed in the provider-owned Vercel runtime in the selected reviewed function
+region, while the Neon hostname-derived region identity matches the reviewed
+database region. A laptop run, local direct Postgres test, or `DIRECT_URL`
+migration-owner test is useful for development, but it is diagnostic-only and
+not acceptance evidence for RLS rollout.
 
 Evidence to record with the run:
 
-- commit SHA and CI run id for the app under test;
+- provider-owned Vercel commit SHA and deployment id for the app under test;
 - path to the retained sanitized JSON evidence artifact from
   `RLS_CONTEXT_GATE_EVIDENCE_PATH`;
 - staging database or branch name;
@@ -422,6 +457,10 @@ Evidence to record with the run:
   enabled in staging;
 - autocommit baseline, transaction baseline, and wrapped latency/connection
   metrics, plus any failed request ids or Sentry event ids.
+- expected and observed Vercel execution region, expected and hostname-derived
+  Neon database region, locality confirmation mode, and the warmed checked-out
+  25-query `SELECT 1` RTT proxy. The proxy is explanatory metadata only and does
+  not alter pass/fail thresholds.
 
 Correctness pass/fail conditions:
 
@@ -494,7 +533,8 @@ Performance and pool-safety stop conditions:
   transaction timeout.
 - Stop widening RLS if protected happy-path error rate exceeds 0.1% in the
   measured run, if any authorization mismatch appears, or if two consecutive
-  runs on the same commit/config do not produce the same pass/fail result.
+  production-runtime runs on the same reviewed commit SHA and identical
+  configuration do not produce the same pass/fail result.
 - Stop widening RLS if prepared-statement, cached-plan, protocol, or
   connection-recycle errors appear under wrapped pooled load, even when the same
   path passes against a direct or single-connection database.
@@ -526,9 +566,10 @@ Stop condition:
 
 ## Phase 4 - SavedSearch RLS Prototype
 
-Status: owner-access centralization, direct-access guards, and context wiring are
-implemented locally. They are not deployed. Policy migration and live staging
-validation have not started.
+Status: owner-access centralization, branded context clients, direct-access
+guards, context wiring, the exact phase-A policy migration, drift audit, and
+bounded direct acceptance gate are implemented locally. They are not deployed.
+Live staging validation and production activation are still gated.
 
 Purpose: use the simplest owner-symmetric table as the first real-table proof
 after the role, grant, and pooled-context gates pass.
@@ -540,8 +581,12 @@ Staging policy shape, using the fail-closed predicate
 - `INSERT`: command-specific policy with `WITH CHECK`.
 - `DELETE`: command-specific policy with `USING`.
 - `UPDATE`: do not add unless a future route supports updates.
-- Use both `ENABLE ROW LEVEL SECURITY` and `FORCE ROW LEVEL SECURITY` in the
-  staging prototype. Production activation remains a separate approval.
+- Stage and production phase A use exact SELECT/INSERT/DELETE policies plus
+  explicit `NO FORCE ROW LEVEL SECURITY` followed by `ENABLE ROW LEVEL
+  SECURITY`. Test only through the non-owner runtime role. After the production
+  runtime/context release has been live for the full 12-hour Vercel skew window
+  plus a safety margin and owner-backed app sessions are drained, phase B may
+  add `FORCE` in a separate migration/release.
 
 Implementation constraints:
 
@@ -550,10 +595,10 @@ Implementation constraints:
 - Forged `userId` must still be ignored/rejected by app-layer code.
 - Owner-access helpers must receive the context transaction client explicitly;
   do not retain a global Prisma default that can silently omit context.
-- Account deletion already owns a large interactive transaction. Call
-  `setDbUserContext(tx, targetUserId)` as its first statement and keep cleanup on
-  that transaction client, or use an explicit cleanup bypass. Never nest
-  `withDbUserContext` inside account deletion.
+- Account deletion is one large atomic unit. Use
+  `withDbUserContext(targetUserId, async (tx) => ..., { timeout: 30000, maxWait:
+  10000 })` as its outer transaction and keep cleanup on that branded client.
+  Never nest another context transaction inside account deletion.
 - Existing outer page/export `Promise.all` calls may invoke a separately wrapped
   SavedSearch operation, but no protected queries may run in parallel inside the
   same context transaction.
@@ -585,8 +630,9 @@ Regression and silent-denial tests:
 
 Rollback:
 
-- Disable RLS on `SavedSearch` in staging and prove wrapped happy paths still
-  work with `set_config` as a harmless no-op.
+- Database first: `ALTER TABLE public."SavedSearch" DISABLE ROW LEVEL SECURITY`,
+  then roll back the app only if necessary. Prove wrapped happy paths still work
+  with `set_config` as a harmless no-op.
 - Remove or widen policies only through a reviewed forward migration.
 - Keep app-layer owner predicates in place throughout.
 

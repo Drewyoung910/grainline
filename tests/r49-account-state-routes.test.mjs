@@ -147,7 +147,7 @@ describe("R49 account-state route guardrails", () => {
         savedSearchRoute.indexOf("createOwnerSavedSearch(me.id, criteria, tx)"),
       "saved-search POST should dedupe, count, and create inside the serializable transaction",
     );
-    assert.match(savedSearchOwnerAccess, /export type SavedSearchOwnerAccessClient = Pick<Prisma\.TransactionClient, "savedSearch">/);
+    assert.match(savedSearchOwnerAccess, /SavedSearchOwnerAccessClient = DbUserContextTransactionClient/);
     assert.match(savedSearchOwnerAccess, /db\.savedSearch\.findFirst/);
     assert.match(savedSearchOwnerAccess, /db\.savedSearch\.count/);
     assert.match(savedSearchOwnerAccess, /db\.savedSearch\.create/);

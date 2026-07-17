@@ -22,7 +22,6 @@ import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
-export const preferredRegion = "iad1";
 
 const STRIPE_V2_WEBHOOK_BODY_MAX_BYTES = 512 * 1024;
 const STRIPE_V2_WEBHOOK_RETRY_AFTER_SECONDS = 30;

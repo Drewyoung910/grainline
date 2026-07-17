@@ -2,7 +2,7 @@
 
 Last updated: 2026-07-16
 
-Grainline does not currently use PostgreSQL Row Level Security. The production control plane is application-layer authorization through Clerk middleware, route handlers, server actions, shared visibility helpers, and ownership predicates. RLS is still worth evaluating as defense in depth, but it must be staged. A broad RLS rollout with Prisma and pooled Neon connections can break legitimate traffic or create false confidence if runtime roles still own tables or bypass policies.
+Grainline's production control plane is application-layer authorization through Clerk middleware, route handlers, server actions, shared visibility helpers, and ownership predicates. `SavedSearch` is the approved first production RLS table, but RLS remains defense in depth rather than a replacement for those checks. A broad rollout with Prisma and pooled Neon connections can break legitimate traffic or create false confidence if runtime roles still own tables or bypass policies.
 
 Execution tracking for the least-privilege runtime role, grant audit, request
 context proof, and first table prototypes lives in
@@ -10,14 +10,20 @@ context proof, and first table prototypes lives in
 
 ## Decision
 
-Do not enable RLS directly on production tables before launch. First build and test a staging prototype on low-blast-radius tables, then expand only after request context, role separation, admin/cron/webhook bypasses, and rollback are proven.
+Do not enable broad or untested RLS directly on production tables. `SavedSearch`
+may be activated only after its staging context, locality, role-separation,
+exact-policy, route-fixture, and rollback gates pass. Expand to another table
+only after its request context and admin/cron/webhook bypass model is proven.
 
 Current staging result (2026-07-16): the isolated runtime/migration role split,
-explicit grant provisioning, grant audit, and migration-status checks pass. The
-first pooled context run passed isolation checks but failed its performance
-thresholds and therefore does not authorize deployment or a real-table policy.
-The corrected gate still requires two consecutive passing runs on the same
-commit and configuration.
+explicit grant provisioning, grant audit, migration-status checks, and region
+selection pass. The first pooled context run passed isolation checks but failed
+its performance thresholds and therefore does not authorize deployment or a
+real-table policy. That workstation run and its retained
+`context-gate-failed-pre-pool-fix.json` artifact are diagnostic-only,
+pre-pool-fix evidence and are not acceptance evidence. The corrected gate still
+requires two consecutive passing production-runtime runs on the same reviewed
+commit SHA and configuration plus independent Git-deployment attestation.
 
 ## Required Architecture
 
@@ -45,16 +51,33 @@ commit and configuration.
   runtime `EXECUTE` is missing and the declared migration role cannot grant it.
   Add a CI or staging grant audit before swapping production runtime credentials
   to a non-owner role.
-- **Forced policy proof**: prototype migrations should use `FORCE ROW LEVEL
-  SECURITY` in staging so owner-role local tests cannot accidentally bypass
-  policies and give false confidence. Production use of `FORCE` still requires a
-  rollback plan and verified migration/service-role behavior.
+- **Forced policy proof**: behavior probes must authenticate as the exact
+  non-owner runtime role so owner bypass cannot produce a false green. The
+  `SavedSearch` production rollout deliberately separates `ENABLE ROW LEVEL
+  SECURITY` from `FORCE ROW LEVEL SECURITY`: phase A uses explicit `NO FORCE`
+  while Vercel's 12-hour skew window drains owner-backed deployments; phase B is
+  a separate migration/release after that window plus a safety margin, verified
+  owner-session drain, and a tested database-first rollback.
 
 ## Hard Gates
 
 - Prove request context isolation against the actual production-like connection
   topology: Prisma with `@prisma/adapter-pg`, the app `pg` pool, and the Neon
   pooled `DATABASE_URL`. A direct `DIRECT_URL` test is not sufficient.
+- Laptop/workstation runs must use
+  `RLS_CONTEXT_GATE_LOCALITY_CONFIRM=diagnostic-only`; they are useful for
+  correctness and troubleshooting but are never promotion evidence. Owner-only
+  prepare/rollback is a separate non-counted setup run. The two counted runs are
+  identical repeat-mode calls from one Git-integrated Vercel Preview, against
+  the exact reviewed Neon endpoint id, database name, and region. Provider
+  variables make an artifact a runtime candidate only; the gate never
+  self-asserts acceptance. Independently attest the Vercel deployment's Git
+  source/ref/SHA/id and match it to both artifacts before promotion.
+- The Preview runner is repeat-only and must not receive an admin URL. Its
+  temporary opaque run id is backed by a staging ledger that permits exactly
+  two sequential slots: slot 2 is blocked until slot 1 is durably passed, and
+  neither slot can be replayed. Remove all temporary runner secrets and staging
+  URL configuration immediately after capture.
 - Prove both unset `app.user_id` and explicitly empty `app.user_id` return zero
   protected rows.
 - Prove transaction-local context does not leak after `prisma.$transaction`
@@ -71,6 +94,10 @@ commit and configuration.
   `timeout`/`maxWait` behavior, connection-hold time, and pool saturation under
   realistic staging concurrency before widening the wrapper to hot paths such as
   notification reads.
+- Retain the gate's warmed, checked-out sequential `SELECT 1` query-RTT proxy as
+  locality context. It is diagnostic metadata only: do not subtract it from,
+  normalize, discount, or otherwise change the existing latency and
+  connection-hold thresholds.
 - Use `npm run audit:rls-context` as the generic wrapped-versus-unwrapped
   connection and latency baseline. Do not create a second generic benchmark,
   but do run route- and table-specific staging smoke tests against realistic
@@ -203,12 +230,12 @@ need retry/context discipline.
 - Saved-search reads are not only in API routes. The dashboard server component
   and account export also read saved searches and must be wrapped or redesigned
   before RLS is enabled.
-- Account deletion deletes saved searches as privacy cleanup. That transaction
-  already owns an interactive transaction, so it must call
-  `setDbUserContext(tx, targetUserId)` as the first statement on that transaction
-  client or use an explicit cleanup bypass. Never nest `withDbUserContext`
-  inside it. Otherwise a user-scoped `DELETE` policy can silently leave
-  saved-search query/location data behind.
+- Account deletion deletes saved searches as privacy cleanup. Its large atomic
+  unit must use `withDbUserContext(targetUserId, async (tx) => ..., {
+  timeout: 30000, maxWait: 10000 })` as the outer transaction and keep all work
+  on that branded context client. Never nest another context transaction inside
+  it. Otherwise a user-scoped `DELETE` policy can silently leave saved-search
+  query/location data behind.
 
 ## Cart + CartItem Prototype Edge Cases
 

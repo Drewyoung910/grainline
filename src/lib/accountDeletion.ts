@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { setDbUserContext } from "@/lib/dbUserContext";
+import { withDbUserContext } from "@/lib/dbUserContext";
 import { deleteAllOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
 import { accountDeletionMediaUrlsForCleanup } from "@/lib/urlValidation";
 import { redis } from "@/lib/ratelimit";
@@ -1554,8 +1554,7 @@ export async function anonymizeUserAccount(
     });
   });
 
-  const result = await prisma.$transaction(async (tx) => {
-    await setDbUserContext(tx, userId);
+  const result = await withDbUserContext(userId, async (tx) => {
     const user = await tx.user.findUnique({
       where: { id: userId },
       include: {

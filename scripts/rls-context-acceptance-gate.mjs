@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { writeFileSync } from "node:fs";
+import { chmodSync, writeFileSync } from "node:fs";
 import { performance } from "node:perf_hooks";
 import { pathToFileURL } from "node:url";
 import { PrismaClient } from "@prisma/client";
@@ -11,6 +11,7 @@ const { Client, Pool } = pg;
 export const MIN_ACCEPTANCE_REQUESTS = 500;
 const DEFAULT_SCHEMA = "grainline_rls_canary";
 const DEFAULT_TABLE = "context_canary";
+const DEFAULT_RUN_CLAIM_TABLE = "context_gate_run_claim";
 const DEFAULT_POLICY = "context_canary_select";
 const DEFAULT_USER_A = "rls-canary-user-a";
 const DEFAULT_USER_B = "rls-canary-user-b";
@@ -21,8 +22,11 @@ const DEFAULT_CONNECTION_TIMEOUT_MS = 10_000;
 const DEFAULT_STATEMENT_TIMEOUT_MS = 30_000;
 const DEFAULT_QUERY_TIMEOUT_MS = 35_000;
 const DEFAULT_TRANSACTION_TIMEOUT_MS = 5_000;
+const LOCALITY_RTT_WARMUP_QUERIES = 5;
+const LOCALITY_RTT_MEASURED_QUERIES = 25;
 const PREPARED_SELECT_NAME = "rls_context_gate_canary_select_v1";
 const CONFIRMATION_VALUE = "staging-only";
+const LOCALITY_CONFIRMATIONS = new Set(["diagnostic-only", "production-runtime"]);
 const DATABASE_URL_ASSIGNMENT_PATTERN =
   /["']?\b(?:DATABASE_URL|DIRECT_URL|RLS_CONTEXT_GATE_(?:DATABASE_URL|ADMIN_DATABASE_URL))\b["']?\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi;
 const PASSWORD_ASSIGNMENT_PATTERN = /["']?\b(?:PGPASSWORD|password|pass|pwd)\b["']?\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi;
@@ -40,6 +44,30 @@ const PREPARED_STATEMENT_ERROR_PATTERNS = [
 function required(value, name) {
   if (!value) throw new Error(`${name} is required`);
   return value;
+}
+
+function parseLocalityConfirmation(env) {
+  const value = required(env.RLS_CONTEXT_GATE_LOCALITY_CONFIRM, "RLS_CONTEXT_GATE_LOCALITY_CONFIRM");
+  if (!LOCALITY_CONFIRMATIONS.has(value)) {
+    throw new Error("RLS_CONTEXT_GATE_LOCALITY_CONFIRM must be diagnostic-only or production-runtime");
+  }
+  return value;
+}
+
+function parseRegion(value, name) {
+  const region = required(value, name);
+  if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(region)) {
+    throw new Error(`${name} must be a bounded lowercase region identifier`);
+  }
+  return region;
+}
+
+function parseProviderIdentity(value, name, pattern) {
+  const identity = required(value, name);
+  if (identity.length > 128 || !pattern.test(identity)) {
+    throw new Error(`${name} is not a valid provider-owned identity`);
+  }
+  return identity;
 }
 
 function parsePositiveInt(env, name, fallback, { min = 1, max = Number.MAX_SAFE_INTEGER } = {}) {
@@ -92,6 +120,58 @@ function validateDatabaseUrl(value, env) {
     );
   }
   return parsed;
+}
+
+function parseExpectedDatabaseName(value) {
+  const databaseName = required(value, "RLS_CONTEXT_GATE_EXPECTED_DATABASE_NAME");
+  if (databaseName.length > 63 || !/^[A-Za-z0-9_-]+$/.test(databaseName)) {
+    throw new Error("RLS_CONTEXT_GATE_EXPECTED_DATABASE_NAME must be a bounded PostgreSQL database name");
+  }
+  return databaseName;
+}
+
+function parseExpectedNeonEndpointId(value) {
+  return parseProviderIdentity(
+    value,
+    "RLS_CONTEXT_GATE_EXPECTED_DATABASE_ENDPOINT_ID",
+    /^ep-[a-z0-9-]{1,60}$/,
+  );
+}
+
+function neonDatabaseIdentity(databaseUrl) {
+  const parsed = new URL(databaseUrl);
+  const match = parsed.hostname.toLowerCase().match(
+    /^(ep-[a-z0-9-]+?)(-pooler)?\.([a-z0-9-]+)\.([a-z0-9-]+)\.neon\.tech$/,
+  );
+  if (!match) return null;
+  const pathSegments = parsed.pathname.split("/").filter(Boolean);
+  if (pathSegments.length !== 1) return null;
+  return {
+    databaseName: decodeURIComponent(pathSegments[0]),
+    endpointId: match[1],
+    pooled: Boolean(match[2]),
+    region: `${match[3]}.${match[4]}`,
+  };
+}
+
+function assertExpectedDatabaseIdentity(identity, expected, name) {
+  if (!identity) {
+    throw new Error(`${name} must use a parseable Neon endpoint hostname and one database path segment`);
+  }
+  if (identity.endpointId !== expected.endpointId) {
+    throw new Error(`${name} endpoint id does not match the reviewed staging endpoint`);
+  }
+  if (identity.databaseName !== expected.databaseName) {
+    throw new Error(`${name} database name does not match the reviewed staging database`);
+  }
+  if (identity.region !== expected.region) {
+    throw new Error(`${name} region does not match the reviewed staging database region`);
+  }
+}
+
+function observedNeonDatabaseRegion(databaseUrl) {
+  const identity = neonDatabaseIdentity(databaseUrl);
+  return identity?.pooled ? identity.region : null;
 }
 
 function validateSyntheticUserId(value, name, allowCustomUserIds) {
@@ -158,7 +238,74 @@ export function parseGateConfig(env = process.env) {
   }
 
   const databaseUrl = required(env.RLS_CONTEXT_GATE_DATABASE_URL, "RLS_CONTEXT_GATE_DATABASE_URL");
-  validateDatabaseUrl(databaseUrl, env);
+  const parsedDatabaseUrl = validateDatabaseUrl(databaseUrl, env);
+
+  const localityConfirmation = parseLocalityConfirmation(env);
+  const expectedExecutionRegion = parseRegion(
+    env.RLS_CONTEXT_GATE_EXPECTED_EXECUTION_REGION,
+    "RLS_CONTEXT_GATE_EXPECTED_EXECUTION_REGION",
+  );
+  const expectedDatabaseRegion = parseRegion(
+    env.RLS_CONTEXT_GATE_EXPECTED_DATABASE_REGION,
+    "RLS_CONTEXT_GATE_EXPECTED_DATABASE_REGION",
+  );
+  const expectedDatabaseEndpointId = parseExpectedNeonEndpointId(
+    env.RLS_CONTEXT_GATE_EXPECTED_DATABASE_ENDPOINT_ID,
+  );
+  const expectedDatabaseName = parseExpectedDatabaseName(
+    env.RLS_CONTEXT_GATE_EXPECTED_DATABASE_NAME,
+  );
+  const runtimeDatabaseIdentity = neonDatabaseIdentity(databaseUrl);
+  const allowNonPooler = parseBooleanFlag(env, "RLS_CONTEXT_GATE_ALLOW_NON_POOLER");
+  if (!allowNonPooler) {
+    assertExpectedDatabaseIdentity(
+      runtimeDatabaseIdentity,
+      {
+        databaseName: expectedDatabaseName,
+        endpointId: expectedDatabaseEndpointId,
+        region: expectedDatabaseRegion,
+      },
+      "RLS_CONTEXT_GATE_DATABASE_URL",
+    );
+    if (!runtimeDatabaseIdentity?.pooled || !parsedDatabaseUrl.hostname.includes("-pooler.")) {
+      throw new Error("RLS_CONTEXT_GATE_DATABASE_URL must use the reviewed pooled Neon endpoint");
+    }
+  }
+  const observedDatabaseRegion = observedNeonDatabaseRegion(databaseUrl);
+  let observedExecutionRegion = env.VERCEL_REGION || null;
+  let providerCommitSha = null;
+  let providerDeploymentId = null;
+  if (localityConfirmation === "production-runtime") {
+    if (env.VERCEL !== "1") {
+      throw new Error("RLS_CONTEXT_GATE_LOCALITY_CONFIRM=production-runtime requires provider-owned VERCEL=1");
+    }
+    observedExecutionRegion = parseRegion(env.VERCEL_REGION, "VERCEL_REGION");
+    if (observedExecutionRegion !== expectedExecutionRegion) {
+      throw new Error(
+        `VERCEL_REGION=${observedExecutionRegion} does not match RLS_CONTEXT_GATE_EXPECTED_EXECUTION_REGION=${expectedExecutionRegion}`,
+      );
+    }
+    if (!observedDatabaseRegion) {
+      throw new Error(
+        "RLS_CONTEXT_GATE_LOCALITY_CONFIRM=production-runtime requires a parseable Neon pooled hostname containing the database region",
+      );
+    }
+    if (observedDatabaseRegion !== expectedDatabaseRegion) {
+      throw new Error(
+        `observed database region ${observedDatabaseRegion} does not match RLS_CONTEXT_GATE_EXPECTED_DATABASE_REGION=${expectedDatabaseRegion}`,
+      );
+    }
+    providerCommitSha = parseProviderIdentity(
+      env.VERCEL_GIT_COMMIT_SHA,
+      "VERCEL_GIT_COMMIT_SHA",
+      /^[a-f0-9]{7,64}$/i,
+    );
+    providerDeploymentId = parseProviderIdentity(
+      env.VERCEL_DEPLOYMENT_ID,
+      "VERCEL_DEPLOYMENT_ID",
+      /^[A-Za-z0-9._:-]+$/,
+    );
+  }
 
   const runtimeRole = assertSafeIdentifier(
     required(env.RLS_CONTEXT_GATE_RUNTIME_ROLE, "RLS_CONTEXT_GATE_RUNTIME_ROLE"),
@@ -166,6 +313,10 @@ export function parseGateConfig(env = process.env) {
   );
   const schemaName = assertSafeIdentifier(env.RLS_CONTEXT_GATE_SCHEMA ?? DEFAULT_SCHEMA, "RLS_CONTEXT_GATE_SCHEMA");
   const tableName = assertSafeIdentifier(env.RLS_CONTEXT_GATE_TABLE ?? DEFAULT_TABLE, "RLS_CONTEXT_GATE_TABLE");
+  const runClaimTableName = assertSafeIdentifier(
+    env.RLS_CONTEXT_GATE_RUN_CLAIM_TABLE ?? DEFAULT_RUN_CLAIM_TABLE,
+    "RLS_CONTEXT_GATE_RUN_CLAIM_TABLE",
+  );
   const policyName = assertSafeIdentifier(env.RLS_CONTEXT_GATE_POLICY ?? DEFAULT_POLICY, "RLS_CONTEXT_GATE_POLICY");
   const allowCustomUserIds = parseBooleanFlag(env, "RLS_CONTEXT_GATE_ALLOW_CUSTOM_USER_IDS");
   const userA = validateSyntheticUserId(env.RLS_CONTEXT_GATE_USER_A ?? DEFAULT_USER_A, "RLS_CONTEXT_GATE_USER_A", allowCustomUserIds);
@@ -226,6 +377,34 @@ export function parseGateConfig(env = process.env) {
   if (rollbackProbe && !adminDatabaseUrl) {
     throw new Error("RLS_CONTEXT_GATE_ADMIN_DATABASE_URL is required when RLS_CONTEXT_GATE_ROLLBACK_PROBE=1");
   }
+  if (adminDatabaseUrl) {
+    const adminIdentity = neonDatabaseIdentity(adminDatabaseUrl);
+    if (!allowNonPooler) {
+      assertExpectedDatabaseIdentity(
+        adminIdentity,
+        {
+          databaseName: expectedDatabaseName,
+          endpointId: expectedDatabaseEndpointId,
+          region: expectedDatabaseRegion,
+        },
+        "RLS_CONTEXT_GATE_ADMIN_DATABASE_URL",
+      );
+      if (adminIdentity?.pooled) {
+        throw new Error("RLS_CONTEXT_GATE_ADMIN_DATABASE_URL must use the reviewed direct Neon endpoint");
+      }
+    }
+    if (
+      runtimeDatabaseIdentity
+      && adminIdentity
+      && (
+        runtimeDatabaseIdentity.endpointId !== adminIdentity.endpointId
+        || runtimeDatabaseIdentity.databaseName !== adminIdentity.databaseName
+        || runtimeDatabaseIdentity.region !== adminIdentity.region
+      )
+    ) {
+      throw new Error("runtime and admin database URLs must target the same Neon endpoint, region, and database");
+    }
+  }
 
   return {
     adminDatabaseUrl,
@@ -233,12 +412,22 @@ export function parseGateConfig(env = process.env) {
     connectionTimeoutMs,
     databaseUrl,
     evidencePath: optionalEvidencePath(env),
+    expectedDatabaseEndpointId,
+    expectedDatabaseName,
+    expectedDatabaseRegion,
+    expectedExecutionRegion,
+    localityConfirmation,
     measuredRequests,
+    observedDatabaseRegion,
+    observedExecutionRegion,
     policyName,
     poolSize,
     prepare,
+    providerCommitSha,
+    providerDeploymentId,
     queryTimeoutMs,
     rollbackProbe,
+    runClaimTableName,
     runtimeRole,
     schemaName,
     statementTimeoutMs,
@@ -257,20 +446,61 @@ function sanitizedDatabaseHost(databaseUrl) {
 }
 
 export function buildEvidencePayload(config, result, { finishedAt, startedAt, status }, env = process.env) {
-  const issues = redactEvidenceMessages(result.issues);
+  const gatePassed = result.issues.length === 0;
+  const suppliedStatusMatches = (status === "passed") === gatePassed;
+  const rawIssues = suppliedStatusMatches
+    ? result.issues
+    : [
+        ...result.issues,
+        "evidence status mismatch: caller-supplied status did not match the gate result",
+      ];
+  const issues = redactEvidenceMessages(rawIssues);
   const reports = redactEvidenceMessages(result.reports);
+  const effectivePassed = gatePassed && suppliedStatusMatches;
+  const runKind = config.prepare || config.rollbackProbe ? "setup" : "repeat";
+  const evidenceStatus = runKind === "setup"
+    ? (effectivePassed ? "setup_passed" : "setup_failed")
+    : config.localityConfirmation === "diagnostic-only"
+      ? (effectivePassed ? "diagnostic_passed" : "diagnostic_failed")
+      : (effectivePassed ? "runtime_candidate_passed" : "runtime_candidate_failed");
+  const providerRuntimeMetadataPresent = config.localityConfirmation === "production-runtime"
+    && config.observedExecutionRegion === config.expectedExecutionRegion
+    && config.observedDatabaseRegion === config.expectedDatabaseRegion
+    && Boolean(config.providerCommitSha)
+    && Boolean(config.providerDeploymentId);
+  const queryRttProxyComplete = result.locality?.queryRttProxy?.measuredQueries === LOCALITY_RTT_MEASURED_QUERIES;
+  const runtimeEvidenceCandidate = runKind === "repeat"
+    && effectivePassed
+    && providerRuntimeMetadataPresent
+    && queryRttProxyComplete;
 
   return {
     generatedAt: finishedAt,
     run: {
       ciRunId: env.RLS_CONTEXT_GATE_CI_RUN_ID || env.GITHUB_RUN_ID || null,
-      commitSha: env.RLS_CONTEXT_GATE_COMMIT_SHA || env.GITHUB_SHA || null,
+      commitSha: config.providerCommitSha || env.RLS_CONTEXT_GATE_COMMIT_SHA || env.GITHUB_SHA || null,
+      deploymentId: config.providerDeploymentId,
       finishedAt,
+      kind: runKind,
       startedAt,
-      status,
+      status: evidenceStatus,
+    },
+    locality: {
+      acceptanceEligible: false,
+      confirmation: config.localityConfirmation,
+      expectedDatabaseRegion: config.expectedDatabaseRegion,
+      expectedExecutionRegion: config.expectedExecutionRegion,
+      observedDatabaseRegion: config.observedDatabaseRegion,
+      observedExecutionRegion: config.observedExecutionRegion,
+      providerRuntimeMetadataPresent,
+      queryRttProxy: result.locality?.queryRttProxy ?? null,
+      requiresExternalDeploymentAttestation: true,
+      runtimeEvidenceCandidate,
     },
     database: {
       databaseHost: sanitizedDatabaseHost(config.databaseUrl),
+      expectedDatabaseEndpointId: config.expectedDatabaseEndpointId,
+      expectedDatabaseName: config.expectedDatabaseName,
       policyName: config.policyName,
       runtimeRole: config.runtimeRole,
       schemaName: config.schemaName,
@@ -300,7 +530,11 @@ export function buildEvidencePayload(config, result, { finishedAt, startedAt, st
 
 function writeEvidencePayload(config, payload) {
   if (!config.evidencePath) return;
-  writeFileSync(config.evidencePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+  writeFileSync(config.evidencePath, `${JSON.stringify(payload, null, 2)}\n`, {
+    encoding: "utf8",
+    mode: 0o600,
+  });
+  chmodSync(config.evidencePath, 0o600);
   console.log(`RLS context evidence written to ${config.evidencePath}`);
 }
 
@@ -357,6 +591,7 @@ export async function prepareCanary(config) {
     }
 
     const tableRef = buildTableRef(config);
+    const runClaimTableRef = `${quoteIdentifier(config.schemaName)}.${quoteIdentifier(config.runClaimTableName)}`;
     await client.query(`CREATE SCHEMA IF NOT EXISTS ${quoteIdentifier(config.schemaName)}`);
     await client.query(`REVOKE ALL ON SCHEMA ${quoteIdentifier(config.schemaName)} FROM PUBLIC`);
     await client.query(
@@ -368,8 +603,25 @@ export async function prepareCanary(config) {
        )`,
     );
     await client.query(`REVOKE ALL ON TABLE ${tableRef} FROM PUBLIC`);
+    await client.query(
+      `CREATE TABLE IF NOT EXISTS ${runClaimTableRef} (
+         run_id text NOT NULL,
+         run_slot smallint NOT NULL CHECK (run_slot IN (1, 2)),
+         deployment_id text NOT NULL,
+         commit_sha text NOT NULL,
+         status text NOT NULL DEFAULT 'running' CHECK (status IN ('running', 'passed', 'failed')),
+         claimed_at timestamptz NOT NULL DEFAULT now(),
+         finished_at timestamptz,
+         PRIMARY KEY (run_id, run_slot)
+       )`,
+    );
+    await client.query(`REVOKE ALL ON TABLE ${runClaimTableRef} FROM PUBLIC`);
     await client.query(`GRANT USAGE ON SCHEMA ${quoteIdentifier(config.schemaName)} TO ${quoteIdentifier(config.runtimeRole)}`);
     await client.query(`GRANT SELECT ON TABLE ${tableRef} TO ${quoteIdentifier(config.runtimeRole)}`);
+    await client.query(`GRANT INSERT, SELECT ON TABLE ${runClaimTableRef} TO ${quoteIdentifier(config.runtimeRole)}`);
+    await client.query(
+      `GRANT UPDATE (status, finished_at) ON TABLE ${runClaimTableRef} TO ${quoteIdentifier(config.runtimeRole)}`,
+    );
     await client.query(`ALTER TABLE ${tableRef} DISABLE ROW LEVEL SECURITY`);
     await client.query(`DROP POLICY IF EXISTS ${quoteIdentifier(config.policyName)} ON ${tableRef}`);
 
@@ -406,6 +658,74 @@ export async function prepareCanary(config) {
   }
 }
 
+export async function claimProviderRuntimeRunSlot(config, { runId, runSlot }) {
+  if (config.localityConfirmation !== "production-runtime" || config.prepare || config.rollbackProbe) {
+    throw new Error("provider-runtime run slots may only be claimed for repeat-mode production-runtime gates");
+  }
+  if (!/^[A-Za-z0-9._:-]{32,128}$/.test(runId)) {
+    throw new Error("RLS_CONTEXT_GATE_RUN_ID must be a bounded opaque run identifier");
+  }
+  if (runSlot !== 1 && runSlot !== 2) {
+    throw new Error("RLS context gate run slot must be 1 or 2");
+  }
+
+  const client = createClient(config.databaseUrl, config);
+  await client.connect();
+  try {
+    const runClaimTableRef = `${quoteIdentifier(config.schemaName)}.${quoteIdentifier(config.runClaimTableName)}`;
+    const claimed = await client.query(
+      `INSERT INTO ${runClaimTableRef} (run_id, run_slot, deployment_id, commit_sha)
+       SELECT $1, $2, $3, $4
+       WHERE $2 = 1
+          OR EXISTS (
+            SELECT 1
+            FROM ${runClaimTableRef}
+            WHERE run_id = $1
+              AND run_slot = 1
+              AND status = 'passed'
+              AND deployment_id = $3
+              AND commit_sha = $4
+          )
+       ON CONFLICT (run_id, run_slot) DO NOTHING
+       RETURNING run_slot`,
+      [runId, runSlot, config.providerDeploymentId, config.providerCommitSha],
+    );
+    return claimed.rowCount === 1;
+  } finally {
+    await client.end();
+  }
+}
+
+export async function completeProviderRuntimeRunSlot(config, { runId, runSlot, succeeded }) {
+  const client = createClient(config.databaseUrl, config);
+  await client.connect();
+  try {
+    const runClaimTableRef = `${quoteIdentifier(config.schemaName)}.${quoteIdentifier(config.runClaimTableName)}`;
+    const completed = await client.query(
+      `UPDATE ${runClaimTableRef}
+       SET status = $3, finished_at = now()
+       WHERE run_id = $1
+         AND run_slot = $2
+         AND status = 'running'
+         AND deployment_id = $4
+         AND commit_sha = $5
+       RETURNING run_slot`,
+      [
+        runId,
+        runSlot,
+        succeeded ? "passed" : "failed",
+        config.providerDeploymentId,
+        config.providerCommitSha,
+      ],
+    );
+    if (completed.rowCount !== 1) {
+      throw new Error("RLS context gate run slot was not in the running state");
+    }
+  } finally {
+    await client.end();
+  }
+}
+
 async function inspectRuntime(pool, config) {
   const client = await pool.connect();
   try {
@@ -427,6 +747,35 @@ async function inspectRuntime(pool, config) {
       issues.push("runtime connection starts with app.user_id already set");
     }
     return { issues, row };
+  } finally {
+    client.release();
+  }
+}
+
+async function measureLocalityQueryRttProxy(pool) {
+  const client = await pool.connect();
+  try {
+    for (let index = 0; index < LOCALITY_RTT_WARMUP_QUERIES; index += 1) {
+      await client.query("SELECT 1 AS locality_probe");
+    }
+
+    const samples = [];
+    for (let index = 0; index < LOCALITY_RTT_MEASURED_QUERIES; index += 1) {
+      const startedAt = performance.now();
+      await client.query("SELECT 1 AS locality_probe");
+      samples.push(performance.now() - startedAt);
+    }
+
+    return {
+      kind: "warm-checked-out-sequential-select-1",
+      measuredQueries: LOCALITY_RTT_MEASURED_QUERIES,
+      metricsMs: {
+        ...summarizeMetrics(samples),
+        max: Math.max(...samples),
+        min: Math.min(...samples),
+      },
+      warmupQueries: LOCALITY_RTT_WARMUP_QUERIES,
+    };
   } finally {
     client.release();
   }
@@ -1013,9 +1362,31 @@ function assertCleanSample(sampleResult) {
 export async function runAcceptanceGate(config) {
   const issues = [];
   const reports = [];
+  let queryRttProxy = null;
   if (config.prepare) {
     const prepared = await prepareCanary(config);
     reports.push(`prepared ${prepared.rowsPrepared} synthetic canary rows as ${prepared.currentUser}`);
+  }
+
+  if (config.prepare || config.rollbackProbe) {
+    issues.push(...await runRollbackDisableProbe(config));
+    reports.push("setup rollback disable-RLS probe restored ENABLE/FORCE ROW LEVEL SECURITY");
+    const restoreProbe = createPrismaProbe(config, { max: 1 });
+    try {
+      issues.push(...assertCleanSample(await timedPrismaWrappedRead(
+        restoreProbe.prisma,
+        config,
+        config.userA,
+        "post-setup-restore Prisma wrapped read",
+      )));
+    } finally {
+      await disconnectPrismaProbe(restoreProbe);
+    }
+    return {
+      issues,
+      locality: { queryRttProxy },
+      reports,
+    };
   }
 
   const pool = createPool(config);
@@ -1025,6 +1396,11 @@ export async function runAcceptanceGate(config) {
       `runtime current_user=${runtime.row.current_user_name ?? "unknown"} session_user=${runtime.row.session_user_name ?? "unknown"} database=${runtime.row.database_name ?? "unknown"}`,
     );
     issues.push(...runtime.issues);
+
+    queryRttProxy = await measureLocalityQueryRttProxy(pool);
+    reports.push(
+      `locality query RTT proxy: kind=${queryRttProxy.kind}; warmup=${queryRttProxy.warmupQueries}; samples=${queryRttProxy.measuredQueries}; p95=${formatMs(queryRttProxy.metricsMs.p95)}; p99=${formatMs(queryRttProxy.metricsMs.p99)}`,
+    );
 
     for (const check of [
       await timedOutsideTransactionDeniedRead(pool, config),
@@ -1246,31 +1622,20 @@ export async function runAcceptanceGate(config) {
     await disconnectPrismaProbe(prismaTurnoverProbe);
   }
 
-  if (config.rollbackProbe) {
-    issues.push(...await runRollbackDisableProbe(config));
-    reports.push("rollback disable-RLS probe restored ENABLE/FORCE ROW LEVEL SECURITY");
-    const restoreProbe = createPrismaProbe(config, { max: 1 });
-    try {
-      issues.push(...assertCleanSample(await timedPrismaWrappedRead(
-        restoreProbe.prisma,
-        config,
-        config.userA,
-        "post-rollback-restore Prisma wrapped read",
-      )));
-    } finally {
-      await disconnectPrismaProbe(restoreProbe);
-    }
-  }
-
-  return { issues, reports };
+  return {
+    issues,
+    locality: { queryRttProxy },
+    reports,
+  };
 }
 
 function printUsage() {
   console.error("Usage:");
   console.error(
-    "  RLS_CONTEXT_GATE_CONFIRM=staging-only RLS_CONTEXT_GATE_DATABASE_URL='<pooled runtime url>' RLS_CONTEXT_GATE_RUNTIME_ROLE=grainline_app_runtime npm run audit:rls-context",
+    "  RLS_CONTEXT_GATE_CONFIRM=staging-only RLS_CONTEXT_GATE_LOCALITY_CONFIRM=diagnostic-only RLS_CONTEXT_GATE_EXPECTED_EXECUTION_REGION='<region>' RLS_CONTEXT_GATE_EXPECTED_DATABASE_REGION='<region>' RLS_CONTEXT_GATE_EXPECTED_DATABASE_ENDPOINT_ID='<endpoint id>' RLS_CONTEXT_GATE_EXPECTED_DATABASE_NAME='<database>' RLS_CONTEXT_GATE_DATABASE_URL='<pooled runtime url>' RLS_CONTEXT_GATE_RUNTIME_ROLE=grainline_app_runtime npm run audit:rls-context",
   );
-  console.error("Optional staging setup:");
+  console.error("Production-runtime output is candidate evidence only and additionally requires VERCEL=1, VERCEL_REGION, VERCEL_GIT_COMMIT_SHA, and VERCEL_DEPLOYMENT_ID; independently attest the Git-integrated deployment.");
+  console.error("Non-counted staging setup:");
   console.error(
     "  RLS_CONTEXT_GATE_PREPARE=1 RLS_CONTEXT_GATE_ADMIN_DATABASE_URL='<direct migration-owner url>' ... npm run audit:rls-context",
   );
@@ -1295,6 +1660,9 @@ async function main() {
   console.log(
     `target=${config.targetConcurrency} burst=${config.burstConcurrency} pool=${config.poolSize} requests=${config.measuredRequests} turnover=${config.turnoverRequests}`,
   );
+  console.log(
+    `locality=${config.localityConfirmation} execution=${config.observedExecutionRegion ?? "unverified"}/${config.expectedExecutionRegion} database=${config.observedDatabaseRegion ?? "unverified"}/${config.expectedDatabaseRegion}`,
+  );
   const startedAt = new Date().toISOString();
   const result = await runAcceptanceGate(config);
   const finishedAt = new Date().toISOString();
@@ -1309,7 +1677,11 @@ async function main() {
     process.exitCode = 1;
     return;
   }
-  console.log("RLS context acceptance gate passed for the synthetic staging canary.");
+  if (config.localityConfirmation === "diagnostic-only") {
+    console.log("RLS context diagnostic passed, but diagnostic-only evidence is not acceptance-eligible.");
+  } else {
+    console.log("RLS context gate produced a passing runtime evidence candidate; external Git-integrated deployment attestation is still required.");
+  }
   console.log("Route-level happy-path tests and per-table policy tests are still required before enabling production RLS.");
 }
 

@@ -7,16 +7,25 @@ import {
 } from "@/lib/dbUserContextState";
 import { withSerializableRetry } from "@/lib/transactionRetry";
 
-export type DbUserContextTransactionClient = Prisma.TransactionClient;
+declare const dbUserContextTransactionBrand: unique symbol;
+
+/**
+ * A transaction client whose transaction-local app.user_id value has been
+ * verified by setDbUserContext(). The private brand prevents a global Prisma
+ * client or a raw transaction client from reaching RLS-protected helpers.
+ */
+export type DbUserContextTransactionClient = Prisma.TransactionClient & {
+  readonly [dbUserContextTransactionBrand]: true;
+};
 
 export type WithDbUserContextOptions = DbUserContextTransactionOptions & {
   attempts?: number;
 };
 
-export async function setDbUserContext(
-  tx: Pick<Prisma.TransactionClient, "$queryRaw">,
+async function setDbUserContext(
+  tx: Prisma.TransactionClient,
   userId: string,
-) {
+): Promise<DbUserContextTransactionClient> {
   const normalizedUserId = normalizeDbUserContextUserId(userId);
   const rows = await tx.$queryRaw<Array<{ user_id: string | null }>>`
     SELECT set_config('app.user_id', ${normalizedUserId}, true) AS user_id
@@ -24,7 +33,7 @@ export async function setDbUserContext(
   if (rows[0]?.user_id !== normalizedUserId) {
     throw new Error("Failed to set transaction-local RLS database user context");
   }
-  return normalizedUserId;
+  return tx as DbUserContextTransactionClient;
 }
 
 /**
@@ -43,15 +52,15 @@ export async function setDbUserContext(
  */
 export async function withDbUserContext<T>(
   userId: string,
-  operation: (tx: Prisma.TransactionClient) => Promise<T>,
+  operation: (tx: DbUserContextTransactionClient) => Promise<T>,
   options: WithDbUserContextOptions = {},
 ) {
   const normalizedUserId = normalizeDbUserContextUserId(userId);
   const transactionOptions = dbUserContextTransactionOptions(options);
   const runTransaction = () =>
     prisma.$transaction(async (tx) => {
-      await setDbUserContext(tx, normalizedUserId);
-      return operation(tx);
+      const contextualTx = await setDbUserContext(tx, normalizedUserId);
+      return operation(contextualTx);
     }, transactionOptions);
 
   if (options.serializableRetry) {
@@ -62,7 +71,7 @@ export async function withDbUserContext<T>(
 
 export function withSerializableDbUserContext<T>(
   userId: string,
-  operation: (tx: Prisma.TransactionClient) => Promise<T>,
+  operation: (tx: DbUserContextTransactionClient) => Promise<T>,
   options: Omit<WithDbUserContextOptions, "serializableRetry" | "isolationLevel"> = {},
 ) {
   return withDbUserContext(userId, operation, {

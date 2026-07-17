@@ -45,7 +45,6 @@ const ShippingQuoteSchema = z.object({
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
-export const preferredRegion = "iad1";
 const SHIPPING_QUOTE_BODY_MAX_BYTES = 32 * 1024;
 
 function fallbackRate({

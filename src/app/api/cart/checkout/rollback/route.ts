@@ -28,7 +28,6 @@ const RollbackSchema = z.object({
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-export const preferredRegion = "iad1";
 const CHECKOUT_ROLLBACK_BODY_MAX_BYTES = 16 * 1024;
 
 export async function POST(req: Request) {
