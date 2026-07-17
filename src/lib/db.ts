@@ -12,6 +12,10 @@ const globalForPrisma = globalThis as unknown as {
 function createPrismaClient() {
   const adapter = new PrismaPg({
     connectionString: normalizeRuntimeDatabaseUrl(requiredProductionEnv("DATABASE_URL")),
+    // Keep this explicit and mirrored by the provider-runtime RLS gate. Raising
+    // it changes the per-instance Neon/PgBouncer connection budget and requires
+    // a separate capacity review.
+    max: 10,
   });
   return new PrismaClient({
     adapter,

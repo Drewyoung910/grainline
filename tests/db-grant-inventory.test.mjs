@@ -164,6 +164,11 @@ async function withAuditFixture(options, fn) {
           `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE ${assertSafeIdentifier(tableName)} TO ${assertSafeIdentifier(runtimeRole)}`,
         );
       }
+      if (options.grantPublicTablePrivileges) {
+        await migrationClient.query(
+          `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE ${assertSafeIdentifier(tableName)} TO PUBLIC`,
+        );
+      }
       if (options.grantUnexpectedTablePrivileges) {
         await migrationClient.query(
           `GRANT TRUNCATE, REFERENCES, TRIGGER ON TABLE ${assertSafeIdentifier(tableName)} TO ${assertSafeIdentifier(runtimeRole)}`,
@@ -257,15 +262,19 @@ describe("database grant inventory guardrails", () => {
   it("rejects every table privilege outside non-grantable CRUD", () => {
     assert.match(
       collectTablePrivilegeAllowlistIssues({}, "table SavedSearch").join("\n"),
-      /exact table privilege state could not be read/,
+      /exact runtime-role table privilege state could not be read/,
     );
     assert.deepEqual(
       collectTablePrivilegeAllowlistIssues(
         {
-          column_grant_option_privileges: [],
-          column_privileges: [],
-          effective_privileges: ["SELECT", "INSERT", "UPDATE", "DELETE"],
-          grant_option_privileges: [],
+          public_column_grant_option_privileges: [],
+          public_column_privileges: [],
+          public_grant_option_privileges: [],
+          public_privileges: [],
+          runtime_column_grant_option_privileges: [],
+          runtime_column_privileges: [],
+          runtime_grant_option_privileges: [],
+          runtime_privileges: ["SELECT", "INSERT", "UPDATE", "DELETE"],
         },
         "table SavedSearch",
       ),
@@ -274,25 +283,55 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(
       collectTablePrivilegeAllowlistIssues(
         {
-          column_grant_option_privileges: ["id:REFERENCES"],
-          column_privileges: ["id:REFERENCES"],
-          effective_privileges: ["SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "MAINTAIN"],
-          grant_option_privileges: ["SELECT"],
+          public_column_grant_option_privileges: ["id:REFERENCES"],
+          public_column_privileges: ["id:REFERENCES"],
+          public_grant_option_privileges: ["SELECT"],
+          public_privileges: ["SELECT"],
+          runtime_column_grant_option_privileges: ["id:REFERENCES"],
+          runtime_column_privileges: ["id:REFERENCES"],
+          runtime_grant_option_privileges: ["SELECT"],
+          runtime_privileges: ["SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "MAINTAIN"],
         },
         "table SavedSearch",
       ),
       [
-        "table SavedSearch has unexpected table privileges: MAINTAIN, TRUNCATE",
-        "table SavedSearch has grant options: SELECT",
-        "table SavedSearch has column privileges: id:REFERENCES",
-        "table SavedSearch has column grant options: id:REFERENCES",
+        "table SavedSearch runtime role has unexpected table privileges: MAINTAIN, TRUNCATE",
+        "table SavedSearch runtime role has grant options: SELECT",
+        "table SavedSearch grants table privileges to PUBLIC: SELECT",
+        "table SavedSearch grants table privileges with grant option to PUBLIC: SELECT",
+        "table SavedSearch runtime role has column privileges: id:REFERENCES",
+        "table SavedSearch runtime role has column grant options: id:REFERENCES",
+        "table SavedSearch PUBLIC has column privileges: id:REFERENCES",
+        "table SavedSearch PUBLIC has column grant options: id:REFERENCES",
       ],
     );
     assert.deepEqual(
       collectTablePrivilegeAllowlistIssues(
         {
-          effective_privileges: ["SELECT", "INSERT", "UPDATE", "DELETE"],
-          grant_option_privileges: [],
+          public_column_grant_option_privileges: [],
+          public_column_privileges: [],
+          public_grant_option_privileges: [],
+          public_privileges: ["SELECT", "INSERT", "UPDATE", "DELETE"],
+          runtime_column_grant_option_privileges: [],
+          runtime_column_privileges: [],
+          runtime_grant_option_privileges: [],
+          runtime_privileges: [],
+        },
+        "table SavedSearch",
+      ),
+      [
+        "table SavedSearch runtime role is missing direct table privileges: SELECT, INSERT, UPDATE, DELETE",
+        "table SavedSearch grants table privileges to PUBLIC: DELETE, INSERT, SELECT, UPDATE",
+      ],
+      "PUBLIC CRUD must not satisfy the runtime role's exact direct-grant contract",
+    );
+    assert.deepEqual(
+      collectTablePrivilegeAllowlistIssues(
+        {
+          public_grant_option_privileges: [],
+          public_privileges: [],
+          runtime_grant_option_privileges: [],
+          runtime_privileges: ["SELECT", "INSERT", "UPDATE", "DELETE"],
         },
         "default table privileges",
         { checkColumnPrivileges: false },
@@ -384,6 +423,17 @@ describe("database grant inventory guardrails", () => {
         /lacks SELECT/,
       );
     });
+
+    await withAuditFixture(
+      { grantPublicTablePrivileges: true, grantTablePrivileges: false },
+      async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+        const issues = (
+          await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })
+        ).join("\n");
+        assert.match(issues, /runtime role is missing direct table privileges: SELECT, INSERT, UPDATE, DELETE/);
+        assert.match(issues, /grants table privileges to PUBLIC: DELETE, INSERT, SELECT, UPDATE/);
+      },
+    );
 
     await withAuditFixture({ grantUnexpectedTablePrivileges: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
       assert.match(

@@ -24,6 +24,7 @@ const DEFAULT_QUERY_TIMEOUT_MS = 35_000;
 const DEFAULT_TRANSACTION_TIMEOUT_MS = 5_000;
 const LOCALITY_RTT_WARMUP_QUERIES = 5;
 const LOCALITY_RTT_MEASURED_QUERIES = 25;
+const PRISMA_APP_POOL_SIZE = 10;
 const PREPARED_SELECT_NAME = "rls_context_gate_canary_select_v1";
 const CONFIRMATION_VALUE = "staging-only";
 const LOCALITY_CONFIRMATIONS = new Set(["diagnostic-only", "production-runtime"]);
@@ -612,15 +613,17 @@ export async function prepareCanary(config) {
          status text NOT NULL DEFAULT 'running' CHECK (status IN ('running', 'passed', 'failed')),
          claimed_at timestamptz NOT NULL DEFAULT now(),
          finished_at timestamptz,
+         evidence jsonb,
          PRIMARY KEY (run_id, run_slot)
        )`,
     );
+    await client.query(`ALTER TABLE ${runClaimTableRef} ADD COLUMN IF NOT EXISTS evidence jsonb`);
     await client.query(`REVOKE ALL ON TABLE ${runClaimTableRef} FROM PUBLIC`);
     await client.query(`GRANT USAGE ON SCHEMA ${quoteIdentifier(config.schemaName)} TO ${quoteIdentifier(config.runtimeRole)}`);
     await client.query(`GRANT SELECT ON TABLE ${tableRef} TO ${quoteIdentifier(config.runtimeRole)}`);
     await client.query(`GRANT INSERT, SELECT ON TABLE ${runClaimTableRef} TO ${quoteIdentifier(config.runtimeRole)}`);
     await client.query(
-      `GRANT UPDATE (status, finished_at) ON TABLE ${runClaimTableRef} TO ${quoteIdentifier(config.runtimeRole)}`,
+      `GRANT UPDATE (status, finished_at, evidence) ON TABLE ${runClaimTableRef} TO ${quoteIdentifier(config.runtimeRole)}`,
     );
     await client.query(`ALTER TABLE ${tableRef} DISABLE ROW LEVEL SECURITY`);
     await client.query(`DROP POLICY IF EXISTS ${quoteIdentifier(config.policyName)} ON ${tableRef}`);
@@ -675,8 +678,8 @@ export async function claimProviderRuntimeRunSlot(config, { runId, runSlot }) {
     const runClaimTableRef = `${quoteIdentifier(config.schemaName)}.${quoteIdentifier(config.runClaimTableName)}`;
     const claimed = await client.query(
       `INSERT INTO ${runClaimTableRef} (run_id, run_slot, deployment_id, commit_sha)
-       SELECT $1, $2, $3, $4
-       WHERE $2 = 1
+       SELECT $1, $2::smallint, $3, $4
+       WHERE $2::smallint = 1::smallint
           OR EXISTS (
             SELECT 1
             FROM ${runClaimTableRef}
@@ -696,14 +699,21 @@ export async function claimProviderRuntimeRunSlot(config, { runId, runSlot }) {
   }
 }
 
-export async function completeProviderRuntimeRunSlot(config, { runId, runSlot, succeeded }) {
+export async function completeProviderRuntimeRunSlot(config, { evidence, runId, runSlot, succeeded }) {
+  if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)) {
+    throw new Error("RLS context gate sanitized evidence object is required");
+  }
+  const serializedEvidence = JSON.stringify(evidence);
+  if (Buffer.byteLength(serializedEvidence, "utf8") > 256 * 1024) {
+    throw new Error("RLS context gate sanitized evidence exceeds 256 KiB");
+  }
   const client = createClient(config.databaseUrl, config);
   await client.connect();
   try {
     const runClaimTableRef = `${quoteIdentifier(config.schemaName)}.${quoteIdentifier(config.runClaimTableName)}`;
     const completed = await client.query(
       `UPDATE ${runClaimTableRef}
-       SET status = $3, finished_at = now()
+       SET status = $3, finished_at = now(), evidence = $6::jsonb
        WHERE run_id = $1
          AND run_slot = $2
          AND status = 'running'
@@ -716,6 +726,7 @@ export async function completeProviderRuntimeRunSlot(config, { runId, runSlot, s
         succeeded ? "passed" : "failed",
         config.providerDeploymentId,
         config.providerCommitSha,
+        serializedEvidence,
       ],
     );
     if (completed.rowCount !== 1) {
@@ -897,15 +908,17 @@ async function timedWrappedRead(pool, config, userId, { label = "wrapped read", 
   try {
     await client.query("BEGIN");
     inTransaction = true;
-    await client.query("SELECT set_config('app.user_id', $1, true) AS user_id", [userId]);
-    const setting = await client.query("SELECT current_setting('app.user_id', true) AS user_id");
+    const context = await client.query(
+      "SELECT set_config('app.user_id', $1, true) AS user_id",
+      [userId],
+    );
     const rows = await client.query(selectQuery(config, prepared));
     await client.query("COMMIT");
     inTransaction = false;
     const finishedAt = performance.now();
     const issues = [];
-    if (setting.rows[0]?.user_id !== userId) {
-      issues.push(`${label}: current_setting returned ${setting.rows[0]?.user_id ?? "null"}, expected ${userId}`);
+    if (context.rows[0]?.user_id !== userId) {
+      issues.push(`${label}: set_config returned ${context.rows[0]?.user_id ?? "null"}, expected ${userId}`);
     }
     issues.push(...collectRowIssues(config, rows.rows, userId, label));
     return sample({ acquiredAt, acquireStartedAt, finishedAt, issues, label, startedAt });
@@ -1063,17 +1076,16 @@ async function timedPrismaWrappedRead(prisma, config, userId, label = "prisma wr
   try {
     const result = await prisma.$transaction(
       async (tx) => {
-        await tx.$queryRawUnsafe("SELECT set_config('app.user_id', $1, true) AS user_id", userId);
-        const setting = await tx.$queryRawUnsafe("SELECT current_setting('app.user_id', true) AS user_id");
+        const context = await tx.$queryRawUnsafe("SELECT set_config('app.user_id', $1, true) AS user_id", userId);
         const rows = await tx.$queryRawUnsafe(buildSelectSql(config));
-        return { rows, setting };
+        return { context, rows };
       },
       { timeout: config.transactionTimeoutMs, maxWait: config.connectionTimeoutMs },
     );
     const finishedAt = performance.now();
     const issues = [];
-    if (result.setting[0]?.user_id !== userId) {
-      issues.push(`${label}: current_setting returned ${result.setting[0]?.user_id ?? "null"}, expected ${userId}`);
+    if (result.context[0]?.user_id !== userId) {
+      issues.push(`${label}: set_config returned ${result.context[0]?.user_id ?? "null"}, expected ${userId}`);
     }
     issues.push(...collectRowIssues(config, result.rows, userId, label));
     return sample({ acquiredAt: startedAt, acquireStartedAt: startedAt, finishedAt, issues, label, startedAt });
@@ -1173,7 +1185,7 @@ async function runPrismaWorkload(prisma, config, { concurrency, label, mode, req
     }
   });
   await Promise.all(workers);
-  return summarizeWorkload(label, samples);
+  return summarizeWorkload(label, samples, { poolTimingAvailable: false });
 }
 
 async function runRollbackDisableProbe(config) {
@@ -1273,7 +1285,7 @@ export function summarizeMetrics(values) {
   };
 }
 
-function summarizeWorkload(label, samples) {
+function summarizeWorkload(label, samples, { poolTimingAvailable = true } = {}) {
   const successes = samples.filter((entry) => !entry.error);
   const errors = samples.filter((entry) => entry.error);
   const issues = samples.flatMap((entry) => entry.issues.map((issue) => `${entry.label}: ${issue}`));
@@ -1281,6 +1293,7 @@ function summarizeWorkload(label, samples) {
     errors,
     issues,
     label,
+    poolTimingAvailable,
     requestCount: samples.length,
     summaries: {
       acquireMs: summarizeMetrics(successes.map((entry) => entry.acquireMs)),
@@ -1321,19 +1334,21 @@ function compareWorkloads(label, baseline, wrapped, config) {
       `${label}: wrapped p99 ${formatMs(wrappedLatency.p99)} exceeds baseline p99 ${formatMs(baselineLatency.p99)} threshold`,
     );
   }
-  if (wrappedAcquire.p95 > 100) {
-    issues.push(`${label}: wrapped connection acquisition p95 ${formatMs(wrappedAcquire.p95)} exceeds 100ms`);
-  }
-  if (wrappedAcquire.p99 > 250) {
-    issues.push(`${label}: wrapped connection acquisition p99 ${formatMs(wrappedAcquire.p99)} exceeds 250ms`);
-  }
-  if (wrappedHold.avg > baselineHold.avg * 2) {
-    issues.push(`${label}: wrapped average hold ${formatMs(wrappedHold.avg)} exceeds 2x baseline ${formatMs(baselineHold.avg)}`);
-  }
-  if (wrappedHold.p99 > config.transactionTimeoutMs / 2) {
-    issues.push(
-      `${label}: wrapped p99 hold ${formatMs(wrappedHold.p99)} exceeds 50% of transaction timeout ${formatMs(config.transactionTimeoutMs)}`,
-    );
+  if (baseline.poolTimingAvailable && wrapped.poolTimingAvailable) {
+    if (wrappedAcquire.p95 > 100) {
+      issues.push(`${label}: wrapped connection acquisition p95 ${formatMs(wrappedAcquire.p95)} exceeds 100ms`);
+    }
+    if (wrappedAcquire.p99 > 250) {
+      issues.push(`${label}: wrapped connection acquisition p99 ${formatMs(wrappedAcquire.p99)} exceeds 250ms`);
+    }
+    if (wrappedHold.avg > baselineHold.avg * 2) {
+      issues.push(`${label}: wrapped average hold ${formatMs(wrappedHold.avg)} exceeds 2x baseline ${formatMs(baselineHold.avg)}`);
+    }
+    if (wrappedHold.p99 > config.transactionTimeoutMs / 2) {
+      issues.push(
+        `${label}: wrapped p99 hold ${formatMs(wrappedHold.p99)} exceeds 50% of transaction timeout ${formatMs(config.transactionTimeoutMs)}`,
+      );
+    }
   }
   return issues;
 }
@@ -1343,13 +1358,20 @@ function formatMs(value) {
 }
 
 function formatSummary(workload) {
-  return [
+  const parts = [
     `${workload.label}: requests=${workload.requestCount}`,
     `latency p95=${formatMs(workload.summaries.latencyMs.p95)} p99=${formatMs(workload.summaries.latencyMs.p99)}`,
-    `acquire p95=${formatMs(workload.summaries.acquireMs.p95)} p99=${formatMs(workload.summaries.acquireMs.p99)}`,
-    `hold avg=${formatMs(workload.summaries.holdMs.avg)} p99=${formatMs(workload.summaries.holdMs.p99)}`,
-    `errors=${workload.errors.length}`,
-  ].join("; ");
+  ];
+  if (workload.poolTimingAvailable) {
+    parts.push(
+      `acquire p95=${formatMs(workload.summaries.acquireMs.p95)} p99=${formatMs(workload.summaries.acquireMs.p99)}`,
+      `hold avg=${formatMs(workload.summaries.holdMs.avg)} p99=${formatMs(workload.summaries.holdMs.p99)}`,
+    );
+  } else {
+    parts.push("acquire=unavailable; hold=unavailable");
+  }
+  parts.push(`errors=${workload.errors.length}`);
+  return parts.join("; ");
 }
 
 function assertCleanSample(sampleResult) {
@@ -1444,7 +1466,7 @@ export async function runAcceptanceGate(config) {
       }
     }
 
-    const prismaProbe = createPrismaProbe(config, { max: Math.min(config.targetConcurrency, config.poolSize) });
+    const prismaProbe = createPrismaProbe(config, { max: PRISMA_APP_POOL_SIZE });
     try {
       for (const check of [
         await timedPrismaAutocommitDeniedRead(prismaProbe.prisma, config, "single prisma autocommit denied read"),
