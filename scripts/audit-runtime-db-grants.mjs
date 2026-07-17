@@ -29,6 +29,29 @@ const REQUIRED_EXTENSION_RUNTIME_OPERATORS = {
   ],
 };
 
+export const SAVED_SEARCH_RLS_POLICIES = Object.freeze({
+  saved_search_owner_select: Object.freeze({
+    command: "r",
+    usingExpression: `"userId" = NULLIF(current_setting('app.user_id', true), '')`,
+    checkExpression: null,
+  }),
+  saved_search_owner_insert: Object.freeze({
+    command: "a",
+    usingExpression: null,
+    checkExpression: `"userId" = NULLIF(current_setting('app.user_id', true), '')`,
+  }),
+  saved_search_owner_delete: Object.freeze({
+    command: "d",
+    usingExpression: `"userId" = NULLIF(current_setting('app.user_id', true), '')`,
+    checkExpression: null,
+  }),
+});
+
+// Phase A protects the non-owner runtime role while Vercel's 12-hour skew
+// window drains owner-backed application deployments. Change this only in the
+// later, separately deployed FORCE migration commit.
+export const SAVED_SEARCH_RLS_FORCE_EXPECTED = false;
+
 function sortedUnique(values) {
   return [...new Set(values)].sort((a, b) => a.localeCompare(b));
 }
@@ -57,6 +80,189 @@ function readMigrationSql(rootDir) {
     .filter((migrationPath) => existsSync(migrationPath))
     .map((migrationPath) => readFileSync(migrationPath, "utf8"))
     .join("\n");
+}
+
+function hasBalancedOuterParentheses(value) {
+  if (!value.startsWith("(") || !value.endsWith(")")) return false;
+  let depth = 0;
+  let inSingleQuote = false;
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+    if (character === "'" && value[index + 1] === "'") {
+      index += 1;
+      continue;
+    }
+    if (character === "'") {
+      inSingleQuote = !inSingleQuote;
+      continue;
+    }
+    if (inSingleQuote) continue;
+    if (character === "(") depth += 1;
+    if (character === ")") depth -= 1;
+    if (depth === 0 && index < value.length - 1) return false;
+  }
+  return depth === 0 && !inSingleQuote;
+}
+
+export function normalizeRlsPolicyExpression(expression) {
+  if (expression === null || expression === undefined) return null;
+  const value = String(expression);
+  let normalized = "";
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+    if (inSingleQuote) {
+      normalized += character;
+      if (character === "'" && value[index + 1] === "'") {
+        normalized += value[index + 1];
+        index += 1;
+      } else if (character === "'") {
+        inSingleQuote = false;
+      }
+      continue;
+    }
+    if (inDoubleQuote) {
+      normalized += character;
+      if (character === '"' && value[index + 1] === '"') {
+        normalized += value[index + 1];
+        index += 1;
+      } else if (character === '"') {
+        inDoubleQuote = false;
+      }
+      continue;
+    }
+    if (character === "'") {
+      inSingleQuote = true;
+      normalized += character;
+      continue;
+    }
+    if (character === '"') {
+      inDoubleQuote = true;
+      normalized += character;
+      continue;
+    }
+
+    const castMatch = value.slice(index).match(/^::(?:text|character\s+varying)\b/i);
+    if (castMatch) {
+      index += castMatch[0].length - 1;
+      continue;
+    }
+    if (/\s/.test(character)) {
+      if (normalized.length > 0 && !normalized.endsWith(" ")) normalized += " ";
+      continue;
+    }
+    normalized += character;
+  }
+
+  normalized = normalized.trim();
+  while (hasBalancedOuterParentheses(normalized)) {
+    normalized = normalized.slice(1, -1).trim();
+  }
+  return normalized;
+}
+
+function normalizedPolicyRoles(value) {
+  if (Array.isArray(value)) return sortedUnique(value.map(String));
+  if (value === null || value === undefined) return [];
+  return sortedUnique(String(value).replace(/^\{|\}$/g, "").split(",").filter(Boolean));
+}
+
+export function collectSavedSearchPolicyIssues(
+  rows,
+  runtimeRole,
+  expectedForce = SAVED_SEARCH_RLS_FORCE_EXPECTED,
+) {
+  const issues = [];
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return ['missing expected table SavedSearch for exact RLS policy audit'];
+  }
+
+  const tableState = rows[0];
+  if (!tableState.rls_enabled) {
+    issues.push('table SavedSearch must have ROW LEVEL SECURITY enabled');
+  }
+  if (Boolean(tableState.rls_forced) !== expectedForce) {
+    issues.push(
+      expectedForce
+        ? 'table SavedSearch must have FORCE ROW LEVEL SECURITY enabled'
+        : 'table SavedSearch must keep FORCE ROW LEVEL SECURITY disabled during phase A',
+    );
+  }
+
+  const policies = rows.filter((row) => typeof row.policy_name === "string");
+  const expectedNames = Object.keys(SAVED_SEARCH_RLS_POLICIES).sort();
+  const actualNames = policies.map((row) => row.policy_name).sort();
+  for (const missingName of missingItems(expectedNames, actualNames)) {
+    issues.push(`SavedSearch is missing policy ${missingName}`);
+  }
+  for (const extraName of missingItems(actualNames, expectedNames)) {
+    issues.push(`SavedSearch has unexpected policy ${extraName}`);
+  }
+
+  for (const policy of policies) {
+    const expected = SAVED_SEARCH_RLS_POLICIES[policy.policy_name];
+    if (!expected) continue;
+    if (!policy.policy_permissive) {
+      issues.push(`SavedSearch policy ${policy.policy_name} must be PERMISSIVE`);
+    }
+    if (policy.policy_command !== expected.command) {
+      issues.push(
+        `SavedSearch policy ${policy.policy_name} has command ${policy.policy_command ?? "unknown"}, expected ${expected.command}`,
+      );
+    }
+    const roles = normalizedPolicyRoles(policy.policy_roles);
+    if (roles.length !== 1 || roles[0] !== runtimeRole) {
+      issues.push(
+        `SavedSearch policy ${policy.policy_name} has roles ${roles.join(", ") || "none"}, expected only ${runtimeRole}`,
+      );
+    }
+    const actualUsing = normalizeRlsPolicyExpression(policy.using_expression);
+    const expectedUsing = normalizeRlsPolicyExpression(expected.usingExpression);
+    if (actualUsing !== expectedUsing) {
+      issues.push(`SavedSearch policy ${policy.policy_name} has an unexpected USING expression`);
+    }
+    const actualCheck = normalizeRlsPolicyExpression(policy.check_expression);
+    const expectedCheck = normalizeRlsPolicyExpression(expected.checkExpression);
+    if (actualCheck !== expectedCheck) {
+      issues.push(`SavedSearch policy ${policy.policy_name} has an unexpected WITH CHECK expression`);
+    }
+  }
+
+  return issues;
+}
+
+export async function readSavedSearchPolicyState(client) {
+  const result = await client.query(
+    `SELECT
+        c.relrowsecurity AS rls_enabled,
+        c.relforcerowsecurity AS rls_forced,
+        p.polname AS policy_name,
+        p.polcmd AS policy_command,
+        p.polpermissive AS policy_permissive,
+        CASE
+          WHEN p.oid IS NULL THEN ARRAY[]::text[]
+          ELSE ARRAY(
+            SELECT CASE
+                     WHEN policy_role.role_oid = 0 THEN 'PUBLIC'
+                     ELSE pg_get_userbyid(policy_role.role_oid)::text
+                   END
+              FROM unnest(p.polroles) AS policy_role(role_oid)
+             ORDER BY 1
+          )
+        END AS policy_roles,
+        pg_get_expr(p.polqual, p.polrelid) AS using_expression,
+        pg_get_expr(p.polwithcheck, p.polrelid) AS check_expression
+       FROM pg_class c
+       JOIN pg_namespace n ON n.oid = c.relnamespace
+       LEFT JOIN pg_policy p ON p.polrelid = c.oid
+      WHERE n.nspname = 'public'
+        AND c.relname = 'SavedSearch'
+        AND c.relkind IN ('r', 'p')
+      ORDER BY p.polname`,
+  );
+  return result.rows;
 }
 
 export function deriveGrantInventory(rootDir = ROOT_DIR) {
@@ -103,6 +309,11 @@ export function deriveGrantInventory(rootDir = ROOT_DIR) {
   const publicDefaultPrivilegeRevokes = publicRevokes.filter((statement) =>
     /\bALTER\s+DEFAULT\s+PRIVILEGES\b/i.test(statement),
   );
+  const rlsPolicyTables = sortedUnique(
+    [...migrationSql.matchAll(
+      /\bCREATE\s+POLICY\s+(?:"[^"]+"|[A-Za-z_][A-Za-z0-9_]*)\s+ON\s+(?:public\.)?(?:"([^"]+)"|([A-Za-z_][A-Za-z0-9_]*))/gi,
+    )].map((match) => match[1] ?? match[2]),
+  );
 
   return {
     tables,
@@ -114,6 +325,7 @@ export function deriveGrantInventory(rootDir = ROOT_DIR) {
     extensions,
     publicRevokes,
     publicDefaultPrivilegeRevokes,
+    rlsPolicyTables,
   };
 }
 
@@ -123,6 +335,7 @@ export function formatInventorySummary(inventory) {
     `${inventory.enums.length} enums`,
     `${inventory.functions.length} grainline_* functions`,
     `${(inventory.extensions ?? []).length} extensions`,
+    `${(inventory.rlsPolicyTables ?? []).length} RLS policy tables`,
     `${inventory.sequenceSqlReferences.length} sequence references`,
   ].join(", ");
 }
@@ -163,11 +376,59 @@ function collectMissingPrivileges(rows, nameField, privileges) {
   return issues;
 }
 
+function normalizedPrivilegeArray(value) {
+  if (!Array.isArray(value)) return [];
+  return sortedUnique(value.map((privilege) => String(privilege).toUpperCase()));
+}
+
+export function collectTablePrivilegeAllowlistIssues(row, label) {
+  if (!Array.isArray(row?.effective_privileges)) {
+    return [`${label} exact table privilege state could not be read`];
+  }
+  if (!Array.isArray(row?.grant_option_privileges)) {
+    return [`${label} table grant-option state could not be read`];
+  }
+  if (!Array.isArray(row?.column_privileges)) {
+    return [`${label} column privilege state could not be read`];
+  }
+  if (!Array.isArray(row?.column_grant_option_privileges)) {
+    return [`${label} column grant-option state could not be read`];
+  }
+  const allowed = new Set(REQUIRED_TABLE_PRIVILEGES);
+  const unexpected = normalizedPrivilegeArray(row?.effective_privileges)
+    .filter((privilege) => !allowed.has(privilege));
+  const grantOptions = normalizedPrivilegeArray(row?.grant_option_privileges);
+  const columnPrivileges = sortedUnique(row.column_privileges.map(String));
+  const columnGrantOptions = sortedUnique(row.column_grant_option_privileges.map(String));
+  const issues = [];
+  if (unexpected.length > 0) {
+    issues.push(`${label} has unexpected table privileges: ${unexpected.join(", ")}`);
+  }
+  if (grantOptions.length > 0) {
+    issues.push(`${label} has grant options: ${grantOptions.join(", ")}`);
+  }
+  if (columnPrivileges.length > 0) {
+    issues.push(`${label} has column privileges: ${columnPrivileges.join(", ")}`);
+  }
+  if (columnGrantOptions.length > 0) {
+    issues.push(`${label} has column grant options: ${columnGrantOptions.join(", ")}`);
+  }
+  return issues;
+}
+
 export async function auditLiveDatabase({ client, runtimeRole, migrationRole, inventory }) {
   const issues = [];
 
   const roleResult = await client.query(
-    `SELECT rolname, rolbypassrls, rolsuper, rolcreatedb, rolcreaterole, rolreplication
+    `SELECT
+        rolname,
+        rolbypassrls,
+        rolsuper,
+        rolcreatedb,
+        rolcreaterole,
+        rolreplication,
+        rolcanlogin,
+        rolinherit
        FROM pg_roles
       WHERE rolname = $1`,
     [runtimeRole],
@@ -206,6 +467,8 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
   for (const attr of ["rolbypassrls", "rolsuper", "rolcreatedb", "rolcreaterole", "rolreplication"]) {
     if (role[attr]) issues.push(`runtime role ${runtimeRole} has ${attr}`);
   }
+  if (!role.rolcanlogin) issues.push(`runtime role ${runtimeRole} must have LOGIN`);
+  if (role.rolinherit) issues.push(`runtime role ${runtimeRole} must have NOINHERIT`);
 
   const membershipResult = await client.query(
     `WITH RECURSIVE memberships AS (
@@ -270,7 +533,53 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
         has_table_privilege($1, c.oid, 'SELECT') AS select_priv,
         has_table_privilege($1, c.oid, 'INSERT') AS insert_priv,
         has_table_privilege($1, c.oid, 'UPDATE') AS update_priv,
-        has_table_privilege($1, c.oid, 'DELETE') AS delete_priv
+        has_table_privilege($1, c.oid, 'DELETE') AS delete_priv,
+        ARRAY(
+          SELECT DISTINCT upper(acl.privilege_type)
+            FROM aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) AS acl
+           WHERE acl.grantee IN (
+             0,
+             (SELECT oid FROM pg_roles WHERE rolname = $1)
+           )
+           ORDER BY 1
+        ) AS effective_privileges,
+        ARRAY(
+          SELECT DISTINCT upper(acl.privilege_type)
+            FROM aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) AS acl
+           WHERE acl.grantee IN (
+             0,
+             (SELECT oid FROM pg_roles WHERE rolname = $1)
+           )
+             AND acl.is_grantable
+           ORDER BY 1
+        ) AS grant_option_privileges,
+        ARRAY(
+          SELECT DISTINCT format('%I:%s', a.attname, upper(acl.privilege_type))
+            FROM pg_attribute a
+            CROSS JOIN LATERAL aclexplode(a.attacl) AS acl
+           WHERE a.attrelid = c.oid
+             AND a.attnum > 0
+             AND NOT a.attisdropped
+             AND acl.grantee IN (
+               0,
+               (SELECT oid FROM pg_roles WHERE rolname = $1)
+             )
+           ORDER BY 1
+        ) AS column_privileges,
+        ARRAY(
+          SELECT DISTINCT format('%I:%s', a.attname, upper(acl.privilege_type))
+            FROM pg_attribute a
+            CROSS JOIN LATERAL aclexplode(a.attacl) AS acl
+           WHERE a.attrelid = c.oid
+             AND a.attnum > 0
+             AND NOT a.attisdropped
+             AND acl.grantee IN (
+               0,
+               (SELECT oid FROM pg_roles WHERE rolname = $1)
+             )
+             AND acl.is_grantable
+           ORDER BY 1
+        ) AS column_grant_option_privileges
        FROM pg_class c
        JOIN pg_namespace n ON n.oid = c.relnamespace
       WHERE n.nspname = 'public'
@@ -285,6 +594,7 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
   );
   issues.push(...collectMissingPrivileges(tableResult.rows, "table_name", REQUIRED_TABLE_PRIVILEGES));
   for (const row of tableResult.rows) {
+    issues.push(...collectTablePrivilegeAllowlistIssues(row, `table ${row.table_name}`));
     if (row.owner_name === runtimeRole) issues.push(`runtime role owns table ${row.table_name}`);
     if (row.owner_name !== migrationRole) {
       issues.push(`table ${row.table_name} owned by ${row.owner_name}, expected ${migrationRole}`);
@@ -296,31 +606,56 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
         c.relname AS table_name,
         c.relrowsecurity AS rls_enabled,
         c.relforcerowsecurity AS rls_forced,
+        COUNT(p.oid)::integer AS policy_count,
         string_agg(p.polname::text, ', ' ORDER BY p.polname::text) AS policy_names
        FROM pg_class c
        JOIN pg_namespace n ON n.oid = c.relnamespace
-       JOIN pg_policy p ON p.polrelid = c.oid
+       LEFT JOIN pg_policy p ON p.polrelid = c.oid
       WHERE n.nspname = 'public'
         AND c.relkind IN ('r', 'p')
         AND c.relname = ANY($1::text[])
+        AND (c.relrowsecurity OR c.relforcerowsecurity OR p.oid IS NOT NULL)
       GROUP BY c.relname, c.relrowsecurity, c.relforcerowsecurity
       ORDER BY c.relname`,
     [inventory.tables],
   );
+  const expectedRlsPolicyTables = new Set(inventory.rlsPolicyTables ?? []);
   for (const row of rlsPolicyResult.rows) {
+    const hasPolicies = Number(row.policy_count) > 0;
     const policyList = typeof row.policy_names === "string" && row.policy_names.length > 0
       ? row.policy_names
-      : "unknown";
-    if (!row.rls_enabled) {
+      : "none";
+    if (hasPolicies && !expectedRlsPolicyTables.has(row.table_name)) {
+      issues.push(
+        `table ${row.table_name} has live RLS policies (${policyList}) absent from the reviewed migration inventory`,
+      );
+    }
+    if (hasPolicies && !row.rls_enabled) {
       issues.push(
         `table ${row.table_name} has RLS policies (${policyList}) but ROW LEVEL SECURITY is not enabled`,
       );
     }
-    if (!row.rls_forced) {
+    if (row.rls_enabled && !hasPolicies) {
+      issues.push(
+        `table ${row.table_name} has ROW LEVEL SECURITY enabled but zero policies`,
+      );
+    }
+    const savedSearchPhaseAExpected =
+      row.table_name === "SavedSearch" && expectedRlsPolicyTables.has("SavedSearch");
+    if (hasPolicies && !row.rls_forced && !savedSearchPhaseAExpected) {
       issues.push(
         `table ${row.table_name} has RLS policies (${policyList}) but FORCE ROW LEVEL SECURITY is not enabled`,
       );
     }
+  }
+
+  if (expectedRlsPolicyTables.has("SavedSearch")) {
+    issues.push(
+      ...collectSavedSearchPolicyIssues(
+        await readSavedSearchPolicyState(client),
+        runtimeRole,
+      ),
+    );
   }
 
   const untrackedTableResult = await client.query(
@@ -330,7 +665,53 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
         has_table_privilege($1, c.oid, 'SELECT') AS select_priv,
         has_table_privilege($1, c.oid, 'INSERT') AS insert_priv,
         has_table_privilege($1, c.oid, 'UPDATE') AS update_priv,
-        has_table_privilege($1, c.oid, 'DELETE') AS delete_priv
+        has_table_privilege($1, c.oid, 'DELETE') AS delete_priv,
+        ARRAY(
+          SELECT DISTINCT upper(acl.privilege_type)
+            FROM aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) AS acl
+           WHERE acl.grantee IN (
+             0,
+             (SELECT oid FROM pg_roles WHERE rolname = $1)
+           )
+           ORDER BY 1
+        ) AS effective_privileges,
+        ARRAY(
+          SELECT DISTINCT upper(acl.privilege_type)
+            FROM aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) AS acl
+           WHERE acl.grantee IN (
+             0,
+             (SELECT oid FROM pg_roles WHERE rolname = $1)
+           )
+             AND acl.is_grantable
+           ORDER BY 1
+        ) AS grant_option_privileges,
+        ARRAY(
+          SELECT DISTINCT format('%I:%s', a.attname, upper(acl.privilege_type))
+            FROM pg_attribute a
+            CROSS JOIN LATERAL aclexplode(a.attacl) AS acl
+           WHERE a.attrelid = c.oid
+             AND a.attnum > 0
+             AND NOT a.attisdropped
+             AND acl.grantee IN (
+               0,
+               (SELECT oid FROM pg_roles WHERE rolname = $1)
+             )
+           ORDER BY 1
+        ) AS column_privileges,
+        ARRAY(
+          SELECT DISTINCT format('%I:%s', a.attname, upper(acl.privilege_type))
+            FROM pg_attribute a
+            CROSS JOIN LATERAL aclexplode(a.attacl) AS acl
+           WHERE a.attrelid = c.oid
+             AND a.attnum > 0
+             AND NOT a.attisdropped
+             AND acl.grantee IN (
+               0,
+               (SELECT oid FROM pg_roles WHERE rolname = $1)
+             )
+             AND acl.is_grantable
+           ORDER BY 1
+        ) AS column_grant_option_privileges
        FROM pg_class c
        JOIN pg_namespace n ON n.oid = c.relnamespace
       WHERE n.nspname = 'public'
@@ -340,9 +721,21 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
     [runtimeRole, inventory.tables],
   );
   for (const row of untrackedTableResult.rows) {
-    const granted = REQUIRED_TABLE_PRIVILEGES.filter((privilege) => row[`${privilege.toLowerCase()}_priv`]);
+    const granted = normalizedPrivilegeArray(row.effective_privileges);
     if (granted.length > 0) {
-      issues.push(`runtime role has ${granted.join("/")} on untracked public table ${row.table_name}`);
+      issues.push(`runtime role or PUBLIC has ${granted.join("/")} on untracked public table ${row.table_name}`);
+    }
+    const grantOptions = normalizedPrivilegeArray(row.grant_option_privileges);
+    if (grantOptions.length > 0) {
+      issues.push(`runtime role or PUBLIC has grant options ${grantOptions.join("/")} on untracked public table ${row.table_name}`);
+    }
+    const columnPrivileges = sortedUnique((row.column_privileges ?? []).map(String));
+    if (columnPrivileges.length > 0) {
+      issues.push(`runtime role or PUBLIC has column privileges ${columnPrivileges.join(", ")} on untracked public table ${row.table_name}`);
+    }
+    const columnGrantOptions = sortedUnique((row.column_grant_option_privileges ?? []).map(String));
+    if (columnGrantOptions.length > 0) {
+      issues.push(`runtime role or PUBLIC has column grant options ${columnGrantOptions.join(", ")} on untracked public table ${row.table_name}`);
     }
     if (row.owner_name === runtimeRole) issues.push(`runtime role owns untracked public table ${row.table_name}`);
   }
@@ -605,23 +998,66 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
   const defaultPrivilegeResult = await client.query(
     `SELECT
         d.defaclobjtype,
-        privilege.privilege_type
+        d.defaclnamespace,
+        n.nspname AS schema_name,
+        privilege.privilege_type,
+        privilege.is_grantable,
+        CASE
+          WHEN privilege.grantee = 0 THEN 'PUBLIC'
+          ELSE pg_get_userbyid(privilege.grantee)::text
+        END AS grantee_name
        FROM pg_default_acl d
        LEFT JOIN pg_namespace n ON n.oid = d.defaclnamespace
        CROSS JOIN LATERAL aclexplode(d.defaclacl) AS privilege
       WHERE d.defaclrole = (SELECT oid FROM pg_roles WHERE rolname = $1)
-        AND privilege.grantee = (SELECT oid FROM pg_roles WHERE rolname = $2)
+        AND privilege.grantee IN (
+          0,
+          (SELECT oid FROM pg_roles WHERE rolname = $2)
+        )
         AND (d.defaclnamespace = 0 OR n.nspname = 'public')`,
     [migrationRole, runtimeRole],
   );
+  const runtimeDefaultRows = defaultPrivilegeResult.rows
+    .filter((row) => row.grantee_name === runtimeRole);
+  const runtimePublicDefaultRows = runtimeDefaultRows
+    .filter((row) => row.defaclnamespace !== 0 && row.schema_name === "public");
   const defaultGrants = new Set(
-    defaultPrivilegeResult.rows.map((row) => `${row.defaclobjtype}:${row.privilege_type}`),
+    runtimePublicDefaultRows.map((row) => `${row.defaclobjtype}:${row.privilege_type}`),
   );
   for (const [objectType, privileges] of defaultPrivilegeRequirements(inventory)) {
     for (const privilege of privileges) {
       if (!defaultGrants.has(`${objectType}:${privilege}`)) {
         issues.push(`default privileges for migration role ${migrationRole} do not grant ${privilege} on ${objectType} objects to ${runtimeRole}`);
       }
+    }
+  }
+  const runtimeDefaultTableRows = runtimePublicDefaultRows
+    .filter((row) => row.defaclobjtype === OBJECT_TYPE_TABLE);
+  issues.push(
+    ...collectTablePrivilegeAllowlistIssues(
+      {
+        effective_privileges: runtimeDefaultTableRows.map((row) => row.privilege_type),
+        grant_option_privileges: runtimeDefaultTableRows
+          .filter((row) => row.is_grantable)
+          .map((row) => row.privilege_type),
+      },
+      `default table privileges for migration role ${migrationRole} to ${runtimeRole}`,
+    ),
+  );
+  for (const row of defaultPrivilegeResult.rows) {
+    if (
+      row.defaclobjtype === OBJECT_TYPE_TABLE
+      && row.grantee_name === runtimeRole
+      && row.defaclnamespace === 0
+    ) {
+      issues.push(
+        `default table privileges for migration role ${migrationRole} to ${runtimeRole} must be scoped to schema public`,
+      );
+    }
+    if (row.defaclobjtype === OBJECT_TYPE_TABLE && row.grantee_name === "PUBLIC") {
+      issues.push(
+        `default table privileges for migration role ${migrationRole} grant ${row.privilege_type} to PUBLIC`,
+      );
     }
   }
 

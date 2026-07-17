@@ -88,10 +88,13 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
 
 - `npx prisma validate`
 - `npx prisma generate`
+- First query `public."SavedSearch"` ownership through `DIRECT_URL` and retain the
+  result. For this rollout, both `current_user`/`session_user` and the table owner
+  must be `neondb_owner`; do not substitute a planned role name.
+- `psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=neondb_owner -f scripts/provision-runtime-db-role.sql` to converge the reviewed runtime role, current grants, and migration-owner default privileges before migration.
 - `npx dotenv-cli -e .env -- npx prisma migrate deploy`
 - `npx dotenv-cli -e .env -- npx prisma migrate status`
-- `psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=neondb_owner -f scripts/provision-runtime-db-role.sql` (current reviewed staging and production owner; re-query `public."SavedSearch"` ownership immediately before running rather than substituting a planned role name)
-- `GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=neondb_owner npm run audit:db-grants` (run from a clean checkout of the exact release commit so untracked migration files cannot change the source-derived audit inventory)
+- `GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=neondb_owner npm run audit:db-grants` only after migration/status, so the exact audit covers the final catalog and proves runtime DML was revoked from `_prisma_migrations` and every other untracked public table. Run from a clean checkout of the exact release commit so untracked migration files cannot change the source-derived audit inventory.
 - A future branch may substitute `MIGRATION_DB_ROLE=grainline_migration_owner` only after catalog evidence proves that dedicated role actually owns every tracked app object; it is not the owner for this rollout.
 - Non-counted owner setup passed via `npm run audit:rls-context` against exact reviewed staging endpoint `ep-bold-recipe-aavx4plv`, database `neondb`, and region `westus3.azure`, using the pooled runtime URL plus direct admin URL; write its sanitized `setup_passed` artifact to a distinct `RLS_CONTEXT_GATE_EVIDENCE_PATH` (mode `0600`) and retain it separately.
 - Two identical repeat-mode POSTs (run slots `1`, then `2`) passed through one Git-integrated Vercel Preview in `sfo1`. Retain both sanitized `runtimeEvidenceCandidate` artifacts plus independent Vercel deployment source/ref/SHA/id attestation. Confirm the durable ledger prevented replay and did not allow slot 2 before slot 1 completed. Neither artifact may self-assert `acceptanceEligible=true`.

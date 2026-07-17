@@ -12,6 +12,7 @@ const {
   REQUIRED_TABLE_PRIVILEGES,
   REQUIRED_TYPE_PRIVILEGES,
   auditLiveDatabase,
+  collectTablePrivilegeAllowlistIssues,
   defaultPrivilegeRequirements,
   deriveGrantInventory,
 } = await import("../scripts/audit-runtime-db-grants.mjs");
@@ -98,7 +99,8 @@ async function withAuditFixture(options, fn) {
 
   await withClient(adminUrl, async (admin) => {
     await admin.query(`CREATE ROLE ${assertSafeIdentifier(migrationRole)} LOGIN PASSWORD ${sqlLiteral(migrationPassword)}`);
-    await admin.query(`CREATE ROLE ${assertSafeIdentifier(runtimeRole)} LOGIN PASSWORD ${sqlLiteral(runtimePassword)} ${options.runtimeRoleAttributes ?? ""}`);
+    const runtimeRoleAttributes = options.runtimeRoleAttributes ?? "LOGIN NOINHERIT";
+    await admin.query(`CREATE ROLE ${assertSafeIdentifier(runtimeRole)} ${runtimeRoleAttributes} PASSWORD ${sqlLiteral(runtimePassword)}`);
     if (options.createParentRole) {
       await admin.query(`CREATE ROLE ${assertSafeIdentifier(parentRole)} NOLOGIN`);
       await admin.query(`GRANT ${assertSafeIdentifier(parentRole)} TO ${assertSafeIdentifier(runtimeRole)}`);
@@ -120,6 +122,8 @@ async function withAuditFixture(options, fn) {
     sequenceSqlReferences: [],
     publicRevokes: [],
     publicDefaultPrivilegeRevokes: [],
+    rlsPolicyTables:
+      options.createRlsPolicy && options.trackRlsPolicy !== false ? [tableName] : [],
   };
 
   try {
@@ -147,17 +151,37 @@ async function withAuditFixture(options, fn) {
             FOR SELECT
           USING (id = current_setting('app.user_id', true))`,
         );
-        if (options.enableRls) {
-          await migrationClient.query(`ALTER TABLE ${assertSafeIdentifier(tableName)} ENABLE ROW LEVEL SECURITY`);
-        }
-        if (options.forceRls) {
-          await migrationClient.query(`ALTER TABLE ${assertSafeIdentifier(tableName)} FORCE ROW LEVEL SECURITY`);
-        }
+      }
+      if (options.enableRls) {
+        await migrationClient.query(`ALTER TABLE ${assertSafeIdentifier(tableName)} ENABLE ROW LEVEL SECURITY`);
+      }
+      if (options.forceRls) {
+        await migrationClient.query(`ALTER TABLE ${assertSafeIdentifier(tableName)} FORCE ROW LEVEL SECURITY`);
       }
       await migrationClient.query(`GRANT USAGE ON SCHEMA public TO ${assertSafeIdentifier(runtimeRole)}`);
       if (options.grantTablePrivileges !== false) {
         await migrationClient.query(
           `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE ${assertSafeIdentifier(tableName)} TO ${assertSafeIdentifier(runtimeRole)}`,
+        );
+      }
+      if (options.grantUnexpectedTablePrivileges) {
+        await migrationClient.query(
+          `GRANT TRUNCATE, REFERENCES, TRIGGER ON TABLE ${assertSafeIdentifier(tableName)} TO ${assertSafeIdentifier(runtimeRole)}`,
+        );
+      }
+      if (options.grantTableGrantOption) {
+        await migrationClient.query(
+          `GRANT SELECT ON TABLE ${assertSafeIdentifier(tableName)} TO ${assertSafeIdentifier(runtimeRole)} WITH GRANT OPTION`,
+        );
+      }
+      if (options.grantColumnPrivilege) {
+        await migrationClient.query(
+          `GRANT REFERENCES (id) ON TABLE ${assertSafeIdentifier(tableName)} TO ${assertSafeIdentifier(runtimeRole)}`,
+        );
+      }
+      if (options.grantPublicColumnPrivilege) {
+        await migrationClient.query(
+          `GRANT REFERENCES (id) ON TABLE ${assertSafeIdentifier(tableName)} TO PUBLIC`,
         );
       }
       await migrationClient.query(`GRANT USAGE ON TYPE ${assertSafeIdentifier(enumName)} TO ${assertSafeIdentifier(runtimeRole)}`);
@@ -175,6 +199,26 @@ async function withAuditFixture(options, fn) {
         );
         await migrationClient.query(
           `ALTER DEFAULT PRIVILEGES FOR ROLE ${assertSafeIdentifier(migrationRole)} IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO ${assertSafeIdentifier(runtimeRole)}`,
+        );
+      }
+      if (options.grantUnexpectedDefaultTablePrivileges) {
+        await migrationClient.query(
+          `ALTER DEFAULT PRIVILEGES FOR ROLE ${assertSafeIdentifier(migrationRole)} IN SCHEMA public GRANT TRUNCATE, REFERENCES, TRIGGER ON TABLES TO ${assertSafeIdentifier(runtimeRole)}`,
+        );
+      }
+      if (options.grantDefaultTableGrantOption) {
+        await migrationClient.query(
+          `ALTER DEFAULT PRIVILEGES FOR ROLE ${assertSafeIdentifier(migrationRole)} IN SCHEMA public GRANT SELECT ON TABLES TO ${assertSafeIdentifier(runtimeRole)} WITH GRANT OPTION`,
+        );
+      }
+      if (options.grantPublicDefaultTablePrivilege) {
+        await migrationClient.query(
+          `ALTER DEFAULT PRIVILEGES FOR ROLE ${assertSafeIdentifier(migrationRole)} IN SCHEMA public GRANT SELECT ON TABLES TO PUBLIC`,
+        );
+      }
+      if (options.grantGlobalDefaultTablePrivilege) {
+        await migrationClient.query(
+          `ALTER DEFAULT PRIVILEGES FOR ROLE ${assertSafeIdentifier(migrationRole)} GRANT SELECT ON TABLES TO ${assertSafeIdentifier(runtimeRole)}`,
         );
       }
       if (options.grantDatabaseCreate) {
@@ -210,6 +254,42 @@ async function withAuditFixture(options, fn) {
 }
 
 describe("database grant inventory guardrails", () => {
+  it("rejects every table privilege outside non-grantable CRUD", () => {
+    assert.match(
+      collectTablePrivilegeAllowlistIssues({}, "table SavedSearch").join("\n"),
+      /exact table privilege state could not be read/,
+    );
+    assert.deepEqual(
+      collectTablePrivilegeAllowlistIssues(
+        {
+          column_grant_option_privileges: [],
+          column_privileges: [],
+          effective_privileges: ["SELECT", "INSERT", "UPDATE", "DELETE"],
+          grant_option_privileges: [],
+        },
+        "table SavedSearch",
+      ),
+      [],
+    );
+    assert.deepEqual(
+      collectTablePrivilegeAllowlistIssues(
+        {
+          column_grant_option_privileges: ["id:REFERENCES"],
+          column_privileges: ["id:REFERENCES"],
+          effective_privileges: ["SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "MAINTAIN"],
+          grant_option_privileges: ["SELECT"],
+        },
+        "table SavedSearch",
+      ),
+      [
+        "table SavedSearch has unexpected table privileges: MAINTAIN, TRUNCATE",
+        "table SavedSearch has grant options: SELECT",
+        "table SavedSearch has column privileges: id:REFERENCES",
+        "table SavedSearch has column grant options: id:REFERENCES",
+      ],
+    );
+  });
+
   it("derives the current runtime grant surface from schema and migrations", () => {
     const inventory = deriveGrantInventory();
 
@@ -248,6 +328,7 @@ describe("database grant inventory guardrails", () => {
     assert.match(script, /pg_policy/);
     assert.match(script, /relrowsecurity/);
     assert.match(script, /relforcerowsecurity/);
+    assert.match(script, /ROW LEVEL SECURITY enabled but zero policies/);
     assert.match(script, /string_agg\(p\.polname::text/);
     assert.match(script, /ROW LEVEL SECURITY is not enabled/);
     assert.match(script, /FORCE ROW LEVEL SECURITY is not enabled/);
@@ -293,11 +374,66 @@ describe("database grant inventory guardrails", () => {
       );
     });
 
+    await withAuditFixture({ grantUnexpectedTablePrivileges: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+      assert.match(
+        (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n"),
+        /has unexpected table privileges: REFERENCES, TRIGGER, TRUNCATE/,
+      );
+    });
+
+    await withAuditFixture({ grantTableGrantOption: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+      assert.match(
+        (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n"),
+        /has grant options: SELECT/,
+      );
+    });
+
+    await withAuditFixture({ grantColumnPrivilege: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+      assert.match(
+        (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n"),
+        /has column privileges: id:REFERENCES/,
+      );
+    });
+
+    await withAuditFixture({ grantPublicColumnPrivilege: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+      assert.match(
+        (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n"),
+        /has column privileges: id:REFERENCES/,
+      );
+    });
+
     await withAuditFixture({ defaultPrivileges: false }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
       assert.match(
         (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n"),
         /default privileges/,
       );
+    });
+
+    await withAuditFixture({ grantUnexpectedDefaultTablePrivileges: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+      assert.match(
+        (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n"),
+        /default table privileges .* has unexpected table privileges: REFERENCES, TRIGGER, TRUNCATE/,
+      );
+    });
+
+    await withAuditFixture({ grantDefaultTableGrantOption: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+      assert.match(
+        (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n"),
+        /default table privileges .* has grant options: SELECT/,
+      );
+    });
+
+    await withAuditFixture({ grantPublicDefaultTablePrivilege: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+      assert.match(
+        (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n"),
+        /default table privileges .* grant SELECT to PUBLIC/,
+      );
+    });
+
+    await withAuditFixture({ grantGlobalDefaultTablePrivilege: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+      const issues = (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n");
+      assert.match(issues, /default privileges .* do not grant SELECT on r objects/);
+      assert.match(issues, /default table privileges .* must be scoped to schema public/);
     });
 
     await withAuditFixture({ createParentRole: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
@@ -307,10 +443,24 @@ describe("database grant inventory guardrails", () => {
       );
     });
 
-    await withAuditFixture({ runtimeRoleAttributes: "BYPASSRLS" }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+    await withAuditFixture({ runtimeRoleAttributes: "LOGIN NOINHERIT BYPASSRLS" }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
       assert.match(
         (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n"),
         /rolbypassrls/,
+      );
+    });
+
+    await withAuditFixture({ runtimeRoleAttributes: "NOLOGIN NOINHERIT" }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+      assert.match(
+        (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n"),
+        /must have LOGIN/,
+      );
+    });
+
+    await withAuditFixture({ runtimeRoleAttributes: "LOGIN INHERIT" }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+      assert.match(
+        (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n"),
+        /must have NOINHERIT/,
       );
     });
 
@@ -331,7 +481,7 @@ describe("database grant inventory guardrails", () => {
     await withAuditFixture({ grantUntrackedTableSelect: true }, async ({ auditClient, inventory, migrationRole, runtimeRole, untrackedTableName }) => {
       assert.ok(
         (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory }))
-          .includes(`runtime role has SELECT on untracked public table ${untrackedTableName}`),
+          .includes(`runtime role or PUBLIC has SELECT on untracked public table ${untrackedTableName}`),
       );
     });
 
@@ -366,6 +516,27 @@ describe("database grant inventory guardrails", () => {
       assert.deepEqual(
         await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory }),
         [],
+      );
+    });
+
+    await withAuditFixture({ enableRls: true }, async ({ auditClient, inventory, migrationRole, runtimeRole, tableName }) => {
+      assert.ok(
+        (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory }))
+          .includes(`table ${tableName} has ROW LEVEL SECURITY enabled but zero policies`),
+      );
+    });
+
+    await withAuditFixture({
+      createRlsPolicy: true,
+      enableRls: true,
+      forceRls: true,
+      trackRlsPolicy: false,
+    }, async ({ auditClient, inventory, migrationRole, policyName, runtimeRole, tableName }) => {
+      assert.match(
+        (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n"),
+        new RegExp(
+          `table ${tableName} has live RLS policies \\(${policyName}\\) absent from the reviewed migration inventory`,
+        ),
       );
     });
 
@@ -540,7 +711,17 @@ describe("database grant inventory guardrails", () => {
     assert.match(runbook, /grant-audit\s+inventory or explicitly `REVOKE` runtime access/);
     assert.match(launch, /GRANT_AUDIT_DATABASE_URL="\$DIRECT_URL"/);
     assert.match(launch, /RUNTIME_DB_ROLE=grainline_app_runtime/);
-    assert.match(launch, /MIGRATION_DB_ROLE=grainline_migration_owner/);
+    assert.match(launch, /MIGRATION_DB_ROLE=neondb_owner/);
+    assert.match(launch, /clean checkout of the exact release commit/);
+    const ownershipIndex = launch.indexOf('query `public."SavedSearch"` ownership');
+    const provisionIndex = launch.indexOf("scripts/provision-runtime-db-role.sql");
+    const migrateIndex = launch.indexOf("npx prisma migrate deploy");
+    const statusIndex = launch.indexOf("npx prisma migrate status");
+    const auditIndex = launch.indexOf("npm run audit:db-grants");
+    assert.ok(ownershipIndex < provisionIndex);
+    assert.ok(provisionIndex < migrateIndex);
+    assert.ok(migrateIndex < statusIndex);
+    assert.ok(statusIndex < auditIndex);
     assert.match(rls, /public-default dependency/);
     assert.match(rls, /runtime `EXECUTE` is missing/);
     assert.match(pkg, /"audit:db-grants": "node scripts\/audit-runtime-db-grants\.mjs"/);
@@ -559,6 +740,8 @@ describe("database grant inventory guardrails", () => {
     assert.match(provision, /current_user/);
     assert.match(provision, /session_user/);
     assert.match(provision, /rolbypassrls/);
+    assert.match(provision, /ALTER ROLE %I LOGIN NOINHERIT/);
+    assert.match(provision, /REVOKE %s \(%s\) ON TABLE %I\.%I FROM %I/);
     assert.match(provision, /pg_auth_members/);
     const guardResultCount = (provision.match(/^\\gset$/gm) ?? []).length;
     assert.equal(guardResultCount, 8);
@@ -574,6 +757,11 @@ describe("database grant inventory guardrails", () => {
     assert.match(provision, /GRANT USAGE ON SCHEMA public TO :"runtime_role"/);
     assert.match(provision, /REVOKE CREATE ON SCHEMA public FROM :"runtime_role"/);
     assert.match(provision, /REVOKE CREATE ON DATABASE/);
+    assert.match(provision, /aclexplode/);
+    assert.match(provision, /REVOKE %s ON TABLE %I\.%I FROM %I/);
+    assert.match(provision, /REVOKE GRANT OPTION FOR %s ON TABLE %I\.%I FROM %I/);
+    assert.match(provision, /ALTER DEFAULT PRIVILEGES FOR ROLE %I REVOKE %s ON TABLES FROM %I/);
+    assert.match(provision, /ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA %I REVOKE GRANT OPTION FOR %s ON TABLES FROM %I/);
     assert.match(provision, /_prisma_migrations/);
     assert.match(provision, /ALTER DEFAULT PRIVILEGES FOR ROLE :"migration_role" IN SCHEMA public\s+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO :"runtime_role"/);
     assert.match(provision, /ALTER DEFAULT PRIVILEGES FOR ROLE :"migration_role" IN SCHEMA public\s+GRANT USAGE, SELECT ON SEQUENCES TO :"runtime_role"/);
