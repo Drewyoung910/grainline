@@ -675,8 +675,8 @@ export async function claimProviderRuntimeRunSlot(config, { runId, runSlot }) {
     const runClaimTableRef = `${quoteIdentifier(config.schemaName)}.${quoteIdentifier(config.runClaimTableName)}`;
     const claimed = await client.query(
       `INSERT INTO ${runClaimTableRef} (run_id, run_slot, deployment_id, commit_sha)
-       SELECT $1, $2, $3, $4
-       WHERE $2 = 1
+       SELECT $1, $2::smallint, $3, $4
+       WHERE $2::smallint = 1::smallint
           OR EXISTS (
             SELECT 1
             FROM ${runClaimTableRef}

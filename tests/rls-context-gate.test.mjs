@@ -318,6 +318,8 @@ describe("RLS context acceptance gate guardrails", () => {
 
     assert.match(script, /PRIMARY KEY \(run_id, run_slot\)/);
     assert.match(script, /ON CONFLICT \(run_id, run_slot\) DO NOTHING/);
+    assert.match(script, /SELECT \$1, \$2::smallint, \$3, \$4/);
+    assert.match(script, /WHERE \$2::smallint = 1::smallint/);
     assert.match(
       script,
       /run_slot = 1[\s\S]*status = 'passed'[\s\S]*deployment_id = \$3[\s\S]*commit_sha = \$4/,
