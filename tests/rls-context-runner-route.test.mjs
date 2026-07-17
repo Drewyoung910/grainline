@@ -33,6 +33,10 @@ describe("RLS context provider-runtime runner", () => {
     assert.match(route, /buildEvidencePayload/);
     assert.match(route, /runIdSha256: digest\(runId\)\.toString\(["']hex["']\)/);
     assert.doesNotMatch(route, /databaseUrl|adminDatabaseUrl|connectionString/);
+    assert.match(route, /classifyRunnerError/);
+    assert.match(route, /console\.error\([\s\S]*\{ code, stage \}/);
+    assert.doesNotMatch(route, /console\.error\([^\n]*error/);
+    assert.match(route, /error: "RLS context gate failed before sanitized evidence was available"/);
   });
 
   it("exempts only the exact runner path from Clerk session middleware", () => {

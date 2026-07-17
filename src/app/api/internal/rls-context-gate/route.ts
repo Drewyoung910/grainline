@@ -44,6 +44,32 @@ function privateJson(body: unknown, status = 200) {
   });
 }
 
+type RunnerStage = "parse_config" | "claim_slot" | "run_gate" | "complete_slot";
+
+function classifyRunnerError(error: unknown, stage: RunnerStage) {
+  if (stage !== "parse_config") {
+    return `${stage}_failed`;
+  }
+
+  const message = error instanceof Error ? error.message : "";
+  const knownConfigurationErrors: Array<[string, string]> = [
+    ["VERCEL_DEPLOYMENT_ID", "provider_deployment_id_invalid"],
+    ["VERCEL_GIT_COMMIT_SHA", "provider_commit_sha_invalid"],
+    ["VERCEL_REGION", "provider_region_invalid"],
+    ["RLS_CONTEXT_GATE_DATABASE_URL", "runtime_database_url_invalid"],
+    ["RLS_CONTEXT_GATE_LOCALITY_CONFIRM", "locality_confirmation_invalid"],
+    ["RLS_CONTEXT_GATE_EXPECTED_DATABASE_ENDPOINT_ID", "database_endpoint_identity_invalid"],
+    ["RLS_CONTEXT_GATE_EXPECTED_DATABASE_NAME", "database_name_invalid"],
+    ["RLS_CONTEXT_GATE_EXPECTED_DATABASE_REGION", "database_region_invalid"],
+    ["RLS_CONTEXT_GATE_EXPECTED_EXECUTION_REGION", "execution_region_invalid"],
+    ["RLS_CONTEXT_GATE_RUNTIME_ROLE", "runtime_role_invalid"],
+    ["RLS_CONTEXT_GATE_CONFIRM", "staging_confirmation_invalid"],
+  ];
+
+  return knownConfigurationErrors.find(([needle]) => message.includes(needle))?.[1]
+    ?? "gate_configuration_invalid";
+}
+
 export async function POST(request: Request) {
   // This operational proof endpoint must never execute on a production deploy.
   if (process.env.VERCEL_ENV !== "preview") {
@@ -105,8 +131,10 @@ export async function POST(request: Request) {
     VERCEL_REGION: process.env.VERCEL_REGION,
   };
 
+  let stage: RunnerStage = "parse_config";
   try {
     const config = parseGateConfig(gateEnv);
+    stage = "claim_slot";
     const claimed = await claimProviderRuntimeRunSlot(config, {
       runId,
       runSlot: parsed.runSlot,
@@ -115,6 +143,7 @@ export async function POST(request: Request) {
       return privateJson({ error: "Run slot already consumed" }, 409);
     }
     const startedAt = new Date().toISOString();
+    stage = "run_gate";
     const result = await runAcceptanceGate(config);
     const finishedAt = new Date().toISOString();
     const status = result.issues.length > 0 ? "failed" : "passed";
@@ -124,6 +153,7 @@ export async function POST(request: Request) {
       { finishedAt, startedAt, status },
       gateEnv,
     ) as Record<string, unknown>;
+    stage = "complete_slot";
     await completeProviderRuntimeRunSlot(config, {
       runId,
       runSlot: parsed.runSlot,
@@ -136,8 +166,16 @@ export async function POST(request: Request) {
         runSlot: parsed.runSlot,
       },
     }, result.issues.length > 0 ? 422 : 200);
-  } catch {
-    // Detailed DB errors stay in provider logs; never reflect connection data.
-    return privateJson({ error: "RLS context gate failed before sanitized evidence was available" }, 500);
+  } catch (error) {
+    // Never log or reflect the raw error: connection failures may contain host
+    // or role details. Stage + whitelisted code are sufficient to diagnose the
+    // temporary runner without weakening evidence sanitization.
+    const code = classifyRunnerError(error, stage);
+    console.error("RLS context gate failed before sanitized evidence", { code, stage });
+    return privateJson({
+      code,
+      error: "RLS context gate failed before sanitized evidence was available",
+      stage,
+    }, 500);
   }
 }
