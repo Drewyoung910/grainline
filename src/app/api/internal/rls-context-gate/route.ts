@@ -155,6 +155,7 @@ export async function POST(request: Request) {
     ) as Record<string, unknown>;
     stage = "complete_slot";
     await completeProviderRuntimeRunSlot(config, {
+      evidence,
       runId,
       runSlot: parsed.runSlot,
       succeeded: result.issues.length === 0,

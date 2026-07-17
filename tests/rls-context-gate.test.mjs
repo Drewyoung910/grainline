@@ -325,6 +325,10 @@ describe("RLS context acceptance gate guardrails", () => {
       /run_slot = 1[\s\S]*status = 'passed'[\s\S]*deployment_id = \$3[\s\S]*commit_sha = \$4/,
     );
     assert.match(script, /status = 'running'/);
+    assert.match(script, /evidence jsonb/);
+    assert.match(script, /ADD COLUMN IF NOT EXISTS evidence jsonb/);
+    assert.match(script, /SET status = \$3, finished_at = now\(\), evidence = \$6::jsonb/);
+    assert.match(script, /sanitized evidence exceeds 256 KiB/);
     assert.match(script, /succeeded \? "passed" : "failed"/);
   });
 
@@ -588,7 +592,12 @@ describe("RLS context acceptance gate guardrails", () => {
       assert.equal(await claimProviderRuntimeRunSlot(claimConfig, { runId, runSlot: 1 }), true);
       assert.equal(await claimProviderRuntimeRunSlot(claimConfig, { runId, runSlot: 1 }), false);
       assert.equal(await claimProviderRuntimeRunSlot(claimConfig, { runId, runSlot: 2 }), false);
-      await completeProviderRuntimeRunSlot(claimConfig, { runId, runSlot: 1, succeeded: true });
+      await completeProviderRuntimeRunSlot(claimConfig, {
+        evidence: { result: { issueCount: 0 }, run: { status: "runtime_candidate_passed" } },
+        runId,
+        runSlot: 1,
+        succeeded: true,
+      });
       assert.equal(await claimProviderRuntimeRunSlot({
         ...claimConfig,
         providerDeploymentId: "dpl_ci_other",
@@ -598,7 +607,12 @@ describe("RLS context acceptance gate guardrails", () => {
         providerCommitSha: "fedcba0987654321",
       }, { runId, runSlot: 2 }), false);
       assert.equal(await claimProviderRuntimeRunSlot(claimConfig, { runId, runSlot: 2 }), true);
-      await completeProviderRuntimeRunSlot(claimConfig, { runId, runSlot: 2, succeeded: true });
+      await completeProviderRuntimeRunSlot(claimConfig, {
+        evidence: { result: { issueCount: 0 }, run: { status: "runtime_candidate_passed" } },
+        runId,
+        runSlot: 2,
+        succeeded: true,
+      });
 
       const result = await runAcceptanceGate({
         ...config,

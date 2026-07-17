@@ -43,6 +43,7 @@ export function claimProviderRuntimeRunSlot(
 export function completeProviderRuntimeRunSlot(
   config: RlsContextGateConfig,
   completion: {
+    evidence: Record<string, unknown>;
     runId: string;
     runSlot: 1 | 2;
     succeeded: boolean;

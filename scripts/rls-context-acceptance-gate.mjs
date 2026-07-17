@@ -612,15 +612,17 @@ export async function prepareCanary(config) {
          status text NOT NULL DEFAULT 'running' CHECK (status IN ('running', 'passed', 'failed')),
          claimed_at timestamptz NOT NULL DEFAULT now(),
          finished_at timestamptz,
+         evidence jsonb,
          PRIMARY KEY (run_id, run_slot)
        )`,
     );
+    await client.query(`ALTER TABLE ${runClaimTableRef} ADD COLUMN IF NOT EXISTS evidence jsonb`);
     await client.query(`REVOKE ALL ON TABLE ${runClaimTableRef} FROM PUBLIC`);
     await client.query(`GRANT USAGE ON SCHEMA ${quoteIdentifier(config.schemaName)} TO ${quoteIdentifier(config.runtimeRole)}`);
     await client.query(`GRANT SELECT ON TABLE ${tableRef} TO ${quoteIdentifier(config.runtimeRole)}`);
     await client.query(`GRANT INSERT, SELECT ON TABLE ${runClaimTableRef} TO ${quoteIdentifier(config.runtimeRole)}`);
     await client.query(
-      `GRANT UPDATE (status, finished_at) ON TABLE ${runClaimTableRef} TO ${quoteIdentifier(config.runtimeRole)}`,
+      `GRANT UPDATE (status, finished_at, evidence) ON TABLE ${runClaimTableRef} TO ${quoteIdentifier(config.runtimeRole)}`,
     );
     await client.query(`ALTER TABLE ${tableRef} DISABLE ROW LEVEL SECURITY`);
     await client.query(`DROP POLICY IF EXISTS ${quoteIdentifier(config.policyName)} ON ${tableRef}`);
@@ -696,14 +698,21 @@ export async function claimProviderRuntimeRunSlot(config, { runId, runSlot }) {
   }
 }
 
-export async function completeProviderRuntimeRunSlot(config, { runId, runSlot, succeeded }) {
+export async function completeProviderRuntimeRunSlot(config, { evidence, runId, runSlot, succeeded }) {
+  if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)) {
+    throw new Error("RLS context gate sanitized evidence object is required");
+  }
+  const serializedEvidence = JSON.stringify(evidence);
+  if (Buffer.byteLength(serializedEvidence, "utf8") > 256 * 1024) {
+    throw new Error("RLS context gate sanitized evidence exceeds 256 KiB");
+  }
   const client = createClient(config.databaseUrl, config);
   await client.connect();
   try {
     const runClaimTableRef = `${quoteIdentifier(config.schemaName)}.${quoteIdentifier(config.runClaimTableName)}`;
     const completed = await client.query(
       `UPDATE ${runClaimTableRef}
-       SET status = $3, finished_at = now()
+       SET status = $3, finished_at = now(), evidence = $6::jsonb
        WHERE run_id = $1
          AND run_slot = $2
          AND status = 'running'
@@ -716,6 +725,7 @@ export async function completeProviderRuntimeRunSlot(config, { runId, runSlot, s
         succeeded ? "passed" : "failed",
         config.providerDeploymentId,
         config.providerCommitSha,
+        serializedEvidence,
       ],
     );
     if (completed.rowCount !== 1) {

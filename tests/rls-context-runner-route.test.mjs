@@ -31,6 +31,7 @@ describe("RLS context provider-runtime runner", () => {
 
   it("returns only sanitized candidate evidence plus a non-secret run-id digest", () => {
     assert.match(route, /buildEvidencePayload/);
+    assert.match(route, /completeProviderRuntimeRunSlot\(config, \{[\s\S]*evidence,/);
     assert.match(route, /runIdSha256: digest\(runId\)\.toString\(["']hex["']\)/);
     assert.doesNotMatch(route, /databaseUrl|adminDatabaseUrl|connectionString/);
     assert.match(route, /classifyRunnerError/);
