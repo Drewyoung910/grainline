@@ -23,8 +23,9 @@ describe("RLS feasibility plan guardrails", () => {
 
     assert.match(plan, /Do not enable RLS directly on production tables before launch/);
     assert.match(plan, /staging prototype on low-blast-radius tables/);
-    assert.match(plan, /Notification/);
-    assert.match(plan, /SavedSearch/);
+    assert.match(plan, /1\. \*\*SavedSearch\*\*[\s\S]*2\. \*\*Notification\*\*/);
+    assert.match(plan, /58 model tables/);
+    assert.match(plan, /exact row id/);
   });
 
   it("requires role separation and transaction-local request context", () => {
@@ -52,6 +53,7 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(defense, /protected-read latency/);
     assert.match(defense, /connection-hold time/);
     assert.match(defense, /set_config` wrapper as a harmless no-op/);
+    assert.match(defense, /generic connection\/performance baseline/);
   });
 
   it("defines concrete staging pass/fail criteria for pooled request context", () => {
@@ -113,7 +115,7 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(ownerAccess, /type: NotificationType\.LOW_STOCK/);
   });
 
-  it("centralizes Notification owner reads and updates for the first RLS prototype", () => {
+  it("centralizes Notification owner reads and updates for the second RLS prototype", () => {
     const ownerAccess = source("src/lib/notificationOwnerAccess.ts");
     const bellRoute = source("src/app/api/notifications/route.ts");
     const readAllRoute = source("src/app/api/notifications/read-all/route.ts");
@@ -165,12 +167,14 @@ describe("RLS feasibility plan guardrails", () => {
     assert.deepEqual(directCallsByFile, allowedDirectCalls);
   });
 
-  it("centralizes SavedSearch owner reads and writes for the direct-owner RLS prototype", () => {
+  it("requires context-wrapped SavedSearch access for the first real-table RLS prototype", () => {
     const ownerAccess = source("src/lib/savedSearchOwnerAccess.ts");
     const savedRoute = source("src/app/api/search/saved/route.ts");
     const dashboard = source("src/app/dashboard/page.tsx");
+    const accountOverview = source("src/app/account/page.tsx");
     const accountSavedSearches = source("src/app/account/saved-searches/page.tsx");
     const accountExport = source("src/app/api/account/export/route.ts");
+    const accountDeletion = source("src/lib/accountDeletion.ts");
 
     assert.match(ownerAccess, /export type SavedSearchOwnerAccessClient = Pick<Prisma\.TransactionClient, "savedSearch">/);
     assert.match(ownerAccess, /export type OwnerSavedSearchCriteria/);
@@ -180,7 +184,9 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(ownerAccess, /export async function createOwnerSavedSearch/);
     assert.match(ownerAccess, /export async function listOwnerSavedSearches/);
     assert.match(ownerAccess, /export async function deleteOwnerSavedSearch/);
-    assert.match(ownerAccess, /db: SavedSearchOwnerAccessClient = prisma/);
+    assert.match(ownerAccess, /export async function deleteAllOwnerSavedSearches/);
+    assert.doesNotMatch(ownerAccess, /SavedSearchOwnerAccessClient = prisma/);
+    assert.doesNotMatch(ownerAccess, /from "@\/lib\/db"/);
     assert.match(ownerAccess, /db\.savedSearch\.findFirst/);
     assert.match(ownerAccess, /db\.savedSearch\.count/);
     assert.match(ownerAccess, /db\.savedSearch\.create/);
@@ -189,24 +195,36 @@ describe("RLS feasibility plan guardrails", () => {
     assert.doesNotMatch(ownerAccess, /Promise\.all/);
     assert.doesNotMatch(ownerAccess, /prisma\.savedSearch\.(?:count|create|deleteMany|findFirst|findMany)/);
 
+    assert.match(savedRoute, /withSerializableDbUserContext\(me\.id, async \(tx\) =>/);
     assert.match(savedRoute, /findDuplicateOwnerSavedSearch\(me\.id, criteria, tx\)/);
     assert.match(savedRoute, /countOwnerSavedSearches\(me\.id, tx\)/);
     assert.match(savedRoute, /createOwnerSavedSearch\(me\.id, criteria, tx\)/);
-    assert.match(savedRoute, /listOwnerSavedSearches\(me\.id\)/);
-    assert.match(savedRoute, /deleteOwnerSavedSearch\(me\.id, id\)/);
-    assert.match(dashboard, /listOwnerSavedSearches\(me\.id, \{ take: 20 \}\)/);
-    assert.match(dashboard, /deleteOwnerSavedSearch\(me\.id, searchId\)/);
-    assert.match(accountSavedSearches, /listOwnerSavedSearches\(me\.id\)/);
-    assert.match(accountSavedSearches, /deleteOwnerSavedSearch\(me\.id, searchId\)/);
-    assert.match(accountExport, /listOwnerSavedSearches\(user\.id\)/);
+    assert.match(savedRoute, /withDbUserContext\(me\.id, \(tx\) => listOwnerSavedSearches\(me\.id, tx\)\)/);
+    assert.match(savedRoute, /withDbUserContext\(me\.id, \(tx\) => deleteOwnerSavedSearch\(me\.id, id, tx\)\)/);
+    assert.match(dashboard, /withDbUserContext\(me\.id, \(tx\) => listOwnerSavedSearches\(me\.id, tx, \{ take: 20 \}\)\)/);
+    assert.match(dashboard, /withDbUserContext\(me\.id, \(tx\) => deleteOwnerSavedSearch\(me\.id, searchId, tx\)\)/);
+    assert.match(accountOverview, /withDbUserContext\(me\.id, \(tx\) => listOwnerSavedSearches\(me\.id, tx, \{ take: 3 \}\)\)/);
+    assert.match(accountSavedSearches, /withDbUserContext\(me\.id, \(tx\) => listOwnerSavedSearches\(me\.id, tx\)\)/);
+    assert.match(accountSavedSearches, /withDbUserContext\(me\.id, \(tx\) => deleteOwnerSavedSearch\(me\.id, searchId, tx\)\)/);
+    assert.match(accountExport, /withDbUserContext\(user\.id, \(tx\) => listOwnerSavedSearches\(user\.id, tx\)\)/);
+    assert.match(accountDeletion, /await setDbUserContext\(tx, userId\);/);
+    assert.match(accountDeletion, /deleteAllOwnerSavedSearches\(user\.id, tx\)/);
+    const deletionTransactionStart = accountDeletion.indexOf("const result = await prisma.$transaction(async (tx) => {");
+    const deletionContextSet = accountDeletion.indexOf("await setDbUserContext(tx, userId);", deletionTransactionStart);
+    const deletionUserRead = accountDeletion.indexOf("const user = await tx.user.findUnique", deletionTransactionStart);
+    assert.notEqual(deletionTransactionStart, -1);
+    assert.notEqual(deletionContextSet, -1);
+    assert.notEqual(deletionUserRead, -1);
+    assert.ok(
+      deletionContextSet < deletionUserRead,
+      "account deletion must set target-user context before any transaction query",
+    );
   });
 
   it("blocks new direct owner-style SavedSearch reads and writes outside the owner helper", () => {
     const directSavedSearchAccessPattern =
       /\b[A-Za-z_$][\w$]*\.savedSearch\.(?:count|create|delete|deleteMany|findFirst|findMany|findUnique|update|updateMany)\b/g;
-    const allowedDirectCalls = {
-      "src/lib/accountDeletion.ts": ["tx.savedSearch.deleteMany"],
-    };
+    const allowedDirectCalls = {};
     const directCallsByFile = {};
 
     for (const file of sourceFiles("src")) {

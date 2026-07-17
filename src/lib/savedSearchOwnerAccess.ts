@@ -1,5 +1,4 @@
 import type { Category, ListingType, Prisma } from "@prisma/client";
-import { prisma } from "@/lib/db";
 
 export type SavedSearchOwnerAccessClient = Pick<Prisma.TransactionClient, "savedSearch">;
 
@@ -42,7 +41,7 @@ export function ownerSavedSearchWhere(
 export async function findDuplicateOwnerSavedSearch(
   userId: string,
   criteria: OwnerSavedSearchCriteria,
-  db: SavedSearchOwnerAccessClient = prisma,
+  db: SavedSearchOwnerAccessClient,
 ) {
   return db.savedSearch.findFirst({
     where: ownerSavedSearchWhere(userId, criteria),
@@ -52,7 +51,7 @@ export async function findDuplicateOwnerSavedSearch(
 
 export async function countOwnerSavedSearches(
   userId: string,
-  db: SavedSearchOwnerAccessClient = prisma,
+  db: SavedSearchOwnerAccessClient,
 ) {
   return db.savedSearch.count({ where: { userId } });
 }
@@ -60,7 +59,7 @@ export async function countOwnerSavedSearches(
 export async function createOwnerSavedSearch(
   userId: string,
   criteria: OwnerSavedSearchCriteria,
-  db: SavedSearchOwnerAccessClient = prisma,
+  db: SavedSearchOwnerAccessClient,
 ) {
   return db.savedSearch.create({
     data: {
@@ -84,8 +83,8 @@ export async function createOwnerSavedSearch(
 
 export async function listOwnerSavedSearches(
   userId: string,
+  db: SavedSearchOwnerAccessClient,
   { take }: { take?: number } = {},
-  db: SavedSearchOwnerAccessClient = prisma,
 ) {
   const query: Prisma.SavedSearchFindManyArgs = {
     where: { userId },
@@ -98,7 +97,14 @@ export async function listOwnerSavedSearches(
 export async function deleteOwnerSavedSearch(
   userId: string,
   searchId: string,
-  db: SavedSearchOwnerAccessClient = prisma,
+  db: SavedSearchOwnerAccessClient,
 ) {
   return db.savedSearch.deleteMany({ where: { id: searchId, userId } });
+}
+
+export async function deleteAllOwnerSavedSearches(
+  userId: string,
+  db: SavedSearchOwnerAccessClient,
+) {
+  return db.savedSearch.deleteMany({ where: { userId } });
 }

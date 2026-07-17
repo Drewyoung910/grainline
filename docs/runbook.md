@@ -416,6 +416,14 @@ RLS staging context proof:
   Keep `RLS_CONTEXT_GATE_DATABASE_URL` on the pooled runtime-role URL, not
   `DIRECT_URL`; `DIRECT_URL` is only for the optional `RLS_CONTEXT_GATE_PREPARE=1`
   setup path.
+- Run the prepare pass and repeat pass on the same commit and configuration.
+  Retain both evidence artifacts; one successful run is not promotion evidence.
+- Keep `RLS_CONTEXT_GATE_POOL_SIZE` at or above
+  `RLS_CONTEXT_GATE_BURST_CONCURRENCY`. The gate enforces this so its reported
+  2x burst workload cannot be silently reduced by a smaller client pool.
+- `RLS_CONTEXT_GATE_PREPARE=1` intentionally leaves the synthetic canary schema,
+  table, policy, and rows in staging. The rollback probe below toggles and
+  restores RLS; it does not clean up that canary.
 - Retain the sanitized evidence JSON from `RLS_CONTEXT_GATE_EVIDENCE_PATH` with
   launch/RLS records. It must not contain database URLs or credentials.
 - To rerun only the rollback/no-op portion with an already prepared canary, add
@@ -437,6 +445,13 @@ RLS staging context proof:
   mismatch, or flaky repeated result as a stop signal. Keep app-layer
   authorization plus the least-privilege runtime role as the active database
   defense until the root cause is fixed and the full staging gate passes again.
+- Before promoting the first real-table `SavedSearch` policy, seed a
+  non-customer staging user with a known saved-search row. Require the exact row
+  id through API, account, dashboard, and export reads, then exercise deletion
+  and account-cleanup entry points and verify the row is gone under the same
+  trusted target-user context. A successful response with an empty collection
+  is a missing-context failure when the fixture exists. Retain only bounded
+  synthetic ids/counts.
 - After production RLS rollout, rerun the gate after Neon pooler, Prisma,
   `@prisma/adapter-pg`, `pg`, transaction timeout, runtime role, grant, or policy
   changes. Keep any sampled owner-invariant checks or synthetic canary probes on

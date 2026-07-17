@@ -560,6 +560,17 @@ describe("database grant inventory guardrails", () => {
     assert.match(provision, /session_user/);
     assert.match(provision, /rolbypassrls/);
     assert.match(provision, /pg_auth_members/);
+    const guardResultCount = (provision.match(/^\\gset$/gm) ?? []).length;
+    assert.equal(guardResultCount, 8);
+    assert.equal(
+      (provision.match(/EXISTS \(SELECT 1 FROM failure\) AS grainline_role_provisioning_failed/g) ?? []).length,
+      guardResultCount,
+    );
+    assert.equal(
+      (provision.match(/^\\if :grainline_role_provisioning_failed$/gm) ?? []).length,
+      guardResultCount,
+    );
+    assert.doesNotMatch(provision, /^\\if :\{\?grainline_role_provisioning_failure\}$/m);
     assert.match(provision, /GRANT USAGE ON SCHEMA public TO :"runtime_role"/);
     assert.match(provision, /REVOKE CREATE ON SCHEMA public FROM :"runtime_role"/);
     assert.match(provision, /REVOKE CREATE ON DATABASE/);

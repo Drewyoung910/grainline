@@ -192,10 +192,15 @@ export function parseGateConfig(env = process.env) {
     min: 1,
     max: 1024,
   });
-  const poolSize = parsePositiveInt(env, "RLS_CONTEXT_GATE_POOL_SIZE", Math.max(DEFAULT_POOL_SIZE, targetConcurrency), {
+  const poolSize = parsePositiveInt(env, "RLS_CONTEXT_GATE_POOL_SIZE", Math.max(DEFAULT_POOL_SIZE, burstConcurrency), {
     min: 1,
     max: 512,
   });
+  if (poolSize < burstConcurrency) {
+    throw new Error(
+      "RLS_CONTEXT_GATE_POOL_SIZE must be at least RLS_CONTEXT_GATE_BURST_CONCURRENCY so the burst workload is not silently capped",
+    );
+  }
   const connectionTimeoutMs = parsePositiveInt(env, "RLS_CONTEXT_GATE_CONNECTION_TIMEOUT_MS", DEFAULT_CONNECTION_TIMEOUT_MS, {
     min: 500,
     max: 120_000,

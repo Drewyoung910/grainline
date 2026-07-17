@@ -1,6 +1,6 @@
 # Grainline RLS Feasibility Plan
 
-Last updated: 2026-07-07
+Last updated: 2026-07-16
 
 Grainline does not currently use PostgreSQL Row Level Security. The production control plane is application-layer authorization through Clerk middleware, route handlers, server actions, shared visibility helpers, and ownership predicates. RLS is still worth evaluating as defense in depth, but it must be staged. A broad RLS rollout with Prisma and pooled Neon connections can break legitimate traffic or create false confidence if runtime roles still own tables or bypass policies.
 
@@ -11,6 +11,13 @@ context proof, and first table prototypes lives in
 ## Decision
 
 Do not enable RLS directly on production tables before launch. First build and test a staging prototype on low-blast-radius tables, then expand only after request context, role separation, admin/cron/webhook bypasses, and rollback are proven.
+
+Current staging result (2026-07-16): the isolated runtime/migration role split,
+explicit grant provisioning, grant audit, and migration-status checks pass. The
+first pooled context run passed isolation checks but failed its performance
+thresholds and therefore does not authorize deployment or a real-table policy.
+The corrected gate still requires two consecutive passing runs on the same
+commit and configuration.
 
 ## Required Architecture
 
@@ -28,7 +35,7 @@ Do not enable RLS directly on production tables before launch. First build and t
 - **Grant hygiene**: every future migration that creates tables, sequences, or
   `grainline_*` functions must grant the runtime role the minimum required
   table/sequence privileges and `EXECUTE` on functions that constraints,
-  defaults, or app queries invoke. Current source inventory is 56 model tables,
+  defaults, or app queries invoke. Current source inventory is 58 model tables,
   20 enum types, 1 custom `grainline_*` function, 1 source-derived extension
   (`pg_trgm`), and 0 sequences. Function and enum access may be covered by
   Postgres `PUBLIC` defaults today, but that is a public-default dependency to
@@ -64,15 +71,21 @@ Do not enable RLS directly on production tables before launch. First build and t
   `timeout`/`maxWait` behavior, connection-hold time, and pool saturation under
   realistic staging concurrency before widening the wrapper to hot paths such as
   notification reads.
+- Use `npm run audit:rls-context` as the generic wrapped-versus-unwrapped
+  connection and latency baseline. Do not create a second generic benchmark,
+  but do run route- and table-specific staging smoke tests against realistic
+  `SavedSearch` data before promoting its policy.
 - Stop the RLS rollout if any of these proofs are flaky under the pooler.
 
 ## Prototype Sequence
 
-1. **Notification**: owner column is direct (`Notification.userId`) for user
+1. **SavedSearch**: owner column is direct (`SavedSearch.userId`). Prototype
+   current-user `SELECT`/`INSERT`/`DELETE` first as the lowest-risk real-table
+   adoption proof, including the existing account-deletion transaction.
+2. **Notification**: owner column is direct (`Notification.userId`) for user
    reads and mark-read updates, but notification creation/deletion is not
-   owner-symmetric. Prototype user-scoped `SELECT`/`UPDATE` first, while
-   explicitly designing service/cross-user `INSERT` and cleanup `DELETE`.
-2. **SavedSearch**: owner column is direct (`SavedSearch.userId`). Prototype `SELECT`/`INSERT`/`DELETE` policies for the current user.
+   owner-symmetric. Prototype user-scoped `SELECT`/`UPDATE` only after choosing
+   and testing service/cross-user `INSERT` and cleanup `DELETE` behavior.
 3. **Cart + CartItem**: `Cart.userId` is direct; `CartItem` depends on the parent cart. This tests parent-join policies.
 4. **SavedBlogPost**: direct owner row, similar to SavedSearch. Prototype after
    Cart once account-deletion cleanup, account-export reads, account feed reads,
@@ -89,8 +102,8 @@ Do not enable RLS directly on production tables before launch. First build and t
 
 | Table | Current app-layer owner model | RLS difficulty | Prototype decision |
 |---|---|---:|---|
-| `Notification` | `userId` | Low | First prototype |
-| `SavedSearch` | `userId` | Low | Second prototype |
+| `Notification` | `userId` | Low for reads; asymmetric writes | Second prototype after service-write design |
+| `SavedSearch` | `userId` | Low | First real-table prototype |
 | `Cart` | `userId` | Low | After direct-owner prototype |
 | `CartItem` | Parent `Cart.userId` | Medium | Requires parent policy test |
 | `Favorite` | `userId`; public listing favorite counts and ranking use cross-user aggregates | High | Defer until public aggregate/count design exists |
@@ -126,13 +139,19 @@ Do not enable RLS directly on production tables before launch. First build and t
 - Route-level happy-path tests prove protected reads still return the current
   user's rows. DB-denial tests alone are insufficient because missing context
   wrappers can fail closed silently.
+- The first real-table staging proof must seed a non-customer user with a known
+  `SavedSearch` row and require that exact row id through every protected read
+  surface. An HTTP 200 with an empty collection is a failure when the fixture
+  exists. The cleanup proof must delete the synthetic row under the same trusted
+  target-user context and verify it is gone. Record only bounded synthetic ids
+  and counts; do not add a production bypass solely for observability.
 - Staging load/smoke tests prove the interactive-transaction wrapper does not
   turn slow protected reads into transaction timeouts or saturate the pooled
   connection budget before ordinary app traffic does.
 
 ## Notification Prototype Edge Cases
 
-`Notification` is the first prototype table, but it is not a simple
+`Notification` is the second prototype table, and it is not a simple
 `userId = app.user_id` table for every verb.
 
 - `createNotification()` writes rows for recipients, not necessarily for the
@@ -173,7 +192,7 @@ Do not enable RLS directly on production tables before launch. First build and t
 
 ## SavedSearch Prototype Edge Cases
 
-`SavedSearch` is closer to a direct-owner table, but its cap and writes still
+`SavedSearch` is the first real-table prototype, but its cap and writes still
 need retry/context discipline.
 
 - `SELECT`, `INSERT`, and `DELETE` can be owner-scoped to `app.user_id`.
@@ -185,9 +204,11 @@ need retry/context discipline.
   and account export also read saved searches and must be wrapped or redesigned
   before RLS is enabled.
 - Account deletion deletes saved searches as privacy cleanup. That transaction
-  must set target-user context or use an explicit cleanup bypass, or a
-  user-scoped `DELETE` policy can silently leave saved-search query/location
-  data behind.
+  already owns an interactive transaction, so it must call
+  `setDbUserContext(tx, targetUserId)` as the first statement on that transaction
+  client or use an explicit cleanup bypass. Never nest `withDbUserContext`
+  inside it. Otherwise a user-scoped `DELETE` policy can silently leave
+  saved-search query/location data behind.
 
 ## Cart + CartItem Prototype Edge Cases
 

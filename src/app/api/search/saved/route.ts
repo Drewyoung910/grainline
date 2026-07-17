@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
-import { Category, ListingType, Prisma } from "@prisma/client";
+import { Category, ListingType } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import { z } from "zod";
 import { ensureUser } from "@/lib/ensureUser";
@@ -15,8 +14,8 @@ import {
   readBoundedJson,
 } from "@/lib/requestBody";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
-import { withSerializableRetry } from "@/lib/transactionRetry";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { withDbUserContext, withSerializableDbUserContext } from "@/lib/dbUserContext";
 import {
   countOwnerSavedSearches,
   createOwnerSavedSearch,
@@ -151,18 +150,16 @@ export async function POST(req: NextRequest) {
     tags: normalizedTags,
   };
 
-  const result = await withSerializableRetry(() =>
-    prisma.$transaction(async (tx) => {
-      const existing = await findDuplicateOwnerSavedSearch(me.id, criteria, tx);
-      if (existing) return { id: existing.id, existing: true };
+  const result = await withSerializableDbUserContext(me.id, async (tx) => {
+    const existing = await findDuplicateOwnerSavedSearch(me.id, criteria, tx);
+    if (existing) return { id: existing.id, existing: true };
 
-      const count = await countOwnerSavedSearches(me.id, tx);
-      if (count >= 25) return { error: "limit" as const };
+    const count = await countOwnerSavedSearches(me.id, tx);
+    if (count >= 25) return { error: "limit" as const };
 
-      const saved = await createOwnerSavedSearch(me.id, criteria, tx);
-      return { id: saved.id, existing: false };
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }),
-  );
+    const saved = await createOwnerSavedSearch(me.id, criteria, tx);
+    return { id: saved.id, existing: false };
+  });
 
   if ("error" in result) {
     return privateJson({ error: "You can save up to 25 searches. Delete one before saving another." }, { status: 400 });
@@ -182,7 +179,7 @@ export async function GET() {
   const me = userResult.me;
   if (!me) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
-  const searches = await listOwnerSavedSearches(me.id);
+  const searches = await withDbUserContext(me.id, (tx) => listOwnerSavedSearches(me.id, tx));
 
   return privateJson({
     searches: searches.map((search) => ({
@@ -212,6 +209,6 @@ export async function DELETE(req: NextRequest) {
   const id = req.nextUrl.searchParams.get("id");
   if (!id) return privateJson({ error: "Missing id" }, { status: 400 });
 
-  await deleteOwnerSavedSearch(me.id, id);
+  await withDbUserContext(me.id, (tx) => deleteOwnerSavedSearch(me.id, id, tx));
   return privateJson({ ok: true });
 }

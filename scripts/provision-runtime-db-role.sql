@@ -33,68 +33,98 @@
 \quit 1
 \endif
 
-SELECT format(
-  'expected current_user and session_user to equal migration role %s, got current_user=%s session_user=%s',
-  :'migration_role',
-  current_user,
-  session_user
-) AS grainline_role_provisioning_failure
-WHERE current_user <> :'migration_role' OR session_user <> :'migration_role';
+WITH failure AS (
+  SELECT format(
+    'expected current_user and session_user to equal migration role %s, got current_user=%s session_user=%s',
+    :'migration_role',
+    current_user,
+    session_user
+  ) AS message
+  WHERE current_user <> :'migration_role' OR session_user <> :'migration_role'
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '') AS grainline_role_provisioning_failure;
 \gset
-\if :{?grainline_role_provisioning_failure}
+\if :grainline_role_provisioning_failed
 \echo :grainline_role_provisioning_failure
 \quit 1
 \endif
+\unset grainline_role_provisioning_failed
 \unset grainline_role_provisioning_failure
 
-SELECT format('runtime role %s does not exist', :'runtime_role') AS grainline_role_provisioning_failure
-WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'runtime_role');
+WITH failure AS (
+  SELECT format('runtime role %s does not exist', :'runtime_role') AS message
+  WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'runtime_role')
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '') AS grainline_role_provisioning_failure;
 \gset
-\if :{?grainline_role_provisioning_failure}
+\if :grainline_role_provisioning_failed
 \echo :grainline_role_provisioning_failure
 \quit 1
 \endif
+\unset grainline_role_provisioning_failed
 \unset grainline_role_provisioning_failure
 
-SELECT format('migration role %s does not exist', :'migration_role') AS grainline_role_provisioning_failure
-WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'migration_role');
+WITH failure AS (
+  SELECT format('migration role %s does not exist', :'migration_role') AS message
+  WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'migration_role')
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '') AS grainline_role_provisioning_failure;
 \gset
-\if :{?grainline_role_provisioning_failure}
+\if :grainline_role_provisioning_failed
 \echo :grainline_role_provisioning_failure
 \quit 1
 \endif
+\unset grainline_role_provisioning_failed
 \unset grainline_role_provisioning_failure
 
-SELECT format('runtime role %s must differ from migration role %s', :'runtime_role', :'migration_role')
-  AS grainline_role_provisioning_failure
-WHERE :'runtime_role' = :'migration_role';
+WITH failure AS (
+  SELECT format('runtime role %s must differ from migration role %s', :'runtime_role', :'migration_role')
+    AS message
+  WHERE :'runtime_role' = :'migration_role'
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '') AS grainline_role_provisioning_failure;
 \gset
-\if :{?grainline_role_provisioning_failure}
+\if :grainline_role_provisioning_failed
 \echo :grainline_role_provisioning_failure
 \quit 1
 \endif
+\unset grainline_role_provisioning_failed
 \unset grainline_role_provisioning_failure
 
-SELECT format(
-  'runtime role %s has disallowed role attributes: %s',
-  rolname,
-  concat_ws(
-    ', ',
-    CASE WHEN rolsuper THEN 'SUPERUSER' END,
-    CASE WHEN rolcreatedb THEN 'CREATEDB' END,
-    CASE WHEN rolcreaterole THEN 'CREATEROLE' END,
-    CASE WHEN rolreplication THEN 'REPLICATION' END,
-    CASE WHEN rolbypassrls THEN 'BYPASSRLS' END
-  )
-) AS grainline_role_provisioning_failure
-FROM pg_roles
-WHERE rolname = :'runtime_role'
-  AND (rolsuper OR rolcreatedb OR rolcreaterole OR rolreplication OR rolbypassrls);
+WITH failure AS (
+  SELECT format(
+    'runtime role %s has disallowed role attributes: %s',
+    rolname,
+    concat_ws(
+      ', ',
+      CASE WHEN rolsuper THEN 'SUPERUSER' END,
+      CASE WHEN rolcreatedb THEN 'CREATEDB' END,
+      CASE WHEN rolcreaterole THEN 'CREATEROLE' END,
+      CASE WHEN rolreplication THEN 'REPLICATION' END,
+      CASE WHEN rolbypassrls THEN 'BYPASSRLS' END
+    )
+  ) AS message
+  FROM pg_roles
+  WHERE rolname = :'runtime_role'
+    AND (rolsuper OR rolcreatedb OR rolcreaterole OR rolreplication OR rolbypassrls)
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '') AS grainline_role_provisioning_failure;
 \gset
-\if :{?grainline_role_provisioning_failure}
+\if :grainline_role_provisioning_failed
 \echo :grainline_role_provisioning_failure
 \quit 1
 \endif
+\unset grainline_role_provisioning_failed
 \unset grainline_role_provisioning_failure
 
 WITH RECURSIVE memberships AS (
@@ -108,17 +138,21 @@ WITH RECURSIVE memberships AS (
       FROM memberships current_membership
       JOIN pg_auth_members m ON m.member = current_membership.oid
       JOIN pg_roles parent ON parent.oid = m.roleid
+), failure AS (
+  SELECT format('runtime role %s is member of role %s', :'runtime_role', rolname) AS message
+  FROM memberships
+  ORDER BY rolname
+  LIMIT 1
 )
-SELECT format('runtime role %s is member of role %s', :'runtime_role', rolname)
-  AS grainline_role_provisioning_failure
-FROM memberships
-ORDER BY rolname
-LIMIT 1;
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '') AS grainline_role_provisioning_failure;
 \gset
-\if :{?grainline_role_provisioning_failure}
+\if :grainline_role_provisioning_failed
 \echo :grainline_role_provisioning_failure
 \quit 1
 \endif
+\unset grainline_role_provisioning_failed
 \unset grainline_role_provisioning_failure
 
 GRANT USAGE ON SCHEMA public TO :"runtime_role";
@@ -212,13 +246,19 @@ TO :"runtime_role";
 
 GRANT EXECUTE ON FUNCTION public."grainline_notification_preferences_valid"(jsonb) TO :"runtime_role";
 
-SELECT 'required extension pg_trgm is not installed' AS grainline_role_provisioning_failure
-WHERE NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm');
+WITH failure AS (
+  SELECT 'required extension pg_trgm is not installed' AS message
+  WHERE NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm')
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '') AS grainline_role_provisioning_failure;
 \gset
-\if :{?grainline_role_provisioning_failure}
+\if :grainline_role_provisioning_failed
 \echo :grainline_role_provisioning_failure
 \quit 1
 \endif
+\unset grainline_role_provisioning_failed
 \unset grainline_role_provisioning_failure
 
 -- Public search/autocomplete SQL uses pg_trgm's similarity() function and `%`
@@ -226,30 +266,36 @@ WHERE NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm');
 -- even when CREATE EXTENSION runs as the migration role. Grant explicitly where
 -- this role has grant option; otherwise verify runtime EXECUTE still exists,
 -- normally through PostgreSQL's PUBLIC function default.
-SELECT format(
-  'runtime role %s lacks EXECUTE on pg_trgm function %s owned by %s, and migration role %s cannot grant it; use reviewed admin-owned provisioning',
-  :'runtime_role',
-  format('%I.%I(%s)', n.nspname, p.proname, pg_get_function_identity_arguments(p.oid)),
-  pg_get_userbyid(p.proowner),
-  :'migration_role'
-) AS grainline_role_provisioning_failure
-FROM pg_extension e
-JOIN pg_depend d ON d.refclassid = 'pg_extension'::regclass
-                  AND d.refobjid = e.oid
-                  AND d.classid = 'pg_proc'::regclass
-                  AND d.deptype = 'e'
-JOIN pg_proc p ON p.oid = d.objid
-JOIN pg_namespace n ON n.oid = p.pronamespace
-WHERE e.extname = 'pg_trgm'
-  AND NOT has_function_privilege(:'runtime_role', p.oid, 'EXECUTE')
-  AND NOT has_function_privilege(:'migration_role', p.oid, 'EXECUTE WITH GRANT OPTION')
-ORDER BY n.nspname, p.proname, pg_get_function_identity_arguments(p.oid)
-LIMIT 1;
+WITH failure AS (
+  SELECT format(
+    'runtime role %s lacks EXECUTE on pg_trgm function %s owned by %s, and migration role %s cannot grant it; use reviewed admin-owned provisioning',
+    :'runtime_role',
+    format('%I.%I(%s)', n.nspname, p.proname, pg_get_function_identity_arguments(p.oid)),
+    pg_get_userbyid(p.proowner),
+    :'migration_role'
+  ) AS message
+  FROM pg_extension e
+  JOIN pg_depend d ON d.refclassid = 'pg_extension'::regclass
+                    AND d.refobjid = e.oid
+                    AND d.classid = 'pg_proc'::regclass
+                    AND d.deptype = 'e'
+  JOIN pg_proc p ON p.oid = d.objid
+  JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE e.extname = 'pg_trgm'
+    AND NOT has_function_privilege(:'runtime_role', p.oid, 'EXECUTE')
+    AND NOT has_function_privilege(:'migration_role', p.oid, 'EXECUTE WITH GRANT OPTION')
+  ORDER BY n.nspname, p.proname, pg_get_function_identity_arguments(p.oid)
+  LIMIT 1
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '') AS grainline_role_provisioning_failure;
 \gset
-\if :{?grainline_role_provisioning_failure}
+\if :grainline_role_provisioning_failed
 \echo :grainline_role_provisioning_failure
 \quit 1
 \endif
+\unset grainline_role_provisioning_failed
 \unset grainline_role_provisioning_failure
 
 SELECT format(
