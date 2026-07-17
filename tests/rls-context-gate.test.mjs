@@ -133,6 +133,20 @@ describe("RLS context acceptance gate guardrails", () => {
       /pooled runtime endpoint/,
     );
     assert.throws(
+      () => parseGateConfig(baseEnv({
+        RLS_CONTEXT_GATE_DATABASE_URL:
+          "postgresql://runtime:secret@ep-test-pooler.westus3.azure.neon.tech/grainline_staging?options=-c%20app%252Euser_id%253Dpreseeded",
+      })),
+      /must not pre-seed app\.user_id through URL query parameters or options/,
+    );
+    assert.throws(
+      () => parseGateConfig(baseEnv({
+        RLS_CONTEXT_GATE_DATABASE_URL:
+          "postgresql://runtime:secret@ep-test-pooler.westus3.azure.neon.tech/grainline_staging?app%2Euser_id=preseeded",
+      })),
+      /must not pre-seed app\.user_id through URL query parameters or options/,
+    );
+    assert.throws(
       () => parseGateConfig(baseEnv({ RLS_CONTEXT_GATE_RUNTIME_ROLE: "" })),
       /RLS_CONTEXT_GATE_RUNTIME_ROLE is required/,
     );
@@ -299,6 +313,10 @@ describe("RLS context acceptance gate guardrails", () => {
 
   it("pins the transaction-local context and fail-closed canary policy shape", () => {
     const script = source("scripts/rls-context-acceptance-gate.mjs");
+    const runtimeInspection = script.slice(
+      script.indexOf("async function inspectRuntime"),
+      script.indexOf("async function measureLocalityQueryRttProxy"),
+    );
 
     assert.match(script, /set_config\('app\.user_id', \$1, true\)/);
     assert.match(script, /current_setting\('app\.user_id', true\)/);
@@ -308,6 +326,8 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.match(script, /timedPrismaWrappedRead/);
     assert.match(script, /ENABLE ROW LEVEL SECURITY/);
     assert.match(script, /DISABLE ROW LEVEL SECURITY/);
+    assert.match(runtimeInspection, /current_setting\('app\.user_id', true\) AS app_user_id/);
+    assert.match(runtimeInspection, /runtime connection starts with app\.user_id already set/);
     assert.match(script, /FORCE ROW LEVEL SECURITY/);
     assert.match(script, /runRollbackDisableProbe/);
     assert.match(script, /empty-owner-should-not-match/);
@@ -382,6 +402,9 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.match(script, /const PRISMA_APP_POOL_SIZE = 10/);
     assert.match(script, /createPrismaProbe\(config, \{ max: PRISMA_APP_POOL_SIZE \}\)/);
     assert.match(db, /max: 10/);
+    assert.match(script, /prismaPoolSize: PRISMA_APP_POOL_SIZE/);
+    assert.match(script, /prismaPoolTimingAvailable: false/);
+    assert.match(script, /rawPool=\$\{config\.poolSize\} prismaPool=\$\{PRISMA_APP_POOL_SIZE\}/);
     assert.match(script, /poolTimingAvailable: false/);
     assert.match(script, /acquire=unavailable; hold=unavailable/);
     assert.match(script, /baseline\.poolTimingAvailable && wrapped\.poolTimingAvailable/);

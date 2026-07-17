@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { describe, it } from "node:test";
+import ts from "typescript";
 
 function source(path) {
   return fs.readFileSync(path, "utf8");
@@ -15,6 +16,98 @@ function sourceFiles(dir) {
       if (entry.isDirectory()) return sourceFiles(path);
       return /\.(ts|tsx)$/.test(entry.name) ? [path] : [];
     });
+}
+
+function staticPropertyName(name) {
+  if (ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNumericLiteral(name)) {
+    return name.text;
+  }
+  if (
+    ts.isComputedPropertyName(name) &&
+    (ts.isStringLiteral(name.expression) || ts.isNoSubstitutionTemplateLiteral(name.expression))
+  ) {
+    return name.expression.text;
+  }
+  return null;
+}
+
+function parseTypeScript(file, fileSource) {
+  return ts.createSourceFile(
+    file,
+    fileSource,
+    ts.ScriptTarget.Latest,
+    true,
+    file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
+}
+
+function savedSearchRelationAccesses(file, fileSource) {
+  const parsed = parseTypeScript(file, fileSource);
+  const accesses = [];
+
+  function visit(node) {
+    if (
+      ts.isPropertyAssignment(node) &&
+      (staticPropertyName(node.name) === "include" || staticPropertyName(node.name) === "select") &&
+      ts.isObjectLiteralExpression(node.initializer)
+    ) {
+      const relationContainer = staticPropertyName(node.name);
+      for (const property of node.initializer.properties) {
+        if (property.name && staticPropertyName(property.name) === "savedSearches") {
+          accesses.push(`${relationContainer}.savedSearches`);
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+
+  visit(parsed);
+  return accesses;
+}
+
+function savedSearchDelegateAccesses(file, fileSource) {
+  const parsed = parseTypeScript(file, fileSource);
+  const accesses = [];
+
+  function visit(node) {
+    if (ts.isPropertyAccessExpression(node) && node.name.text === "savedSearch") {
+      accesses.push(".savedSearch");
+    }
+    if (
+      ts.isElementAccessExpression(node)
+      && node.argumentExpression
+      && (
+        ts.isStringLiteral(node.argumentExpression)
+        || ts.isNoSubstitutionTemplateLiteral(node.argumentExpression)
+      )
+      && node.argumentExpression.text === "savedSearch"
+    ) {
+      accesses.push('["savedSearch"]');
+    }
+    ts.forEachChild(node, visit);
+  }
+
+  visit(parsed);
+  return accesses;
+}
+
+function plainSavedSearchShorthandProperties(file, fileSource) {
+  const parsed = parseTypeScript(file, fileSource);
+  const properties = [];
+
+  function visit(node) {
+    if (ts.isShorthandPropertyAssignment(node) && node.name.text === "savedSearches") {
+      const container = node.parent?.parent;
+      const isRelationAccess =
+        ts.isPropertyAssignment(container) &&
+        (staticPropertyName(container.name) === "include" || staticPropertyName(container.name) === "select");
+      if (!isRelationAccess) properties.push("savedSearches");
+    }
+    ts.forEachChild(node, visit);
+  }
+
+  visit(parsed);
+  return properties;
 }
 
 describe("RLS feasibility plan guardrails", () => {
@@ -230,23 +323,80 @@ describe("RLS feasibility plan guardrails", () => {
 
   it("blocks new direct owner-style SavedSearch reads and writes outside the owner helper", () => {
     const directSavedSearchAccessPattern =
-      /\b[A-Za-z_$][\w$]*\.savedSearch\.(?:aggregate|count|create|createMany|delete|deleteMany|findFirst|findFirstOrThrow|findMany|findUnique|findUniqueOrThrow|groupBy|update|updateMany|upsert)\b/g;
+      /\b[A-Za-z_$][\w$]*\.savedSearch\.(?:aggregate|count|create|createMany|createManyAndReturn|delete|deleteMany|findFirst|findFirstOrThrow|findMany|findUnique|findUniqueOrThrow|groupBy|update|updateMany|updateManyAndReturn|upsert)\b/g;
     const bracketSavedSearchAccessPattern =
       /\b[A-Za-z_$][\w$]*\s*\[\s*["']savedSearch["']\s*\]/g;
     const rawSavedSearchSqlPattern =
-      /\b(?:FROM|JOIN|INTO|UPDATE|DELETE\s+FROM)\s+(?:public\.)?"SavedSearch"(?=\s|[;,) ]|$)/gi;
+      /\b(?:FROM|JOIN|INTO|UPDATE|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?|MERGE\s+INTO|COPY)\s+(?:ONLY\s+)?(?:(?:public|"public")\.)?"SavedSearch"(?=[\s;,) ]|$)/gi;
+    const prismaRawPattern = /\bPrisma\.raw\s*\(/g;
+    const unsafeRawPattern = /\.\$(?:queryRawUnsafe|executeRawUnsafe)\b/g;
     const allowedDirectCalls = {};
+    const allowedUnsafeRawCalls = {
+      "src/app/commission/page.tsx": [".$queryRawUnsafe", ".$queryRawUnsafe"],
+    };
+    const allowedPlainSavedSearchShorthandProperties = {
+      "src/app/api/account/export/route.ts": ["savedSearches"],
+    };
     const directCallsByFile = {};
+    const plainSavedSearchShorthandPropertiesByFile = {};
 
     assert.match("prisma.savedSearch.upsert", directSavedSearchAccessPattern);
+    directSavedSearchAccessPattern.lastIndex = 0;
+    assert.match("prisma.savedSearch.createManyAndReturn", directSavedSearchAccessPattern);
+    directSavedSearchAccessPattern.lastIndex = 0;
+    assert.match("tx.savedSearch.updateManyAndReturn", directSavedSearchAccessPattern);
     directSavedSearchAccessPattern.lastIndex = 0;
     assert.match('tx["savedSearch"]', bracketSavedSearchAccessPattern);
     bracketSavedSearchAccessPattern.lastIndex = 0;
     assert.match('SELECT * FROM public."SavedSearch"', rawSavedSearchSqlPattern);
     rawSavedSearchSqlPattern.lastIndex = 0;
+    assert.match('TRUNCATE TABLE ONLY "public"."SavedSearch"', rawSavedSearchSqlPattern);
+    rawSavedSearchSqlPattern.lastIndex = 0;
+    assert.match('MERGE INTO public."SavedSearch" AS target', rawSavedSearchSqlPattern);
+    rawSavedSearchSqlPattern.lastIndex = 0;
+    assert.match('COPY "SavedSearch" (id, "userId") FROM STDIN', rawSavedSearchSqlPattern);
+    rawSavedSearchSqlPattern.lastIndex = 0;
+    assert.deepEqual(
+      savedSearchDelegateAccesses("fixture.ts", "const delegate = tx.savedSearch; delegate.findMany();"),
+      [".savedSearch"],
+    );
+    assert.deepEqual(
+      savedSearchDelegateAccesses("fixture.ts", 'const delegate = tx["savedSearch"]; delegate.findMany();'),
+      ['["savedSearch"]'],
+    );
+    assert.match(`Prisma.raw('"SavedSearch"')`, prismaRawPattern);
+    prismaRawPattern.lastIndex = 0;
+    assert.match("prisma.$queryRawUnsafe(sqlBuiltElsewhere)", unsafeRawPattern);
+    unsafeRawPattern.lastIndex = 0;
+    assert.deepEqual(
+      savedSearchRelationAccesses(
+        "fixture.ts",
+        "prisma.user.findUnique({ include: { savedSearches: true } });",
+      ),
+      ["include.savedSearches"],
+    );
+    assert.deepEqual(
+      savedSearchRelationAccesses(
+        "fixture.ts",
+        "prisma.user.findUnique({ select: { id: true, savedSearches: { select: { id: true } } } });",
+      ),
+      ["select.savedSearches"],
+    );
+    assert.deepEqual(
+      savedSearchRelationAccesses("fixture.ts", "buildAccountExportPayload({ savedSearches });"),
+      [],
+    );
+    assert.deepEqual(
+      plainSavedSearchShorthandProperties("fixture.ts", "buildAccountExportPayload({ savedSearches });"),
+      ["savedSearches"],
+    );
 
     for (const file of sourceFiles("src")) {
       const fileSource = source(file);
+      const relationAccesses = savedSearchRelationAccesses(file, fileSource);
+      const delegateAccesses = file === "src/lib/savedSearchOwnerAccess.ts"
+        ? []
+        : savedSearchDelegateAccesses(file, fileSource);
       const matches = [
         ...(file === "src/lib/savedSearchOwnerAccess.ts"
           ? []
@@ -255,11 +405,32 @@ describe("RLS feasibility plan guardrails", () => {
           ? []
           : [...fileSource.matchAll(bracketSavedSearchAccessPattern)].map((match) => match[0])),
         ...[...fileSource.matchAll(rawSavedSearchSqlPattern)].map((match) => match[0]),
+        ...[...fileSource.matchAll(prismaRawPattern)].map((match) => match[0]),
+        ...delegateAccesses,
+        ...relationAccesses,
       ];
       if (matches.length > 0) directCallsByFile[file] = matches;
+
+      const unsafeRawCalls = [...fileSource.matchAll(unsafeRawPattern)].map((match) => match[0]);
+      if (unsafeRawCalls.length > 0) {
+        assert.deepEqual(
+          unsafeRawCalls,
+          allowedUnsafeRawCalls[file] ?? [],
+          `${file} contains an unreviewed unsafe raw-query escape hatch`,
+        );
+      }
+
+      const shorthandProperties = plainSavedSearchShorthandProperties(file, fileSource);
+      if (shorthandProperties.length > 0) {
+        plainSavedSearchShorthandPropertiesByFile[file] = shorthandProperties;
+      }
     }
 
     assert.deepEqual(directCallsByFile, allowedDirectCalls);
+    assert.deepEqual(
+      plainSavedSearchShorthandPropertiesByFile,
+      allowedPlainSavedSearchShorthandProperties,
+    );
   });
 
   it("centralizes Cart and CartItem owner reads and writes for the parent-join RLS prototype", () => {

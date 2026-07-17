@@ -86,6 +86,32 @@ function decodedUrlPart(value, label) {
   }
 }
 
+function containsEncodedUserContext(value) {
+  let decoded = String(value);
+  for (let pass = 0; pass < 3; pass += 1) {
+    if (decoded.toLowerCase().includes("app.user_id")) return true;
+    try {
+      const next = decodeURIComponent(decoded.replaceAll("+", " "));
+      if (next === decoded) break;
+      decoded = next;
+    } catch {
+      break;
+    }
+  }
+  return decoded.toLowerCase().includes("app.user_id");
+}
+
+function assertRuntimeUrlDoesNotPreseedUserContext(value) {
+  const parsed = new URL(value);
+  for (const [name, parameterValue] of parsed.searchParams) {
+    if (containsEncodedUserContext(name) || containsEncodedUserContext(parameterValue)) {
+      throw new Error(
+        "SAVED_SEARCH_RLS_GATE_DATABASE_URL must not pre-seed app.user_id through URL query parameters or options",
+      );
+    }
+  }
+}
+
 function parseExpectedDatabaseIdentity(env) {
   const endpointId = required(
     env.SAVED_SEARCH_RLS_GATE_EXPECTED_DATABASE_ENDPOINT_ID,
@@ -224,6 +250,7 @@ export function parseGateConfig(env = process.env) {
     databaseUrl,
     "SAVED_SEARCH_RLS_GATE_DATABASE_URL",
   );
+  assertRuntimeUrlDoesNotPreseedUserContext(databaseUrl);
   const adminIdentity = parseNeonDatabaseIdentity(
     adminDatabaseUrl,
     "SAVED_SEARCH_RLS_GATE_ADMIN_DATABASE_URL",
@@ -820,6 +847,13 @@ async function readRuntimeContext(runtimeClient) {
   return result.rows[0]?.user_id ?? null;
 }
 
+async function assertInitialRuntimeContextUnset(runtimeClient) {
+  const context = await readRuntimeContext(runtimeClient);
+  if (context !== null && context !== "") {
+    throw new GateAssertionError("runtime connection starts with app.user_id already set");
+  }
+}
+
 async function readVisibleFixtureRows(runtimeClient, fixture) {
   const result = await runtimeClient.query(
     `SELECT id, "userId"
@@ -1269,43 +1303,51 @@ export async function runSavedSearchRlsAcceptanceGate(config, { fixture = buildF
     await runtimeClient.connect();
     runtimeConnected = true;
 
-    const catalogState = await readCatalogState(ownerClient, runtimeClient, config);
-    const catalogIssues = collectSavedSearchCatalogIssues(catalogState, config);
-    if (catalogIssues.length > 0) {
-      issues.push(...catalogIssues);
-      checks.push({
-        name: "runtime role and exact SavedSearch catalog state",
-        status: "failed",
-        summary: `${catalogIssues.length} catalog issues`,
-      });
-    } else {
-      checks.push({ name: "runtime role and exact SavedSearch catalog state", status: "passed" });
+    const initialContextClean = await recordCheck(
+      "runtime connection initial app.user_id preflight",
+      async () => {
+        await assertInitialRuntimeContextUnset(runtimeClient);
+      },
+    );
+    if (initialContextClean) {
+      const catalogState = await readCatalogState(ownerClient, runtimeClient, config);
+      const catalogIssues = collectSavedSearchCatalogIssues(catalogState, config);
+      if (catalogIssues.length > 0) {
+        issues.push(...catalogIssues);
+        checks.push({
+          name: "runtime role and exact SavedSearch catalog state",
+          status: "failed",
+          summary: `${catalogIssues.length} catalog issues`,
+        });
+      } else {
+        checks.push({ name: "runtime role and exact SavedSearch catalog state", status: "passed" });
 
-      const collisionFree = await recordCheck("synthetic User fixture collision preflight", async () => {
-        await assertNoUserFixtureCollision(ownerClient, fixture);
-      });
-      if (collisionFree) {
-        cleanupAuthorized = true;
-        const usersSeeded = await recordCheck("owner User seed transaction", async () => {
-          await seedOwnerUsers(ownerClient, fixture);
+        const collisionFree = await recordCheck("synthetic User fixture collision preflight", async () => {
+          await assertNoUserFixtureCollision(ownerClient, fixture);
         });
-        const usersVerified = usersSeeded && await recordCheck("owner User fixture verification", async () => {
-          await assertOwnerUsers(ownerClient, fixture);
-        });
-        const searchesCollisionFree = usersVerified && await recordCheck(
-          "runtime SavedSearch fixture collision preflight",
-          async () => {
-            await assertNoSavedSearchFixtureCollision(runtimeClient, fixture);
-          },
-        );
-        const searchesSeeded = searchesCollisionFree && await recordCheck(
-          "runtime A/B SavedSearch seed transaction",
-          async () => {
-            await seedRuntimeSavedSearches(runtimeClient, fixture);
-          },
-        );
-        if (searchesSeeded) {
-          await runBehaviorProbes(runtimeClient, fixture, recordCheck);
+        if (collisionFree) {
+          cleanupAuthorized = true;
+          const usersSeeded = await recordCheck("owner User seed transaction", async () => {
+            await seedOwnerUsers(ownerClient, fixture);
+          });
+          const usersVerified = usersSeeded && await recordCheck("owner User fixture verification", async () => {
+            await assertOwnerUsers(ownerClient, fixture);
+          });
+          const searchesCollisionFree = usersVerified && await recordCheck(
+            "runtime SavedSearch fixture collision preflight",
+            async () => {
+              await assertNoSavedSearchFixtureCollision(runtimeClient, fixture);
+            },
+          );
+          const searchesSeeded = searchesCollisionFree && await recordCheck(
+            "runtime A/B SavedSearch seed transaction",
+            async () => {
+              await seedRuntimeSavedSearches(runtimeClient, fixture);
+            },
+          );
+          if (searchesSeeded) {
+            await runBehaviorProbes(runtimeClient, fixture, recordCheck);
+          }
         }
       }
     }
