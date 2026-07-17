@@ -91,7 +91,8 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(runbook, /connection turnover\/recycling method/);
     assert.match(runbook, /prepared-statement\/cached-plan\s+error scan result/);
     assert.match(runbook, /flaky repeated result as a stop signal/);
-    assert.match(runbook, /After production RLS rollout, rerun the gate/);
+    assert.match(runbook, /Never point the mutating `audit:rls-saved-search` fixture gate at production/);
+    assert.match(runbook, /After production rollout[\s\S]*non-mutating catalog\/grant audit/);
   });
 
   it("inventories hidden notification read and update paths before the first policy", () => {

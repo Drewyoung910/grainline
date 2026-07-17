@@ -99,6 +99,25 @@ export async function listOwnerSavedSearches(
   return rows;
 }
 
+export async function inspectOwnerSavedSearchCanary(
+  userId: string,
+  searchId: string,
+  db: SavedSearchOwnerAccessClient,
+) {
+  const rows = await db.savedSearch.findMany({
+    where: { id: searchId, userId },
+    select: { id: true, userId: true },
+    take: 2,
+  });
+  return {
+    exactMatch:
+      rows.length === 1 &&
+      rows[0]?.id === searchId &&
+      rows[0]?.userId === userId,
+    matchCount: rows.length,
+  };
+}
+
 export async function deleteOwnerSavedSearch(
   userId: string,
   searchId: string,

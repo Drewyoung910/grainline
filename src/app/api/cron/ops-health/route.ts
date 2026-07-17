@@ -11,6 +11,9 @@ import {
 } from "@/lib/accountDeletionSideEffects";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { cronRunPartialIssueSummary } from "@/lib/cronRunPartialIssues";
+import { withDbUserContext } from "@/lib/dbUserContext";
+import { inspectOwnerSavedSearchCanary } from "@/lib/savedSearchOwnerAccess";
+import { runSavedSearchRlsCanary } from "@/lib/savedSearchRlsCanary";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -50,6 +53,7 @@ export async function GET(request: Request) {
         resendWebhookFailureCount,
         clerkWebhookFailureCount,
         accountDeletionSideEffectFailureCount,
+        savedSearchRlsCanary,
       ] = await Promise.all([
         prisma.cronRun.findMany({
           where: {
@@ -145,6 +149,11 @@ export async function GET(request: Request) {
             ],
           },
         }),
+        runSavedSearchRlsCanary(process.env, ({ userId, searchId }) =>
+          withDbUserContext(userId, (tx) =>
+            inspectOwnerSavedSearchCanary(userId, searchId, tx),
+          ),
+        ),
       ]);
 
       const partialFailureCronRuns = recentCompletedCronRuns
@@ -177,6 +186,7 @@ export async function GET(request: Request) {
         resendWebhookFailureCount,
         clerkWebhookFailureCount,
         accountDeletionSideEffectFailureCount,
+        savedSearchRlsCanaryIssueCount: savedSearchRlsCanary.issueCount,
       };
 
       if (
@@ -190,13 +200,15 @@ export async function GET(request: Request) {
         issues.stripeWebhookFailureCount > 0 ||
         issues.resendWebhookFailureCount > 0 ||
         issues.clerkWebhookFailureCount > 0 ||
-        issues.accountDeletionSideEffectFailureCount > 0
+        issues.accountDeletionSideEffectFailureCount > 0 ||
+        issues.savedSearchRlsCanaryIssueCount > 0
       ) {
         Sentry.captureMessage("Ops health check found actionable issues", {
           level: "warning",
           tags: { source: "cron_ops_health" },
           extra: {
             ...issues,
+            savedSearchRlsCanaryStatus: savedSearchRlsCanary.status,
             failedCronRuns: failedCronRuns.map((run) => ({
               id: run.id,
               jobName: run.jobName,
@@ -221,7 +233,11 @@ export async function GET(request: Request) {
         });
       }
 
-      const response = { ok: Object.values(issues).every((count) => count === 0), ...issues };
+      const response = {
+        ok: Object.values(issues).every((count) => count === 0),
+        ...issues,
+        savedSearchRlsCanaryStatus: savedSearchRlsCanary.status,
+      };
       await completeCronRun(cronRun, response);
       return NextResponse.json(response, {
         status: response.ok ? HTTP_STATUS.OK : HTTP_STATUS.SERVICE_UNAVAILABLE,

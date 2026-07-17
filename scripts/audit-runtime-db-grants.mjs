@@ -386,40 +386,78 @@ export function collectTablePrivilegeAllowlistIssues(
   label,
   { checkColumnPrivileges = true } = {},
 ) {
-  if (!Array.isArray(row?.effective_privileges)) {
-    return [`${label} exact table privilege state could not be read`];
+  if (!Array.isArray(row?.runtime_privileges)) {
+    return [`${label} exact runtime-role table privilege state could not be read`];
   }
-  if (!Array.isArray(row?.grant_option_privileges)) {
-    return [`${label} table grant-option state could not be read`];
+  if (!Array.isArray(row?.runtime_grant_option_privileges)) {
+    return [`${label} runtime-role table grant-option state could not be read`];
   }
-  if (checkColumnPrivileges && !Array.isArray(row?.column_privileges)) {
-    return [`${label} column privilege state could not be read`];
+  if (!Array.isArray(row?.public_privileges)) {
+    return [`${label} exact PUBLIC table privilege state could not be read`];
   }
-  if (checkColumnPrivileges && !Array.isArray(row?.column_grant_option_privileges)) {
-    return [`${label} column grant-option state could not be read`];
+  if (!Array.isArray(row?.public_grant_option_privileges)) {
+    return [`${label} PUBLIC table grant-option state could not be read`];
+  }
+  if (checkColumnPrivileges && !Array.isArray(row?.runtime_column_privileges)) {
+    return [`${label} runtime-role column privilege state could not be read`];
+  }
+  if (checkColumnPrivileges && !Array.isArray(row?.runtime_column_grant_option_privileges)) {
+    return [`${label} runtime-role column grant-option state could not be read`];
+  }
+  if (checkColumnPrivileges && !Array.isArray(row?.public_column_privileges)) {
+    return [`${label} PUBLIC column privilege state could not be read`];
+  }
+  if (checkColumnPrivileges && !Array.isArray(row?.public_column_grant_option_privileges)) {
+    return [`${label} PUBLIC column grant-option state could not be read`];
   }
   const allowed = new Set(REQUIRED_TABLE_PRIVILEGES);
-  const unexpected = normalizedPrivilegeArray(row?.effective_privileges)
+  const runtimePrivileges = normalizedPrivilegeArray(row.runtime_privileges);
+  const missing = REQUIRED_TABLE_PRIVILEGES
+    .filter((privilege) => !runtimePrivileges.includes(privilege));
+  const unexpected = runtimePrivileges
     .filter((privilege) => !allowed.has(privilege));
-  const grantOptions = normalizedPrivilegeArray(row?.grant_option_privileges);
-  const columnPrivileges = checkColumnPrivileges
-    ? sortedUnique(row.column_privileges.map(String))
+  const runtimeGrantOptions = normalizedPrivilegeArray(row.runtime_grant_option_privileges);
+  const publicPrivileges = normalizedPrivilegeArray(row.public_privileges);
+  const publicGrantOptions = normalizedPrivilegeArray(row.public_grant_option_privileges);
+  const runtimeColumnPrivileges = checkColumnPrivileges
+    ? sortedUnique(row.runtime_column_privileges.map(String))
     : [];
-  const columnGrantOptions = checkColumnPrivileges
-    ? sortedUnique(row.column_grant_option_privileges.map(String))
+  const runtimeColumnGrantOptions = checkColumnPrivileges
+    ? sortedUnique(row.runtime_column_grant_option_privileges.map(String))
+    : [];
+  const publicColumnPrivileges = checkColumnPrivileges
+    ? sortedUnique(row.public_column_privileges.map(String))
+    : [];
+  const publicColumnGrantOptions = checkColumnPrivileges
+    ? sortedUnique(row.public_column_grant_option_privileges.map(String))
     : [];
   const issues = [];
+  if (missing.length > 0) {
+    issues.push(`${label} runtime role is missing direct table privileges: ${missing.join(", ")}`);
+  }
   if (unexpected.length > 0) {
-    issues.push(`${label} has unexpected table privileges: ${unexpected.join(", ")}`);
+    issues.push(`${label} runtime role has unexpected table privileges: ${unexpected.join(", ")}`);
   }
-  if (grantOptions.length > 0) {
-    issues.push(`${label} has grant options: ${grantOptions.join(", ")}`);
+  if (runtimeGrantOptions.length > 0) {
+    issues.push(`${label} runtime role has grant options: ${runtimeGrantOptions.join(", ")}`);
   }
-  if (columnPrivileges.length > 0) {
-    issues.push(`${label} has column privileges: ${columnPrivileges.join(", ")}`);
+  if (publicPrivileges.length > 0) {
+    issues.push(`${label} grants table privileges to PUBLIC: ${publicPrivileges.join(", ")}`);
   }
-  if (columnGrantOptions.length > 0) {
-    issues.push(`${label} has column grant options: ${columnGrantOptions.join(", ")}`);
+  if (publicGrantOptions.length > 0) {
+    issues.push(`${label} grants table privileges with grant option to PUBLIC: ${publicGrantOptions.join(", ")}`);
+  }
+  if (runtimeColumnPrivileges.length > 0) {
+    issues.push(`${label} runtime role has column privileges: ${runtimeColumnPrivileges.join(", ")}`);
+  }
+  if (runtimeColumnGrantOptions.length > 0) {
+    issues.push(`${label} runtime role has column grant options: ${runtimeColumnGrantOptions.join(", ")}`);
+  }
+  if (publicColumnPrivileges.length > 0) {
+    issues.push(`${label} PUBLIC has column privileges: ${publicColumnPrivileges.join(", ")}`);
+  }
+  if (publicColumnGrantOptions.length > 0) {
+    issues.push(`${label} PUBLIC has column grant options: ${publicColumnGrantOptions.join(", ")}`);
   }
   return issues;
 }
@@ -545,22 +583,29 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
         ARRAY(
           SELECT DISTINCT upper(acl.privilege_type)
             FROM aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) AS acl
-           WHERE acl.grantee IN (
-             0,
-             (SELECT oid FROM pg_roles WHERE rolname = $1)
-           )
+           WHERE acl.grantee = (SELECT oid FROM pg_roles WHERE rolname = $1)
            ORDER BY 1
-        ) AS effective_privileges,
+        ) AS runtime_privileges,
         ARRAY(
           SELECT DISTINCT upper(acl.privilege_type)
             FROM aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) AS acl
-           WHERE acl.grantee IN (
-             0,
-             (SELECT oid FROM pg_roles WHERE rolname = $1)
-           )
+           WHERE acl.grantee = (SELECT oid FROM pg_roles WHERE rolname = $1)
              AND acl.is_grantable
            ORDER BY 1
-        ) AS grant_option_privileges,
+        ) AS runtime_grant_option_privileges,
+        ARRAY(
+          SELECT DISTINCT upper(acl.privilege_type)
+            FROM aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) AS acl
+           WHERE acl.grantee = 0
+           ORDER BY 1
+        ) AS public_privileges,
+        ARRAY(
+          SELECT DISTINCT upper(acl.privilege_type)
+            FROM aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) AS acl
+           WHERE acl.grantee = 0
+             AND acl.is_grantable
+           ORDER BY 1
+        ) AS public_grant_option_privileges,
         ARRAY(
           SELECT DISTINCT format('%I:%s', a.attname, upper(acl.privilege_type))
             FROM pg_attribute a
@@ -568,12 +613,9 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
            WHERE a.attrelid = c.oid
              AND a.attnum > 0
              AND NOT a.attisdropped
-             AND acl.grantee IN (
-               0,
-               (SELECT oid FROM pg_roles WHERE rolname = $1)
-             )
+             AND acl.grantee = (SELECT oid FROM pg_roles WHERE rolname = $1)
            ORDER BY 1
-        ) AS column_privileges,
+        ) AS runtime_column_privileges,
         ARRAY(
           SELECT DISTINCT format('%I:%s', a.attname, upper(acl.privilege_type))
             FROM pg_attribute a
@@ -581,13 +623,31 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
            WHERE a.attrelid = c.oid
              AND a.attnum > 0
              AND NOT a.attisdropped
-             AND acl.grantee IN (
-               0,
-               (SELECT oid FROM pg_roles WHERE rolname = $1)
-             )
+             AND acl.grantee = (SELECT oid FROM pg_roles WHERE rolname = $1)
              AND acl.is_grantable
            ORDER BY 1
-        ) AS column_grant_option_privileges
+        ) AS runtime_column_grant_option_privileges,
+        ARRAY(
+          SELECT DISTINCT format('%I:%s', a.attname, upper(acl.privilege_type))
+            FROM pg_attribute a
+            CROSS JOIN LATERAL aclexplode(a.attacl) AS acl
+           WHERE a.attrelid = c.oid
+             AND a.attnum > 0
+             AND NOT a.attisdropped
+             AND acl.grantee = 0
+           ORDER BY 1
+        ) AS public_column_privileges,
+        ARRAY(
+          SELECT DISTINCT format('%I:%s', a.attname, upper(acl.privilege_type))
+            FROM pg_attribute a
+            CROSS JOIN LATERAL aclexplode(a.attacl) AS acl
+           WHERE a.attrelid = c.oid
+             AND a.attnum > 0
+             AND NOT a.attisdropped
+             AND acl.grantee = 0
+             AND acl.is_grantable
+           ORDER BY 1
+        ) AS public_column_grant_option_privileges
        FROM pg_class c
        JOIN pg_namespace n ON n.oid = c.relnamespace
       WHERE n.nspname = 'public'
@@ -677,22 +737,29 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
         ARRAY(
           SELECT DISTINCT upper(acl.privilege_type)
             FROM aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) AS acl
-           WHERE acl.grantee IN (
-             0,
-             (SELECT oid FROM pg_roles WHERE rolname = $1)
-           )
+           WHERE acl.grantee = (SELECT oid FROM pg_roles WHERE rolname = $1)
            ORDER BY 1
-        ) AS effective_privileges,
+        ) AS runtime_privileges,
         ARRAY(
           SELECT DISTINCT upper(acl.privilege_type)
             FROM aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) AS acl
-           WHERE acl.grantee IN (
-             0,
-             (SELECT oid FROM pg_roles WHERE rolname = $1)
-           )
+           WHERE acl.grantee = (SELECT oid FROM pg_roles WHERE rolname = $1)
              AND acl.is_grantable
            ORDER BY 1
-        ) AS grant_option_privileges,
+        ) AS runtime_grant_option_privileges,
+        ARRAY(
+          SELECT DISTINCT upper(acl.privilege_type)
+            FROM aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) AS acl
+           WHERE acl.grantee = 0
+           ORDER BY 1
+        ) AS public_privileges,
+        ARRAY(
+          SELECT DISTINCT upper(acl.privilege_type)
+            FROM aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) AS acl
+           WHERE acl.grantee = 0
+             AND acl.is_grantable
+           ORDER BY 1
+        ) AS public_grant_option_privileges,
         ARRAY(
           SELECT DISTINCT format('%I:%s', a.attname, upper(acl.privilege_type))
             FROM pg_attribute a
@@ -700,12 +767,9 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
            WHERE a.attrelid = c.oid
              AND a.attnum > 0
              AND NOT a.attisdropped
-             AND acl.grantee IN (
-               0,
-               (SELECT oid FROM pg_roles WHERE rolname = $1)
-             )
+             AND acl.grantee = (SELECT oid FROM pg_roles WHERE rolname = $1)
            ORDER BY 1
-        ) AS column_privileges,
+        ) AS runtime_column_privileges,
         ARRAY(
           SELECT DISTINCT format('%I:%s', a.attname, upper(acl.privilege_type))
             FROM pg_attribute a
@@ -713,13 +777,31 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
            WHERE a.attrelid = c.oid
              AND a.attnum > 0
              AND NOT a.attisdropped
-             AND acl.grantee IN (
-               0,
-               (SELECT oid FROM pg_roles WHERE rolname = $1)
-             )
+             AND acl.grantee = (SELECT oid FROM pg_roles WHERE rolname = $1)
              AND acl.is_grantable
            ORDER BY 1
-        ) AS column_grant_option_privileges
+        ) AS runtime_column_grant_option_privileges,
+        ARRAY(
+          SELECT DISTINCT format('%I:%s', a.attname, upper(acl.privilege_type))
+            FROM pg_attribute a
+            CROSS JOIN LATERAL aclexplode(a.attacl) AS acl
+           WHERE a.attrelid = c.oid
+             AND a.attnum > 0
+             AND NOT a.attisdropped
+             AND acl.grantee = 0
+           ORDER BY 1
+        ) AS public_column_privileges,
+        ARRAY(
+          SELECT DISTINCT format('%I:%s', a.attname, upper(acl.privilege_type))
+            FROM pg_attribute a
+            CROSS JOIN LATERAL aclexplode(a.attacl) AS acl
+           WHERE a.attrelid = c.oid
+             AND a.attnum > 0
+             AND NOT a.attisdropped
+             AND acl.grantee = 0
+             AND acl.is_grantable
+           ORDER BY 1
+        ) AS public_column_grant_option_privileges
        FROM pg_class c
        JOIN pg_namespace n ON n.oid = c.relnamespace
       WHERE n.nspname = 'public'
@@ -729,21 +811,37 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
     [runtimeRole, inventory.tables],
   );
   for (const row of untrackedTableResult.rows) {
-    const granted = normalizedPrivilegeArray(row.effective_privileges);
-    if (granted.length > 0) {
-      issues.push(`runtime role or PUBLIC has ${granted.join("/")} on untracked public table ${row.table_name}`);
+    const runtimeGranted = normalizedPrivilegeArray(row.runtime_privileges);
+    if (runtimeGranted.length > 0) {
+      issues.push(`runtime role has ${runtimeGranted.join("/")} on untracked public table ${row.table_name}`);
     }
-    const grantOptions = normalizedPrivilegeArray(row.grant_option_privileges);
-    if (grantOptions.length > 0) {
-      issues.push(`runtime role or PUBLIC has grant options ${grantOptions.join("/")} on untracked public table ${row.table_name}`);
+    const publicGranted = normalizedPrivilegeArray(row.public_privileges);
+    if (publicGranted.length > 0) {
+      issues.push(`PUBLIC has ${publicGranted.join("/")} on untracked public table ${row.table_name}`);
     }
-    const columnPrivileges = sortedUnique((row.column_privileges ?? []).map(String));
-    if (columnPrivileges.length > 0) {
-      issues.push(`runtime role or PUBLIC has column privileges ${columnPrivileges.join(", ")} on untracked public table ${row.table_name}`);
+    const runtimeGrantOptions = normalizedPrivilegeArray(row.runtime_grant_option_privileges);
+    if (runtimeGrantOptions.length > 0) {
+      issues.push(`runtime role has grant options ${runtimeGrantOptions.join("/")} on untracked public table ${row.table_name}`);
     }
-    const columnGrantOptions = sortedUnique((row.column_grant_option_privileges ?? []).map(String));
-    if (columnGrantOptions.length > 0) {
-      issues.push(`runtime role or PUBLIC has column grant options ${columnGrantOptions.join(", ")} on untracked public table ${row.table_name}`);
+    const publicGrantOptions = normalizedPrivilegeArray(row.public_grant_option_privileges);
+    if (publicGrantOptions.length > 0) {
+      issues.push(`PUBLIC has grant options ${publicGrantOptions.join("/")} on untracked public table ${row.table_name}`);
+    }
+    const runtimeColumnPrivileges = sortedUnique((row.runtime_column_privileges ?? []).map(String));
+    if (runtimeColumnPrivileges.length > 0) {
+      issues.push(`runtime role has column privileges ${runtimeColumnPrivileges.join(", ")} on untracked public table ${row.table_name}`);
+    }
+    const publicColumnPrivileges = sortedUnique((row.public_column_privileges ?? []).map(String));
+    if (publicColumnPrivileges.length > 0) {
+      issues.push(`PUBLIC has column privileges ${publicColumnPrivileges.join(", ")} on untracked public table ${row.table_name}`);
+    }
+    const runtimeColumnGrantOptions = sortedUnique((row.runtime_column_grant_option_privileges ?? []).map(String));
+    if (runtimeColumnGrantOptions.length > 0) {
+      issues.push(`runtime role has column grant options ${runtimeColumnGrantOptions.join(", ")} on untracked public table ${row.table_name}`);
+    }
+    const publicColumnGrantOptions = sortedUnique((row.public_column_grant_option_privileges ?? []).map(String));
+    if (publicColumnGrantOptions.length > 0) {
+      issues.push(`PUBLIC has column grant options ${publicColumnGrantOptions.join(", ")} on untracked public table ${row.table_name}`);
     }
     if (row.owner_name === runtimeRole) issues.push(`runtime role owns untracked public table ${row.table_name}`);
   }
@@ -1044,9 +1142,19 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
   issues.push(
     ...collectTablePrivilegeAllowlistIssues(
       {
-        effective_privileges: runtimeDefaultTableRows.map((row) => row.privilege_type),
-        grant_option_privileges: runtimeDefaultTableRows
+        runtime_privileges: runtimeDefaultTableRows.map((row) => row.privilege_type),
+        runtime_grant_option_privileges: runtimeDefaultTableRows
           .filter((row) => row.is_grantable)
+          .map((row) => row.privilege_type),
+        public_privileges: defaultPrivilegeResult.rows
+          .filter((row) => row.defaclobjtype === OBJECT_TYPE_TABLE && row.grantee_name === "PUBLIC")
+          .map((row) => row.privilege_type),
+        public_grant_option_privileges: defaultPrivilegeResult.rows
+          .filter((row) => (
+            row.defaclobjtype === OBJECT_TYPE_TABLE
+            && row.grantee_name === "PUBLIC"
+            && row.is_grantable
+          ))
           .map((row) => row.privilege_type),
       },
       `default table privileges for migration role ${migrationRole} to ${runtimeRole}`,

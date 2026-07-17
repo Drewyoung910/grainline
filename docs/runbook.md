@@ -516,18 +516,42 @@ RLS staging context proof:
   trusted target-user context. A successful response with an empty collection
   is a missing-context failure when the fixture exists. Retain only bounded
   synthetic ids/counts.
+- Keep one separate, permanent non-customer `SavedSearch` canary pair after the
+  rollout. Create or re-verify it only with
+  `SAVED_SEARCH_RLS_CANARY_SEED_CONFIRM=reviewed-permanent-canary SAVED_SEARCH_RLS_CANARY_SEED_EXPECTED_DATABASE_ENDPOINT_ID='<independently reviewed ep-* id>' SAVED_SEARCH_RLS_CANARY_SEED_EXPECTED_DATABASE_NAME='<database>' SAVED_SEARCH_RLS_CANARY_SEED_EXPECTED_DATABASE_REGION='<region>' SAVED_SEARCH_RLS_CANARY_SEED_DATABASE_URL='<pooled runtime-role URL>' SAVED_SEARCH_RLS_CANARY_SEED_ADMIN_DATABASE_URL='<direct owner URL>' SAVED_SEARCH_RLS_CANARY_SEED_EVIDENCE_PATH='<outside-repository mode-0600 path>' SAVED_SEARCH_RLS_CANARY_USER_ID='<paired synthetic user id>' SAVED_SEARCH_RLS_CANARY_SEARCH_ID='<paired synthetic search id>' npm run seed:rls-saved-search-canary`.
+  The idempotent seed refuses collisions, pins the user as banned so public
+  member counts are unaffected, pins `notifyEmail=false`, and verifies the row
+  plus post-commit context cleanup through the pooled runtime role. Set both
+  `SAVED_SEARCH_RLS_CANARY_USER_ID` and
+  `SAVED_SEARCH_RLS_CANARY_SEARCH_ID` to ids sharing the required lowercase-hex
+  nonce in the app environment and retain that exact row. The seed artifact
+  contains database identity plus status only, never the ids, email, row, URL,
+  or credentials. `/api/cron/ops-health` performs one exact-id,
+  owner-context lookup through the normal transaction wrapper. Missing,
+  partial, malformed, mismatched, zero-row, duplicate, wrong-row, invalid, or
+  failed-query results are unhealthy. The canary itself adds only the bounded
+  status and issue count to Sentry, `CronRun.result`, and the HTTP response; it
+  never attaches the ids, row payload, or caught database error. Global
+  Prisma/platform logging remains governed by the general production logging
+  policy.
 - After applying the Phase-A migration to staging, run the exact policy and
   cross-user behavior gate with the reviewed identities and retain its
-  credential-free mode-`0600` artifact outside the repository:
-  `SAVED_SEARCH_RLS_GATE_CONFIRM=staging-only SAVED_SEARCH_RLS_GATE_EXPECTED_DATABASE_ENDPOINT_ID=ep-bold-recipe-aavx4plv SAVED_SEARCH_RLS_GATE_EXPECTED_DATABASE_NAME=neondb SAVED_SEARCH_RLS_GATE_EXPECTED_DATABASE_REGION=westus3.azure SAVED_SEARCH_RLS_GATE_DATABASE_URL="$STAGING_RUNTIME_URL" SAVED_SEARCH_RLS_GATE_ADMIN_DATABASE_URL="$STAGING_DIRECT_URL" SAVED_SEARCH_RLS_GATE_EVIDENCE_PATH="/private/tmp/saved-search-rls-staging.json" npm run audit:rls-saved-search`.
-- After production RLS rollout, rerun the gate after Neon pooler, Prisma,
-  `@prisma/adapter-pg`, `pg`, transaction timeout, runtime role, grant, or policy
-  changes. Keep any sampled owner-invariant checks or synthetic canary probes on
-  non-customer rows and log only bounded internal ids or hashes.
+  credential-free mode-`0600` artifact outside the repository. Supply
+  `REVIEWED_PRODUCTION_DATABASE_ENDPOINT_ID` from independently reviewed Neon
+  production inventory; do not derive it from either staging gate URL:
+  `SAVED_SEARCH_RLS_GATE_CONFIRM=staging-only SAVED_SEARCH_RLS_GATE_EXPECTED_DATABASE_ENDPOINT_ID=ep-bold-recipe-aavx4plv SAVED_SEARCH_RLS_GATE_PRODUCTION_DATABASE_ENDPOINT_ID="$REVIEWED_PRODUCTION_DATABASE_ENDPOINT_ID" SAVED_SEARCH_RLS_GATE_EXPECTED_DATABASE_NAME=neondb SAVED_SEARCH_RLS_GATE_EXPECTED_DATABASE_REGION=westus3.azure SAVED_SEARCH_RLS_GATE_DATABASE_URL="$STAGING_RUNTIME_URL" SAVED_SEARCH_RLS_GATE_ADMIN_DATABASE_URL="$STAGING_DIRECT_URL" SAVED_SEARCH_RLS_GATE_EVIDENCE_PATH="/private/tmp/saved-search-rls-staging.json" npm run audit:rls-saved-search`.
+- Never point the mutating `audit:rls-saved-search` fixture gate at production.
+  After production rollout or any Neon pooler, Prisma, `@prisma/adapter-pg`,
+  `pg`, transaction-timeout, runtime-role, grant, or policy change, run the
+  non-mutating catalog/grant audit from a clean checkout and verify retained
+  non-customer canary ids through the live route reads. Repeat the mutating
+  cross-user fixture gate on isolated staging before promoting a configuration
+  change. Keep owner-invariant and live canary evidence bounded to internal ids
+  or hashes.
 
 ## Cron and Email Outbox
 
-1. Check the hourly `/api/cron/ops-health` Sentry warning first; it polls failed `CronRun` rows from the last 24 hours, completed cron rows with partial record failures, stale `RUNNING` cron rows, stale email outbox jobs, dead email outbox jobs, overdue support requests, failed or stale unprocessed `StripeWebhookEvent`, `ResendWebhookEvent`, and `ClerkWebhookEvent` rows, and failed or stale `AccountDeletionSideEffect` rows. Completed cron partial failures include non-empty `failures`/`errors` arrays plus positive scalar `failed`, `manualReview`, or `partialIssueCount` counters. Also check webhook failure spike alerts for repeated provider edge failures.
+1. Check the hourly `/api/cron/ops-health` Sentry warning first; it polls failed `CronRun` rows from the last 24 hours, completed cron rows with partial record failures, stale `RUNNING` cron rows, stale email outbox jobs, dead email outbox jobs, overdue support requests, failed or stale unprocessed `StripeWebhookEvent`, `ResendWebhookEvent`, and `ClerkWebhookEvent` rows, failed or stale `AccountDeletionSideEffect` rows, and the retained non-customer `SavedSearch` RLS canary. Completed cron partial failures include non-empty `failures`/`errors` arrays plus positive scalar `failed`, `manualReview`, or `partialIssueCount` counters. For a canary `configuration_*` status, correct both paired environment variables before retrying. For `not_found`, `wrong_row`, `duplicate`, `invalid_result`, or `query_failed`, verify the retained synthetic row and runtime-role/context wiring without copying raw ids or database errors into logs or tickets. If a new RLS activation plausibly caused silent denial, disable RLS at the database first according to the rollout rollback order, then diagnose the app release. Also check webhook failure spike alerts for repeated provider edge failures.
 2. Check `/api/cron/*` logs in Vercel for route-level failures.
 3. Check `CronRun` rows with `status = FAILED` in the last 24 hours.
 4. Check Sentry for cron route exceptions and failed cron check-ins.

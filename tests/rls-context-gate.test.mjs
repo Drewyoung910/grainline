@@ -318,11 +318,17 @@ describe("RLS context acceptance gate guardrails", () => {
 
     assert.match(script, /PRIMARY KEY \(run_id, run_slot\)/);
     assert.match(script, /ON CONFLICT \(run_id, run_slot\) DO NOTHING/);
+    assert.match(script, /SELECT \$1, \$2::smallint, \$3, \$4/);
+    assert.match(script, /WHERE \$2::smallint = 1::smallint/);
     assert.match(
       script,
       /run_slot = 1[\s\S]*status = 'passed'[\s\S]*deployment_id = \$3[\s\S]*commit_sha = \$4/,
     );
     assert.match(script, /status = 'running'/);
+    assert.match(script, /evidence jsonb/);
+    assert.match(script, /ADD COLUMN IF NOT EXISTS evidence jsonb/);
+    assert.match(script, /SET status = \$3, finished_at = now\(\), evidence = \$6::jsonb/);
+    assert.match(script, /sanitized evidence exceeds 256 KiB/);
     assert.match(script, /succeeded \? "passed" : "failed"/);
   });
 
@@ -348,6 +354,37 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.equal(isPreparedStatementError(new Error("prepared statement already exists")), true);
     assert.equal(isPreparedStatementError(new Error("cached plan must not change result type")), true);
     assert.equal(isPreparedStatementError(new Error("ordinary timeout")), false);
+  });
+
+  it("benchmarks the production wrapper without a redundant context round trip", () => {
+    const script = source("scripts/rls-context-acceptance-gate.mjs");
+    const rawWrapped = script.slice(
+      script.indexOf("async function timedWrappedRead"),
+      script.indexOf("async function transactionCleanupProbe"),
+    );
+    const prismaWrapped = script.slice(
+      script.indexOf("async function timedPrismaWrappedRead"),
+      script.indexOf("async function timedPrismaCleanupProbe"),
+    );
+
+    for (const wrapped of [rawWrapped, prismaWrapped]) {
+      assert.match(wrapped, /const context = await/);
+      assert.match(wrapped, /set_config\('app\.user_id'/);
+      assert.match(wrapped, /set_config returned/);
+      assert.doesNotMatch(wrapped, /SELECT current_setting\('app\.user_id'/);
+    }
+  });
+
+  it("mirrors the real app Prisma pool and does not invent adapter pool timings", () => {
+    const script = source("scripts/rls-context-acceptance-gate.mjs");
+    const db = source("src/lib/db.ts");
+
+    assert.match(script, /const PRISMA_APP_POOL_SIZE = 10/);
+    assert.match(script, /createPrismaProbe\(config, \{ max: PRISMA_APP_POOL_SIZE \}\)/);
+    assert.match(db, /max: 10/);
+    assert.match(script, /poolTimingAvailable: false/);
+    assert.match(script, /acquire=unavailable; hold=unavailable/);
+    assert.match(script, /baseline\.poolTimingAvailable && wrapped\.poolTimingAvailable/);
   });
 
   it("documents the gate in the RLS runbook and defense-in-depth plan", () => {
@@ -586,7 +623,12 @@ describe("RLS context acceptance gate guardrails", () => {
       assert.equal(await claimProviderRuntimeRunSlot(claimConfig, { runId, runSlot: 1 }), true);
       assert.equal(await claimProviderRuntimeRunSlot(claimConfig, { runId, runSlot: 1 }), false);
       assert.equal(await claimProviderRuntimeRunSlot(claimConfig, { runId, runSlot: 2 }), false);
-      await completeProviderRuntimeRunSlot(claimConfig, { runId, runSlot: 1, succeeded: true });
+      await completeProviderRuntimeRunSlot(claimConfig, {
+        evidence: { result: { issueCount: 0 }, run: { status: "runtime_candidate_passed" } },
+        runId,
+        runSlot: 1,
+        succeeded: true,
+      });
       assert.equal(await claimProviderRuntimeRunSlot({
         ...claimConfig,
         providerDeploymentId: "dpl_ci_other",
@@ -596,7 +638,12 @@ describe("RLS context acceptance gate guardrails", () => {
         providerCommitSha: "fedcba0987654321",
       }, { runId, runSlot: 2 }), false);
       assert.equal(await claimProviderRuntimeRunSlot(claimConfig, { runId, runSlot: 2 }), true);
-      await completeProviderRuntimeRunSlot(claimConfig, { runId, runSlot: 2, succeeded: true });
+      await completeProviderRuntimeRunSlot(claimConfig, {
+        evidence: { result: { issueCount: 0 }, run: { status: "runtime_candidate_passed" } },
+        runId,
+        runSlot: 2,
+        succeeded: true,
+      });
 
       const result = await runAcceptanceGate({
         ...config,
