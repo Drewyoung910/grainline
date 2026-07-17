@@ -15,6 +15,7 @@ import ResubmitButton from "@/components/ResubmitButton";
 import { listingMutationRatelimit, safeRateLimit, savedSearchRatelimit } from "@/lib/ratelimit";
 import { countUnreadOwnerNotifications } from "@/lib/notificationOwnerAccess";
 import { deleteOwnerSavedSearch, listOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
+import { withDbUserContext } from "@/lib/dbUserContext";
 import { publicListingPath, publicSellerShopPath } from "@/lib/publicPaths";
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
@@ -206,7 +207,7 @@ async function deleteSavedSearch(searchId: string) {
   const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true, banned: true, deletedAt: true } });
   if (!me) return;
   if (me.banned || me.deletedAt) return;
-  await deleteOwnerSavedSearch(me.id, searchId);
+  await withDbUserContext(me.id, (tx) => deleteOwnerSavedSearch(me.id, searchId, tx));
   revalidatePath("/dashboard");
 }
 
@@ -260,7 +261,7 @@ async function DashboardPageContent({
       orderBy: { updatedAt: "desc" },
       take: 6,
     }),
-    listOwnerSavedSearches(me.id, { take: 20 }),
+    withDbUserContext(me.id, (tx) => listOwnerSavedSearches(me.id, tx, { take: 20 })),
     prisma.makerVerification.findUnique({
       where: { sellerProfileId: seller.id },
       select: { status: true },

@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/db";
+import { setDbUserContext } from "@/lib/dbUserContext";
+import { deleteAllOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
 import { accountDeletionMediaUrlsForCleanup } from "@/lib/urlValidation";
 import { redis } from "@/lib/ratelimit";
 import { removeSellerCommissionInterests } from "@/lib/commissionInterestCleanup";
@@ -1553,6 +1555,7 @@ export async function anonymizeUserAccount(
   });
 
   const result = await prisma.$transaction(async (tx) => {
+    await setDbUserContext(tx, userId);
     const user = await tx.user.findUnique({
       where: { id: userId },
       include: {
@@ -1655,7 +1658,7 @@ export async function anonymizeUserAccount(
 
     await tx.cart.deleteMany({ where: { userId: user.id } });
     await tx.favorite.deleteMany({ where: { userId: user.id } });
-    await tx.savedSearch.deleteMany({ where: { userId: user.id } });
+    await deleteAllOwnerSavedSearches(user.id, tx);
     await tx.stockNotification.deleteMany({ where: { userId: user.id } });
     await scrubCheckoutStockReservationsForDeletedAccount(tx, user.id, user.sellerProfile?.id ?? null);
     await tx.notification.deleteMany({ where: { userId: user.id } });

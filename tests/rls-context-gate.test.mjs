@@ -134,6 +134,16 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.equal(config.databaseUrl, baseEnv().RLS_CONTEXT_GATE_DATABASE_URL);
     assert.equal(config.runtimeRole, "grainline_app_runtime");
     assert.equal(config.measuredRequests, MIN_ACCEPTANCE_REQUESTS);
+    assert.equal(config.targetConcurrency, 8);
+    assert.equal(config.burstConcurrency, 16);
+    assert.equal(config.poolSize, 16);
+    assert.throws(
+      () => parseGateConfig(baseEnv({
+        RLS_CONTEXT_GATE_BURST_CONCURRENCY: "16",
+        RLS_CONTEXT_GATE_POOL_SIZE: "8",
+      })),
+      /POOL_SIZE must be at least RLS_CONTEXT_GATE_BURST_CONCURRENCY/,
+    );
     assert.equal(parseGateConfig(baseEnv({
       RLS_CONTEXT_GATE_EVIDENCE_PATH: "tmp/rls-context-gate-evidence.json",
     })).evidencePath, "tmp/rls-context-gate-evidence.json");
@@ -237,6 +247,7 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.match(defense, /proves read\/context\s+  isolation for the synthetic canary only/);
     assert.match(defense, /per-table write-policy behavior/);
     assert.match(defense, /Prisma adapter transaction path/);
+    assert.match(defense, /pool size to at least the configured burst concurrency/);
     assert.match(runbook, /RLS_CONTEXT_GATE_CONFIRM=staging-only/);
     assert.match(runbook, /RLS_CONTEXT_GATE_PREPARE=1/);
     assert.match(runbook, /RLS_CONTEXT_GATE_ROLLBACK_PROBE=1/);
@@ -246,6 +257,7 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.match(runbook, /autocommit baseline/);
     assert.match(runbook, /proves read\/context\s+  isolation on synthetic canary rows/);
     assert.match(runbook, /per-table write-policy behavior/);
+    assert.match(runbook, /POOL_SIZE` at or above\s+`RLS_CONTEXT_GATE_BURST_CONCURRENCY/);
     assert.match(launch, /audit:rls-context/);
     assert.match(launch, /RLS_CONTEXT_GATE_EVIDENCE_PATH/);
     assert.match(agentContract, /RLS_CONTEXT_GATE_EVIDENCE_PATH/);

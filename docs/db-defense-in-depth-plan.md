@@ -1,6 +1,6 @@
 # Grainline DB Defense-In-Depth Plan
 
-Last updated: 2026-07-07
+Last updated: 2026-07-16
 
 This is the execution tracker for database-layer hardening. It complements
 `docs/rls-feasibility-plan.md`, which remains the design source of truth for
@@ -25,7 +25,7 @@ staging-only RLS prototype on low-blast-radius direct-owner tables.
 
 ## Phase 0 - Baseline
 
-Status: not started.
+Status: staging baseline completed on 2026-07-16; production remains unchanged.
 
 Required before any role or policy change:
 
@@ -54,9 +54,28 @@ Evidence to retain:
 - Sanitized role names and privilege summary.
 - Confirmation that no production credentials were changed.
 
+Baseline recorded 2026-07-16:
+
+- `main` CI run `29527670942` passed for commit `4edb0faa`.
+- Existing dirty/untracked audit and agent files were preserved.
+- Local `.env` and `.env.local` use a pooled `DATABASE_URL` and matching direct
+  `DIRECT_URL`, but both authenticate as the same Neon owner identity. Endpoint
+  shape is separated; runtime/migration identity is not.
+- Vercel metadata has production `DATABASE_URL`/`DIRECT_URL` and development
+  `DATABASE_URL`, but no preview `DATABASE_URL` or `DIRECT_URL`. No dedicated
+  staging target is configured or provable from current metadata.
+- No database connection or production credential change was made during this
+  baseline. Live table/schema ownership, role attributes, memberships, and
+  default privileges remain unverified.
+- A fresh child branch named `rls-staging-20260716` now provides the isolated
+  staging target. Its 58 application tables plus `_prisma_migrations` are owned
+  by the branch's existing direct migration owner, and its pre-canary baseline
+  had zero RLS-enabled public tables. Production URLs and roles were not changed.
+
 ## Phase 1 - Least-Privilege Runtime Role
 
-Status: not started.
+Status: completed on the isolated staging branch only; production role and
+credential changes have not started.
 
 Purpose: reduce blast radius even before RLS. A leaked runtime connection or
 future SQL injection should not own tables, bypass RLS, run migrations, or alter
@@ -182,6 +201,19 @@ Verification checklist:
   - admin PIN-gated routes;
   - email outbox enqueue/drain.
 
+Staging result recorded 2026-07-16:
+
+- `grainline_app_runtime` was created through SQL, not the Neon role API, and
+  verified as non-superuser, `NOBYPASSRLS`, unable to create roles/databases,
+  and membership-free.
+- The direct branch owner `neondb_owner` remains the declared staging migration
+  owner; the pooled URL authenticates only as `grainline_app_runtime`.
+- `scripts/provision-runtime-db-role.sql` completed with the explicit 58-table,
+  20-enum, custom-function, and `pg_trgm` grants after its psql guard was fixed
+  to return exactly one row to each `\gset`.
+- Prisma reported all 144 repository migrations applied. No production secret,
+  role, grant, or policy was changed.
+
 Rollback:
 
 - Repoint staging `DATABASE_URL` to the previous known-good role.
@@ -191,7 +223,9 @@ Rollback:
 
 ## Phase 2 - Grant Hygiene Automation
 
-Status: not started.
+Status: repository tooling and CI/static validation implemented; the live
+staging grant audit passed on 2026-07-16 for `grainline_app_runtime` with 58
+tables, 20 enums, 1 `grainline_*` function, 1 extension, and 0 sequences.
 
 Purpose: prevent future migrations from silently breaking runtime traffic after
 the app moves to a non-owner role.
@@ -270,7 +304,13 @@ Verification:
 
 ## Phase 3 - Request Context Proof
 
-Status: staging gate tooling and dormant helper added; live staging proof not run.
+Status: staging context/performance gate tooling, the shared helper, and local
+SavedSearch adoption are implemented. The first live staging attempt preserved
+correct isolation but failed 17 performance thresholds, so it is not promotion
+evidence. The attempt also exposed and led to a local fix for a client-pool
+default that silently reduced the configured 2x burst. Two consecutive passing
+runs on the corrected commit are still required, and the context-wrapped paths
+have not been deployed.
 
 Purpose: prove the core RLS mechanism under the actual runtime topology before
 enabling policies.
@@ -294,9 +334,13 @@ Current reviewed staging harness:
   as asymmetric Notification `INSERT`/`DELETE`, still needs migration-level
   tests before a real table policy is enabled.
 - To create or refresh the canary table/policy in staging:
-  `RLS_CONTEXT_GATE_CONFIRM=staging-only RLS_CONTEXT_GATE_PREPARE=1 RLS_CONTEXT_GATE_ADMIN_DATABASE_URL="$DIRECT_URL" RLS_CONTEXT_GATE_DATABASE_URL="<pooled runtime-role URL>" RLS_CONTEXT_GATE_RUNTIME_ROLE=grainline_app_runtime npm run audit:rls-context`
+  `RLS_CONTEXT_GATE_CONFIRM=staging-only RLS_CONTEXT_GATE_PREPARE=1 RLS_CONTEXT_GATE_ADMIN_DATABASE_URL="$DIRECT_URL" RLS_CONTEXT_GATE_DATABASE_URL="<pooled runtime-role URL>" RLS_CONTEXT_GATE_RUNTIME_ROLE=grainline_app_runtime RLS_CONTEXT_GATE_EVIDENCE_PATH="rls-context-gate-evidence.json" npm run audit:rls-context`
 - To run against an already prepared staging canary:
-  `RLS_CONTEXT_GATE_CONFIRM=staging-only RLS_CONTEXT_GATE_DATABASE_URL="<pooled runtime-role URL>" RLS_CONTEXT_GATE_RUNTIME_ROLE=grainline_app_runtime npm run audit:rls-context`
+  `RLS_CONTEXT_GATE_CONFIRM=staging-only RLS_CONTEXT_GATE_DATABASE_URL="<pooled runtime-role URL>" RLS_CONTEXT_GATE_RUNTIME_ROLE=grainline_app_runtime RLS_CONTEXT_GATE_EVIDENCE_PATH="rls-context-gate-evidence-rerun.json" npm run audit:rls-context`
+- The gate defaults its pool size to at least the configured burst concurrency
+  and rejects an explicit `RLS_CONTEXT_GATE_POOL_SIZE` below
+  `RLS_CONTEXT_GATE_BURST_CONCURRENCY`; otherwise the claimed 2x burst would be
+  silently capped by the client pool.
 - To rerun the rollback/no-op proof without refreshing canary rows, add
   `RLS_CONTEXT_GATE_ROLLBACK_PROBE=1 RLS_CONTEXT_GATE_ADMIN_DATABASE_URL="$DIRECT_URL"`.
 - To retain a durable sanitized JSON evidence artifact, add
@@ -306,12 +350,20 @@ Current reviewed staging harness:
   issues. It intentionally does not include database URLs or credentials.
 - Do not point this gate at production. Use a production-like Neon branch or
   staging database with the same pooled runtime-role shape as production.
+- `RLS_CONTEXT_GATE_PREPARE=1` leaves the synthetic schema, table, policy, and
+  canary rows in staging for repeatable evidence runs. The rollback probe
+  temporarily disables RLS and restores `ENABLE`/`FORCE ROW LEVEL SECURITY`; it
+  is not canary cleanup.
+- Treat the gate's autocommit, transaction, and wrapped target/2x-burst reports
+  as the generic connection/performance baseline. Require two consecutive runs
+  on the same commit and configuration, with both evidence artifacts retained.
+  Real-table route/data-shape smoke remains required.
 
 Required helper contract:
 
-- Use `src/lib/dbUserContext.ts` for future RLS-wrapped app reads/writes after
-  the staging gate passes. The helper is intentionally dormant until a
-  table-specific prototype wraps its route/server-component paths.
+- `src/lib/dbUserContext.ts` now wraps the local SavedSearch prototype paths.
+  Do not deploy those context-wrapped paths or adopt the helper on additional
+  tables until the production-like pooled staging gate passes twice.
 - Open an explicit Prisma transaction.
 - Run `set_config('app.user_id', $userId, true)` as the first statement inside
   the transaction.
@@ -472,11 +524,80 @@ Stop condition:
   stop RLS work and keep app-layer authorization plus least-privilege role as
   the active DB defense.
 
-## Phase 4 - Notification RLS Prototype
+## Phase 4 - SavedSearch RLS Prototype
 
-Status: not started.
+Status: owner-access centralization, direct-access guards, and context wiring are
+implemented locally. They are not deployed. Policy migration and live staging
+validation have not started.
 
-Purpose: protect user notification reads and mark-read updates while preserving
+Purpose: use the simplest owner-symmetric table as the first real-table proof
+after the role, grant, and pooled-context gates pass.
+
+Staging policy shape, using the fail-closed predicate
+`"userId" = NULLIF(current_setting('app.user_id', true), '')`:
+
+- `SELECT`: command-specific policy with `USING`.
+- `INSERT`: command-specific policy with `WITH CHECK`.
+- `DELETE`: command-specific policy with `USING`.
+- `UPDATE`: do not add unless a future route supports updates.
+- Use both `ENABLE ROW LEVEL SECURITY` and `FORCE ROW LEVEL SECURITY` in the
+  staging prototype. Production activation remains a separate approval.
+
+Implementation constraints:
+
+- Saved-search cap checks must remain in the same transaction as insert.
+- If serializable retry is used, context must be set inside each retry attempt.
+- Forged `userId` must still be ignored/rejected by app-layer code.
+- Owner-access helpers must receive the context transaction client explicitly;
+  do not retain a global Prisma default that can silently omit context.
+- Account deletion already owns a large interactive transaction. Call
+  `setDbUserContext(tx, targetUserId)` as its first statement and keep cleanup on
+  that transaction client, or use an explicit cleanup bypass. Never nest
+  `withDbUserContext` inside account deletion.
+- Existing outer page/export `Promise.all` calls may invoke a separately wrapped
+  SavedSearch operation, but no protected queries may run in parallel inside the
+  same context transaction.
+
+Read/delete paths to wrap before enabling:
+
+- `GET/POST/DELETE /api/search/saved`.
+- Account overview and saved-search page reads/actions.
+- Dashboard server-component saved-search reads and delete action.
+- Account export saved-search reads.
+- Account-deletion saved-search cleanup, including self-deletion, Clerk webhook,
+  and deferred side-effect entry points.
+
+Regression and silent-denial tests:
+
+- direct DB: user A cannot read/delete user B saved searches.
+- direct DB: missing/empty context returns zero rows.
+- route: list returns the exact known synthetic row for the current user; an
+  empty 200 response fails when that fixture exists.
+- route: create writes only current user's `userId`.
+- route: delete cannot delete another user's row.
+- account/dashboard/export: each surface returns the exact current-user fixture.
+- account deletion: cleanup removes the synthetic target user's row under self,
+  provider, and deferred deletion paths, then verifies zero remaining rows under
+  the same trusted context.
+- cap behavior still works under context/retry.
+- Log only bounded synthetic ids/counts in retained staging evidence. Do not add
+  a production owner/bypass query solely to detect silent denial.
+
+Rollback:
+
+- Disable RLS on `SavedSearch` in staging and prove wrapped happy paths still
+  work with `set_config` as a harmless no-op.
+- Remove or widen policies only through a reviewed forward migration.
+- Keep app-layer owner predicates in place throughout.
+
+## Phase 5 - Notification RLS Prototype
+
+Status: owner read/update centralization and direct-access guard implemented;
+service write/delete model, context wiring, policies, and staging validation not
+started.
+
+Purpose: protect user notification reads and mark-read updates after the first
+direct-owner table proves the context adoption pattern, while preserving
 legitimate cross-user/system notification creation and cleanup.
 
 Policy shape:
@@ -537,56 +658,6 @@ Rollback:
 - Disable RLS on `Notification`.
 - Remove/widen only the prototype policies through a forward migration.
 - Keep app-layer notification ownership predicates in place throughout.
-
-## Phase 5 - SavedSearch RLS Prototype
-
-Status: not started.
-
-Purpose: validate a simpler direct-owner table after Notification proves the
-context helper and role model.
-
-Policy shape:
-
-- `SELECT`: `SavedSearch.userId = app.user_id`.
-- `INSERT`: `SavedSearch.userId = app.user_id`.
-- `DELETE`: `SavedSearch.userId = app.user_id`.
-- `UPDATE`: add only if a future route supports updates.
-
-Implementation constraints:
-
-- Saved-search cap checks must remain in the same transaction as insert.
-- If serializable retry is used, context must be set inside each retry attempt.
-- Forged `userId` must still be ignored/rejected by app-layer code.
-- Account deletion deletes saved searches inside the anonymization transaction.
-  That transaction must either set `app.user_id` to the target deleted user as
-  its first statement or use an explicit cleanup bypass. Otherwise a
-  user-scoped `DELETE` policy can silently leave saved-search query/location
-  data behind during self-deletion, Clerk webhook deletion, or admin-triggered
-  deletion.
-
-Read/delete paths to inventory and wrap before enabling:
-
-- `GET /api/search/saved` list reads.
-- `DELETE /api/search/saved` deletes.
-- Dashboard server-component saved-search reads.
-- Dashboard `deleteSavedSearch` server action.
-- Account export saved-search reads. These currently run in a broader export
-  `Promise.all`, so the saved-search read should be wrapped individually or the
-  export query shape must avoid parallel work inside a single RLS-context
-  transaction.
-- Account-deletion saved-search cleanup.
-
-Regression tests:
-
-- direct DB: user A cannot read/delete user B saved searches.
-- route: list returns only own saved searches.
-- route: create writes only current user's `userId`.
-- route: delete cannot delete another user's row.
-- dashboard: saved-search section still renders current-user rows.
-- account export: saved-search rows still export for the current user.
-- account deletion: saved-search cleanup removes the deleted user's rows under
-  self-deletion and provider/admin deletion paths.
-- cap behavior still works under context/retry.
 
 ## Phase 6 - Expansion Decision
 
@@ -762,6 +833,10 @@ true:
 
 ## Current Recommendation
 
-Start with Phase 0 and Phase 1 only. Treat least-privilege runtime role
-validation as the immediate high-return work. Treat RLS as a staging prototype
-until the request-context and grant-hygiene gates are proven.
+Finish Phase 0 on a dedicated staging branch, then execute Phase 1 and the live
+grant audit. Run the Phase 3 context/performance gate twice on the same
+commit/configuration before adopting context transactions in application paths.
+Use `SavedSearch` as the first staging-only real-table prototype and
+`Notification` second after its service-write/delete model is explicit. Runtime
+role or RLS changes in production require separate approval after the promotion
+gate passes.

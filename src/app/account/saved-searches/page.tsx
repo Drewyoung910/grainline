@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/db";
 import { ensureUserForPage } from "@/lib/pageAuth";
 import { deleteOwnerSavedSearch, listOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
+import { withDbUserContext } from "@/lib/dbUserContext";
 import { formatCurrencyCents, formatCurrencyMinorUnitAmount } from "@/lib/money";
 import { safeRateLimit, savedSearchRatelimit } from "@/lib/ratelimit";
 
@@ -24,7 +25,7 @@ async function deleteSavedSearch(searchId: string) {
     select: { id: true, banned: true, deletedAt: true },
   });
   if (!me || me.banned || me.deletedAt) return;
-  await deleteOwnerSavedSearch(me.id, searchId);
+  await withDbUserContext(me.id, (tx) => deleteOwnerSavedSearch(me.id, searchId, tx));
   revalidatePath("/account");
   revalidatePath("/account/saved-searches");
 }
@@ -66,7 +67,7 @@ function savedSearchLabel(search: SavedSearchRow) {
 
 export default async function AccountSavedSearchesPage() {
   const me = await ensureUserForPage("/account/saved-searches");
-  const searches = await listOwnerSavedSearches(me.id);
+  const searches = await withDbUserContext(me.id, (tx) => listOwnerSavedSearches(me.id, tx));
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6">

@@ -47,12 +47,16 @@ describe("schema hardening follow-ups", () => {
   it("keeps saved-search dedupe race guarded by serializable retry", () => {
     const route = source("src/app/api/search/saved/route.ts");
     const ownerAccess = source("src/lib/savedSearchOwnerAccess.ts");
+    const dbUserContext = source("src/lib/dbUserContext.ts");
+    const dbUserContextState = source("src/lib/dbUserContextState.ts");
 
-    assert.match(route, /withSerializableRetry\(\(\) =>\s*prisma\.\$transaction\(async \(tx\) =>/s);
+    assert.match(route, /withSerializableDbUserContext\(me\.id, async \(tx\) =>/);
     assert.match(route, /findDuplicateOwnerSavedSearch\(me\.id, criteria, tx\)/);
     assert.match(route, /createOwnerSavedSearch\(me\.id, criteria, tx\)/);
     assert.match(ownerAccess, /db\.savedSearch\.findFirst\(/);
     assert.match(ownerAccess, /db\.savedSearch\.create\(/);
-    assert.match(route, /isolationLevel: Prisma\.TransactionIsolationLevel\.Serializable/);
+    assert.match(dbUserContext, /withSerializableRetry\(runTransaction, options\.attempts\)/);
+    assert.match(dbUserContext, /serializableRetry: true/);
+    assert.match(dbUserContextState, /DB_USER_CONTEXT_SERIALIZABLE_ISOLATION_LEVEL =\s*\n\s*"Serializable"/);
   });
 });

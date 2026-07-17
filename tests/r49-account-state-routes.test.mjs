@@ -72,7 +72,7 @@ describe("R49 account-state route guardrails", () => {
     assert.match(savedSearchRoute, /safeRateLimit\(savedSearchRatelimit, userId\)/);
     assert.ok(
       savedSearchGet.indexOf("safeRateLimit(savedSearchRatelimit, userId)") <
-        savedSearchGet.indexOf("listOwnerSavedSearches(me.id)"),
+        savedSearchGet.indexOf("withDbUserContext(me.id"),
       "saved-search GET should rate-limit before listing current-user saved searches",
     );
 
@@ -128,7 +128,7 @@ describe("R49 account-state route guardrails", () => {
     assert.match(getRoute, /lat: savedSearchCoordinateForTransport\(search\.lat\)/);
     assert.match(getRoute, /lng: savedSearchCoordinateForTransport\(search\.lng\)/);
     assert.ok(
-      getRoute.indexOf("listOwnerSavedSearches(me.id)") < getRoute.indexOf("searches.map"),
+      getRoute.indexOf("listOwnerSavedSearches(me.id, tx)") < getRoute.indexOf("searches.map"),
       "saved-search GET should minimize coordinates after loading the current user's rows",
     );
   });
@@ -137,9 +137,9 @@ describe("R49 account-state route guardrails", () => {
     const savedSearchRoute = source("src/app/api/search/saved/route.ts");
     const savedSearchOwnerAccess = source("src/lib/savedSearchOwnerAccess.ts");
 
-    assert.match(savedSearchRoute, /withSerializableRetry/);
-    assert.match(savedSearchRoute, /prisma\.\$transaction\(async \(tx\) =>/);
-    assert.match(savedSearchRoute, /isolationLevel: Prisma\.TransactionIsolationLevel\.Serializable/);
+    assert.match(savedSearchRoute, /withSerializableDbUserContext\(me\.id, async \(tx\) =>/);
+    assert.doesNotMatch(savedSearchRoute, /withSerializableRetry/);
+    assert.doesNotMatch(savedSearchRoute, /prisma\.\$transaction/);
     assert.ok(
       savedSearchRoute.indexOf("findDuplicateOwnerSavedSearch(me.id, criteria, tx)") <
         savedSearchRoute.indexOf("countOwnerSavedSearches(me.id, tx)") &&
