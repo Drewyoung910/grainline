@@ -381,25 +381,33 @@ function normalizedPrivilegeArray(value) {
   return sortedUnique(value.map((privilege) => String(privilege).toUpperCase()));
 }
 
-export function collectTablePrivilegeAllowlistIssues(row, label) {
+export function collectTablePrivilegeAllowlistIssues(
+  row,
+  label,
+  { checkColumnPrivileges = true } = {},
+) {
   if (!Array.isArray(row?.effective_privileges)) {
     return [`${label} exact table privilege state could not be read`];
   }
   if (!Array.isArray(row?.grant_option_privileges)) {
     return [`${label} table grant-option state could not be read`];
   }
-  if (!Array.isArray(row?.column_privileges)) {
+  if (checkColumnPrivileges && !Array.isArray(row?.column_privileges)) {
     return [`${label} column privilege state could not be read`];
   }
-  if (!Array.isArray(row?.column_grant_option_privileges)) {
+  if (checkColumnPrivileges && !Array.isArray(row?.column_grant_option_privileges)) {
     return [`${label} column grant-option state could not be read`];
   }
   const allowed = new Set(REQUIRED_TABLE_PRIVILEGES);
   const unexpected = normalizedPrivilegeArray(row?.effective_privileges)
     .filter((privilege) => !allowed.has(privilege));
   const grantOptions = normalizedPrivilegeArray(row?.grant_option_privileges);
-  const columnPrivileges = sortedUnique(row.column_privileges.map(String));
-  const columnGrantOptions = sortedUnique(row.column_grant_option_privileges.map(String));
+  const columnPrivileges = checkColumnPrivileges
+    ? sortedUnique(row.column_privileges.map(String))
+    : [];
+  const columnGrantOptions = checkColumnPrivileges
+    ? sortedUnique(row.column_grant_option_privileges.map(String))
+    : [];
   const issues = [];
   if (unexpected.length > 0) {
     issues.push(`${label} has unexpected table privileges: ${unexpected.join(", ")}`);
@@ -1042,6 +1050,7 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
           .map((row) => row.privilege_type),
       },
       `default table privileges for migration role ${migrationRole} to ${runtimeRole}`,
+      { checkColumnPrivileges: false },
     ),
   );
   for (const row of defaultPrivilegeResult.rows) {

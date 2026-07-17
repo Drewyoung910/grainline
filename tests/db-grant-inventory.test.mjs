@@ -288,6 +288,17 @@ describe("database grant inventory guardrails", () => {
         "table SavedSearch has column grant options: id:REFERENCES",
       ],
     );
+    assert.deepEqual(
+      collectTablePrivilegeAllowlistIssues(
+        {
+          effective_privileges: ["SELECT", "INSERT", "UPDATE", "DELETE"],
+          grant_option_privileges: [],
+        },
+        "default table privileges",
+        { checkColumnPrivileges: false },
+      ),
+      [],
+    );
   });
 
   it("derives the current runtime grant surface from schema and migrations", () => {
