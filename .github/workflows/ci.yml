@@ -82,8 +82,16 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Prepare CI runtime policy role
+        run: psql "$DIRECT_URL" -f scripts/prepare-ci-rls-runtime-role.sql
       - name: Apply migrations to CI Postgres
         run: npx prisma migrate deploy
+      - name: Converge production-style runtime grants after migrations
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Verify migration status
+        run: npx prisma migrate status
+      - name: Audit final runtime grants and RLS catalog
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants
       - run: npx tsc --noEmit
       - name: Lint
         run: npm run lint

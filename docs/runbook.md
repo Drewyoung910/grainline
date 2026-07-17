@@ -371,6 +371,13 @@ Production migration rules:
   version-controlled SQL or migrations before production promotion. Manual
   staging setup is acceptable for proving the shape, but production should not
   depend on untracked dashboard or shell changes.
+- For every least-privilege/RLS rollout, keep the operational order explicit:
+  query and retain object ownership first; run provisioning to converge current
+  grants and migration-owner defaults; run `prisma migrate deploy` and
+  `prisma migrate status`; then run the exact grant/RLS audit against the final
+  catalog. A pre-migration audit is not a substitute for the post-migration
+  audit because `_prisma_migrations` and other new public objects can inherit
+  runtime DML from default privileges.
 - Current reviewed staging and production role/grant template (the actual table
   owner is `neondb_owner`; re-query ownership immediately before execution):
   `psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=neondb_owner -f scripts/provision-runtime-db-role.sql`.

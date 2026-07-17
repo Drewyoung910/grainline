@@ -257,7 +257,8 @@ Implementation goals:
   declared least-privilege ownership model instead of only checking current
   table DML.
 - The audit fails if a tracked public app table has RLS policies without
-  `ENABLE ROW LEVEL SECURITY`. Its `FORCE ROW LEVEL SECURITY` expectation is
+  `ENABLE ROW LEVEL SECURITY`, or has RLS enabled with zero policies. Its
+  `FORCE ROW LEVEL SECURITY` expectation is
   rollout-phase specific. `SavedSearch` phase A intentionally requires
   `NO FORCE` while the 12-hour Vercel skew window drains owner-backed app
   deployments; all behavior proof authenticates as the non-owner runtime role.
@@ -302,9 +303,15 @@ Verification:
 - In GitHub Actions, `tests/db-grant-inventory.test.mjs` also runs the live
   `auditLiveDatabase()` SQL path against synthetic Postgres roles/databases so
   catalog-query regressions fail CI without needing staging secrets.
-- Run the real-environment grant audit in CI only after a suitable CI role model
-  exists, or keep the real staging/production check manual until CI can
-  represent owner/runtime separation.
+- The fresh-database GitHub Actions job first creates a tightly guarded
+  membership-free `NOLOGIN` policy target so fail-closed migrations can run,
+  then applies every migration. After migration it runs the same
+  `scripts/provision-runtime-db-role.sql` used for staging/production, verifies
+  migration status, and runs `audit:db-grants` as the CI migration owner against
+  the final catalog. Provisioning converges that ephemeral role to the audited
+  production posture (`LOGIN NOINHERIT`) and revokes inherited default DML from
+  `_prisma_migrations`; the CI role has no password and the database/service are
+  destroyed with the job.
 
 ## Phase 3 - Request Context Proof
 

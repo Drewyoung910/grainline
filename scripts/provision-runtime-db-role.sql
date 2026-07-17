@@ -127,6 +127,12 @@ SELECT
 \unset grainline_role_provisioning_failed
 \unset grainline_role_provisioning_failure
 
+-- The production runtime principal must be able to authenticate, while
+-- NOINHERIT ensures any future accidental membership does not become an
+-- implicit privilege path before the membership-free guard catches it.
+SELECT format('ALTER ROLE %I LOGIN NOINHERIT', :'runtime_role');
+\gexec
+
 WITH RECURSIVE memberships AS (
     SELECT parent.oid, parent.rolname
       FROM pg_auth_members m
@@ -158,6 +164,108 @@ SELECT
 GRANT USAGE ON SCHEMA public TO :"runtime_role";
 REVOKE CREATE ON SCHEMA public FROM :"runtime_role";
 SELECT format('REVOKE CREATE ON DATABASE %I FROM %I', current_database(), :'runtime_role');
+\gexec
+
+-- Converge historical direct grants without relying on a version-specific list
+-- of table privileges. PostgreSQL 17 added MAINTAIN, for example. Public grants
+-- are intentionally not mutated here; the grant audit fails if they widen the
+-- runtime role and requires an explicit reviewed PUBLIC change.
+WITH runtime_role AS (
+  SELECT oid
+    FROM pg_roles
+   WHERE rolname = :'runtime_role'
+), column_grants AS (
+  SELECT
+    n.nspname,
+    c.relname,
+    upper(acl.privilege_type) AS privilege_type,
+    string_agg(format('%I', a.attname), ', ' ORDER BY a.attnum) AS columns
+  FROM pg_class c
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+  JOIN pg_attribute a ON a.attrelid = c.oid
+  CROSS JOIN runtime_role
+  CROSS JOIN LATERAL aclexplode(a.attacl) AS acl
+  WHERE n.nspname = 'public'
+    AND c.relkind IN ('r', 'p')
+    AND a.attnum > 0
+    AND NOT a.attisdropped
+    AND acl.grantee = runtime_role.oid
+  GROUP BY n.nspname, c.relname, upper(acl.privilege_type)
+)
+SELECT format(
+  'REVOKE %s (%s) ON TABLE %I.%I FROM %I',
+  privilege_type,
+  columns,
+  nspname,
+  relname,
+  :'runtime_role'
+)
+FROM column_grants
+ORDER BY nspname, relname, privilege_type;
+\gexec
+
+WITH runtime_role AS (
+  SELECT oid
+    FROM pg_roles
+   WHERE rolname = :'runtime_role'
+), unexpected AS (
+  SELECT
+    n.nspname,
+    c.relname,
+    string_agg(DISTINCT upper(acl.privilege_type), ', ' ORDER BY upper(acl.privilege_type)) AS privileges
+  FROM pg_class c
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+  CROSS JOIN runtime_role
+  CROSS JOIN LATERAL aclexplode(
+    COALESCE(c.relacl, acldefault('r', c.relowner))
+  ) AS acl
+  WHERE n.nspname = 'public'
+    AND c.relkind IN ('r', 'p')
+    AND acl.grantee = runtime_role.oid
+    AND NOT (upper(acl.privilege_type) = ANY (ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']))
+  GROUP BY n.nspname, c.relname
+)
+SELECT format(
+  'REVOKE %s ON TABLE %I.%I FROM %I',
+  privileges,
+  nspname,
+  relname,
+  :'runtime_role'
+)
+FROM unexpected
+ORDER BY nspname, relname;
+\gexec
+
+WITH runtime_role AS (
+  SELECT oid
+    FROM pg_roles
+   WHERE rolname = :'runtime_role'
+), grant_options AS (
+  SELECT
+    n.nspname,
+    c.relname,
+    string_agg(DISTINCT upper(acl.privilege_type), ', ' ORDER BY upper(acl.privilege_type)) AS privileges
+  FROM pg_class c
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+  CROSS JOIN runtime_role
+  CROSS JOIN LATERAL aclexplode(
+    COALESCE(c.relacl, acldefault('r', c.relowner))
+  ) AS acl
+  WHERE n.nspname = 'public'
+    AND c.relkind IN ('r', 'p')
+    AND acl.grantee = runtime_role.oid
+    AND acl.is_grantable
+  GROUP BY n.nspname, c.relname
+)
+SELECT format(
+  'REVOKE GRANT OPTION FOR %s ON TABLE %I.%I FROM %I',
+  privileges,
+  nspname,
+  relname,
+  :'runtime_role'
+)
+FROM grant_options
+ORDER BY nspname, relname;
 \gexec
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
@@ -323,6 +431,89 @@ SELECT format(
   :'runtime_role'
 )
 WHERE to_regclass('public._prisma_migrations') IS NOT NULL;
+\gexec
+
+-- Default table ACLs must converge as tightly as current table ACLs. Revoke
+-- every direct runtime privilege outside CRUD and every grant option using the
+-- privilege names reported by this PostgreSQL version (including MAINTAIN when
+-- present). PUBLIC default grants are not mutated implicitly; the audit rejects
+-- them so any broader change is explicit and reviewed.
+WITH roles AS (
+  SELECT
+    (SELECT oid FROM pg_roles WHERE rolname = :'migration_role') AS migration_oid,
+    (SELECT oid FROM pg_roles WHERE rolname = :'runtime_role') AS runtime_oid
+), unexpected AS (
+  SELECT
+    d.defaclnamespace,
+    n.nspname,
+    string_agg(DISTINCT upper(acl.privilege_type), ', ' ORDER BY upper(acl.privilege_type)) AS privileges
+  FROM pg_default_acl d
+  LEFT JOIN pg_namespace n ON n.oid = d.defaclnamespace
+  CROSS JOIN roles
+  CROSS JOIN LATERAL aclexplode(d.defaclacl) AS acl
+  WHERE d.defaclrole = roles.migration_oid
+    AND d.defaclobjtype = 'r'
+    AND acl.grantee = roles.runtime_oid
+    AND (d.defaclnamespace = 0 OR n.nspname = 'public')
+    AND NOT (upper(acl.privilege_type) = ANY (ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE']))
+  GROUP BY d.defaclnamespace, n.nspname
+)
+SELECT CASE
+  WHEN defaclnamespace = 0 THEN format(
+    'ALTER DEFAULT PRIVILEGES FOR ROLE %I REVOKE %s ON TABLES FROM %I',
+    :'migration_role',
+    privileges,
+    :'runtime_role'
+  )
+  ELSE format(
+    'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA %I REVOKE %s ON TABLES FROM %I',
+    :'migration_role',
+    nspname,
+    privileges,
+    :'runtime_role'
+  )
+END
+FROM unexpected
+ORDER BY defaclnamespace, nspname;
+\gexec
+
+WITH roles AS (
+  SELECT
+    (SELECT oid FROM pg_roles WHERE rolname = :'migration_role') AS migration_oid,
+    (SELECT oid FROM pg_roles WHERE rolname = :'runtime_role') AS runtime_oid
+), grant_options AS (
+  SELECT
+    d.defaclnamespace,
+    n.nspname,
+    string_agg(DISTINCT upper(acl.privilege_type), ', ' ORDER BY upper(acl.privilege_type)) AS privileges
+  FROM pg_default_acl d
+  LEFT JOIN pg_namespace n ON n.oid = d.defaclnamespace
+  CROSS JOIN roles
+  CROSS JOIN LATERAL aclexplode(d.defaclacl) AS acl
+  WHERE d.defaclrole = roles.migration_oid
+    AND d.defaclobjtype = 'r'
+    AND acl.grantee = roles.runtime_oid
+    AND (d.defaclnamespace = 0 OR n.nspname = 'public')
+    AND acl.is_grantable
+  GROUP BY d.defaclnamespace, n.nspname
+)
+SELECT CASE
+  WHEN defaclnamespace = 0 THEN format(
+    'ALTER DEFAULT PRIVILEGES FOR ROLE %I REVOKE GRANT OPTION FOR %s ON TABLES FROM %I',
+    :'migration_role',
+    privileges,
+    :'runtime_role'
+  )
+  ELSE format(
+    'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA %I REVOKE GRANT OPTION FOR %s ON TABLES FROM %I',
+    :'migration_role',
+    nspname,
+    privileges,
+    :'runtime_role'
+  )
+END
+FROM grant_options
+ORDER BY defaclnamespace, nspname;
 \gexec
 
 ALTER DEFAULT PRIVILEGES FOR ROLE :"migration_role" IN SCHEMA public
