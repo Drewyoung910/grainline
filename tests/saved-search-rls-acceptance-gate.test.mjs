@@ -144,6 +144,19 @@ describe("SavedSearch RLS acceptance gate", () => {
       /SAVED_SEARCH_RLS_GATE_DATABASE_URL is required/,
     );
     assert.throws(
+      () => parseGateConfig(baseEnv({
+        SAVED_SEARCH_RLS_GATE_DATABASE_URL:
+          `${RUNTIME_URL}&options=-c%20app%252Euser_id%253Dpreseeded`,
+      })),
+      /must not pre-seed app\.user_id through URL query parameters or options/,
+    );
+    assert.throws(
+      () => parseGateConfig(baseEnv({
+        SAVED_SEARCH_RLS_GATE_DATABASE_URL: `${RUNTIME_URL}&app%2Euser_id=preseeded`,
+      })),
+      /must not pre-seed app\.user_id through URL query parameters or options/,
+    );
+    assert.throws(
       () => parseGateConfig(baseEnv({ SAVED_SEARCH_RLS_GATE_ADMIN_DATABASE_URL: "" })),
       /SAVED_SEARCH_RLS_GATE_ADMIN_DATABASE_URL is required/,
     );
@@ -512,6 +525,17 @@ describe("SavedSearch RLS acceptance gate", () => {
       script.indexOf("async function assertNoUserFixtureCollision"),
       script.indexOf("async function readRuntimeContext"),
     );
+    const orchestration = script.slice(
+      script.indexOf("export async function runSavedSearchRlsAcceptanceGate"),
+      script.indexOf("export function redactEvidenceText"),
+    );
+    const runtimeConnectIndex = orchestration.indexOf("await runtimeClient.connect()");
+    const initialContextPreflightIndex = orchestration.indexOf(
+      '"runtime connection initial app.user_id preflight"',
+    );
+    const initialContextGuardIndex = orchestration.indexOf("if (initialContextClean)");
+    const catalogReadIndex = orchestration.indexOf("await readCatalogState(");
+    const ownerSeedIndex = orchestration.indexOf("await seedOwnerUsers(");
     const runtimeCleanupIndex = script.lastIndexOf("runtime A/B SavedSearch cleanup zero verification");
     const ownerCleanupIndex = script.lastIndexOf("owner User cleanup zero verification");
     const finalVerificationIndex = script.lastIndexOf("post-user-delete SavedSearch zero verification");
@@ -523,6 +547,7 @@ describe("SavedSearch RLS acceptance gate", () => {
     assert.match(script, /public\."User"/);
     assert.match(script, /set_config\('app\.user_id', \$1, true\)/);
     assert.match(script, /current_setting\('app\.user_id', true\)/);
+    assert.match(script, /runtime connection starts with app\.user_id already set/);
     assert.match(script, /rolsuper/);
     assert.match(script, /rolbypassrls/);
     assert.match(script, /rolcreatedb/);
@@ -536,6 +561,14 @@ describe("SavedSearch RLS acceptance gate", () => {
     assert.match(audit, /pg_get_expr\(p\.polwithcheck, p\.polrelid\)/);
     assert.match(audit, /pg_get_userbyid\(policy_role\.role_oid\)::text/);
     assert.doesNotMatch(ownerFixtureSection, /public\."SavedSearch"/);
+    assert.ok(
+      runtimeConnectIndex >= 0
+      && runtimeConnectIndex < initialContextPreflightIndex
+      && initialContextPreflightIndex < initialContextGuardIndex
+      && initialContextGuardIndex < catalogReadIndex
+      && catalogReadIndex < ownerSeedIndex,
+      "the initial runtime-context preflight must guard catalog inspection and all fixture mutation",
+    );
     assert.match(script, /runtime A\/B SavedSearch seed transaction/);
     assert.match(script, /foreign delete affects zero rows and preserves the row/);
     assert.match(script, /foreign delete user B preservation/);

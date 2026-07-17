@@ -105,6 +105,31 @@ function quoteIdentifier(value) {
   return `"${value}"`;
 }
 
+function containsEncodedUserContext(value) {
+  let decoded = String(value);
+  for (let pass = 0; pass < 3; pass += 1) {
+    if (decoded.toLowerCase().includes("app.user_id")) return true;
+    try {
+      const next = decodeURIComponent(decoded.replaceAll("+", " "));
+      if (next === decoded) break;
+      decoded = next;
+    } catch {
+      break;
+    }
+  }
+  return decoded.toLowerCase().includes("app.user_id");
+}
+
+function assertRuntimeUrlDoesNotPreseedUserContext(parsed) {
+  for (const [name, value] of parsed.searchParams) {
+    if (containsEncodedUserContext(name) || containsEncodedUserContext(value)) {
+      throw new Error(
+        "RLS_CONTEXT_GATE_DATABASE_URL must not pre-seed app.user_id through URL query parameters or options",
+      );
+    }
+  }
+}
+
 function validateDatabaseUrl(value, env) {
   let parsed;
   try {
@@ -115,6 +140,7 @@ function validateDatabaseUrl(value, env) {
   if (!/^postgres(?:ql)?:$/.test(parsed.protocol)) {
     throw new Error("RLS_CONTEXT_GATE_DATABASE_URL must use the postgres/postgresql protocol");
   }
+  assertRuntimeUrlDoesNotPreseedUserContext(parsed);
   if (!parsed.hostname.includes("-pooler.") && !parseBooleanFlag(env, "RLS_CONTEXT_GATE_ALLOW_NON_POOLER")) {
     throw new Error(
       "RLS_CONTEXT_GATE_DATABASE_URL must be the pooled runtime endpoint; set RLS_CONTEXT_GATE_ALLOW_NON_POOLER=1 only for non-acceptance development checks",
@@ -512,6 +538,8 @@ export function buildEvidencePayload(config, result, { finishedAt, startedAt, st
       connectionTimeoutMs: config.connectionTimeoutMs,
       measuredRequests: config.measuredRequests,
       poolSize: config.poolSize,
+      prismaPoolSize: PRISMA_APP_POOL_SIZE,
+      prismaPoolTimingAvailable: false,
       prepare: config.prepare,
       queryTimeoutMs: config.queryTimeoutMs,
       rollbackProbe: config.rollbackProbe,
@@ -1680,7 +1708,7 @@ async function main() {
 
   console.log(`RLS context acceptance gate: ${config.schemaName}.${config.tableName}`);
   console.log(
-    `target=${config.targetConcurrency} burst=${config.burstConcurrency} pool=${config.poolSize} requests=${config.measuredRequests} turnover=${config.turnoverRequests}`,
+    `target=${config.targetConcurrency} burst=${config.burstConcurrency} rawPool=${config.poolSize} prismaPool=${PRISMA_APP_POOL_SIZE} requests=${config.measuredRequests} turnover=${config.turnoverRequests}`,
   );
   console.log(
     `locality=${config.localityConfirmation} execution=${config.observedExecutionRegion ?? "unverified"}/${config.expectedExecutionRegion} database=${config.observedDatabaseRegion ?? "unverified"}/${config.expectedDatabaseRegion}`,

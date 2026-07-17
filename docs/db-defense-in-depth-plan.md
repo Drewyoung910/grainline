@@ -1,6 +1,6 @@
 # Grainline DB Defense-In-Depth Plan
 
-Last updated: 2026-07-16
+Last updated: 2026-07-17
 
 This is the execution tracker for database-layer hardening. It complements
 `docs/rls-feasibility-plan.md`, which remains the design source of truth for
@@ -22,6 +22,11 @@ first production RLS table on the low-blast-radius `SavedSearch` model.
   App-layer ownership and visibility checks remain required.
 - Do not point normal app traffic at the migration owner role once
   least-privilege staging is proven.
+- Do not begin Bucket B in this pass. Bucket A is `SavedSearch` only, through its
+  production activation and explicit phase-B decision. `Notification` and every
+  later-table design remain a separate pass even if their future ordering stays
+  documented below. SavedSearch rollout phase B (`FORCE`) remains Bucket A and
+  must not be confused with Bucket B.
 
 ## Phase 0 - Baseline
 
@@ -260,10 +265,11 @@ Implementation goals:
   `ENABLE ROW LEVEL SECURITY`, or has RLS enabled with zero policies. Its
   `FORCE ROW LEVEL SECURITY` expectation is
   rollout-phase specific. `SavedSearch` phase A intentionally requires
-  `NO FORCE` while the 12-hour Vercel skew window drains owner-backed app
-  deployments; all behavior proof authenticates as the non-owner runtime role.
+  `NO FORCE`; all behavior proof authenticates as the non-owner runtime role.
   Phase B changes the exact audit expectation to `FORCE` in a separate commit
-  and migration after the drain is proven.
+  and migration only after superseded deployments/credentials are disabled,
+  `pg_stat_activity` proves the owner-backed app-session drain, and the
+  owner/maintenance strategy is tested.
 - Function/type default-privilege checks are conditional on source migrations
   revoking `PUBLIC` through `ALTER DEFAULT PRIVILEGES` for functions or types;
   object-level revokes on existing functions/types do not imply a future default
@@ -316,14 +322,36 @@ Verification:
 ## Phase 3 - Request Context Proof
 
 Status: staging context/performance gate tooling, the shared helper, and local
-SavedSearch adoption are implemented. The first live staging attempt preserved
-correct isolation but failed 17 performance thresholds, so it is not promotion
-evidence. The attempt also exposed and led to a local fix for a client-pool
-default that silently reduced the configured 2x burst. Two consecutive passing
-runs from the provider-owned production runtime on the corrected, reviewed
-commit are still required, and the context-wrapped paths have not been deployed.
-The prior workstation artifact `context-gate-failed-pre-pool-fix.json` is
-failed, pre-pool-fix, diagnostic-only evidence and cannot satisfy either pass.
+SavedSearch adoption are implemented. The latest provider-owned Vercel runtime
+slot 1 preserved correctness and isolation but failed 10 performance/adoption
+thresholds. Wrapped p95 was approximately 96--100 ms versus a 39--40 ms
+autocommit baseline; average connection hold was approximately 93--96 ms versus
+37--40 ms; and the Prisma burst result was approximately 199 ms versus 78 ms.
+The durable ledger correctly blocked slot 2. The run is failed evidence and does
+not authorize context deployment or a real-table policy. That deployment
+created its Prisma probe with the target concurrency of 8; the reviewed app pool
+is now explicitly 10, while the raw control pool remains 16 so the 16-request
+burst is not capped. Reliable Prisma connection-acquisition timing is currently
+unavailable rather than proven zero. Use the corrected harness, which records
+raw-pool 16 and Prisma-pool 10 separately, add a representative SavedSearch
+route/SLO measurement, and rerun without retroactively weakening the
+thresholds. Two consecutive passing provider-runtime runs from the corrected,
+reviewed commit are still required. The prior workstation artifact
+`context-gate-failed-pre-pool-fix.json` remains failed, pre-pool-fix,
+diagnostic-only evidence and cannot satisfy either pass.
+
+Performance-path investigation (2026-07-17): a one-statement CTE that attempted
+to call `set_config` and then read the protected canary failed closed because it
+returned zero rows; PostgreSQL did not provide an execution-order guarantee that
+made the RLS predicate see the side effect. Do not use that pattern. A temporary
+`SECURITY INVOKER` function in the isolated synthetic schema did set local
+context, return exactly the correct user A/B row, and reset context at statement
+completion. It was dropped and a catalog check confirmed no probe function
+remained. The laptop timing was diagnostic and inconclusive at burst, so this is
+an architecture candidate only—not authorization to add a production function,
+change policy scope, or waive the provider-runtime gate. Any function path needs
+separate privilege, ownership, search-path, caller-identity, operation-shape,
+rollback, and provider-runtime performance review.
 
 Purpose: prove the core RLS mechanism under the actual runtime topology before
 enabling policies.
@@ -358,6 +386,11 @@ Current reviewed staging harness:
   Git-integrated Vercel Preview route. Slot 2 is not claimable until slot 1 is
   durably passed, and either slot is permanently non-replayable for that opaque
   run id. The route never receives the admin URL.
+- The gate trigger secret used for the prior Preview was exposed in captured
+  tool/session output. Rotate it before any further run, remove local temporary
+  files that contain it after retaining sanitized artifacts, and prove the old
+  value is rejected. The Preview route/ledger are isolated acceptance-test
+  infrastructure; do not merge or enable the runner in production.
 - Laptop/workstation runs must use `diagnostic-only`. Their artifacts are marked
   `diagnostic_passed` or `diagnostic_failed` and are never acceptance-eligible.
   Promotion evidence must use `production-runtime` inside provider-owned Vercel;
@@ -374,6 +407,13 @@ Current reviewed staging harness:
   and rejects an explicit `RLS_CONTEXT_GATE_POOL_SIZE` below
   `RLS_CONTEXT_GATE_BURST_CONCURRENCY`; otherwise the claimed 2x burst would be
   silently capped by the client pool.
+- The gate's raw pool-size check proves its own requested burst is not silently
+  capped; it is a control, not the application pool. The corrected Prisma probe
+  must use and record the actual application pool topology (currently 10) while
+  receiving the configured 16-request burst. Until the Prisma adapter exposes a
+  defensible acquisition-wait measurement, record that metric as unavailable and
+  rely on explicit queue/timeout/pool-pressure probes; never convert unavailable
+  timing into a passing zero.
 - To rerun the non-counted rollback/no-op setup proof without refreshing canary rows, add
   `RLS_CONTEXT_GATE_ROLLBACK_PROBE=1 RLS_CONTEXT_GATE_ADMIN_DATABASE_URL="$DIRECT_URL"`.
 - To retain a durable sanitized JSON evidence artifact, add
@@ -590,10 +630,14 @@ Staging policy shape, using the fail-closed predicate
 - `UPDATE`: do not add unless a future route supports updates.
 - Stage and production phase A use exact SELECT/INSERT/DELETE policies plus
   explicit `NO FORCE ROW LEVEL SECURITY` followed by `ENABLE ROW LEVEL
-  SECURITY`. Test only through the non-owner runtime role. After the production
-  runtime/context release has been live for the full 12-hour Vercel skew window
-  plus a safety margin and owner-backed app sessions are drained, phase B may
-  add `FORCE` in a separate migration/release.
+  SECURITY`. Test only through the non-owner runtime role. A 12-hour wait is not
+  proof that old deployments are no longer callable. Before phase B, disable
+  superseded deployments or rotate/revoke their owner runtime credentials, then
+  retain `pg_stat_activity` evidence that owner-backed application sessions are
+  gone. Also decide and test how migrations, controlled maintenance, restore
+  drills, and emergency repair will access `SavedSearch` after `FORCE`, because
+  the current owner is not named in runtime-only policies. Phase B may add
+  `FORCE` only in a separate reviewed migration/release after those proofs.
 
 Implementation constraints:
 
@@ -609,6 +653,17 @@ Implementation constraints:
 - Existing outer page/export `Promise.all` calls may invoke a separately wrapped
   SavedSearch operation, but no protected queries may run in parallel inside the
   same context transaction.
+- Before phase A, require the direct-access guard and its tests to reject direct
+  or aliased Prisma `savedSearch` delegates, Prisma
+  `createManyAndReturn`/`updateManyAndReturn`, literal relation
+  `include`/`select: { savedSearches: ... }` access, raw
+  `TRUNCATE`/`MERGE`/`COPY`, all `Prisma.raw`, and every new unreviewed
+  `$queryRawUnsafe`/`$executeRawUnsafe` escape hatch. The static guard is not
+  whole-program data-flow proof for indirectly assembled relation objects, so
+  clean-checkout review of changed raw/query-construction code remains required.
+  Keep a test that the account-deletion outer context transaction retains its
+  `timeout: 30000` and `maxWait: 10000`. None of these gaps may be deferred to
+  Bucket B.
 
 Read/delete paths to wrap before enabling:
 
@@ -645,9 +700,10 @@ Rollback:
 
 ## Phase 5 - Notification RLS Prototype
 
-Status: owner read/update centralization and direct-access guard implemented;
-service write/delete model, context wiring, policies, and staging validation not
-started.
+Status: Bucket B, explicitly paused for a separate pass. Owner read/update
+centralization and a direct-access guard exist, but service write/delete model,
+context wiring, policies, and staging validation are not authorized by the
+current SavedSearch rollout.
 
 Purpose: protect user notification reads and mark-read updates after the first
 direct-owner table proves the context adoption pattern, while preserving
@@ -886,10 +942,12 @@ true:
 
 ## Current Recommendation
 
-Finish Phase 0 on a dedicated staging branch, then execute Phase 1 and the live
-grant audit. Run the Phase 3 context/performance gate twice on the same
-commit/configuration before adopting context transactions in application paths.
-Use `SavedSearch` as the first staging-only real-table prototype and
-`Notification` second after its service-write/delete model is explicit. Runtime
-role or RLS changes in production require separate approval after the promotion
-gate passes.
+Keep production unchanged while resolving the Phase 3 performance-only failure:
+align the harness and application pool topology, make unavailable acquisition
+timing explicit, and measure the real SavedSearch route/SLO. Then run the Phase
+3 gate twice on the same commit/configuration before adopting context
+transactions in production. Complete only Bucket A (`SavedSearch`), including
+the preactivation static-guard gaps, exact staging policy proof, canary sequence,
+and production drain/maintenance proofs. Stop before Bucket B/`Notification`
+design. Production runtime-role or policy changes require the promotion gate and
+explicit rollout approval.

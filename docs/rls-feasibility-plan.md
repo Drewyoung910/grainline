@@ -1,6 +1,6 @@
 # Grainline RLS Feasibility Plan
 
-Last updated: 2026-07-16
+Last updated: 2026-07-17
 
 Grainline's production control plane is application-layer authorization through Clerk middleware, route handlers, server actions, shared visibility helpers, and ownership predicates. `SavedSearch` is the approved first production RLS table, but RLS remains defense in depth rather than a replacement for those checks. A broad rollout with Prisma and pooled Neon connections can break legitimate traffic or create false confidence if runtime roles still own tables or bypass policies.
 
@@ -15,15 +15,35 @@ may be activated only after its staging context, locality, role-separation,
 exact-policy, route-fixture, and rollback gates pass. Expand to another table
 only after its request context and admin/cron/webhook bypass model is proven.
 
-Current staging result (2026-07-16): the isolated runtime/migration role split,
-explicit grant provisioning, grant audit, migration-status checks, and region
-selection pass. The first pooled context run passed isolation checks but failed
-its performance thresholds and therefore does not authorize deployment or a
-real-table policy. That workstation run and its retained
-`context-gate-failed-pre-pool-fix.json` artifact are diagnostic-only,
-pre-pool-fix evidence and are not acceptance evidence. The corrected gate still
-requires two consecutive passing production-runtime runs on the same reviewed
-commit SHA and configuration plus independent Git-deployment attestation.
+Current staging result (2026-07-17): the isolated runtime/migration role split,
+explicit grant provisioning, grant audit, migration-status checks, region
+selection, and pooled context isolation checks pass. The latest provider-owned
+Vercel runtime run failed only the performance/adoption thresholds, with 10
+performance issues: wrapped p95 was approximately 96--100 ms versus a 39--40 ms
+autocommit baseline, average connection hold was approximately 93--96 ms versus
+37--40 ms, and the Prisma burst result was approximately 199 ms versus 78 ms.
+The durable ledger correctly blocked slot 2 because slot 1 did not pass. This is
+failed evidence, not promotion evidence, and rerunning the unchanged workload is
+not a remedy. The earlier workstation artifact
+`context-gate-failed-pre-pool-fix.json` also remains diagnostic-only,
+pre-pool-fix evidence. Before another counted run, use the corrected harness:
+keep the raw control pool at 16 so the 16-request burst is not capped, run the
+Prisma path through the application's explicit 10-connection pool, and mark
+Prisma acquisition timing unavailable rather than zero. Also measure a
+representative SavedSearch route/SLO; do not lower thresholds after observing
+the result. Two consecutive
+passing production-runtime runs on the same reviewed commit SHA and
+configuration plus independent Git-deployment attestation remain required.
+
+## Current Scope Boundary
+
+This rollout pass is **Bucket A: SavedSearch only**. It includes the
+least-privilege runtime role, SavedSearch context adoption, staging policy proof,
+production phase A, and a separately approved phase-B `FORCE` decision. Stop
+before designing or implementing Bucket B. `Notification` is Bucket B and must
+be handled in a separate pass; the later table sequence below is retained only
+as future architecture, not authorization to widen this rollout. SavedSearch
+rollout phase B (`FORCE`) is still part of Bucket A; it is not Bucket B.
 
 ## Required Architecture
 
@@ -54,10 +74,12 @@ commit SHA and configuration plus independent Git-deployment attestation.
 - **Forced policy proof**: behavior probes must authenticate as the exact
   non-owner runtime role so owner bypass cannot produce a false green. The
   `SavedSearch` production rollout deliberately separates `ENABLE ROW LEVEL
-  SECURITY` from `FORCE ROW LEVEL SECURITY`: phase A uses explicit `NO FORCE`
-  while Vercel's 12-hour skew window drains owner-backed deployments; phase B is
-  a separate migration/release after that window plus a safety margin, verified
-  owner-session drain, and a tested database-first rollback.
+  SECURITY` from `FORCE ROW LEVEL SECURITY`: phase A uses explicit `NO FORCE`.
+  Elapsed time alone does not drain callable owner-backed deployments. Before
+  phase B, disable superseded deployments or rotate/revoke their owner runtime
+  credentials, prove with `pg_stat_activity` that owner-backed application
+  sessions are gone, choose and test an owner/maintenance strategy for the table
+  owner once `FORCE` applies, and retain a tested database-first rollback.
 
 ## Hard Gates
 
@@ -78,6 +100,11 @@ commit SHA and configuration plus independent Git-deployment attestation.
   two sequential slots: slot 2 is blocked until slot 1 is durably passed, and
   neither slot can be replayed. Remove all temporary runner secrets and staging
   URL configuration immediately after capture.
+- The prior Preview gate trigger secret appeared in captured tool/session output
+  and must be treated as exposed. Rotate it before any further run, delete local
+  temporary files containing it after retaining sanitized evidence, and verify
+  the old value no longer works. The internal Preview runner is temporary test
+  infrastructure and must never be merged or enabled as a production feature.
 - Prove both unset `app.user_id` and explicitly empty `app.user_id` return zero
   protected rows.
 - Prove transaction-local context does not leak after `prisma.$transaction`
@@ -94,6 +121,15 @@ commit SHA and configuration plus independent Git-deployment attestation.
   `timeout`/`maxWait` behavior, connection-hold time, and pool saturation under
   realistic staging concurrency before widening the wrapper to hot paths such as
   notification reads.
+- Measure the same Prisma pool shape the application will deploy. The failed
+  provider deployment created its Prisma probe with the target concurrency of
+  8, while the reviewed app pool is now explicitly 10. The corrected harness
+  deliberately keeps a separate raw control pool of 16 so the configured
+  16-request burst is not capped, but runs Prisma through the app-sized pool and
+  records both values. Prisma does not expose trustworthy connection-acquisition
+  timing here; do not record a synthetic zero as proof that acquisition wait
+  passed. State the metric as unavailable and use the explicit 16-request queue,
+  timeout, error, and route-specific evidence for the promotion decision.
 - Retain the gate's warmed, checked-out sequential `SELECT 1` query-RTT proxy as
   locality context. It is diagnostic metadata only: do not subtract it from,
   normalize, discount, or otherwise change the existing latency and
@@ -236,6 +272,17 @@ need retry/context discipline.
   on that branded context client. Never nest another context transaction inside
   it. Otherwise a user-scoped `DELETE` policy can silently leave saved-search
   query/location data behind.
+- Before phase A, the static direct-access guard must reject direct or aliased
+  Prisma `savedSearch` delegates, including `createManyAndReturn` and
+  `updateManyAndReturn`, literal relation reads such as
+  `include`/`select: { savedSearches: ... }`, all `Prisma.raw`, and new
+  unreviewed `$queryRawUnsafe`/`$executeRawUnsafe` escape hatches. Its literal
+  raw-SQL guard must cover `TRUNCATE`, `MERGE`, and `COPY`. This is not
+  whole-program data-flow proof for indirectly assembled relation objects, so
+  clean-checkout review of changed raw/query-construction code remains required.
+  Keep an explicit test that account deletion retains
+  `{ timeout: 30000, maxWait: 10000 }`. These are must-fix preactivation gaps,
+  not deferred Bucket-B work.
 
 ## Cart + CartItem Prototype Edge Cases
 

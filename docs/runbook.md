@@ -1,6 +1,6 @@
 # Grainline Operations Runbook
 
-Last updated: 2026-07-10
+Last updated: 2026-07-17
 
 This runbook covers the minimum operational steps for production incidents, deploy rollback, secret rotation, webhook recovery, database restore drills, and public support/legal request handling.
 
@@ -440,6 +440,16 @@ RLS staging context proof:
   50.9 ms p95 over 25 warmed, checked-out sequential `SELECT 1` queries.
   `vercel.json` is the single region authority; application routes must not add
   `preferredRegion` overrides.
+- The latest provider-runtime slot 1 passed correctness/isolation but failed 10
+  performance/adoption checks: wrapped p95 approximately 96--100 ms versus
+  39--40 ms autocommit, average hold approximately 93--96 ms versus 37--40 ms,
+  and Prisma burst approximately 199 ms versus 78 ms. Slot 2 was correctly
+  blocked. Do not rerun unchanged or lower thresholds after the result. The
+  failed deployment used a Prisma probe pool of 8. Use the corrected harness:
+  retain the uncapped raw control pool/burst at 16, run the Prisma path through
+  the app's explicit pool of 10 under that 16-request burst, record both pool
+  sizes, mark Prisma acquisition timing unavailable until it is truly measured,
+  and add representative SavedSearch route/SLO evidence.
 - First run the owner-only setup locally with `diagnostic-only`, the exact
   reviewed endpoint/database values above, `RLS_CONTEXT_GATE_PREPARE=1`, the
   pooled runtime-role URL, and the direct owner URL. Setup prepares the canary and
@@ -454,6 +464,11 @@ RLS staging context proof:
   SHA, and only the pooled staging runtime URL. The staging ledger atomically
   permits each slot once and does not permit slot 2 until slot 1 is durably
   marked passed, so the two heavy workloads cannot overlap or be replayed.
+- Treat the previous gate trigger secret as exposed because it appeared in
+  captured tool/session output. Rotate it before the next run, delete local
+  temporary files containing it after preserving sanitized evidence, and verify
+  the prior value is rejected. Never merge or enable the internal Preview gate
+  runner as a production route.
 - Rotate the Vercel deployment-protection bypass before using the Preview if a
   prior value appeared in any tool or audit output. Treat that bypass separately
   from the gate trigger token and never retain either value in evidence.
@@ -467,13 +482,20 @@ RLS staging context proof:
   after capture, then delete the temporary Preview after evidence is retained.
 - Production activation is three releases, not one: (0) Git-attested `sfo1`
   runtime/context code using the pooled non-owner role while RLS is off; (A)
-  exact policies plus `NO FORCE` and `ENABLE`; then, only after at least the full
-  12-hour Vercel skew window plus a safety margin and verified owner-backed app
-  session drain, (B) a separate validated `FORCE` migration. Roll back the DB
-  (`DISABLE ROW LEVEL SECURITY`) before rolling back application code.
+  exact policies plus `NO FORCE` and `ENABLE`; then (B) a separate validated
+  `FORCE` migration. A 12-hour wait is only a minimum observation window, not a
+  drain proof: disable superseded callable deployments or rotate/revoke their
+  owner runtime credentials, and retain `pg_stat_activity` evidence that no
+  owner-backed application sessions remain. Before phase B, explicitly choose
+  and test how owner-run migrations, maintenance, restore drills, and emergency
+  repair access `SavedSearch` after `FORCE`. Roll back the DB (`DISABLE ROW LEVEL
+  SECURITY`) before rolling back application code.
 - Keep `RLS_CONTEXT_GATE_POOL_SIZE` at or above
   `RLS_CONTEXT_GATE_BURST_CONCURRENCY`. The gate enforces this so its reported
   2x burst workload cannot be silently reduced by a smaller client pool.
+  This raw control pool is not application-topology proof: the separate Prisma
+  probe must use and record the reviewed deploy pool, and unavailable acquisition
+  timing must not be emitted or interpreted as zero wait.
 - `RLS_CONTEXT_GATE_PREPARE=1` intentionally leaves the synthetic canary schema,
   table, policy, run-claim ledger, and rows in staging. Setup toggles and
   restores RLS; it does not clean up that canary.
@@ -496,9 +518,10 @@ RLS staging context proof:
   settings, Prisma adapter/`pg` package versions, target and burst concurrency,
   sample size, connection turnover/recycling method, prototype table/policy
   names, autocommit baseline, transaction baseline, and wrapped p95/p99
-  latency, connection acquisition wait, connection-hold time, pool-saturation
-  result, prepared-statement/cached-plan error scan result, and any failed
-  request or Sentry event ids.
+  latency, measured connection acquisition wait or an explicit `unavailable`
+  marker plus the substitute queue/timeout probe, connection-hold time,
+  pool-saturation result, prepared-statement/cached-plan error scan result, and
+  any failed request or Sentry event ids.
 - The earlier workstation artifact
   `context-gate-failed-pre-pool-fix.json` is retained only as failed diagnostic,
   pre-pool-fix evidence. It cannot satisfy either required production-runtime
@@ -516,8 +539,13 @@ RLS staging context proof:
   trusted target-user context. A successful response with an empty collection
   is a missing-context failure when the fixture exists. Retain only bounded
   synthetic ids/counts.
-- Keep one separate, permanent non-customer `SavedSearch` canary pair after the
-  rollout. Create or re-verify it only with
+- Before phase A, verify the static SavedSearch guard rejects Prisma
+  `createManyAndReturn`/`updateManyAndReturn`, relation
+  `include`/`select: { savedSearches: ... }`, raw `TRUNCATE`/`MERGE`/`COPY`, and
+  dynamically constructed identifiers. Also retain the account-deletion test
+  for the outer context transaction's `timeout: 30000` and `maxWait: 10000`.
+- Keep one separate, permanent non-customer `SavedSearch` canary pair for and
+  after the rollout. Create or re-verify it only with
   `SAVED_SEARCH_RLS_CANARY_SEED_CONFIRM=reviewed-permanent-canary SAVED_SEARCH_RLS_CANARY_SEED_EXPECTED_DATABASE_ENDPOINT_ID='<independently reviewed ep-* id>' SAVED_SEARCH_RLS_CANARY_SEED_EXPECTED_DATABASE_NAME='<database>' SAVED_SEARCH_RLS_CANARY_SEED_EXPECTED_DATABASE_REGION='<region>' SAVED_SEARCH_RLS_CANARY_SEED_DATABASE_URL='<pooled runtime-role URL>' SAVED_SEARCH_RLS_CANARY_SEED_ADMIN_DATABASE_URL='<direct owner URL>' SAVED_SEARCH_RLS_CANARY_SEED_EVIDENCE_PATH='<outside-repository mode-0600 path>' SAVED_SEARCH_RLS_CANARY_USER_ID='<paired synthetic user id>' SAVED_SEARCH_RLS_CANARY_SEARCH_ID='<paired synthetic search id>' npm run seed:rls-saved-search-canary`.
   The idempotent seed refuses collisions, pins the user as banned so public
   member counts are unaffected, pins `notifyEmail=false`, and verifies the row
@@ -534,6 +562,15 @@ RLS staging context proof:
   never attaches the ids, row payload, or caught database error. Global
   Prisma/platform logging remains governed by the general production logging
   policy.
+- Sequence canary setup so monitoring cannot create a preactivation outage:
+  seed and verify the retained row first; set both canary environment variables
+  together in the target environment while the old release still ignores them;
+  then deploy the canary-aware ops-health code with RLS still off and immediately
+  require `savedSearchRlsCanaryStatus=healthy`. Deploying that code before both
+  variables exist intentionally produces `configuration_missing` or
+  `configuration_partial`, one actionable issue, and an ops-health 503. Keep the
+  variables set through phase A and phase B. To retire the canary, first deploy
+  code that no longer requires it, then remove the variables and synthetic row.
 - After applying the Phase-A migration to staging, run the exact policy and
   cross-user behavior gate with the reviewed identities and retain its
   credential-free mode-`0600` artifact outside the repository. Supply
