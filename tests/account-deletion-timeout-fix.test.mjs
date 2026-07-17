@@ -10,7 +10,7 @@ describe("account deletion timeout and terminal UX guardrails", () => {
   it("keeps large account deletion transactions on an explicit timeout budget", () => {
     const accountDeletion = source("src/lib/accountDeletion.ts");
 
-    assert.match(accountDeletion, /prisma\.\$transaction\(async \(tx\) =>/);
+    assert.match(accountDeletion, /withDbUserContext\(userId, async \(tx\) =>/);
     assert.match(accountDeletion, /\}, \{ timeout: 30000, maxWait: 10000 \}\)\.catch/);
     assert.match(accountDeletion, /source: "account_delete_partial"/);
     assert.match(accountDeletion, /throw error/);
@@ -18,7 +18,7 @@ describe("account deletion timeout and terminal UX guardrails", () => {
 
   it("keeps audit-log scans outside the deletion transaction", () => {
     const accountDeletion = source("src/lib/accountDeletion.ts");
-    const transactionStart = accountDeletion.indexOf("const result = await prisma.$transaction");
+    const transactionStart = accountDeletion.indexOf("const result = await withDbUserContext");
     const transactionEnd = accountDeletion.indexOf("}, { timeout: 30000, maxWait: 10000 }).catch");
     assert.notEqual(transactionStart, -1);
     assert.notEqual(transactionEnd, -1);
@@ -45,7 +45,7 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     const accountDeletion = source("src/lib/accountDeletion.ts");
     const stripeReject = accountDeletion.indexOf("const stripeRejectSucceeded =");
     const preTransactionDisable = accountDeletion.indexOf("await disableSellerOrderabilityAfterStripeReject");
-    const transactionStart = accountDeletion.indexOf("const result = await prisma.$transaction");
+    const transactionStart = accountDeletion.indexOf("const result = await withDbUserContext");
 
     assert.notEqual(stripeReject, -1);
     assert.notEqual(preTransactionDisable, -1);
@@ -63,7 +63,7 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     const cleanupStart = accountDeletion.indexOf("async function cleanupAccountCheckoutStockReservationsForDeletion");
     const scrubStart = accountDeletion.indexOf("async function scrubCheckoutStockReservationsForDeletedAccount");
     const anonymizeStart = accountDeletion.indexOf("export async function anonymizeUserAccount");
-    const transactionStart = accountDeletion.indexOf("const result = await prisma.$transaction");
+    const transactionStart = accountDeletion.indexOf("const result = await withDbUserContext");
 
     assert.notEqual(cleanupStart, -1);
     assert.notEqual(scrubStart, -1);
@@ -101,7 +101,7 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     const accountDeletion = source("src/lib/accountDeletion.ts");
     const auditCreate = accountDeletion.indexOf('action: "USER_ACCOUNT_DELETE"');
     const userRedaction = accountDeletion.indexOf("deletedEmail");
-    const transactionStart = accountDeletion.indexOf("const result = await prisma.$transaction");
+    const transactionStart = accountDeletion.indexOf("const result = await withDbUserContext");
     const transactionEnd = accountDeletion.indexOf("}, { timeout: 30000, maxWait: 10000 }).catch");
 
     assert.notEqual(auditCreate, -1);

@@ -46,7 +46,6 @@ import * as Sentry from "@sentry/nextjs";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-export const preferredRegion = "iad1";
 
 const CaseResolveSchema = z.object({
   resolution: z.enum(["REFUND_FULL", "REFUND_PARTIAL", "DISMISSED"]),

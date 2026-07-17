@@ -119,13 +119,16 @@ describe("RLS database user context helper", () => {
     assert.match(helper, /SELECT set_config\('app\.user_id', \$\{normalizedUserId\}, true\) AS user_id/);
     assert.doesNotMatch(helper, /\$queryRawUnsafe/);
     assert.match(helper, /rows\[0\]\?\.user_id !== normalizedUserId/);
+    assert.doesNotMatch(helper, /export async function setDbUserContext/);
+    assert.match(helper, /dbUserContextTransactionBrand: unique symbol/);
+    assert.match(helper, /operation: \(tx: DbUserContextTransactionClient\) => Promise<T>/);
   });
 
   it("sets context before caller work inside the interactive transaction", () => {
     const helper = source("src/lib/dbUserContext.ts");
     const transactionStart = helper.indexOf("prisma.$transaction(async (tx) => {");
-    const contextSet = helper.indexOf("await setDbUserContext(tx, normalizedUserId);", transactionStart);
-    const operation = helper.indexOf("return operation(tx);", transactionStart);
+    const contextSet = helper.indexOf("const contextualTx = await setDbUserContext(tx, normalizedUserId);", transactionStart);
+    const operation = helper.indexOf("return operation(contextualTx);", transactionStart);
 
     assert.notEqual(transactionStart, -1);
     assert.notEqual(contextSet, -1);

@@ -74,7 +74,6 @@ const REFUND_BODY_MAX_BYTES = 16 * 1024;
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-export const preferredRegion = "iad1";
 
 export async function POST(
   req: Request,

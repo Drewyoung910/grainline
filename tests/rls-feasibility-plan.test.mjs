@@ -18,11 +18,14 @@ function sourceFiles(dir) {
 }
 
 describe("RLS feasibility plan guardrails", () => {
-  it("keeps RLS staged instead of enabling broad production policies before launch", () => {
+  it("allows only the gated SavedSearch prototype while keeping broad production RLS disabled", () => {
     const plan = source("docs/rls-feasibility-plan.md");
 
-    assert.match(plan, /Do not enable RLS directly on production tables before launch/);
-    assert.match(plan, /staging prototype on low-blast-radius tables/);
+    assert.match(plan, /Do not enable broad or untested RLS directly on production tables/);
+    assert.match(
+      plan,
+      /`SavedSearch`[\s\S]*may be activated only after its staging context, locality, role-separation,[\s\S]*exact-policy, route-fixture, and rollback gates pass/,
+    );
     assert.match(plan, /1\. \*\*SavedSearch\*\*[\s\S]*2\. \*\*Notification\*\*/);
     assert.match(plan, /58 model tables/);
     assert.match(plan, /exact row id/);
@@ -176,7 +179,7 @@ describe("RLS feasibility plan guardrails", () => {
     const accountExport = source("src/app/api/account/export/route.ts");
     const accountDeletion = source("src/lib/accountDeletion.ts");
 
-    assert.match(ownerAccess, /export type SavedSearchOwnerAccessClient = Pick<Prisma\.TransactionClient, "savedSearch">/);
+    assert.match(ownerAccess, /SavedSearchOwnerAccessClient = DbUserContextTransactionClient/);
     assert.match(ownerAccess, /export type OwnerSavedSearchCriteria/);
     assert.match(ownerAccess, /export function ownerSavedSearchWhere/);
     assert.match(ownerAccess, /export async function findDuplicateOwnerSavedSearch/);
@@ -192,6 +195,8 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(ownerAccess, /db\.savedSearch\.create/);
     assert.match(ownerAccess, /db\.savedSearch\.findMany/);
     assert.match(ownerAccess, /db\.savedSearch\.deleteMany/);
+    assert.match(ownerAccess, /rows\.some\(\(row\) => row\.userId !== userId\)/);
+    assert.match(ownerAccess, /SavedSearch owner invariant failed/);
     assert.doesNotMatch(ownerAccess, /Promise\.all/);
     assert.doesNotMatch(ownerAccess, /prisma\.savedSearch\.(?:count|create|deleteMany|findFirst|findMany)/);
 
@@ -207,10 +212,11 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(accountSavedSearches, /withDbUserContext\(me\.id, \(tx\) => listOwnerSavedSearches\(me\.id, tx\)\)/);
     assert.match(accountSavedSearches, /withDbUserContext\(me\.id, \(tx\) => deleteOwnerSavedSearch\(me\.id, searchId, tx\)\)/);
     assert.match(accountExport, /withDbUserContext\(user\.id, \(tx\) => listOwnerSavedSearches\(user\.id, tx\)\)/);
-    assert.match(accountDeletion, /await setDbUserContext\(tx, userId\);/);
+    assert.match(accountDeletion, /withDbUserContext\(userId, async \(tx\) =>/);
     assert.match(accountDeletion, /deleteAllOwnerSavedSearches\(user\.id, tx\)/);
-    const deletionTransactionStart = accountDeletion.indexOf("const result = await prisma.$transaction(async (tx) => {");
-    const deletionContextSet = accountDeletion.indexOf("await setDbUserContext(tx, userId);", deletionTransactionStart);
+    assert.doesNotMatch(accountDeletion, /setDbUserContext/);
+    const deletionTransactionStart = accountDeletion.indexOf("const result = await withDbUserContext(userId, async (tx) => {");
+    const deletionContextSet = deletionTransactionStart;
     const deletionUserRead = accountDeletion.indexOf("const user = await tx.user.findUnique", deletionTransactionStart);
     assert.notEqual(deletionTransactionStart, -1);
     assert.notEqual(deletionContextSet, -1);
@@ -223,13 +229,32 @@ describe("RLS feasibility plan guardrails", () => {
 
   it("blocks new direct owner-style SavedSearch reads and writes outside the owner helper", () => {
     const directSavedSearchAccessPattern =
-      /\b[A-Za-z_$][\w$]*\.savedSearch\.(?:count|create|delete|deleteMany|findFirst|findMany|findUnique|update|updateMany)\b/g;
+      /\b[A-Za-z_$][\w$]*\.savedSearch\.(?:aggregate|count|create|createMany|delete|deleteMany|findFirst|findFirstOrThrow|findMany|findUnique|findUniqueOrThrow|groupBy|update|updateMany|upsert)\b/g;
+    const bracketSavedSearchAccessPattern =
+      /\b[A-Za-z_$][\w$]*\s*\[\s*["']savedSearch["']\s*\]/g;
+    const rawSavedSearchSqlPattern =
+      /\b(?:FROM|JOIN|INTO|UPDATE|DELETE\s+FROM)\s+(?:public\.)?"SavedSearch"(?=\s|[;,) ]|$)/gi;
     const allowedDirectCalls = {};
     const directCallsByFile = {};
 
+    assert.match("prisma.savedSearch.upsert", directSavedSearchAccessPattern);
+    directSavedSearchAccessPattern.lastIndex = 0;
+    assert.match('tx["savedSearch"]', bracketSavedSearchAccessPattern);
+    bracketSavedSearchAccessPattern.lastIndex = 0;
+    assert.match('SELECT * FROM public."SavedSearch"', rawSavedSearchSqlPattern);
+    rawSavedSearchSqlPattern.lastIndex = 0;
+
     for (const file of sourceFiles("src")) {
-      if (file === "src/lib/savedSearchOwnerAccess.ts") continue;
-      const matches = [...source(file).matchAll(directSavedSearchAccessPattern)].map((match) => match[0]);
+      const fileSource = source(file);
+      const matches = [
+        ...(file === "src/lib/savedSearchOwnerAccess.ts"
+          ? []
+          : [...fileSource.matchAll(directSavedSearchAccessPattern)].map((match) => match[0])),
+        ...(file === "src/lib/savedSearchOwnerAccess.ts"
+          ? []
+          : [...fileSource.matchAll(bracketSavedSearchAccessPattern)].map((match) => match[0])),
+        ...[...fileSource.matchAll(rawSavedSearchSqlPattern)].map((match) => match[0]),
+      ];
       if (matches.length > 0) directCallsByFile[file] = matches;
     }
 

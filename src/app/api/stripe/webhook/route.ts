@@ -90,7 +90,6 @@ import { Prisma, type FulfillmentStatus } from "@prisma/client";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-export const preferredRegion = "iad1";
 
 const STRIPE_WEBHOOK_BODY_MAX_BYTES = 1024 * 1024;
 const STRIPE_WEBHOOK_RETRY_AFTER_SECONDS = 30;

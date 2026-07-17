@@ -1,6 +1,7 @@
 import type { Category, ListingType, Prisma } from "@prisma/client";
+import type { DbUserContextTransactionClient } from "@/lib/dbUserContext";
 
-export type SavedSearchOwnerAccessClient = Pick<Prisma.TransactionClient, "savedSearch">;
+export type SavedSearchOwnerAccessClient = DbUserContextTransactionClient;
 
 export type OwnerSavedSearchCriteria = {
   query: string | null;
@@ -91,7 +92,11 @@ export async function listOwnerSavedSearches(
     orderBy: { createdAt: "desc" },
     ...(typeof take === "number" ? { take } : {}),
   };
-  return db.savedSearch.findMany(query);
+  const rows = await db.savedSearch.findMany(query);
+  if (rows.some((row) => row.userId !== userId)) {
+    throw new Error("SavedSearch owner invariant failed");
+  }
+  return rows;
 }
 
 export async function deleteOwnerSavedSearch(

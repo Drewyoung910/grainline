@@ -7,6 +7,8 @@ import pg from "pg";
 const {
   MIN_ACCEPTANCE_REQUESTS,
   buildEvidencePayload,
+  claimProviderRuntimeRunSlot,
+  completeProviderRuntimeRunSlot,
   isPreparedStatementError,
   parseGateConfig,
   runAcceptanceGate,
@@ -22,7 +24,12 @@ function source(path) {
 function baseEnv(overrides = {}) {
   return {
     RLS_CONTEXT_GATE_CONFIRM: "staging-only",
-    RLS_CONTEXT_GATE_DATABASE_URL: "postgresql://runtime:secret@ep-test-pooler.example.neon.tech/grainline_staging",
+    RLS_CONTEXT_GATE_DATABASE_URL: "postgresql://runtime:secret@ep-test-pooler.westus3.azure.neon.tech/grainline_staging",
+    RLS_CONTEXT_GATE_EXPECTED_DATABASE_ENDPOINT_ID: "ep-test",
+    RLS_CONTEXT_GATE_EXPECTED_DATABASE_NAME: "grainline_staging",
+    RLS_CONTEXT_GATE_EXPECTED_DATABASE_REGION: "westus3.azure",
+    RLS_CONTEXT_GATE_EXPECTED_EXECUTION_REGION: "sfo1",
+    RLS_CONTEXT_GATE_LOCALITY_CONFIRM: "diagnostic-only",
     RLS_CONTEXT_GATE_RUNTIME_ROLE: "grainline_app_runtime",
     ...overrides,
   };
@@ -108,7 +115,7 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.equal(pkg.scripts["audit:rls-context"], "node scripts/rls-context-acceptance-gate.mjs");
   });
 
-  it("requires explicit staging confirmation, pooled runtime URL, and runtime role", () => {
+  it("requires explicit staging and locality confirmation, expected regions, pooled runtime URL, and runtime role", () => {
     assert.throws(
       () => parseGateConfig({}),
       /RLS_CONTEXT_GATE_CONFIRM=staging-only is required/,
@@ -129,6 +136,30 @@ describe("RLS context acceptance gate guardrails", () => {
       () => parseGateConfig(baseEnv({ RLS_CONTEXT_GATE_RUNTIME_ROLE: "" })),
       /RLS_CONTEXT_GATE_RUNTIME_ROLE is required/,
     );
+    assert.throws(
+      () => parseGateConfig(baseEnv({ RLS_CONTEXT_GATE_LOCALITY_CONFIRM: "" })),
+      /RLS_CONTEXT_GATE_LOCALITY_CONFIRM is required/,
+    );
+    assert.throws(
+      () => parseGateConfig(baseEnv({ RLS_CONTEXT_GATE_LOCALITY_CONFIRM: "laptop" })),
+      /must be diagnostic-only or production-runtime/,
+    );
+    assert.throws(
+      () => parseGateConfig(baseEnv({ RLS_CONTEXT_GATE_EXPECTED_EXECUTION_REGION: "" })),
+      /RLS_CONTEXT_GATE_EXPECTED_EXECUTION_REGION is required/,
+    );
+    assert.throws(
+      () => parseGateConfig(baseEnv({ RLS_CONTEXT_GATE_EXPECTED_DATABASE_REGION: "West US 3" })),
+      /bounded lowercase region identifier/,
+    );
+    assert.throws(
+      () => parseGateConfig(baseEnv({ RLS_CONTEXT_GATE_EXPECTED_DATABASE_ENDPOINT_ID: "ep-other" })),
+      /endpoint id does not match the reviewed staging endpoint/,
+    );
+    assert.throws(
+      () => parseGateConfig(baseEnv({ RLS_CONTEXT_GATE_EXPECTED_DATABASE_NAME: "other_db" })),
+      /database name does not match the reviewed staging database/,
+    );
 
     const config = parseGateConfig(baseEnv());
     assert.equal(config.databaseUrl, baseEnv().RLS_CONTEXT_GATE_DATABASE_URL);
@@ -137,6 +168,13 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.equal(config.targetConcurrency, 8);
     assert.equal(config.burstConcurrency, 16);
     assert.equal(config.poolSize, 16);
+    assert.equal(config.localityConfirmation, "diagnostic-only");
+    assert.equal(config.expectedExecutionRegion, "sfo1");
+    assert.equal(config.expectedDatabaseEndpointId, "ep-test");
+    assert.equal(config.expectedDatabaseName, "grainline_staging");
+    assert.equal(config.expectedDatabaseRegion, "westus3.azure");
+    assert.equal(config.observedDatabaseRegion, "westus3.azure");
+    assert.equal(config.observedExecutionRegion, null);
     assert.throws(
       () => parseGateConfig(baseEnv({
         RLS_CONTEXT_GATE_BURST_CONCURRENCY: "16",
@@ -147,6 +185,54 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.equal(parseGateConfig(baseEnv({
       RLS_CONTEXT_GATE_EVIDENCE_PATH: "tmp/rls-context-gate-evidence.json",
     })).evidencePath, "tmp/rls-context-gate-evidence.json");
+  });
+
+  it("accepts production-runtime locality only from the matching provider-owned Vercel runtime", () => {
+    const productionRuntimeEnv = {
+      RLS_CONTEXT_GATE_LOCALITY_CONFIRM: "production-runtime",
+      VERCEL: "1",
+      VERCEL_DEPLOYMENT_ID: "dpl_test123",
+      VERCEL_GIT_COMMIT_SHA: "abcdef1234567890",
+      VERCEL_REGION: "sfo1",
+    };
+
+    assert.throws(
+      () => parseGateConfig(baseEnv({ ...productionRuntimeEnv, VERCEL: "" })),
+      /requires provider-owned VERCEL=1/,
+    );
+    assert.throws(
+      () => parseGateConfig(baseEnv({ ...productionRuntimeEnv, VERCEL_REGION: "iad1" })),
+      /does not match RLS_CONTEXT_GATE_EXPECTED_EXECUTION_REGION=sfo1/,
+    );
+    assert.throws(
+      () => parseGateConfig(baseEnv({ ...productionRuntimeEnv, VERCEL_GIT_COMMIT_SHA: "" })),
+      /VERCEL_GIT_COMMIT_SHA is required/,
+    );
+    assert.throws(
+      () => parseGateConfig(baseEnv({ ...productionRuntimeEnv, VERCEL_DEPLOYMENT_ID: "" })),
+      /VERCEL_DEPLOYMENT_ID is required/,
+    );
+    assert.throws(
+      () => parseGateConfig(baseEnv({
+        ...productionRuntimeEnv,
+        RLS_CONTEXT_GATE_DATABASE_URL: "postgresql://runtime:secret@ep-test-pooler.example.neon.tech/grainline_staging",
+      })),
+      /must use a parseable Neon endpoint hostname and one database path segment/,
+    );
+    assert.throws(
+      () => parseGateConfig(baseEnv({
+        ...productionRuntimeEnv,
+        RLS_CONTEXT_GATE_EXPECTED_DATABASE_REGION: "eastus2.azure",
+      })),
+      /region does not match the reviewed staging database region/,
+    );
+
+    const config = parseGateConfig(baseEnv(productionRuntimeEnv));
+    assert.equal(config.localityConfirmation, "production-runtime");
+    assert.equal(config.observedDatabaseRegion, "westus3.azure");
+    assert.equal(config.observedExecutionRegion, "sfo1");
+    assert.equal(config.providerCommitSha, "abcdef1234567890");
+    assert.equal(config.providerDeploymentId, "dpl_test123");
   });
 
   it("does not fall back to ambient production database env vars", () => {
@@ -190,11 +276,25 @@ describe("RLS context acceptance gate guardrails", () => {
     );
 
     const config = parseGateConfig(baseEnv({
-      RLS_CONTEXT_GATE_ADMIN_DATABASE_URL: "postgresql://owner:secret@ep-test.example.neon.tech/grainline_staging",
+      RLS_CONTEXT_GATE_ADMIN_DATABASE_URL: "postgresql://owner:secret@ep-test.westus3.azure.neon.tech/grainline_staging",
       RLS_CONTEXT_GATE_PREPARE: "1",
     }));
     assert.equal(config.prepare, true);
     assert.equal(config.rollbackProbe, true);
+    assert.throws(
+      () => parseGateConfig(baseEnv({
+        RLS_CONTEXT_GATE_ADMIN_DATABASE_URL: "postgresql://owner:secret@ep-other.westus3.azure.neon.tech/grainline_staging",
+        RLS_CONTEXT_GATE_PREPARE: "1",
+      })),
+      /endpoint id does not match the reviewed staging endpoint/,
+    );
+    assert.throws(
+      () => parseGateConfig(baseEnv({
+        RLS_CONTEXT_GATE_ADMIN_DATABASE_URL: "postgresql://owner:secret@ep-test-pooler.westus3.azure.neon.tech/grainline_staging",
+        RLS_CONTEXT_GATE_PREPARE: "1",
+      })),
+      /must use the reviewed direct Neon endpoint/,
+    );
   });
 
   it("pins the transaction-local context and fail-closed canary policy shape", () => {
@@ -213,6 +313,19 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.match(script, /empty-owner-should-not-match/);
   });
 
+  it("uses a durable two-slot ledger that prevents replay and overlapping evidence runs", () => {
+    const script = source("scripts/rls-context-acceptance-gate.mjs");
+
+    assert.match(script, /PRIMARY KEY \(run_id, run_slot\)/);
+    assert.match(script, /ON CONFLICT \(run_id, run_slot\) DO NOTHING/);
+    assert.match(
+      script,
+      /run_slot = 1[\s\S]*status = 'passed'[\s\S]*deployment_id = \$3[\s\S]*commit_sha = \$4/,
+    );
+    assert.match(script, /status = 'running'/);
+    assert.match(script, /succeeded \? "passed" : "failed"/);
+  });
+
   it("probes pooled prepared statements, connection recycling, and latency thresholds", () => {
     const script = source("scripts/rls-context-acceptance-gate.mjs");
 
@@ -228,6 +341,9 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.match(script, /wrapped p99/);
     assert.match(script, /connection acquisition p95/);
     assert.match(script, /transaction timeout/);
+    assert.match(script, /warm-checked-out-sequential-select-1/);
+    assert.match(script, /LOCALITY_RTT_MEASURED_QUERIES = 25/);
+    assert.match(script, /SELECT 1 AS locality_probe/);
 
     assert.equal(isPreparedStatementError(new Error("prepared statement already exists")), true);
     assert.equal(isPreparedStatementError(new Error("cached plan must not change result type")), true);
@@ -282,6 +398,14 @@ describe("RLS context acceptance gate guardrails", () => {
           "synthetic report",
           "upstream URL had https://runtime:report-secret@example.invalid/path and PGPASSWORD=report-secret",
         ],
+        locality: {
+          queryRttProxy: {
+            kind: "warm-checked-out-sequential-select-1",
+            measuredQueries: 25,
+            metricsMs: { avg: 1, max: 2, min: 0.5, p95: 2, p99: 2 },
+            warmupQueries: 5,
+          },
+        },
       },
       {
         finishedAt: "2026-07-09T22:00:01.000Z",
@@ -294,11 +418,19 @@ describe("RLS context acceptance gate guardrails", () => {
       },
     );
 
-    assert.equal(payload.run.status, "failed");
+    assert.equal(payload.run.status, "diagnostic_failed");
     assert.equal(payload.run.ciRunId, "12345");
     assert.equal(payload.run.commitSha, "abc123");
-    assert.equal(payload.database.databaseHost, "ep-test-pooler.example.neon.tech");
+    assert.equal(payload.database.databaseHost, "ep-test-pooler.westus3.azure.neon.tech");
+    assert.equal(payload.database.expectedDatabaseEndpointId, "ep-test");
+    assert.equal(payload.database.expectedDatabaseName, "grainline_staging");
     assert.equal(payload.database.runtimeRole, "grainline_app_runtime");
+    assert.equal(payload.locality.confirmation, "diagnostic-only");
+    assert.equal(payload.locality.acceptanceEligible, false);
+    assert.equal(payload.locality.expectedExecutionRegion, "sfo1");
+    assert.equal(payload.locality.expectedDatabaseRegion, "westus3.azure");
+    assert.equal(payload.locality.observedDatabaseRegion, "westus3.azure");
+    assert.equal(payload.locality.queryRttProxy.measuredQueries, 25);
     assert.equal(payload.result.issueCount, 5);
     assert.match(payload.result.issues[1], /\[redacted-postgres-url\]/);
     assert.match(payload.result.issues[2], /\[redacted-database-url\]/);
@@ -314,21 +446,114 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.doesNotMatch(serialized, /owner:secret|admin-secret|owner-password|json-secret|json-db-secret|report-secret|runtime:report-secret/);
     assert.doesNotMatch(serialized, /RLS_CONTEXT_GATE_DATABASE_URL/);
     assert.doesNotMatch(serialized, /RLS_CONTEXT_GATE_ADMIN_DATABASE_URL/);
+
+    const diagnosticPassed = buildEvidencePayload(
+      config,
+      { issues: [], locality: payload.locality, reports: [] },
+      {
+        finishedAt: "2026-07-09T22:00:01.000Z",
+        startedAt: "2026-07-09T22:00:00.000Z",
+        status: "passed",
+      },
+      {},
+    );
+    assert.equal(diagnosticPassed.run.status, "diagnostic_passed");
+    assert.equal(diagnosticPassed.locality.acceptanceEligible, false);
+
+    const setupPassed = buildEvidencePayload(
+      { ...config, prepare: true, rollbackProbe: true },
+      { issues: [], locality: { queryRttProxy: null }, reports: [] },
+      {
+        finishedAt: "2026-07-09T22:00:01.000Z",
+        startedAt: "2026-07-09T22:00:00.000Z",
+        status: "passed",
+      },
+      {},
+    );
+    assert.equal(setupPassed.run.kind, "setup");
+    assert.equal(setupPassed.run.status, "setup_passed");
+    assert.equal(setupPassed.locality.runtimeEvidenceCandidate, false);
+    assert.match(source("scripts/rls-context-acceptance-gate.mjs"), /chmodSync\(config\.evidencePath, 0o600\)/);
+  });
+
+  it("emits only a runtime evidence candidate and requires external deployment attestation", () => {
+    const config = parseGateConfig(baseEnv({
+      RLS_CONTEXT_GATE_LOCALITY_CONFIRM: "production-runtime",
+      VERCEL: "1",
+      VERCEL_DEPLOYMENT_ID: "dpl_test123",
+      VERCEL_GIT_COMMIT_SHA: "abcdef1234567890",
+      VERCEL_REGION: "sfo1",
+    }));
+    const result = {
+      issues: [],
+      locality: {
+        queryRttProxy: {
+          kind: "warm-checked-out-sequential-select-1",
+          measuredQueries: 25,
+          metricsMs: { avg: 1, max: 2, min: 0.5, p95: 2, p99: 2 },
+          warmupQueries: 5,
+        },
+      },
+      reports: [],
+    };
+    const timing = {
+      finishedAt: "2026-07-09T22:00:01.000Z",
+      startedAt: "2026-07-09T22:00:00.000Z",
+      status: "passed",
+    };
+
+    const passed = buildEvidencePayload(config, result, timing, {});
+    assert.equal(passed.run.status, "runtime_candidate_passed");
+    assert.equal(passed.run.kind, "repeat");
+    assert.equal(passed.locality.acceptanceEligible, false);
+    assert.equal(passed.locality.runtimeEvidenceCandidate, true);
+    assert.equal(passed.locality.providerRuntimeMetadataPresent, true);
+    assert.equal(passed.locality.requiresExternalDeploymentAttestation, true);
+    assert.equal(passed.run.commitSha, "abcdef1234567890");
+    assert.equal(passed.run.deploymentId, "dpl_test123");
+
+    const mismatchedFailed = buildEvidencePayload(config, result, { ...timing, status: "failed" }, {});
+    assert.equal(mismatchedFailed.run.status, "runtime_candidate_failed");
+    assert.equal(mismatchedFailed.locality.runtimeEvidenceCandidate, false);
+    assert.equal(mismatchedFailed.result.issueCount, 1);
+    assert.match(mismatchedFailed.result.issues[0], /evidence status mismatch/);
+
+    const issuesButPassed = buildEvidencePayload(
+      config,
+      { ...result, issues: ["synthetic gate issue"] },
+      timing,
+      {},
+    );
+    assert.equal(issuesButPassed.run.status, "runtime_candidate_failed");
+    assert.equal(issuesButPassed.locality.runtimeEvidenceCandidate, false);
+    assert.equal(issuesButPassed.result.issueCount, 2);
+    assert.match(issuesButPassed.result.issues[1], /evidence status mismatch/);
+
+    const incomplete = buildEvidencePayload(config, { ...result, locality: undefined }, timing, {});
+    assert.equal(incomplete.locality.runtimeEvidenceCandidate, false);
   });
 
   it("smoke-runs the gate orchestration against synthetic CI Postgres objects", { skip: gateIntegrationSkipReason() }, async () => {
     await withCiRuntimeRole(async ({ adminDatabaseUrl, databaseUrl, runtimeRole, schemaName }) => {
-      const result = await runAcceptanceGate({
+      const config = {
         adminDatabaseUrl,
         burstConcurrency: 2,
         connectionTimeoutMs: 10_000,
         databaseUrl,
+        expectedDatabaseRegion: "ci-local",
+        expectedExecutionRegion: "ci-local",
+        localityConfirmation: "diagnostic-only",
         measuredRequests: 4,
+        observedDatabaseRegion: "ci-local",
+        observedExecutionRegion: null,
         policyName: "context_canary_select",
         poolSize: 2,
         prepare: true,
+        providerCommitSha: null,
+        providerDeploymentId: null,
         queryTimeoutMs: 30_000,
         rollbackProbe: true,
+        runClaimTableName: "context_gate_run_claim",
         runtimeRole,
         schemaName,
         statementTimeoutMs: 30_000,
@@ -339,12 +564,51 @@ describe("RLS context acceptance gate guardrails", () => {
         userA: "rls-canary-ci-a",
         userB: "rls-canary-ci-b",
         warmupRequests: 0,
-      });
+      };
+      const setupResult = await runAcceptanceGate(config);
 
+      assert.deepEqual(setupResult.issues, []);
+      assert.match(setupResult.reports.join("\n"), /prepared 3 synthetic canary rows/);
+      assert.match(setupResult.reports.join("\n"), /setup rollback disable-RLS probe restored/);
+      assert.equal(setupResult.locality.queryRttProxy, null);
+
+      const claimConfig = {
+        ...config,
+        adminDatabaseUrl: undefined,
+        localityConfirmation: "production-runtime",
+        prepare: false,
+        providerCommitSha: "abcdef1234567890",
+        providerDeploymentId: "dpl_ci_test",
+        rollbackProbe: false,
+      };
+      const runId = `rls-context-ci-${randomUUID()}`;
+      assert.equal(await claimProviderRuntimeRunSlot(claimConfig, { runId, runSlot: 2 }), false);
+      assert.equal(await claimProviderRuntimeRunSlot(claimConfig, { runId, runSlot: 1 }), true);
+      assert.equal(await claimProviderRuntimeRunSlot(claimConfig, { runId, runSlot: 1 }), false);
+      assert.equal(await claimProviderRuntimeRunSlot(claimConfig, { runId, runSlot: 2 }), false);
+      await completeProviderRuntimeRunSlot(claimConfig, { runId, runSlot: 1, succeeded: true });
+      assert.equal(await claimProviderRuntimeRunSlot({
+        ...claimConfig,
+        providerDeploymentId: "dpl_ci_other",
+      }, { runId, runSlot: 2 }), false);
+      assert.equal(await claimProviderRuntimeRunSlot({
+        ...claimConfig,
+        providerCommitSha: "fedcba0987654321",
+      }, { runId, runSlot: 2 }), false);
+      assert.equal(await claimProviderRuntimeRunSlot(claimConfig, { runId, runSlot: 2 }), true);
+      await completeProviderRuntimeRunSlot(claimConfig, { runId, runSlot: 2, succeeded: true });
+
+      const result = await runAcceptanceGate({
+        ...config,
+        adminDatabaseUrl: undefined,
+        prepare: false,
+        rollbackProbe: false,
+      });
       assert.deepEqual(nonPerformanceGateIssues(result.issues), []);
-      assert.match(result.reports.join("\n"), /prepared 3 synthetic canary rows/);
       assert.match(result.reports.join("\n"), /target autocommit baseline/);
       assert.match(result.reports.join("\n"), /Prisma target autocommit baseline/);
+      assert.equal(result.locality.queryRttProxy.measuredQueries, 25);
+      assert.equal(result.locality.queryRttProxy.warmupQueries, 5);
     });
   });
 
