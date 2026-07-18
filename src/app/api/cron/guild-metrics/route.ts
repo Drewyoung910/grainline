@@ -4,6 +4,7 @@
 // enforces 2-month grace period for Guild Master revocation.
 
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import {
   calculateSellerMetrics,
@@ -93,7 +94,7 @@ export async function GET(request: NextRequest) {
                     seller: { displayName: seller.user.name, email: seller.user.email },
                     failedCriteria: failedLabels,
                   });
-                } catch { /* non-fatal */ }
+                } catch (e) { Sentry.captureException(e, { tags: { cron: "guild-metrics", stage: "warn-email" } }); }
               }
 
               warned++;
@@ -128,7 +129,7 @@ export async function GET(request: NextRequest) {
                   await sendGuildMasterRevokedEmail({
                     seller: { displayName: seller.user.name, email: seller.user.email },
                   });
-                } catch { /* non-fatal */ }
+                } catch (e) { Sentry.captureException(e, { tags: { cron: "guild-metrics", stage: "revoke-email" } }); }
               }
 
               revokedMaster++;
@@ -145,6 +146,7 @@ export async function GET(request: NextRequest) {
           processed++;
         } catch (err) {
           errors.push(`seller ${seller.id}: ${String(err)}`);
+          Sentry.captureException(err, { tags: { cron: "guild-metrics", stage: "per-seller" }, extra: { sellerId: seller.id } });
         }
       })
     );
@@ -153,7 +155,16 @@ export async function GET(request: NextRequest) {
   // Clean up view daily records older than 2 years
   const twoYearsAgo = new Date();
   twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
-  await prisma.listingViewDaily.deleteMany({ where: { date: { lt: twoYearsAgo } } }).catch(() => {});
+  await prisma.listingViewDaily.deleteMany({ where: { date: { lt: twoYearsAgo } } })
+    .catch((e) => Sentry.captureException(e, { tags: { cron: "guild-metrics", stage: "view-prune" } }));
+
+  if (errors.length > 0) {
+    Sentry.captureMessage(`guild-metrics cron: ${errors.length} errors`, {
+      level: "warning",
+      tags: { cron: "guild-metrics" },
+      extra: { errors: errors.slice(0, 20) },
+    });
+  }
 
   return NextResponse.json({ processed, warned, revokedMaster, errors });
 }

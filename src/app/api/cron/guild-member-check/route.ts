@@ -5,6 +5,7 @@
 //   2. Active listing count below 5 for 30+ consecutive days
 
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import { sendGuildMemberRevokedEmail } from "@/lib/email";
@@ -72,9 +73,18 @@ export async function GET(request: NextRequest) {
           }
         } catch (err) {
           errors.push(`seller ${seller.id}: ${String(err)}`);
+          Sentry.captureException(err, { tags: { cron: "guild-member-check", stage: "per-seller" }, extra: { sellerId: seller.id } });
         }
       })
     );
+  }
+
+  if (errors.length > 0) {
+    Sentry.captureMessage(`guild-member-check cron: ${errors.length} errors`, {
+      level: "warning",
+      tags: { cron: "guild-member-check" },
+      extra: { errors: errors.slice(0, 20) },
+    });
   }
 
   return NextResponse.json({ revokedMember, errors });
@@ -114,6 +124,6 @@ async function revokeMember(
         seller: { displayName: seller.user.name, email: seller.user.email },
         reason,
       });
-    } catch { /* non-fatal */ }
+    } catch (e) { Sentry.captureException(e, { tags: { cron: "guild-member-check", stage: "revoke-email" } }); }
   }
 }

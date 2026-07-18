@@ -1,6 +1,7 @@
 // src/app/api/stripe/webhook/route.ts
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
@@ -24,6 +25,10 @@ export async function POST(req: Request) {
     event = stripe.webhooks.constructEvent(body, signature, secret);
   } catch (err: unknown) {
     console.error("Stripe webhook signature verification failed:", (err as { message?: string })?.message);
+    Sentry.captureMessage("Stripe webhook signature verification failed", {
+      level: "error",
+      tags: { area: "webhook-security" },
+    });
     return new NextResponse("Invalid signature", { status: 400 });
   }
 
@@ -35,6 +40,7 @@ export async function POST(req: Request) {
       event = await stripe.events.retrieve(event.id);
     } catch (retrieveErr) {
       console.error("Webhook: failed to retrieve full event:", retrieveErr);
+      Sentry.captureException(retrieveErr, { tags: { area: "stripe-webhook", stage: "retrieve" } });
       return new NextResponse("Failed to retrieve event", { status: 500 });
     }
   }
@@ -333,7 +339,18 @@ export async function POST(req: Request) {
                 where: { id: it.listingId },
                 select: { stockQuantity: true },
               });
-              if ((current?.stockQuantity ?? 0) <= 0) {
+              const stockNow = current?.stockQuantity ?? 0;
+              if (stockNow < 0) {
+                // Oversell: reservation allowed more than available. Should not happen
+                // with atomic SQL guard, but log and alert if it ever does.
+                console.error(`[OVERSELL] listingId=${it.listingId} stockNow=${stockNow} orderedQty=${orderQuantity}`);
+                Sentry.captureMessage("Oversell detected in webhook", {
+                  level: "error",
+                  tags: { area: "stripe-webhook", stage: "oversell-cart" },
+                  extra: { listingId: it.listingId, stockNow, orderedQty: orderQuantity },
+                });
+              }
+              if (stockNow <= 0) {
                 await tx.listing.update({
                   where: { id: it.listingId },
                   data: { status: "SOLD_OUT" },
@@ -362,6 +379,7 @@ export async function POST(req: Request) {
           }
         } catch (err) {
           console.error("Webhook cart cleanup failed:", err);
+          Sentry.captureException(err, { tags: { area: "stripe-webhook", stage: "cart-cleanup" } });
         }
 
         // Notify buyer + seller after cart checkout
@@ -626,7 +644,16 @@ export async function POST(req: Request) {
               where: { id: listingId },
               select: { stockQuantity: true },
             });
-            if ((currentSingle?.stockQuantity ?? 0) <= 0) {
+            const stockNow = currentSingle?.stockQuantity ?? 0;
+            if (stockNow < 0) {
+              console.error(`[OVERSELL] listingId=${listingId} stockNow=${stockNow} orderedQty=${quantity}`);
+              Sentry.captureMessage("Oversell detected in webhook", {
+                level: "error",
+                tags: { area: "stripe-webhook", stage: "oversell-single" },
+                extra: { listingId, stockNow, orderedQty: quantity },
+              });
+            }
+            if (stockNow <= 0) {
               await tx.listing.update({
                 where: { id: listingId },
                 data: { status: "SOLD_OUT" },
@@ -648,6 +675,7 @@ export async function POST(req: Request) {
           }
         } catch (err) {
           console.error("Webhook cart cleanup failed:", err);
+          Sentry.captureException(err, { tags: { area: "stripe-webhook", stage: "cart-cleanup-single" } });
         }
 
         // Notify buyer + seller after single-listing checkout
@@ -899,6 +927,7 @@ export async function POST(req: Request) {
           }
         } catch (err) {
           console.error("Failed to restore stock for expired cart session:", err);
+          Sentry.captureException(err, { tags: { area: "stripe-webhook", stage: "expired-restore" }, level: "error" });
         }
       }
 
@@ -909,9 +938,17 @@ export async function POST(req: Request) {
   } catch (err) {
     // P2002 = unique constraint violation (duplicate webhook delivery)
     if (err && typeof err === "object" && "code" in err && (err as { code: string }).code === "P2002") {
-      return NextResponse.json({ ok: true }); // duplicate, already processed
+      const meta = (err as { meta?: { target?: string | string[] } }).meta;
+      const target = Array.isArray(meta?.target) ? meta.target.join(",") : meta?.target;
+      if (target?.includes("stripeSessionId")) {
+        return NextResponse.json({ ok: true }); // duplicate, already processed
+      }
+      // P2002 on some other constraint — not a duplicate webhook; surface it
+      Sentry.captureException(err, { tags: { area: "stripe-webhook", stage: "p2002-other", target } });
+      return new NextResponse("Webhook error", { status: 500 });
     }
     console.error("Stripe webhook handler error:", err);
+    Sentry.captureException(err, { tags: { area: "stripe-webhook", stage: "handler" }, level: "error" });
     return new NextResponse("Webhook error", { status: 500 });
   }
 }

@@ -4,6 +4,7 @@
 // Schedule: 0 6 * * * (6am UTC daily)
 
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { recalculateAllQualityScores } from "@/lib/quality-score";
 
 export async function GET(request: Request) {
@@ -23,6 +24,7 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     console.error("[quality-score cron] Error:", error);
+    Sentry.captureException(error, { tags: { cron: "quality-score" }, level: "error" });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
