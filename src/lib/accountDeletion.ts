@@ -507,20 +507,18 @@ async function cleanupDeletedSellerFanoutRows(
   sellerProfileId: string,
   now: Date,
 ) {
-  const [broadcasts, listings, blogPosts] = await Promise.all([
-    tx.sellerBroadcast.findMany({
-      where: { sellerProfileId },
-      select: { id: true },
-    }),
-    tx.listing.findMany({
-      where: { sellerId: sellerProfileId },
-      select: { id: true },
-    }),
-    tx.blogPost.findMany({
-      where: { sellerProfileId },
-      select: { id: true, slug: true },
-    }),
-  ]);
+  const broadcasts = await tx.sellerBroadcast.findMany({
+    where: { sellerProfileId },
+    select: { id: true },
+  });
+  const listings = await tx.listing.findMany({
+    where: { sellerId: sellerProfileId },
+    select: { id: true },
+  });
+  const blogPosts = await tx.blogPost.findMany({
+    where: { sellerProfileId },
+    select: { id: true, slug: true },
+  });
 
   const broadcastIds = broadcasts.map((broadcast) => broadcast.id);
   const listingIds = listings.map((listing) => listing.id);
@@ -1130,43 +1128,41 @@ async function collectAccountDeletionMediaUrls(
   clerkUserId: string,
 ): Promise<string[]> {
   const urls = new Set<string>();
-  const [sellerProfile, reviewPhotos, commissionRequests, messages, blogPosts, directUploads] = await Promise.all([
-    db.sellerProfile.findUnique({
-      where: { userId },
-      select: {
-        avatarImageUrl: true,
-        bannerImageUrl: true,
-        workshopImageUrl: true,
-        galleryImageUrls: true,
-        listings: {
-          select: {
-            videoUrl: true,
-            photos: { select: { url: true, originalUrl: true } },
-          },
+  const sellerProfile = await db.sellerProfile.findUnique({
+    where: { userId },
+    select: {
+      avatarImageUrl: true,
+      bannerImageUrl: true,
+      workshopImageUrl: true,
+      galleryImageUrls: true,
+      listings: {
+        select: {
+          videoUrl: true,
+          photos: { select: { url: true, originalUrl: true } },
         },
       },
-    }),
-    db.reviewPhoto.findMany({
-      where: { review: { reviewerId: userId } },
-      select: { url: true },
-    }),
-    db.commissionRequest.findMany({
-      where: { buyerId: userId },
-      select: { referenceImageUrls: true },
-    }),
-    db.message.findMany({
-      where: { senderId: userId },
-      select: { body: true },
-    }),
-    db.blogPost.findMany({
-      where: { OR: [{ authorId: userId }, { sellerProfile: { userId } }] },
-      select: { coverImageUrl: true, videoUrl: true, body: true },
-    }),
-    db.directUpload.findMany({
-      where: { userId },
-      select: { publicUrl: true },
-    }),
-  ]);
+    },
+  });
+  const reviewPhotos = await db.reviewPhoto.findMany({
+    where: { review: { reviewerId: userId } },
+    select: { url: true },
+  });
+  const commissionRequests = await db.commissionRequest.findMany({
+    where: { buyerId: userId },
+    select: { referenceImageUrls: true },
+  });
+  const messages = await db.message.findMany({
+    where: { senderId: userId },
+    select: { body: true },
+  });
+  const blogPosts = await db.blogPost.findMany({
+    where: { OR: [{ authorId: userId }, { sellerProfile: { userId } }] },
+    select: { coverImageUrl: true, videoUrl: true, body: true },
+  });
+  const directUploads = await db.directUpload.findMany({
+    where: { userId },
+    select: { publicUrl: true },
+  });
 
   if (sellerProfile) {
     [

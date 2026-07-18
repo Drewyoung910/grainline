@@ -31,6 +31,29 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     assert.match(accountDeletion, /source: "account_delete_media_cleanup"/);
   });
 
+  it("keeps Prisma work sequential in account-deletion transaction helpers", () => {
+    const accountDeletion = source("src/lib/accountDeletion.ts");
+    const sellerFanoutStart = accountDeletion.indexOf("async function cleanupDeletedSellerFanoutRows");
+    const sellerFanoutEnd = accountDeletion.indexOf("async function collectMessagesBySensitiveText", sellerFanoutStart);
+    const mediaCollectionStart = accountDeletion.indexOf("async function collectAccountDeletionMediaUrls");
+    const mediaCollectionEnd = accountDeletion.indexOf("function revalidateDeletedAccountSearchCaches", mediaCollectionStart);
+
+    assert.notEqual(sellerFanoutStart, -1);
+    assert.notEqual(sellerFanoutEnd, -1);
+    assert.notEqual(mediaCollectionStart, -1);
+    assert.notEqual(mediaCollectionEnd, -1);
+
+    const sellerFanout = accountDeletion.slice(sellerFanoutStart, sellerFanoutEnd);
+    const mediaCollection = accountDeletion.slice(mediaCollectionStart, mediaCollectionEnd);
+    assert.doesNotMatch(sellerFanout, /Promise\.all\s*\(/);
+    assert.doesNotMatch(mediaCollection, /Promise\.all\s*\(/);
+    assert.match(sellerFanout, /await tx\.sellerBroadcast\.findMany[\s\S]*await tx\.listing\.findMany[\s\S]*await tx\.blogPost\.findMany/);
+    assert.match(
+      mediaCollection,
+      /await db\.sellerProfile\.findUnique[\s\S]*await db\.reviewPhoto\.findMany[\s\S]*await db\.commissionRequest\.findMany[\s\S]*await db\.message\.findMany[\s\S]*await db\.blogPost\.findMany[\s\S]*await db\.directUpload\.findMany/,
+    );
+  });
+
   it("defensively disables seller orderability inside the deletion transaction", () => {
     const accountDeletion = source("src/lib/accountDeletion.ts");
 
