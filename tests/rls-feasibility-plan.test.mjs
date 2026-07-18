@@ -84,6 +84,14 @@ function savedSearchDelegateAccesses(file, fileSource) {
     ) {
       accesses.push('["savedSearch"]');
     }
+    if (ts.isBindingElement(node) && ts.isObjectBindingPattern(node.parent)) {
+      const propertyName = node.propertyName
+        ? staticPropertyName(node.propertyName)
+        : ts.isIdentifier(node.name)
+          ? node.name.text
+          : null;
+      if (propertyName === "savedSearch") accesses.push("{ savedSearch }");
+    }
     ts.forEachChild(node, visit);
   }
 
@@ -382,6 +390,14 @@ describe("RLS feasibility plan guardrails", () => {
     assert.deepEqual(
       savedSearchDelegateAccesses("fixture.ts", 'const delegate = tx["savedSearch"]; delegate.findMany();'),
       ['["savedSearch"]'],
+    );
+    assert.deepEqual(
+      savedSearchDelegateAccesses("fixture.ts", "const { savedSearch: delegate } = tx; delegate.findMany();"),
+      ["{ savedSearch }"],
+    );
+    assert.deepEqual(
+      savedSearchDelegateAccesses("fixture.ts", "const { savedSearch } = tx; savedSearch.findMany();"),
+      ["{ savedSearch }"],
     );
     assert.match(`Prisma.raw('"SavedSearch"')`, prismaRawPattern);
     prismaRawPattern.lastIndex = 0;
