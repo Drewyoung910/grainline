@@ -6,6 +6,8 @@ export const SAVED_SEARCH_RLS_DEPLOY_PHASE_ENV =
   "SAVED_SEARCH_RLS_DEPLOY_PHASE";
 export const SAVED_SEARCH_RPC_MIGRATION =
   "20260717024500_add_saved_search_owner_rpcs";
+export const SAVED_SEARCH_RPC_HARDENING_MIGRATION =
+  "20260717025000_harden_saved_search_owner_rpc_projection";
 export const SAVED_SEARCH_RLS_MIGRATION =
   "20260717030000_enable_saved_search_rls";
 
@@ -30,30 +32,47 @@ export function validateSavedSearchRlsDeployShape({ phase, migrationNames }) {
 
   const migrations = new Set(migrationNames);
   const hasRpcMigration = migrations.has(SAVED_SEARCH_RPC_MIGRATION);
+  const hasRpcHardeningMigration = migrations.has(
+    SAVED_SEARCH_RPC_HARDENING_MIGRATION,
+  );
   const hasRlsMigration = migrations.has(SAVED_SEARCH_RLS_MIGRATION);
 
   if (phase === RELEASE_ZERO_PHASE) {
-    if (!hasRpcMigration || hasRlsMigration) {
+    if (!hasRpcMigration || !hasRpcHardeningMigration || hasRlsMigration) {
       throw new Error(
-        `${RELEASE_ZERO_PHASE} requires ${SAVED_SEARCH_RPC_MIGRATION} to exist and ${SAVED_SEARCH_RLS_MIGRATION} to be absent`,
+        `${RELEASE_ZERO_PHASE} requires ${SAVED_SEARCH_RPC_MIGRATION} and ${SAVED_SEARCH_RPC_HARDENING_MIGRATION} to exist and ${SAVED_SEARCH_RLS_MIGRATION} to be absent`,
       );
     }
 
-    assertNoLaterMigration(migrationNames, SAVED_SEARCH_RPC_MIGRATION, phase);
+    assertNoLaterMigration(
+      migrationNames,
+      SAVED_SEARCH_RPC_HARDENING_MIGRATION,
+      phase,
+    );
 
-    return { phase, hasRpcMigration, hasRlsMigration };
+    return {
+      phase,
+      hasRpcMigration,
+      hasRpcHardeningMigration,
+      hasRlsMigration,
+    };
   }
 
   if (phase === REVIEWED_PHASE_A) {
-    if (!hasRpcMigration || !hasRlsMigration) {
+    if (!hasRpcMigration || !hasRpcHardeningMigration || !hasRlsMigration) {
       throw new Error(
-        `${REVIEWED_PHASE_A} requires both SavedSearch rollout migrations to exist`,
+        `${REVIEWED_PHASE_A} requires all three SavedSearch rollout migrations to exist`,
       );
     }
 
     assertNoLaterMigration(migrationNames, SAVED_SEARCH_RLS_MIGRATION, phase);
 
-    return { phase, hasRpcMigration, hasRlsMigration };
+    return {
+      phase,
+      hasRpcMigration,
+      hasRpcHardeningMigration,
+      hasRlsMigration,
+    };
   }
 
   const received = phase === undefined || phase === "" ? "missing" : phase;

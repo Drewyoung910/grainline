@@ -1,6 +1,6 @@
 # Grainline RLS Feasibility Plan
 
-Last updated: 2026-07-17
+Last updated: 2026-07-18
 
 Grainline's production control plane is application-layer authorization through Clerk middleware, route handlers, server actions, shared visibility helpers, and ownership predicates. `SavedSearch` is the approved first production RLS table, but RLS remains defense in depth rather than a replacement for those checks. A broad rollout with Prisma and pooled Neon connections can break legitimate traffic or create false confidence if runtime roles still own tables or bypass policies.
 
@@ -65,6 +65,16 @@ rollout phase B (`FORCE`) is still part of Bucket A; it is not Bucket B.
   server-resolved authenticated local `User.id`, not a request body, query
   string, route param, or other client-supplied value. The `true` flag is
   required so context is transaction-local and does not leak through the pool.
+  The SavedSearch RPC `p_user_id` is still asserted by application code rather
+  than authenticated independently by PostgreSQL. An AST allowlist must pin
+  each helper callsite and its first-argument identity expression; parameter
+  shape validation inside the RPC is not a substitute for this trust boundary.
+  A holder of the runtime role that can issue arbitrary SQL can assert another
+  syntactically valid user id through the RPC or GUC. When reviewed code
+  supplies the correct authenticated id, this prototype catches omitted or
+  incorrect query ownership predicates and fails closed on absent context; it
+  does not catch a wrong asserted id or provide identity isolation after
+  runtime-credential compromise or SQL injection.
 - **Staff context**: staff/admin access needs either explicit `app.role` transaction context or separate audited bypass helpers. Do not silently grant all employees broad RLS bypass in normal user flows.
 - **Provider context**: webhooks, cron jobs, and provider callbacks need explicit service-path decisions; do not make them rely on arbitrary end-user context.
 - **Grant hygiene**: every future migration that creates tables, sequences, or
@@ -274,6 +284,12 @@ rollout phase B (`FORCE`) is still part of Bucket A; it is not Bucket B.
 need retry/context discipline.
 
 - `SELECT`, `INSERT`, and `DELETE` can be owner-scoped to `app.user_id`.
+- Release 0 retains the general runtime CRUD grant while RLS is absent. Phase A
+  must narrow `SavedSearch` to exactly `SELECT`/`INSERT`/`DELETE` with no
+  effective or direct `UPDATE`; there is no current update path or update
+  policy. The Phase-A provisioning SQL re-revokes `UPDATE` after its bulk table
+  grant so reruns preserve that exact posture, while other tracked tables and
+  future table defaults remain CRUD.
 - The saved-search cap must continue to run in the same transaction as the
   insert.
 - If serializable retry is used, the RLS context must be set inside each retry
@@ -289,6 +305,30 @@ need retry/context discipline.
   UNSAFE`, `search_path=pg_catalog`, explicitly owner-filtered, and executable
   only by the non-owner runtime role. The static guard permits those function
   names only in the centralized helper and rejects unsafe raw escape hatches.
+- These RPCs do not authenticate `p_user_id` themselves. The AST guard pins the
+  reviewed calls outside the helper exactly:
+  `src/app/account/page.tsx`,
+  `src/app/account/saved-searches/page.tsx`,
+  `src/app/dashboard/page.tsx`, and
+  `src/app/api/search/saved/route.ts` pass `me.id`;
+  `src/app/api/account/export/route.ts` passes its server-resolved `user.id`;
+  and `src/app/api/cron/ops-health/route.ts` passes only the strict
+  nonce-paired synthetic-canary `userId`. It inventories direct named-import
+  aliases and direct namespace calls, while local rebinding, computed namespace
+  access, re-export, dynamic import, and CommonJS `require` fail review. Any new
+  callsite or changed first argument requires review rather than inheriting
+  trust.
+- This allowlist is a source-regression guard, not a database identity
+  primitive. Arbitrary SQL under the runtime role can call the RPC or set the
+  GUC with another valid id; Phase A therefore does not close the compromised
+  runtime-principal/SQL-injection threat.
+- The list RPC explicitly selects the reviewed 16 columns in forward migration
+  `20260717025000_harden_saved_search_owner_rpc_projection` in PostgreSQL
+  physical `attnum` order, and the TypeScript helper reconstructs the same
+  reviewed fields as an explicit application projection after runtime
+  validation. The live audit compares the exact raw `pg_proc.prosrc` UTF-8
+  SHA-256 for both owner RPCs with the source-derived inventory; unreadable
+  source or body drift fails closed.
 - Saved-search reads are not only in API routes. The dashboard server component,
   account pages, account export, and the retained canary all use the same
   one-statement helper path before RLS is enabled.
@@ -309,8 +349,10 @@ need retry/context discipline.
   Keep an explicit test that account deletion retains
   `{ timeout: 30000, maxWait: 10000 }`. These are must-fix preactivation gaps,
   not deferred Bucket-B work.
-- Release 0 must apply the pre-RLS function migration before RPC-calling app
-  code becomes live while RLS is still off. Because Vercel's production build
+- Release 0 must apply
+  `20260717024500_add_saved_search_owner_rpcs` and then
+  `20260717025000_harden_saved_search_owner_rpc_projection` before RPC-calling
+  app code becomes live while RLS is still off. Because Vercel's production build
   runs `prisma migrate deploy`, that release artifact must exclude the later
   phase-A RLS migration. The fail-closed production deploy guard accepts
   `SAVED_SEARCH_RLS_DEPLOY_PHASE=release-0` only for that RPC-only artifact.
