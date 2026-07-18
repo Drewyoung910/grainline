@@ -94,6 +94,46 @@ function exactCatalogState() {
       database_name: "grainline_staging",
       session_user_name: "grainline_migration_owner",
     }],
+    ownerRpcRows: [
+      {
+        function_config: ["search_path=pg_catalog"],
+        function_name: "grainline_saved_search_delete_one",
+        identity_arguments: "p_user_id text, p_search_id text",
+        other_role_grant_option_privileges: [],
+        other_role_privileges: [],
+        owner_name: "grainline_migration_owner",
+        leakproof: false,
+        parallel_safety: "u",
+        function_kind: "f",
+        language_name: "plpgsql",
+        public_grant_option_privileges: [],
+        public_privileges: [],
+        return_contract_valid: true,
+        runtime_grant_option_privileges: [],
+        runtime_privileges: ["EXECUTE"],
+        security_definer: false,
+        volatility: "v",
+      },
+      {
+        function_config: ["search_path=pg_catalog"],
+        function_name: "grainline_saved_search_list",
+        identity_arguments: "p_user_id text, p_take integer, p_search_id text",
+        other_role_grant_option_privileges: [],
+        other_role_privileges: [],
+        owner_name: "grainline_migration_owner",
+        leakproof: false,
+        parallel_safety: "u",
+        function_kind: "f",
+        language_name: "plpgsql",
+        public_grant_option_privileges: [],
+        public_privileges: [],
+        return_contract_valid: true,
+        runtime_grant_option_privileges: [],
+        runtime_privileges: ["EXECUTE"],
+        security_definer: false,
+        volatility: "v",
+      },
+    ],
     policyRows: exactPolicyRows(),
     privilegeRows: [{
       delete_priv: true,
@@ -307,7 +347,7 @@ describe("SavedSearch RLS acceptance gate", () => {
     const fixture = buildFixtureIds("0123456789abcdef");
 
     assert.equal(validateFixture(fixture), fixture);
-    assert.equal(fixture.allSearchIds.length, 5);
+    assert.equal(fixture.allSearchIds.length, 6);
     assert.equal(new Set(fixture.allSearchIds).size, fixture.allSearchIds.length);
     assert.equal(new Set(fixture.allUserIds).size, fixture.allUserIds.length);
     for (const id of [...fixture.allSearchIds, ...fixture.allUserIds, fixture.wrongUserId]) {
@@ -403,6 +443,8 @@ describe("SavedSearch RLS acceptance gate", () => {
     unsafe.privilegeRows[0].public_column_privileges.push("userId:REFERENCES");
     unsafe.privilegeRows[0].public_column_grant_option_privileges.push("userId:REFERENCES");
     unsafe.tableRows[0].owner_name = DEFAULT_SAVED_SEARCH_RUNTIME_ROLE;
+    unsafe.ownerRpcRows[0].public_privileges = ["EXECUTE"];
+    unsafe.ownerRpcRows[1].security_definer = true;
     unsafe.policyRows = unsafe.policyRows.slice(1).map((row) => ({
       ...row,
       rls_enabled: false,
@@ -431,6 +473,8 @@ describe("SavedSearch RLS acceptance gate", () => {
     assert.match(issues, /public\."SavedSearch" PUBLIC has column grant options: userId:REFERENCES/);
     assert.match(issues, /must not own public\."SavedSearch"/);
     assert.match(issues, /owner must match the direct owner URL username/);
+    assert.match(issues, /must revoke all privileges from PUBLIC/);
+    assert.match(issues, /must be SECURITY INVOKER/);
     assert.match(issues, /must have ROW LEVEL SECURITY enabled/);
     assert.match(issues, /must keep FORCE ROW LEVEL SECURITY disabled during phase A/);
     assert.match(issues, /missing policy saved_search_owner_delete/);
@@ -570,6 +614,14 @@ describe("SavedSearch RLS acceptance gate", () => {
       "the initial runtime-context preflight must guard catalog inspection and all fixture mutation",
     );
     assert.match(script, /runtime A\/B SavedSearch seed transaction/);
+    assert.match(script, /SavedSearch list RPC returns only owner rows and resets statement context/);
+    assert.match(script, /SavedSearch list RPC supports canary-filtered owner reads/);
+    assert.match(script, /SavedSearch list RPC rejects missing user context arguments/);
+    assert.match(script, /SavedSearch RPC rejects switching a nonempty user context/);
+    assert.match(script, /SavedSearch delete RPC affects zero foreign rows and preserves them/);
+    assert.match(script, /SavedSearch delete RPC removes one owner row and resets statement context/);
+    assert.match(script, /public\.grainline_saved_search_list\(\$1::text, \$2::integer, \$3::text\)/);
+    assert.match(script, /public\.grainline_saved_search_delete_one\(\$1::text, \$2::text\)/);
     assert.match(script, /foreign delete affects zero rows and preserves the row/);
     assert.match(script, /foreign delete user B preservation/);
     assert.match(script, /update is denied or affects zero rows and leaves data unchanged/);

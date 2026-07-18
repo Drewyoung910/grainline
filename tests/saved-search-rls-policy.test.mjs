@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const {
@@ -10,6 +10,9 @@ const {
 } = await import("../scripts/audit-runtime-db-grants.mjs");
 
 const RUNTIME_ROLE = "grainline_app_runtime";
+const RLS_MIGRATION_PATH =
+  "prisma/migrations/20260717030000_enable_saved_search_rls/migration.sql";
+const phaseAIt = existsSync(RLS_MIGRATION_PATH) ? it : it.skip;
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -53,10 +56,8 @@ function exactPolicyRows() {
 }
 
 describe("SavedSearch exact RLS policy guardrails", () => {
-  it("adds only the reviewed SELECT, INSERT, and DELETE owner policies", () => {
-    const migration = source(
-      "prisma/migrations/20260717030000_enable_saved_search_rls/migration.sql",
-    );
+  phaseAIt("adds only the reviewed SELECT, INSERT, and DELETE owner policies", () => {
+    const migration = source(RLS_MIGRATION_PATH);
     const policyStatements = [...migration.matchAll(/\bCREATE\s+POLICY\b/gi)];
 
     assert.equal(policyStatements.length, 3);
@@ -77,10 +78,8 @@ describe("SavedSearch exact RLS policy guardrails", () => {
     assert.equal(SAVED_SEARCH_RLS_FORCE_EXPECTED, false);
   });
 
-  it("fails closed before policy creation when role, ownership, grants, or prior-policy checks fail", () => {
-    const migration = source(
-      "prisma/migrations/20260717030000_enable_saved_search_rls/migration.sql",
-    );
+  phaseAIt("fails closed before policy creation when role, ownership, grants, or prior-policy checks fail", () => {
+    const migration = source(RLS_MIGRATION_PATH);
     const firstPolicy = migration.indexOf("CREATE POLICY");
 
     assert.ok(firstPolicy > 0);
@@ -135,7 +134,10 @@ describe("SavedSearch exact RLS policy guardrails", () => {
   });
 
   it("derives SavedSearch as an exact-policy table from migration source", () => {
-    assert.deepEqual(deriveGrantInventory().rlsPolicyTables, ["SavedSearch"]);
+    assert.deepEqual(
+      deriveGrantInventory().rlsPolicyTables,
+      existsSync(RLS_MIGRATION_PATH) ? ["SavedSearch"] : [],
+    );
   });
 
   it("normalizes PostgreSQL text casts without weakening the owner predicate", () => {

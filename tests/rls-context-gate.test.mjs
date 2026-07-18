@@ -104,7 +104,9 @@ function nonPerformanceGateIssues(issues) {
     /wrapped connection acquisition p95 .* exceeds 100ms/.test(issue) ||
     /wrapped connection acquisition p99 .* exceeds 250ms/.test(issue) ||
     /wrapped average hold .* exceeds 2x baseline/.test(issue) ||
-    /wrapped p99 hold .* exceeds 50% of transaction timeout/.test(issue)
+    /wrapped p99 hold .* exceeds 50% of transaction timeout/.test(issue) ||
+    /one-statement RPC p95 .* exceeds baseline p95 .* threshold/.test(issue) ||
+    /one-statement RPC p99 .* exceeds baseline p99 .* threshold/.test(issue)
   ));
 }
 
@@ -182,6 +184,8 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.equal(config.targetConcurrency, 8);
     assert.equal(config.burstConcurrency, 16);
     assert.equal(config.poolSize, 16);
+    assert.equal(config.rpcFunctionName, "context_canary_rpc");
+    assert.equal(config.teardownRpcProbe, false);
     assert.equal(config.localityConfirmation, "diagnostic-only");
     assert.equal(config.expectedExecutionRegion, "sfo1");
     assert.equal(config.expectedDatabaseEndpointId, "ep-test");
@@ -288,6 +292,18 @@ describe("RLS context acceptance gate guardrails", () => {
       () => parseGateConfig(baseEnv({ RLS_CONTEXT_GATE_ROLLBACK_PROBE: "1" })),
       /RLS_CONTEXT_GATE_ADMIN_DATABASE_URL is required/,
     );
+    assert.throws(
+      () => parseGateConfig(baseEnv({ RLS_CONTEXT_GATE_TEARDOWN_RPC_PROBE: "1" })),
+      /RLS_CONTEXT_GATE_ADMIN_DATABASE_URL is required/,
+    );
+    assert.throws(
+      () => parseGateConfig(baseEnv({
+        RLS_CONTEXT_GATE_ADMIN_DATABASE_URL: "postgresql://owner:secret@ep-test.westus3.azure.neon.tech/grainline_staging",
+        RLS_CONTEXT_GATE_PREPARE: "1",
+        RLS_CONTEXT_GATE_TEARDOWN_RPC_PROBE: "1",
+      })),
+      /cannot be combined/,
+    );
 
     const config = parseGateConfig(baseEnv({
       RLS_CONTEXT_GATE_ADMIN_DATABASE_URL: "postgresql://owner:secret@ep-test.westus3.azure.neon.tech/grainline_staging",
@@ -331,6 +347,22 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.match(script, /FORCE ROW LEVEL SECURITY/);
     assert.match(script, /runRollbackDisableProbe/);
     assert.match(script, /empty-owner-should-not-match/);
+    assert.match(script, /CREATE FUNCTION \$\{rpcFunctionRef\}\(p_user_id text\)/);
+    assert.match(script, /LANGUAGE plpgsql/);
+    assert.match(script, /SECURITY INVOKER/);
+    assert.match(script, /PARALLEL UNSAFE/);
+    assert.match(script, /p\.proparallel AS parallel_safety/);
+    assert.match(script, /synthetic RPC function must remain PARALLEL UNSAFE/);
+    assert.match(script, /SET search_path = pg_catalog/);
+    assert.match(script, /REVOKE ALL ON FUNCTION \$\{rpcFunctionSignature\} FROM PUBLIC/);
+    assert.match(script, /GRANT EXECUTE ON FUNCTION \$\{rpcFunctionSignature\}/);
+    assert.match(script, /runtime_execute_grant_option/);
+    assert.match(script, /public_execute_grant_option/);
+    assert.match(script, /unexpected_acl_roles/);
+    assert.match(script, /unexpected_grant_option_roles/);
+    assert.match(script, /runtime EXECUTE on the synthetic RPC function must not be grantable/);
+    assert.match(script, /synthetic RPC function grants privileges to an unexpected role/);
+    assert.match(script, /synthetic-transport-only-not-saved-search-policy-proof/);
   });
 
   it("uses a durable two-slot ledger that prevents replay and overlapping evidence runs", () => {
@@ -363,13 +395,17 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.match(script, /prepared statement .* does not exist/);
     assert.match(script, /cached plan must not change result type/);
     assert.match(script, /maxUses: 1/);
-    assert.match(script, /wrapped p95/);
-    assert.match(script, /wrapped p99/);
+    assert.match(script, /candidateName = "wrapped"/);
+    assert.match(script, /\$\{candidateName\} p95/);
+    assert.match(script, /\$\{candidateName\} p99/);
     assert.match(script, /connection acquisition p95/);
     assert.match(script, /transaction timeout/);
     assert.match(script, /warm-checked-out-sequential-select-1/);
     assert.match(script, /LOCALITY_RTT_MEASURED_QUERIES = 25/);
     assert.match(script, /SELECT 1 AS locality_probe/);
+    assert.match(script, /Prisma target one-statement RPC candidate/);
+    assert.match(script, /Prisma burst one-statement RPC candidate/);
+    assert.match(script, /candidateName: "one-statement RPC"/);
 
     assert.equal(isPreparedStatementError(new Error("prepared statement already exists")), true);
     assert.equal(isPreparedStatementError(new Error("cached plan must not change result type")), true);
@@ -395,6 +431,42 @@ describe("RLS context acceptance gate guardrails", () => {
     }
   });
 
+  it("benchmarks a fail-closed one-statement SECURITY INVOKER candidate without disguising wrapper failures", () => {
+    const script = source("scripts/rls-context-acceptance-gate.mjs");
+    const rpcRead = script.slice(
+      script.indexOf("async function timedPrismaRpcRead"),
+      script.indexOf("async function timedPrismaRpcCleanupProbe"),
+    );
+    const rpcCatalog = script.slice(
+      script.indexOf("async function inspectRpcCanary"),
+      script.indexOf("async function inspectRuntime"),
+    );
+    const rollbackProbe = script.slice(
+      script.indexOf("async function runRollbackDisableProbe"),
+      script.indexOf("function sample"),
+    );
+
+    assert.equal((rpcRead.match(/\$queryRawUnsafe/g) ?? []).length, 1);
+    assert.match(rpcRead, /buildRpcSelectSql\(config\), userId/);
+    assert.doesNotMatch(rpcRead, /\$transaction/);
+    assert.match(rpcCatalog, /p\.prosecdef AS security_definer/);
+    assert.match(rpcCatalog, /p\.proleakproof AS leakproof/);
+    assert.match(rpcCatalog, /p\.provolatile AS volatility/);
+    assert.match(rpcCatalog, /p\.proconfig AS function_config/);
+    assert.match(rpcCatalog, /function_acl\.grantee = 0/);
+    assert.match(rpcCatalog, /PUBLIC must not retain EXECUTE/);
+    assert.match(rpcCatalog, /runtime role has unexpected write privileges/);
+    assert.match(rpcCatalog, /rerun the owner-only setup before provider-runtime evidence/);
+    assert.match(rollbackProbe, /DROP FUNCTION \$\{buildRpcFunctionSignature\(config\)\}/);
+    assert.match(rollbackProbe, /await admin\.query\("ROLLBACK"\)/);
+    assert.match(rollbackProbe, /synthetic RPC function was not restored after owner transaction rollback/);
+    assert.match(script, /export async function teardownRpcCanary/);
+    assert.match(script, /post-teardown function_absent/);
+    assert.match(script, /if \(config\.teardownRpcProbe\)/);
+    assert.match(script, /compareWorkloads\("Prisma target concurrency"/);
+    assert.match(script, /compareWorkloads\("Prisma burst concurrency"/);
+  });
+
   it("mirrors the real app Prisma pool and does not invent adapter pool timings", () => {
     const script = source("scripts/rls-context-acceptance-gate.mjs");
     const db = source("src/lib/db.ts");
@@ -408,6 +480,7 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.match(script, /poolTimingAvailable: false/);
     assert.match(script, /acquire=unavailable; hold=unavailable/);
     assert.match(script, /baseline\.poolTimingAvailable && wrapped\.poolTimingAvailable/);
+    assert.match(script, /concurrency: config\.burstConcurrency,[\s\S]*label: "Prisma burst one-statement RPC candidate"/);
   });
 
   it("documents the gate in the RLS runbook and defense-in-depth plan", () => {
@@ -485,6 +558,7 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.equal(payload.database.expectedDatabaseEndpointId, "ep-test");
     assert.equal(payload.database.expectedDatabaseName, "grainline_staging");
     assert.equal(payload.database.runtimeRole, "grainline_app_runtime");
+    assert.equal(payload.database.rpcFunctionName, "context_canary_rpc");
     assert.equal(payload.locality.confirmation, "diagnostic-only");
     assert.equal(payload.locality.acceptanceEligible, false);
     assert.equal(payload.locality.expectedExecutionRegion, "sfo1");
@@ -499,6 +573,14 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.match(payload.result.issues[4], /\[redacted-database-url\]/);
     assert.match(payload.result.reports[1], /\[redacted-credentials\]/);
     assert.equal(payload.config.measuredRequests, MIN_ACCEPTANCE_REQUESTS);
+    assert.deepEqual(payload.config.rpcCandidatePattern, {
+      burstWorkers: 16,
+      evidenceScope: "synthetic-transport-only-not-saved-search-policy-proof",
+      execution: "one-statement-security-invoker-function",
+      persistsBetweenProviderRuntimeRepeats: true,
+      prismaPoolSize: 10,
+    });
+    assert.equal(payload.config.teardownRpcProbe, false);
     const serialized = JSON.stringify(payload);
     assert.doesNotMatch(serialized, /postgresql:\/\//);
     assert.doesNotMatch(serialized, /postgres:\/\//);
@@ -677,8 +759,20 @@ describe("RLS context acceptance gate guardrails", () => {
       assert.deepEqual(nonPerformanceGateIssues(result.issues), []);
       assert.match(result.reports.join("\n"), /target autocommit baseline/);
       assert.match(result.reports.join("\n"), /Prisma target autocommit baseline/);
+      assert.match(result.reports.join("\n"), /Prisma target one-statement RPC candidate/);
+      assert.match(result.reports.join("\n"), /Prisma burst one-statement RPC candidate/);
+      assert.match(result.reports.join("\n"), /scope=transport-only-not-saved-search-policy-proof/);
       assert.equal(result.locality.queryRttProxy.measuredQueries, 25);
       assert.equal(result.locality.queryRttProxy.warmupQueries, 5);
+
+      const teardown = await runAcceptanceGate({
+        ...config,
+        prepare: false,
+        rollbackProbe: false,
+        teardownRpcProbe: true,
+      });
+      assert.deepEqual(teardown.issues, []);
+      assert.match(teardown.reports.join("\n"), /post-teardown function_absent=true/);
     });
   });
 

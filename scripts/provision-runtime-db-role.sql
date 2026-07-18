@@ -354,6 +354,47 @@ TO :"runtime_role";
 
 GRANT EXECUTE ON FUNCTION public."grainline_notification_preferences_valid"(jsonb) TO :"runtime_role";
 
+-- These RPCs are introduced by a migration that runs after first-time role
+-- provisioning. Skip them when they do not exist yet; their migration applies
+-- the same least-privilege grants, and later provisioning runs converge drift.
+WITH saved_search_rpc(function_signature) AS (
+  VALUES
+    ('public."grainline_saved_search_list"(text, integer, text)'),
+    ('public."grainline_saved_search_delete_one"(text, text)')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM saved_search_rpc
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH saved_search_rpc(function_signature) AS (
+  VALUES
+    ('public."grainline_saved_search_list"(text, integer, text)'),
+    ('public."grainline_saved_search_delete_one"(text, text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM saved_search_rpc
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH saved_search_rpc(function_signature) AS (
+  VALUES
+    ('public."grainline_saved_search_list"(text, integer, text)'),
+    ('public."grainline_saved_search_delete_one"(text, text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM saved_search_rpc
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 WITH failure AS (
   SELECT 'required extension pg_trgm is not installed' AS message
   WHERE NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm')

@@ -132,7 +132,10 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(plan, /must not have `BYPASSRLS`/i);
     assert.match(plan, /set_config\('app\.user_id', \$userId, true\)/);
     assert.match(plan, /server-resolved authenticated local `User\.id`/);
-    assert.match(plan, /request body, query string, route param, or other client-supplied value/);
+    assert.match(
+      plan,
+      /request body, query\s+string, route param, or other client-supplied value/,
+    );
     assert.match(plan, /transaction-local/);
   });
 
@@ -149,7 +152,9 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(defense, /protected-read latency/);
     assert.match(defense, /connection-hold time/);
     assert.match(defense, /set_config` wrapper as a harmless no-op/);
-    assert.match(defense, /generic connection\/performance baseline/);
+    assert.match(defense, /generic\s+connection\/performance baseline/);
+    assert.match(defense, /does not yet fingerprint\s+`pg_proc\.prosrc`/);
+    assert.match(defense, /not yet separate\s+live malformed-argument probes/);
   });
 
   it("defines concrete staging pass/fail criteria for pooled request context", () => {
@@ -264,16 +269,19 @@ describe("RLS feasibility plan guardrails", () => {
     assert.deepEqual(directCallsByFile, allowedDirectCalls);
   });
 
-  it("requires context-wrapped SavedSearch access for the first real-table RLS prototype", () => {
+  it("requires approved SavedSearch context and owner-RPC access paths", () => {
     const ownerAccess = source("src/lib/savedSearchOwnerAccess.ts");
     const savedRoute = source("src/app/api/search/saved/route.ts");
     const dashboard = source("src/app/dashboard/page.tsx");
     const accountOverview = source("src/app/account/page.tsx");
     const accountSavedSearches = source("src/app/account/saved-searches/page.tsx");
     const accountExport = source("src/app/api/account/export/route.ts");
+    const opsHealth = source("src/app/api/cron/ops-health/route.ts");
     const accountDeletion = source("src/lib/accountDeletion.ts");
 
     assert.match(ownerAccess, /SavedSearchOwnerAccessClient = DbUserContextTransactionClient/);
+    assert.match(ownerAccess, /SavedSearchOwnerRpcClient = Pick<Prisma\.TransactionClient, "\$queryRaw">/);
+    assert.match(ownerAccess, /OwnerSavedSearchRow = Prisma\.SavedSearchGetPayload/);
     assert.match(ownerAccess, /export type OwnerSavedSearchCriteria/);
     assert.match(ownerAccess, /export function ownerSavedSearchWhere/);
     assert.match(ownerAccess, /export async function findDuplicateOwnerSavedSearch/);
@@ -287,10 +295,15 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(ownerAccess, /db\.savedSearch\.findFirst/);
     assert.match(ownerAccess, /db\.savedSearch\.count/);
     assert.match(ownerAccess, /db\.savedSearch\.create/);
-    assert.match(ownerAccess, /db\.savedSearch\.findMany/);
     assert.match(ownerAccess, /db\.savedSearch\.deleteMany/);
-    assert.match(ownerAccess, /rows\.some\(\(row\) => row\.userId !== userId\)/);
-    assert.match(ownerAccess, /SavedSearch owner invariant failed/);
+    assert.match(ownerAccess, /public\.grainline_saved_search_list/);
+    assert.match(ownerAccess, /public\.grainline_saved_search_delete_one/);
+    assert.match(ownerAccess, /\$\{normalizedUserId\}::text/);
+    assert.match(ownerAccess, /\$\{takeValue\}::integer/);
+    assert.match(ownerAccess, /value\.userId !== expectedUserId/);
+    assert.match(ownerAccess, /SavedSearch owner RPC row invariant failed/);
+    assert.match(ownerAccess, /SavedSearch delete RPC invariant failed/);
+    assert.doesNotMatch(ownerAccess, /\$queryRawUnsafe|Prisma\.raw/);
     assert.doesNotMatch(ownerAccess, /Promise\.all/);
     assert.doesNotMatch(ownerAccess, /prisma\.savedSearch\.(?:count|create|deleteMany|findFirst|findMany)/);
 
@@ -298,14 +311,15 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(savedRoute, /findDuplicateOwnerSavedSearch\(me\.id, criteria, tx\)/);
     assert.match(savedRoute, /countOwnerSavedSearches\(me\.id, tx\)/);
     assert.match(savedRoute, /createOwnerSavedSearch\(me\.id, criteria, tx\)/);
-    assert.match(savedRoute, /withDbUserContext\(me\.id, \(tx\) => listOwnerSavedSearches\(me\.id, tx\)\)/);
-    assert.match(savedRoute, /withDbUserContext\(me\.id, \(tx\) => deleteOwnerSavedSearch\(me\.id, id, tx\)\)/);
-    assert.match(dashboard, /withDbUserContext\(me\.id, \(tx\) => listOwnerSavedSearches\(me\.id, tx, \{ take: 20 \}\)\)/);
-    assert.match(dashboard, /withDbUserContext\(me\.id, \(tx\) => deleteOwnerSavedSearch\(me\.id, searchId, tx\)\)/);
-    assert.match(accountOverview, /withDbUserContext\(me\.id, \(tx\) => listOwnerSavedSearches\(me\.id, tx, \{ take: 3 \}\)\)/);
-    assert.match(accountSavedSearches, /withDbUserContext\(me\.id, \(tx\) => listOwnerSavedSearches\(me\.id, tx\)\)/);
-    assert.match(accountSavedSearches, /withDbUserContext\(me\.id, \(tx\) => deleteOwnerSavedSearch\(me\.id, searchId, tx\)\)/);
-    assert.match(accountExport, /withDbUserContext\(user\.id, \(tx\) => listOwnerSavedSearches\(user\.id, tx\)\)/);
+    assert.match(savedRoute, /listOwnerSavedSearches\(me\.id, prisma\)/);
+    assert.match(savedRoute, /deleteOwnerSavedSearch\(me\.id, id, prisma\)/);
+    assert.match(dashboard, /listOwnerSavedSearches\(me\.id, prisma, \{ take: 20 \}\)/);
+    assert.match(dashboard, /deleteOwnerSavedSearch\(me\.id, searchId, prisma\)/);
+    assert.match(accountOverview, /listOwnerSavedSearches\(me\.id, prisma, \{ take: 3 \}\)/);
+    assert.match(accountSavedSearches, /listOwnerSavedSearches\(me\.id, prisma\)/);
+    assert.match(accountSavedSearches, /deleteOwnerSavedSearch\(me\.id, searchId, prisma\)/);
+    assert.match(accountExport, /listOwnerSavedSearches\(user\.id, prisma\)/);
+    assert.match(opsHealth, /inspectOwnerSavedSearchCanary\(userId, searchId, prisma\)/);
     assert.match(accountDeletion, /withDbUserContext\(userId, async \(tx\) =>/);
     assert.match(accountDeletion, /deleteAllOwnerSavedSearches\(user\.id, tx\)/);
     assert.doesNotMatch(accountDeletion, /setDbUserContext/);
@@ -328,6 +342,8 @@ describe("RLS feasibility plan guardrails", () => {
       /\b[A-Za-z_$][\w$]*\s*\[\s*["']savedSearch["']\s*\]/g;
     const rawSavedSearchSqlPattern =
       /\b(?:FROM|JOIN|INTO|UPDATE|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?|MERGE\s+INTO|COPY)\s+(?:ONLY\s+)?(?:(?:public|"public")\.)?"SavedSearch"(?=[\s;,) ]|$)/gi;
+    const rawSavedSearchRpcPattern =
+      /\bgrainline_saved_search_(?:list|delete_one)\s*\(/g;
     const prismaRawPattern = /\bPrisma\.raw\s*\(/g;
     const unsafeRawPattern = /\.\$(?:queryRawUnsafe|executeRawUnsafe)\b/g;
     const allowedDirectCalls = {};
@@ -338,6 +354,7 @@ describe("RLS feasibility plan guardrails", () => {
       "src/app/api/account/export/route.ts": ["savedSearches"],
     };
     const directCallsByFile = {};
+    const rawRpcCallsByFile = {};
     const plainSavedSearchShorthandPropertiesByFile = {};
 
     assert.match("prisma.savedSearch.upsert", directSavedSearchAccessPattern);
@@ -356,6 +373,8 @@ describe("RLS feasibility plan guardrails", () => {
     rawSavedSearchSqlPattern.lastIndex = 0;
     assert.match('COPY "SavedSearch" (id, "userId") FROM STDIN', rawSavedSearchSqlPattern);
     rawSavedSearchSqlPattern.lastIndex = 0;
+    assert.match("public.grainline_saved_search_list($1::text)", rawSavedSearchRpcPattern);
+    rawSavedSearchRpcPattern.lastIndex = 0;
     assert.deepEqual(
       savedSearchDelegateAccesses("fixture.ts", "const delegate = tx.savedSearch; delegate.findMany();"),
       [".savedSearch"],
@@ -411,6 +430,9 @@ describe("RLS feasibility plan guardrails", () => {
       ];
       if (matches.length > 0) directCallsByFile[file] = matches;
 
+      const rawRpcCalls = [...fileSource.matchAll(rawSavedSearchRpcPattern)].map((match) => match[0]);
+      if (rawRpcCalls.length > 0) rawRpcCallsByFile[file] = rawRpcCalls;
+
       const unsafeRawCalls = [...fileSource.matchAll(unsafeRawPattern)].map((match) => match[0]);
       if (unsafeRawCalls.length > 0) {
         assert.deepEqual(
@@ -427,6 +449,12 @@ describe("RLS feasibility plan guardrails", () => {
     }
 
     assert.deepEqual(directCallsByFile, allowedDirectCalls);
+    assert.deepEqual(rawRpcCallsByFile, {
+      "src/lib/savedSearchOwnerAccess.ts": [
+        "grainline_saved_search_list(",
+        "grainline_saved_search_delete_one(",
+      ],
+    });
     assert.deepEqual(
       plainSavedSearchShorthandPropertiesByFile,
       allowedPlainSavedSearchShorthandProperties,

@@ -373,7 +373,8 @@ Production migration rules:
   depend on untracked dashboard or shell changes.
 - For every least-privilege/RLS rollout, keep the operational order explicit:
   query and retain object ownership first; run provisioning to converge current
-  grants and migration-owner defaults; run `prisma migrate deploy` and
+  grants and migration-owner defaults; run the rollout's guarded migration
+  command and
   `prisma migrate status`; then run the exact grant/RLS audit against the final
   catalog. A pre-migration audit is not a substitute for the post-migration
   audit because `_prisma_migrations` and other new public objects can inherit
@@ -398,6 +399,26 @@ Production migration rules:
   types, or role/default-privilege changes, run `npm run audit:db-grants` from
   the same environment/secret set that will run migrations and retain the run
   output with deploy evidence.
+- For the current `SavedSearch` Release 0, deploy the pre-RLS owner-RPC
+  migration while RLS is still off, verify it, and only then deploy the app
+  release that calls those RPCs. `vercel.json` automatically runs every pending
+  migration, so the exact Release 0 artifact/cherry-pick must exclude the later
+  `SavedSearch` RLS policy migration. Release-0 CI must assert that migration is
+  absent; do not let the app deploy enable RLS as an accidental side effect.
+  Production builds run `scripts/guard-saved-search-rls-deploy.mjs` before
+  `prisma migrate deploy`. Set `SAVED_SEARCH_RLS_DEPLOY_PHASE=release-0` only on
+  the clean RPC-only artifact. The guard requires the RPC migration to be
+  present and the phase-A migration to be absent.
+- `SAVED_SEARCH_RLS_DEPLOY_PHASE=phase-a-reviewed` is a separate, explicit
+  human promotion authorization. Set it only after the two corrected provider
+  repeats, exact real-table staging proof, rollback proof, and exact artifact
+  review have passed. It requires both rollout migrations to be present. Never
+  use it to bypass the guard on this combined working branch before those gates.
+  Missing, empty, unknown, or migration-mismatched values fail production
+  before migrations run; Preview builds do not run the production guard. These
+  values are temporary and deployment-specific: remove/reset them immediately
+  after the intended release. The guard also rejects later migrations, so it
+  must be reviewed or retired before phase B or any subsequent migration.
 - If a migration adds RLS policies to a tracked public app table, the grant
   audit must show `ENABLE ROW LEVEL SECURITY` and the table's reviewed rollout
   phase must declare the exact `FORCE ROW LEVEL SECURITY` expectation. During
@@ -416,8 +437,10 @@ RLS staging context proof:
   run the staging pooling/context-isolation acceptance spec in
   `docs/db-defense-in-depth-plan.md` against a production-like Neon branch that
   uses the pooled runtime-role `DATABASE_URL`. This gate proves read/context
-  isolation on synthetic canary rows; per-table write-policy behavior still
-  needs migration-level tests before a real table policy is enabled.
+  isolation on synthetic canary rows through the persistent SECURITY INVOKER
+  RPC-shaped fixture. That result is transport-only, not `SavedSearch` policy
+  proof; per-table write-policy behavior still needs migration-level tests before
+  a real table policy is enabled.
 - A laptop/workstation invocation must set
   `RLS_CONTEXT_GATE_LOCALITY_CONFIRM=diagnostic-only`. Its artifact status is
   `diagnostic_passed` or `diagnostic_failed` and is never acceptance-eligible,
@@ -452,10 +475,12 @@ RLS staging context proof:
   and add representative SavedSearch route/SLO evidence.
 - First run the owner-only setup locally with `diagnostic-only`, the exact
   reviewed endpoint/database values above, `RLS_CONTEXT_GATE_PREPARE=1`, the
-  pooled runtime-role URL, and the direct owner URL. Setup prepares the canary and
-  durable run-claim ledger, proves disable/restore, emits `setup_passed` or
-  `setup_failed`, and is never one of the two counted runs. It does not execute
-  the performance workload. Every setup/repeat invocation keeps the explicit
+  pooled runtime-role URL, and the direct owner URL. Setup prepares the canary,
+  durable run-claim ledger, and exact persistent SECURITY INVOKER RPC-shaped
+  fixture, proves disable/restore, emits `setup_passed` or `setup_failed`, and
+  is never one of the two counted runs. It does not execute the performance
+  workload. The same fixture must remain unchanged for both counted repeats.
+  Every setup/repeat invocation keeps the explicit
   `RLS_CONTEXT_GATE_CONFIRM=staging-only` guard.
 - Generate both counted passes from one Git-integrated Vercel Preview by POSTing
   run slots `1` then `2` to `/api/internal/rls-context-gate`. The route accepts
@@ -463,7 +488,10 @@ RLS staging context proof:
   secret, a temporary opaque `RLS_CONTEXT_GATE_RUN_ID`, the exact allowed commit
   SHA, and only the pooled staging runtime URL. The staging ledger atomically
   permits each slot once and does not permit slot 2 until slot 1 is durably
-  marked passed, so the two heavy workloads cannot overlap or be replayed.
+  marked passed, so the two heavy workloads cannot overlap or be replayed. Each
+  repeat must benchmark the same persistent one-statement RPC candidate against
+  a true one-statement autocommit baseline; a transaction-wrapper baseline is
+  retained separately and cannot substitute for that comparison.
 - Treat the previous gate trigger secret as exposed because it appeared in
   captured tool/session output. Rotate it before the next run, delete local
   temporary files containing it after preserving sanitized evidence, and verify
@@ -480,10 +508,13 @@ RLS staging context proof:
   A CLI deployment or self-reported environment variables are not sufficient.
   Remove the trigger secret, run id, allowed SHA, and staging URL immediately
   after capture, then delete the temporary Preview after evidence is retained.
-- Production activation is three releases, not one: (0) Git-attested `sfo1`
-  runtime/context code using the pooled non-owner role while RLS is off; (A)
-  exact policies plus `NO FORCE` and `ENABLE`; then (B) a separate validated
-  `FORCE` migration. A 12-hour wait is only a minimum observation window, not a
+- Production activation is three releases, not one: (0) deploy the pre-RLS
+  owner-RPC migration while RLS is off, verify it, then deploy Git-attested
+  `sfo1` app code using the pooled non-owner role; (A) exact policies plus
+  `NO FORCE` and `ENABLE`; then (B) a separate validated `FORCE` migration.
+  Because `vercel.json` runs every pending migration, the Release 0
+  artifact/cherry-pick must exclude the later phase-A RLS policy migration. A
+  12-hour wait is only a minimum observation window, not a
   drain proof: disable superseded callable deployments or rotate/revoke their
   owner runtime credentials, and retain `pg_stat_activity` evidence that no
   owner-backed application sessions remain. Before phase B, explicitly choose
@@ -497,8 +528,12 @@ RLS staging context proof:
   probe must use and record the reviewed deploy pool, and unavailable acquisition
   timing must not be emitted or interpreted as zero wait.
 - `RLS_CONTEXT_GATE_PREPARE=1` intentionally leaves the synthetic canary schema,
-  table, policy, run-claim ledger, and rows in staging. Setup toggles and
-  restores RLS; it does not clean up that canary.
+  table, policy, run-claim ledger, rows, and persistent SECURITY INVOKER
+  RPC-shaped fixture in staging. Setup toggles and restores RLS; it does not
+  clean up that canary or function. Only after both counted artifacts and the
+  independent deployment attestation are retained and sanitized may the owner
+  run `RLS_CONTEXT_GATE_TEARDOWN_RPC_PROBE=1` with the direct owner URL to remove
+  the function. The runtime role must never perform teardown.
 - Retain the sanitized evidence JSON from `RLS_CONTEXT_GATE_EVIDENCE_PATH` with
   launch/RLS records. The writer enforces mode `0600`.
   Retained evidence must not contain database URLs or credentials.
@@ -518,7 +553,9 @@ RLS staging context proof:
   settings, Prisma adapter/`pg` package versions, target and burst concurrency,
   sample size, connection turnover/recycling method, prototype table/policy
   names, autocommit baseline, transaction baseline, and wrapped p95/p99
-  latency, measured connection acquisition wait or an explicit `unavailable`
+  latency. The RPC-specific transport evidence must also retain the true
+  one-statement autocommit baseline and one-statement RPC candidate metrics,
+  measured connection acquisition wait or an explicit `unavailable`
   marker plus the substitute queue/timeout probe, connection-hold time,
   pool-saturation result, prepared-statement/cached-plan error scan result, and
   any failed request or Sentry event ids.
@@ -555,7 +592,7 @@ RLS staging context proof:
   nonce in the app environment and retain that exact row. The seed artifact
   contains database identity plus status only, never the ids, email, row, URL,
   or credentials. `/api/cron/ops-health` performs one exact-id,
-  owner-context lookup through the normal transaction wrapper. Missing,
+  owner-context lookup through the normal one-statement owner RPC. Missing,
   partial, malformed, mismatched, zero-row, duplicate, wrong-row, invalid, or
   failed-query results are unhealthy. The canary itself adds only the bounded
   status and issue count to Sentry, `CronRun.result`, and the HTTP response; it
@@ -572,7 +609,10 @@ RLS staging context proof:
   variables set through phase A and phase B. To retire the canary, first deploy
   code that no longer requires it, then remove the variables and synthetic row.
 - After applying the Phase-A migration to staging, run the exact policy and
-  cross-user behavior gate with the reviewed identities and retain its
+  cross-user behavior gate with the reviewed identities. The gate must execute
+  the real `grainline_saved_search_list` owner list/read path and
+  `grainline_saved_search_delete_one` owner/foreign delete-one behavior, not a
+  synthetic proxy. Retain its
   credential-free mode-`0600` artifact outside the repository. Supply
   `REVIEWED_PRODUCTION_DATABASE_ENDPOINT_ID` from independently reviewed Neon
   production inventory; do not derive it from either staging gate URL:

@@ -11,7 +11,6 @@ import {
 } from "@/lib/accountDeletionSideEffects";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { cronRunPartialIssueSummary } from "@/lib/cronRunPartialIssues";
-import { withDbUserContext } from "@/lib/dbUserContext";
 import { inspectOwnerSavedSearchCanary } from "@/lib/savedSearchOwnerAccess";
 import { runSavedSearchRlsCanary } from "@/lib/savedSearchRlsCanary";
 
@@ -150,9 +149,7 @@ export async function GET(request: Request) {
           },
         }),
         runSavedSearchRlsCanary(process.env, ({ userId, searchId }) =>
-          withDbUserContext(userId, (tx) =>
-            inspectOwnerSavedSearchCanary(userId, searchId, tx),
-          ),
+          inspectOwnerSavedSearchCanary(userId, searchId, prisma),
         ),
       ]);
 

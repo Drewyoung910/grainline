@@ -133,8 +133,11 @@ Staging implementation checklist:
   - 58 Prisma model tables need runtime table DML grants;
   - 20 Prisma enum types need runtime `USAGE`, currently covered only if live
     DB type privileges still match Postgres defaults or explicit grants exist;
-  - 1 custom `grainline_*` function is used by the `User` notification
-    preference check constraint: `grainline_notification_preferences_valid`;
+  - 3 custom `grainline_*` functions are source-tracked: the `User`
+    notification preference check constraint
+    (`grainline_notification_preferences_valid`) plus the two pre-RLS
+    SavedSearch owner RPCs (`grainline_saved_search_list` and
+    `grainline_saved_search_delete_one`);
   - 1 source-derived extension is required by runtime search SQL: `pg_trgm`.
     Provisioning grants runtime `EXECUTE` on that extension's functions
     explicitly so a future `PUBLIC` function lockdown does not break
@@ -343,15 +346,16 @@ diagnostic-only evidence and cannot satisfy either pass.
 Performance-path investigation (2026-07-17): a one-statement CTE that attempted
 to call `set_config` and then read the protected canary failed closed because it
 returned zero rows; PostgreSQL did not provide an execution-order guarantee that
-made the RLS predicate see the side effect. Do not use that pattern. A temporary
-`SECURITY INVOKER` function in the isolated synthetic schema did set local
-context, return exactly the correct user A/B row, and reset context at statement
-completion. It was dropped and a catalog check confirmed no probe function
-remained. The laptop timing was diagnostic and inconclusive at burst, so this is
-an architecture candidate only—not authorization to add a production function,
-change policy scope, or waive the provider-runtime gate. Any function path needs
-separate privilege, ownership, search-path, caller-identity, operation-shape,
-rollback, and provider-runtime performance review.
+made the RLS predicate see the side effect. Do not use that pattern. The
+corrected harness instead creates one persistent synthetic `SECURITY INVOKER`
+function during owner-only setup, verifies its exact owner, ACL, language,
+volatility, parallel-safety, leakproof, return-shape, and `search_path` posture,
+then measures that same object in both provider-runtime repeats against a true
+one-statement autocommit baseline through the application-sized Prisma pool.
+Only after both sanitized artifacts are retained may owner-only teardown drop
+the function and verify its absence. This remains transport/performance proof
+for an architecture candidate, not SavedSearch policy proof or authority to
+waive the real-table gate.
 
 Purpose: prove the core RLS mechanism under the actual runtime topology before
 enabling policies.
@@ -366,9 +370,10 @@ Current reviewed staging harness:
   used by the app, raw `pg` prepared-statement probes, connection recycle
   probes, an admin-URL-gated rollback/no-op probe that temporarily disables RLS
   on the synthetic canary and restores `ENABLE`/`FORCE ROW LEVEL SECURITY`,
-  transaction-wrapped and autocommit baseline measurements, target and burst
-  concurrency measurements, a warmed checked-out sequential `SELECT 1` query-RTT
-  proxy, and the latency / connection-hold thresholds below.
+  the persistent one-statement synthetic RPC candidate, a true one-statement
+  autocommit baseline, transaction-wrapped controls, target and burst
+  concurrency measurements, a warmed checked-out sequential `SELECT 1`
+  query-RTT proxy, and the latency / connection-hold thresholds below.
 - The script targets a staging database. Passing it does not enable RLS, does not
   replace route-level happy-path tests, and does not prove hot-path performance
   for tables that are not in the synthetic canary. It proves read/context
@@ -379,9 +384,10 @@ Current reviewed staging harness:
   setup invocation. Supply `RLS_CONTEXT_GATE_PREPARE=1`, the direct admin URL,
   pooled runtime URL, and exact reviewed staging endpoint id
   (`ep-bold-recipe-aavx4plv`), database (`neondb`), and region
-  (`westus3.azure`). Setup creates the canary plus durable two-slot run ledger,
-  proves disable/restore, and is explicitly non-counted. Invoke it through
-  `npm run audit:rls-context`.
+  (`westus3.azure`). Setup creates the canary plus durable two-slot run ledger
+  and the persistent synthetic RPC fixture, verifies the function's exact
+  catalog/privilege posture, proves disable/restore, and is explicitly
+  non-counted. Invoke it through `npm run audit:rls-context`.
 - Run the two counted, otherwise-identical repeats through the repeat-only
   Git-integrated Vercel Preview route. Slot 2 is not claimable until slot 1 is
   durably passed, and either slot is permanently non-replayable for that opaque
@@ -425,11 +431,16 @@ Current reviewed staging harness:
 - Do not point this gate at production. Use a production-like Neon branch or
   staging database with the same pooled runtime-role shape as production.
 - `RLS_CONTEXT_GATE_PREPARE=1` leaves the synthetic schema, table, policy,
-  run-claim ledger, and canary rows in staging. The rollback probe
+  run-claim ledger, canary rows, and RPC fixture in staging so both counted
+  repeats measure the same reviewed function. The rollback probe
   temporarily disables RLS and restores `ENABLE`/`FORCE ROW LEVEL SECURITY`; it
-  is not canary cleanup.
-- Treat the gate's autocommit, transaction, and wrapped target/2x-burst reports
-  as the generic connection/performance baseline. The query-RTT proxy is
+  is not canary cleanup. After both sanitized artifacts are retained, an
+  owner-only `RLS_CONTEXT_GATE_TEARDOWN_RPC_PROBE=1` invocation drops only the
+  synthetic function and verifies it is absent; keep the canary table and ledger
+  as staging acceptance infrastructure.
+- Treat the gate's one-statement autocommit baseline, one-statement RPC
+  candidate, transaction, and wrapped target/2x-burst reports as the generic
+  connection/performance baseline evidence. The query-RTT proxy is
   locality diagnostics only; never subtract it from, normalize, discount, or
   otherwise change the unchanged acceptance thresholds. Require two consecutive
   runs on the same commit/config: specifically, repeat-mode production-runtime
@@ -440,16 +451,27 @@ Current reviewed staging harness:
 
 Required helper contract:
 
-- `src/lib/dbUserContext.ts` now wraps the local SavedSearch prototype paths.
-  Do not deploy those context-wrapped paths or adopt the helper on additional
-  tables until the production-like pooled staging gate passes twice.
-- Open an explicit Prisma transaction.
-- Run `set_config('app.user_id', $userId, true)` as the first statement inside
-  the transaction.
+- Multi-statement protected units use `src/lib/dbUserContext.ts`. Open an
+  explicit Prisma transaction and run
+  `set_config('app.user_id', $userId, true)` as its first statement.
+- The only approved one-statement exception is SavedSearch list/read and
+  delete-one through `src/lib/savedSearchOwnerAccess.ts`. That helper accepts no
+  default client and is the only application file allowed to call
+  `public.grainline_saved_search_list(text, integer, text)` or
+  `public.grainline_saved_search_delete_one(text, text)`. Its SQL must remain
+  parameterized tagged `$queryRaw`, and it validates returned ownership/counts
+  fail closed.
+- The two SavedSearch functions must remain ordinary non-leakproof PL/pgSQL,
+  `SECURITY INVOKER`, `VOLATILE`, `PARALLEL UNSAFE`,
+  `search_path=pg_catalog`, explicitly owner-filtered, and executable only by
+  the membership-free non-owner runtime role. They set and verify
+  transaction-local context, reject a nonempty context switch, and reset at
+  statement completion.
 - Pass the exact local `User.id`; the helper rejects empty, whitespace-padded,
   overlong, or non-id-shaped values instead of trimming/canonicalizing them.
-- Use the transaction client for every protected query.
-- Do not run parallel Prisma queries inside that interactive transaction.
+- Use the branded transaction client for every protected query in a
+  multi-statement unit. Do not run parallel Prisma queries inside that
+  interactive transaction.
 - If combined with serializable retry, set context inside each retried
   transaction callback, not outside the retry loop, and keep the transaction at
   `Serializable` isolation so the retry can actually observe serialization
@@ -460,6 +482,10 @@ Required helper contract:
 Hard-gate tests:
 
 - Runtime-role connection through pooled `DATABASE_URL`, not `DIRECT_URL`.
+- The persistent synthetic one-statement function passes exact catalog/ACL
+  checks and meets the unchanged target/burst thresholds against a true
+  one-statement baseline in both provider-runtime repeats. This proves only the
+  transport/performance shape, not SavedSearch behavior.
 - `app.user_id` is available inside the transaction.
 - `app.user_id` is gone after transaction completion.
 - pooled connection reuse does not leak one user's context into the next query.
@@ -614,9 +640,10 @@ Stop condition:
 ## Phase 4 - SavedSearch RLS Prototype
 
 Status: owner-access centralization, branded context clients, direct-access
-guards, context wiring, the exact phase-A policy migration, drift audit, and
-bounded direct acceptance gate are implemented locally. They are not deployed.
-Live staging validation and production activation are still gated.
+guards, the pre-RLS one-statement owner-RPC migration, RPC application wiring,
+the exact phase-A policy migration, drift audit, and bounded direct acceptance
+gate are implemented locally. They are not deployed. Live staging validation
+and production activation are still gated.
 
 Purpose: use the simplest owner-symmetric table as the first real-table proof
 after the role, grant, and pooled-context gates pass.
@@ -644,15 +671,20 @@ Implementation constraints:
 - Saved-search cap checks must remain in the same transaction as insert.
 - If serializable retry is used, context must be set inside each retry attempt.
 - Forged `userId` must still be ignored/rejected by app-layer code.
-- Owner-access helpers must receive the context transaction client explicitly;
-  do not retain a global Prisma default that can silently omit context.
+- Duplicate lookup, cap count, and create must receive the branded context
+  transaction client explicitly; do not retain a global Prisma default for
+  those multi-statement operations.
+- List/read and delete-one use the two reviewed one-statement owner RPCs through
+  `savedSearchOwnerAccess.ts`. Do not call those functions from another file,
+  add a default helper client, or replace their parameterized tagged
+  `$queryRaw` calls with unsafe/dynamic SQL.
 - Account deletion is one large atomic unit. Use
   `withDbUserContext(targetUserId, async (tx) => ..., { timeout: 30000, maxWait:
   10000 })` as its outer transaction and keep cleanup on that branded client.
   Never nest another context transaction inside account deletion.
-- Existing outer page/export `Promise.all` calls may invoke a separately wrapped
-  SavedSearch operation, but no protected queries may run in parallel inside the
-  same context transaction.
+- Existing outer page/export `Promise.all` calls may invoke the one-statement
+  SavedSearch RPC alongside independent work, but no protected queries may run
+  in parallel inside the same interactive context transaction.
 - Before phase A, require the direct-access guard and its tests to reject direct
   or aliased Prisma `savedSearch` delegates, Prisma
   `createManyAndReturn`/`updateManyAndReturn`, literal relation
@@ -665,19 +697,25 @@ Implementation constraints:
   `timeout: 30000` and `maxWait: 10000`. None of these gaps may be deferred to
   Bucket B.
 
-Read/delete paths to wrap before enabling:
+Adopted read/delete paths to verify before enabling:
 
-- `GET/POST/DELETE /api/search/saved`.
-- Account overview and saved-search page reads/actions.
-- Dashboard server-component saved-search reads and delete action.
-- Account export saved-search reads.
+- `GET` and delete-one in `/api/search/saved` use the one-statement RPC helper;
+  `POST` keeps duplicate lookup, cap count, and create inside one serializable
+  context transaction.
+- Account overview, saved-search page, dashboard, account export, and retained
+  canary reads use the one-statement list helper; their delete actions use the
+  one-statement delete helper.
 - Account-deletion saved-search cleanup, including self-deletion, Clerk webhook,
-  and deferred side-effect entry points.
+  and deferred side-effect entry points, remains on the branded client inside
+  the existing outer context transaction.
 
 Regression and silent-denial tests:
 
-- direct DB: user A cannot read/delete user B saved searches.
+- real owner RPC: user A cannot list/read/delete user B saved searches, while
+  own list/read/delete returns the exact expected rows/counts.
 - direct DB: missing/empty context returns zero rows.
+- real owner RPC: null/empty user ids fail closed, a pre-set A context cannot
+  switch to B, and same-connection context is reset after list and delete.
 - route: list returns the exact known synthetic row for the current user; an
   empty 200 response fails when that fixture exists.
 - route: create writes only current user's `userId`.
@@ -697,6 +735,46 @@ Rollback:
   with `set_config` as a harmless no-op.
 - Remove or widen policies only through a reviewed forward migration.
 - Keep app-layer owner predicates in place throughout.
+
+Known retained evidence limits:
+
+- The live grant audit verifies each owner RPC's exact signature, owner, routine
+  posture, return contract, and ACL, but it does not yet fingerprint
+  `pg_proc.prosrc`. For this rollout, require the clean-checkout migration source
+  test, migration-status proof, exact catalog audit, and real own/foreign
+  behavior gate to agree. A future reusable RPC framework should add a reviewed
+  function-body fingerprint instead of treating catalog posture as body proof.
+- The real staging gate exercises null/empty user ids and context-switch denial.
+  Whitespace-padded, overlong, invalid-character user ids and out-of-range list
+  limits are pinned by migration/source and unit tests but are not yet separate
+  live malformed-argument probes. Retain this as evidence hardening; do not
+  weaken those source guards or generalize the RPC pattern without adding the
+  live cases.
+
+Release order:
+
+- Release 0 applies `20260717024500_add_saved_search_owner_rpcs` first while RLS
+  is off, then deploys the RPC-calling application on the non-owner pooled
+  runtime role. Because `vercel.json` runs `prisma migrate deploy`, build this
+  release from a clean scoped commit/cherry-pick set that excludes the later
+  phase-A RLS policy migration. Release-0 CI must assert that migration is
+  absent, and migration status must be verified before traffic. Its production
+  build uses `SAVED_SEARCH_RLS_DEPLOY_PHASE=release-0`; the fail-closed deploy
+  guard requires the RPC migration present and the phase-A migration absent.
+- Run both corrected provider-runtime context/performance repeats and the exact
+  real SavedSearch RPC acceptance gate in isolated staging. Only retained,
+  sanitized, independently attested passing evidence authorizes phase A.
+- Phase A (`ENABLE` with explicit `NO FORCE`) and phase B (`FORCE`) remain
+  separate reviewed releases. `SAVED_SEARCH_RLS_DEPLOY_PHASE=phase-a-reviewed`
+  is an explicit human promotion authorization used only after all required
+  phase-A evidence and exact-artifact review pass; it must never be used merely
+  to make this combined rollout working branch deployable. Both phase values
+  are temporary and deployment-specific; remove/reset them after the intended
+  release. The guard rejects later migrations and must be reviewed or retired
+  before phase B or any subsequent migration. Before phase B,
+  disable superseded callable
+  deployments or rotate/revoke their owner credentials and retain owner-backed
+  app-session drain evidence; elapsed time alone is not proof.
 
 ## Phase 5 - Notification RLS Prototype
 

@@ -52,6 +52,15 @@ export const SAVED_SEARCH_RLS_POLICIES = Object.freeze({
 // later, separately deployed FORCE migration commit.
 export const SAVED_SEARCH_RLS_FORCE_EXPECTED = false;
 
+export const SAVED_SEARCH_OWNER_RPC_FUNCTIONS = Object.freeze({
+  grainline_saved_search_list: Object.freeze({
+    identityArguments: "p_user_id text, p_take integer, p_search_id text",
+  }),
+  grainline_saved_search_delete_one: Object.freeze({
+    identityArguments: "p_user_id text, p_search_id text",
+  }),
+});
+
 function sortedUnique(values) {
   return [...new Set(values)].sort((a, b) => a.localeCompare(b));
 }
@@ -297,13 +306,18 @@ export function deriveGrantInventory(rootDir = ROOT_DIR) {
       .map((match) => match[1]),
   );
   const functions = sortedUnique(
-    [...migrationSql.matchAll(/\bCREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+"?([A-Za-z_][A-Za-z0-9_]*)"?\s*\(/gi)]
+    [...migrationSql.matchAll(
+      /\bCREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+(?:"?public"?\.)?"?([A-Za-z_][A-Za-z0-9_]*)"?\s*\(/gi,
+    )]
       .map((match) => match[1])
       .filter((name) => name.startsWith("grainline_")),
   );
   const publicRevokes = sortedUnique(
     sqlStatements(migrationSql)
-      .filter((statement) => /\bREVOKE\b/i.test(statement) && /\bPUBLIC\b/i.test(statement))
+      .filter(
+        (statement) =>
+          /\bREVOKE\b/i.test(statement) && /\bFROM\s+PUBLIC\b/i.test(statement),
+      )
       .map((statement) => statement.replace(/\s+/g, " ").trim()),
   );
   const publicDefaultPrivilegeRevokes = publicRevokes.filter((statement) =>
@@ -379,6 +393,171 @@ function collectMissingPrivileges(rows, nameField, privileges) {
 function normalizedPrivilegeArray(value) {
   if (!Array.isArray(value)) return [];
   return sortedUnique(value.map((privilege) => String(privilege).toUpperCase()));
+}
+
+export function collectSavedSearchOwnerRpcIssues(rows, runtimeRole, migrationRole) {
+  const issues = [];
+  const rpcRows = Array.isArray(rows) ? rows : [];
+
+  for (const [functionName, expected] of Object.entries(SAVED_SEARCH_OWNER_RPC_FUNCTIONS)) {
+    const namedRows = rpcRows.filter((row) => row.function_name === functionName);
+    const exactRow = namedRows.find(
+      (row) => row.identity_arguments === expected.identityArguments,
+    );
+    const label = `${functionName}(${expected.identityArguments})`;
+
+    if (!exactRow) {
+      issues.push(`missing expected SavedSearch owner RPC ${label}`);
+    }
+    for (const row of namedRows) {
+      if (row.identity_arguments !== expected.identityArguments) {
+        issues.push(
+          `SavedSearch owner RPC ${functionName} has unexpected overload (${row.identity_arguments ?? "unknown"})`,
+        );
+      }
+    }
+    if (!exactRow) continue;
+
+    if (exactRow.owner_name !== migrationRole) {
+      issues.push(`${label} owned by ${exactRow.owner_name ?? "unknown"}, expected ${migrationRole}`);
+    }
+    if (exactRow.owner_name === runtimeRole) {
+      issues.push(`runtime role owns SavedSearch owner RPC ${label}`);
+    }
+    if (exactRow.security_definer) {
+      issues.push(`${label} must be SECURITY INVOKER`);
+    }
+    if (exactRow.leakproof) {
+      issues.push(`${label} must not be LEAKPROOF`);
+    }
+    if (exactRow.volatility !== "v") {
+      issues.push(`${label} must be VOLATILE`);
+    }
+    if (exactRow.parallel_safety !== "u") {
+      issues.push(`${label} must be PARALLEL UNSAFE`);
+    }
+    if (exactRow.function_kind !== "f") {
+      issues.push(`${label} must be an ordinary function`);
+    }
+    if (exactRow.language_name !== "plpgsql") {
+      issues.push(`${label} must use PL/pgSQL`);
+    }
+    if (!exactRow.return_contract_valid) {
+      issues.push(`${label} has an unexpected return contract`);
+    }
+
+    const functionConfig = Array.isArray(exactRow.function_config)
+      ? [...exactRow.function_config].map(String).sort()
+      : [];
+    if (
+      functionConfig.length !== 1 ||
+      functionConfig[0] !== "search_path=pg_catalog"
+    ) {
+      issues.push(`${label} must set only search_path=pg_catalog`);
+    }
+
+    const runtimePrivileges = normalizedPrivilegeArray(exactRow.runtime_privileges);
+    if (
+      runtimePrivileges.length !== 1 ||
+      runtimePrivileges[0] !== "EXECUTE"
+    ) {
+      issues.push(`${label} runtime role must have exactly direct EXECUTE`);
+    }
+    if (normalizedPrivilegeArray(exactRow.runtime_grant_option_privileges).length > 0) {
+      issues.push(`${label} runtime EXECUTE must not be grantable`);
+    }
+    if (normalizedPrivilegeArray(exactRow.public_privileges).length > 0) {
+      issues.push(`${label} must revoke all privileges from PUBLIC`);
+    }
+    if (normalizedPrivilegeArray(exactRow.public_grant_option_privileges).length > 0) {
+      issues.push(`${label} PUBLIC privileges must not be grantable`);
+    }
+    if (normalizedPrivilegeArray(exactRow.other_role_privileges).length > 0) {
+      issues.push(`${label} grants privileges to an unexpected role`);
+    }
+    if (normalizedPrivilegeArray(exactRow.other_role_grant_option_privileges).length > 0) {
+      issues.push(`${label} grants grant-option privileges to an unexpected role`);
+    }
+  }
+
+  return issues;
+}
+
+export async function readSavedSearchOwnerRpcState(client, runtimeRole) {
+  const rpcNames = Object.keys(SAVED_SEARCH_OWNER_RPC_FUNCTIONS);
+  const result = await client.query(
+    `SELECT
+        p.proname AS function_name,
+        pg_get_function_identity_arguments(p.oid) AS identity_arguments,
+        pg_get_userbyid(p.proowner) AS owner_name,
+        p.prosecdef AS security_definer,
+        p.proleakproof AS leakproof,
+        p.provolatile AS volatility,
+        p.proparallel AS parallel_safety,
+        p.prokind AS function_kind,
+        l.lanname AS language_name,
+        p.proconfig AS function_config,
+        CASE
+          WHEN p.proname = 'grainline_saved_search_list'
+            THEN p.proretset
+              AND p.prorettype = 'public."SavedSearch"'::regtype
+          WHEN p.proname = 'grainline_saved_search_delete_one'
+            THEN NOT p.proretset
+              AND p.prorettype = 'pg_catalog.int4'::regtype
+          ELSE false
+        END AS return_contract_valid,
+        ARRAY(
+          SELECT DISTINCT upper(acl.privilege_type)
+            FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS acl
+           WHERE acl.grantee = (SELECT oid FROM pg_roles WHERE rolname = $1)
+           ORDER BY 1
+        ) AS runtime_privileges,
+        ARRAY(
+          SELECT DISTINCT upper(acl.privilege_type)
+            FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS acl
+           WHERE acl.grantee = (SELECT oid FROM pg_roles WHERE rolname = $1)
+             AND acl.is_grantable
+           ORDER BY 1
+        ) AS runtime_grant_option_privileges,
+        ARRAY(
+          SELECT DISTINCT upper(acl.privilege_type)
+            FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS acl
+           WHERE acl.grantee = 0
+           ORDER BY 1
+        ) AS public_privileges,
+        ARRAY(
+          SELECT DISTINCT upper(acl.privilege_type)
+            FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS acl
+           WHERE acl.grantee = 0
+             AND acl.is_grantable
+           ORDER BY 1
+        ) AS public_grant_option_privileges,
+        ARRAY(
+          SELECT DISTINCT format('%s:%s', privilege_role.rolname, upper(acl.privilege_type))
+            FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS acl
+            JOIN pg_roles privilege_role ON privilege_role.oid = acl.grantee
+           WHERE acl.grantee <> p.proowner
+             AND acl.grantee <> (SELECT oid FROM pg_roles WHERE rolname = $1)
+           ORDER BY 1
+        ) AS other_role_privileges,
+        ARRAY(
+          SELECT DISTINCT format('%s:%s', privilege_role.rolname, upper(acl.privilege_type))
+            FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS acl
+            JOIN pg_roles privilege_role ON privilege_role.oid = acl.grantee
+           WHERE acl.grantee <> p.proowner
+             AND acl.grantee <> (SELECT oid FROM pg_roles WHERE rolname = $1)
+             AND acl.is_grantable
+           ORDER BY 1
+        ) AS other_role_grant_option_privileges
+       FROM pg_proc p
+       JOIN pg_namespace n ON n.oid = p.pronamespace
+       JOIN pg_language l ON l.oid = p.prolang
+      WHERE n.nspname = 'public'
+        AND p.proname = ANY($2::text[])
+      ORDER BY p.proname, identity_arguments`,
+    [runtimeRole, rpcNames],
+  );
+  return result.rows;
 }
 
 export function collectTablePrivilegeAllowlistIssues(
@@ -896,6 +1075,17 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
     if (row.owner_name !== migrationRole) {
       issues.push(`function ${row.function_name}(${row.args}) owned by ${row.owner_name}, expected ${migrationRole}`);
     }
+  }
+
+  const savedSearchOwnerRpcNames = Object.keys(SAVED_SEARCH_OWNER_RPC_FUNCTIONS);
+  if (savedSearchOwnerRpcNames.every((name) => inventory.functions.includes(name))) {
+    issues.push(
+      ...collectSavedSearchOwnerRpcIssues(
+        await readSavedSearchOwnerRpcState(client, runtimeRole),
+        runtimeRole,
+        migrationRole,
+      ),
+    );
   }
 
   const requiredExtensions = inventory.extensions ?? [];
