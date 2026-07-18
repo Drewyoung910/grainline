@@ -85,6 +85,17 @@ describe("SavedSearch owner RPC access", () => {
     assert.deepEqual(db.calls[0].values, ["user_a", null, null]);
   });
 
+  it("projects only the reviewed SavedSearch fields from RPC rows", async () => {
+    const db = rawQueryClient([[
+      savedSearchRow({ futurePrivateColumn: "must-not-leave-the-helper" }),
+    ]]);
+
+    const [row] = await listOwnerSavedSearches("user_a", db.client);
+
+    assert.equal("futurePrivateColumn" in row, false);
+    assert.deepEqual(Object.keys(row).sort(), Object.keys(savedSearchRow()).sort());
+  });
+
   it("rejects invalid context ids before querying", async () => {
     const db = rawQueryClient([[]]);
 

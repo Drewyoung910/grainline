@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import path from "node:path";
 import { describe, it } from "node:test";
 import ts from "typescript";
 
@@ -118,6 +119,270 @@ function plainSavedSearchShorthandProperties(file, fileSource) {
   return properties;
 }
 
+const SAVED_SEARCH_OWNER_RPC_HELPERS = new Set([
+  "deleteOwnerSavedSearch",
+  "inspectOwnerSavedSearchCanary",
+  "listOwnerSavedSearches",
+]);
+const SAVED_SEARCH_OWNER_ACCESS_MODULE = "src/lib/savedSearchOwnerAccess";
+
+function canonicalLocalModulePath(file, moduleSpecifier) {
+  let resolved;
+  if (moduleSpecifier.startsWith("@/")) {
+    resolved = path.posix.normalize(`src/${moduleSpecifier.slice(2)}`);
+  } else if (moduleSpecifier.startsWith(".")) {
+    resolved = path.posix.normalize(
+      path.posix.join(path.posix.dirname(file), moduleSpecifier),
+    );
+  } else {
+    return null;
+  }
+  return resolved
+    .replace(/\.(?:[cm]?[jt]sx?)$/, "")
+    .replace(/\/index$/, "");
+}
+
+function isSavedSearchOwnerAccessModule(file, moduleSpecifier) {
+  return canonicalLocalModulePath(file, moduleSpecifier)
+    === SAVED_SEARCH_OWNER_ACCESS_MODULE;
+}
+
+function moduleSpecifierText(node) {
+  return ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)
+    ? node.text
+    : null;
+}
+
+function savedSearchOwnerRpcHelperUsage(file, fileSource) {
+  const parsed = parseTypeScript(file, fileSource);
+  const namedImports = new Map();
+  const namespaceImports = new Set();
+  const importBindingIdentifiers = new Set();
+  const calls = [];
+  const violations = [];
+
+  function referencesOwnerAccessModule(argument) {
+    const literal = moduleSpecifierText(argument);
+    if (literal !== null) {
+      return isSavedSearchOwnerAccessModule(file, literal)
+        || literal.includes("savedSearchOwnerAccess");
+    }
+    return argument.getText(parsed).includes("savedSearchOwnerAccess");
+  }
+
+  for (const statement of parsed.statements) {
+    if (
+      !ts.isImportDeclaration(statement)
+      || !ts.isStringLiteral(statement.moduleSpecifier)
+      || !isSavedSearchOwnerAccessModule(file, statement.moduleSpecifier.text)
+    ) {
+      continue;
+    }
+    const bindings = statement.importClause?.namedBindings;
+    if (bindings && ts.isNamedImports(bindings)) {
+      for (const element of bindings.elements) {
+        const importedName = element.propertyName?.text ?? element.name.text;
+        if (SAVED_SEARCH_OWNER_RPC_HELPERS.has(importedName)) {
+          namedImports.set(element.name.text, importedName);
+          importBindingIdentifiers.add(element.name);
+        }
+      }
+    } else if (bindings && ts.isNamespaceImport(bindings)) {
+      namespaceImports.add(bindings.name.text);
+      importBindingIdentifiers.add(bindings.name);
+    }
+  }
+
+  function isNonReferencePropertyName(node) {
+    const parent = node.parent;
+    return (
+      (ts.isPropertyAccessExpression(parent) && parent.name === node)
+      || (ts.isPropertyAssignment(parent)
+        && parent.name === node
+        && !ts.isShorthandPropertyAssignment(parent))
+      || (ts.isMethodDeclaration(parent) && parent.name === node)
+      || (ts.isPropertyDeclaration(parent) && parent.name === node)
+      || (ts.isPropertySignature(parent) && parent.name === node)
+      || (ts.isMethodSignature(parent) && parent.name === node)
+      || (ts.isTypeQueryNode(parent) && parent.exprName === node)
+    );
+  }
+
+  function visit(node) {
+    if (
+      ts.isExportDeclaration(node)
+      && node.moduleSpecifier
+      && ts.isStringLiteral(node.moduleSpecifier)
+      && isSavedSearchOwnerAccessModule(file, node.moduleSpecifier.text)
+    ) {
+      violations.push("re-export of SavedSearch owner access helpers");
+    }
+
+    if (ts.isCallExpression(node)) {
+      let helper = null;
+      if (ts.isIdentifier(node.expression)) {
+        helper = namedImports.get(node.expression.text) ?? null;
+      } else if (
+        ts.isPropertyAccessExpression(node.expression)
+        && ts.isIdentifier(node.expression.expression)
+        && namespaceImports.has(node.expression.expression.text)
+        && SAVED_SEARCH_OWNER_RPC_HELPERS.has(node.expression.name.text)
+      ) {
+        helper = node.expression.name.text;
+      }
+      if (helper) {
+        calls.push({
+          firstArgument: node.arguments[0]?.getText(parsed) ?? null,
+          helper,
+        });
+      }
+      if (
+        node.expression.kind === ts.SyntaxKind.ImportKeyword
+        && node.arguments[0]
+        && referencesOwnerAccessModule(node.arguments[0])
+      ) {
+        violations.push("dynamic import of SavedSearch owner access helpers");
+      }
+      if (
+        ts.isIdentifier(node.expression)
+        && node.expression.text === "require"
+        && node.arguments[0]
+        && referencesOwnerAccessModule(node.arguments[0])
+      ) {
+        violations.push("require of SavedSearch owner access helpers");
+      }
+    }
+
+    if (
+      ts.isIdentifier(node)
+      && !importBindingIdentifiers.has(node)
+      && namedImports.has(node.text)
+      && !isNonReferencePropertyName(node)
+    ) {
+      const isReviewedDirectCall =
+        ts.isCallExpression(node.parent) && node.parent.expression === node;
+      if (!isReviewedDirectCall) {
+        violations.push(`indirect use of imported ${namedImports.get(node.text)}`);
+      }
+    }
+
+    if (
+      ts.isIdentifier(node)
+      && !importBindingIdentifiers.has(node)
+      && namespaceImports.has(node.text)
+    ) {
+      const access = node.parent;
+      const isReviewedDirectCall =
+        ts.isPropertyAccessExpression(access)
+        && access.expression === node
+        && SAVED_SEARCH_OWNER_RPC_HELPERS.has(access.name.text)
+        && ts.isCallExpression(access.parent)
+        && access.parent.expression === access;
+      if (!isReviewedDirectCall) {
+        violations.push("indirect or computed use of SavedSearch owner access namespace");
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+
+  visit(parsed);
+  return { calls, violations };
+}
+
+function exportedRuntimeBindings(file, fileSource) {
+  const parsed = parseTypeScript(file, fileSource);
+  const bindings = [];
+  for (const statement of parsed.statements) {
+    if (
+      ts.isExportDeclaration(statement)
+      && !statement.isTypeOnly
+      && !statement.moduleSpecifier
+      && statement.exportClause
+      && ts.isNamedExports(statement.exportClause)
+    ) {
+      for (const element of statement.exportClause.elements) {
+        if (!element.isTypeOnly) bindings.push(element.name.text);
+      }
+      continue;
+    }
+    if (ts.isExportAssignment(statement)) {
+      bindings.push("default");
+      continue;
+    }
+    const isExported = ts.getModifiers(statement)?.some(
+      (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword,
+    );
+    if (!isExported) continue;
+    if (ts.isFunctionDeclaration(statement) && statement.name) {
+      bindings.push(statement.name.text);
+    } else if (ts.isVariableStatement(statement)) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (ts.isIdentifier(declaration.name)) bindings.push(declaration.name.text);
+      }
+    } else if (
+      (ts.isClassDeclaration(statement) || ts.isEnumDeclaration(statement))
+      && statement.name
+    ) {
+      bindings.push(statement.name.text);
+    }
+  }
+  return bindings.sort((a, b) => a.localeCompare(b));
+}
+
+function ownerAccessInternalRpcUsage(file, fileSource) {
+  const parsed = parseTypeScript(file, fileSource);
+  const helperCalls = [];
+  const rawCalls = [];
+
+  function enclosingFunctionName(node) {
+    let current = node.parent;
+    while (current) {
+      if (ts.isFunctionDeclaration(current) && current.name) return current.name.text;
+      if (
+        (ts.isArrowFunction(current) || ts.isFunctionExpression(current))
+        && ts.isVariableDeclaration(current.parent)
+        && ts.isIdentifier(current.parent.name)
+      ) {
+        return current.parent.name.text;
+      }
+      current = current.parent;
+    }
+    return null;
+  }
+
+  function visit(node) {
+    if (ts.isCallExpression(node)) {
+      if (
+        ts.isIdentifier(node.expression)
+        && SAVED_SEARCH_OWNER_RPC_HELPERS.has(node.expression.text)
+      ) {
+        helperCalls.push({
+          caller: enclosingFunctionName(node),
+          firstArgument: node.arguments[0]?.getText(parsed) ?? null,
+          helper: node.expression.text,
+        });
+      }
+      if (
+        ts.isPropertyAccessExpression(node.expression)
+        && node.expression.name.text === "$queryRaw"
+      ) {
+        rawCalls.push({ caller: enclosingFunctionName(node) });
+      }
+    }
+    if (
+      ts.isTaggedTemplateExpression(node)
+      && ts.isPropertyAccessExpression(node.tag)
+      && node.tag.name.text === "$queryRaw"
+    ) {
+      rawCalls.push({ caller: enclosingFunctionName(node) });
+    }
+    ts.forEachChild(node, visit);
+  }
+
+  visit(parsed);
+  return { helperCalls, rawCalls };
+}
+
 describe("RLS feasibility plan guardrails", () => {
   it("allows only the gated SavedSearch prototype while keeping broad production RLS disabled", () => {
     const plan = source("docs/rls-feasibility-plan.md");
@@ -161,7 +426,7 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(defense, /connection-hold time/);
     assert.match(defense, /set_config` wrapper as a harmless no-op/);
     assert.match(defense, /generic\s+connection\/performance baseline/);
-    assert.match(defense, /does not yet fingerprint\s+`pg_proc\.prosrc`/);
+    assert.match(defense, /exact raw `pg_proc\.prosrc` SHA-256/);
     assert.match(defense, /not yet separate\s+live malformed-argument probes/);
   });
 
@@ -285,8 +550,51 @@ describe("RLS feasibility plan guardrails", () => {
     const accountSavedSearches = source("src/app/account/saved-searches/page.tsx");
     const accountExport = source("src/app/api/account/export/route.ts");
     const opsHealth = source("src/app/api/cron/ops-health/route.ts");
+    const savedSearchCanary = source("src/lib/savedSearchRlsCanary.ts");
     const accountDeletion = source("src/lib/accountDeletion.ts");
+    const ensureSeller = source("src/lib/ensureSeller.ts");
+    const ensureUser = source("src/lib/ensureUser.ts");
+    const pageAuth = source("src/lib/pageAuth.ts");
+    const accountDeleteAction = accountSavedSearches.slice(
+      accountSavedSearches.indexOf("async function deleteSavedSearch"),
+      accountSavedSearches.indexOf("type SavedSearchRow"),
+    );
+    const dashboardDeleteAction = dashboard.slice(
+      dashboard.indexOf("async function deleteSavedSearch"),
+      dashboard.indexOf("type DashboardPageProps"),
+    );
 
+    assert.deepEqual(
+      exportedRuntimeBindings("src/lib/savedSearchOwnerAccess.ts", ownerAccess),
+      [
+        "countOwnerSavedSearches",
+        "createOwnerSavedSearch",
+        "deleteAllOwnerSavedSearches",
+        "deleteOwnerSavedSearch",
+        "findDuplicateOwnerSavedSearch",
+        "inspectOwnerSavedSearchCanary",
+        "listOwnerSavedSearches",
+        "ownerSavedSearchWhere",
+      ],
+      "new runtime wrappers must receive an explicit trust-boundary review",
+    );
+    assert.deepEqual(
+      ownerAccessInternalRpcUsage("src/lib/savedSearchOwnerAccess.ts", ownerAccess),
+      {
+        helperCalls: [
+          {
+            caller: "inspectOwnerSavedSearchCanary",
+            firstArgument: "userId",
+            helper: "listOwnerSavedSearches",
+          },
+        ],
+        rawCalls: [
+          { caller: "listOwnerSavedSearches" },
+          { caller: "deleteOwnerSavedSearch" },
+        ],
+      },
+      "only the reviewed list/delete functions may issue owner-RPC raw queries",
+    );
     assert.match(ownerAccess, /SavedSearchOwnerAccessClient = DbUserContextTransactionClient/);
     assert.match(ownerAccess, /SavedSearchOwnerRpcClient = Pick<Prisma\.TransactionClient, "\$queryRaw">/);
     assert.match(ownerAccess, /OwnerSavedSearchRow = Prisma\.SavedSearchGetPayload/);
@@ -328,6 +636,30 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(accountSavedSearches, /deleteOwnerSavedSearch\(me\.id, searchId, prisma\)/);
     assert.match(accountExport, /listOwnerSavedSearches\(user\.id, prisma\)/);
     assert.match(opsHealth, /inspectOwnerSavedSearchCanary\(userId, searchId, prisma\)/);
+    assert.match(savedSearchCanary, /SAVED_SEARCH_RLS_CANARY_USER_ID_ENV/);
+    assert.match(savedSearchCanary, /\^rls-saved-search-canary-\(\[a-f0-9\]\{12,32\}\)-user\$/);
+    assert.match(savedSearchCanary, /userMatch\[1\] !== searchMatch\[1\]/);
+
+    // These are deliberately bounded source-provenance assertions, not a claim
+    // of whole-program data-flow proof. They fail if a reviewed callsite keeps
+    // the same `me.id`/`user.id` spelling but stops deriving that binding from
+    // the current server-authenticated Clerk user.
+    assert.match(ensureUser, /export async function ensureUser\(\)[\s\S]*const u = await currentUser\(\);[\s\S]*ensureUserByClerkId\(u\.id, userFields\)/);
+    assert.match(pageAuth, /export async function ensureUserForPage\(redirectUrl: string\)[\s\S]*const me = await ensureUser\(\);[\s\S]*return me/);
+    assert.match(ensureSeller, /export async function ensureSeller\(\)[\s\S]*const \{ userId \} = await auth\(\);[\s\S]*where: \{ clerkId: userId \}[\s\S]*return \{ me, seller \}/);
+    assert.match(accountOverview, /const me = await ensureUserForPage\("\/account"\);[\s\S]*listOwnerSavedSearches\(me\.id, prisma, \{ take: 3 \}\)/);
+    assert.match(accountDeleteAction, /const \{ userId \} = await auth\(\);[\s\S]*if \(!userId\) return;[\s\S]*where: \{ clerkId: userId \}[\s\S]*if \(!me \|\| me\.banned \|\| me\.deletedAt\) return;[\s\S]*deleteOwnerSavedSearch\(me\.id, searchId, prisma\)/);
+    assert.match(accountSavedSearches, /const me = await ensureUserForPage\("\/account\/saved-searches"\);[\s\S]*listOwnerSavedSearches\(me\.id, prisma\)/);
+    assert.match(dashboardDeleteAction, /const \{ userId \} = await auth\(\);[\s\S]*if \(!userId\) return;[\s\S]*where: \{ clerkId: userId \}[\s\S]*if \(me\.banned \|\| me\.deletedAt\) return;[\s\S]*deleteOwnerSavedSearch\(me\.id, searchId, prisma\)/);
+    assert.match(dashboard, /const \{ me, seller \} = await ensureSeller\(\);[\s\S]*listOwnerSavedSearches\(me\.id, prisma, \{ take: 20 \}\)/);
+    assert.match(savedRoute, /async function getDbUser\(\)[\s\S]*const \{ userId \} = await auth\(\);[\s\S]*return ensureUser\(\)/);
+    assert.match(savedRoute, /const me = userResult\.me;[\s\S]*listOwnerSavedSearches\(me\.id, prisma\)/);
+    assert.match(savedRoute, /const me = userResult\.me;[\s\S]*deleteOwnerSavedSearch\(me\.id, id, prisma\)/);
+    assert.match(accountExport, /const session = await auth\(\);[\s\S]*if \(!session\.userId\)[\s\S]*const user = await ensureUser\(\);[\s\S]*if \(!user\)[\s\S]*const payload = await buildExport\(user\)/);
+    assert.match(accountExport, /async function buildExport\(user: NonNullable<ExportableUser>\)[\s\S]*listOwnerSavedSearches\(user\.id, prisma\)/);
+    assert.match(savedSearchCanary, /return \{ searchId, userId \};[\s\S]*const configuration = parseSavedSearchRlsCanaryConfiguration\(env\);[\s\S]*await lookup\(configuration\)/);
+    assert.match(opsHealth, /runSavedSearchRlsCanary\(process\.env, \(\{ userId, searchId \}\) =>[\s\S]*inspectOwnerSavedSearchCanary\(userId, searchId, prisma\)/);
+
     assert.match(accountDeletion, /withDbUserContext\(userId, async \(tx\) =>/);
     assert.match(accountDeletion, /deleteAllOwnerSavedSearches\(user\.id, tx\)/);
     assert.doesNotMatch(accountDeletion, /setDbUserContext/);
@@ -341,6 +673,132 @@ describe("RLS feasibility plan guardrails", () => {
       deletionContextSet < deletionUserRead,
       "account deletion must set target-user context before any transaction query",
     );
+  });
+
+  it("pins every owner-RPC helper call to a reviewed server-side identity source", () => {
+    const callsByFile = {};
+    const violationsByFile = {};
+    for (const file of sourceFiles("src")) {
+      if (file === "src/lib/savedSearchOwnerAccess.ts") continue;
+      const { calls, violations } = savedSearchOwnerRpcHelperUsage(file, source(file));
+      if (calls.length > 0) callsByFile[file] = calls;
+      if (violations.length > 0) violationsByFile[file] = violations;
+    }
+
+    assert.deepEqual(violationsByFile, {});
+    assert.deepEqual(callsByFile, {
+      "src/app/account/page.tsx": [
+        { firstArgument: "me.id", helper: "listOwnerSavedSearches" },
+      ],
+      "src/app/account/saved-searches/page.tsx": [
+        { firstArgument: "me.id", helper: "deleteOwnerSavedSearch" },
+        { firstArgument: "me.id", helper: "listOwnerSavedSearches" },
+      ],
+      "src/app/api/account/export/route.ts": [
+        { firstArgument: "user.id", helper: "listOwnerSavedSearches" },
+      ],
+      "src/app/api/cron/ops-health/route.ts": [
+        { firstArgument: "userId", helper: "inspectOwnerSavedSearchCanary" },
+      ],
+      "src/app/api/search/saved/route.ts": [
+        { firstArgument: "me.id", helper: "listOwnerSavedSearches" },
+        { firstArgument: "me.id", helper: "deleteOwnerSavedSearch" },
+      ],
+      "src/app/dashboard/page.tsx": [
+        { firstArgument: "me.id", helper: "deleteOwnerSavedSearch" },
+        { firstArgument: "me.id", helper: "listOwnerSavedSearches" },
+      ],
+    });
+
+    assert.deepEqual(
+      savedSearchOwnerRpcHelperUsage(
+        "fixture.ts",
+        'import { listOwnerSavedSearches as list } from "@/lib/savedSearchOwnerAccess"; list(clientId, db);',
+      ),
+      {
+        calls: [{ firstArgument: "clientId", helper: "listOwnerSavedSearches" }],
+        violations: [],
+      },
+      "aliased imports must remain visible to the allowlist",
+    );
+    assert.deepEqual(
+      savedSearchOwnerRpcHelperUsage(
+        "fixture.ts",
+        'import * as access from "@/lib/savedSearchOwnerAccess"; access.deleteOwnerSavedSearch(clientId, searchId, db);',
+      ),
+      {
+        calls: [{ firstArgument: "clientId", helper: "deleteOwnerSavedSearch" }],
+        violations: [],
+      },
+      "namespace imports must remain visible to the allowlist",
+    );
+    assert.deepEqual(
+      savedSearchOwnerRpcHelperUsage(
+        "src/app/fixture.ts",
+        'import { listOwnerSavedSearches } from "../lib/savedSearchOwnerAccess.ts"; listOwnerSavedSearches(clientId, db);',
+      ),
+      {
+        calls: [{ firstArgument: "clientId", helper: "listOwnerSavedSearches" }],
+        violations: [],
+      },
+      "relative imports and explicit TypeScript extensions must remain visible",
+    );
+    assert.deepEqual(
+      savedSearchOwnerRpcHelperUsage(
+        "src/app/fixture.ts",
+        'import { listOwnerSavedSearches } from "@/lib/../lib/savedSearchOwnerAccess"; listOwnerSavedSearches(clientId, db);',
+      ),
+      {
+        calls: [{ firstArgument: "clientId", helper: "listOwnerSavedSearches" }],
+        violations: [],
+      },
+      "path-alias traversal must resolve to the canonical helper module",
+    );
+    assert.deepEqual(
+      exportedRuntimeBindings(
+        "fixture.ts",
+        "function hidden() {} export { hidden as visible };",
+      ),
+      ["visible"],
+      "export-list aliases must remain visible to the exact runtime export guard",
+    );
+
+    for (const fixture of [
+      {
+        file: "fixture.ts",
+        source: 'import { listOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess"; const run = listOwnerSavedSearches; run(clientId, db);',
+      },
+      {
+        file: "fixture.ts",
+        source: 'import * as access from "@/lib/savedSearchOwnerAccess"; access["listOwnerSavedSearches"](clientId, db);',
+      },
+      {
+        file: "fixture.ts",
+        source: 'export { listOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess.ts";',
+      },
+      {
+        file: "src/app/fixture.ts",
+        source: 'export { listOwnerSavedSearches } from "../lib/savedSearchOwnerAccess";',
+      },
+      {
+        file: "fixture.ts",
+        source: 'const access = await import(`@/lib/savedSearchOwnerAccess`); access.listOwnerSavedSearches(clientId, db);',
+      },
+      {
+        file: "fixture.ts",
+        source: 'const access = await import("@/lib/" + "savedSearchOwnerAccess"); access.listOwnerSavedSearches(clientId, db);',
+      },
+      {
+        file: "fixture.ts",
+        source: 'const access = require("@/lib/savedSearchOwnerAccess.ts"); access.listOwnerSavedSearches(clientId, db);',
+      },
+    ]) {
+      assert.notDeepEqual(
+        savedSearchOwnerRpcHelperUsage(fixture.file, fixture.source).violations,
+        [],
+        "indirection must fail review instead of disappearing from the callsite inventory",
+      );
+    }
   });
 
   it("blocks new direct owner-style SavedSearch reads and writes outside the owner helper", () => {

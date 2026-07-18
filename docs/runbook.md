@@ -1,6 +1,6 @@
 # Grainline Operations Runbook
 
-Last updated: 2026-07-17
+Last updated: 2026-07-18
 
 This runbook covers the minimum operational steps for production incidents, deploy rollback, secret rotation, webhook recovery, database restore drills, and public support/legal request handling.
 
@@ -395,24 +395,33 @@ Production migration rules:
   non-grantable extension functions, use an explicitly reviewed admin-owned
   provisioning step in staging first; the grant audit fails when runtime lacks
   access that the declared migration role cannot restore.
+  The Phase-A version also re-revokes `UPDATE` on `SavedSearch` immediately
+  after its bulk table grant. Keep that order: a Phase-A provisioning rerun must
+  converge to exact non-grantable `SELECT`/`INSERT`/`DELETE` and must not restore
+  `UPDATE`. The clean Release-0 artifact and audit still expect CRUD while RLS
+  is absent; other tracked tables and migration-owner table defaults remain
+  CRUD in both phases.
 - After migrations that add tables, sequences, `grainline_*` functions, enum
   types, or role/default-privilege changes, run `npm run audit:db-grants` from
   the same environment/secret set that will run migrations and retain the run
   output with deploy evidence.
-- For the current `SavedSearch` Release 0, deploy the pre-RLS owner-RPC
-  migration while RLS is still off, verify it, and only then deploy the app
+- For the current `SavedSearch` Release 0, deploy
+  `20260717024500_add_saved_search_owner_rpcs` followed by
+  `20260717025000_harden_saved_search_owner_rpc_projection` while RLS is still
+  off, verify both, and only then deploy the app
   release that calls those RPCs. `vercel.json` automatically runs every pending
   migration, so the exact Release 0 artifact/cherry-pick must exclude the later
   `SavedSearch` RLS policy migration. Release-0 CI must assert that migration is
   absent; do not let the app deploy enable RLS as an accidental side effect.
   Production builds run `scripts/guard-saved-search-rls-deploy.mjs` before
   `prisma migrate deploy`. Set `SAVED_SEARCH_RLS_DEPLOY_PHASE=release-0` only on
-  the clean RPC-only artifact. The guard requires the RPC migration to be
-  present and the phase-A migration to be absent.
+  the clean RPC-only artifact. The guard requires both pre-RLS RPC migrations
+  to be present and the phase-A migration to be absent.
 - `SAVED_SEARCH_RLS_DEPLOY_PHASE=phase-a-reviewed` is a separate, explicit
   human promotion authorization. Set it only after the two corrected provider
   repeats, exact real-table staging proof, rollback proof, and exact artifact
-  review have passed. It requires both rollout migrations to be present. Never
+  review have passed. It requires both pre-RLS RPC migrations and the Phase-A
+  policy migration to be present. Never
   use it to bypass the guard on this combined working branch before those gates.
   Missing, empty, unknown, or migration-mismatched values fail production
   before migrations run; Preview builds do not run the production guard. These
@@ -424,6 +433,9 @@ Production migration rules:
   phase must declare the exact `FORCE ROW LEVEL SECURITY` expectation. During
   `SavedSearch` phase A the audit requires `FORCE=false`; phase B changes that
   expectation only in its separate post-skew commit and migration.
+- The same post-migration audit is phase-aware for table grants: Release 0
+  expects runtime CRUD on `SavedSearch`; Phase A expects exactly
+  `SELECT`/`INSERT`/`DELETE` and fails on effective or direct `UPDATE`.
 - Non-model public tables created by the migration role can inherit runtime DML
   from default privileges. Add intentional non-model tables to the grant-audit
   inventory or explicitly `REVOKE` runtime access in the same migration.
@@ -508,8 +520,10 @@ RLS staging context proof:
   A CLI deployment or self-reported environment variables are not sufficient.
   Remove the trigger secret, run id, allowed SHA, and staging URL immediately
   after capture, then delete the temporary Preview after evidence is retained.
-- Production activation is three releases, not one: (0) deploy the pre-RLS
-  owner-RPC migration while RLS is off, verify it, then deploy Git-attested
+- Production activation is three releases, not one: (0) deploy the ordered
+  pre-RLS owner-RPC migrations (`20260717024500_add_saved_search_owner_rpcs`,
+  then `20260717025000_harden_saved_search_owner_rpc_projection`) while RLS is
+  off, verify both, then deploy Git-attested
   `sfo1` app code using the pooled non-owner role; (A) exact policies plus
   `NO FORCE` and `ENABLE`; then (B) a separate validated `FORCE` migration.
   Because `vercel.json` runs every pending migration, the Release 0
@@ -581,6 +595,27 @@ RLS staging context proof:
   `include`/`select: { savedSearches: ... }`, raw `TRUNCATE`/`MERGE`/`COPY`, and
   dynamically constructed identifiers. Also retain the account-deletion test
   for the outer context transaction's `timeout: 30000` and `maxWait: 10000`.
+- Also verify the AST owner-RPC callsite allowlist. The database functions do
+  not authenticate `p_user_id`; they trust the application assertion. Reviewed
+  user-facing calls must pass server-resolved `me.id` (or account-export
+  `user.id`), while ops health may pass only the strictly validated paired
+  synthetic-canary `userId`. Direct named-import aliases and direct namespace
+  calls must remain visible; local rebinding, computed namespace access,
+  re-export, dynamic import, and CommonJS `require` must fail the guard. New
+  callsites and changed first-argument expressions also require review.
+- Record this residual boundary in the promotion review: the source allowlist
+  protects reviewed application paths, but a compromised runtime credential or
+  arbitrary SQL execution can assert another syntactically valid id through the
+  RPC/GUC. When reviewed code supplies the correct authenticated id, Phase A
+  catches missing query scoping and absent context; it does not catch a wrong
+  asserted id and is not database-authenticated isolation against that
+  principal.
+- Verify the list function's explicit 16-column SQL projection and the helper's
+  matching application projection. SQL columns must remain in PostgreSQL
+  physical `attnum` order for the `SETOF public."SavedSearch"` return contract.
+  The exact raw `pg_proc.prosrc` SHA-256 for
+  both owner RPCs must match the reviewed source inventory; an unreadable body
+  or any drift is a hard grant-audit failure.
 - Keep one separate, permanent non-customer `SavedSearch` canary pair for and
   after the rollout. Create or re-verify it only with
   `SAVED_SEARCH_RLS_CANARY_SEED_CONFIRM=reviewed-permanent-canary SAVED_SEARCH_RLS_CANARY_SEED_EXPECTED_DATABASE_ENDPOINT_ID='<independently reviewed ep-* id>' SAVED_SEARCH_RLS_CANARY_SEED_EXPECTED_DATABASE_NAME='<database>' SAVED_SEARCH_RLS_CANARY_SEED_EXPECTED_DATABASE_REGION='<region>' SAVED_SEARCH_RLS_CANARY_SEED_DATABASE_URL='<pooled runtime-role URL>' SAVED_SEARCH_RLS_CANARY_SEED_ADMIN_DATABASE_URL='<direct owner URL>' SAVED_SEARCH_RLS_CANARY_SEED_EVIDENCE_PATH='<outside-repository mode-0600 path>' SAVED_SEARCH_RLS_CANARY_USER_ID='<paired synthetic user id>' SAVED_SEARCH_RLS_CANARY_SEARCH_ID='<paired synthetic search id>' npm run seed:rls-saved-search-canary`.
@@ -612,7 +647,9 @@ RLS staging context proof:
   cross-user behavior gate with the reviewed identities. The gate must execute
   the real `grainline_saved_search_list` owner list/read path and
   `grainline_saved_search_delete_one` owner/foreign delete-one behavior, not a
-  synthetic proxy. Retain its
+  synthetic proxy. The preceding live grant audit must also prove the exact raw
+  function-body fingerprints, explicit `SavedSearch` projection, and the
+  Phase-A `SELECT`/`INSERT`/`DELETE`-only runtime grant. Retain its
   credential-free mode-`0600` artifact outside the repository. Supply
   `REVIEWED_PRODUCTION_DATABASE_ENDPOINT_ID` from independently reviewed Neon
   production inventory; do not derive it from either staging gate URL:

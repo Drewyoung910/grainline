@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 
 import {
   SAVED_SEARCH_RLS_MIGRATION,
+  SAVED_SEARCH_RPC_HARDENING_MIGRATION,
   SAVED_SEARCH_RPC_MIGRATION,
   validateSavedSearchRlsDeployShape,
 } from "../scripts/guard-saved-search-rls-deploy.mjs";
@@ -24,6 +25,7 @@ describe("SavedSearch RLS production deploy guard", () => {
       .map((entry) => entry.name);
 
     assert.ok(currentMigrations.includes(SAVED_SEARCH_RPC_MIGRATION));
+    assert.ok(currentMigrations.includes(SAVED_SEARCH_RPC_HARDENING_MIGRATION));
     assert.throws(() => validate(undefined, currentMigrations), /is missing/);
     if (currentMigrations.includes(SAVED_SEARCH_RLS_MIGRATION)) {
       assert.throws(
@@ -38,17 +40,24 @@ describe("SavedSearch RLS production deploy guard", () => {
       assert.equal(validate(RELEASE_ZERO, currentMigrations).phase, RELEASE_ZERO);
       assert.throws(
         () => validate(REVIEWED_PHASE_A, currentMigrations),
-        /requires both/,
+        /requires all three/,
       );
     }
   });
 
-  it("allows release 0 only when the RPC migration exists and the RLS migration is absent", () => {
-    assert.deepEqual(validate(RELEASE_ZERO, [SAVED_SEARCH_RPC_MIGRATION]), {
-      phase: RELEASE_ZERO,
-      hasRpcMigration: true,
-      hasRlsMigration: false,
-    });
+  it("allows release 0 only when both RPC migrations exist and the RLS migration is absent", () => {
+    assert.deepEqual(
+      validate(RELEASE_ZERO, [
+        SAVED_SEARCH_RPC_MIGRATION,
+        SAVED_SEARCH_RPC_HARDENING_MIGRATION,
+      ]),
+      {
+        phase: RELEASE_ZERO,
+        hasRpcMigration: true,
+        hasRpcHardeningMigration: true,
+        hasRlsMigration: false,
+      },
+    );
 
     assert.throws(() => validate(RELEASE_ZERO, []), /requires/);
     assert.throws(
@@ -56,60 +65,84 @@ describe("SavedSearch RLS production deploy guard", () => {
       /requires/,
     );
     assert.throws(
+      () => validate(RELEASE_ZERO, [SAVED_SEARCH_RPC_MIGRATION]),
+      /requires/,
+    );
+    assert.throws(
+      () => validate(RELEASE_ZERO, [SAVED_SEARCH_RPC_HARDENING_MIGRATION]),
+      /requires/,
+    );
+    assert.throws(
       () => validate(RELEASE_ZERO, [
         SAVED_SEARCH_RPC_MIGRATION,
+        SAVED_SEARCH_RPC_HARDENING_MIGRATION,
         SAVED_SEARCH_RLS_MIGRATION,
       ]),
       /to be absent/,
     );
   });
 
-  it("allows reviewed phase A only when both rollout migrations exist", () => {
+  it("allows reviewed phase A only when all three rollout migrations exist", () => {
     assert.deepEqual(
       validate(REVIEWED_PHASE_A, [
         SAVED_SEARCH_RPC_MIGRATION,
+        SAVED_SEARCH_RPC_HARDENING_MIGRATION,
         SAVED_SEARCH_RLS_MIGRATION,
       ]),
       {
         phase: REVIEWED_PHASE_A,
         hasRpcMigration: true,
+        hasRpcHardeningMigration: true,
         hasRlsMigration: true,
       },
     );
 
-    assert.throws(() => validate(REVIEWED_PHASE_A, []), /requires both/);
+    assert.throws(() => validate(REVIEWED_PHASE_A, []), /requires all three/);
     assert.throws(
       () => validate(REVIEWED_PHASE_A, [SAVED_SEARCH_RPC_MIGRATION]),
-      /requires both/,
+      /requires all three/,
     );
     assert.throws(
       () => validate(REVIEWED_PHASE_A, [SAVED_SEARCH_RLS_MIGRATION]),
-      /requires both/,
+      /requires all three/,
+    );
+    assert.throws(
+      () => validate(REVIEWED_PHASE_A, [
+        SAVED_SEARCH_RPC_MIGRATION,
+        SAVED_SEARCH_RLS_MIGRATION,
+      ]),
+      /requires all three/,
     );
   });
 
   it("fails closed for missing, empty, or unknown phase values", () => {
-    const bothMigrations = [
+    const rolloutMigrations = [
       SAVED_SEARCH_RPC_MIGRATION,
+      SAVED_SEARCH_RPC_HARDENING_MIGRATION,
       SAVED_SEARCH_RLS_MIGRATION,
     ];
 
-    assert.throws(() => validate(undefined, bothMigrations), /is missing/);
-    assert.throws(() => validate("", bothMigrations), /is missing/);
-    assert.throws(() => validate("phase-a", bothMigrations), /expected/);
-    assert.throws(() => validate("release-1", bothMigrations), /expected/);
+    assert.throws(() => validate(undefined, rolloutMigrations), /is missing/);
+    assert.throws(() => validate("", rolloutMigrations), /is missing/);
+    assert.throws(() => validate("phase-a", rolloutMigrations), /expected/);
+    assert.throws(() => validate("release-1", rolloutMigrations), /expected/);
   });
 
   it("requires the reviewed phase migration to remain latest", () => {
     const laterMigration = "20260717040000_force_saved_search_rls";
 
     assert.throws(
-      () => validate(RELEASE_ZERO, [SAVED_SEARCH_RPC_MIGRATION, laterMigration]),
+      () => validate(RELEASE_ZERO, [
+        SAVED_SEARCH_RPC_MIGRATION,
+        SAVED_SEARCH_RPC_HARDENING_MIGRATION,
+        laterMigration,
+      ]),
       /remain the latest migration/,
     );
     assert.throws(
       () => validate(REVIEWED_PHASE_A, [
         SAVED_SEARCH_RPC_MIGRATION,
+        SAVED_SEARCH_RPC_HARDENING_MIGRATION,
         SAVED_SEARCH_RLS_MIGRATION,
         laterMigration,
       ]),

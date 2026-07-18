@@ -213,5 +213,22 @@ function ownerSavedSearchRow(
   ) {
     throw new Error("SavedSearch owner RPC row invariant failed");
   }
-  return value as OwnerSavedSearchRow;
+  return {
+    id: value.id,
+    userId: value.userId,
+    query: value.query,
+    category: value.category,
+    listingType: value.listingType,
+    shipsWithinDays: value.shipsWithinDays,
+    minRating: value.minRating,
+    lat: value.lat,
+    lng: value.lng,
+    radiusMiles: value.radiusMiles,
+    sort: value.sort,
+    minPrice: value.minPrice,
+    maxPrice: value.maxPrice,
+    tags: [...value.tags],
+    notifyEmail: value.notifyEmail,
+    createdAt: value.createdAt,
+  } as OwnerSavedSearchRow;
 }
