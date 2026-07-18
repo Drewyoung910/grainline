@@ -121,11 +121,17 @@ BEGIN
     RAISE EXCEPTION 'public."SavedSearch" already has policies; review them before adding a permissive policy';
   END IF;
 
+  -- SavedSearch has no runtime UPDATE path or UPDATE policy. Converge both the
+  -- prior Release-0 CRUD grant and an already-hardened provisioning rerun to
+  -- the same least-privilege Phase-A posture before enabling RLS.
+  EXECUTE
+    'REVOKE UPDATE ON TABLE public."SavedSearch" FROM grainline_app_runtime';
+
   IF NOT has_schema_privilege('grainline_app_runtime', 'public', 'USAGE')
      OR NOT has_table_privilege('grainline_app_runtime', 'public."SavedSearch"', 'SELECT')
      OR NOT has_table_privilege('grainline_app_runtime', 'public."SavedSearch"', 'INSERT')
-     OR NOT has_table_privilege('grainline_app_runtime', 'public."SavedSearch"', 'UPDATE')
-     OR NOT has_table_privilege('grainline_app_runtime', 'public."SavedSearch"', 'DELETE') THEN
+     OR NOT has_table_privilege('grainline_app_runtime', 'public."SavedSearch"', 'DELETE')
+     OR has_table_privilege('grainline_app_runtime', 'public."SavedSearch"', 'UPDATE') THEN
     RAISE EXCEPTION 'grainline_app_runtime grants must be provisioned before the SavedSearch RLS migration';
   END IF;
 
@@ -144,7 +150,7 @@ BEGIN
         )
       ) AS acl
      WHERE acl.grantee = runtime_oid
-  ) IS DISTINCT FROM ARRAY['DELETE', 'INSERT', 'SELECT', 'UPDATE']::text[]
+  ) IS DISTINCT FROM ARRAY['DELETE', 'INSERT', 'SELECT']::text[]
      OR EXISTS (
        SELECT 1
          FROM aclexplode(
@@ -156,7 +162,7 @@ BEGIN
         WHERE acl.grantee = runtime_oid
           AND acl.is_grantable
      ) THEN
-    RAISE EXCEPTION 'grainline_app_runtime must have exactly direct non-grantable SELECT/INSERT/UPDATE/DELETE on public."SavedSearch"';
+    RAISE EXCEPTION 'grainline_app_runtime must have exactly direct non-grantable SELECT/INSERT/DELETE and no UPDATE on public."SavedSearch"';
   END IF;
 
   IF EXISTS (

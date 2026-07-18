@@ -35,6 +35,18 @@ function source(path = SCRIPT_PATH) {
   return readFileSync(path, "utf8");
 }
 
+function rpcBody(functionName) {
+  const path = functionName === "grainline_saved_search_list"
+    ? "prisma/migrations/20260717025000_harden_saved_search_owner_rpc_projection/migration.sql"
+    : "prisma/migrations/20260717024500_add_saved_search_owner_rpcs/migration.sql";
+  const migration = source(path);
+  const delimiter = `$${functionName}$`;
+  const bodyStart = migration.indexOf(`AS ${delimiter}`) + `AS ${delimiter}`.length;
+  const bodyEnd = migration.indexOf(`${delimiter};`, bodyStart);
+  assert.ok(bodyStart >= `AS ${delimiter}`.length && bodyEnd > bodyStart);
+  return migration.slice(bodyStart, bodyEnd);
+}
+
 function baseEnv(overrides = {}) {
   return {
     SAVED_SEARCH_RLS_GATE_ADMIN_DATABASE_URL: OWNER_URL,
@@ -98,6 +110,7 @@ function exactCatalogState() {
       {
         function_config: ["search_path=pg_catalog"],
         function_name: "grainline_saved_search_delete_one",
+        function_source: rpcBody("grainline_saved_search_delete_one"),
         identity_arguments: "p_user_id text, p_search_id text",
         other_role_grant_option_privileges: [],
         other_role_privileges: [],
@@ -117,6 +130,7 @@ function exactCatalogState() {
       {
         function_config: ["search_path=pg_catalog"],
         function_name: "grainline_saved_search_list",
+        function_source: rpcBody("grainline_saved_search_list"),
         identity_arguments: "p_user_id text, p_take integer, p_search_id text",
         other_role_grant_option_privileges: [],
         other_role_privileges: [],
@@ -145,10 +159,10 @@ function exactCatalogState() {
       runtime_column_grant_option_privileges: [],
       runtime_column_privileges: [],
       runtime_grant_option_privileges: [],
-      runtime_privileges: ["DELETE", "INSERT", "SELECT", "UPDATE"],
+      runtime_privileges: ["DELETE", "INSERT", "SELECT"],
       schema_usage: true,
       select_priv: true,
-      update_priv: true,
+      update_priv: false,
     }],
     runtimeIdentityRows: [{
       current_user_name: DEFAULT_SAVED_SEARCH_RUNTIME_ROLE,
@@ -415,7 +429,7 @@ describe("SavedSearch RLS acceptance gate", () => {
     const publicCrudIssues = collectSavedSearchCatalogIssues(publicCrudMask, config).join("\n");
     assert.match(
       publicCrudIssues,
-      /runtime role is missing direct table privileges: SELECT, INSERT, UPDATE, DELETE/,
+      /runtime role is missing direct table privileges: SELECT, INSERT, DELETE/,
     );
     assert.match(
       publicCrudIssues,
@@ -433,8 +447,8 @@ describe("SavedSearch RLS acceptance gate", () => {
     unsafe.runtimeRoleRows[0].rolcanlogin = false;
     unsafe.runtimeRoleRows[0].rolinherit = true;
     unsafe.membershipRows.push({ role_name: "inherited_power" });
-    unsafe.privilegeRows[0].update_priv = false;
-    unsafe.privilegeRows[0].runtime_privileges.push("TRUNCATE");
+    unsafe.privilegeRows[0].update_priv = true;
+    unsafe.privilegeRows[0].runtime_privileges.push("UPDATE", "TRUNCATE");
     unsafe.privilegeRows[0].runtime_grant_option_privileges.push("DELETE");
     unsafe.privilegeRows[0].public_privileges.push("SELECT");
     unsafe.privilegeRows[0].public_grant_option_privileges.push("SELECT");
@@ -462,8 +476,8 @@ describe("SavedSearch RLS acceptance gate", () => {
     assert.match(issues, /must have LOGIN/);
     assert.match(issues, /must have NOINHERIT/);
     assert.match(issues, /must be membership-free/);
-    assert.match(issues, /lacks UPDATE on public\."SavedSearch"/);
-    assert.match(issues, /public\."SavedSearch" runtime role has unexpected table privileges: TRUNCATE/);
+    assert.match(issues, /must not have UPDATE on public\."SavedSearch" during phase A/);
+    assert.match(issues, /public\."SavedSearch" runtime role has unexpected table privileges: TRUNCATE, UPDATE/);
     assert.match(issues, /public\."SavedSearch" runtime role has grant options: DELETE/);
     assert.match(issues, /public\."SavedSearch" grants table privileges to PUBLIC: SELECT/);
     assert.match(issues, /public\."SavedSearch" grants table privileges with grant option to PUBLIC: SELECT/);

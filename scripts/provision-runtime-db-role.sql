@@ -329,6 +329,11 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
   public."UserReport"
 TO :"runtime_role";
 
+-- Phase A gives SavedSearch only the operations the application actually
+-- performs. Keep this after the bulk grant so rerunning provisioning cannot
+-- silently restore UPDATE after the RLS migration removes it.
+REVOKE UPDATE ON TABLE public."SavedSearch" FROM :"runtime_role";
+
 GRANT USAGE ON TYPE
   public."BlogAuthorType",
   public."BlogPostStatus",

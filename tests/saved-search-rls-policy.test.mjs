@@ -83,6 +83,9 @@ describe("SavedSearch exact RLS policy guardrails", () => {
     const firstPolicy = migration.indexOf("CREATE POLICY");
 
     assert.ok(firstPolicy > 0);
+    const revokeUpdate = migration.indexOf(
+      'REVOKE UPDATE ON TABLE public."SavedSearch" FROM grainline_app_runtime',
+    );
     assert.ok(migration.indexOf("rolsuper") < firstPolicy);
     assert.ok(migration.indexOf("rolcreatedb") < firstPolicy);
     assert.ok(migration.indexOf("rolcreaterole") < firstPolicy);
@@ -98,9 +101,10 @@ describe("SavedSearch exact RLS policy guardrails", () => {
     assert.ok(migration.indexOf("has_table_privilege") < firstPolicy);
     assert.ok(migration.indexOf("aclexplode") < firstPolicy);
     assert.ok(migration.indexOf("FROM pg_attribute") < firstPolicy);
+    assert.ok(revokeUpdate > 0 && revokeUpdate < firstPolicy);
     assert.match(
       migration.slice(0, firstPolicy),
-      /exactly direct non-grantable SELECT\/INSERT\/UPDATE\/DELETE/,
+      /exactly direct non-grantable SELECT\/INSERT\/DELETE and no UPDATE/,
     );
     assert.match(migration.slice(0, firstPolicy), /WHERE acl\.grantee = runtime_oid/);
     assert.match(migration.slice(0, firstPolicy), /WHERE acl\.grantee = 0/);
@@ -125,12 +129,20 @@ describe("SavedSearch exact RLS policy guardrails", () => {
       migration.slice(0, firstPolicy),
       /must have no column privileges/,
     );
-    for (const privilege of ["SELECT", "INSERT", "UPDATE", "DELETE"]) {
+    for (const privilege of ["SELECT", "INSERT", "DELETE"]) {
       assert.match(
         migration.slice(0, firstPolicy),
         new RegExp(`has_table_privilege\\('grainline_app_runtime', 'public\\.\"SavedSearch\"', '${privilege}'\\)`),
       );
     }
+    assert.match(
+      migration.slice(0, firstPolicy),
+      /OR has_table_privilege\('grainline_app_runtime', 'public\."SavedSearch"', 'UPDATE'\)/,
+    );
+    assert.match(
+      migration.slice(0, firstPolicy),
+      /ARRAY\['DELETE', 'INSERT', 'SELECT'\]::text\[\]/,
+    );
   });
 
   it("derives SavedSearch as an exact-policy table from migration source", () => {

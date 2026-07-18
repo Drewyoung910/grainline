@@ -6,6 +6,7 @@ import pg from "pg";
 import {
   SAVED_SEARCH_RLS_POLICIES as AUDITED_SAVED_SEARCH_RLS_POLICIES,
   SAVED_SEARCH_RLS_FORCE_EXPECTED,
+  SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES,
   collectSavedSearchOwnerRpcIssues,
   collectSavedSearchPolicyIssues as collectAuditedSavedSearchPolicyIssues,
   collectTablePrivilegeAllowlistIssues,
@@ -362,13 +363,18 @@ export function collectSavedSearchCatalogIssues(state, config) {
     issues.push("runtime SavedSearch privilege state could not be read");
   } else {
     if (!privileges.schema_usage) issues.push("runtime role lacks USAGE on schema public");
-    for (const privilege of ["select", "insert", "update", "delete"]) {
+    for (const privilege of ["select", "insert", "delete"]) {
       if (!privileges[`${privilege}_priv`]) {
         issues.push(`runtime role lacks ${privilege.toUpperCase()} on public.\"SavedSearch\"`);
       }
     }
+    if (privileges.update_priv) {
+      issues.push('runtime role must not have UPDATE on public."SavedSearch" during phase A');
+    }
     issues.push(
-      ...collectTablePrivilegeAllowlistIssues(privileges, 'public."SavedSearch"'),
+      ...collectTablePrivilegeAllowlistIssues(privileges, 'public."SavedSearch"', {
+        requiredPrivileges: SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES,
+      }),
     );
   }
 
