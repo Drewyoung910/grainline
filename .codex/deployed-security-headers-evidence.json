@@ -1,0 +1,92 @@
+{
+  "status": "passed",
+  "generatedAt": "2026-07-10T23:27:31.555Z",
+  "startedAt": "2026-07-10T23:27:27.288Z",
+  "completedAt": "2026-07-10T23:27:31.555Z",
+  "commitSha": "2bcdd5f4232fb4ecb213c5b12e7505061be7abef",
+  "ciRunId": null,
+  "target": {
+    "origin": "https://thegrainline.com",
+    "host": "thegrainline.com"
+  },
+  "checks": [
+    {
+      "name": "root-security-headers",
+      "status": "passed",
+      "headers": {
+        "csp": {
+          "directiveCount": 16,
+          "requiredDirectives": [
+            "default-src 'self'",
+            "script-src 'self' 'unsafe-inline'",
+            "script-src-elem 'self' 'unsafe-inline'",
+            "style-src 'self' 'unsafe-inline'",
+            "font-src 'self' data:",
+            "img-src 'self' data: blob:",
+            "connect-src 'self'",
+            "frame-src 'self'",
+            "worker-src 'self' blob:",
+            "media-src 'self'",
+            "object-src 'none'",
+            "base-uri 'self'",
+            "form-action 'self'",
+            "frame-ancestors 'self'",
+            "report-to csp-endpoint",
+            "report-uri /api/csp-report"
+          ]
+        },
+        "hsts": {
+          "maxAge": 63072000,
+          "value": "max-age=63072000; includeSubDomains; preload"
+        },
+        "poweredBy": {
+          "name": "x-powered-by",
+          "value": null
+        },
+        "exact": [
+          {
+            "name": "x-dns-prefetch-control",
+            "value": "on"
+          },
+          {
+            "name": "x-frame-options",
+            "value": "SAMEORIGIN"
+          },
+          {
+            "name": "x-content-type-options",
+            "value": "nosniff"
+          },
+          {
+            "name": "referrer-policy",
+            "value": "strict-origin-when-cross-origin"
+          },
+          {
+            "name": "cross-origin-opener-policy",
+            "value": "same-origin-allow-popups"
+          },
+          {
+            "name": "cross-origin-resource-policy",
+            "value": "same-site"
+          },
+          {
+            "name": "permissions-policy",
+            "value": "camera=(), microphone=(), geolocation=(self)"
+          },
+          {
+            "name": "reporting-endpoints",
+            "value": "csp-endpoint=\"/api/csp-report\""
+          }
+        ]
+      },
+      "httpStatus": 200
+    },
+    {
+      "name": "health-private-cache-headers",
+      "status": "passed",
+      "cacheControl": "private, no-store, max-age=0",
+      "httpStatus": 200,
+      "vary": "authorization, x-health-check-token"
+    }
+  ],
+  "issues": []
+}
