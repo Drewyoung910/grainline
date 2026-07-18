@@ -6,9 +6,11 @@ import pg from "pg";
 import {
   SAVED_SEARCH_RLS_POLICIES as AUDITED_SAVED_SEARCH_RLS_POLICIES,
   SAVED_SEARCH_RLS_FORCE_EXPECTED,
+  collectSavedSearchOwnerRpcIssues,
   collectSavedSearchPolicyIssues as collectAuditedSavedSearchPolicyIssues,
   collectTablePrivilegeAllowlistIssues,
   normalizeRlsPolicyExpression as normalizeAuditedRlsPolicyExpression,
+  readSavedSearchOwnerRpcState,
   readSavedSearchPolicyState as readAuditedSavedSearchPolicyState,
 } from "./audit-runtime-db-grants.mjs";
 
@@ -382,6 +384,13 @@ export function collectSavedSearchCatalogIssues(state, config) {
     }
   }
 
+  issues.push(
+    ...collectSavedSearchOwnerRpcIssues(
+      state.ownerRpcRows,
+      config.runtimeRole,
+      config.adminUsername,
+    ),
+  );
   issues.push(...collectSavedSearchPolicyIssues(state.policyRows, config.runtimeRole));
   return issues;
 }
@@ -393,6 +402,7 @@ async function readCatalogState(ownerClient, runtimeClient, config) {
     runtimeRole,
     memberships,
     privileges,
+    ownerRpcs,
     table,
     policyRows,
   ] =
@@ -556,6 +566,7 @@ async function readCatalogState(ownerClient, runtimeClient, config) {
            ) AS public_column_grant_option_privileges`,
         [config.runtimeRole],
       ),
+      readSavedSearchOwnerRpcState(ownerClient, config.runtimeRole),
       ownerClient.query(
         `SELECT pg_get_userbyid(c.relowner) AS owner_name
            FROM pg_class c
@@ -571,6 +582,7 @@ async function readCatalogState(ownerClient, runtimeClient, config) {
   return {
     membershipRows: memberships.rows,
     ownerIdentityRows: ownerIdentity.rows,
+    ownerRpcRows: ownerRpcs,
     policyRows,
     privilegeRows: privileges.rows,
     runtimeIdentityRows: runtimeIdentity.rows,
@@ -600,6 +612,7 @@ export function buildFixtureIds(suffix = randomUUID().replaceAll("-", "").slice(
     foreignInsertSearchId: `${prefix}-foreign-insert`,
     noContextInsertSearchId: `${prefix}-no-context-insert`,
     ownInsertSearchId: `${prefix}-own-insert`,
+    rpcDeleteSearchId: `${prefix}-rpc-delete`,
     seedSearchAId: `${prefix}-seed-a`,
     seedSearchBId: `${prefix}-seed-b`,
     seedQueryA: `${prefix}-query-a`,
@@ -638,6 +651,7 @@ export function buildFixtureIds(suffix = randomUUID().replaceAll("-", "").slice(
       fixture.ownInsertSearchId,
       fixture.foreignInsertSearchId,
       fixture.noContextInsertSearchId,
+      fixture.rpcDeleteSearchId,
     ]),
     allUserIds: Object.freeze([fixture.userA.id, fixture.userB.id]),
   });
@@ -651,6 +665,7 @@ export function validateFixture(fixture) {
     "foreignInsertSearchId",
     "noContextInsertSearchId",
     "ownInsertSearchId",
+    "rpcDeleteSearchId",
     "seedSearchAId",
     "seedSearchBId",
     "wrongUserId",
@@ -691,6 +706,7 @@ export function validateFixture(fixture) {
     fixture.ownInsertSearchId,
     fixture.foreignInsertSearchId,
     fixture.noContextInsertSearchId,
+    fixture.rpcDeleteSearchId,
   ];
   const expectedUserIds = [fixture.userA.id, fixture.userB.id];
   if (
@@ -1025,16 +1041,38 @@ async function verifySavedSearchCleanup(config, fixture, existingRuntimeClient) 
   }
 }
 
-async function expectRlsDenial(queryFn, label) {
+async function expectSqlState(queryFn, expectedSqlState, label) {
   try {
     await queryFn();
   } catch (error) {
-    if (error?.code === EXPECTED_DENIAL_SQLSTATE) return;
+    if (error?.code === expectedSqlState) return;
     throw new GateAssertionError(
       `${label} failed with unexpected SQLSTATE ${typeof error?.code === "string" ? error.code : "unknown"}`,
     );
   }
   throw new GateAssertionError(`${label} unexpectedly succeeded`);
+}
+
+async function expectRlsDenial(queryFn, label) {
+  return expectSqlState(queryFn, EXPECTED_DENIAL_SQLSTATE, label);
+}
+
+async function readOwnerSearchesViaRpc(runtimeClient, userId, take = null, searchId = null) {
+  const result = await runtimeClient.query(
+    `SELECT id, "userId", query
+       FROM public.grainline_saved_search_list($1::text, $2::integer, $3::text)`,
+    [userId, take, searchId],
+  );
+  return result.rows;
+}
+
+async function deleteOwnerSearchViaRpc(runtimeClient, userId, searchId) {
+  const result = await runtimeClient.query(
+    `SELECT public.grainline_saved_search_delete_one($1::text, $2::text)
+       AS deleted_count`,
+    [userId, searchId],
+  );
+  return Number(result.rows[0]?.deleted_count ?? -1);
 }
 
 async function readRuntimeSearch(runtimeClient, searchId) {
@@ -1095,6 +1133,117 @@ async function runBehaviorProbes(runtimeClient, fixture, recordCheck) {
         await readVisibleFixtureRows(runtimeClient, fixture),
         [fixture.seedSearchBId],
         "correct user B probe",
+      );
+    });
+  });
+
+  await recordCheck("SavedSearch list RPC returns only owner rows and resets statement context", async () => {
+    assertResetContext(await readRuntimeContext(runtimeClient), "pre-list-RPC probe");
+    assertExactVisibleRows(
+      await readOwnerSearchesViaRpc(runtimeClient, fixture.userA.id),
+      [fixture.seedSearchAId],
+      "owner list RPC",
+    );
+    assertResetContext(await readRuntimeContext(runtimeClient), "post-list-RPC probe");
+  });
+
+  await recordCheck("SavedSearch list RPC supports canary-filtered owner reads", async () => {
+    assertRuntimeSearch(
+      await readOwnerSearchesViaRpc(
+        runtimeClient,
+        fixture.userA.id,
+        2,
+        fixture.seedSearchAId,
+      ),
+      fixture.userA.id,
+      fixture.seedQueryA,
+      "filtered owner list RPC",
+    );
+    assertExactVisibleRows(
+      await readOwnerSearchesViaRpc(
+        runtimeClient,
+        fixture.userA.id,
+        2,
+        fixture.seedSearchBId,
+      ),
+      [],
+      "filtered foreign list RPC",
+    );
+    assertResetContext(await readRuntimeContext(runtimeClient), "post-filtered-list-RPC probe");
+  });
+
+  await recordCheck("SavedSearch list RPC rejects missing user context arguments", async () => {
+    await expectSqlState(
+      () => readOwnerSearchesViaRpc(runtimeClient, null),
+      "22023",
+      "null-user list RPC",
+    );
+    await expectSqlState(
+      () => readOwnerSearchesViaRpc(runtimeClient, ""),
+      "22023",
+      "empty-user list RPC",
+    );
+    assertResetContext(await readRuntimeContext(runtimeClient), "post-invalid-list-RPC probe");
+  });
+
+  await recordCheck("SavedSearch RPC rejects switching a nonempty user context", async () => {
+    await withRuntimeTransaction(runtimeClient, async () => {
+      await setLocalUser(runtimeClient, fixture.userA.id);
+      await expectRlsDenial(
+        () => readOwnerSearchesViaRpc(runtimeClient, fixture.userB.id),
+        "list RPC user-context switch",
+      );
+    });
+    assertResetContext(await readRuntimeContext(runtimeClient), "post-switch-denial probe");
+  });
+
+  await recordCheck("SavedSearch delete RPC affects zero foreign rows and preserves them", async () => {
+    assertResetContext(await readRuntimeContext(runtimeClient), "pre-foreign-delete-RPC probe");
+    const deletedCount = await deleteOwnerSearchViaRpc(
+      runtimeClient,
+      fixture.userA.id,
+      fixture.seedSearchBId,
+    );
+    if (deletedCount !== 0) {
+      throw new GateAssertionError("foreign delete RPC affected a synthetic row");
+    }
+    assertResetContext(await readRuntimeContext(runtimeClient), "post-foreign-delete-RPC probe");
+    await withUserContext(runtimeClient, fixture.userB.id, async () => {
+      assertRuntimeSearch(
+        await readRuntimeSearch(runtimeClient, fixture.seedSearchBId),
+        fixture.userB.id,
+        fixture.seedQueryB,
+        "foreign delete RPC user B preservation",
+      );
+    });
+  });
+
+  await recordCheck("SavedSearch delete RPC removes one owner row and resets statement context", async () => {
+    await withUserContext(runtimeClient, fixture.userA.id, async () => {
+      const inserted = await runtimeClient.query(
+        `INSERT INTO public."SavedSearch" (id, "userId", query)
+         VALUES ($1, $2, $3)`,
+        [fixture.rpcDeleteSearchId, fixture.userA.id, fixture.seedQueryA],
+      );
+      if (inserted.rowCount !== 1) {
+        throw new GateAssertionError("delete RPC fixture insert did not create one row");
+      }
+    }, "COMMIT");
+    assertResetContext(await readRuntimeContext(runtimeClient), "pre-own-delete-RPC probe");
+    const deletedCount = await deleteOwnerSearchViaRpc(
+      runtimeClient,
+      fixture.userA.id,
+      fixture.rpcDeleteSearchId,
+    );
+    if (deletedCount !== 1) {
+      throw new GateAssertionError("own delete RPC did not remove exactly one synthetic row");
+    }
+    assertResetContext(await readRuntimeContext(runtimeClient), "post-own-delete-RPC probe");
+    await withUserContext(runtimeClient, fixture.userA.id, async () => {
+      assertExactVisibleRows(
+        await readRuntimeSearch(runtimeClient, fixture.rpcDeleteSearchId),
+        [],
+        "own delete RPC verification",
       );
     });
   });

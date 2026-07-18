@@ -9,7 +9,6 @@ import { orderTotalCents } from "@/lib/orderTotals";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import { savedListingFavoriteWhere } from "@/lib/savedListingVisibility";
 import { listOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
-import { withDbUserContext } from "@/lib/dbUserContext";
 import { formatCurrencyCents, formatCurrencyMinorUnitAmount } from "@/lib/money";
 import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
 import { paidStripeOrderWhere } from "@/lib/orderTrust";
@@ -91,7 +90,7 @@ async function AccountPageContent() {
       },
     }),
 
-    withDbUserContext(me.id, (tx) => listOwnerSavedSearches(me.id, tx, { take: 3 })),
+    listOwnerSavedSearches(me.id, prisma, { take: 3 }),
 
     // Follow count
     prisma.follow.count({ where: { followerId: me.id } }),

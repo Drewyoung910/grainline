@@ -131,11 +131,9 @@ describe("SavedSearch RLS silent-denial canary", () => {
     const envExample = readFileSync(".env.example", "utf8");
 
     assert.match(access, /export async function inspectOwnerSavedSearchCanary/);
-    assert.match(access, /where:\s*\{ id: searchId, userId \}/);
-    assert.match(access, /select:\s*\{ id: true, userId: true \}/);
-    assert.match(access, /take:\s*2/);
-    assert.match(route, /withDbUserContext\(userId, \(tx\) =>/);
-    assert.match(route, /inspectOwnerSavedSearchCanary\(userId, searchId, tx\)/);
+    assert.match(access, /listOwnerSavedSearches\(userId, db, \{ take: 2, searchId \}\)/);
+    assert.match(access, /public\.grainline_saved_search_list/);
+    assert.match(route, /inspectOwnerSavedSearchCanary\(userId, searchId, prisma\)/);
     assert.match(route, /savedSearchRlsCanaryIssueCount: savedSearchRlsCanary\.issueCount/);
     assert.match(route, /savedSearchRlsCanaryStatus: savedSearchRlsCanary\.status/);
 

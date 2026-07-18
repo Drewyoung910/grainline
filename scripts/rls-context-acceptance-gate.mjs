@@ -13,6 +13,7 @@ const DEFAULT_SCHEMA = "grainline_rls_canary";
 const DEFAULT_TABLE = "context_canary";
 const DEFAULT_RUN_CLAIM_TABLE = "context_gate_run_claim";
 const DEFAULT_POLICY = "context_canary_select";
+const DEFAULT_RPC_FUNCTION = "context_canary_rpc";
 const DEFAULT_USER_A = "rls-canary-user-a";
 const DEFAULT_USER_B = "rls-canary-user-b";
 const DEFAULT_EMPTY_OWNER_USER = "";
@@ -219,6 +220,26 @@ function buildSelectSql(config) {
   return `SELECT id, "userId", marker FROM ${buildTableRef(config)} ORDER BY id`;
 }
 
+function rpcFunctionName(config) {
+  return assertSafeIdentifier(config.rpcFunctionName ?? DEFAULT_RPC_FUNCTION, "RLS_CONTEXT_GATE_RPC_FUNCTION");
+}
+
+function buildRpcFunctionRef(config) {
+  return `${quoteIdentifier(config.schemaName)}.${quoteIdentifier(rpcFunctionName(config))}`;
+}
+
+function buildRpcFunctionSignature(config) {
+  return `${buildRpcFunctionRef(config)}(text)`;
+}
+
+function buildRpcFunctionIdentity(config) {
+  return `${config.schemaName}.${rpcFunctionName(config)}(text)`;
+}
+
+function buildRpcSelectSql(config) {
+  return `SELECT id, "userId", marker FROM ${buildRpcFunctionRef(config)}($1::text)`;
+}
+
 function canaryRows(config) {
   return [
     { id: "rls-context-user-a", userId: config.userA, marker: "user-a" },
@@ -345,6 +366,10 @@ export function parseGateConfig(env = process.env) {
     "RLS_CONTEXT_GATE_RUN_CLAIM_TABLE",
   );
   const policyName = assertSafeIdentifier(env.RLS_CONTEXT_GATE_POLICY ?? DEFAULT_POLICY, "RLS_CONTEXT_GATE_POLICY");
+  const rpcFunction = assertSafeIdentifier(
+    env.RLS_CONTEXT_GATE_RPC_FUNCTION ?? DEFAULT_RPC_FUNCTION,
+    "RLS_CONTEXT_GATE_RPC_FUNCTION",
+  );
   const allowCustomUserIds = parseBooleanFlag(env, "RLS_CONTEXT_GATE_ALLOW_CUSTOM_USER_IDS");
   const userA = validateSyntheticUserId(env.RLS_CONTEXT_GATE_USER_A ?? DEFAULT_USER_A, "RLS_CONTEXT_GATE_USER_A", allowCustomUserIds);
   const userB = validateSyntheticUserId(env.RLS_CONTEXT_GATE_USER_B ?? DEFAULT_USER_B, "RLS_CONTEXT_GATE_USER_B", allowCustomUserIds);
@@ -397,12 +422,21 @@ export function parseGateConfig(env = process.env) {
   });
   const prepare = parseBooleanFlag(env, "RLS_CONTEXT_GATE_PREPARE");
   const rollbackProbe = parseBooleanFlag(env, "RLS_CONTEXT_GATE_ROLLBACK_PROBE") || prepare;
+  const teardownRpcProbe = parseBooleanFlag(env, "RLS_CONTEXT_GATE_TEARDOWN_RPC_PROBE");
+  if (teardownRpcProbe && (prepare || rollbackProbe)) {
+    throw new Error(
+      "RLS_CONTEXT_GATE_TEARDOWN_RPC_PROBE cannot be combined with RLS_CONTEXT_GATE_PREPARE or RLS_CONTEXT_GATE_ROLLBACK_PROBE",
+    );
+  }
   const adminDatabaseUrl = env.RLS_CONTEXT_GATE_ADMIN_DATABASE_URL;
   if (prepare && !adminDatabaseUrl) {
     throw new Error("RLS_CONTEXT_GATE_ADMIN_DATABASE_URL is required when RLS_CONTEXT_GATE_PREPARE=1");
   }
   if (rollbackProbe && !adminDatabaseUrl) {
     throw new Error("RLS_CONTEXT_GATE_ADMIN_DATABASE_URL is required when RLS_CONTEXT_GATE_ROLLBACK_PROBE=1");
+  }
+  if (teardownRpcProbe && !adminDatabaseUrl) {
+    throw new Error("RLS_CONTEXT_GATE_ADMIN_DATABASE_URL is required when RLS_CONTEXT_GATE_TEARDOWN_RPC_PROBE=1");
   }
   if (adminDatabaseUrl) {
     const adminIdentity = neonDatabaseIdentity(adminDatabaseUrl);
@@ -454,12 +488,14 @@ export function parseGateConfig(env = process.env) {
     providerDeploymentId,
     queryTimeoutMs,
     rollbackProbe,
+    rpcFunctionName: rpcFunction,
     runClaimTableName,
     runtimeRole,
     schemaName,
     statementTimeoutMs,
     tableName,
     targetConcurrency,
+    teardownRpcProbe,
     transactionTimeoutMs,
     turnoverRequests,
     userA,
@@ -484,7 +520,7 @@ export function buildEvidencePayload(config, result, { finishedAt, startedAt, st
   const issues = redactEvidenceMessages(rawIssues);
   const reports = redactEvidenceMessages(result.reports);
   const effectivePassed = gatePassed && suppliedStatusMatches;
-  const runKind = config.prepare || config.rollbackProbe ? "setup" : "repeat";
+  const runKind = config.prepare || config.rollbackProbe || config.teardownRpcProbe ? "setup" : "repeat";
   const evidenceStatus = runKind === "setup"
     ? (effectivePassed ? "setup_passed" : "setup_failed")
     : config.localityConfirmation === "diagnostic-only"
@@ -529,6 +565,7 @@ export function buildEvidencePayload(config, result, { finishedAt, startedAt, st
       expectedDatabaseEndpointId: config.expectedDatabaseEndpointId,
       expectedDatabaseName: config.expectedDatabaseName,
       policyName: config.policyName,
+      rpcFunctionName: rpcFunctionName(config),
       runtimeRole: config.runtimeRole,
       schemaName: config.schemaName,
       tableName: config.tableName,
@@ -543,8 +580,16 @@ export function buildEvidencePayload(config, result, { finishedAt, startedAt, st
       prepare: config.prepare,
       queryTimeoutMs: config.queryTimeoutMs,
       rollbackProbe: config.rollbackProbe,
+      rpcCandidatePattern: {
+        burstWorkers: config.burstConcurrency,
+        evidenceScope: "synthetic-transport-only-not-saved-search-policy-proof",
+        execution: "one-statement-security-invoker-function",
+        persistsBetweenProviderRuntimeRepeats: true,
+        prismaPoolSize: PRISMA_APP_POOL_SIZE,
+      },
       statementTimeoutMs: config.statementTimeoutMs,
       targetConcurrency: config.targetConcurrency,
+      teardownRpcProbe: Boolean(config.teardownRpcProbe),
       transactionTimeoutMs: config.transactionTimeoutMs,
       turnoverRequests: config.turnoverRequests,
       warmupRequests: config.warmupRequests,
@@ -612,6 +657,7 @@ async function disconnectPrismaProbe(probe) {
 export async function prepareCanary(config) {
   const client = createClient(config.adminDatabaseUrl, config);
   await client.connect();
+  let inTransaction = false;
   try {
     const roleResult = await client.query("SELECT current_user AS current_user_name, session_user AS session_user_name");
     const currentUser = roleResult.rows[0]?.current_user_name;
@@ -620,7 +666,11 @@ export async function prepareCanary(config) {
     }
 
     const tableRef = buildTableRef(config);
+    const rpcFunctionRef = buildRpcFunctionRef(config);
+    const rpcFunctionSignature = buildRpcFunctionSignature(config);
     const runClaimTableRef = `${quoteIdentifier(config.schemaName)}.${quoteIdentifier(config.runClaimTableName)}`;
+    await client.query("BEGIN");
+    inTransaction = true;
     await client.query(`CREATE SCHEMA IF NOT EXISTS ${quoteIdentifier(config.schemaName)}`);
     await client.query(`REVOKE ALL ON SCHEMA ${quoteIdentifier(config.schemaName)} FROM PUBLIC`);
     await client.query(
@@ -653,6 +703,32 @@ export async function prepareCanary(config) {
     await client.query(
       `GRANT UPDATE (status, finished_at, evidence) ON TABLE ${runClaimTableRef} TO ${quoteIdentifier(config.runtimeRole)}`,
     );
+    await client.query(`DROP FUNCTION IF EXISTS ${rpcFunctionSignature}`);
+    await client.query(
+      `CREATE FUNCTION ${rpcFunctionRef}(p_user_id text)
+       RETURNS TABLE(id text, "userId" text, marker text)
+       LANGUAGE plpgsql
+       VOLATILE
+       PARALLEL UNSAFE
+       SECURITY INVOKER
+       SET search_path = pg_catalog
+       AS $function$
+       BEGIN
+         IF p_user_id IS NULL OR p_user_id = '' THEN
+           RAISE EXCEPTION 'synthetic canary user id is required' USING ERRCODE = '22023';
+         END IF;
+         PERFORM pg_catalog.set_config('app.user_id', p_user_id, true);
+         RETURN QUERY
+           SELECT canary.id, canary."userId", canary.marker
+           FROM ${tableRef} AS canary
+           ORDER BY canary.id;
+       END
+       $function$`,
+    );
+    await client.query(`REVOKE ALL ON FUNCTION ${rpcFunctionSignature} FROM PUBLIC`);
+    await client.query(
+      `GRANT EXECUTE ON FUNCTION ${rpcFunctionSignature} TO ${quoteIdentifier(config.runtimeRole)}`,
+    );
     await client.query(`ALTER TABLE ${tableRef} DISABLE ROW LEVEL SECURITY`);
     await client.query(`DROP POLICY IF EXISTS ${quoteIdentifier(config.policyName)} ON ${tableRef}`);
 
@@ -679,18 +755,69 @@ export async function prepareCanary(config) {
     );
     await client.query(`ALTER TABLE ${tableRef} ENABLE ROW LEVEL SECURITY`);
     await client.query(`ALTER TABLE ${tableRef} FORCE ROW LEVEL SECURITY`);
+    await client.query("COMMIT");
+    inTransaction = false;
     return {
       currentUser,
       rowsPrepared: rows.length,
       sessionUser: roleResult.rows[0]?.session_user_name,
     };
+  } catch (error) {
+    if (inTransaction) await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    await client.end();
+  }
+}
+
+export async function teardownRpcCanary(config) {
+  if (!config.adminDatabaseUrl) {
+    throw new Error("RLS_CONTEXT_GATE_ADMIN_DATABASE_URL is required for the owner-only RPC canary teardown");
+  }
+  const client = createClient(config.adminDatabaseUrl, config);
+  await client.connect();
+  let inTransaction = false;
+  try {
+    const roleResult = await client.query("SELECT current_user AS current_user_name");
+    const currentUser = roleResult.rows[0]?.current_user_name;
+    if (currentUser === config.runtimeRole) {
+      throw new Error("RPC canary teardown must not authenticate as the runtime role");
+    }
+    await client.query("BEGIN");
+    inTransaction = true;
+    await client.query(`DROP FUNCTION IF EXISTS ${buildRpcFunctionSignature(config)}`);
+    const inside = await client.query(
+      "SELECT to_regprocedure($1) IS NULL AS function_absent",
+      [buildRpcFunctionIdentity(config)],
+    );
+    if (inside.rows[0]?.function_absent !== true) {
+      throw new Error("RPC canary function remained visible inside the owner-only teardown transaction");
+    }
+    await client.query("COMMIT");
+    inTransaction = false;
+    const after = await client.query(
+      "SELECT to_regprocedure($1) IS NULL AS function_absent",
+      [buildRpcFunctionIdentity(config)],
+    );
+    if (after.rows[0]?.function_absent !== true) {
+      throw new Error("RPC canary function remained visible after the owner-only teardown committed");
+    }
+    return { currentUser, functionAbsent: true };
+  } catch (error) {
+    if (inTransaction) await client.query("ROLLBACK").catch(() => {});
+    throw error;
   } finally {
     await client.end();
   }
 }
 
 export async function claimProviderRuntimeRunSlot(config, { runId, runSlot }) {
-  if (config.localityConfirmation !== "production-runtime" || config.prepare || config.rollbackProbe) {
+  if (
+    config.localityConfirmation !== "production-runtime"
+    || config.prepare
+    || config.rollbackProbe
+    || config.teardownRpcProbe
+  ) {
     throw new Error("provider-runtime run slots may only be claimed for repeat-mode production-runtime gates");
   }
   if (!/^[A-Za-z0-9._:-]{32,128}$/.test(runId)) {
@@ -765,6 +892,134 @@ export async function completeProviderRuntimeRunSlot(config, { evidence, runId, 
   }
 }
 
+function exactStringArray(value, expected) {
+  return Array.isArray(value)
+    && value.length === expected.length
+    && value.every((entry, index) => entry === expected[index]);
+}
+
+async function inspectRpcCanary(client, config) {
+  const result = await client.query(
+    `SELECT target.oid IS NOT NULL AS function_exists,
+            n.nspname AS schema_name,
+            p.proname AS function_name,
+            pg_get_userbyid(p.proowner) AS owner_name,
+            p.prosecdef AS security_definer,
+            p.proleakproof AS leakproof,
+            p.provolatile AS volatility,
+            p.proparallel AS parallel_safety,
+            p.prokind AS function_kind,
+            l.lanname AS language_name,
+            p.proconfig AS function_config,
+            pg_get_function_identity_arguments(p.oid) AS identity_arguments,
+            pg_get_function_result(p.oid) AS result_type,
+            EXISTS (
+              SELECT 1
+              FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS function_acl
+              WHERE function_acl.grantee = (SELECT oid FROM pg_roles WHERE rolname = $2)
+                AND function_acl.privilege_type = 'EXECUTE'
+            ) AS runtime_execute,
+            EXISTS (
+              SELECT 1
+              FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS function_acl
+              WHERE function_acl.grantee = (SELECT oid FROM pg_roles WHERE rolname = $2)
+                AND function_acl.privilege_type = 'EXECUTE'
+                AND function_acl.is_grantable
+            ) AS runtime_execute_grant_option,
+            EXISTS (
+              SELECT 1
+              FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS function_acl
+              WHERE function_acl.grantee = 0
+                AND function_acl.privilege_type = 'EXECUTE'
+            ) AS public_execute,
+            EXISTS (
+              SELECT 1
+              FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS function_acl
+              WHERE function_acl.grantee = 0
+                AND function_acl.privilege_type = 'EXECUTE'
+                AND function_acl.is_grantable
+            ) AS public_execute_grant_option,
+            ARRAY(
+              SELECT privilege_role.rolname
+              FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS function_acl
+              JOIN pg_roles AS privilege_role ON privilege_role.oid = function_acl.grantee
+              WHERE function_acl.grantee <> p.proowner
+                AND function_acl.grantee <> (SELECT oid FROM pg_roles WHERE rolname = $2)
+              ORDER BY privilege_role.rolname
+            ) AS unexpected_acl_roles,
+            ARRAY(
+              SELECT privilege_role.rolname
+              FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS function_acl
+              JOIN pg_roles AS privilege_role ON privilege_role.oid = function_acl.grantee
+              WHERE function_acl.grantee <> p.proowner
+                AND function_acl.grantee <> (SELECT oid FROM pg_roles WHERE rolname = $2)
+                AND function_acl.is_grantable
+              ORDER BY privilege_role.rolname
+            ) AS unexpected_grant_option_roles,
+            has_schema_privilege($2, $3, 'USAGE') AS runtime_schema_usage,
+            has_table_privilege($2, $4, 'SELECT') AS runtime_table_select,
+            has_table_privilege($2, $4, 'INSERT') AS runtime_table_insert,
+            has_table_privilege($2, $4, 'UPDATE') AS runtime_table_update,
+            has_table_privilege($2, $4, 'DELETE') AS runtime_table_delete
+       FROM (SELECT to_regprocedure($1) AS oid) AS target
+       LEFT JOIN pg_proc AS p ON p.oid = target.oid
+       LEFT JOIN pg_namespace AS n ON n.oid = p.pronamespace
+       LEFT JOIN pg_language AS l ON l.oid = p.prolang`,
+    [
+      buildRpcFunctionIdentity(config),
+      config.runtimeRole,
+      config.schemaName,
+      `${config.schemaName}.${config.tableName}`,
+    ],
+  );
+  const row = result.rows[0] ?? {};
+  const issues = [];
+  if (row.function_exists !== true) {
+    issues.push("synthetic one-statement RPC function is missing; rerun the owner-only setup before provider-runtime evidence");
+    return { issues, ready: false, row };
+  }
+  if (row.schema_name !== config.schemaName) issues.push("synthetic RPC function resolved in the wrong schema");
+  if (row.function_name !== rpcFunctionName(config)) issues.push("synthetic RPC function resolved with the wrong name");
+  if (!row.owner_name || row.owner_name === config.runtimeRole) {
+    issues.push("synthetic RPC function must be owned by the setup role, never the runtime role");
+  }
+  if (row.security_definer !== false) issues.push("synthetic RPC function must remain SECURITY INVOKER");
+  if (row.leakproof !== false) issues.push("synthetic RPC function must not be LEAKPROOF");
+  if (row.volatility !== "v") issues.push("synthetic RPC function must remain VOLATILE");
+  if (row.parallel_safety !== "u") issues.push("synthetic RPC function must remain PARALLEL UNSAFE");
+  if (row.function_kind !== "f") issues.push("synthetic RPC function must remain an ordinary function");
+  if (row.language_name !== "plpgsql") issues.push("synthetic RPC function must remain PL/pgSQL");
+  if (!exactStringArray(row.function_config, ["search_path=pg_catalog"])) {
+    issues.push("synthetic RPC function must pin search_path=pg_catalog");
+  }
+  if (row.identity_arguments !== "p_user_id text") {
+    issues.push(`synthetic RPC function arguments are ${row.identity_arguments ?? "missing"}, expected p_user_id text`);
+  }
+  if (row.result_type !== 'TABLE(id text, "userId" text, marker text)') {
+    issues.push("synthetic RPC function result shape changed");
+  }
+  if (row.runtime_execute !== true) issues.push("runtime role lacks EXECUTE on the synthetic RPC function");
+  if (row.runtime_execute_grant_option !== false) {
+    issues.push("runtime EXECUTE on the synthetic RPC function must not be grantable");
+  }
+  if (row.public_execute !== false) issues.push("PUBLIC must not retain EXECUTE on the synthetic RPC function");
+  if (row.public_execute_grant_option !== false) {
+    issues.push("PUBLIC must not retain grantable EXECUTE on the synthetic RPC function");
+  }
+  if (!exactStringArray(row.unexpected_acl_roles, [])) {
+    issues.push("synthetic RPC function grants privileges to an unexpected role");
+  }
+  if (!exactStringArray(row.unexpected_grant_option_roles, [])) {
+    issues.push("synthetic RPC function grants privileges with grant option to an unexpected role");
+  }
+  if (row.runtime_schema_usage !== true) issues.push("runtime role lacks USAGE on the synthetic canary schema");
+  if (row.runtime_table_select !== true) issues.push("runtime role lacks SELECT on the synthetic canary table");
+  if (row.runtime_table_insert || row.runtime_table_update || row.runtime_table_delete) {
+    issues.push("runtime role has unexpected write privileges on the synthetic canary table");
+  }
+  return { issues, ready: issues.length === 0, row };
+}
+
 async function inspectRuntime(pool, config) {
   const client = await pool.connect();
   try {
@@ -785,7 +1040,9 @@ async function inspectRuntime(pool, config) {
     if (normalizeSetting(row.app_user_id) !== "") {
       issues.push("runtime connection starts with app.user_id already set");
     }
-    return { issues, row };
+    const rpc = await inspectRpcCanary(client, config);
+    issues.push(...rpc.issues);
+    return { issues, row, rpc };
   } finally {
     client.release();
   }
@@ -1072,6 +1329,58 @@ async function timedPrismaAutocommitDeniedRead(prisma, config, label = "prisma a
   }
 }
 
+async function timedPrismaOneStatementDeniedRead(
+  prisma,
+  config,
+  label = "prisma one-statement autocommit denied read",
+) {
+  const startedAt = performance.now();
+  try {
+    const rows = await prisma.$queryRawUnsafe(buildSelectSql(config));
+    const finishedAt = performance.now();
+    const issues = [];
+    if (rows.length !== 0) {
+      issues.push(`${label}: unset app.user_id returned ${rows.length} rows`);
+    }
+    return sample({ acquiredAt: startedAt, acquireStartedAt: startedAt, finishedAt, issues, label, startedAt });
+  } catch (error) {
+    return sample({ acquiredAt: startedAt, acquireStartedAt: startedAt, error, label, startedAt });
+  }
+}
+
+async function timedPrismaRpcRead(prisma, config, userId, label = "prisma one-statement RPC read") {
+  const startedAt = performance.now();
+  try {
+    const rows = await prisma.$queryRawUnsafe(buildRpcSelectSql(config), userId);
+    const finishedAt = performance.now();
+    const issues = collectRowIssues(config, rows, userId, label);
+    return sample({ acquiredAt: startedAt, acquireStartedAt: startedAt, finishedAt, issues, label, startedAt });
+  } catch (error) {
+    return sample({ acquiredAt: startedAt, acquireStartedAt: startedAt, error, label, startedAt });
+  }
+}
+
+async function timedPrismaRpcCleanupProbe(prisma, config) {
+  const label = "prisma one-statement RPC cleanup probe";
+  const startedAt = performance.now();
+  try {
+    const insideRows = await prisma.$queryRawUnsafe(buildRpcSelectSql(config), config.userA);
+    const settingAfter = await prisma.$queryRawUnsafe("SELECT current_setting('app.user_id', true) AS user_id");
+    const rowsAfter = await prisma.$queryRawUnsafe(buildSelectSql(config));
+    const finishedAt = performance.now();
+    const issues = collectRowIssues(config, insideRows, config.userA, `${label} RPC result`);
+    if (normalizeSetting(settingAfter[0]?.user_id) !== "") {
+      issues.push(`${label}: app.user_id survived RPC statement completion`);
+    }
+    if (rowsAfter.length !== 0) {
+      issues.push(`${label}: protected rows visible after RPC statement completion`);
+    }
+    return sample({ acquiredAt: startedAt, acquireStartedAt: startedAt, finishedAt, issues, label, startedAt });
+  } catch (error) {
+    return sample({ acquiredAt: startedAt, acquireStartedAt: startedAt, error, label, startedAt });
+  }
+}
+
 async function timedPrismaEmptyContextRead(prisma, config) {
   const label = "prisma empty context denied read";
   const startedAt = performance.now();
@@ -1202,6 +1511,14 @@ async function runPrismaWorkload(prisma, config, { concurrency, label, mode, req
         case "autocommit":
           samples.push(await timedPrismaAutocommitDeniedRead(prisma, config, label));
           break;
+        case "autocommit-select":
+          samples.push(await timedPrismaOneStatementDeniedRead(prisma, config, label));
+          break;
+        case "rpc": {
+          const userId = index % 2 === 0 ? config.userA : config.userB;
+          samples.push(await timedPrismaRpcRead(prisma, config, userId, label));
+          break;
+        }
         case "wrapped": {
           const userId = index % 2 === 0 ? config.userA : config.userB;
           samples.push(await timedPrismaWrappedRead(prisma, config, userId, label));
@@ -1220,7 +1537,29 @@ async function runRollbackDisableProbe(config) {
   const tableRef = buildTableRef(config);
   const admin = createClient(config.adminDatabaseUrl, config);
   await admin.connect();
+  let adminInTransaction = false;
   try {
+    const issues = [];
+    await admin.query("BEGIN");
+    adminInTransaction = true;
+    await admin.query(`DROP FUNCTION ${buildRpcFunctionSignature(config)}`);
+    const absentInsideRollback = await admin.query(
+      "SELECT to_regprocedure($1) IS NULL AS function_absent",
+      [buildRpcFunctionIdentity(config)],
+    );
+    if (absentInsideRollback.rows[0]?.function_absent !== true) {
+      issues.push("rollback probe: synthetic RPC function remained visible after DROP inside the transaction");
+    }
+    await admin.query("ROLLBACK");
+    adminInTransaction = false;
+    const restoredAfterRollback = await admin.query(
+      "SELECT to_regprocedure($1) IS NOT NULL AS function_present",
+      [buildRpcFunctionIdentity(config)],
+    );
+    if (restoredAfterRollback.rows[0]?.function_present !== true) {
+      issues.push("rollback probe: synthetic RPC function was not restored after owner transaction rollback");
+    }
+
     await admin.query(`ALTER TABLE ${tableRef} DISABLE ROW LEVEL SECURITY`);
     const probe = createPrismaProbe(config, { max: 1 });
     try {
@@ -1234,7 +1573,6 @@ async function runRollbackDisableProbe(config) {
         { timeout: config.transactionTimeoutMs, maxWait: config.connectionTimeoutMs },
       );
       const rowCount = Number(result.count[0]?.row_count ?? 0);
-      const issues = [];
       if (result.setting[0]?.user_id !== config.userA) {
         issues.push(`rollback probe: current_setting returned ${result.setting[0]?.user_id ?? "null"}, expected ${config.userA}`);
       }
@@ -1246,6 +1584,7 @@ async function runRollbackDisableProbe(config) {
       await disconnectPrismaProbe(probe);
     }
   } finally {
+    if (adminInTransaction) await admin.query("ROLLBACK").catch(() => {});
     await admin.query(`ALTER TABLE ${tableRef} ENABLE ROW LEVEL SECURITY`).catch(() => {});
     await admin.query(`ALTER TABLE ${tableRef} FORCE ROW LEVEL SECURITY`).catch(() => {});
     await admin.end();
@@ -1331,7 +1670,7 @@ function summarizeWorkload(label, samples, { poolTimingAvailable = true } = {}) 
   };
 }
 
-function compareWorkloads(label, baseline, wrapped, config) {
+function compareWorkloads(label, baseline, wrapped, config, { candidateName = "wrapped" } = {}) {
   const issues = [];
   const baselineLatency = baseline.summaries.latencyMs;
   const wrappedLatency = wrapped.summaries.latencyMs;
@@ -1354,27 +1693,27 @@ function compareWorkloads(label, baseline, wrapped, config) {
 
   if (wrappedLatency.p95 > baselineLatency.p95 * 2 || wrappedLatency.p95 - baselineLatency.p95 > 100) {
     issues.push(
-      `${label}: wrapped p95 ${formatMs(wrappedLatency.p95)} exceeds baseline p95 ${formatMs(baselineLatency.p95)} threshold`,
+      `${label}: ${candidateName} p95 ${formatMs(wrappedLatency.p95)} exceeds baseline p95 ${formatMs(baselineLatency.p95)} threshold`,
     );
   }
   if (wrappedLatency.p99 > baselineLatency.p99 * 3 || wrappedLatency.p99 - baselineLatency.p99 > 250) {
     issues.push(
-      `${label}: wrapped p99 ${formatMs(wrappedLatency.p99)} exceeds baseline p99 ${formatMs(baselineLatency.p99)} threshold`,
+      `${label}: ${candidateName} p99 ${formatMs(wrappedLatency.p99)} exceeds baseline p99 ${formatMs(baselineLatency.p99)} threshold`,
     );
   }
   if (baseline.poolTimingAvailable && wrapped.poolTimingAvailable) {
     if (wrappedAcquire.p95 > 100) {
-      issues.push(`${label}: wrapped connection acquisition p95 ${formatMs(wrappedAcquire.p95)} exceeds 100ms`);
+      issues.push(`${label}: ${candidateName} connection acquisition p95 ${formatMs(wrappedAcquire.p95)} exceeds 100ms`);
     }
     if (wrappedAcquire.p99 > 250) {
-      issues.push(`${label}: wrapped connection acquisition p99 ${formatMs(wrappedAcquire.p99)} exceeds 250ms`);
+      issues.push(`${label}: ${candidateName} connection acquisition p99 ${formatMs(wrappedAcquire.p99)} exceeds 250ms`);
     }
     if (wrappedHold.avg > baselineHold.avg * 2) {
-      issues.push(`${label}: wrapped average hold ${formatMs(wrappedHold.avg)} exceeds 2x baseline ${formatMs(baselineHold.avg)}`);
+      issues.push(`${label}: ${candidateName} average hold ${formatMs(wrappedHold.avg)} exceeds 2x baseline ${formatMs(baselineHold.avg)}`);
     }
     if (wrappedHold.p99 > config.transactionTimeoutMs / 2) {
       issues.push(
-        `${label}: wrapped p99 hold ${formatMs(wrappedHold.p99)} exceeds 50% of transaction timeout ${formatMs(config.transactionTimeoutMs)}`,
+        `${label}: ${candidateName} p99 hold ${formatMs(wrappedHold.p99)} exceeds 50% of transaction timeout ${formatMs(config.transactionTimeoutMs)}`,
       );
     }
   }
@@ -1413,9 +1752,22 @@ export async function runAcceptanceGate(config) {
   const issues = [];
   const reports = [];
   let queryRttProxy = null;
+  if (config.teardownRpcProbe) {
+    const tornDown = await teardownRpcCanary(config);
+    reports.push(
+      `owner-only synthetic RPC teardown completed as ${tornDown.currentUser}; post-teardown function_absent=${tornDown.functionAbsent}`,
+    );
+    return {
+      issues,
+      locality: { queryRttProxy },
+      reports,
+    };
+  }
   if (config.prepare) {
     const prepared = await prepareCanary(config);
-    reports.push(`prepared ${prepared.rowsPrepared} synthetic canary rows as ${prepared.currentUser}`);
+    reports.push(
+      `prepared ${prepared.rowsPrepared} synthetic canary rows and persistent candidate-pattern RPC fixture as ${prepared.currentUser}`,
+    );
   }
 
   if (config.prepare || config.rollbackProbe) {
@@ -1423,12 +1775,28 @@ export async function runAcceptanceGate(config) {
     reports.push("setup rollback disable-RLS probe restored ENABLE/FORCE ROW LEVEL SECURITY");
     const restoreProbe = createPrismaProbe(config, { max: 1 });
     try {
-      issues.push(...assertCleanSample(await timedPrismaWrappedRead(
-        restoreProbe.prisma,
-        config,
-        config.userA,
-        "post-setup-restore Prisma wrapped read",
-      )));
+      const restoredRuntime = await inspectRuntime(restoreProbe.pool, config);
+      issues.push(...restoredRuntime.issues);
+      for (const check of [
+        await timedPrismaWrappedRead(
+          restoreProbe.prisma,
+          config,
+          config.userA,
+          "post-setup-restore Prisma wrapped read",
+        ),
+        await timedPrismaRpcRead(
+          restoreProbe.prisma,
+          config,
+          config.userA,
+          "post-setup-restore Prisma one-statement RPC read",
+        ),
+        await timedPrismaRpcCleanupProbe(restoreProbe.prisma, config),
+      ]) {
+        issues.push(...assertCleanSample(check));
+      }
+      reports.push(
+        `setup verified the persistent synthetic RPC fixture catalog ready=${restoredRuntime.rpc.ready} and statement-local context cleanup`,
+      );
     } finally {
       await disconnectPrismaProbe(restoreProbe);
     }
@@ -1446,6 +1814,9 @@ export async function runAcceptanceGate(config) {
       `runtime current_user=${runtime.row.current_user_name ?? "unknown"} session_user=${runtime.row.session_user_name ?? "unknown"} database=${runtime.row.database_name ?? "unknown"}`,
     );
     issues.push(...runtime.issues);
+    reports.push(
+      `synthetic RPC candidate catalog ready=${runtime.rpc.ready}; scope=transport-only-not-saved-search-policy-proof`,
+    );
 
     queryRttProxy = await measureLocalityQueryRttProxy(pool);
     reports.push(
@@ -1496,15 +1867,38 @@ export async function runAcceptanceGate(config) {
 
     const prismaProbe = createPrismaProbe(config, { max: PRISMA_APP_POOL_SIZE });
     try {
-      for (const check of [
+      const prismaSingleChecks = [
         await timedPrismaAutocommitDeniedRead(prismaProbe.prisma, config, "single prisma autocommit denied read"),
+        await timedPrismaOneStatementDeniedRead(
+          prismaProbe.prisma,
+          config,
+          "single prisma one-statement autocommit denied read",
+        ),
         await timedPrismaBaselineDeniedRead(prismaProbe.prisma, config, "single prisma baseline denied read"),
         await timedPrismaEmptyContextRead(prismaProbe.prisma, config),
         await timedPrismaWrappedRead(prismaProbe.prisma, config, config.userA, "single prisma user A wrapped read"),
         await timedPrismaWrappedRead(prismaProbe.prisma, config, config.userB, "single prisma user B wrapped read"),
         await timedPrismaCleanupProbe(prismaProbe.prisma, config, false),
         await timedPrismaCleanupProbe(prismaProbe.prisma, config, true),
-      ]) {
+      ];
+      if (runtime.rpc.ready) {
+        prismaSingleChecks.push(
+          await timedPrismaRpcRead(
+            prismaProbe.prisma,
+            config,
+            config.userA,
+            "single prisma user A one-statement RPC read",
+          ),
+          await timedPrismaRpcRead(
+            prismaProbe.prisma,
+            config,
+            config.userB,
+            "single prisma user B one-statement RPC read",
+          ),
+          await timedPrismaRpcCleanupProbe(prismaProbe.prisma, config),
+        );
+      }
+      for (const check of prismaSingleChecks) {
         issues.push(...assertCleanSample(check));
       }
       const prismaRetry = await prismaRetryProbe(prismaProbe.prisma, config);
@@ -1547,14 +1941,63 @@ export async function runAcceptanceGate(config) {
         mode: "wrapped",
         requests: config.measuredRequests,
       });
-      for (const workload of [
+      const prismaReports = [
         prismaTargetAutocommitBaseline,
         prismaTargetBaseline,
         prismaTargetWrapped,
         prismaBurstAutocommitBaseline,
         prismaBurstBaseline,
         prismaBurstWrapped,
-      ]) {
+      ];
+      if (runtime.rpc.ready) {
+        const prismaTargetOneStatementBaseline = await runPrismaWorkload(prismaProbe.prisma, config, {
+          concurrency: Math.min(config.targetConcurrency, config.poolSize),
+          label: "Prisma target one-statement autocommit baseline",
+          mode: "autocommit-select",
+          requests: config.measuredRequests,
+        });
+        const prismaTargetRpc = await runPrismaWorkload(prismaProbe.prisma, config, {
+          concurrency: Math.min(config.targetConcurrency, config.poolSize),
+          label: "Prisma target one-statement RPC candidate",
+          mode: "rpc",
+          requests: config.measuredRequests,
+        });
+        const prismaBurstOneStatementBaseline = await runPrismaWorkload(prismaProbe.prisma, config, {
+          concurrency: config.burstConcurrency,
+          label: "Prisma burst one-statement autocommit baseline",
+          mode: "autocommit-select",
+          requests: config.measuredRequests,
+        });
+        const prismaBurstRpc = await runPrismaWorkload(prismaProbe.prisma, config, {
+          concurrency: config.burstConcurrency,
+          label: "Prisma burst one-statement RPC candidate",
+          mode: "rpc",
+          requests: config.measuredRequests,
+        });
+        prismaReports.push(
+          prismaTargetOneStatementBaseline,
+          prismaTargetRpc,
+          prismaBurstOneStatementBaseline,
+          prismaBurstRpc,
+        );
+        issues.push(...compareWorkloads(
+          "Prisma target one-statement RPC adoption cost",
+          prismaTargetOneStatementBaseline,
+          prismaTargetRpc,
+          config,
+          { candidateName: "one-statement RPC" },
+        ));
+        issues.push(...compareWorkloads(
+          "Prisma burst one-statement RPC adoption cost",
+          prismaBurstOneStatementBaseline,
+          prismaBurstRpc,
+          config,
+          { candidateName: "one-statement RPC" },
+        ));
+      } else {
+        reports.push("Prisma one-statement RPC candidate workloads skipped because the catalog probe failed closed");
+      }
+      for (const workload of prismaReports) {
         reports.push(formatSummary(workload));
       }
       issues.push(...compareWorkloads("Prisma target concurrency", prismaTargetBaseline, prismaTargetWrapped, config));
@@ -1691,6 +2134,8 @@ function printUsage() {
   );
   console.error("Optional rollback proof:");
   console.error("  RLS_CONTEXT_GATE_ROLLBACK_PROBE=1 RLS_CONTEXT_GATE_ADMIN_DATABASE_URL='<direct migration-owner url>' ... npm run audit:rls-context");
+  console.error("Owner-only RPC fixture teardown after retained provider-runtime evidence:");
+  console.error("  RLS_CONTEXT_GATE_TEARDOWN_RPC_PROBE=1 RLS_CONTEXT_GATE_ADMIN_DATABASE_URL='<direct migration-owner url>' ... npm run audit:rls-context");
   console.error("Optional evidence artifact:");
   console.error("  RLS_CONTEXT_GATE_EVIDENCE_PATH='rls-context-gate-evidence.json' ... npm run audit:rls-context");
 }

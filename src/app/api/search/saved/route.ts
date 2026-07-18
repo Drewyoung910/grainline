@@ -4,6 +4,7 @@ import { Category, ListingType } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import { z } from "zod";
 import { ensureUser } from "@/lib/ensureUser";
+import { prisma } from "@/lib/db";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { rateLimitResponse, safeRateLimit, savedSearchRatelimit } from "@/lib/ratelimit";
 import { normalizeTags } from "@/lib/tags";
@@ -15,7 +16,7 @@ import {
 } from "@/lib/requestBody";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
-import { withDbUserContext, withSerializableDbUserContext } from "@/lib/dbUserContext";
+import { withSerializableDbUserContext } from "@/lib/dbUserContext";
 import {
   countOwnerSavedSearches,
   createOwnerSavedSearch,
@@ -179,7 +180,7 @@ export async function GET() {
   const me = userResult.me;
   if (!me) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
-  const searches = await withDbUserContext(me.id, (tx) => listOwnerSavedSearches(me.id, tx));
+  const searches = await listOwnerSavedSearches(me.id, prisma);
 
   return privateJson({
     searches: searches.map((search) => ({
@@ -209,6 +210,6 @@ export async function DELETE(req: NextRequest) {
   const id = req.nextUrl.searchParams.get("id");
   if (!id) return privateJson({ error: "Missing id" }, { status: 400 });
 
-  await withDbUserContext(me.id, (tx) => deleteOwnerSavedSearch(me.id, id, tx));
+  await deleteOwnerSavedSearch(me.id, id, prisma);
   return privateJson({ ok: true });
 }

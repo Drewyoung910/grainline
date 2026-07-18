@@ -34,6 +34,11 @@ representative SavedSearch route/SLO; do not lower thresholds after observing
 the result. Two consecutive
 passing production-runtime runs on the same reviewed commit SHA and
 configuration plus independent Git-deployment attestation remain required.
+The corrected gate now includes a persistent synthetic one-statement
+`SECURITY INVOKER` candidate and compares it with a true one-statement
+autocommit baseline through the application-sized Prisma pool. That result is
+transport/performance evidence only. The separate real-table gate must still
+prove the exact SavedSearch RPCs and policies on isolated staging.
 
 ## Current Scope Boundary
 
@@ -50,19 +55,23 @@ rollout phase B (`FORCE`) is still part of Bucket A; it is not Bucket B.
 - **Migration owner role**: owns tables and runs migrations. Not used by the web runtime.
 - **Runtime app role**: used by Prisma in normal web requests. Must not own tables and must not have `BYPASSRLS`.
 - **Bypass/service role**: explicit, narrowly held role for migrations, controlled admin maintenance, and emergency repair. Do not use it for normal app traffic.
-- **Request context**: every RLS-protected query must run inside a transaction
-  that sets `app.user_id` with `set_config('app.user_id', $userId, true)`. The
-  context value must be the server-resolved authenticated local `User.id`, not a
-  request body, query string, route param, or other client-supplied value. The
-  `true` flag is required so context is transaction-local and does not leak
-  through the pool.
+- **Request context**: every RLS-protected operation must establish
+  transaction-local `app.user_id` in the same database unit before protected
+  SQL executes. Multi-statement units use an explicit Prisma transaction whose
+  first statement is `set_config('app.user_id', $userId, true)`. The reviewed
+  SavedSearch list/read and delete-one operations instead use narrow
+  one-statement `SECURITY INVOKER` functions that set and verify the same local
+  context before their owner-filtered SQL. The context value must be the
+  server-resolved authenticated local `User.id`, not a request body, query
+  string, route param, or other client-supplied value. The `true` flag is
+  required so context is transaction-local and does not leak through the pool.
 - **Staff context**: staff/admin access needs either explicit `app.role` transaction context or separate audited bypass helpers. Do not silently grant all employees broad RLS bypass in normal user flows.
 - **Provider context**: webhooks, cron jobs, and provider callbacks need explicit service-path decisions; do not make them rely on arbitrary end-user context.
 - **Grant hygiene**: every future migration that creates tables, sequences, or
   `grainline_*` functions must grant the runtime role the minimum required
   table/sequence privileges and `EXECUTE` on functions that constraints,
   defaults, or app queries invoke. Current source inventory is 58 model tables,
-  20 enum types, 1 custom `grainline_*` function, 1 source-derived extension
+  20 enum types, 3 custom `grainline_*` functions, 1 source-derived extension
   (`pg_trgm`), and 0 sequences. Function and enum access may be covered by
   Postgres `PUBLIC` defaults today, but that is a public-default dependency to
   verify against the live DB, not a substitute for an explicit grant audit.
@@ -121,6 +130,12 @@ rollout phase B (`FORCE`) is still part of Bucket A; it is not Bucket B.
   `timeout`/`maxWait` behavior, connection-hold time, and pool saturation under
   realistic staging concurrency before widening the wrapper to hot paths such as
   notification reads.
+- Prove a one-statement function candidate separately against a true
+  one-statement autocommit baseline at target and burst concurrency. Keep the
+  synthetic function across both provider-runtime repeats so the exact same
+  catalog object is measured, then run the owner-only teardown and verify it is
+  absent after retaining both artifacts. This candidate proof does not replace
+  the real SavedSearch migration/policy/behavior gate.
 - Measure the same Prisma pool shape the application will deploy. The failed
   provider deployment created its Prisma probe with the target concurrency of
   8, while the reviewed app pool is now explicitly 10. The corrected harness
@@ -263,9 +278,20 @@ need retry/context discipline.
   insert.
 - If serializable retry is used, the RLS context must be set inside each retry
   transaction before count/read/write work.
-- Saved-search reads are not only in API routes. The dashboard server component
-  and account export also read saved searches and must be wrapped or redesigned
-  before RLS is enabled.
+- Duplicate lookup, cap count, and create stay in one
+  `withSerializableDbUserContext` unit. Account-deletion cleanup stays in its
+  existing outer branded context transaction.
+- List/read and delete-one are centralized in `savedSearchOwnerAccess.ts` and
+  use only parameterized tagged `$queryRaw` calls to
+  `public.grainline_saved_search_list(text, integer, text)` and
+  `public.grainline_saved_search_delete_one(text, text)`. The functions remain
+  ordinary non-leakproof PL/pgSQL, `SECURITY INVOKER`, `VOLATILE`, `PARALLEL
+  UNSAFE`, `search_path=pg_catalog`, explicitly owner-filtered, and executable
+  only by the non-owner runtime role. The static guard permits those function
+  names only in the centralized helper and rejects unsafe raw escape hatches.
+- Saved-search reads are not only in API routes. The dashboard server component,
+  account pages, account export, and the retained canary all use the same
+  one-statement helper path before RLS is enabled.
 - Account deletion deletes saved searches as privacy cleanup. Its large atomic
   unit must use `withDbUserContext(targetUserId, async (tx) => ..., {
   timeout: 30000, maxWait: 10000 })` as the outer transaction and keep all work
@@ -283,6 +309,19 @@ need retry/context discipline.
   Keep an explicit test that account deletion retains
   `{ timeout: 30000, maxWait: 10000 }`. These are must-fix preactivation gaps,
   not deferred Bucket-B work.
+- Release 0 must apply the pre-RLS function migration before RPC-calling app
+  code becomes live while RLS is still off. Because Vercel's production build
+  runs `prisma migrate deploy`, that release artifact must exclude the later
+  phase-A RLS migration. The fail-closed production deploy guard accepts
+  `SAVED_SEARCH_RLS_DEPLOY_PHASE=release-0` only for that RPC-only artifact.
+  `phase-a-reviewed` is explicit human promotion authorization after all
+  staging and rollback gates pass, not a way to deploy the combined working
+  branch early. Both values are temporary and must be removed/reset after the
+  intended release; the guard must be reviewed or retired before any later
+  migration. Phase A and phase B remain separate releases. A
+  12-hour wait never substitutes for disabling superseded callable deployments,
+  rotating/revoking old owner credentials, and retaining `pg_stat_activity`
+  drain evidence.
 
 ## Cart + CartItem Prototype Edge Cases
 

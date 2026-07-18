@@ -345,12 +345,19 @@ describe("database grant inventory guardrails", () => {
 
     assert.equal(inventory.tables.length, 58);
     assert.equal(inventory.enums.length, 20);
-    assert.deepEqual(inventory.functions, ["grainline_notification_preferences_valid"]);
+    assert.deepEqual(inventory.functions, [
+      "grainline_notification_preferences_valid",
+      "grainline_saved_search_delete_one",
+      "grainline_saved_search_list",
+    ]);
     assert.deepEqual(inventory.extensions, ["pg_trgm"]);
     assert.deepEqual(inventory.sequenceSqlReferences, []);
     assert.deepEqual(inventory.autoincrementFields, []);
     assert.deepEqual(inventory.fixedIntSingletonIds, ["SiteConfig.id", "SiteMetricsSnapshot.id"]);
-    assert.deepEqual(inventory.publicRevokes, []);
+    assert.deepEqual(inventory.publicRevokes, [
+      "REVOKE ALL ON FUNCTION public.grainline_saved_search_delete_one(text, text) FROM PUBLIC",
+      "REVOKE ALL ON FUNCTION public.grainline_saved_search_list(text, integer, text) FROM PUBLIC",
+    ]);
     assert.deepEqual(inventory.publicDefaultPrivilegeRevokes, []);
   });
 
@@ -776,7 +783,7 @@ describe("database grant inventory guardrails", () => {
     assert.match(launch, /clean checkout of the exact release commit/);
     const ownershipIndex = launch.indexOf('query `public."SavedSearch"` ownership');
     const provisionIndex = launch.indexOf("scripts/provision-runtime-db-role.sql");
-    const migrateIndex = launch.indexOf("npx prisma migrate deploy");
+    const migrateIndex = launch.indexOf("npm run migrate:deploy:guarded");
     const statusIndex = launch.indexOf("npx prisma migrate status");
     const auditIndex = launch.indexOf("npm run audit:db-grants");
     assert.ok(ownershipIndex < provisionIndex);
@@ -835,6 +842,12 @@ describe("database grant inventory guardrails", () => {
     assert.match(provision, /Public search\/autocomplete SQL uses pg_trgm/);
     assert.match(provision, /PUBLIC defaults remain intact/);
     assert.match(provision, /public\."grainline_notification_preferences_valid"\(jsonb\)/);
+    assert.match(provision, /public\."grainline_saved_search_list"\(text, integer, text\)/);
+    assert.match(provision, /public\."grainline_saved_search_delete_one"\(text, text\)/);
+    assert.match(provision, /REVOKE ALL ON FUNCTION %s FROM PUBLIC/);
+    assert.match(provision, /REVOKE ALL ON FUNCTION %s FROM %I/);
+    assert.match(provision, /GRANT EXECUTE ON FUNCTION %s TO %I/);
+    assert.match(provision, /to_regprocedure\(function_signature\) IS NOT NULL/);
     assert.doesNotMatch(provision, /PASSWORD\s+'(?!\[REDACTED\])/i);
     assert.doesNotMatch(provision, /GRANT\s+[^;]*ON\s+ALL\s+TABLES\s+IN\s+SCHEMA\s+public\s+TO/i);
     assert.doesNotMatch(provision, /GRANT\s+[^;]*ON\s+ALL\s+SEQUENCES\s+IN\s+SCHEMA\s+public\s+TO/i);

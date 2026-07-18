@@ -72,7 +72,7 @@ describe("R49 account-state route guardrails", () => {
     assert.match(savedSearchRoute, /safeRateLimit\(savedSearchRatelimit, userId\)/);
     assert.ok(
       savedSearchGet.indexOf("safeRateLimit(savedSearchRatelimit, userId)") <
-        savedSearchGet.indexOf("withDbUserContext(me.id"),
+        savedSearchGet.indexOf("listOwnerSavedSearches(me.id, prisma)"),
       "saved-search GET should rate-limit before listing current-user saved searches",
     );
 
@@ -128,7 +128,7 @@ describe("R49 account-state route guardrails", () => {
     assert.match(getRoute, /lat: savedSearchCoordinateForTransport\(search\.lat\)/);
     assert.match(getRoute, /lng: savedSearchCoordinateForTransport\(search\.lng\)/);
     assert.ok(
-      getRoute.indexOf("listOwnerSavedSearches(me.id, tx)") < getRoute.indexOf("searches.map"),
+      getRoute.indexOf("listOwnerSavedSearches(me.id, prisma)") < getRoute.indexOf("searches.map"),
       "saved-search GET should minimize coordinates after loading the current user's rows",
     );
   });

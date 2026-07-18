@@ -24,7 +24,6 @@ import { parseCheckoutStockReservationItems } from "@/lib/checkoutStockRestore";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { ownerNotificationExportRows } from "@/lib/notificationOwnerAccess";
 import { listOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
-import { withDbUserContext } from "@/lib/dbUserContext";
 import { ownerSavedBlogPostExportRows } from "@/lib/savedBlogPostOwnerAccess";
 import { ownerCartExportRows } from "@/lib/cartOwnerAccess";
 import { HTTP_STATUS } from "@/lib/httpStatus";
@@ -438,7 +437,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
       orderBy: { createdAt: "desc" },
       select: { listingId: true, createdAt: true, listing: { select: { title: true, status: true } } },
     }),
-    withDbUserContext(user.id, (tx) => listOwnerSavedSearches(user.id, tx)),
+    listOwnerSavedSearches(user.id, prisma),
     prisma.follow.findMany({
       where: { followerId: user.id },
       orderBy: { createdAt: "desc" },
