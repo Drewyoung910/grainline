@@ -946,7 +946,7 @@ async function inspectRpcCanary(client, config) {
               WHERE function_acl.grantee <> p.proowner
                 AND function_acl.grantee <> (SELECT oid FROM pg_roles WHERE rolname = $2)
               ORDER BY privilege_role.rolname
-            ) AS unexpected_acl_roles,
+            )::text[] AS unexpected_acl_roles,
             ARRAY(
               SELECT privilege_role.rolname
               FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS function_acl
@@ -955,7 +955,7 @@ async function inspectRpcCanary(client, config) {
                 AND function_acl.grantee <> (SELECT oid FROM pg_roles WHERE rolname = $2)
                 AND function_acl.is_grantable
               ORDER BY privilege_role.rolname
-            ) AS unexpected_grant_option_roles,
+            )::text[] AS unexpected_grant_option_roles,
             has_schema_privilege($2, $3, 'USAGE') AS runtime_schema_usage,
             has_table_privilege($2, $4, 'SELECT') AS runtime_table_select,
             has_table_privilege($2, $4, 'INSERT') AS runtime_table_insert,
