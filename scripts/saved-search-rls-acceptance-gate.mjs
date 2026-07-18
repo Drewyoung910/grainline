@@ -623,6 +623,20 @@ export function buildFixtureIds(suffix = randomUUID().replaceAll("-", "").slice(
     seedSearchBId: `${prefix}-seed-b`,
     seedQueryA: `${prefix}-query-a`,
     seedQueryB: `${prefix}-query-b`,
+    projectionCanaryA: Object.freeze({
+      category: "FURNITURE",
+      lat: 32.5,
+      listingType: "IN_STOCK",
+      lng: -97.25,
+      maxPrice: 20202,
+      minPrice: 10101,
+      minRating: 4,
+      notifyEmail: false,
+      radiusMiles: 47,
+      shipsWithinDays: 3,
+      sort: `${prefix}-sort-a`,
+      tags: Object.freeze([`${prefix}-tag-a`, `${prefix}-tag-b`]),
+    }),
     userA: {
       clerkId: `${prefix}-clerk-a`,
       email: `${prefix}-a@example.invalid`,
@@ -704,6 +718,71 @@ export function validateFixture(fixture) {
     ) {
       throw new Error(`fixture.${field} must be a bounded synthetic query marker`);
     }
+  }
+
+  const projectionCanary = fixture.projectionCanaryA;
+  if (!projectionCanary || typeof projectionCanary !== "object") {
+    throw new Error("fixture.projectionCanaryA is required");
+  }
+  const integerCanaryFields = [
+    "minPrice",
+    "maxPrice",
+    "shipsWithinDays",
+    "minRating",
+    "radiusMiles",
+  ];
+  const integerCanaryValues = integerCanaryFields.map((field) => projectionCanary[field]);
+  if (
+    integerCanaryValues.some((value) => !Number.isInteger(value) || value < 1 || value > 1_000_000)
+    || new Set(integerCanaryValues).size !== integerCanaryValues.length
+  ) {
+    throw new Error(
+      "fixture.projectionCanaryA integer sentinels must be bounded and pairwise distinct",
+    );
+  }
+  if (
+    !Number.isFinite(projectionCanary.lat)
+    || projectionCanary.lat < -90
+    || projectionCanary.lat > 90
+    || !Number.isFinite(projectionCanary.lng)
+    || projectionCanary.lng < -180
+    || projectionCanary.lng > 180
+    || projectionCanary.lat === projectionCanary.lng
+  ) {
+    throw new Error(
+      "fixture.projectionCanaryA latitude and longitude must be bounded distinct numbers",
+    );
+  }
+  if (
+    projectionCanary.category !== "FURNITURE"
+    || projectionCanary.listingType !== "IN_STOCK"
+    || projectionCanary.notifyEmail !== false
+  ) {
+    throw new Error(
+      "fixture.projectionCanaryA enum and boolean sentinels must match the reviewed values",
+    );
+  }
+  if (
+    typeof projectionCanary.sort !== "string"
+    || projectionCanary.sort.length > 50
+    || !projectionCanary.sort.startsWith(FIXTURE_PREFIX)
+    || projectionCanary.sort === fixture.seedQueryA
+  ) {
+    throw new Error(
+      "fixture.projectionCanaryA sort must be a bounded synthetic marker distinct from query",
+    );
+  }
+  if (
+    !Array.isArray(projectionCanary.tags)
+    || projectionCanary.tags.length !== 2
+    || new Set(projectionCanary.tags).size !== projectionCanary.tags.length
+    || projectionCanary.tags.some(
+      (tag) => typeof tag !== "string" || tag.length > 50 || !tag.startsWith(FIXTURE_PREFIX),
+    )
+  ) {
+    throw new Error(
+      "fixture.projectionCanaryA tags must be two unique bounded synthetic markers",
+    );
   }
 
   const expectedSearchIds = [
@@ -966,10 +1045,59 @@ async function verifySavedSearchCleanupOnClient(runtimeClient, fixture, runtimeR
 async function seedRuntimeSavedSearches(runtimeClient, fixture) {
   await withRuntimeTransaction(runtimeClient, async () => {
     await setLocalUser(runtimeClient, fixture.userA.id);
+    const canary = fixture.projectionCanaryA;
     const insertedA = await runtimeClient.query(
-      `INSERT INTO public."SavedSearch" (id, "userId", query)
-       VALUES ($1, $2, $3)`,
-      [fixture.seedSearchAId, fixture.userA.id, fixture.seedQueryA],
+      `INSERT INTO public."SavedSearch" (
+         id,
+         "userId",
+         query,
+         category,
+         "minPrice",
+         "maxPrice",
+         tags,
+         "notifyEmail",
+         "listingType",
+         "shipsWithinDays",
+         "minRating",
+         lat,
+         lng,
+         "radiusMiles",
+         sort
+       )
+       VALUES (
+         $1,
+         $2,
+         $3,
+         $4::public."Category",
+         $5,
+         $6,
+         $7::text[],
+         $8,
+         $9::public."ListingType",
+         $10,
+         $11,
+         $12,
+         $13,
+         $14,
+         $15
+       )`,
+      [
+        fixture.seedSearchAId,
+        fixture.userA.id,
+        fixture.seedQueryA,
+        canary.category,
+        canary.minPrice,
+        canary.maxPrice,
+        canary.tags,
+        canary.notifyEmail,
+        canary.listingType,
+        canary.shipsWithinDays,
+        canary.minRating,
+        canary.lat,
+        canary.lng,
+        canary.radiusMiles,
+        canary.sort,
+      ],
     );
     await setLocalUser(runtimeClient, fixture.userB.id);
     const insertedB = await runtimeClient.query(
@@ -1065,7 +1193,23 @@ async function expectRlsDenial(queryFn, label) {
 
 async function readOwnerSearchesViaRpc(runtimeClient, userId, take = null, searchId = null) {
   const result = await runtimeClient.query(
-    `SELECT id, "userId", query
+    `SELECT
+        id,
+        "userId",
+        query,
+        category,
+        "minPrice",
+        "maxPrice",
+        tags,
+        "notifyEmail",
+        "createdAt",
+        "listingType",
+        "shipsWithinDays",
+        "minRating",
+        lat,
+        lng,
+        "radiusMiles",
+        sort
        FROM public.grainline_saved_search_list($1::text, $2::integer, $3::text)`,
     [userId, take, searchId],
   );
@@ -1098,6 +1242,38 @@ function assertRuntimeSearch(rows, expectedUserId, expectedQuery, label) {
     || rows[0].query !== expectedQuery
   ) {
     throw new GateAssertionError(`${label} did not match the expected synthetic runtime-visible row`);
+  }
+}
+
+export function assertOwnerRpcProjectionCanary(rows, fixture, label) {
+  const row = rows[0];
+  const expected = fixture.projectionCanaryA;
+  const createdAt = row?.createdAt;
+  const createdAtIsValid = createdAt instanceof Date
+    ? Number.isFinite(createdAt.getTime())
+    : typeof createdAt === "string" && Number.isFinite(Date.parse(createdAt));
+  if (
+    rows.length !== 1
+    || row?.id !== fixture.seedSearchAId
+    || row?.userId !== fixture.userA.id
+    || row?.query !== fixture.seedQueryA
+    || row?.category !== expected.category
+    || row?.minPrice !== expected.minPrice
+    || row?.maxPrice !== expected.maxPrice
+    || !Array.isArray(row?.tags)
+    || row.tags.length !== expected.tags.length
+    || row.tags.some((tag, index) => tag !== expected.tags[index])
+    || row?.notifyEmail !== expected.notifyEmail
+    || !createdAtIsValid
+    || row?.listingType !== expected.listingType
+    || row?.shipsWithinDays !== expected.shipsWithinDays
+    || row?.minRating !== expected.minRating
+    || Number(row?.lat) !== expected.lat
+    || Number(row?.lng) !== expected.lng
+    || row?.radiusMiles !== expected.radiusMiles
+    || row?.sort !== expected.sort
+  ) {
+    throw new GateAssertionError(`${label} did not match the reviewed projection canary`);
   }
 }
 
@@ -1154,16 +1330,22 @@ async function runBehaviorProbes(runtimeClient, fixture, recordCheck) {
   });
 
   await recordCheck("SavedSearch list RPC supports canary-filtered owner reads", async () => {
+    const canaryRows = await readOwnerSearchesViaRpc(
+      runtimeClient,
+      fixture.userA.id,
+      2,
+      fixture.seedSearchAId,
+    );
     assertRuntimeSearch(
-      await readOwnerSearchesViaRpc(
-        runtimeClient,
-        fixture.userA.id,
-        2,
-        fixture.seedSearchAId,
-      ),
+      canaryRows,
       fixture.userA.id,
       fixture.seedQueryA,
       "filtered owner list RPC",
+    );
+    assertOwnerRpcProjectionCanary(
+      canaryRows,
+      fixture,
+      "filtered owner list RPC projection",
     );
     assertExactVisibleRows(
       await readOwnerSearchesViaRpc(

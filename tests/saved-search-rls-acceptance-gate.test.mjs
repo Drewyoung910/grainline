@@ -12,6 +12,7 @@ import { describe, it } from "node:test";
 
 const {
   DEFAULT_SAVED_SEARCH_RUNTIME_ROLE,
+  assertOwnerRpcProjectionCanary,
   buildEvidencePayload,
   buildFixtureIds,
   collectSavedSearchCatalogIssues,
@@ -33,6 +34,27 @@ const OWNER_URL =
 
 function source(path = SCRIPT_PATH) {
   return readFileSync(path, "utf8");
+}
+
+function exactProjectionCanaryRow(fixture) {
+  return {
+    category: fixture.projectionCanaryA.category,
+    createdAt: new Date("2026-07-17T12:00:00.000Z"),
+    id: fixture.seedSearchAId,
+    lat: fixture.projectionCanaryA.lat,
+    listingType: fixture.projectionCanaryA.listingType,
+    lng: fixture.projectionCanaryA.lng,
+    maxPrice: fixture.projectionCanaryA.maxPrice,
+    minPrice: fixture.projectionCanaryA.minPrice,
+    minRating: fixture.projectionCanaryA.minRating,
+    notifyEmail: fixture.projectionCanaryA.notifyEmail,
+    query: fixture.seedQueryA,
+    radiusMiles: fixture.projectionCanaryA.radiusMiles,
+    shipsWithinDays: fixture.projectionCanaryA.shipsWithinDays,
+    sort: fixture.projectionCanaryA.sort,
+    tags: [...fixture.projectionCanaryA.tags],
+    userId: fixture.userA.id,
+  };
 }
 
 function rpcBody(functionName) {
@@ -370,11 +392,71 @@ describe("SavedSearch RLS acceptance gate", () => {
     }
     assert.match(fixture.userA.clerkId, /^rls-saved-search-/);
     assert.match(fixture.userA.email, /^rls-saved-search-.*@example\.invalid$/);
+    assert.equal(Object.isFrozen(fixture.projectionCanaryA), true);
+    assert.equal(Object.isFrozen(fixture.projectionCanaryA.tags), true);
     assert.throws(() => buildFixtureIds("too-short"), /12 to 24 lowercase hexadecimal/);
     assert.throws(
       () => validateFixture({ ...fixture, allUserIds: ["real-user-id", fixture.userB.id] }),
       /allUserIds must exactly match/,
     );
+    assert.throws(
+      () => validateFixture({
+        ...fixture,
+        projectionCanaryA: {
+          ...fixture.projectionCanaryA,
+          maxPrice: fixture.projectionCanaryA.minPrice,
+        },
+      }),
+      /integer sentinels must be bounded and pairwise distinct/,
+    );
+    assert.throws(
+      () => validateFixture({
+        ...fixture,
+        projectionCanaryA: {
+          ...fixture.projectionCanaryA,
+          lng: fixture.projectionCanaryA.lat,
+        },
+      }),
+      /latitude and longitude must be bounded distinct numbers/,
+    );
+  });
+
+  it("checks every named owner-RPC projection field with non-vacuous canary values", () => {
+    const fixture = buildFixtureIds("0123456789abcdef");
+    const row = exactProjectionCanaryRow(fixture);
+
+    assert.doesNotThrow(() => {
+      assertOwnerRpcProjectionCanary([row], fixture, "projection test");
+    });
+
+    const mutations = [
+      { id: fixture.seedSearchBId },
+      { userId: fixture.userB.id },
+      { query: row.sort },
+      { category: "KITCHEN" },
+      { minPrice: row.maxPrice },
+      { maxPrice: row.minPrice },
+      { tags: [...row.tags].reverse() },
+      { notifyEmail: true },
+      { createdAt: "not-a-timestamp" },
+      { listingType: "MADE_TO_ORDER" },
+      { shipsWithinDays: row.minRating },
+      { minRating: row.radiusMiles },
+      { lat: row.lng },
+      { lng: row.lat },
+      { radiusMiles: row.shipsWithinDays },
+      { sort: row.query },
+    ];
+    for (const mutation of mutations) {
+      assert.throws(
+        () => assertOwnerRpcProjectionCanary(
+          [{ ...row, ...mutation }],
+          fixture,
+          "projection test",
+        ),
+        /did not match the reviewed projection canary/,
+      );
+    }
   });
 
   it("accepts only the exact permissive SELECT, INSERT, and DELETE owner policies", () => {
@@ -630,6 +712,8 @@ describe("SavedSearch RLS acceptance gate", () => {
     assert.match(script, /runtime A\/B SavedSearch seed transaction/);
     assert.match(script, /SavedSearch list RPC returns only owner rows and resets statement context/);
     assert.match(script, /SavedSearch list RPC supports canary-filtered owner reads/);
+    assert.match(script, /assertOwnerRpcProjectionCanary\(\s*canaryRows,\s*fixture,/);
+    assert.match(script, /"minPrice"[\s\S]*"maxPrice"[\s\S]*"shipsWithinDays"[\s\S]*"minRating"/);
     assert.match(script, /SavedSearch list RPC rejects missing user context arguments/);
     assert.match(script, /SavedSearch RPC rejects switching a nonempty user context/);
     assert.match(script, /SavedSearch delete RPC affects zero foreign rows and preserves them/);
