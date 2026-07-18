@@ -360,6 +360,12 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.match(script, /public_execute_grant_option/);
     assert.match(script, /unexpected_acl_roles/);
     assert.match(script, /unexpected_grant_option_roles/);
+    assert.match(
+      script,
+      /\)::text\[\] AS unexpected_acl_roles/,
+      "pg returns name[] as an undecoded string; cast catalog role arrays to text[]",
+    );
+    assert.match(script, /\)::text\[\] AS unexpected_grant_option_roles/);
     assert.match(script, /runtime EXECUTE on the synthetic RPC function must not be grantable/);
     assert.match(script, /synthetic RPC function grants privileges to an unexpected role/);
     assert.match(script, /synthetic-transport-only-not-saved-search-policy-proof/);
