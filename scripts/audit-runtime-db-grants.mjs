@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -9,6 +10,7 @@ const { Client } = pg;
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 export const REQUIRED_TABLE_PRIVILEGES = ["SELECT", "INSERT", "UPDATE", "DELETE"];
+export const SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES = ["SELECT", "INSERT", "DELETE"];
 export const REQUIRED_SEQUENCE_PRIVILEGES = ["USAGE", "SELECT"];
 export const REQUIRED_FUNCTION_PRIVILEGES = ["EXECUTE"];
 export const REQUIRED_TYPE_PRIVILEGES = ["USAGE"];
@@ -55,9 +57,11 @@ export const SAVED_SEARCH_RLS_FORCE_EXPECTED = false;
 export const SAVED_SEARCH_OWNER_RPC_FUNCTIONS = Object.freeze({
   grainline_saved_search_list: Object.freeze({
     identityArguments: "p_user_id text, p_take integer, p_search_id text",
+    sourceSha256: "8fb745049da3f57fe116392124c13b7e55bb669d087a88a89a8126bad6b28d19",
   }),
   grainline_saved_search_delete_one: Object.freeze({
     identityArguments: "p_user_id text, p_search_id text",
+    sourceSha256: "d34ee291a4ca9338b341f9e128249902e9d63b4330461e3fbed1dddce4ca3424",
   }),
 });
 
@@ -372,6 +376,13 @@ export function defaultPrivilegeRequirements(inventory) {
   return requirements;
 }
 
+export function requiredRuntimeTablePrivileges(tableName, inventory) {
+  return tableName === "SavedSearch"
+    && (inventory.rlsPolicyTables ?? []).includes("SavedSearch")
+    ? SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES
+    : REQUIRED_TABLE_PRIVILEGES;
+}
+
 function missingItems(expected, actual) {
   const actualSet = new Set(actual);
   return expected.filter((item) => !actualSet.has(item));
@@ -393,6 +404,11 @@ function collectMissingPrivileges(rows, nameField, privileges) {
 function normalizedPrivilegeArray(value) {
   if (!Array.isArray(value)) return [];
   return sortedUnique(value.map((privilege) => String(privilege).toUpperCase()));
+}
+
+function sha256(value) {
+  if (typeof value !== "string") return null;
+  return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
 export function collectSavedSearchOwnerRpcIssues(rows, runtimeRole, migrationRole) {
@@ -444,6 +460,11 @@ export function collectSavedSearchOwnerRpcIssues(rows, runtimeRole, migrationRol
     }
     if (!exactRow.return_contract_valid) {
       issues.push(`${label} has an unexpected return contract`);
+    }
+    if (typeof exactRow.function_source !== "string") {
+      issues.push(`${label} function body source could not be read`);
+    } else if (sha256(exactRow.function_source) !== expected.sourceSha256) {
+      issues.push(`${label} body fingerprint changed`);
     }
 
     const functionConfig = Array.isArray(exactRow.function_config)
@@ -497,6 +518,7 @@ export async function readSavedSearchOwnerRpcState(client, runtimeRole) {
         p.prokind AS function_kind,
         l.lanname AS language_name,
         p.proconfig AS function_config,
+        p.prosrc AS function_source,
         CASE
           WHEN p.proname = 'grainline_saved_search_list'
             THEN p.proretset
@@ -563,7 +585,10 @@ export async function readSavedSearchOwnerRpcState(client, runtimeRole) {
 export function collectTablePrivilegeAllowlistIssues(
   row,
   label,
-  { checkColumnPrivileges = true } = {},
+  {
+    checkColumnPrivileges = true,
+    requiredPrivileges = REQUIRED_TABLE_PRIVILEGES,
+  } = {},
 ) {
   if (!Array.isArray(row?.runtime_privileges)) {
     return [`${label} exact runtime-role table privilege state could not be read`];
@@ -589,9 +614,9 @@ export function collectTablePrivilegeAllowlistIssues(
   if (checkColumnPrivileges && !Array.isArray(row?.public_column_grant_option_privileges)) {
     return [`${label} PUBLIC column grant-option state could not be read`];
   }
-  const allowed = new Set(REQUIRED_TABLE_PRIVILEGES);
+  const allowed = new Set(requiredPrivileges);
   const runtimePrivileges = normalizedPrivilegeArray(row.runtime_privileges);
-  const missing = REQUIRED_TABLE_PRIVILEGES
+  const missing = requiredPrivileges
     .filter((privilege) => !runtimePrivileges.includes(privilege));
   const unexpected = runtimePrivileges
     .filter((privilege) => !allowed.has(privilege));
@@ -643,6 +668,7 @@ export function collectTablePrivilegeAllowlistIssues(
 
 export async function auditLiveDatabase({ client, runtimeRole, migrationRole, inventory }) {
   const issues = [];
+  const expectedRlsPolicyTables = new Set(inventory.rlsPolicyTables ?? []);
 
   const roleResult = await client.query(
     `SELECT
@@ -839,9 +865,21 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
     ...missingItems(inventory.tables, tableResult.rows.map((row) => row.table_name))
       .map((table) => `missing expected table ${table}`),
   );
-  issues.push(...collectMissingPrivileges(tableResult.rows, "table_name", REQUIRED_TABLE_PRIVILEGES));
   for (const row of tableResult.rows) {
-    issues.push(...collectTablePrivilegeAllowlistIssues(row, `table ${row.table_name}`));
+    const requiredPrivileges = requiredRuntimeTablePrivileges(row.table_name, inventory);
+    issues.push(...collectMissingPrivileges([row], "table_name", requiredPrivileges));
+    issues.push(
+      ...collectTablePrivilegeAllowlistIssues(row, `table ${row.table_name}`, {
+        requiredPrivileges,
+      }),
+    );
+    if (
+      row.table_name === "SavedSearch"
+      && expectedRlsPolicyTables.has("SavedSearch")
+      && row.update_priv
+    ) {
+      issues.push("table SavedSearch must not grant effective UPDATE during phase A");
+    }
     if (row.owner_name === runtimeRole) issues.push(`runtime role owns table ${row.table_name}`);
     if (row.owner_name !== migrationRole) {
       issues.push(`table ${row.table_name} owned by ${row.owner_name}, expected ${migrationRole}`);
@@ -866,7 +904,6 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
       ORDER BY c.relname`,
     [inventory.tables],
   );
-  const expectedRlsPolicyTables = new Set(inventory.rlsPolicyTables ?? []);
   for (const row of rlsPolicyResult.rows) {
     const hasPolicies = Number(row.policy_count) > 0;
     const policyList = typeof row.policy_names === "string" && row.policy_names.length > 0

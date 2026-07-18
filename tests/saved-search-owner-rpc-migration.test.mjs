@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
@@ -9,11 +10,37 @@ const {
 
 const migrationPath =
   "prisma/migrations/20260717024500_add_saved_search_owner_rpcs/migration.sql";
+const projectionMigrationPath =
+  "prisma/migrations/20260717025000_harden_saved_search_owner_rpc_projection/migration.sql";
 const rlsMigrationPath =
   "prisma/migrations/20260717030000_enable_saved_search_rls/migration.sql";
 
 function source(path) {
   return readFileSync(path, "utf8");
+}
+
+function rpcBody(functionName) {
+  const migration = source(
+    functionName === "grainline_saved_search_list"
+      ? projectionMigrationPath
+      : migrationPath,
+  );
+  const delimiter = `$${functionName}$`;
+  assert.equal(
+    migration.split(delimiter).length - 1,
+    2,
+    `expected exactly one ${functionName} body`,
+  );
+  const start = migration.indexOf(`AS ${delimiter}`);
+  assert.notEqual(start, -1, `missing ${functionName} body start`);
+  const bodyStart = start + `AS ${delimiter}`.length;
+  const end = migration.indexOf(`${delimiter};`, bodyStart);
+  assert.notEqual(end, -1, `missing ${functionName} body end`);
+  return migration.slice(bodyStart, end);
+}
+
+function sha256(value) {
+  return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
 function exactRpcRows() {
@@ -39,11 +66,13 @@ function exactRpcRows() {
       ...shared,
       function_name: "grainline_saved_search_list",
       identity_arguments: "p_user_id text, p_take integer, p_search_id text",
+      function_source: rpcBody("grainline_saved_search_list"),
     },
     {
       ...shared,
       function_name: "grainline_saved_search_delete_one",
       identity_arguments: "p_user_id text, p_search_id text",
+      function_source: rpcBody("grainline_saved_search_delete_one"),
     },
   ];
 }
@@ -51,8 +80,12 @@ function exactRpcRows() {
 describe("SavedSearch owner RPC pre-RLS migration", () => {
   it("keeps the narrow RPC migration before the optional separately gated RLS migration", () => {
     assert.ok(migrationPath < rlsMigrationPath);
+    assert.ok(migrationPath < projectionMigrationPath);
+    assert.ok(projectionMigrationPath < rlsMigrationPath);
     assert.equal(existsSync(migrationPath), true);
+    assert.equal(existsSync(projectionMigrationPath), true);
     assert.doesNotThrow(() => source(migrationPath));
+    assert.doesNotThrow(() => source(projectionMigrationPath));
     if (existsSync(rlsMigrationPath)) {
       assert.doesNotThrow(() => source(rlsMigrationPath));
     }
@@ -84,6 +117,48 @@ describe("SavedSearch owner RPC pre-RLS migration", () => {
       migration,
       /FROM public\."SavedSearch" AS saved_search[\s\S]*?saved_search\."userId" = p_user_id[\s\S]*?saved_search\.id = p_search_id/,
     );
+  });
+
+  it("replaces the list RPC with an explicit fail-closed column projection", () => {
+    const migration = source(projectionMigrationPath);
+
+    assert.match(migration, /CREATE OR REPLACE FUNCTION public\.grainline_saved_search_list/);
+    assert.doesNotMatch(migration, /SELECT\s+saved_search\.\*/);
+    const returnQuery = migration.match(
+      /RETURN QUERY\s+SELECT([\s\S]*?)\s+FROM public\."SavedSearch" AS saved_search/,
+    );
+    assert.ok(returnQuery, "missing explicit SavedSearch return query");
+    const projectedColumns = [
+      ...returnQuery[1].matchAll(/saved_search\.("[^"]+"|[A-Za-z][A-Za-z0-9]*)/g),
+    ].map((match) => match[1]);
+    assert.deepEqual(projectedColumns, [
+      "id",
+      '"userId"',
+      "query",
+      "category",
+      '"minPrice"',
+      '"maxPrice"',
+      "tags",
+      '"notifyEmail"',
+      '"createdAt"',
+      '"listingType"',
+      '"shipsWithinDays"',
+      '"minRating"',
+      "lat",
+      "lng",
+      '"radiusMiles"',
+      "sort",
+    ], "SETOF SavedSearch columns must remain in PostgreSQL physical attnum order");
+    assert.match(migration, /FROM public\."SavedSearch" AS saved_search/);
+    assert.match(migration, /saved_search\."userId" = p_user_id/);
+    assert.match(migration, /saved_search\.id = p_search_id/);
+    assert.match(migration, /REVOKE ALL ON FUNCTION public\.grainline_saved_search_list/);
+    assert.match(migration, /GRANT EXECUTE ON FUNCTION public\.grainline_saved_search_list/);
+  });
+
+  it("keeps owner filters on the original delete RPC", () => {
+    const migration = source(migrationPath);
+
     assert.match(
       migration,
       /DELETE FROM public\."SavedSearch" AS saved_search[\s\S]*?saved_search\."userId" = p_user_id[\s\S]*?saved_search\.id = p_search_id/,
@@ -155,11 +230,16 @@ describe("SavedSearch owner RPC pre-RLS migration", () => {
     assert.deepEqual(SAVED_SEARCH_OWNER_RPC_FUNCTIONS, {
       grainline_saved_search_list: {
         identityArguments: "p_user_id text, p_take integer, p_search_id text",
+        sourceSha256: "8fb745049da3f57fe116392124c13b7e55bb669d087a88a89a8126bad6b28d19",
       },
       grainline_saved_search_delete_one: {
         identityArguments: "p_user_id text, p_search_id text",
+        sourceSha256: "d34ee291a4ca9338b341f9e128249902e9d63b4330461e3fbed1dddce4ca3424",
       },
     });
+    for (const [functionName, expected] of Object.entries(SAVED_SEARCH_OWNER_RPC_FUNCTIONS)) {
+      assert.equal(sha256(rpcBody(functionName)), expected.sourceSha256);
+    }
   });
 
   it("centralizes exact live catalog posture reads in the grant audit", () => {
@@ -174,6 +254,7 @@ describe("SavedSearch owner RPC pre-RLS migration", () => {
     assert.match(audit, /p\.prokind AS function_kind/);
     assert.match(audit, /l\.lanname AS language_name/);
     assert.match(audit, /p\.proconfig AS function_config/);
+    assert.match(audit, /p\.prosrc AS function_source/);
     assert.match(audit, /p\.prorettype = 'public\."SavedSearch"'::regtype/);
     assert.match(audit, /p\.prorettype = 'pg_catalog\.int4'::regtype/);
     assert.match(audit, /AS runtime_grant_option_privileges/);
@@ -209,6 +290,7 @@ describe("SavedSearch owner RPC pre-RLS migration", () => {
       language_name: "sql",
       function_config: ["search_path=public"],
       return_contract_valid: false,
+      function_source: `${rows[0].function_source}\n-- drift`,
       runtime_privileges: [],
       runtime_grant_option_privileges: ["EXECUTE"],
       public_privileges: ["EXECUTE"],
@@ -237,6 +319,7 @@ describe("SavedSearch owner RPC pre-RLS migration", () => {
     assert.match(issues, /must use PL\/pgSQL/);
     assert.match(issues, /must set only search_path=pg_catalog/);
     assert.match(issues, /unexpected return contract/);
+    assert.match(issues, /body fingerprint changed/);
     assert.match(issues, /runtime role must have exactly direct EXECUTE/);
     assert.match(issues, /runtime EXECUTE must not be grantable/);
     assert.match(issues, /must revoke all privileges from PUBLIC/);
@@ -245,5 +328,19 @@ describe("SavedSearch owner RPC pre-RLS migration", () => {
     assert.match(issues, /grants grant-option privileges to an unexpected role/);
     assert.match(issues, /unexpected overload/);
     assert.match(issues, /missing expected SavedSearch owner RPC grainline_saved_search_delete_one/);
+  });
+
+  it("fails closed when a live RPC body cannot be read", () => {
+    const rows = exactRpcRows();
+    rows[0] = { ...rows[0], function_source: null };
+
+    assert.match(
+      collectSavedSearchOwnerRpcIssues(
+        rows,
+        "grainline_app_runtime",
+        "grainline_migration_owner",
+      ).join("\n"),
+      /function body source could not be read/,
+    );
   });
 });

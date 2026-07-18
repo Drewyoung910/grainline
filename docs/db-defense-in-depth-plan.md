@@ -1,6 +1,6 @@
 # Grainline DB Defense-In-Depth Plan
 
-Last updated: 2026-07-17
+Last updated: 2026-07-18
 
 This is the execution tracker for database-layer hardening. It complements
 `docs/rls-feasibility-plan.md`, which remains the design source of truth for
@@ -82,9 +82,16 @@ Baseline recorded 2026-07-16:
 Status: completed on the isolated staging branch only; production role and
 credential changes have not started.
 
-Purpose: reduce blast radius even before RLS. A leaked runtime connection or
-future SQL injection should not own tables, bypass RLS, run migrations, or alter
-schema.
+Purpose: reduce blast radius even before RLS. The runtime role must not own
+tables, carry `BYPASSRLS`, run migrations, or alter schema. This role split does
+not make a leaked runtime credential or arbitrary-SQL execution owner-isolated:
+the SavedSearch GUC and owner RPCs accept an application-asserted user id, so a
+holder of that runtime role can assert another syntactically valid id. When
+reviewed code supplies the correct authenticated id, Phase A catches omitted or
+incorrect query ownership predicates and fails closed on absent request
+context; it does not catch a wrong asserted id and is not a
+database-authenticated defense against a compromised runtime principal or SQL
+injection.
 
 Target roles:
 
@@ -129,6 +136,13 @@ Staging implementation checklist:
   created by the migration role, so the script grants only extension functions
   the migration role can grant and otherwise verifies runtime `EXECUTE` is
   already present, normally through PostgreSQL's `PUBLIC` function default.
+  The Phase-A version deliberately grants the general table CRUD inventory in
+  one bulk statement and then re-revokes `UPDATE` from `SavedSearch`. Keep that
+  revoke after the bulk grant: rerunning Phase-A provisioning must converge to
+  `SELECT`/`INSERT`/`DELETE` with no `UPDATE`, rather than silently restoring a
+  privilege for which no application path or policy exists. The scoped
+  Release-0 artifact and its audit still expect CRUD while RLS is off; do not
+  substitute the combined Phase-A provisioning artifact into that release.
 - Source-derived grant inventory as of this plan update:
   - 58 Prisma model tables need runtime table DML grants;
   - 20 Prisma enum types need runtime `USAGE`, currently covered only if live
@@ -273,6 +287,12 @@ Implementation goals:
   and migration only after superseded deployments/credentials are disabled,
   `pg_stat_activity` proves the owner-backed app-session drain, and the
   owner/maintenance strategy is tested.
+- Table-DML expectations are rollout-phase specific too. The clean Release-0
+  inventory requires `SELECT`/`INSERT`/`UPDATE`/`DELETE` while `SavedSearch` RLS
+  is absent. Once the Phase-A policy migration is in the source inventory, the
+  exact `SavedSearch` runtime allowlist becomes
+  `SELECT`/`INSERT`/`DELETE`; effective or direct `UPDATE` is then a failure.
+  Other tracked tables and migration-owner table defaults remain CRUD.
 - Function/type default-privilege checks are conditional on source migrations
   revoking `PUBLIC` through `ALTER DEFAULT PRIVILEGES` for functions or types;
   object-level revokes on existing functions/types do not imply a future default
@@ -461,12 +481,40 @@ Required helper contract:
   `public.grainline_saved_search_delete_one(text, text)`. Its SQL must remain
   parameterized tagged `$queryRaw`, and it validates returned ownership/counts
   fail closed.
+- The RPC `p_user_id` argument is application-asserted; PostgreSQL does not
+  independently authenticate it as the current Clerk/local user. That is an
+  explicit threat boundary, not an identity proof supplied by the function.
+  A principal able to issue arbitrary SQL as the runtime role can therefore
+  call the RPC or set `app.user_id` with another syntactically valid id. When
+  reviewed code supplies the correct authenticated id, Phase A catches omitted
+  query scoping and missing context; it does not catch a wrong asserted id or
+  protect against runtime-role compromise/arbitrary SQL execution.
+  The AST guard therefore pins every call outside the helper to reviewed
+  server-side sources: account overview and saved-search pages plus the
+  dashboard and saved-search API use `me.id`; account export uses `user.id`;
+  ops health uses only the strictly paired synthetic-canary `userId`. Direct
+  named-import aliases and direct namespace calls are included in that exact
+  allowlist. Local rebinding, computed namespace access, re-export, dynamic
+  import, and CommonJS `require` fail review instead of disappearing from the
+  inventory; a new callsite or changed first-argument expression also fails.
 - The two SavedSearch functions must remain ordinary non-leakproof PL/pgSQL,
   `SECURITY INVOKER`, `VOLATILE`, `PARALLEL UNSAFE`,
   `search_path=pg_catalog`, explicitly owner-filtered, and executable only by
   the membership-free non-owner runtime role. They set and verify
   transaction-local context, reject a nonempty context switch, and reset at
   statement completion.
+- The list RPC has a two-layer output boundary. Migration
+  `20260717025000_harden_saved_search_owner_rpc_projection` explicitly selects
+  the reviewed 16 `SavedSearch` columns in PostgreSQL physical `attnum` order
+  rather than `SELECT *`, and
+  `ownerSavedSearchRow()` reconstructs only those fields after validation so a
+  future database column cannot leak through the application result by default.
+  The live grant audit reads the raw `pg_proc.prosrc` value and compares its
+  UTF-8 SHA-256 without normalization to the reviewed inventory fingerprints:
+  `8fb745049da3f57fe116392124c13b7e55bb669d087a88a89a8126bad6b28d19`
+  for list and
+  `d34ee291a4ca9338b341f9e128249902e9d63b4330461e3fbed1dddce4ca3424`
+  for delete-one. Unreadable source or any body drift fails the audit.
 - Pass the exact local `User.id`; the helper rejects empty, whitespace-padded,
   overlong, or non-id-shaped values instead of trimming/canonicalizing them.
 - Use the branded transaction client for every protected query in a
@@ -640,7 +688,7 @@ Stop condition:
 ## Phase 4 - SavedSearch RLS Prototype
 
 Status: owner-access centralization, branded context clients, direct-access
-guards, the pre-RLS one-statement owner-RPC migration, RPC application wiring,
+guards, both ordered pre-RLS owner-RPC migrations, RPC application wiring,
 the exact phase-A policy migration, drift audit, and bounded direct acceptance
 gate are implemented locally. They are not deployed. Live staging validation
 and production activation are still gated.
@@ -665,6 +713,11 @@ Staging policy shape, using the fail-closed predicate
   drills, and emergency repair will access `SavedSearch` after `FORCE`, because
   the current owner is not named in runtime-only policies. Phase B may add
   `FORCE` only in a separate reviewed migration/release after those proofs.
+- Phase A also revokes the runtime role's `SavedSearch` `UPDATE` table grant
+  before policy activation and verifies the exact direct, non-grantable
+  `SELECT`/`INSERT`/`DELETE` ACL. Provisioning repeats must preserve that same
+  least-privilege state. This is narrower than the scoped Release-0 CRUD grant;
+  the audit derives the expected set from the migration inventory.
 
 Implementation constraints:
 
@@ -678,6 +731,14 @@ Implementation constraints:
   `savedSearchOwnerAccess.ts`. Do not call those functions from another file,
   add a default helper client, or replace their parameterized tagged
   `$queryRaw` calls with unsafe/dynamic SQL.
+- Do not treat `p_user_id` validation as database authentication. Keep the AST
+  callsite allowlist tied to the reviewed server-resolved identities (`me.id`,
+  account-export `user.id`, and the strict paired synthetic-canary `userId`),
+  including aliased and namespace imports. A new callsite requires explicit
+  security review and guard update before activation.
+- Keep the explicit 16-column list projection in both the SQL function and the
+  application row reconstruction. A schema expansion must fail closed until
+  both projections and their tests are reviewed together.
 - Account deletion is one large atomic unit. Use
   `withDbUserContext(targetUserId, async (tx) => ..., { timeout: 30000, maxWait:
   10000 })` as its outer transaction and keep cleanup on that branded client.
@@ -711,8 +772,9 @@ Adopted read/delete paths to verify before enabling:
 
 Regression and silent-denial tests:
 
-- real owner RPC: user A cannot list/read/delete user B saved searches, while
-  own list/read/delete returns the exact expected rows/counts.
+- real owner RPC: with the reviewed asserted A id, list/read/delete returns or
+  affects only A rows and not B rows; this proves parameter scoping, not
+  authentication of A.
 - direct DB: missing/empty context returns zero rows.
 - real owner RPC: null/empty user ids fail closed, a pre-set A context cannot
   switch to B, and same-connection context is reset after list and delete.
@@ -736,14 +798,14 @@ Rollback:
 - Remove or widen policies only through a reviewed forward migration.
 - Keep app-layer owner predicates in place throughout.
 
-Known retained evidence limits:
+Function-body drift control and retained evidence limits:
 
 - The live grant audit verifies each owner RPC's exact signature, owner, routine
-  posture, return contract, and ACL, but it does not yet fingerprint
-  `pg_proc.prosrc`. For this rollout, require the clean-checkout migration source
-  test, migration-status proof, exact catalog audit, and real own/foreign
-  behavior gate to agree. A future reusable RPC framework should add a reviewed
-  function-body fingerprint instead of treating catalog posture as body proof.
+  posture, return contract, ACL, and exact raw `pg_proc.prosrc` SHA-256. The
+  clean-checkout migration test derives the same function bodies and requires
+  the inventory fingerprints to match, while real own/foreign behavior proof
+  remains independently required. Do not normalize function source before
+  hashing or treat matching catalog posture as a substitute for the body hash.
 - The real staging gate exercises null/empty user ids and context-switch denial.
   Whitespace-padded, overlong, invalid-character user ids and out-of-range list
   limits are pinned by migration/source and unit tests but are not yet separate
@@ -753,14 +815,16 @@ Known retained evidence limits:
 
 Release order:
 
-- Release 0 applies `20260717024500_add_saved_search_owner_rpcs` first while RLS
-  is off, then deploys the RPC-calling application on the non-owner pooled
+- Release 0 applies `20260717024500_add_saved_search_owner_rpcs` followed by
+  `20260717025000_harden_saved_search_owner_rpc_projection` while RLS is off,
+  then deploys the RPC-calling application on the non-owner pooled
   runtime role. Because `vercel.json` runs `prisma migrate deploy`, build this
   release from a clean scoped commit/cherry-pick set that excludes the later
   phase-A RLS policy migration. Release-0 CI must assert that migration is
   absent, and migration status must be verified before traffic. Its production
   build uses `SAVED_SEARCH_RLS_DEPLOY_PHASE=release-0`; the fail-closed deploy
-  guard requires the RPC migration present and the phase-A migration absent.
+  guard requires both pre-RLS RPC migrations present and the phase-A migration
+  absent.
 - Run both corrected provider-runtime context/performance repeats and the exact
   real SavedSearch RPC acceptance gate in isolated staging. Only retained,
   sanitized, independently attested passing evidence authorizes phase A.
