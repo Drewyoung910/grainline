@@ -778,6 +778,11 @@ RLS staging context proof:
   The exact raw `pg_proc.prosrc` SHA-256 for
   both owner RPCs must match the reviewed source inventory; an unreadable body
   or any drift is a hard grant-audit failure.
+- The staging real-table gate must seed one owner row with non-null,
+  pairwise-distinct same-type sentinels and verify all 16 named fields through
+  the filtered list RPC. Do not reduce this probe to `id`/`userId`/`query`;
+  doing so would stop runtime detection of silent positional swaps among the
+  integer, float, and text columns.
 - Keep one separate, permanent non-customer `SavedSearch` canary pair for and
   after the rollout. Create or re-verify it only with
   `SAVED_SEARCH_RLS_CANARY_SEED_CONFIRM=reviewed-permanent-canary SAVED_SEARCH_RLS_CANARY_SEED_EXPECTED_DATABASE_ENDPOINT_ID='<independently reviewed ep-* id>' SAVED_SEARCH_RLS_CANARY_SEED_EXPECTED_DATABASE_NAME='<database>' SAVED_SEARCH_RLS_CANARY_SEED_EXPECTED_DATABASE_REGION='<region>' SAVED_SEARCH_RLS_CANARY_SEED_DATABASE_URL='<pooled runtime-role URL>' SAVED_SEARCH_RLS_CANARY_SEED_ADMIN_DATABASE_URL='<direct owner URL>' SAVED_SEARCH_RLS_CANARY_SEED_EVIDENCE_PATH='<outside-repository mode-0600 path>' SAVED_SEARCH_RLS_CANARY_USER_ID='<paired synthetic user id>' SAVED_SEARCH_RLS_CANARY_SEARCH_ID='<paired synthetic search id>' npm run seed:rls-saved-search-canary`.
