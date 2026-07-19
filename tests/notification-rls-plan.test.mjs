@@ -72,4 +72,18 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(broadcasts, /sourceType: NOTIFICATION_SOURCE_TYPES\.SELLER_BROADCAST/);
     assert.match(broadcasts, /sourceType: null,\s*sourceId: null/);
   });
+
+  it("requires branded context transactions for every recipient operation", () => {
+    const ownerAccess = fs.readFileSync("src/lib/notificationOwnerAccess.ts", "utf8");
+    const dashboardPage = fs.readFileSync("src/app/dashboard/notifications/page.tsx", "utf8");
+
+    assert.match(ownerAccess, /Pick<DbUserContextTransactionClient, "notification">/);
+    assert.equal((ownerAccess.match(/^export async function /gm) ?? []).length, 8);
+    assert.equal((ownerAccess.match(/return withDbUserContext\(userId,/g) ?? []).length, 8);
+    assert.doesNotMatch(ownerAccess, /from "@\/lib\/db"/);
+    assert.doesNotMatch(ownerAccess, /NotificationOwnerAccessClient = prisma/);
+    assert.doesNotMatch(ownerAccess, /Promise\.all/);
+    assert.match(dashboardPage, /ownerNotificationPageData\(me\.id/);
+    assert.doesNotMatch(dashboardPage, /ownerNotificationPageRows/);
+  });
 });

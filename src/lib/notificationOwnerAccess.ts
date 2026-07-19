@@ -1,7 +1,10 @@
 import { NotificationType, Prisma } from "@prisma/client";
-import { prisma } from "@/lib/db";
+import {
+  withDbUserContext,
+  type DbUserContextTransactionClient,
+} from "@/lib/dbUserContext";
 
-export type NotificationOwnerAccessClient = Pick<Prisma.TransactionClient, "notification">;
+export type NotificationOwnerAccessClient = Pick<DbUserContextTransactionClient, "notification">;
 
 export const NOTIFICATION_BELL_SELECT = {
   id: true,
@@ -25,124 +28,125 @@ export const NOTIFICATION_EXPORT_SELECT = {
   createdAt: true,
 } satisfies Prisma.NotificationSelect;
 
-export async function countUnreadOwnerNotifications(
+async function countUnreadOwnerNotificationsInContext(
   userId: string,
-  db: NotificationOwnerAccessClient = prisma,
+  db: NotificationOwnerAccessClient,
 ) {
   return db.notification.count({ where: { userId, read: false } });
 }
 
-export async function countOwnerNotifications(
+async function countOwnerNotificationsInContext(
   userId: string,
-  db: NotificationOwnerAccessClient = prisma,
+  db: NotificationOwnerAccessClient,
 ) {
   return db.notification.count({ where: { userId } });
 }
 
+export async function countUnreadOwnerNotifications(userId: string) {
+  return withDbUserContext(userId, (db) =>
+    countUnreadOwnerNotificationsInContext(userId, db));
+}
+
 export async function ownerNotificationBellData(
   userId: string,
-  db: NotificationOwnerAccessClient = prisma,
 ) {
-  const notifications = await db.notification.findMany({
-    where: { userId },
-    select: NOTIFICATION_BELL_SELECT,
-    orderBy: { createdAt: "desc" },
-    take: 20,
+  return withDbUserContext(userId, async (db) => {
+    const notifications = await db.notification.findMany({
+      where: { userId },
+      select: NOTIFICATION_BELL_SELECT,
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    });
+    const unreadCount = await countUnreadOwnerNotificationsInContext(userId, db);
+    return { notifications, unreadCount };
   });
-  const unreadCount = await countUnreadOwnerNotifications(userId, db);
-  return { notifications, unreadCount };
 }
 
 export async function markOwnerNotificationRead(
   userId: string,
   notificationId: string,
-  db: NotificationOwnerAccessClient = prisma,
 ) {
-  return db.notification.updateMany({
-    where: { id: notificationId, userId },
-    data: { read: true },
-  });
+  return withDbUserContext(userId, (db) =>
+    db.notification.updateMany({
+      where: { id: notificationId, userId },
+      data: { read: true },
+    }));
 }
 
 export async function markOwnerNotificationsRead(
   userId: string,
   notificationIds: string[] = [],
-  db: NotificationOwnerAccessClient = prisma,
 ) {
-  return db.notification.updateMany({
-    where: {
-      userId,
-      read: false,
-      ...(notificationIds.length > 0 ? { id: { in: notificationIds } } : {}),
-    },
-    data: { read: true },
-  });
+  return withDbUserContext(userId, (db) =>
+    db.notification.updateMany({
+      where: {
+        userId,
+        read: false,
+        ...(notificationIds.length > 0 ? { id: { in: notificationIds } } : {}),
+      },
+      data: { read: true },
+    }));
 }
 
 export async function markOwnerMessageNotificationsRead(
   userId: string,
   conversationId: string,
-  db: NotificationOwnerAccessClient = prisma,
 ) {
-  return db.notification.updateMany({
-    where: {
-      userId,
-      type: NotificationType.NEW_MESSAGE,
-      read: false,
-      link: { contains: `/messages/${conversationId}` },
-    },
-    data: { read: true },
-  });
+  return withDbUserContext(userId, (db) =>
+    db.notification.updateMany({
+      where: {
+        userId,
+        type: NotificationType.NEW_MESSAGE,
+        read: false,
+        link: { contains: `/messages/${conversationId}` },
+      },
+      data: { read: true },
+    }));
 }
 
 export async function ownerNotificationPageData(
   userId: string,
-  { skip, take }: { skip: number; take: number },
-  db: NotificationOwnerAccessClient = prisma,
+  { requestedPage, pageSize }: { requestedPage: number; pageSize: number },
 ) {
-  const total = await countOwnerNotifications(userId, db);
-  const unreadCount = await countUnreadOwnerNotifications(userId, db);
-  const notifications = await ownerNotificationPageRows(userId, { skip, take }, db);
-  return { notifications, total, unreadCount };
-}
-
-export async function ownerNotificationPageRows(
-  userId: string,
-  { skip, take }: { skip: number; take: number },
-  db: NotificationOwnerAccessClient = prisma,
-) {
-  return db.notification.findMany({
-    where: { userId },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    skip,
-    take,
+  return withDbUserContext(userId, async (db) => {
+    const total = await countOwnerNotificationsInContext(userId, db);
+    const unreadCount = await countUnreadOwnerNotificationsInContext(userId, db);
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const page = Math.min(requestedPage, totalPages);
+    const notifications = await db.notification.findMany({
+      where: { userId },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    });
+    return { notifications, page, total, totalPages, unreadCount };
   });
 }
 
 export async function ownerNotificationExportRows(
   userId: string,
-  db: NotificationOwnerAccessClient = prisma,
 ) {
-  return db.notification.findMany({
-    where: { userId },
-    orderBy: { createdAt: "desc" },
-    select: NOTIFICATION_EXPORT_SELECT,
-  });
+  return withDbUserContext(userId, (db) =>
+    db.notification.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      select: NOTIFICATION_EXPORT_SELECT,
+    }));
 }
 
 export async function findRecentOwnerLowStockNotification(
   userId: string,
   link: string,
   since: Date,
-  db: NotificationOwnerAccessClient = prisma,
 ) {
-  return db.notification.findFirst({
-    where: {
-      userId,
-      type: NotificationType.LOW_STOCK,
-      link,
-      createdAt: { gte: since },
-    },
-    select: { id: true },
-  });
+  return withDbUserContext(userId, (db) =>
+    db.notification.findFirst({
+      where: {
+        userId,
+        type: NotificationType.LOW_STOCK,
+        link,
+        createdAt: { gte: since },
+      },
+      select: { id: true },
+    }));
 }

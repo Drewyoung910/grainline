@@ -12,6 +12,13 @@ source cleanup while retaining a deliberately null-source-only fallback for
 legacy rows. The fallback must be removed after legacy rows are backfilled or
 expired; it is not an acceptable shape for the eventual owner RPC.
 
+Recipient-path slice: every centralized owner read/count/export/mark-read and
+low-stock dedup lookup now enters `withDbUserContext` inside
+`notificationOwnerAccess.ts`; that module no longer accepts a default global
+Prisma client. The notifications page performs its count, unread count, page
+clamp, and row fetch sequentially in one branded transaction. This code must
+not be promoted until the two fresh provider performance passes succeed.
+
 ## Scope Boundary
 
 Bucket B means `Notification` only. It does not include `StockNotification`,

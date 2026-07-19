@@ -59,7 +59,8 @@ describe("API read route rate-limit sweep", () => {
     assert.match(route, /ownerNotificationBellData\(me\.id\)/);
     assert.match(ownerAccess, /export async function ownerNotificationBellData/);
     assert.match(ownerAccess, /select: NOTIFICATION_BELL_SELECT/);
-    assert.match(ownerAccess, /countUnreadOwnerNotifications\(userId, db\)/);
+    assert.match(ownerAccess, /countUnreadOwnerNotificationsInContext\(userId, db\)/);
+    assert.match(ownerAccess, /withDbUserContext\(userId, async \(db\) =>/);
     assert.match(ownerAccess, /db\.notification\.findMany/);
 
     assert.match(cron, /pruneReadNotifications\(readCutoff\)/);

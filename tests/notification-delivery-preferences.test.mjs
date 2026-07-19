@@ -29,7 +29,8 @@ describe("notification delivery preferences", () => {
     assert.match(route, /const ids = Array\.from\(new Set\(rawIds\)\)\.slice\(0, 100\)/);
     assert.match(route, /const updated = await markOwnerNotificationsRead\(me\.id, ids\)/);
     assert.match(ownerAccess, /export async function markOwnerNotificationsRead/);
-    assert.match(ownerAccess, /db: NotificationOwnerAccessClient = prisma/);
+    assert.match(ownerAccess, /return withDbUserContext\(userId, \(db\) =>/);
+    assert.doesNotMatch(ownerAccess, /NotificationOwnerAccessClient = prisma/);
     assert.match(ownerAccess, /db\.notification\.updateMany/);
     assert.match(ownerAccess, /userId,\s+read: false/s);
     assert.match(route, /markedCount: updated\.count/);
