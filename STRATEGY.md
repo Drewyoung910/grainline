@@ -6,8 +6,12 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ### SavedSearch Phase-B operating decision (2026-07-19)
 
-Finish Bucket A before starting any Notification/Bucket-B design. The separate
-SavedSearch FORCE release waits through the full Phase-A skew window plus a
+Finish Bucket A and the runtime credential-separation postflight before merging,
+deploying, or provider-testing any Notification/Bucket-B runtime or database
+change. Isolated inventory, documentation, static guards, and reversible
+candidate preparation may live on an unmerged branch under the later
+comprehensive-RLS mandate, but they are not authorization to deepen or promote
+Bucket B. The separate SavedSearch FORCE release waits through the full Phase-A skew window plus a
 safety margin and a post-skew canary. Before promotion, rotate the migration
 owner credential to invalidate old owner-backed deployments and prove the old
 credential and owner application sessions are gone. Neon’s migration owner is
@@ -76,7 +80,7 @@ does not authorize Bucket B before Phase B and the separation postflight pass.
 
 ### Bucket B Notification design decision (2026-07-19)
 
-Bucket B preparation has begun in
+Bucket B preparation has begun on an isolated, unmerged branch in
 `docs/rls-bucket-b-notification-plan.md`; no policy is production-active. The
 verified surface has simple recipient reads/mark-read operations but asymmetric
 cross-user creation, dedup recovery, global retention, staff source cleanup,
@@ -88,6 +92,14 @@ legacy account-deletion redaction, and two fresh passes under the restored
 provider transaction performance gate block activation. Activation remains
 separate ENABLE/NO FORCE and later FORCE releases after Phase B and runtime
 credential separation are live.
+
+The current interactive-transaction recipient wrapper is a correctness and
+performance candidate only, not the selected hot-read architecture. Prior
+provider evidence makes wrapper adoption cost a credible blocker. After the
+sequencing prerequisites are live, compare it with narrow one-statement
+`SECURITY INVOKER` recipient RPCs under candidate-aligned provider and route
+evidence. Cross-user creation and cleanup use a separate service-authority
+design and must not be conflated with recipient RPCs.
 
 ### Homepage discovery hierarchy decision (2026-07-15)
 

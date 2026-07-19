@@ -1,9 +1,9 @@
 # Bucket B: Notification RLS Plan
 
-Status: B0 source-lifecycle consolidation in progress. No Notification RLS
-migration or production activation is authorized yet. Production work remains
-blocked on SavedSearch Phase B and the runtime database credential-separation
-postflight.
+Status: preparation-only B0 checkpoint; deeper implementation is paused. No
+Notification branch change may merge, deploy, enter a provider evidence run,
+or create a policy migration until SavedSearch Phase B and the runtime database
+credential-separation postflight are live and verified.
 
 First B0 slice: source metadata is now a paired typed contract with a canonical
 allowlist. New blog-comment notifications identify `blog_comment` plus the
@@ -12,12 +12,33 @@ source cleanup while retaining a deliberately null-source-only fallback for
 legacy rows. The fallback must be removed after legacy rows are backfilled or
 expired; it is not an acceptable shape for the eventual owner RPC.
 
-Recipient-path slice: every centralized owner read/count/export/mark-read and
-low-stock dedup lookup now enters `withDbUserContext` inside
+Experimental recipient-path slice: every centralized owner
+read/count/export/mark-read and low-stock dedup lookup now enters
+`withDbUserContext` inside
 `notificationOwnerAccess.ts`; that module no longer accepts a default global
 Prisma client. The notifications page performs its count, unread count, page
-clamp, and row fetch sequentially in one branded transaction. This code must
-not be promoted until the two fresh provider performance passes succeed.
+clamp, and row fetch sequentially in one branded transaction. This is a
+correctness/performance candidate, not the selected production architecture,
+and must not be promoted in its current state.
+
+## Sequencing Freeze And Hot-Path Decision
+
+- The isolated branch may retain the verified inventory, source-lifecycle
+  hardening, static guards, restored blocking gate, and experimental wrapper.
+- Stop runtime implementation here. Do not add recipient or service RPCs,
+  policies, grants, migrations, staging objects, or deployment configuration
+  until SavedSearch Phase B and credential separation complete their exact
+  production postflights.
+- The 2026-07-19 wrapper-versus-autocommit provider result makes interactive
+  transactions on the bell and notification pages a credible performance risk;
+  it does not by itself prove a Notification-specific result.
+- After the freeze lifts, compare the wrapper candidate with narrow
+  one-statement `SECURITY INVOKER` recipient RPCs. Bell/page candidates must
+  preserve explicit projections, counts, pagination, owner isolation, context
+  reset, and hot-route SLOs. Mark-read and export need the same candidate review.
+- Recipient RPCs are distinct from cross-user creation/cleanup service
+  authority. Do not use recipient performance as justification for a broad
+  `SECURITY DEFINER` function or direct runtime `INSERT`/`DELETE` grants.
 
 ## Scope Boundary
 
@@ -131,5 +152,7 @@ Current direct-access files are deliberately pinned by test:
 - The generic provider wrapper/performance gate is restored in code, but two
   fresh counted provider passes are still required.
 
-These blockers permit code preparation and staging design; they prohibit
-production Notification RLS activation.
+These blockers permit inventory, documentation, static checks, and retention of
+the isolated experimental branch only. They prohibit production Notification
+RLS activation and all further runtime/database implementation, merge, provider
+evidence, or staging activation.

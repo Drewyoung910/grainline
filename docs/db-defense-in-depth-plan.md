@@ -29,11 +29,14 @@ first production RLS table on the low-blast-radius `SavedSearch` model.
   App-layer ownership and visibility checks remain required.
 - Do not point normal app traffic at the migration owner role once
   least-privilege staging is proven.
-- Do not begin Bucket B in this pass. Bucket A is `SavedSearch` only, through its
-  production activation and explicit phase-B decision. `Notification` and every
-  later-table design remain a separate pass even if their future ordering stays
-  documented below. SavedSearch rollout phase B (`FORCE`) remains Bucket A and
-  must not be confused with Bucket B.
+- Do not promote Bucket B in this pass. Bucket A is `SavedSearch` only, through
+  its production activation and explicit phase-B decision. A later
+  comprehensive-RLS mandate permits isolated inventory, documentation, static
+  guards, and reversible candidate preparation, but no Notification runtime or
+  database change may merge, deploy, or enter provider evidence before Phase B
+  and runtime credential separation pass production postflight. SavedSearch
+  rollout phase B (`FORCE`) remains Bucket A and must not be confused with
+  Bucket B.
 
 ## Phase 0 - Baseline
 
@@ -1029,10 +1032,13 @@ RLS to Bucket B or claiming protection against arbitrary runtime code.
 
 ## Phase 5 - Notification RLS Prototype
 
-Status: Bucket B, explicitly paused for a separate pass. Owner read/update
-centralization and a direct-access guard exist, but service write/delete model,
-context wiring, policies, and staging validation are not authorized by the
-current SavedSearch rollout.
+Status: Bucket B is explicitly paused at a preparation-only boundary for a
+separate pass. Owner read/update centralization, a direct-access guard, source
+metadata hardening, and an experimental context-wrapped recipient candidate
+exist on an isolated branch. The wrapper is not the selected production hot
+path. Further runtime work, service authority, provider evidence, policies,
+grants, migrations, staging validation, merge, and deployment are not authorized
+until SavedSearch Phase B and runtime credential separation are live and healthy.
 
 Purpose: protect user notification reads and mark-read updates after the first
 direct-owner table proves the context adoption pattern, while preserving
@@ -1062,6 +1068,13 @@ Read/update paths to inventory and wrap before enabling:
 - message-thread auto-mark-read updates
 - seller manual-stock low-stock notification dedupe reads
 - account export notification reads
+
+Before implementing policies, compare the experimental interactive-transaction
+candidate against narrow one-statement `SECURITY INVOKER` recipient RPCs using
+Notification-specific bell/page/mark-read/export route SLOs. The historical
+generic wrapper failure is a credible warning but not a substitute for this
+candidate-aligned result. Keep recipient RPC authority separate from the narrow
+cross-user creation and cleanup service design.
 
 The manual-stock low-stock dedupe read is an authenticated-seller user context
 path because the stock route proves `seller.userId = me.id` before the read.

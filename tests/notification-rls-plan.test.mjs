@@ -53,7 +53,12 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(plan, /generic provider wrapper\/performance gate/);
     assert.match(plan, /explicit `NO FORCE` plus `ENABLE ROW LEVEL SECURITY`/);
     assert.match(plan, /separate `FORCE ROW LEVEL SECURITY` release/);
-    assert.match(plan, /prohibit[\s\S]{0,80}production Notification RLS activation/i);
+    assert.match(plan, /prohibit production Notification\s+RLS activation/i);
+    assert.match(plan, /preparation-only B0 checkpoint/);
+    assert.match(plan, /deeper implementation is paused/);
+    assert.match(plan, /No[\s\S]{0,100}merge, deploy, enter a provider evidence run/);
+    assert.match(plan, /one-statement `SECURITY INVOKER` recipient RPCs/);
+    assert.match(plan, /Recipient RPCs are distinct from cross-user creation\/cleanup service\s+authority/);
   });
 
   it("starts B0 with paired source metadata and legacy-only fallbacks", () => {
