@@ -24,14 +24,14 @@ const OWNER_ENVIRONMENT_KEY_PATTERNS = Object.freeze([
   /^GRANT_AUDIT_DATABASE_URL$/,
 ]);
 
-export const NOTIFICATION_RLS_DRAFT_URL = new URL(
-  "../docs/rls-drafts/notification-related-user.sql",
-  import.meta.url,
-);
+export const NOTIFICATION_RLS_DRAFT_URLS = Object.freeze([
+  new URL("../docs/rls-drafts/notification-related-user.sql", import.meta.url),
+  new URL("../docs/rls-drafts/notification-service-authority.sql", import.meta.url),
+]);
 
 export function assertNoNotificationRlsDraftDeployment(
   env = process.env,
-  draftPresent = existsSync(NOTIFICATION_RLS_DRAFT_URL),
+  draftPresent = NOTIFICATION_RLS_DRAFT_URLS.some((draftUrl) => existsSync(draftUrl)),
 ) {
   if (env.VERCEL === "1" && draftPresent) {
     throw new Error(

@@ -25,6 +25,25 @@ until coverage/backfill or safe expiry is proven complete. The SQL remains at
 The Vercel runtime guard fails closed while that draft file exists, preventing
 this intentionally schema-ahead branch from being deployed accidentally.
 
+Service-authority slice: the application create path now targets only
+`grainline_notification_create` through `notificationServiceAccess.ts`. The
+draft function atomically locks and validates the active recipient, honors the
+in-app preference, validates bounded payload/source/related-user metadata,
+inserts idempotently, and returns only the row id. Separate fixed-purpose draft
+functions cover account lifecycle deletion, staff blog-comment/broadcast
+cleanup, and fixed 90-day read/365-day unread retention batches. All six are
+owner-backed `SECURITY DEFINER` functions with `search_path=pg_catalog`; runtime
+gets only exact `EXECUTE`, while direct table `INSERT`/`DELETE` stays revoked.
+The functions also revoke PostgreSQL's default `PUBLIC` execute privilege.
+This narrows runtime authority but does not create database-authenticated end
+user identity: the application still asserts `app.user_id`, so a fully
+compromised runtime could invoke the granted fixed-purpose functions and could
+forge that context. Input, role, age, and source constraints limit that residual
+capability; runtime credential separation remains the separate control against
+owner-credential exfiltration.
+The SQL remains outside `prisma/migrations` at
+`docs/rls-drafts/notification-service-authority.sql` and is not live-tested.
+
 Experimental recipient-path slice: every centralized owner
 read/count/export/mark-read and low-stock dedup lookup now enters
 `withDbUserContext` inside
@@ -82,7 +101,8 @@ table cannot receive a copied SavedSearch owner-only policy.
 Current direct-access files are deliberately pinned by test:
 
 - `src/lib/notificationOwnerAccess.ts` — owner reads/counts and mark-read updates.
-- `src/lib/notifications.ts` — service create and dedup recovery lookup.
+- `src/lib/notifications.ts` plus `src/lib/notificationServiceAccess.ts` —
+  bounded service-create input and the single raw service RPC call.
 - `src/lib/accountDeletion.ts` — own/cross-user delete, legacy raw reads, and redaction updates.
 - `src/app/admin/blog/page.tsx` and
   `src/app/admin/broadcasts/page.tsx` — cross-recipient cleanup.

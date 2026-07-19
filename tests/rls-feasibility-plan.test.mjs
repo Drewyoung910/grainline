@@ -533,7 +533,6 @@ describe("RLS feasibility plan guardrails", () => {
       /\b[A-Za-z_$][\w$]*\.notification\.(?:count|findMany|findFirst|findUnique|update|updateMany)\b/g;
     const allowedDirectCalls = {
       "src/lib/accountDeletion.ts": ["tx.notification.update"],
-      "src/lib/notifications.ts": ["prisma.notification.findUnique"],
     };
     const directCallsByFile = {};
 

@@ -39,7 +39,6 @@ describe("Bucket B Notification RLS inventory", () => {
       "src/app/api/cron/notification-prune/route.ts",
       "src/lib/accountDeletion.ts",
       "src/lib/notificationOwnerAccess.ts",
-      "src/lib/notifications.ts",
     ]);
   });
 
@@ -102,13 +101,16 @@ describe("Bucket B Notification RLS inventory", () => {
     );
     assert.match(migration, /deliberately outside\s+-- prisma\/migrations/);
     assert.match(notifications, /NotificationRelatedUserFields/);
-    assert.match(notifications, /relatedUserId,\s*dedupKey/);
+    assert.match(notifications, /relatedUserId: relatedUserId \?\? null,\s*dedupKey/);
     assert.match(runtimeGuard, /assertNoNotificationRlsDraftDeployment/);
+    assert.match(runtimeGuard, /notification-service-authority\.sql/);
     assert.match(runtimeGuard, /deployment is barred while the unapplied Notification RLS draft is present/);
 
     const relatedUserAssignments = files.reduce((count, file) => {
       const source = fs.readFileSync(file, "utf8");
-      if (!source.includes("createNotification")) return count;
+      if (file === "src/lib/notifications.ts" || !source.includes("createNotification({")) {
+        return count;
+      }
       return count + (source.match(/relatedUserId\s*:/g) ?? []).length;
     }, 0);
     assert.equal(relatedUserAssignments, 21);
@@ -118,6 +120,46 @@ describe("Bucket B Notification RLS inventory", () => {
       /OR:\s*\[\s*\{ userId: user\.id \},\s*\{ relatedUserId: user\.id \}/,
     );
     assert.equal((accountDeletion.match(/AND "relatedUserId" IS NULL/g) ?? []).length, 2);
+  });
+
+  it("drafts narrow service authority without direct runtime table writes", () => {
+    const sql = fs.readFileSync("docs/rls-drafts/notification-service-authority.sql", "utf8");
+    const serviceAccess = fs.readFileSync("src/lib/notificationServiceAccess.ts", "utf8");
+    const notifications = fs.readFileSync("src/lib/notifications.ts", "utf8");
+
+    for (const functionName of [
+      "grainline_notification_create",
+      "grainline_notification_delete_for_account",
+      "grainline_notification_delete_blog_comment",
+      "grainline_notification_delete_seller_broadcast",
+      "grainline_notification_prune_read_batch",
+      "grainline_notification_prune_unread_batch",
+    ]) {
+      assert.match(sql, new RegExp(`CREATE OR REPLACE FUNCTION public\\.${functionName}\\(`));
+      assert.match(sql, new RegExp(`GRANT EXECUTE ON FUNCTION public\\.${functionName}\\(`));
+    }
+    assert.equal((sql.match(/^SECURITY DEFINER$/gm) ?? []).length, 6);
+    assert.equal((sql.match(/^SET search_path = pg_catalog$/gm) ?? []).length, 6);
+    assert.equal((sql.match(/REVOKE ALL ON FUNCTION public\.grainline_notification_/g) ?? []).length, 6);
+    assert.equal((sql.match(/FROM PUBLIC, grainline_app_runtime/g) ?? []).length, 6);
+    assert.match(sql, /recipient\.banned = false[\s\S]{0,100}recipient\."deletedAt" IS NULL[\s\S]{0,80}FOR KEY SHARE/);
+    assert.match(sql, /recipient_preferences -> \(p_type::text\) = 'false'::jsonb/);
+    assert.match(sql, /notification source metadata must be paired/);
+    assert.match(sql, /p_related_user_id[\s\S]{0,1000}related_user\.banned = false[\s\S]{0,100}FOR KEY SHARE/);
+    assert.match(sql, /ON CONFLICT \("userId", "type", "dedupKey"\) DO NOTHING/);
+    assert.match(sql, /request_user_id <> p_user_id/);
+    assert.equal((sql.match(/requires staff context/g) ?? []).length, 2);
+    assert.match(sql, /interval '90 days'/);
+    assert.match(sql, /interval '365 days'/);
+    assert.equal((sql.match(/LIMIT 1000/g) ?? []).length, 2);
+    assert.match(sql, /REVOKE INSERT, DELETE ON TABLE public\."Notification" FROM grainline_app_runtime/);
+    assert.doesNotMatch(sql, /grainline_notification_delete_source/);
+
+    assert.match(serviceAccess, /public\.grainline_notification_create\(/);
+    assert.doesNotMatch(serviceAccess, /prisma\.notification\./);
+    assert.match(notifications, /createNotificationServiceRow\(\{/);
+    assert.match(notifications, /notificationId: randomUUID\(\)/);
+    assert.doesNotMatch(notifications, /prisma\.notification\.(?:create|findUnique)/);
   });
 
   it("requires branded context transactions for every recipient operation", () => {

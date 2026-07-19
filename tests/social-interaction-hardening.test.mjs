@@ -38,15 +38,16 @@ describe("social interaction route hardening", () => {
   it("keeps follow notification failures from masking a successful follow mutation", () => {
     const route = source("src/app/api/follow/[sellerId]/route.ts");
     const notifications = source("src/lib/notifications.ts");
+    const serviceSql = source("docs/rls-drafts/notification-service-authority.sql");
 
     assert.match(route, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
     assert.match(route, /logServerError\(error, \{/);
     assert.match(route, /source: "follow_notification"/);
     assert.doesNotMatch(route, /console\.error\("Failed to create follow notification:/);
     assert.match(route, /return privateJson\(\{ following: true, followerCount \}\)/);
-    assert.match(notifications, /function isNotificationDedupError/);
-    assert.match(notifications, /err\?\.code === "P2002"/);
-    assert.match(notifications, /userId_type_dedupKey/);
+    assert.match(notifications, /createNotificationServiceRow\(\{/);
+    assert.match(serviceSql, /ON CONFLICT \("userId", "type", "dedupKey"\) DO NOTHING/);
+    assert.match(serviceSql, /notification\."userId" = p_user_id[\s\S]{0,120}notification\."dedupKey" = p_dedup_key/);
   });
 
   it("keeps follow buttons from serializing seller user ids to clients", () => {
