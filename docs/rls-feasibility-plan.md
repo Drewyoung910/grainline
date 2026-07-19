@@ -373,7 +373,12 @@ need retry/context discipline.
   `DIRECT_URL`, prove the prior credential is rejected, and retain zero other
   owner client sessions. The staging-only
   `audit:rls-saved-search-force` proof must pass the reversible owner
-  maintenance/restore transaction. Emergency app rollback disables RLS first.
+  maintenance/restore transaction. Neon `neondb_owner` is the explicit
+  `NOSUPERUSER BYPASSRLS` migration/service role, so FORCE constrains the normal
+  runtime rather than that credential. The proof also exercises the separate
+  emergency DISABLE/ENABLE/FORCE restoration path. Emergency app rollback
+  disables RLS first, and the owner credential must leave production Functions
+  before Bucket B.
 
 ## Cart + CartItem Prototype Edge Cases
 

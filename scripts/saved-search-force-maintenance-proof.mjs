@@ -106,16 +106,19 @@ export async function runForceMaintenanceProof(config) {
     }
     const initialState = await catalogState(client);
     if (!exactForcedState(initialState)) throw new Error("SavedSearch did not begin in exact Phase B FORCE state");
-    const ownerVisibleWhileForced = (await client.query(
-      'SELECT COUNT(*)::integer AS count FROM public."SavedSearch"',
-    )).rows[0]?.count;
-    if (ownerVisibleWhileForced !== 0) throw new Error("table owner did not fail closed while FORCE was active");
+    const ownerRole = (await client.query(`
+      SELECT rolsuper, rolbypassrls
+        FROM pg_roles
+       WHERE rolname = current_user
+    `)).rows[0];
+    if (!ownerRole || ownerRole.rolsuper || !ownerRole.rolbypassrls) {
+      throw new Error("reviewed Neon migration owner is not the expected NOSUPERUSER BYPASSRLS service role");
+    }
 
     await client.query("BEGIN");
     try {
       await client.query("SET LOCAL lock_timeout = '5s'");
       await client.query("SET LOCAL statement_timeout = '30s'");
-      await client.query('ALTER TABLE public."SavedSearch" DISABLE ROW LEVEL SECURITY');
       const user = (await client.query('SELECT id FROM public."User" ORDER BY id LIMIT 1')).rows[0];
       if (!user?.id) throw new Error("staging database has no user for the reversible maintenance fixture");
       await client.query(`
@@ -123,18 +126,11 @@ export async function runForceMaintenanceProof(config) {
           (id, "userId", query, tags, "notifyEmail", "createdAt")
         VALUES ($1, $2, 'force-maintenance-proof', ARRAY[]::text[], false, NOW())
       `, [fixtureId, user.id]);
-      const visibleWhileDisabled = (await client.query(
+      const visibleUnderForce = (await client.query(
         'SELECT COUNT(*)::integer AS count FROM public."SavedSearch" WHERE id = $1',
         [fixtureId],
       )).rows[0]?.count;
-      if (visibleWhileDisabled !== 1) throw new Error("owner maintenance write was not visible while RLS was disabled");
-      await client.query('ALTER TABLE public."SavedSearch" ENABLE ROW LEVEL SECURITY');
-      await client.query('ALTER TABLE public."SavedSearch" FORCE ROW LEVEL SECURITY');
-      const hiddenAfterRestore = (await client.query(
-        'SELECT COUNT(*)::integer AS count FROM public."SavedSearch" WHERE id = $1',
-        [fixtureId],
-      )).rows[0]?.count;
-      if (hiddenAfterRestore !== 0) throw new Error("owner fixture remained visible after FORCE restoration");
+      if (visibleUnderForce !== 1) throw new Error("owner bypass maintenance write was not visible under FORCE");
     } finally {
       await client.query("ROLLBACK");
     }
@@ -143,19 +139,31 @@ export async function runForceMaintenanceProof(config) {
     try {
       await client.query("SET LOCAL lock_timeout = '5s'");
       await client.query('ALTER TABLE public."SavedSearch" DISABLE ROW LEVEL SECURITY');
-      const residue = (await client.query(
-        'SELECT COUNT(*)::integer AS count FROM public."SavedSearch" WHERE id = $1',
-        [fixtureId],
-      )).rows[0]?.count;
-      if (residue !== 0) throw new Error("reversible maintenance fixture survived transaction rollback");
+      const disabledState = await catalogState(client);
+      if (disabledState?.rls_enabled !== false) {
+        throw new Error("emergency rollback probe did not disable RLS");
+      }
+      await client.query('ALTER TABLE public."SavedSearch" ENABLE ROW LEVEL SECURITY');
+      await client.query('ALTER TABLE public."SavedSearch" FORCE ROW LEVEL SECURITY');
+      const restoredState = await catalogState(client);
+      if (!exactForcedState(restoredState)) {
+        throw new Error("emergency rollback probe did not restore exact FORCE state");
+      }
     } finally {
       await client.query("ROLLBACK");
     }
+
+    const residue = (await client.query(
+      'SELECT COUNT(*)::integer AS count FROM public."SavedSearch" WHERE id = $1',
+      [fixtureId],
+    )).rows[0]?.count;
+    if (residue !== 0) throw new Error("reversible maintenance fixture survived transaction rollback");
     const finalState = await catalogState(client);
     if (!exactForcedState(finalState)) throw new Error("maintenance proof did not restore exact Phase B FORCE state");
     result = {
-      ownerFailsClosedUnderForce: true,
-      reversibleOwnerMaintenanceWrite: true,
+      ownerBypassRoleVerified: true,
+      reversibleOwnerMaintenanceUnderForce: true,
+      emergencyDisableRestoreVerified: true,
       rollbackRemovedFixture: true,
       finalForceRestored: true,
       finalPolicyCount: finalState.policy_count,

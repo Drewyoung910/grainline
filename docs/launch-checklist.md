@@ -193,9 +193,11 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
   `neondb_owner` client sessions. The migration enforces the session count too.
 - Run `npm run audit:rls-saved-search-force` only against an independently
   identified direct staging endpoint after applying the exact Phase-B migration.
-  It must prove owner fail-closed behavior under FORCE, bounded transactional
-  disable/maintenance/ENABLE/FORCE restoration, rollback cleanup, and final
-  exact FORCE state in a mode-`0600` artifact. In production, database-first
+  It must prove the exact `NOSUPERUSER BYPASSRLS` owner maintenance path under
+  FORCE, bounded transactional emergency disable/ENABLE/FORCE restoration,
+  rollback cleanup, and final exact FORCE state in a mode-`0600` artifact. The
+  owner secret remains a tracked Function-environment residual that must be
+  externalized before Bucket B. In production, database-first
   `DISABLE ROW LEVEL SECURITY` precedes any emergency app rollback.
 - `STRIPE_WEBHOOK_SUBSCRIPTIONS_PROOF_CONFIRM=live-read STRIPE_WEBHOOK_SUBSCRIPTIONS_PROOF_EVIDENCE_PATH="stripe-webhook-subscriptions-evidence.json" npm run audit:stripe-webhooks` (live Stripe read-only; verifies the classic snapshot webhook endpoint and Connect v2 thin event destination URLs/event families; does not prove deployed signing-secret values)
 - `STRIPE_MONEY_PROOF_CONFIRM=test-mode STRIPE_MONEY_PROOF_DB_CONFIRM=staging-or-local STRIPE_MONEY_PROOF_CONNECTED_ACCOUNT_ID="<acct_test...>" STRIPE_MONEY_PROOF_EVIDENCE_PATH="stripe-money-proof-evidence.json" npm run audit:stripe-money` (Stripe test mode plus staging/local DB only; writes sanitized money-movement evidence for refunds and label clawbacks)

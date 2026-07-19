@@ -14,6 +14,8 @@ DECLARE
   current_role_oid oid;
   saved_search_rls_enabled boolean;
   saved_search_rls_forced boolean;
+  owner_super boolean;
+  owner_bypass boolean;
   owner_session_count integer;
 BEGIN
   SELECT oid
@@ -66,6 +68,16 @@ BEGIN
 
   IF saved_search_owner_oid = runtime_oid THEN
     RAISE EXCEPTION 'grainline_app_runtime must not own public."SavedSearch"';
+  END IF;
+
+  SELECT rolsuper, rolbypassrls
+    INTO owner_super, owner_bypass
+    FROM pg_roles
+   WHERE oid = current_role_oid;
+
+  IF NOT (current_database() = 'grainline_ci' AND current_user = 'ci')
+     AND (owner_super OR NOT owner_bypass) THEN
+    RAISE EXCEPTION 'neondb_owner must remain the reviewed NOSUPERUSER BYPASSRLS migration/service role';
   END IF;
 
   IF NOT saved_search_rls_enabled OR saved_search_rls_forced THEN

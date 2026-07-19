@@ -94,6 +94,7 @@ describe("SavedSearch exact RLS policy guardrails", () => {
     assert.match(migration, /pg_stat_activity/);
     assert.match(migration, /pid <> pg_backend_pid\(\)/);
     assert.match(migration, /owner-backed application session drain is incomplete/);
+    assert.match(migration, /NOSUPERUSER BYPASSRLS migration\/service role/);
     assert.match(migration, /SET LOCAL lock_timeout = '5s'/);
     assert.match(migration, /SET LOCAL statement_timeout = '30s'/);
     assert.match(migration, /FORCE ROW LEVEL SECURITY did not persist/);

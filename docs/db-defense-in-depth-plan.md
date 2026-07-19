@@ -856,14 +856,16 @@ Staging policy shape, using the fail-closed predicate
   `neondb_owner` password, replace only the future migration `DIRECT_URL`, prove
   the old credential is rejected, and retain a zero-other-owner-session
   `pg_stat_activity` result; the migration repeats the session check.
-- After FORCE, owner DML is intentionally fail closed because the policies name
-  only `grainline_app_runtime`. Owner-run migrations retain DDL authority.
-  Controlled maintenance, restore, and repair use a bounded direct-owner
-  transaction that disables RLS, performs reviewed work, restores ENABLE plus
-  FORCE and the exact catalog checks before commit. The staging-only
-  `audit:rls-saved-search-force` proof exercises that path without retaining its
-  fixture. Emergency application rollback remains database-first: disable RLS
-  before changing the app alias.
+- Neon `neondb_owner` is the explicit `NOSUPERUSER BYPASSRLS` migration/service
+  role, so FORCE constrains `grainline_app_runtime` but does not constrain that
+  reviewed owner credential. Controlled owner maintenance and restore use the
+  direct owner in a bounded transaction without changing policy state. A
+  separate emergency path transactionally disables RLS, performs only approved
+  recovery, then restores ENABLE plus FORCE and verifies the exact catalog. The
+  staging-only `audit:rls-saved-search-force` proof exercises both paths without
+  retaining its fixture. The owner secret remains a tracked Function-environment
+  residual to externalize before Bucket B. Emergency app rollback remains
+  database-first: disable RLS before changing the app alias.
 - Phase A also revokes the runtime role's `SavedSearch` `UPDATE` table grant
   before policy activation and verifies the exact direct, non-grantable
   `SELECT`/`INSERT`/`DELETE` ACL. Provisioning repeats must preserve that same

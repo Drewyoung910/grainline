@@ -10,9 +10,11 @@ Finish Bucket A before starting any Notification/Bucket-B design. The separate
 SavedSearch FORCE release waits through the full Phase-A skew window plus a
 safety margin and a post-skew canary. Before promotion, rotate the migration
 owner credential to invalidate old owner-backed deployments and prove the old
-credential and owner application sessions are gone. After FORCE, owner row work
-is fail closed by default; controlled maintenance, restore, and emergency repair
-use the tested database-first DISABLE/work/ENABLE/FORCE procedure.
+credential and owner application sessions are gone. Neon’s migration owner is
+the explicit BYPASSRLS service role, while the normal runtime remains constrained.
+Controlled owner maintenance and the separate database-first emergency
+DISABLE/ENABLE/FORCE path must both remain tested; externalize the owner secret
+from production Functions before Bucket B.
 
 ### Homepage discovery hierarchy decision (2026-07-15)
 

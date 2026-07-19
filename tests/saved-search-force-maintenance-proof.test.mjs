@@ -81,8 +81,10 @@ describe("SavedSearch Phase B owner maintenance proof", () => {
     assert.match(source, /ALTER TABLE public\."SavedSearch" DISABLE ROW LEVEL SECURITY/);
     assert.match(source, /ALTER TABLE public\."SavedSearch" ENABLE ROW LEVEL SECURITY/);
     assert.match(source, /ALTER TABLE public\."SavedSearch" FORCE ROW LEVEL SECURITY/);
-    assert.match(source, /ownerFailsClosedUnderForce: true/);
-    assert.match(source, /reversibleOwnerMaintenanceWrite: true/);
+    assert.match(source, /NOSUPERUSER BYPASSRLS service role/);
+    assert.match(source, /ownerBypassRoleVerified: true/);
+    assert.match(source, /reversibleOwnerMaintenanceUnderForce: true/);
+    assert.match(source, /emergencyDisableRestoreVerified: true/);
     assert.match(source, /rollbackRemovedFixture: true/);
     assert.match(source, /finalForceRestored: true/);
     assert.match(source, /writeFileSync\([\s\S]*mode: 0o600/);
