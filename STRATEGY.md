@@ -21,11 +21,14 @@ from production Functions before Bucket B.
 SavedSearch is the first production RLS pattern, not the final scope. Complete
 its Phase-B FORCE release, then externalize `DIRECT_URL` and
 `MIGRATION_DB_ROLE` from production application Functions before beginning
-Notification/Bucket B. Continue expanding RLS across user-owned and sensitive
-data in the reviewed sequence documented in the RLS feasibility and
-defense-in-depth plans, with priority on notifications, carts, conversations and
-messages, orders and payment/shipping records, and cases. Each table or tightly
-coupled table group requires its own actor/read/write/cleanup inventory,
+Notification/Bucket B. Because environment changes do not rewrite earlier
+deployments, that release must also rotate/revoke any owner credential retained
+by superseded callable deployments and prove the old credential and owner
+sessions are gone. Continue expanding RLS across user-owned and sensitive data
+in the reviewed sequence documented in the RLS feasibility and defense-in-depth
+plans, with priority on notifications, carts, conversations and messages,
+orders and payment/shipping records, and cases. Each table or tightly coupled
+table group requires its own actor/read/write/cleanup inventory,
 service/admin/cron/webhook design, staging proof, phased production activation,
 rollback proof, and monitoring. Do not enable broad RLS mechanically or copy the
 SavedSearch policy/RPC pattern onto tables with asymmetric, participant,
