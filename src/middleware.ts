@@ -74,6 +74,7 @@ const isPublic = createRouteMatcher([
   "/api/cases/([^/]+)/escalate",       // case escalation — route verifies session or CRON_SECRET
   "/api/health",                      // health check — public (UptimeRobot monitoring)
   "/api/internal/rls-context-gate",   // Preview-only, token-protected RLS acceptance runner
+  "/api/internal/saved-search-route-fixture", // Preview-only, token-protected real-table route fixture
   "/api/cron(.*)",                    // Vercel Cron jobs — no Clerk session; auth via CRON_SECRET bearer token
 ]);
 

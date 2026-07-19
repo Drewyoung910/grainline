@@ -700,6 +700,16 @@ describe("RLS feasibility plan guardrails", () => {
       "src/app/api/cron/ops-health/route.ts": [
         { firstArgument: "userId", helper: "inspectOwnerSavedSearchCanary" },
       ],
+      "src/app/api/internal/saved-search-route-fixture/route.ts": [
+        { firstArgument: "userA", helper: "listOwnerSavedSearches" },
+        { firstArgument: "userA", helper: "listOwnerSavedSearches" },
+        { firstArgument: "userA", helper: "listOwnerSavedSearches" },
+        { firstArgument: "userA", helper: "listOwnerSavedSearches" },
+        { firstArgument: "userB", helper: "listOwnerSavedSearches" },
+        { firstArgument: "userB", helper: "deleteOwnerSavedSearch" },
+        { firstArgument: "userB", helper: "deleteOwnerSavedSearch" },
+        { firstArgument: "userA", helper: "listOwnerSavedSearches" },
+      ],
       "src/app/api/search/saved/route.ts": [
         { firstArgument: "me.id", helper: "listOwnerSavedSearches" },
         { firstArgument: "me.id", helper: "deleteOwnerSavedSearch" },

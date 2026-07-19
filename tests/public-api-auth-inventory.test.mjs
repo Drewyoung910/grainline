@@ -22,6 +22,9 @@ const intentionalNoAuthPublicRoutes = new Set([
   // environment-, commit-, token-, and two-slot-ledger-gated and is removed
   // before the production runtime-role release.
   "src/app/api/internal/rls-context-gate/route.ts",
+  // Temporary, Preview-only real-table route fixture. Commit- and token-pinned;
+  // removed before the reviewed Phase-A production artifact.
+  "src/app/api/internal/saved-search-route-fixture/route.ts",
   "src/app/api/legal/data-request/route.ts",
   "src/app/api/newsletter/confirm/route.ts",
   "src/app/api/newsletter/route.ts",
