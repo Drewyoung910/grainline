@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
+import { assertReviewedPostgresConnectionParameters } from "./postgres-url-safety.mjs";
 
 const { Client, Pool } = pg;
 
@@ -142,6 +143,10 @@ function validateDatabaseUrl(value, env) {
     throw new Error("RLS_CONTEXT_GATE_DATABASE_URL must use the postgres/postgresql protocol");
   }
   assertRuntimeUrlDoesNotPreseedUserContext(parsed);
+  assertReviewedPostgresConnectionParameters(
+    parsed,
+    "RLS_CONTEXT_GATE_DATABASE_URL",
+  );
   if (!parsed.hostname.includes("-pooler.") && !parseBooleanFlag(env, "RLS_CONTEXT_GATE_ALLOW_NON_POOLER")) {
     throw new Error(
       "RLS_CONTEXT_GATE_DATABASE_URL must be the pooled runtime endpoint; set RLS_CONTEXT_GATE_ALLOW_NON_POOLER=1 only for non-acceptance development checks",
@@ -439,6 +444,21 @@ export function parseGateConfig(env = process.env) {
     throw new Error("RLS_CONTEXT_GATE_ADMIN_DATABASE_URL is required when RLS_CONTEXT_GATE_TEARDOWN_RPC_PROBE=1");
   }
   if (adminDatabaseUrl) {
+    let parsedAdminDatabaseUrl;
+    try {
+      parsedAdminDatabaseUrl = new URL(adminDatabaseUrl);
+    } catch {
+      throw new Error("RLS_CONTEXT_GATE_ADMIN_DATABASE_URL must be a valid PostgreSQL URL");
+    }
+    if (!/^postgres(?:ql)?:$/.test(parsedAdminDatabaseUrl.protocol)) {
+      throw new Error(
+        "RLS_CONTEXT_GATE_ADMIN_DATABASE_URL must use the postgres/postgresql protocol",
+      );
+    }
+    assertReviewedPostgresConnectionParameters(
+      parsedAdminDatabaseUrl,
+      "RLS_CONTEXT_GATE_ADMIN_DATABASE_URL",
+    );
     const adminIdentity = neonDatabaseIdentity(adminDatabaseUrl);
     if (!allowNonPooler) {
       assertExpectedDatabaseIdentity(
@@ -659,10 +679,17 @@ export async function prepareCanary(config) {
   await client.connect();
   let inTransaction = false;
   try {
-    const roleResult = await client.query("SELECT current_user AS current_user_name, session_user AS session_user_name");
+    const roleResult = await client.query(
+      "SELECT current_user AS current_user_name, session_user AS session_user_name, current_database() AS database_name",
+    );
     const currentUser = roleResult.rows[0]?.current_user_name;
     if (currentUser === config.runtimeRole) {
       throw new Error("RLS_CONTEXT_GATE_ADMIN_DATABASE_URL must not authenticate as the runtime role");
+    }
+    if (roleResult.rows[0]?.database_name !== config.expectedDatabaseName) {
+      throw new Error(
+        "RLS_CONTEXT_GATE_ADMIN_DATABASE_URL current database does not match the reviewed staging database",
+      );
     }
 
     const tableRef = buildTableRef(config);
@@ -778,10 +805,17 @@ export async function teardownRpcCanary(config) {
   await client.connect();
   let inTransaction = false;
   try {
-    const roleResult = await client.query("SELECT current_user AS current_user_name");
+    const roleResult = await client.query(
+      "SELECT current_user AS current_user_name, current_database() AS database_name",
+    );
     const currentUser = roleResult.rows[0]?.current_user_name;
     if (currentUser === config.runtimeRole) {
       throw new Error("RPC canary teardown must not authenticate as the runtime role");
+    }
+    if (roleResult.rows[0]?.database_name !== config.expectedDatabaseName) {
+      throw new Error(
+        "RPC canary teardown current database does not match the reviewed staging database",
+      );
     }
     await client.query("BEGIN");
     inTransaction = true;
@@ -830,6 +864,18 @@ export async function claimProviderRuntimeRunSlot(config, { runId, runSlot }) {
   const client = createClient(config.databaseUrl, config);
   await client.connect();
   try {
+    const connection = await client.query(
+      "SELECT current_user AS current_user_name, session_user AS session_user_name, current_database() AS database_name",
+    );
+    if (
+      connection.rows[0]?.current_user_name !== config.runtimeRole
+      || connection.rows[0]?.session_user_name !== config.runtimeRole
+      || connection.rows[0]?.database_name !== config.expectedDatabaseName
+    ) {
+      throw new Error(
+        "provider-runtime slot connection does not match the reviewed runtime role and database",
+      );
+    }
     const runClaimTableRef = `${quoteIdentifier(config.schemaName)}.${quoteIdentifier(config.runClaimTableName)}`;
     const claimed = await client.query(
       `INSERT INTO ${runClaimTableRef} (run_id, run_slot, deployment_id, commit_sha)
@@ -1036,6 +1082,9 @@ async function inspectRuntime(pool, config) {
     }
     if (row.session_user_name !== config.runtimeRole) {
       issues.push(`runtime connection session_user is ${row.session_user_name ?? "unknown"}, expected ${config.runtimeRole}`);
+    }
+    if (row.database_name !== config.expectedDatabaseName) {
+      issues.push("runtime connection database does not match the reviewed staging database");
     }
     if (normalizeSetting(row.app_user_id) !== "") {
       issues.push("runtime connection starts with app.user_id already set");
@@ -1540,6 +1589,17 @@ async function runRollbackDisableProbe(config) {
   let adminInTransaction = false;
   try {
     const issues = [];
+    const connection = await admin.query(
+      "SELECT current_user AS current_user_name, current_database() AS database_name",
+    );
+    if (
+      connection.rows[0]?.current_user_name === config.runtimeRole
+      || connection.rows[0]?.database_name !== config.expectedDatabaseName
+    ) {
+      throw new Error(
+        "rollback probe connection does not match the reviewed owner role and database",
+      );
+    }
     await admin.query("BEGIN");
     adminInTransaction = true;
     await admin.query(`DROP FUNCTION ${buildRpcFunctionSignature(config)}`);

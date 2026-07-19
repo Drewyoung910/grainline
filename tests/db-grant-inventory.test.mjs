@@ -8,13 +8,19 @@ import pg from "pg";
 
 const {
   REQUIRED_FUNCTION_PRIVILEGES,
+  REQUIRE_DIRECT_URL_FLAG,
   REQUIRED_SEQUENCE_PRIVILEGES,
   REQUIRED_TABLE_PRIVILEGES,
   REQUIRED_TYPE_PRIVILEGES,
+  SAVED_SEARCH_CATALOG_EVIDENCE_PREFIX,
   auditLiveDatabase,
   collectTablePrivilegeAllowlistIssues,
   defaultPrivilegeRequirements,
   deriveGrantInventory,
+  formatSavedSearchCatalogEvidence,
+  normalizeSavedSearchCatalogState,
+  readSavedSearchCatalogState,
+  resolveGrantAuditConnection,
 } = await import("../scripts/audit-runtime-db-grants.mjs");
 
 const { Client } = pg;
@@ -42,7 +48,7 @@ function auditIntegrationSkipReason() {
 }
 
 function assertSafeIdentifier(value) {
-  assert.match(value, /^[a-z_][a-z0-9_]*$/);
+  assert.match(value, /^[A-Za-z_][A-Za-z0-9_]*$/);
   return `"${value}"`;
 }
 
@@ -74,7 +80,7 @@ async function withAuditFixture(options, fn) {
   const migrationRole = `grainline_mig_${suffix}`;
   const runtimeRole = `grainline_run_${suffix}`;
   const parentRole = `grainline_parent_${suffix}`;
-  const tableName = `grant_audit_table_${suffix}`;
+  const tableName = options.tableName ?? `grant_audit_table_${suffix}`;
   const policyName = `grant_audit_policy_${suffix}`;
   const untrackedTableName = `grant_audit_untracked_${suffix}`;
   const enumName = `grant_audit_enum_${suffix}`;
@@ -367,6 +373,9 @@ describe("database grant inventory guardrails", () => {
     assert.match(script, /RUNTIME_DB_ROLE/);
     assert.match(script, /MIGRATION_DB_ROLE/);
     assert.match(script, /GRANT_AUDIT_DATABASE_URL/);
+    assert.match(script, /BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY/);
+    assert.match(script, /readSavedSearchCatalogState/);
+    assert.match(script, /formatSavedSearchCatalogEvidence/);
     assert.match(script, /export async function auditLiveDatabase/);
     assert.match(script, /rolbypassrls/);
     assert.match(script, /pg_auth_members/);
@@ -386,6 +395,7 @@ describe("database grant inventory guardrails", () => {
     assert.match(script, /relrowsecurity/);
     assert.match(script, /relforcerowsecurity/);
     assert.match(script, /ROW LEVEL SECURITY enabled but zero policies/);
+    assert.match(script, /FORCE ROW LEVEL SECURITY enabled but zero policies/);
     assert.match(script, /string_agg\(p\.polname::text/);
     assert.match(script, /ROW LEVEL SECURITY is not enabled/);
     assert.match(script, /FORCE ROW LEVEL SECURITY is not enabled/);
@@ -409,12 +419,102 @@ describe("database grant inventory guardrails", () => {
     assert.doesNotMatch(script, /process\.env\.DATABASE_URL/);
   });
 
+  it("formats one sanitized parseable SavedSearch catalog evidence line", () => {
+    const state = normalizeSavedSearchCatalogState({
+      table_name: "SavedSearch",
+      rls_enabled: false,
+      rls_forced: false,
+      policy_count: "0",
+    });
+    assert.deepEqual(state, {
+      schema: "public",
+      table: "SavedSearch",
+      relrowsecurity: false,
+      relforcerowsecurity: false,
+      policy_count: 0,
+    });
+
+    const line = formatSavedSearchCatalogEvidence(state);
+    assert.ok(line.startsWith(SAVED_SEARCH_CATALOG_EVIDENCE_PREFIX));
+    assert.deepEqual(
+      JSON.parse(line.slice(SAVED_SEARCH_CATALOG_EVIDENCE_PREFIX.length)),
+      state,
+    );
+    assert.doesNotMatch(line, /postgres(?:ql)?:|password|connection/i);
+
+    assert.throws(
+      () => normalizeSavedSearchCatalogState({
+        table_name: "SavedSearch",
+        rls_enabled: "false",
+        rls_forced: false,
+        policy_count: 0,
+      }),
+      /catalog flags are invalid/,
+    );
+    assert.throws(
+      () => normalizeSavedSearchCatalogState({
+        table_name: "SavedSearch",
+        rls_enabled: false,
+        rls_forced: false,
+        policy_count: -1,
+      }),
+      /policy count is invalid/,
+    );
+  });
+
+  it("pins guarded post-migration audits to the exact DIRECT_URL without exposing it", () => {
+    const directUrl = "postgresql://migration-owner:secret@direct.example.test/grainline";
+    assert.equal(
+      resolveGrantAuditConnection(
+        { DIRECT_URL: directUrl },
+        [REQUIRE_DIRECT_URL_FLAG],
+      ),
+      directUrl,
+    );
+    assert.equal(
+      resolveGrantAuditConnection(
+        { DIRECT_URL: directUrl, GRANT_AUDIT_DATABASE_URL: directUrl },
+        [REQUIRE_DIRECT_URL_FLAG],
+      ),
+      directUrl,
+    );
+    assert.throws(
+      () => resolveGrantAuditConnection(
+        {
+          DIRECT_URL: directUrl,
+          GRANT_AUDIT_DATABASE_URL: "postgresql://owner:other@elsewhere.example.test/grainline",
+        },
+        [REQUIRE_DIRECT_URL_FLAG],
+      ),
+      (error) => {
+        assert.match(error.message, /must be absent or exactly match DIRECT_URL/);
+        assert.doesNotMatch(error.message, /secret|elsewhere|postgresql:/);
+        return true;
+      },
+    );
+    assert.throws(
+      () => resolveGrantAuditConnection({}, [REQUIRE_DIRECT_URL_FLAG]),
+      /DIRECT_URL is required/,
+    );
+    assert.equal(
+      resolveGrantAuditConnection({ GRANT_AUDIT_DATABASE_URL: directUrl }),
+      directUrl,
+    );
+  });
+
   it("executes live grant-audit catalog checks against synthetic Postgres roles", { skip: auditIntegrationSkipReason() }, async () => {
-    await withAuditFixture({}, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+    await withAuditFixture({ tableName: "SavedSearch" }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
       assert.deepEqual(
         await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory }),
         [],
       );
+      assert.deepEqual(await readSavedSearchCatalogState(auditClient), {
+        schema: "public",
+        table: "SavedSearch",
+        relrowsecurity: false,
+        relforcerowsecurity: false,
+        policy_count: 0,
+      });
     });
 
     await withAuditFixture({ auditAsAdmin: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
@@ -594,6 +694,20 @@ describe("database grant inventory guardrails", () => {
       );
     });
 
+    await withAuditFixture({ forceRls: true, tableName: "SavedSearch" }, async ({ auditClient, inventory, migrationRole, runtimeRole, tableName }) => {
+      assert.ok(
+        (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory }))
+          .includes(`table ${tableName} has FORCE ROW LEVEL SECURITY enabled but zero policies`),
+      );
+      assert.deepEqual(await readSavedSearchCatalogState(auditClient), {
+        schema: "public",
+        table: "SavedSearch",
+        relrowsecurity: false,
+        relforcerowsecurity: true,
+        policy_count: 0,
+      });
+    });
+
     await withAuditFixture({
       createRlsPolicy: true,
       enableRls: true,
@@ -745,6 +859,7 @@ describe("database grant inventory guardrails", () => {
     const rls = source("docs/rls-feasibility-plan.md");
     const runbook = source("docs/runbook.md");
     const launch = source("docs/launch-checklist.md");
+    const envExample = source(".env.example");
     const pkg = source("package.json");
 
     assert.match(plan, /Source-derived grant inventory/);
@@ -780,6 +895,10 @@ describe("database grant inventory guardrails", () => {
     assert.match(launch, /GRANT_AUDIT_DATABASE_URL="\$DIRECT_URL"/);
     assert.match(launch, /RUNTIME_DB_ROLE=grainline_app_runtime/);
     assert.match(launch, /MIGRATION_DB_ROLE=neondb_owner/);
+    assert.match(launch, /SAVED_SEARCH_CATALOG_STATE=\{\.\.\.\}/);
+    assert.match(runbook, /SAVED_SEARCH_CATALOG_STATE=\{\.\.\.\}/);
+    assert.match(envExample, /^RUNTIME_DB_ROLE=grainline_app_runtime$/m);
+    assert.match(envExample, /^MIGRATION_DB_ROLE=neondb_owner$/m);
     assert.match(launch, /clean checkout of the exact release commit/);
     const ownershipIndex = launch.indexOf('query `public."SavedSearch"` ownership');
     const provisionIndex = launch.indexOf("scripts/provision-runtime-db-role.sql");
@@ -793,6 +912,10 @@ describe("database grant inventory guardrails", () => {
     assert.match(rls, /public-default dependency/);
     assert.match(rls, /runtime `EXECUTE` is missing/);
     assert.match(pkg, /"audit:db-grants": "node scripts\/audit-runtime-db-grants\.mjs"/);
+    assert.match(
+      pkg,
+      /"migrate:deploy:guarded": "node scripts\/guard-saved-search-rls-deploy\.mjs && prisma migrate deploy && npm run audit:db-grants -- --require-direct-url"/,
+    );
   });
 
   it("keeps the runtime-role provisioning SQL aligned with the grant inventory", () => {

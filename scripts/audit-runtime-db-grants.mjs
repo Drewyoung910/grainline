@@ -17,6 +17,9 @@ export const REQUIRED_TYPE_PRIVILEGES = ["USAGE"];
 const AUDIT_CONNECTION_TIMEOUT_MS = 10_000;
 const AUDIT_STATEMENT_TIMEOUT_MS = 30_000;
 const AUDIT_QUERY_TIMEOUT_MS = 35_000;
+export const SAVED_SEARCH_CATALOG_EVIDENCE_PREFIX =
+  "SAVED_SEARCH_CATALOG_STATE=";
+export const REQUIRE_DIRECT_URL_FLAG = "--require-direct-url";
 
 const OBJECT_TYPE_TABLE = "r";
 const OBJECT_TYPE_SEQUENCE = "S";
@@ -174,6 +177,86 @@ export function normalizeRlsPolicyExpression(expression) {
     normalized = normalized.slice(1, -1).trim();
   }
   return normalized;
+}
+
+export function normalizeSavedSearchCatalogState(row) {
+  if (!row || row.table_name !== "SavedSearch") {
+    throw new Error("live catalog is missing public.SavedSearch");
+  }
+  if (
+    typeof row.rls_enabled !== "boolean"
+    || typeof row.rls_forced !== "boolean"
+  ) {
+    throw new Error("live SavedSearch RLS catalog flags are invalid");
+  }
+
+  const policyCount = Number(row.policy_count);
+  if (!Number.isSafeInteger(policyCount) || policyCount < 0) {
+    throw new Error("live SavedSearch policy count is invalid");
+  }
+
+  return Object.freeze({
+    schema: "public",
+    table: "SavedSearch",
+    relrowsecurity: row.rls_enabled,
+    relforcerowsecurity: row.rls_forced,
+    policy_count: policyCount,
+  });
+}
+
+export function formatSavedSearchCatalogEvidence(state) {
+  const normalized = normalizeSavedSearchCatalogState({
+    table_name: state?.table,
+    rls_enabled: state?.relrowsecurity,
+    rls_forced: state?.relforcerowsecurity,
+    policy_count: state?.policy_count,
+  });
+  return `${SAVED_SEARCH_CATALOG_EVIDENCE_PREFIX}${JSON.stringify(normalized)}`;
+}
+
+export async function readSavedSearchCatalogState(client) {
+  const result = await client.query(
+    `SELECT
+        c.relname AS table_name,
+        c.relrowsecurity AS rls_enabled,
+        c.relforcerowsecurity AS rls_forced,
+        COUNT(p.oid)::integer AS policy_count
+       FROM pg_class c
+       JOIN pg_namespace n ON n.oid = c.relnamespace
+       LEFT JOIN pg_policy p ON p.polrelid = c.oid
+      WHERE n.nspname = 'public'
+        AND c.relname = 'SavedSearch'
+        AND c.relkind IN ('r', 'p')
+      GROUP BY c.relname, c.relrowsecurity, c.relforcerowsecurity`,
+  );
+  if (result.rows.length !== 1) {
+    throw new Error("live catalog must contain exactly one public.SavedSearch table");
+  }
+  return normalizeSavedSearchCatalogState(result.rows[0]);
+}
+
+export function resolveGrantAuditConnection(env, argv = []) {
+  const directUrl = env.DIRECT_URL?.trim();
+  const auditUrl = env.GRANT_AUDIT_DATABASE_URL?.trim();
+  const requireDirectUrl = argv.includes(REQUIRE_DIRECT_URL_FLAG);
+
+  if (requireDirectUrl) {
+    if (!directUrl) {
+      throw new Error("DIRECT_URL is required for guarded post-migration grant audit");
+    }
+    if (auditUrl && auditUrl !== directUrl) {
+      throw new Error(
+        "GRANT_AUDIT_DATABASE_URL must be absent or exactly match DIRECT_URL during guarded post-migration audit",
+      );
+    }
+    return directUrl;
+  }
+
+  const connectionString = auditUrl || directUrl;
+  if (!connectionString) {
+    throw new Error("GRANT_AUDIT_DATABASE_URL or DIRECT_URL is required for grant audit");
+  }
+  return connectionString;
 }
 
 function normalizedPolicyRoles(value) {
@@ -924,6 +1007,11 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
         `table ${row.table_name} has ROW LEVEL SECURITY enabled but zero policies`,
       );
     }
+    if (row.rls_forced && !hasPolicies) {
+      issues.push(
+        `table ${row.table_name} has FORCE ROW LEVEL SECURITY enabled but zero policies`,
+      );
+    }
     const savedSearchPhaseAExpected =
       row.table_name === "SavedSearch" && expectedRlsPolicyTables.has("SavedSearch");
     if (hasPolicies && !row.rls_forced && !savedSearchPhaseAExpected) {
@@ -1411,9 +1499,16 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
 async function main() {
   const runtimeRole = process.env.RUNTIME_DB_ROLE;
   const migrationRole = process.env.MIGRATION_DB_ROLE;
-  const connectionString = process.env.GRANT_AUDIT_DATABASE_URL ?? process.env.DIRECT_URL;
+  let connectionString;
+  try {
+    connectionString = resolveGrantAuditConnection(process.env, process.argv.slice(2));
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 2;
+    return;
+  }
 
-  if (!runtimeRole || !migrationRole || !connectionString) {
+  if (!runtimeRole || !migrationRole) {
     console.error(
       "Usage: GRANT_AUDIT_DATABASE_URL=\"$DIRECT_URL\" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=grainline_migration_owner node scripts/audit-runtime-db-grants.mjs",
     );
@@ -1431,14 +1526,26 @@ async function main() {
   });
   await client.connect();
   try {
+    await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
     const issues = await auditLiveDatabase({ client, runtimeRole, migrationRole, inventory });
     if (issues.length > 0) {
+      await client.query("ROLLBACK");
       console.error(`Runtime DB grant audit failed for ${runtimeRole}.`);
       for (const issue of issues) console.error(`- ${issue}`);
       process.exitCode = 1;
       return;
     }
+    const savedSearchCatalogState = await readSavedSearchCatalogState(client);
+    await client.query("COMMIT");
+    console.log(formatSavedSearchCatalogEvidence(savedSearchCatalogState));
     console.log(`Runtime DB grant audit passed for ${runtimeRole}: ${formatInventorySummary(inventory)}.`);
+  } catch (error) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      // Preserve the original audit error; the connection will be closed below.
+    }
+    throw error;
   } finally {
     await client.end();
   }
