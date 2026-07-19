@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, it } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
   buildEvidencePayload,
   parseConfig,
 } from "../scripts/shipping-currency-drift-proof.mjs";
+
+const REPOSITORY_ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -69,7 +73,7 @@ describe("shipping currency drift proof harness", () => {
 
     assert.deepEqual(config.allowedCurrencies, ["cad", "usd"]);
     assert.equal(config.sampleLimit, 7);
-    assert.ok(config.evidencePath.endsWith("/grainline/shipping.json"));
+    assert.equal(config.evidencePath, resolve(REPOSITORY_ROOT, "shipping.json"));
     assert.equal(typeof config.databaseHostHash, "string");
   });
 
