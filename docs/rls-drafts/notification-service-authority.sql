@@ -64,6 +64,7 @@ BEGIN
       'followed_maker_new_blog',
       'followed_maker_new_listing',
       'follow',
+      'message',
       'review',
       'seller_broadcast'
     )
@@ -83,6 +84,8 @@ BEGIN
          AND p_type <> 'FOLLOWED_MAKER_NEW_LISTING')
      OR (p_source_type = 'follow'
          AND p_type <> 'NEW_FOLLOWER')
+     OR (p_source_type = 'message'
+         AND p_type NOT IN ('NEW_MESSAGE', 'CUSTOM_ORDER_REQUEST', 'CUSTOM_ORDER_LINK'))
      OR (p_source_type = 'review'
          AND p_type <> 'NEW_REVIEW')
      OR (p_source_type = 'seller_broadcast'
@@ -259,6 +262,44 @@ BEGIN
                  AND source_block."blockedId" = p_user_id)
        )
      FOR SHARE OF source_follow, source_seller;
+  ELSIF p_source_type = 'message' THEN
+    PERFORM 1
+      FROM public."Message" AS source_message
+      JOIN public."Conversation" AS source_conversation
+        ON source_conversation.id = source_message."conversationId"
+     WHERE source_message.id = p_source_id
+       AND source_message."senderId" = p_related_user_id
+       AND source_message."recipientId" = p_user_id
+       AND (
+         (source_conversation."userAId" = p_related_user_id
+          AND source_conversation."userBId" = p_user_id)
+         OR
+         (source_conversation."userBId" = p_related_user_id
+          AND source_conversation."userAId" = p_user_id)
+       )
+       AND (
+         (p_type = 'CUSTOM_ORDER_REQUEST'
+          AND source_message.kind = 'custom_order_request'
+          AND p_link = '/messages/' || source_conversation.id)
+         OR
+         (p_type = 'CUSTOM_ORDER_LINK'
+          AND source_message.kind = 'custom_order_link'
+          AND p_link LIKE '/listing/%')
+         OR
+         (p_type = 'NEW_MESSAGE'
+          AND source_message.kind IS DISTINCT FROM 'custom_order_request'
+          AND source_message.kind IS DISTINCT FROM 'custom_order_link'
+          AND p_link = '/messages/' || source_conversation.id)
+       )
+       AND NOT EXISTS (
+         SELECT 1
+           FROM public."Block" AS source_block
+          WHERE (source_block."blockerId" = p_user_id
+                 AND source_block."blockedId" = p_related_user_id)
+             OR (source_block."blockerId" = p_related_user_id
+                 AND source_block."blockedId" = p_user_id)
+       )
+     FOR SHARE OF source_message, source_conversation;
   ELSIF p_source_type = 'review' THEN
     PERFORM 1
       FROM public."Review" AS source_review
@@ -412,6 +453,49 @@ BEGIN
   RETURN notification_id;
 END;
 $grainline_notification_create_social_event$;
+
+CREATE OR REPLACE FUNCTION public.grainline_notification_create_message_event(
+  p_notification_id text,
+  p_user_id text,
+  p_type public."NotificationType",
+  p_title text,
+  p_body text,
+  p_link text,
+  p_source_type text,
+  p_source_id text,
+  p_related_user_id text,
+  p_dedup_key text
+)
+RETURNS text
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_notification_create_message_event$
+DECLARE
+  notification_id text;
+BEGIN
+  IF p_source_type <> 'message' THEN
+    RAISE EXCEPTION 'message notification requires a message source'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT public.grainline_notification_create_core(
+    p_notification_id,
+    p_user_id,
+    p_type,
+    p_title,
+    p_body,
+    p_link,
+    p_source_type,
+    p_source_id,
+    p_related_user_id,
+    p_dedup_key
+  ) INTO notification_id;
+  RETURN notification_id;
+END;
+$grainline_notification_create_message_event$;
 
 CREATE OR REPLACE FUNCTION public.grainline_notification_delete_for_account(
   p_user_id text
@@ -601,6 +685,9 @@ REVOKE ALL ON FUNCTION public.grainline_notification_create_source_fanout(
 REVOKE ALL ON FUNCTION public.grainline_notification_create_social_event(
   text, text, public."NotificationType", text, text, text, text, text, text, text
 ) FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION public.grainline_notification_create_message_event(
+  text, text, public."NotificationType", text, text, text, text, text, text, text
+) FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_notification_delete_for_account(text)
   FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_notification_delete_blog_comment(text)
@@ -616,6 +703,9 @@ GRANT EXECUTE ON FUNCTION public.grainline_notification_create_source_fanout(
   text, text, public."NotificationType", text, text, text, text, text, text, text
 ) TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_notification_create_social_event(
+  text, text, public."NotificationType", text, text, text, text, text, text, text
+) TO grainline_app_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_notification_create_message_event(
   text, text, public."NotificationType", text, text, text, text, text, text, text
 ) TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_notification_delete_for_account(text)

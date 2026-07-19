@@ -4,6 +4,7 @@ export const NOTIFICATION_SOURCE_TYPES = {
   FOLLOWED_MAKER_NEW_BLOG: "followed_maker_new_blog",
   FOLLOWED_MAKER_NEW_LISTING: "followed_maker_new_listing",
   FOLLOW: "follow",
+  MESSAGE: "message",
   REVIEW: "review",
   SELLER_BROADCAST: "seller_broadcast",
 } as const;

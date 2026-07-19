@@ -36,15 +36,17 @@ export async function createNotificationServiceRow({
   const socialSource = sourceType === NOTIFICATION_SOURCE_TYPES.FAVORITE
     || sourceType === NOTIFICATION_SOURCE_TYPES.FOLLOW
     || sourceType === NOTIFICATION_SOURCE_TYPES.REVIEW;
+  const messageSource = sourceType === NOTIFICATION_SOURCE_TYPES.MESSAGE;
   const fanoutSource = sourceType === NOTIFICATION_SOURCE_TYPES.BLOG_COMMENT
     || sourceType === NOTIFICATION_SOURCE_TYPES.FOLLOWED_MAKER_NEW_BLOG
     || sourceType === NOTIFICATION_SOURCE_TYPES.FOLLOWED_MAKER_NEW_LISTING
     || sourceType === NOTIFICATION_SOURCE_TYPES.SELLER_BROADCAST;
-  if (!socialSource && !fanoutSource) {
+  if (!socialSource && !messageSource && !fanoutSource) {
     throw new Error("notification create family is not implemented for this source");
   }
-  const rows = socialSource
-    ? await prisma.$queryRaw<Array<{ id: string | null }>>`
+  let rows: Array<{ id: string | null }>;
+  if (socialSource) {
+    rows = await prisma.$queryRaw<Array<{ id: string | null }>>`
         SELECT public.grainline_notification_create_social_event(
           ${notificationId}::text,
           ${userId}::text,
@@ -57,8 +59,24 @@ export async function createNotificationServiceRow({
           ${relatedUserId}::text,
           ${dedupKey}::text
         ) AS id
-      `
-    : await prisma.$queryRaw<Array<{ id: string | null }>>`
+      `;
+  } else if (messageSource) {
+    rows = await prisma.$queryRaw<Array<{ id: string | null }>>`
+        SELECT public.grainline_notification_create_message_event(
+          ${notificationId}::text,
+          ${userId}::text,
+          ${type}::public."NotificationType",
+          ${title}::text,
+          ${body}::text,
+          ${link}::text,
+          ${sourceType}::text,
+          ${sourceId}::text,
+          ${relatedUserId}::text,
+          ${dedupKey}::text
+        ) AS id
+      `;
+  } else {
+    rows = await prisma.$queryRaw<Array<{ id: string | null }>>`
         SELECT public.grainline_notification_create_source_fanout(
           ${notificationId}::text,
           ${userId}::text,
@@ -72,6 +90,7 @@ export async function createNotificationServiceRow({
           ${dedupKey}::text
         ) AS id
       `;
+  }
   const id = rows[0]?.id ?? null;
   if (id !== null && typeof id !== "string") {
     throw new TypeError("notification service returned an invalid id");

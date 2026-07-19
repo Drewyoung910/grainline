@@ -11,16 +11,16 @@ typed `notifyBuyer(..., payload)` wrapper, and that wrapper has three distinct
 payload construction paths. The authority inventory therefore covers 54
 distinct emission paths:
 
-- 8 source-tagged paths;
-- 46 source-less paths;
+- 11 source-tagged paths;
+- 43 source-less paths;
 - 21 paths currently carrying `relatedUserId`.
 
 The earlier count of 51 calls and 46 source-less paths omitted the fulfillment
 wrapper and its three payload constructions. The complete baseline was 54 total,
-5 tagged and 49 source-less; the first social-family implementation then moved
-three more paths into the tagged set, producing the current 8/46 split. Tests
-pin direct calls, emission paths, and family state so those concepts are not
-conflated again.
+5 tagged and 49 source-less. The social-family implementation moved three paths
+into the tagged set, and the messaging/custom-order implementation moved three
+more, producing the current 11/43 split. Tests pin direct calls, emission paths,
+and family state so those concepts are not conflated again.
 
 ## Family Inventory
 
@@ -34,7 +34,7 @@ conflated again.
 | Commission lifecycle | 4 | Seller interest, buyer close/fulfill, expiry notifications | `CommissionRequest`, `CommissionInterest`, conversation, buyer/seller participants and resulting status |
 | Social and review events | 3 | Favorite, follow, review | Implemented draft validation: `Favorite`, `Follow`, `Review`, listing/seller ownership and event actor |
 | Inventory events | 3 | Seller low stock, subscriber back in stock, webhook low stock | Listing owner, listing stock/status, `StockNotification` subscription and checkout/order transition |
-| Messaging and custom orders | 3 | New message, custom-order request, custom-order-ready link | `Message`, `Conversation`, participant pair, custom listing reservation and seller/buyer roles |
+| Messaging and custom orders | 3 | New message, custom-order request, custom-order-ready link | Implemented draft validation: `Message`, `Conversation`, participant pair, message kind and conversation route; custom-listing reservation/link binding remains blocking |
 | Order, payment and fulfillment | 9 | Order buyer/seller notices, refund, shipment/pickup, dispute and payout failure | `Order`, items/seller/buyer, payment/payout event ledgers, fulfillment transition and provider event id |
 | **Total** | **54** |  |  |
 
@@ -47,7 +47,7 @@ arbitrary-recipient insert function merely because HTTP users do not insert
 notifications directly. That shortcut would restore broad cross-user authority
 to any runtime query that could invoke it.
 
-Do not instrument the remaining 46 paths with one undifferentiated provenance
+Do not instrument the remaining 43 paths with one undifferentiated provenance
 shape. Group them by the ten authority families above:
 
 1. Keep an internal fixed-column insert primitive ungranted to `PUBLIC` and the
@@ -71,28 +71,30 @@ Application authorization remains primary. These functions are database
 defense in depth against overly broad queries and partial compromise; they do
 not claim to defeat arbitrary code execution holding the runtime credential.
 
-This is not yet a complete runtime-compromise boundary. The two granted create
+This is not yet a complete runtime-compromise boundary. The three granted create
 wrappers still accept caller-supplied title, body, and relative link after
 validating their bounds, and the favorite/follow checks prove that no block row
 exists only at statement time. They do not serialize against a concurrent
 block creation because the block-writing paths do not yet share a lock
-protocol. Family wrappers should derive or strictly template payload content
-where practical, and the social family needs an explicit concurrency decision
-before activation. Application authorization and block checks remain required;
-the draft must not be described as making forged content or block races
-impossible.
+protocol. The message family proves the source message, its kind, participants,
+and conversation route, but the custom-order-ready listing link is not yet
+bound to the reserved listing row. Family wrappers should derive or strictly
+template payload content where practical; the social/message families need an
+explicit concurrency decision, and the custom-listing binding needs a durable
+database-verifiable key before activation. Application authorization and block
+checks remain required; the draft must not be described as making forged
+content or block races impossible.
 
 ## Next Implementation Order
 
-1. Retain the implemented runtime-ungranted core plus separate source-fanout and
-   social/review wrappers; do not restore a generic runtime grant.
-2. Add the messaging/custom-order family because its source
-   rows and participant relationships are direct and inexpensive to validate.
-3. Add case and commission families, deriving recipients from their workflow
+1. Retain the implemented runtime-ungranted core plus separate source-fanout,
+   social/review, and message/custom-order wrappers; do not restore a generic
+   runtime grant. Finish the custom-order listing/link binding.
+2. Add case and commission families, deriving recipients from their workflow
    rows and pinning allowed state transitions.
-4. Add order/payment/fulfillment and verification/guild families only after
+3. Add order/payment/fulfillment and verification/guild families only after
    their provider, staff and cron transition matrices are complete.
-5. Leave staff free-form account communication last; require a durable audited
+4. Leave staff free-form account communication last; require a durable audited
    message source rather than granting a generic warning creator.
 
 Every family still needs PostgreSQL parse/apply proof, own/foreign and direct

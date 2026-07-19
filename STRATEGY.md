@@ -103,10 +103,10 @@ sequencing prerequisites are live, compare it with narrow one-statement
 evidence. Cross-user creation and cleanup use a separate service-authority
 design and must not be conflated with recipient RPCs.
 
-The isolated service-authority draft now uses eight owner-backed functions: one
-runtime-ungranted fixed-column core, two granted creation families, three exact
+The isolated service-authority draft now uses nine owner-backed functions: one
+runtime-ungranted fixed-column core, three granted creation families, three exact
 cleanup operations, and two fixed retention batches. Runtime receives exact
-execute privileges only on the seven fixed-purpose entry points;
+execute privileges only on the eight fixed-purpose entry points;
 direct Notification insert/delete and the default public function privilege
 remain revoked. The application paths are wired to the draft, but legacy
 null-source and account-deletion source/link/text fallbacks still perform direct
@@ -117,19 +117,19 @@ not database-authenticated identity and a compromised runtime can forge it;
 fixed-purpose constraints limit that residual without eliminating it.
 
 Extra-high review does not yet accept the shared create function as final. The
-eight source-tagged paths can prove source, type, actor, recipient, and
-relationship constraints inside the database operation, but 46 source-less
+eleven source-tagged paths can prove source, type, actor, recipient, and
+relationship constraints inside the database operation, but 43 source-less
 emission paths still need family implementations and currently fail closed.
 The granted wrappers also retain bounded caller control of notification text
-and link, and social absence-of-block checks do not yet serialize with a
+and link, and social/message absence-of-block checks do not yet serialize with a
 concurrent block insertion. Classify the remaining type families, derive or
-template payloads where practical, and resolve the social concurrency contract
-before activation; retain provider performance proof for the source-validation
-joins.
+template payloads where practical, bind the custom-order-ready listing link to
+the reserved listing row, and resolve the concurrency contract before
+activation; retain provider performance proof for the source-validation joins.
 
 Use a hybrid rather than either extreme. Do not grant runtime the current
 generic arbitrary-type/arbitrary-recipient creator, but do not add identical
-lifecycle metadata mechanically to all 46 source-less emission paths. Keep the
+lifecycle metadata mechanically to all 43 source-less emission paths. Keep the
 fixed-column insert primitive private to the function owner and expose only
 family-specific operations keyed by stable domain ids and small event
 discriminators. The ten-family inventory and implementation order live in

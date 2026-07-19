@@ -29,13 +29,14 @@ Service-authority slice: the application create path now targets the first
 granted family function, `grainline_notification_create_source_fanout`, through
 `notificationServiceAccess.ts`. The private core atomically locks and validates the active recipient, honors the
 in-app preference, validates bounded payload/source/related-user metadata,
-proves source/type/actor/recipient relationships for the eight source-tagged
-fanout paths, inserts idempotently, and returns only the row id. Separate fixed-purpose draft
+proves source/type/actor/recipient relationships for the eleven source-tagged
+paths, inserts idempotently, and returns only the row id. Separate fixed-purpose draft
 functions cover account lifecycle deletion, staff blog-comment/broadcast
-cleanup, and fixed 90-day read/365-day unread retention batches. Eight functions
+cleanup, and fixed 90-day read/365-day unread retention batches. Nine functions
 are owner-backed `SECURITY DEFINER` functions with `search_path=pg_catalog`: the
 generic fixed-column core is ungranted, while runtime gets exact `EXECUTE` only
-on the source-fanout and social-event wrappers plus five cleanup/retention operations. Direct table
+on the source-fanout, social-event, and message-event wrappers plus five
+cleanup/retention operations. Direct table
 `INSERT`/`DELETE` stays revoked.
 The functions also revoke PostgreSQL's default `PUBLIC` execute privilege.
 This narrows runtime authority but does not create database-authenticated end
@@ -44,7 +45,7 @@ compromised runtime could invoke the granted fixed-purpose functions and could
 forge that context. Input, role, age, and source constraints limit that residual
 capability; runtime credential separation remains the separate control against
 owner-credential exfiltration.
-The eight source-tagged create paths, exact account cleanup, exact admin source
+The eleven source-tagged create paths, exact account cleanup, exact admin source
 cleanup, and retention cron are wired to these draft functions in the isolated branch. Source-less creation now fails closed until its family wrapper exists. Admin cleanup
 still retains explicitly marked `sourceType/sourceId IS NULL` legacy fallbacks,
 and account deletion retains broader legacy source/link cleanup and text
@@ -63,16 +64,19 @@ deleted in the same transaction. These changes close create-versus-delete races
 and prevent source metadata from being attached to the wrong notification type,
 actor, or recipient. They do not close every runtime-compromise residual: the
 granted create families still accept bounded caller-supplied title/body/link,
-and favorite/follow absence-of-block checks do not serialize against a
+and social/message absence-of-block checks do not serialize against a
 concurrent block insertion because the block-writing paths do not share a lock
 protocol. Payload derivation/templates and that concurrency decision remain
 pre-activation work; app-layer authorization and block checks remain required.
+The message family proves message kind and conversation participants, but the
+custom-order-ready `/listing/...` link is not yet bound to the reserved custom
+listing row and remains a blocker.
 
-One authority question remains blocking: 46 of the 54 emission paths do not
+One authority question remains blocking: 43 of the 54 emission paths do not
 yet carry provenance. They fail closed in the current application draft rather
 than reaching the private generic core. Classify those type families and add
 type-specific database predicates or split service functions where meaningful
-before activation. The seven source types already validated by database joins
+before activation. The eight source types already validated by database joins
 also require provider performance evidence before promotion.
 
 The authority fork is resolved directionally in
@@ -127,7 +131,7 @@ The 2026-07-19 source snapshot contains 52 direct `createNotification` calls
 across 29 caller files: 51 object-literal calls plus the fulfillment route's
 typed wrapper call. That wrapper serves three distinct fulfillment payloads, so
 the authority inventory contains 54 distinct emission paths. Eight are currently
-source-tagged and 46 are source-less. This broad fanout surface is the main
+source-tagged and 43 are source-less. This broad fanout surface is the main
 reason the table cannot receive a copied SavedSearch owner-only policy.
 
 ## Actor And Operation Inventory
@@ -139,7 +143,7 @@ reason the table cannot receive a copied SavedSearch owner-only policy.
 | Retention cron | Delete old read and unread rows globally in bounded batches | Parameter-free or tightly bounded owner RPC using server time and code-pinned retention windows; no general runtime `DELETE` |
 | Account deletion | Delete the departing user's rows; delete related-user/source residue across other recipients; retire the legacy sensitive-text fallback | Use one narrow account-lifecycle RPC for recipient plus `relatedUserId` deletion and separate exact source cleanup; do not grant direct table `DELETE`. Exact recipient/related-user cleanup is wired to the draft RPC; legacy source/link/text work remains blocking |
 | Staff blog/broadcast deletion | Delete notifications tied to a deleted comment or broadcast across recipients | Use exact `sourceType`/`sourceId` service cleanup; remove legacy title/body/link matching after source coverage/backfill is proven |
-| Admin, webhook, cron, order/case/message/social flows | Create recipient notifications through the shared helper | All 54 emission paths stay behind one service helper; eight currently dispatch to granted family wrappers, while 46 fail closed pending their family implementation |
+| Admin, webhook, cron, order/case/message/social flows | Create recipient notifications through the shared helper | All 54 emission paths stay behind one service helper; eleven currently dispatch to granted family wrappers, while 43 fail closed pending their family implementation |
 
 Current direct-access files are deliberately pinned by test:
 
