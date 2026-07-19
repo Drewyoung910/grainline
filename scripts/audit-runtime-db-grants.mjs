@@ -60,10 +60,9 @@ export const SAVED_SEARCH_RLS_POLICIES = Object.freeze({
   }),
 });
 
-// Phase A protects the non-owner runtime role while Vercel's 12-hour skew
-// window drains owner-backed application deployments. Change this only in the
-// later, separately deployed FORCE migration commit.
-export const SAVED_SEARCH_RLS_FORCE_EXPECTED = false;
+// Phase B is a separate, post-skew release. Its migration forces the already
+// reviewed policies only after owner credentials and sessions have drained.
+export const SAVED_SEARCH_RLS_FORCE_EXPECTED = true;
 
 export const SAVED_SEARCH_OWNER_RPC_FUNCTIONS = Object.freeze({
   grainline_saved_search_list: Object.freeze({

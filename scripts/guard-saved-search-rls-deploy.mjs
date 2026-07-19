@@ -25,10 +25,14 @@ export const SAVED_SEARCH_RPC_HARDENING_MIGRATION =
   "20260717025000_harden_saved_search_owner_rpc_projection";
 export const SAVED_SEARCH_RLS_MIGRATION =
   "20260717030000_enable_saved_search_rls";
+export const SAVED_SEARCH_FORCE_RLS_MIGRATION =
+  "20260720060000_force_saved_search_rls";
 export const RELEASE_ZERO_MIGRATION_TREE_SHA256 =
   "3e9111525735043266cf6f18b790641ad3103126804836f4a7cccd8e5e29ff29";
 export const PHASE_A_MIGRATION_TREE_SHA256 =
   "f6cde6b6a64c3876ae954b5683af0ec47d9358e356657fee34de11ec5f9005c0";
+export const PHASE_B_MIGRATION_TREE_SHA256 =
+  "1050d9d5ea892f6df5edd99a49c493b4aa47c8eccf56596c4323125e45d4697e";
 export const PRISMA_CONFIG_PATH = "prisma.config.ts";
 export const REVIEWED_PRISMA_CONFIG_SHA256 =
   "946211cec942f725ae24ac239cd648b56f4809cf30cb8fda530346d0f593526e";
@@ -49,6 +53,7 @@ export const REVIEWED_MIGRATION_DB_ROLE = "neondb_owner";
 
 const RELEASE_ZERO_PHASE = "release-0";
 const REVIEWED_PHASE_A = "phase-a-reviewed";
+const REVIEWED_PHASE_B = "phase-b-reviewed";
 const APP_SOURCE_ROOTS = ["src/app", "app", "src/pages", "pages"];
 const TEST_SOURCE_ROOTS = ["tests"];
 const TEST_SOURCE_EXTENSIONS = new Set([
@@ -296,9 +301,11 @@ export function computeMigrationTreeSha256(migrationDirectory, migrationNames) {
 }
 
 function assertReviewedMigrationTree(phase, migrationTreeSha256) {
-  const expected = phase === RELEASE_ZERO_PHASE
-    ? RELEASE_ZERO_MIGRATION_TREE_SHA256
-    : PHASE_A_MIGRATION_TREE_SHA256;
+  const expected = {
+    [RELEASE_ZERO_PHASE]: RELEASE_ZERO_MIGRATION_TREE_SHA256,
+    [REVIEWED_PHASE_A]: PHASE_A_MIGRATION_TREE_SHA256,
+    [REVIEWED_PHASE_B]: PHASE_B_MIGRATION_TREE_SHA256,
+  }[phase];
   if (migrationTreeSha256 !== expected) {
     throw new Error(
       `${phase} migration tree fingerprint changed; review every added, removed, renamed, or modified migration before updating the temporary SavedSearch deploy guard`,
@@ -502,6 +509,7 @@ export function validateSavedSearchRlsDeployShape({
     SAVED_SEARCH_RPC_HARDENING_MIGRATION,
   );
   const hasRlsMigration = migrations.has(SAVED_SEARCH_RLS_MIGRATION);
+  const hasForceRlsMigration = migrations.has(SAVED_SEARCH_FORCE_RLS_MIGRATION);
 
   if (phase === RELEASE_ZERO_PHASE) {
     if (!hasRpcMigration || !hasRpcHardeningMigration || hasRlsMigration) {
@@ -533,9 +541,10 @@ export function validateSavedSearchRlsDeployShape({
   }
 
   if (phase === REVIEWED_PHASE_A) {
-    if (!hasRpcMigration || !hasRpcHardeningMigration || !hasRlsMigration) {
+    if (!hasRpcMigration || !hasRpcHardeningMigration || !hasRlsMigration
+        || hasForceRlsMigration) {
       throw new Error(
-        `${REVIEWED_PHASE_A} requires all three SavedSearch rollout migrations to exist`,
+        `${REVIEWED_PHASE_A} requires exactly the first three SavedSearch rollout migrations`,
       );
     }
 
@@ -557,9 +566,40 @@ export function validateSavedSearchRlsDeployShape({
     };
   }
 
+  if (phase === REVIEWED_PHASE_B) {
+    if (!hasRpcMigration || !hasRpcHardeningMigration || !hasRlsMigration
+        || !hasForceRlsMigration) {
+      throw new Error(
+        `${REVIEWED_PHASE_B} requires all four SavedSearch rollout migrations to exist`,
+      );
+    }
+
+    assertNoLaterMigration(
+      migrationNames,
+      SAVED_SEARCH_FORCE_RLS_MIGRATION,
+      phase,
+    );
+    assertReviewedMigrationTree(phase, migrationTreeSha256);
+    assertReviewedPrismaMigrationConfig(prismaConfigSha256);
+    assertProductionArtifactExcludesContextGate({
+      phase,
+      contextGateRouteExists,
+      contextGateRunnerTestExists: runnerTestExists,
+      middlewareSource,
+    });
+
+    return {
+      phase,
+      hasRpcMigration,
+      hasRpcHardeningMigration,
+      hasRlsMigration,
+      hasForceRlsMigration,
+    };
+  }
+
   const received = phase === undefined || phase === "" ? "missing" : phase;
   throw new Error(
-    `${SAVED_SEARCH_RLS_DEPLOY_PHASE_ENV} is ${received}; expected ${RELEASE_ZERO_PHASE} or ${REVIEWED_PHASE_A}`,
+    `${SAVED_SEARCH_RLS_DEPLOY_PHASE_ENV} is ${received}; expected ${RELEASE_ZERO_PHASE}, ${REVIEWED_PHASE_A}, or ${REVIEWED_PHASE_B}`,
   );
 }
 

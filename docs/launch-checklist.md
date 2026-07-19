@@ -180,6 +180,23 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
   the actual migration owner (`neondb_owner` for this rollout), and emergency
   rollback disables RLS before any app rollback. This pass stops after Bucket A
   (`SavedSearch`); Bucket B is explicitly paused and requires a separate pass.
+- Phase B artifact gate: use only the persistent branch descended from the
+  exact Phase-A commit and require `SAVED_SEARCH_RLS_DEPLOY_PHASE=phase-b-reviewed`,
+  the fingerprinted `20260720060000_force_saved_search_rls` migration, and
+  `SAVED_SEARCH_RLS_FORCE_EXPECTED=true`. For Phase-A deployment
+  `dpl_H5tnmGyL8fK3oriwawjHBhg2Yomz`, the earliest reviewed promotion time is
+  `2026-07-20T06:25:00Z`, after both the full skew window plus margin and the
+  06:20 UTC post-skew canary. Before promotion, retain evidence that the
+  migration-owner password was rotated, the prior owner credential is rejected,
+  Production `DIRECT_URL` uses the replacement while runtime `DATABASE_URL`
+  remains `grainline_app_runtime`, and `pg_stat_activity` has zero other
+  `neondb_owner` client sessions. The migration enforces the session count too.
+- Run `npm run audit:rls-saved-search-force` only against an independently
+  identified direct staging endpoint after applying the exact Phase-B migration.
+  It must prove owner fail-closed behavior under FORCE, bounded transactional
+  disable/maintenance/ENABLE/FORCE restoration, rollback cleanup, and final
+  exact FORCE state in a mode-`0600` artifact. In production, database-first
+  `DISABLE ROW LEVEL SECURITY` precedes any emergency app rollback.
 - `STRIPE_WEBHOOK_SUBSCRIPTIONS_PROOF_CONFIRM=live-read STRIPE_WEBHOOK_SUBSCRIPTIONS_PROOF_EVIDENCE_PATH="stripe-webhook-subscriptions-evidence.json" npm run audit:stripe-webhooks` (live Stripe read-only; verifies the classic snapshot webhook endpoint and Connect v2 thin event destination URLs/event families; does not prove deployed signing-secret values)
 - `STRIPE_MONEY_PROOF_CONFIRM=test-mode STRIPE_MONEY_PROOF_DB_CONFIRM=staging-or-local STRIPE_MONEY_PROOF_CONNECTED_ACCOUNT_ID="<acct_test...>" STRIPE_MONEY_PROOF_EVIDENCE_PATH="stripe-money-proof-evidence.json" npm run audit:stripe-money` (Stripe test mode plus staging/local DB only; writes sanitized money-movement evidence for refunds and label clawbacks)
 - `BUYER_DELETION_REPLAY_PROOF_CONFIRM=test-mode-replay BUYER_DELETION_REPLAY_PROOF_DB_CONFIRM=staging-or-local-read BUYER_DELETION_REPLAY_PROOF_SESSION_ID="<cs_test...>" BUYER_DELETION_REPLAY_PROOF_EVIDENCE_PATH="buyer-deletion-replay-evidence.json" npm run audit:buyer-deletion-replay` (after a real Stripe test-mode checkout completion/replay whose source buyer was deleted, suspended, or missing before webhook processing; verifies the local blocked-review order, buyer-PII purge, processed webhook row, refund ledger, and audit evidence)

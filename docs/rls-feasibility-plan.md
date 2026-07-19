@@ -364,6 +364,16 @@ need retry/context discipline.
   12-hour wait never substitutes for disabling superseded callable deployments,
   rotating/revoking old owner credentials, and retaining `pg_stat_activity`
   drain evidence.
+- The separate Phase-B artifact uses
+  `SAVED_SEARCH_RLS_DEPLOY_PHASE=phase-b-reviewed` and migration
+  `20260720060000_force_saved_search_rls`. For the exact Phase-A deployment
+  `dpl_H5tnmGyL8fK3oriwawjHBhg2Yomz`, promotion is barred before
+  `2026-07-20T06:25:00Z`, including the 06:20 post-skew canary. Before FORCE,
+  rotate the `neondb_owner` credential, update only the future migration
+  `DIRECT_URL`, prove the prior credential is rejected, and retain zero other
+  owner client sessions. The staging-only
+  `audit:rls-saved-search-force` proof must pass the reversible owner
+  maintenance/restore transaction. Emergency app rollback disables RLS first.
 
 ## Cart + CartItem Prototype Edge Cases
 

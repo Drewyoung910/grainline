@@ -12,7 +12,10 @@ const {
 const RUNTIME_ROLE = "grainline_app_runtime";
 const RLS_MIGRATION_PATH =
   "prisma/migrations/20260717030000_enable_saved_search_rls/migration.sql";
+const FORCE_RLS_MIGRATION_PATH =
+  "prisma/migrations/20260720060000_force_saved_search_rls/migration.sql";
 const phaseAIt = existsSync(RLS_MIGRATION_PATH) ? it : it.skip;
+const phaseBIt = existsSync(FORCE_RLS_MIGRATION_PATH) ? it : it.skip;
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -24,7 +27,7 @@ function exactPolicyRows() {
   return [
     {
       rls_enabled: true,
-      rls_forced: false,
+      rls_forced: true,
       policy_name: "saved_search_owner_delete",
       policy_command: "d",
       policy_permissive: true,
@@ -34,7 +37,7 @@ function exactPolicyRows() {
     },
     {
       rls_enabled: true,
-      rls_forced: false,
+      rls_forced: true,
       policy_name: "saved_search_owner_insert",
       policy_command: "a",
       policy_permissive: true,
@@ -44,7 +47,7 @@ function exactPolicyRows() {
     },
     {
       rls_enabled: true,
-      rls_forced: false,
+      rls_forced: true,
       policy_name: "saved_search_owner_select",
       policy_command: "r",
       policy_permissive: true,
@@ -75,7 +78,26 @@ describe("SavedSearch exact RLS policy guardrails", () => {
     );
     assert.match(migration, /SET LOCAL lock_timeout = '5s'/);
     assert.match(migration, /SET LOCAL statement_timeout = '30s'/);
-    assert.equal(SAVED_SEARCH_RLS_FORCE_EXPECTED, false);
+  });
+
+  phaseBIt("forces only the already reviewed Phase A policy set after fail-closed live checks", () => {
+    const migration = source(FORCE_RLS_MIGRATION_PATH);
+
+    assert.doesNotMatch(migration, /\bCREATE\s+POLICY\b/i);
+    assert.match(migration, /ALTER TABLE public\."SavedSearch" FORCE ROW LEVEL SECURITY/);
+    assert.doesNotMatch(migration, /ALTER TABLE public\."SavedSearch" DISABLE ROW LEVEL SECURITY/);
+    assert.match(migration, /must begin phase B with ENABLE and NO FORCE/);
+    assert.match(migration, /exactly three reviewed policies before FORCE/);
+    assert.match(migration, /saved_search_owner_select/);
+    assert.match(migration, /saved_search_owner_insert/);
+    assert.match(migration, /saved_search_owner_delete/);
+    assert.match(migration, /pg_stat_activity/);
+    assert.match(migration, /pid <> pg_backend_pid\(\)/);
+    assert.match(migration, /owner-backed application session drain is incomplete/);
+    assert.match(migration, /SET LOCAL lock_timeout = '5s'/);
+    assert.match(migration, /SET LOCAL statement_timeout = '30s'/);
+    assert.match(migration, /FORCE ROW LEVEL SECURITY did not persist/);
+    assert.equal(SAVED_SEARCH_RLS_FORCE_EXPECTED, true);
   });
 
   phaseAIt("fails closed before policy creation when role, ownership, grants, or prior-policy checks fail", () => {
@@ -213,16 +235,16 @@ describe("SavedSearch exact RLS policy guardrails", () => {
     assert.match(issues, /saved_search_owner_select must be PERMISSIVE/);
   });
 
-  it("rejects missing policies, disabled RLS, or premature FORCE state", () => {
+  it("rejects missing policies, disabled RLS, or missing Phase B FORCE state", () => {
     const rows = exactPolicyRows().slice(1).map((row) => ({
       ...row,
       rls_enabled: false,
-      rls_forced: true,
+      rls_forced: false,
     }));
     const issues = collectSavedSearchPolicyIssues(rows, RUNTIME_ROLE).join("\n");
 
     assert.match(issues, /must have ROW LEVEL SECURITY enabled/);
-    assert.match(issues, /must keep FORCE ROW LEVEL SECURITY disabled during phase A/);
+    assert.match(issues, /must have FORCE ROW LEVEL SECURITY enabled/);
     assert.match(issues, /missing policy saved_search_owner_delete/);
     assert.match(
       collectSavedSearchPolicyIssues([], RUNTIME_ROLE).join("\n"),

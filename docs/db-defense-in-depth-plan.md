@@ -847,6 +847,23 @@ Staging policy shape, using the fail-closed predicate
   drills, and emergency repair will access `SavedSearch` after `FORCE`, because
   the current owner is not named in runtime-only policies. Phase B may add
   `FORCE` only in a separate reviewed migration/release after those proofs.
+- The reviewed SavedSearch Phase-B artifact names that migration
+  `20260720060000_force_saved_search_rls`, expects
+  `SAVED_SEARCH_RLS_DEPLOY_PHASE=phase-b-reviewed`, and changes the source-derived
+  audit expectation to `SAVED_SEARCH_RLS_FORCE_EXPECTED=true`. It may not
+  promote before `2026-07-20T06:25:00Z` for Phase-A deployment
+  `dpl_H5tnmGyL8fK3oriwawjHBhg2Yomz`. Before promotion, rotate the
+  `neondb_owner` password, replace only the future migration `DIRECT_URL`, prove
+  the old credential is rejected, and retain a zero-other-owner-session
+  `pg_stat_activity` result; the migration repeats the session check.
+- After FORCE, owner DML is intentionally fail closed because the policies name
+  only `grainline_app_runtime`. Owner-run migrations retain DDL authority.
+  Controlled maintenance, restore, and repair use a bounded direct-owner
+  transaction that disables RLS, performs reviewed work, restores ENABLE plus
+  FORCE and the exact catalog checks before commit. The staging-only
+  `audit:rls-saved-search-force` proof exercises that path without retaining its
+  fixture. Emergency application rollback remains database-first: disable RLS
+  before changing the app alias.
 - Phase A also revokes the runtime role's `SavedSearch` `UPDATE` table grant
   before policy activation and verifies the exact direct, non-grantable
   `SELECT`/`INSERT`/`DELETE` ACL. Provisioning repeats must preserve that same

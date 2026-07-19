@@ -14,6 +14,7 @@ import { describe, it } from "node:test";
 
 import {
   PHASE_A_MIGRATION_TREE_SHA256,
+  PHASE_B_MIGRATION_TREE_SHA256,
   PRISMA_CONFIG_PATH,
   RELEASE_ZERO_MIGRATION_TREE_SHA256,
   REVIEWED_PRISMA_CONFIG_SHA256,
@@ -21,6 +22,7 @@ import {
   REVIEWED_MIGRATION_DB_ROLE,
   REVIEWED_RUNTIME_DB_ROLE,
   SAVED_SEARCH_RLS_MIGRATION,
+  SAVED_SEARCH_FORCE_RLS_MIGRATION,
   SAVED_SEARCH_RPC_HARDENING_MIGRATION,
   SAVED_SEARCH_RPC_MIGRATION,
   RLS_CONTEXT_GATE_PUBLIC_PATH,
@@ -42,6 +44,7 @@ import {
 
 const RELEASE_ZERO = "release-0";
 const REVIEWED_PHASE_A = "phase-a-reviewed";
+const REVIEWED_PHASE_B = "phase-b-reviewed";
 const PREVIEW_MIDDLEWARE_EXEMPTION_LINE =
   `  "${RLS_CONTEXT_GATE_PUBLIC_PATH}",   // Preview-only, token-protected RLS acceptance runner\n`;
 const CURRENT_MIDDLEWARE_SOURCE = readFileSync("src/middleware.ts", "utf8");
@@ -74,9 +77,11 @@ function validate(
   {
     contextGateRouteExists = false,
     contextGateRunnerTestExists = false,
-    migrationTreeSha256 = phase === RELEASE_ZERO
-      ? RELEASE_ZERO_MIGRATION_TREE_SHA256
-      : PHASE_A_MIGRATION_TREE_SHA256,
+    migrationTreeSha256 = {
+      [RELEASE_ZERO]: RELEASE_ZERO_MIGRATION_TREE_SHA256,
+      [REVIEWED_PHASE_A]: PHASE_A_MIGRATION_TREE_SHA256,
+      [REVIEWED_PHASE_B]: PHASE_B_MIGRATION_TREE_SHA256,
+    }[phase],
     middlewareSource = REVIEWED_PRODUCTION_MIDDLEWARE_SOURCE,
     prismaConfigSha256 = REVIEWED_PRISMA_CONFIG_SHA256,
   } = {},
@@ -98,17 +103,26 @@ const CURRENT_MIGRATIONS = readdirSync("prisma/migrations", {
   .filter((entry) => entry.isDirectory())
   .map((entry) => entry.name);
 const RELEASE_ZERO_MIGRATIONS = CURRENT_MIGRATIONS
-  .filter((name) => name !== SAVED_SEARCH_RLS_MIGRATION)
+  .filter((name) => ![
+    SAVED_SEARCH_RLS_MIGRATION,
+    SAVED_SEARCH_FORCE_RLS_MIGRATION,
+  ].includes(name))
   .sort((a, b) => a.localeCompare(b));
 const REVIEWED_PHASE_A_MIGRATIONS = [
   ...RELEASE_ZERO_MIGRATIONS,
   SAVED_SEARCH_RLS_MIGRATION,
 ].sort((a, b) => a.localeCompare(b));
+const REVIEWED_PHASE_B_MIGRATIONS = [
+  ...REVIEWED_PHASE_A_MIGRATIONS,
+  SAVED_SEARCH_FORCE_RLS_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
 
 function migrationsFor(phase) {
-  return phase === RELEASE_ZERO
-    ? RELEASE_ZERO_MIGRATIONS
-    : REVIEWED_PHASE_A_MIGRATIONS;
+  return {
+    [RELEASE_ZERO]: RELEASE_ZERO_MIGRATIONS,
+    [REVIEWED_PHASE_A]: REVIEWED_PHASE_A_MIGRATIONS,
+    [REVIEWED_PHASE_B]: REVIEWED_PHASE_B_MIGRATIONS,
+  }[phase];
 }
 
 describe("SavedSearch RLS production deploy guard", () => {
@@ -324,23 +338,21 @@ describe("SavedSearch RLS production deploy guard", () => {
 
     assert.ok(currentMigrations.includes(SAVED_SEARCH_RPC_MIGRATION));
     assert.ok(currentMigrations.includes(SAVED_SEARCH_RPC_HARDENING_MIGRATION));
+    assert.ok(currentMigrations.includes(SAVED_SEARCH_RLS_MIGRATION));
+    assert.ok(currentMigrations.includes(SAVED_SEARCH_FORCE_RLS_MIGRATION));
     assert.throws(() => validate(undefined, currentMigrations), /is missing/);
-    if (currentMigrations.includes(SAVED_SEARCH_RLS_MIGRATION)) {
-      assert.throws(
-        () => validate(RELEASE_ZERO, currentMigrations),
-        /requires .* to be absent/,
-      );
-      assert.equal(
-        validate(REVIEWED_PHASE_A, currentMigrations).phase,
-        REVIEWED_PHASE_A,
-      );
-    } else {
-      assert.equal(validate(RELEASE_ZERO, currentMigrations).phase, RELEASE_ZERO);
-      assert.throws(
-        () => validate(REVIEWED_PHASE_A, currentMigrations),
-        /requires all three/,
-      );
-    }
+    assert.throws(
+      () => validate(RELEASE_ZERO, currentMigrations),
+      /requires .* to be absent|remain the latest migration/,
+    );
+    assert.throws(
+      () => validate(REVIEWED_PHASE_A, currentMigrations),
+      /requires exactly the first three/,
+    );
+    assert.equal(
+      validate(REVIEWED_PHASE_B, currentMigrations).phase,
+      REVIEWED_PHASE_B,
+    );
   });
 
   it("allows release 0 only when both RPC migrations exist and the RLS migration is absent", () => {
@@ -395,25 +407,53 @@ describe("SavedSearch RLS production deploy guard", () => {
       },
     );
 
-    assert.throws(() => validate(REVIEWED_PHASE_A, []), /requires all three/);
+    assert.throws(() => validate(REVIEWED_PHASE_A, []), /requires exactly the first three/);
     assert.throws(
       () => validate(REVIEWED_PHASE_A, [SAVED_SEARCH_RPC_MIGRATION]),
-      /requires all three/,
+      /requires exactly the first three/,
     );
     assert.throws(
       () => validate(REVIEWED_PHASE_A, [SAVED_SEARCH_RLS_MIGRATION]),
-      /requires all three/,
+      /requires exactly the first three/,
     );
     assert.throws(
       () => validate(REVIEWED_PHASE_A, [
         SAVED_SEARCH_RPC_MIGRATION,
         SAVED_SEARCH_RLS_MIGRATION,
       ]),
-      /requires all three/,
+      /requires exactly the first three/,
     );
   });
 
-  for (const phase of [RELEASE_ZERO, REVIEWED_PHASE_A]) {
+  it("allows reviewed phase B only when all four rollout migrations exist", () => {
+    assert.deepEqual(
+      validate(REVIEWED_PHASE_B, REVIEWED_PHASE_B_MIGRATIONS),
+      {
+        phase: REVIEWED_PHASE_B,
+        hasRpcMigration: true,
+        hasRpcHardeningMigration: true,
+        hasRlsMigration: true,
+        hasForceRlsMigration: true,
+      },
+    );
+
+    for (const migration of [
+      SAVED_SEARCH_RPC_MIGRATION,
+      SAVED_SEARCH_RPC_HARDENING_MIGRATION,
+      SAVED_SEARCH_RLS_MIGRATION,
+      SAVED_SEARCH_FORCE_RLS_MIGRATION,
+    ]) {
+      assert.throws(
+        () => validate(
+          REVIEWED_PHASE_B,
+          REVIEWED_PHASE_B_MIGRATIONS.filter((name) => name !== migration),
+        ),
+        /requires all four/,
+      );
+    }
+  });
+
+  for (const phase of [RELEASE_ZERO, REVIEWED_PHASE_A, REVIEWED_PHASE_B]) {
     it(`rejects ${phase} when the internal context-gate route remains`, () => {
       assert.throws(
         () =>
@@ -525,6 +565,7 @@ describe("SavedSearch RLS production deploy guard", () => {
       SAVED_SEARCH_RPC_MIGRATION,
       SAVED_SEARCH_RPC_HARDENING_MIGRATION,
       SAVED_SEARCH_RLS_MIGRATION,
+      SAVED_SEARCH_FORCE_RLS_MIGRATION,
     ];
 
     assert.throws(() => validate(undefined, rolloutMigrations), /is missing/);
@@ -534,7 +575,7 @@ describe("SavedSearch RLS production deploy guard", () => {
   });
 
   it("requires the reviewed phase migration to remain latest", () => {
-    const laterMigration = "20260717040000_force_saved_search_rls";
+    const laterMigration = "20260720070000_unreviewed_later_migration";
 
     assert.throws(
       () => validate(RELEASE_ZERO, [
@@ -549,6 +590,13 @@ describe("SavedSearch RLS production deploy guard", () => {
         SAVED_SEARCH_RPC_MIGRATION,
         SAVED_SEARCH_RPC_HARDENING_MIGRATION,
         SAVED_SEARCH_RLS_MIGRATION,
+        SAVED_SEARCH_FORCE_RLS_MIGRATION,
+      ]),
+      /requires exactly the first three/,
+    );
+    assert.throws(
+      () => validate(REVIEWED_PHASE_B, [
+        ...REVIEWED_PHASE_B_MIGRATIONS,
         laterMigration,
       ]),
       /review or retire the temporary SavedSearch deploy guard/,
@@ -559,6 +607,14 @@ describe("SavedSearch RLS production deploy guard", () => {
     assert.equal(
       computeMigrationTreeSha256("prisma/migrations", RELEASE_ZERO_MIGRATIONS),
       RELEASE_ZERO_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256("prisma/migrations", REVIEWED_PHASE_A_MIGRATIONS),
+      PHASE_A_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256("prisma/migrations", REVIEWED_PHASE_B_MIGRATIONS),
+      PHASE_B_MIGRATION_TREE_SHA256,
     );
 
     assert.throws(
@@ -844,7 +900,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     }
   });
 
-  it("keeps the human promotion meaning of both phase values documented", () => {
+  it("keeps the human promotion meaning of all three phase values documented", () => {
     const contractFiles = [
       "CLAUDE.md",
       "docs/runbook.md",
@@ -857,6 +913,7 @@ describe("SavedSearch RLS production deploy guard", () => {
       const source = readFileSync(file, "utf8");
       assert.match(source, /SAVED_SEARCH_RLS_DEPLOY_PHASE=release-0/);
       assert.match(source, /phase-a-reviewed/);
+      assert.match(source, /phase-b-reviewed/);
     }
 
     const runbook = readFileSync("docs/runbook.md", "utf8");

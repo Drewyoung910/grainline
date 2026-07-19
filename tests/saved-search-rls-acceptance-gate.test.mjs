@@ -107,7 +107,7 @@ function exactPolicyRows() {
       policy_permissive: true,
       policy_roles: [DEFAULT_SAVED_SEARCH_RUNTIME_ROLE],
       rls_enabled: true,
-      rls_forced: false,
+      rls_forced: true,
       using_expression: ownerPredicate,
     },
     {
@@ -117,7 +117,7 @@ function exactPolicyRows() {
       policy_permissive: true,
       policy_roles: [DEFAULT_SAVED_SEARCH_RUNTIME_ROLE],
       rls_enabled: true,
-      rls_forced: false,
+      rls_forced: true,
       using_expression: null,
     },
     {
@@ -127,7 +127,7 @@ function exactPolicyRows() {
       policy_permissive: true,
       policy_roles: [DEFAULT_SAVED_SEARCH_RUNTIME_ROLE],
       rls_enabled: true,
-      rls_forced: false,
+      rls_forced: true,
       using_expression: ownerPredicate,
     },
   ];
@@ -654,7 +654,7 @@ describe("SavedSearch RLS acceptance gate", () => {
     unsafe.policyRows = unsafe.policyRows.slice(1).map((row) => ({
       ...row,
       rls_enabled: false,
-      rls_forced: true,
+      rls_forced: false,
     }));
     const issues = collectSavedSearchCatalogIssues(unsafe, config).join("\n");
 
@@ -682,7 +682,7 @@ describe("SavedSearch RLS acceptance gate", () => {
     assert.match(issues, /must revoke all privileges from PUBLIC/);
     assert.match(issues, /must be SECURITY INVOKER/);
     assert.match(issues, /must have ROW LEVEL SECURITY enabled/);
-    assert.match(issues, /must keep FORCE ROW LEVEL SECURITY disabled during phase A/);
+    assert.match(issues, /must have FORCE ROW LEVEL SECURITY enabled/);
     assert.match(issues, /missing policy saved_search_owner_delete/);
   });
 
@@ -722,7 +722,7 @@ describe("SavedSearch RLS acceptance gate", () => {
       assert.equal(payload.target.runtimeRole, DEFAULT_SAVED_SEARCH_RUNTIME_ROLE);
       assert.equal(payload.run.acceptanceEligible, true);
       assert.equal(payload.target.runtimeTransport, "pooled");
-      assert.equal(payload.target.forceRlsExpected, false);
+      assert.equal(payload.target.forceRlsExpected, true);
       assert.equal(payload.target.schema, "public");
       assert.equal(payload.target.table, "SavedSearch");
       assert.equal(payload.result.cleanupVerified, true);

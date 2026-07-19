@@ -4,6 +4,16 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
+### SavedSearch Phase-B operating decision (2026-07-19)
+
+Finish Bucket A before starting any Notification/Bucket-B design. The separate
+SavedSearch FORCE release waits through the full Phase-A skew window plus a
+safety margin and a post-skew canary. Before promotion, rotate the migration
+owner credential to invalidate old owner-backed deployments and prove the old
+credential and owner application sessions are gone. After FORCE, owner row work
+is fail closed by default; controlled maintenance, restore, and emergency repair
+use the tested database-first DISABLE/work/ENABLE/FORCE procedure.
+
 ### Homepage discovery hierarchy decision (2026-07-15)
 
 Keep the local-maker map directly beneath the hero and floating marketplace stats. It is Grainline's clearest marketplace differentiator, but it should remain a compact discovery band so inventory appears after a short scroll rather than becoming a second full-screen gate.

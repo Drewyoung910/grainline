@@ -677,6 +677,31 @@ RLS staging context proof:
   and test how owner-run migrations, maintenance, restore drills, and emergency
   repair access `SavedSearch` after `FORCE`. Roll back the DB (`DISABLE ROW LEVEL
   SECURITY`) before rolling back application code.
+- SavedSearch Phase B uses `SAVED_SEARCH_RLS_DEPLOY_PHASE=phase-b-reviewed`
+  only on the separately fingerprinted artifact containing
+  `20260720060000_force_saved_search_rls`. For the 2026-07-19 Phase-A
+  deployment `dpl_H5tnmGyL8fK3oriwawjHBhg2Yomz`, do not promote Phase B before
+  `2026-07-20T06:25:00Z`: this is later than the full 12-hour skew window, adds
+  a safety margin, and allows the 06:20 UTC scheduled canary to prove health
+  after skew. Time is still not drain proof. Before setting the phase value,
+  rotate the `neondb_owner` password, update the future Production
+  `DIRECT_URL` without changing runtime `DATABASE_URL`, prove the prior owner
+  credential is rejected, close rollout tooling connections, and retain a
+  sanitized `pg_stat_activity` count of zero other `neondb_owner` client
+  sessions. The migration repeats that zero-other-session check and fails
+  before `FORCE` if it finds drift. Remove the phase value immediately after
+  the exact deployment.
+- The Phase-B owner strategy is fail closed by default. With `FORCE`,
+  `neondb_owner` is not named in the runtime-only policies and must see zero
+  `SavedSearch` rows. Migrations may still perform owner DDL. Controlled row
+  maintenance and restore drills must use the direct owner connection, take a
+  bounded transaction and table lock, `DISABLE ROW LEVEL SECURITY`, perform
+  the reviewed bounded work, then `ENABLE ROW LEVEL SECURITY`, `FORCE ROW LEVEL
+  SECURITY`, verify both catalog flags and the exact policy set, and only then
+  commit. `npm run audit:rls-saved-search-force` proves this path reversibly on
+  the independently reviewed staging endpoint and must retain a mode-`0600`
+  artifact. For an application rollback after Phase B, disable RLS at the
+  database first; never roll application code back while FORCE remains active.
 - After Release 0, the exact real-table SavedSearch gate, including policy/RPC,
   route-fixture, grant/canary, and rollback proof, must pass before Phase A.
   Those are pre-Phase-A gates, not pre-Release-0 transport gates. Bucket B is
