@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { existsSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import {
   assertDeterministicPostgresEnvironment,
@@ -22,6 +23,22 @@ const OWNER_ENVIRONMENT_KEY_PATTERNS = Object.freeze([
   /^MIGRATION_DB_ROLE$/,
   /^GRANT_AUDIT_DATABASE_URL$/,
 ]);
+
+export const NOTIFICATION_RLS_DRAFT_URL = new URL(
+  "../docs/rls-drafts/notification-related-user.sql",
+  import.meta.url,
+);
+
+export function assertNoNotificationRlsDraftDeployment(
+  env = process.env,
+  draftPresent = existsSync(NOTIFICATION_RLS_DRAFT_URL),
+) {
+  if (env.VERCEL === "1" && draftPresent) {
+    throw new Error(
+      "Vercel deployment is barred while the unapplied Notification RLS draft is present",
+    );
+  }
+}
 
 export function privilegedDatabaseEnvironmentKeys(env) {
   return Object.keys(env ?? {})
@@ -108,6 +125,7 @@ export function assertVercelRuntimeDatabaseIsolation(env = process.env) {
 
 function main() {
   try {
+    assertNoNotificationRlsDraftDeployment(process.env);
     const result = assertVercelRuntimeDatabaseIsolation(process.env);
     process.stdout.write(`${JSON.stringify(result)}\n`);
   } catch {

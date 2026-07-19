@@ -76,6 +76,7 @@ async function approveComment(commentId: string) {
             dedupScope: commentId,
             sourceType: NOTIFICATION_SOURCE_TYPES.BLOG_COMMENT,
             sourceId: commentId,
+            relatedUserId: comment.authorId,
           });
         }
       } else {
@@ -90,6 +91,7 @@ async function approveComment(commentId: string) {
             dedupScope: commentId,
             sourceType: NOTIFICATION_SOURCE_TYPES.BLOG_COMMENT,
             sourceId: commentId,
+            relatedUserId: comment.authorId,
           });
         }
       }

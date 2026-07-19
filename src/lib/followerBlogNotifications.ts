@@ -56,6 +56,7 @@ export async function fanOutBlogPostToFollowers({
         link: `/blog/${publicPost.slug}`,
         sourceType: "followed_maker_new_blog",
         sourceId: publicPost.id,
+        relatedUserId: sellerUserId,
       }),
     );
 

@@ -1032,7 +1032,11 @@ describe("RLS context acceptance gate guardrails", () => {
       );
       assertContractMatch(contract, /real(?:-table)? [`']?SavedSearch[`']? (?:proof|gate|staging proof)[\s\S]{0,350}before Phase A/i, `${name} must put real SavedSearch proof before Phase A`);
       assertContractMatch(contract, /Phase B[\s\S]{0,220}separate (?:reviewed )?(?:release|migration|pass)/i, `${name} must keep Phase B separate`);
-      assertContractMatch(contract, /Bucket B[\s\S]{0,200}(?:explicitly )?paused[\s\S]{0,220}separate pass/i, `${name} must keep Bucket B paused for a separate pass`);
+      assertContractMatch(
+        contract,
+        /Bucket B[\s\S]{0,260}(?:(?:explicitly )?paused|isolated implementation)[\s\S]{0,260}separate pass/i,
+        `${name} must keep Bucket B production-separated while allowing isolated work`,
+      );
     }
   });
 

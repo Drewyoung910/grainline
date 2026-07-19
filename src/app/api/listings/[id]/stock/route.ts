@@ -215,6 +215,7 @@ export async function PATCH(
                   title: `${updated.title} is back in stock!`,
                   body: stockAlertBody(stockQuantity),
                   link: publicListingPath(id, updated.title),
+                  relatedUserId: listing.seller.userId,
                 });
                 if (sub.email && await shouldSendEmail(sub.id, "EMAIL_BACK_IN_STOCK")) {
                   const stockNotificationId = stockNotificationIdByUserId.get(sub.id);

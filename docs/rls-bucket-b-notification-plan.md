@@ -1,9 +1,11 @@
 # Bucket B: Notification RLS Plan
 
-Status: preparation-only B0 checkpoint; deeper implementation is paused. No
-Notification branch change may merge, deploy, enter a provider evidence run,
-or create a policy migration until SavedSearch Phase B and the runtime database
-credential-separation postflight are live and verified.
+Status: isolated B0 implementation in progress under explicit user
+authorization. Code, unapplied migration/RPC/policy drafts, tests, and local
+verification may continue on this branch. No Notification branch change may
+merge, deploy, touch a live database, or enter a provider evidence run until
+SavedSearch Phase B and the runtime database credential-separation postflight
+are live and verified.
 
 First B0 slice: source metadata is now a paired typed contract with a canonical
 allowlist. New blog-comment notifications identify `blog_comment` plus the
@@ -11,6 +13,17 @@ comment id. Staff blog-comment and seller-broadcast deletion prefers exact
 source cleanup while retaining a deliberately null-source-only fallback for
 legacy rows. The fallback must be removed after legacy rows are backfilled or
 expired; it is not an acceptable shape for the eventual owner RPC.
+
+Account-deletion slice: `Notification.relatedUserId` records the other user
+whose identity or authored content is represented in a recipient's row. The
+first 21 high-confidence creation paths now set it. Account deletion deletes
+recipient and related-user rows exactly, and limits the legacy sensitive-text
+fallback to null-metadata rows. The fallback remains an activation blocker
+until coverage/backfill or safe expiry is proven complete. The SQL remains at
+`docs/rls-drafts/notification-related-user.sql`, deliberately outside
+`prisma/migrations` so it cannot contaminate the sealed SavedSearch artifact.
+The Vercel runtime guard fails closed while that draft file exists, preventing
+this intentionally schema-ahead branch from being deployed accidentally.
 
 Experimental recipient-path slice: every centralized owner
 read/count/export/mark-read and low-stock dedup lookup now enters
@@ -21,18 +34,21 @@ clamp, and row fetch sequentially in one branded transaction. This is a
 correctness/performance candidate, not the selected production architecture,
 and must not be promoted in its current state.
 
-## Sequencing Freeze And Hot-Path Decision
+## Isolation Boundary And Hot-Path Decision
 
 - The isolated branch may retain the verified inventory, source-lifecycle
   hardening, static guards, restored blocking gate, and experimental wrapper.
-- Stop runtime implementation here. Do not add recipient or service RPCs,
-  policies, grants, migrations, staging objects, or deployment configuration
-  until SavedSearch Phase B and credential separation complete their exact
-  production postflights.
+- Isolated runtime, RPC, policy, grant, and migration drafts plus local tests may
+  continue. Do not merge, deploy, apply them to a live database, create staging
+  objects, or collect provider promotion evidence until SavedSearch Phase B and
+  credential separation complete their exact production postflights.
+- The statement that the site currently has no users does not waive the sealed
+  SavedSearch operator's skew/canary gate or any production evidence gate. It
+  only makes parallel isolated Bucket B construction a reasonable use of time.
 - The 2026-07-19 wrapper-versus-autocommit provider result makes interactive
   transactions on the bell and notification pages a credible performance risk;
   it does not by itself prove a Notification-specific result.
-- After the freeze lifts, compare the wrapper candidate with narrow
+- After the production evidence gate lifts, compare the wrapper candidate with narrow
   one-statement `SECURITY INVOKER` recipient RPCs. Bell/page candidates must
   preserve explicit projections, counts, pagination, owner isolation, context
   reset, and hot-route SLOs. Mark-read and export need the same candidate review.
@@ -59,7 +75,7 @@ table cannot receive a copied SavedSearch owner-only policy.
 | Authenticated recipient | Count/list/export own rows; mark own row(s) read; mark own conversation notifications read | Set transaction-local `app.user_id`; `SELECT` and `UPDATE` only where `userId` matches; update only the `read` column and never transfer ownership |
 | Application notification service | Read recipient preference/status, insert for any legitimate recipient, recover the existing row after a dedup collision | One reviewed cross-user creation RPC; no direct runtime `INSERT`; validate active recipient, preference, enum/payload bounds, source metadata, and dedup inside the database operation |
 | Retention cron | Delete old read and unread rows globally in bounded batches | Parameter-free or tightly bounded owner RPC using server time and code-pinned retention windows; no general runtime `DELETE` |
-| Account deletion | Delete the departing user's rows; delete source/link residue across other recipients; find and redact legacy sensitive text across other recipients | Own-row deletion can use owner context. Cross-recipient cleanup needs narrow source-scoped service functions and a reviewed legacy-redaction design; it is a blocking prerequisite, not an exception to disable RLS |
+| Account deletion | Delete the departing user's rows; delete related-user/source residue across other recipients; retire the legacy sensitive-text fallback | Use one narrow account-lifecycle RPC for recipient plus `relatedUserId` deletion and separate exact source cleanup; do not grant direct table `DELETE`. The current application `OR` delete is a pre-RLS draft precursor, not the final authority path |
 | Staff blog/broadcast deletion | Delete notifications tied to a deleted comment or broadcast across recipients | Use exact `sourceType`/`sourceId` service cleanup; remove legacy title/body/link matching after source coverage/backfill is proven |
 | Admin, webhook, cron, order/case/message/social flows | Create recipient notifications through the shared helper | All 51 callsites stay behind one service helper; none receive owner credentials or direct table insert grants |
 
@@ -98,7 +114,10 @@ Current direct-access files are deliberately pinned by test:
    before RLS. Prefer complete `sourceType`/`sourceId` coverage plus backfill;
    any retained redaction RPC must require the deletion context and prove it
    cannot become a general cross-user content editor.
-9. Use explicit `NO FORCE` plus `ENABLE ROW LEVEL SECURITY` for the first
+9. Use `relatedUserId` for exact account-deletion cleanup of cross-recipient
+   identity or user-authored notification content. Keep it distinct from
+   `sourceType`/`sourceId`, which identify the domain object's lifecycle.
+10. Use explicit `NO FORCE` plus `ENABLE ROW LEVEL SECURITY` for the first
    production activation, then a separate `FORCE ROW LEVEL SECURITY` release
    after its skew/canary/session-drain window. FORCE does not constrain the
    BYPASS migration owner used by service RPCs.
@@ -111,6 +130,9 @@ Current direct-access files are deliberately pinned by test:
   account-deletion path mechanically.
 - Add `sourceType`/`sourceId` to every fanout whose lifecycle can require
   cross-recipient cleanup; backfill or safely expire legacy rows.
+- Add `relatedUserId` to every cross-recipient notification containing another
+  user's identity, authored text, or account-owned object reference; backfill
+  or safely expire null-metadata legacy rows.
 - Replace blog/broadcast title/body/link cleanup with exact source cleanup.
 - Choose and test the legacy account-deletion redaction disposition.
 - Retain two fresh counted passes for the Notification workload with the
@@ -146,13 +168,12 @@ Current direct-access files are deliberately pinned by test:
 - SavedSearch Phase B has not yet passed its time/canary gate and production
   postflight.
 - Runtime owner-credential separation is implemented but not production-active.
-- Cross-recipient account-deletion redaction still operates on notification
-  text and requires redesign or a narrowly proven service path.
+- Null-metadata legacy account-deletion cleanup still falls back to notification
+  text and requires coverage/backfill or safe expiry plus a narrow service path.
 - Not every create path has proven lifecycle-complete source metadata.
 - The generic provider wrapper/performance gate is restored in code, but two
   fresh counted provider passes are still required.
 
-These blockers permit inventory, documentation, static checks, and retention of
-the isolated experimental branch only. They prohibit production Notification
-RLS activation and all further runtime/database implementation, merge, provider
-evidence, or staging activation.
+These blockers permit isolated implementation drafts and local verification.
+They prohibit merge, deployment, live-database or staging activation, provider
+promotion evidence, and production Notification RLS activation.

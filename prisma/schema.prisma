@@ -1362,6 +1362,7 @@ model Notification {
   id        String           @id @default(cuid())
   userId    String
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  relatedUserId String?
   type      NotificationType
   title     String           @db.VarChar(200)
   body      String           @db.VarChar(1000)
@@ -1378,6 +1379,7 @@ model Notification {
   @@index([userId, createdAt])
   @@index([read, createdAt])
   @@index([sourceType, sourceId])
+  @@index([relatedUserId])
 }
 
 model ListingViewDaily {

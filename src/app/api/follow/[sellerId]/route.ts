@@ -188,6 +188,7 @@ export async function POST(
         body: "They can now see your new listings and posts in their feed",
         link: "/dashboard/analytics",
         dedupScope: me.id,
+        relatedUserId: me.id,
       });
     } catch (error) {
       logServerError(error, {

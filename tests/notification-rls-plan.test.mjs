@@ -53,10 +53,11 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(plan, /generic provider wrapper\/performance gate/);
     assert.match(plan, /explicit `NO FORCE` plus `ENABLE ROW LEVEL SECURITY`/);
     assert.match(plan, /separate `FORCE ROW LEVEL SECURITY` release/);
-    assert.match(plan, /prohibit production Notification\s+RLS activation/i);
-    assert.match(plan, /preparation-only B0 checkpoint/);
-    assert.match(plan, /deeper implementation is paused/);
-    assert.match(plan, /No[\s\S]{0,100}merge, deploy, enter a provider evidence run/);
+    assert.match(plan, /production Notification RLS activation/i);
+    assert.match(plan, /They prohibit merge, deployment, live-database or staging activation/);
+    assert.match(plan, /isolated B0 implementation in progress/);
+    assert.match(plan, /Code, unapplied migration\/RPC\/policy drafts, tests, and local\s+verification may continue/);
+    assert.match(plan, /No Notification[\s\S]{0,140}merge, deploy, touch a live database/);
     assert.match(plan, /one-statement `SECURITY INVOKER` recipient RPCs/);
     assert.match(plan, /Recipient RPCs are distinct from cross-user creation\/cleanup service\s+authority/);
   });
@@ -76,6 +77,47 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(blog, /sourceType: null,\s*sourceId: null/);
     assert.match(broadcasts, /sourceType: NOTIFICATION_SOURCE_TYPES\.SELLER_BROADCAST/);
     assert.match(broadcasts, /sourceType: null,\s*sourceId: null/);
+  });
+
+  it("uses exact related-user lifecycle metadata before legacy text cleanup", () => {
+    const files = sourceFiles("src");
+    const schema = fs.readFileSync("prisma/schema.prisma", "utf8");
+    const migration = fs.readFileSync(
+      "docs/rls-drafts/notification-related-user.sql",
+      "utf8",
+    );
+    const notifications = fs.readFileSync("src/lib/notifications.ts", "utf8");
+    const accountDeletion = fs.readFileSync("src/lib/accountDeletion.ts", "utf8");
+    const runtimeGuard = fs.readFileSync("scripts/guard-runtime-db-env.mjs", "utf8");
+
+    assert.match(schema, /relatedUserId String\?/);
+    assert.match(schema, /@@index\(\[relatedUserId\]\)/);
+    assert.doesNotMatch(schema, /NotificationRelatedUser/);
+    assert.match(migration, /ADD COLUMN "relatedUserId" TEXT/);
+    assert.doesNotMatch(migration, /FOREIGN KEY|ON DELETE/);
+    assert.match(migration, /lifecycle metadata key, not a Prisma ownership relation/);
+    assert.equal(
+      fs.existsSync("prisma/migrations/20260720070000_add_notification_related_user"),
+      false,
+    );
+    assert.match(migration, /deliberately outside\s+-- prisma\/migrations/);
+    assert.match(notifications, /NotificationRelatedUserFields/);
+    assert.match(notifications, /relatedUserId,\s*dedupKey/);
+    assert.match(runtimeGuard, /assertNoNotificationRlsDraftDeployment/);
+    assert.match(runtimeGuard, /deployment is barred while the unapplied Notification RLS draft is present/);
+
+    const relatedUserAssignments = files.reduce((count, file) => {
+      const source = fs.readFileSync(file, "utf8");
+      if (!source.includes("createNotification")) return count;
+      return count + (source.match(/relatedUserId\s*:/g) ?? []).length;
+    }, 0);
+    assert.equal(relatedUserAssignments, 21);
+
+    assert.match(
+      accountDeletion,
+      /OR:\s*\[\s*\{ userId: user\.id \},\s*\{ relatedUserId: user\.id \}/,
+    );
+    assert.equal((accountDeletion.match(/AND "relatedUserId" IS NULL/g) ?? []).length, 2);
   });
 
   it("requires branded context transactions for every recipient operation", () => {

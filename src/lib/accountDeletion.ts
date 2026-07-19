@@ -398,6 +398,7 @@ async function collectNotificationsBySensitiveText(
           FROM "Notification"
           WHERE id > ${cursor}
             AND "userId" <> ${deletedUserId}
+            AND "relatedUserId" IS NULL
             AND ${textMatchSql}
           ORDER BY id ASC
           LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
@@ -406,6 +407,7 @@ async function collectNotificationsBySensitiveText(
           SELECT id, title, body
           FROM "Notification"
           WHERE "userId" <> ${deletedUserId}
+            AND "relatedUserId" IS NULL
             AND ${textMatchSql}
           ORDER BY id ASC
           LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
@@ -1656,7 +1658,14 @@ export async function anonymizeUserAccount(
     await deleteAllOwnerSavedSearches(user.id, tx);
     await tx.stockNotification.deleteMany({ where: { userId: user.id } });
     await scrubCheckoutStockReservationsForDeletedAccount(tx, user.id, user.sellerProfile?.id ?? null);
-    await tx.notification.deleteMany({ where: { userId: user.id } });
+    await tx.notification.deleteMany({
+      where: {
+        OR: [
+          { userId: user.id },
+          { relatedUserId: user.id },
+        ],
+      },
+    });
     await tx.savedBlogPost.deleteMany({ where: { userId: user.id } });
     await tx.reviewVote.deleteMany({ where: { userId: user.id } });
     await tx.block.deleteMany({ where: { blockerId: user.id } });

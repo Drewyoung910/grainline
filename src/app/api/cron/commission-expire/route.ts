@@ -107,6 +107,7 @@ export async function GET(req: Request) {
               body: `"${title}" is no longer accepting interest.`,
               link: `/commission/${request.id}`,
               dedupScope: request.id,
+              relatedUserId: request.buyerId,
             }),
           );
         } catch (error) {

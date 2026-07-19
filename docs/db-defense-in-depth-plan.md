@@ -32,8 +32,9 @@ first production RLS table on the low-blast-radius `SavedSearch` model.
 - Do not promote Bucket B in this pass. Bucket A is `SavedSearch` only, through
   its production activation and explicit phase-B decision. A later
   comprehensive-RLS mandate permits isolated inventory, documentation, static
-  guards, and reversible candidate preparation, but no Notification runtime or
-  database change may merge, deploy, or enter provider evidence before Phase B
+  guards, isolated implementation and unapplied database drafts, but no
+  Notification change may touch a live database, merge, deploy, or enter
+  provider evidence before Phase B
   and runtime credential separation pass production postflight. SavedSearch
   rollout phase B (`FORCE`) remains Bucket A and must not be confused with
   Bucket B.
@@ -1032,13 +1033,14 @@ RLS to Bucket B or claiming protection against arbitrary runtime code.
 
 ## Phase 5 - Notification RLS Prototype
 
-Status: Bucket B is explicitly paused at a preparation-only boundary for a
-separate pass. Owner read/update centralization, a direct-access guard, source
-metadata hardening, and an experimental context-wrapped recipient candidate
-exist on an isolated branch. The wrapper is not the selected production hot
-path. Further runtime work, service authority, provider evidence, policies,
-grants, migrations, staging validation, merge, and deployment are not authorized
-until SavedSearch Phase B and runtime credential separation are live and healthy.
+Status: Bucket B isolated implementation is active for a separate pass. Owner
+read/update centralization, a direct-access guard, source/related-user metadata
+hardening, and an experimental context-wrapped recipient candidate exist on an
+isolated branch. The wrapper is not the selected production hot path. Unapplied
+service-authority, policy, grant, and migration drafts plus local tests may
+continue. Live-database/staging changes, provider promotion evidence, merge, and
+deployment are not authorized until SavedSearch Phase B and runtime credential
+separation are live and healthy.
 
 Purpose: protect user notification reads and mark-read updates after the first
 direct-owner table proves the context adoption pattern, while preserving

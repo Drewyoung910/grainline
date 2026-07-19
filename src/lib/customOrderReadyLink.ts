@@ -114,6 +114,7 @@ export async function sendCustomOrderReadyLink({
     body: `${listing.title} - review and purchase`,
     link: listingLink,
     dedupScope: listing.id,
+    relatedUserId: sellerUserId,
   });
 
   try {

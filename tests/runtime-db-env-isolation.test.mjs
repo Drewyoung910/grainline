@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  assertNoNotificationRlsDraftDeployment,
   assertVercelRuntimeDatabaseIsolation,
   privilegedDatabaseEnvironmentKeys,
 } from "../scripts/guard-runtime-db-env.mjs";
@@ -18,6 +19,15 @@ function productionEnv(overrides = {}) {
 }
 
 describe("Vercel runtime database environment isolation", () => {
+  it("bars Vercel deployment while the unapplied Notification draft is present", () => {
+    assert.throws(
+      () => assertNoNotificationRlsDraftDeployment({ VERCEL: "1" }, true),
+      /deployment is barred while the unapplied Notification RLS draft is present/,
+    );
+    assert.doesNotThrow(() => assertNoNotificationRlsDraftDeployment({}, true));
+    assert.doesNotThrow(() => assertNoNotificationRlsDraftDeployment({ VERCEL: "1" }, false));
+  });
+
   it("accepts only the reviewed pooled production runtime identity", () => {
     assert.deepEqual(assertVercelRuntimeDatabaseIsolation(productionEnv()), {
       enforced: true,

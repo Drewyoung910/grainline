@@ -214,6 +214,7 @@ export async function POST(req: Request) {
       title: `${me.name ?? "A customer"} wants a custom piece!`,
       body: truncateText(cleanedDescription, 60),
       link: `/messages/${convo.id}`,
+      relatedUserId: me.id,
     });
   } catch (error) {
     Sentry.captureException(error, {

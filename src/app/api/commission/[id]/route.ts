@@ -197,6 +197,7 @@ export async function PATCH(
               : `The request "${request.title}" has been closed by the buyer.`,
             link: isFulfilled ? `/commission/${id}` : `/commission`,
             dedupScope: id,
+            relatedUserId: me.id,
           }),
       );
     } catch (error) {

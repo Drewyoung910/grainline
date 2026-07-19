@@ -8,10 +8,11 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 Finish Bucket A and the runtime credential-separation postflight before merging,
 deploying, or provider-testing any Notification/Bucket-B runtime or database
-change. Isolated inventory, documentation, static guards, and reversible
-candidate preparation may live on an unmerged branch under the later
-comprehensive-RLS mandate, but they are not authorization to deepen or promote
-Bucket B. The separate SavedSearch FORCE release waits through the full Phase-A skew window plus a
+change. Under explicit user authorization, isolated implementation drafts,
+including unapplied migrations/RPCs/policies, tests, and local verification,
+may continue on an unmerged branch. They are not authorization to touch a live
+database, collect provider promotion evidence, merge, deploy, or promote Bucket
+B. The separate SavedSearch FORCE release waits through the full Phase-A skew window plus a
 safety margin and a post-skew canary. Before promotion, rotate the migration
 owner credential to invalidate old owner-backed deployments and prove the old
 credential and owner application sessions are gone. Neon’s migration owner is

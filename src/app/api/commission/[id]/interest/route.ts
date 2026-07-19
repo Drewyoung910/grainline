@@ -248,6 +248,7 @@ export async function POST(
         body: `"${commissionRequest.title}" — view the conversation`,
         link: `/messages/${finalConversationId}`,
         dedupScope: id,
+        relatedUserId: me.id,
       });
     } catch (error) {
       Sentry.captureException(error, {

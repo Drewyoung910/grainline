@@ -75,6 +75,7 @@ export async function fanOutListingToFollowers({
         link: listingPath,
         sourceType: "followed_maker_new_listing",
         sourceId: publicListing.id,
+        relatedUserId: sellerUserId,
       }),
     );
 

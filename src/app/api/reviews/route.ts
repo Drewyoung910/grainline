@@ -228,6 +228,7 @@ export async function POST(req: NextRequest) {
         body: listing.title,
         link: `${publicListingPath(listingId, listing.title)}#reviews`,
         dedupScope: created.id,
+        relatedUserId: me.id,
       });
     } catch (e) {
       console.error("Failed to create review notification:", sanitizeEmailOutboxError(e));

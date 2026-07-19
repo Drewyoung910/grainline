@@ -225,6 +225,7 @@ export async function POST(
               title: "Grainline Staff sent a message in your case",
               body: truncateText(messageBody, 60),
               link: `/dashboard/orders/${caseRecord.orderId}`,
+              relatedUserId: me.id,
             }),
           );
         }
@@ -235,6 +236,7 @@ export async function POST(
             title: "Grainline Staff sent a message in your case",
             body: truncateText(messageBody, 60),
             link: `/dashboard/sales/${caseRecord.orderId}`,
+            relatedUserId: me.id,
           }),
         );
         await Promise.all(notifications);
@@ -314,6 +316,7 @@ export async function POST(
             title: `${senderName} sent a message in your case`,
             body: truncateText(messageBody, 60),
             link: caseLink,
+            relatedUserId: me.id,
           });
         } catch (notificationError) {
           Sentry.captureException(notificationError, {

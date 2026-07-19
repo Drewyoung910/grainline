@@ -308,6 +308,7 @@ export async function POST(req: NextRequest) {
           dedupScope: broadcast.id,
           sourceType: "seller_broadcast",
           sourceId: broadcast.id,
+          relatedUserId: me.id,
         }),
       );
       results.forEach((result, index) => {

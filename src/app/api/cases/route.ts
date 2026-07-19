@@ -227,6 +227,7 @@ export async function POST(req: Request) {
         title: `${me.name ?? "A buyer"} opened a case`,
         body: truncateText(description, 60),
         link: `/dashboard/sales/${orderId}`,
+        relatedUserId: me.id,
       });
     } catch (notificationError) {
       Sentry.captureException(notificationError, {

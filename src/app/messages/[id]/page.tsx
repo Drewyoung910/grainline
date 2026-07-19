@@ -347,6 +347,7 @@ export default async function ThreadPage({
         title: `${me.name ?? "Someone"} sent you a message`,
         body: body || "Sent an attachment",
         link: `/messages/${id}`,
+        relatedUserId: me.id,
       });
     }
 

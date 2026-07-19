@@ -643,6 +643,7 @@ export async function POST(req: Request) {
             title: "Order confirmed!",
             body: `Your order from ${sellerName} is being prepared`,
             link: `/dashboard/orders/${order.id}`,
+            relatedUserId: sellerUserId,
           })
         : Promise.resolve(),
       sellerUserId
@@ -652,6 +653,7 @@ export async function POST(req: Request) {
             title: "New sale! Congrats!",
             body: `${buyerDisplayName} purchased ${firstItemTitle}`,
             link: `/dashboard/sales/${order.id}`,
+            relatedUserId: order.buyerId ?? undefined,
           })
         : Promise.resolve(),
     ]);

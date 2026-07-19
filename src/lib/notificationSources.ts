@@ -11,3 +11,11 @@ export type NotificationSourceType =
 export type NotificationSourceFields =
   | { sourceType: NotificationSourceType; sourceId: string }
   | { sourceType?: never; sourceId?: never };
+
+// The user whose identity or user-authored content is represented in a
+// notification sent to somebody else. This is distinct from the recipient and
+// from the domain source object. Account deletion uses it for exact cleanup
+// instead of searching notification title/body text.
+export type NotificationRelatedUserFields = {
+  relatedUserId?: string;
+};

@@ -12,7 +12,10 @@ import { isInAppNotificationEnabled } from "@/lib/notificationDeliveryPreference
 import { isEmailNotificationEnabled } from "@/lib/notificationEmailPreferences";
 import { emailPreferenceLookupFailureAllowsSend } from "./notificationPreferenceState.ts";
 import { logServerError } from "@/lib/serverErrorLogger";
-import type { NotificationSourceFields } from "@/lib/notificationSources";
+import type {
+  NotificationRelatedUserFields,
+  NotificationSourceFields,
+} from "@/lib/notificationSources";
 
 export {
   VALID_EMAIL_PREFERENCE_KEYS,
@@ -74,7 +77,7 @@ type CreateNotificationInput = {
   body: string;
   link?: string;
   dedupScope?: string;
-} & NotificationSourceFields;
+} & NotificationSourceFields & NotificationRelatedUserFields;
 
 export async function createNotification({
   userId,
@@ -85,6 +88,7 @@ export async function createNotification({
   dedupScope,
   sourceType,
   sourceId,
+  relatedUserId,
 }: CreateNotificationInput) {
   try {
     // Check notification preferences — if explicitly disabled, skip
@@ -119,6 +123,7 @@ export async function createNotification({
           link: notificationLink,
           sourceType: notificationSourceType,
           sourceId: notificationSourceId,
+          relatedUserId,
           dedupKey,
         },
       });
