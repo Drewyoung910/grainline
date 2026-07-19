@@ -14,12 +14,14 @@ const {
   REQUIRED_SEQUENCE_PRIVILEGES,
   REQUIRED_TABLE_PRIVILEGES,
   REQUIRED_TYPE_PRIVILEGES,
+  SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES,
   SAVED_SEARCH_CATALOG_EVIDENCE_PREFIX,
   assertGrantAuditConnectionMatches,
   auditLiveDatabase,
   collectTablePrivilegeAllowlistIssues,
   defaultPrivilegeRequirements,
   deriveGrantInventory,
+  requiredRuntimeTablePrivileges,
   formatSavedSearchCatalogEvidence,
   normalizeSavedSearchCatalogState,
   parseGrantAuditDatabaseIdentity,
@@ -348,6 +350,51 @@ describe("database grant inventory guardrails", () => {
         { checkColumnPrivileges: false },
       ),
       [],
+    );
+  });
+
+  it("narrows only Phase-A SavedSearch to SELECT, INSERT, and DELETE", () => {
+    const releaseZeroInventory = { rlsPolicyTables: [] };
+    const phaseAInventory = { rlsPolicyTables: ["SavedSearch"] };
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges("SavedSearch", releaseZeroInventory),
+      REQUIRED_TABLE_PRIVILEGES,
+    );
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges("SavedSearch", phaseAInventory),
+      SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES,
+    );
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges("User", phaseAInventory),
+      REQUIRED_TABLE_PRIVILEGES,
+    );
+
+    const exactPhaseARow = {
+      public_column_grant_option_privileges: [],
+      public_column_privileges: [],
+      public_grant_option_privileges: [],
+      public_privileges: [],
+      runtime_column_grant_option_privileges: [],
+      runtime_column_privileges: [],
+      runtime_grant_option_privileges: [],
+      runtime_privileges: ["DELETE", "INSERT", "SELECT"],
+    };
+    assert.deepEqual(
+      collectTablePrivilegeAllowlistIssues(exactPhaseARow, "table SavedSearch", {
+        requiredPrivileges: SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES,
+      }),
+      [],
+    );
+    assert.match(
+      collectTablePrivilegeAllowlistIssues(
+        {
+          ...exactPhaseARow,
+          runtime_privileges: ["DELETE", "INSERT", "SELECT", "UPDATE"],
+        },
+        "table SavedSearch",
+        { requiredPrivileges: SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES },
+      ).join("\n"),
+      /unexpected table privileges: UPDATE/,
     );
   });
 
@@ -925,6 +972,7 @@ describe("database grant inventory guardrails", () => {
 
   it("records the exact privilege classes required for the runtime role", () => {
     assert.deepEqual(REQUIRED_TABLE_PRIVILEGES, ["SELECT", "INSERT", "UPDATE", "DELETE"]);
+    assert.deepEqual(SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES, ["SELECT", "INSERT", "DELETE"]);
     assert.deepEqual(REQUIRED_SEQUENCE_PRIVILEGES, ["USAGE", "SELECT"]);
     assert.deepEqual(REQUIRED_FUNCTION_PRIVILEGES, ["EXECUTE"]);
     assert.deepEqual(REQUIRED_TYPE_PRIVILEGES, ["USAGE"]);
@@ -1138,6 +1186,12 @@ describe("database grant inventory guardrails", () => {
     assert.match(provision, /public\."grainline_notification_preferences_valid"\(jsonb\)/);
     assert.match(provision, /public\."grainline_saved_search_list"\(text, integer, text\)/);
     assert.match(provision, /public\."grainline_saved_search_delete_one"\(text, text\)/);
+    const savedSearchGrantIndex = provision.indexOf('public."SavedSearch",');
+    const savedSearchUpdateRevokeIndex = provision.indexOf(
+      'REVOKE UPDATE ON TABLE public."SavedSearch" FROM :"runtime_role"',
+    );
+    assert.ok(savedSearchGrantIndex > 0);
+    assert.ok(savedSearchUpdateRevokeIndex > savedSearchGrantIndex);
     assert.match(provision, /REVOKE ALL ON FUNCTION %s FROM PUBLIC/);
     assert.match(provision, /REVOKE ALL ON FUNCTION %s FROM %I/);
     assert.match(provision, /GRANT EXECUTE ON FUNCTION %s TO %I/);

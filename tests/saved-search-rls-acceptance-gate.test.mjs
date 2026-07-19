@@ -172,10 +172,10 @@ function exactCatalogState() {
       runtime_column_grant_option_privileges: [],
       runtime_column_privileges: [],
       runtime_grant_option_privileges: [],
-      runtime_privileges: ["DELETE", "INSERT", "SELECT", "UPDATE"],
+      runtime_privileges: ["DELETE", "INSERT", "SELECT"],
       schema_usage: true,
       select_priv: true,
-      update_priv: true,
+      update_priv: false,
     }],
     runtimeIdentityRows: [{
       current_user_name: DEFAULT_SAVED_SEARCH_RUNTIME_ROLE,
@@ -539,7 +539,7 @@ describe("SavedSearch RLS acceptance gate", () => {
     const publicCrudIssues = collectSavedSearchCatalogIssues(publicCrudMask, config).join("\n");
     assert.match(
       publicCrudIssues,
-      /runtime role is missing direct table privileges: SELECT, INSERT, UPDATE, DELETE/,
+      /runtime role is missing direct table privileges: SELECT, INSERT, DELETE/,
     );
     assert.match(
       publicCrudIssues,
@@ -557,8 +557,8 @@ describe("SavedSearch RLS acceptance gate", () => {
     unsafe.runtimeRoleRows[0].rolcanlogin = false;
     unsafe.runtimeRoleRows[0].rolinherit = true;
     unsafe.membershipRows.push({ role_name: "inherited_power" });
-    unsafe.privilegeRows[0].update_priv = false;
-    unsafe.privilegeRows[0].runtime_privileges.push("TRUNCATE");
+    unsafe.privilegeRows[0].update_priv = true;
+    unsafe.privilegeRows[0].runtime_privileges.push("UPDATE", "TRUNCATE");
     unsafe.privilegeRows[0].runtime_grant_option_privileges.push("DELETE");
     unsafe.privilegeRows[0].public_privileges.push("SELECT");
     unsafe.privilegeRows[0].public_grant_option_privileges.push("SELECT");
@@ -586,8 +586,8 @@ describe("SavedSearch RLS acceptance gate", () => {
     assert.match(issues, /must have LOGIN/);
     assert.match(issues, /must have NOINHERIT/);
     assert.match(issues, /must be membership-free/);
-    assert.match(issues, /lacks UPDATE on public\."SavedSearch"/);
-    assert.match(issues, /public\."SavedSearch" runtime role has unexpected table privileges: TRUNCATE/);
+    assert.match(issues, /must not have UPDATE on public\."SavedSearch" during phase A/);
+    assert.match(issues, /public\."SavedSearch" runtime role has unexpected table privileges: TRUNCATE, UPDATE/);
     assert.match(issues, /public\."SavedSearch" runtime role has grant options: DELETE/);
     assert.match(issues, /public\."SavedSearch" grants table privileges to PUBLIC: SELECT/);
     assert.match(issues, /public\."SavedSearch" grants table privileges with grant option to PUBLIC: SELECT/);
