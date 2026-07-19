@@ -10,6 +10,7 @@ const {
   buildEvidencePayload,
   claimProviderRuntimeRunSlot,
   completeProviderRuntimeRunSlot,
+  compareWorkloads,
   isPreparedStatementError,
   parseGateConfig,
   restoreForcedRlsState,
@@ -553,6 +554,44 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.equal(isPreparedStatementError(new Error("ordinary timeout")), false);
   });
 
+  it("keeps only legacy autocommit performance findings diagnostic without hiding failures", () => {
+    const workload = (label, latencyP95, { errors = [], issues = [] } = {}) => ({
+      errors,
+      issues,
+      label,
+      poolTimingAvailable: false,
+      summaries: {
+        acquireMs: { avg: 0, p95: 0, p99: 0 },
+        holdMs: { avg: 0, p95: 0, p99: 0 },
+        latencyMs: { avg: latencyP95, p95: latencyP95, p99: latencyP95 },
+      },
+    });
+    const baseline = workload("autocommit baseline", 50);
+    const wrapped = workload("legacy wrapped path", 151);
+    const config = { transactionTimeoutMs: 5_000 };
+
+    const defaultIssues = compareWorkloads("candidate comparison", baseline, wrapped, config);
+    assert.match(defaultIssues.join("\n"), /wrapped p95 151\.0ms exceeds baseline p95 50\.0ms threshold/);
+
+    const performanceDiagnostics = [];
+    const diagnosticIssues = compareWorkloads("legacy autocommit adoption cost", baseline, wrapped, config, {
+      performanceDiagnostics,
+    });
+    assert.deepEqual(diagnosticIssues, []);
+    assert.match(performanceDiagnostics.join("\n"), /legacy autocommit adoption cost: wrapped p95/);
+
+    const erroredWrapped = workload("legacy wrapped path", 151, {
+      errors: [{ error: new Error("connection failed") }],
+      issues: ["owner isolation failed"],
+    });
+    const failClosedIssues = compareWorkloads("legacy autocommit adoption cost", baseline, erroredWrapped, config, {
+      performanceDiagnostics: [],
+    });
+    assert.match(failClosedIssues.join("\n"), /owner isolation failed/);
+    assert.match(failClosedIssues.join("\n"), /1 request errors/);
+    assert.match(failClosedIssues.join("\n"), /connection failed/);
+  });
+
   it("benchmarks the production wrapper without a redundant context round trip", () => {
     const script = source("scripts/rls-context-acceptance-gate.mjs");
     const rawWrapped = script.slice(
@@ -999,6 +1038,22 @@ describe("RLS context acceptance gate guardrails", () => {
     assertContractMatch(contract, /Baseline recorded 2026-07-16[\s\S]{0,240}historical[\s\S]{0,240}not (?:the )?current (?:provider )?(?:inventory|evidence)/i, "the 2026-07-16 locality baseline must be labeled historical, not current inventory");
     assertContractMatch(contract, /(?:Historical (?:failed )?(?:provider-runtime )?result|provider-runtime result recorded) 2026-07-17/i, "the failed 2026-07-17 provider result must be explicitly historical");
     assertContractNotMatch(contract, /latest provider-runtime slot 1/i, "stale provider evidence must not be described as latest");
+  });
+
+  it("documents candidate-aligned Bucket A performance gates without accepting the failed run", () => {
+    const docs = [
+      source("docs/runbook.md"),
+      source("docs/db-defense-in-depth-plan.md"),
+      source("docs/launch-checklist.md"),
+    ];
+    for (const contract of docs) {
+      assertContractMatch(contract, /2026-07-19[\s\S]{0,900}(?:failed evidence|failed provider|consumed slot)/i, "each rollout document must retain the failed 2026-07-19 slot");
+      assertContractMatch(contract, /wrapper-versus-\s*autocommit[\s\S]{0,260}diagnostic/i, "each rollout document must label only the legacy autocommit comparison diagnostic");
+      assertContractMatch(contract, /(?:errors|correctness|isolation)/i, "each rollout document must retain fail-closed findings");
+      assertContractMatch(contract, /(?:RPC|one-statement)/i, "each rollout document must retain the candidate path");
+      assertContractMatch(contract, /(?:blocking|promotion-blocking|block promotion)/i, "each rollout document must retain promotion gates");
+      assertContractMatch(contract, /(?:restore|hard gate|blocking gate)[\s\S]{0,280}Bucket B|Bucket B[\s\S]{0,280}(?:restore|hard gate|blocking gate)/i, "each rollout document must restore the generic gate before Bucket B");
+    }
   });
 
   it("builds a sanitized evidence payload without database URLs", () => {

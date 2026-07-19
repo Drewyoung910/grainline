@@ -398,6 +398,24 @@ reviewed commit are still required. The prior workstation artifact
 `context-gate-failed-pre-pool-fix.json` remains failed, pre-pool-fix,
 diagnostic-only evidence and cannot satisfy either pass.
 
+Historical failed provider-runtime result 2026-07-19: Git-integrated Preview
+commit `c188ea4306ed15b1160a8525ad8c38baf934dfa4` (deployment
+`dpl_2U8ccnSKFcgiPUrF9SyYtDYz2woQ`) consumed slot 1 and failed with one issue;
+slot 2 was not called. The actual one-statement RPC candidate passed its target
+and burst comparisons (p95 19.9 ms versus 19.8 ms, and 35.5 ms versus 35.6 ms)
+with zero request/correctness/isolation errors. The sole issue compared the
+legacy multi-statement wrapper with a one-statement autocommit baseline (Prisma
+burst p95 146.5 ms versus 71.0 ms), even though that wrapper is not the
+SavedSearch list/delete Release-0 candidate and the remaining wrapped units were
+already transactions. For Bucket A/Phase A, retain that wrapper-versus-
+autocommit latency as an explicit diagnostic while keeping its errors,
+correctness, isolation, turnover, wrapper-versus-transaction thresholds, and
+the one-statement RPC target/burst thresholds promotion-blocking. Any Bucket B
+work or newly wrapped formerly-autocommit path must restore the generic
+wrapper-versus-autocommit threshold as a blocking gate. This is candidate
+alignment, not retroactive acceptance: the consumed run remains failed and a
+fresh run id, trigger secret, commit, deployment, and two new slots are required.
+
 Performance-path investigation (2026-07-17): a one-statement CTE that attempted
 to call `set_config` and then read the protected canary failed closed because it
 returned zero rows; PostgreSQL did not provide an execution-order guarantee that

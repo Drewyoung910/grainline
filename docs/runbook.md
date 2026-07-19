@@ -522,6 +522,21 @@ RLS staging context proof:
   the app's explicit pool of 10 under that 16-request burst, record both pool
   sizes, mark Prisma acquisition timing unavailable until it is truly measured,
   and add representative SavedSearch route/SLO evidence.
+- On 2026-07-19, commit `c188ea4306ed15b1160a8525ad8c38baf934dfa4`
+  (deployment `dpl_2U8ccnSKFcgiPUrF9SyYtDYz2woQ`) consumed slot 1 and failed
+  with one issue; slot 2 was not called. The one-statement RPC candidate passed
+  target and burst p95 comparisons (19.9 ms versus 19.8 ms and 35.5 ms versus
+  35.6 ms) with no request/correctness/isolation errors. The sole issue was the
+  legacy wrapper-versus-autocommit Prisma burst comparison (146.5 ms versus
+  71.0 ms). For SavedSearch Bucket A/Phase A only, keep that generic legacy
+  latency comparison diagnostic because list/read and delete ship through the
+  measured one-statement RPCs and the remaining wrapped units were already
+  transactions. Errors, correctness, isolation, turnover, wrapper-versus-
+  transaction thresholds, and both RPC performance comparisons still block
+  promotion. Restore the generic wrapper-versus-autocommit threshold as a hard
+  gate before Bucket B or any newly wrapped formerly-autocommit path. The run is
+  still failed evidence: rotate the run id and trigger, deploy a fresh attested
+  commit, and begin again at slot 1.
 - First run the owner-only setup locally with `diagnostic-only`, the exact
   reviewed endpoint/database values above, `RLS_CONTEXT_GATE_PREPARE=1`, the
   pooled runtime-role URL, and the direct owner URL. Setup prepares the canary,

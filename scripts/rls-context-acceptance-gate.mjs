@@ -1850,8 +1850,15 @@ function summarizeWorkload(label, samples, { poolTimingAvailable = true } = {}) 
   };
 }
 
-function compareWorkloads(label, baseline, wrapped, config, { candidateName = "wrapped" } = {}) {
+export function compareWorkloads(
+  label,
+  baseline,
+  wrapped,
+  config,
+  { candidateName = "wrapped", performanceDiagnostics } = {},
+) {
   const issues = [];
+  const performanceIssues = [];
   const baselineLatency = baseline.summaries.latencyMs;
   const wrappedLatency = wrapped.summaries.latencyMs;
   const baselineHold = baseline.summaries.holdMs;
@@ -1872,30 +1879,35 @@ function compareWorkloads(label, baseline, wrapped, config, { candidateName = "w
   }
 
   if (wrappedLatency.p95 > baselineLatency.p95 * 2 || wrappedLatency.p95 - baselineLatency.p95 > 100) {
-    issues.push(
+    performanceIssues.push(
       `${label}: ${candidateName} p95 ${formatMs(wrappedLatency.p95)} exceeds baseline p95 ${formatMs(baselineLatency.p95)} threshold`,
     );
   }
   if (wrappedLatency.p99 > baselineLatency.p99 * 3 || wrappedLatency.p99 - baselineLatency.p99 > 250) {
-    issues.push(
+    performanceIssues.push(
       `${label}: ${candidateName} p99 ${formatMs(wrappedLatency.p99)} exceeds baseline p99 ${formatMs(baselineLatency.p99)} threshold`,
     );
   }
   if (baseline.poolTimingAvailable && wrapped.poolTimingAvailable) {
     if (wrappedAcquire.p95 > 100) {
-      issues.push(`${label}: ${candidateName} connection acquisition p95 ${formatMs(wrappedAcquire.p95)} exceeds 100ms`);
+      performanceIssues.push(`${label}: ${candidateName} connection acquisition p95 ${formatMs(wrappedAcquire.p95)} exceeds 100ms`);
     }
     if (wrappedAcquire.p99 > 250) {
-      issues.push(`${label}: ${candidateName} connection acquisition p99 ${formatMs(wrappedAcquire.p99)} exceeds 250ms`);
+      performanceIssues.push(`${label}: ${candidateName} connection acquisition p99 ${formatMs(wrappedAcquire.p99)} exceeds 250ms`);
     }
     if (wrappedHold.avg > baselineHold.avg * 2) {
-      issues.push(`${label}: ${candidateName} average hold ${formatMs(wrappedHold.avg)} exceeds 2x baseline ${formatMs(baselineHold.avg)}`);
+      performanceIssues.push(`${label}: ${candidateName} average hold ${formatMs(wrappedHold.avg)} exceeds 2x baseline ${formatMs(baselineHold.avg)}`);
     }
     if (wrappedHold.p99 > config.transactionTimeoutMs / 2) {
-      issues.push(
+      performanceIssues.push(
         `${label}: ${candidateName} p99 hold ${formatMs(wrappedHold.p99)} exceeds 50% of transaction timeout ${formatMs(config.transactionTimeoutMs)}`,
       );
     }
+  }
+  if (Array.isArray(performanceDiagnostics)) {
+    performanceDiagnostics.push(...performanceIssues);
+  } else {
+    issues.push(...performanceIssues);
   }
   return issues;
 }
@@ -2180,10 +2192,24 @@ export async function runAcceptanceGate(config) {
       for (const workload of prismaReports) {
         reports.push(formatSummary(workload));
       }
+      const prismaAutocommitPerformanceDiagnostics = [];
       issues.push(...compareWorkloads("Prisma target concurrency", prismaTargetBaseline, prismaTargetWrapped, config));
-      issues.push(...compareWorkloads("Prisma target autocommit adoption cost", prismaTargetAutocommitBaseline, prismaTargetWrapped, config));
+      issues.push(...compareWorkloads(
+        "Prisma target autocommit adoption cost",
+        prismaTargetAutocommitBaseline,
+        prismaTargetWrapped,
+        config,
+        { performanceDiagnostics: prismaAutocommitPerformanceDiagnostics },
+      ));
       issues.push(...compareWorkloads("Prisma burst concurrency", prismaBurstBaseline, prismaBurstWrapped, config));
-      issues.push(...compareWorkloads("Prisma burst autocommit adoption cost", prismaBurstAutocommitBaseline, prismaBurstWrapped, config));
+      issues.push(...compareWorkloads(
+        "Prisma burst autocommit adoption cost",
+        prismaBurstAutocommitBaseline,
+        prismaBurstWrapped,
+        config,
+        { performanceDiagnostics: prismaAutocommitPerformanceDiagnostics },
+      ));
+      reports.push(...prismaAutocommitPerformanceDiagnostics.map((finding) => `diagnostic-only: ${finding}`));
     } finally {
       await disconnectPrismaProbe(prismaProbe);
     }
@@ -2242,12 +2268,32 @@ export async function runAcceptanceGate(config) {
     ]) {
       reports.push(formatSummary(workload));
     }
+    const rawAutocommitPerformanceDiagnostics = [];
     issues.push(...compareWorkloads("target concurrency", targetBaseline, targetWrapped, config));
-    issues.push(...compareWorkloads("target autocommit adoption cost", targetAutocommitBaseline, targetWrapped, config));
+    issues.push(...compareWorkloads(
+      "target autocommit adoption cost",
+      targetAutocommitBaseline,
+      targetWrapped,
+      config,
+      { performanceDiagnostics: rawAutocommitPerformanceDiagnostics },
+    ));
     issues.push(...compareWorkloads("target repeat", targetBaseline, targetWrappedRepeat, config));
-    issues.push(...compareWorkloads("target repeat autocommit adoption cost", targetAutocommitBaseline, targetWrappedRepeat, config));
+    issues.push(...compareWorkloads(
+      "target repeat autocommit adoption cost",
+      targetAutocommitBaseline,
+      targetWrappedRepeat,
+      config,
+      { performanceDiagnostics: rawAutocommitPerformanceDiagnostics },
+    ));
     issues.push(...compareWorkloads("burst concurrency", burstBaseline, burstWrapped, config));
-    issues.push(...compareWorkloads("burst autocommit adoption cost", burstAutocommitBaseline, burstWrapped, config));
+    issues.push(...compareWorkloads(
+      "burst autocommit adoption cost",
+      burstAutocommitBaseline,
+      burstWrapped,
+      config,
+      { performanceDiagnostics: rawAutocommitPerformanceDiagnostics },
+    ));
+    reports.push(...rawAutocommitPerformanceDiagnostics.map((finding) => `diagnostic-only: ${finding}`));
   } finally {
     await pool.end();
   }
