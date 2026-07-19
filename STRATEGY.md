@@ -123,9 +123,14 @@ emission paths still need family implementations and currently fail closed.
 The granted wrappers also retain bounded caller control of notification text
 and link, and social/message absence-of-block checks do not yet serialize with a
 concurrent block insertion. Classify the remaining type families, derive or
-template payloads where practical, bind the custom-order-ready listing link to
-the reserved listing row, and resolve the concurrency contract before
+template payloads where practical, and resolve the concurrency contract before
 activation; retain provider performance proof for the source-validation joins.
+
+The message family uses `Message.id` as its durable source. For custom-order
+ready links, a validation-only listing id parsed from the canonical route is
+also checked against the structured message, reserved buyer, seller,
+conversation, listing status, and route prefix. It is not stored as a second
+Notification source field.
 
 Use a hybrid rather than either extreme. Do not grant runtime the current
 generic arbitrary-type/arbitrary-recipient creator, but do not add identical

@@ -103,6 +103,8 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(inventory, /staff-only families[\s\S]{0,220}audit or domain source/);
     assert.match(inventory, /caller-supplied title, body, and relative link/);
     assert.match(inventory, /do not serialize against a concurrent\s+block creation/);
+    assert.match(inventory, /reserved listing, seller, buyer, conversation/);
+    assert.doesNotMatch(inventory, /custom-listing reservation\/link binding remains blocking/);
     assert.doesNotMatch(inventory, /write-side RLS on Notification is low-value/);
   });
 
@@ -241,6 +243,12 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(sql, /source_message\.kind = 'custom_order_request'/);
     assert.match(sql, /source_message\.kind = 'custom_order_link'/);
     assert.match(sql, /p_link = '\/messages\/' \|\| source_conversation\.id/);
+    assert.match(sql, /context_listing\."customOrderConversationId" = context_conversation\.id/);
+    assert.match(sql, /context_listing\."reservedForUserId" = p_user_id/);
+    assert.match(sql, /context_seller\."userId" = p_related_user_id/);
+    assert.match(sql, /context_listing\.status IN \('ACTIVE', 'SOLD_OUT'\)/);
+    assert.match(sql, /'"listingId":"' \|\| p_authority_context_id \|\| '"'/);
+    assert.match(sql, /'\/listing\/' \|\| p_authority_context_id \|\| '--'/);
     assert.match(sql, /source_review\."reviewerId" = p_related_user_id/);
     assert.match(sql, /p_related_user_id[\s\S]{0,1000}related_user\.banned = false[\s\S]{0,100}FOR SHARE/);
     assert.match(sql, /source_comment\."authorId" = p_related_user_id/);
@@ -263,6 +271,8 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(serviceAccess, /public\.grainline_notification_create_source_fanout\(/);
     assert.match(serviceAccess, /public\.grainline_notification_create_social_event\(/);
     assert.match(serviceAccess, /public\.grainline_notification_create_message_event\(/);
+    assert.match(serviceAccess, /extractRouteId\(listingRouteSegment\)/);
+    assert.match(serviceAccess, /\$\{authorityContextId\}::text/);
     assert.match(serviceAccess, /notification create family is not implemented for a source-less event/);
     assert.match(serviceAccess, /public\.grainline_notification_delete_for_account\(/);
     assert.match(serviceAccess, /public\.grainline_notification_delete_blog_comment\(/);

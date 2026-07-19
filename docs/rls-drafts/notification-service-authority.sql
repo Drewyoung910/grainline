@@ -464,7 +464,8 @@ CREATE OR REPLACE FUNCTION public.grainline_notification_create_message_event(
   p_source_type text,
   p_source_id text,
   p_related_user_id text,
-  p_dedup_key text
+  p_dedup_key text,
+  p_authority_context_id text
 )
 RETURNS text
 LANGUAGE plpgsql
@@ -478,6 +479,46 @@ DECLARE
 BEGIN
   IF p_source_type <> 'message' THEN
     RAISE EXCEPTION 'message notification requires a message source'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF p_type = 'CUSTOM_ORDER_LINK' THEN
+    IF p_authority_context_id IS NULL
+       OR p_authority_context_id !~ '^[A-Za-z0-9][A-Za-z0-9_-]{1,127}$' THEN
+      RAISE EXCEPTION 'custom order notification listing context is invalid'
+        USING ERRCODE = '22023';
+    END IF;
+
+    PERFORM 1
+      FROM public."Message" AS context_message
+      JOIN public."Conversation" AS context_conversation
+        ON context_conversation.id = context_message."conversationId"
+      JOIN public."Listing" AS context_listing
+        ON context_listing.id = p_authority_context_id
+       AND context_listing."customOrderConversationId" = context_conversation.id
+      JOIN public."SellerProfile" AS context_seller
+        ON context_seller.id = context_listing."sellerId"
+     WHERE context_message.id = p_source_id
+       AND context_message.kind = 'custom_order_link'
+       AND context_message."senderId" = p_related_user_id
+       AND context_message."recipientId" = p_user_id
+       AND context_listing."reservedForUserId" = p_user_id
+       AND context_seller."userId" = p_related_user_id
+       AND context_listing.status IN ('ACTIVE', 'SOLD_OUT')
+       AND pg_catalog.strpos(
+         context_message.body,
+         '"listingId":"' || p_authority_context_id || '"'
+       ) > 0
+       AND pg_catalog.left(
+         p_link,
+         pg_catalog.char_length('/listing/' || p_authority_context_id || '--')
+       ) = '/listing/' || p_authority_context_id || '--'
+     FOR SHARE OF context_message, context_conversation, context_listing, context_seller;
+    IF NOT FOUND THEN
+      RETURN NULL;
+    END IF;
+  ELSIF p_authority_context_id IS NOT NULL THEN
+    RAISE EXCEPTION 'message notification context is not allowed for this type'
       USING ERRCODE = '22023';
   END IF;
 
@@ -686,7 +727,7 @@ REVOKE ALL ON FUNCTION public.grainline_notification_create_social_event(
   text, text, public."NotificationType", text, text, text, text, text, text, text
 ) FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_notification_create_message_event(
-  text, text, public."NotificationType", text, text, text, text, text, text, text
+  text, text, public."NotificationType", text, text, text, text, text, text, text, text
 ) FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_notification_delete_for_account(text)
   FROM PUBLIC, grainline_app_runtime;
@@ -706,7 +747,7 @@ GRANT EXECUTE ON FUNCTION public.grainline_notification_create_social_event(
   text, text, public."NotificationType", text, text, text, text, text, text, text
 ) TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_notification_create_message_event(
-  text, text, public."NotificationType", text, text, text, text, text, text, text
+  text, text, public."NotificationType", text, text, text, text, text, text, text, text
 ) TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_notification_delete_for_account(text)
   TO grainline_app_runtime;

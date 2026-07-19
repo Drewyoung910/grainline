@@ -34,7 +34,7 @@ and family state so those concepts are not conflated again.
 | Commission lifecycle | 4 | Seller interest, buyer close/fulfill, expiry notifications | `CommissionRequest`, `CommissionInterest`, conversation, buyer/seller participants and resulting status |
 | Social and review events | 3 | Favorite, follow, review | Implemented draft validation: `Favorite`, `Follow`, `Review`, listing/seller ownership and event actor |
 | Inventory events | 3 | Seller low stock, subscriber back in stock, webhook low stock | Listing owner, listing stock/status, `StockNotification` subscription and checkout/order transition |
-| Messaging and custom orders | 3 | New message, custom-order request, custom-order-ready link | Implemented draft validation: `Message`, `Conversation`, participant pair, message kind and conversation route; custom-listing reservation/link binding remains blocking |
+| Messaging and custom orders | 3 | New message, custom-order request, custom-order-ready link | Implemented draft validation: `Message`, `Conversation`, participant pair and kind; ready links additionally bind the reserved `Listing`, seller, buyer, conversation and canonical route |
 | Order, payment and fulfillment | 9 | Order buyer/seller notices, refund, shipment/pickup, dispute and payout failure | `Order`, items/seller/buyer, payment/payout event ledgers, fulfillment transition and provider event id |
 | **Total** | **54** |  |  |
 
@@ -77,19 +77,20 @@ validating their bounds, and the favorite/follow checks prove that no block row
 exists only at statement time. They do not serialize against a concurrent
 block creation because the block-writing paths do not yet share a lock
 protocol. The message family proves the source message, its kind, participants,
-and conversation route, but the custom-order-ready listing link is not yet
-bound to the reserved listing row. Family wrappers should derive or strictly
-template payload content where practical; the social/message families need an
-explicit concurrency decision, and the custom-listing binding needs a durable
-database-verifiable key before activation. Application authorization and block
-checks remain required; the draft must not be described as making forged
-content or block races impossible.
+and conversation route; custom-order-ready also validates a non-persisted
+authority context against the reserved listing, seller, buyer, conversation,
+structured-message listing id, status, and canonical public route. Family
+wrappers should still derive or strictly template payload content where
+practical, and the social/message families need an explicit concurrency
+decision before activation. Application authorization and block checks remain
+required; the draft must not be described as making forged content or block
+races impossible.
 
 ## Next Implementation Order
 
 1. Retain the implemented runtime-ungranted core plus separate source-fanout,
    social/review, and message/custom-order wrappers; do not restore a generic
-   runtime grant. Finish the custom-order listing/link binding.
+   runtime grant.
 2. Add case and commission families, deriving recipients from their workflow
    rows and pinning allowed state transitions.
 3. Add order/payment/fulfillment and verification/guild families only after

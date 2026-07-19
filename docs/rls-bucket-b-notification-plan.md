@@ -68,9 +68,12 @@ and social/message absence-of-block checks do not serialize against a
 concurrent block insertion because the block-writing paths do not share a lock
 protocol. Payload derivation/templates and that concurrency decision remain
 pre-activation work; app-layer authorization and block checks remain required.
-The message family proves message kind and conversation participants, but the
-custom-order-ready `/listing/...` link is not yet bound to the reserved custom
-listing row and remains a blocker.
+The message family proves message kind and conversation participants.
+Custom-order-ready additionally passes a validation-only listing id parsed from
+the canonical route; the wrapper binds it to the source message body, reserved
+buyer, seller, conversation, listing status, and exact route prefix before
+calling the private core. That context is not stored as a second Notification
+source field.
 
 One authority question remains blocking: 43 of the 54 emission paths do not
 yet carry provenance. They fail closed in the current application draft rather

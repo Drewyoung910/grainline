@@ -2,6 +2,7 @@ import type { NotificationType } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import type { DbUserContextTransactionClient } from "@/lib/dbUserContext";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
+import { extractRouteId } from "@/lib/publicPaths";
 
 type ContextualNotificationServiceClient = Pick<DbUserContextTransactionClient, "$queryRaw">;
 
@@ -61,6 +62,10 @@ export async function createNotificationServiceRow({
         ) AS id
       `;
   } else if (messageSource) {
+    const listingRouteSegment = type === "CUSTOM_ORDER_LINK" && link?.startsWith("/listing/")
+      ? link.slice("/listing/".length).split(/[/?#]/, 1)[0]
+      : "";
+    const authorityContextId = listingRouteSegment ? extractRouteId(listingRouteSegment) : null;
     rows = await prisma.$queryRaw<Array<{ id: string | null }>>`
         SELECT public.grainline_notification_create_message_event(
           ${notificationId}::text,
@@ -72,7 +77,8 @@ export async function createNotificationServiceRow({
           ${sourceType}::text,
           ${sourceId}::text,
           ${relatedUserId}::text,
-          ${dedupKey}::text
+          ${dedupKey}::text,
+          ${authorityContextId}::text
         ) AS id
       `;
   } else {
