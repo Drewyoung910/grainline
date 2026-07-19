@@ -537,6 +537,19 @@ RLS staging context proof:
   gate before Bucket B or any newly wrapped formerly-autocommit path. The run is
   still failed evidence: rotate the run id and trigger, deploy a fresh attested
   commit, and begin again at slot 1.
+- Provider transport proof completed 2026-07-19 on Git-integrated Preview commit
+  `ef8622b1822bf700d3bc97757a631bdaed503018`, deployment
+  `dpl_3xnFJFFr2qt5gZjKDGXzm6Hzk7RD`: slots 1 and 2 both returned
+  `runtime_candidate_passed` with `issueCount=0` on the same manifest and run
+  id. RPC target/burst p95 was 20.3/36.1 ms and 20.6/37.2 ms, respectively;
+  request/correctness/isolation errors were zero. Retained mode-`0600` evidence
+  includes both responses plus independent Git SHA/ref/deployment/region
+  attestation. Owner-only teardown proved the synthetic RPC absent, all 24
+  branch-scoped Preview variables were removed, temporary secrets were deleted,
+  and the staging runtime password was rotated after accidental output exposure.
+  This clears the synthetic provider transport prerequisite for Release 0 only;
+  it is not real-table policy proof and does not authorize Phase A, production
+  RLS activation, or Bucket B.
 - First run the owner-only setup locally with `diagnostic-only`, the exact
   reviewed endpoint/database values above, `RLS_CONTEXT_GATE_PREPARE=1`, the
   pooled runtime-role URL, and the direct owner URL. Setup prepares the canary,

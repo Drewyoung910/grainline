@@ -1053,6 +1053,8 @@ describe("RLS context acceptance gate guardrails", () => {
       assertContractMatch(contract, /(?:RPC|one-statement)/i, "each rollout document must retain the candidate path");
       assertContractMatch(contract, /(?:blocking|promotion-blocking|block promotion)/i, "each rollout document must retain promotion gates");
       assertContractMatch(contract, /(?:restore|hard gate|blocking gate)[\s\S]{0,280}Bucket B|Bucket B[\s\S]{0,280}(?:restore|hard gate|blocking gate)/i, "each rollout document must restore the generic gate before Bucket B");
+      assertContractMatch(contract, /ef8622b1822bf700d3bc97757a631bdaed503018[\s\S]{0,500}(?:slots 1 and 2|two consecutive counted passes)[\s\S]{0,320}issueCount=0/i, "each rollout document must retain both passing provider slots");
+      assertContractMatch(contract, /(?:not real-table|not real-table SavedSearch|real-table proof remains mandatory)[\s\S]{0,240}(?:Phase A|production RLS|Bucket B)/i, "each rollout document must keep provider proof narrower than RLS activation");
     }
   });
 
