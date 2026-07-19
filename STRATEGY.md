@@ -74,6 +74,20 @@ deployments but does not invalidate the valid owner secret embedded in already
 built deployments. This implementation is staged, not production-active, and
 does not authorize Bucket B before Phase B and the separation postflight pass.
 
+### Bucket B Notification design decision (2026-07-19)
+
+Bucket B preparation has begun in
+`docs/rls-bucket-b-notification-plan.md`; no policy is production-active. The
+verified surface has simple recipient reads/mark-read operations but asymmetric
+cross-user creation, dedup recovery, global retention, staff source cleanup,
+and account-deletion cleanup/redaction. Use recipient SELECT/RLS plus
+column-level `UPDATE (read)`, with no direct runtime INSERT/DELETE. Cross-user
+creation and cleanup require separate fixed-purpose owner-backed RPCs; never
+put a second owner/service credential into Vercel. Source metadata coverage,
+legacy account-deletion redaction, and restored provider transaction performance
+evidence are blocking B0 work. Activation remains separate ENABLE/NO FORCE and
+later FORCE releases after Phase B and runtime credential separation are live.
+
 ### Homepage discovery hierarchy decision (2026-07-15)
 
 Keep the local-maker map directly beneath the hero and floating marketplace stats. It is Grainline's clearest marketplace differentiator, but it should remain a compact discovery band so inventory appears after a short scroll rather than becoming a second full-screen gate.
