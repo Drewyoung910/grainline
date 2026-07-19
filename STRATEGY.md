@@ -102,6 +102,18 @@ sequencing prerequisites are live, compare it with narrow one-statement
 evidence. Cross-user creation and cleanup use a separate service-authority
 design and must not be conflated with recipient RPCs.
 
+The isolated service-authority draft now uses six fixed-purpose owner-backed
+functions for create, exact account cleanup, exact staff source cleanup, and
+fixed retention batches. Runtime receives exact execute privileges only;
+direct Notification insert/delete and the default public function privilege
+remain revoked. The application paths are wired to the draft, but legacy
+null-source and account-deletion source/link/text fallbacks still perform direct
+table work. That incompatibility is intentional and fail-closed: it blocks SQL
+activation until legacy rows are backfilled, expired, proven absent, or handled
+by an equally narrow reviewed operation. Application-asserted `app.user_id` is
+not database-authenticated identity and a compromised runtime can forge it;
+fixed-purpose constraints limit that residual without eliminating it.
+
 ### Homepage discovery hierarchy decision (2026-07-15)
 
 Keep the local-maker map directly beneath the hero and floating marketplace stats. It is Grainline's clearest marketplace differentiator, but it should remain a compact discovery band so inventory appears after a short scroll rather than becoming a second full-screen gate.

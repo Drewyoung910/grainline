@@ -101,7 +101,7 @@ table cannot receive a copied SavedSearch owner-only policy.
 | Authenticated recipient | Count/list/export own rows; mark own row(s) read; mark own conversation notifications read | Set transaction-local `app.user_id`; `SELECT` and `UPDATE` only where `userId` matches; update only the `read` column and never transfer ownership |
 | Application notification service | Read recipient preference/status, insert for any legitimate recipient, recover the existing row after a dedup collision | One reviewed cross-user creation RPC; no direct runtime `INSERT`; validate active recipient, preference, enum/payload bounds, source metadata, and dedup inside the database operation |
 | Retention cron | Delete old read and unread rows globally in bounded batches | Parameter-free or tightly bounded owner RPC using server time and code-pinned retention windows; no general runtime `DELETE` |
-| Account deletion | Delete the departing user's rows; delete related-user/source residue across other recipients; retire the legacy sensitive-text fallback | Use one narrow account-lifecycle RPC for recipient plus `relatedUserId` deletion and separate exact source cleanup; do not grant direct table `DELETE`. The current application `OR` delete is a pre-RLS draft precursor, not the final authority path |
+| Account deletion | Delete the departing user's rows; delete related-user/source residue across other recipients; retire the legacy sensitive-text fallback | Use one narrow account-lifecycle RPC for recipient plus `relatedUserId` deletion and separate exact source cleanup; do not grant direct table `DELETE`. Exact recipient/related-user cleanup is wired to the draft RPC; legacy source/link/text work remains blocking |
 | Staff blog/broadcast deletion | Delete notifications tied to a deleted comment or broadcast across recipients | Use exact `sourceType`/`sourceId` service cleanup; remove legacy title/body/link matching after source coverage/backfill is proven |
 | Admin, webhook, cron, order/case/message/social flows | Create recipient notifications through the shared helper | All 51 callsites stay behind one service helper; none receive owner credentials or direct table insert grants |
 
@@ -113,7 +113,8 @@ Current direct-access files are deliberately pinned by test:
 - `src/lib/accountDeletion.ts` — own/cross-user delete, legacy raw reads, and redaction updates.
 - `src/app/admin/blog/page.tsx` and
   `src/app/admin/broadcasts/page.tsx` — cross-recipient cleanup.
-- `src/app/api/cron/notification-prune/route.ts` — global raw retention delete.
+- `src/app/api/cron/notification-prune/route.ts` — bounded orchestration over
+  the two parameter-free draft retention functions.
 
 ## Chosen Database Shape
 

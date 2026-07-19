@@ -86,7 +86,7 @@ completed alternative.
 | `SellerMetrics` | `BLOCKED_DESIGN` | Seller analytics | Seller performance and sales totals; seller, staff, guild logic and jobs | Separate seller-private metrics from any public eligibility projection; service-only calculation writes |
 | `SellerRatingSummary` | `ALTERNATIVE_REVIEW` | Public aggregate projections | Derived public rating summary; public readers and calculation jobs | Read-only ordinary runtime plus service-only refresh and integrity proof |
 | `SiteMetricsSnapshot` | `ALTERNATIVE_REVIEW` | Public aggregate projections | Derived site metrics; public readers and calculation jobs | Read-only ordinary runtime plus service-only singleton refresh |
-| `Notification` | `PLANNED_RLS` | Bucket B Notification | Direct user-owned reads and mark-read updates with cross-user and system creation | Complete write, cleanup, admin, cron, webhook and fanout design before independently staged activation |
+| `Notification` | `PLANNED_RLS` | Bucket B Notification | Direct user-owned reads and mark-read updates with cross-user and system creation | Isolated source/related-user metadata and fixed-purpose service-authority drafts exist; resolve legacy cleanup and recipient hot-read design before staging |
 | `ListingViewDaily` | `BLOCKED_DESIGN` | Seller analytics | Seller-private listing analytics with public event ingestion and aggregation jobs | Seller-through-profile reads plus service-only counter writes and hot-path plan review |
 | `SellerProfileViewDaily` | `BLOCKED_DESIGN` | Seller analytics | Seller-private profile analytics with public event ingestion and aggregation jobs | Seller ownership reads plus service-only counter writes and hot-path plan review |
 | `Follow` | `BLOCKED_DESIGN` | Aggregate and fanout | Owner relationship plus public follower counts and cross-user fanout | Denormalized count and explicit fanout service path before owner-row policies |
@@ -135,11 +135,14 @@ future groups:
   `src/lib/savedBlogPostOwnerAccess.ts`.
 
 `tests/rls-feasibility-plan.test.mjs` rejects new direct owner-style access
-outside those helpers. This reduces later callsite refactoring, but the helpers
-currently default to ordinary Prisma access and do not by themselves establish
-transaction-local RLS context. Cross-user notification creation, cart cleanup,
-webhooks, fanout, account deletion, and cron paths also remain explicit design
-work. Centralization is preparation, not active RLS or staging proof.
+outside those helpers. This reduces later callsite refactoring. The isolated
+Notification helper now requires branded transaction-local user context, and
+its cross-user create, exact lifecycle cleanup, and retention paths target
+fixed-purpose unapplied service functions. Cart and SavedBlogPost helpers still
+default to ordinary Prisma access. Notification legacy cleanup, recipient
+hot-read architecture, policy/grant activation, and every later group's
+service paths remain explicit work. Centralization and draft wiring are
+preparation, not active RLS or staging proof.
 
 ## Future Saved-Search Match Alerts
 
