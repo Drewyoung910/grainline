@@ -19,17 +19,18 @@ credential and owner application sessions are gone. Neon’s migration owner is
 the explicit BYPASSRLS service role, while the normal runtime remains constrained.
 Controlled owner maintenance and the separate database-first emergency
 DISABLE/ENABLE/FORCE path must both remain tested; externalize the owner secret
-from production Functions before Bucket B.
+from production Functions before any Bucket B merge, deployment, or
+live-database activation.
 
 ### Site-wide RLS expansion decision (2026-07-19)
 
 SavedSearch is the first production RLS pattern, not the final scope. Complete
 its Phase-B FORCE release, then externalize `DIRECT_URL` and
-`MIGRATION_DB_ROLE` from production application Functions before beginning
-Notification/Bucket B. Because environment changes do not rewrite earlier
-deployments, that release must also rotate/revoke any owner credential retained
-by superseded callable deployments and prove the old credential and owner
-sessions are gone. Continue expanding RLS across user-owned and sensitive data
+`MIGRATION_DB_ROLE` from production application Functions before merging,
+deploying, or activating Notification/Bucket B. Because environment changes do
+not rewrite earlier deployments, that release must also rotate/revoke any owner
+credential retained by superseded callable deployments and prove the old
+credential and owner sessions are gone. Continue expanding RLS across user-owned and sensitive data
 in the reviewed sequence documented in the RLS feasibility and defense-in-depth
 plans, with priority on notifications, carts, conversations and messages,
 orders and payment/shipping records, and cases. Each table or tightly coupled

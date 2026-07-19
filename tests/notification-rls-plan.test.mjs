@@ -43,6 +43,7 @@ describe("Bucket B Notification RLS inventory", () => {
 
   it("keeps asymmetric writes, staged activation, and blockers explicit", () => {
     const plan = fs.readFileSync("docs/rls-bucket-b-notification-plan.md", "utf8");
+    const strategy = fs.readFileSync("STRATEGY.md", "utf8");
     assert.match(plan, /Bucket B means `Notification` only/);
     assert.match(plan, /51 `createNotification/);
     assert.match(plan, /column-level `UPDATE \(read\)` only/);
@@ -58,6 +59,13 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(plan, /No Notification[\s\S]{0,140}merge, deploy, touch a live database/);
     assert.match(plan, /one-statement `SECURITY INVOKER` recipient RPCs/);
     assert.match(plan, /Recipient RPCs are distinct from cross-user creation\/cleanup service\s+authority/);
+    assert.match(strategy, /isolated implementation drafts/);
+    assert.match(strategy, /before any Bucket B merge, deployment, or\s+live-database activation/);
+    assert.match(strategy, /before merging,\s+deploying, or activating Notification\/Bucket B/);
+    assert.doesNotMatch(strategy, /before beginning\s+Notification\/Bucket B/);
+    assert.match(strategy, /six fixed-purpose owner-backed/);
+    assert.match(strategy, /`SECURITY INVOKER` recipient RPCs/);
+    assert.match(strategy, /must not be conflated with recipient RPCs/);
   });
 
   it("starts B0 with paired source metadata and legacy-only fallbacks", () => {
