@@ -11,6 +11,7 @@ import { logAdminActionOrThrow } from "@/lib/audit";
 import { truncateText } from "@/lib/sanitize";
 import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 
 async function requireAdmin() {
   const { userId } = await auth();
@@ -73,6 +74,8 @@ async function approveComment(commentId: string) {
             body: truncateText(comment.body, 60),
             link: `/blog/${comment.post.slug}#comment-${commentId}`,
             dedupScope: commentId,
+            sourceType: NOTIFICATION_SOURCE_TYPES.BLOG_COMMENT,
+            sourceId: commentId,
           });
         }
       } else {
@@ -85,6 +88,8 @@ async function approveComment(commentId: string) {
             body: truncateText(comment.body, 60),
             link: `/blog/${comment.post.slug}#comment-${commentId}`,
             dedupScope: commentId,
+            sourceType: NOTIFICATION_SOURCE_TYPES.BLOG_COMMENT,
+            sourceId: commentId,
           });
         }
       }
@@ -123,13 +128,23 @@ async function deleteComment(commentId: string) {
       const body = truncateText(deleted.body, 60);
       await tx.notification.deleteMany({
         where: {
-          userId: recipientId,
-          type,
-          body,
-          createdAt: { gte: deleted.createdAt },
           OR: [
-            { link: `/blog/${deleted.post.slug}#comment-${deleted.id}` },
-            { link: `/blog/${deleted.post.slug}` },
+            {
+              sourceType: NOTIFICATION_SOURCE_TYPES.BLOG_COMMENT,
+              sourceId: deleted.id,
+            },
+            {
+              sourceType: null,
+              sourceId: null,
+              userId: recipientId,
+              type,
+              body,
+              createdAt: { gte: deleted.createdAt },
+              OR: [
+                { link: `/blog/${deleted.post.slug}#comment-${deleted.id}` },
+                { link: `/blog/${deleted.post.slug}` },
+              ],
+            },
           ],
         },
       });

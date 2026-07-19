@@ -12,6 +12,7 @@ import { isInAppNotificationEnabled } from "@/lib/notificationDeliveryPreference
 import { isEmailNotificationEnabled } from "@/lib/notificationEmailPreferences";
 import { emailPreferenceLookupFailureAllowsSend } from "./notificationPreferenceState.ts";
 import { logServerError } from "@/lib/serverErrorLogger";
+import type { NotificationSourceFields } from "@/lib/notificationSources";
 
 export {
   VALID_EMAIL_PREFERENCE_KEYS,
@@ -66,6 +67,15 @@ export async function shouldSendEmail(userId: string, prefKey: string): Promise<
   }
 }
 
+type CreateNotificationInput = {
+  userId: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  link?: string;
+  dedupScope?: string;
+} & NotificationSourceFields;
+
 export async function createNotification({
   userId,
   type,
@@ -75,16 +85,7 @@ export async function createNotification({
   dedupScope,
   sourceType,
   sourceId,
-}: {
-  userId: string;
-  type: NotificationType;
-  title: string;
-  body: string;
-  link?: string;
-  dedupScope?: string;
-  sourceType?: string;
-  sourceId?: string;
-}) {
+}: CreateNotificationInput) {
   try {
     // Check notification preferences — if explicitly disabled, skip
     const user = await prisma.user.findUnique({

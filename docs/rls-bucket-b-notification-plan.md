@@ -1,9 +1,16 @@
 # Bucket B: Notification RLS Plan
 
-Status: actor inventory and policy design in progress. No Notification RLS
+Status: B0 source-lifecycle consolidation in progress. No Notification RLS
 migration or production activation is authorized yet. Production work remains
 blocked on SavedSearch Phase B and the runtime database credential-separation
 postflight.
+
+First B0 slice: source metadata is now a paired typed contract with a canonical
+allowlist. New blog-comment notifications identify `blog_comment` plus the
+comment id. Staff blog-comment and seller-broadcast deletion prefers exact
+source cleanup while retaining a deliberately null-source-only fallback for
+legacy rows. The fallback must be removed after legacy rows are backfilled or
+expired; it is not an acceptable shape for the eventual owner RPC.
 
 ## Scope Boundary
 

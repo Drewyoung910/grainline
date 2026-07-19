@@ -12,6 +12,7 @@ import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { truncateText, truncateTextWithEllipsis } from "@/lib/sanitize";
 import { sellerBroadcastEmailSubject } from "@/lib/email";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 
 async function deleteBroadcast(formData: FormData) {
   "use server";
@@ -46,13 +47,23 @@ async function deleteBroadcast(formData: FormData) {
       const staleNotificationWindowEnd = new Date(broadcast.sentAt.getTime() + 60 * 60 * 1000);
       await tx.notification.deleteMany({
         where: {
-          type: "SELLER_BROADCAST",
-          title: `Update from ${sellerName}`,
-          body: truncateTextWithEllipsis(broadcast.message, 100),
-          createdAt: { gte: broadcast.sentAt, lte: staleNotificationWindowEnd },
           OR: [
-            { link: `/account/feed?broadcast=${broadcast.id}` },
-            { link: "/account/feed" },
+            {
+              sourceType: NOTIFICATION_SOURCE_TYPES.SELLER_BROADCAST,
+              sourceId: broadcast.id,
+            },
+            {
+              sourceType: null,
+              sourceId: null,
+              type: "SELLER_BROADCAST",
+              title: `Update from ${sellerName}`,
+              body: truncateTextWithEllipsis(broadcast.message, 100),
+              createdAt: { gte: broadcast.sentAt, lte: staleNotificationWindowEnd },
+              OR: [
+                { link: `/account/feed?broadcast=${broadcast.id}` },
+                { link: "/account/feed" },
+              ],
+            },
           ],
         },
       });

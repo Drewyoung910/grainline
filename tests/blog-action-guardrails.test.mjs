@@ -53,6 +53,8 @@ describe("blog dashboard action guardrails", () => {
     assert.match(adminBlog, /link: `\/blog\/\$\{comment\.post\.slug\}#comment-\$\{commentId\}`/);
     assert.match(adminBlog, /type: "BLOG_COMMENT_REPLY"[\s\S]*dedupScope: commentId/);
     assert.match(adminBlog, /type: "NEW_BLOG_COMMENT"[\s\S]*dedupScope: commentId/);
+    assert.equal((adminBlog.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.BLOG_COMMENT/g) ?? []).length, 3);
+    assert.equal((adminBlog.match(/sourceId: commentId/g) ?? []).length, 2);
     assert.match(blogPost, /id=\{`comment-\$\{c\.id\}`\}/);
   });
 
@@ -61,6 +63,9 @@ describe("blog dashboard action guardrails", () => {
 
     assert.match(adminBlog, /tx\.notification\.deleteMany\(\{/);
     assert.match(adminBlog, /type = deleted\.parentId \? "BLOG_COMMENT_REPLY" : "NEW_BLOG_COMMENT"/);
+    assert.match(adminBlog, /sourceType: NOTIFICATION_SOURCE_TYPES\.BLOG_COMMENT/);
+    assert.match(adminBlog, /sourceId: deleted\.id/);
+    assert.match(adminBlog, /sourceType: null,\s*sourceId: null/);
     assert.match(adminBlog, /link: `\/blog\/\$\{deleted\.post\.slug\}#comment-\$\{deleted\.id\}`/);
     assert.match(adminBlog, /link: `\/blog\/\$\{deleted\.post\.slug\}`/);
   });

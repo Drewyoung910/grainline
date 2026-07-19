@@ -111,6 +111,7 @@ describe("account-state residue hardening", () => {
     const schema = source("prisma/schema.prisma");
     const migration = source("prisma/migrations/20260619212000_add_fanout_source_metadata/migration.sql");
     const notifications = source("src/lib/notifications.ts");
+    const notificationSources = source("src/lib/notificationSources.ts");
     const outbox = source("src/lib/emailOutbox.ts");
     const broadcastRoute = source("src/app/api/seller/broadcast/route.ts");
     const listingFanout = source("src/lib/followerListingNotifications.ts");
@@ -127,8 +128,9 @@ describe("account-state residue hardening", () => {
     assert.match(migration, /CREATE INDEX "EmailOutbox_sourceType_sourceId_idx"/);
     assert.match(migration, /CREATE INDEX "Notification_sourceType_sourceId_idx"/);
 
-    assert.match(notifications, /sourceType\?: string/);
-    assert.match(notifications, /sourceId\?: string/);
+    assert.match(notifications, /NotificationSourceFields/);
+    assert.match(notificationSources, /\{ sourceType: NotificationSourceType; sourceId: string \}/);
+    assert.match(notificationSources, /\{ sourceType\?: never; sourceId\?: never \}/);
     assert.match(notifications, /sourceType: notificationSourceType/);
     assert.match(notifications, /sourceId: notificationSourceId/);
     assert.match(outbox, /sourceType\?: string/);

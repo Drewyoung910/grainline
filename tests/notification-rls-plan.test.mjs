@@ -55,4 +55,21 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(plan, /separate `FORCE ROW LEVEL SECURITY` release/);
     assert.match(plan, /prohibit[\s\S]{0,80}production Notification RLS activation/i);
   });
+
+  it("starts B0 with paired source metadata and legacy-only fallbacks", () => {
+    const sources = fs.readFileSync("src/lib/notificationSources.ts", "utf8");
+    const notifications = fs.readFileSync("src/lib/notifications.ts", "utf8");
+    const blog = fs.readFileSync("src/app/admin/blog/page.tsx", "utf8");
+    const broadcasts = fs.readFileSync("src/app/admin/broadcasts/page.tsx", "utf8");
+
+    assert.match(sources, /BLOG_COMMENT: "blog_comment"/);
+    assert.match(sources, /SELLER_BROADCAST: "seller_broadcast"/);
+    assert.match(sources, /\{ sourceType: NotificationSourceType; sourceId: string \}/);
+    assert.match(sources, /\{ sourceType\?: never; sourceId\?: never \}/);
+    assert.match(notifications, /& NotificationSourceFields/);
+    assert.equal((blog.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.BLOG_COMMENT/g) ?? []).length, 3);
+    assert.match(blog, /sourceType: null,\s*sourceId: null/);
+    assert.match(broadcasts, /sourceType: NOTIFICATION_SOURCE_TYPES\.SELLER_BROADCAST/);
+    assert.match(broadcasts, /sourceType: null,\s*sourceId: null/);
+  });
 });
