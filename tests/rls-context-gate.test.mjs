@@ -21,10 +21,22 @@ function source(path) {
   return readFileSync(path, "utf8");
 }
 
+function assertContractMatch(text, pattern, message) {
+  assert.equal(pattern.test(text), true, message);
+}
+
+function assertContractNotMatch(text, pattern, message) {
+  assert.equal(pattern.test(text), false, message);
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function baseEnv(overrides = {}) {
   return {
     RLS_CONTEXT_GATE_CONFIRM: "staging-only",
-    RLS_CONTEXT_GATE_DATABASE_URL: "postgresql://runtime:secret@ep-test-pooler.westus3.azure.neon.tech/grainline_staging",
+    RLS_CONTEXT_GATE_DATABASE_URL: "postgresql://runtime:secret@ep-test-pooler.westus3.azure.neon.tech/grainline_staging?sslmode=verify-full&channel_binding=require",
     RLS_CONTEXT_GATE_EXPECTED_DATABASE_ENDPOINT_ID: "ep-test",
     RLS_CONTEXT_GATE_EXPECTED_DATABASE_NAME: "grainline_staging",
     RLS_CONTEXT_GATE_EXPECTED_DATABASE_REGION: "westus3.azure",
@@ -131,7 +143,7 @@ describe("RLS context acceptance gate guardrails", () => {
       /RLS_CONTEXT_GATE_DATABASE_URL is required/,
     );
     assert.throws(
-      () => parseGateConfig(baseEnv({ RLS_CONTEXT_GATE_DATABASE_URL: "postgresql://runtime:secret@ep-test.example.neon.tech/grainline_staging" })),
+      () => parseGateConfig(baseEnv({ RLS_CONTEXT_GATE_DATABASE_URL: "postgresql://runtime:secret@ep-test.example.neon.tech/grainline_staging?sslmode=verify-full&channel_binding=require" })),
       /pooled runtime endpoint/,
     );
     assert.throws(
@@ -233,7 +245,7 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.throws(
       () => parseGateConfig(baseEnv({
         ...productionRuntimeEnv,
-        RLS_CONTEXT_GATE_DATABASE_URL: "postgresql://runtime:secret@ep-test-pooler.example.neon.tech/grainline_staging",
+        RLS_CONTEXT_GATE_DATABASE_URL: "postgresql://runtime:secret@ep-test-pooler.example.neon.tech/grainline_staging?sslmode=verify-full&channel_binding=require",
       })),
       /must use a parseable Neon endpoint hostname and one database path segment/,
     );
@@ -261,6 +273,57 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.doesNotMatch(script, /process\.env\.DIRECT_URL/);
     assert.doesNotMatch(script, /\?\?\s*env\.DATABASE_URL/);
     assert.doesNotMatch(script, /\?\?\s*env\.DIRECT_URL/);
+  });
+
+  it("rejects connection-string target, credential, context, and TLS overrides", () => {
+    for (const parameter of [
+      "host=evil.example",
+      "hostaddr=203.0.113.1",
+      "user=other_runtime",
+      "password=other-secret",
+      "port=6543",
+      "database=otherdb",
+      "dbname=otherdb",
+      "service=other-service",
+      "ssl=true",
+      "sslcert=%2Ftmp%2Funreviewed-cert",
+      "sslkey=%2Ftmp%2Funreviewed-key",
+      "sslrootcert=%2Ftmp%2Funreviewed-ca",
+      "uselibpqcompat=true",
+    ]) {
+      assert.throws(
+        () => parseGateConfig(baseEnv({
+          RLS_CONTEXT_GATE_DATABASE_URL:
+            `${baseEnv().RLS_CONTEXT_GATE_DATABASE_URL}&${parameter}`,
+        })),
+        (error) => {
+          assert.match(
+            error.message,
+            /may contain only reviewed sslmode and channel_binding connection parameters/,
+          );
+          assert.doesNotMatch(error.message, /secret|evil|203\.0\.113\.1|postgresql:/);
+          return true;
+        },
+      );
+    }
+
+    assert.throws(
+      () => parseGateConfig(baseEnv({
+        RLS_CONTEXT_GATE_DATABASE_URL:
+          baseEnv().RLS_CONTEXT_GATE_DATABASE_URL.replace(
+            "sslmode=verify-full",
+            "sslmode=no-verify",
+          ),
+      })),
+      /must use sslmode=verify-full/,
+    );
+    assert.throws(
+      () => parseGateConfig(baseEnv({
+        RLS_CONTEXT_GATE_DATABASE_URL:
+          `${baseEnv().RLS_CONTEXT_GATE_DATABASE_URL}&sslmode=verify-full`,
+      })),
+      /must not contain duplicate or case-variant connection parameters/,
+    );
   });
 
   it("keeps canary users synthetic unless custom ids are explicitly allowed", () => {
@@ -298,7 +361,7 @@ describe("RLS context acceptance gate guardrails", () => {
     );
     assert.throws(
       () => parseGateConfig(baseEnv({
-        RLS_CONTEXT_GATE_ADMIN_DATABASE_URL: "postgresql://owner:secret@ep-test.westus3.azure.neon.tech/grainline_staging",
+        RLS_CONTEXT_GATE_ADMIN_DATABASE_URL: "postgresql://owner:secret@ep-test.westus3.azure.neon.tech/grainline_staging?sslmode=verify-full&channel_binding=require",
         RLS_CONTEXT_GATE_PREPARE: "1",
         RLS_CONTEXT_GATE_TEARDOWN_RPC_PROBE: "1",
       })),
@@ -306,21 +369,21 @@ describe("RLS context acceptance gate guardrails", () => {
     );
 
     const config = parseGateConfig(baseEnv({
-      RLS_CONTEXT_GATE_ADMIN_DATABASE_URL: "postgresql://owner:secret@ep-test.westus3.azure.neon.tech/grainline_staging",
+      RLS_CONTEXT_GATE_ADMIN_DATABASE_URL: "postgresql://owner:secret@ep-test.westus3.azure.neon.tech/grainline_staging?sslmode=verify-full&channel_binding=require",
       RLS_CONTEXT_GATE_PREPARE: "1",
     }));
     assert.equal(config.prepare, true);
     assert.equal(config.rollbackProbe, true);
     assert.throws(
       () => parseGateConfig(baseEnv({
-        RLS_CONTEXT_GATE_ADMIN_DATABASE_URL: "postgresql://owner:secret@ep-other.westus3.azure.neon.tech/grainline_staging",
+        RLS_CONTEXT_GATE_ADMIN_DATABASE_URL: "postgresql://owner:secret@ep-other.westus3.azure.neon.tech/grainline_staging?sslmode=verify-full&channel_binding=require",
         RLS_CONTEXT_GATE_PREPARE: "1",
       })),
       /endpoint id does not match the reviewed staging endpoint/,
     );
     assert.throws(
       () => parseGateConfig(baseEnv({
-        RLS_CONTEXT_GATE_ADMIN_DATABASE_URL: "postgresql://owner:secret@ep-test-pooler.westus3.azure.neon.tech/grainline_staging",
+        RLS_CONTEXT_GATE_ADMIN_DATABASE_URL: "postgresql://owner:secret@ep-test-pooler.westus3.azure.neon.tech/grainline_staging?sslmode=verify-full&channel_binding=require",
         RLS_CONTEXT_GATE_PREPARE: "1",
       })),
       /must use the reviewed direct Neon endpoint/,
@@ -516,7 +579,230 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.match(launch, /audit:rls-context/);
     assert.match(launch, /RLS_CONTEXT_GATE_EVIDENCE_PATH/);
     assert.match(agentContract, /RLS_CONTEXT_GATE_EVIDENCE_PATH/);
-    assert.match(agentContract, /retain the sanitized JSON artifact/);
+    assert.match(agentContract, /captured separately outside the repository with mode `0600`/);
+  });
+
+  it("keeps owner-local setup evidence distinct from provider HTTP-response evidence", () => {
+    const runbook = source("docs/runbook.md");
+    const defense = source("docs/db-defense-in-depth-plan.md");
+    const launch = source("docs/launch-checklist.md");
+    const agentContract = source("CLAUDE.md");
+
+    for (const [name, contract] of [
+      ["runbook", runbook],
+      ["defense plan", defense],
+      ["launch checklist", launch],
+      ["CLAUDE", agentContract],
+    ]) {
+      assertContractMatch(
+        contract,
+        /RLS_CONTEXT_GATE_EVIDENCE_PATH[\s\S]{0,700}(?:owner-only|local)[\s\S]{0,400}(?:setup|prepare|rollback|teardown)/i,
+        `${name} must reserve RLS_CONTEXT_GATE_EVIDENCE_PATH for local owner operations`,
+      );
+      assertContractMatch(
+        contract,
+        /RLS_CONTEXT_GATE_EVIDENCE_PATH[\s\S]{0,900}(?:mode [`']?0600|writer enforces mode [`']?0600)/i,
+        `${name} must require mode 0600 for local evidence-path artifacts`,
+      );
+      assertContractMatch(
+        contract,
+        /(?:capture|captured|retain|retained|write|written)[\s\S]{0,240}(?:sanitized )?(?:candidate )?(?:Preview )?HTTP\s+response[\s\S]{0,240}(?:separate|distinct|outside the repository)[\s\S]{0,240}(?:mode [`']?0600|local file)|(?:mode [`']?0600)[\s\S]{0,160}(?:sanitized )?(?:candidate )?(?:Preview )?HTTP\s+response[\s\S]{0,240}(?:separate|distinct|outside the repository)/i,
+        `${name} must require separate mode-0600 capture of the provider HTTP response`,
+      );
+      assertContractMatch(
+        contract,
+        /provider(?:[\s\S]{0,300}HTTP)?\s+response[\s\S]{0,400}(?:is not|must not be|does not write)[\s\S]{0,200}(?:an )?RLS_CONTEXT_GATE_EVIDENCE_PATH/i,
+        `${name} must not conflate a provider response with an evidence-path artifact`,
+      );
+    }
+  });
+
+  it("pins one exact provider manifest and branch-isolated Preview database configuration", () => {
+    const runbook = source("docs/runbook.md");
+    const defense = source("docs/db-defense-in-depth-plan.md");
+    const launch = source("docs/launch-checklist.md");
+    const agentContract = source("CLAUDE.md");
+    const docs = [
+      ["runbook", runbook],
+      ["defense plan", defense],
+      ["launch checklist", launch],
+      ["CLAUDE", agentContract],
+    ];
+    const contract = docs.map(([, text]) => text).join("\n");
+    const exactManifest = new Map([
+      ["RLS_CONTEXT_GATE_CONFIRM", "staging-only"],
+      ["RLS_CONTEXT_GATE_LOCALITY_CONFIRM", "production-runtime"],
+      ["RLS_CONTEXT_GATE_EXPECTED_EXECUTION_REGION", "sfo1"],
+      ["RLS_CONTEXT_GATE_EXPECTED_DATABASE_REGION", "westus3.azure"],
+      ["RLS_CONTEXT_GATE_EXPECTED_DATABASE_ENDPOINT_ID", "ep-bold-recipe-aavx4plv"],
+      ["RLS_CONTEXT_GATE_EXPECTED_DATABASE_NAME", "neondb"],
+      ["RLS_CONTEXT_GATE_RUNTIME_ROLE", "grainline_app_runtime"],
+      ["RLS_CONTEXT_GATE_REQUESTS", "500"],
+      ["RLS_CONTEXT_GATE_WARMUP_REQUESTS", "50"],
+      ["RLS_CONTEXT_GATE_TURNOVER_REQUESTS", "64"],
+      ["RLS_CONTEXT_GATE_TARGET_CONCURRENCY", "8"],
+      ["RLS_CONTEXT_GATE_BURST_CONCURRENCY", "16"],
+      ["RLS_CONTEXT_GATE_POOL_SIZE", "16"],
+      ["RLS_CONTEXT_GATE_CONNECTION_TIMEOUT_MS", "10000"],
+      ["RLS_CONTEXT_GATE_STATEMENT_TIMEOUT_MS", "30000"],
+      ["RLS_CONTEXT_GATE_QUERY_TIMEOUT_MS", "35000"],
+      ["RLS_CONTEXT_GATE_TX_TIMEOUT_MS", "5000"],
+      ["RLS_CONTEXT_GATE_SCHEMA", "grainline_rls_canary"],
+      ["RLS_CONTEXT_GATE_TABLE", "context_canary"],
+    ]);
+    const operationalManifestBlocks = docs
+      .filter(([docName]) => docName !== "CLAUDE")
+      .map(([docName, text]) => {
+        const start = text.indexOf("RLS_CONTEXT_GATE_CONFIRM=staging-only");
+        const endMarker = "RLS_CONTEXT_GATE_TABLE=context_canary";
+        const end = text.indexOf(endMarker, start);
+        assert.ok(start >= 0 && end >= start, `${docName} must contain one complete exact provider manifest block`);
+        return [docName, text.slice(start, end + endMarker.length)];
+      });
+
+    for (const [name, value] of exactManifest) {
+      assert.match(
+        contract,
+        new RegExp(`${name}=[\\"'\\x60]?${value.replaceAll(".", "\\.")}(?:[\\"'\\x60\\s]|$)`),
+        `${name} must be pinned to ${value}`,
+      );
+
+      for (const [docName, manifestBlock] of operationalManifestBlocks) {
+        const assignments = [
+          ...manifestBlock.matchAll(
+            new RegExp(`${escapeRegExp(name)}=[\\"'\\x60]?([A-Za-z0-9._-]+)`, "g"),
+          ),
+        ].map((match) => match[1]);
+
+        assert.ok(assignments.length > 0, `${docName} must assign ${name} inside its exact manifest block`);
+        assert.deepEqual(
+          [...new Set(assignments.filter((assignment) => assignment !== value))],
+          [],
+          `${docName} must not contradict ${name}=${value}`,
+        );
+      }
+    }
+    for (const [docName, text] of docs) {
+      assertContractMatch(
+        text,
+        /RLS_CONTEXT_GATE_ALLOWED_COMMIT_SHA[\s\S]{0,320}exact Git-integrated Preview(?:\s+gate)?\s+commit SHA[\s\S]{0,260}(?:not|different)[\s\S]{0,180}(?:cleaned )?production Release 0 SHA/i,
+        `${docName} must pin the allowed Preview gate SHA without conflating it with the cleaned production Release 0 SHA`,
+      );
+    }
+    assertContractMatch(contract, /(?:Prisma|application) (?:app )?pool(?: size)?[^\n.]{0,120}(?:`10`|10)/i, "manifest must pin the application Prisma pool to 10");
+    assertContractMatch(contract, /fresh[^\n.]{0,160}RLS_CONTEXT_GATE_RUN_ID/i, "manifest must require a fresh run id");
+    assertContractMatch(contract, /fresh[^\n.]{0,160}RLS_CONTEXT_GATE_TRIGGER_SECRET/i, "manifest must require a fresh trigger secret");
+
+    const gate = source("scripts/rls-context-acceptance-gate.mjs");
+    assert.match(gate, /const DEFAULT_RUN_CLAIM_TABLE = ["']context_gate_run_claim["']/);
+    assert.match(gate, /const DEFAULT_POLICY = ["']context_canary_select["']/);
+    assert.match(gate, /const DEFAULT_RPC_FUNCTION = ["']context_canary_rpc["']/);
+    assertContractMatch(contract, /code(?: additionally)? pins?[\s\S]{0,180}context_gate_run_claim[\s\S]{0,180}context_canary_select[\s\S]{0,180}context_canary_rpc/i, "docs must retain the three code-pinned canary object names");
+
+    const responseFields = [
+      /HTTP [`']?200/i,
+      /run\.status=runtime_candidate_passed/,
+      /result\.issueCount=0/,
+      /locality\.runtimeEvidenceCandidate=true/,
+      /locality\.acceptanceEligible=false/,
+      /(?:expected|requested) [`']?runner\.runSlot/i,
+    ];
+    for (const [name, text] of docs) {
+      for (const field of responseFields) {
+        assertContractMatch(text, field, `${name} must pin provider response field ${field}`);
+      }
+      assertContractMatch(
+        text,
+        /run\.commitSha[\s\S]{0,240}run\.deploymentId/i,
+        `${name} must pin both provider deployment identity fields`,
+      );
+      assertContractMatch(
+        text,
+        /independent(?:ly)?[\s\S]{0,300}(?:attestation|attested|inspected)/i,
+        `${name} must require independent provider deployment attestation`,
+      );
+    }
+
+    for (const [name, text] of docs) {
+      assertContractMatch(
+        text,
+        /branch-scoped(?=[\s\S]{0,600}`?DATABASE_URL`?)(?=[\s\S]{0,600}`?RLS_CONTEXT_GATE_DATABASE_URL`?)[\s\S]{0,900}same (?:exact )?pooled\s+staging(?:\s+runtime(?:-role)?)?\s+URL/i,
+        `${name} must put both branch-scoped database variables on the same runtime URL`,
+      );
+      assertContractMatch(
+        text,
+        /(?:configure|set|write)[\s\S]{0,500}(?:branch-scoped|Preview)[\s\S]{0,500}(?:before|prior to)[\s\S]{0,180}(?:push|attested gate commit|deploy)|(?:before|prior to)[\s\S]{0,180}(?:push|attested gate commit|deploy)[\s\S]{0,500}(?:configure|set|write)[\s\S]{0,500}(?:branch-scoped|Preview)/i,
+        `${name} must configure branch-scoped Preview variables before push`,
+      );
+      assertContractMatch(
+        text,
+        /(?:Preview|branch-scoped)[\s\S]{0,800}(?:must not|never|absent|shows no)[\s\S]{0,350}DIRECT_URL/i,
+        `${name} must exclude DIRECT_URL from the branch-scoped Preview`,
+      );
+      assertContractMatch(
+        text,
+        /(?:fresh )?read-only[\s\S]{0,180}(?:Vercel )?environment\/deployment inventory/i,
+        `${name} must require a fresh read-only provider inventory`,
+      );
+    }
+  });
+
+  it("documents non-replayable claimed-slot recovery and the fail-closed promotion order", () => {
+    const runbook = source("docs/runbook.md");
+    const defense = source("docs/db-defense-in-depth-plan.md");
+    const launch = source("docs/launch-checklist.md");
+    const agentContract = source("CLAUDE.md");
+
+    const docs = [
+      ["runbook", runbook],
+      ["defense plan", defense],
+      ["launch checklist", launch],
+      ["CLAUDE", agentContract],
+    ];
+    for (const [name, contract] of docs) {
+      assertContractMatch(
+        contract,
+        /(?:exception|failure|timeout|500)[\s\S]{0,240}(?:after|once)[\s\S]{0,120}(?:durable )?(?:claim|claimed)[\s\S]{0,240}(?:consumes|consumed|do not|must not|never)/i,
+        `${name} must treat a failure after durable claim as consuming the slot`,
+      );
+      assertContractMatch(
+        contract,
+        /(?:fresh[\s`']+RLS_CONTEXT_GATE_RUN_ID|fresh run id)[\s\S]{0,500}fresh Git-integrated (?:Preview )?deployment[\s\S]{0,300}(?:restart|begin again)[\s\S]{0,160}slot 1/i,
+        `${name} must require a fresh run id, deployment, and slot-1 restart after a claimed-slot failure`,
+      );
+      assertContractMatch(
+        contract,
+        /(?:do not|must not|never)[\s\S]{0,320}(?:edit|repair|rewrite|reset)[\s\S]{0,220}(?:ledger|run-claim)/i,
+        `${name} must forbid manual run-claim repair`,
+      );
+      assertContractMatch(
+        contract,
+        /(?:do not|must not|never)[^\n.]{0,220}(?:call|run|start)[^\n.]{0,100}slot 2/i,
+        `${name} must forbid slot 2 after a claimed-slot failure`,
+      );
+      assertContractMatch(
+        contract,
+        /(?:corrected )?provider(?:-runtime)?(?: context\/performance)? (?:proof|repeats|responses)[\s\S]{0,350}(?:must pass|required|preconditions?)[\s\S]{0,350}before[\s\S]{0,220}production Release 0/i,
+        `${name} must put corrected provider proof before production Release 0`,
+      );
+      assertContractMatch(contract, /Release 0[\s\S]{0,300}RLS (?:is|remains|must remain|still) off/i, `${name} must keep RLS off throughout Release 0`);
+      assertContractMatch(
+        contract,
+        /Release 0[\s\S]{0,700}relrowsecurity=false[\s\S]{0,300}relforcerowsecurity=false[\s\S]{0,300}zero policies/i,
+        `${name} must require live-catalog proof that SavedSearch RLS and FORCE remain off with zero policies before traffic`,
+      );
+      assertContractMatch(contract, /real(?:-table)? [`']?SavedSearch[`']? (?:proof|gate|staging proof)[\s\S]{0,350}before Phase A/i, `${name} must put real SavedSearch proof before Phase A`);
+      assertContractMatch(contract, /Phase B[\s\S]{0,220}separate (?:reviewed )?(?:release|migration|pass)/i, `${name} must keep Phase B separate`);
+      assertContractMatch(contract, /Bucket B[\s\S]{0,200}(?:explicitly )?paused[\s\S]{0,220}separate pass/i, `${name} must keep Bucket B paused for a separate pass`);
+    }
+  });
+
+  it("labels the prior failed provider result as a dated historical baseline", () => {
+    const contract = `${source("docs/runbook.md")}\n${source("docs/db-defense-in-depth-plan.md")}\n${source("docs/launch-checklist.md")}\n${source("CLAUDE.md")}`;
+
+    assertContractMatch(contract, /Baseline recorded 2026-07-16[\s\S]{0,240}historical[\s\S]{0,240}not (?:the )?current (?:provider )?(?:inventory|evidence)/i, "the 2026-07-16 locality baseline must be labeled historical, not current inventory");
+    assertContractMatch(contract, /(?:Historical (?:failed )?(?:provider-runtime )?result|provider-runtime result recorded) 2026-07-17/i, "the failed 2026-07-17 provider result must be explicitly historical");
+    assertContractNotMatch(contract, /latest provider-runtime slot 1/i, "stale provider evidence must not be described as latest");
   });
 
   it("builds a sanitized evidence payload without database URLs", () => {

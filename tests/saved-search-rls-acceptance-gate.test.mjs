@@ -26,6 +26,10 @@ const {
 } = await import("../scripts/saved-search-rls-acceptance-gate.mjs");
 
 const SCRIPT_PATH = "scripts/saved-search-rls-acceptance-gate.mjs";
+const OWNER_RPC_MIGRATION_PATH =
+  "prisma/migrations/20260717024500_add_saved_search_owner_rpcs/migration.sql";
+const OWNER_RPC_PROJECTION_MIGRATION_PATH =
+  "prisma/migrations/20260717025000_harden_saved_search_owner_rpc_projection/migration.sql";
 const RUNTIME_URL =
   "postgresql://grainline_app_runtime:runtime-secret@ep-grainline-staging-pooler.us-east-2.aws.neon.tech/grainline_staging?sslmode=require";
 const OWNER_URL =
@@ -33,6 +37,26 @@ const OWNER_URL =
 
 function source(path = SCRIPT_PATH) {
   return readFileSync(path, "utf8");
+}
+
+function ownerRpcBody(functionName) {
+  const migration = source(
+    functionName === "grainline_saved_search_list"
+      ? OWNER_RPC_PROJECTION_MIGRATION_PATH
+      : OWNER_RPC_MIGRATION_PATH,
+  );
+  const delimiter = `$${functionName}$`;
+  assert.equal(
+    migration.split(delimiter).length - 1,
+    2,
+    `expected exactly one ${functionName} body`,
+  );
+  const start = migration.indexOf(`AS ${delimiter}`);
+  assert.notEqual(start, -1, `missing ${functionName} body start`);
+  const bodyStart = start + `AS ${delimiter}`.length;
+  const end = migration.indexOf(`${delimiter};`, bodyStart);
+  assert.notEqual(end, -1, `missing ${functionName} body end`);
+  return migration.slice(bodyStart, end);
 }
 
 function baseEnv(overrides = {}) {
@@ -98,6 +122,7 @@ function exactCatalogState() {
       {
         function_config: ["search_path=pg_catalog"],
         function_name: "grainline_saved_search_delete_one",
+        function_source: ownerRpcBody("grainline_saved_search_delete_one"),
         identity_arguments: "p_user_id text, p_search_id text",
         other_role_grant_option_privileges: [],
         other_role_privileges: [],
@@ -117,6 +142,7 @@ function exactCatalogState() {
       {
         function_config: ["search_path=pg_catalog"],
         function_name: "grainline_saved_search_list",
+        function_source: ownerRpcBody("grainline_saved_search_list"),
         identity_arguments: "p_user_id text, p_take integer, p_search_id text",
         other_role_grant_option_privileges: [],
         other_role_privileges: [],

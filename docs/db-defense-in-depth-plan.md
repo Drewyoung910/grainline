@@ -59,7 +59,8 @@ Evidence to retain:
 - Sanitized role names and privilege summary.
 - Confirmation that no production credentials were changed.
 
-Baseline recorded 2026-07-16:
+Baseline recorded 2026-07-16 (historical; not the current provider inventory or
+evidence):
 
 - `main` CI run `29527670942` passed for commit `4edb0faa`.
 - Existing dirty/untracked audit and agent files were preserved.
@@ -76,6 +77,11 @@ Baseline recorded 2026-07-16:
   staging target. Its 58 application tables plus `_prisma_migrations` are owned
   by the branch's existing direct migration owner, and its pre-canary baseline
   had zero RLS-enabled public tables. Production URLs and roles were not changed.
+
+This is a dated snapshot, not evidence of current Vercel variables or callable
+deployments. Before every provider gate, rerun and retain a read-only Vercel
+environment/deployment inventory instead of inferring current state from this
+baseline.
 
 ## Phase 1 - Least-Privilege Runtime Role
 
@@ -198,7 +204,22 @@ Verification checklist:
   Run this from the same environment/secret set that will run migrations so the
   audit connection proves the actual `DIRECT_URL` role. A separate admin or
   auditor URL can inspect state, but it does not prove deploy-time migration
-  provenance unless a second explicit `DIRECT_URL` identity check is run.
+  provenance unless a second explicit `DIRECT_URL` identity check is run. In
+  Release 0, the final live catalog must report `relrowsecurity=false`,
+  `relforcerowsecurity=false`, and zero policies for `public."SavedSearch"`;
+  the source-tree deploy guard cannot substitute for that database-state proof.
+  A successful audit emits one credential-free, machine-readable
+  `SAVED_SEARCH_CATALOG_STATE={...}` line containing `relrowsecurity`,
+  `relforcerowsecurity`, and `policy_count`; retain that line with the release
+  evidence. Before any migration runs, production `migrate:deploy:guarded`
+  requires `DATABASE_URL` and `DIRECT_URL`; exact reviewed declarations
+  `RUNTIME_DB_ROLE=grainline_app_runtime` and
+  `MIGRATION_DB_ROLE=neondb_owner`; matching URL usernames; a pooled runtime
+  endpoint and direct owner endpoint that identify the same Neon endpoint,
+  region, port, and database; and an absent or exactly matching
+  `GRANT_AUDIT_DATABASE_URL`. It then runs this audit immediately after
+  `prisma migrate deploy` with `--require-direct-url`; an audit failure blocks
+  the application build.
 - Reviewed staging role/grant provisioning:
   `psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=neondb_owner -f scripts/provision-runtime-db-role.sql`
   Run the grant audit after this script; do not use successful script execution
@@ -345,8 +366,9 @@ Verification:
 ## Phase 3 - Request Context Proof
 
 Status: staging context/performance gate tooling, the shared helper, and local
-SavedSearch adoption are implemented. The latest provider-owned Vercel runtime
-slot 1 preserved correctness and isolation but failed 10 performance/adoption
+SavedSearch adoption are implemented. Historical failed provider-runtime result 2026-07-17:
+slot 1 preserved correctness and isolation but failed 10
+performance/adoption
 thresholds. Wrapped p95 was approximately 96--100 ms versus a 39--40 ms
 autocommit baseline; average connection hold was approximately 93--96 ms versus
 37--40 ms; and the Prisma burst result was approximately 199 ms versus 78 ms.
@@ -372,8 +394,9 @@ function during owner-only setup, verifies its exact owner, ACL, language,
 volatility, parallel-safety, leakproof, return-shape, and `search_path` posture,
 then measures that same object in both provider-runtime repeats against a true
 one-statement autocommit baseline through the application-sized Prisma pool.
-Only after both sanitized artifacts are retained may owner-only teardown drop
-the function and verify its absence. This remains transport/performance proof
+Only after both sanitized provider responses and independent deployment
+attestation are retained may owner-only teardown drop the function and verify
+its absence. This remains transport/performance proof
 for an architecture candidate, not SavedSearch policy proof or authority to
 waive the real-table gate.
 
@@ -412,11 +435,60 @@ Current reviewed staging harness:
   Git-integrated Vercel Preview route. Slot 2 is not claimable until slot 1 is
   durably passed, and either slot is permanently non-replayable for that opaque
   run id. The route never receives the admin URL.
+- Before pushing the attested gate commit, configure branch-scoped
+  `DATABASE_URL` and `RLS_CONTEXT_GATE_DATABASE_URL` to the same exact pooled
+  staging URL authenticated as `grainline_app_runtime`. Confirm branch-scoped
+  `DIRECT_URL`, `RLS_CONTEXT_GATE_ADMIN_DATABASE_URL`,
+  `RLS_CONTEXT_GATE_EVIDENCE_PATH`, and owner-only prepare/rollback/teardown
+  flags are absent. Use a fresh `RLS_CONTEXT_GATE_TRIGGER_SECRET`, a fresh
+  `RLS_CONTEXT_GATE_RUN_ID`, and the exact commit SHA in
+  `RLS_CONTEXT_GATE_ALLOWED_COMMIT_SHA` to the exact Git-integrated Preview
+  gate commit SHA. It is not the later cleaned production Release 0 SHA;
+  removing the temporary runner necessarily creates a different commit.
+- Both repeats use this exact environment manifest:
+  `RLS_CONTEXT_GATE_CONFIRM=staging-only`,
+  `RLS_CONTEXT_GATE_LOCALITY_CONFIRM=production-runtime`,
+  `RLS_CONTEXT_GATE_EXPECTED_EXECUTION_REGION=sfo1`,
+  `RLS_CONTEXT_GATE_EXPECTED_DATABASE_REGION=westus3.azure`,
+  `RLS_CONTEXT_GATE_EXPECTED_DATABASE_ENDPOINT_ID=ep-bold-recipe-aavx4plv`,
+  `RLS_CONTEXT_GATE_EXPECTED_DATABASE_NAME=neondb`,
+  `RLS_CONTEXT_GATE_RUNTIME_ROLE=grainline_app_runtime`,
+  `RLS_CONTEXT_GATE_REQUESTS=500`,
+  `RLS_CONTEXT_GATE_WARMUP_REQUESTS=50`,
+  `RLS_CONTEXT_GATE_TURNOVER_REQUESTS=64`,
+  `RLS_CONTEXT_GATE_TARGET_CONCURRENCY=8`,
+  `RLS_CONTEXT_GATE_BURST_CONCURRENCY=16`,
+  `RLS_CONTEXT_GATE_POOL_SIZE=16`,
+  `RLS_CONTEXT_GATE_CONNECTION_TIMEOUT_MS=10000`,
+  `RLS_CONTEXT_GATE_STATEMENT_TIMEOUT_MS=30000`,
+  `RLS_CONTEXT_GATE_QUERY_TIMEOUT_MS=35000`,
+  `RLS_CONTEXT_GATE_TX_TIMEOUT_MS=5000`,
+  `RLS_CONTEXT_GATE_SCHEMA=grainline_rls_canary`, and
+  `RLS_CONTEXT_GATE_TABLE=context_canary`. Reviewed code pins the Prisma pool to
+  `10`, claim table to `context_gate_run_claim`, policy to
+  `context_canary_select`, and RPC to `context_canary_rpc`. A changed manifest
+  or pinned value invalidates comparability and requires two new slots.
+- Each counted response must be HTTP `200` with
+  `run.status=runtime_candidate_passed`, `result.issueCount=0`,
+  `locality.runtimeEvidenceCandidate=true`,
+  `locality.acceptanceEligible=false`, and the requested `runner.runSlot`.
+  Independently inspected Git-integrated Vercel source/ref/SHA/id must match
+  `run.commitSha` and `run.deploymentId` in both responses.
+- A `500`, timeout, or provider failure after durable claim consumes that slot.
+  Do not retry it, call slot 2, or edit/reset the run-claim ledger. Inspect only
+  sanitized provider logs, fix the cause, generate a fresh
+  `RLS_CONTEXT_GATE_RUN_ID`, create a fresh Git-integrated Preview deployment,
+  and restart at slot 1.
 - The gate trigger secret used for the prior Preview was exposed in captured
   tool/session output. Rotate it before any further run, remove local temporary
   files that contain it after retaining sanitized artifacts, and prove the old
   value is rejected. The Preview route/ledger are isolated acceptance-test
-  infrastructure; do not merge or enable the runner in production.
+  infrastructure. The Preview artifact exempts only the exact
+  `/api/internal/rls-context-gate` path from Clerk middleware and must pass
+  `node --test tests/rls-context-runner-route.test.mjs`. Release 0 and every
+  production artifact exclude the runner route, that exact middleware
+  exemption, and the runner-only regression test; do not merge or enable them
+  in production.
 - Laptop/workstation runs must use `diagnostic-only`. Their artifacts are marked
   `diagnostic_passed` or `diagnostic_failed` and are never acceptance-eligible.
   Promotion evidence must use `production-runtime` inside provider-owned Vercel;
@@ -442,19 +514,20 @@ Current reviewed staging harness:
   timing into a passing zero.
 - To rerun the non-counted rollback/no-op setup proof without refreshing canary rows, add
   `RLS_CONTEXT_GATE_ROLLBACK_PROBE=1 RLS_CONTEXT_GATE_ADMIN_DATABASE_URL="$DIRECT_URL"`.
-- To retain a durable sanitized JSON evidence artifact, add
-  `RLS_CONTEXT_GATE_EVIDENCE_PATH="rls-context-gate-evidence.json"`. The
-  artifact records commit/CI metadata when available, sanitized database host,
-  runtime role, canary table/policy names, run configuration, reports, and
-  issues. It is written with mode `0600` and intentionally does not include
-  database URLs or credentials.
+- For local owner-only setup, rollback, or teardown evidence, add
+  `RLS_CONTEXT_GATE_EVIDENCE_PATH="rls-context-gate-evidence.json"`. That local
+  artifact records sanitized run metadata and is written with mode `0600`.
+  Counted provider repeats do not write this path: capture each sanitized HTTP
+  response body separately outside the repository with mode `0600`. Neither
+  form may include database URLs or credentials.
 - Do not point this gate at production. Use a production-like Neon branch or
   staging database with the same pooled runtime-role shape as production.
 - `RLS_CONTEXT_GATE_PREPARE=1` leaves the synthetic schema, table, policy,
   run-claim ledger, canary rows, and RPC fixture in staging so both counted
   repeats measure the same reviewed function. The rollback probe
   temporarily disables RLS and restores `ENABLE`/`FORCE ROW LEVEL SECURITY`; it
-  is not canary cleanup. After both sanitized artifacts are retained, an
+  is not canary cleanup. After both sanitized provider responses and independent
+  deployment attestation are retained, an
   owner-only `RLS_CONTEXT_GATE_TEARDOWN_RPC_PROBE=1` invocation drops only the
   synthetic function and verifies it is absent; keep the canary table and ledger
   as staging acceptance infrastructure.
@@ -463,10 +536,12 @@ Current reviewed staging harness:
   connection/performance baseline evidence. The query-RTT proxy is
   locality diagnostics only; never subtract it from, normalize, discount, or
   otherwise change the unchanged acceptance thresholds. Require two consecutive
-  runs on the same commit/config: specifically, repeat-mode production-runtime
-  slots from the same reviewed deployment SHA with identical gate, pool,
-  concurrency, timeout, package, and locality configuration. Retain both
-  candidate artifacts and external deployment attestation. Real-table
+  runs on the exact manifest and code-pinned configuration above: specifically,
+  repeat-mode production-runtime slots from the same reviewed deployment SHA.
+  The promotion contract requires two consecutive runs on the same commit/config.
+  Both the deployment SHA and the reviewed manifest must be unchanged between
+  the counted runs.
+  Retain both candidate responses and external deployment attestation. Real-table
   route/data-shape smoke remains required.
 
 Required helper contract:
@@ -565,8 +640,10 @@ not acceptance evidence for RLS rollout.
 Evidence to record with the run:
 
 - provider-owned Vercel commit SHA and deployment id for the app under test;
-- path to the retained sanitized JSON evidence artifact from
-  `RLS_CONTEXT_GATE_EVIDENCE_PATH`;
+- for owner-only setup/rollback/teardown, path to the mode-`0600` sanitized JSON
+  artifact written through `RLS_CONTEXT_GATE_EVIDENCE_PATH`; for each counted
+  provider repeat, the separately captured mode-`0600` sanitized HTTP response
+  body (the provider response is not an `RLS_CONTEXT_GATE_EVIDENCE_PATH` file);
 - staging database or branch name;
 - sanitized migration/runtime role names and confirmation that the runtime role
   is the role behind pooled `DATABASE_URL`;
@@ -815,6 +892,9 @@ Function-body drift control and retained evidence limits:
 
 Release order:
 
+- Run both corrected provider-runtime context/performance repeats in isolated
+  staging first. Both sanitized HTTP responses and independent deployment
+  attestation must pass the exact contract above before production Release 0.
 - Release 0 applies `20260717024500_add_saved_search_owner_rpcs` followed by
   `20260717025000_harden_saved_search_owner_rpc_projection` while RLS is off,
   then deploys the RPC-calling application on the non-owner pooled
@@ -824,10 +904,12 @@ Release order:
   absent, and migration status must be verified before traffic. Its production
   build uses `SAVED_SEARCH_RLS_DEPLOY_PHASE=release-0`; the fail-closed deploy
   guard requires both pre-RLS RPC migrations present and the phase-A migration
-  absent.
-- Run both corrected provider-runtime context/performance repeats and the exact
-  real SavedSearch RPC acceptance gate in isolated staging. Only retained,
-  sanitized, independently attested passing evidence authorizes phase A.
+  absent. The production artifact must also exclude the temporary runner route,
+  its exact middleware exemption, and its runner-only regression test.
+- After Release 0, the exact real SavedSearch gate, including RPC/policy,
+  route-fixture, grant/canary, and rollback proof, must pass before Phase A in
+  isolated staging. Those are separate pre-Phase-A requirements; only retained,
+  sanitized passing evidence authorizes phase A.
 - Phase A (`ENABLE` with explicit `NO FORCE`) and phase B (`FORCE`) remain
   separate reviewed releases. `SAVED_SEARCH_RLS_DEPLOY_PHASE=phase-a-reviewed`
   is an explicit human promotion authorization used only after all required
@@ -839,6 +921,24 @@ Release order:
   disable superseded callable
   deployments or rotate/revoke their owner credentials and retain owner-backed
   app-session drain evidence; elapsed time alone is not proof.
+
+### Tracked deployment-credential residual
+
+`vercel.json` currently performs owner migrations in the production Build Step.
+Vercel project environment variables are readable during both the Build Step
+and Function execution, so the same deployment also leaves `DIRECT_URL` and the
+migration-owner credential available to production application functions. The
+runtime-role split and SavedSearch policies still catch omitted context and
+wrong-scoped queries issued through the non-owner `DATABASE_URL`; they are not
+isolation from arbitrary application code execution that can read the owner
+credential.
+
+This does not replace or waive the Release 0 and Phase A gates. Track it as a
+separate release-engineering follow-up: run owner migrations and the live grant
+audit in an isolated CI/release job, promote the already-migrated application
+artifact separately, and remove `DIRECT_URL` plus `MIGRATION_DB_ROLE` from the
+production Function environment. Complete that separation before expanding
+RLS to Bucket B or claiming protection against arbitrary runtime code.
 
 ## Phase 5 - Notification RLS Prototype
 

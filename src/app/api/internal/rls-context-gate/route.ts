@@ -37,6 +37,13 @@ function providerRunIsPinned() {
     && allowedCommitSha === process.env.VERCEL_GIT_COMMIT_SHA;
 }
 
+function providerDatabaseUrlsMatch() {
+  const applicationUrl = process.env.DATABASE_URL;
+  const gateUrl = process.env.RLS_CONTEXT_GATE_DATABASE_URL;
+  return Boolean(applicationUrl && gateUrl)
+    && timingSafeEqual(digest(applicationUrl!), digest(gateUrl!));
+}
+
 function privateJson(body: unknown, status = 200) {
   return Response.json(body, {
     status,
@@ -68,6 +75,9 @@ export async function POST(request: Request) {
   }
   if (!providerRunIsPinned()) {
     return privateJson({ error: "Runner is not pinned to this commit" }, 403);
+  }
+  if (!providerDatabaseUrlsMatch()) {
+    return privateJson({ error: "Runner database configuration does not match the application" }, 503);
   }
 
   const runId = process.env.RLS_CONTEXT_GATE_RUN_ID;
