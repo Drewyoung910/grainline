@@ -48,6 +48,16 @@ reversible before the next group begins. Never combine notification fanout,
 messaging, checkout/payment, fulfillment, and dispute policy activation into a
 single release.
 
+This program scope is approved, not a menu to narrow silently. Every sensitive
+or user-owned table discovered by the coverage inventory must end in one of
+three explicit states: production RLS with retained proof; a reviewed database
+isolation alternative with rationale; or a named, blocking deferral with owner
+and prerequisites. Public catalog data, cross-user aggregates, and internal
+service ledgers still require review and may need different database controls;
+do not force an owner-policy shape where it is incorrect. Maintain a coverage
+matrix and never claim that all user data is protected by RLS until every table
+has an evidenced disposition.
+
 ### Homepage discovery hierarchy decision (2026-07-15)
 
 Keep the local-maker map directly beneath the hero and floating marketplace stats. It is Grainline's clearest marketplace differentiator, but it should remain a compact discovery band so inventory appears after a short scroll rather than becoming a second full-screen gate.
