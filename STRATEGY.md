@@ -84,9 +84,10 @@ and account-deletion cleanup/redaction. Use recipient SELECT/RLS plus
 column-level `UPDATE (read)`, with no direct runtime INSERT/DELETE. Cross-user
 creation and cleanup require separate fixed-purpose owner-backed RPCs; never
 put a second owner/service credential into Vercel. Source metadata coverage,
-legacy account-deletion redaction, and restored provider transaction performance
-evidence are blocking B0 work. Activation remains separate ENABLE/NO FORCE and
-later FORCE releases after Phase B and runtime credential separation are live.
+legacy account-deletion redaction, and two fresh passes under the restored
+provider transaction performance gate block activation. Activation remains
+separate ENABLE/NO FORCE and later FORCE releases after Phase B and runtime
+credential separation are live.
 
 ### Homepage discovery hierarchy decision (2026-07-15)
 

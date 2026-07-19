@@ -414,14 +414,15 @@ with zero request/correctness/isolation errors. The sole issue compared the
 legacy multi-statement wrapper with a one-statement autocommit baseline (Prisma
 burst p95 146.5 ms versus 71.0 ms), even though that wrapper is not the
 SavedSearch list/delete Release-0 candidate and the remaining wrapped units were
-already transactions. For Bucket A/Phase A, retain that wrapper-versus-
-autocommit latency as an explicit diagnostic while keeping its errors,
-correctness, isolation, turnover, wrapper-versus-transaction thresholds, and
-the one-statement RPC target/burst thresholds promotion-blocking. Any Bucket B
-work or newly wrapped formerly-autocommit path must restore the generic
-wrapper-versus-autocommit threshold as a blocking gate. This is candidate
-alignment, not retroactive acceptance: the consumed run remains failed and a
-fresh run id, trigger secret, commit, deployment, and two new slots are required.
+already transactions. For Bucket A/Phase A only, that run's wrapper-versus-
+autocommit latency was treated as diagnostic while its errors, correctness,
+isolation, turnover, wrapper-versus-transaction thresholds, and the
+one-statement RPC target/burst thresholds remained promotion-blocking. The
+Bucket B branch has now removed the diagnostic escape hatch: generic raw and
+Prisma wrapper-versus-autocommit thresholds are blocking again. This does not
+retroactively accept the consumed run. Bucket B requires a fresh run id,
+trigger secret, commit, deployment, and two new passing slots with the restored
+gate.
 
 Provider transport proof completed 2026-07-19: Git-integrated Preview commit
 `ef8622b1822bf700d3bc97757a631bdaed503018`, deployment

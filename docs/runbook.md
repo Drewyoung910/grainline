@@ -528,15 +528,14 @@ RLS staging context proof:
   target and burst p95 comparisons (19.9 ms versus 19.8 ms and 35.5 ms versus
   35.6 ms) with no request/correctness/isolation errors. The sole issue was the
   legacy wrapper-versus-autocommit Prisma burst comparison (146.5 ms versus
-  71.0 ms). For SavedSearch Bucket A/Phase A only, keep that generic legacy
-  latency comparison diagnostic because list/read and delete ship through the
-  measured one-statement RPCs and the remaining wrapped units were already
-  transactions. Errors, correctness, isolation, turnover, wrapper-versus-
-  transaction thresholds, and both RPC performance comparisons still block
-  promotion. Restore the generic wrapper-versus-autocommit threshold as a hard
-  gate before Bucket B or any newly wrapped formerly-autocommit path. The run is
-  still failed evidence: rotate the run id and trigger, deploy a fresh attested
-  commit, and begin again at slot 1.
+  71.0 ms). For SavedSearch Bucket A/Phase A only, that generic legacy latency
+  comparison was treated as diagnostic because list/read and delete shipped
+  through the measured one-statement RPCs and the remaining wrapped units were
+  already transactions. The Bucket B branch has removed that diagnostic escape
+  hatch: generic raw and Prisma wrapper-versus-autocommit thresholds are hard
+  blocking gates again. The historical run remains failed evidence and cannot be reused.
+  Before Bucket B activation, rotate the run id and trigger, deploy a fresh
+  attested commit, and retain two new passing slots starting at slot 1.
 - Provider transport proof completed 2026-07-19 on Git-integrated Preview commit
   `ef8622b1822bf700d3bc97757a631bdaed503018`, deployment
   `dpl_3xnFJFFr2qt5gZjKDGXzm6Hzk7RD`: slots 1 and 2 both returned

@@ -54,8 +54,8 @@ Current direct-access files are deliberately pinned by test:
    owner from changing protected columns, so the column grant is mandatory.
 4. Wrap multi-query owner surfaces with `withDbUserContext`; the context must
    be the server-resolved local user id and the protected queries must stay on
-   the branded transaction client. Restore and pass the generic provider
-   wrapper/performance gate before activation.
+   the branded transaction client. Keep the restored generic provider
+   wrapper/performance thresholds blocking and pass them before activation.
 5. Implement notification creation as a narrowly reviewed owner-backed RPC.
    It must be the sole cross-user insert path and must keep recipient status,
    preferences, payload bounds, source metadata, and durable dedup behavior.
@@ -85,8 +85,8 @@ Current direct-access files are deliberately pinned by test:
   cross-recipient cleanup; backfill or safely expire legacy rows.
 - Replace blog/broadcast title/body/link cleanup with exact source cleanup.
 - Choose and test the legacy account-deletion redaction disposition.
-- Restore the generic provider transaction performance gate and retain two
-  counted passes for the Notification workload.
+- Retain two fresh counted passes for the Notification workload with the
+  restored generic provider transaction performance gate.
 
 ### B1 - Staging database prototype
 
@@ -121,7 +121,8 @@ Current direct-access files are deliberately pinned by test:
 - Cross-recipient account-deletion redaction still operates on notification
   text and requires redesign or a narrowly proven service path.
 - Not every create path has proven lifecycle-complete source metadata.
-- The generic provider wrapper/performance gate must be restored for Bucket B.
+- The generic provider wrapper/performance gate is restored in code, but two
+  fresh counted provider passes are still required.
 
 These blockers permit code preparation and staging design; they prohibit
 production Notification RLS activation.
