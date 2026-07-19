@@ -416,6 +416,20 @@ wrapper-versus-autocommit threshold as a blocking gate. This is candidate
 alignment, not retroactive acceptance: the consumed run remains failed and a
 fresh run id, trigger secret, commit, deployment, and two new slots are required.
 
+Provider transport proof completed 2026-07-19: Git-integrated Preview commit
+`ef8622b1822bf700d3bc97757a631bdaed503018`, deployment
+`dpl_3xnFJFFr2qt5gZjKDGXzm6Hzk7RD`, produced two consecutive counted passes on
+the same manifest and run id. Both slots had `issueCount=0`, exact `sfo1` /
+`westus3.azure` locality, and zero request/correctness/isolation errors. RPC
+target/burst p95 was 20.3/36.1 ms in slot 1 and 20.6/37.2 ms in slot 2. The
+sanitized responses and independent deployment attestation are retained outside
+the repository with mode `0600`. Owner-only teardown verified the synthetic RPC
+fixture absent afterward; all 24 branch-scoped Preview variables were removed,
+temporary secrets were deleted, and the staging runtime password was rotated.
+This completes the synthetic transport/performance prerequisite for constructing
+Release 0. It is not real-table SavedSearch policy proof and does not authorize
+Phase A, production RLS activation, or Bucket B.
+
 Performance-path investigation (2026-07-17): a one-statement CTE that attempted
 to call `set_config` and then read the protected canary failed closed because it
 returned zero rows; PostgreSQL did not provide an execution-order guarantee that
