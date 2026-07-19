@@ -25,6 +25,7 @@ import {
   SAVED_SEARCH_RPC_MIGRATION,
   RLS_CONTEXT_GATE_PUBLIC_PATH,
   RLS_CONTEXT_GATE_ROUTE_PATH,
+  RLS_CONTEXT_GATE_RUNNER_TEST_MARKER,
   RLS_CONTEXT_GATE_RUNNER_TEST_PATH,
   assertGuardedDeployEnvironment,
   computeFileSha256,
@@ -33,6 +34,7 @@ import {
   contextGateRouteArtifactExists,
   contextGateRunnerTestExists,
   findContextGateAppArtifacts,
+  findContextGateRunnerTestArtifacts,
   middlewareContainsContextGateExemption,
   parseGuardedNeonDatabaseIdentity,
   validateSavedSearchRlsDeployShape,
@@ -273,6 +275,48 @@ describe("SavedSearch RLS production deploy guard", () => {
       }),
       /channel_binding must be absent or require/,
     );
+    assert.throws(
+      () => assertGuardedDeployEnvironment({
+        ...valid,
+        DATABASE_URL: runtimeUrl.replace("sslmode=verify-full", "sslmode=VERIFY-FULL"),
+      }),
+      /must use sslmode=verify-full/,
+    );
+    assert.throws(
+      () => assertGuardedDeployEnvironment({
+        ...valid,
+        DATABASE_URL: runtimeUrl.replace("channel_binding=require", "channel_binding=REQUIRE"),
+      }),
+      /channel_binding must be absent or require/,
+    );
+
+    for (const databaseUrl of [
+      runtimeUrl.replace(":runtime-secret@", "@"),
+      runtimeUrl.replace(":5432/", "/"),
+      `${runtimeUrl}#fragment`,
+      runtimeUrl.replace(":5432/neondb", ":5432//neondb"),
+      runtimeUrl.replace(":5432/neondb", ":5432/neondb/"),
+      runtimeUrl.replace(":5432/neondb", ":5432/neondb//"),
+      runtimeUrl.replace(":5432/neondb", ":5432/neondb%3Fother"),
+    ]) {
+      assert.throws(
+        () => assertGuardedDeployEnvironment({ ...valid, DATABASE_URL: databaseUrl }),
+        (error) => {
+          assert.doesNotMatch(error.message, /runtime-secret|postgresql:/);
+          return true;
+        },
+      );
+    }
+
+    for (const environmentOverride of [
+      { NODE_TLS_REJECT_UNAUTHORIZED: "0" },
+      { PGOPTIONS: "-c role=other" },
+    ]) {
+      assert.throws(
+        () => assertGuardedDeployEnvironment({ ...valid, ...environmentOverride }),
+        /must not/,
+      );
+    }
   });
 
   it("fails the current rollout tree without explicit phase authorization", () => {
@@ -619,7 +663,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     }
   });
 
-  it("rejects the runner-only test mechanically", () => {
+  it("rejects exact, renamed, and symlinked runner-only tests mechanically", () => {
     assert.throws(
       () => validate(RELEASE_ZERO, RELEASE_ZERO_MIGRATIONS, {
         contextGateRunnerTestExists: true,
@@ -633,8 +677,54 @@ describe("SavedSearch RLS production deploy guard", () => {
       mkdirSync(join(runnerTestPath, ".."), { recursive: true });
       writeFileSync(runnerTestPath, "// Preview-only runner test\n");
       assert.equal(contextGateRunnerTestExists(rootDirectory), true);
+      assert.deepEqual(findContextGateRunnerTestArtifacts(rootDirectory), [
+        RLS_CONTEXT_GATE_RUNNER_TEST_PATH,
+      ]);
     } finally {
       rmSync(rootDirectory, { force: true, recursive: true });
+    }
+
+    const renamedRoot = mkdtempSync(join(tmpdir(), "grainline-rls-renamed-test-"));
+    try {
+      const renamedPath = join(renamedRoot, "tests/security/provider-proof.spec.ts");
+      mkdirSync(join(renamedPath, ".."), { recursive: true });
+      writeFileSync(
+        renamedPath,
+        `// ${RLS_CONTEXT_GATE_RUNNER_TEST_MARKER}\nconst route = ${JSON.stringify(RLS_CONTEXT_GATE_ROUTE_PATH)};\n`,
+      );
+      assert.deepEqual(findContextGateRunnerTestArtifacts(renamedRoot), [
+        "tests/security/provider-proof.spec.ts",
+      ]);
+      assert.equal(contextGateRunnerTestExists(renamedRoot), true);
+    } finally {
+      rmSync(renamedRoot, { force: true, recursive: true });
+    }
+
+    const symlinkRoot = mkdtempSync(join(tmpdir(), "grainline-rls-test-symlink-"));
+    try {
+      const testsDirectory = join(symlinkRoot, "tests");
+      mkdirSync(testsDirectory, { recursive: true });
+      symlinkSync("missing-runner-test.mjs", join(testsDirectory, "provider-proof.test.mjs"));
+      assert.deepEqual(findContextGateRunnerTestArtifacts(symlinkRoot), [
+        "tests/provider-proof.test.mjs",
+      ]);
+      assert.equal(contextGateRunnerTestExists(symlinkRoot), true);
+    } finally {
+      rmSync(symlinkRoot, { force: true, recursive: true });
+    }
+
+    const cleanRoot = mkdtempSync(join(tmpdir(), "grainline-rls-clean-test-"));
+    try {
+      const cleanPath = join(cleanRoot, "tests/deploy-guard.test.mjs");
+      mkdirSync(join(cleanPath, ".."), { recursive: true });
+      writeFileSync(
+        cleanPath,
+        `const route = ${JSON.stringify(RLS_CONTEXT_GATE_ROUTE_PATH)};\n// production guard coverage only\n`,
+      );
+      assert.deepEqual(findContextGateRunnerTestArtifacts(cleanRoot), []);
+      assert.equal(contextGateRunnerTestExists(cleanRoot), false);
+    } finally {
+      rmSync(cleanRoot, { force: true, recursive: true });
     }
   });
 
@@ -691,6 +781,40 @@ describe("SavedSearch RLS production deploy guard", () => {
         /pooled[\s\S]{0,300}direct[\s\S]{0,300}(?:same|identify the same) (?:Neon )?endpoint,\s+region, port,\s+and database/i,
         `${file} must pin the pooled/direct target relationship`,
       );
+      assert.match(
+        contract,
+        /sslmode=verify-full[\s\S]{0,180}channel_binding=require/i,
+        `${file} must pin the reviewed remote connection parameters`,
+      );
+      assert.match(contract, /explicit[^\n]{0,80}password/i, `${file} must require an explicit password`);
+      assert.match(contract, /explicit[^\n]{0,40}:5432/i, `${file} must require explicit port 5432`);
+      assert.match(
+        contract,
+        /unencoded[^\n]{0,80}(?:bounded )?database path segment/i,
+        `${file} must require a canonical database path`,
+      );
+      assert.match(contract, /NODE_TLS_REJECT_UNAUTHORIZED=0/, `${file} must reject disabled Node TLS verification`);
+      assert.match(contract, /PGOPTIONS/, `${file} must reject inherited PostgreSQL session options`);
+      assert.match(contract, /--allow-loopback-ci/, `${file} must make the insecure CI transport explicit`);
+      assert.match(
+        contract,
+        /channel.binding[\s\S]{0,180}(?:does not|must not)[\s\S]{0,100}(?:prove|claim|hard)/i,
+        `${file} must not overclaim channel-binding enforcement`,
+      );
+      assert.match(
+        contract,
+        /current_database\(\)[\s\S]{0,260}current_user[\s\S]{0,80}session_user|current_database\(\)[\s\S]{0,260}current_user`\/`session_user/i,
+        `${file} must require live database and migration-owner identity proof`,
+      );
+      assert.match(contract, /byte-for-byte/i, `${file} must require exact Preview URL bytes`);
+      assert.match(
+        contract,
+        /digest equality/i,
+        `${file} must verify Preview URL equality before the run claim`,
+      );
+      assert.match(contract, /renamed/i, `${file} must reject renamed runner tests`);
+      assert.match(contract, /symlink/i, `${file} must reject test-tree symlinks`);
+      assert.match(contract, /recursiv/i, `${file} must document recursive runner-test scanning`);
       assert.match(
         contract,
         /Build Step/i,

@@ -89,6 +89,8 @@ export async function POST(request: Request) {
   // flags are never passed to this repeat-only Preview runner.
   const gateEnv: NodeJS.ProcessEnv = {
     NODE_ENV: process.env.NODE_ENV,
+    NODE_TLS_REJECT_UNAUTHORIZED: process.env.NODE_TLS_REJECT_UNAUTHORIZED,
+    PGOPTIONS: process.env.PGOPTIONS,
     RLS_CONTEXT_GATE_BURST_CONCURRENCY: process.env.RLS_CONTEXT_GATE_BURST_CONCURRENCY,
     RLS_CONTEXT_GATE_CONFIRM: process.env.RLS_CONTEXT_GATE_CONFIRM,
     RLS_CONTEXT_GATE_CONNECTION_TIMEOUT_MS: process.env.RLS_CONTEXT_GATE_CONNECTION_TIMEOUT_MS,

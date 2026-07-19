@@ -10,7 +10,12 @@ import {
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
-import { assertReviewedPostgresConnectionParameters } from "./postgres-url-safety.mjs";
+import {
+  assertDeterministicPostgresEnvironment,
+  assertExplicitPostgresConnectionAuthority,
+  assertReviewedPostgresConnectionParameters,
+  parseCanonicalPostgresDatabaseName,
+} from "./postgres-url-safety.mjs";
 
 export const SAVED_SEARCH_RLS_DEPLOY_PHASE_ENV =
   "SAVED_SEARCH_RLS_DEPLOY_PHASE";
@@ -37,12 +42,25 @@ export const RLS_CONTEXT_GATE_PUBLIC_PATH =
   "/api/internal/rls-context-gate";
 export const RLS_CONTEXT_GATE_RUNNER_TEST_PATH =
   "tests/rls-context-runner-route.test.mjs";
+export const RLS_CONTEXT_GATE_RUNNER_TEST_MARKER =
+  "RLS_CONTEXT_GATE_RUNNER_ONLY_TEST";
 export const REVIEWED_RUNTIME_DB_ROLE = "grainline_app_runtime";
 export const REVIEWED_MIGRATION_DB_ROLE = "neondb_owner";
 
 const RELEASE_ZERO_PHASE = "release-0";
 const REVIEWED_PHASE_A = "phase-a-reviewed";
 const APP_SOURCE_ROOTS = ["src/app", "app", "src/pages", "pages"];
+const TEST_SOURCE_ROOTS = ["tests"];
+const TEST_SOURCE_EXTENSIONS = new Set([
+  ".cjs",
+  ".cts",
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".mts",
+  ".ts",
+  ".tsx",
+]);
 const CONTEXT_GATE_PATH_MARKER = "rls-context-gate";
 const CONTEXT_GATE_SOURCE_MARKERS = [
   RLS_CONTEXT_GATE_PUBLIC_PATH,
@@ -203,8 +221,60 @@ export function contextGateRouteArtifactExists(rootDirectory = process.cwd()) {
   return findContextGateAppArtifacts(rootDirectory).length > 0;
 }
 
+export function findContextGateRunnerTestArtifacts(rootDirectory = process.cwd()) {
+  const artifacts = new Set();
+
+  const inspectEntry = (physicalPath, logicalPath) => {
+    const entryStat = lstatSync(physicalPath);
+    if (entryStat.isSymbolicLink()) {
+      // Production test artifacts do not require symlinks. Treat every link as
+      // suspicious instead of following a target that can disappear or escape
+      // the reviewed source tree between guard and build.
+      artifacts.add(logicalPath);
+      return;
+    }
+    if (entryStat.isDirectory()) {
+      for (const entry of readdirSync(physicalPath, { withFileTypes: true })) {
+        inspectEntry(
+          path.join(physicalPath, entry.name),
+          path.posix.join(logicalPath, entry.name),
+        );
+      }
+      return;
+    }
+    if (!entryStat.isFile()) return;
+
+    if (logicalPath === RLS_CONTEXT_GATE_RUNNER_TEST_PATH) {
+      artifacts.add(logicalPath);
+      return;
+    }
+    if (!TEST_SOURCE_EXTENSIONS.has(path.extname(logicalPath).toLowerCase())) {
+      return;
+    }
+
+    const source = readFileSync(physicalPath, "utf8");
+    const containsRunnerRoute =
+      source.includes(RLS_CONTEXT_GATE_ROUTE_PATH)
+      || source.includes(RLS_CONTEXT_GATE_PUBLIC_PATH);
+    if (
+      containsRunnerRoute
+      && source.includes(RLS_CONTEXT_GATE_RUNNER_TEST_MARKER)
+    ) {
+      artifacts.add(logicalPath);
+    }
+  };
+
+  for (const sourceRoot of TEST_SOURCE_ROOTS) {
+    const absoluteSourceRoot = path.resolve(rootDirectory, sourceRoot);
+    if (!existsSync(absoluteSourceRoot)) continue;
+    inspectEntry(absoluteSourceRoot, sourceRoot);
+  }
+
+  return [...artifacts].sort((a, b) => a.localeCompare(b));
+}
+
 export function contextGateRunnerTestExists(rootDirectory = process.cwd()) {
-  return existsSync(path.resolve(rootDirectory, RLS_CONTEXT_GATE_RUNNER_TEST_PATH));
+  return findContextGateRunnerTestArtifacts(rootDirectory).length > 0;
 }
 
 export function computeMigrationTreeSha256(migrationDirectory, migrationNames) {
@@ -244,14 +314,6 @@ function assertReviewedPrismaMigrationConfig(prismaConfigSha256) {
   }
 }
 
-function decodeUrlPart(value, label) {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    throw new Error(`${label} contains invalid URL encoding`);
-  }
-}
-
 export function parseGuardedNeonDatabaseIdentity(value, label) {
   if (typeof value !== "string" || value.length === 0 || value !== value.trim()) {
     throw new Error(`${label} must be a non-empty PostgreSQL URL without surrounding whitespace`);
@@ -266,23 +328,15 @@ export function parseGuardedNeonDatabaseIdentity(value, label) {
   if (!/^postgres(?:ql)?:$/.test(parsed.protocol)) {
     throw new Error(`${label} must use the postgres/postgresql protocol`);
   }
+  const { username } = assertExplicitPostgresConnectionAuthority(parsed, label);
   assertReviewedPostgresConnectionParameters(parsed, label);
+  const databaseName = parseCanonicalPostgresDatabaseName(parsed, label);
 
   const match = parsed.hostname.toLowerCase().match(
     /^(ep-[a-z0-9-]+?)(-pooler)?\.([a-z0-9-]+)\.([a-z0-9-]+)\.neon\.tech$/,
   );
   if (!match) {
     throw new Error(`${label} must identify one reviewed Neon endpoint`);
-  }
-
-  const pathSegments = parsed.pathname.split("/").filter(Boolean);
-  if (pathSegments.length !== 1) {
-    throw new Error(`${label} must name exactly one database`);
-  }
-  const username = decodeUrlPart(parsed.username, `${label} username`);
-  const databaseName = decodeUrlPart(pathSegments[0], `${label} database name`);
-  if (!username || !databaseName) {
-    throw new Error(`${label} must include a database username and database name`);
   }
 
   return Object.freeze({
@@ -296,6 +350,7 @@ export function parseGuardedNeonDatabaseIdentity(value, label) {
 }
 
 export function assertGuardedDeployEnvironment(env) {
+  assertDeterministicPostgresEnvironment(env, "guarded production migration");
   const runtimeUrl = env?.DATABASE_URL;
   const directUrl = env?.DIRECT_URL;
   const runtimeRole = env?.RUNTIME_DB_ROLE;

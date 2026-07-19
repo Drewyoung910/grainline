@@ -17,3 +17,23 @@ export function normalizeRuntimeDatabaseUrl(connectionString: string): string {
   }
   return connectionString;
 }
+
+export function runtimeDatabasePoolOptions(connectionString: string): {
+  connectionString: string;
+  enableChannelBinding?: true;
+} {
+  const normalizedConnectionString = normalizeRuntimeDatabaseUrl(connectionString);
+  try {
+    const url = new URL(normalizedConnectionString);
+    if (url.searchParams.get("channel_binding") === "require") {
+      return {
+        connectionString: normalizedConnectionString,
+        enableChannelBinding: true,
+      };
+    }
+  } catch {
+    // Preserve the existing invalid-URL behavior: the database driver reports
+    // the connection failure without this helper masking or rewriting it.
+  }
+  return { connectionString: normalizedConnectionString };
+}

@@ -12,6 +12,7 @@ import { describe, it } from "node:test";
 
 const {
   DEFAULT_SAVED_SEARCH_RUNTIME_ROLE,
+  assertLiveCleanupConnectionIdentity,
   buildEvidencePayload,
   buildFixtureIds,
   collectSavedSearchCatalogIssues,
@@ -31,9 +32,9 @@ const OWNER_RPC_MIGRATION_PATH =
 const OWNER_RPC_PROJECTION_MIGRATION_PATH =
   "prisma/migrations/20260717025000_harden_saved_search_owner_rpc_projection/migration.sql";
 const RUNTIME_URL =
-  "postgresql://grainline_app_runtime:runtime-secret@ep-grainline-staging-pooler.us-east-2.aws.neon.tech/grainline_staging?sslmode=require";
+  "postgresql://grainline_app_runtime:runtime-secret@ep-grainline-staging-pooler.us-east-2.aws.neon.tech:5432/grainline_staging?sslmode=verify-full&channel_binding=require";
 const OWNER_URL =
-  "postgresql://grainline_migration_owner:owner-secret@ep-grainline-staging.us-east-2.aws.neon.tech/grainline_staging?sslmode=require";
+  "postgresql://grainline_migration_owner:owner-secret@ep-grainline-staging.us-east-2.aws.neon.tech:5432/grainline_staging?sslmode=verify-full&channel_binding=require";
 
 function source(path = SCRIPT_PATH) {
   return readFileSync(path, "utf8");
@@ -269,49 +270,49 @@ describe("SavedSearch RLS acceptance gate", () => {
     assert.throws(
       () => parseGateConfig(baseEnv({
         SAVED_SEARCH_RLS_GATE_DATABASE_URL:
-          "postgresql://grainline_app_runtime:secret@ep-grainline-staging.us-east-2.aws.neon.tech/grainline_staging",
+          "postgresql://grainline_app_runtime:secret@ep-grainline-staging.us-east-2.aws.neon.tech:5432/grainline_staging?sslmode=verify-full",
       })),
       /must use the pooled Neon runtime endpoint/,
     );
     assert.throws(
       () => parseGateConfig(baseEnv({
         SAVED_SEARCH_RLS_GATE_ADMIN_DATABASE_URL:
-          "postgresql://grainline_migration_owner:secret@ep-grainline-staging-pooler.us-east-2.aws.neon.tech/grainline_staging",
+          "postgresql://grainline_migration_owner:secret@ep-grainline-staging-pooler.us-east-2.aws.neon.tech:5432/grainline_staging?sslmode=verify-full",
       })),
       /must use the direct non-pooler Neon endpoint/,
     );
     assert.throws(
       () => parseGateConfig(baseEnv({
         SAVED_SEARCH_RLS_GATE_DATABASE_URL:
-          "postgresql://wrong_runtime:secret@ep-grainline-staging-pooler.us-east-2.aws.neon.tech/grainline_staging",
+          "postgresql://wrong_runtime:secret@ep-grainline-staging-pooler.us-east-2.aws.neon.tech:5432/grainline_staging?sslmode=verify-full",
       })),
       /runtime URL username must exactly match/,
     );
     assert.throws(
       () => parseGateConfig(baseEnv({
         SAVED_SEARCH_RLS_GATE_ADMIN_DATABASE_URL:
-          "postgresql://grainline_app_runtime:secret@ep-grainline-staging.us-east-2.aws.neon.tech/grainline_staging",
+          "postgresql://grainline_app_runtime:secret@ep-grainline-staging.us-east-2.aws.neon.tech:5432/grainline_staging?sslmode=verify-full",
       })),
       /must use different database usernames/,
     );
     assert.throws(
       () => parseGateConfig(baseEnv({
         SAVED_SEARCH_RLS_GATE_ADMIN_DATABASE_URL:
-          "postgresql://grainline_migration_owner:secret@ep-other.us-east-2.aws.neon.tech/grainline_staging",
+          "postgresql://grainline_migration_owner:secret@ep-other.us-east-2.aws.neon.tech:5432/grainline_staging?sslmode=verify-full",
       })),
       /endpoint id does not match the reviewed staging endpoint/,
     );
     assert.throws(
       () => parseGateConfig(baseEnv({
         SAVED_SEARCH_RLS_GATE_ADMIN_DATABASE_URL:
-          "postgresql://grainline_migration_owner:secret@ep-grainline-staging.us-east-2.aws.neon.tech/other_db",
+          "postgresql://grainline_migration_owner:secret@ep-grainline-staging.us-east-2.aws.neon.tech:5432/other_db?sslmode=verify-full",
       })),
       /database name does not match the reviewed staging database/,
     );
     assert.throws(
       () => parseGateConfig(baseEnv({
         SAVED_SEARCH_RLS_GATE_DATABASE_URL:
-          "postgresql://grainline_app_runtime:secret@db.example.invalid/grainline_staging",
+          "postgresql://grainline_app_runtime:secret@db.example.invalid:5432/grainline_staging?sslmode=verify-full",
       })),
       /must identify a Neon endpoint/,
     );
@@ -345,7 +346,7 @@ describe("SavedSearch RLS acceptance gate", () => {
 
   it("allows a direct runtime Neon URL only behind the explicit development override", () => {
     const directRuntimeUrl =
-      "postgresql://grainline_app_runtime:runtime-secret@ep-grainline-staging.us-east-2.aws.neon.tech/grainline_staging";
+      "postgresql://grainline_app_runtime:runtime-secret@ep-grainline-staging.us-east-2.aws.neon.tech:5432/grainline_staging?sslmode=verify-full";
     const config = parseGateConfig(baseEnv({
       SAVED_SEARCH_RLS_GATE_ALLOW_NON_POOLER: "1",
       SAVED_SEARCH_RLS_GATE_DATABASE_URL: directRuntimeUrl,
@@ -367,6 +368,103 @@ describe("SavedSearch RLS acceptance gate", () => {
       region: "us-east-2.aws",
       username: DEFAULT_SAVED_SEARCH_RUNTIME_ROLE,
     });
+  });
+
+  it("rejects nondeterministic PostgreSQL URLs and ambient client overrides", () => {
+    const invalidRuntimeUrls = [
+      [` ${RUNTIME_URL}`, /without surrounding whitespace/],
+      [`${RUNTIME_URL} `, /without surrounding whitespace/],
+      [RUNTIME_URL.replace(":runtime-secret@", "@"), /explicit database host, username, and password/],
+      [RUNTIME_URL.replace(":5432", ""), /must use explicit port 5432/],
+      [RUNTIME_URL.replace("sslmode=verify-full", "sslmode=require"), /must use sslmode=verify-full/],
+      [RUNTIME_URL.replace("sslmode=verify-full", "sslmode=VERIFY-FULL"), /must use sslmode=verify-full/],
+      [RUNTIME_URL.replace("sslmode=verify-full", "SSLMODE=verify-full"), /case-variant connection parameters/],
+      [`${RUNTIME_URL}&sslmode=verify-full`, /duplicate or case-variant connection parameters/],
+      [RUNTIME_URL.replace("channel_binding=require", "channel_binding=prefer"), /channel_binding must be absent or require/],
+      [`${RUNTIME_URL}&target_session_attrs=read-write`, /only reviewed sslmode and channel_binding/],
+      [`${RUNTIME_URL}#ignored`, /must not contain a URL fragment/],
+      [RUNTIME_URL.replace("/grainline_staging?", "/grainline_staging/?"), /one unencoded, bounded database path segment/],
+      [RUNTIME_URL.replace("/grainline_staging?", "/grainline_staging/other?"), /one unencoded, bounded database path segment/],
+      [RUNTIME_URL.replace("/grainline_staging?", "/grainline_staging%2Fother?"), /one unencoded, bounded database path segment/],
+    ];
+
+    for (const [databaseUrl, expected] of invalidRuntimeUrls) {
+      assert.throws(
+        () => parseGateConfig(baseEnv({ SAVED_SEARCH_RLS_GATE_DATABASE_URL: databaseUrl })),
+        expected,
+      );
+    }
+    assert.throws(
+      () => parseGateConfig(baseEnv({
+        SAVED_SEARCH_RLS_GATE_ADMIN_DATABASE_URL:
+          OWNER_URL.replace(":owner-secret@", "@"),
+      })),
+      /explicit database host, username, and password/,
+    );
+    assert.throws(
+      () => parseGateConfig(baseEnv({
+        SAVED_SEARCH_RLS_GATE_ADMIN_DATABASE_URL: `${OWNER_URL} `,
+      })),
+      /without surrounding whitespace/,
+    );
+    assert.throws(
+      () => parseGateConfig(baseEnv({
+        SAVED_SEARCH_RLS_GATE_ADMIN_DATABASE_URL: OWNER_URL.replace(":5432", ""),
+      })),
+      /must use explicit port 5432/,
+    );
+    assert.throws(
+      () => parseGateConfig(baseEnv({ NODE_TLS_REJECT_UNAUTHORIZED: "0" })),
+      /must not disable TLS certificate verification/,
+    );
+    assert.throws(
+      () => parseGateConfig(baseEnv({ PGOPTIONS: "-c statement_timeout=0" })),
+      /must not inherit session settings through PGOPTIONS/,
+    );
+
+    const withoutChannelBinding = parseGateConfig(baseEnv({
+      SAVED_SEARCH_RLS_GATE_ADMIN_DATABASE_URL:
+        OWNER_URL.replace("&channel_binding=require", ""),
+      SAVED_SEARCH_RLS_GATE_DATABASE_URL:
+        RUNTIME_URL.replace("&channel_binding=require", ""),
+    }));
+    assert.equal(withoutChannelBinding.acceptanceEligible, true);
+  });
+
+  it("passes reviewed channel-binding options through the sole pg Client factory", () => {
+    const script = source();
+    assert.equal(script.match(/new Client\(/g)?.length, 1);
+    assert.match(
+      script,
+      /\.\.\.postgresChannelBindingClientOptions\(parsed\)/,
+    );
+  });
+
+  it("rejects a fresh cleanup connection that reaches the wrong live database", async () => {
+    const client = {
+      async query() {
+        return {
+          rows: [{
+            current_user_name: "grainline_migration_owner",
+            database_name: "unexpected_database",
+            session_user_name: "grainline_migration_owner",
+          }],
+        };
+      },
+    };
+    await assert.rejects(
+      assertLiveCleanupConnectionIdentity(
+        client,
+        "grainline_migration_owner",
+        "grainline_staging",
+        "owner cleanup",
+      ),
+      (error) => {
+        assert.match(error.message, /connection does not match the reviewed role and database/);
+        assert.doesNotMatch(error.message, /unexpected_database|grainline_staging/);
+        return true;
+      },
+    );
   });
 
   it("builds only bounded collision-resistant synthetic fixture identifiers", () => {
@@ -563,7 +661,7 @@ describe("SavedSearch RLS acceptance gate", () => {
     const config = parseGateConfig(baseEnv({
       SAVED_SEARCH_RLS_GATE_ALLOW_NON_POOLER: "1",
       SAVED_SEARCH_RLS_GATE_DATABASE_URL:
-        "postgresql://grainline_app_runtime:runtime-secret@ep-grainline-staging.us-east-2.aws.neon.tech/grainline_staging",
+        "postgresql://grainline_app_runtime:runtime-secret@ep-grainline-staging.us-east-2.aws.neon.tech:5432/grainline_staging?sslmode=verify-full",
     }));
     const payload = buildEvidencePayload(
       config,
@@ -594,6 +692,14 @@ describe("SavedSearch RLS acceptance gate", () => {
     const ownerFixtureSection = script.slice(
       script.indexOf("async function assertNoUserFixtureCollision"),
       script.indexOf("async function readRuntimeContext"),
+    );
+    const ownerCleanupSection = script.slice(
+      script.indexOf("async function cleanupUsersOnClient"),
+      script.indexOf("async function cleanupUsers("),
+    );
+    const runtimeCleanupSection = script.slice(
+      script.indexOf("async function cleanupSavedSearchesOnClient"),
+      script.indexOf("async function cleanupSavedSearches("),
     );
     const orchestration = script.slice(
       script.indexOf("export async function runSavedSearchRlsAcceptanceGate"),
@@ -631,6 +737,16 @@ describe("SavedSearch RLS acceptance gate", () => {
     assert.match(audit, /pg_get_expr\(p\.polwithcheck, p\.polrelid\)/);
     assert.match(audit, /pg_get_userbyid\(policy_role\.role_oid\)::text/);
     assert.doesNotMatch(ownerFixtureSection, /public\."SavedSearch"/);
+    assert.ok(
+      ownerCleanupSection.indexOf("assertLiveCleanupConnectionIdentity(")
+        < ownerCleanupSection.indexOf("DELETE FROM public.\"User\""),
+      "owner cleanup must pin the fresh live role and database before DML",
+    );
+    assert.ok(
+      runtimeCleanupSection.indexOf("assertLiveCleanupConnectionIdentity(")
+        < runtimeCleanupSection.indexOf("DELETE FROM public.\"SavedSearch\""),
+      "runtime cleanup must pin the fresh live role and database before DML",
+    );
     assert.ok(
       runtimeConnectIndex >= 0
       && runtimeConnectIndex < initialContextPreflightIndex

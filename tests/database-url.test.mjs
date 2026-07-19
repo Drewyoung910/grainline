@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-const { normalizeRuntimeDatabaseUrl } = await import("../src/lib/databaseUrl.ts");
+const {
+  normalizeRuntimeDatabaseUrl,
+  runtimeDatabasePoolOptions,
+} = await import("../src/lib/databaseUrl.ts");
 
 describe("runtime database URL normalization", () => {
   it("pins ambiguous pg SSL modes to current verify-full behavior", () => {
@@ -40,5 +43,26 @@ describe("runtime database URL normalization", () => {
       "postgresql://u:p@example.test/db?sslmode=disable",
     );
     assert.equal(normalizeRuntimeDatabaseUrl("not a url"), "not a url");
+  });
+
+  it("opts the runtime pool into channel binding when the URL requests it", () => {
+    assert.deepEqual(
+      runtimeDatabasePoolOptions(
+        "postgresql://u:p@example.test/db?sslmode=verify-full&channel_binding=require",
+      ),
+      {
+        connectionString:
+          "postgresql://u:p@example.test/db?sslmode=verify-full&channel_binding=require",
+        enableChannelBinding: true,
+      },
+    );
+    assert.deepEqual(
+      runtimeDatabasePoolOptions(
+        "postgresql://u:p@example.test/db?sslmode=verify-full",
+      ),
+      {
+        connectionString: "postgresql://u:p@example.test/db?sslmode=verify-full",
+      },
+    );
   });
 });

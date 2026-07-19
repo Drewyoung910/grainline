@@ -5,20 +5,24 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import pg from "pg";
+import { postgresChannelBindingClientOptions } from "../scripts/postgres-url-safety.mjs";
 
 const {
+  ALLOW_LOOPBACK_CI_FLAG,
   REQUIRED_FUNCTION_PRIVILEGES,
   REQUIRE_DIRECT_URL_FLAG,
   REQUIRED_SEQUENCE_PRIVILEGES,
   REQUIRED_TABLE_PRIVILEGES,
   REQUIRED_TYPE_PRIVILEGES,
   SAVED_SEARCH_CATALOG_EVIDENCE_PREFIX,
+  assertGrantAuditConnectionMatches,
   auditLiveDatabase,
   collectTablePrivilegeAllowlistIssues,
   defaultPrivilegeRequirements,
   deriveGrantInventory,
   formatSavedSearchCatalogEvidence,
   normalizeSavedSearchCatalogState,
+  parseGrantAuditDatabaseIdentity,
   readSavedSearchCatalogState,
   resolveGrantAuditConnection,
 } = await import("../scripts/audit-runtime-db-grants.mjs");
@@ -250,6 +254,7 @@ async function withAuditFixture(options, fn) {
     await withClient(options.auditAsAdmin ? adminDatabaseUrl : migrationUrl, async (auditClient) => {
       await fn({
         auditClient,
+        databaseName,
         inventory,
         migrationRole,
         nonPublicSchemaName,
@@ -415,6 +420,18 @@ describe("database grant inventory guardrails", () => {
     assert.match(script, /connectionTimeoutMillis: AUDIT_CONNECTION_TIMEOUT_MS/);
     assert.match(script, /statement_timeout: AUDIT_STATEMENT_TIMEOUT_MS/);
     assert.match(script, /query_timeout: AUDIT_QUERY_TIMEOUT_MS/);
+    assert.match(script, /postgresChannelBindingClientOptions\(new URL\(connectionString\)\)/);
+    const beginIndex = script.lastIndexOf(
+      'await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY")',
+    );
+    const identityIndex = script.lastIndexOf(
+      "await assertGrantAuditConnectionMatches(",
+    );
+    const auditIndex = script.lastIndexOf("await auditLiveDatabase(");
+    const catalogIndex = script.lastIndexOf("await readSavedSearchCatalogState(client)");
+    assert.ok(beginIndex < identityIndex);
+    assert.ok(identityIndex < auditIndex);
+    assert.ok(auditIndex < catalogIndex);
     assert.doesNotMatch(script, /console\.log\(.*connectionString/s);
     assert.doesNotMatch(script, /process\.env\.DATABASE_URL/);
   });
@@ -463,7 +480,7 @@ describe("database grant inventory guardrails", () => {
   });
 
   it("pins guarded post-migration audits to the exact DIRECT_URL without exposing it", () => {
-    const directUrl = "postgresql://migration-owner:secret@direct.example.test/grainline";
+    const directUrl = "postgresql://migration-owner:secret@direct.example.test:5432/grainline?sslmode=verify-full";
     assert.equal(
       resolveGrantAuditConnection(
         { DIRECT_URL: directUrl },
@@ -482,7 +499,7 @@ describe("database grant inventory guardrails", () => {
       () => resolveGrantAuditConnection(
         {
           DIRECT_URL: directUrl,
-          GRANT_AUDIT_DATABASE_URL: "postgresql://owner:other@elsewhere.example.test/grainline",
+          GRANT_AUDIT_DATABASE_URL: "postgresql://owner:other@elsewhere.example.test:5432/grainline?sslmode=verify-full",
         },
         [REQUIRE_DIRECT_URL_FLAG],
       ),
@@ -500,10 +517,164 @@ describe("database grant inventory guardrails", () => {
       resolveGrantAuditConnection({ GRANT_AUDIT_DATABASE_URL: directUrl }),
       directUrl,
     );
+    const loopbackUrl =
+      "postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable";
+    assert.throws(
+      () => resolveGrantAuditConnection({ GRANT_AUDIT_DATABASE_URL: loopbackUrl }),
+      /sslmode=verify-full/,
+    );
+    assert.equal(
+      resolveGrantAuditConnection(
+        { GRANT_AUDIT_DATABASE_URL: loopbackUrl },
+        [ALLOW_LOOPBACK_CI_FLAG],
+      ),
+      loopbackUrl,
+    );
+    assert.throws(
+      () => resolveGrantAuditConnection(
+        { GRANT_AUDIT_DATABASE_URL: directUrl },
+        [ALLOW_LOOPBACK_CI_FLAG],
+      ),
+      /only with a loopback host/,
+    );
+    assert.throws(
+      () => resolveGrantAuditConnection(
+        { DIRECT_URL: directUrl },
+        [REQUIRE_DIRECT_URL_FLAG, ALLOW_LOOPBACK_CI_FLAG],
+      ),
+      /cannot be combined/,
+    );
+    assert.throws(
+      () => resolveGrantAuditConnection(
+        { DIRECT_URL: directUrl },
+        ["--typo"],
+      ),
+      /unknown command-line argument/,
+    );
+    for (const env of [
+      { DIRECT_URL: directUrl, NODE_TLS_REJECT_UNAUTHORIZED: "0" },
+      { DIRECT_URL: directUrl, PGOPTIONS: "-c role=other" },
+    ]) {
+      assert.throws(
+        () => resolveGrantAuditConnection(env, [REQUIRE_DIRECT_URL_FLAG]),
+        /must not/,
+      );
+    }
+  });
+
+  it("parses only reviewed remote grant-audit URLs while retaining the explicit loopback CI transport", () => {
+    const reviewedUrl =
+      "postgresql://owner:secret@ep-reviewed.example.test:5432/grainline?sslmode=verify-full&channel_binding=require";
+    assert.deepEqual(
+      parseGrantAuditDatabaseIdentity(reviewedUrl, "DIRECT_URL"),
+      { databaseName: "grainline" },
+    );
+    const channelBindingClient = new Client({
+      ...postgresChannelBindingClientOptions(new URL(reviewedUrl)),
+      connectionString: reviewedUrl,
+    });
+    assert.equal(channelBindingClient.enableChannelBinding, true);
+    assert.deepEqual(
+      parseGrantAuditDatabaseIdentity(
+        "postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable",
+        "GRANT_AUDIT_DATABASE_URL",
+        { allowLoopbackCi: true },
+      ),
+      { databaseName: "grainline_ci" },
+    );
+
+    for (const invalidUrl of [
+      "postgresql://owner:secret@ep-reviewed.example.test/grainline",
+      "postgresql://owner@ep-reviewed.example.test:5432/grainline?sslmode=verify-full",
+      "postgresql://owner:secret@ep-reviewed.example.test:5432/grainline?sslmode=require",
+      "postgresql://owner:secret@ep-reviewed.example.test:5432/grainline?sslmode=VERIFY-FULL",
+      "postgresql://owner:secret@ep-reviewed.example.test:5432/grainline?sslmode=verify-full&channel_binding=REQUIRE",
+      "postgresql://owner:secret@ep-reviewed.example.test:5432/grainline?sslmode=verify-full&options=-c%20role%3Dother",
+      "postgresql://owner:secret@ep-reviewed.example.test:5432/grainline?sslmode=verify-full&sslmode=verify-full",
+      "postgresql://owner:secret@ep-reviewed.example.test:5432/grainline?SSLMODE=verify-full",
+      "postgresql://owner:secret@ep-reviewed.example.test:5432/grainline?sslmode=verify-full#fragment",
+      "postgresql://owner:secret@ep-reviewed.example.test:5432//grainline?sslmode=verify-full",
+      "postgresql://owner:secret@ep-reviewed.example.test:5432/grainline/?sslmode=verify-full",
+      "postgresql://owner:secret@ep-reviewed.example.test:5432/grainline//?sslmode=verify-full",
+      "postgresql://owner:secret@ep-reviewed.example.test:5432/grainline/extra?sslmode=verify-full",
+      "postgresql://owner:secret@ep-reviewed.example.test:5432/grainline%2Fother?sslmode=verify-full",
+      "postgresql://owner:secret@ep-reviewed.example.test:5432/grainline%3Fother?sslmode=verify-full",
+      " postgresql://owner:secret@ep-reviewed.example.test:5432/grainline?sslmode=verify-full",
+    ]) {
+      assert.throws(
+        () => parseGrantAuditDatabaseIdentity(invalidUrl, "DIRECT_URL"),
+        (error) => {
+          assert.doesNotMatch(error.message, /secret|postgresql:/);
+          return true;
+        },
+      );
+    }
+
+    assert.throws(
+      () => parseGrantAuditDatabaseIdentity(
+        "postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable",
+        "DIRECT_URL",
+        { allowLoopbackCi: true, requireReviewedParameters: true },
+      ),
+      /sslmode=verify-full/,
+    );
+    assert.throws(
+      () => parseGrantAuditDatabaseIdentity(
+        "postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable&options=-c%20role%3Dother",
+        "GRANT_AUDIT_DATABASE_URL",
+        { allowLoopbackCi: true },
+      ),
+      /loopback development transport must use only sslmode=disable/,
+    );
+  });
+
+  it("proves the live database and session role before grant or catalog evidence is trusted", async () => {
+    const queries = [];
+    const matchingClient = {
+      async query(sql) {
+        queries.push(sql);
+        return {
+          rows: [{
+            database_name: "grainline",
+            current_user_name: "neondb_owner",
+            session_user_name: "neondb_owner",
+          }],
+        };
+      },
+    };
+    await assertGrantAuditConnectionMatches(
+      matchingClient,
+      "grainline",
+      "neondb_owner",
+    );
+    assert.equal(queries.length, 1);
+    assert.match(queries[0], /current_database\(\)/);
+    assert.match(queries[0], /current_user/);
+    assert.match(queries[0], /session_user/);
+
+    await assert.rejects(
+      assertGrantAuditConnectionMatches({
+        async query() {
+          return {
+            rows: [{
+              database_name: "wrong_database",
+              current_user_name: "wrong_role",
+              session_user_name: "wrong_role",
+            }],
+          };
+        },
+      }, "grainline", "neondb_owner"),
+      (error) => {
+        assert.match(error.message, /database or session role does not match/);
+        assert.doesNotMatch(error.message, /wrong_database|wrong_role|grainline|neondb_owner/);
+        return true;
+      },
+    );
   });
 
   it("executes live grant-audit catalog checks against synthetic Postgres roles", { skip: auditIntegrationSkipReason() }, async () => {
-    await withAuditFixture({ tableName: "SavedSearch" }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
+    await withAuditFixture({ tableName: "SavedSearch" }, async ({ auditClient, databaseName, inventory, migrationRole, runtimeRole }) => {
+      await assertGrantAuditConnectionMatches(auditClient, databaseName, migrationRole);
       assert.deepEqual(
         await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory }),
         [],
