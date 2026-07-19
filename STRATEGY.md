@@ -103,9 +103,10 @@ sequencing prerequisites are live, compare it with narrow one-statement
 evidence. Cross-user creation and cleanup use a separate service-authority
 design and must not be conflated with recipient RPCs.
 
-The isolated service-authority draft now uses six fixed-purpose owner-backed
-functions for create, exact account cleanup, exact staff source cleanup, and
-fixed retention batches. Runtime receives exact execute privileges only;
+The isolated service-authority draft now uses eight owner-backed functions: one
+runtime-ungranted fixed-column core, two granted creation families, three exact
+cleanup operations, and two fixed retention batches. Runtime receives exact
+execute privileges only on the seven fixed-purpose entry points;
 direct Notification insert/delete and the default public function privilege
 remain revoked. The application paths are wired to the draft, but legacy
 null-source and account-deletion source/link/text fallbacks still perform direct
@@ -116,13 +117,25 @@ not database-authenticated identity and a compromised runtime can forge it;
 fixed-purpose constraints limit that residual without eliminating it.
 
 Extra-high review does not yet accept the shared create function as final. The
-five source-tagged fanout paths can prove source, type, actor, recipient, and
-follower relationships inside the database operation, but 46 source-less paths
-still expose fixed-column creation for any enum type and active recipient. This
-is much narrower than arbitrary SQL or a BYPASS runtime role, but it remains a
-meaningful service capability. Classify those type families and add database
-predicates or split functions where they materially reduce authority before
-activation; retain provider performance proof for the source-validation joins.
+eight source-tagged paths can prove source, type, actor, recipient, and
+relationship constraints inside the database operation, but 46 source-less
+emission paths still need family implementations and currently fail closed.
+The granted wrappers also retain bounded caller control of notification text
+and link, and social absence-of-block checks do not yet serialize with a
+concurrent block insertion. Classify the remaining type families, derive or
+template payloads where practical, and resolve the social concurrency contract
+before activation; retain provider performance proof for the source-validation
+joins.
+
+Use a hybrid rather than either extreme. Do not grant runtime the current
+generic arbitrary-type/arbitrary-recipient creator, but do not add identical
+lifecycle metadata mechanically to all 46 source-less emission paths. Keep the
+fixed-column insert primitive private to the function owner and expose only
+family-specific operations keyed by stable domain ids and small event
+discriminators. The ten-family inventory and implementation order live in
+`docs/notification-create-authority-inventory.md`. This preserves meaningful
+write-side defense in depth while keeping database validation proportional to
+what each application, staff, cron, or provider flow can actually prove.
 
 ### Homepage discovery hierarchy decision (2026-07-15)
 

@@ -8,7 +8,7 @@
 
 BEGIN;
 
-CREATE OR REPLACE FUNCTION public.grainline_notification_create(
+CREATE OR REPLACE FUNCTION public.grainline_notification_create_core(
   p_notification_id text,
   p_user_id text,
   p_type public."NotificationType",
@@ -26,7 +26,7 @@ VOLATILE
 PARALLEL UNSAFE
 SECURITY DEFINER
 SET search_path = pg_catalog
-AS $grainline_notification_create$
+AS $grainline_notification_create_core$
 DECLARE
   recipient_preferences jsonb;
   notification_id text;
@@ -60,8 +60,11 @@ BEGIN
   IF p_source_type IS NOT NULL AND (
     p_source_type NOT IN (
       'blog_comment',
+      'favorite',
       'followed_maker_new_blog',
       'followed_maker_new_listing',
+      'follow',
+      'review',
       'seller_broadcast'
     )
     OR pg_catalog.char_length(p_source_type) > 80
@@ -72,10 +75,16 @@ BEGIN
   END IF;
   IF (p_source_type = 'blog_comment'
       AND p_type NOT IN ('NEW_BLOG_COMMENT', 'BLOG_COMMENT_REPLY'))
+     OR (p_source_type = 'favorite'
+         AND p_type <> 'NEW_FAVORITE')
      OR (p_source_type = 'followed_maker_new_blog'
          AND p_type <> 'FOLLOWED_MAKER_NEW_BLOG')
      OR (p_source_type = 'followed_maker_new_listing'
          AND p_type <> 'FOLLOWED_MAKER_NEW_LISTING')
+     OR (p_source_type = 'follow'
+         AND p_type <> 'NEW_FOLLOWER')
+     OR (p_source_type = 'review'
+         AND p_type <> 'NEW_REVIEW')
      OR (p_source_type = 'seller_broadcast'
          AND p_type <> 'SELLER_BROADCAST') THEN
     RAISE EXCEPTION 'notification source does not match notification type' USING ERRCODE = '22023';
@@ -204,6 +213,63 @@ BEGIN
        AND source_seller_user.banned = false
        AND source_seller_user."deletedAt" IS NULL
      FOR SHARE OF source_broadcast, source_seller, source_seller_user, source_follow;
+  ELSIF p_source_type = 'favorite' THEN
+    PERFORM 1
+      FROM public."Favorite" AS source_favorite
+      JOIN public."Listing" AS source_listing
+        ON source_listing.id = source_favorite."listingId"
+      JOIN public."SellerProfile" AS source_seller
+        ON source_seller.id = source_listing."sellerId"
+      JOIN public."User" AS source_seller_user
+        ON source_seller_user.id = source_seller."userId"
+     WHERE source_favorite."listingId" = p_source_id
+       AND source_favorite."userId" = p_related_user_id
+       AND source_seller."userId" = p_user_id
+       AND source_listing.status IN ('ACTIVE', 'SOLD_OUT')
+       AND source_listing."isPrivate" = false
+       AND source_seller."chargesEnabled" = true
+       AND source_seller."vacationMode" = false
+       AND (source_seller."stripeAccountVersion" IS NULL
+            OR source_seller."stripeAccountVersion" = 'v2')
+       AND source_seller_user.banned = false
+       AND source_seller_user."deletedAt" IS NULL
+       AND NOT EXISTS (
+         SELECT 1
+           FROM public."Block" AS source_block
+          WHERE (source_block."blockerId" = p_user_id
+                 AND source_block."blockedId" = p_related_user_id)
+             OR (source_block."blockerId" = p_related_user_id
+                 AND source_block."blockedId" = p_user_id)
+       )
+     FOR SHARE OF source_favorite, source_listing, source_seller, source_seller_user;
+  ELSIF p_source_type = 'follow' THEN
+    PERFORM 1
+      FROM public."Follow" AS source_follow
+      JOIN public."SellerProfile" AS source_seller
+        ON source_seller.id = source_follow."sellerProfileId"
+     WHERE source_follow."sellerProfileId" = p_source_id
+       AND source_follow."followerId" = p_related_user_id
+       AND source_seller."userId" = p_user_id
+       AND NOT EXISTS (
+         SELECT 1
+           FROM public."Block" AS source_block
+          WHERE (source_block."blockerId" = p_user_id
+                 AND source_block."blockedId" = p_related_user_id)
+             OR (source_block."blockerId" = p_related_user_id
+                 AND source_block."blockedId" = p_user_id)
+       )
+     FOR SHARE OF source_follow, source_seller;
+  ELSIF p_source_type = 'review' THEN
+    PERFORM 1
+      FROM public."Review" AS source_review
+      JOIN public."Listing" AS source_listing
+        ON source_listing.id = source_review."listingId"
+      JOIN public."SellerProfile" AS source_seller
+        ON source_seller.id = source_listing."sellerId"
+     WHERE source_review.id = p_source_id
+       AND source_review."reviewerId" = p_related_user_id
+       AND source_seller."userId" = p_user_id
+     FOR SHARE OF source_review, source_listing, source_seller;
   END IF;
   IF p_source_type IS NOT NULL AND NOT FOUND THEN
     RETURN NULL;
@@ -250,7 +316,102 @@ BEGIN
 
   RETURN notification_id;
 END;
-$grainline_notification_create$;
+$grainline_notification_create_core$;
+
+-- First granted creation family: the five source-tagged fanout paths whose
+-- domain source, actor, recipient, visibility, and follow relationships are
+-- validated by the private core. Source-less families get separate wrappers;
+-- runtime never receives EXECUTE on the generic fixed-column primitive.
+CREATE OR REPLACE FUNCTION public.grainline_notification_create_source_fanout(
+  p_notification_id text,
+  p_user_id text,
+  p_type public."NotificationType",
+  p_title text,
+  p_body text,
+  p_link text,
+  p_source_type text,
+  p_source_id text,
+  p_related_user_id text,
+  p_dedup_key text
+)
+RETURNS text
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_notification_create_source_fanout$
+DECLARE
+  notification_id text;
+BEGIN
+  IF p_source_type NOT IN (
+    'blog_comment',
+    'followed_maker_new_blog',
+    'followed_maker_new_listing',
+    'seller_broadcast'
+  ) THEN
+    RAISE EXCEPTION 'source fanout notification requires a fanout source'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT public.grainline_notification_create_core(
+    p_notification_id,
+    p_user_id,
+    p_type,
+    p_title,
+    p_body,
+    p_link,
+    p_source_type,
+    p_source_id,
+    p_related_user_id,
+    p_dedup_key
+  ) INTO notification_id;
+  RETURN notification_id;
+END;
+$grainline_notification_create_source_fanout$;
+
+CREATE OR REPLACE FUNCTION public.grainline_notification_create_social_event(
+  p_notification_id text,
+  p_user_id text,
+  p_type public."NotificationType",
+  p_title text,
+  p_body text,
+  p_link text,
+  p_source_type text,
+  p_source_id text,
+  p_related_user_id text,
+  p_dedup_key text
+)
+RETURNS text
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_notification_create_social_event$
+DECLARE
+  notification_id text;
+BEGIN
+  IF p_source_type NOT IN ('favorite', 'follow', 'review') THEN
+    RAISE EXCEPTION 'social notification requires a social source'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT public.grainline_notification_create_core(
+    p_notification_id,
+    p_user_id,
+    p_type,
+    p_title,
+    p_body,
+    p_link,
+    p_source_type,
+    p_source_id,
+    p_related_user_id,
+    p_dedup_key
+  ) INTO notification_id;
+  RETURN notification_id;
+END;
+$grainline_notification_create_social_event$;
 
 CREATE OR REPLACE FUNCTION public.grainline_notification_delete_for_account(
   p_user_id text
@@ -431,7 +592,13 @@ BEGIN
 END;
 $grainline_notification_prune_unread_batch$;
 
-REVOKE ALL ON FUNCTION public.grainline_notification_create(
+REVOKE ALL ON FUNCTION public.grainline_notification_create_core(
+  text, text, public."NotificationType", text, text, text, text, text, text, text
+) FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION public.grainline_notification_create_source_fanout(
+  text, text, public."NotificationType", text, text, text, text, text, text, text
+) FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION public.grainline_notification_create_social_event(
   text, text, public."NotificationType", text, text, text, text, text, text, text
 ) FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_notification_delete_for_account(text)
@@ -445,7 +612,10 @@ REVOKE ALL ON FUNCTION public.grainline_notification_prune_read_batch()
 REVOKE ALL ON FUNCTION public.grainline_notification_prune_unread_batch()
   FROM PUBLIC, grainline_app_runtime;
 
-GRANT EXECUTE ON FUNCTION public.grainline_notification_create(
+GRANT EXECUTE ON FUNCTION public.grainline_notification_create_source_fanout(
+  text, text, public."NotificationType", text, text, text, text, text, text, text
+) TO grainline_app_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_notification_create_social_event(
   text, text, public."NotificationType", text, text, text, text, text, text, text
 ) TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_notification_delete_for_account(text)

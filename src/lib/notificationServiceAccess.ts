@@ -1,6 +1,7 @@
 import type { NotificationType } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import type { DbUserContextTransactionClient } from "@/lib/dbUserContext";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 
 type ContextualNotificationServiceClient = Pick<DbUserContextTransactionClient, "$queryRaw">;
 
@@ -29,20 +30,48 @@ export async function createNotificationServiceRow({
   relatedUserId,
   dedupKey,
 }: NotificationServiceCreateInput): Promise<string | null> {
-  const rows = await prisma.$queryRaw<Array<{ id: string | null }>>`
-    SELECT public.grainline_notification_create(
-      ${notificationId}::text,
-      ${userId}::text,
-      ${type}::public."NotificationType",
-      ${title}::text,
-      ${body}::text,
-      ${link}::text,
-      ${sourceType}::text,
-      ${sourceId}::text,
-      ${relatedUserId}::text,
-      ${dedupKey}::text
-    ) AS id
-  `;
+  if (sourceId === null) {
+    throw new Error("notification create family is not implemented for a source-less event");
+  }
+  const socialSource = sourceType === NOTIFICATION_SOURCE_TYPES.FAVORITE
+    || sourceType === NOTIFICATION_SOURCE_TYPES.FOLLOW
+    || sourceType === NOTIFICATION_SOURCE_TYPES.REVIEW;
+  const fanoutSource = sourceType === NOTIFICATION_SOURCE_TYPES.BLOG_COMMENT
+    || sourceType === NOTIFICATION_SOURCE_TYPES.FOLLOWED_MAKER_NEW_BLOG
+    || sourceType === NOTIFICATION_SOURCE_TYPES.FOLLOWED_MAKER_NEW_LISTING
+    || sourceType === NOTIFICATION_SOURCE_TYPES.SELLER_BROADCAST;
+  if (!socialSource && !fanoutSource) {
+    throw new Error("notification create family is not implemented for this source");
+  }
+  const rows = socialSource
+    ? await prisma.$queryRaw<Array<{ id: string | null }>>`
+        SELECT public.grainline_notification_create_social_event(
+          ${notificationId}::text,
+          ${userId}::text,
+          ${type}::public."NotificationType",
+          ${title}::text,
+          ${body}::text,
+          ${link}::text,
+          ${sourceType}::text,
+          ${sourceId}::text,
+          ${relatedUserId}::text,
+          ${dedupKey}::text
+        ) AS id
+      `
+    : await prisma.$queryRaw<Array<{ id: string | null }>>`
+        SELECT public.grainline_notification_create_source_fanout(
+          ${notificationId}::text,
+          ${userId}::text,
+          ${type}::public."NotificationType",
+          ${title}::text,
+          ${body}::text,
+          ${link}::text,
+          ${sourceType}::text,
+          ${sourceId}::text,
+          ${relatedUserId}::text,
+          ${dedupKey}::text
+        ) AS id
+      `;
   const id = rows[0]?.id ?? null;
   if (id !== null && typeof id !== "string") {
     throw new TypeError("notification service returned an invalid id");

@@ -16,13 +16,16 @@ describe("Bucket B Notification RLS inventory", () => {
     const files = sourceFiles("src");
     const createCallers = [];
     const directAccess = [];
-    let createInvocationCount = 0;
+    let objectLiteralCreateCount = 0;
+    let indirectCreateCount = 0;
     for (const file of files) {
       const source = fs.readFileSync(file, "utf8");
       const calls = source.match(/createNotification\(\{/g) ?? [];
       const callerCount = file === "src/lib/notifications.ts" ? calls.length - 1 : calls.length;
-      if (callerCount > 0) createCallers.push(file);
-      createInvocationCount += callerCount;
+      const indirectCount = (source.match(/createNotification\(payload\)/g) ?? []).length;
+      if (callerCount + indirectCount > 0) createCallers.push(file);
+      objectLiteralCreateCount += callerCount;
+      indirectCreateCount += indirectCount;
       if (
         /\b(?:prisma|tx|db)\.notification\.(?:find|count|create|update|delete|upsert)/.test(source)
         || /(?:FROM|DELETE FROM) "Notification"/.test(source)
@@ -31,8 +34,14 @@ describe("Bucket B Notification RLS inventory", () => {
       }
     }
 
-    assert.equal(createInvocationCount, 51);
-    assert.equal(createCallers.length, 28);
+    const fulfillment = fs.readFileSync("src/app/api/orders/[id]/fulfillment/route.ts", "utf8");
+    const fulfillmentPayloadCount = (fulfillment.match(/await notifyBuyer\([\s\S]{0,100}?\{/g) ?? []).length;
+    assert.equal(objectLiteralCreateCount, 51);
+    assert.equal(indirectCreateCount, 1);
+    assert.equal(objectLiteralCreateCount + indirectCreateCount, 52);
+    assert.equal(fulfillmentPayloadCount, 3);
+    assert.equal(objectLiteralCreateCount + fulfillmentPayloadCount, 54);
+    assert.equal(createCallers.length, 29);
     assert.deepEqual(directAccess.sort(), [
       "src/app/admin/blog/page.tsx",
       "src/app/admin/broadcasts/page.tsx",
@@ -45,7 +54,8 @@ describe("Bucket B Notification RLS inventory", () => {
     const plan = fs.readFileSync("docs/rls-bucket-b-notification-plan.md", "utf8");
     const strategy = fs.readFileSync("STRATEGY.md", "utf8");
     assert.match(plan, /Bucket B means `Notification` only/);
-    assert.match(plan, /51 `createNotification/);
+    assert.match(plan, /52 direct `createNotification/);
+    assert.match(plan, /54 distinct emission paths/);
     assert.match(plan, /column-level `UPDATE \(read\)` only/);
     assert.match(plan, /Do not grant direct `INSERT` or `DELETE`/);
     assert.match(plan, /legacy account-deletion text scan\/redaction/);
@@ -59,17 +69,41 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(plan, /No Notification[\s\S]{0,140}merge, deploy, touch a live database/);
     assert.match(plan, /one-statement `SECURITY INVOKER` recipient RPCs/);
     assert.match(plan, /Recipient RPCs are distinct from cross-user creation\/cleanup service\s+authority/);
-    assert.match(plan, /46 of the 51 creation callsites do not\s+yet carry a lifecycle source/);
+    assert.match(plan, /46 of the 54 emission paths do not\s+yet carry provenance/);
     assert.match(plan, /type-specific database\s+predicates or split service functions/);
+    assert.match(plan, /notification-create-authority-inventory\.md/);
+    assert.match(plan, /fixed-column insert primitive ungranted to runtime/);
     assert.match(strategy, /isolated implementation drafts/);
     assert.match(strategy, /before any Bucket B merge, deployment, or\s+live-database activation/);
     assert.match(strategy, /before merging,\s+deploying, or activating Notification\/Bucket B/);
     assert.doesNotMatch(strategy, /before beginning\s+Notification\/Bucket B/);
-    assert.match(strategy, /six fixed-purpose owner-backed/);
+    assert.match(strategy, /eight owner-backed functions/);
+    assert.match(strategy, /runtime-ungranted fixed-column core/);
     assert.match(strategy, /`SECURITY INVOKER` recipient RPCs/);
     assert.match(strategy, /must not be conflated with recipient RPCs/);
-    assert.match(strategy, /46 source-less paths/);
-    assert.match(strategy, /add database\s+predicates or split functions/);
+    assert.match(strategy, /46 source-less emission paths/);
+    assert.match(strategy, /currently fail closed/);
+    assert.match(strategy, /bounded caller control of notification text\s+and link/);
+    assert.match(strategy, /do not yet serialize with a\s+concurrent block insertion/);
+  });
+
+  it("pins the complete creation-authority family inventory", () => {
+    const inventory = fs.readFileSync("docs/notification-create-authority-inventory.md", "utf8");
+    const familyCounts = [5, 10, 2, 3, 12, 4, 3, 3, 3, 9];
+
+    assert.equal(familyCounts.reduce((sum, count) => sum + count, 0), 54);
+    assert.match(inventory, /52 direct `createNotification` calls across 29 files/);
+    assert.match(inventory, /54\s+distinct emission paths/);
+    assert.match(inventory, /8 source-tagged paths/);
+    assert.match(inventory, /46 source-less paths/);
+    assert.match(inventory, /21 paths currently carrying `relatedUserId`/);
+    assert.match(inventory, /internal fixed-column insert primitive ungranted to `PUBLIC` and the\s+runtime role/);
+    assert.match(inventory, /Grant runtime only reviewed family functions/);
+    assert.match(inventory, /provider and cron families[\s\S]{0,220}persisted order\/payment\/payout/);
+    assert.match(inventory, /staff-only families[\s\S]{0,220}audit or domain source/);
+    assert.match(inventory, /caller-supplied title, body, and relative link/);
+    assert.match(inventory, /do not serialize against a concurrent\s+block creation/);
+    assert.doesNotMatch(inventory, /write-side RLS on Notification is low-value/);
   });
 
   it("starts B0 with paired source metadata and legacy-only fallbacks", () => {
@@ -77,8 +111,17 @@ describe("Bucket B Notification RLS inventory", () => {
     const notifications = fs.readFileSync("src/lib/notifications.ts", "utf8");
     const blog = fs.readFileSync("src/app/admin/blog/page.tsx", "utf8");
     const broadcasts = fs.readFileSync("src/app/admin/broadcasts/page.tsx", "utf8");
+    const favorite = fs.readFileSync("src/app/api/favorites/route.ts", "utf8");
+    const follow = fs.readFileSync("src/app/api/follow/[sellerId]/route.ts", "utf8");
+    const review = fs.readFileSync("src/app/api/reviews/route.ts", "utf8");
+    const followerBlog = fs.readFileSync("src/lib/followerBlogNotifications.ts", "utf8");
+    const followerListing = fs.readFileSync("src/lib/followerListingNotifications.ts", "utf8");
+    const sellerBroadcast = fs.readFileSync("src/app/api/seller/broadcast/route.ts", "utf8");
 
     assert.match(sources, /BLOG_COMMENT: "blog_comment"/);
+    assert.match(sources, /FAVORITE: "favorite"/);
+    assert.match(sources, /FOLLOW: "follow"/);
+    assert.match(sources, /REVIEW: "review"/);
     assert.match(sources, /SELLER_BROADCAST: "seller_broadcast"/);
     assert.match(sources, /\{ sourceType: NotificationSourceType; sourceId: string \}/);
     assert.match(sources, /\{ sourceType\?: never; sourceId\?: never \}/);
@@ -88,6 +131,19 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(blog, /sourceType: null,\s*sourceId: null/);
     assert.match(broadcasts, /deleteSellerBroadcastNotificationServiceRows\(tx, broadcast\.id\)/);
     assert.match(broadcasts, /sourceType: null,\s*sourceId: null/);
+    assert.match(favorite, /sourceType: NOTIFICATION_SOURCE_TYPES\.FAVORITE,\s*sourceId: listingId/);
+    assert.match(follow, /sourceType: NOTIFICATION_SOURCE_TYPES\.FOLLOW,\s*sourceId: sellerProfile\.id/);
+    assert.match(review, /sourceType: NOTIFICATION_SOURCE_TYPES\.REVIEW,\s*sourceId: created\.id/);
+    const taggedCreationCount = [
+      blog,
+      favorite,
+      follow,
+      review,
+      followerBlog,
+      followerListing,
+      sellerBroadcast,
+    ].reduce((count, source) => count + (source.match(/createNotification\(\{[\s\S]{0,700}?sourceType:/g) ?? []).length, 0);
+    assert.equal(taggedCreationCount, 8);
   });
 
   it("uses exact related-user lifecycle metadata before legacy text cleanup", () => {
@@ -136,21 +192,29 @@ describe("Bucket B Notification RLS inventory", () => {
     const serviceAccess = fs.readFileSync("src/lib/notificationServiceAccess.ts", "utf8");
     const notifications = fs.readFileSync("src/lib/notifications.ts", "utf8");
 
-    for (const functionName of [
-      "grainline_notification_create",
+    const functionNames = [
+      "grainline_notification_create_core",
+      "grainline_notification_create_source_fanout",
+      "grainline_notification_create_social_event",
       "grainline_notification_delete_for_account",
       "grainline_notification_delete_blog_comment",
       "grainline_notification_delete_seller_broadcast",
       "grainline_notification_prune_read_batch",
       "grainline_notification_prune_unread_batch",
-    ]) {
+    ];
+    for (const functionName of functionNames) {
       assert.match(sql, new RegExp(`CREATE OR REPLACE FUNCTION public\\.${functionName}\\(`));
+      assert.match(sql, new RegExp(`REVOKE ALL ON FUNCTION public\\.${functionName}\\(`));
+    }
+    for (const functionName of functionNames.slice(1)) {
       assert.match(sql, new RegExp(`GRANT EXECUTE ON FUNCTION public\\.${functionName}\\(`));
     }
-    assert.equal((sql.match(/^SECURITY DEFINER$/gm) ?? []).length, 6);
-    assert.equal((sql.match(/^SET search_path = pg_catalog$/gm) ?? []).length, 6);
-    assert.equal((sql.match(/REVOKE ALL ON FUNCTION public\.grainline_notification_/g) ?? []).length, 6);
-    assert.equal((sql.match(/FROM PUBLIC, grainline_app_runtime/g) ?? []).length, 6);
+    assert.equal((sql.match(/^SECURITY DEFINER$/gm) ?? []).length, 8);
+    assert.equal((sql.match(/^SET search_path = pg_catalog$/gm) ?? []).length, 8);
+    assert.equal((sql.match(/REVOKE ALL ON FUNCTION public\.grainline_notification_/g) ?? []).length, 8);
+    assert.equal((sql.match(/FROM PUBLIC, grainline_app_runtime/g) ?? []).length, 8);
+    assert.equal((sql.match(/GRANT EXECUTE ON FUNCTION public\.grainline_notification_/g) ?? []).length, 7);
+    assert.doesNotMatch(sql, /GRANT EXECUTE ON FUNCTION public\.grainline_notification_create_core\(/);
     assert.match(sql, /recipient\.banned = false[\s\S]{0,100}recipient\."deletedAt" IS NULL[\s\S]{0,80}FOR SHARE/);
     assert.match(sql, /recipient_preferences -> \(p_type::text\) = 'false'::jsonb/);
     assert.match(sql, /pg_catalog\.strpos\(p_link, pg_catalog\.chr\(92\)\) > 0/);
@@ -158,6 +222,10 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(sql, /notification source metadata must be paired/);
     assert.match(sql, /notification source does not match notification type/);
     assert.match(sql, /notification source requires a distinct related user/);
+    assert.match(sql, /social notification requires a social source/);
+    assert.match(sql, /source_favorite\."userId" = p_related_user_id/);
+    assert.match(sql, /source_follow\."followerId" = p_related_user_id/);
+    assert.match(sql, /source_review\."reviewerId" = p_related_user_id/);
     assert.match(sql, /p_related_user_id[\s\S]{0,1000}related_user\.banned = false[\s\S]{0,100}FOR SHARE/);
     assert.match(sql, /source_comment\."authorId" = p_related_user_id/);
     assert.match(sql, /parent_comment\."authorId" = p_user_id/);
@@ -176,7 +244,9 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.doesNotMatch(sql, /grainline_notification_delete_source/);
     assert.doesNotMatch(sql, /\bEXECUTE\s+(?:format|p_)/i);
 
-    assert.match(serviceAccess, /public\.grainline_notification_create\(/);
+    assert.match(serviceAccess, /public\.grainline_notification_create_source_fanout\(/);
+    assert.match(serviceAccess, /public\.grainline_notification_create_social_event\(/);
+    assert.match(serviceAccess, /notification create family is not implemented for a source-less event/);
     assert.match(serviceAccess, /public\.grainline_notification_delete_for_account\(/);
     assert.match(serviceAccess, /public\.grainline_notification_delete_blog_comment\(/);
     assert.match(serviceAccess, /public\.grainline_notification_delete_seller_broadcast\(/);

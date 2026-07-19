@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import {
   ensureUser,
   ensureUserByClerkId,
@@ -189,6 +190,8 @@ export async function POST(
         link: "/dashboard/analytics",
         dedupScope: me.id,
         relatedUserId: me.id,
+        sourceType: NOTIFICATION_SOURCE_TYPES.FOLLOW,
+        sourceId: sellerProfile.id,
       });
     } catch (error) {
       logServerError(error, {
