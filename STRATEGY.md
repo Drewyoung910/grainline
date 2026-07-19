@@ -36,6 +36,18 @@ aggregate, public-read, or system-write behavior. Application authorization
 remains primary; RLS is required defense in depth for the eventual sensitive
 data posture.
 
+Treat this as one site-wide sensitive-data RLS program for planning and status,
+but not as one migration or production activation. Preserve the established
+meaning of Bucket B as `Notification` so historical rollout evidence stays
+unambiguous. Prepare shared inventories and infrastructure across later tables
+where useful, then activate independently reviewed, tightly coupled groups:
+`Notification`; `Cart` + `CartItem`; `SavedBlogPost`; aggregate/fanout tables;
+`Conversation` + `Message`; the order/payment/shipping group; and `Case` +
+`CaseMessage`. Each group must be independently deployable, observable, and
+reversible before the next group begins. Never combine notification fanout,
+messaging, checkout/payment, fulfillment, and dispute policy activation into a
+single release.
+
 ### Homepage discovery hierarchy decision (2026-07-15)
 
 Keep the local-maker map directly beneath the hero and floating marketplace stats. It is Grainline's clearest marketplace differentiator, but it should remain a compact discovery band so inventory appears after a short scroll rather than becoming a second full-screen gate.
