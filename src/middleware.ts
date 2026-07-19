@@ -73,7 +73,6 @@ const isPublic = createRouteMatcher([
   "/api/listings/recently-viewed",    // recently viewed — public (IDs passed as query param)
   "/api/cases/([^/]+)/escalate",       // case escalation — route verifies session or CRON_SECRET
   "/api/health",                      // health check — public (UptimeRobot monitoring)
-  "/api/internal/rls-context-gate",   // Preview-only, token-protected RLS acceptance runner
   "/api/cron(.*)",                    // Vercel Cron jobs — no Clerk session; auth via CRON_SECRET bearer token
 ]);
 
