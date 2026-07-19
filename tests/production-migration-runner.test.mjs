@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import { describe, it } from "node:test";
 import {
@@ -11,6 +12,7 @@ import {
 
 const COMMIT = "a".repeat(40);
 const DIRECT_URL = "postgresql://neondb_owner:owner-password@ep-plain-river-aaqg8gj4.westus3.azure.neon.tech:5432/neondb?sslmode=verify-full&channel_binding=require";
+const DIRECT_URL_SHA256 = createHash("sha256").update(DIRECT_URL).digest("hex");
 
 function environment(overrides = {}) {
   return {
@@ -20,6 +22,7 @@ function environment(overrides = {}) {
     GITHUB_SHA: COMMIT,
     PRODUCTION_MIGRATION_RELEASE_COMMIT: COMMIT,
     PRODUCTION_MIGRATION_CONFIRM: PRODUCTION_MIGRATION_CONFIRMATION,
+    PRODUCTION_MIGRATION_DIRECT_URL_SHA256: DIRECT_URL_SHA256,
     DIRECT_URL,
     RUNTIME_DB_ROLE: "grainline_app_runtime",
     MIGRATION_DB_ROLE: "neondb_owner",
@@ -105,6 +108,7 @@ describe("isolated production migration runner", () => {
       { PRODUCTION_MIGRATION_RELEASE_COMMIT: "b".repeat(40) },
       { PRODUCTION_MIGRATION_CONFIRM: "yes" },
       { DIRECT_URL: DIRECT_URL.replace(".westus3", "-pooler.westus3") },
+      { PRODUCTION_MIGRATION_DIRECT_URL_SHA256: "0".repeat(64) },
       { DATABASE_URL: "present" },
       { GRANT_AUDIT_DATABASE_URL: "present" },
     ];
@@ -175,6 +179,7 @@ describe("isolated production migration runner", () => {
     assert.match(workflow, /^permissions:\s*\n\s+contents: read/m);
     assert.match(workflow, /^\s+environment: Production$/m);
     assert.match(workflow, /secrets\.PRODUCTION_MIGRATION_DIRECT_URL/);
+    assert.match(workflow, /vars\.PRODUCTION_MIGRATION_DIRECT_URL_SHA256/);
     assert.doesNotMatch(workflow, /secrets\.(?:DIRECT_URL|DATABASE_URL)\b/);
     assert.match(workflow, /cancel-in-progress: false/);
     assert.match(workflow, /guard-production-migration-runner\.mjs[\s\S]*prisma migrate deploy[\s\S]*prisma migrate status[\s\S]*audit:db-grants/);

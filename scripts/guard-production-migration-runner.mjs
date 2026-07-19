@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import pg from "pg";
 import {
@@ -19,6 +20,7 @@ export const REVIEWED_MIGRATION_ROLE = "neondb_owner";
 export const REVIEWED_RUNTIME_ROLE = "grainline_app_runtime";
 const REVIEWED_MAIN_REF = "refs/heads/main";
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/;
+const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 
 const REVIEWED_OWNER_MEMBERSHIP_OPTIONS = Object.freeze([
   Object.freeze({
@@ -75,6 +77,19 @@ export function parseProductionMigrationEnvironment(env = process.env) {
   }
 
   const directUrl = required(env, "DIRECT_URL");
+  const expectedDirectUrlSha256 = required(
+    env,
+    "PRODUCTION_MIGRATION_DIRECT_URL_SHA256",
+  );
+  const actualDirectUrlSha256 = createHash("sha256")
+    .update(directUrl, "utf8")
+    .digest("hex");
+  if (
+    !SHA256_PATTERN.test(expectedDirectUrlSha256)
+    || actualDirectUrlSha256 !== expectedDirectUrlSha256
+  ) {
+    throw new Error("DIRECT_URL does not match the protected environment digest");
+  }
   const identity = parseVercelRuntimeDatabaseIdentity(directUrl, "DIRECT_URL");
   const runtimeIdentity = REVIEWED_PRODUCTION_RUNTIME_IDENTITY;
   if (
@@ -89,6 +104,7 @@ export function parseProductionMigrationEnvironment(env = process.env) {
   return Object.freeze({
     releaseCommit,
     directUrl,
+    directUrlSha256: actualDirectUrlSha256,
     identity,
   });
 }
@@ -263,6 +279,7 @@ export async function runProductionMigrationPreflight(
   return Object.freeze({
     status: "passed",
     releaseCommit: config.releaseCommit,
+    directUrlSha256: config.directUrlSha256,
     git,
     database,
   });

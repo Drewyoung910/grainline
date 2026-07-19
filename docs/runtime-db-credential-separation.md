@@ -33,7 +33,11 @@ read a valid `neondb_owner` credential can bypass all current and future RLS.
   GitHub `Production` environment.
 - The workflow uses only the environment-scoped
   `PRODUCTION_MIGRATION_DIRECT_URL`; it deliberately does not fall back to the
-  existing repository-wide `DIRECT_URL` or `DATABASE_URL` secrets.
+  existing repository-wide `DIRECT_URL` or `DATABASE_URL` secrets. It also
+  requires the environment variable `PRODUCTION_MIGRATION_DIRECT_URL_SHA256`
+  to match the SHA-256 of the injected URL before any connection; the digest is
+  non-secret and makes later workflow injection an exact secret/value-pair
+  check without making the Sensitive value readable.
 - The preflight requires the typed confirmation, exact 40-character dispatched
   `main` commit, clean checkout, direct production endpoint, exact live
   owner/runtime role attributes and PostgreSQL 16 membership options,
@@ -83,7 +87,8 @@ with Bucket B policy activation.
    deployments; the current Phase B app remains live on `DATABASE_URL`.
 5. Rotate `neondb_owner` a second time. Persist the new secret only in the
    mode-`0600` local operator file and the GitHub `Production` environment as
-   `PRODUCTION_MIGRATION_DIRECT_URL`. Do not update Vercel. Use the same local
+   `PRODUCTION_MIGRATION_DIRECT_URL`; set its matching non-secret SHA-256 as
+   `PRODUCTION_MIGRATION_DIRECT_URL_SHA256`. Do not update Vercel. Use the same local
    SCRAM-verifier, new-authentication, old-`28P01`, exact-role, and zero-session
    proofs as the Phase B operator.
 6. The second rotation invalidates the owner credential embedded in the current
@@ -104,6 +109,46 @@ with Bucket B policy activation.
     environment inventory must still omit every privileged database key.
 11. Only after this release is stable may Bucket B Notification staging and
     production activation begin.
+
+## Separation Operator
+
+After steps 1-4 and from the exact clean separation release checkout, run the
+read-only mode first. Replace `<exact-main-sha>` with the checked-out 40-byte
+commit:
+
+```sh
+RUNTIME_DB_SEPARATION_MODE=preflight-only \
+RUNTIME_DB_SEPARATION_CONFIRM=rotate-owner-into-protected-github-after-vercel-removal \
+RUNTIME_DB_SEPARATION_RELEASE_COMMIT=<exact-main-sha> \
+RUNTIME_DB_SEPARATION_EVIDENCE_PATH=/Users/drewyoung/grainline-rollout-evidence/runtime-db-separation-preflight.json \
+npm run ops:separate-db-credential
+```
+
+Require exit zero, `status=passed`, `issueCount=0`,
+`acceptanceEligible=false`, and a mode-0600 artifact. The operator requires a
+clean exact checkout, runtime-only Vercel metadata, exact GitHub Production
+reviewer/branch protection with no pre-existing migration secret/digest, exact
+live role membership posture, SavedSearch FORCE with three policies, no
+incomplete migration, and the retained healthy post-skew canary.
+
+Then use the same exact checkout and commit for the one-way rotation:
+
+```sh
+RUNTIME_DB_SEPARATION_MODE=rotate \
+RUNTIME_DB_SEPARATION_CONFIRM=rotate-owner-into-protected-github-after-vercel-removal \
+RUNTIME_DB_SEPARATION_RELEASE_COMMIT=<exact-main-sha> \
+RUNTIME_DB_SEPARATION_EVIDENCE_PATH=/Users/drewyoung/grainline-rollout-evidence/runtime-db-separation-rotation.json \
+npm run ops:separate-db-credential
+```
+
+The operator rechecks every preflight, generates the replacement, atomically
+updates mode-0600 `.env.local`, writes the URL only to the protected GitHub
+environment secret through stdin, writes and re-reads its exact non-secret
+digest variable, sends only a locally derived SCRAM verifier to PostgreSQL,
+proves new authentication, requires old failure code `28P01`, requires zero
+other owner sessions, and rechecks Vercel remains runtime-only. It emits only
+sanitized evidence. Any failure after local/GitHub update but before new
+authentication is a reconciliation stop, not permission to retry blindly.
 
 ## Failure And Rollback
 

@@ -27,6 +27,7 @@ jobs:
     environment: Production
     env:
       DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
       RUNTIME_DB_ROLE: grainline_app_runtime
       MIGRATION_DB_ROLE: neondb_owner
       PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
