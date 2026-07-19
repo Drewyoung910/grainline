@@ -785,13 +785,11 @@ describe("SavedSearch RLS production deploy guard", () => {
     }
   });
 
-  it("runs the guard before production migrations without affecting preview builds", () => {
-    const { buildCommand } = JSON.parse(readFileSync("vercel.json", "utf8"));
-    const productionConditional =
-      'if [ "$VERCEL_ENV" = "production" ]; then';
+  it("keeps the historical guarded migration command out of Vercel application builds", () => {
+    const vercel = JSON.parse(readFileSync("vercel.json", "utf8"));
+    const { buildCommand } = vercel;
     const pkg = JSON.parse(readFileSync("package.json", "utf8"));
     const guardedMigrationCommand = "npm run migrate:deploy:guarded";
-    const buildCommandText = "npm run build";
 
     assert.equal(
       pkg.scripts["migrate:deploy:guarded"],
@@ -803,16 +801,14 @@ describe("SavedSearch RLS production deploy guard", () => {
       "prisma migrate deploy",
       "npm run audit:db-grants -- --require-direct-url",
     ]);
-    assert.ok(buildCommand.startsWith(productionConditional));
-    assert.ok(
-      buildCommand.indexOf(guardedMigrationCommand)
-        > buildCommand.indexOf(productionConditional),
+    assert.equal(
+      pkg.scripts["guard:runtime-db-env"],
+      "node scripts/guard-runtime-db-env.mjs",
     );
-    assert.match(
-      buildCommand,
-      /then npm run migrate:deploy:guarded; fi && npm run build$/,
-    );
-    assert.ok(buildCommand.indexOf(buildCommandText) > buildCommand.indexOf("; fi"));
+    assert.equal(buildCommand, "npm run guard:runtime-db-env && npm run build");
+    assert.doesNotMatch(buildCommand, /migrat|DIRECT_URL|MIGRATION_DB_ROLE/i);
+    assert.equal(vercel.git.deploymentEnabled.main, false);
+    assert.equal(buildCommand.includes(guardedMigrationCommand), false);
   });
 
   it("documents the exact pre-migration identity gate and retained owner-credential residual", () => {

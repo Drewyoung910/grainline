@@ -156,6 +156,14 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
   credential. Keep the separate follow-up to externalize owner migrations and
   the grant audit, then remove `DIRECT_URL`/`MIGRATION_DB_ROLE` from the
   production Function environment, before expanding RLS to Bucket B.
+- After Phase B, follow
+  `docs/runtime-db-credential-separation.md` as a separate release. Require the
+  selected-main and reviewer-protected GitHub `Production` environment, a
+  newly rotated environment-scoped migration secret, absence of every
+  privileged database variable from Vercel, a second owner rotation that
+  invalidates the credential embedded in Phase B and superseded deployments,
+  the exact manual migration workflow, and a runtime-only Vercel deployment.
+  Do not begin Bucket B until that postflight is retained.
 - `npx dotenv-cli -e .env -- npx prisma migrate status`
 - `GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=neondb_owner npm run audit:db-grants -- --require-direct-url` only after migration/status, so this retained second audit covers the final catalog, verifies the raw `pg_proc.prosrc` SHA-256 fingerprints for both owner RPCs, and proves runtime DML was revoked from `_prisma_migrations` and every other untracked public table. The guarded migration command has already run the same audit before the build; this explicit rerun is the post-status retained release record. For Release 0, retain explicit live-catalog evidence that `public."SavedSearch"` has `relrowsecurity=false`, `relforcerowsecurity=false`, and zero policies before application traffic is promoted. Run from a clean checkout of the exact release commit so untracked migration files cannot change the source-derived audit inventory.
 - A future branch may substitute `MIGRATION_DB_ROLE=grainline_migration_owner` only after catalog evidence proves that dedicated role actually owns every tracked app object; it is not the owner for this rollout.

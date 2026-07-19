@@ -59,6 +59,21 @@ schema-complete [`docs/rls-coverage-matrix.md`](docs/rls-coverage-matrix.md)
 and never claim that all user data is protected by RLS until every table has an
 evidenced disposition.
 
+### Runtime owner-credential separation decision (2026-07-19)
+
+The post-Phase-B release path is now concrete in
+`docs/runtime-db-credential-separation.md`. Vercel application builds must never
+run owner migrations or receive any owner/admin database variable. Production
+migrations move to a manually approved, main-only GitHub `Production`
+environment, and automatic Vercel production deployment from `main` stays off
+so migrations and application promotion cannot race. After removing the Vercel
+owner variables, rotate the owner again and store the new credential only in
+the protected migration environment and a mode-0600 local operator file. That
+second rotation is mandatory because deleting project variables affects future
+deployments but does not invalidate the valid owner secret embedded in already
+built deployments. This implementation is staged, not production-active, and
+does not authorize Bucket B before Phase B and the separation postflight pass.
+
 ### Homepage discovery hierarchy decision (2026-07-15)
 
 Keep the local-maker map directly beneath the hero and floating marketplace stats. It is Grainline's clearest marketplace differentiator, but it should remain a compact discovery band so inventory appears after a short scroll rather than becoming a second full-screen gate.

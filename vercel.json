@@ -1,5 +1,11 @@
 {
-  "buildCommand": "if [ \"$VERCEL_ENV\" = \"production\" ]; then npm run migrate:deploy:guarded; fi && npm run build",
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run guard:runtime-db-env && npm run build",
+  "git": {
+    "deploymentEnabled": {
+      "main": false
+    }
+  },
   "regions": ["sfo1"],
   "crons": [
     {

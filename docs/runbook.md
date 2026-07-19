@@ -799,6 +799,16 @@ RLS staging context proof:
   deployment pipeline and then remove `DIRECT_URL` and `MIGRATION_DB_ROLE` from
   the production Function environment. Complete that follow-up before expanding
   Bucket B or treating RLS as protection from arbitrary runtime code.
+- The reviewed successor is
+  `docs/runtime-db-credential-separation.md`. Its staged release removes
+  migrations from `vercel.json`, disables automatic `main` deployment, fails
+  every Vercel build containing an owner/admin database key, and moves
+  migrations to a manually approved `Production` environment on exact `main`.
+  Removing Vercel variables is not sufficient: rotate the owner again after
+  removal so the credential embedded in the current and superseded deployments
+  is rejected, and store the replacement only in the protected migration
+  environment plus the mode-0600 local operator file. Do not treat this staged
+  code as production-active before its separate post-Phase-B rollout passes.
 - Verify the list function's explicit 16-column SQL projection and the helper's
   matching application projection. SQL columns must remain in PostgreSQL
   physical `attnum` order for the `SETOF public."SavedSearch"` return contract.

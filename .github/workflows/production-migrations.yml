@@ -1,0 +1,53 @@
+name: Production Migrations
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact 40-character main commit to migrate
+        required: true
+        type: string
+      confirmation:
+        description: Type run-reviewed-production-migrations-from-main
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Guarded production migration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: Production
+    env:
+      DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      PRODUCTION_MIGRATION_CONFIRM: ${{ inputs.confirmation }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Verify exact source, owner connection, role posture, and Phase B
+        run: node scripts/guard-production-migration-runner.mjs
+      - name: Generate Prisma client
+        run: npx prisma generate
+      - name: Apply production migrations
+        run: npx prisma migrate deploy
+      - name: Verify production migration status
+        run: npx prisma migrate status
+      - name: Audit final runtime grants and RLS catalog
+        run: npm run audit:db-grants -- --require-direct-url
