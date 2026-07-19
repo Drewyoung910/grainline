@@ -16,6 +16,23 @@ Controlled owner maintenance and the separate database-first emergency
 DISABLE/ENABLE/FORCE path must both remain tested; externalize the owner secret
 from production Functions before Bucket B.
 
+### Site-wide RLS expansion decision (2026-07-19)
+
+SavedSearch is the first production RLS pattern, not the final scope. Complete
+its Phase-B FORCE release, then externalize `DIRECT_URL` and
+`MIGRATION_DB_ROLE` from production application Functions before beginning
+Notification/Bucket B. Continue expanding RLS across user-owned and sensitive
+data in the reviewed sequence documented in the RLS feasibility and
+defense-in-depth plans, with priority on notifications, carts, conversations and
+messages, orders and payment/shipping records, and cases. Each table or tightly
+coupled table group requires its own actor/read/write/cleanup inventory,
+service/admin/cron/webhook design, staging proof, phased production activation,
+rollback proof, and monitoring. Do not enable broad RLS mechanically or copy the
+SavedSearch policy/RPC pattern onto tables with asymmetric, participant,
+aggregate, public-read, or system-write behavior. Application authorization
+remains primary; RLS is required defense in depth for the eventual sensitive
+data posture.
+
 ### Homepage discovery hierarchy decision (2026-07-15)
 
 Keep the local-maker map directly beneath the hero and floating marketplace stats. It is Grainline's clearest marketplace differentiator, but it should remain a compact discovery band so inventory appears after a short scroll rather than becoming a second full-screen gate.
