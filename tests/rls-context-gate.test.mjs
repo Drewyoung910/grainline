@@ -215,8 +215,17 @@ describe("RLS context acceptance gate guardrails", () => {
       })),
       /POOL_SIZE must be at least RLS_CONTEXT_GATE_BURST_CONCURRENCY/,
     );
+    assert.throws(
+      () => parseGateConfig(baseEnv({
+        RLS_CONTEXT_GATE_EVIDENCE_PATH: "tmp/rls-context-gate-evidence.json",
+      })),
+      /reserved for owner-only prepare, rollback, or teardown operations/,
+    );
     assert.equal(parseGateConfig(baseEnv({
+      RLS_CONTEXT_GATE_ADMIN_DATABASE_URL:
+        "postgresql://neondb_owner:secret@ep-test.westus3.azure.neon.tech:5432/grainline_staging?sslmode=verify-full&channel_binding=require",
       RLS_CONTEXT_GATE_EVIDENCE_PATH: "tmp/rls-context-gate-evidence.json",
+      RLS_CONTEXT_GATE_PREPARE: "1",
     })).evidencePath, "tmp/rls-context-gate-evidence.json");
   });
 
@@ -993,9 +1002,7 @@ describe("RLS context acceptance gate guardrails", () => {
   });
 
   it("builds a sanitized evidence payload without database URLs", () => {
-    const config = parseGateConfig(baseEnv({
-      RLS_CONTEXT_GATE_EVIDENCE_PATH: "tmp/rls-context-gate-evidence.json",
-    }));
+    const config = parseGateConfig(baseEnv());
     const payload = buildEvidencePayload(
       config,
       {

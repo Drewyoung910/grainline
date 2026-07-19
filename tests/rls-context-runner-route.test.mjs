@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import ts from "typescript";
+import { validateCurrentSavedSearchRlsDeployShape } from "../scripts/guard-saved-search-rls-deploy.mjs";
 
 const route = readFileSync("src/app/api/internal/rls-context-gate/route.ts", "utf8");
 const middleware = readFileSync("src/middleware.ts", "utf8");
@@ -287,6 +288,13 @@ function routeMatcherPatterns(source) {
 }
 
 describe("RLS context provider-runtime runner", () => {
+  it("keeps the temporary provider-proof tree unmergeable as a Release-0 artifact", () => {
+    assert.throws(
+      () => validateCurrentSavedSearchRlsDeployShape({ phase: "release-0" }),
+      /production artifact must exclude the temporary RLS context gate/,
+    );
+  });
+
   it("pins the complete static import surface so aliases and barrels cannot hide orchestration", () => {
     assert.deepEqual(
       readReviewedStaticImports(route),

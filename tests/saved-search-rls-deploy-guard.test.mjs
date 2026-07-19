@@ -485,37 +485,38 @@ describe("SavedSearch RLS production deploy guard", () => {
     });
   }
 
-  it("rejects the combined provider-gate tree and accepts the cleaned production tree", () => {
-    const routeArtifactExists = contextGateRouteArtifactExists();
-    const runnerTestExists = contextGateRunnerTestExists();
-    const middlewareIsReviewedProduction =
-      computeTextSha256(CURRENT_MIDDLEWARE_SOURCE)
-        === REVIEWED_PRODUCTION_MIDDLEWARE_SHA256;
-
-    if (
-      routeArtifactExists
-      || runnerTestExists
-      || !middlewareIsReviewedProduction
-    ) {
-      assert.throws(
-        () =>
-          validate(RELEASE_ZERO, RELEASE_ZERO_MIGRATIONS, {
-            contextGateRouteExists: routeArtifactExists,
-            contextGateRunnerTestExists: runnerTestExists,
-            middlewareSource: CURRENT_MIDDLEWARE_SOURCE,
-          }),
-        /production artifact must exclude the temporary RLS context gate/,
-      );
-      return;
-    }
+  it("rejects a combined provider-gate shape and accepts only the cleaned production shape", () => {
+    assert.throws(
+      () =>
+        validate(RELEASE_ZERO, RELEASE_ZERO_MIGRATIONS, {
+          contextGateRouteExists: true,
+          contextGateRunnerTestExists: true,
+          middlewareSource: CURRENT_MIDDLEWARE_SOURCE,
+        }),
+      /production artifact must exclude the temporary RLS context gate/,
+    );
 
     assert.equal(
       validate(RELEASE_ZERO, RELEASE_ZERO_MIGRATIONS, {
         contextGateRouteExists: false,
         contextGateRunnerTestExists: false,
-        middlewareSource: CURRENT_MIDDLEWARE_SOURCE,
+        middlewareSource: REVIEWED_PRODUCTION_MIDDLEWARE_SOURCE,
       }).phase,
       RELEASE_ZERO,
+    );
+  });
+
+  it("runs the clean Release-0 artifact guard unconditionally in CI before migrations", () => {
+    const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
+    const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
+
+    assert.equal(
+      packageJson.scripts?.["verify:rls-release-artifact"],
+      "node scripts/verify-saved-search-rls-release-artifact.mjs",
+    );
+    assert.match(
+      workflow,
+      /Verify SavedSearch Release 0 production artifact[\s\S]{0,180}SAVED_SEARCH_RLS_DEPLOY_PHASE: release-0[\s\S]{0,180}npm run verify:rls-release-artifact[\s\S]{0,400}Apply migrations to CI Postgres/,
     );
   });
 
