@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, it } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
   buildEvidencePayload,
   parseConfig,
 } from "../scripts/deployed-security-headers-proof.mjs";
+
+const REPOSITORY_ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -64,7 +68,7 @@ describe("deployed security headers proof harness", () => {
 
     assert.equal(config.url.origin, "https://thegrainline.com");
     assert.equal(config.url.pathname, "/");
-    assert.ok(config.evidencePath.endsWith("/grainline/headers.json"));
+    assert.equal(config.evidencePath, resolve(REPOSITORY_ROOT, "headers.json"));
   });
 
   it("checks the deployed root headers and health-cache headers that launch evidence depends on", () => {

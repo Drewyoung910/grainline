@@ -6,12 +6,15 @@ import pg from "pg";
 
 const {
   MIN_ACCEPTANCE_REQUESTS,
+  assertReviewedAdminConnectionIdentity,
   buildEvidencePayload,
   claimProviderRuntimeRunSlot,
   completeProviderRuntimeRunSlot,
   isPreparedStatementError,
   parseGateConfig,
+  restoreForcedRlsState,
   runAcceptanceGate,
+  runRollbackDisableProbe,
   summarizeMetrics,
 } = await import("../scripts/rls-context-acceptance-gate.mjs");
 
@@ -36,7 +39,7 @@ function escapeRegExp(value) {
 function baseEnv(overrides = {}) {
   return {
     RLS_CONTEXT_GATE_CONFIRM: "staging-only",
-    RLS_CONTEXT_GATE_DATABASE_URL: "postgresql://runtime:secret@ep-test-pooler.westus3.azure.neon.tech/grainline_staging?sslmode=verify-full&channel_binding=require",
+    RLS_CONTEXT_GATE_DATABASE_URL: "postgresql://grainline_app_runtime:secret@ep-test-pooler.westus3.azure.neon.tech:5432/grainline_staging?sslmode=verify-full&channel_binding=require",
     RLS_CONTEXT_GATE_EXPECTED_DATABASE_ENDPOINT_ID: "ep-test",
     RLS_CONTEXT_GATE_EXPECTED_DATABASE_NAME: "grainline_staging",
     RLS_CONTEXT_GATE_EXPECTED_DATABASE_REGION: "westus3.azure",
@@ -143,20 +146,20 @@ describe("RLS context acceptance gate guardrails", () => {
       /RLS_CONTEXT_GATE_DATABASE_URL is required/,
     );
     assert.throws(
-      () => parseGateConfig(baseEnv({ RLS_CONTEXT_GATE_DATABASE_URL: "postgresql://runtime:secret@ep-test.example.neon.tech/grainline_staging?sslmode=verify-full&channel_binding=require" })),
+      () => parseGateConfig(baseEnv({ RLS_CONTEXT_GATE_DATABASE_URL: "postgresql://grainline_app_runtime:secret@ep-test.example.neon.tech:5432/grainline_staging?sslmode=verify-full&channel_binding=require" })),
       /pooled runtime endpoint/,
     );
     assert.throws(
       () => parseGateConfig(baseEnv({
         RLS_CONTEXT_GATE_DATABASE_URL:
-          "postgresql://runtime:secret@ep-test-pooler.westus3.azure.neon.tech/grainline_staging?options=-c%20app%252Euser_id%253Dpreseeded",
+          "postgresql://grainline_app_runtime:secret@ep-test-pooler.westus3.azure.neon.tech:5432/grainline_staging?options=-c%20app%252Euser_id%253Dpreseeded",
       })),
       /must not pre-seed app\.user_id through URL query parameters or options/,
     );
     assert.throws(
       () => parseGateConfig(baseEnv({
         RLS_CONTEXT_GATE_DATABASE_URL:
-          "postgresql://runtime:secret@ep-test-pooler.westus3.azure.neon.tech/grainline_staging?app%2Euser_id=preseeded",
+          "postgresql://grainline_app_runtime:secret@ep-test-pooler.westus3.azure.neon.tech:5432/grainline_staging?app%2Euser_id=preseeded",
       })),
       /must not pre-seed app\.user_id through URL query parameters or options/,
     );
@@ -245,7 +248,7 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.throws(
       () => parseGateConfig(baseEnv({
         ...productionRuntimeEnv,
-        RLS_CONTEXT_GATE_DATABASE_URL: "postgresql://runtime:secret@ep-test-pooler.example.neon.tech/grainline_staging?sslmode=verify-full&channel_binding=require",
+        RLS_CONTEXT_GATE_DATABASE_URL: "postgresql://grainline_app_runtime:secret@ep-test-pooler.example.neon.tech:5432/grainline_staging?sslmode=verify-full&channel_binding=require",
       })),
       /must use a parseable Neon endpoint hostname and one database path segment/,
     );
@@ -276,6 +279,11 @@ describe("RLS context acceptance gate guardrails", () => {
   });
 
   it("rejects connection-string target, credential, context, and TLS overrides", () => {
+    const gateSource = source("scripts/rls-context-acceptance-gate.mjs");
+    assert.equal(
+      gateSource.match(/postgresChannelBindingClientOptions\(new URL\(/g)?.length,
+      2,
+    );
     for (const parameter of [
       "host=evil.example",
       "hostaddr=203.0.113.1",
@@ -324,6 +332,48 @@ describe("RLS context acceptance gate guardrails", () => {
       })),
       /must not contain duplicate or case-variant connection parameters/,
     );
+
+    const reviewedUrl = baseEnv().RLS_CONTEXT_GATE_DATABASE_URL;
+    for (const databaseUrl of [
+      ` ${reviewedUrl}`,
+      `${reviewedUrl} `,
+      reviewedUrl.replace(":secret@", "@"),
+      reviewedUrl.replace(":5432/", "/"),
+      `${reviewedUrl}#fragment`,
+      reviewedUrl.replace(":5432/grainline_staging", ":5432//grainline_staging"),
+      reviewedUrl.replace(":5432/grainline_staging", ":5432/grainline_staging/"),
+      reviewedUrl.replace(":5432/grainline_staging", ":5432/grainline_staging//"),
+      reviewedUrl.replace(":5432/grainline_staging", ":5432/grainline_staging%3Fother"),
+      reviewedUrl.replace("sslmode=verify-full", "sslmode=VERIFY-FULL"),
+      reviewedUrl.replace("channel_binding=require", "channel_binding=REQUIRE"),
+    ]) {
+      assert.throws(
+        () => parseGateConfig(baseEnv({ RLS_CONTEXT_GATE_DATABASE_URL: databaseUrl })),
+        (error) => {
+          assert.doesNotMatch(error.message, /secret|postgresql:/);
+          return true;
+        },
+      );
+    }
+
+    assert.throws(
+      () => parseGateConfig(baseEnv({
+        RLS_CONTEXT_GATE_DATABASE_URL: reviewedUrl.replace(
+          "grainline_app_runtime:",
+          "other_runtime:",
+        ),
+      })),
+      /username must match RLS_CONTEXT_GATE_RUNTIME_ROLE/,
+    );
+    for (const environmentOverride of [
+      { NODE_TLS_REJECT_UNAUTHORIZED: "0" },
+      { PGOPTIONS: "-c role=other" },
+    ]) {
+      assert.throws(
+        () => parseGateConfig(baseEnv(environmentOverride)),
+        /must not/,
+      );
+    }
   });
 
   it("keeps canary users synthetic unless custom ids are explicitly allowed", () => {
@@ -361,7 +411,7 @@ describe("RLS context acceptance gate guardrails", () => {
     );
     assert.throws(
       () => parseGateConfig(baseEnv({
-        RLS_CONTEXT_GATE_ADMIN_DATABASE_URL: "postgresql://owner:secret@ep-test.westus3.azure.neon.tech/grainline_staging?sslmode=verify-full&channel_binding=require",
+        RLS_CONTEXT_GATE_ADMIN_DATABASE_URL: "postgresql://owner:secret@ep-test.westus3.azure.neon.tech:5432/grainline_staging?sslmode=verify-full&channel_binding=require",
         RLS_CONTEXT_GATE_PREPARE: "1",
         RLS_CONTEXT_GATE_TEARDOWN_RPC_PROBE: "1",
       })),
@@ -369,21 +419,34 @@ describe("RLS context acceptance gate guardrails", () => {
     );
 
     const config = parseGateConfig(baseEnv({
-      RLS_CONTEXT_GATE_ADMIN_DATABASE_URL: "postgresql://owner:secret@ep-test.westus3.azure.neon.tech/grainline_staging?sslmode=verify-full&channel_binding=require",
+      RLS_CONTEXT_GATE_ADMIN_DATABASE_URL: "postgresql://owner:secret@ep-test.westus3.azure.neon.tech:5432/grainline_staging?sslmode=verify-full&channel_binding=require",
       RLS_CONTEXT_GATE_PREPARE: "1",
     }));
     assert.equal(config.prepare, true);
     assert.equal(config.rollbackProbe, true);
+    assert.equal(config.adminDatabaseUsername, "owner");
+    for (const adminDatabaseUrl of [
+      " postgresql://owner:secret@ep-test.westus3.azure.neon.tech:5432/grainline_staging?sslmode=verify-full&channel_binding=require",
+      "postgresql://owner:secret@ep-test.westus3.azure.neon.tech:5432/grainline_staging?sslmode=verify-full&channel_binding=require ",
+    ]) {
+      assert.throws(
+        () => parseGateConfig(baseEnv({
+          RLS_CONTEXT_GATE_ADMIN_DATABASE_URL: adminDatabaseUrl,
+          RLS_CONTEXT_GATE_PREPARE: "1",
+        })),
+        /without surrounding whitespace/,
+      );
+    }
     assert.throws(
       () => parseGateConfig(baseEnv({
-        RLS_CONTEXT_GATE_ADMIN_DATABASE_URL: "postgresql://owner:secret@ep-other.westus3.azure.neon.tech/grainline_staging?sslmode=verify-full&channel_binding=require",
+        RLS_CONTEXT_GATE_ADMIN_DATABASE_URL: "postgresql://owner:secret@ep-other.westus3.azure.neon.tech:5432/grainline_staging?sslmode=verify-full&channel_binding=require",
         RLS_CONTEXT_GATE_PREPARE: "1",
       })),
       /endpoint id does not match the reviewed staging endpoint/,
     );
     assert.throws(
       () => parseGateConfig(baseEnv({
-        RLS_CONTEXT_GATE_ADMIN_DATABASE_URL: "postgresql://owner:secret@ep-test-pooler.westus3.azure.neon.tech/grainline_staging?sslmode=verify-full&channel_binding=require",
+        RLS_CONTEXT_GATE_ADMIN_DATABASE_URL: "postgresql://owner:secret@ep-test-pooler.westus3.azure.neon.tech:5432/grainline_staging?sslmode=verify-full&channel_binding=require",
         RLS_CONTEXT_GATE_PREPARE: "1",
       })),
       /must use the reviewed direct Neon endpoint/,
@@ -514,6 +577,10 @@ describe("RLS context acceptance gate guardrails", () => {
       script.indexOf("async function runRollbackDisableProbe"),
       script.indexOf("function sample"),
     );
+    const restoreRls = script.slice(
+      script.indexOf("export async function restoreForcedRlsState"),
+      script.indexOf("async function runRollbackDisableProbe"),
+    );
 
     assert.equal((rpcRead.match(/\$queryRawUnsafe/g) ?? []).length, 1);
     assert.match(rpcRead, /buildRpcSelectSql\(config\), userId/);
@@ -529,6 +596,10 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.match(rollbackProbe, /DROP FUNCTION \$\{buildRpcFunctionSignature\(config\)\}/);
     assert.match(rollbackProbe, /await admin\.query\("ROLLBACK"\)/);
     assert.match(rollbackProbe, /synthetic RPC function was not restored after owner transaction rollback/);
+    assert.match(rollbackProbe, /await restoreForcedRlsState\(admin, config\)/);
+    assert.match(restoreRls, /c\.relrowsecurity AS rls_enabled/);
+    assert.match(restoreRls, /c\.relforcerowsecurity AS rls_forced/);
+    assert.doesNotMatch(restoreRls, /\.catch\(\(\) => \{\}\)/);
     assert.match(script, /export async function teardownRpcCanary/);
     assert.match(script, /post-teardown function_absent/);
     assert.match(script, /if \(config\.teardownRpcProbe\)/);
@@ -536,13 +607,129 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.match(script, /compareWorkloads\("Prisma burst concurrency"/);
   });
 
+  it("pins owner-only operations to the exact reviewed admin role and database", () => {
+    const config = {
+      adminDatabaseUsername: "grainline_migration_owner",
+      expectedDatabaseName: "grainline_staging",
+    };
+    assert.doesNotThrow(() => assertReviewedAdminConnectionIdentity({
+      current_user_name: "grainline_migration_owner",
+      database_name: "grainline_staging",
+      session_user_name: "grainline_migration_owner",
+    }, config, "owner setup"));
+
+    for (const row of [
+      {
+        current_user_name: "unexpected_owner",
+        database_name: "grainline_staging",
+        session_user_name: "grainline_migration_owner",
+      },
+      {
+        current_user_name: "grainline_migration_owner",
+        database_name: "other_database",
+        session_user_name: "grainline_migration_owner",
+      },
+    ]) {
+      assert.throws(
+        () => assertReviewedAdminConnectionIdentity(row, config, "owner setup"),
+        (error) => {
+          assert.match(error.message, /does not match the reviewed admin URL identity and database/);
+          assert.doesNotMatch(error.message, /unexpected_owner|other_database/);
+          return true;
+        },
+      );
+    }
+  });
+
+  it("does not issue RLS ALTERs when rollback-probe admin identity is unreviewed", async () => {
+    const queries = [];
+    let ended = false;
+    const adminClient = {
+      async connect() {},
+      async end() {
+        ended = true;
+      },
+      async query(sql) {
+        queries.push(sql);
+        if (sql.includes("current_user AS current_user_name")) {
+          return {
+            rows: [{
+              current_user_name: "unexpected_owner",
+              database_name: "grainline_staging",
+              session_user_name: "unexpected_owner",
+            }],
+          };
+        }
+        throw new Error(`unexpected query: ${sql}`);
+      },
+    };
+
+    await assert.rejects(
+      runRollbackDisableProbe({
+        adminDatabaseUsername: "grainline_migration_owner",
+        expectedDatabaseName: "grainline_staging",
+        schemaName: "grainline_rls_canary",
+        tableName: "context_canary",
+      }, { adminClient }),
+      /does not match the reviewed admin URL identity and database/,
+    );
+    assert.equal(queries.some((sql) => /ALTER TABLE/.test(sql)), false);
+    assert.equal(ended, true);
+  });
+
+  it("restores and positively verifies forced RLS without swallowing cleanup failures", async () => {
+    const config = { schemaName: "grainline_rls_canary", tableName: "context_canary" };
+    const queries = [];
+    const client = {
+      async query(sql, parameters) {
+        queries.push({ parameters, sql });
+        if (sql.includes("FROM pg_class")) {
+          return {
+            rowCount: 1,
+            rows: [{ rls_enabled: true, rls_forced: true }],
+          };
+        }
+        return { rowCount: null, rows: [] };
+      },
+    };
+    await restoreForcedRlsState(client, config);
+    assert.match(queries[0].sql, /ENABLE ROW LEVEL SECURITY/);
+    assert.match(queries[1].sql, /FORCE ROW LEVEL SECURITY/);
+    assert.deepEqual(queries[2].parameters, [config.schemaName, config.tableName]);
+
+    await assert.rejects(
+      restoreForcedRlsState({
+        async query(sql) {
+          if (sql.includes("FORCE ROW LEVEL SECURITY")) throw new Error("force failed");
+          return { rowCount: null, rows: [] };
+        },
+      }, config),
+      /force failed/,
+    );
+    await assert.rejects(
+      restoreForcedRlsState({
+        async query(sql) {
+          if (sql.includes("FROM pg_class")) {
+            return { rowCount: 1, rows: [{ rls_enabled: true, rls_forced: false }] };
+          }
+          return { rowCount: null, rows: [] };
+        },
+      }, config),
+      /failed to restore and verify ENABLE\/FORCE ROW LEVEL SECURITY/,
+    );
+  });
+
   it("mirrors the real app Prisma pool and does not invent adapter pool timings", () => {
     const script = source("scripts/rls-context-acceptance-gate.mjs");
     const db = source("src/lib/db.ts");
+    const databaseUrl = source("src/lib/databaseUrl.ts");
 
     assert.match(script, /const PRISMA_APP_POOL_SIZE = 10/);
     assert.match(script, /createPrismaProbe\(config, \{ max: PRISMA_APP_POOL_SIZE \}\)/);
     assert.match(db, /max: 10/);
+    assert.match(db, /runtimeDatabasePoolOptions\(requiredProductionEnv\("DATABASE_URL"\)\)/);
+    assert.match(databaseUrl, /enableChannelBinding: true/);
+    assert.match(script, /postgresChannelBindingClientOptions\(new URL\(config\.databaseUrl\)\)/);
     assert.match(script, /prismaPoolSize: PRISMA_APP_POOL_SIZE/);
     assert.match(script, /prismaPoolTimingAvailable: false/);
     assert.match(script, /rawPool=\$\{config\.poolSize\} prismaPool=\$\{PRISMA_APP_POOL_SIZE\}/);
@@ -726,7 +913,7 @@ describe("RLS context acceptance gate guardrails", () => {
     for (const [name, text] of docs) {
       assertContractMatch(
         text,
-        /branch-scoped(?=[\s\S]{0,600}`?DATABASE_URL`?)(?=[\s\S]{0,600}`?RLS_CONTEXT_GATE_DATABASE_URL`?)[\s\S]{0,900}same (?:exact )?pooled\s+staging(?:\s+runtime(?:-role)?)?\s+URL/i,
+        /branch-scoped(?=[\s\S]{0,600}`?DATABASE_URL`?)(?=[\s\S]{0,600}`?RLS_CONTEXT_GATE_DATABASE_URL`?)[\s\S]{0,900}same (?:(?:exact|byte-for-byte)\s+)?pooled\s+staging(?:\s+runtime(?:-role)?)?\s+URL/i,
         `${name} must put both branch-scoped database variables on the same runtime URL`,
       );
       assertContractMatch(
@@ -971,9 +1158,11 @@ describe("RLS context acceptance gate guardrails", () => {
     await withCiRuntimeRole(async ({ adminDatabaseUrl, databaseUrl, runtimeRole, schemaName }) => {
       const config = {
         adminDatabaseUrl,
+        adminDatabaseUsername: decodeURIComponent(new URL(adminDatabaseUrl).username),
         burstConcurrency: 2,
         connectionTimeoutMs: 10_000,
         databaseUrl,
+        expectedDatabaseName: decodeURIComponent(new URL(adminDatabaseUrl).pathname.slice(1)),
         expectedDatabaseRegion: "ci-local",
         expectedExecutionRegion: "ci-local",
         localityConfirmation: "diagnostic-only",

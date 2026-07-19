@@ -4,6 +4,13 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import pg from "pg";
+import {
+  assertDeterministicPostgresEnvironment,
+  assertExplicitPostgresConnectionAuthority,
+  assertReviewedPostgresConnectionParameters,
+  parseCanonicalPostgresDatabaseName,
+  postgresChannelBindingClientOptions,
+} from "./postgres-url-safety.mjs";
 
 const { Client } = pg;
 
@@ -20,6 +27,7 @@ const AUDIT_QUERY_TIMEOUT_MS = 35_000;
 export const SAVED_SEARCH_CATALOG_EVIDENCE_PREFIX =
   "SAVED_SEARCH_CATALOG_STATE=";
 export const REQUIRE_DIRECT_URL_FLAG = "--require-direct-url";
+export const ALLOW_LOOPBACK_CI_FLAG = "--allow-loopback-ci";
 
 const OBJECT_TYPE_TABLE = "r";
 const OBJECT_TYPE_SEQUENCE = "S";
@@ -236,9 +244,22 @@ export async function readSavedSearchCatalogState(client) {
 }
 
 export function resolveGrantAuditConnection(env, argv = []) {
-  const directUrl = env.DIRECT_URL?.trim();
-  const auditUrl = env.GRANT_AUDIT_DATABASE_URL?.trim();
+  assertDeterministicPostgresEnvironment(env, "grant audit");
+  const unknownArgs = argv.filter(
+    (arg) => arg !== REQUIRE_DIRECT_URL_FLAG && arg !== ALLOW_LOOPBACK_CI_FLAG,
+  );
+  if (unknownArgs.length > 0) {
+    throw new Error("grant audit received an unknown command-line argument");
+  }
+  const directUrl = env.DIRECT_URL;
+  const auditUrl = env.GRANT_AUDIT_DATABASE_URL;
   const requireDirectUrl = argv.includes(REQUIRE_DIRECT_URL_FLAG);
+  const allowLoopbackCi = argv.includes(ALLOW_LOOPBACK_CI_FLAG);
+  if (requireDirectUrl && allowLoopbackCi) {
+    throw new Error(
+      `${REQUIRE_DIRECT_URL_FLAG} cannot be combined with ${ALLOW_LOOPBACK_CI_FLAG}`,
+    );
+  }
 
   if (requireDirectUrl) {
     if (!directUrl) {
@@ -249,6 +270,9 @@ export function resolveGrantAuditConnection(env, argv = []) {
         "GRANT_AUDIT_DATABASE_URL must be absent or exactly match DIRECT_URL during guarded post-migration audit",
       );
     }
+    parseGrantAuditDatabaseIdentity(directUrl, "DIRECT_URL", {
+      requireReviewedParameters: true,
+    });
     return directUrl;
   }
 
@@ -256,7 +280,104 @@ export function resolveGrantAuditConnection(env, argv = []) {
   if (!connectionString) {
     throw new Error("GRANT_AUDIT_DATABASE_URL or DIRECT_URL is required for grant audit");
   }
+  parseGrantAuditDatabaseIdentity(
+    connectionString,
+    auditUrl ? "GRANT_AUDIT_DATABASE_URL" : "DIRECT_URL",
+    { allowLoopbackCi },
+  );
   return connectionString;
+}
+
+function isLoopbackHostname(hostname) {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+}
+
+function assertLocalAuditConnectionParameters(parsed, label) {
+  const parameters = [...parsed.searchParams.entries()];
+  if (
+    parameters.length !== 1
+    || parameters[0][0] !== "sslmode"
+    || parameters[0][1].toLowerCase() !== "disable"
+  ) {
+    throw new Error(
+      `${label} loopback development transport must use only sslmode=disable`,
+    );
+  }
+}
+
+export function parseGrantAuditDatabaseIdentity(
+  value,
+  label,
+  {
+    allowLoopbackCi = false,
+    requireReviewedParameters = false,
+  } = {},
+) {
+  if (typeof value !== "string" || value.length === 0 || value !== value.trim()) {
+    throw new Error(
+      `${label} must be a non-empty PostgreSQL URL without surrounding whitespace`,
+    );
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`${label} must be a valid PostgreSQL URL`);
+  }
+  if (!/^postgres(?:ql)?:$/.test(parsed.protocol)) {
+    throw new Error(`${label} must use the postgres/postgresql protocol`);
+  }
+  assertExplicitPostgresConnectionAuthority(parsed, label);
+
+  const isLoopback = isLoopbackHostname(parsed.hostname);
+  if (allowLoopbackCi && !isLoopback) {
+    throw new Error(`${label} may use ${ALLOW_LOOPBACK_CI_FLAG} only with a loopback host`);
+  }
+  const loopbackDevelopmentTransport =
+    allowLoopbackCi && !requireReviewedParameters && isLoopback;
+  if (loopbackDevelopmentTransport) {
+    assertLocalAuditConnectionParameters(parsed, label);
+  } else {
+    assertReviewedPostgresConnectionParameters(parsed, label);
+  }
+
+  const databaseName = parseCanonicalPostgresDatabaseName(parsed, label);
+
+  return Object.freeze({ databaseName });
+}
+
+export async function assertGrantAuditConnectionMatches(
+  client,
+  expectedDatabaseName,
+  expectedMigrationRole,
+) {
+  if (!client || typeof client.query !== "function") {
+    throw new TypeError("client must expose query()");
+  }
+  if (typeof expectedDatabaseName !== "string" || expectedDatabaseName.length === 0) {
+    throw new TypeError("expectedDatabaseName must be a non-empty string");
+  }
+  if (typeof expectedMigrationRole !== "string" || expectedMigrationRole.length === 0) {
+    throw new TypeError("expectedMigrationRole must be a non-empty string");
+  }
+
+  const result = await client.query(
+    `SELECT
+        current_database() AS database_name,
+        current_user AS current_user_name,
+        session_user AS session_user_name`,
+  );
+  if (
+    result.rows.length !== 1
+    || result.rows[0]?.database_name !== expectedDatabaseName
+    || result.rows[0]?.current_user_name !== expectedMigrationRole
+    || result.rows[0]?.session_user_name !== expectedMigrationRole
+  ) {
+    throw new Error(
+      "grant audit live database or session role does not match the reviewed connection identity",
+    );
+  }
 }
 
 function normalizedPolicyRoles(value) {
@@ -1499,9 +1620,18 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
 async function main() {
   const runtimeRole = process.env.RUNTIME_DB_ROLE;
   const migrationRole = process.env.MIGRATION_DB_ROLE;
+  const argv = process.argv.slice(2);
+  const requireDirectUrl = argv.includes(REQUIRE_DIRECT_URL_FLAG);
+  const allowLoopbackCi = argv.includes(ALLOW_LOOPBACK_CI_FLAG);
   let connectionString;
+  let expectedDatabaseName;
   try {
-    connectionString = resolveGrantAuditConnection(process.env, process.argv.slice(2));
+    connectionString = resolveGrantAuditConnection(process.env, argv);
+    expectedDatabaseName = parseGrantAuditDatabaseIdentity(
+      connectionString,
+      requireDirectUrl ? "DIRECT_URL" : "grant audit database URL",
+      { allowLoopbackCi, requireReviewedParameters: requireDirectUrl },
+    ).databaseName;
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 2;
@@ -1510,7 +1640,7 @@ async function main() {
 
   if (!runtimeRole || !migrationRole) {
     console.error(
-      "Usage: GRANT_AUDIT_DATABASE_URL=\"$DIRECT_URL\" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=grainline_migration_owner node scripts/audit-runtime-db-grants.mjs",
+      "Usage: GRANT_AUDIT_DATABASE_URL=\"$DIRECT_URL\" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=neondb_owner node scripts/audit-runtime-db-grants.mjs",
     );
     console.error("GRANT_AUDIT_DATABASE_URL may be omitted when DIRECT_URL is already exported.");
     process.exitCode = 2;
@@ -1519,6 +1649,7 @@ async function main() {
 
   const inventory = deriveGrantInventory();
   const client = new Client({
+    ...postgresChannelBindingClientOptions(new URL(connectionString)),
     connectionString,
     connectionTimeoutMillis: AUDIT_CONNECTION_TIMEOUT_MS,
     statement_timeout: AUDIT_STATEMENT_TIMEOUT_MS,
@@ -1527,6 +1658,11 @@ async function main() {
   await client.connect();
   try {
     await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+    await assertGrantAuditConnectionMatches(
+      client,
+      expectedDatabaseName,
+      migrationRole,
+    );
     const issues = await auditLiveDatabase({ client, runtimeRole, migrationRole, inventory });
     if (issues.length > 0) {
       await client.query("ROLLBACK");

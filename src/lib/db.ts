@@ -1,7 +1,7 @@
 // src/lib/db.ts
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { normalizeRuntimeDatabaseUrl } from "@/lib/databaseUrl";
+import { runtimeDatabasePoolOptions } from "@/lib/databaseUrl";
 import { requiredProductionEnv } from "@/lib/env";
 
 // avoid creating multiple clients in dev (Next hot reload)
@@ -11,7 +11,7 @@ const globalForPrisma = globalThis as unknown as {
 
 function createPrismaClient() {
   const adapter = new PrismaPg({
-    connectionString: normalizeRuntimeDatabaseUrl(requiredProductionEnv("DATABASE_URL")),
+    ...runtimeDatabasePoolOptions(requiredProductionEnv("DATABASE_URL")),
     // Keep this explicit and mirrored by the provider-runtime RLS gate. Raising
     // it changes the per-instance Neon/PgBouncer connection budget and requires
     // a separate capacity review.

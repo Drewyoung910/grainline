@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, it } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
   MACHINE_ARTIFACTS,
@@ -10,6 +12,8 @@ import {
   parseConfig,
   redact,
 } from "../scripts/launch-evidence-inventory.mjs";
+
+const REPOSITORY_ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -58,9 +62,18 @@ describe("launch evidence inventory", () => {
       LAUNCH_EVIDENCE_INVENTORY_PATH: ".codex/launch-evidence/inventory.json",
     });
 
-    assert.ok(config.evidenceDir.endsWith("/grainline/.codex/launch-evidence"));
-    assert.ok(config.inventoryPath.endsWith("/grainline/.codex/launch-evidence/inventory.json"));
-    assert.ok(config.manifestPath.endsWith("/grainline/.codex/launch-evidence/launch-evidence-manifest.json"));
+    assert.equal(
+      config.evidenceDir,
+      resolve(REPOSITORY_ROOT, ".codex/launch-evidence"),
+    );
+    assert.equal(
+      config.inventoryPath,
+      resolve(REPOSITORY_ROOT, ".codex/launch-evidence/inventory.json"),
+    );
+    assert.equal(
+      config.manifestPath,
+      resolve(REPOSITORY_ROOT, ".codex/launch-evidence/launch-evidence-manifest.json"),
+    );
     assert.equal(config.requireConditional, false);
   });
 

@@ -4,6 +4,14 @@ import { chmodSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import pg from "pg";
 import {
+  assertDeterministicPostgresEnvironment,
+  assertExplicitPostgresConnectionAuthority,
+  assertReviewedPostgresConnectionParameters,
+  parseCanonicalPostgresDatabaseName,
+  parseExactPostgresUrl,
+  postgresChannelBindingClientOptions,
+} from "./postgres-url-safety.mjs";
+import {
   SAVED_SEARCH_RLS_POLICIES as AUDITED_SAVED_SEARCH_RLS_POLICIES,
   SAVED_SEARCH_RLS_FORCE_EXPECTED,
   collectSavedSearchOwnerRpcIssues,
@@ -80,14 +88,6 @@ function assertSafeRoleName(value) {
   return value;
 }
 
-function decodedUrlPart(value, label) {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    throw new Error(`${label} contains invalid percent encoding`);
-  }
-}
-
 function containsEncodedUserContext(value) {
   let decoded = String(value);
   for (let pass = 0; pass < 3; pass += 1) {
@@ -162,15 +162,10 @@ function assertExpectedDatabaseIdentity(actual, expected, label) {
 }
 
 export function parseNeonDatabaseIdentity(value, label) {
-  let parsed;
-  try {
-    parsed = new URL(value);
-  } catch {
-    throw new Error(`${label} must be a valid PostgreSQL URL`);
-  }
-  if (!/^postgres(?:ql)?:$/.test(parsed.protocol)) {
-    throw new Error(`${label} must use the postgres/postgresql protocol`);
-  }
+  const parsed = parseExactPostgresUrl(value, label);
+  const { username } = assertExplicitPostgresConnectionAuthority(parsed, label);
+  const databaseName = parseCanonicalPostgresDatabaseName(parsed, label);
+  assertReviewedPostgresConnectionParameters(parsed, label);
 
   const hostname = parsed.hostname.toLowerCase();
   if (!hostname.endsWith(".neon.tech")) {
@@ -190,13 +185,6 @@ export function parseNeonDatabaseIdentity(value, label) {
   }
   const region = hostnameParts.slice(1, -2).join(".");
   if (!region) throw new Error(`${label} must contain a Neon region identity`);
-
-  const username = decodedUrlPart(parsed.username, `${label} username`);
-  if (!username) throw new Error(`${label} must include a database username`);
-  const databaseName = decodedUrlPart(parsed.pathname.slice(1), `${label} database name`);
-  if (!databaseName || databaseName.includes("/")) {
-    throw new Error(`${label} must name exactly one database`);
-  }
 
   return {
     databaseName,
@@ -224,6 +212,7 @@ export function parseGateConfig(env = process.env) {
       `SAVED_SEARCH_RLS_GATE_CONFIRM=${SAVED_SEARCH_RLS_GATE_CONFIRMATION} is required before running the staging-only gate`,
     );
   }
+  assertDeterministicPostgresEnvironment(env, "SavedSearch RLS acceptance gate");
 
   const databaseUrl = required(
     env.SAVED_SEARCH_RLS_GATE_DATABASE_URL,
@@ -248,11 +237,11 @@ export function parseGateConfig(env = process.env) {
     );
   }
   const expectedDatabaseIdentity = parseExpectedDatabaseIdentity(env);
+  assertRuntimeUrlDoesNotPreseedUserContext(databaseUrl);
   const runtimeIdentity = parseNeonDatabaseIdentity(
     databaseUrl,
     "SAVED_SEARCH_RLS_GATE_DATABASE_URL",
   );
-  assertRuntimeUrlDoesNotPreseedUserContext(databaseUrl);
   const adminIdentity = parseNeonDatabaseIdentity(
     adminDatabaseUrl,
     "SAVED_SEARCH_RLS_GATE_ADMIN_DATABASE_URL",
@@ -732,12 +721,14 @@ export function validateFixture(fixture) {
 }
 
 function createClient(connectionString) {
+  const parsed = new URL(connectionString);
   return new Client({
     application_name: "grainline-saved-search-rls-gate",
     connectionString,
     connectionTimeoutMillis: CONNECTION_TIMEOUT_MS,
     query_timeout: QUERY_TIMEOUT_MS,
     statement_timeout: STATEMENT_TIMEOUT_MS,
+    ...postgresChannelBindingClientOptions(parsed),
   });
 }
 
@@ -808,8 +799,35 @@ async function assertOwnerUsers(ownerClient, fixture) {
   }
 }
 
-async function cleanupUsersOnClient(cleanupClient, fixture) {
+export async function assertLiveCleanupConnectionIdentity(
+  client,
+  expectedUsername,
+  expectedDatabaseName,
+  label,
+) {
+  const result = await client.query(
+    "SELECT current_user AS current_user_name, session_user AS session_user_name, current_database() AS database_name",
+  );
+  const row = result.rows[0];
+  if (
+    row?.current_user_name !== expectedUsername
+    || row?.session_user_name !== expectedUsername
+    || row?.database_name !== expectedDatabaseName
+  ) {
+    throw new GateAssertionError(
+      `${label} connection does not match the reviewed role and database`,
+    );
+  }
+}
+
+async function cleanupUsersOnClient(cleanupClient, fixture, config) {
   await cleanupClient.query("ROLLBACK").catch(() => {});
+  await assertLiveCleanupConnectionIdentity(
+    cleanupClient,
+    config.adminUsername,
+    config.databaseName,
+    "owner cleanup",
+  );
   await cleanupClient.query("BEGIN");
   try {
     await cleanupClient.query(
@@ -839,7 +857,7 @@ async function cleanupUsersOnClient(cleanupClient, fixture) {
 async function cleanupUsers(config, fixture, existingOwnerClient) {
   if (existingOwnerClient) {
     try {
-      await cleanupUsersOnClient(existingOwnerClient, fixture);
+      await cleanupUsersOnClient(existingOwnerClient, fixture, config);
       return;
     } catch {
       // Retry once on a fresh direct owner connection. This covers a broken or
@@ -850,7 +868,7 @@ async function cleanupUsers(config, fixture, existingOwnerClient) {
   const cleanupClient = createClient(config.adminDatabaseUrl);
   await cleanupClient.connect();
   try {
-    await cleanupUsersOnClient(cleanupClient, fixture);
+    await cleanupUsersOnClient(cleanupClient, fixture, config);
   } finally {
     await cleanupClient.end().catch(() => {});
   }
@@ -929,16 +947,6 @@ async function withUserContext(runtimeClient, userId, fn, finish = "ROLLBACK") {
   }, finish);
 }
 
-async function assertRuntimeConnectionRole(runtimeClient, runtimeRole) {
-  const result = await runtimeClient.query(
-    "SELECT current_user AS current_user_name, session_user AS session_user_name",
-  );
-  const row = result.rows[0];
-  if (row?.current_user_name !== runtimeRole || row?.session_user_name !== runtimeRole) {
-    throw new GateAssertionError("runtime cleanup connection role does not match the configured runtime role");
-  }
-}
-
 async function assertNoSavedSearchFixtureCollision(runtimeClient, fixture) {
   for (const userId of [fixture.userA.id, fixture.userB.id]) {
     await withUserContext(runtimeClient, userId, async () => {
@@ -951,9 +959,14 @@ async function assertNoSavedSearchFixtureCollision(runtimeClient, fixture) {
   }
 }
 
-async function verifySavedSearchCleanupOnClient(runtimeClient, fixture, runtimeRole) {
+async function verifySavedSearchCleanupOnClient(runtimeClient, fixture, config) {
   await runtimeClient.query("ROLLBACK").catch(() => {});
-  await assertRuntimeConnectionRole(runtimeClient, runtimeRole);
+  await assertLiveCleanupConnectionIdentity(
+    runtimeClient,
+    config.runtimeRole,
+    config.databaseName,
+    "runtime cleanup",
+  );
   await assertNoSavedSearchFixtureCollision(runtimeClient, fixture);
 }
 
@@ -977,9 +990,14 @@ async function seedRuntimeSavedSearches(runtimeClient, fixture) {
   }, "COMMIT");
 }
 
-async function cleanupSavedSearchesOnClient(runtimeClient, fixture, runtimeRole) {
+async function cleanupSavedSearchesOnClient(runtimeClient, fixture, config) {
   await runtimeClient.query("ROLLBACK").catch(() => {});
-  await assertRuntimeConnectionRole(runtimeClient, runtimeRole);
+  await assertLiveCleanupConnectionIdentity(
+    runtimeClient,
+    config.runtimeRole,
+    config.databaseName,
+    "runtime cleanup",
+  );
   for (const userId of [fixture.userA.id, fixture.userB.id]) {
     await withUserContext(runtimeClient, userId, async () => {
       await runtimeClient.query(
@@ -990,13 +1008,13 @@ async function cleanupSavedSearchesOnClient(runtimeClient, fixture, runtimeRole)
       );
     }, "COMMIT");
   }
-  await verifySavedSearchCleanupOnClient(runtimeClient, fixture, runtimeRole);
+  await verifySavedSearchCleanupOnClient(runtimeClient, fixture, config);
 }
 
 async function cleanupSavedSearches(config, fixture, existingRuntimeClient) {
   if (existingRuntimeClient) {
     try {
-      await cleanupSavedSearchesOnClient(existingRuntimeClient, fixture, config.runtimeRole);
+      await cleanupSavedSearchesOnClient(existingRuntimeClient, fixture, config);
       return;
     } catch {
       // Retry once through a fresh pooled runtime-role connection. All DML
@@ -1007,7 +1025,7 @@ async function cleanupSavedSearches(config, fixture, existingRuntimeClient) {
   const cleanupClient = createClient(config.databaseUrl);
   await cleanupClient.connect();
   try {
-    await cleanupSavedSearchesOnClient(cleanupClient, fixture, config.runtimeRole);
+    await cleanupSavedSearchesOnClient(cleanupClient, fixture, config);
   } finally {
     await cleanupClient.end().catch(() => {});
   }
@@ -1019,7 +1037,7 @@ async function verifySavedSearchCleanup(config, fixture, existingRuntimeClient) 
       await verifySavedSearchCleanupOnClient(
         existingRuntimeClient,
         fixture,
-        config.runtimeRole,
+        config,
       );
       return;
     } catch {
@@ -1034,7 +1052,7 @@ async function verifySavedSearchCleanup(config, fixture, existingRuntimeClient) 
     await verifySavedSearchCleanupOnClient(
       verificationClient,
       fixture,
-      config.runtimeRole,
+      config,
     );
   } finally {
     await verificationClient.end().catch(() => {});

@@ -1,3 +1,4 @@
+// RLS_CONTEXT_GATE_RUNNER_ONLY_TEST
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
@@ -8,6 +9,22 @@ const middleware = readFileSync("src/middleware.ts", "utf8");
 const RUNNER_PATH = "/api/internal/rls-context-gate";
 const GATE_MODULE_SPECIFIER =
   "../../../../../scripts/rls-context-acceptance-gate.mjs";
+const REVIEWED_IMPORTS = new Map([
+  ["node:crypto", ["createHash", "timingSafeEqual"]],
+  ["zod", ["z"]],
+  [GATE_MODULE_SPECIFIER, [
+    "buildEvidencePayload",
+    "claimProviderRuntimeRunSlot",
+    "completeProviderRuntimeRunSlot",
+    "parseGateConfig",
+    "runAcceptanceGate",
+  ]],
+  ["@/lib/requestBody", [
+    "isInvalidJsonBodyError",
+    "isRequestBodyTooLargeError",
+    "readBoundedJson",
+  ]],
+]);
 
 function parseTypeScript(fileName, source) {
   const sourceFile = ts.createSourceFile(
@@ -19,6 +36,45 @@ function parseTypeScript(fileName, source) {
   );
   assert.equal(sourceFile.parseDiagnostics.length, 0, `${fileName} must parse`);
   return sourceFile;
+}
+
+function readReviewedStaticImports(source) {
+  const sourceFile = parseTypeScript("route.ts", source);
+  const imports = new Map();
+
+  for (const statement of sourceFile.statements) {
+    if (ts.isImportEqualsDeclaration(statement) || ts.isExportDeclaration(statement)) {
+      assert.fail("runner route must not use import-equals or re-export declarations");
+    }
+    if (!ts.isImportDeclaration(statement)) continue;
+    assert.ok(
+      ts.isStringLiteralLike(statement.moduleSpecifier),
+      "runner route imports must use static string module specifiers",
+    );
+    const importClause = statement.importClause;
+    assert.ok(importClause, "runner route imports must have an import clause");
+    assert.equal(importClause.isTypeOnly, false, "runner route imports must be runtime imports");
+    assert.equal(importClause.name, undefined, "runner route must not use default imports");
+    assert.ok(
+      importClause.namedBindings && ts.isNamedImports(importClause.namedBindings),
+      "runner route must not use namespace imports",
+    );
+    assert.equal(
+      imports.has(statement.moduleSpecifier.text),
+      false,
+      "runner route must keep one import declaration per reviewed module",
+    );
+    imports.set(
+      statement.moduleSpecifier.text,
+      importClause.namedBindings.elements.map((element) => {
+        assert.equal(element.isTypeOnly, false, "runner route must not use type-only import specifiers");
+        assert.equal(element.propertyName, undefined, "runner route must not alias imported names");
+        return element.name.text;
+      }).sort(),
+    );
+  }
+
+  return imports;
 }
 
 function orchestrationCallSites(source, calleeName) {
@@ -231,6 +287,18 @@ function routeMatcherPatterns(source) {
 }
 
 describe("RLS context provider-runtime runner", () => {
+  it("pins the complete static import surface so aliases and barrels cannot hide orchestration", () => {
+    assert.deepEqual(
+      readReviewedStaticImports(route),
+      new Map(
+        [...REVIEWED_IMPORTS.entries()].map(([moduleSpecifier, importedNames]) => [
+          moduleSpecifier,
+          [...importedNames].sort(),
+        ]),
+      ),
+    );
+  });
+
   it("is fail-closed outside Preview and requires a bounded timing-safe token", () => {
     assert.match(route, /process\.env\.VERCEL_ENV !== ["']preview["']/);
     assert.match(route, /RLS_CONTEXT_GATE_TRIGGER_SECRET/);
@@ -238,6 +306,11 @@ describe("RLS context provider-runtime runner", () => {
     assert.match(route, /readBoundedJson\(request, BODY_MAX_BYTES\)/);
     assert.match(route, /runSlot: z\.union\(\[z\.literal\(1\), z\.literal\(2\)\]\)/);
     assert.match(route, /export const maxDuration = 300/);
+    assert.match(
+      route,
+      /NODE_TLS_REJECT_UNAUTHORIZED: process\.env\.NODE_TLS_REJECT_UNAUTHORIZED/,
+    );
+    assert.match(route, /PGOPTIONS: process\.env\.PGOPTIONS/);
   });
 
   it("is repeat-only, commit-pinned, and atomically consumes each of two durable run slots", () => {

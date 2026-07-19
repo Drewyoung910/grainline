@@ -428,13 +428,27 @@ Production migration rules:
   `MIGRATION_DB_ROLE=neondb_owner`, a pooled runtime URL whose username is the
   runtime role, and a direct owner URL whose username is the migration role.
   The two URLs must identify the same Neon endpoint, region, port, and database,
-  without surrounding whitespace. It also rejects a differing
+  without surrounding whitespace. Remote rollout URLs may contain only one
+  lowercase `sslmode=verify-full` and an optional single lowercase
+  `channel_binding=require`; duplicate, case-variant, fragment, or other
+  connection parameters fail closed. Every URL must also contain an explicit
+  non-empty password, explicit `:5432`, and one unencoded, bounded database path
+  segment. The guard rejects `NODE_TLS_REJECT_UNAUTHORIZED=0` and non-empty
+  `PGOPTIONS`. It also rejects a differing
   `GRANT_AUDIT_DATABASE_URL` at that pre-migration boundary. The guarded command
   then fails closed when the audit fails or when the sanitized
   `SAVED_SEARCH_CATALOG_STATE={...}` record cannot be read from the final live
   catalog. `GRANT_AUDIT_DATABASE_URL` is optional for manual audits; the guarded
   production command passes `--require-direct-url`, preventing migration/audit
-  target drift. Set `SAVED_SEARCH_RLS_DEPLOY_PHASE=release-0` only on
+  target drift and disallowing the loopback-only CI `sslmode=disable` exception.
+  A manual loopback CI audit must opt in with `--allow-loopback-ci`, which cannot
+  be combined with `--require-direct-url`. Optional `channel_binding=require`
+  configures Node `pg` to prefer SCRAM-PLUS but does not prove libpq-style hard
+  channel binding; retained transport proof relies on `sslmode=verify-full`.
+  After opening the repeatable-read, read-only transaction and before reading
+  grant/catalog evidence, the audit compares live `current_database()` with the
+  URL database path and verifies `current_user`/`session_user` are the reviewed
+  migration owner. Set `SAVED_SEARCH_RLS_DEPLOY_PHASE=release-0` only on
   the clean RPC-only artifact. The guard requires both pre-RLS RPC migrations
   to be present, the phase-A migration to be absent, and the exact reviewed
   migration-directory inventory and SQL-content fingerprint to match.
@@ -515,6 +529,13 @@ RLS staging context proof:
   workload. The same fixture must remain unchanged for both counted repeats.
   Every setup/repeat invocation keeps the explicit
   `RLS_CONTEXT_GATE_CONFIRM=staging-only` guard.
+  Before setup, rollback, or teardown mutates anything, its first owner query
+  must prove `current_user` and `session_user` both equal the exact username in
+  the reviewed direct admin URL and `current_database()` equals the reviewed
+  database path. The rollback cleanup must successfully restore both
+  `ENABLE` and `FORCE ROW LEVEL SECURITY`, then positively read
+  `pg_class.relrowsecurity=true` and `relforcerowsecurity=true`; any ALTER,
+  catalog, or connection-close failure makes the setup fail.
 - Pin both provider repeats to this exact environment manifest; changing any
   value means the runs are not comparable and both slots must be repeated:
 
@@ -546,7 +567,11 @@ RLS staging context proof:
 - Configure the branch-scoped Preview variables before pushing the
   Git-integrated Preview branch. `DATABASE_URL` and
   `RLS_CONTEXT_GATE_DATABASE_URL` must be
-  the same exact pooled staging runtime-role URL. Set a fresh RLS_CONTEXT_GATE_TRIGGER_SECRET,
+  the same byte-for-byte pooled staging runtime-role URL; neither is trimmed or
+  normalized, and the Preview route verifies digest equality before claiming a
+  run slot. Both URLs require an explicit password, explicit `:5432`, and one
+  unencoded, bounded database path segment; disabled Node TLS verification and
+  inherited `PGOPTIONS` fail closed. Set a fresh RLS_CONTEXT_GATE_TRIGGER_SECRET,
   a fresh RLS_CONTEXT_GATE_RUN_ID, and
   `RLS_CONTEXT_GATE_ALLOWED_COMMIT_SHA` to the exact Git-integrated Preview
   gate commit SHA. This is not the later cleaned production Release 0 SHA:
@@ -589,8 +614,10 @@ RLS staging context proof:
   `/api/internal/rls-context-gate` middleware path. Run
   `node --test tests/rls-context-runner-route.test.mjs` against that artifact.
   Release 0 and every production artifact must exclude the route, exact
-  exemption, and runner-only regression test; the production deploy guard
-  mechanically enforces absence of all three.
+  exemption, and every exact, renamed, copied, or symlinked runner-only
+  regression test. The production deploy guard recursively scans `tests` and
+  treats every test-tree symlink as a blocking artifact, so renaming the test
+  cannot evade the exclusion.
 - Rotate the Vercel deployment-protection bypass before using the Preview if a
   prior value appeared in any tool or audit output. Treat that bypass separately
   from the gate trigger token and never retain either value in evidence.

@@ -200,7 +200,7 @@ Staging implementation checklist:
 Verification checklist:
 
 - Manual live grant audit against the current reviewed staging branch:
-  `GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=neondb_owner npm run audit:db-grants`
+  `GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=neondb_owner npm run audit:db-grants -- --require-direct-url`
   Run this from the same environment/secret set that will run migrations so the
   audit connection proves the actual `DIRECT_URL` role. A separate admin or
   auditor URL can inspect state, but it does not prove deploy-time migration
@@ -216,10 +216,23 @@ Verification checklist:
   `RUNTIME_DB_ROLE=grainline_app_runtime` and
   `MIGRATION_DB_ROLE=neondb_owner`; matching URL usernames; a pooled runtime
   endpoint and direct owner endpoint that identify the same Neon endpoint,
-  region, port, and database; and an absent or exactly matching
+  region, port, and database; only one lowercase `sslmode=verify-full` plus an
+  optional single lowercase `channel_binding=require`; and an absent or exactly matching
   `GRANT_AUDIT_DATABASE_URL`. It then runs this audit immediately after
   `prisma migrate deploy` with `--require-direct-url`; an audit failure blocks
-  the application build.
+  the application build. Inside the same repeatable-read, read-only transaction
+  and before grant/catalog evidence, the audit compares live
+  `current_database()` with the URL database path and verifies
+  `current_user`/`session_user` are the reviewed migration owner. Duplicate,
+  case-variant, fragment, or other remote connection parameters fail closed;
+  every reviewed URL also requires an explicit non-empty password, explicit
+  `:5432`, and one unencoded, bounded database path segment. The guard rejects
+  `NODE_TLS_REJECT_UNAUTHORIZED=0` and non-empty `PGOPTIONS`. Only an explicit
+  non-production `--allow-loopback-ci` audit may use sole `sslmode=disable`, and
+  that flag cannot be combined with `--require-direct-url`. Node `pg` is set to
+  prefer SCRAM-PLUS when optional `channel_binding=require` is present, but it
+  does not provide libpq's hard `require` semantic; retained transport proof
+  therefore relies on `sslmode=verify-full`, not channel-binding enforcement.
 - Reviewed staging role/grant provisioning:
   `psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=neondb_owner -f scripts/provision-runtime-db-role.sql`
   Run the grant audit after this script; do not use successful script execution
@@ -436,11 +449,15 @@ Current reviewed staging harness:
   durably passed, and either slot is permanently non-replayable for that opaque
   run id. The route never receives the admin URL.
 - Before pushing the attested gate commit, configure branch-scoped
-  `DATABASE_URL` and `RLS_CONTEXT_GATE_DATABASE_URL` to the same exact pooled
-  staging URL authenticated as `grainline_app_runtime`. Confirm branch-scoped
-  `DIRECT_URL`, `RLS_CONTEXT_GATE_ADMIN_DATABASE_URL`,
-  `RLS_CONTEXT_GATE_EVIDENCE_PATH`, and owner-only prepare/rollback/teardown
-  flags are absent. Use a fresh `RLS_CONTEXT_GATE_TRIGGER_SECRET`, a fresh
+  `DATABASE_URL` and `RLS_CONTEXT_GATE_DATABASE_URL` to the same byte-for-byte
+  pooled staging URL authenticated as `grainline_app_runtime`; neither value is
+  trimmed or normalized, and the Preview route verifies digest equality before
+  claiming a run slot. Each URL must include an explicit password and explicit `:5432`,
+  plus one unencoded, bounded database path segment; the gate rejects
+  `NODE_TLS_REJECT_UNAUTHORIZED=0` and inherited `PGOPTIONS`. The branch-scoped
+  Preview must not include `DIRECT_URL`, `RLS_CONTEXT_GATE_ADMIN_DATABASE_URL`,
+  `RLS_CONTEXT_GATE_EVIDENCE_PATH`, or any owner-only prepare/rollback/teardown
+  flags. Use a fresh `RLS_CONTEXT_GATE_TRIGGER_SECRET`, a fresh
   `RLS_CONTEXT_GATE_RUN_ID`, and the exact commit SHA in
   `RLS_CONTEXT_GATE_ALLOWED_COMMIT_SHA` to the exact Git-integrated Preview
   gate commit SHA. It is not the later cleaned production Release 0 SHA;
@@ -487,8 +504,10 @@ Current reviewed staging harness:
   `/api/internal/rls-context-gate` path from Clerk middleware and must pass
   `node --test tests/rls-context-runner-route.test.mjs`. Release 0 and every
   production artifact exclude the runner route, that exact middleware
-  exemption, and the runner-only regression test; do not merge or enable them
-  in production.
+  exemption, and every exact, renamed, copied, or symlinked runner-only
+  regression test. The deploy guard recursively scans `tests` and treats every
+  test-tree symlink as a blocking artifact; do not merge or enable them in
+  production.
 - Laptop/workstation runs must use `diagnostic-only`. Their artifacts are marked
   `diagnostic_passed` or `diagnostic_failed` and are never acceptance-eligible.
   Promotion evidence must use `production-runtime` inside provider-owned Vercel;
@@ -525,8 +544,14 @@ Current reviewed staging harness:
 - `RLS_CONTEXT_GATE_PREPARE=1` leaves the synthetic schema, table, policy,
   run-claim ledger, canary rows, and RPC fixture in staging so both counted
   repeats measure the same reviewed function. The rollback probe
-  temporarily disables RLS and restores `ENABLE`/`FORCE ROW LEVEL SECURITY`; it
-  is not canary cleanup. After both sanitized provider responses and independent
+  temporarily disables RLS and restores `ENABLE`/`FORCE ROW LEVEL SECURITY`;
+  cleanup then positively requires `pg_class.relrowsecurity=true` and
+  `relforcerowsecurity=true` instead of trusting the ALTER statements alone.
+  Setup, rollback, and teardown first require live `current_user` and
+  `session_user` to equal the exact reviewed direct-admin URL username and
+  `current_database()` to equal its reviewed database path. Any identity,
+  restoration, catalog, or close failure fails the gate. This probe is not
+  canary cleanup. After both sanitized provider responses and independent
   deployment attestation are retained, an
   owner-only `RLS_CONTEXT_GATE_TEARDOWN_RPC_PROBE=1` invocation drops only the
   synthetic function and verifies it is absent; keep the canary table and ledger
@@ -905,7 +930,8 @@ Release order:
   build uses `SAVED_SEARCH_RLS_DEPLOY_PHASE=release-0`; the fail-closed deploy
   guard requires both pre-RLS RPC migrations present and the phase-A migration
   absent. The production artifact must also exclude the temporary runner route,
-  its exact middleware exemption, and its runner-only regression test.
+  its exact middleware exemption, and every exact, renamed, copied, or symlinked
+  runner-only regression test.
 - After Release 0, the exact real SavedSearch gate, including RPC/policy,
   route-fixture, grant/canary, and rollback proof, must pass before Phase A in
   isolated staging. Those are separate pre-Phase-A requirements; only retained,

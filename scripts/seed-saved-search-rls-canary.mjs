@@ -2,6 +2,14 @@
 import { chmodSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import pg from "pg";
+import {
+  assertDeterministicPostgresEnvironment,
+  assertExplicitPostgresConnectionAuthority,
+  assertReviewedPostgresConnectionParameters,
+  parseCanonicalPostgresDatabaseName,
+  parseExactPostgresUrl,
+  postgresChannelBindingClientOptions,
+} from "./postgres-url-safety.mjs";
 
 const { Client } = pg;
 
@@ -21,15 +29,10 @@ function required(value, name) {
 }
 
 function parseNeonIdentity(value, label) {
-  let parsed;
-  try {
-    parsed = new URL(value);
-  } catch {
-    throw new Error(`${label} must be a valid PostgreSQL URL`);
-  }
-  if (!/^postgres(?:ql)?:$/.test(parsed.protocol)) {
-    throw new Error(`${label} must use PostgreSQL`);
-  }
+  const parsed = parseExactPostgresUrl(value, label);
+  const { username } = assertExplicitPostgresConnectionAuthority(parsed, label);
+  const databaseName = parseCanonicalPostgresDatabaseName(parsed, label);
+  assertReviewedPostgresConnectionParameters(parsed, label);
   const parts = parsed.hostname.toLowerCase().split(".");
   const endpointLabel = parts[0] ?? "";
   const pooled = endpointLabel.endsWith("-pooler");
@@ -40,9 +43,7 @@ function parseNeonIdentity(value, label) {
     throw new Error(`${label} must identify a Neon endpoint`);
   }
   const region = parts.slice(1, -2).join(".");
-  const databaseName = decodeURIComponent(parsed.pathname.slice(1));
-  const username = decodeURIComponent(parsed.username);
-  if (!region || !databaseName || databaseName.includes("/") || !username) {
+  if (!region) {
     throw new Error(`${label} has an invalid Neon database identity`);
   }
   return {
@@ -75,6 +76,7 @@ export function parseCanarySeedConfig(env = process.env) {
       `SAVED_SEARCH_RLS_CANARY_SEED_CONFIRM=${CANARY_SEED_CONFIRMATION} is required`,
     );
   }
+  assertDeterministicPostgresEnvironment(env, "SavedSearch RLS canary seed");
   const runtimeDatabaseUrl = required(
     env.SAVED_SEARCH_RLS_CANARY_SEED_DATABASE_URL,
     "SAVED_SEARCH_RLS_CANARY_SEED_DATABASE_URL",
@@ -144,12 +146,14 @@ export function parseCanarySeedConfig(env = process.env) {
 }
 
 function client(connectionString) {
+  const parsed = new URL(connectionString);
   return new Client({
     application_name: "grainline-saved-search-rls-canary-seed",
     connectionString,
     connectionTimeoutMillis: CONNECTION_TIMEOUT_MS,
     query_timeout: QUERY_TIMEOUT_MS,
     statement_timeout: STATEMENT_TIMEOUT_MS,
+    ...postgresChannelBindingClientOptions(parsed),
   });
 }
 

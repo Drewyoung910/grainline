@@ -5,7 +5,13 @@ import { pathToFileURL } from "node:url";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
-import { assertReviewedPostgresConnectionParameters } from "./postgres-url-safety.mjs";
+import {
+  assertDeterministicPostgresEnvironment,
+  assertExplicitPostgresConnectionAuthority,
+  assertReviewedPostgresConnectionParameters,
+  parseCanonicalPostgresDatabaseName,
+  postgresChannelBindingClientOptions,
+} from "./postgres-url-safety.mjs";
 
 const { Client, Pool } = pg;
 
@@ -133,6 +139,11 @@ function assertRuntimeUrlDoesNotPreseedUserContext(parsed) {
 }
 
 function validateDatabaseUrl(value, env) {
+  if (typeof value !== "string" || value.length === 0 || value !== value.trim()) {
+    throw new Error(
+      "RLS_CONTEXT_GATE_DATABASE_URL must be a non-empty PostgreSQL URL without surrounding whitespace",
+    );
+  }
   let parsed;
   try {
     parsed = new URL(value);
@@ -142,6 +153,14 @@ function validateDatabaseUrl(value, env) {
   if (!/^postgres(?:ql)?:$/.test(parsed.protocol)) {
     throw new Error("RLS_CONTEXT_GATE_DATABASE_URL must use the postgres/postgresql protocol");
   }
+  const { username } = assertExplicitPostgresConnectionAuthority(
+    parsed,
+    "RLS_CONTEXT_GATE_DATABASE_URL",
+  );
+  const databaseName = parseCanonicalPostgresDatabaseName(
+    parsed,
+    "RLS_CONTEXT_GATE_DATABASE_URL",
+  );
   assertRuntimeUrlDoesNotPreseedUserContext(parsed);
   assertReviewedPostgresConnectionParameters(
     parsed,
@@ -152,7 +171,7 @@ function validateDatabaseUrl(value, env) {
       "RLS_CONTEXT_GATE_DATABASE_URL must be the pooled runtime endpoint; set RLS_CONTEXT_GATE_ALLOW_NON_POOLER=1 only for non-acceptance development checks",
     );
   }
-  return parsed;
+  return Object.freeze({ databaseName, parsed, username });
 }
 
 function parseExpectedDatabaseName(value) {
@@ -171,16 +190,14 @@ function parseExpectedNeonEndpointId(value) {
   );
 }
 
-function neonDatabaseIdentity(databaseUrl) {
+function neonDatabaseIdentity(databaseUrl, label = "database URL") {
   const parsed = new URL(databaseUrl);
   const match = parsed.hostname.toLowerCase().match(
     /^(ep-[a-z0-9-]+?)(-pooler)?\.([a-z0-9-]+)\.([a-z0-9-]+)\.neon\.tech$/,
   );
   if (!match) return null;
-  const pathSegments = parsed.pathname.split("/").filter(Boolean);
-  if (pathSegments.length !== 1) return null;
   return {
-    databaseName: decodeURIComponent(pathSegments[0]),
+    databaseName: parseCanonicalPostgresDatabaseName(parsed, label),
     endpointId: match[1],
     pooled: Boolean(match[2]),
     region: `${match[3]}.${match[4]}`,
@@ -289,9 +306,13 @@ export function parseGateConfig(env = process.env) {
   if (env.RLS_CONTEXT_GATE_CONFIRM !== CONFIRMATION_VALUE) {
     throw new Error(`RLS_CONTEXT_GATE_CONFIRM=${CONFIRMATION_VALUE} is required before running the staging gate`);
   }
+  assertDeterministicPostgresEnvironment(env, "RLS context gate");
 
   const databaseUrl = required(env.RLS_CONTEXT_GATE_DATABASE_URL, "RLS_CONTEXT_GATE_DATABASE_URL");
-  const parsedDatabaseUrl = validateDatabaseUrl(databaseUrl, env);
+  const {
+    parsed: parsedDatabaseUrl,
+    username: runtimeDatabaseUsername,
+  } = validateDatabaseUrl(databaseUrl, env);
 
   const localityConfirmation = parseLocalityConfirmation(env);
   const expectedExecutionRegion = parseRegion(
@@ -364,6 +385,11 @@ export function parseGateConfig(env = process.env) {
     required(env.RLS_CONTEXT_GATE_RUNTIME_ROLE, "RLS_CONTEXT_GATE_RUNTIME_ROLE"),
     "RLS_CONTEXT_GATE_RUNTIME_ROLE",
   );
+  if (runtimeDatabaseUsername !== runtimeRole) {
+    throw new Error(
+      "RLS_CONTEXT_GATE_DATABASE_URL username must match RLS_CONTEXT_GATE_RUNTIME_ROLE",
+    );
+  }
   const schemaName = assertSafeIdentifier(env.RLS_CONTEXT_GATE_SCHEMA ?? DEFAULT_SCHEMA, "RLS_CONTEXT_GATE_SCHEMA");
   const tableName = assertSafeIdentifier(env.RLS_CONTEXT_GATE_TABLE ?? DEFAULT_TABLE, "RLS_CONTEXT_GATE_TABLE");
   const runClaimTableName = assertSafeIdentifier(
@@ -434,6 +460,7 @@ export function parseGateConfig(env = process.env) {
     );
   }
   const adminDatabaseUrl = env.RLS_CONTEXT_GATE_ADMIN_DATABASE_URL;
+  let adminDatabaseUsername;
   if (prepare && !adminDatabaseUrl) {
     throw new Error("RLS_CONTEXT_GATE_ADMIN_DATABASE_URL is required when RLS_CONTEXT_GATE_PREPARE=1");
   }
@@ -444,6 +471,15 @@ export function parseGateConfig(env = process.env) {
     throw new Error("RLS_CONTEXT_GATE_ADMIN_DATABASE_URL is required when RLS_CONTEXT_GATE_TEARDOWN_RPC_PROBE=1");
   }
   if (adminDatabaseUrl) {
+    if (
+      typeof adminDatabaseUrl !== "string"
+      || adminDatabaseUrl.length === 0
+      || adminDatabaseUrl !== adminDatabaseUrl.trim()
+    ) {
+      throw new Error(
+        "RLS_CONTEXT_GATE_ADMIN_DATABASE_URL must be a non-empty PostgreSQL URL without surrounding whitespace",
+      );
+    }
     let parsedAdminDatabaseUrl;
     try {
       parsedAdminDatabaseUrl = new URL(adminDatabaseUrl);
@@ -455,6 +491,15 @@ export function parseGateConfig(env = process.env) {
         "RLS_CONTEXT_GATE_ADMIN_DATABASE_URL must use the postgres/postgresql protocol",
       );
     }
+    const adminAuthority = assertExplicitPostgresConnectionAuthority(
+      parsedAdminDatabaseUrl,
+      "RLS_CONTEXT_GATE_ADMIN_DATABASE_URL",
+    );
+    adminDatabaseUsername = adminAuthority.username;
+    parseCanonicalPostgresDatabaseName(
+      parsedAdminDatabaseUrl,
+      "RLS_CONTEXT_GATE_ADMIN_DATABASE_URL",
+    );
     assertReviewedPostgresConnectionParameters(
       parsedAdminDatabaseUrl,
       "RLS_CONTEXT_GATE_ADMIN_DATABASE_URL",
@@ -489,6 +534,7 @@ export function parseGateConfig(env = process.env) {
 
   return {
     adminDatabaseUrl,
+    adminDatabaseUsername,
     burstConcurrency,
     connectionTimeoutMs,
     databaseUrl,
@@ -522,6 +568,22 @@ export function parseGateConfig(env = process.env) {
     userB,
     warmupRequests,
   };
+}
+
+export function assertReviewedAdminConnectionIdentity(row, config, label) {
+  if (!row || typeof row !== "object") {
+    throw new Error(`${label} connection identity could not be read`);
+  }
+  if (
+    !config.adminDatabaseUsername
+    || row.current_user_name !== config.adminDatabaseUsername
+    || row.session_user_name !== config.adminDatabaseUsername
+    || row.database_name !== config.expectedDatabaseName
+  ) {
+    throw new Error(
+      `${label} connection does not match the reviewed admin URL identity and database`,
+    );
+  }
 }
 
 function sanitizedDatabaseHost(databaseUrl) {
@@ -634,6 +696,7 @@ function writeEvidencePayload(config, payload) {
 
 function createClient(connectionString, config) {
   return new Client({
+    ...postgresChannelBindingClientOptions(new URL(connectionString)),
     application_name: "grainline-rls-context-gate",
     connectionString,
     connectionTimeoutMillis: config.connectionTimeoutMs,
@@ -644,6 +707,7 @@ function createClient(connectionString, config) {
 
 function createPool(config, { max, maxUses } = {}) {
   const poolConfig = {
+    ...postgresChannelBindingClientOptions(new URL(config.databaseUrl)),
     application_name: "grainline-rls-context-gate",
     connectionString: config.databaseUrl,
     connectionTimeoutMillis: config.connectionTimeoutMs,
@@ -682,15 +746,12 @@ export async function prepareCanary(config) {
     const roleResult = await client.query(
       "SELECT current_user AS current_user_name, session_user AS session_user_name, current_database() AS database_name",
     );
+    assertReviewedAdminConnectionIdentity(
+      roleResult.rows[0],
+      config,
+      "RLS_CONTEXT_GATE_ADMIN_DATABASE_URL",
+    );
     const currentUser = roleResult.rows[0]?.current_user_name;
-    if (currentUser === config.runtimeRole) {
-      throw new Error("RLS_CONTEXT_GATE_ADMIN_DATABASE_URL must not authenticate as the runtime role");
-    }
-    if (roleResult.rows[0]?.database_name !== config.expectedDatabaseName) {
-      throw new Error(
-        "RLS_CONTEXT_GATE_ADMIN_DATABASE_URL current database does not match the reviewed staging database",
-      );
-    }
 
     const tableRef = buildTableRef(config);
     const rpcFunctionRef = buildRpcFunctionRef(config);
@@ -806,17 +867,14 @@ export async function teardownRpcCanary(config) {
   let inTransaction = false;
   try {
     const roleResult = await client.query(
-      "SELECT current_user AS current_user_name, current_database() AS database_name",
+      "SELECT current_user AS current_user_name, session_user AS session_user_name, current_database() AS database_name",
     );
     const currentUser = roleResult.rows[0]?.current_user_name;
-    if (currentUser === config.runtimeRole) {
-      throw new Error("RPC canary teardown must not authenticate as the runtime role");
-    }
-    if (roleResult.rows[0]?.database_name !== config.expectedDatabaseName) {
-      throw new Error(
-        "RPC canary teardown current database does not match the reviewed staging database",
-      );
-    }
+    assertReviewedAdminConnectionIdentity(
+      roleResult.rows[0],
+      config,
+      "RPC canary teardown",
+    );
     await client.query("BEGIN");
     inTransaction = true;
     await client.query(`DROP FUNCTION IF EXISTS ${buildRpcFunctionSignature(config)}`);
@@ -1582,24 +1640,49 @@ async function runPrismaWorkload(prisma, config, { concurrency, label, mode, req
   return summarizeWorkload(label, samples, { poolTimingAvailable: false });
 }
 
-async function runRollbackDisableProbe(config) {
+export async function restoreForcedRlsState(client, config) {
   const tableRef = buildTableRef(config);
-  const admin = createClient(config.adminDatabaseUrl, config);
+  await client.query(`ALTER TABLE ${tableRef} ENABLE ROW LEVEL SECURITY`);
+  await client.query(`ALTER TABLE ${tableRef} FORCE ROW LEVEL SECURITY`);
+  const restored = await client.query(
+    `SELECT c.relrowsecurity AS rls_enabled,
+            c.relforcerowsecurity AS rls_forced
+       FROM pg_class AS c
+       JOIN pg_namespace AS n ON n.oid = c.relnamespace
+      WHERE n.nspname = $1
+        AND c.relname = $2
+        AND c.relkind IN ('r', 'p')`,
+    [config.schemaName, config.tableName],
+  );
+  if (
+    restored.rowCount !== 1
+    || restored.rows[0]?.rls_enabled !== true
+    || restored.rows[0]?.rls_forced !== true
+  ) {
+    throw new Error(
+      "rollback probe failed to restore and verify ENABLE/FORCE ROW LEVEL SECURITY",
+    );
+  }
+}
+
+export async function runRollbackDisableProbe(config, { adminClient } = {}) {
+  const tableRef = buildTableRef(config);
+  const admin = adminClient ?? createClient(config.adminDatabaseUrl, config);
   await admin.connect();
   let adminInTransaction = false;
+  let adminIdentityVerified = false;
+  let restoreRequired = false;
   try {
     const issues = [];
     const connection = await admin.query(
-      "SELECT current_user AS current_user_name, current_database() AS database_name",
+      "SELECT current_user AS current_user_name, session_user AS session_user_name, current_database() AS database_name",
     );
-    if (
-      connection.rows[0]?.current_user_name === config.runtimeRole
-      || connection.rows[0]?.database_name !== config.expectedDatabaseName
-    ) {
-      throw new Error(
-        "rollback probe connection does not match the reviewed owner role and database",
-      );
-    }
+    assertReviewedAdminConnectionIdentity(
+      connection.rows[0],
+      config,
+      "rollback probe",
+    );
+    adminIdentityVerified = true;
     await admin.query("BEGIN");
     adminInTransaction = true;
     await admin.query(`DROP FUNCTION ${buildRpcFunctionSignature(config)}`);
@@ -1620,6 +1703,10 @@ async function runRollbackDisableProbe(config) {
       issues.push("rollback probe: synthetic RPC function was not restored after owner transaction rollback");
     }
 
+    // Set this before issuing DISABLE: a transport error can leave the server's
+    // outcome uncertain, so every attempted disable must take the verified
+    // restoration path.
+    restoreRequired = true;
     await admin.query(`ALTER TABLE ${tableRef} DISABLE ROW LEVEL SECURITY`);
     const probe = createPrismaProbe(config, { max: 1 });
     try {
@@ -1644,10 +1731,37 @@ async function runRollbackDisableProbe(config) {
       await disconnectPrismaProbe(probe);
     }
   } finally {
-    if (adminInTransaction) await admin.query("ROLLBACK").catch(() => {});
-    await admin.query(`ALTER TABLE ${tableRef} ENABLE ROW LEVEL SECURITY`).catch(() => {});
-    await admin.query(`ALTER TABLE ${tableRef} FORCE ROW LEVEL SECURITY`).catch(() => {});
-    await admin.end();
+    let cleanupError = null;
+    if (adminInTransaction) {
+      try {
+        await admin.query("ROLLBACK");
+      } catch (error) {
+        cleanupError = error;
+      }
+    }
+    if (adminIdentityVerified && restoreRequired) {
+      try {
+        await restoreForcedRlsState(admin, config);
+      } catch (error) {
+        cleanupError = cleanupError
+          ? new AggregateError(
+              [cleanupError, error],
+              "rollback probe transaction cleanup and RLS restoration both failed",
+            )
+          : error;
+      }
+    }
+    try {
+      await admin.end();
+    } catch (error) {
+      cleanupError = cleanupError
+        ? new AggregateError(
+            [cleanupError, error],
+            "rollback probe cleanup failed",
+          )
+        : error;
+    }
+    if (cleanupError) throw cleanupError;
   }
 }
 

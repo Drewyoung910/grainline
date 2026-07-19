@@ -1,12 +1,16 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, it } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
   buildEvidencePayload,
   cronInventoryFromVercel,
   parseConfig,
 } from "../scripts/sentry-cron-alert-proof.mjs";
+
+const REPOSITORY_ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -71,7 +75,7 @@ describe("Sentry cron alert proof harness", () => {
       "webhook failure spike",
       "CSP",
     ]);
-    assert.ok(config.evidencePath.endsWith("/grainline/sentry.json"));
+    assert.equal(config.evidencePath, resolve(REPOSITORY_ROOT, "sentry.json"));
   });
 
   it("derives the expected Sentry monitor inventory from every Vercel cron", () => {
