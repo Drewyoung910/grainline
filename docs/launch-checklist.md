@@ -114,7 +114,9 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
   Release 0 artifact/cherry-pick must exclude the later RLS policy migration,
   temporary runner route, exact middleware exemption, and runner-only test.
   Release-0 CI must assert those temporary acceptance artifacts are absent and
-  the policy migration is absent. On that clean artifact only, set
+  the policy migration is absent. The temporary provider-proof branch is
+  intentionally not mergeable and must fail this clean-artifact CI step while
+  the runner exists. On the later clean Release-0 artifact only, set
   `SAVED_SEARCH_RLS_DEPLOY_PHASE=release-0`; the production deploy guard requires
   both RPC migrations present and the RLS migration absent before
   `prisma migrate deploy` can run.

@@ -926,7 +926,9 @@ Release order:
   runtime role. Because `vercel.json` runs `prisma migrate deploy`, build this
   release from a clean scoped commit/cherry-pick set that excludes the later
   phase-A RLS policy migration. Release-0 CI must assert that migration is
-  absent, and migration status must be verified before traffic. Its production
+  absent, and migration status must be verified before traffic. The temporary
+  provider-proof branch intentionally fails the same clean-artifact CI check
+  while its runner remains and must never be merged. Its production
   build uses `SAVED_SEARCH_RLS_DEPLOY_PHASE=release-0`; the fail-closed deploy
   guard requires both pre-RLS RPC migrations present and the phase-A migration
   absent. The production artifact must also exclude the temporary runner route,

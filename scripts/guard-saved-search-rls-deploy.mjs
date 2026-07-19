@@ -563,26 +563,35 @@ export function validateSavedSearchRlsDeployShape({
   );
 }
 
-function runDeployGuard() {
-  assertGuardedDeployEnvironment(process.env);
-  const migrationDirectory = path.resolve("prisma/migrations");
-  const prismaConfigPath = path.resolve(PRISMA_CONFIG_PATH);
-  const middlewarePath = path.resolve("src/middleware.ts");
+export function validateCurrentSavedSearchRlsDeployShape({
+  phase,
+  rootDirectory = process.cwd(),
+} = {}) {
+  const migrationDirectory = path.resolve(rootDirectory, "prisma/migrations");
+  const prismaConfigPath = path.resolve(rootDirectory, PRISMA_CONFIG_PATH);
+  const middlewarePath = path.resolve(rootDirectory, "src/middleware.ts");
   const migrationNames = readdirSync(migrationDirectory, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name);
 
-  const result = validateSavedSearchRlsDeployShape({
-    phase: process.env[SAVED_SEARCH_RLS_DEPLOY_PHASE_ENV],
+  return validateSavedSearchRlsDeployShape({
+    phase,
     migrationNames,
     migrationTreeSha256: computeMigrationTreeSha256(
       migrationDirectory,
       migrationNames,
     ),
     prismaConfigSha256: computeFileSha256(prismaConfigPath),
-    contextGateRouteExists: contextGateRouteArtifactExists(),
-    contextGateRunnerTestExists: contextGateRunnerTestExists(),
+    contextGateRouteExists: contextGateRouteArtifactExists(rootDirectory),
+    contextGateRunnerTestExists: contextGateRunnerTestExists(rootDirectory),
     middlewareSource: readFileSync(middlewarePath, "utf8"),
+  });
+}
+
+function runDeployGuard() {
+  assertGuardedDeployEnvironment(process.env);
+  const result = validateCurrentSavedSearchRlsDeployShape({
+    phase: process.env[SAVED_SEARCH_RLS_DEPLOY_PHASE_ENV],
   });
 
   process.stdout.write(

@@ -419,7 +419,9 @@ Production migration rules:
   `SavedSearch` RLS policy migration, temporary runner route, exact middleware
   exemption, and runner-only test. Release-0 CI must assert those are absent; do
   not let the app deploy enable RLS or retain Preview-only gate code as an
-  accidental side effect.
+  accidental side effect. The temporary provider-proof branch must fail that
+  clean-artifact CI step while the runner remains and is never mergeable; only
+  its later cleaned Release-0 derivative may pass and promote.
   Production builds run `scripts/guard-saved-search-rls-deploy.mjs` before
   `prisma migrate deploy`, then run `audit:db-grants` before the application
   build. Before any migration runs, its source guard requires both

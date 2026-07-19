@@ -459,6 +459,12 @@ export function parseGateConfig(env = process.env) {
       "RLS_CONTEXT_GATE_TEARDOWN_RPC_PROBE cannot be combined with RLS_CONTEXT_GATE_PREPARE or RLS_CONTEXT_GATE_ROLLBACK_PROBE",
     );
   }
+  const evidencePath = optionalEvidencePath(env);
+  if (evidencePath && !prepare && !rollbackProbe && !teardownRpcProbe) {
+    throw new Error(
+      "RLS_CONTEXT_GATE_EVIDENCE_PATH is reserved for owner-only prepare, rollback, or teardown operations",
+    );
+  }
   const adminDatabaseUrl = env.RLS_CONTEXT_GATE_ADMIN_DATABASE_URL;
   let adminDatabaseUsername;
   if (prepare && !adminDatabaseUrl) {
@@ -538,7 +544,7 @@ export function parseGateConfig(env = process.env) {
     burstConcurrency,
     connectionTimeoutMs,
     databaseUrl,
-    evidencePath: optionalEvidencePath(env),
+    evidencePath,
     expectedDatabaseEndpointId,
     expectedDatabaseName,
     expectedDatabaseRegion,
