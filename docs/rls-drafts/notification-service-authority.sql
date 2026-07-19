@@ -49,6 +49,8 @@ BEGIN
     OR pg_catalog.char_length(p_link) > 2048
     OR pg_catalog.left(p_link, 1) <> '/'
     OR pg_catalog.left(p_link, 2) = '//'
+    OR pg_catalog.strpos(p_link, pg_catalog.chr(92)) > 0
+    OR p_link ~ '[[:cntrl:]]'
   ) THEN
     RAISE EXCEPTION 'notification link is invalid' USING ERRCODE = '22023';
   END IF;
@@ -68,10 +70,24 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'notification source metadata is invalid' USING ERRCODE = '22023';
   END IF;
+  IF (p_source_type = 'blog_comment'
+      AND p_type NOT IN ('NEW_BLOG_COMMENT', 'BLOG_COMMENT_REPLY'))
+     OR (p_source_type = 'followed_maker_new_blog'
+         AND p_type <> 'FOLLOWED_MAKER_NEW_BLOG')
+     OR (p_source_type = 'followed_maker_new_listing'
+         AND p_type <> 'FOLLOWED_MAKER_NEW_LISTING')
+     OR (p_source_type = 'seller_broadcast'
+         AND p_type <> 'SELLER_BROADCAST') THEN
+    RAISE EXCEPTION 'notification source does not match notification type' USING ERRCODE = '22023';
+  END IF;
   IF p_related_user_id IS NOT NULL AND (
     p_related_user_id = '' OR pg_catalog.char_length(p_related_user_id) > 191
   ) THEN
     RAISE EXCEPTION 'notification related user is invalid' USING ERRCODE = '22023';
+  END IF;
+  IF p_source_type IS NOT NULL
+     AND (p_related_user_id IS NULL OR p_related_user_id = p_user_id) THEN
+    RAISE EXCEPTION 'notification source requires a distinct related user' USING ERRCODE = '22023';
   END IF;
   IF p_dedup_key IS NULL OR p_dedup_key !~ '^[0-9a-f]{64}$' THEN
     RAISE EXCEPTION 'notification dedup key is invalid' USING ERRCODE = '22023';
@@ -83,7 +99,7 @@ BEGIN
    WHERE recipient.id = p_user_id
      AND recipient.banned = false
      AND recipient."deletedAt" IS NULL
-   FOR KEY SHARE;
+   FOR SHARE;
   IF NOT FOUND THEN
     RETURN NULL;
   END IF;
@@ -97,10 +113,100 @@ BEGIN
      WHERE related_user.id = p_related_user_id
        AND related_user.banned = false
        AND related_user."deletedAt" IS NULL
-     FOR KEY SHARE;
+     FOR SHARE;
     IF NOT FOUND THEN
       RETURN NULL;
     END IF;
+  END IF;
+
+  -- Source-tagged operations must prove the domain object, actor, recipient,
+  -- and public/follower relationship in the same owner-backed operation. The
+  -- row locks serialize source deletion or visibility changes with creation.
+  IF p_source_type = 'blog_comment' THEN
+    PERFORM 1
+      FROM public."BlogComment" AS source_comment
+      JOIN public."BlogPost" AS source_post
+        ON source_post.id = source_comment."postId"
+      LEFT JOIN public."BlogComment" AS parent_comment
+        ON parent_comment.id = source_comment."parentId"
+     WHERE source_comment.id = p_source_id
+       AND source_comment.approved = true
+       AND source_comment."authorId" = p_related_user_id
+       AND (
+         (p_type = 'BLOG_COMMENT_REPLY'
+          AND source_comment."parentId" IS NOT NULL
+          AND parent_comment."authorId" = p_user_id)
+         OR
+         (p_type = 'NEW_BLOG_COMMENT'
+          AND source_comment."parentId" IS NULL
+          AND source_post."authorId" = p_user_id)
+       )
+     FOR SHARE OF source_comment, source_post;
+  ELSIF p_source_type = 'followed_maker_new_listing' THEN
+    PERFORM 1
+      FROM public."Listing" AS source_listing
+      JOIN public."SellerProfile" AS source_seller
+        ON source_seller.id = source_listing."sellerId"
+      JOIN public."User" AS source_seller_user
+        ON source_seller_user.id = source_seller."userId"
+      JOIN public."Follow" AS source_follow
+        ON source_follow."sellerProfileId" = source_seller.id
+       AND source_follow."followerId" = p_user_id
+     WHERE source_listing.id = p_source_id
+       AND source_listing.status = 'ACTIVE'
+       AND source_listing."isPrivate" = false
+       AND source_seller."userId" = p_related_user_id
+       AND source_seller."chargesEnabled" = true
+       AND source_seller."vacationMode" = false
+       AND (source_seller."stripeAccountVersion" IS NULL
+            OR source_seller."stripeAccountVersion" = 'v2')
+       AND source_seller_user.banned = false
+       AND source_seller_user."deletedAt" IS NULL
+     FOR SHARE OF source_listing, source_seller, source_seller_user, source_follow;
+  ELSIF p_source_type = 'followed_maker_new_blog' THEN
+    PERFORM 1
+      FROM public."BlogPost" AS source_post
+      JOIN public."SellerProfile" AS source_seller
+        ON source_seller.id = source_post."sellerProfileId"
+      JOIN public."User" AS source_seller_user
+        ON source_seller_user.id = source_seller."userId"
+      JOIN public."Follow" AS source_follow
+        ON source_follow."sellerProfileId" = source_seller.id
+       AND source_follow."followerId" = p_user_id
+     WHERE source_post.id = p_source_id
+       AND source_post.status = 'PUBLISHED'
+       AND source_post."publishedAt" IS NOT NULL
+       AND source_post."publishedAt" <= pg_catalog.clock_timestamp()
+       AND source_seller."userId" = p_related_user_id
+       AND source_seller."chargesEnabled" = true
+       AND source_seller."vacationMode" = false
+       AND (source_seller."stripeAccountVersion" IS NULL
+            OR source_seller."stripeAccountVersion" = 'v2')
+       AND source_seller_user.banned = false
+       AND source_seller_user."deletedAt" IS NULL
+     FOR SHARE OF source_post, source_seller, source_seller_user, source_follow;
+  ELSIF p_source_type = 'seller_broadcast' THEN
+    PERFORM 1
+      FROM public."SellerBroadcast" AS source_broadcast
+      JOIN public."SellerProfile" AS source_seller
+        ON source_seller.id = source_broadcast."sellerProfileId"
+      JOIN public."User" AS source_seller_user
+        ON source_seller_user.id = source_seller."userId"
+      JOIN public."Follow" AS source_follow
+        ON source_follow."sellerProfileId" = source_seller.id
+       AND source_follow."followerId" = p_user_id
+     WHERE source_broadcast.id = p_source_id
+       AND source_seller."userId" = p_related_user_id
+       AND source_seller."chargesEnabled" = true
+       AND source_seller."vacationMode" = false
+       AND (source_seller."stripeAccountVersion" IS NULL
+            OR source_seller."stripeAccountVersion" = 'v2')
+       AND source_seller_user.banned = false
+       AND source_seller_user."deletedAt" IS NULL
+     FOR SHARE OF source_broadcast, source_seller, source_seller_user, source_follow;
+  END IF;
+  IF p_source_type IS NOT NULL AND NOT FOUND THEN
+    RETURN NULL;
   END IF;
 
   INSERT INTO public."Notification" (
@@ -167,7 +273,10 @@ BEGIN
     RAISE EXCEPTION 'account notification cleanup context mismatch' USING ERRCODE = '42501';
   END IF;
 
-  PERFORM 1 FROM public."User" AS account_user WHERE account_user.id = p_user_id FOR KEY SHARE;
+  -- FOR UPDATE serializes both recipient and related-user creation locks with
+  -- lifecycle cleanup, preventing a notification from being inserted after
+  -- this delete but before the account transaction marks the user deleted.
+  PERFORM 1 FROM public."User" AS account_user WHERE account_user.id = p_user_id FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'account notification cleanup user is missing' USING ERRCODE = '22023';
   END IF;
@@ -203,9 +312,14 @@ BEGIN
      AND staff_user.role::text IN ('EMPLOYEE', 'ADMIN')
      AND staff_user.banned = false
      AND staff_user."deletedAt" IS NULL
-   FOR KEY SHARE;
+   FOR SHARE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'blog comment notification cleanup requires staff context' USING ERRCODE = '42501';
+  END IF;
+  PERFORM 1 FROM public."BlogComment" AS source_comment WHERE source_comment.id = p_comment_id;
+  IF FOUND THEN
+    RAISE EXCEPTION 'blog comment notification cleanup requires a deleted source'
+      USING ERRCODE = '55000';
   END IF;
 
   DELETE FROM public."Notification" AS notification
@@ -239,9 +353,14 @@ BEGIN
      AND staff_user.role::text IN ('EMPLOYEE', 'ADMIN')
      AND staff_user.banned = false
      AND staff_user."deletedAt" IS NULL
-   FOR KEY SHARE;
+   FOR SHARE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'seller broadcast notification cleanup requires staff context' USING ERRCODE = '42501';
+  END IF;
+  PERFORM 1 FROM public."SellerBroadcast" AS source_broadcast WHERE source_broadcast.id = p_broadcast_id;
+  IF FOUND THEN
+    RAISE EXCEPTION 'seller broadcast notification cleanup requires a deleted source'
+      USING ERRCODE = '55000';
   END IF;
 
   DELETE FROM public."Notification" AS notification

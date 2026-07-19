@@ -115,6 +115,15 @@ by an equally narrow reviewed operation. Application-asserted `app.user_id` is
 not database-authenticated identity and a compromised runtime can forge it;
 fixed-purpose constraints limit that residual without eliminating it.
 
+Extra-high review does not yet accept the shared create function as final. The
+five source-tagged fanout paths can prove source, type, actor, recipient, and
+follower relationships inside the database operation, but 46 source-less paths
+still expose fixed-column creation for any enum type and active recipient. This
+is much narrower than arbitrary SQL or a BYPASS runtime role, but it remains a
+meaningful service capability. Classify those type families and add database
+predicates or split functions where they materially reduce authority before
+activation; retain provider performance proof for the source-validation joins.
+
 ### Homepage discovery hierarchy decision (2026-07-15)
 
 Keep the local-maker map directly beneath the hero and floating marketplace stats. It is Grainline's clearest marketplace differentiator, but it should remain a compact discovery band so inventory appears after a short scroll rather than becoming a second full-screen gate.

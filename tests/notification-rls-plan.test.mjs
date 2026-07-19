@@ -59,6 +59,8 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(plan, /No Notification[\s\S]{0,140}merge, deploy, touch a live database/);
     assert.match(plan, /one-statement `SECURITY INVOKER` recipient RPCs/);
     assert.match(plan, /Recipient RPCs are distinct from cross-user creation\/cleanup service\s+authority/);
+    assert.match(plan, /46 of the 51 creation callsites do not\s+yet carry a lifecycle source/);
+    assert.match(plan, /type-specific database\s+predicates or split service functions/);
     assert.match(strategy, /isolated implementation drafts/);
     assert.match(strategy, /before any Bucket B merge, deployment, or\s+live-database activation/);
     assert.match(strategy, /before merging,\s+deploying, or activating Notification\/Bucket B/);
@@ -66,6 +68,8 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(strategy, /six fixed-purpose owner-backed/);
     assert.match(strategy, /`SECURITY INVOKER` recipient RPCs/);
     assert.match(strategy, /must not be conflated with recipient RPCs/);
+    assert.match(strategy, /46 source-less paths/);
+    assert.match(strategy, /add database\s+predicates or split functions/);
   });
 
   it("starts B0 with paired source metadata and legacy-only fallbacks", () => {
@@ -147,10 +151,21 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.equal((sql.match(/^SET search_path = pg_catalog$/gm) ?? []).length, 6);
     assert.equal((sql.match(/REVOKE ALL ON FUNCTION public\.grainline_notification_/g) ?? []).length, 6);
     assert.equal((sql.match(/FROM PUBLIC, grainline_app_runtime/g) ?? []).length, 6);
-    assert.match(sql, /recipient\.banned = false[\s\S]{0,100}recipient\."deletedAt" IS NULL[\s\S]{0,80}FOR KEY SHARE/);
+    assert.match(sql, /recipient\.banned = false[\s\S]{0,100}recipient\."deletedAt" IS NULL[\s\S]{0,80}FOR SHARE/);
     assert.match(sql, /recipient_preferences -> \(p_type::text\) = 'false'::jsonb/);
+    assert.match(sql, /pg_catalog\.strpos\(p_link, pg_catalog\.chr\(92\)\) > 0/);
+    assert.match(sql, /p_link ~ '\[\[:cntrl:\]\]'/);
     assert.match(sql, /notification source metadata must be paired/);
-    assert.match(sql, /p_related_user_id[\s\S]{0,1000}related_user\.banned = false[\s\S]{0,100}FOR KEY SHARE/);
+    assert.match(sql, /notification source does not match notification type/);
+    assert.match(sql, /notification source requires a distinct related user/);
+    assert.match(sql, /p_related_user_id[\s\S]{0,1000}related_user\.banned = false[\s\S]{0,100}FOR SHARE/);
+    assert.match(sql, /source_comment\."authorId" = p_related_user_id/);
+    assert.match(sql, /parent_comment\."authorId" = p_user_id/);
+    assert.equal((sql.match(/JOIN public\."Follow" AS source_follow/g) ?? []).length, 3);
+    assert.equal((sql.match(/source_seller\."userId" = p_related_user_id/g) ?? []).length, 3);
+    assert.match(sql, /account_user\.id = p_user_id FOR UPDATE/);
+    assert.match(sql, /blog comment notification cleanup requires a deleted source/);
+    assert.match(sql, /seller broadcast notification cleanup requires a deleted source/);
     assert.match(sql, /ON CONFLICT \("userId", "type", "dedupKey"\) DO NOTHING/);
     assert.match(sql, /request_user_id <> p_user_id/);
     assert.equal((sql.match(/requires staff context/g) ?? []).length, 2);
@@ -159,6 +174,7 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.equal((sql.match(/LIMIT 1000/g) ?? []).length, 2);
     assert.match(sql, /REVOKE INSERT, DELETE ON TABLE public\."Notification" FROM grainline_app_runtime/);
     assert.doesNotMatch(sql, /grainline_notification_delete_source/);
+    assert.doesNotMatch(sql, /\bEXECUTE\s+(?:format|p_)/i);
 
     assert.match(serviceAccess, /public\.grainline_notification_create\(/);
     assert.match(serviceAccess, /public\.grainline_notification_delete_for_account\(/);

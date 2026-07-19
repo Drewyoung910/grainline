@@ -29,7 +29,8 @@ Service-authority slice: the application create path now targets only
 `grainline_notification_create` through `notificationServiceAccess.ts`. The
 draft function atomically locks and validates the active recipient, honors the
 in-app preference, validates bounded payload/source/related-user metadata,
-inserts idempotently, and returns only the row id. Separate fixed-purpose draft
+proves source/type/actor/recipient relationships for the five source-tagged
+fanout paths, inserts idempotently, and returns only the row id. Separate fixed-purpose draft
 functions cover account lifecycle deletion, staff blog-comment/broadcast
 cleanup, and fixed 90-day read/365-day unread retention batches. All six are
 owner-backed `SECURITY DEFINER` functions with `search_path=pg_catalog`; runtime
@@ -50,6 +51,25 @@ revokes direct runtime `DELETE`; they must be proven empty, backfilled, expired,
 or replaced by equally narrow service operations before the SQL can go live.
 The SQL remains outside `prisma/migrations` at
 `docs/rls-drafts/notification-service-authority.sql` and is not live-tested.
+
+Extra-high static review hardened the draft further: renderer-aligned relative
+link validation rejects backslashes and control characters; recipient, related
+user, source, follower, and staff rows use locks appropriate to the state being
+validated; account cleanup takes a conflicting user-row lock before deleting;
+and staff source cleanup refuses to run until the comment or broadcast was
+deleted in the same transaction. These changes close create-versus-delete races
+and prevent source metadata from being attached to the wrong notification type,
+actor, or recipient.
+
+One authority question remains blocking: 46 of the 51 creation callsites do not
+yet carry a lifecycle source. The shared function therefore still accepts a
+source-less enum type, recipient, title, body, and link. That is fixed-column
+Notification authority, not arbitrary SQL or arbitrary-table authority, but it
+is broader than the final plan should call narrow without a reviewed threat-model
+acceptance. Classify those type families and add type-specific database
+predicates or split service functions where meaningful before activation. The
+four source validation joins also require provider performance evidence before
+promotion.
 
 Experimental recipient-path slice: every centralized owner
 read/count/export/mark-read and low-stock dedup lookup now enters
