@@ -42,7 +42,11 @@ describe("admin audit durability", () => {
     ]) {
       const text = source(path);
       assert.match(text, /logAdminActionOrThrow/, `${path} must use strict audit logging`);
-      assert.match(text, /prisma\.\$transaction\(async \(tx\) => \{[\s\S]*client: tx/s, `${path} must audit inside the mutation transaction`);
+      assert.match(
+        text,
+        /(?:prisma\.\$transaction\(async \(tx\) => \{|withDbUserContext\([^,]+,\s*async \(tx\) => \{)[\s\S]*client: tx/s,
+        `${path} must audit inside the mutation transaction`,
+      );
     }
   });
 });

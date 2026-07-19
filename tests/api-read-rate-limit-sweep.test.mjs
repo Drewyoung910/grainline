@@ -63,9 +63,11 @@ describe("API read route rate-limit sweep", () => {
     assert.match(ownerAccess, /withDbUserContext\(userId, async \(db\) =>/);
     assert.match(ownerAccess, /db\.notification\.findMany/);
 
-    assert.match(cron, /pruneReadNotifications\(readCutoff\)/);
-    assert.match(cron, /pruneUnreadNotifications\(unreadCutoff\)/);
-    assert.match(cron, /DELETE FROM "Notification"/);
+    assert.match(cron, /pruneReadNotifications\(\)/);
+    assert.match(cron, /pruneUnreadNotifications\(\)/);
+    assert.match(cron, /deleteBatch: pruneReadNotificationServiceBatch/);
+    assert.match(cron, /deleteBatch: pruneUnreadNotificationServiceBatch/);
+    assert.doesNotMatch(cron, /DELETE FROM "Notification"/);
   });
 
   it("rate-limits optional-public GET routes before public Prisma work", () => {

@@ -12,6 +12,8 @@ import { truncateText } from "@/lib/sanitize";
 import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
+import { withDbUserContext } from "@/lib/dbUserContext";
+import { deleteBlogCommentNotificationServiceRows } from "@/lib/notificationServiceAccess";
 
 async function requireAdmin() {
   const { userId } = await auth();
@@ -110,7 +112,7 @@ async function approveComment(commentId: string) {
 async function deleteComment(commentId: string) {
   "use server";
   const me = await requireAdmin();
-  await prisma.$transaction(async (tx) => {
+  await withDbUserContext(me.id, async (tx) => {
     const deleted = await tx.blogComment.delete({
       where: { id: commentId },
       select: {
@@ -128,25 +130,20 @@ async function deleteComment(commentId: string) {
     if (recipientId && recipientId !== deleted.authorId) {
       const type = deleted.parentId ? "BLOG_COMMENT_REPLY" : "NEW_BLOG_COMMENT";
       const body = truncateText(deleted.body, 60);
+      await deleteBlogCommentNotificationServiceRows(tx, deleted.id);
+      // Temporary legacy fallback: rows created before source metadata existed.
+      // Remove before Notification INSERT/DELETE revocation is activated.
       await tx.notification.deleteMany({
         where: {
+          sourceType: null,
+          sourceId: null,
+          userId: recipientId,
+          type,
+          body,
+          createdAt: { gte: deleted.createdAt },
           OR: [
-            {
-              sourceType: NOTIFICATION_SOURCE_TYPES.BLOG_COMMENT,
-              sourceId: deleted.id,
-            },
-            {
-              sourceType: null,
-              sourceId: null,
-              userId: recipientId,
-              type,
-              body,
-              createdAt: { gte: deleted.createdAt },
-              OR: [
-                { link: `/blog/${deleted.post.slug}#comment-${deleted.id}` },
-                { link: `/blog/${deleted.post.slug}` },
-              ],
-            },
+            { link: `/blog/${deleted.post.slug}#comment-${deleted.id}` },
+            { link: `/blog/${deleted.post.slug}` },
           ],
         },
       });

@@ -41,6 +41,13 @@ compromised runtime could invoke the granted fixed-purpose functions and could
 forge that context. Input, role, age, and source constraints limit that residual
 capability; runtime credential separation remains the separate control against
 owner-credential exfiltration.
+The create path, exact account cleanup, exact admin source cleanup, and retention
+cron are wired to these draft functions in the isolated branch. Admin cleanup
+still retains explicitly marked `sourceType/sourceId IS NULL` legacy fallbacks,
+and account deletion retains broader legacy source/link cleanup and text
+redaction. Those direct fallbacks are an activation blocker because the draft
+revokes direct runtime `DELETE`; they must be proven empty, backfilled, expired,
+or replaced by equally narrow service operations before the SQL can go live.
 The SQL remains outside `prisma/migrations` at
 `docs/rls-drafts/notification-service-authority.sql` and is not live-tested.
 

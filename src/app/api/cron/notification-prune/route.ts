@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
-import { prisma } from "@/lib/db";
 import { verifyCronRequest } from "@/lib/cronAuth";
 import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { releaseStaleRefundLocks } from "@/lib/refundLocks";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 import { pruneEmailOutboxRetention } from "@/lib/emailOutboxRetention";
-import { notificationRetentionCutoffs, NOTIFICATION_RETENTION_BATCH_SIZE, NOTIFICATION_RETENTION_TIME_BUDGET_MS } from "@/lib/notificationRetentionState";
+import { NOTIFICATION_RETENTION_BATCH_SIZE, NOTIFICATION_RETENTION_TIME_BUDGET_MS } from "@/lib/notificationRetentionState";
+import {
+  pruneReadNotificationServiceBatch,
+  pruneUnreadNotificationServiceBatch,
+} from "@/lib/notificationServiceAccess";
 import { pruneClosedSupportRequests } from "@/lib/supportRequestRetention";
 import { pruneWebhookEventRetention } from "@/lib/webhookEventRetention";
 import { runBoundedDeletionBatches } from "@/lib/cronBatchState";
@@ -24,8 +27,6 @@ export async function GET(request: NextRequest) {
     const cronRun = await beginCronRun("notification-prune");
     if (!cronRun.acquired) return NextResponse.json(skippedCronRunResponse(cronRun));
 
-    const { readCutoff, unreadCutoff } = notificationRetentionCutoffs();
-
     try {
       const [
         readPruned,
@@ -35,8 +36,8 @@ export async function GET(request: NextRequest) {
         webhookEventsPruned,
         supportRequestsPruned,
       ] = await Promise.all([
-        pruneReadNotifications(readCutoff),
-        pruneUnreadNotifications(unreadCutoff),
+        pruneReadNotifications(),
+        pruneUnreadNotifications(),
         releaseStaleRefundLocksForPrune(),
         pruneEmailOutboxRetention(),
         pruneWebhookEventRetention(),
@@ -78,38 +79,18 @@ async function releaseStaleRefundLocksForPrune(): Promise<{ count: number; faile
   }
 }
 
-async function pruneReadNotifications(cutoff: Date): Promise<{ count: number; complete: boolean }> {
+async function pruneReadNotifications(): Promise<{ count: number; complete: boolean }> {
   return runBoundedDeletionBatches({
     batchSize: NOTIFICATION_RETENTION_BATCH_SIZE,
     timeBudgetMs: NOTIFICATION_RETENTION_TIME_BUDGET_MS,
-    deleteBatch: async () => prisma.$executeRaw<number>`
-      DELETE FROM "Notification"
-      WHERE id IN (
-        SELECT id
-        FROM "Notification"
-        WHERE "read" = true
-          AND "createdAt" < ${cutoff}
-        ORDER BY "createdAt" ASC
-        LIMIT ${NOTIFICATION_RETENTION_BATCH_SIZE}
-      )
-    `,
+    deleteBatch: pruneReadNotificationServiceBatch,
   });
 }
 
-async function pruneUnreadNotifications(cutoff: Date): Promise<{ count: number; complete: boolean }> {
+async function pruneUnreadNotifications(): Promise<{ count: number; complete: boolean }> {
   return runBoundedDeletionBatches({
     batchSize: NOTIFICATION_RETENTION_BATCH_SIZE,
     timeBudgetMs: NOTIFICATION_RETENTION_TIME_BUDGET_MS,
-    deleteBatch: async () => prisma.$executeRaw<number>`
-      DELETE FROM "Notification"
-      WHERE id IN (
-        SELECT id
-        FROM "Notification"
-        WHERE "read" = false
-          AND "createdAt" < ${cutoff}
-        ORDER BY "createdAt" ASC
-        LIMIT ${NOTIFICATION_RETENTION_BATCH_SIZE}
-      )
-    `,
+    deleteBatch: pruneUnreadNotificationServiceBatch,
   });
 }

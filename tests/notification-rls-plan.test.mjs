@@ -36,7 +36,6 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.deepEqual(directAccess.sort(), [
       "src/app/admin/blog/page.tsx",
       "src/app/admin/broadcasts/page.tsx",
-      "src/app/api/cron/notification-prune/route.ts",
       "src/lib/accountDeletion.ts",
       "src/lib/notificationOwnerAccess.ts",
     ]);
@@ -72,9 +71,10 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(sources, /\{ sourceType: NotificationSourceType; sourceId: string \}/);
     assert.match(sources, /\{ sourceType\?: never; sourceId\?: never \}/);
     assert.match(notifications, /& NotificationSourceFields/);
-    assert.equal((blog.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.BLOG_COMMENT/g) ?? []).length, 3);
+    assert.equal((blog.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.BLOG_COMMENT/g) ?? []).length, 2);
+    assert.match(blog, /deleteBlogCommentNotificationServiceRows\(tx, deleted\.id\)/);
     assert.match(blog, /sourceType: null,\s*sourceId: null/);
-    assert.match(broadcasts, /sourceType: NOTIFICATION_SOURCE_TYPES\.SELLER_BROADCAST/);
+    assert.match(broadcasts, /deleteSellerBroadcastNotificationServiceRows\(tx, broadcast\.id\)/);
     assert.match(broadcasts, /sourceType: null,\s*sourceId: null/);
   });
 
@@ -115,10 +115,7 @@ describe("Bucket B Notification RLS inventory", () => {
     }, 0);
     assert.equal(relatedUserAssignments, 21);
 
-    assert.match(
-      accountDeletion,
-      /OR:\s*\[\s*\{ userId: user\.id \},\s*\{ relatedUserId: user\.id \}/,
-    );
+    assert.match(accountDeletion, /deleteAccountNotificationServiceRows\(tx, user\.id\)/);
     assert.equal((accountDeletion.match(/AND "relatedUserId" IS NULL/g) ?? []).length, 2);
   });
 
@@ -156,6 +153,12 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.doesNotMatch(sql, /grainline_notification_delete_source/);
 
     assert.match(serviceAccess, /public\.grainline_notification_create\(/);
+    assert.match(serviceAccess, /public\.grainline_notification_delete_for_account\(/);
+    assert.match(serviceAccess, /public\.grainline_notification_delete_blog_comment\(/);
+    assert.match(serviceAccess, /public\.grainline_notification_delete_seller_broadcast\(/);
+    assert.match(serviceAccess, /public\.grainline_notification_prune_read_batch\(\)/);
+    assert.match(serviceAccess, /public\.grainline_notification_prune_unread_batch\(\)/);
+    assert.match(serviceAccess, /Pick<DbUserContextTransactionClient, "\$queryRaw">/);
     assert.doesNotMatch(serviceAccess, /prisma\.notification\./);
     assert.match(notifications, /createNotificationServiceRow\(\{/);
     assert.match(notifications, /notificationId: randomUUID\(\)/);

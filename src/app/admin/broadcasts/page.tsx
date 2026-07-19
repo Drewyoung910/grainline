@@ -12,7 +12,8 @@ import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { truncateText, truncateTextWithEllipsis } from "@/lib/sanitize";
 import { sellerBroadcastEmailSubject } from "@/lib/email";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
-import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
+import { withDbUserContext } from "@/lib/dbUserContext";
+import { deleteSellerBroadcastNotificationServiceRows } from "@/lib/notificationServiceAccess";
 
 async function deleteBroadcast(formData: FormData) {
   "use server";
@@ -28,7 +29,7 @@ async function deleteBroadcast(formData: FormData) {
 
   const id = String(formData.get("id") ?? "");
   if (id) {
-    await prisma.$transaction(async (tx) => {
+    await withDbUserContext(user.id, async (tx) => {
       const broadcast = await tx.sellerBroadcast.findUnique({
         where: { id },
         select: {
@@ -45,25 +46,20 @@ async function deleteBroadcast(formData: FormData) {
       if (deleted.count !== 1) return;
       const sellerName = broadcast.sellerProfile.displayName ?? "A maker you follow";
       const staleNotificationWindowEnd = new Date(broadcast.sentAt.getTime() + 60 * 60 * 1000);
+      await deleteSellerBroadcastNotificationServiceRows(tx, broadcast.id);
+      // Temporary legacy fallback: rows created before source metadata existed.
+      // Remove before Notification INSERT/DELETE revocation is activated.
       await tx.notification.deleteMany({
         where: {
+          sourceType: null,
+          sourceId: null,
+          type: "SELLER_BROADCAST",
+          title: `Update from ${sellerName}`,
+          body: truncateTextWithEllipsis(broadcast.message, 100),
+          createdAt: { gte: broadcast.sentAt, lte: staleNotificationWindowEnd },
           OR: [
-            {
-              sourceType: NOTIFICATION_SOURCE_TYPES.SELLER_BROADCAST,
-              sourceId: broadcast.id,
-            },
-            {
-              sourceType: null,
-              sourceId: null,
-              type: "SELLER_BROADCAST",
-              title: `Update from ${sellerName}`,
-              body: truncateTextWithEllipsis(broadcast.message, 100),
-              createdAt: { gte: broadcast.sentAt, lte: staleNotificationWindowEnd },
-              OR: [
-                { link: `/account/feed?broadcast=${broadcast.id}` },
-                { link: "/account/feed" },
-              ],
-            },
+            { link: `/account/feed?broadcast=${broadcast.id}` },
+            { link: "/account/feed" },
           ],
         },
       });

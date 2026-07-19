@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { withDbUserContext } from "@/lib/dbUserContext";
+import { deleteAccountNotificationServiceRows } from "@/lib/notificationServiceAccess";
 import { deleteAllOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
 import { accountDeletionMediaUrlsForCleanup } from "@/lib/urlValidation";
 import { redis } from "@/lib/ratelimit";
@@ -1658,14 +1659,7 @@ export async function anonymizeUserAccount(
     await deleteAllOwnerSavedSearches(user.id, tx);
     await tx.stockNotification.deleteMany({ where: { userId: user.id } });
     await scrubCheckoutStockReservationsForDeletedAccount(tx, user.id, user.sellerProfile?.id ?? null);
-    await tx.notification.deleteMany({
-      where: {
-        OR: [
-          { userId: user.id },
-          { relatedUserId: user.id },
-        ],
-      },
-    });
+    await deleteAccountNotificationServiceRows(tx, user.id);
     await tx.savedBlogPost.deleteMany({ where: { userId: user.id } });
     await tx.reviewVote.deleteMany({ where: { userId: user.id } });
     await tx.block.deleteMany({ where: { blockerId: user.id } });
