@@ -54,9 +54,10 @@ three explicit states: production RLS with retained proof; a reviewed database
 isolation alternative with rationale; or a named, blocking deferral with owner
 and prerequisites. Public catalog data, cross-user aggregates, and internal
 service ledgers still require review and may need different database controls;
-do not force an owner-policy shape where it is incorrect. Maintain a coverage
-matrix and never claim that all user data is protected by RLS until every table
-has an evidenced disposition.
+do not force an owner-policy shape where it is incorrect. Maintain the
+schema-complete [`docs/rls-coverage-matrix.md`](docs/rls-coverage-matrix.md)
+and never claim that all user data is protected by RLS until every table has an
+evidenced disposition.
 
 ### Homepage discovery hierarchy decision (2026-07-15)
 

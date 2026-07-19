@@ -1,12 +1,23 @@
 # Grainline RLS Feasibility Plan
 
-Last updated: 2026-07-18
+Last updated: 2026-07-19
 
 Grainline's production control plane is application-layer authorization through Clerk middleware, route handlers, server actions, shared visibility helpers, and ownership predicates. `SavedSearch` is the approved first production RLS table, but RLS remains defense in depth rather than a replacement for those checks. A broad rollout with Prisma and pooled Neon connections can break legitimate traffic or create false confidence if runtime roles still own tables or bypass policies.
 
 Execution tracking for the least-privilege runtime role, grant audit, request
 context proof, and first table prototypes lives in
 `docs/db-defense-in-depth-plan.md`.
+
+The schema-complete disposition ledger is
+`docs/rls-coverage-matrix.md`. The smaller candidate matrix in this document is
+a prototype-order excerpt and must not be treated as whole-schema coverage.
+
+Current production status (2026-07-19): the least-privilege runtime role and
+SavedSearch Phase A are live and verified. `SavedSearch` is the only
+RLS-protected table. Phase B FORCE is separately staged but remains barred
+until its post-skew canary and minimum promotion time. Historical staging and
+preactivation notes below are retained as rollout rationale, not current-state
+claims.
 
 ## Decision
 
@@ -186,7 +197,11 @@ rollout phase B (`FORCE`) is still part of Bucket A; it is not Bucket B.
 7. **Order + OrderItem + OrderPaymentEvent + OrderShippingRateQuote**: buyer access plus seller access through listing ownership. Higher risk because checkout, refunds, labels, tax records, and support all depend on these rows.
 8. **Case + CaseMessage**: buyer/seller participant access plus staff/admin case handling. High risk; do after messages and orders.
 
-## Candidate Table Matrix
+## Prototype Candidate Matrix
+
+This is an architecture excerpt for early activation order. See
+`docs/rls-coverage-matrix.md` for the required disposition of all 58 Prisma
+models.
 
 | Table | Current app-layer owner model | RLS difficulty | Prototype decision |
 |---|---|---:|---|

@@ -1,10 +1,17 @@
 # Grainline DB Defense-In-Depth Plan
 
-Last updated: 2026-07-18
+Last updated: 2026-07-19
 
 This is the execution tracker for database-layer hardening. It complements
 `docs/rls-feasibility-plan.md`, which remains the design source of truth for
 RLS staging and table ordering.
+
+The schema-complete table disposition ledger is
+`docs/rls-coverage-matrix.md`. Current production status (2026-07-19): the
+least-privilege runtime role and SavedSearch Phase A are live and verified;
+`SavedSearch` remains the only RLS-protected table. Phase B FORCE is staged but
+time-gated. Older phase-status paragraphs below are retained as dated rollout
+history and must not override this status note.
 
 ## Objective
 
@@ -1263,12 +1270,11 @@ true:
 
 ## Current Recommendation
 
-Keep production unchanged while resolving the Phase 3 performance-only failure:
-align the harness and application pool topology, make unavailable acquisition
-timing explicit, and measure the real SavedSearch route/SLO. Then run the Phase
-3 gate twice on the same commit/configuration before adopting context
-transactions in production. Complete only Bucket A (`SavedSearch`), including
-the preactivation static-guard gaps, exact staging policy proof, canary sequence,
-and production drain/maintenance proofs. Stop before Bucket B/`Notification`
-design. Production runtime-role or policy changes require the promotion gate and
-explicit rollout approval.
+Keep the verified SavedSearch Phase-A state stable. Complete Phase B only after
+the post-skew canary and time gate, production owner-credential rotation,
+old-credential rejection, and owner-session drain. Next, move `DIRECT_URL` and
+`MIGRATION_DB_ROLE` out of application Functions and establish an isolated
+migration and service path before Bucket B. Treat `Notification` as its own
+activation, then continue the comprehensive program through
+`docs/rls-coverage-matrix.md`; never batch unrelated sensitive groups merely to
+reduce the number of releases.
