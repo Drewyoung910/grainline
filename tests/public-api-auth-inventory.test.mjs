@@ -18,10 +18,6 @@ const intentionalNoAuthPublicRoutes = new Set([
   "src/app/api/csp-report/route.ts",
   "src/app/api/email/unsubscribe/route.ts",
   "src/app/api/health/route.ts",
-  // Temporary, Preview-only RLS context acceptance runner. The route is
-  // environment-, commit-, token-, and two-slot-ledger-gated and is removed
-  // before the production runtime-role release.
-  "src/app/api/internal/rls-context-gate/route.ts",
   "src/app/api/legal/data-request/route.ts",
   "src/app/api/newsletter/confirm/route.ts",
   "src/app/api/newsletter/route.ts",
