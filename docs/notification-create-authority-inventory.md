@@ -11,16 +11,17 @@ typed `notifyBuyer(..., payload)` wrapper, and that wrapper has three distinct
 payload construction paths. The authority inventory therefore covers 54
 distinct emission paths:
 
-- 27 source-tagged paths;
-- 27 source-less paths;
+- 28 source-tagged paths;
+- 26 source-less paths;
 - 23 paths currently carrying `relatedUserId`.
 
 The earlier count of 51 calls and 46 source-less paths omitted the fulfillment
 wrapper and its three payload constructions. The complete baseline was 54 total,
 5 tagged and 49 source-less. The social-family implementation moved three paths
 into the tagged set, and the messaging/custom-order implementation moved three
-more. The commission implementation then moved four paths, and the case
-implementation moved all twelve case paths, producing the current 27/27 split.
+more. The commission implementation then moved four paths, the case
+implementation moved all twelve case paths, and the checkout low-stock slice
+moved one inventory path, producing the current 28/26 split.
 Tests pin direct calls, emission paths, and family state so those concepts are
 not conflated again.
 
@@ -35,7 +36,7 @@ not conflated again.
 | Case lifecycle | 12 | Open, message, mark-resolved, resolve/refund, timeout escalation and auto-close | Implemented draft validation: durable `Case`, `CaseMessage`, atomic user-audit, or system-audit source; exact parties/staff/cron actor, order route, event type and recorded transition |
 | Commission lifecycle | 4 | Seller interest, buyer close/fulfill, expiry notifications | Implemented draft validation: durable `CommissionInterest` or final-state `CommissionRequest`, conversation, interested seller, buyer/recipient, CLOSED/FULFILLED/EXPIRED state and route |
 | Social and review events | 3 | Favorite, follow, review | Implemented draft validation: `Favorite`, `Follow`, `Review`, listing/seller ownership and event actor |
-| Inventory events | 3 | Seller low stock, subscriber back in stock, webhook low stock | Listing owner, listing stock/status, `StockNotification` subscription and checkout/order transition |
+| Inventory events | 3 | Seller low stock, subscriber back in stock, webhook low stock | Checkout low-stock implemented against `OrderItem`, paid `Order`, completed `CheckoutStockReservation`, listing owner and current low-stock state; manual/back-in-stock still need atomic transition/claim evidence |
 | Messaging and custom orders | 3 | New message, custom-order request, custom-order-ready link | Implemented draft validation: `Message`, `Conversation`, participant pair and kind; ready links additionally bind the reserved `Listing`, seller, buyer, conversation and canonical route |
 | Order, payment and fulfillment | 9 | Order buyer/seller notices, refund, shipment/pickup, dispute and payout failure | `Order`, items/seller/buyer, payment/payout event ledgers, fulfillment transition and provider event id |
 | **Total** | **54** |  |  |
@@ -73,7 +74,7 @@ Application authorization remains primary. These functions are database
 defense in depth against overly broad queries and partial compromise; they do
 not claim to defeat arbitrary code execution holding the runtime credential.
 
-This is not yet a complete runtime-compromise boundary. The five granted create
+This is not yet a complete runtime-compromise boundary. The six granted create
 wrappers still accept caller-supplied title and body after validating their
 bounds. Canonical links and dedup identity are now derived inside owner authority
 from the validated recipient, type, source kind, source row, related actor, and
@@ -96,10 +97,15 @@ races impossible.
 ## Next Implementation Order
 
 1. Retain the implemented runtime-ungranted core plus separate source-fanout,
-   social/review, message/custom-order, commission, and case wrappers; do not
-   restore a generic runtime grant.
-2. Add the inventory-event family, binding low-stock and back-in-stock fanout to
-   listing ownership, stock state, subscription, and order transition evidence.
+   social/review, message/custom-order, commission, case, and inventory wrappers;
+   do not restore a generic runtime grant.
+2. Complete the inventory-event family. Checkout low-stock now binds one
+   `OrderItem` to its paid order, completed stock reservation, listing owner and
+   current 1-2 quantity, and derives its payload/link. Manual low-stock needs a
+   durable stock-transition event rather than mutable listing state alone.
+   Back-in-stock needs the subscription claim, Notification insert, and
+   subscription consumption to share one atomic owner-backed operation; the
+   current delete-before-notify flow cannot prove the subscription afterward.
 3. Add order/payment/fulfillment and verification/guild families only after
    their provider, staff and cron transition matrices are complete.
 4. Leave staff free-form account communication last; require a durable audited

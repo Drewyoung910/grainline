@@ -28,6 +28,8 @@ AS $grainline_notification_create_core$
 DECLARE
   recipient_preferences jsonb;
   notification_id text;
+  notification_title text := p_title;
+  notification_body text := p_body;
   notification_link text;
   notification_dedup_key text;
   replay_material text;
@@ -38,12 +40,6 @@ BEGIN
   END IF;
   IF p_user_id IS NULL OR p_user_id = '' OR pg_catalog.char_length(p_user_id) > 191 THEN
     RAISE EXCEPTION 'notification recipient is invalid' USING ERRCODE = '22023';
-  END IF;
-  IF p_title IS NULL OR p_title = '' OR pg_catalog.char_length(p_title) > 200 THEN
-    RAISE EXCEPTION 'notification title is invalid' USING ERRCODE = '22023';
-  END IF;
-  IF p_body IS NULL OR pg_catalog.char_length(p_body) > 1000 THEN
-    RAISE EXCEPTION 'notification body is invalid' USING ERRCODE = '22023';
   END IF;
   IF (p_source_type IS NULL) <> (p_source_id IS NULL) THEN
     RAISE EXCEPTION 'notification source metadata must be paired' USING ERRCODE = '22023';
@@ -57,6 +53,7 @@ BEGIN
       'case_system_action',
       'commission_interest',
       'commission_request',
+      'checkout_low_stock',
       'favorite',
       'followed_maker_new_blog',
       'followed_maker_new_listing',
@@ -81,6 +78,8 @@ BEGIN
          AND p_type NOT IN ('CASE_MESSAGE', 'CASE_RESOLVED'))
      OR (p_source_type IN ('commission_interest', 'commission_request')
          AND p_type <> 'COMMISSION_INTEREST')
+     OR (p_source_type = 'checkout_low_stock'
+         AND p_type <> 'LOW_STOCK')
      OR (p_source_type = 'favorite'
          AND p_type <> 'NEW_FAVORITE')
      OR (p_source_type = 'followed_maker_new_blog'
@@ -103,7 +102,7 @@ BEGIN
     RAISE EXCEPTION 'notification related user is invalid' USING ERRCODE = '22023';
   END IF;
   IF p_source_type IS NOT NULL
-     AND p_source_type NOT IN ('case_system_action', 'commission_request')
+     AND p_source_type NOT IN ('case_system_action', 'commission_request', 'checkout_low_stock')
      AND (p_related_user_id IS NULL OR p_related_user_id = p_user_id) THEN
     RAISE EXCEPTION 'notification source requires a distinct related user' USING ERRCODE = '22023';
   END IF;
@@ -330,6 +329,33 @@ BEGIN
           ))
        )
      FOR SHARE OF source_request;
+  ELSIF p_source_type = 'checkout_low_stock' THEN
+    SELECT
+      '/dashboard/inventory',
+      pg_catalog.left(source_listing.title || ' is running low', 200),
+      'Only ' || source_listing."stockQuantity"::text || ' left in stock'
+      INTO notification_link, notification_title, notification_body
+      FROM public."OrderItem" AS source_item
+      JOIN public."Order" AS source_order
+        ON source_order.id = source_item."orderId"
+      JOIN public."Listing" AS source_listing
+        ON source_listing.id = source_item."listingId"
+      JOIN public."SellerProfile" AS source_seller
+        ON source_seller.id = source_listing."sellerId"
+      JOIN public."CheckoutStockReservation" AS source_reservation
+        ON source_reservation."stripeSessionId" = source_order."stripeSessionId"
+     WHERE source_item.id = p_source_id
+       AND p_related_user_id IS NULL
+       AND source_seller."userId" = p_user_id
+       AND source_listing."listingType" = 'IN_STOCK'
+       AND source_listing."stockQuantity" > 0
+       AND source_listing."stockQuantity" <= 2
+       AND source_order."paidAt" IS NOT NULL
+       AND source_reservation.status = 'COMPLETED'
+       AND source_reservation."reservedItems" @> pg_catalog.jsonb_build_array(
+         pg_catalog.jsonb_build_object('listingId', source_listing.id)
+       )
+     FOR SHARE OF source_item, source_order, source_listing, source_seller, source_reservation;
   ELSIF p_source_type = 'followed_maker_new_listing' THEN
     SELECT '/listing/' || source_listing.id
       INTO notification_link
@@ -532,6 +558,14 @@ BEGIN
     RETURN NULL;
   END IF;
 
+  IF notification_title IS NULL
+     OR notification_title = ''
+     OR pg_catalog.char_length(notification_title) > 200
+     OR notification_body IS NULL
+     OR pg_catalog.char_length(notification_body) > 1000 THEN
+    RAISE EXCEPTION 'derived notification payload is invalid' USING ERRCODE = '22023';
+  END IF;
+
   IF notification_link IS NULL
      OR notification_link = ''
      OR pg_catalog.char_length(notification_link) > 2048
@@ -573,8 +607,8 @@ BEGIN
     p_user_id,
     p_related_user_id,
     p_type,
-    p_title,
-    p_body,
+    notification_title,
+    notification_body,
     notification_link,
     p_source_type,
     p_source_id,
@@ -807,6 +841,45 @@ BEGIN
 END;
 $grainline_notification_create_commission_event$;
 
+CREATE OR REPLACE FUNCTION public.grainline_notification_create_inventory_event(
+  p_notification_id text,
+  p_user_id text,
+  p_type public."NotificationType",
+  p_title text,
+  p_body text,
+  p_source_type text,
+  p_source_id text,
+  p_related_user_id text
+)
+RETURNS text
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_notification_create_inventory_event$
+DECLARE
+  notification_id text;
+BEGIN
+  IF p_source_type <> 'checkout_low_stock' THEN
+    RAISE EXCEPTION 'inventory notification requires a reviewed inventory source'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT public.grainline_notification_create_core(
+    p_notification_id,
+    p_user_id,
+    p_type,
+    p_title,
+    p_body,
+    p_source_type,
+    p_source_id,
+    p_related_user_id
+  ) INTO notification_id;
+  RETURN notification_id;
+END;
+$grainline_notification_create_inventory_event$;
+
 CREATE OR REPLACE FUNCTION public.grainline_notification_delete_for_account(
   p_user_id text
 )
@@ -1004,6 +1077,9 @@ REVOKE ALL ON FUNCTION public.grainline_notification_create_case_event(
 REVOKE ALL ON FUNCTION public.grainline_notification_create_commission_event(
   text, text, public."NotificationType", text, text, text, text, text
 ) FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION public.grainline_notification_create_inventory_event(
+  text, text, public."NotificationType", text, text, text, text, text
+) FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_notification_delete_for_account(text)
   FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_notification_delete_blog_comment(text)
@@ -1028,6 +1104,9 @@ GRANT EXECUTE ON FUNCTION public.grainline_notification_create_case_event(
   text, text, public."NotificationType", text, text, text, text, text
 ) TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_notification_create_commission_event(
+  text, text, public."NotificationType", text, text, text, text, text
+) TO grainline_app_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_notification_create_inventory_event(
   text, text, public."NotificationType", text, text, text, text, text
 ) TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_notification_delete_for_account(text)

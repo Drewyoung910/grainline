@@ -103,10 +103,10 @@ sequencing prerequisites are live, compare it with narrow one-statement
 evidence. Cross-user creation and cleanup use a separate service-authority
 design and must not be conflated with recipient RPCs.
 
-The isolated service-authority draft now uses eleven owner-backed functions: one
-runtime-ungranted fixed-column core, five granted creation families, three exact
+The isolated service-authority draft now uses twelve owner-backed functions: one
+runtime-ungranted fixed-column core, six granted creation families, three exact
 cleanup operations, and two fixed retention batches. Runtime receives exact
-execute privileges only on the ten fixed-purpose entry points;
+execute privileges only on the eleven fixed-purpose entry points;
 direct Notification insert/delete and the default public function privilege
 remain revoked. The application paths are wired to the draft, but legacy
 null-source and account-deletion source/link/text fallbacks still perform direct
@@ -117,8 +117,8 @@ not database-authenticated identity and a compromised runtime can forge it;
 fixed-purpose constraints limit that residual without eliminating it.
 
 Extra-high review does not yet accept the shared create function as final. The
-twenty-seven source-tagged paths can prove source, type, actor, recipient, and
-relationship constraints inside the database operation, but 27 source-less
+twenty-eight source-tagged paths can prove source, type, actor, recipient, and
+relationship constraints inside the database operation, but 26 source-less
 emission paths still need family implementations and currently fail closed.
 The granted wrappers also retain bounded caller control of notification text
 but no longer accept link or dedup identity. The private core derives canonical
@@ -136,9 +136,16 @@ message, checks the reserved buyer, seller, conversation and listing status,
 and derives the canonical route. It is not stored as a second
 Notification source field.
 
+The inventory family is deliberately partial. Checkout low-stock binds the
+exact order item to a paid order, completed stock reservation, listing owner and
+current low-stock state, then derives payload, route and replay identity inside
+owner authority. Manual low-stock still needs durable transition evidence, and
+back-in-stock needs atomic subscription claim, Notification creation and
+subscription consumption; both remain fail-closed.
+
 Use a hybrid rather than either extreme. Do not grant runtime the current
 generic arbitrary-type/arbitrary-recipient creator, but do not add identical
-lifecycle metadata mechanically to all 27 source-less emission paths. Keep the
+lifecycle metadata mechanically to all 26 source-less emission paths. Keep the
 fixed-column insert primitive private to the function owner and expose only
 family-specific operations keyed by stable domain ids and small event
 discriminators. The ten-family inventory and implementation order live in

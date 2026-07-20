@@ -7,6 +7,7 @@ import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import {
   renderFirstSaleCongratsEmail,
   renderOrderConfirmedBuyerEmail,
@@ -605,6 +606,7 @@ export async function POST(req: Request) {
         },
         items: {
           select: {
+            id: true,
             quantity: true,
             priceCents: true,
             listingId: true,
@@ -659,28 +661,38 @@ export async function POST(req: Request) {
     ]);
 
     if (sellerUserId) {
-      const inStockItemTitles = new Map<string, string>();
+      const inStockItems = new Map<string, { orderItemId: string; title: string }>();
       for (const item of order.items) {
         if (item.listing.listingType === "IN_STOCK") {
-          inStockItemTitles.set(item.listingId, item.listing.title);
+          const current = inStockItems.get(item.listingId);
+          if (!current || item.id < current.orderItemId) {
+            inStockItems.set(item.listingId, {
+              orderItemId: item.id,
+              title: item.listing.title,
+            });
+          }
         }
       }
-      const lowStockListings = inStockItemTitles.size
+      const lowStockListings = inStockItems.size
         ? await prisma.listing.findMany({
             where: {
-              id: { in: [...inStockItemTitles.keys()] },
+              id: { in: [...inStockItems.keys()] },
               stockQuantity: { gt: 0, lte: 2 },
             },
             select: { id: true, stockQuantity: true },
           })
         : [];
       for (const lowStockListing of lowStockListings) {
+        const sourceItem = inStockItems.get(lowStockListing.id);
+        if (!sourceItem) continue;
         await createNotification({
           userId: sellerUserId,
           type: "LOW_STOCK",
-          title: `${inStockItemTitles.get(lowStockListing.id) ?? "A listing"} is running low`,
+          title: `${sourceItem.title} is running low`,
           body: `Only ${lowStockListing.stockQuantity ?? 0} left in stock`,
           link: `/dashboard/inventory`,
+          sourceType: NOTIFICATION_SOURCE_TYPES.CHECKOUT_LOW_STOCK,
+          sourceId: sourceItem.orderItemId,
         });
       }
     }
