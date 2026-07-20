@@ -250,6 +250,11 @@ Current direct-access files are deliberately pinned by test:
 ### B2 - Production activation
 
 - Require Phase B and runtime credential separation already live and healthy.
+- Run `npm run audit:rls-notification-readiness` and require an exact 54/54
+  result. The AST-backed gate fails on count drift, dynamic/unrecognized helper
+  calls, missing source pairs, or source constants not dispatched by a reviewed
+  service family. It is expected to exit nonzero during preparation while the
+  documented 26 paths remain fail-closed.
 - Deploy Notification RPC/application changes before enabling policies where
   compatibility requires it; never ship an app/table ordering that strands
   writes or cleanup.

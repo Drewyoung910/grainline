@@ -114,3 +114,9 @@ races impossible.
 Every family still needs PostgreSQL parse/apply proof, own/foreign and direct
 denial tests, concurrency tests, grants/catalog fingerprints, rollback, and
 provider performance evidence before production activation.
+The permanent completeness gate is
+`npm run audit:rls-notification-readiness`: it inventories the real TypeScript
+call graph, requires exactly 54 emission paths, and blocks activation until all
+54 carry a source pair dispatched through a reviewed family. Its current
+28/54 failure is expected and must never be bypassed or weakened to make an
+incomplete rollout pass.

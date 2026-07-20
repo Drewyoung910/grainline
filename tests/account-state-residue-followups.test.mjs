@@ -142,7 +142,7 @@ describe("account-state residue hardening", () => {
     assert.match(broadcastRoute, /sourceId: broadcast\.id/);
     assert.match(listingFanout, /sourceType: "followed_maker_new_listing"/);
     assert.match(listingFanout, /sourceId: publicListing\.id/);
-    assert.match(blogFanout, /sourceType: "followed_maker_new_blog"/);
+    assert.match(blogFanout, /sourceType: NOTIFICATION_SOURCE_TYPES\.FOLLOWED_MAKER_NEW_BLOG/);
     assert.match(blogFanout, /sourceId: publicPost\.id/);
   });
 

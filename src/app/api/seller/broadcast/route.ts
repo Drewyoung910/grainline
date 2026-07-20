@@ -6,6 +6,7 @@ import { after } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { isInAppNotificationEnabled } from "@/lib/notificationDeliveryPreferences";
 import { isEmailNotificationEnabled } from "@/lib/notificationEmailPreferences";
 import { renderSellerBroadcastEmail } from "@/lib/email";
@@ -306,7 +307,7 @@ export async function POST(req: NextRequest) {
           body: truncateTextWithEllipsis(message, 100),
           link: `/account/feed?broadcast=${broadcast.id}`,
           dedupScope: broadcast.id,
-          sourceType: "seller_broadcast",
+          sourceType: NOTIFICATION_SOURCE_TYPES.SELLER_BROADCAST,
           sourceId: broadcast.id,
           relatedUserId: me.id,
         }),

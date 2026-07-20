@@ -143,6 +143,14 @@ owner authority. Manual low-stock still needs durable transition evidence, and
 back-in-stock needs atomic subscription claim, Notification creation and
 subscription consumption; both remain fail-closed.
 
+Production activation also has a permanent completeness gate:
+`npm run audit:rls-notification-readiness`. It inventories the real TypeScript
+emission paths, requires the exact 54-path contract, and fails on dynamic calls,
+missing source pairs, or source constants that do not dispatch through a
+reviewed service family. Its current 28/54 result must remain a failing operator
+preflight until every path is covered; ordinary tests assert that expected
+fail-closed state so incomplete notification types cannot disappear silently.
+
 Use a hybrid rather than either extreme. Do not grant runtime the current
 generic arbitrary-type/arbitrary-recipient creator, but do not add identical
 lifecycle metadata mechanically to all 26 source-less emission paths. Keep the

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { renderNewListingFromFollowedMakerEmail } from "@/lib/email";
 import { enqueueEmailOutbox } from "@/lib/emailOutbox";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { publicListingPath } from "@/lib/publicPaths";
 import { formatCurrencyCents } from "@/lib/money";
@@ -73,7 +74,7 @@ export async function fanOutListingToFollowers({
         title: `New listing from ${sellerDisplay}`,
         body: publicListing.title,
         link: listingPath,
-        sourceType: "followed_maker_new_listing",
+        sourceType: NOTIFICATION_SOURCE_TYPES.FOLLOWED_MAKER_NEW_LISTING,
         sourceId: publicListing.id,
         relatedUserId: sellerUserId,
       }),
