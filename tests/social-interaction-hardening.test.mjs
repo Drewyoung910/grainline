@@ -47,7 +47,9 @@ describe("social interaction route hardening", () => {
     assert.match(route, /return privateJson\(\{ following: true, followerCount \}\)/);
     assert.match(notifications, /createNotificationServiceRow\(\{/);
     assert.match(serviceSql, /ON CONFLICT \("userId", "type", "dedupKey"\) DO NOTHING/);
-    assert.match(serviceSql, /notification\."userId" = p_user_id[\s\S]{0,120}notification\."dedupKey" = p_dedup_key/);
+    assert.match(serviceSql, /notification_dedup_key :=[\s\S]{0,200}pg_catalog\.md5\(replay_material\)/);
+    assert.match(serviceSql, /notification\."userId" = p_user_id[\s\S]{0,120}notification\."dedupKey" = notification_dedup_key/);
+    assert.doesNotMatch(serviceSql, /p_dedup_key/);
   });
 
   it("keeps follow buttons from serializing seller user ids to clients", () => {

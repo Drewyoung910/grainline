@@ -63,20 +63,19 @@ and staff source cleanup refuses to run until the comment or broadcast was
 deleted in the same transaction. These changes close create-versus-delete races
 and prevent source metadata from being attached to the wrong notification type,
 actor, or recipient. They do not close every runtime-compromise residual: the
-granted create families still accept bounded caller-supplied title/body/link,
-and the private core accepts any caller-supplied 64-hex dedup key. Before
-activation, derive replay identity from the validated source/recipient/type/event
-inside owner authority so one valid source cannot mint repeated rows with new
-hashes. Social/message/commission absence-of-block checks also do not serialize against a
-concurrent block insertion because the block-writing paths do not share a lock
-protocol. Payload derivation/templates, database-derived deduplication, and that concurrency decision remain
+granted create families still accept bounded caller-supplied title/body.
+Canonical links and stable 64-hex replay identity are now derived inside the
+private core from validated database facts; neither link nor dedup identity is
+present in a granted creation signature. App-level `link` and `dedupScope` are
+telemetry only. Social/message/commission absence-of-block checks do not
+serialize against a concurrent block insertion because the block-writing paths
+do not share a lock protocol. Payload derivation/templates and that concurrency decision remain
 pre-activation work; app-layer authorization and block checks remain required.
 The message family proves message kind and conversation participants.
-Custom-order-ready additionally passes a validation-only listing id parsed from
-the canonical route; the wrapper binds it to the source message body, reserved
-buyer, seller, conversation, listing status, and exact route prefix before
-calling the private core. That context is not stored as a second Notification
-source field.
+Custom-order-ready extracts the listing id from the durable structured message
+inside the private core, joins it to the reserved buyer, seller, conversation
+and listing status, and derives `/listing/<id>`. No caller-provided route or
+second Notification source field participates in authority.
 Commission-interest creation relies on the durable `CommissionInterest` row,
 not the request's mutable current status, because its `after()` notification may
 race a legitimate close or fulfill transition. Close, fulfill, and expiry

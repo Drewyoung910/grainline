@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/db";
 import { NotificationType } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
-import { notificationDedupKey } from "@/lib/notificationDedup";
 import {
   NOTIFICATION_BODY_MAX_LENGTH,
   NOTIFICATION_LINK_MAX_LENGTH,
@@ -82,27 +81,21 @@ export async function createNotification({
   try {
     const notificationTitle = limitNotificationText(title, NOTIFICATION_TITLE_MAX_LENGTH);
     const notificationBody = limitNotificationText(body, NOTIFICATION_BODY_MAX_LENGTH);
-    const notificationLink = link
-      ? limitNotificationText(link, NOTIFICATION_LINK_MAX_LENGTH)
-      : undefined;
     const notificationSourceType = sourceType
       ? limitNotificationText(sourceType, 80)
       : undefined;
     const notificationSourceId = sourceId
       ? limitNotificationText(sourceId, 191)
       : undefined;
-    const dedupKey = notificationDedupKey({ userId, type, link: notificationLink, dedupScope });
     const notificationId = await createNotificationServiceRow({
       notificationId: randomUUID(),
       userId,
       type,
       title: notificationTitle,
       body: notificationBody,
-      link: notificationLink ?? null,
       sourceType: notificationSourceType ?? null,
       sourceId: notificationSourceId ?? null,
       relatedUserId: relatedUserId ?? null,
-      dedupKey,
     });
     return notificationId ? { id: notificationId } : null;
   } catch (error) {

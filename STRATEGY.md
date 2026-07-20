@@ -121,18 +121,19 @@ twenty-seven source-tagged paths can prove source, type, actor, recipient, and
 relationship constraints inside the database operation, but 27 source-less
 emission paths still need family implementations and currently fail closed.
 The granted wrappers also retain bounded caller control of notification text
-and link. The private core validates the caller-provided dedup key's format but
-does not derive it from the validated event, leaving replay possible under a
-compromised runtime. Social/message/commission absence-of-block checks do not yet serialize with a
-concurrent block insertion. Classify the remaining type families, derive or
+but no longer accept link or dedup identity. The private core derives canonical
+links and stable dedup identity inside owner authority from the validated
+recipient, type, source row, related actor, and source-specific route columns.
+App-level link and dedup scope are telemetry only. Social/message/commission
+absence-of-block checks do not yet serialize with a concurrent block insertion.
+Classify the remaining type families, derive or
 template payloads where practical, and resolve the concurrency contract before
-activation; derive event replay identity inside owner authority and retain
-provider performance proof for the source-validation joins.
+activation; retain provider performance proof for the source-validation joins.
 
 The message family uses `Message.id` as its durable source. For custom-order
-ready links, a validation-only listing id parsed from the canonical route is
-also checked against the structured message, reserved buyer, seller,
-conversation, listing status, and route prefix. It is not stored as a second
+ready links, the private core extracts the listing id from the structured
+message, checks the reserved buyer, seller, conversation and listing status,
+and derives the canonical route. It is not stored as a second
 Notification source field.
 
 Use a hybrid rather than either extreme. Do not grant runtime the current

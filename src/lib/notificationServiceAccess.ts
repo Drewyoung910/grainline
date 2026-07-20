@@ -2,7 +2,6 @@ import type { NotificationType } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import type { DbUserContextTransactionClient } from "@/lib/dbUserContext";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
-import { extractRouteId } from "@/lib/publicPaths";
 
 type ContextualNotificationServiceClient = Pick<DbUserContextTransactionClient, "$queryRaw">;
 
@@ -12,11 +11,9 @@ export type NotificationServiceCreateInput = {
   type: NotificationType;
   title: string;
   body: string;
-  link: string | null;
   sourceType: string | null;
   sourceId: string | null;
   relatedUserId: string | null;
-  dedupKey: string;
 };
 
 export async function createNotificationServiceRow({
@@ -25,11 +22,9 @@ export async function createNotificationServiceRow({
   type,
   title,
   body,
-  link,
   sourceType,
   sourceId,
   relatedUserId,
-  dedupKey,
 }: NotificationServiceCreateInput): Promise<string | null> {
   if (sourceId === null) {
     throw new Error("notification create family is not implemented for a source-less event");
@@ -60,11 +55,9 @@ export async function createNotificationServiceRow({
           ${type}::public."NotificationType",
           ${title}::text,
           ${body}::text,
-          ${link}::text,
           ${sourceType}::text,
           ${sourceId}::text,
-          ${relatedUserId}::text,
-          ${dedupKey}::text
+          ${relatedUserId}::text
         ) AS id
       `;
   } else if (caseSource) {
@@ -75,11 +68,9 @@ export async function createNotificationServiceRow({
           ${type}::public."NotificationType",
           ${title}::text,
           ${body}::text,
-          ${link}::text,
           ${sourceType}::text,
           ${sourceId}::text,
-          ${relatedUserId}::text,
-          ${dedupKey}::text
+          ${relatedUserId}::text
         ) AS id
       `;
   } else if (commissionSource) {
@@ -90,18 +81,12 @@ export async function createNotificationServiceRow({
           ${type}::public."NotificationType",
           ${title}::text,
           ${body}::text,
-          ${link}::text,
           ${sourceType}::text,
           ${sourceId}::text,
-          ${relatedUserId}::text,
-          ${dedupKey}::text
+          ${relatedUserId}::text
         ) AS id
       `;
   } else if (messageSource) {
-    const listingRouteSegment = type === "CUSTOM_ORDER_LINK" && link?.startsWith("/listing/")
-      ? link.slice("/listing/".length).split(/[/?#]/, 1)[0]
-      : "";
-    const authorityContextId = listingRouteSegment ? extractRouteId(listingRouteSegment) : null;
     rows = await prisma.$queryRaw<Array<{ id: string | null }>>`
         SELECT public.grainline_notification_create_message_event(
           ${notificationId}::text,
@@ -109,12 +94,9 @@ export async function createNotificationServiceRow({
           ${type}::public."NotificationType",
           ${title}::text,
           ${body}::text,
-          ${link}::text,
           ${sourceType}::text,
           ${sourceId}::text,
-          ${relatedUserId}::text,
-          ${dedupKey}::text,
-          ${authorityContextId}::text
+          ${relatedUserId}::text
         ) AS id
       `;
   } else {
@@ -125,11 +107,9 @@ export async function createNotificationServiceRow({
           ${type}::public."NotificationType",
           ${title}::text,
           ${body}::text,
-          ${link}::text,
           ${sourceType}::text,
           ${sourceId}::text,
-          ${relatedUserId}::text,
-          ${dedupKey}::text
+          ${relatedUserId}::text
         ) AS id
       `;
   }

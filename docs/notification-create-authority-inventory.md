@@ -74,20 +74,20 @@ defense in depth against overly broad queries and partial compromise; they do
 not claim to defeat arbitrary code execution holding the runtime credential.
 
 This is not yet a complete runtime-compromise boundary. The five granted create
-wrappers still accept caller-supplied title, body, and relative link after
-validating their bounds. The private core also validates only the shape of the
-caller-supplied dedup key; a compromised runtime could replay one valid source
-with new hashes. Derive the dedup key from the validated source, recipient, type,
-and event discriminator inside owner authority before activation. The
+wrappers still accept caller-supplied title and body after validating their
+bounds. Canonical links and dedup identity are now derived inside owner authority
+from the validated recipient, type, source kind, source row, related actor, and
+source-specific route columns. Runtime-supplied `link` and `dedupScope` remain
+application telemetry only and never reach the granted SQL signatures. The
 favorite/follow checks prove that no block row
 exists only at statement time. They do not serialize against a concurrent
 block creation because the block-writing paths do not yet share a lock
 protocol. The message family proves the source message, its kind, participants,
-and conversation route; custom-order-ready also validates a non-persisted
-authority context against the reserved listing, seller, buyer, conversation,
-structured-message listing id, status, and canonical public route. Family
-wrappers should still derive or strictly template payload content where
-practical, derive replay identity inside the database, and the
+and conversation route; custom-order-ready extracts the listing id from the
+durable structured message inside the core, validates the reserved listing,
+seller, buyer, conversation and status, and derives the canonical listing route.
+Family wrappers should still derive or strictly template payload content where
+practical, and the
 social/message/commission families need an explicit concurrency
 decision before activation. Application authorization and block checks remain
 required; the draft must not be described as making forged content or block

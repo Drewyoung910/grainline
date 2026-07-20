@@ -84,8 +84,8 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(strategy, /must not be conflated with recipient RPCs/);
     assert.match(strategy, /27 source-less emission paths/);
     assert.match(strategy, /currently fail closed/);
-    assert.match(strategy, /bounded caller control of notification text\s+and link/);
-    assert.match(strategy, /dedup key's format[\s\S]{0,180}replay possible/);
+    assert.match(strategy, /bounded caller control of notification text/);
+    assert.match(strategy, /dedup identity inside owner authority/);
     assert.match(strategy, /do not yet serialize with a\s+concurrent block insertion/);
   });
 
@@ -103,10 +103,10 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(inventory, /Grant runtime only reviewed family functions/);
     assert.match(inventory, /provider and cron families[\s\S]{0,220}persisted order\/payment\/payout/);
     assert.match(inventory, /staff-only families[\s\S]{0,220}audit or domain source/);
-    assert.match(inventory, /caller-supplied title, body, and relative link/);
-    assert.match(inventory, /caller-supplied dedup key[\s\S]{0,180}replay one valid source/);
+    assert.match(inventory, /caller-supplied title and body/);
+    assert.match(inventory, /dedup identity[\s\S]{0,180}derived inside owner authority/);
     assert.match(inventory, /do not serialize against a concurrent\s+block creation/);
-    assert.match(inventory, /reserved listing, seller, buyer, conversation/);
+    assert.match(inventory, /reserved listing,[\s\S]{0,80}seller, buyer, conversation/);
     assert.doesNotMatch(inventory, /custom-listing reservation\/link binding remains blocking/);
     assert.doesNotMatch(inventory, /write-side RLS on Notification is low-value/);
   });
@@ -218,7 +218,7 @@ describe("Bucket B Notification RLS inventory", () => {
     );
     assert.match(migration, /deliberately outside\s+-- prisma\/migrations/);
     assert.match(notifications, /NotificationRelatedUserFields/);
-    assert.match(notifications, /relatedUserId: relatedUserId \?\? null,\s*dedupKey/);
+    assert.match(notifications, /relatedUserId: relatedUserId \?\? null,\s*\}\);/);
     assert.match(runtimeGuard, /assertNoNotificationRlsDraftDeployment/);
     assert.match(runtimeGuard, /notification-service-authority\.sql/);
     assert.match(runtimeGuard, /deployment is barred while the unapplied Notification RLS draft is present/);
@@ -269,8 +269,8 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.doesNotMatch(sql, /GRANT EXECUTE ON FUNCTION public\.grainline_notification_create_core\(/);
     assert.match(sql, /recipient\.banned = false[\s\S]{0,100}recipient\."deletedAt" IS NULL[\s\S]{0,80}FOR SHARE/);
     assert.match(sql, /recipient_preferences -> \(p_type::text\) = 'false'::jsonb/);
-    assert.match(sql, /pg_catalog\.strpos\(p_link, pg_catalog\.chr\(92\)\) > 0/);
-    assert.match(sql, /p_link ~ '\[\[:cntrl:\]\]'/);
+    assert.match(sql, /pg_catalog\.strpos\(notification_link, pg_catalog\.chr\(92\)\) > 0/);
+    assert.match(sql, /notification_link ~ '\[\[:cntrl:\]\]'/);
     assert.match(sql, /notification source metadata must be paired/);
     assert.match(sql, /notification source does not match notification type/);
     assert.match(sql, /notification source requires a distinct related user/);
@@ -281,13 +281,11 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(sql, /source_message\."recipientId" = p_user_id/);
     assert.match(sql, /source_message\.kind = 'custom_order_request'/);
     assert.match(sql, /source_message\.kind = 'custom_order_link'/);
-    assert.match(sql, /p_link = '\/messages\/' \|\| source_conversation\.id/);
-    assert.match(sql, /context_listing\."customOrderConversationId" = context_conversation\.id/);
+    assert.match(sql, /context_listing\."customOrderConversationId" = source_conversation\.id/);
     assert.match(sql, /context_listing\."reservedForUserId" = p_user_id/);
     assert.match(sql, /context_seller\."userId" = p_related_user_id/);
     assert.match(sql, /context_listing\.status IN \('ACTIVE', 'SOLD_OUT'\)/);
-    assert.match(sql, /'"listingId":"' \|\| p_authority_context_id \|\| '"'/);
-    assert.match(sql, /'\/listing\/' \|\| p_authority_context_id \|\| '--'/);
+    assert.match(sql, /pg_catalog\.substring\([\s\S]{0,100}source_message\.body,[\s\S]{0,100}'"listingId":"\(\[\^"\]\+\)"'/);
     assert.match(sql, /source_review\."reviewerId" = p_related_user_id/);
     assert.match(sql, /source_message\."authorId" = p_related_user_id/);
     assert.match(sql, /source_audit\.action = 'MARK_CASE_RESOLVED'/);
@@ -307,6 +305,9 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(sql, /blog comment notification cleanup requires a deleted source/);
     assert.match(sql, /seller broadcast notification cleanup requires a deleted source/);
     assert.match(sql, /ON CONFLICT \("userId", "type", "dedupKey"\) DO NOTHING/);
+    assert.match(sql, /replay_material := pg_catalog\.concat_ws\(/);
+    assert.equal((sql.match(/pg_catalog\.md5\(/g) ?? []).length, 2);
+    assert.doesNotMatch(sql, /\bp_link\b|\bp_dedup_key\b/);
     assert.match(sql, /request_user_id <> p_user_id/);
     assert.equal((sql.match(/requires staff context/g) ?? []).length, 2);
     assert.match(sql, /interval '90 days'/);
@@ -321,8 +322,7 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(serviceAccess, /public\.grainline_notification_create_message_event\(/);
     assert.match(serviceAccess, /public\.grainline_notification_create_case_event\(/);
     assert.match(serviceAccess, /public\.grainline_notification_create_commission_event\(/);
-    assert.match(serviceAccess, /extractRouteId\(listingRouteSegment\)/);
-    assert.match(serviceAccess, /\$\{authorityContextId\}::text/);
+    assert.doesNotMatch(serviceAccess, /extractRouteId|authorityContextId|\$\{link\}|\$\{dedupKey\}/);
     assert.match(serviceAccess, /notification create family is not implemented for a source-less event/);
     assert.match(serviceAccess, /public\.grainline_notification_delete_for_account\(/);
     assert.match(serviceAccess, /public\.grainline_notification_delete_blog_comment\(/);
