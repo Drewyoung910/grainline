@@ -58,7 +58,7 @@ import {
 } from "@/lib/refundLockState";
 import { releaseStaleRefundLocks } from "@/lib/refundLocks";
 import { createMarketplaceRefund, refundIdempotencyKeyBase } from "@/lib/marketplaceRefunds";
-import { recordLocalRefundEvidence } from "@/lib/localRefundEvidence";
+import { localRefundEvidenceEventId, recordLocalRefundEvidence } from "@/lib/localRefundEvidence";
 import { stripeWebhookCreatedSeconds } from "@/lib/stripeConnectV2";
 import {
   revalidateFeaturedMakerCaches,
@@ -646,6 +646,8 @@ export async function POST(req: Request) {
             body: `Your order from ${sellerName} is being prepared`,
             link: `/dashboard/orders/${order.id}`,
             relatedUserId: sellerUserId,
+            sourceType: NOTIFICATION_SOURCE_TYPES.ORDER_CHECKOUT,
+            sourceId: order.id,
           })
         : Promise.resolve(),
       sellerUserId
@@ -656,6 +658,8 @@ export async function POST(req: Request) {
             body: `${buyerDisplayName} purchased ${firstItemTitle}`,
             link: `/dashboard/sales/${order.id}`,
             relatedUserId: order.buyerId ?? undefined,
+            sourceType: NOTIFICATION_SOURCE_TYPES.ORDER_CHECKOUT,
+            sourceId: order.id,
           })
         : Promise.resolve(),
     ]);
@@ -1302,6 +1306,11 @@ export async function POST(req: Request) {
                   title: "Payment refunded",
                   body: "This payment was refunded because the checkout was no longer eligible to complete.",
                   link: `/dashboard/orders/${input.orderId}`,
+                  sourceType: NOTIFICATION_SOURCE_TYPES.ORDER_PAYMENT,
+                  sourceId: localRefundEvidenceEventId(
+                    "BLOCKED_CHECKOUT_REFUND_RECORDED",
+                    refundId,
+                  ),
                 });
               } catch (notificationError) {
                 Sentry.captureException(notificationError, {
@@ -2512,7 +2521,7 @@ export async function POST(req: Request) {
               });
             }
             return disputeSideEffectsApplied && event.type === "charge.dispute.created" && sellerUserId
-              ? { sellerUserId, orderId: order.id }
+              ? { sellerUserId, orderId: order.id, buyerUserId: order.buyerId, paymentEventId: event.id }
               : null;
           });
           if (notifySellerUserId) {
@@ -2523,6 +2532,9 @@ export async function POST(req: Request) {
               body: `Stripe reported a dispute for order ${notifySellerUserId.orderId}.`,
               link: `/dashboard/sales/${notifySellerUserId.orderId}`,
               dedupScope: `stripe-dispute:${dispute.id ?? event.id}:created`,
+              sourceType: NOTIFICATION_SOURCE_TYPES.ORDER_PAYMENT,
+              sourceId: notifySellerUserId.paymentEventId,
+              relatedUserId: notifySellerUserId.buyerUserId ?? undefined,
             });
             Sentry.captureMessage("Stripe dispute opened", {
               level: "warning",
@@ -2551,7 +2563,7 @@ export async function POST(req: Request) {
           if (seller) {
             const payoutFailure = payoutFailureState(payout, event.id);
             const { stripePayoutId, ...payoutEventData } = payoutFailure.event;
-            await prisma.sellerPayoutEvent.upsert({
+            const payoutEvent = await prisma.sellerPayoutEvent.upsert({
               where: { stripePayoutId },
               create: {
                 sellerProfileId: seller.id,
@@ -2563,6 +2575,8 @@ export async function POST(req: Request) {
             await createNotification({
               userId: seller.userId,
               ...payoutFailure.notification,
+              sourceType: NOTIFICATION_SOURCE_TYPES.STRIPE_PAYOUT_FAILURE,
+              sourceId: payoutEvent.id,
             });
           }
         }

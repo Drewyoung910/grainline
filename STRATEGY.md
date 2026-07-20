@@ -103,11 +103,11 @@ sequencing prerequisites are live, compare it with narrow one-statement
 evidence. Cross-user creation and cleanup use a separate service-authority
 design and must not be conflated with recipient RPCs.
 
-The isolated service-authority draft now uses sixteen owner-backed functions:
-one runtime-ungranted fixed-column core, nine granted creation families, one
+The isolated service-authority draft now uses seventeen owner-backed functions:
+one runtime-ungranted fixed-column core, ten granted creation families, one
 dedicated back-in-stock claim/create/consume operation, three exact cleanup
 operations, and two fixed retention batches. Runtime receives exact execute
-privileges only on the fifteen fixed-purpose entry points;
+privileges only on the sixteen fixed-purpose entry points;
 direct Notification insert/delete and the default public function privilege
 remain revoked. The application paths are wired to the draft, but legacy
 null-source and account-deletion source/link/text fallbacks still perform direct
@@ -118,17 +118,17 @@ not database-authenticated identity and a compromised runtime can forge it;
 fixed-purpose constraints limit that residual without eliminating it.
 
 Extra-high review does not yet accept the shared create function as final. The
-forty-five authority-bound paths can prove source, type, actor, recipient, and
-relationship constraints inside the database operation, but 9 source-less
-emission paths still need family implementations and currently fail closed.
+54/54 creation-authority coverage can prove source, type, actor, recipient, and
+relationship constraints inside the database operation, but that result does
+not by itself make Bucket B activation-ready.
 The granted wrappers also retain bounded caller control of notification text
 but no longer accept link or dedup identity. The private core derives canonical
 links and stable dedup identity inside owner authority from the validated
 recipient, type, source row, related actor, and source-specific route columns.
 App-level link and dedup scope are telemetry only. Social/message/commission
 absence-of-block checks do not yet serialize with a concurrent block insertion.
-Classify the remaining type families, derive or
-template payloads where practical, and resolve the concurrency contract before
+Derive or template the remaining caller-controlled payloads where practical,
+and resolve the concurrency contract before
 activation; retain provider performance proof for the source-validation joins.
 
 The message family uses `Message.id` as its durable source. For custom-order
@@ -162,17 +162,27 @@ before attempting the in-app row. Banned-seller buyer warnings use a compound
 ban-audit/order event, validate that the order is listed in the ban snapshot,
 and retain the banned seller as exact related-user lifecycle metadata.
 
+The order/payment/fulfillment family completes creation coverage. Checkout
+buyer/seller notifications bind the atomic checkout-order audit; three seller
+fulfillment transitions co-commit a user-attributed system audit; seller and
+blocked-checkout refunds plus Stripe disputes bind `OrderPaymentEvent`; payout
+failure binds `SellerPayoutEvent`. The owner wrapper derives the recipient,
+counterparty, payload, route, and replay identity from those ledgers and exact
+order relationships.
+
 Production activation also has a permanent completeness gate:
 `npm run audit:rls-notification-readiness`. It inventories the real TypeScript
 emission paths, requires the exact 54-path contract, and fails on dynamic calls,
 missing source pairs, or source constants that do not dispatch through a
-reviewed service family. Its current 45/54 result must remain a failing operator
-preflight until every path is covered; ordinary tests assert that expected
-fail-closed state so incomplete notification types cannot disappear silently.
+reviewed service family whose draft SQL function, `PUBLIC` execute revoke, and
+runtime grant are present. Its current 54/54 result passes the
+creation-authority gate; ordinary tests retain the exact count and authority
+surface tripwires so new or dynamic paths cannot disappear silently. This green
+gate is only one activation prerequisite.
 
 Use a hybrid rather than either extreme. Do not grant runtime the current
-generic arbitrary-type/arbitrary-recipient creator, but do not add identical
-lifecycle metadata mechanically to all 9 source-less emission paths. Keep the
+generic arbitrary-type/arbitrary-recipient creator, and do not collapse the
+completed paths into identical lifecycle metadata. Keep the
 fixed-column insert primitive private to the function owner and expose only
 family-specific operations keyed by stable domain ids and small event
 discriminators. The ten-family inventory and implementation order live in

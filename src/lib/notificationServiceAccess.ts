@@ -44,6 +44,10 @@ export async function createNotificationServiceRow({
     || sourceType === NOTIFICATION_SOURCE_TYPES.LISTING_USER_REPORT;
   const accountWarningSource = sourceType === NOTIFICATION_SOURCE_TYPES.ADMIN_ACCOUNT_MESSAGE
     || sourceType === NOTIFICATION_SOURCE_TYPES.BANNED_SELLER_ORDER;
+  const orderSource = sourceType === NOTIFICATION_SOURCE_TYPES.ORDER_CHECKOUT
+    || sourceType === NOTIFICATION_SOURCE_TYPES.ORDER_FULFILLMENT
+    || sourceType === NOTIFICATION_SOURCE_TYPES.ORDER_PAYMENT
+    || sourceType === NOTIFICATION_SOURCE_TYPES.STRIPE_PAYOUT_FAILURE;
   const caseSource = sourceType === NOTIFICATION_SOURCE_TYPES.CASE
     || sourceType === NOTIFICATION_SOURCE_TYPES.CASE_MESSAGE
     || sourceType === NOTIFICATION_SOURCE_TYPES.CASE_RESOLUTION_MARK
@@ -52,7 +56,7 @@ export async function createNotificationServiceRow({
     || sourceType === NOTIFICATION_SOURCE_TYPES.FOLLOWED_MAKER_NEW_BLOG
     || sourceType === NOTIFICATION_SOURCE_TYPES.FOLLOWED_MAKER_NEW_LISTING
     || sourceType === NOTIFICATION_SOURCE_TYPES.SELLER_BROADCAST;
-  if (!socialSource && !messageSource && !commissionSource && !inventorySource && !verificationSource && !moderationSource && !accountWarningSource && !caseSource && !fanoutSource) {
+  if (!socialSource && !messageSource && !commissionSource && !inventorySource && !verificationSource && !moderationSource && !accountWarningSource && !orderSource && !caseSource && !fanoutSource) {
     throw new Error("notification create family is not implemented for this source");
   }
   let rows: Array<{ id: string | null }>;
@@ -124,6 +128,19 @@ export async function createNotificationServiceRow({
   } else if (accountWarningSource) {
     rows = await prisma.$queryRaw<Array<{ id: string | null }>>`
         SELECT public.grainline_notification_create_account_warning(
+          ${notificationId}::text,
+          ${userId}::text,
+          ${type}::public."NotificationType",
+          ${title}::text,
+          ${body}::text,
+          ${sourceType}::text,
+          ${sourceId}::text,
+          ${relatedUserId}::text
+        ) AS id
+      `;
+  } else if (orderSource) {
+    rows = await prisma.$queryRaw<Array<{ id: string | null }>>`
+        SELECT public.grainline_notification_create_order_event(
           ${notificationId}::text,
           ${userId}::text,
           ${type}::public."NotificationType",

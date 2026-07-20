@@ -12,9 +12,9 @@ construction paths. One dedicated back-in-stock claim call derives its
 Notification write inside owner authority. The inventory therefore covers 54
 distinct emission paths:
 
-- 45 authority-bound paths;
-- 9 source-less paths;
-- 24 generic paths currently carrying `relatedUserId`, plus back-in-stock's
+- 54 authority-bound paths;
+- 0 source-less paths;
+- 26 literal creation sites currently carrying `relatedUserId`, plus back-in-stock's
   database-derived seller relationship.
 
 The earlier count of 51 calls and 46 source-less paths omitted the fulfillment
@@ -26,8 +26,9 @@ implementation moved all twelve case paths. Checkout low-stock, manual low-stock
 and the dedicated back-in-stock claim then completed all three inventory paths.
 The seven staff and three cron verification/Guild transitions complete that
 family. Three listing-moderation/report paths and two staff/account-warning
-paths now bind exact audit, report, ban, and order evidence, producing the
-current 45/9 split.
+paths now bind exact audit, report, ban, and order evidence. The final nine
+checkout, fulfillment, refund, dispute, and payout paths bind their existing
+order/system-audit/payment/payout ledgers, producing the current 54/0 split.
 Tests pin direct calls, emission paths, and family state so those concepts are
 not conflated again.
 
@@ -44,7 +45,7 @@ not conflated again.
 | Social and review events | 3 | Favorite, follow, review | Implemented draft validation: `Favorite`, `Follow`, `Review`, listing/seller ownership and event actor |
 | Inventory events | 3 | Seller low stock, subscriber back in stock, webhook low stock | Implemented draft validation: checkout low-stock binds `OrderItem`, paid `Order`, and completed reservation; manual low-stock binds an atomic audit; back-in-stock binds an atomic SOLD_OUT→ACTIVE audit plus the locked subscription and performs claim/create/consume as one owner operation |
 | Messaging and custom orders | 3 | New message, custom-order request, custom-order-ready link | Implemented draft validation: `Message`, `Conversation`, participant pair and kind; ready links additionally bind the reserved `Listing`, seller, buyer, conversation and canonical route |
-| Order, payment and fulfillment | 9 | Order buyer/seller notices, refund, shipment/pickup, dispute and payout failure | `Order`, items/seller/buyer, payment/payout event ledgers, fulfillment transition and provider event id |
+| Order, payment and fulfillment | 9 | Order buyer/seller notices, refund, shipment/pickup, dispute and payout failure | Implemented draft validation: checkout and fulfillment system audits, `OrderPaymentEvent` refund/dispute evidence, `SellerPayoutEvent`, exact buyer/seller relationships, provider event identity, and derived payload/routes |
 | **Total** | **54** |  |  |
 
 ## Chosen Hybrid
@@ -56,8 +57,8 @@ arbitrary-recipient insert function merely because HTTP users do not insert
 notifications directly. That shortcut would restore broad cross-user authority
 to any runtime query that could invoke it.
 
-Do not instrument the remaining 9 paths with one undifferentiated provenance
-shape. Group them by the ten authority families above:
+The 54/54 result was reached without one undifferentiated provenance shape.
+Keep the ten authority families above distinct:
 
 1. Keep an internal fixed-column insert primitive ungranted to `PUBLIC` and the
    runtime role.
@@ -80,7 +81,7 @@ Application authorization remains primary. These functions are database
 defense in depth against overly broad queries and partial compromise; they do
 not claim to defeat arbitrary code execution holding the runtime credential.
 
-This is not yet a complete runtime-compromise boundary. The nine granted creation
+This is not yet a complete runtime-compromise boundary. The ten granted creation
 wrappers share bounded title/body parameters, although the verification,
 moderation, account-warning, inventory, and portions of other families replace
 them with source-derived templates. The dedicated back-in-stock claim accepts
@@ -123,8 +124,11 @@ races impossible.
 4. Retain the completed moderation/account-warning families. Listing decisions
    bind transaction-returned audit ids, reports bind exact `UserReport` rows,
    successful admin messages bind post-send audit evidence, and ban warnings bind
-   a compound ban-audit/order event. Continue with order/payment/fulfillment only
-   after its provider transition matrix is complete.
+   a compound ban-audit/order event.
+5. Retain the completed order/payment/fulfillment family. Checkout and seller
+   transitions bind system audits, refunds/disputes bind `OrderPaymentEvent`,
+   and payout failure binds `SellerPayoutEvent`; the owner wrapper derives the
+   exact recipient, counterpart, payload, route, and replay identity.
 
 Every family still needs PostgreSQL parse/apply proof, own/foreign and direct
 denial tests, concurrency tests, grants/catalog fingerprints, rollback, and
@@ -132,6 +136,8 @@ provider performance evidence before production activation.
 The permanent completeness gate is
 `npm run audit:rls-notification-readiness`: it inventories the real TypeScript
 call graph, requires exactly 54 emission paths, and blocks activation until all
-54 carry a source pair dispatched through a reviewed family. Its current
-45/54 failure is expected and must never be bypassed or weakened to make an
-incomplete rollout pass.
+54 carry a source pair dispatched through a reviewed family whose draft SQL
+function, `PUBLIC` execute revoke, and runtime grant are also present. Its current
+54/54 now passes for creation-authority coverage. This is necessary but not
+sufficient for activation: recipient reads, concurrency, legacy cleanup,
+PostgreSQL proof, provider evidence, and the pre-activation review remain open.

@@ -5,6 +5,46 @@ import ts from "typescript";
 
 export const EXPECTED_NOTIFICATION_EMISSION_PATHS = 54;
 
+const FAMILY_SQL_FUNCTION_BY_SOURCE_KEY = {
+  BLOG_COMMENT: "grainline_notification_create_source_fanout",
+  FOLLOWED_MAKER_NEW_BLOG: "grainline_notification_create_source_fanout",
+  FOLLOWED_MAKER_NEW_LISTING: "grainline_notification_create_source_fanout",
+  SELLER_BROADCAST: "grainline_notification_create_source_fanout",
+  FAVORITE: "grainline_notification_create_social_event",
+  FOLLOW: "grainline_notification_create_social_event",
+  REVIEW: "grainline_notification_create_social_event",
+  MESSAGE: "grainline_notification_create_message_event",
+  COMMISSION_INTEREST: "grainline_notification_create_commission_event",
+  COMMISSION_REQUEST: "grainline_notification_create_commission_event",
+  CASE: "grainline_notification_create_case_event",
+  CASE_MESSAGE: "grainline_notification_create_case_event",
+  CASE_RESOLUTION_MARK: "grainline_notification_create_case_event",
+  CASE_SYSTEM_ACTION: "grainline_notification_create_case_event",
+  CHECKOUT_LOW_STOCK: "grainline_notification_create_inventory_event",
+  MANUAL_LOW_STOCK: "grainline_notification_create_inventory_event",
+  GUILD_ADMIN_ACTION: "grainline_notification_create_verification_event",
+  GUILD_SYSTEM_ACTION: "grainline_notification_create_verification_event",
+  LISTING_ADMIN_REVIEW: "grainline_notification_create_moderation_event",
+  LISTING_USER_REPORT: "grainline_notification_create_moderation_event",
+  ADMIN_ACCOUNT_MESSAGE: "grainline_notification_create_account_warning",
+  BANNED_SELLER_ORDER: "grainline_notification_create_account_warning",
+  ORDER_CHECKOUT: "grainline_notification_create_order_event",
+  ORDER_FULFILLMENT: "grainline_notification_create_order_event",
+  ORDER_PAYMENT: "grainline_notification_create_order_event",
+  STRIPE_PAYOUT_FAILURE: "grainline_notification_create_order_event",
+};
+
+function sqlAuthorityExists(authoritySql, functionName) {
+  const escapedFunctionName = functionName.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`CREATE OR REPLACE FUNCTION public\\.${escapedFunctionName}\\(`).test(authoritySql)
+    && new RegExp(
+      `REVOKE ALL ON FUNCTION public\\.${escapedFunctionName}\\([\\s\\S]{0,400}\\)\\s+FROM PUBLIC, grainline_app_runtime;`,
+    ).test(authoritySql)
+    && new RegExp(
+      `GRANT EXECUTE ON FUNCTION public\\.${escapedFunctionName}\\([\\s\\S]{0,400}\\)\\s+TO grainline_app_runtime;`,
+    ).test(authoritySql);
+}
+
 function sourceFiles(root) {
   return fs.readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
     const child = path.join(root, entry.name);
@@ -26,7 +66,7 @@ function notificationType(object) {
   return property.initializer.getText(object.getSourceFile()).replaceAll(/["']/g, "");
 }
 
-function emissionFromObject(file, sourceFile, object, kind, serviceAccess) {
+function emissionFromObject(file, sourceFile, object, kind, serviceAccess, authoritySql) {
   const sourceType = objectProperty(object, "sourceType");
   const sourceId = objectProperty(object, "sourceId");
   const sourceTypeText = sourceType && ts.isPropertyAssignment(sourceType)
@@ -36,6 +76,16 @@ function emissionFromObject(file, sourceFile, object, kind, serviceAccess) {
     ? sourceId.initializer.getText(sourceFile)
     : null;
   const familyKey = sourceTypeText?.match(/^NOTIFICATION_SOURCE_TYPES\.([A-Z0-9_]+)$/)?.[1] ?? null;
+  const authorityFunction = familyKey ? FAMILY_SQL_FUNCTION_BY_SOURCE_KEY[familyKey] ?? null : null;
+  const hasServiceDispatch = Boolean(
+    familyKey
+    && authorityFunction
+    && serviceAccess.includes(`NOTIFICATION_SOURCE_TYPES.${familyKey}`)
+    && serviceAccess.includes(`public.${authorityFunction}(`)
+  );
+  const hasSqlAuthority = Boolean(
+    authorityFunction && sqlAuthorityExists(authoritySql, authorityFunction)
+  );
   const position = sourceFile.getLineAndCharacterOfPosition(object.getStart(sourceFile));
   return {
     id: `${file}:${position.line + 1}:${notificationType(object)}`,
@@ -50,11 +100,14 @@ function emissionFromObject(file, sourceFile, object, kind, serviceAccess) {
       && sourceIdText !== "null"
       && sourceIdText !== "undefined"
     ),
-    reviewedFamily: Boolean(familyKey && serviceAccess.includes(`NOTIFICATION_SOURCE_TYPES.${familyKey}`)),
+    authorityFunction,
+    hasServiceDispatch,
+    hasSqlAuthority,
+    reviewedFamily: hasServiceDispatch && hasSqlAuthority,
   };
 }
 
-function backInStockEmission(file, sourceFile, object, serviceAccess) {
+function backInStockEmission(file, sourceFile, object, serviceAccess, authoritySql) {
   const restockAuditId = objectProperty(object, "restockAuditId");
   const stockNotificationId = objectProperty(object, "stockNotificationId");
   const hasValue = (property) => Boolean(
@@ -66,6 +119,9 @@ function backInStockEmission(file, sourceFile, object, serviceAccess) {
     )
   );
   const position = sourceFile.getLineAndCharacterOfPosition(object.getStart(sourceFile));
+  const authorityFunction = "grainline_notification_claim_back_in_stock";
+  const hasServiceDispatch = serviceAccess.includes(`public.${authorityFunction}(`);
+  const hasSqlAuthority = sqlAuthorityExists(authoritySql, authorityFunction);
   return {
     id: `${file}:${position.line + 1}:BACK_IN_STOCK`,
     file,
@@ -74,15 +130,20 @@ function backInStockEmission(file, sourceFile, object, serviceAccess) {
     type: "BACK_IN_STOCK",
     sourceType: "NOTIFICATION_SOURCE_TYPES.BACK_IN_STOCK",
     hasSourcePair: hasValue(restockAuditId) && hasValue(stockNotificationId),
-    reviewedFamily: serviceAccess.includes("grainline_notification_claim_back_in_stock"),
+    authorityFunction,
+    hasServiceDispatch,
+    hasSqlAuthority,
+    reviewedFamily: hasServiceDispatch && hasSqlAuthority,
   };
 }
 
 export function collectNotificationEmissionPaths({
   sourceRoot = "src",
   serviceAccessPath = "src/lib/notificationServiceAccess.ts",
+  authoritySqlPath = "docs/rls-drafts/notification-service-authority.sql",
 } = {}) {
   const serviceAccess = fs.readFileSync(serviceAccessPath, "utf8");
+  const authoritySql = fs.readFileSync(authoritySqlPath, "utf8");
   const emissions = [];
   const unresolvedCalls = [];
 
@@ -100,7 +161,14 @@ export function collectNotificationEmissionPaths({
         if (node.expression.text === "createNotification") {
           const argument = node.arguments[0];
           if (argument && ts.isObjectLiteralExpression(argument)) {
-            emissions.push(emissionFromObject(file, sourceFile, argument, "direct", serviceAccess));
+            emissions.push(emissionFromObject(
+              file,
+              sourceFile,
+              argument,
+              "direct",
+              serviceAccess,
+              authoritySql,
+            ));
           } else if (!(file === "src/app/api/orders/[id]/fulfillment/route.ts"
             && argument?.getText(sourceFile) === "payload")) {
             const position = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
@@ -110,7 +178,13 @@ export function collectNotificationEmissionPaths({
         if (node.expression.text === "claimBackInStockNotification") {
           const argument = node.arguments[0];
           if (argument && ts.isObjectLiteralExpression(argument)) {
-            emissions.push(backInStockEmission(file, sourceFile, argument, serviceAccess));
+            emissions.push(backInStockEmission(
+              file,
+              sourceFile,
+              argument,
+              serviceAccess,
+              authoritySql,
+            ));
           } else {
             const position = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
             unresolvedCalls.push(`${file}:${position.line + 1}:claimBackInStockNotification`);
@@ -120,7 +194,14 @@ export function collectNotificationEmissionPaths({
           const payload = node.arguments[2];
           if (file === "src/app/api/orders/[id]/fulfillment/route.ts"
             && payload && ts.isObjectLiteralExpression(payload)) {
-            emissions.push(emissionFromObject(file, sourceFile, payload, "fulfillment", serviceAccess));
+            emissions.push(emissionFromObject(
+              file,
+              sourceFile,
+              payload,
+              "fulfillment",
+              serviceAccess,
+              authoritySql,
+            ));
           }
         }
       }

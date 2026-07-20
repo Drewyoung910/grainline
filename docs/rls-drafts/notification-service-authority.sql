@@ -61,6 +61,10 @@ BEGIN
       'listing_user_report',
       'admin_account_message',
       'banned_seller_order',
+      'order_checkout',
+      'order_fulfillment',
+      'order_payment',
+      'stripe_payout_failure',
       'favorite',
       'followed_maker_new_blog',
       'followed_maker_new_listing',
@@ -97,6 +101,14 @@ BEGIN
          AND p_type <> 'LISTING_FLAGGED_BY_USER')
      OR (p_source_type IN ('admin_account_message', 'banned_seller_order')
          AND p_type <> 'ACCOUNT_WARNING')
+     OR (p_source_type = 'order_checkout'
+         AND p_type <> 'NEW_ORDER')
+     OR (p_source_type = 'order_fulfillment'
+         AND p_type NOT IN ('ORDER_SHIPPED', 'ORDER_DELIVERED'))
+     OR (p_source_type = 'order_payment'
+         AND p_type NOT IN ('NEW_ORDER', 'REFUND_ISSUED', 'PAYMENT_DISPUTE'))
+     OR (p_source_type = 'stripe_payout_failure'
+         AND p_type <> 'PAYOUT_FAILED')
      OR (p_source_type = 'favorite'
          AND p_type <> 'NEW_FAVORITE')
      OR (p_source_type = 'followed_maker_new_blog'
@@ -127,7 +139,9 @@ BEGIN
        'guild_admin_action',
        'guild_system_action',
        'listing_admin_review',
-       'admin_account_message'
+       'admin_account_message',
+       'order_payment',
+       'stripe_payout_failure'
      )
      AND (p_related_user_id IS NULL OR p_related_user_id = p_user_id) THEN
     RAISE EXCEPTION 'notification source requires a distinct related user' USING ERRCODE = '22023';
@@ -686,6 +700,235 @@ BEGIN
             AND source_item_seller."userId" = source_banned_seller.id
        )
      FOR SHARE OF source_audit, source_staff, source_banned_seller, source_order;
+  ELSIF p_source_type = 'order_checkout' THEN
+    SELECT
+      CASE
+        WHEN p_user_id = source_order."buyerId"
+          THEN '/dashboard/orders/' || source_order.id
+        ELSE '/dashboard/sales/' || source_order.id
+      END,
+      CASE
+        WHEN p_user_id = source_order."buyerId" THEN 'Order confirmed!'
+        ELSE 'New sale! Congrats!'
+      END,
+      CASE
+        WHEN p_user_id = source_order."buyerId" THEN
+          'Your order from ' || COALESCE(source_seller."displayName", 'Maker')
+          || ' is being prepared'
+        ELSE COALESCE(source_buyer.name, 'A buyer') || ' purchased '
+          || COALESCE(source_listing.title, 'an item')
+      END
+      INTO notification_link, notification_title, notification_body
+      FROM public."Order" AS source_order
+      JOIN public."User" AS source_buyer
+        ON source_buyer.id = source_order."buyerId"
+      JOIN public."OrderItem" AS source_item
+        ON source_item.id = (
+          SELECT candidate_item.id
+            FROM public."OrderItem" AS candidate_item
+           WHERE candidate_item."orderId" = source_order.id
+           ORDER BY candidate_item.id
+           LIMIT 1
+        )
+      JOIN public."Listing" AS source_listing
+        ON source_listing.id = source_item."listingId"
+      JOIN public."SellerProfile" AS source_seller
+        ON source_seller.id = source_listing."sellerId"
+      JOIN public."SystemAuditLog" AS source_audit
+        ON source_audit."targetId" = source_order.id
+       AND source_audit."targetType" = 'ORDER'
+       AND source_audit.action = 'STRIPE_CHECKOUT_ORDER_CREATED'
+     WHERE source_order.id = p_source_id
+       AND source_order."paidAt" IS NOT NULL
+       AND source_order."sellerRefundId" IS NULL
+       AND source_audit."actorType" = 'webhook'
+       AND source_audit."actorId" IS NOT NULL
+       AND source_audit.metadata ->> 'stripeSessionId' = source_order."stripeSessionId"
+       AND p_type = 'NEW_ORDER'::public."NotificationType"
+       AND (
+         (p_user_id = source_order."buyerId"
+          AND p_related_user_id = source_seller."userId")
+         OR
+         (p_user_id = source_seller."userId"
+          AND p_related_user_id = source_order."buyerId")
+       )
+       AND NOT EXISTS (
+         SELECT 1
+           FROM public."OrderItem" AS other_item
+           JOIN public."Listing" AS other_listing
+             ON other_listing.id = other_item."listingId"
+          WHERE other_item."orderId" = source_order.id
+            AND other_listing."sellerId" <> source_seller.id
+       )
+       AND NOT EXISTS (
+         SELECT 1
+           FROM public."OrderPaymentEvent" AS refund_event
+          WHERE refund_event."orderId" = source_order.id
+            AND refund_event."eventType" = 'REFUND'
+       )
+     FOR SHARE OF source_order, source_buyer, source_item, source_listing, source_seller, source_audit;
+  ELSIF p_source_type = 'order_fulfillment' THEN
+    SELECT
+      '/dashboard/orders/' || source_order.id,
+      CASE source_audit.metadata ->> 'action'
+        WHEN 'shipped' THEN 'Your piece is on its way!'
+        WHEN 'picked_up' THEN 'Order picked up!'
+        WHEN 'ready_for_pickup' THEN 'Ready for pickup!'
+      END,
+      CASE source_audit.metadata ->> 'action'
+        WHEN 'shipped' THEN CASE
+          WHEN COALESCE(source_audit.metadata ->> 'trackingCarrier', '') <> ''
+            THEN 'Shipped via ' || (source_audit.metadata ->> 'trackingCarrier')
+          ELSE 'Your order has been shipped'
+        END
+        WHEN 'picked_up' THEN 'Your order has been picked up. Enjoy!'
+        WHEN 'ready_for_pickup' THEN 'Your order is ready for pickup.'
+      END
+      INTO notification_link, notification_title, notification_body
+      FROM public."SystemAuditLog" AS source_audit
+      JOIN public."Order" AS source_order
+        ON source_order.id = source_audit."targetId"
+      JOIN public."OrderItem" AS source_item
+        ON source_item.id = (
+          SELECT candidate_item.id
+            FROM public."OrderItem" AS candidate_item
+           WHERE candidate_item."orderId" = source_order.id
+           ORDER BY candidate_item.id
+           LIMIT 1
+        )
+      JOIN public."Listing" AS source_listing
+        ON source_listing.id = source_item."listingId"
+      JOIN public."SellerProfile" AS source_seller
+        ON source_seller.id = source_listing."sellerId"
+     WHERE source_audit.id = p_source_id
+       AND source_audit.action = 'ORDER_FULFILLMENT_TRANSITION'
+       AND source_audit."actorType" = 'user'
+       AND source_audit."targetType" = 'ORDER'
+       AND source_audit."actorId" = source_seller."userId"
+       AND source_order."buyerId" = p_user_id
+       AND p_related_user_id = source_seller."userId"
+       AND source_audit.metadata ->> 'action' IN ('shipped', 'picked_up', 'ready_for_pickup')
+       AND source_audit.metadata ->> 'newStatus' = CASE source_audit.metadata ->> 'action'
+         WHEN 'shipped' THEN 'SHIPPED'
+         WHEN 'picked_up' THEN 'PICKED_UP'
+         WHEN 'ready_for_pickup' THEN 'READY_FOR_PICKUP'
+       END
+       AND p_type = CASE source_audit.metadata ->> 'action'
+         WHEN 'picked_up' THEN 'ORDER_DELIVERED'::public."NotificationType"
+         ELSE 'ORDER_SHIPPED'::public."NotificationType"
+       END
+       AND NOT EXISTS (
+         SELECT 1
+           FROM public."OrderItem" AS other_item
+           JOIN public."Listing" AS other_listing
+             ON other_listing.id = other_item."listingId"
+          WHERE other_item."orderId" = source_order.id
+            AND other_listing."sellerId" <> source_seller.id
+       )
+     FOR SHARE OF source_audit, source_order, source_item, source_listing, source_seller;
+  ELSIF p_source_type = 'order_payment' THEN
+    SELECT
+      CASE
+        WHEN source_payment.metadata ->> 'localAction' = 'BLOCKED_CHECKOUT_REFUND_RECORDED'
+          THEN '/dashboard/orders/' || source_order.id
+        WHEN source_payment."eventType" = 'DISPUTE'
+          THEN '/dashboard/sales/' || source_order.id
+        ELSE '/dashboard/orders/' || source_order.id
+      END,
+      CASE
+        WHEN source_payment.metadata ->> 'localAction' = 'SELLER_REFUND_RECORDED'
+          THEN 'Refund from maker'
+        WHEN source_payment.metadata ->> 'localAction' = 'BLOCKED_CHECKOUT_REFUND_RECORDED'
+          THEN 'Payment refunded'
+        WHEN source_payment."eventType" = 'DISPUTE'
+          THEN 'Payment dispute opened'
+      END,
+      CASE
+        WHEN source_payment.metadata ->> 'localAction' = 'SELLER_REFUND_RECORDED'
+          THEN pg_catalog.left(source_payment.metadata ->> 'notificationBody', 1000)
+        WHEN source_payment.metadata ->> 'localAction' = 'BLOCKED_CHECKOUT_REFUND_RECORDED'
+          THEN 'This payment was refunded because the checkout was no longer eligible to complete.'
+        WHEN source_payment."eventType" = 'DISPUTE'
+          THEN 'Stripe reported a dispute for order ' || source_order.id || '.'
+      END
+      INTO notification_link, notification_title, notification_body
+      FROM public."OrderPaymentEvent" AS source_payment
+      JOIN public."Order" AS source_order
+        ON source_order.id = source_payment."orderId"
+      JOIN public."OrderItem" AS source_item
+        ON source_item.id = (
+          SELECT candidate_item.id
+            FROM public."OrderItem" AS candidate_item
+           WHERE candidate_item."orderId" = source_order.id
+           ORDER BY candidate_item.id
+           LIMIT 1
+        )
+      JOIN public."Listing" AS source_listing
+        ON source_listing.id = source_item."listingId"
+      JOIN public."SellerProfile" AS source_seller
+        ON source_seller.id = source_listing."sellerId"
+     WHERE source_payment."stripeEventId" = p_source_id
+       AND (
+         (source_payment."eventType" = 'REFUND'
+          AND source_payment.metadata ->> 'localAction' = 'SELLER_REFUND_RECORDED'
+          AND pg_catalog.jsonb_typeof(source_payment.metadata -> 'notificationBody') = 'string'
+          AND source_payment.metadata ->> 'notificationBody' <> ''
+          AND source_order."buyerId" = p_user_id
+          AND p_related_user_id = source_seller."userId"
+          AND p_type = 'REFUND_ISSUED'::public."NotificationType")
+         OR
+         (source_payment."eventType" = 'REFUND'
+          AND source_payment.metadata ->> 'localAction' = 'BLOCKED_CHECKOUT_REFUND_RECORDED'
+          AND source_order."buyerId" = p_user_id
+          AND p_related_user_id IS NULL
+          AND p_type = 'NEW_ORDER'::public."NotificationType")
+         OR
+         (source_payment."eventType" = 'DISPUTE'
+          AND source_payment.metadata ->> 'stripeEventType' = 'charge.dispute.created'
+          AND source_seller."userId" = p_user_id
+          AND p_related_user_id IS NOT DISTINCT FROM source_order."buyerId"
+          AND p_type = 'PAYMENT_DISPUTE'::public."NotificationType"
+          AND EXISTS (
+            SELECT 1
+              FROM public."SystemAuditLog" AS dispute_audit
+             WHERE dispute_audit."actorType" = 'webhook'
+               AND dispute_audit."actorId" = source_payment."stripeEventId"
+               AND dispute_audit.action = 'STRIPE_DISPUTE_RECORDED'
+               AND dispute_audit."targetType" = 'ORDER'
+               AND dispute_audit."targetId" = source_order.id
+               AND dispute_audit.metadata ->> 'disputeSideEffectsApplied' = 'true'
+          ))
+       )
+       AND NOT EXISTS (
+         SELECT 1
+           FROM public."OrderItem" AS other_item
+           JOIN public."Listing" AS other_listing
+             ON other_listing.id = other_item."listingId"
+          WHERE other_item."orderId" = source_order.id
+            AND other_listing."sellerId" <> source_seller.id
+       )
+     FOR SHARE OF source_payment, source_order, source_item, source_listing, source_seller;
+  ELSIF p_source_type = 'stripe_payout_failure' THEN
+    SELECT
+      '/dashboard/seller',
+      'Payout failed',
+      CASE
+        WHEN COALESCE(source_payout."failureMessage", '') <> ''
+          THEN 'Stripe could not complete a payout: '
+            || pg_catalog.left(source_payout."failureMessage", 900)
+        ELSE 'Stripe could not complete a payout. Review your Stripe account so the payout can be retried.'
+      END
+      INTO notification_link, notification_title, notification_body
+      FROM public."SellerPayoutEvent" AS source_payout
+      JOIN public."SellerProfile" AS source_seller
+        ON source_seller.id = source_payout."sellerProfileId"
+     WHERE source_payout.id = p_source_id
+       AND pg_catalog.lower(source_payout.status) = 'failed'
+       AND source_payout."stripeEventId" IS NOT NULL
+       AND source_seller."userId" = p_user_id
+       AND p_related_user_id IS NULL
+       AND p_type = 'PAYOUT_FAILED'::public."NotificationType"
+     FOR SHARE OF source_payout, source_seller;
   ELSIF p_source_type = 'followed_maker_new_listing' THEN
     SELECT '/listing/' || source_listing.id
       INTO notification_link
@@ -1327,6 +1570,50 @@ BEGIN
 END;
 $grainline_notification_create_account_warning$;
 
+CREATE OR REPLACE FUNCTION public.grainline_notification_create_order_event(
+  p_notification_id text,
+  p_user_id text,
+  p_type public."NotificationType",
+  p_title text,
+  p_body text,
+  p_source_type text,
+  p_source_id text,
+  p_related_user_id text
+)
+RETURNS text
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_notification_create_order_event$
+DECLARE
+  notification_id text;
+BEGIN
+  IF p_source_type NOT IN (
+    'order_checkout',
+    'order_fulfillment',
+    'order_payment',
+    'stripe_payout_failure'
+  ) THEN
+    RAISE EXCEPTION 'order notification requires reviewed commerce evidence'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT public.grainline_notification_create_core(
+    p_notification_id,
+    p_user_id,
+    p_type,
+    p_title,
+    p_body,
+    p_source_type,
+    p_source_id,
+    p_related_user_id
+  ) INTO notification_id;
+  RETURN notification_id;
+END;
+$grainline_notification_create_order_event$;
+
 -- Back-in-stock is a one-shot claim rather than a generic create call. The
 -- durable StockNotification row is locked, every recipient/listing/seller fact
 -- is derived under that lock, the optional in-app row is inserted, and the
@@ -1764,6 +2051,9 @@ REVOKE ALL ON FUNCTION public.grainline_notification_create_moderation_event(
 REVOKE ALL ON FUNCTION public.grainline_notification_create_account_warning(
   text, text, public."NotificationType", text, text, text, text, text
 ) FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION public.grainline_notification_create_order_event(
+  text, text, public."NotificationType", text, text, text, text, text
+) FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_notification_claim_back_in_stock(text, text, text)
   FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_notification_delete_for_account(text)
@@ -1802,6 +2092,9 @@ GRANT EXECUTE ON FUNCTION public.grainline_notification_create_moderation_event(
   text, text, public."NotificationType", text, text, text, text, text
 ) TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_notification_create_account_warning(
+  text, text, public."NotificationType", text, text, text, text, text
+) TO grainline_app_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_notification_create_order_event(
   text, text, public."NotificationType", text, text, text, text, text
 ) TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_notification_claim_back_in_stock(text, text, text)
