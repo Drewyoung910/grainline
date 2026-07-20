@@ -69,8 +69,8 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(plan, /No Notification[\s\S]{0,140}merge, deploy, touch a live database/);
     assert.match(plan, /one-statement `SECURITY INVOKER` recipient RPCs/);
     assert.match(plan, /Recipient RPCs are distinct from cross-user creation\/cleanup service\s+authority/);
-    assert.match(plan, /26 of the 54 emission paths do not\s+yet carry provenance/);
-    assert.match(plan, /54 distinct emission paths\. Twenty-eight are currently\s+source-tagged and 26 are source-less/);
+    assert.match(plan, /25 of the 54 emission paths do not\s+yet carry provenance/);
+    assert.match(plan, /54 distinct emission paths\. Twenty-nine are currently\s+source-tagged and 25 are source-less/);
     assert.match(plan, /type-specific database\s+predicates or split service functions/);
     assert.match(plan, /notification-create-authority-inventory\.md/);
     assert.match(plan, /fixed-column insert primitive ungranted to runtime/);
@@ -82,7 +82,7 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(strategy, /runtime-ungranted fixed-column core/);
     assert.match(strategy, /`SECURITY INVOKER` recipient RPCs/);
     assert.match(strategy, /must not be conflated with recipient RPCs/);
-    assert.match(strategy, /26 source-less emission paths/);
+    assert.match(strategy, /25 source-less emission paths/);
     assert.match(strategy, /currently fail closed/);
     assert.match(strategy, /bounded caller control of notification text/);
     assert.match(strategy, /dedup identity inside owner authority/);
@@ -96,8 +96,8 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.equal(familyCounts.reduce((sum, count) => sum + count, 0), 54);
     assert.match(inventory, /52 direct `createNotification` calls across 29 files/);
     assert.match(inventory, /54\s+distinct emission paths/);
-    assert.match(inventory, /28 source-tagged paths/);
-    assert.match(inventory, /26 source-less paths/);
+    assert.match(inventory, /29 source-tagged paths/);
+    assert.match(inventory, /25 source-less paths/);
     assert.match(inventory, /23 paths currently carrying `relatedUserId`/);
     assert.match(inventory, /internal fixed-column insert primitive ungranted to `PUBLIC` and the\s+runtime role/);
     assert.match(inventory, /Grant runtime only reviewed family functions/);
@@ -134,6 +134,7 @@ describe("Bucket B Notification RLS inventory", () => {
     const commissionExpire = fs.readFileSync("src/app/api/cron/commission-expire/route.ts", "utf8");
     const sellerBroadcast = fs.readFileSync("src/app/api/seller/broadcast/route.ts", "utf8");
     const stripeWebhook = fs.readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+    const stockRoute = fs.readFileSync("src/app/api/listings/[id]/stock/route.ts", "utf8");
 
     assert.match(sources, /BLOG_COMMENT: "blog_comment"/);
     assert.match(sources, /CASE: "case"/);
@@ -143,6 +144,7 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(sources, /COMMISSION_INTEREST: "commission_interest"/);
     assert.match(sources, /COMMISSION_REQUEST: "commission_request"/);
     assert.match(sources, /CHECKOUT_LOW_STOCK: "checkout_low_stock"/);
+    assert.match(sources, /MANUAL_LOW_STOCK: "manual_low_stock"/);
     assert.match(sources, /FAVORITE: "favorite"/);
     assert.match(sources, /FOLLOW: "follow"/);
     assert.match(sources, /MESSAGE: "message"/);
@@ -175,6 +177,7 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(commissionStatus, /sourceType: NOTIFICATION_SOURCE_TYPES\.COMMISSION_REQUEST,\s*sourceId: id/);
     assert.equal((commissionExpire.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.COMMISSION_REQUEST/g) ?? []).length, 2);
     assert.match(stripeWebhook, /sourceType: NOTIFICATION_SOURCE_TYPES\.CHECKOUT_LOW_STOCK,\s*sourceId: sourceItem\.orderItemId/);
+    assert.match(stockRoute, /sourceType: NOTIFICATION_SOURCE_TYPES\.MANUAL_LOW_STOCK,\s*sourceId: lowStockAuthoritySourceId/);
     const taggedCreationCount = [
       blog,
       favorite,
@@ -195,8 +198,9 @@ describe("Bucket B Notification RLS inventory", () => {
       commissionExpire,
       sellerBroadcast,
       stripeWebhook,
+      stockRoute,
     ].reduce((count, source) => count + (source.match(/createNotification\(\{[\s\S]{0,700}?sourceType:/g) ?? []).length, 0);
-    assert.equal(taggedCreationCount, 28);
+    assert.equal(taggedCreationCount, 29);
   });
 
   it("uses exact related-user lifecycle metadata before legacy text cleanup", () => {

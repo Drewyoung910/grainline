@@ -13,8 +13,8 @@ describe("Notification RLS activation completeness gate", () => {
 
     assert.equal(result.expectedCount, 54);
     assert.equal(result.totalCount, 54);
-    assert.equal(result.coveredCount, 28);
-    assert.equal(result.uncoveredCount, 26);
+    assert.equal(result.coveredCount, 29);
+    assert.equal(result.uncoveredCount, 25);
     assert.equal(result.unresolvedCalls.length, 0);
     assert.equal(result.ready, false);
     assert.equal(result.uncovered.every((path) => path.hasSourcePair === false), true);
@@ -47,7 +47,7 @@ describe("Notification RLS activation completeness gate", () => {
     });
 
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /Notification RLS activation blocked: 28\/54/);
-    assert.match(result.stdout, /"uncoveredCount": 26/);
+    assert.match(result.stderr, /Notification RLS activation blocked: 29\/54/);
+    assert.match(result.stdout, /"uncoveredCount": 25/);
   });
 });

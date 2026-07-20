@@ -7,6 +7,7 @@ export const NOTIFICATION_SOURCE_TYPES = {
   COMMISSION_INTEREST: "commission_interest",
   COMMISSION_REQUEST: "commission_request",
   CHECKOUT_LOW_STOCK: "checkout_low_stock",
+  MANUAL_LOW_STOCK: "manual_low_stock",
   FAVORITE: "favorite",
   FOLLOWED_MAKER_NEW_BLOG: "followed_maker_new_blog",
   FOLLOWED_MAKER_NEW_LISTING: "followed_maker_new_listing",

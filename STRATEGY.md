@@ -117,8 +117,8 @@ not database-authenticated identity and a compromised runtime can forge it;
 fixed-purpose constraints limit that residual without eliminating it.
 
 Extra-high review does not yet accept the shared create function as final. The
-twenty-eight source-tagged paths can prove source, type, actor, recipient, and
-relationship constraints inside the database operation, but 26 source-less
+twenty-nine source-tagged paths can prove source, type, actor, recipient, and
+relationship constraints inside the database operation, but 25 source-less
 emission paths still need family implementations and currently fail closed.
 The granted wrappers also retain bounded caller control of notification text
 but no longer accept link or dedup identity. The private core derives canonical
@@ -139,21 +139,22 @@ Notification source field.
 The inventory family is deliberately partial. Checkout low-stock binds the
 exact order item to a paid order, completed stock reservation, listing owner and
 current low-stock state, then derives payload, route and replay identity inside
-owner authority. Manual low-stock still needs durable transition evidence, and
-back-in-stock needs atomic subscription claim, Notification creation and
-subscription consumption; both remain fail-closed.
+owner authority. Manual low-stock now writes durable audit evidence atomically
+with the row-locked listing update and derives its payload, route and identity
+from that event. Back-in-stock still needs atomic subscription claim,
+Notification creation and subscription consumption and remains fail-closed.
 
 Production activation also has a permanent completeness gate:
 `npm run audit:rls-notification-readiness`. It inventories the real TypeScript
 emission paths, requires the exact 54-path contract, and fails on dynamic calls,
 missing source pairs, or source constants that do not dispatch through a
-reviewed service family. Its current 28/54 result must remain a failing operator
+reviewed service family. Its current 29/54 result must remain a failing operator
 preflight until every path is covered; ordinary tests assert that expected
 fail-closed state so incomplete notification types cannot disappear silently.
 
 Use a hybrid rather than either extreme. Do not grant runtime the current
 generic arbitrary-type/arbitrary-recipient creator, but do not add identical
-lifecycle metadata mechanically to all 26 source-less emission paths. Keep the
+lifecycle metadata mechanically to all 25 source-less emission paths. Keep the
 fixed-column insert primitive private to the function owner and expose only
 family-specific operations keyed by stable domain ids and small event
 discriminators. The ten-family inventory and implementation order live in

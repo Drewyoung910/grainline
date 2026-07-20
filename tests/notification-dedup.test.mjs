@@ -35,7 +35,7 @@ describe("owner-derived notification identity", () => {
   });
 
   it("derives canonical links from validated source rows", () => {
-    assert.equal((sql.match(/INTO notification_link/g) ?? []).length, 16);
+    assert.equal((sql.match(/INTO notification_link/g) ?? []).length, 17);
     assert.match(sql, /INTO notification_link, notification_title, notification_body/);
     assert.match(sql, /SELECT '\/blog\/' \|\| source_post\.slug \|\| '#comment-' \|\| source_comment\.id/);
     assert.match(sql, /SELECT '\/listing\/' \|\| source_listing\.id/);

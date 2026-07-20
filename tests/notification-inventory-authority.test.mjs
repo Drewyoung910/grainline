@@ -39,11 +39,16 @@ describe("Notification inventory authority", () => {
     assert.match(sql, /inventory notification requires a reviewed inventory source/);
   });
 
-  it("keeps manual and subscriber inventory paths fail-closed at the evidence boundary", () => {
+  it("writes manual low-stock authority atomically and keeps subscriber fanout fail-closed", () => {
     assert.equal((stockRoute.match(/await createNotification\(\{/g) ?? []).length, 2);
-    assert.doesNotMatch(stockRoute, /sourceType: NOTIFICATION_SOURCE_TYPES/);
-    assert.match(plan, /Manual low-stock cannot safely use mutable `Listing` state as an event identity/);
+    assert.equal((stockRoute.match(/sourceType: NOTIFICATION_SOURCE_TYPES/g) ?? []).length, 1);
+    assert.match(stockRoute, /prisma\.\$transaction\(async \(tx\) =>/);
+    assert.match(stockRoute, /action: "MANUAL_LISTING_STOCK_LOW"/);
+    assert.match(stockRoute, /client: tx/);
+    assert.match(stockRoute, /sourceType: NOTIFICATION_SOURCE_TYPES\.MANUAL_LOW_STOCK/);
+    assert.match(sql, /source_audit\.action = 'MANUAL_LISTING_STOCK_LOW'/);
+    assert.match(sql, /source_audit\.metadata ->> 'newQuantity' IN \('1', '2'\)/);
     assert.match(plan, /owner-backed claim\/create\/consume operation/);
-    assert.match(plan, /Both paths remain source-less and fail closed/);
+    assert.match(plan, /subscriber path remains source-less and fail closed/);
   });
 });

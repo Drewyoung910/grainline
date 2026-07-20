@@ -7,7 +7,7 @@ import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 type SystemAuditLogClient = Pick<Prisma.TransactionClient, "systemAuditLog">;
 
 type SystemAuditLogInput = {
-  actorType: "cron" | "webhook" | "system" | "staff";
+  actorType: "cron" | "webhook" | "system" | "staff" | "user";
   actorId?: string | null;
   action: string;
   targetType: string;

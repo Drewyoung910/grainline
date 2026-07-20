@@ -83,19 +83,10 @@ describe("stock mutation state", () => {
       stockRoute.indexOf("\"updatedAt\" = NOW()"),
     );
 
-    const soldOutTransition = statusCase.slice(
-      statusCase.indexOf("THEN 'SOLD_OUT'::\"ListingStatus\"") - 240,
-      statusCase.indexOf("THEN 'SOLD_OUT'::\"ListingStatus\"") + 40,
-    );
-    const activeTransition = statusCase.slice(
-      statusCase.indexOf("THEN 'ACTIVE'::\"ListingStatus\"") - 320,
-      statusCase.indexOf("THEN 'ACTIVE'::\"ListingStatus\"") + 40,
-    );
-
-    assert.match(soldOutTransition, /WHEN status = 'ACTIVE'::"ListingStatus" AND/);
-    assert.match(soldOutTransition, /\) <= 0 THEN 'SOLD_OUT'::"ListingStatus"/);
-    assert.match(activeTransition, /WHEN status = 'SOLD_OUT'::"ListingStatus" AND NOT "isPrivate" AND/);
-    assert.match(activeTransition, /\) > 0 THEN 'ACTIVE'::"ListingStatus"/);
+    assert.match(statusCase, /WHEN target\.status = 'ACTIVE'::"ListingStatus" AND/);
+    assert.match(statusCase, /\) <= 0 THEN 'SOLD_OUT'::"ListingStatus"/);
+    assert.match(statusCase, /WHEN target\.status = 'SOLD_OUT'::"ListingStatus" AND NOT target\."isPrivate" AND/);
+    assert.match(statusCase, /\) > 0 THEN 'ACTIVE'::"ListingStatus"/);
     assert.match(stockRoute, /revalidateListingSearchCaches\(\);[\s\S]*revalidateFeaturedMakerCaches\(\);/);
   });
 

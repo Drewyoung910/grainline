@@ -11,8 +11,8 @@ typed `notifyBuyer(..., payload)` wrapper, and that wrapper has three distinct
 payload construction paths. The authority inventory therefore covers 54
 distinct emission paths:
 
-- 28 source-tagged paths;
-- 26 source-less paths;
+- 29 source-tagged paths;
+- 25 source-less paths;
 - 23 paths currently carrying `relatedUserId`.
 
 The earlier count of 51 calls and 46 source-less paths omitted the fulfillment
@@ -20,8 +20,8 @@ wrapper and its three payload constructions. The complete baseline was 54 total,
 5 tagged and 49 source-less. The social-family implementation moved three paths
 into the tagged set, and the messaging/custom-order implementation moved three
 more. The commission implementation then moved four paths, the case
-implementation moved all twelve case paths, and the checkout low-stock slice
-moved one inventory path, producing the current 28/26 split.
+implementation moved all twelve case paths, and checkout plus manual low-stock
+moved two inventory paths, producing the current 29/25 split.
 Tests pin direct calls, emission paths, and family state so those concepts are
 not conflated again.
 
@@ -36,7 +36,7 @@ not conflated again.
 | Case lifecycle | 12 | Open, message, mark-resolved, resolve/refund, timeout escalation and auto-close | Implemented draft validation: durable `Case`, `CaseMessage`, atomic user-audit, or system-audit source; exact parties/staff/cron actor, order route, event type and recorded transition |
 | Commission lifecycle | 4 | Seller interest, buyer close/fulfill, expiry notifications | Implemented draft validation: durable `CommissionInterest` or final-state `CommissionRequest`, conversation, interested seller, buyer/recipient, CLOSED/FULFILLED/EXPIRED state and route |
 | Social and review events | 3 | Favorite, follow, review | Implemented draft validation: `Favorite`, `Follow`, `Review`, listing/seller ownership and event actor |
-| Inventory events | 3 | Seller low stock, subscriber back in stock, webhook low stock | Checkout low-stock implemented against `OrderItem`, paid `Order`, completed `CheckoutStockReservation`, listing owner and current low-stock state; manual/back-in-stock still need atomic transition/claim evidence |
+| Inventory events | 3 | Seller low stock, subscriber back in stock, webhook low stock | Checkout low-stock binds `OrderItem`, paid `Order`, and completed reservation; manual low-stock binds an audit row written atomically with the stock mutation; back-in-stock still needs atomic subscription claim/create/consume |
 | Messaging and custom orders | 3 | New message, custom-order request, custom-order-ready link | Implemented draft validation: `Message`, `Conversation`, participant pair and kind; ready links additionally bind the reserved `Listing`, seller, buyer, conversation and canonical route |
 | Order, payment and fulfillment | 9 | Order buyer/seller notices, refund, shipment/pickup, dispute and payout failure | `Order`, items/seller/buyer, payment/payout event ledgers, fulfillment transition and provider event id |
 | **Total** | **54** |  |  |
@@ -101,9 +101,10 @@ races impossible.
    do not restore a generic runtime grant.
 2. Complete the inventory-event family. Checkout low-stock now binds one
    `OrderItem` to its paid order, completed stock reservation, listing owner and
-   current 1-2 quantity, and derives its payload/link. Manual low-stock needs a
-   durable stock-transition event rather than mutable listing state alone.
-   Back-in-stock needs the subscription claim, Notification insert, and
+   current 1-2 quantity, and derives its payload/link. Manual low-stock now writes
+   a `MANUAL_LISTING_STOCK_LOW` audit row in the same transaction as the locked
+   listing update and derives authority from that committed event. Back-in-stock
+   still needs the subscription claim, Notification insert, and
    subscription consumption to share one atomic owner-backed operation; the
    current delete-before-notify flow cannot prove the subscription afterward.
 3. Add order/payment/fulfillment and verification/guild families only after
@@ -118,5 +119,5 @@ The permanent completeness gate is
 `npm run audit:rls-notification-readiness`: it inventories the real TypeScript
 call graph, requires exactly 54 emission paths, and blocks activation until all
 54 carry a source pair dispatched through a reviewed family. Its current
-28/54 failure is expected and must never be bypassed or weakened to make an
+29/54 failure is expected and must never be bypassed or weakened to make an
 incomplete rollout pass.

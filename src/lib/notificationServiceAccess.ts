@@ -35,7 +35,8 @@ export async function createNotificationServiceRow({
   const messageSource = sourceType === NOTIFICATION_SOURCE_TYPES.MESSAGE;
   const commissionSource = sourceType === NOTIFICATION_SOURCE_TYPES.COMMISSION_INTEREST
     || sourceType === NOTIFICATION_SOURCE_TYPES.COMMISSION_REQUEST;
-  const inventorySource = sourceType === NOTIFICATION_SOURCE_TYPES.CHECKOUT_LOW_STOCK;
+  const inventorySource = sourceType === NOTIFICATION_SOURCE_TYPES.CHECKOUT_LOW_STOCK
+    || sourceType === NOTIFICATION_SOURCE_TYPES.MANUAL_LOW_STOCK;
   const caseSource = sourceType === NOTIFICATION_SOURCE_TYPES.CASE
     || sourceType === NOTIFICATION_SOURCE_TYPES.CASE_MESSAGE
     || sourceType === NOTIFICATION_SOURCE_TYPES.CASE_RESOLUTION_MARK

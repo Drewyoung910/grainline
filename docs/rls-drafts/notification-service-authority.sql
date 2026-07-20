@@ -54,6 +54,7 @@ BEGIN
       'commission_interest',
       'commission_request',
       'checkout_low_stock',
+      'manual_low_stock',
       'favorite',
       'followed_maker_new_blog',
       'followed_maker_new_listing',
@@ -80,6 +81,8 @@ BEGIN
          AND p_type <> 'COMMISSION_INTEREST')
      OR (p_source_type = 'checkout_low_stock'
          AND p_type <> 'LOW_STOCK')
+     OR (p_source_type = 'manual_low_stock'
+         AND p_type <> 'LOW_STOCK')
      OR (p_source_type = 'favorite'
          AND p_type <> 'NEW_FAVORITE')
      OR (p_source_type = 'followed_maker_new_blog'
@@ -102,7 +105,12 @@ BEGIN
     RAISE EXCEPTION 'notification related user is invalid' USING ERRCODE = '22023';
   END IF;
   IF p_source_type IS NOT NULL
-     AND p_source_type NOT IN ('case_system_action', 'commission_request', 'checkout_low_stock')
+     AND p_source_type NOT IN (
+       'case_system_action',
+       'commission_request',
+       'checkout_low_stock',
+       'manual_low_stock'
+     )
      AND (p_related_user_id IS NULL OR p_related_user_id = p_user_id) THEN
     RAISE EXCEPTION 'notification source requires a distinct related user' USING ERRCODE = '22023';
   END IF;
@@ -356,6 +364,30 @@ BEGIN
          pg_catalog.jsonb_build_object('listingId', source_listing.id)
        )
      FOR SHARE OF source_item, source_order, source_listing, source_seller, source_reservation;
+  ELSIF p_source_type = 'manual_low_stock' THEN
+    SELECT
+      '/dashboard/listings/' || source_listing.id || '/edit',
+      pg_catalog.left(source_audit.metadata ->> 'listingTitle' || ' is running low', 200),
+      'Only ' || (source_audit.metadata ->> 'newQuantity') ||
+        ' left in stock — consider restocking soon'
+      INTO notification_link, notification_title, notification_body
+      FROM public."SystemAuditLog" AS source_audit
+      JOIN public."Listing" AS source_listing
+        ON source_listing.id = source_audit."targetId"
+      JOIN public."SellerProfile" AS source_seller
+        ON source_seller.id = source_listing."sellerId"
+     WHERE source_audit.id = p_source_id
+       AND source_audit."actorType" = 'user'
+       AND source_audit."actorId" = p_user_id
+       AND source_audit.action = 'MANUAL_LISTING_STOCK_LOW'
+       AND source_audit."targetType" = 'LISTING'
+       AND source_audit.metadata ->> 'listingId' = source_listing.id
+       AND source_audit.metadata ->> 'listingTitle' <> ''
+       AND source_audit.metadata ->> 'newQuantity' IN ('1', '2')
+       AND source_audit.metadata ->> 'mutationKind' IN ('delta', 'absolute')
+       AND p_related_user_id IS NULL
+       AND source_seller."userId" = p_user_id
+     FOR SHARE OF source_audit, source_listing, source_seller;
   ELSIF p_source_type = 'followed_maker_new_listing' THEN
     SELECT '/listing/' || source_listing.id
       INTO notification_link
@@ -861,7 +893,7 @@ AS $grainline_notification_create_inventory_event$
 DECLARE
   notification_id text;
 BEGIN
-  IF p_source_type <> 'checkout_low_stock' THEN
+  IF p_source_type NOT IN ('checkout_low_stock', 'manual_low_stock') THEN
     RAISE EXCEPTION 'inventory notification requires a reviewed inventory source'
       USING ERRCODE = '22023';
   END IF;
