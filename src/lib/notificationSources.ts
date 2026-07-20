@@ -1,5 +1,9 @@
 export const NOTIFICATION_SOURCE_TYPES = {
   BLOG_COMMENT: "blog_comment",
+  CASE: "case",
+  CASE_MESSAGE: "case_message",
+  CASE_RESOLUTION_MARK: "case_resolution_mark",
+  CASE_SYSTEM_ACTION: "case_system_action",
   COMMISSION_INTEREST: "commission_interest",
   COMMISSION_REQUEST: "commission_request",
   FAVORITE: "favorite",

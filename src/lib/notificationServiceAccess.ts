@@ -40,17 +40,36 @@ export async function createNotificationServiceRow({
   const messageSource = sourceType === NOTIFICATION_SOURCE_TYPES.MESSAGE;
   const commissionSource = sourceType === NOTIFICATION_SOURCE_TYPES.COMMISSION_INTEREST
     || sourceType === NOTIFICATION_SOURCE_TYPES.COMMISSION_REQUEST;
+  const caseSource = sourceType === NOTIFICATION_SOURCE_TYPES.CASE
+    || sourceType === NOTIFICATION_SOURCE_TYPES.CASE_MESSAGE
+    || sourceType === NOTIFICATION_SOURCE_TYPES.CASE_RESOLUTION_MARK
+    || sourceType === NOTIFICATION_SOURCE_TYPES.CASE_SYSTEM_ACTION;
   const fanoutSource = sourceType === NOTIFICATION_SOURCE_TYPES.BLOG_COMMENT
     || sourceType === NOTIFICATION_SOURCE_TYPES.FOLLOWED_MAKER_NEW_BLOG
     || sourceType === NOTIFICATION_SOURCE_TYPES.FOLLOWED_MAKER_NEW_LISTING
     || sourceType === NOTIFICATION_SOURCE_TYPES.SELLER_BROADCAST;
-  if (!socialSource && !messageSource && !commissionSource && !fanoutSource) {
+  if (!socialSource && !messageSource && !commissionSource && !caseSource && !fanoutSource) {
     throw new Error("notification create family is not implemented for this source");
   }
   let rows: Array<{ id: string | null }>;
   if (socialSource) {
     rows = await prisma.$queryRaw<Array<{ id: string | null }>>`
         SELECT public.grainline_notification_create_social_event(
+          ${notificationId}::text,
+          ${userId}::text,
+          ${type}::public."NotificationType",
+          ${title}::text,
+          ${body}::text,
+          ${link}::text,
+          ${sourceType}::text,
+          ${sourceId}::text,
+          ${relatedUserId}::text,
+          ${dedupKey}::text
+        ) AS id
+      `;
+  } else if (caseSource) {
+    rows = await prisma.$queryRaw<Array<{ id: string | null }>>`
+        SELECT public.grainline_notification_create_case_event(
           ${notificationId}::text,
           ${userId}::text,
           ${type}::public."NotificationType",

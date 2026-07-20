@@ -4,6 +4,7 @@ import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { sendCaseOpened } from "@/lib/email";
 import {
   caseCreateRatelimit,
@@ -228,6 +229,8 @@ export async function POST(req: Request) {
         body: truncateText(description, 60),
         link: `/dashboard/sales/${orderId}`,
         relatedUserId: me.id,
+        sourceType: NOTIFICATION_SOURCE_TYPES.CASE,
+        sourceId: newCase.id,
       });
     } catch (notificationError) {
       Sentry.captureException(notificationError, {

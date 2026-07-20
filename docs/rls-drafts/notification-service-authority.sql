@@ -60,6 +60,10 @@ BEGIN
   IF p_source_type IS NOT NULL AND (
     p_source_type NOT IN (
       'blog_comment',
+      'case',
+      'case_message',
+      'case_resolution_mark',
+      'case_system_action',
       'commission_interest',
       'commission_request',
       'favorite',
@@ -78,6 +82,12 @@ BEGIN
   END IF;
   IF (p_source_type = 'blog_comment'
       AND p_type NOT IN ('NEW_BLOG_COMMENT', 'BLOG_COMMENT_REPLY'))
+     OR (p_source_type = 'case'
+         AND p_type NOT IN ('CASE_OPENED', 'CASE_RESOLVED', 'REFUND_ISSUED'))
+     OR (p_source_type = 'case_message'
+         AND p_type <> 'CASE_MESSAGE')
+     OR (p_source_type IN ('case_resolution_mark', 'case_system_action')
+         AND p_type NOT IN ('CASE_MESSAGE', 'CASE_RESOLVED'))
      OR (p_source_type IN ('commission_interest', 'commission_request')
          AND p_type <> 'COMMISSION_INTEREST')
      OR (p_source_type = 'favorite'
@@ -102,7 +112,7 @@ BEGIN
     RAISE EXCEPTION 'notification related user is invalid' USING ERRCODE = '22023';
   END IF;
   IF p_source_type IS NOT NULL
-     AND p_source_type <> 'commission_request'
+     AND p_source_type NOT IN ('case_system_action', 'commission_request')
      AND (p_related_user_id IS NULL OR p_related_user_id = p_user_id) THEN
     RAISE EXCEPTION 'notification source requires a distinct related user' USING ERRCODE = '22023';
   END IF;
@@ -159,6 +169,121 @@ BEGIN
           AND source_post."authorId" = p_user_id)
        )
      FOR SHARE OF source_comment, source_post;
+  ELSIF p_source_type = 'case' THEN
+    PERFORM 1
+      FROM public."Case" AS source_case
+      JOIN public."User" AS source_actor
+        ON source_actor.id = p_related_user_id
+     WHERE source_case.id = p_source_id
+       AND (
+         (p_type = 'CASE_OPENED'
+          AND source_case."buyerId" = p_related_user_id
+          AND source_case."sellerId" = p_user_id
+          AND p_link = '/dashboard/sales/' || source_case."orderId")
+         OR
+         (p_type IN ('CASE_RESOLVED', 'REFUND_ISSUED')
+          AND source_case.status = 'RESOLVED'
+          AND source_case."buyerId" = p_user_id
+          AND source_case."resolvedById" = p_related_user_id
+          AND source_actor.role IN ('EMPLOYEE', 'ADMIN')
+          AND p_link = '/dashboard/orders/' || source_case."orderId"
+          AND (
+            (p_type = 'REFUND_ISSUED'
+             AND source_case.resolution IN ('REFUND_FULL', 'REFUND_PARTIAL'))
+            OR
+            (p_type = 'CASE_RESOLVED'
+             AND source_case.resolution = 'DISMISSED')
+          ))
+       )
+     FOR SHARE OF source_case, source_actor;
+  ELSIF p_source_type = 'case_message' THEN
+    PERFORM 1
+      FROM public."CaseMessage" AS source_message
+      JOIN public."Case" AS source_case
+        ON source_case.id = source_message."caseId"
+      JOIN public."User" AS source_author
+        ON source_author.id = source_message."authorId"
+     WHERE source_message.id = p_source_id
+       AND source_message."authorId" = p_related_user_id
+       AND (
+         (source_message."authorId" = source_case."buyerId"
+          AND p_user_id = source_case."sellerId")
+         OR
+         (source_message."authorId" = source_case."sellerId"
+          AND p_user_id = source_case."buyerId")
+         OR
+         (source_message."authorId" <> source_case."sellerId"
+          AND (source_case."buyerId" IS NULL
+               OR source_message."authorId" <> source_case."buyerId")
+          AND source_author.role IN ('EMPLOYEE', 'ADMIN')
+          AND p_user_id IN (source_case."buyerId", source_case."sellerId"))
+       )
+       AND p_link = CASE
+         WHEN p_user_id = source_case."buyerId"
+           THEN '/dashboard/orders/' || source_case."orderId"
+         ELSE '/dashboard/sales/' || source_case."orderId"
+       END
+     FOR SHARE OF source_message, source_case, source_author;
+  ELSIF p_source_type = 'case_resolution_mark' THEN
+    PERFORM 1
+      FROM public."AdminAuditLog" AS source_audit
+      JOIN public."Case" AS source_case
+        ON source_case.id = source_audit."targetId"
+     WHERE source_audit.id = p_source_id
+       AND source_audit.action = 'MARK_CASE_RESOLVED'
+       AND source_audit."targetType" = 'CASE'
+       AND source_audit."adminId" = p_related_user_id
+       AND source_audit.undone = false
+       AND source_audit.metadata ->> 'actorKind' = 'user'
+       AND source_audit.metadata ->> 'orderId' = source_case."orderId"
+       AND source_audit.metadata ->> 'status' IN ('PENDING_CLOSE', 'RESOLVED')
+       AND p_type = CASE
+         WHEN source_audit.metadata ->> 'status' = 'RESOLVED'
+           THEN 'CASE_RESOLVED'::public."NotificationType"
+         ELSE 'CASE_MESSAGE'::public."NotificationType"
+       END
+       AND (
+         (source_audit."adminId" = source_case."buyerId"
+          AND p_user_id = source_case."sellerId")
+         OR
+         (source_audit."adminId" = source_case."sellerId"
+          AND p_user_id = source_case."buyerId")
+       )
+       AND p_link = CASE
+         WHEN p_user_id = source_case."buyerId"
+           THEN '/dashboard/orders/' || source_case."orderId"
+         ELSE '/dashboard/sales/' || source_case."orderId"
+       END
+     FOR SHARE OF source_audit, source_case;
+  ELSIF p_source_type = 'case_system_action' THEN
+    PERFORM 1
+      FROM public."SystemAuditLog" AS source_audit
+      JOIN public."Case" AS source_case
+        ON source_case.id = source_audit."targetId"
+     WHERE source_audit.id = p_source_id
+       AND source_audit."actorType" = 'cron'
+       AND source_audit."actorId" = 'case-auto-close'
+       AND source_audit."targetType" = 'CASE'
+       AND source_audit.metadata ->> 'orderId' = source_case."orderId"
+       AND p_related_user_id IS NULL
+       AND p_user_id IN (source_case."buyerId", source_case."sellerId")
+       AND p_link = CASE
+         WHEN p_user_id = source_case."buyerId"
+           THEN '/dashboard/orders/' || source_case."orderId"
+         ELSE '/dashboard/sales/' || source_case."orderId"
+       END
+       AND (
+         (source_audit.action = 'AUTO_CLOSE_CASE'
+          AND source_audit.metadata ->> 'previousStatus' = 'PENDING_CLOSE'
+          AND source_audit.metadata ->> 'newStatus' = 'RESOLVED'
+          AND p_type = 'CASE_RESOLVED')
+         OR
+         (source_audit.action = 'AUTO_ESCALATE_CASE'
+          AND source_audit.metadata ->> 'previousStatus' IN ('OPEN', 'IN_DISCUSSION')
+          AND source_audit.metadata ->> 'newStatus' = 'UNDER_REVIEW'
+          AND p_type = 'CASE_MESSAGE')
+       )
+     FOR SHARE OF source_audit, source_case;
   ELSIF p_source_type = 'commission_interest' THEN
     PERFORM 1
       FROM public."CommissionInterest" AS source_interest
@@ -598,6 +723,54 @@ BEGIN
 END;
 $grainline_notification_create_message_event$;
 
+CREATE OR REPLACE FUNCTION public.grainline_notification_create_case_event(
+  p_notification_id text,
+  p_user_id text,
+  p_type public."NotificationType",
+  p_title text,
+  p_body text,
+  p_link text,
+  p_source_type text,
+  p_source_id text,
+  p_related_user_id text,
+  p_dedup_key text
+)
+RETURNS text
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_notification_create_case_event$
+DECLARE
+  notification_id text;
+BEGIN
+  IF p_source_type NOT IN (
+    'case',
+    'case_message',
+    'case_resolution_mark',
+    'case_system_action'
+  ) THEN
+    RAISE EXCEPTION 'case notification requires a case source'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT public.grainline_notification_create_core(
+    p_notification_id,
+    p_user_id,
+    p_type,
+    p_title,
+    p_body,
+    p_link,
+    p_source_type,
+    p_source_id,
+    p_related_user_id,
+    p_dedup_key
+  ) INTO notification_id;
+  RETURN notification_id;
+END;
+$grainline_notification_create_case_event$;
+
 CREATE OR REPLACE FUNCTION public.grainline_notification_create_commission_event(
   p_notification_id text,
   p_user_id text,
@@ -832,6 +1005,9 @@ REVOKE ALL ON FUNCTION public.grainline_notification_create_social_event(
 REVOKE ALL ON FUNCTION public.grainline_notification_create_message_event(
   text, text, public."NotificationType", text, text, text, text, text, text, text, text
 ) FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION public.grainline_notification_create_case_event(
+  text, text, public."NotificationType", text, text, text, text, text, text, text
+) FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_notification_create_commission_event(
   text, text, public."NotificationType", text, text, text, text, text, text, text
 ) FROM PUBLIC, grainline_app_runtime;
@@ -854,6 +1030,9 @@ GRANT EXECUTE ON FUNCTION public.grainline_notification_create_social_event(
 ) TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_notification_create_message_event(
   text, text, public."NotificationType", text, text, text, text, text, text, text, text
+) TO grainline_app_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_notification_create_case_event(
+  text, text, public."NotificationType", text, text, text, text, text, text, text
 ) TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_notification_create_commission_event(
   text, text, public."NotificationType", text, text, text, text, text, text, text

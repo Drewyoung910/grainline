@@ -11,17 +11,18 @@ typed `notifyBuyer(..., payload)` wrapper, and that wrapper has three distinct
 payload construction paths. The authority inventory therefore covers 54
 distinct emission paths:
 
-- 15 source-tagged paths;
-- 39 source-less paths;
-- 21 paths currently carrying `relatedUserId`.
+- 27 source-tagged paths;
+- 27 source-less paths;
+- 23 paths currently carrying `relatedUserId`.
 
 The earlier count of 51 calls and 46 source-less paths omitted the fulfillment
 wrapper and its three payload constructions. The complete baseline was 54 total,
 5 tagged and 49 source-less. The social-family implementation moved three paths
 into the tagged set, and the messaging/custom-order implementation moved three
-more. The commission implementation then moved four paths, producing the
-current 15/39 split. Tests pin direct calls, emission paths, and family state so
-those concepts are not conflated again.
+more. The commission implementation then moved four paths, and the case
+implementation moved all twelve case paths, producing the current 27/27 split.
+Tests pin direct calls, emission paths, and family state so those concepts are
+not conflated again.
 
 ## Family Inventory
 
@@ -31,7 +32,7 @@ those concepts are not conflated again.
 | Verification and guild lifecycle | 10 | Staff approval/rejection/revocation/reinstatement; guild metric and eligibility jobs | `MakerVerification`, `SellerProfile`, guild state, recipient seller, staff or fixed cron transition |
 | Staff and account warnings | 2 | Admin account message; buyer warning after maker ban | Fixed warning type, active recipient, staff context plus audit/message source; order and ban state where applicable |
 | Listing moderation and reports | 3 | Listing approval/rejection; listing-reported warning | Listing owner and moderation state; staff decision or bounded report event |
-| Case lifecycle | 12 | Open, message, mark-resolved, resolve/refund, timeout escalation and auto-close | `Case`, `CaseMessage`, order participants, actor/staff role, resulting case state and fixed cron transitions |
+| Case lifecycle | 12 | Open, message, mark-resolved, resolve/refund, timeout escalation and auto-close | Implemented draft validation: durable `Case`, `CaseMessage`, atomic user-audit, or system-audit source; exact parties/staff/cron actor, order route, event type and recorded transition |
 | Commission lifecycle | 4 | Seller interest, buyer close/fulfill, expiry notifications | Implemented draft validation: durable `CommissionInterest` or final-state `CommissionRequest`, conversation, interested seller, buyer/recipient, CLOSED/FULFILLED/EXPIRED state and route |
 | Social and review events | 3 | Favorite, follow, review | Implemented draft validation: `Favorite`, `Follow`, `Review`, listing/seller ownership and event actor |
 | Inventory events | 3 | Seller low stock, subscriber back in stock, webhook low stock | Listing owner, listing stock/status, `StockNotification` subscription and checkout/order transition |
@@ -48,7 +49,7 @@ arbitrary-recipient insert function merely because HTTP users do not insert
 notifications directly. That shortcut would restore broad cross-user authority
 to any runtime query that could invoke it.
 
-Do not instrument the remaining 39 paths with one undifferentiated provenance
+Do not instrument the remaining 27 paths with one undifferentiated provenance
 shape. Group them by the ten authority families above:
 
 1. Keep an internal fixed-column insert primitive ungranted to `PUBLIC` and the
@@ -72,9 +73,13 @@ Application authorization remains primary. These functions are database
 defense in depth against overly broad queries and partial compromise; they do
 not claim to defeat arbitrary code execution holding the runtime credential.
 
-This is not yet a complete runtime-compromise boundary. The four granted create
+This is not yet a complete runtime-compromise boundary. The five granted create
 wrappers still accept caller-supplied title, body, and relative link after
-validating their bounds, and the favorite/follow checks prove that no block row
+validating their bounds. The private core also validates only the shape of the
+caller-supplied dedup key; a compromised runtime could replay one valid source
+with new hashes. Derive the dedup key from the validated source, recipient, type,
+and event discriminator inside owner authority before activation. The
+favorite/follow checks prove that no block row
 exists only at statement time. They do not serialize against a concurrent
 block creation because the block-writing paths do not yet share a lock
 protocol. The message family proves the source message, its kind, participants,
@@ -82,7 +87,8 @@ and conversation route; custom-order-ready also validates a non-persisted
 authority context against the reserved listing, seller, buyer, conversation,
 structured-message listing id, status, and canonical public route. Family
 wrappers should still derive or strictly template payload content where
-practical, and the social/message/commission families need an explicit concurrency
+practical, derive replay identity inside the database, and the
+social/message/commission families need an explicit concurrency
 decision before activation. Application authorization and block checks remain
 required; the draft must not be described as making forged content or block
 races impossible.
@@ -90,10 +96,10 @@ races impossible.
 ## Next Implementation Order
 
 1. Retain the implemented runtime-ungranted core plus separate source-fanout,
-   social/review, message/custom-order, and commission wrappers; do not restore
-   a generic runtime grant.
-2. Add the case family, deriving recipients from Case/CaseMessage rows and
-   pinning party, staff, and cron transitions separately.
+   social/review, message/custom-order, commission, and case wrappers; do not
+   restore a generic runtime grant.
+2. Add the inventory-event family, binding low-stock and back-in-stock fanout to
+   listing ownership, stock state, subscription, and order transition evidence.
 3. Add order/payment/fulfillment and verification/guild families only after
    their provider, staff and cron transition matrices are complete.
 4. Leave staff free-form account communication last; require a durable audited

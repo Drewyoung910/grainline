@@ -69,8 +69,8 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(plan, /No Notification[\s\S]{0,140}merge, deploy, touch a live database/);
     assert.match(plan, /one-statement `SECURITY INVOKER` recipient RPCs/);
     assert.match(plan, /Recipient RPCs are distinct from cross-user creation\/cleanup service\s+authority/);
-    assert.match(plan, /39 of the 54 emission paths do not\s+yet carry provenance/);
-    assert.match(plan, /54 distinct emission paths\. Fifteen are currently\s+source-tagged and 39 are source-less/);
+    assert.match(plan, /27 of the 54 emission paths do not\s+yet carry provenance/);
+    assert.match(plan, /54 distinct emission paths\. Twenty-seven are currently\s+source-tagged and 27 are source-less/);
     assert.match(plan, /type-specific database\s+predicates or split service functions/);
     assert.match(plan, /notification-create-authority-inventory\.md/);
     assert.match(plan, /fixed-column insert primitive ungranted to runtime/);
@@ -78,13 +78,14 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(strategy, /before any Bucket B merge, deployment, or\s+live-database activation/);
     assert.match(strategy, /before merging,\s+deploying, or activating Notification\/Bucket B/);
     assert.doesNotMatch(strategy, /before beginning\s+Notification\/Bucket B/);
-    assert.match(strategy, /ten owner-backed functions/);
+    assert.match(strategy, /eleven owner-backed functions/);
     assert.match(strategy, /runtime-ungranted fixed-column core/);
     assert.match(strategy, /`SECURITY INVOKER` recipient RPCs/);
     assert.match(strategy, /must not be conflated with recipient RPCs/);
-    assert.match(strategy, /39 source-less emission paths/);
+    assert.match(strategy, /27 source-less emission paths/);
     assert.match(strategy, /currently fail closed/);
     assert.match(strategy, /bounded caller control of notification text\s+and link/);
+    assert.match(strategy, /dedup key's format[\s\S]{0,180}replay possible/);
     assert.match(strategy, /do not yet serialize with a\s+concurrent block insertion/);
   });
 
@@ -95,14 +96,15 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.equal(familyCounts.reduce((sum, count) => sum + count, 0), 54);
     assert.match(inventory, /52 direct `createNotification` calls across 29 files/);
     assert.match(inventory, /54\s+distinct emission paths/);
-    assert.match(inventory, /15 source-tagged paths/);
-    assert.match(inventory, /39 source-less paths/);
-    assert.match(inventory, /21 paths currently carrying `relatedUserId`/);
+    assert.match(inventory, /27 source-tagged paths/);
+    assert.match(inventory, /27 source-less paths/);
+    assert.match(inventory, /23 paths currently carrying `relatedUserId`/);
     assert.match(inventory, /internal fixed-column insert primitive ungranted to `PUBLIC` and the\s+runtime role/);
     assert.match(inventory, /Grant runtime only reviewed family functions/);
     assert.match(inventory, /provider and cron families[\s\S]{0,220}persisted order\/payment\/payout/);
     assert.match(inventory, /staff-only families[\s\S]{0,220}audit or domain source/);
     assert.match(inventory, /caller-supplied title, body, and relative link/);
+    assert.match(inventory, /caller-supplied dedup key[\s\S]{0,180}replay one valid source/);
     assert.match(inventory, /do not serialize against a concurrent\s+block creation/);
     assert.match(inventory, /reserved listing, seller, buyer, conversation/);
     assert.doesNotMatch(inventory, /custom-listing reservation\/link binding remains blocking/);
@@ -122,12 +124,21 @@ describe("Bucket B Notification RLS inventory", () => {
     const messagePage = fs.readFileSync("src/app/messages/[id]/page.tsx", "utf8");
     const customOrderRequest = fs.readFileSync("src/app/api/messages/custom-order-request/route.ts", "utf8");
     const customOrderReady = fs.readFileSync("src/lib/customOrderReadyLink.ts", "utf8");
+    const caseOpen = fs.readFileSync("src/app/api/cases/route.ts", "utf8");
+    const caseMessages = fs.readFileSync("src/app/api/cases/[id]/messages/route.ts", "utf8");
+    const caseMarkResolved = fs.readFileSync("src/app/api/cases/[id]/mark-resolved/route.ts", "utf8");
+    const caseResolve = fs.readFileSync("src/app/api/cases/[id]/resolve/route.ts", "utf8");
+    const caseAutoClose = fs.readFileSync("src/app/api/cron/case-auto-close/route.ts", "utf8");
     const commissionInterest = fs.readFileSync("src/app/api/commission/[id]/interest/route.ts", "utf8");
     const commissionStatus = fs.readFileSync("src/app/api/commission/[id]/route.ts", "utf8");
     const commissionExpire = fs.readFileSync("src/app/api/cron/commission-expire/route.ts", "utf8");
     const sellerBroadcast = fs.readFileSync("src/app/api/seller/broadcast/route.ts", "utf8");
 
     assert.match(sources, /BLOG_COMMENT: "blog_comment"/);
+    assert.match(sources, /CASE: "case"/);
+    assert.match(sources, /CASE_MESSAGE: "case_message"/);
+    assert.match(sources, /CASE_RESOLUTION_MARK: "case_resolution_mark"/);
+    assert.match(sources, /CASE_SYSTEM_ACTION: "case_system_action"/);
     assert.match(sources, /COMMISSION_INTEREST: "commission_interest"/);
     assert.match(sources, /COMMISSION_REQUEST: "commission_request"/);
     assert.match(sources, /FAVORITE: "favorite"/);
@@ -149,6 +160,15 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(messagePage, /sourceType: NOTIFICATION_SOURCE_TYPES\.MESSAGE,\s*sourceId: committedNotificationMessageId/);
     assert.match(customOrderRequest, /sourceType: NOTIFICATION_SOURCE_TYPES\.MESSAGE,\s*sourceId: requestMessage\.id/);
     assert.match(customOrderReady, /sourceType: NOTIFICATION_SOURCE_TYPES\.MESSAGE,\s*sourceId: notificationMessageId/);
+    assert.match(caseOpen, /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE,\s*sourceId: newCase\.id/);
+    assert.equal((caseMessages.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.CASE_MESSAGE/g) ?? []).length, 3);
+    assert.match(caseMarkResolved, /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE_RESOLUTION_MARK,\s*sourceId: authoritySourceId/);
+    assert.match(caseMarkResolved, /prisma\.\$transaction\(async \(tx\) =>[\s\S]{0,4500}logAdminActionOrThrow\(\{[\s\S]{0,180}client: tx/);
+    assert.match(caseMarkResolved, /action: "MARK_CASE_RESOLVED"[\s\S]{0,180}actorKind: "user"/);
+    assert.match(caseResolve, /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE,\s*sourceId: id/);
+    assert.equal((caseAutoClose.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.CASE_SYSTEM_ACTION/g) ?? []).length, 6);
+    assert.equal((caseAutoClose.match(/const auditLogId = await logSystemActionOrThrow/g) ?? []).length, 3);
+    assert.equal((caseAutoClose.match(/return auditLogId/g) ?? []).length, 3);
     assert.match(commissionInterest, /sourceType: NOTIFICATION_SOURCE_TYPES\.COMMISSION_INTEREST,\s*sourceId: finalCommissionInterestId/);
     assert.match(commissionStatus, /sourceType: NOTIFICATION_SOURCE_TYPES\.COMMISSION_REQUEST,\s*sourceId: id/);
     assert.equal((commissionExpire.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.COMMISSION_REQUEST/g) ?? []).length, 2);
@@ -162,12 +182,17 @@ describe("Bucket B Notification RLS inventory", () => {
       messagePage,
       customOrderRequest,
       customOrderReady,
+      caseOpen,
+      caseMessages,
+      caseMarkResolved,
+      caseResolve,
+      caseAutoClose,
       commissionInterest,
       commissionStatus,
       commissionExpire,
       sellerBroadcast,
     ].reduce((count, source) => count + (source.match(/createNotification\(\{[\s\S]{0,700}?sourceType:/g) ?? []).length, 0);
-    assert.equal(taggedCreationCount, 15);
+    assert.equal(taggedCreationCount, 27);
   });
 
   it("uses exact related-user lifecycle metadata before legacy text cleanup", () => {
@@ -205,7 +230,7 @@ describe("Bucket B Notification RLS inventory", () => {
       }
       return count + (source.match(/relatedUserId\s*:/g) ?? []).length;
     }, 0);
-    assert.equal(relatedUserAssignments, 21);
+    assert.equal(relatedUserAssignments, 23);
 
     assert.match(accountDeletion, /deleteAccountNotificationServiceRows\(tx, user\.id\)/);
     assert.equal((accountDeletion.match(/AND "relatedUserId" IS NULL/g) ?? []).length, 2);
@@ -221,6 +246,7 @@ describe("Bucket B Notification RLS inventory", () => {
       "grainline_notification_create_source_fanout",
       "grainline_notification_create_social_event",
       "grainline_notification_create_message_event",
+      "grainline_notification_create_case_event",
       "grainline_notification_create_commission_event",
       "grainline_notification_delete_for_account",
       "grainline_notification_delete_blog_comment",
@@ -235,11 +261,11 @@ describe("Bucket B Notification RLS inventory", () => {
     for (const functionName of functionNames.slice(1)) {
       assert.match(sql, new RegExp(`GRANT EXECUTE ON FUNCTION public\\.${functionName}\\(`));
     }
-    assert.equal((sql.match(/^SECURITY DEFINER$/gm) ?? []).length, 10);
-    assert.equal((sql.match(/^SET search_path = pg_catalog$/gm) ?? []).length, 10);
-    assert.equal((sql.match(/REVOKE ALL ON FUNCTION public\.grainline_notification_/g) ?? []).length, 10);
-    assert.equal((sql.match(/FROM PUBLIC, grainline_app_runtime/g) ?? []).length, 10);
-    assert.equal((sql.match(/GRANT EXECUTE ON FUNCTION public\.grainline_notification_/g) ?? []).length, 9);
+    assert.equal((sql.match(/^SECURITY DEFINER$/gm) ?? []).length, 11);
+    assert.equal((sql.match(/^SET search_path = pg_catalog$/gm) ?? []).length, 11);
+    assert.equal((sql.match(/REVOKE ALL ON FUNCTION public\.grainline_notification_/g) ?? []).length, 11);
+    assert.equal((sql.match(/FROM PUBLIC, grainline_app_runtime/g) ?? []).length, 11);
+    assert.equal((sql.match(/GRANT EXECUTE ON FUNCTION public\.grainline_notification_/g) ?? []).length, 10);
     assert.doesNotMatch(sql, /GRANT EXECUTE ON FUNCTION public\.grainline_notification_create_core\(/);
     assert.match(sql, /recipient\.banned = false[\s\S]{0,100}recipient\."deletedAt" IS NULL[\s\S]{0,80}FOR SHARE/);
     assert.match(sql, /recipient_preferences -> \(p_type::text\) = 'false'::jsonb/);
@@ -263,6 +289,11 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(sql, /'"listingId":"' \|\| p_authority_context_id \|\| '"'/);
     assert.match(sql, /'\/listing\/' \|\| p_authority_context_id \|\| '--'/);
     assert.match(sql, /source_review\."reviewerId" = p_related_user_id/);
+    assert.match(sql, /source_message\."authorId" = p_related_user_id/);
+    assert.match(sql, /source_audit\.action = 'MARK_CASE_RESOLVED'/);
+    assert.match(sql, /source_audit\."actorType" = 'cron'/);
+    assert.match(sql, /source_audit\.metadata ->> 'previousStatus' IN \('OPEN', 'IN_DISCUSSION'\)/);
+    assert.match(sql, /source_case\."resolvedById" = p_related_user_id/);
     assert.match(sql, /source_request\."buyerId" = p_user_id/);
     assert.match(sql, /source_seller\."userId" = p_related_user_id/);
     assert.match(sql, /source_request\.status IN \('CLOSED', 'FULFILLED', 'EXPIRED'\)/);
@@ -288,6 +319,7 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(serviceAccess, /public\.grainline_notification_create_source_fanout\(/);
     assert.match(serviceAccess, /public\.grainline_notification_create_social_event\(/);
     assert.match(serviceAccess, /public\.grainline_notification_create_message_event\(/);
+    assert.match(serviceAccess, /public\.grainline_notification_create_case_event\(/);
     assert.match(serviceAccess, /public\.grainline_notification_create_commission_event\(/);
     assert.match(serviceAccess, /extractRouteId\(listingRouteSegment\)/);
     assert.match(serviceAccess, /\$\{authorityContextId\}::text/);
