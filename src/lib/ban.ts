@@ -5,6 +5,7 @@ import { buildBanAuditMetadata } from './banAuditMetadata'
 import { banClerkUserAndRevokeSessions, unbanClerkUser } from './clerkUserLifecycle'
 import { expireOpenCheckoutSessionsForSeller } from './checkoutSessionExpiry'
 import { createNotification } from './notifications'
+import { NOTIFICATION_SOURCE_TYPES } from './notificationSources'
 import { blockingRefundLedgerWhere } from './refundRouteState'
 import { removeSellerCommissionInterests } from './commissionInterestCleanup'
 import { revalidatePublicSellerVisibilityCaches } from './searchCache'
@@ -87,6 +88,8 @@ async function logClerkSyncResult({
 
 async function notifyBuyersOfBannedSellerOrders(
   orders: Array<{ id: string; buyerId: string | null }>,
+  banAuditLogId: string,
+  bannedSellerUserId: string,
 ) {
   const notifiableOrders = orders.filter((order): order is { id: string; buyerId: string } => Boolean(order.buyerId))
   const results = await Promise.allSettled(
@@ -97,6 +100,9 @@ async function notifyBuyersOfBannedSellerOrders(
         title: 'Order under support review',
         body: 'The maker is currently unavailable. Grainline staff will review the order and next steps.',
         link: `/dashboard/orders/${order.id}`,
+        sourceType: NOTIFICATION_SOURCE_TYPES.BANNED_SELLER_ORDER,
+        sourceId: `${banAuditLogId}:${order.id}`,
+        relatedUserId: bannedSellerUserId,
       }),
     ),
   )
@@ -318,7 +324,11 @@ export async function banUser({ userId, adminId, reason }: {
     }
   }
 
-  await notifyBuyersOfBannedSellerOrders(clerkSync.flaggedOpenOrders)
+  await notifyBuyersOfBannedSellerOrders(
+    clerkSync.flaggedOpenOrders,
+    clerkSync.banAuditLogId,
+    userId,
+  )
 
   try {
     const result = await banClerkUserAndRevokeSessions(clerkSync.clerkId)

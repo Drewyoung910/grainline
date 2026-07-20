@@ -12,9 +12,9 @@ construction paths. One dedicated back-in-stock claim call derives its
 Notification write inside owner authority. The inventory therefore covers 54
 distinct emission paths:
 
-- 40 authority-bound paths;
-- 14 source-less paths;
-- 22 generic paths currently carrying `relatedUserId`, plus back-in-stock's
+- 45 authority-bound paths;
+- 9 source-less paths;
+- 24 generic paths currently carrying `relatedUserId`, plus back-in-stock's
   database-derived seller relationship.
 
 The earlier count of 51 calls and 46 source-less paths omitted the fulfillment
@@ -25,7 +25,9 @@ more. The commission implementation then moved four paths, the case
 implementation moved all twelve case paths. Checkout low-stock, manual low-stock,
 and the dedicated back-in-stock claim then completed all three inventory paths.
 The seven staff and three cron verification/Guild transitions complete that
-family, producing the current 40/14 split.
+family. Three listing-moderation/report paths and two staff/account-warning
+paths now bind exact audit, report, ban, and order evidence, producing the
+current 45/9 split.
 Tests pin direct calls, emission paths, and family state so those concepts are
 not conflated again.
 
@@ -35,8 +37,8 @@ not conflated again.
 |---|---:|---|---|
 | Existing source-tagged fanout | 5 | Blog comment/reply, followed listing, followed blog, seller broadcast | Comment/post/listing/broadcast, actor, recipient, seller visibility and follow row |
 | Verification and guild lifecycle | 10 | Staff approval/rejection/revocation/reinstatement; guild metric and eligibility jobs | Implemented draft validation: durable exact admin/system audit evidence, non-undone staff action or fixed cron actor, recipient seller, `MakerVerification` and `SellerProfile` transition state; first metrics warning now co-commits its audit with the warning state |
-| Staff and account warnings | 2 | Admin account message; buyer warning after maker ban | Fixed warning type, active recipient, staff context plus audit/message source; order and ban state where applicable |
-| Listing moderation and reports | 3 | Listing approval/rejection; listing-reported warning | Listing owner and moderation state; staff decision or bounded report event |
+| Staff and account warnings | 2 | Admin account message; buyer warning after maker ban | Implemented draft validation: successful-send admin audit with stored bounded payload, or compound ban-audit/order evidence with exact affected buyer and banned seller |
+| Listing moderation and reports | 3 | Listing approval/rejection; listing-reported warning | Implemented draft validation: atomic staff-review audit or exact `UserReport`, listing owner, reporter, decision type, and canonical listing/dashboard route |
 | Case lifecycle | 12 | Open, message, mark-resolved, resolve/refund, timeout escalation and auto-close | Implemented draft validation: durable `Case`, `CaseMessage`, atomic user-audit, or system-audit source; exact parties/staff/cron actor, order route, event type and recorded transition |
 | Commission lifecycle | 4 | Seller interest, buyer close/fulfill, expiry notifications | Implemented draft validation: durable `CommissionInterest` or final-state `CommissionRequest`, conversation, interested seller, buyer/recipient, CLOSED/FULFILLED/EXPIRED state and route |
 | Social and review events | 3 | Favorite, follow, review | Implemented draft validation: `Favorite`, `Follow`, `Review`, listing/seller ownership and event actor |
@@ -54,7 +56,7 @@ arbitrary-recipient insert function merely because HTTP users do not insert
 notifications directly. That shortcut would restore broad cross-user authority
 to any runtime query that could invoke it.
 
-Do not instrument the remaining 14 paths with one undifferentiated provenance
+Do not instrument the remaining 9 paths with one undifferentiated provenance
 shape. Group them by the ten authority families above:
 
 1. Keep an internal fixed-column insert primitive ungranted to `PUBLIC` and the
@@ -78,9 +80,11 @@ Application authorization remains primary. These functions are database
 defense in depth against overly broad queries and partial compromise; they do
 not claim to defeat arbitrary code execution holding the runtime credential.
 
-This is not yet a complete runtime-compromise boundary. The seven granted generic
-create wrappers still accept caller-supplied title and body after validating
-their bounds. The dedicated back-in-stock claim accepts neither. Canonical links
+This is not yet a complete runtime-compromise boundary. The nine granted creation
+wrappers share bounded title/body parameters, although the verification,
+moderation, account-warning, inventory, and portions of other families replace
+them with source-derived templates. The dedicated back-in-stock claim accepts
+neither. Canonical links
 and dedup identity are now derived inside owner authority
 from the validated recipient, type, source kind, source row, related actor, and
 source-specific route columns. Runtime-supplied `link` and `dedupScope` remain
@@ -115,10 +119,12 @@ races impossible.
    the subscription, and returns the sole winning claim for email fanout.
 3. Retain the completed verification/Guild family: seven staff transitions bind
    atomic `AdminAuditLog` evidence and three cron transitions bind atomic
-   `SystemAuditLog` evidence. Continue with order/payment/fulfillment only after
-   its provider transition matrix is complete.
-4. Leave staff free-form account communication last; require a durable audited
-   message source rather than granting a generic warning creator.
+   `SystemAuditLog` evidence.
+4. Retain the completed moderation/account-warning families. Listing decisions
+   bind transaction-returned audit ids, reports bind exact `UserReport` rows,
+   successful admin messages bind post-send audit evidence, and ban warnings bind
+   a compound ban-audit/order event. Continue with order/payment/fulfillment only
+   after its provider transition matrix is complete.
 
 Every family still needs PostgreSQL parse/apply proof, own/foreign and direct
 denial tests, concurrency tests, grants/catalog fingerprints, rollback, and
@@ -127,5 +133,5 @@ The permanent completeness gate is
 `npm run audit:rls-notification-readiness`: it inventories the real TypeScript
 call graph, requires exactly 54 emission paths, and blocks activation until all
 54 carry a source pair dispatched through a reviewed family. Its current
-40/54 failure is expected and must never be bypassed or weakened to make an
+45/54 failure is expected and must never be bypassed or weakened to make an
 incomplete rollout pass.

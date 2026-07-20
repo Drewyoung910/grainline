@@ -57,6 +57,10 @@ BEGIN
       'manual_low_stock',
       'guild_admin_action',
       'guild_system_action',
+      'listing_admin_review',
+      'listing_user_report',
+      'admin_account_message',
+      'banned_seller_order',
       'favorite',
       'followed_maker_new_blog',
       'followed_maker_new_listing',
@@ -87,6 +91,12 @@ BEGIN
          AND p_type <> 'LOW_STOCK')
      OR (p_source_type IN ('guild_admin_action', 'guild_system_action')
          AND p_type NOT IN ('VERIFICATION_APPROVED', 'VERIFICATION_REJECTED'))
+     OR (p_source_type = 'listing_admin_review'
+         AND p_type NOT IN ('LISTING_APPROVED', 'LISTING_REJECTED'))
+     OR (p_source_type = 'listing_user_report'
+         AND p_type <> 'LISTING_FLAGGED_BY_USER')
+     OR (p_source_type IN ('admin_account_message', 'banned_seller_order')
+         AND p_type <> 'ACCOUNT_WARNING')
      OR (p_source_type = 'favorite'
          AND p_type <> 'NEW_FAVORITE')
      OR (p_source_type = 'followed_maker_new_blog'
@@ -115,7 +125,9 @@ BEGIN
        'checkout_low_stock',
        'manual_low_stock',
        'guild_admin_action',
-       'guild_system_action'
+       'guild_system_action',
+       'listing_admin_review',
+       'admin_account_message'
      )
      AND (p_related_user_id IS NULL OR p_related_user_id = p_user_id) THEN
     RAISE EXCEPTION 'notification source requires a distinct related user' USING ERRCODE = '22023';
@@ -135,7 +147,9 @@ BEGIN
     RETURN NULL;
   END IF;
 
-  IF p_related_user_id IS NOT NULL AND p_related_user_id <> p_user_id THEN
+  IF p_related_user_id IS NOT NULL
+     AND p_related_user_id <> p_user_id
+     AND p_source_type <> 'banned_seller_order' THEN
     PERFORM 1
       FROM public."User" AS related_user
      WHERE related_user.id = p_related_user_id
@@ -531,6 +545,147 @@ BEGIN
           AND source_verification.status = 'GUILD_MASTER_REJECTED')
        )
      FOR SHARE OF source_audit, source_seller, source_verification;
+  ELSIF p_source_type = 'listing_admin_review' THEN
+    SELECT
+      CASE source_audit.action
+        WHEN 'APPROVE_LISTING' THEN '/listing/' || source_listing.id
+        WHEN 'REJECT_LISTING' THEN '/dashboard/listings/' || source_listing.id || '/edit'
+      END,
+      CASE source_audit.action
+        WHEN 'APPROVE_LISTING' THEN 'Listing approved'
+        WHEN 'REJECT_LISTING' THEN 'Listing needs changes'
+      END,
+      CASE source_audit.action
+        WHEN 'APPROVE_LISTING' THEN
+          CASE source_audit.metadata ->> 'finalStatus'
+            WHEN 'SOLD_OUT' THEN 'Your listing "' || source_listing.title
+              || '" has been approved. Add stock to make it available to buyers.'
+            ELSE 'Your listing "' || source_listing.title
+              || '" has been approved and is now live!'
+          END
+        WHEN 'REJECT_LISTING' THEN 'Your listing "' || source_listing.title
+          || '" was not approved. Reason: ' || source_audit.reason
+          || '. Please edit and resubmit.'
+      END
+      INTO notification_link, notification_title, notification_body
+      FROM public."AdminAuditLog" AS source_audit
+      JOIN public."User" AS source_staff
+        ON source_staff.id = source_audit."adminId"
+      JOIN public."Listing" AS source_listing
+        ON source_listing.id = source_audit."targetId"
+      JOIN public."SellerProfile" AS source_seller
+        ON source_seller.id = source_listing."sellerId"
+     WHERE source_audit.id = p_source_id
+       AND source_audit."targetType" = 'LISTING'
+       AND source_audit.undone = false
+       AND source_audit.action IN ('APPROVE_LISTING', 'REJECT_LISTING')
+       AND source_staff.role IN ('EMPLOYEE', 'ADMIN')
+       AND source_staff.banned = false
+       AND source_staff."deletedAt" IS NULL
+       AND source_seller."userId" = p_user_id
+       AND p_related_user_id IS NULL
+       AND source_listing."reviewedByAdmin" = true
+       AND source_listing."reviewedAt" IS NOT NULL
+       AND (
+         (source_audit.action = 'APPROVE_LISTING'
+          AND source_audit.metadata ->> 'finalStatus' IN ('ACTIVE', 'SOLD_OUT')
+          AND p_type = 'LISTING_APPROVED'::public."NotificationType")
+         OR
+         (source_audit.action = 'REJECT_LISTING'
+          AND source_audit.reason IS NOT NULL
+          AND source_audit.reason <> ''
+          AND p_type = 'LISTING_REJECTED'::public."NotificationType")
+       )
+     FOR SHARE OF source_audit, source_staff, source_listing, source_seller;
+  ELSIF p_source_type = 'listing_user_report' THEN
+    SELECT
+      '/dashboard/listings/' || source_listing.id || '/edit',
+      'Listing report received',
+      'A report about one of your listings was received and will be reviewed by Grainline staff.'
+      INTO notification_link, notification_title, notification_body
+      FROM public."UserReport" AS source_report
+      JOIN public."Listing" AS source_listing
+        ON source_listing.id = source_report."targetId"
+      JOIN public."SellerProfile" AS source_seller
+        ON source_seller.id = source_listing."sellerId"
+     WHERE source_report.id = p_source_id
+       AND source_report."targetType" = 'LISTING'
+       AND source_report."reportedId" = source_seller."userId"
+       AND source_report."reportedId" = p_user_id
+       AND source_report."reporterId" = p_related_user_id
+       AND source_report."reporterId" <> source_report."reportedId"
+       AND p_type = 'LISTING_FLAGGED_BY_USER'::public."NotificationType"
+     FOR SHARE OF source_report, source_listing, source_seller;
+  ELSIF p_source_type = 'admin_account_message' THEN
+    SELECT
+      '/account',
+      pg_catalog.left(source_audit.reason, 200),
+      pg_catalog.left(source_audit.metadata ->> 'notificationBody', 1000)
+      INTO notification_link, notification_title, notification_body
+      FROM public."AdminAuditLog" AS source_audit
+      JOIN public."User" AS source_staff
+        ON source_staff.id = source_audit."adminId"
+     WHERE source_audit.id = p_source_id
+       AND source_audit.action = 'SEND_EMAIL'
+       AND source_audit."targetType" = 'USER'
+       AND source_audit."targetId" = p_user_id
+       AND source_audit.undone = false
+       AND source_staff.role = 'ADMIN'
+       AND source_staff.banned = false
+       AND source_staff."deletedAt" IS NULL
+       AND source_audit.reason IS NOT NULL
+       AND source_audit.reason <> ''
+       AND pg_catalog.jsonb_typeof(source_audit.metadata -> 'notificationBody') = 'string'
+       AND source_audit.metadata ->> 'notificationBody' <> ''
+       AND p_related_user_id IS NULL
+       AND p_type = 'ACCOUNT_WARNING'::public."NotificationType"
+     FOR SHARE OF source_audit, source_staff;
+  ELSIF p_source_type = 'banned_seller_order' THEN
+    SELECT
+      '/dashboard/orders/' || source_order.id,
+      'Order under support review',
+      'The maker is currently unavailable. Grainline staff will review the order and next steps.'
+      INTO notification_link, notification_title, notification_body
+      FROM public."AdminAuditLog" AS source_audit
+      JOIN public."User" AS source_staff
+        ON source_staff.id = source_audit."adminId"
+      JOIN public."User" AS source_banned_seller
+        ON source_banned_seller.id = source_audit."targetId"
+      JOIN public."Order" AS source_order
+        ON source_order.id = pg_catalog.split_part(p_source_id, ':', 2)
+     WHERE source_audit.id = pg_catalog.split_part(p_source_id, ':', 1)
+       AND p_source_id = source_audit.id || ':' || source_order.id
+       AND source_audit.action = 'BAN_USER'
+       AND source_audit."targetType" = 'USER'
+       AND source_audit.undone = false
+       AND source_staff.role IN ('EMPLOYEE', 'ADMIN')
+       AND source_staff.banned = false
+       AND source_staff."deletedAt" IS NULL
+       AND source_banned_seller.banned = true
+       AND source_banned_seller."deletedAt" IS NULL
+       AND source_order."buyerId" = p_user_id
+       AND p_related_user_id = source_banned_seller.id
+       AND p_type = 'ACCOUNT_WARNING'::public."NotificationType"
+       AND source_order."reviewNeeded" = true
+       AND EXISTS (
+         SELECT 1
+           FROM pg_catalog.jsonb_array_elements(
+             COALESCE(source_audit.metadata -> 'flaggedOpenOrders', '[]'::jsonb)
+           ) AS flagged_order
+          WHERE flagged_order ->> 'id' = source_order.id
+            AND flagged_order ->> 'buyerId' = source_order."buyerId"
+       )
+       AND EXISTS (
+         SELECT 1
+           FROM public."OrderItem" AS source_item
+           JOIN public."Listing" AS source_item_listing
+             ON source_item_listing.id = source_item."listingId"
+           JOIN public."SellerProfile" AS source_item_seller
+             ON source_item_seller.id = source_item_listing."sellerId"
+          WHERE source_item."orderId" = source_order.id
+            AND source_item_seller."userId" = source_banned_seller.id
+       )
+     FOR SHARE OF source_audit, source_staff, source_banned_seller, source_order;
   ELSIF p_source_type = 'followed_maker_new_listing' THEN
     SELECT '/listing/' || source_listing.id
       INTO notification_link
@@ -1094,6 +1249,84 @@ BEGIN
 END;
 $grainline_notification_create_verification_event$;
 
+CREATE OR REPLACE FUNCTION public.grainline_notification_create_moderation_event(
+  p_notification_id text,
+  p_user_id text,
+  p_type public."NotificationType",
+  p_title text,
+  p_body text,
+  p_source_type text,
+  p_source_id text,
+  p_related_user_id text
+)
+RETURNS text
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_notification_create_moderation_event$
+DECLARE
+  notification_id text;
+BEGIN
+  IF p_source_type NOT IN ('listing_admin_review', 'listing_user_report') THEN
+    RAISE EXCEPTION 'moderation notification requires a reviewed listing source'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT public.grainline_notification_create_core(
+    p_notification_id,
+    p_user_id,
+    p_type,
+    p_title,
+    p_body,
+    p_source_type,
+    p_source_id,
+    p_related_user_id
+  ) INTO notification_id;
+  RETURN notification_id;
+END;
+$grainline_notification_create_moderation_event$;
+
+CREATE OR REPLACE FUNCTION public.grainline_notification_create_account_warning(
+  p_notification_id text,
+  p_user_id text,
+  p_type public."NotificationType",
+  p_title text,
+  p_body text,
+  p_source_type text,
+  p_source_id text,
+  p_related_user_id text
+)
+RETURNS text
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_notification_create_account_warning$
+DECLARE
+  notification_id text;
+BEGIN
+  IF p_source_type NOT IN ('admin_account_message', 'banned_seller_order') THEN
+    RAISE EXCEPTION 'account warning requires a reviewed staff or order source'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT public.grainline_notification_create_core(
+    p_notification_id,
+    p_user_id,
+    p_type,
+    p_title,
+    p_body,
+    p_source_type,
+    p_source_id,
+    p_related_user_id
+  ) INTO notification_id;
+  RETURN notification_id;
+END;
+$grainline_notification_create_account_warning$;
+
 -- Back-in-stock is a one-shot claim rather than a generic create call. The
 -- durable StockNotification row is locked, every recipient/listing/seller fact
 -- is derived under that lock, the optional in-app row is inserted, and the
@@ -1525,6 +1758,12 @@ REVOKE ALL ON FUNCTION public.grainline_notification_create_inventory_event(
 REVOKE ALL ON FUNCTION public.grainline_notification_create_verification_event(
   text, text, public."NotificationType", text, text, text, text, text
 ) FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION public.grainline_notification_create_moderation_event(
+  text, text, public."NotificationType", text, text, text, text, text
+) FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION public.grainline_notification_create_account_warning(
+  text, text, public."NotificationType", text, text, text, text, text
+) FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_notification_claim_back_in_stock(text, text, text)
   FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_notification_delete_for_account(text)
@@ -1557,6 +1796,12 @@ GRANT EXECUTE ON FUNCTION public.grainline_notification_create_inventory_event(
   text, text, public."NotificationType", text, text, text, text, text
 ) TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_notification_create_verification_event(
+  text, text, public."NotificationType", text, text, text, text, text
+) TO grainline_app_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_notification_create_moderation_event(
+  text, text, public."NotificationType", text, text, text, text, text
+) TO grainline_app_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_notification_create_account_warning(
   text, text, public."NotificationType", text, text, text, text, text
 ) TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_notification_claim_back_in_stock(text, text, text)

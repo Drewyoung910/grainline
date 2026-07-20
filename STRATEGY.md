@@ -103,11 +103,11 @@ sequencing prerequisites are live, compare it with narrow one-statement
 evidence. Cross-user creation and cleanup use a separate service-authority
 design and must not be conflated with recipient RPCs.
 
-The isolated service-authority draft now uses fourteen owner-backed functions:
-one runtime-ungranted fixed-column core, seven granted creation families, one
+The isolated service-authority draft now uses sixteen owner-backed functions:
+one runtime-ungranted fixed-column core, nine granted creation families, one
 dedicated back-in-stock claim/create/consume operation, three exact cleanup
 operations, and two fixed retention batches. Runtime receives exact execute
-privileges only on the thirteen fixed-purpose entry points;
+privileges only on the fifteen fixed-purpose entry points;
 direct Notification insert/delete and the default public function privilege
 remain revoked. The application paths are wired to the draft, but legacy
 null-source and account-deletion source/link/text fallbacks still perform direct
@@ -118,8 +118,8 @@ not database-authenticated identity and a compromised runtime can forge it;
 fixed-purpose constraints limit that residual without eliminating it.
 
 Extra-high review does not yet accept the shared create function as final. The
-forty authority-bound paths can prove source, type, actor, recipient, and
-relationship constraints inside the database operation, but 14 source-less
+forty-five authority-bound paths can prove source, type, actor, recipient, and
+relationship constraints inside the database operation, but 9 source-less
 emission paths still need family implementations and currently fail closed.
 The granted wrappers also retain bounded caller control of notification text
 but no longer accept link or dedup identity. The private core derives canonical
@@ -154,17 +154,25 @@ was moved into an audited transaction; the owner wrapper derives payload and
 route only after validating actor, recipient, verification status, and Guild
 level.
 
+The listing-moderation and account-warning families are also complete in the
+isolated draft. Listing approval/rejection returns the exact staff audit written
+with the transition; listing reports use the durable `UserReport`. A successful
+admin email writes bounded notification content into a strict post-send audit
+before attempting the in-app row. Banned-seller buyer warnings use a compound
+ban-audit/order event, validate that the order is listed in the ban snapshot,
+and retain the banned seller as exact related-user lifecycle metadata.
+
 Production activation also has a permanent completeness gate:
 `npm run audit:rls-notification-readiness`. It inventories the real TypeScript
 emission paths, requires the exact 54-path contract, and fails on dynamic calls,
 missing source pairs, or source constants that do not dispatch through a
-reviewed service family. Its current 40/54 result must remain a failing operator
+reviewed service family. Its current 45/54 result must remain a failing operator
 preflight until every path is covered; ordinary tests assert that expected
 fail-closed state so incomplete notification types cannot disappear silently.
 
 Use a hybrid rather than either extreme. Do not grant runtime the current
 generic arbitrary-type/arbitrary-recipient creator, but do not add identical
-lifecycle metadata mechanically to all 14 source-less emission paths. Keep the
+lifecycle metadata mechanically to all 9 source-less emission paths. Keep the
 fixed-column insert primitive private to the function owner and expose only
 family-specific operations keyed by stable domain ids and small event
 discriminators. The ten-family inventory and implementation order live in

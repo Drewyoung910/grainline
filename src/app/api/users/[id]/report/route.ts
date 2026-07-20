@@ -5,6 +5,7 @@ import { ensureUser } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { createNotification } from "@/lib/notifications";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { canViewListingDetail } from "@/lib/listingVisibility";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { openCommissionWhere } from "@/lib/commissionExpiry";
@@ -229,7 +230,7 @@ export async function POST(
   }
 
   const details = body.details ? truncateText(sanitizeText(body.details), 500) || null : null;
-  await prisma.userReport.create({
+  const report = await prisma.userReport.create({
     data: { reporterId: me.id, reportedId, reason: body.reason, details, targetType: body.targetType ?? null, targetId: body.targetId ?? null },
   });
 
@@ -240,6 +241,9 @@ export async function POST(
       title: "Listing report received",
       body: "A report about one of your listings was received and will be reviewed by Grainline staff.",
       link: `/dashboard/listings/${body.targetId}/edit`,
+      sourceType: NOTIFICATION_SOURCE_TYPES.LISTING_USER_REPORT,
+      sourceId: report.id,
+      relatedUserId: me.id,
     }).catch((notificationError) => {
       Sentry.captureException(notificationError, {
         level: "warning",

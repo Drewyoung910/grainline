@@ -13,10 +13,10 @@ describe("owner-derived notification identity", () => {
 
   it("does not accept runtime link or dedup identity in creation authority", () => {
     assert.doesNotMatch(sql, /\bp_link\b|\bp_dedup_key\b/);
-    assert.equal((sql.match(/p_related_user_id text\n\)/g) ?? []).length, 8);
+    assert.equal((sql.match(/p_related_user_id text\n\)/g) ?? []).length, 10);
     assert.equal(
       (sql.match(/text, text, public\."NotificationType", text, text, text, text, text/g) ?? []).length,
-      15,
+      19,
     );
     assert.doesNotMatch(serviceAccess, /\$\{link\}|\$\{dedupKey\}|authorityContextId/);
     assert.doesNotMatch(notifications, /notificationDedupKey|dedupKey,/);
@@ -40,7 +40,7 @@ describe("owner-derived notification identity", () => {
   });
 
   it("derives canonical links from validated source rows", () => {
-    assert.equal((sql.match(/INTO notification_link/g) ?? []).length, 19);
+    assert.equal((sql.match(/INTO notification_link/g) ?? []).length, 23);
     assert.match(sql, /INTO notification_link, notification_title, notification_body/);
     assert.match(sql, /SELECT '\/blog\/' \|\| source_post\.slug \|\| '#comment-' \|\| source_comment\.id/);
     assert.match(sql, /SELECT '\/listing\/' \|\| source_listing\.id/);

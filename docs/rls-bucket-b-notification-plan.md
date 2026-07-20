@@ -33,11 +33,12 @@ proves source/type/actor/recipient relationships for the generic source-tagged
 paths, inserts idempotently, and returns only the row id. Separate fixed-purpose draft
 functions cover account lifecycle deletion, staff blog-comment/broadcast
 cleanup, fixed 90-day read/365-day unread retention batches, atomic
-back-in-stock claim/create/consume, and the verification/Guild family. Fourteen functions
+back-in-stock claim/create/consume, and the reviewed creation families. Sixteen functions
 are owner-backed `SECURITY DEFINER` functions with `search_path=pg_catalog`: the
 generic fixed-column core is ungranted, while runtime gets exact `EXECUTE` only
 on the source-fanout, social-event, message-event, commission-event, case-event,
-inventory-event, and verification-event wrappers, the back-in-stock claim, plus five
+inventory-event, verification-event, moderation-event, and account-warning wrappers,
+the back-in-stock claim, plus five
 cleanup/retention operations. Direct table
 `INSERT`/`DELETE` stays revoked.
 The functions also revoke PostgreSQL's default `PUBLIC` execute privilege.
@@ -47,7 +48,7 @@ compromised runtime could invoke the granted fixed-purpose functions and could
 forge that context. Input, role, age, and source constraints limit that residual
 capability; runtime credential separation remains the separate control against
 owner-credential exfiltration.
-The forty authority-bound create paths, exact account cleanup, exact admin source
+The forty-five authority-bound create paths, exact account cleanup, exact admin source
 cleanup, and retention cron are wired to these draft functions in the isolated branch. Source-less creation now fails closed until its family wrapper exists. Admin cleanup
 still retains explicitly marked `sourceType/sourceId IS NULL` legacy fallbacks,
 and account deletion retains broader legacy source/link cleanup and text
@@ -92,11 +93,11 @@ by the same transaction. The audit-backed paths validate recorded transition
 metadata instead of mutable current status, so a legitimate later case change
 does not silently suppress an already-committed event.
 
-One authority question remains blocking: 14 of the 54 emission paths do not
+One authority question remains blocking: 9 of the 54 emission paths do not
 yet carry provenance. They fail closed in the current application draft rather
 than reaching the private generic core. Classify those type families and add
 type-specific database predicates or split service functions where meaningful
-before activation. The eighteen source types already validated by database joins
+before activation. The twenty-two source types already validated by database joins
 also require provider performance evidence before promotion.
 
 The inventory family is now complete in the isolated draft. Webhook low-stock uses
@@ -122,6 +123,14 @@ type, and audit target before deriving the payload and route. Three cron paths
 use `SystemAuditLog` with fixed job identities. The first Guild Master metrics
 warning now writes its system audit in the same transaction as the warning
 state; the two revocations already had atomic system evidence.
+
+The moderation and account-warning families bind all five paths to exact durable
+evidence. Listing decisions return their co-committed staff audit; listing reports
+use the exact `UserReport`. Successful admin emails write a strict post-send audit
+containing the bounded notification body before attempting the in-app row. A
+banned-seller warning uses `<ban-audit-id>:<order-id>` as a validated compound
+event key, proves the order appears in the audit snapshot, derives the buyer and
+banned seller, and keeps each affected order's replay identity distinct.
 
 The authority fork is resolved directionally in
 `docs/notification-create-authority-inventory.md`: do not accept one permissive
@@ -175,8 +184,8 @@ The 2026-07-19 source snapshot contains 51 direct `createNotification` calls
 across 29 caller files: 50 object-literal calls plus the fulfillment route's
 typed wrapper call. That wrapper serves three distinct fulfillment payloads,
 and back-in-stock uses one dedicated owner-backed claim, so the authority
-inventory contains 54 distinct emission paths. Forty are currently
-authority-bound and 14 are source-less. This broad fanout surface is the main
+inventory contains 54 distinct emission paths. Forty-five are currently
+authority-bound and 9 are source-less. This broad fanout surface is the main
 reason the table cannot receive a copied SavedSearch owner-only policy.
 
 ## Actor And Operation Inventory
@@ -188,7 +197,7 @@ reason the table cannot receive a copied SavedSearch owner-only policy.
 | Retention cron | Delete old read and unread rows globally in bounded batches | Parameter-free or tightly bounded owner RPC using server time and code-pinned retention windows; no general runtime `DELETE` |
 | Account deletion | Delete the departing user's rows; delete related-user/source residue across other recipients; retire the legacy sensitive-text fallback | Use one narrow account-lifecycle RPC for recipient plus `relatedUserId` deletion and separate exact source cleanup; do not grant direct table `DELETE`. Exact recipient/related-user cleanup is wired to the draft RPC; legacy source/link/text work remains blocking |
 | Staff blog/broadcast deletion | Delete notifications tied to a deleted comment or broadcast across recipients | Use exact `sourceType`/`sourceId` service cleanup; remove legacy title/body/link matching after source coverage/backfill is proven |
-| Admin, webhook, cron, order/case/message/social flows | Create recipient notifications through reviewed service access | All 54 emission paths stay behind reviewed service functions; forty currently dispatch to family wrappers or the dedicated back-in-stock claim, while 14 fail closed pending their family implementation |
+| Admin, webhook, cron, order/case/message/social flows | Create recipient notifications through reviewed service access | All 54 emission paths stay behind reviewed service functions; forty-five currently dispatch to family wrappers or the dedicated back-in-stock claim, while 9 fail closed pending the order/payment/fulfillment family |
 
 Current direct-access files are deliberately pinned by test:
 
@@ -270,7 +279,7 @@ Current direct-access files are deliberately pinned by test:
   result. The AST-backed gate fails on count drift, dynamic/unrecognized helper
   calls, missing source pairs, or source constants not dispatched by a reviewed
   service family. It is expected to exit nonzero during preparation while the
-  documented 14 paths remain fail-closed.
+  documented 9 paths remain fail-closed.
 - Deploy Notification RPC/application changes before enabling policies where
   compatibility requires it; never ship an app/table ordering that strands
   writes or cleanup.
@@ -289,7 +298,7 @@ Current direct-access files are deliberately pinned by test:
 - Null-metadata legacy account-deletion cleanup still falls back to notification
   text and requires coverage/backfill or safe expiry plus a narrow service path.
 - Not every create path has proven lifecycle-complete source metadata.
-- The runtime-ungranted insert primitive, seven family wrappers, and the
+- The runtime-ungranted insert primitive, nine family wrappers, and the
   dedicated back-in-stock claim are draft-implemented. The remaining create
   families are not; direct or generic runtime creation remains unacceptable for
   activation.
