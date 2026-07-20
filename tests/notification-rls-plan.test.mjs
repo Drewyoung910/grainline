@@ -50,7 +50,7 @@ describe("Bucket B Notification RLS inventory", () => {
       "src/app/admin/blog/page.tsx",
       "src/app/admin/broadcasts/page.tsx",
       "src/lib/accountDeletion.ts",
-      "src/lib/notificationOwnerAccess.ts",
+      "src/lib/notificationOwnerAccessTransactionCandidate.ts",
     ]);
   });
 
@@ -376,15 +376,15 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.doesNotMatch(notifications, /prisma\.notification\.(?:create|findUnique)/);
   });
 
-  it("requires branded context transactions for every recipient operation", () => {
+  it("routes every recipient operation through the one-statement invoker candidate", () => {
     const ownerAccess = fs.readFileSync("src/lib/notificationOwnerAccess.ts", "utf8");
     const dashboardPage = fs.readFileSync("src/app/dashboard/notifications/page.tsx", "utf8");
 
-    assert.match(ownerAccess, /Pick<DbUserContextTransactionClient, "notification">/);
     assert.equal((ownerAccess.match(/^export async function /gm) ?? []).length, 8);
-    assert.equal((ownerAccess.match(/return withDbUserContext\(userId,/g) ?? []).length, 8);
-    assert.doesNotMatch(ownerAccess, /from "@\/lib\/db"/);
-    assert.doesNotMatch(ownerAccess, /NotificationOwnerAccessClient = prisma/);
+    assert.equal((ownerAccess.match(/public\.grainline_notification_/g) ?? []).length, 8);
+    assert.match(ownerAccess, /from "@\/lib\/db"/);
+    assert.doesNotMatch(ownerAccess, /withDbUserContext/);
+    assert.doesNotMatch(ownerAccess, /prisma\.notification\./);
     assert.doesNotMatch(ownerAccess, /Promise\.all/);
     assert.match(dashboardPage, /ownerNotificationPageData\(me\.id/);
     assert.doesNotMatch(dashboardPage, /ownerNotificationPageRows/);

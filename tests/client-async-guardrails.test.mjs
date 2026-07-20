@@ -241,7 +241,7 @@ describe("client async guardrails", () => {
     assert.match(bell, /closing \? "animate-menu-out pointer-events-none" : "animate-menu-in"/);
     assert.match(route, /ownerNotificationBellData\(me\.id\)/);
     assert.match(ownerAccess, /const NOTIFICATION_BELL_SELECT = \{/);
-    assert.match(ownerAccess, /select: NOTIFICATION_BELL_SELECT/);
+    assert.match(ownerAccess, /public\.grainline_notification_bell\(\$\{userId\}::text, 20\)/);
     assert.doesNotMatch(ownerAccess.slice(ownerAccess.indexOf("NOTIFICATION_BELL_SELECT"), ownerAccess.indexOf("NOTIFICATION_EXPORT_SELECT")), /sourceType:\s*true/);
     assert.doesNotMatch(ownerAccess.slice(ownerAccess.indexOf("NOTIFICATION_BELL_SELECT"), ownerAccess.indexOf("NOTIFICATION_EXPORT_SELECT")), /sourceId:\s*true/);
     assert.doesNotMatch(ownerAccess.slice(ownerAccess.indexOf("NOTIFICATION_BELL_SELECT"), ownerAccess.indexOf("NOTIFICATION_EXPORT_SELECT")), /dedupKey:\s*true/);

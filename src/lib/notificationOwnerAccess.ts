@@ -1,10 +1,5 @@
 import { NotificationType, Prisma } from "@prisma/client";
-import {
-  withDbUserContext,
-  type DbUserContextTransactionClient,
-} from "@/lib/dbUserContext";
-
-export type NotificationOwnerAccessClient = Pick<DbUserContextTransactionClient, "notification">;
+import { prisma } from "@/lib/db";
 
 export const NOTIFICATION_BELL_SELECT = {
   id: true,
@@ -28,110 +23,161 @@ export const NOTIFICATION_EXPORT_SELECT = {
   createdAt: true,
 } satisfies Prisma.NotificationSelect;
 
-async function countUnreadOwnerNotificationsInContext(
-  userId: string,
-  db: NotificationOwnerAccessClient,
-) {
-  return db.notification.count({ where: { userId, read: false } });
+type NotificationBellItem = Prisma.NotificationGetPayload<{
+  select: typeof NOTIFICATION_BELL_SELECT;
+}>;
+
+type NotificationExportItem = Prisma.NotificationGetPayload<{
+  select: typeof NOTIFICATION_EXPORT_SELECT;
+}>;
+
+type CountValue = bigint | number;
+
+type NotificationBellRpcRow = {
+  id: string | null;
+  type: NotificationType | null;
+  title: string | null;
+  body: string | null;
+  link: string | null;
+  read: boolean | null;
+  createdAt: Date | null;
+  unreadCount: CountValue;
+};
+
+type NotificationPageRpcRow = NotificationBellRpcRow & {
+  page: number;
+  total: CountValue;
+  totalPages: number;
+};
+
+function safeRpcCount(value: CountValue, label: string): number {
+  const count = typeof value === "bigint" ? Number(value) : value;
+  if (!Number.isSafeInteger(count) || count < 0) {
+    throw new TypeError(`${label} returned an invalid count`);
+  }
+  return count;
 }
 
-async function countOwnerNotificationsInContext(
-  userId: string,
-  db: NotificationOwnerAccessClient,
-) {
-  return db.notification.count({ where: { userId } });
+function notificationFromRpcRow(row: NotificationBellRpcRow): NotificationBellItem | null {
+  if (row.id === null) return null;
+  if (
+    row.type === null
+    || row.title === null
+    || row.body === null
+    || row.read === null
+    || !(row.createdAt instanceof Date)
+  ) {
+    throw new TypeError("notification recipient RPC returned an invalid row");
+  }
+  return {
+    id: row.id,
+    type: row.type,
+    title: row.title,
+    body: row.body,
+    link: row.link,
+    read: row.read,
+    createdAt: row.createdAt,
+  };
 }
 
 export async function countUnreadOwnerNotifications(userId: string) {
-  return withDbUserContext(userId, (db) =>
-    countUnreadOwnerNotificationsInContext(userId, db));
+  const rows = await prisma.$queryRaw<Array<{ count: CountValue }>>`
+    SELECT public.grainline_notification_unread_count(${userId}::text) AS count
+  `;
+  if (rows.length !== 1) throw new TypeError("notification unread RPC returned no row");
+  return safeRpcCount(rows[0].count, "notification unread RPC");
 }
 
-export async function ownerNotificationBellData(
-  userId: string,
-) {
-  return withDbUserContext(userId, async (db) => {
-    const notifications = await db.notification.findMany({
-      where: { userId },
-      select: NOTIFICATION_BELL_SELECT,
-      orderBy: { createdAt: "desc" },
-      take: 20,
-    });
-    const unreadCount = await countUnreadOwnerNotificationsInContext(userId, db);
-    return { notifications, unreadCount };
-  });
+export async function ownerNotificationBellData(userId: string) {
+  const rows = await prisma.$queryRaw<NotificationBellRpcRow[]>`
+    SELECT * FROM public.grainline_notification_bell(${userId}::text, 20)
+  `;
+  if (rows.length === 0) throw new TypeError("notification bell RPC returned no summary row");
+  const notifications = rows
+    .map(notificationFromRpcRow)
+    .filter((notification): notification is NotificationBellItem => notification !== null);
+  return {
+    notifications,
+    unreadCount: safeRpcCount(rows[0].unreadCount, "notification bell RPC"),
+  };
 }
 
 export async function markOwnerNotificationRead(
   userId: string,
   notificationId: string,
 ) {
-  return withDbUserContext(userId, (db) =>
-    db.notification.updateMany({
-      where: { id: notificationId, userId },
-      data: { read: true },
-    }));
+  const rows = await prisma.$queryRaw<Array<{ count: CountValue }>>`
+    SELECT public.grainline_notification_mark_one_read(
+      ${userId}::text,
+      ${notificationId}::text
+    ) AS count
+  `;
+  if (rows.length !== 1) throw new TypeError("notification mark-one RPC returned no row");
+  return { count: safeRpcCount(rows[0].count, "notification mark-one RPC") };
 }
 
 export async function markOwnerNotificationsRead(
   userId: string,
   notificationIds: string[] = [],
 ) {
-  return withDbUserContext(userId, (db) =>
-    db.notification.updateMany({
-      where: {
-        userId,
-        read: false,
-        ...(notificationIds.length > 0 ? { id: { in: notificationIds } } : {}),
-      },
-      data: { read: true },
-    }));
+  const notificationIdsSql = notificationIds.length > 0
+    ? Prisma.sql`ARRAY[${Prisma.join(notificationIds)}]::text[]`
+    : Prisma.sql`ARRAY[]::text[]`;
+  const rows = await prisma.$queryRaw<Array<{ count: CountValue }>>`
+    SELECT public.grainline_notification_mark_many_read(
+      ${userId}::text,
+      ${notificationIdsSql}
+    ) AS count
+  `;
+  if (rows.length !== 1) throw new TypeError("notification mark-many RPC returned no row");
+  return { count: safeRpcCount(rows[0].count, "notification mark-many RPC") };
 }
 
 export async function markOwnerMessageNotificationsRead(
   userId: string,
   conversationId: string,
 ) {
-  return withDbUserContext(userId, (db) =>
-    db.notification.updateMany({
-      where: {
-        userId,
-        type: NotificationType.NEW_MESSAGE,
-        read: false,
-        link: { contains: `/messages/${conversationId}` },
-      },
-      data: { read: true },
-    }));
+  const rows = await prisma.$queryRaw<Array<{ count: CountValue }>>`
+    SELECT public.grainline_notification_mark_conversation_read(
+      ${userId}::text,
+      ${conversationId}::text
+    ) AS count
+  `;
+  if (rows.length !== 1) throw new TypeError("notification conversation RPC returned no row");
+  return { count: safeRpcCount(rows[0].count, "notification conversation RPC") };
 }
 
 export async function ownerNotificationPageData(
   userId: string,
   { requestedPage, pageSize }: { requestedPage: number; pageSize: number },
 ) {
-  return withDbUserContext(userId, async (db) => {
-    const total = await countOwnerNotificationsInContext(userId, db);
-    const unreadCount = await countUnreadOwnerNotificationsInContext(userId, db);
-    const totalPages = Math.max(1, Math.ceil(total / pageSize));
-    const page = Math.min(requestedPage, totalPages);
-    const notifications = await db.notification.findMany({
-      where: { userId },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    });
-    return { notifications, page, total, totalPages, unreadCount };
-  });
+  const rows = await prisma.$queryRaw<NotificationPageRpcRow[]>`
+    SELECT * FROM public.grainline_notification_page(
+      ${userId}::text,
+      ${requestedPage}::integer,
+      ${pageSize}::integer
+    )
+  `;
+  if (rows.length === 0) throw new TypeError("notification page RPC returned no summary row");
+  const summary = rows[0];
+  const notifications = rows
+    .map(notificationFromRpcRow)
+    .filter((notification): notification is NotificationBellItem => notification !== null);
+  return {
+    notifications,
+    page: summary.page,
+    total: safeRpcCount(summary.total, "notification page RPC total"),
+    totalPages: summary.totalPages,
+    unreadCount: safeRpcCount(summary.unreadCount, "notification page RPC unread"),
+  };
 }
 
 export async function ownerNotificationExportRows(
   userId: string,
-) {
-  return withDbUserContext(userId, (db) =>
-    db.notification.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-      select: NOTIFICATION_EXPORT_SELECT,
-    }));
+): Promise<NotificationExportItem[]> {
+  return prisma.$queryRaw<NotificationExportItem[]>`
+    SELECT * FROM public.grainline_notification_export(${userId}::text)
+  `;
 }
 
 export async function findRecentOwnerLowStockNotification(
@@ -139,14 +185,13 @@ export async function findRecentOwnerLowStockNotification(
   link: string,
   since: Date,
 ) {
-  return withDbUserContext(userId, (db) =>
-    db.notification.findFirst({
-      where: {
-        userId,
-        type: NotificationType.LOW_STOCK,
-        link,
-        createdAt: { gte: since },
-      },
-      select: { id: true },
-    }));
+  const rows = await prisma.$queryRaw<Array<{ id: string | null }>>`
+    SELECT public.grainline_notification_recent_low_stock(
+      ${userId}::text,
+      ${link}::text,
+      ${since}::timestamp
+    ) AS id
+  `;
+  if (rows.length !== 1) throw new TypeError("notification low-stock RPC returned no row");
+  return rows[0].id ? { id: rows[0].id } : null;
 }

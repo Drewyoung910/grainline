@@ -159,14 +159,20 @@ verification/guild, and staff warnings. Stable domain ids and small event
 discriminators let the database derive or validate recipients and types without
 pretending every server-side assertion can be authenticated by PostgreSQL.
 
-Experimental recipient-path slice: every centralized owner
-read/count/export/mark-read and low-stock dedup lookup now enters
-`withDbUserContext` inside
-`notificationOwnerAccess.ts`; that module no longer accepts a default global
-Prisma client. The notifications page performs its count, unread count, page
-clamp, and row fetch sequentially in one branded transaction. This is a
-correctness/performance candidate, not the selected production architecture,
-and must not be promoted in its current state.
+Experimental recipient-path slice: every centralized owner read/count/export,
+mark-read, conversation mark-read, and low-stock lookup now has a fixed
+`SECURITY INVOKER` function in
+`docs/rls-drafts/notification-recipient-access.sql`. The application candidate
+in `notificationOwnerAccess.ts` makes one database round trip per operation,
+sets transaction-local `app.user_id` inside that statement, retains explicit
+projections and bounds, and still executes under the runtime role's recipient
+RLS plus `SELECT` and column-only `UPDATE (read)` grants. Conversation marking
+now uses the exact canonical link instead of substring matching. The prior
+interactive-transaction bell/page implementation remains as an apples-to-apples
+comparison baseline in `notificationOwnerAccessTransactionCandidate.ts`.
+Each remains a candidate, not the selected production architecture: the invoker SQL has
+not received PostgreSQL parse/apply or own/foreign/direct-denial proof, and both
+need candidate-aligned provider performance evidence after the sequencing gate.
 
 ## Isolation Boundary And Hot-Path Decision
 
@@ -220,7 +226,10 @@ requirements.
 
 Current direct-access files are deliberately pinned by test:
 
-- `src/lib/notificationOwnerAccess.ts` — owner reads/counts and mark-read updates.
+- `src/lib/notificationOwnerAccessTransactionCandidate.ts` — retained direct
+  Prisma transaction baseline for owner bell/page reads; not production-selected.
+- `src/lib/notificationOwnerAccess.ts` — one-statement invoker RPC candidate;
+  no direct Prisma `Notification` table access.
 - `src/lib/notifications.ts` plus `src/lib/notificationServiceAccess.ts` —
   bounded service-create input and the single raw service RPC call.
 - `src/lib/accountDeletion.ts` — own/cross-user delete, legacy raw reads, and redaction updates.
@@ -237,10 +246,11 @@ Current direct-access files are deliberately pinned by test:
 3. Grant the runtime role table `SELECT` and column-level `UPDATE (read)` only.
    Do not grant direct `INSERT` or `DELETE`. RLS cannot by itself prevent an
    owner from changing protected columns, so the column grant is mandatory.
-4. Wrap multi-query owner surfaces with `withDbUserContext`; the context must
-   be the server-resolved local user id and the protected queries must stay on
-   the branded transaction client. Keep the restored generic provider
-   wrapper/performance thresholds blocking and pass them before activation.
+4. Compare the one-round-trip `SECURITY INVOKER` recipient candidate with the
+   retained `withDbUserContext` transaction baseline. Both must receive only the
+   server-resolved local user id. Keep PostgreSQL isolation/direct-denial proof
+   and the restored provider performance thresholds blocking; select one
+   architecture explicitly before activation.
 5. Implement notification creation as a narrowly reviewed owner-backed RPC.
    It must be the sole cross-user insert path and must keep recipient status,
    preferences, payload bounds, source metadata, and durable dedup behavior.

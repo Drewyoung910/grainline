@@ -26,6 +26,7 @@ const OWNER_ENVIRONMENT_KEY_PATTERNS = Object.freeze([
 
 export const NOTIFICATION_RLS_DRAFT_URLS = Object.freeze([
   new URL("../docs/rls-drafts/notification-related-user.sql", import.meta.url),
+  new URL("../docs/rls-drafts/notification-recipient-access.sql", import.meta.url),
   new URL("../docs/rls-drafts/notification-service-authority.sql", import.meta.url),
 ]);
 

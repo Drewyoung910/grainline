@@ -472,6 +472,7 @@ describe("RLS feasibility plan guardrails", () => {
     const messageThread = source("src/app/messages/[id]/page.tsx");
     const stockRoute = source("src/app/api/listings/[id]/stock/route.ts");
     const ownerAccess = source("src/lib/notificationOwnerAccess.ts");
+    const recipientSql = source("docs/rls-drafts/notification-recipient-access.sql");
 
     for (const doc of [plan, defense]) {
       assert.match(doc, /message-thread auto-mark-read updates/);
@@ -485,9 +486,9 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(messageThread, /markOwnerMessageNotificationsRead\(me\.id, id\)/);
     assert.match(stockRoute, /findRecentOwnerLowStockNotification\(/);
     assert.match(ownerAccess, /export async function markOwnerMessageNotificationsRead/);
-    assert.match(ownerAccess, /type: NotificationType\.NEW_MESSAGE/);
+    assert.match(recipientSql, /notification\.type = 'NEW_MESSAGE'::public\."NotificationType"/);
     assert.match(ownerAccess, /export async function findRecentOwnerLowStockNotification/);
-    assert.match(ownerAccess, /type: NotificationType\.LOW_STOCK/);
+    assert.match(recipientSql, /notification\.type = 'LOW_STOCK'::public\."NotificationType"/);
   });
 
   it("centralizes Notification owner reads and updates for the second RLS prototype", () => {
@@ -504,18 +505,16 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(ownerAccess, /export async function markOwnerNotificationsRead/);
     assert.match(ownerAccess, /export async function ownerNotificationPageData/);
     assert.match(ownerAccess, /export async function ownerNotificationExportRows/);
-    assert.match(ownerAccess, /export type NotificationOwnerAccessClient = Pick<DbUserContextTransactionClient, "notification">/);
-    assert.equal((ownerAccess.match(/return withDbUserContext\(userId,/g) ?? []).length, 8);
-    assert.match(ownerAccess, /countUnreadOwnerNotificationsInContext\(userId, db\)/);
-    assert.match(ownerAccess, /countOwnerNotificationsInContext\(userId, db\)/);
-    assert.match(ownerAccess, /skip: \(page - 1\) \* pageSize/);
-    assert.match(ownerAccess, /db\.notification\.findMany/);
-    assert.match(ownerAccess, /db\.notification\.updateMany/);
-    assert.match(ownerAccess, /db\.notification\.findFirst/);
-    assert.match(ownerAccess, /where: \{ userId/);
+    assert.equal((ownerAccess.match(/public\.grainline_notification_/g) ?? []).length, 8);
+    assert.equal((ownerAccess.match(/prisma\.\$queryRaw/g) ?? []).length, 8);
+    assert.match(ownerAccess, /grainline_notification_bell/);
+    assert.match(ownerAccess, /grainline_notification_page/);
+    assert.match(ownerAccess, /grainline_notification_mark_one_read/);
+    assert.match(ownerAccess, /grainline_notification_mark_many_read/);
+    assert.match(ownerAccess, /grainline_notification_export/);
+    assert.match(ownerAccess, /grainline_notification_recent_low_stock/);
     assert.doesNotMatch(ownerAccess, /Promise\.all/);
-    assert.doesNotMatch(ownerAccess, /from "@\/lib\/db"/);
-    assert.doesNotMatch(ownerAccess, /NotificationOwnerAccessClient = prisma/);
+    assert.match(ownerAccess, /from "@\/lib\/db"/);
     assert.doesNotMatch(ownerAccess, /prisma\.notification\.(?:count|findMany|findFirst|updateMany)/);
 
     assert.match(bellRoute, /ownerNotificationBellData\(me\.id\)/);
@@ -533,6 +532,12 @@ describe("RLS feasibility plan guardrails", () => {
       /\b[A-Za-z_$][\w$]*\.notification\.(?:count|findMany|findFirst|findUnique|update|updateMany)\b/g;
     const allowedDirectCalls = {
       "src/lib/accountDeletion.ts": ["tx.notification.update"],
+      "src/lib/notificationOwnerAccessTransactionCandidate.ts": [
+        "db.notification.count",
+        "db.notification.findMany",
+        "db.notification.count",
+        "db.notification.findMany",
+      ],
     };
     const directCallsByFile = {};
 

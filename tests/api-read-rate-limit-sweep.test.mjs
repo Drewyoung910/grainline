@@ -53,15 +53,20 @@ describe("API read route rate-limit sweep", () => {
     const route = source("src/app/api/notifications/route.ts");
     const ownerAccess = source("src/lib/notificationOwnerAccess.ts");
     const cron = source("src/app/api/cron/notification-prune/route.ts");
+    const bellStart = ownerAccess.indexOf("export async function ownerNotificationBellData");
+    const bellBlock = ownerAccess.slice(
+      bellStart,
+      ownerAccess.indexOf("export async function markOwnerNotificationRead", bellStart),
+    );
 
     assert.doesNotMatch(route, /pruneReadNotificationsHourly/);
     assert.doesNotMatch(route, /deleteMany|DELETE FROM "Notification"/);
     assert.match(route, /ownerNotificationBellData\(me\.id\)/);
     assert.match(ownerAccess, /export async function ownerNotificationBellData/);
-    assert.match(ownerAccess, /select: NOTIFICATION_BELL_SELECT/);
-    assert.match(ownerAccess, /countUnreadOwnerNotificationsInContext\(userId, db\)/);
-    assert.match(ownerAccess, /withDbUserContext\(userId, async \(db\) =>/);
-    assert.match(ownerAccess, /db\.notification\.findMany/);
+    assert.match(ownerAccess, /public\.grainline_notification_bell\(\$\{userId\}::text, 20\)/);
+    assert.match(ownerAccess, /unreadCount: safeRpcCount/);
+    assert.doesNotMatch(bellBlock, /notification_(?:mark|delete|prune)/);
+    assert.doesNotMatch(ownerAccess, /prisma\.notification\./);
 
     assert.match(cron, /pruneReadNotifications\(\)/);
     assert.match(cron, /pruneUnreadNotifications\(\)/);

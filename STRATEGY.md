@@ -95,13 +95,17 @@ provider transaction performance gate block activation. Activation remains
 separate ENABLE/NO FORCE and later FORCE releases after Phase B and runtime
 credential separation are live.
 
-The current interactive-transaction recipient wrapper is a correctness and
-performance candidate only, not the selected hot-read architecture. Prior
-provider evidence makes wrapper adoption cost a credible blocker. After the
-sequencing prerequisites are live, compare it with narrow one-statement
-`SECURITY INVOKER` recipient RPCs under candidate-aligned provider and route
-evidence. Cross-user creation and cleanup use a separate service-authority
-design and must not be conflated with recipient RPCs.
+The isolated branch now contains both recipient candidates. Fixed
+`SECURITY INVOKER` recipient RPCs cover bell, page, unread count, mark-one,
+mark-many, conversation mark-read, export, and recent low-stock lookup in one
+database round trip per application operation; the prior interactive-transaction
+bell/page wrapper remains as the comparison baseline. Neither is the selected
+hot-read architecture. The invoker draft still needs PostgreSQL parse/apply,
+own/foreign/direct-denial, and context-reset proof, while prior provider evidence
+makes wrapper adoption cost a credible blocker. After the sequencing
+prerequisites are live, compare both under candidate-aligned provider and route
+evidence. Cross-user creation and cleanup use separate service authority and
+must not be conflated with recipient RPCs.
 
 The isolated service-authority draft now uses seventeen owner-backed functions:
 one runtime-ungranted fixed-column core, ten granted creation families, one
