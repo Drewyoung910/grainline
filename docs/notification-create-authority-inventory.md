@@ -11,16 +11,17 @@ typed `notifyBuyer(..., payload)` wrapper, and that wrapper has three distinct
 payload construction paths. The authority inventory therefore covers 54
 distinct emission paths:
 
-- 11 source-tagged paths;
-- 43 source-less paths;
+- 15 source-tagged paths;
+- 39 source-less paths;
 - 21 paths currently carrying `relatedUserId`.
 
 The earlier count of 51 calls and 46 source-less paths omitted the fulfillment
 wrapper and its three payload constructions. The complete baseline was 54 total,
 5 tagged and 49 source-less. The social-family implementation moved three paths
 into the tagged set, and the messaging/custom-order implementation moved three
-more, producing the current 11/43 split. Tests pin direct calls, emission paths,
-and family state so those concepts are not conflated again.
+more. The commission implementation then moved four paths, producing the
+current 15/39 split. Tests pin direct calls, emission paths, and family state so
+those concepts are not conflated again.
 
 ## Family Inventory
 
@@ -31,7 +32,7 @@ and family state so those concepts are not conflated again.
 | Staff and account warnings | 2 | Admin account message; buyer warning after maker ban | Fixed warning type, active recipient, staff context plus audit/message source; order and ban state where applicable |
 | Listing moderation and reports | 3 | Listing approval/rejection; listing-reported warning | Listing owner and moderation state; staff decision or bounded report event |
 | Case lifecycle | 12 | Open, message, mark-resolved, resolve/refund, timeout escalation and auto-close | `Case`, `CaseMessage`, order participants, actor/staff role, resulting case state and fixed cron transitions |
-| Commission lifecycle | 4 | Seller interest, buyer close/fulfill, expiry notifications | `CommissionRequest`, `CommissionInterest`, conversation, buyer/seller participants and resulting status |
+| Commission lifecycle | 4 | Seller interest, buyer close/fulfill, expiry notifications | Implemented draft validation: durable `CommissionInterest` or final-state `CommissionRequest`, conversation, interested seller, buyer/recipient, CLOSED/FULFILLED/EXPIRED state and route |
 | Social and review events | 3 | Favorite, follow, review | Implemented draft validation: `Favorite`, `Follow`, `Review`, listing/seller ownership and event actor |
 | Inventory events | 3 | Seller low stock, subscriber back in stock, webhook low stock | Listing owner, listing stock/status, `StockNotification` subscription and checkout/order transition |
 | Messaging and custom orders | 3 | New message, custom-order request, custom-order-ready link | Implemented draft validation: `Message`, `Conversation`, participant pair and kind; ready links additionally bind the reserved `Listing`, seller, buyer, conversation and canonical route |
@@ -47,7 +48,7 @@ arbitrary-recipient insert function merely because HTTP users do not insert
 notifications directly. That shortcut would restore broad cross-user authority
 to any runtime query that could invoke it.
 
-Do not instrument the remaining 43 paths with one undifferentiated provenance
+Do not instrument the remaining 39 paths with one undifferentiated provenance
 shape. Group them by the ten authority families above:
 
 1. Keep an internal fixed-column insert primitive ungranted to `PUBLIC` and the
@@ -71,7 +72,7 @@ Application authorization remains primary. These functions are database
 defense in depth against overly broad queries and partial compromise; they do
 not claim to defeat arbitrary code execution holding the runtime credential.
 
-This is not yet a complete runtime-compromise boundary. The three granted create
+This is not yet a complete runtime-compromise boundary. The four granted create
 wrappers still accept caller-supplied title, body, and relative link after
 validating their bounds, and the favorite/follow checks prove that no block row
 exists only at statement time. They do not serialize against a concurrent
@@ -81,7 +82,7 @@ and conversation route; custom-order-ready also validates a non-persisted
 authority context against the reserved listing, seller, buyer, conversation,
 structured-message listing id, status, and canonical public route. Family
 wrappers should still derive or strictly template payload content where
-practical, and the social/message families need an explicit concurrency
+practical, and the social/message/commission families need an explicit concurrency
 decision before activation. Application authorization and block checks remain
 required; the draft must not be described as making forged content or block
 races impossible.
@@ -89,10 +90,10 @@ races impossible.
 ## Next Implementation Order
 
 1. Retain the implemented runtime-ungranted core plus separate source-fanout,
-   social/review, and message/custom-order wrappers; do not restore a generic
-   runtime grant.
-2. Add case and commission families, deriving recipients from their workflow
-   rows and pinning allowed state transitions.
+   social/review, message/custom-order, and commission wrappers; do not restore
+   a generic runtime grant.
+2. Add the case family, deriving recipients from Case/CaseMessage rows and
+   pinning party, staff, and cron transitions separately.
 3. Add order/payment/fulfillment and verification/guild families only after
    their provider, staff and cron transition matrices are complete.
 4. Leave staff free-form account communication last; require a durable audited

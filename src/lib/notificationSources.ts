@@ -1,5 +1,7 @@
 export const NOTIFICATION_SOURCE_TYPES = {
   BLOG_COMMENT: "blog_comment",
+  COMMISSION_INTEREST: "commission_interest",
+  COMMISSION_REQUEST: "commission_request",
   FAVORITE: "favorite",
   FOLLOWED_MAKER_NEW_BLOG: "followed_maker_new_blog",
   FOLLOWED_MAKER_NEW_LISTING: "followed_maker_new_listing",

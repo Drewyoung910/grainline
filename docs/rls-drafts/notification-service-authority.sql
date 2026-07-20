@@ -60,6 +60,8 @@ BEGIN
   IF p_source_type IS NOT NULL AND (
     p_source_type NOT IN (
       'blog_comment',
+      'commission_interest',
+      'commission_request',
       'favorite',
       'followed_maker_new_blog',
       'followed_maker_new_listing',
@@ -76,6 +78,8 @@ BEGIN
   END IF;
   IF (p_source_type = 'blog_comment'
       AND p_type NOT IN ('NEW_BLOG_COMMENT', 'BLOG_COMMENT_REPLY'))
+     OR (p_source_type IN ('commission_interest', 'commission_request')
+         AND p_type <> 'COMMISSION_INTEREST')
      OR (p_source_type = 'favorite'
          AND p_type <> 'NEW_FAVORITE')
      OR (p_source_type = 'followed_maker_new_blog'
@@ -98,6 +102,7 @@ BEGIN
     RAISE EXCEPTION 'notification related user is invalid' USING ERRCODE = '22023';
   END IF;
   IF p_source_type IS NOT NULL
+     AND p_source_type <> 'commission_request'
      AND (p_related_user_id IS NULL OR p_related_user_id = p_user_id) THEN
     RAISE EXCEPTION 'notification source requires a distinct related user' USING ERRCODE = '22023';
   END IF;
@@ -154,6 +159,61 @@ BEGIN
           AND source_post."authorId" = p_user_id)
        )
      FOR SHARE OF source_comment, source_post;
+  ELSIF p_source_type = 'commission_interest' THEN
+    PERFORM 1
+      FROM public."CommissionInterest" AS source_interest
+      JOIN public."CommissionRequest" AS source_request
+        ON source_request.id = source_interest."commissionRequestId"
+      JOIN public."SellerProfile" AS source_seller
+        ON source_seller.id = source_interest."sellerProfileId"
+      JOIN public."Conversation" AS source_conversation
+        ON source_conversation.id = source_interest."conversationId"
+     WHERE source_interest.id = p_source_id
+       AND source_request."buyerId" = p_user_id
+       AND source_seller."userId" = p_related_user_id
+       AND (
+         (source_conversation."userAId" = p_user_id
+          AND source_conversation."userBId" = p_related_user_id)
+         OR
+         (source_conversation."userBId" = p_user_id
+          AND source_conversation."userAId" = p_related_user_id)
+       )
+       AND p_link = '/messages/' || source_conversation.id
+       AND NOT EXISTS (
+         SELECT 1
+           FROM public."Block" AS source_block
+          WHERE (source_block."blockerId" = p_user_id
+                 AND source_block."blockedId" = p_related_user_id)
+             OR (source_block."blockerId" = p_related_user_id
+                 AND source_block."blockedId" = p_user_id)
+       )
+     FOR SHARE OF source_interest, source_request, source_seller, source_conversation;
+  ELSIF p_source_type = 'commission_request' THEN
+    PERFORM 1
+      FROM public."CommissionRequest" AS source_request
+     WHERE source_request.id = p_source_id
+       AND (
+         (source_request.status = 'EXPIRED'
+          AND p_user_id = source_request."buyerId"
+          AND p_related_user_id IS NULL
+          AND p_link = '/commission/' || source_request.id)
+         OR
+         (source_request.status IN ('CLOSED', 'FULFILLED', 'EXPIRED')
+          AND p_related_user_id = source_request."buyerId"
+          AND p_link = CASE
+            WHEN source_request.status = 'CLOSED' THEN '/commission'
+            ELSE '/commission/' || source_request.id
+          END
+          AND EXISTS (
+            SELECT 1
+              FROM public."CommissionInterest" AS source_interest
+              JOIN public."SellerProfile" AS source_seller
+                ON source_seller.id = source_interest."sellerProfileId"
+             WHERE source_interest."commissionRequestId" = source_request.id
+               AND source_seller."userId" = p_user_id
+          ))
+       )
+     FOR SHARE OF source_request;
   ELSIF p_source_type = 'followed_maker_new_listing' THEN
     PERFORM 1
       FROM public."Listing" AS source_listing
@@ -538,6 +598,49 @@ BEGIN
 END;
 $grainline_notification_create_message_event$;
 
+CREATE OR REPLACE FUNCTION public.grainline_notification_create_commission_event(
+  p_notification_id text,
+  p_user_id text,
+  p_type public."NotificationType",
+  p_title text,
+  p_body text,
+  p_link text,
+  p_source_type text,
+  p_source_id text,
+  p_related_user_id text,
+  p_dedup_key text
+)
+RETURNS text
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_notification_create_commission_event$
+DECLARE
+  notification_id text;
+BEGIN
+  IF p_source_type NOT IN ('commission_interest', 'commission_request') THEN
+    RAISE EXCEPTION 'commission notification requires a commission source'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT public.grainline_notification_create_core(
+    p_notification_id,
+    p_user_id,
+    p_type,
+    p_title,
+    p_body,
+    p_link,
+    p_source_type,
+    p_source_id,
+    p_related_user_id,
+    p_dedup_key
+  ) INTO notification_id;
+  RETURN notification_id;
+END;
+$grainline_notification_create_commission_event$;
+
 CREATE OR REPLACE FUNCTION public.grainline_notification_delete_for_account(
   p_user_id text
 )
@@ -729,6 +832,9 @@ REVOKE ALL ON FUNCTION public.grainline_notification_create_social_event(
 REVOKE ALL ON FUNCTION public.grainline_notification_create_message_event(
   text, text, public."NotificationType", text, text, text, text, text, text, text, text
 ) FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION public.grainline_notification_create_commission_event(
+  text, text, public."NotificationType", text, text, text, text, text, text, text
+) FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_notification_delete_for_account(text)
   FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_notification_delete_blog_comment(text)
@@ -748,6 +854,9 @@ GRANT EXECUTE ON FUNCTION public.grainline_notification_create_social_event(
 ) TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_notification_create_message_event(
   text, text, public."NotificationType", text, text, text, text, text, text, text, text
+) TO grainline_app_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_notification_create_commission_event(
+  text, text, public."NotificationType", text, text, text, text, text, text, text
 ) TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_notification_delete_for_account(text)
   TO grainline_app_runtime;
