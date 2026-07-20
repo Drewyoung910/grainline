@@ -28,8 +28,13 @@ describe("owner-derived notification identity", () => {
       sql,
       /'grainline-notification-v1',[\s\S]{0,180}p_user_id,[\s\S]{0,80}p_type::text,[\s\S]{0,80}p_source_type,[\s\S]{0,80}p_source_id,[\s\S]{0,120}COALESCE\(p_related_user_id, '<system>'\)/,
     );
-    assert.equal((sql.match(/pg_catalog\.md5\(/g) ?? []).length, 2);
+    assert.equal((sql.match(/pg_catalog\.md5\(/g) ?? []).length, 4);
     assert.match(sql, /notification_dedup_key :=[\s\S]{0,180}grainline-notification-v1-secondary/);
+    assert.match(sql, /derived_dedup_key :=[\s\S]{0,180}grainline-notification-v1-secondary/);
+    assert.match(
+      sql,
+      /'BACK_IN_STOCK',[\s\S]{0,100}'manual_restock',[\s\S]{0,100}p_restock_audit_id,[\s\S]{0,100}p_stock_notification_id/,
+    );
     assert.match(sql, /"dedupKey"[\s\S]{0,180}notification_dedup_key/);
     assert.match(sql, /ON CONFLICT \("userId", "type", "dedupKey"\) DO NOTHING/);
   });

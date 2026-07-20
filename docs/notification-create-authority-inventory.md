@@ -5,23 +5,26 @@ in this document is production-active.
 
 ## Count Contract
 
-The source has 52 direct `createNotification` calls across 29 files. Fifty-one
-pass object literals. The fulfillment route has the remaining direct call in a
-typed `notifyBuyer(..., payload)` wrapper, and that wrapper has three distinct
-payload construction paths. The authority inventory therefore covers 54
+The source has 51 direct `createNotification` calls across 29 files. Fifty pass
+object literals. The fulfillment route has the remaining direct call in a typed
+`notifyBuyer(..., payload)` wrapper, and that wrapper has three distinct payload
+construction paths. One dedicated back-in-stock claim call derives its
+Notification write inside owner authority. The inventory therefore covers 54
 distinct emission paths:
 
-- 29 source-tagged paths;
-- 25 source-less paths;
-- 23 paths currently carrying `relatedUserId`.
+- 30 authority-bound paths;
+- 24 source-less paths;
+- 22 generic paths currently carrying `relatedUserId`, plus back-in-stock's
+  database-derived seller relationship.
 
 The earlier count of 51 calls and 46 source-less paths omitted the fulfillment
 wrapper and its three payload constructions. The complete baseline was 54 total,
 5 tagged and 49 source-less. The social-family implementation moved three paths
 into the tagged set, and the messaging/custom-order implementation moved three
 more. The commission implementation then moved four paths, the case
-implementation moved all twelve case paths, and checkout plus manual low-stock
-moved two inventory paths, producing the current 29/25 split.
+implementation moved all twelve case paths. Checkout low-stock, manual low-stock,
+and the dedicated back-in-stock claim then completed all three inventory paths,
+producing the current 30/24 split.
 Tests pin direct calls, emission paths, and family state so those concepts are
 not conflated again.
 
@@ -36,7 +39,7 @@ not conflated again.
 | Case lifecycle | 12 | Open, message, mark-resolved, resolve/refund, timeout escalation and auto-close | Implemented draft validation: durable `Case`, `CaseMessage`, atomic user-audit, or system-audit source; exact parties/staff/cron actor, order route, event type and recorded transition |
 | Commission lifecycle | 4 | Seller interest, buyer close/fulfill, expiry notifications | Implemented draft validation: durable `CommissionInterest` or final-state `CommissionRequest`, conversation, interested seller, buyer/recipient, CLOSED/FULFILLED/EXPIRED state and route |
 | Social and review events | 3 | Favorite, follow, review | Implemented draft validation: `Favorite`, `Follow`, `Review`, listing/seller ownership and event actor |
-| Inventory events | 3 | Seller low stock, subscriber back in stock, webhook low stock | Checkout low-stock binds `OrderItem`, paid `Order`, and completed reservation; manual low-stock binds an audit row written atomically with the stock mutation; back-in-stock still needs atomic subscription claim/create/consume |
+| Inventory events | 3 | Seller low stock, subscriber back in stock, webhook low stock | Implemented draft validation: checkout low-stock binds `OrderItem`, paid `Order`, and completed reservation; manual low-stock binds an atomic audit; back-in-stock binds an atomic SOLD_OUT→ACTIVE audit plus the locked subscription and performs claim/create/consume as one owner operation |
 | Messaging and custom orders | 3 | New message, custom-order request, custom-order-ready link | Implemented draft validation: `Message`, `Conversation`, participant pair and kind; ready links additionally bind the reserved `Listing`, seller, buyer, conversation and canonical route |
 | Order, payment and fulfillment | 9 | Order buyer/seller notices, refund, shipment/pickup, dispute and payout failure | `Order`, items/seller/buyer, payment/payout event ledgers, fulfillment transition and provider event id |
 | **Total** | **54** |  |  |
@@ -50,7 +53,7 @@ arbitrary-recipient insert function merely because HTTP users do not insert
 notifications directly. That shortcut would restore broad cross-user authority
 to any runtime query that could invoke it.
 
-Do not instrument the remaining 27 paths with one undifferentiated provenance
+Do not instrument the remaining 24 paths with one undifferentiated provenance
 shape. Group them by the ten authority families above:
 
 1. Keep an internal fixed-column insert primitive ungranted to `PUBLIC` and the
@@ -74,9 +77,10 @@ Application authorization remains primary. These functions are database
 defense in depth against overly broad queries and partial compromise; they do
 not claim to defeat arbitrary code execution holding the runtime credential.
 
-This is not yet a complete runtime-compromise boundary. The six granted create
-wrappers still accept caller-supplied title and body after validating their
-bounds. Canonical links and dedup identity are now derived inside owner authority
+This is not yet a complete runtime-compromise boundary. The six granted generic
+create wrappers still accept caller-supplied title and body after validating
+their bounds. The dedicated back-in-stock claim accepts neither. Canonical links
+and dedup identity are now derived inside owner authority
 from the validated recipient, type, source kind, source row, related actor, and
 source-specific route columns. Runtime-supplied `link` and `dedupScope` remain
 application telemetry only and never reach the granted SQL signatures. The
@@ -99,14 +103,15 @@ races impossible.
 1. Retain the implemented runtime-ungranted core plus separate source-fanout,
    social/review, message/custom-order, commission, case, and inventory wrappers;
    do not restore a generic runtime grant.
-2. Complete the inventory-event family. Checkout low-stock now binds one
+2. Retain the completed inventory-event family. Checkout low-stock binds one
    `OrderItem` to its paid order, completed stock reservation, listing owner and
    current 1-2 quantity, and derives its payload/link. Manual low-stock now writes
    a `MANUAL_LISTING_STOCK_LOW` audit row in the same transaction as the locked
    listing update and derives authority from that committed event. Back-in-stock
-   still needs the subscription claim, Notification insert, and
-   subscription consumption to share one atomic owner-backed operation; the
-   current delete-before-notify flow cannot prove the subscription afterward.
+   writes `MANUAL_LISTING_RESTOCKED` in the same transaction as SOLD_OUT→ACTIVE,
+   then a dedicated owner function locks and validates that audit and the exact
+   subscription, optionally inserts the preference-gated Notification, consumes
+   the subscription, and returns the sole winning claim for email fanout.
 3. Add order/payment/fulfillment and verification/guild families only after
    their provider, staff and cron transition matrices are complete.
 4. Leave staff free-form account communication last; require a durable audited
@@ -119,5 +124,5 @@ The permanent completeness gate is
 `npm run audit:rls-notification-readiness`: it inventories the real TypeScript
 call graph, requires exactly 54 emission paths, and blocks activation until all
 54 carry a source pair dispatched through a reviewed family. Its current
-29/54 failure is expected and must never be bypassed or weakened to make an
+30/54 failure is expected and must never be bypassed or weakened to make an
 incomplete rollout pass.

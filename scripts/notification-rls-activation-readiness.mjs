@@ -54,6 +54,30 @@ function emissionFromObject(file, sourceFile, object, kind, serviceAccess) {
   };
 }
 
+function backInStockEmission(file, sourceFile, object, serviceAccess) {
+  const restockAuditId = objectProperty(object, "restockAuditId");
+  const stockNotificationId = objectProperty(object, "stockNotificationId");
+  const hasValue = (property) => Boolean(
+    property
+    && (
+      ts.isShorthandPropertyAssignment(property)
+      || (ts.isPropertyAssignment(property)
+        && !["null", "undefined"].includes(property.initializer.getText(sourceFile)))
+    )
+  );
+  const position = sourceFile.getLineAndCharacterOfPosition(object.getStart(sourceFile));
+  return {
+    id: `${file}:${position.line + 1}:BACK_IN_STOCK`,
+    file,
+    line: position.line + 1,
+    kind: "back-in-stock-claim",
+    type: "BACK_IN_STOCK",
+    sourceType: "NOTIFICATION_SOURCE_TYPES.BACK_IN_STOCK",
+    hasSourcePair: hasValue(restockAuditId) && hasValue(stockNotificationId),
+    reviewedFamily: serviceAccess.includes("grainline_notification_claim_back_in_stock"),
+  };
+}
+
 export function collectNotificationEmissionPaths({
   sourceRoot = "src",
   serviceAccessPath = "src/lib/notificationServiceAccess.ts",
@@ -81,6 +105,15 @@ export function collectNotificationEmissionPaths({
             && argument?.getText(sourceFile) === "payload")) {
             const position = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
             unresolvedCalls.push(`${file}:${position.line + 1}:createNotification`);
+          }
+        }
+        if (node.expression.text === "claimBackInStockNotification") {
+          const argument = node.arguments[0];
+          if (argument && ts.isObjectLiteralExpression(argument)) {
+            emissions.push(backInStockEmission(file, sourceFile, argument, serviceAccess));
+          } else {
+            const position = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
+            unresolvedCalls.push(`${file}:${position.line + 1}:claimBackInStockNotification`);
           }
         }
         if (node.expression.text === "notifyBuyer") {

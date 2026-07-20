@@ -7,18 +7,17 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { findRecentOwnerLowStockNotification } from "@/lib/notificationOwnerAccess";
+import { claimBackInStockNotification } from "@/lib/notificationServiceAccess";
 import { renderBackInStockEmail } from "@/lib/email";
 import { enqueueEmailOutbox } from "@/lib/emailOutbox";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { listingMutationRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { chunkArray, mapWithConcurrency } from "@/lib/concurrency";
-import { publicListingPath } from "@/lib/publicPaths";
 import {
   LOW_STOCK_DEDUP_WINDOW_MS,
   MAX_MANUAL_STOCK_QUANTITY,
   lowStockNotificationLink,
   normalizeManualStockQuantity,
-  stockAlertBody,
 } from "@/lib/stockMutationState";
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
@@ -96,7 +95,11 @@ export async function PATCH(
     // Only public ACTIVE listings can sell out automatically, and only public
     // SOLD_OUT listings can return to ACTIVE. Draft/rejected/review states
     // must keep using the publish flow so stock edits cannot bypass review.
-    const { updated, lowStockAuthoritySourceId } = await prisma.$transaction(async (tx) => {
+    const {
+      updated,
+      lowStockAuthoritySourceId,
+      backInStockAuthoritySourceId,
+    } = await prisma.$transaction(async (tx) => {
       const updatedRows = await tx.$queryRaw<Array<{
         id: string;
         title: string;
@@ -145,7 +148,13 @@ export async function PATCH(
           previous.status::text AS "previousStatus"
       `;
       const committed = updatedRows[0];
-      if (!committed) return { updated: null, lowStockAuthoritySourceId: null };
+      if (!committed) {
+        return {
+          updated: null,
+          lowStockAuthoritySourceId: null,
+          backInStockAuthoritySourceId: null,
+        };
+      }
       const lowStock = committed.stockQuantity !== null
         && committed.stockQuantity > 0
         && committed.stockQuantity <= 2;
@@ -168,7 +177,31 @@ export async function PATCH(
             },
           })
         : null;
-      return { updated: committed, lowStockAuthoritySourceId: authoritySourceId };
+      const restockAuthoritySourceId = committed.previousStatus === "SOLD_OUT"
+        && committed.status === "ACTIVE"
+        ? await logSystemActionOrThrow({
+            client: tx,
+            actorType: "user",
+            actorId: me.id,
+            action: "MANUAL_LISTING_RESTOCKED",
+            targetType: "LISTING",
+            targetId: committed.id,
+            metadata: {
+              listingId: committed.id,
+              listingTitle: committed.title,
+              previousQuantity: committed.previousStockQuantity,
+              newQuantity: committed.stockQuantity,
+              previousStatus: committed.previousStatus,
+              newStatus: committed.status,
+              mutationKind: applyDelta ? "delta" : "absolute",
+            },
+          })
+        : null;
+      return {
+        updated: committed,
+        lowStockAuthoritySourceId: authoritySourceId,
+        backInStockAuthoritySourceId: restockAuthoritySourceId,
+      };
     });
     if (!updated) return privateJson({ error: "Not found" }, { status: 404 });
 
@@ -199,17 +232,20 @@ export async function PATCH(
     }
 
     // If transitioning from SOLD_OUT -> ACTIVE, notify subscribers
-    if (updated.previousStatus === "SOLD_OUT" && updated.status === "ACTIVE") {
+    if (
+      updated.previousStatus === "SOLD_OUT"
+      && updated.status === "ACTIVE"
+      && backInStockAuthoritySourceId
+    ) {
       after(async () => {
         try {
           while (true) {
-            const claimedSubscribers = await prisma.$queryRaw<{
+            const candidateSubscribers = await prisma.$queryRaw<{
               userId: string;
               stockNotificationId: string;
-              stockQuantity: number | null;
             }[]>`
               WITH available_listing AS (
-                SELECT l.id, l."stockQuantity"
+                SELECT l.id
                 FROM "Listing" l
                 INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
                 INNER JOIN "User" u ON u.id = sp."userId"
@@ -224,19 +260,48 @@ export async function PATCH(
                   AND u."deletedAt" IS NULL
               ),
               next_subscribers AS (
-                SELECT sn.id
+                SELECT sn.id, sn."userId"
                 FROM "StockNotification" sn
                 INNER JOIN available_listing al ON al.id = sn."listingId"
                 ORDER BY sn."createdAt" ASC, sn.id ASC
                 LIMIT ${BACK_IN_STOCK_CLAIM_BATCH_SIZE}
               )
-              DELETE FROM "StockNotification" sn
-              USING next_subscribers ns, available_listing al
-              WHERE sn.id = ns.id
-              RETURNING sn."userId", sn.id AS "stockNotificationId", al."stockQuantity"
+              SELECT ns."userId", ns.id AS "stockNotificationId"
+              FROM next_subscribers ns
             `;
+            if (candidateSubscribers.length === 0) return;
+            const claimSettlements = await mapWithConcurrency(
+              candidateSubscribers,
+              5,
+              async ({ stockNotificationId }) => ({
+                stockNotificationId,
+                ...await claimBackInStockNotification({
+                  restockAuditId: backInStockAuthoritySourceId,
+                  stockNotificationId,
+                }),
+              }),
+            );
+            const claimResults = claimSettlements.flatMap((result, index) => {
+              if (result.status === "fulfilled") return [result.value];
+              Sentry.captureException(result.reason, {
+                level: "warning",
+                tags: { source: "stock_back_in_stock_claim" },
+                extra: {
+                  listingId: id,
+                  stockNotificationId: candidateSubscribers[index]?.stockNotificationId,
+                },
+              });
+              return [];
+            });
+            const claimedSubscribers = claimResults.flatMap((claim) => (
+              claim.claimed && claim.userId
+                ? [{ ...claim, userId: claim.userId }]
+                : []
+            ));
+            // Another worker may have won every candidate, or the listing may
+            // have become unavailable after selection. Either way, do not spin
+            // on the same unconsumed rows.
             if (claimedSubscribers.length === 0) return;
-            const stockQuantity = claimedSubscribers[0]?.stockQuantity ?? updated.stockQuantity;
             const stockNotificationIdByUserId = new Map(
               claimedSubscribers.map((sub) => [sub.userId, sub.stockNotificationId]),
             );
@@ -254,14 +319,6 @@ export async function PATCH(
                 select: { id: true, name: true, email: true },
               });
               await mapWithConcurrency(activeSubscribers, 5, async (sub) => {
-                await createNotification({
-                  userId: sub.id,
-                  type: "BACK_IN_STOCK",
-                  title: `${updated.title} is back in stock!`,
-                  body: stockAlertBody(stockQuantity),
-                  link: publicListingPath(id, updated.title),
-                  relatedUserId: listing.seller.userId,
-                });
                 if (sub.email && await shouldSendEmail(sub.id, "EMAIL_BACK_IN_STOCK")) {
                   const stockNotificationId = stockNotificationIdByUserId.get(sub.id);
                   if (!stockNotificationId) return;
@@ -281,7 +338,7 @@ export async function PATCH(
               });
             }
 
-            if (claimedSubscribers.length < BACK_IN_STOCK_CLAIM_BATCH_SIZE) return;
+            if (candidateSubscribers.length < BACK_IN_STOCK_CLAIM_BATCH_SIZE) return;
           }
         } catch (error) {
           Sentry.captureException(error, {

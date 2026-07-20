@@ -103,10 +103,11 @@ sequencing prerequisites are live, compare it with narrow one-statement
 evidence. Cross-user creation and cleanup use a separate service-authority
 design and must not be conflated with recipient RPCs.
 
-The isolated service-authority draft now uses twelve owner-backed functions: one
-runtime-ungranted fixed-column core, six granted creation families, three exact
-cleanup operations, and two fixed retention batches. Runtime receives exact
-execute privileges only on the eleven fixed-purpose entry points;
+The isolated service-authority draft now uses thirteen owner-backed functions:
+one runtime-ungranted fixed-column core, six granted creation families, one
+dedicated back-in-stock claim/create/consume operation, three exact cleanup
+operations, and two fixed retention batches. Runtime receives exact execute
+privileges only on the twelve fixed-purpose entry points;
 direct Notification insert/delete and the default public function privilege
 remain revoked. The application paths are wired to the draft, but legacy
 null-source and account-deletion source/link/text fallbacks still perform direct
@@ -117,8 +118,8 @@ not database-authenticated identity and a compromised runtime can forge it;
 fixed-purpose constraints limit that residual without eliminating it.
 
 Extra-high review does not yet accept the shared create function as final. The
-twenty-nine source-tagged paths can prove source, type, actor, recipient, and
-relationship constraints inside the database operation, but 25 source-less
+thirty authority-bound paths can prove source, type, actor, recipient, and
+relationship constraints inside the database operation, but 24 source-less
 emission paths still need family implementations and currently fail closed.
 The granted wrappers also retain bounded caller control of notification text
 but no longer accept link or dedup identity. The private core derives canonical
@@ -136,25 +137,27 @@ message, checks the reserved buyer, seller, conversation and listing status,
 and derives the canonical route. It is not stored as a second
 Notification source field.
 
-The inventory family is deliberately partial. Checkout low-stock binds the
+The inventory family is complete in the isolated draft. Checkout low-stock binds the
 exact order item to a paid order, completed stock reservation, listing owner and
 current low-stock state, then derives payload, route and replay identity inside
 owner authority. Manual low-stock now writes durable audit evidence atomically
 with the row-locked listing update and derives its payload, route and identity
-from that event. Back-in-stock still needs atomic subscription claim,
-Notification creation and subscription consumption and remains fail-closed.
+from that event. Back-in-stock writes durable restock-transition evidence with
+the stock mutation, then atomically validates that audit and the locked
+subscription, creates the preference-gated Notification, consumes the one-shot
+subscription, and exposes only the winning claim to email fanout.
 
 Production activation also has a permanent completeness gate:
 `npm run audit:rls-notification-readiness`. It inventories the real TypeScript
 emission paths, requires the exact 54-path contract, and fails on dynamic calls,
 missing source pairs, or source constants that do not dispatch through a
-reviewed service family. Its current 29/54 result must remain a failing operator
+reviewed service family. Its current 30/54 result must remain a failing operator
 preflight until every path is covered; ordinary tests assert that expected
 fail-closed state so incomplete notification types cannot disappear silently.
 
 Use a hybrid rather than either extreme. Do not grant runtime the current
 generic arbitrary-type/arbitrary-recipient creator, but do not add identical
-lifecycle metadata mechanically to all 25 source-less emission paths. Keep the
+lifecycle metadata mechanically to all 24 source-less emission paths. Keep the
 fixed-column insert primitive private to the function owner and expose only
 family-specific operations keyed by stable domain ids and small event
 discriminators. The ten-family inventory and implementation order live in

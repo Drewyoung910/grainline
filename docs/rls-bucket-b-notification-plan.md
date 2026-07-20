@@ -29,14 +29,15 @@ Service-authority slice: the application create path now targets the first
 granted family function, `grainline_notification_create_source_fanout`, through
 `notificationServiceAccess.ts`. The private core atomically locks and validates the active recipient, honors the
 in-app preference, validates bounded payload/source/related-user metadata,
-proves source/type/actor/recipient relationships for the twenty-nine source-tagged
+proves source/type/actor/recipient relationships for the generic source-tagged
 paths, inserts idempotently, and returns only the row id. Separate fixed-purpose draft
 functions cover account lifecycle deletion, staff blog-comment/broadcast
-cleanup, and fixed 90-day read/365-day unread retention batches. Twelve functions
+cleanup, fixed 90-day read/365-day unread retention batches, and atomic
+back-in-stock claim/create/consume. Thirteen functions
 are owner-backed `SECURITY DEFINER` functions with `search_path=pg_catalog`: the
 generic fixed-column core is ungranted, while runtime gets exact `EXECUTE` only
 on the source-fanout, social-event, message-event, commission-event, case-event,
-and inventory-event wrappers plus five
+and inventory-event wrappers, the back-in-stock claim, plus five
 cleanup/retention operations. Direct table
 `INSERT`/`DELETE` stays revoked.
 The functions also revoke PostgreSQL's default `PUBLIC` execute privilege.
@@ -46,7 +47,7 @@ compromised runtime could invoke the granted fixed-purpose functions and could
 forge that context. Input, role, age, and source constraints limit that residual
 capability; runtime credential separation remains the separate control against
 owner-credential exfiltration.
-The twenty-nine source-tagged create paths, exact account cleanup, exact admin source
+The thirty authority-bound create paths, exact account cleanup, exact admin source
 cleanup, and retention cron are wired to these draft functions in the isolated branch. Source-less creation now fails closed until its family wrapper exists. Admin cleanup
 still retains explicitly marked `sourceType/sourceId IS NULL` legacy fallbacks,
 and account deletion retains broader legacy source/link cleanup and text
@@ -91,23 +92,27 @@ by the same transaction. The audit-backed paths validate recorded transition
 metadata instead of mutable current status, so a legitimate later case change
 does not silently suppress an already-committed event.
 
-One authority question remains blocking: 25 of the 54 emission paths do not
+One authority question remains blocking: 24 of the 54 emission paths do not
 yet carry provenance. They fail closed in the current application draft rather
 than reaching the private generic core. Classify those type families and add
 type-specific database predicates or split service functions where meaningful
 before activation. The sixteen source types already validated by database joins
 also require provider performance evidence before promotion.
 
-The first inventory slice is intentionally partial. Webhook low-stock now uses
+The inventory family is now complete in the isolated draft. Webhook low-stock uses
 the exact `OrderItem` as its durable source and proves the paid `Order`, completed
 `CheckoutStockReservation` containing that listing, seller ownership, and live
 1-2 quantity before deriving the seller payload and `/dashboard/inventory` link.
 Manual low-stock now writes `MANUAL_LISTING_STOCK_LOW` evidence atomically with
 the row-locked listing update; its family validates that event, seller, 1-2
-quantity snapshot and derives the payload/link. Back-in-stock currently
-deletes `StockNotification` rows before calling the notification helper, so it
-needs an owner-backed claim/create/consume operation before its subscription can
-serve as authority. That subscriber path remains source-less and fail closed.
+quantity snapshot and derives the payload/link. Back-in-stock writes a durable
+`MANUAL_LISTING_RESTOCKED` audit in the same transaction as the locked
+SOLD_OUT→ACTIVE transition. Its dedicated owner function validates that audit,
+locks the exact `StockNotification`, derives recipient/seller/payload/link/replay
+identity, applies the in-app preference, inserts idempotently, and consumes the
+subscription atomically. Only its winning claim can proceed to independently
+preference-gated email enqueueing. This is an atomic restock-audit plus
+subscription claim/create/consume operation.
 
 The authority fork is resolved directionally in
 `docs/notification-create-authority-inventory.md`: do not accept one permissive
@@ -157,11 +162,12 @@ Bucket B means `Notification` only. It does not include `StockNotification`,
 `Case`, or `CaseMessage`. Those retain separate coverage-matrix groups and
 production releases.
 
-The 2026-07-19 source snapshot contains 52 direct `createNotification` calls
-across 29 caller files: 51 object-literal calls plus the fulfillment route's
-typed wrapper call. That wrapper serves three distinct fulfillment payloads, so
-the authority inventory contains 54 distinct emission paths. Twenty-nine are currently
-source-tagged and 25 are source-less. This broad fanout surface is the main
+The 2026-07-19 source snapshot contains 51 direct `createNotification` calls
+across 29 caller files: 50 object-literal calls plus the fulfillment route's
+typed wrapper call. That wrapper serves three distinct fulfillment payloads,
+and back-in-stock uses one dedicated owner-backed claim, so the authority
+inventory contains 54 distinct emission paths. Thirty are currently
+authority-bound and 24 are source-less. This broad fanout surface is the main
 reason the table cannot receive a copied SavedSearch owner-only policy.
 
 ## Actor And Operation Inventory
@@ -173,7 +179,7 @@ reason the table cannot receive a copied SavedSearch owner-only policy.
 | Retention cron | Delete old read and unread rows globally in bounded batches | Parameter-free or tightly bounded owner RPC using server time and code-pinned retention windows; no general runtime `DELETE` |
 | Account deletion | Delete the departing user's rows; delete related-user/source residue across other recipients; retire the legacy sensitive-text fallback | Use one narrow account-lifecycle RPC for recipient plus `relatedUserId` deletion and separate exact source cleanup; do not grant direct table `DELETE`. Exact recipient/related-user cleanup is wired to the draft RPC; legacy source/link/text work remains blocking |
 | Staff blog/broadcast deletion | Delete notifications tied to a deleted comment or broadcast across recipients | Use exact `sourceType`/`sourceId` service cleanup; remove legacy title/body/link matching after source coverage/backfill is proven |
-| Admin, webhook, cron, order/case/message/social flows | Create recipient notifications through the shared helper | All 54 emission paths stay behind one service helper; twenty-nine currently dispatch to granted family wrappers, while 25 fail closed pending their family implementation |
+| Admin, webhook, cron, order/case/message/social flows | Create recipient notifications through reviewed service access | All 54 emission paths stay behind reviewed service functions; thirty currently dispatch to family wrappers or the dedicated back-in-stock claim, while 24 fail closed pending their family implementation |
 
 Current direct-access files are deliberately pinned by test:
 
@@ -255,7 +261,7 @@ Current direct-access files are deliberately pinned by test:
   result. The AST-backed gate fails on count drift, dynamic/unrecognized helper
   calls, missing source pairs, or source constants not dispatched by a reviewed
   service family. It is expected to exit nonzero during preparation while the
-  documented 25 paths remain fail-closed.
+  documented 24 paths remain fail-closed.
 - Deploy Notification RPC/application changes before enabling policies where
   compatibility requires it; never ship an app/table ordering that strands
   writes or cleanup.
@@ -274,9 +280,10 @@ Current direct-access files are deliberately pinned by test:
 - Null-metadata legacy account-deletion cleanup still falls back to notification
   text and requires coverage/backfill or safe expiry plus a narrow service path.
 - Not every create path has proven lifecycle-complete source metadata.
-- The runtime-ungranted insert primitive and family-specific create functions
-  are designed but not yet implemented; the current generic create grant is not
-  acceptable for activation.
+- The runtime-ungranted insert primitive, six generic family wrappers, and the
+  dedicated back-in-stock claim are draft-implemented. The remaining create
+  families are not; direct or generic runtime creation remains unacceptable for
+  activation.
 - The generic provider wrapper/performance gate is restored in code, but two
   fresh counted provider passes are still required.
 

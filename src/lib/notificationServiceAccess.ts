@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { NotificationType } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import type { DbUserContextTransactionClient } from "@/lib/dbUserContext";
@@ -133,6 +134,54 @@ export async function createNotificationServiceRow({
     throw new TypeError("notification service returned an invalid id");
   }
   return id;
+}
+
+export type BackInStockNotificationClaim = {
+  claimed: boolean;
+  userId: string | null;
+  notificationId: string | null;
+};
+
+export async function claimBackInStockNotification({
+  restockAuditId,
+  stockNotificationId,
+}: {
+  restockAuditId: string;
+  stockNotificationId: string;
+}): Promise<BackInStockNotificationClaim> {
+  const rows = await prisma.$queryRaw<Array<{
+    claimed: boolean | null;
+    userId: string | null;
+    notificationId: string | null;
+  }>>`
+    SELECT
+      result.claimed,
+      result.user_id AS "userId",
+      result.notification_id AS "notificationId"
+    FROM public.grainline_notification_claim_back_in_stock(
+      ${randomUUID()}::text,
+      ${restockAuditId}::text,
+      ${stockNotificationId}::text
+    ) AS result
+  `;
+  const row = rows[0];
+  if (!row || typeof row.claimed !== "boolean") {
+    throw new TypeError("back-in-stock notification service returned an invalid claim");
+  }
+  if (row.userId !== null && typeof row.userId !== "string") {
+    throw new TypeError("back-in-stock notification service returned an invalid user id");
+  }
+  if (row.notificationId !== null && typeof row.notificationId !== "string") {
+    throw new TypeError("back-in-stock notification service returned an invalid notification id");
+  }
+  if (row.claimed && !row.userId) {
+    throw new TypeError("back-in-stock notification service claimed a subscription without a user");
+  }
+  return {
+    claimed: row.claimed,
+    userId: row.userId,
+    notificationId: row.notificationId,
+  };
 }
 
 async function notificationServiceCount(

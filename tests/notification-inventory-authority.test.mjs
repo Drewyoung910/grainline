@@ -39,16 +39,33 @@ describe("Notification inventory authority", () => {
     assert.match(sql, /inventory notification requires a reviewed inventory source/);
   });
 
-  it("writes manual low-stock authority atomically and keeps subscriber fanout fail-closed", () => {
-    assert.equal((stockRoute.match(/await createNotification\(\{/g) ?? []).length, 2);
+  it("writes manual low-stock and restock authority atomically", () => {
+    assert.equal((stockRoute.match(/await createNotification\(\{/g) ?? []).length, 1);
     assert.equal((stockRoute.match(/sourceType: NOTIFICATION_SOURCE_TYPES/g) ?? []).length, 1);
     assert.match(stockRoute, /prisma\.\$transaction\(async \(tx\) =>/);
     assert.match(stockRoute, /action: "MANUAL_LISTING_STOCK_LOW"/);
     assert.match(stockRoute, /client: tx/);
     assert.match(stockRoute, /sourceType: NOTIFICATION_SOURCE_TYPES\.MANUAL_LOW_STOCK/);
+    assert.match(stockRoute, /action: "MANUAL_LISTING_RESTOCKED"/);
+    assert.match(stockRoute, /claimBackInStockNotification\(\{[\s\S]{0,180}restockAuditId: backInStockAuthoritySourceId,[\s\S]{0,120}stockNotificationId/);
+    assert.match(stockRoute, /result\.status === "fulfilled"/);
+    assert.match(stockRoute, /source: "stock_back_in_stock_claim"/);
     assert.match(sql, /source_audit\.action = 'MANUAL_LISTING_STOCK_LOW'/);
     assert.match(sql, /source_audit\.metadata ->> 'newQuantity' IN \('1', '2'\)/);
-    assert.match(plan, /owner-backed claim\/create\/consume operation/);
-    assert.match(plan, /subscriber path remains source-less and fail closed/);
+  });
+
+  it("claims, creates, and consumes back-in-stock atomically from durable evidence", () => {
+    assert.match(sql, /grainline_notification_claim_back_in_stock/);
+    assert.match(sql, /source_audit\.action = 'MANUAL_LISTING_RESTOCKED'/);
+    assert.match(sql, /source_audit\.metadata ->> 'previousStatus' = 'SOLD_OUT'/);
+    assert.match(sql, /source_audit\.metadata ->> 'newStatus' = 'ACTIVE'/);
+    assert.match(sql, /source_subscription\."createdAt" <= source_audit\."createdAt"/);
+    assert.match(sql, /FOR UPDATE OF source_subscription/);
+    assert.match(sql, /INSERT INTO public\."Notification"[\s\S]{0,1600}DELETE FROM public\."StockNotification"/);
+    assert.match(sql, /source_recipient_preferences -> 'BACK_IN_STOCK' = 'false'::jsonb/);
+    assert.match(sql, /'manual_restock',[\s\S]{0,80}p_restock_audit_id/);
+    assert.match(sql, /GRANT EXECUTE ON FUNCTION public\.grainline_notification_claim_back_in_stock\(text, text, text\)/);
+    assert.doesNotMatch(stockRoute, /DELETE FROM "StockNotification"/);
+    assert.match(plan, /atomic restock-audit plus\s+subscription claim\/create\/consume operation/);
   });
 });

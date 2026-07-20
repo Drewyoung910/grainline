@@ -912,6 +912,234 @@ BEGIN
 END;
 $grainline_notification_create_inventory_event$;
 
+-- Back-in-stock is a one-shot claim rather than a generic create call. The
+-- durable StockNotification row is locked, every recipient/listing/seller fact
+-- is derived under that lock, the optional in-app row is inserted, and the
+-- subscription is consumed in this same transaction. A competing worker sees
+-- no source row and cannot mint a duplicate or enqueue a second email.
+CREATE OR REPLACE FUNCTION public.grainline_notification_claim_back_in_stock(
+  p_notification_id text,
+  p_restock_audit_id text,
+  p_stock_notification_id text
+)
+RETURNS TABLE(claimed boolean, user_id text, notification_id text)
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_notification_claim_back_in_stock$
+DECLARE
+  source_user_id text;
+  source_listing_id text;
+  source_seller_user_id text;
+  source_listing_title text;
+  source_stock_quantity integer;
+  source_listing_status text;
+  source_listing_type text;
+  source_is_private boolean;
+  source_charges_enabled boolean;
+  source_stripe_account_version text;
+  source_vacation_mode boolean;
+  source_seller_banned boolean;
+  source_seller_deleted_at timestamp(3);
+  source_recipient_banned boolean;
+  source_recipient_deleted_at timestamp(3);
+  source_recipient_preferences jsonb;
+  derived_title text;
+  derived_body text;
+  derived_link text;
+  replay_material text;
+  derived_dedup_key text;
+BEGIN
+  claimed := false;
+  user_id := NULL;
+  notification_id := NULL;
+
+  IF p_notification_id IS NULL
+     OR p_notification_id !~ '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' THEN
+    RAISE EXCEPTION 'notification id is invalid' USING ERRCODE = '22023';
+  END IF;
+  IF p_stock_notification_id IS NULL
+     OR p_stock_notification_id = ''
+     OR pg_catalog.char_length(p_stock_notification_id) > 191 THEN
+    RAISE EXCEPTION 'stock notification source is invalid' USING ERRCODE = '22023';
+  END IF;
+  IF p_restock_audit_id IS NULL
+     OR p_restock_audit_id = ''
+     OR pg_catalog.char_length(p_restock_audit_id) > 191 THEN
+    RAISE EXCEPTION 'restock transition source is invalid' USING ERRCODE = '22023';
+  END IF;
+
+  SELECT
+    source_subscription."userId",
+    source_subscription."listingId",
+    source_seller."userId",
+    source_listing.title,
+    source_listing."stockQuantity",
+    source_listing.status::text,
+    source_listing."listingType"::text,
+    source_listing."isPrivate",
+    source_seller."chargesEnabled",
+    source_seller."stripeAccountVersion",
+    source_seller."vacationMode",
+    source_seller_user.banned,
+    source_seller_user."deletedAt",
+    source_recipient.banned,
+    source_recipient."deletedAt",
+    source_recipient."notificationPreferences"
+  INTO
+    source_user_id,
+    source_listing_id,
+    source_seller_user_id,
+    source_listing_title,
+    source_stock_quantity,
+    source_listing_status,
+    source_listing_type,
+    source_is_private,
+    source_charges_enabled,
+    source_stripe_account_version,
+    source_vacation_mode,
+    source_seller_banned,
+    source_seller_deleted_at,
+    source_recipient_banned,
+    source_recipient_deleted_at,
+    source_recipient_preferences
+  FROM public."StockNotification" AS source_subscription
+  JOIN public."Listing" AS source_listing
+    ON source_listing.id = source_subscription."listingId"
+  JOIN public."SellerProfile" AS source_seller
+    ON source_seller.id = source_listing."sellerId"
+  JOIN public."User" AS source_seller_user
+    ON source_seller_user.id = source_seller."userId"
+  JOIN public."User" AS source_recipient
+    ON source_recipient.id = source_subscription."userId"
+  JOIN public."SystemAuditLog" AS source_audit
+    ON source_audit.id = p_restock_audit_id
+   AND source_audit.action = 'MANUAL_LISTING_RESTOCKED'
+   AND source_audit."actorType" = 'user'
+   AND source_audit."actorId" = source_seller."userId"
+   AND source_audit."targetType" = 'LISTING'
+   AND source_audit."targetId" = source_listing.id
+   AND source_audit.metadata ->> 'listingId' = source_listing.id
+   AND source_audit.metadata ->> 'listingTitle' <> ''
+   AND source_audit.metadata ->> 'previousStatus' = 'SOLD_OUT'
+   AND source_audit.metadata ->> 'newStatus' = 'ACTIVE'
+   AND source_audit.metadata ->> 'newQuantity' ~ '^[1-9][0-9]*$'
+   AND source_audit.metadata ->> 'mutationKind' IN ('delta', 'absolute')
+   AND source_subscription."createdAt" <= source_audit."createdAt"
+  WHERE source_subscription.id = p_stock_notification_id
+  FOR UPDATE OF source_subscription
+  FOR SHARE OF source_listing, source_seller, source_seller_user, source_recipient, source_audit;
+
+  IF NOT FOUND THEN
+    RETURN NEXT;
+    RETURN;
+  END IF;
+
+  -- Do not consume the subscription if the listing is no longer publicly
+  -- purchasable. It remains eligible for a later genuine restock transition.
+  IF source_listing_status <> 'ACTIVE'
+     OR source_listing_type <> 'IN_STOCK'
+     OR source_is_private
+     OR COALESCE(source_stock_quantity, 0) <= 0
+     OR NOT source_charges_enabled
+     OR (source_stripe_account_version IS NOT NULL
+         AND source_stripe_account_version <> 'v2')
+     OR source_vacation_mode
+     OR source_seller_banned
+     OR source_seller_deleted_at IS NOT NULL THEN
+    RETURN NEXT;
+    RETURN;
+  END IF;
+
+  -- Match the existing one-shot behavior: invalid recipients and recipients
+  -- who disabled the in-app type still consume the stock subscription. Email
+  -- preference remains an independent application-side decision after a
+  -- successful claim.
+  IF source_recipient_banned
+     OR source_recipient_deleted_at IS NOT NULL
+     OR source_recipient_preferences -> 'BACK_IN_STOCK' = 'false'::jsonb THEN
+    DELETE FROM public."StockNotification" AS source_subscription
+     WHERE source_subscription.id = p_stock_notification_id;
+    claimed := true;
+    user_id := source_user_id;
+    RETURN NEXT;
+    RETURN;
+  END IF;
+
+  derived_title := pg_catalog.left(source_listing_title || ' is back in stock!', 200);
+  derived_body := 'The piece you saved is available again. Current stock: '
+    || source_stock_quantity::text || '.';
+  derived_link := '/listing/' || source_listing_id;
+  replay_material := pg_catalog.concat_ws(
+    pg_catalog.chr(31),
+    'grainline-notification-v1',
+    source_user_id,
+    'BACK_IN_STOCK',
+    'manual_restock',
+    p_restock_audit_id,
+    p_stock_notification_id,
+    source_seller_user_id
+  );
+  derived_dedup_key :=
+    pg_catalog.md5(replay_material)
+    || pg_catalog.md5('grainline-notification-v1-secondary' || replay_material);
+
+  INSERT INTO public."Notification" (
+    id,
+    "userId",
+    "relatedUserId",
+    "type",
+    title,
+    body,
+    link,
+    "sourceType",
+    "sourceId",
+    "dedupKey",
+    read,
+    "createdAt"
+  ) VALUES (
+    p_notification_id,
+    source_user_id,
+    CASE
+      WHEN source_seller_user_id = source_user_id THEN NULL
+      ELSE source_seller_user_id
+    END,
+    'BACK_IN_STOCK'::public."NotificationType",
+    derived_title,
+    derived_body,
+    derived_link,
+    'manual_restock',
+    p_restock_audit_id,
+    derived_dedup_key,
+    false,
+    pg_catalog.clock_timestamp()
+  )
+  ON CONFLICT ("userId", "type", "dedupKey") DO NOTHING
+  RETURNING id INTO notification_id;
+
+  IF notification_id IS NULL THEN
+    SELECT notification.id
+      INTO notification_id
+      FROM public."Notification" AS notification
+     WHERE notification."userId" = source_user_id
+       AND notification."type" = 'BACK_IN_STOCK'::public."NotificationType"
+       AND notification."dedupKey" = derived_dedup_key;
+  END IF;
+
+  IF notification_id IS NULL THEN
+    RAISE EXCEPTION 'back-in-stock notification claim did not resolve a row';
+  END IF;
+
+  DELETE FROM public."StockNotification" AS source_subscription
+   WHERE source_subscription.id = p_stock_notification_id;
+  claimed := true;
+  user_id := source_user_id;
+  RETURN NEXT;
+END;
+$grainline_notification_claim_back_in_stock$;
+
 CREATE OR REPLACE FUNCTION public.grainline_notification_delete_for_account(
   p_user_id text
 )
@@ -1112,6 +1340,8 @@ REVOKE ALL ON FUNCTION public.grainline_notification_create_commission_event(
 REVOKE ALL ON FUNCTION public.grainline_notification_create_inventory_event(
   text, text, public."NotificationType", text, text, text, text, text
 ) FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION public.grainline_notification_claim_back_in_stock(text, text, text)
+  FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_notification_delete_for_account(text)
   FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_notification_delete_blog_comment(text)
@@ -1141,6 +1371,8 @@ GRANT EXECUTE ON FUNCTION public.grainline_notification_create_commission_event(
 GRANT EXECUTE ON FUNCTION public.grainline_notification_create_inventory_event(
   text, text, public."NotificationType", text, text, text, text, text
 ) TO grainline_app_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_notification_claim_back_in_stock(text, text, text)
+  TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_notification_delete_for_account(text)
   TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_notification_delete_blog_comment(text)
