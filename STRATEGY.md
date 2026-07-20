@@ -130,10 +130,16 @@ but no longer accept link or dedup identity. The private core derives canonical
 links and stable dedup identity inside owner authority from the validated
 recipient, type, source row, related actor, and source-specific route columns.
 App-level link and dedup scope are telemetry only. Social/message/commission
-absence-of-block checks do not yet serialize with a concurrent block insertion.
+absence-of-block checks now share a deterministic lock protocol with every
+ordinary block/unblock writer: notification creation takes sorted-pair
+`FOR SHARE`, while block mutation takes sorted-pair `FOR UPDATE`. Account
+deletion retains its earlier conflicting lifecycle lock before block cleanup.
+The owner core rejects isolation other than `READ COMMITTED`, and ordinary
+block mutations request it explicitly, so a stale transaction snapshot cannot
+silently weaken the absence check. This is statically guarded but still needs
+two-session PostgreSQL race proof.
 Derive or template the remaining caller-controlled payloads where practical,
-and resolve the concurrency contract before
-activation; retain provider performance proof for the source-validation joins.
+and retain provider performance proof for the source-validation joins.
 
 The message family uses `Message.id` as its durable source. For custom-order
 ready links, the private core extracts the listing id from the structured

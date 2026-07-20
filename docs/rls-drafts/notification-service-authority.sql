@@ -34,6 +34,14 @@ DECLARE
   notification_dedup_key text;
   replay_material text;
 BEGIN
+  -- The block/source lifecycle protocol depends on each statement observing a
+  -- fresh snapshot after a conflicting row lock waits. Reject stale-snapshot
+  -- isolation rather than letting a caller weaken those absence checks.
+  IF pg_catalog.current_setting('transaction_isolation') <> 'read committed' THEN
+    RAISE EXCEPTION 'notification creation requires read committed isolation'
+      USING ERRCODE = '25001';
+  END IF;
+
   IF p_notification_id IS NULL
      OR p_notification_id !~ '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' THEN
     RAISE EXCEPTION 'notification id is invalid' USING ERRCODE = '22023';
@@ -147,13 +155,29 @@ BEGIN
     RAISE EXCEPTION 'notification source requires a distinct related user' USING ERRCODE = '22023';
   END IF;
 
+  -- Block and unblock writers take FOR UPDATE on this same sorted User pair.
+  -- These compatible FOR SHARE locks serialize the later reciprocal Block
+  -- absence checks without deadlocking reverse-direction notification work.
+  -- Account deletion also takes a conflicting User lock before notification
+  -- cleanup, so its existing lifecycle ordering participates in the protocol.
+  PERFORM 1
+    FROM public."User" AS notification_user_lock
+   WHERE notification_user_lock.id = p_user_id
+      OR (
+        p_related_user_id IS NOT NULL
+        AND p_related_user_id <> p_user_id
+        AND p_source_type IS DISTINCT FROM 'banned_seller_order'
+        AND notification_user_lock.id = p_related_user_id
+      )
+   ORDER BY notification_user_lock.id
+   FOR SHARE;
+
   SELECT recipient."notificationPreferences"
     INTO recipient_preferences
     FROM public."User" AS recipient
    WHERE recipient.id = p_user_id
      AND recipient.banned = false
-     AND recipient."deletedAt" IS NULL
-   FOR SHARE;
+     AND recipient."deletedAt" IS NULL;
   IF NOT FOUND THEN
     RETURN NULL;
   END IF;
@@ -168,8 +192,7 @@ BEGIN
       FROM public."User" AS related_user
      WHERE related_user.id = p_related_user_id
        AND related_user.banned = false
-       AND related_user."deletedAt" IS NULL
-     FOR SHARE;
+       AND related_user."deletedAt" IS NULL;
     IF NOT FOUND THEN
       RETURN NULL;
     END IF;

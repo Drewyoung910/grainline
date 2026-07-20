@@ -90,19 +90,22 @@ and dedup identity are now derived inside owner authority
 from the validated recipient, type, source kind, source row, related actor, and
 source-specific route columns. Runtime-supplied `link` and `dedupScope` remain
 application telemetry only and never reach the granted SQL signatures. The
-favorite/follow checks prove that no block row
-exists only at statement time. They do not serialize against a concurrent
-block creation because the block-writing paths do not yet share a lock
-protocol. The message family proves the source message, its kind, participants,
+favorite/follow checks now run after the owner function takes sorted-pair
+`User` locks in `FOR SHARE` mode. Every ordinary block/unblock writer takes
+`FOR UPDATE` on the same sorted pair before changing `Block`; account deletion
+already takes its conflicting lifecycle lock before removing outgoing blocks.
+That shared protocol gives the absence check a deterministic linearization
+point at explicitly required `READ COMMITTED` isolation; the owner core rejects
+stale-snapshot isolation and block mutations request `ReadCommitted`. It still
+needs PostgreSQL two-session proof before activation. The
+message family proves the source message, its kind, participants,
 and conversation route; custom-order-ready extracts the listing id from the
 durable structured message inside the core, validates the reserved listing,
 seller, buyer, conversation and status, and derives the canonical listing route.
 Family wrappers should still derive or strictly template payload content where
-practical, and the
-social/message/commission families need an explicit concurrency
-decision before activation. Application authorization and block checks remain
-required; the draft must not be described as making forged content or block
-races impossible.
+practical. Application authorization and block checks remain required; the
+draft must not be described as making forged content or block races impossible
+under arbitrary runtime compromise.
 
 ## Next Implementation Order
 

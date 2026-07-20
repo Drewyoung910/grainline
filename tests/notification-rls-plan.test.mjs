@@ -90,7 +90,7 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(strategy, /does\s+not by itself make Bucket B activation-ready/);
     assert.match(strategy, /bounded caller control of notification text/);
     assert.match(strategy, /dedup identity inside owner authority/);
-    assert.match(strategy, /do not yet serialize with a\s+concurrent block insertion/);
+    assert.match(strategy, /share a deterministic lock protocol with every\s+ordinary block\/unblock writer/);
   });
 
   it("pins the complete creation-authority family inventory", () => {
@@ -109,7 +109,7 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(inventory, /staff-only families[\s\S]{0,220}audit or domain source/);
     assert.match(inventory, /bounded title\/body parameters/);
     assert.match(inventory, /dedup identity[\s\S]{0,180}derived inside owner authority/);
-    assert.match(inventory, /do not serialize against a concurrent\s+block creation/);
+    assert.match(inventory, /shared protocol gives the absence check a deterministic linearization\s+point/);
     assert.match(inventory, /reserved listing,[\s\S]{0,80}seller, buyer, conversation/);
     assert.doesNotMatch(inventory, /custom-listing reservation\/link binding remains blocking/);
     assert.doesNotMatch(inventory, /write-side RLS on Notification is low-value/);
@@ -297,7 +297,8 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.equal((sql.match(/FROM PUBLIC, grainline_app_runtime/g) ?? []).length, 17);
     assert.equal((sql.match(/GRANT EXECUTE ON FUNCTION public\.grainline_notification_/g) ?? []).length, 16);
     assert.doesNotMatch(sql, /GRANT EXECUTE ON FUNCTION public\.grainline_notification_create_core\(/);
-    assert.match(sql, /recipient\.banned = false[\s\S]{0,100}recipient\."deletedAt" IS NULL[\s\S]{0,80}FOR SHARE/);
+    assert.match(sql, /ORDER BY notification_user_lock\.id\s+FOR SHARE/);
+    assert.match(sql, /recipient\.banned = false[\s\S]{0,100}recipient\."deletedAt" IS NULL;/);
     assert.match(sql, /recipient_preferences -> \(p_type::text\) = 'false'::jsonb/);
     assert.match(sql, /pg_catalog\.strpos\(notification_link, pg_catalog\.chr\(92\)\) > 0/);
     assert.match(sql, /notification_link ~ '\[\[:cntrl:\]\]'/);
@@ -330,7 +331,7 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(sql, /source_listing\."stockQuantity" > 0[\s\S]{0,100}source_listing\."stockQuantity" <= 2/);
     assert.match(sql, /INTO notification_link, notification_title, notification_body/);
     assert.match(sql, /p_related_user_id IS NULL/);
-    assert.match(sql, /p_related_user_id[\s\S]{0,1000}related_user\.banned = false[\s\S]{0,100}FOR SHARE/);
+    assert.match(sql, /p_related_user_id[\s\S]{0,1500}related_user\.banned = false[\s\S]{0,100}related_user\."deletedAt" IS NULL;/);
     assert.match(sql, /source_comment\."authorId" = p_related_user_id/);
     assert.match(sql, /parent_comment\."authorId" = p_user_id/);
     assert.equal((sql.match(/JOIN public\."Follow" AS source_follow/g) ?? []).length, 3);

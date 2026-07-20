@@ -1,10 +1,10 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { blockRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import { deleteUserBlock } from "@/lib/blockMutationAccess";
 
 export async function unblockUser(blockedId: string) {
   const { userId } = await auth();
@@ -14,9 +14,7 @@ export async function unblockUser(blockedId: string) {
 
   const me = await ensureUserByClerkId(userId);
 
-  await prisma.block.deleteMany({
-    where: { blockerId: me.id, blockedId },
-  });
+  await deleteUserBlock(me.id, blockedId);
 
   revalidatePath("/account/blocked");
 }

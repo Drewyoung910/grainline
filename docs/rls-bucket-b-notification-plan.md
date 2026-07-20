@@ -73,9 +73,17 @@ Canonical links and stable 64-hex replay identity are now derived inside the
 private core from validated database facts; neither link nor dedup identity is
 present in a granted creation signature. App-level `link` and `dedupScope` are
 telemetry only. Social/message/commission absence-of-block checks do not
-serialize against a concurrent block insertion because the block-writing paths
-do not share a lock protocol. Payload derivation/templates and that concurrency decision remain
-pre-activation work; app-layer authorization and block checks remain required.
+rely on an unlocked absence check anymore: notification creation takes
+`FOR SHARE` on the recipient/related-user pair in sorted id order, and every
+ordinary block/unblock mutation takes `FOR UPDATE` on the same sorted pair
+before changing `Block`. Account deletion already takes the conflicting user
+lock through notification cleanup before deleting its outgoing blocks. This
+defines a deterministic linearization point under the explicitly required
+`READ COMMITTED` isolation level; the core rejects stale-snapshot isolation,
+and block mutations request `ReadCommitted` explicitly. It does so without granting Notification
+authority over `Block`; PostgreSQL race proof is still required before
+activation. Payload derivation/templates remain pre-activation work;
+app-layer authorization and block checks remain required.
 The message family proves message kind and conversation participants.
 Custom-order-ready extracts the listing id from the durable structured message
 inside the private core, joins it to the reserved buyer, seller, conversation
@@ -286,6 +294,9 @@ Current direct-access files are deliberately pinned by test:
   or safely expire null-metadata legacy rows.
 - Replace blog/broadcast title/body/link cleanup with exact source cleanup.
 - Choose and test the legacy account-deletion redaction disposition.
+- Serialize reciprocal block absence checks with block/unblock mutations using
+  the shared sorted-user-row lock protocol; prove both transaction orderings in
+  PostgreSQL before activation.
 - Retain two fresh counted passes for the Notification workload with the
   restored generic provider transaction performance gate.
 
@@ -333,8 +344,9 @@ Current direct-access files are deliberately pinned by test:
 - Recipient bell/page/count/export/mark-read architecture is not selected;
   compare narrow one-statement `SECURITY INVOKER` RPCs with the experimental
   transaction wrapper after the production sequencing gate lifts.
-- Social/message/commission block checks do not yet share a serialization
-  protocol with concurrent block creation.
+- The social/message/commission block-race protocol is implemented and
+  statically guarded, but still needs PostgreSQL two-session proof that both
+  transaction orderings linearize and the pooled runtime role cannot bypass it.
 - The generic provider wrapper/performance gate is restored in code, but two
   fresh counted provider passes are still required.
 
