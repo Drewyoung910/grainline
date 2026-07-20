@@ -9,6 +9,8 @@ export const NOTIFICATION_SOURCE_TYPES = {
   CHECKOUT_LOW_STOCK: "checkout_low_stock",
   MANUAL_LOW_STOCK: "manual_low_stock",
   BACK_IN_STOCK: "manual_restock",
+  GUILD_ADMIN_ACTION: "guild_admin_action",
+  GUILD_SYSTEM_ACTION: "guild_system_action",
   FAVORITE: "favorite",
   FOLLOWED_MAKER_NEW_BLOG: "followed_maker_new_blog",
   FOLLOWED_MAKER_NEW_LISTING: "followed_maker_new_listing",

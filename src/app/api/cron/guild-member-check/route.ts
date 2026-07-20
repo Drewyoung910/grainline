@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { sendGuildMemberRevokedEmail } from "@/lib/email";
 import { verifyCronRequest } from "@/lib/cronAuth";
 import { withSentryCronMonitor } from "@/lib/cronMonitor";
@@ -156,9 +157,9 @@ async function revokeMember(
   guard: GuildMemberRevocationGuard,
   now: Date,
 ): Promise<number> {
-  let revoked = false;
+  let revocationAuditId: string | null = null;
   try {
-    revoked = await prisma.$transaction(async (tx) => {
+    revocationAuditId = await prisma.$transaction(async (tx) => {
       const verificationUpdated = await tx.makerVerification.updateMany({
         where: {
           sellerProfileId: seller.id,
@@ -166,7 +167,7 @@ async function revokeMember(
         },
         data: { status: "REJECTED", reviewedAt: now, reviewNotes: reason },
       });
-      if (verificationUpdated.count === 0) return false;
+      if (verificationUpdated.count === 0) return null;
 
       const updated = await tx.sellerProfile.updateMany({
         where: guildMemberRevocationSellerWhere(seller.id, seller.userId, guard),
@@ -179,7 +180,7 @@ async function revokeMember(
       });
       assertGuildVerificationTransition(updated.count, "revoke Guild Member");
 
-      await logSystemActionOrThrow({
+      return logSystemActionOrThrow({
         client: tx,
         actorType: "cron",
         actorId: "guild-member-check",
@@ -197,12 +198,11 @@ async function revokeMember(
             guard.kind === "listing_threshold" ? guard.listingsBelowThresholdBefore.toISOString() : null,
         },
       });
-      return true;
     });
   } catch (error) {
     if (!isGuildVerificationTransitionConflict(error)) throw error;
   }
-  if (!revoked) return 0;
+  if (!revocationAuditId) return 0;
   revalidateFeaturedMakerCaches();
 
   await createNotification({
@@ -211,6 +211,8 @@ async function revokeMember(
     title: "Guild Member badge revoked",
     body: reason,
     link: "/dashboard/verification",
+    sourceType: NOTIFICATION_SOURCE_TYPES.GUILD_SYSTEM_ACTION,
+    sourceId: revocationAuditId,
   });
 
   if (seller.user?.email && await shouldSendEmail(seller.userId, "EMAIL_VERIFICATION_REJECTED")) {

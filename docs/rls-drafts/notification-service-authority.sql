@@ -55,6 +55,8 @@ BEGIN
       'commission_request',
       'checkout_low_stock',
       'manual_low_stock',
+      'guild_admin_action',
+      'guild_system_action',
       'favorite',
       'followed_maker_new_blog',
       'followed_maker_new_listing',
@@ -83,6 +85,8 @@ BEGIN
          AND p_type <> 'LOW_STOCK')
      OR (p_source_type = 'manual_low_stock'
          AND p_type <> 'LOW_STOCK')
+     OR (p_source_type IN ('guild_admin_action', 'guild_system_action')
+         AND p_type NOT IN ('VERIFICATION_APPROVED', 'VERIFICATION_REJECTED'))
      OR (p_source_type = 'favorite'
          AND p_type <> 'NEW_FAVORITE')
      OR (p_source_type = 'followed_maker_new_blog'
@@ -109,7 +113,9 @@ BEGIN
        'case_system_action',
        'commission_request',
        'checkout_low_stock',
-       'manual_low_stock'
+       'manual_low_stock',
+       'guild_admin_action',
+       'guild_system_action'
      )
      AND (p_related_user_id IS NULL OR p_related_user_id = p_user_id) THEN
     RAISE EXCEPTION 'notification source requires a distinct related user' USING ERRCODE = '22023';
@@ -388,6 +394,143 @@ BEGIN
        AND p_related_user_id IS NULL
        AND source_seller."userId" = p_user_id
      FOR SHARE OF source_audit, source_listing, source_seller;
+  ELSIF p_source_type = 'guild_admin_action' THEN
+    SELECT
+      CASE
+        WHEN source_audit.action IN (
+          'APPROVE_GUILD_MEMBER',
+          'APPROVE_GUILD_MASTER',
+          'REINSTATE_GUILD_MEMBER'
+        ) THEN '/seller/' || source_seller.id
+        ELSE '/dashboard/verification'
+      END,
+      CASE source_audit.action
+        WHEN 'APPROVE_GUILD_MEMBER' THEN 'You are now a Guild Member!'
+        WHEN 'REJECT_GUILD_MEMBER' THEN 'Guild Member application update'
+        WHEN 'REVOKE_GUILD_MEMBER' THEN 'Guild Member badge revoked'
+        WHEN 'APPROVE_GUILD_MASTER' THEN 'You are now a Guild Master!'
+        WHEN 'REJECT_GUILD_MASTER' THEN 'Guild Master application update'
+        WHEN 'REVOKE_GUILD_MASTER' THEN 'Guild Master badge revoked'
+        WHEN 'REINSTATE_GUILD_MEMBER' THEN 'Guild Member badge reinstated'
+      END,
+      CASE source_audit.action
+        WHEN 'APPROVE_GUILD_MEMBER' THEN 'Your Guild Member badge is now live on your profile'
+        WHEN 'REJECT_GUILD_MEMBER' THEN COALESCE(source_audit.reason, 'Please review your application')
+        WHEN 'REVOKE_GUILD_MEMBER' THEN 'Your Guild Member badge was revoked by Grainline staff.'
+        WHEN 'APPROVE_GUILD_MASTER' THEN 'Your Guild Master badge is now live on your profile'
+        WHEN 'REJECT_GUILD_MASTER' THEN COALESCE(source_audit.reason, 'Please review your application')
+        WHEN 'REVOKE_GUILD_MASTER' THEN 'Your Guild Master badge was revoked. Your Guild Member badge remains active.'
+        WHEN 'REINSTATE_GUILD_MEMBER' THEN 'Your Guild Member badge is live again on your profile.'
+      END
+      INTO notification_link, notification_title, notification_body
+      FROM public."AdminAuditLog" AS source_audit
+      JOIN public."User" AS source_staff
+        ON source_staff.id = source_audit."adminId"
+      JOIN public."SellerProfile" AS source_seller
+        ON source_seller.id = source_audit."targetId"
+      JOIN public."MakerVerification" AS source_verification
+        ON source_verification."sellerProfileId" = source_seller.id
+     WHERE source_audit.id = p_source_id
+       AND source_audit."targetType" = 'SELLER_PROFILE'
+       AND source_audit.undone = false
+       AND source_audit.action IN (
+         'APPROVE_GUILD_MEMBER',
+         'REJECT_GUILD_MEMBER',
+         'REVOKE_GUILD_MEMBER',
+         'APPROVE_GUILD_MASTER',
+         'REJECT_GUILD_MASTER',
+         'REVOKE_GUILD_MASTER',
+         'REINSTATE_GUILD_MEMBER'
+       )
+       AND source_seller."userId" = p_user_id
+       AND p_related_user_id IS NULL
+       AND source_staff.banned = false
+       AND source_staff."deletedAt" IS NULL
+       AND source_staff.role IN ('EMPLOYEE', 'ADMIN')
+       AND (source_audit.action <> 'REINSTATE_GUILD_MEMBER' OR source_staff.role = 'ADMIN')
+       AND source_verification."reviewedById" = source_audit."adminId"
+       AND (
+         (source_audit.action IN ('APPROVE_GUILD_MEMBER', 'REINSTATE_GUILD_MEMBER')
+          AND source_verification.status = 'APPROVED'
+          AND source_seller."guildLevel" = 'GUILD_MEMBER')
+         OR
+         (source_audit.action IN ('REJECT_GUILD_MEMBER', 'REVOKE_GUILD_MEMBER')
+          AND source_verification.status = 'REJECTED'
+          AND source_seller."guildLevel" = 'NONE')
+         OR
+         (source_audit.action = 'APPROVE_GUILD_MASTER'
+          AND source_verification.status = 'GUILD_MASTER_APPROVED'
+          AND source_seller."guildLevel" = 'GUILD_MASTER')
+         OR
+         (source_audit.action IN ('REJECT_GUILD_MASTER', 'REVOKE_GUILD_MASTER')
+          AND source_verification.status = 'GUILD_MASTER_REJECTED'
+          AND source_seller."guildLevel" = 'GUILD_MEMBER')
+       )
+       AND p_type = CASE
+         WHEN source_audit.action IN (
+           'APPROVE_GUILD_MEMBER',
+           'APPROVE_GUILD_MASTER',
+           'REINSTATE_GUILD_MEMBER'
+         ) THEN 'VERIFICATION_APPROVED'::public."NotificationType"
+         ELSE 'VERIFICATION_REJECTED'::public."NotificationType"
+       END
+     FOR SHARE OF source_audit, source_staff, source_seller, source_verification;
+  ELSIF p_source_type = 'guild_system_action' THEN
+    SELECT
+      '/dashboard/verification',
+      CASE source_audit.action
+        WHEN 'WARN_GUILD_MASTER_METRICS' THEN 'Guild Master status at risk'
+        WHEN 'AUTO_REVOKE_GUILD_MEMBER' THEN 'Guild Member badge revoked'
+        WHEN 'AUTO_REVOKE_GUILD_MASTER' THEN 'Guild Master badge revoked'
+      END,
+      CASE source_audit.action
+        WHEN 'WARN_GUILD_MASTER_METRICS' THEN
+          'Your metrics have fallen below Guild Master requirements. You have 30 days to improve before your badge is reviewed. Check your dashboard for details.'
+        WHEN 'AUTO_REVOKE_GUILD_MEMBER' THEN source_audit.reason
+        WHEN 'AUTO_REVOKE_GUILD_MASTER' THEN
+          'Your metrics fell below requirements for two consecutive months. Your Guild Member badge remains active.'
+      END
+      INTO notification_link, notification_title, notification_body
+      FROM public."SystemAuditLog" AS source_audit
+      JOIN public."SellerProfile" AS source_seller
+        ON source_seller.id = source_audit."targetId"
+      JOIN public."MakerVerification" AS source_verification
+        ON source_verification."sellerProfileId" = source_seller.id
+     WHERE source_audit.id = p_source_id
+       AND source_audit."actorType" = 'cron'
+       AND source_audit."targetType" = 'SELLER_PROFILE'
+       AND source_audit.action IN (
+         'WARN_GUILD_MASTER_METRICS',
+         'AUTO_REVOKE_GUILD_MEMBER',
+         'AUTO_REVOKE_GUILD_MASTER'
+       )
+       AND source_audit."actorId" = CASE
+         WHEN source_audit.action = 'AUTO_REVOKE_GUILD_MEMBER'
+           THEN 'guild-member-check'
+         ELSE 'guild-metrics'
+       END
+       AND source_audit.metadata ->> 'jobName' = source_audit."actorId"
+       AND source_audit.metadata ->> 'sellerUserId' = source_seller."userId"
+       AND source_seller."userId" = p_user_id
+       AND p_related_user_id IS NULL
+       AND p_type = 'VERIFICATION_REJECTED'::public."NotificationType"
+       AND (source_audit.action <> 'AUTO_REVOKE_GUILD_MEMBER' OR source_audit.reason IS NOT NULL)
+       AND (
+         (source_audit.action = 'WARN_GUILD_MASTER_METRICS'
+          AND source_seller."guildLevel" = 'GUILD_MASTER'
+          AND source_verification.status = 'GUILD_MASTER_APPROVED'
+          AND source_seller."consecutiveMetricFailures" > 0
+          AND source_seller."metricWarningSentAt" IS NOT NULL)
+         OR
+         (source_audit.action = 'AUTO_REVOKE_GUILD_MEMBER'
+          AND source_seller."guildLevel" = 'NONE'
+          AND source_verification.status = 'REJECTED')
+         OR
+         (source_audit.action = 'AUTO_REVOKE_GUILD_MASTER'
+          AND source_seller."guildLevel" = 'GUILD_MEMBER'
+          AND source_verification.status = 'GUILD_MASTER_REJECTED')
+       )
+     FOR SHARE OF source_audit, source_seller, source_verification;
   ELSIF p_source_type = 'followed_maker_new_listing' THEN
     SELECT '/listing/' || source_listing.id
       INTO notification_link
@@ -912,6 +1055,45 @@ BEGIN
 END;
 $grainline_notification_create_inventory_event$;
 
+CREATE OR REPLACE FUNCTION public.grainline_notification_create_verification_event(
+  p_notification_id text,
+  p_user_id text,
+  p_type public."NotificationType",
+  p_title text,
+  p_body text,
+  p_source_type text,
+  p_source_id text,
+  p_related_user_id text
+)
+RETURNS text
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_notification_create_verification_event$
+DECLARE
+  notification_id text;
+BEGIN
+  IF p_source_type NOT IN ('guild_admin_action', 'guild_system_action') THEN
+    RAISE EXCEPTION 'verification notification requires a reviewed Guild source'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT public.grainline_notification_create_core(
+    p_notification_id,
+    p_user_id,
+    p_type,
+    p_title,
+    p_body,
+    p_source_type,
+    p_source_id,
+    p_related_user_id
+  ) INTO notification_id;
+  RETURN notification_id;
+END;
+$grainline_notification_create_verification_event$;
+
 -- Back-in-stock is a one-shot claim rather than a generic create call. The
 -- durable StockNotification row is locked, every recipient/listing/seller fact
 -- is derived under that lock, the optional in-app row is inserted, and the
@@ -1340,6 +1522,9 @@ REVOKE ALL ON FUNCTION public.grainline_notification_create_commission_event(
 REVOKE ALL ON FUNCTION public.grainline_notification_create_inventory_event(
   text, text, public."NotificationType", text, text, text, text, text
 ) FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION public.grainline_notification_create_verification_event(
+  text, text, public."NotificationType", text, text, text, text, text
+) FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_notification_claim_back_in_stock(text, text, text)
   FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_notification_delete_for_account(text)
@@ -1369,6 +1554,9 @@ GRANT EXECUTE ON FUNCTION public.grainline_notification_create_commission_event(
   text, text, public."NotificationType", text, text, text, text, text
 ) TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_notification_create_inventory_event(
+  text, text, public."NotificationType", text, text, text, text, text
+) TO grainline_app_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_notification_create_verification_event(
   text, text, public."NotificationType", text, text, text, text, text
 ) TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_notification_claim_back_in_stock(text, text, text)

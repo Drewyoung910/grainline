@@ -38,6 +38,8 @@ export async function createNotificationServiceRow({
     || sourceType === NOTIFICATION_SOURCE_TYPES.COMMISSION_REQUEST;
   const inventorySource = sourceType === NOTIFICATION_SOURCE_TYPES.CHECKOUT_LOW_STOCK
     || sourceType === NOTIFICATION_SOURCE_TYPES.MANUAL_LOW_STOCK;
+  const verificationSource = sourceType === NOTIFICATION_SOURCE_TYPES.GUILD_ADMIN_ACTION
+    || sourceType === NOTIFICATION_SOURCE_TYPES.GUILD_SYSTEM_ACTION;
   const caseSource = sourceType === NOTIFICATION_SOURCE_TYPES.CASE
     || sourceType === NOTIFICATION_SOURCE_TYPES.CASE_MESSAGE
     || sourceType === NOTIFICATION_SOURCE_TYPES.CASE_RESOLUTION_MARK
@@ -46,7 +48,7 @@ export async function createNotificationServiceRow({
     || sourceType === NOTIFICATION_SOURCE_TYPES.FOLLOWED_MAKER_NEW_BLOG
     || sourceType === NOTIFICATION_SOURCE_TYPES.FOLLOWED_MAKER_NEW_LISTING
     || sourceType === NOTIFICATION_SOURCE_TYPES.SELLER_BROADCAST;
-  if (!socialSource && !messageSource && !commissionSource && !inventorySource && !caseSource && !fanoutSource) {
+  if (!socialSource && !messageSource && !commissionSource && !inventorySource && !verificationSource && !caseSource && !fanoutSource) {
     throw new Error("notification create family is not implemented for this source");
   }
   let rows: Array<{ id: string | null }>;
@@ -79,6 +81,19 @@ export async function createNotificationServiceRow({
   } else if (commissionSource) {
     rows = await prisma.$queryRaw<Array<{ id: string | null }>>`
         SELECT public.grainline_notification_create_commission_event(
+          ${notificationId}::text,
+          ${userId}::text,
+          ${type}::public."NotificationType",
+          ${title}::text,
+          ${body}::text,
+          ${sourceType}::text,
+          ${sourceId}::text,
+          ${relatedUserId}::text
+        ) AS id
+      `;
+  } else if (verificationSource) {
+    rows = await prisma.$queryRaw<Array<{ id: string | null }>>`
+        SELECT public.grainline_notification_create_verification_event(
           ${notificationId}::text,
           ${userId}::text,
           ${type}::public."NotificationType",
