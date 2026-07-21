@@ -164,6 +164,32 @@ immediately and is recorded without its potentially sensitive message; only a
 transport-class failure proceeds to new-credential authentication to resolve a
 possible after-commit connection ambiguity.
 
+If the pre-encrypted SQL path is proved not to change PostgreSQL and returns a
+definite Neon `XX000`, stop the SQL path. Neon documents its role-password reset
+API as dropping compute-endpoint connections while the reset operation
+finishes. Only when that short reconnect event is explicitly acceptable, use
+the pinned Neon fallback:
+
+```sh
+PHASE_B_NEON_OWNER_RESET_CONFIRM=reset-production-owner-via-pinned-neon-api-after-sql-xx000 \
+PHASE_B_NEON_OWNER_RESET_RELEASE_COMMIT=17bf93dc8837fd6c5e6988569f993781800b6318 \
+PHASE_B_NEON_OWNER_RESET_EVIDENCE_PATH=/Users/drewyoung/grainline-rollout-evidence/saved-search-phase-b-owner-neon-reset-20260721.json \
+npm run ops:reset-phase-b-owner-neon
+```
+
+The fallback pins Neon CLI `2.35.1`, the exact organization/project, primary
+production branch, read-write endpoint, database, and owner role. Before the
+reset it re-proves Vercel metadata and the exact split credential state. It
+captures the provider-generated password in memory, atomically persists it to
+mode-`0600` local `DIRECT_URL`, updates only Sensitive Production `DIRECT_URL`,
+requires unchanged runtime `DATABASE_URL` metadata, waits for every returned
+Neon operation, and proves the new credential plus exact role/RLS/canary state.
+Both the retained legacy credential and the prior staged credential must then
+reject with `28P01`, and other owner sessions must reach zero. Never rerun after
+an API failure without first reading the provider operation state and
+classifying all known credentials; Neon documents the reset POST as
+non-idempotent when its response is lost.
+
 ## 3. Phase B Deployment
 
 Proceed only when the rotation artifact is mode `0600`, `status=passed`,

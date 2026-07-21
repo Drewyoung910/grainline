@@ -71,6 +71,29 @@ function assertReviewedIdentity(url, { isPooler, label }) {
   }
 }
 
+export function loadReviewedSplitOwnerCredentials() {
+  const credentialStat = statSync(LOCAL_CREDENTIAL_PATH);
+  if (!credentialStat.isFile() || (credentialStat.mode & 0o077) !== 0) {
+    throw new Error("reviewed local database credential file must remain mode 0600");
+  }
+  const local = dotenv.parse(readFileSync(LOCAL_CREDENTIAL_PATH));
+  const proposed = normalizeLocalUrl(local.DIRECT_URL, "proposed DIRECT_URL");
+  const legacyPooler = normalizeLocalUrl(local.DATABASE_URL, "legacy DATABASE_URL");
+  assertReviewedIdentity(proposed, { isPooler: false, label: "proposed DIRECT_URL" });
+  assertReviewedIdentity(legacyPooler, { isPooler: true, label: "legacy DATABASE_URL" });
+  if (proposed.password === legacyPooler.password) {
+    throw new Error("proposed and legacy owner credentials must differ");
+  }
+  const legacyDirect = new URL(legacyPooler);
+  legacyDirect.hostname = proposed.hostname;
+  assertReviewedIdentity(legacyDirect, { isPooler: false, label: "legacy direct URL" });
+  return Object.freeze({
+    proposedDirectUrl: proposed.toString(),
+    proposedPassword: decodeURIComponent(proposed.password),
+    legacyDirectUrl: legacyDirect.toString(),
+  });
+}
+
 export function parseOwnerReconciliationConfig(env = process.env) {
   assertDeterministicPostgresEnvironment(env, "Phase B owner reconciliation");
   if (env.PHASE_B_OWNER_RECONCILIATION_CONFIRM !== CONFIRMATION) {
@@ -90,27 +113,10 @@ export function parseOwnerReconciliationConfig(env = process.env) {
   ) {
     throw new Error("owner reconciliation evidence must be one JSON file in the rollout-evidence directory");
   }
-  const credentialStat = statSync(LOCAL_CREDENTIAL_PATH);
-  if (!credentialStat.isFile() || (credentialStat.mode & 0o077) !== 0) {
-    throw new Error("reviewed local database credential file must remain mode 0600");
-  }
-  const local = dotenv.parse(readFileSync(LOCAL_CREDENTIAL_PATH));
-  const proposed = normalizeLocalUrl(local.DIRECT_URL, "proposed DIRECT_URL");
-  const legacyPooler = normalizeLocalUrl(local.DATABASE_URL, "legacy DATABASE_URL");
-  assertReviewedIdentity(proposed, { isPooler: false, label: "proposed DIRECT_URL" });
-  assertReviewedIdentity(legacyPooler, { isPooler: true, label: "legacy DATABASE_URL" });
-  if (proposed.password === legacyPooler.password) {
-    throw new Error("proposed and legacy owner credentials must differ");
-  }
-  const legacyDirect = new URL(legacyPooler);
-  legacyDirect.hostname = proposed.hostname;
-  assertReviewedIdentity(legacyDirect, { isPooler: false, label: "legacy direct URL" });
   return Object.freeze({
     evidencePath,
     now: new Date(),
-    proposedDirectUrl: proposed.toString(),
-    proposedPassword: decodeURIComponent(proposed.password),
-    legacyDirectUrl: legacyDirect.toString(),
+    ...loadReviewedSplitOwnerCredentials(),
   });
 }
 
@@ -128,7 +134,7 @@ function isPostgresSqlState(code) {
   return /^[A-Z0-9]{5}$/.test(code);
 }
 
-async function inspectOwnerCredential(database, connectionString, label) {
+export async function inspectOwnerCredential(database, connectionString, label) {
   try {
     return Object.freeze({
       status: "accepted",
