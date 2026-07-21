@@ -37,6 +37,16 @@ export const REVIEWED_DATABASE_NAME = "neondb";
 export const REVIEWED_DATABASE_REGION = "westus3.azure";
 export const REVIEWED_OWNER_ROLE = "neondb_owner";
 export const REVIEWED_RUNTIME_ROLE = "grainline_app_runtime";
+export const PHASE_B_CANARY_QUERY = `
+      SELECT bucket, status,
+             "startedAt" AT TIME ZONE 'UTC' AS started_at,
+             "completedAt" AT TIME ZONE 'UTC' AS completed_at,
+             result
+        FROM public."CronRun"
+       WHERE "jobName" = 'ops-health' AND bucket = $1
+       ORDER BY "startedAt" DESC
+       LIMIT 1
+    `;
 export const REVIEWED_VERCEL_CLI_PATH = "/Users/drewyoung/.npm/_npx/69f9afb961c37556/node_modules/vercel/dist/vc.js";
 export const REVIEWED_VERCEL_PROJECT_DIRECTORY = "/Users/drewyoung/grainline";
 export const REVIEWED_VERCEL_PROJECT = Object.freeze({
@@ -401,14 +411,13 @@ async function readOwnerState(connectionString) {
          AND c.relname = 'SavedSearch'
          AND c.relkind IN ('r', 'p')
     `)).rows[0];
-    const canary = (await client.query(`
-      SELECT bucket, status, "startedAt" AS started_at,
-             "completedAt" AS completed_at, result
-        FROM public."CronRun"
-       WHERE "jobName" = 'ops-health' AND bucket = $1
-       ORDER BY "startedAt" DESC
-       LIMIT 1
-    `, [PHASE_B_CANARY_BUCKET])).rows[0];
+    // Prisma stores DateTime as timestamp without time zone while Grainline's
+    // application convention is UTC. Convert at the SQL boundary so node-pg
+    // cannot reinterpret 06:20 as America/Chicago and emit 11:20Z evidence.
+    const canary = (await client.query(
+      PHASE_B_CANARY_QUERY,
+      [PHASE_B_CANARY_BUCKET],
+    )).rows[0];
     return { identity, ownerRole, runtimeRole, savedSearch, canary };
   });
 }
