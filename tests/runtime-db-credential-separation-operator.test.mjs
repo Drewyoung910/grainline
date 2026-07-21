@@ -430,6 +430,7 @@ describe("runtime database credential separation operator", () => {
   it("converges a reset whose old and new passwords temporarily overlap", async () => {
     let oldReads = 0;
     let digest;
+    const localWrites = [];
     const result = await runSeparationOperator(config("recover"), common({
       readDatabaseState: async (url) => {
         if (url === OWNER_URL) {
@@ -451,10 +452,12 @@ describe("runtime database credential separation operator", () => {
       readGithubState: () => github(false, digest),
       revealNeonPassword: () => "AbCdEfGhIjKlMn_1",
       buildNeonDirectUrl: () => NEXT_URL,
+      updateLocalDirectUrl: (url) => localWrites.push(url),
       updateGithubCredential: (_url, value) => { digest = value; },
     }));
     assert.equal(result.recoveryOutcome, "completed-reset-recovered-after-overlap");
     assert.equal(result.state.oldCredentialRejected, true);
+    assert.deepEqual(localWrites, [NEXT_URL]);
   });
 
   it("does not make acceptance evidence eligible before recovery-state cleanup", () => {

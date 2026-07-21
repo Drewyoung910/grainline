@@ -123,6 +123,13 @@ Read-only inventory reverified on 2026-07-21:
   localhost `sslmode=disable` service. The workflow now supplies that narrow
   flag; remote and guarded production audits still require exact
   `sslmode=verify-full` and cannot combine the two modes.
+- Exact-commit CI run `29868020406` then passed all live PostgreSQL replay,
+  migration-status, grant-audit, typecheck, and lint gates. Its test step found
+  two previously hidden fixture defects: a global-default-privilege assertion
+  expected a required scoped grant to be missing even though the fixture kept
+  it, and one recovery test omitted the local-writer mock. The audit correctly
+  reports the unsafe global scope without inventing a missing scoped grant;
+  every operator unit test must mock all credential persistence.
 
 ## Activation Sequence
 
