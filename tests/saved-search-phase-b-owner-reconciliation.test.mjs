@@ -157,6 +157,10 @@ describe("SavedSearch Phase B owner reconciliation operator", () => {
     );
     assert.equal(result.reconciliationMode, "apply");
     assert.equal(result.checks.databaseCredentialRotationAttempted, true);
+    assert.deepEqual(result.alterResult, {
+      returned: false,
+      errorCode: "UNCLASSIFIED",
+    });
     assert.equal(buildOwnerReconciliationEvidence(result).acceptanceEligible, true);
     assert.deepEqual(calls, [
       "verify-vercel-project",
@@ -240,6 +244,42 @@ describe("SavedSearch Phase B owner reconciliation operator", () => {
     );
     assert.equal(proposedReads, 8);
     assert.equal(waits, 6);
+  });
+
+  it("records a safe SQLSTATE and stops immediately on definite PostgreSQL rejection", async () => {
+    let proposedReads = 0;
+    let waits = 0;
+    await assert.rejects(
+      () => runOwnerReconciliation(config(), {
+        verifyVercelProject: () => {},
+        readVercelMetadata: async () => metadata(),
+        database: {
+          readOwnerState: async (url) => {
+            if (url === PROPOSED_URL) {
+              proposedReads += 1;
+              rejectedPassword();
+            }
+            return ownerState();
+          },
+          alterCurrentOwnerPassword: async () => {
+            const error = new Error("do not preserve this message");
+            error.code = "42501";
+            throw error;
+          },
+        },
+        wait: async () => { waits += 1; },
+      }),
+      (error) => {
+        assert.deepEqual(error.reconciliationAlterResult, {
+          returned: false,
+          errorCode: "42501",
+        });
+        assert.doesNotMatch(error.message, /do not preserve/);
+        return true;
+      },
+    );
+    assert.equal(proposedReads, 1);
+    assert.equal(waits, 0);
   });
 
   it("rejects mixed credential acceptance and never emits credential material", async () => {

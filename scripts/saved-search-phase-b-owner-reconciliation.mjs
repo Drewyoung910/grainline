@@ -118,6 +118,16 @@ function defaultWait(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
+function safeErrorCode(error) {
+  return typeof error?.code === "string" && /^[A-Z0-9_]{2,24}$/.test(error.code)
+    ? error.code
+    : "UNCLASSIFIED";
+}
+
+function isPostgresSqlState(code) {
+  return /^[A-Z0-9]{5}$/.test(code);
+}
+
 async function inspectOwnerCredential(database, connectionString, label) {
   try {
     return Object.freeze({
@@ -154,6 +164,7 @@ export async function runOwnerReconciliation(
 ) {
   let metadata = null;
   let reconciliationMode = null;
+  let alterResult = null;
   const checks = {
     vercelProjectVerified: false,
     vercelDirectUrlMetadataExact: false,
@@ -207,7 +218,13 @@ export async function runOwnerReconciliation(
       checks.databaseCredentialRotationAttempted = true;
       try {
         await database.alterCurrentOwnerPassword(config.legacyDirectUrl, verifier);
-      } catch {
+        alterResult = Object.freeze({ returned: true, errorCode: null });
+      } catch (error) {
+        const errorCode = safeErrorCode(error);
+        alterResult = Object.freeze({ returned: false, errorCode });
+        if (isPostgresSqlState(errorCode)) {
+          throw new Error("PostgreSQL rejected the owner password change with a SQLSTATE");
+        }
         // A connection failure after commit is ambiguous. Proposed-password
         // authentication below is authoritative. A rerun safely becomes
         // verify-only if PostgreSQL committed the ALTER ROLE.
@@ -234,11 +251,13 @@ export async function runOwnerReconciliation(
       metadata,
       ownerSessionCount,
       reconciliationMode,
+      alterResult,
     });
   } catch (error) {
     error.reconciliationChecks = { ...checks };
     error.reconciliationMetadata = metadata;
     error.reconciliationMode = reconciliationMode;
+    error.reconciliationAlterResult = alterResult;
     throw error;
   }
 }
@@ -252,6 +271,7 @@ export function buildOwnerReconciliationEvidence(result, status = "passed") {
     issueCount: passed ? 0 : 1,
     phase: "phase-b-owner-reconciliation",
     reconciliationMode: result?.reconciliationMode ?? null,
+    alterResult: result?.alterResult ?? null,
     releaseCommit: PHASE_B_RELEASE_COMMIT,
     target: {
       endpointId: REVIEWED_ENDPOINT_ID,
@@ -302,6 +322,7 @@ async function main() {
         reconciliationChecks: error?.reconciliationChecks ?? null,
         metadata: error?.reconciliationMetadata ?? null,
         reconciliationMode: error?.reconciliationMode ?? null,
+        alterResult: error?.reconciliationAlterResult ?? null,
       }, "failed"));
     }
     process.stderr.write("Phase B owner reconciliation failed closed.\n");

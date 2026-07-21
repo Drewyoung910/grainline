@@ -159,7 +159,10 @@ fails closed. Both paths require exact owner/runtime/Phase-A/canary posture,
 proposed authentication, legacy `28P01` rejection, and zero other owner client
 sessions before mode-`0600` evidence can be acceptance-eligible. The helper
 never reads a Vercel Sensitive value, never creates a third password, and never
-changes Vercel or runtime `DATABASE_URL`.
+changes Vercel or runtime `DATABASE_URL`. A definite PostgreSQL SQLSTATE stops
+immediately and is recorded without its potentially sensitive message; only a
+transport-class failure proceeds to new-credential authentication to resolve a
+possible after-commit connection ambiguity.
 
 ## 3. Phase B Deployment
 
