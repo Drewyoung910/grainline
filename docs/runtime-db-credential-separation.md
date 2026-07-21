@@ -184,6 +184,18 @@ Read-only inventory reverified on 2026-07-21:
   matched key names for the two key-list failure classes; values remain
   suppressed. A new exact-commit CI run and staged deployment are required to
   identify and remove the residual injection source.
+- The third unpromoted deployment
+  `dpl_CvrcH4QMt4GgRbzCQ2xgnSRWfmSY` identified the residual key as
+  `DIRECT_URL`. A separate team-shared encrypted `DIRECT_URL` was linked to
+  Grainline across Development, Preview, and Production; project-level
+  `vercel env ls` did not include it. Its already-rotated credential was
+  invalid, and the exact shared record was unlinked only from Grainline. The
+  shared record remains unlinked rather than deleted. The operator now requires
+  complete project-level and team-shared inventories and can converge either
+  source before claiming `runtime-only`. A linked shared `DATABASE_URL` remains
+  explicitly visible in evidence as a runtime-key source; the deployment guard
+  must still prove the effective Production value is the reviewed pooled
+  runtime identity.
 
 ## Activation Sequence
 

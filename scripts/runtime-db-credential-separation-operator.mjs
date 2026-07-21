@@ -21,6 +21,7 @@ import { pathToFileURL } from "node:url";
 import {
   PHASE_B_EARLIEST_PROMOTION_AT,
   REVIEWED_VERCEL_CLI_PATH,
+  REVIEWED_VERCEL_PROJECT,
   REVIEWED_VERCEL_PROJECT_DIRECTORY,
   assertExactPostSkewCanary,
   assertReviewedVercelCli,
@@ -67,6 +68,7 @@ export const EXPECTED_CURRENT_NEON_OWNER_UPDATED_AT =
 
 const REVIEWED_GH_PATH = "/opt/homebrew/bin/gh";
 const REVIEWED_GH_VERSION_PREFIX = "gh version 2.91.0 ";
+const REVIEWED_VERCEL_SCOPE_SLUG = "drew-youngs-projects";
 const EVIDENCE_DIRECTORY = "/Users/drewyoung/grainline-rollout-evidence";
 const PHASE_B_POSTFLIGHT_PATH = path.join(
   EVIDENCE_DIRECTORY,
@@ -272,8 +274,32 @@ function exactSensitiveProductionRecord(entry, expectedUpdatedAt) {
     && entry.updatedAt === expectedUpdatedAt;
 }
 
-export function normalizeVercelDatabaseEnvironmentState(payload) {
+export function normalizeVercelDatabaseEnvironmentState(
+  payload,
+  sharedPayload = { data: [], pagination: { count: 0, next: null } },
+) {
   const records = Array.isArray(payload?.envs) ? payload.envs : [];
+  const sharedRecords = sharedPayload?.data;
+  if (
+    !Array.isArray(sharedRecords)
+    || sharedPayload?.pagination?.next !== null
+    || sharedPayload?.pagination?.count !== sharedRecords.length
+  ) {
+    throw new Error("Vercel shared environment inventory is incomplete");
+  }
+  const linkedSharedRecords = sharedRecords.filter((entry) => (
+    Array.isArray(entry?.projectId)
+    && entry.projectId.includes(REVIEWED_VERCEL_PROJECT.projectId)
+  ));
+  if (linkedSharedRecords.some((entry) => (
+    typeof entry?.id !== "string"
+    || !/^env_[A-Za-z0-9]+$/.test(entry.id)
+    || typeof entry?.key !== "string"
+    || !Array.isArray(entry.target)
+    || Object.hasOwn(entry, "value")
+  ))) {
+    throw new Error("Vercel linked shared environment metadata is invalid");
+  }
   const findExactlyOneProduction = (key) => {
     const matches = records.filter((entry) => (
       entry?.key === key
@@ -326,16 +352,38 @@ export function normalizeVercelDatabaseEnvironmentState(payload) {
     (entry) => entry?.key === "SAVED_SEARCH_RLS_DEPLOY_PHASE",
   ).length;
   if (phaseGuardCount !== 0) throw new Error("temporary SavedSearch deploy guard still exists");
-  const presentPrivilegedKeys = privileged.map((entry) => entry.key).sort();
+  const sharedPrivilegedLinks = linkedSharedRecords
+    .filter((entry) => (
+      privilegedDatabaseEnvironmentKeys({ [entry.key]: true }).length > 0
+    ))
+    .map((entry) => Object.freeze({
+      id: entry.id,
+      key: entry.key,
+      target: [...entry.target],
+    }));
+  const projectPrivilegedKeys = privileged.map((entry) => entry.key).sort();
+  const presentPrivilegedKeys = [...new Set([
+    ...projectPrivilegedKeys,
+    ...sharedPrivilegedLinks.map((entry) => entry.key),
+  ])].sort();
   let stage = "partial-removal";
   if (presentPrivilegedKeys.length === 0) stage = "runtime-only";
   if (
-    JSON.stringify(presentPrivilegedKeys)
+    sharedPrivilegedLinks.length === 0
+    && JSON.stringify(projectPrivilegedKeys)
     === JSON.stringify(["DIRECT_URL", "MIGRATION_DB_ROLE"])
   ) stage = "pre-removal";
   return Object.freeze({
     stage,
     presentPrivilegedKeys,
+    projectPrivilegedKeys,
+    sharedPrivilegedLinks,
+    linkedSharedDatabaseKeys: linkedSharedRecords
+      .map((entry) => entry.key)
+      .filter((key) => key === "DATABASE_URL" || (
+        privilegedDatabaseEnvironmentKeys({ [key]: true }).length > 0
+      ))
+      .sort(),
     databaseUrlUpdatedAt: databaseUrl.updatedAt,
     runtimeRoleUpdatedAt: runtimeRole.updatedAt,
     directUrlUpdatedAt: directUrl?.updatedAt ?? null,
@@ -347,11 +395,23 @@ export function normalizeVercelDatabaseEnvironmentState(payload) {
 export function readVercelIsolationState() {
   assertReviewedVercelCli();
   assertReviewedVercelProject(REVIEWED_VERCEL_PROJECT_DIRECTORY);
-  return normalizeVercelDatabaseEnvironmentState(runProvider(
+  const projectEnvironment = runProvider(
     process.execPath,
     [REVIEWED_VERCEL_CLI_PATH, "env", "ls", "--format", "json", "--no-color"],
     { json: true },
-  ));
+  );
+  const sharedEnvironment = runProvider(process.execPath, [
+    REVIEWED_VERCEL_CLI_PATH,
+    "api",
+    "/v1/env",
+    "--raw",
+    "--scope",
+    REVIEWED_VERCEL_SCOPE_SLUG,
+  ], { json: true });
+  return normalizeVercelDatabaseEnvironmentState(
+    projectEnvironment,
+    sharedEnvironment,
+  );
 }
 
 export function removeVercelPrivilegedDatabaseEnvironment(before = readVercelIsolationState()) {
@@ -359,7 +419,7 @@ export function removeVercelPrivilegedDatabaseEnvironment(before = readVercelIso
     throw new Error("Vercel removal state is invalid");
   }
   for (const key of ["DIRECT_URL", "MIGRATION_DB_ROLE"]) {
-    if (!before.presentPrivilegedKeys.includes(key)) continue;
+    if (!before.projectPrivilegedKeys.includes(key)) continue;
     runProvider(process.execPath, [
       REVIEWED_VERCEL_CLI_PATH,
       "env",
@@ -367,6 +427,21 @@ export function removeVercelPrivilegedDatabaseEnvironment(before = readVercelIso
       key,
       "production",
       "--yes",
+      "--no-color",
+    ]);
+  }
+  for (const link of before.sharedPrivilegedLinks) {
+    runProvider(process.execPath, [
+      REVIEWED_VERCEL_CLI_PATH,
+      "api",
+      `/v1/env/${link.id}/unlink/${REVIEWED_VERCEL_PROJECT.projectId}`,
+      "-X",
+      "PATCH",
+      "-H",
+      "Content-Type: application/json",
+      "--scope",
+      REVIEWED_VERCEL_SCOPE_SLUG,
+      "--silent",
       "--no-color",
     ]);
   }

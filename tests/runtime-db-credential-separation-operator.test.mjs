@@ -152,6 +152,25 @@ function sensitiveRecord(key, updatedAt) {
   };
 }
 
+function sharedEnvironment(records = []) {
+  return {
+    data: records,
+    pagination: { count: records.length, next: null, prev: null },
+  };
+}
+
+function sharedRecord(key, projectId = ["prj_O2S8qcYFFWXn6nnrV0DkLyqMprIp"]) {
+  return {
+    id: `env_${key.replaceAll("_", "")}`,
+    key,
+    type: "encrypted",
+    target: ["development", "preview", "production"],
+    projectId,
+    createdAt: 1,
+    updatedAt: 2,
+  };
+}
+
 describe("runtime database credential separation operator", () => {
   it("pins the post-Phase-B gate, explicit mode, release commit, and evidence path", () => {
     assert.equal(
@@ -238,6 +257,33 @@ describe("runtime database credential separation operator", () => {
     assert.throws(() => normalizeVercelDatabaseEnvironmentState({
       envs: [...base, direct, { ...direct }],
     }), /duplicate/);
+
+    const sharedDirect = normalizeVercelDatabaseEnvironmentState(
+      { envs: base },
+      sharedEnvironment([sharedRecord("DIRECT_URL")]),
+    );
+    assert.equal(sharedDirect.stage, "partial-removal");
+    assert.deepEqual(sharedDirect.presentPrivilegedKeys, ["DIRECT_URL"]);
+    assert.deepEqual(sharedDirect.projectPrivilegedKeys, []);
+    assert.deepEqual(sharedDirect.sharedPrivilegedLinks, [{
+      id: "env_DIRECTURL",
+      key: "DIRECT_URL",
+      target: ["development", "preview", "production"],
+    }]);
+
+    const sharedRuntime = normalizeVercelDatabaseEnvironmentState(
+      { envs: base },
+      sharedEnvironment([
+        sharedRecord("DIRECT_URL", []),
+        sharedRecord("DATABASE_URL"),
+      ]),
+    );
+    assert.equal(sharedRuntime.stage, "runtime-only");
+    assert.deepEqual(sharedRuntime.linkedSharedDatabaseKeys, ["DATABASE_URL"]);
+    assert.throws(() => normalizeVercelDatabaseEnvironmentState(
+      { envs: base },
+      { data: [], pagination: { count: 0, next: 123 } },
+    ), /inventory is incomplete/);
   });
 
   it("runs a read-only preflight and a bounded Vercel-only removal step", async () => {
