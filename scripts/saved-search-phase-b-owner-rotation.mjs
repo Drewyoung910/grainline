@@ -71,7 +71,9 @@ const GENERATED_PASSWORD_PATTERN = /^[A-Za-z0-9_-]{40,}$/;
 const SCRAM_PASSWORD_INPUT_PATTERN = /^[\x21-\x7e]+$/;
 const SCRAM_ITERATIONS = 4096;
 const SCRAM_VERIFIER_PATTERN = /^SCRAM-SHA-256\$4096:[A-Za-z0-9+/]+={0,2}\$[A-Za-z0-9+/]+={0,2}:[A-Za-z0-9+/]+={0,2}$/;
-const REVIEWED_VERCEL_CLI_VERSION = "56.3.2";
+const REVIEWED_VERCEL_CLI_VERSION = "56.4.1";
+const REVIEWED_VERCEL_CLI_INTEGRITY =
+  "sha512-+CIEa0qcKm1RNBRhOvpo2l/yz28LMKSDuGeAYGx4/EkYyR5VOrXJZYV52WvqVARcxBAbH3Un2RRin8YGXMlcNg==";
 const REVIEWED_OWNER_MEMBERSHIPS = Object.freeze([
   REVIEWED_RUNTIME_ROLE,
   "neon_superuser",
@@ -331,10 +333,22 @@ export function assertReviewedVercelCli() {
     "package.json",
   );
   const packageMetadata = JSON.parse(readFileSync(packagePath, "utf8"));
+  const cacheLockPath = path.resolve(
+    path.dirname(packagePath),
+    "..",
+    "..",
+    "package-lock.json",
+  );
+  const cacheLock = JSON.parse(readFileSync(cacheLockPath, "utf8"));
+  const lockedPackage = cacheLock?.packages?.["node_modules/vercel"];
   if (
     packageMetadata?.name !== "vercel"
     || packageMetadata.version !== REVIEWED_VERCEL_CLI_VERSION
     || packageMetadata?.bin?.vercel !== "./dist/vc.js"
+    || lockedPackage?.version !== REVIEWED_VERCEL_CLI_VERSION
+    || lockedPackage?.resolved
+      !== `https://registry.npmjs.org/vercel/-/vercel-${REVIEWED_VERCEL_CLI_VERSION}.tgz`
+    || lockedPackage?.integrity !== REVIEWED_VERCEL_CLI_INTEGRITY
   ) {
     throw new Error("Vercel CLI package does not match the reviewed operator version");
   }

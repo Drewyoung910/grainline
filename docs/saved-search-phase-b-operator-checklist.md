@@ -19,7 +19,7 @@ parses them. Do not select those columns directly: on an America/Chicago host,
 direct parsing shifts the evidence five hours forward and can distort time-gate
 comparisons.
 
-Run the helper directly. Do not wrap it in `vercel env run`: Vercel CLI 56.3.2
+Run the helper directly. Do not wrap it in `vercel env run`: Vercel CLI 56.4.1
 merges downloaded values first and then lets local files and the parent process
 override them, while Vercel Sensitive values are deliberately non-readable
 outside builds. The helper loads only the current owner `DIRECT_URL` from the

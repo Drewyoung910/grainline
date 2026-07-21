@@ -149,6 +149,18 @@ Read-only inventory reverified on 2026-07-21:
   was the deliberate dependency-hygiene pin still expecting Prisma 7.8. The
   reviewed pin now expects 7.9; audit and build correctly remained skipped
   until a new exact-commit run can exercise them.
+- Exact-commit CI run `29871126969` passed the complete gate: clean install,
+  Prisma generation, all 148 migrations, production-style grant/RLS audit,
+  typecheck, lint, all 1,790 tests, high-severity dependency audit, and the
+  production build.
+- The first post-CI `repair-local` attempt failed before reading Vercel state
+  because the mutable npx cache had advanced its Vercel CLI from the reviewed
+  56.3.2 to 56.4.1. Evidence
+  `runtime-db-separation-local-repair-0b0bb01d-20260721.json` records
+  `sourceVerified=true`, `phaseBPostflightVerified=true`, and every provider,
+  database, and mutation flag false. The installed 56.4.1 package matched the
+  npm registry SHA-512 integrity; the operator now pins both that version and
+  integrity and must pass a new exact-commit CI run before retrying.
 
 ## Activation Sequence
 
