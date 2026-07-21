@@ -143,6 +143,12 @@ Read-only inventory reverified on 2026-07-21:
   Prisma 7.9, and resolves patched `brace-expansion`, `fast-uri`, `js-yaml`,
   and `linkify-it` versions through the lockfile. Do not suppress or lower the
   audit gate; a fresh exact-commit CI run must still build successfully.
+- Exact-commit CI run `29870881784` then proved the Prisma 7.9 lockfile installs,
+  generates, replays all migrations, passes the production-style grant/RLS
+  audit, typechecks, lints, and passes 1,789 of 1,790 tests. Its only failure
+  was the deliberate dependency-hygiene pin still expecting Prisma 7.8. The
+  reviewed pin now expects 7.9; audit and build correctly remained skipped
+  until a new exact-commit run can exercise them.
 
 ## Activation Sequence
 
