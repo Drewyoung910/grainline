@@ -116,6 +116,13 @@ Read-only inventory reverified on 2026-07-21:
   passwordless, membership-free `LOGIN NOINHERIT` role so fresh-database
   replay matches the current production posture; no sealed migration was
   edited.
+- Exact-commit CI run `29867876111` then applied all 148 migrations, including
+  sealed Phase B, and converged migration status successfully. It failed at the
+  separate final grant audit because the workflow omitted the audit tool's
+  existing explicit `--allow-loopback-ci` transport flag for the ephemeral
+  localhost `sslmode=disable` service. The workflow now supplies that narrow
+  flag; remote and guarded production audits still require exact
+  `sslmode=verify-full` and cannot combine the two modes.
 
 ## Activation Sequence
 

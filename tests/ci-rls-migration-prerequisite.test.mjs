@@ -36,7 +36,7 @@ describe("fresh CI database RLS migration prerequisite", () => {
         'psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql';
       const migrationStatusCommand = "npx prisma migrate status";
       const auditCommand =
-        'GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants';
+        'GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci';
       const isEphemeralCiDatabase =
         workflow.includes("POSTGRES_DB: grainline_ci")
         && workflow.includes("postgres:16");

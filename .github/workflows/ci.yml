@@ -95,7 +95,7 @@ jobs:
       - name: Verify migration status
         run: npx prisma migrate status
       - name: Audit final runtime grants and RLS catalog
-        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - run: npx tsc --noEmit
       - name: Lint
         run: npm run lint
