@@ -6,6 +6,7 @@ import {
   existsSync,
   fsyncSync,
   ftruncateSync,
+  lstatSync,
   openSync,
   readFileSync,
   renameSync,
@@ -26,7 +27,6 @@ import {
   assertReviewedVercelProject,
   loadReviewedLocalDatabaseEnvironment,
   realDatabaseOperations,
-  updateReviewedLocalDirectUrl,
 } from "./saved-search-phase-b-owner-rotation.mjs";
 import {
   assertProductionMigrationDatabaseState,
@@ -74,6 +74,10 @@ const PHASE_B_POSTFLIGHT_PATH = path.join(
 );
 const PRIOR_OWNER_STATE_PATH =
   "/Users/drewyoung/grainline/.env.local.runtime-db-separation-prior-owner.json";
+export const SEPARATION_LOCAL_CREDENTIAL_PATH =
+  "/Users/drewyoung/grainline/.env.migration-owner.local";
+const SEPARATION_LOCAL_CREDENTIAL_TEMP_PATH =
+  "/Users/drewyoung/grainline/.env.migration-owner.local.tmp";
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/;
 const MODES = new Set([
   "preflight-only",
@@ -92,6 +96,89 @@ function required(env, key) {
     throw new Error(`${key} is required without surrounding whitespace`);
   }
   return value;
+}
+
+export function loadSeparationLocalDatabaseEnvironment(env = process.env) {
+  const dedicatedCredentialExists = existsSync(SEPARATION_LOCAL_CREDENTIAL_PATH);
+  assertSeparationLocalCredentialSource(env, dedicatedCredentialExists);
+  if (!dedicatedCredentialExists) {
+    return loadReviewedLocalDatabaseEnvironment(env);
+  }
+  const credentialStat = lstatSync(SEPARATION_LOCAL_CREDENTIAL_PATH);
+  if (
+    !credentialStat.isFile()
+    || (credentialStat.mode & 0o777) !== 0o600
+    || (typeof process.getuid === "function" && credentialStat.uid !== process.getuid())
+  ) {
+    throw new Error("separation owner credential file must remain a mode-0600 regular file");
+  }
+  const source = readFileSync(SEPARATION_LOCAL_CREDENTIAL_PATH, "utf8");
+  const directUrl = parseSeparationLocalCredentialSource(source);
+  const loaded = {
+    ...env,
+    DIRECT_URL: directUrl,
+    RUNTIME_DB_ROLE: "grainline_app_runtime",
+    MIGRATION_DB_ROLE: "neondb_owner",
+  };
+  delete loaded.DATABASE_URL;
+  delete loaded.GRANT_AUDIT_DATABASE_URL;
+  return loaded;
+}
+
+export function assertSeparationLocalCredentialSource(
+  env,
+  dedicatedCredentialExists,
+) {
+  if (
+    dedicatedCredentialExists !== true
+    && env?.RUNTIME_DB_SEPARATION_MODE !== "repair-local"
+  ) {
+    throw new Error(
+      "dedicated separation owner credential is required outside repair-local bootstrap",
+    );
+  }
+  return dedicatedCredentialExists ? "dedicated" : "legacy-bootstrap";
+}
+
+export function parseSeparationLocalCredentialSource(source) {
+  const match = source.match(/^DIRECT_URL="([^"]+)"\n?$/);
+  if (!match) {
+    throw new Error("separation owner credential file must contain exactly one quoted DIRECT_URL");
+  }
+  return buildNeonOwnerDirectUrl(
+    match[1],
+    decodeURIComponent(new URL(match[1]).password),
+  );
+}
+
+export function updateSeparationLocalDirectUrl(directUrl) {
+  const reviewedDirectUrl = buildNeonOwnerDirectUrl(
+    directUrl,
+    decodeURIComponent(new URL(directUrl).password),
+  );
+  writeFileSync(
+    SEPARATION_LOCAL_CREDENTIAL_TEMP_PATH,
+    formatSeparationLocalCredentialSource(reviewedDirectUrl),
+    { encoding: "utf8", mode: 0o600, flag: "wx" },
+  );
+  chmodSync(SEPARATION_LOCAL_CREDENTIAL_TEMP_PATH, 0o600);
+  renameSync(
+    SEPARATION_LOCAL_CREDENTIAL_TEMP_PATH,
+    SEPARATION_LOCAL_CREDENTIAL_PATH,
+  );
+  const persisted = readFileSync(SEPARATION_LOCAL_CREDENTIAL_PATH, "utf8");
+  if (persisted !== formatSeparationLocalCredentialSource(reviewedDirectUrl)) {
+    throw new Error("separation owner credential persistence verification failed");
+  }
+  return true;
+}
+
+export function formatSeparationLocalCredentialSource(directUrl) {
+  const reviewedDirectUrl = buildNeonOwnerDirectUrl(
+    directUrl,
+    decodeURIComponent(new URL(directUrl).password),
+  );
+  return `DIRECT_URL="${reviewedDirectUrl}"\n`;
 }
 
 export function parseSeparationOperatorConfig(env = process.env, now = new Date()) {
@@ -575,7 +662,7 @@ export async function runSeparationOperator(config, dependencyOverrides = {}) {
     readGithubState: readGithubMigrationState,
     updateGithubCredential: updateGithubMigrationCredential,
     clearGithubCredential: clearGithubMigrationCredential,
-    updateLocalDirectUrl: updateReviewedLocalDirectUrl,
+    updateLocalDirectUrl: updateSeparationLocalDirectUrl,
     readPhaseBProof: readPhaseBPostflightProof,
     verifyNeonTarget: verifyReviewedNeonTarget,
     readNeonRoleMetadata: readReviewedNeonOwnerRoleMetadata,
@@ -1069,7 +1156,7 @@ async function main() {
   let priorOwnerCleanupCompleted = false;
   try {
     config = parseSeparationOperatorConfig(
-      loadReviewedLocalDatabaseEnvironment(process.env),
+      loadSeparationLocalDatabaseEnvironment(process.env),
       new Date(),
     );
     const interruptedEvidence = publishInterruptedCompletedEvidence(config);

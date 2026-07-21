@@ -6,10 +6,14 @@ import {
   EXPECTED_PRODUCTION_DIRECT_UPDATED_AT,
   EXPECTED_PRODUCTION_MIGRATION_ROLE_UPDATED_AT,
   EXPECTED_PRODUCTION_RUNTIME_ROLE_UPDATED_AT,
+  SEPARATION_LOCAL_CREDENTIAL_PATH,
   SEPARATION_CONFIRMATION,
+  assertSeparationLocalCredentialSource,
   buildSeparationEvidence,
+  formatSeparationLocalCredentialSource,
   normalizeVercelDatabaseEnvironmentState,
   parseSeparationOperatorConfig,
+  parseSeparationLocalCredentialSource,
   runSeparationOperator,
 } from "../scripts/runtime-db-credential-separation-operator.mjs";
 import { PHASE_B_CANARY_BUCKET } from "../scripts/saved-search-phase-b-owner-rotation.mjs";
@@ -150,6 +154,10 @@ function sensitiveRecord(key, updatedAt) {
 
 describe("runtime database credential separation operator", () => {
   it("pins the post-Phase-B gate, explicit mode, release commit, and evidence path", () => {
+    assert.equal(
+      SEPARATION_LOCAL_CREDENTIAL_PATH,
+      "/Users/drewyoung/grainline/.env.migration-owner.local",
+    );
     assert.equal(parseSeparationOperatorConfig(environment(), NOW).releaseCommit, COMMIT);
     for (const mode of [
       "preflight-only",
@@ -168,6 +176,32 @@ describe("runtime database credential separation operator", () => {
       ...environment(),
       RUNTIME_DB_SEPARATION_CONFIRM: "yes",
     }, NOW));
+  });
+
+  it("keeps the dedicated local owner file single-purpose and exact", () => {
+    const source = formatSeparationLocalCredentialSource(NEXT_URL);
+    assert.equal(source, `DIRECT_URL="${NEXT_URL}"\n`);
+    assert.equal(parseSeparationLocalCredentialSource(source), NEXT_URL);
+    assert.throws(() => parseSeparationLocalCredentialSource(
+      `${source}DATABASE_URL="${NEXT_URL}"\n`,
+    ), /exactly one/);
+    assert.equal(
+      assertSeparationLocalCredentialSource({
+        RUNTIME_DB_SEPARATION_MODE: "repair-local",
+      }, false),
+      "legacy-bootstrap",
+    );
+    assert.equal(
+      assertSeparationLocalCredentialSource({
+        RUNTIME_DB_SEPARATION_MODE: "preflight-only",
+      }, true),
+      "dedicated",
+    );
+    assert.throws(() => assertSeparationLocalCredentialSource({
+        RUNTIME_DB_SEPARATION_MODE: "preflight-only",
+      }, false),
+      /dedicated separation owner credential is required/,
+    );
   });
 
   it("distinguishes exact pre-removal, partial, and runtime-only Vercel states", () => {

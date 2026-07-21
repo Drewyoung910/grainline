@@ -2,10 +2,10 @@
 --
 -- Production and staging runtime roles are provisioned separately with
 -- externally managed credentials. This script intentionally creates a
--- NOLOGIN policy target only inside the ephemeral Grainline CI database so
--- fail-closed RLS migrations can be exercised from a blank database. After
--- migration, CI runs the production provisioning script, which converges this
--- passwordless ephemeral role to LOGIN NOINHERIT before the final grant audit.
+-- passwordless LOGIN policy target only inside the ephemeral Grainline CI
+-- database so every fail-closed RLS migration sees the production role
+-- attributes from a blank database. CI still runs the production provisioning
+-- script after migration to converge grants before the final catalog audit.
 
 \set ON_ERROR_STOP on
 
@@ -26,7 +26,7 @@ BEGIN
      WHERE rolname = 'grainline_app_runtime'
   ) THEN
     CREATE ROLE grainline_app_runtime
-      NOLOGIN
+      LOGIN
       NOSUPERUSER
       NOCREATEDB
       NOCREATEROLE
@@ -39,7 +39,7 @@ $grainline_ci_runtime_role$;
 
 -- Make reruns converge to the reviewed least-privilege policy-role shape.
 ALTER ROLE grainline_app_runtime
-  NOLOGIN
+  LOGIN
   NOSUPERUSER
   NOCREATEDB
   NOCREATEROLE

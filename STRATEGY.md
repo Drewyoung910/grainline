@@ -96,6 +96,16 @@ reveal and persist only that pinned current credential after proving old
 protected migration-secret inventory. A read-only preflight must still pass
 after repair; local reconciliation is not rollout acceptance.
 
+Because legacy `.env.local` was observed reverting to the rejected credential
+twice without a proved writer, it is no longer an acceptable owner-credential
+source after bootstrap. Separation uses the ignored mode-0600
+`.env.migration-owner.local` as its sole local source of truth once present.
+This is an isolation decision, not an attribution of the unexplained writer.
+Fresh-database CI must also create its passwordless runtime policy target with
+the current production `LOGIN NOINHERIT` attributes before replaying the sealed
+Phase-B migration; do not weaken or rewrite the applied migration to preserve a
+stale `NOLOGIN` fixture.
+
 ### Homepage discovery hierarchy decision (2026-07-15)
 
 Keep the local-maker map directly beneath the hero and floating marketplace stats. It is Grainline's clearest marketplace differentiator, but it should remain a compact discovery band so inventory appears after a short scroll rather than becoming a second full-screen gate.

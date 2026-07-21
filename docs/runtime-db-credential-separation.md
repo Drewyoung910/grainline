@@ -13,6 +13,13 @@ Production application Functions receive only the pooled
 different name. Owner migrations run from a manually approved GitHub
 `Production` environment against an exact clean `main` commit.
 
+The workstation owner credential lives only in the dedicated ignored private
+file `/Users/drewyoung/grainline/.env.migration-owner.local`. The operator may
+read legacy `.env.local` only to bootstrap `repair-local` when the dedicated
+file is absent; once created, the dedicated file is the sole local source of
+truth. This prevents application/tooling refreshes of `.env.local` from
+silently replacing the reviewed migration credential.
+
 Normal application traffic already uses the restricted runtime role and is
 subject to grants and RLS. This release closes the separate environment-
 exfiltration path: arbitrary runtime code that could read a valid
@@ -87,6 +94,12 @@ Read-only inventory reverified on 2026-07-21:
   `5726012929d33624731724891048b710b62454ace5596da366a2178614e0d7bc`
   and
   `a448fed32a235baced10d307a7d7133e690049c3db7f419774e84935796ee407`.
+- The legacy `.env.local` was subsequently replaced with the rejected URL a
+  second time at 20:41:08 UTC. The exact writer was not proved; do not assign a
+  cause. The durable fix is architectural: separation now stores and reads the
+  owner URL from the dedicated mode-`0600`
+  `.env.migration-owner.local`, which is covered by `.gitignore`, rather than
+  treating the application environment file as the migration-credential store.
 - The first fast-forward of this candidate to `main` created no Vercel
   deployment; the latest production deployment remained accepted Phase B
   `dpl_6nVQx5HBmurzH9iU1vwQLjA6gy2N`. GitHub CI run `29866387075`
@@ -95,6 +108,14 @@ Read-only inventory reverified on 2026-07-21:
   migrations. The successor changes only that CI contract to
   `phase-b-reviewed`; do not treat the failed run as a product/test failure or
   as a passing release gate.
+- Replacement CI run `29866888011` passed that Phase-B artifact guard, then
+  failed closed while replaying the sealed Phase-B migration because the
+  ephemeral CI bootstrap still created the policy role as `NOLOGIN`. The
+  PostgreSQL service log proved the first error was the migration's exact
+  runtime-role attribute check. The CI-only bootstrap now creates a
+  passwordless, membership-free `LOGIN NOINHERIT` role so fresh-database
+  replay matches the current production posture; no sealed migration was
+  edited.
 
 ## Activation Sequence
 
@@ -110,7 +131,9 @@ activation.
 4. If and only if the local owner URL is rejected while the pinned Neon role
    timestamp and all pre-removal provider state remain exact, run
    `repair-local`. It uses the idempotent reveal endpoint, proves the revealed
-   credential and catalog/canary, and changes only the private local URL.
+   credential and catalog/canary, and writes only the dedicated private local
+   owner file. Once that file exists, later operator modes ignore the legacy
+   application `.env.local` value.
 5. Run `preflight-only` from the exact clean `main` commit.
 6. Run `remove-vercel`. It removes only Production `DIRECT_URL` and
    `MIGRATION_DB_ROLE`, can converge an interrupted partial removal, and
@@ -170,7 +193,8 @@ npm run ops:separate-db-credential
 ```
 
 Bounded local repair, only after a failed preflight proves the local owner URL
-is rejected and provider/catalog state is otherwise exact:
+is rejected and provider/catalog state is otherwise exact. This creates or
+replaces only `.env.migration-owner.local`:
 
 ```sh
 RUNTIME_DB_SEPARATION_MODE=repair-local \
