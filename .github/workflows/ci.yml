@@ -82,9 +82,9 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
-      - name: Verify SavedSearch Release 0 production artifact
+      - name: Verify SavedSearch Phase B production artifact
         env:
-          SAVED_SEARCH_RLS_DEPLOY_PHASE: release-0
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: phase-b-reviewed
         run: npm run verify:rls-release-artifact
       - name: Prepare CI runtime policy role
         run: psql "$DIRECT_URL" -f scripts/prepare-ci-rls-runtime-role.sql

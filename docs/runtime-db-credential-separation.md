@@ -81,6 +81,20 @@ Read-only inventory reverified on 2026-07-21:
   catalog. The failed sanitized artifact is
   `runtime-db-separation-preflight-candidate-20260721.json`. Do not treat it as
   passing evidence.
+- Candidate `4d8a62ef77317b8581fa82a5b3e63727ab875fa8` then passed both
+  bounded local repair and the complete read-only preflight. Their private
+  evidence SHA-256 values are respectively
+  `5726012929d33624731724891048b710b62454ace5596da366a2178614e0d7bc`
+  and
+  `a448fed32a235baced10d307a7d7133e690049c3db7f419774e84935796ee407`.
+- The first fast-forward of this candidate to `main` created no Vercel
+  deployment; the latest production deployment remained accepted Phase B
+  `dpl_6nVQx5HBmurzH9iU1vwQLjA6gy2N`. GitHub CI run `29866387075`
+  failed before its database setup because CI still requested the historical
+  `release-0` artifact while `main` correctly contains all four Phase-B
+  migrations. The successor changes only that CI contract to
+  `phase-b-reviewed`; do not treat the failed run as a product/test failure or
+  as a passing release gate.
 
 ## Activation Sequence
 

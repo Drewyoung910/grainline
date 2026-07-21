@@ -546,7 +546,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     );
   });
 
-  it("runs the clean Release-0 artifact guard unconditionally in CI before migrations", () => {
+  it("runs the current Phase-B artifact guard unconditionally in CI before migrations", () => {
     const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
     const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
 
@@ -556,7 +556,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     );
     assert.match(
       workflow,
-      /Verify SavedSearch Release 0 production artifact[\s\S]{0,180}SAVED_SEARCH_RLS_DEPLOY_PHASE: release-0[\s\S]{0,180}npm run verify:rls-release-artifact[\s\S]{0,400}Apply migrations to CI Postgres/,
+      /Verify SavedSearch Phase B production artifact[\s\S]{0,180}SAVED_SEARCH_RLS_DEPLOY_PHASE: phase-b-reviewed[\s\S]{0,180}npm run verify:rls-release-artifact[\s\S]{0,400}Apply migrations to CI Postgres/,
     );
   });
 
