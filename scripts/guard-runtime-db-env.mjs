@@ -123,12 +123,31 @@ export function assertVercelRuntimeDatabaseIsolation(env = process.env) {
   });
 }
 
+export function runtimeDatabaseIsolationFailureCode(error) {
+  const message = error instanceof Error ? error.message : "";
+  const rules = [
+    [/NODE_TLS_REJECT_UNAUTHORIZED/, "TLS_OVERRIDE"],
+    [/PGOPTIONS/, "PGOPTIONS"],
+    [/VERCEL_ENV/, "VERCEL_ENV"],
+    [/privileged database environment keys/, "PRIVILEGED_DATABASE_KEYS"],
+    [/PostgreSQL URLs outside DATABASE_URL/, "ALIASED_DATABASE_URL"],
+    [/connection parameters|sslmode=verify-full|channel_binding/, "DATABASE_URL_PARAMETERS"],
+    [/non-empty PostgreSQL URL|valid PostgreSQL URL|postgres\/postgresql protocol|explicit database host|explicit port|database path segment|invalid URL encoding/, "DATABASE_URL_SHAPE"],
+    [/pooled Neon endpoint/, "DATABASE_URL_NOT_POOLED"],
+    [/migration owner/, "DATABASE_URL_OWNER_ROLE"],
+    [/reviewed runtime identity/, "PRODUCTION_RUNTIME_IDENTITY"],
+  ];
+  return rules.find(([pattern]) => pattern.test(message))?.[1] ?? "UNCLASSIFIED";
+}
+
 function main() {
   try {
     const result = assertVercelRuntimeDatabaseIsolation(process.env);
     process.stdout.write(`${JSON.stringify(result)}\n`);
-  } catch {
-    process.stderr.write("Vercel runtime database isolation guard failed.\n");
+  } catch (error) {
+    process.stderr.write(
+      `Vercel runtime database isolation guard failed [${runtimeDatabaseIsolationFailureCode(error)}].\n`,
+    );
     process.exitCode = 1;
   }
 }

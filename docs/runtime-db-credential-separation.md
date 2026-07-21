@@ -161,6 +161,22 @@ Read-only inventory reverified on 2026-07-21:
   database, and mutation flag false. The installed 56.4.1 package matched the
   npm registry SHA-512 integrity; the operator now pins both that version and
   integrity and must pass a new exact-commit CI run before retrying.
+- Exact-commit CI run `29871768209` passed the complete gate after that pin.
+  Local repair, read-only preflight, Vercel privileged-variable removal, and
+  the one-time Neon owner reset then passed on `b7c95fd0`. Reset evidence is
+  acceptance-eligible and proves new authentication, superseded-password
+  rejection, protected GitHub digest agreement, zero other owner sessions,
+  Vercel runtime-only state, and private recovery-state removal. Repository-wide
+  `DIRECT_URL` and `DATABASE_URL` secrets were then deleted after proving no
+  workflow referenced them. Protected Production Migrations run `29872336361`
+  passed its exact-source/credential guard, migration deploy/status, and final
+  grant/RLS audit.
+- Unpromoted Production-target Vercel deployment
+  `dpl_79GeXVVS6KiPMUywKACzwsUtavrz` failed closed in
+  `guard:runtime-db-env`; public aliases remained on the accepted Phase B
+  deployment. The guard previously suppressed the specific assertion, so it
+  now emits only a bounded diagnostic code (never a value or raw error) before
+  a second staged deployment is attempted.
 
 ## Activation Sequence
 

@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   assertVercelRuntimeDatabaseIsolation,
   privilegedDatabaseEnvironmentKeys,
+  runtimeDatabaseIsolationFailureCode,
   unreviewedPostgresUrlEnvironmentKeys,
 } from "../scripts/guard-runtime-db-env.mjs";
 
@@ -105,5 +106,23 @@ describe("Vercel runtime database environment isolation", () => {
       provider: null,
       environment: null,
     });
+  });
+
+  it("reports only bounded diagnostic codes for build-time failures", () => {
+    const cases = [
+      [{ DIRECT_URL: "secret" }, "PRIVILEGED_DATABASE_KEYS"],
+      [{ DATABASE_URL: RUNTIME_URL.replace("verify-full", "require") }, "DATABASE_URL_PARAMETERS"],
+      [{ DATABASE_URL: RUNTIME_URL.replace("-pooler", "") }, "DATABASE_URL_NOT_POOLED"],
+      [{ RUNTIME_DB_ROLE: "unexpected-role" }, "PRODUCTION_RUNTIME_IDENTITY"],
+    ];
+    for (const [overrides, expected] of cases) {
+      assert.throws(() => assertVercelRuntimeDatabaseIsolation(productionEnv(overrides)), (error) => {
+        const code = runtimeDatabaseIsolationFailureCode(error);
+        assert.equal(code, expected);
+        assert.doesNotMatch(code, /secret|password|postgresql:/i);
+        return true;
+      });
+    }
+    assert.equal(runtimeDatabaseIsolationFailureCode(new Error("unexpected secret detail")), "UNCLASSIFIED");
   });
 });
