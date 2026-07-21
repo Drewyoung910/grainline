@@ -196,6 +196,46 @@ export function readReviewedNeonOperation(operationId) {
   return exactOperation(payload?.operation);
 }
 
+export function readReviewedNeonOwnerRoleMetadata() {
+  const payload = runNeonApi(
+    `/projects/${REVIEWED_NEON_PROJECT_ID}`
+      + `/branches/${REVIEWED_NEON_BRANCH_ID}`
+      + `/roles/${REVIEWED_OWNER_ROLE}`,
+  );
+  const role = payload?.role;
+  if (
+    role?.branch_id !== REVIEWED_NEON_BRANCH_ID
+    || role.name !== REVIEWED_OWNER_ROLE
+    || role.authentication_method !== "password"
+    || typeof role.updated_at !== "string"
+  ) {
+    throw new Error("Neon owner role metadata did not match the reviewed target");
+  }
+  return Object.freeze({
+    branchId: role.branch_id,
+    name: role.name,
+    authenticationMethod: role.authentication_method,
+    updatedAt: new Date(role.updated_at).toISOString(),
+  });
+}
+
+export function revealReviewedNeonOwnerPassword() {
+  const payload = runNeonApi(
+    `/projects/${REVIEWED_NEON_PROJECT_ID}`
+      + `/branches/${REVIEWED_NEON_BRANCH_ID}`
+      + `/roles/${REVIEWED_OWNER_ROLE}/reveal_password`,
+  );
+  if (
+    typeof payload?.password !== "string"
+    || payload.password.length < 20
+    || payload.password.length > 256
+    || !/^[\x21-\x7e]+$/.test(payload.password)
+  ) {
+    throw new Error("Neon revealed password did not match the reviewed shape");
+  }
+  return payload.password;
+}
+
 export function verifyReviewedNeonTarget() {
   const project = runNeonApi(`/projects/${REVIEWED_NEON_PROJECT_ID}`)?.project;
   const branch = runNeonApi(

@@ -190,6 +190,25 @@ an API failure without first reading the provider operation state and
 classifying all known credentials; Neon documents the reset POST as
 non-idempotent when its response is lost.
 
+If the reset POST is proved complete because both known passwords reject and
+the exact Neon owner-role `updatedAt` advanced, but its response was not safely
+persisted, do not reset again. With `store_passwords=true`, use the idempotent
+reveal recovery:
+
+```sh
+PHASE_B_NEON_OWNER_RECOVERY_CONFIRM=recover-current-owner-via-pinned-neon-reveal-after-lost-reset-response \
+PHASE_B_NEON_OWNER_RECOVERY_RELEASE_COMMIT=17bf93dc8837fd6c5e6988569f993781800b6318 \
+PHASE_B_NEON_OWNER_RECOVERY_EVIDENCE_PATH=/Users/drewyoung/grainline-rollout-evidence/saved-search-phase-b-owner-neon-recovery-20260721.json \
+npm run ops:recover-phase-b-owner-neon
+```
+
+This path performs no reset. It requires both superseded credentials to reject,
+the pinned post-reset role timestamp, the same control-plane/Vercel targets,
+and then retrieves the current password with Neon’s read-only
+`reveal_password` endpoint. It persists locally before changing only Vercel
+`DIRECT_URL`, then repeats the live owner/RLS/canary, superseded-credential,
+runtime-metadata, and session-drain proofs.
+
 ## 3. Phase B Deployment
 
 Proceed only when the rotation artifact is mode `0600`, `status=passed`,
