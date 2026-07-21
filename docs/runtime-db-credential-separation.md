@@ -1,9 +1,10 @@
 # Production Database Credential Separation
 
-Status: implementation under final review on
-`codex/rls-runtime-env-separation-20260719`; not active in production.
-SavedSearch Phase B is live and its accepted mode-`0600` postflight is pinned by
-SHA-256 in the separation operator.
+Status: runtime credential separation is live in production from source
+`b4f14beaff06831ed2e8d7a35578226b756c1a61`; the dedicated read-only production
+postflight remains the final acceptance gate. SavedSearch Phase B is live and
+its accepted mode-`0600` postflight is pinned by SHA-256 in both separation
+operators.
 
 ## Security Goal
 
@@ -164,13 +165,18 @@ Read-only inventory reverified on 2026-07-21:
 - Exact-commit CI run `29871768209` passed the complete gate after that pin.
   Local repair, read-only preflight, Vercel privileged-variable removal, and
   the one-time Neon owner reset then passed on `b7c95fd0`. Reset evidence is
-  acceptance-eligible and proves new authentication, superseded-password
-  rejection, protected GitHub digest agreement, zero other owner sessions,
-  Vercel runtime-only state, and private recovery-state removal. Repository-wide
-  `DIRECT_URL` and `DATABASE_URL` secrets were then deleted after proving no
-  workflow referenced them. Protected Production Migrations run `29872336361`
-  passed its exact-source/credential guard, migration deploy/status, and final
-  grant/RLS audit.
+  `/Users/drewyoung/grainline-rollout-evidence/runtime-db-separation-reset-b7c95fd0-20260721.json`
+  with SHA-256
+  `1b839f0cb3a887c20227ef4a8ddaed3d8560a4d5f0569b7cc094f6d1099830c8`.
+  It is acceptance-eligible and proves new authentication,
+  superseded-password rejection, protected GitHub digest agreement, zero other
+  owner sessions, Vercel runtime-only state, and private recovery-state
+  removal. The protected Production secret is
+  `PRODUCTION_MIGRATION_DIRECT_URL`; its non-secret digest is
+  `PRODUCTION_MIGRATION_DIRECT_URL_SHA256`. Repository-wide `DIRECT_URL` and
+  `DATABASE_URL` secrets were then deleted after proving no workflow referenced
+  them. Protected Production Migrations run `29872336361` passed its exact-
+  source/credential guard, migration deploy/status, and final grant/RLS audit.
 - Unpromoted Production-target Vercel deployment
   `dpl_79GeXVVS6KiPMUywKACzwsUtavrz` failed closed in
   `guard:runtime-db-env`; public aliases remained on the accepted Phase B
@@ -206,6 +212,28 @@ Read-only inventory reverified on 2026-07-21:
   retaining a vulnerable nested copy. A dependency guard now requires exactly
   one locked Sharp install at `0.35.3`; a fresh exact-commit CI run remains a
   release gate.
+- Exact-commit CI run `29877480616` on `b4f14bea` passed clean installation,
+  Prisma generation and all 148 migrations, the production-style grant/RLS
+  audit, typecheck, lint, all 1,791 tests (1,788 pass and three expected skips),
+  zero-vulnerability npm audit, and the production build. The build lock
+  contains exactly one Sharp installation at patched version `0.35.3`.
+- Production deployment `dpl_6Y6C3NT81zbhLc6eHJAveCH1Ave8` was built from
+  exact source `b4f14beaff06831ed2e8d7a35578226b756c1a61` on
+  `codex/rls-runtime-env-separation-20260719`. Its actual Vercel Production build
+  passed the runtime identity guard with the pooled `grainline_app_runtime`
+  role. It was then promoted; `thegrainline.com`, `www.thegrainline.com`, and
+  `grainline.vercel.app` resolve to that READY Production deployment, and `/`
+  plus `/api/health` returned HTTP 200.
+- A `vercel curl --yes` attempt from the previously unlinked worktree created
+  an unintended empty Vercel project named
+  `grainline-runtime-env-separation-20260721` (project id
+  `prj_C4krUMDDPAC4hDDnB0wD2IVEXv5h`) before the smoke request failed. Read-only
+  inspection proved the project had no deployment or Grainline resources; the
+  exact empty project was permanently removed. The real Grainline project,
+  deployments, environment records, aliases, and domains were not removed.
+  The worktree's ignored `.vercel/project.json` was then pinned to reviewed
+  Grainline project `prj_O2S8qcYFFWXn6nnrV0DkLyqMprIp`. Do not use `--yes`
+  from an unlinked worktree for a read-only request.
 
 ## Activation Sequence
 
@@ -263,8 +291,10 @@ activation.
 12. Explicitly deploy that same clean commit with Vercel. The build must pass
     with only the exact runtime database identity.
 13. Postflight must re-prove deployment source/aliases, Vercel env isolation,
-    migration/grant/RLS catalog state, runtime no-context denial, ops-health,
-    cron/webhook health, and live read-only routes.
+    protected GitHub migration-secret metadata, exact green CI/migration runs,
+    migration/grant/RLS catalog state, owner-session drain, runtime no-context
+    denial and transaction-local context cleanup, the pinned ops-health canary,
+    and live read-only routes.
 14. Only then resume Notification staging/activation.
 
 ## Operator Commands
@@ -337,6 +367,23 @@ When it contains a completed artifact and recovery state is already absent, an
 exact rerun publishes it without provider work. Otherwise retain it and run
 `recover` with a new evidence filename while the private prior-owner file
 exists.
+
+Final read-only postflight, from its own exact clean operator commit. The
+operator commit is intentionally distinct from the already deployed application
+source commit, which is separately pinned inside the operator:
+
+```sh
+RUNTIME_DB_SEPARATION_POSTFLIGHT_CONFIRM=verify-live-runtime-db-separation \
+RUNTIME_DB_SEPARATION_POSTFLIGHT_OPERATOR_COMMIT=<exact-operator-sha> \
+RUNTIME_DB_SEPARATION_POSTFLIGHT_EVIDENCE_PATH=/Users/drewyoung/grainline-rollout-evidence/runtime-db-separation-production-postflight.json \
+npm run ops:verify-db-separation
+```
+
+The postflight rejects ambient PostgreSQL credentials, loads the owner and
+runtime credentials only from their reviewed private local files, and emits no
+credential, raw provider error, or connection string. A failed run writes only
+a sanitized fail-closed artifact; never weaken a failed assertion to obtain a
+passing artifact.
 
 ## Failure And Rollback
 
