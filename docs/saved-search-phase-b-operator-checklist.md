@@ -228,6 +228,69 @@ Proceed only when the rotation artifact is mode `0600`, `status=passed`,
 6. Stop before Bucket B. Externalize `DIRECT_URL` and `MIGRATION_DB_ROLE` from
    application Functions in the next independently reviewed release.
 
+### Reproducible production postflight
+
+After the exact deployment is READY, the production aliases point to it, and
+the temporary phase guard has been removed, run the dedicated read-only
+postflight from the clean operator branch:
+
+```sh
+PHASE_B_PRODUCTION_POSTFLIGHT_CONFIRM=verify-live-saved-search-phase-b-production \
+PHASE_B_PRODUCTION_POSTFLIGHT_RELEASE_COMMIT=17bf93dc8837fd6c5e6988569f993781800b6318 \
+PHASE_B_PRODUCTION_POSTFLIGHT_DEPLOYMENT_ID=dpl_6nVQx5HBmurzH9iU1vwQLjA6gy2N \
+PHASE_B_PRODUCTION_POSTFLIGHT_EVIDENCE_PATH=/Users/drewyoung/grainline-rollout-evidence/saved-search-phase-b-production-postflight-20260721.json \
+npm run ops:postflight-phase-b-production
+```
+
+The operator requires the sealed release worktree to be clean at the exact
+commit, re-runs the complete 58-table runtime grant audit from that tree, proves
+the Phase B migration record and exact `ENABLE` + `FORCE` + three-policy
+catalog state, checks both role postures and owner-session drain, pins the
+Vercel deployment source/aliases and credential-record timestamps, proves the
+temporary phase guard absent, and performs public health/browse plus signed-out
+SavedSearch route checks. It also pins the SHA-256 of the retained Phase A
+direct runtime no-context denial proof. This is deliberate: Sensitive
+Production `DATABASE_URL` is not readable outside the deployed application,
+and the owner cannot `SET ROLE grainline_app_runtime`, so the postflight must
+not manufacture a fake runtime proof with the BYPASSRLS owner credential.
+
+The prior 06:20 UTC canary remains the activation gate. Verify the first
+scheduled ops-health bucket completed after deployment as a follow-up
+confirmation; do not hold an otherwise complete postflight open merely to wait
+for that schedule.
+
+### 2026-07-21 production execution record
+
+- Owner credential recovery completed before deployment. The accepted current
+  credential is present only in the private local operator file and Vercel
+  Sensitive Production `DIRECT_URL`; both superseded credentials reject.
+- Vercel deployment `dpl_6nVQx5HBmurzH9iU1vwQLjA6gy2N` deployed the exact
+  sealed commit `17bf93dc8837fd6c5e6988569f993781800b6318` from
+  `codex/saved-search-phase-b-20260719`, reached `READY`, and owns the
+  `thegrainline.com`, `www.thegrainline.com`, and `grainline.vercel.app`
+  aliases.
+- The guarded build applied only
+  `20260720060000_force_saved_search_rls`; its final catalog/grant audit passed
+  with 58 tables, 20 enums, three reviewed `grainline_*` functions, one
+  extension, one RLS-policy table, and zero sequence references.
+- The temporary Sensitive Production
+  `SAVED_SEARCH_RLS_DEPLOY_PHASE=phase-b-reviewed` record was removed after the
+  deployment. Postflight found zero remaining phase-guard records.
+- The independent mode-`0600` artifact
+  `/Users/drewyoung/grainline-rollout-evidence/saved-search-phase-b-production-postflight-20260721.json`
+  passed at `2026-07-21T19:45:28.072Z` with `issueCount=0`. It proves the exact
+  finished/not-rolled-back migration row, `relrowsecurity=true`,
+  `relforcerowsecurity=true`, exactly three reviewed policies, unchanged exact
+  owner/runtime role posture, zero other owner sessions, zero policy/grant
+  issues, the retained direct runtime no-context proof hash, and successful
+  live route boundaries (`/api/health` 200/healthy, `/browse` 200, signed-out
+  SavedSearch API 401, signed-out SavedSearch page 307 to sign-in).
+- SavedSearch Phase B is therefore live and complete. The next scheduled
+  post-deployment ops-health bucket remains a follow-up confirmation. The next
+  release boundary is runtime credential externalization: remove `DIRECT_URL`
+  and `MIGRATION_DB_ROLE` from application Functions before resuming
+  Notification activation work.
+
 If Phase B causes an application regression, disable RLS at the database before
 rolling app code back. Do not roll the app back while FORCE remains active.
 
