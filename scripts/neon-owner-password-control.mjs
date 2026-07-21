@@ -23,6 +23,8 @@ export const NEON_OWNER_PASSWORD_PATTERN = /^[A-Za-z0-9_-]{16}$/;
 
 const OPERATION_ATTEMPTS = 16;
 const OPERATION_INTERVAL_MS = 2_000;
+const GET_ATTEMPTS = 3;
+const GET_RETRY_INTERVAL_MS = 500;
 
 function cleanEnvironment(env = process.env) {
   const child = { ...env };
@@ -62,35 +64,46 @@ export function assertReviewedNeonCli() {
 }
 
 function runNeonApi(pathname, method = "GET") {
-  assertReviewedNeonCli();
-  const result = spawnSync(
-    process.execPath,
-    [
-      REVIEWED_NEON_CLI_PATH,
-      "api",
-      pathname,
-      "--method",
-      method,
-      "--output",
-      "json",
-      "--no-color",
-      "--no-analytics",
-    ],
-    {
-      env: cleanEnvironment(),
-      encoding: "utf8",
-      timeout: 45_000,
-      maxBuffer: 1024 * 1024,
-    },
-  );
-  if (result.error || result.status !== 0) {
-    throw new Error("reviewed Neon API command failed without a usable response");
+  const attempts = method === "GET" ? GET_ATTEMPTS : 1;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    assertReviewedNeonCli();
+    const result = spawnSync(
+      process.execPath,
+      [
+        REVIEWED_NEON_CLI_PATH,
+        "api",
+        pathname,
+        "--method",
+        method,
+        "--output",
+        "json",
+        "--no-color",
+        "--no-analytics",
+      ],
+      {
+        env: cleanEnvironment(),
+        encoding: "utf8",
+        timeout: 45_000,
+        maxBuffer: 1024 * 1024,
+      },
+    );
+    if (!result.error && result.status === 0) {
+      try {
+        return JSON.parse(result.stdout);
+      } catch {
+        throw new Error("reviewed Neon API response was not valid JSON");
+      }
+    }
+    if (attempt < attempts) {
+      Atomics.wait(
+        new Int32Array(new SharedArrayBuffer(4)),
+        0,
+        0,
+        GET_RETRY_INTERVAL_MS,
+      );
+    }
   }
-  try {
-    return JSON.parse(result.stdout);
-  } catch {
-    throw new Error("reviewed Neon API response was not valid JSON");
-  }
+  throw new Error("reviewed Neon API command failed without a usable response");
 }
 
 export function normalizeNeonOperation(operation) {

@@ -72,6 +72,15 @@ Read-only inventory reverified on 2026-07-21:
   `/Users/drewyoung/grainline-rollout-evidence/saved-search-phase-b-production-postflight-20260721.json`,
   SHA-256
   `768096b53662ec9e8deaf8a3a63e6021ad755464f48b4b01c02fb339f1c78ea4`.
+- The first candidate preflight on 2026-07-21 failed closed after provider
+  metadata and before database/canary acceptance because the mode-`0600` local
+  `DIRECT_URL` had been replaced at 20:24:24 UTC with an already rejected
+  credential. Neon role metadata remained at the reviewed
+  `2026-07-21T19:16:14.000Z`; a read-only reveal comparison proved the stored
+  current password differed, authenticated, and retained the exact production
+  catalog. The failed sanitized artifact is
+  `runtime-db-separation-preflight-candidate-20260721.json`. Do not treat it as
+  passing evidence.
 
 ## Activation Sequence
 
@@ -84,13 +93,17 @@ activation.
    deployment was created.
 3. Re-read GitHub `Production` protection and its empty pre-rotation
    secret/variable inventory.
-4. Run `preflight-only` from the exact clean `main` commit.
-5. Run `remove-vercel`. It removes only Production `DIRECT_URL` and
+4. If and only if the local owner URL is rejected while the pinned Neon role
+   timestamp and all pre-removal provider state remain exact, run
+   `repair-local`. It uses the idempotent reveal endpoint, proves the revealed
+   credential and catalog/canary, and changes only the private local URL.
+5. Run `preflight-only` from the exact clean `main` commit.
+6. Run `remove-vercel`. It removes only Production `DIRECT_URL` and
    `MIGRATION_DB_ROLE`, can converge an interrupted partial removal, and
    requires unchanged runtime record timestamps plus a fresh all-environment
    inventory with no privileged database key. Existing deployments retain
    their build-time environment until the next step invalidates that password.
-6. Run `reset`. It uses the pinned Neon control-plane reset for the exact
+7. Run `reset`. It uses the pinned Neon control-plane reset for the exact
    project, primary/default production branch, read-write endpoint, and owner
    role. Before any provider read or mutation it reserves and fsyncs 64 KiB for
    the private evidence artifact. Before the non-idempotent POST it writes the
@@ -101,7 +114,7 @@ activation.
    owner sessions, GitHub digest agreement, and continued Vercel runtime-only
    state. It stages and fsyncs the sanitized success evidence before deleting
    recovery state, then atomically publishes the evidence.
-7. If reset or placement is ambiguous, run `recover`. It never calls reset. A
+8. If reset or placement is ambiguous, run `recover`. It never calls reset. A
    still-accepted prior credential plus unchanged role timestamp proves reset
    did not complete and clears only recovery state. If the role timestamp or
    partial placement changed while the prior password still accepts, recovery
@@ -111,21 +124,21 @@ activation.
    and new acceptance are retried through Neon's documented overlap window. A
    rejected prior credential plus advanced role timestamp also uses the
    idempotent reveal endpoint to converge local/GitHub/database state.
-8. The completed reset invalidates the owner credential embedded in the Phase B
+9. The completed reset invalidates the owner credential embedded in the Phase B
    deployment and every superseded deployment. Vercel variable deletion alone
    is not sufficient.
-9. After confirming no workflow references them, delete stale repository-wide
+10. After confirming no workflow references them, delete stale repository-wide
    GitHub `DIRECT_URL` and `DATABASE_URL`; keep the replacement only in the
    protected environment.
-10. Manually dispatch `Production Migrations` from `main`, paste the exact
+11. Manually dispatch `Production Migrations` from `main`, paste the exact
     `main` SHA, type `run-reviewed-production-migrations-from-main`, approve the
     environment job, and retain the green run/final audit evidence.
-11. Explicitly deploy that same clean commit with Vercel. The build must pass
+12. Explicitly deploy that same clean commit with Vercel. The build must pass
     with only the exact runtime database identity.
-12. Postflight must re-prove deployment source/aliases, Vercel env isolation,
+13. Postflight must re-prove deployment source/aliases, Vercel env isolation,
     migration/grant/RLS catalog state, runtime no-context denial, ops-health,
     cron/webhook health, and live read-only routes.
-13. Only then resume Notification staging/activation.
+14. Only then resume Notification staging/activation.
 
 ## Operator Commands
 
@@ -139,6 +152,17 @@ RUNTIME_DB_SEPARATION_MODE=preflight-only \
 RUNTIME_DB_SEPARATION_CONFIRM=rotate-owner-into-protected-github-after-vercel-removal \
 RUNTIME_DB_SEPARATION_RELEASE_COMMIT=<exact-main-sha> \
 RUNTIME_DB_SEPARATION_EVIDENCE_PATH=/Users/drewyoung/grainline-rollout-evidence/runtime-db-separation-preflight.json \
+npm run ops:separate-db-credential
+```
+
+Bounded local repair, only after a failed preflight proves the local owner URL
+is rejected and provider/catalog state is otherwise exact:
+
+```sh
+RUNTIME_DB_SEPARATION_MODE=repair-local \
+RUNTIME_DB_SEPARATION_CONFIRM=rotate-owner-into-protected-github-after-vercel-removal \
+RUNTIME_DB_SEPARATION_RELEASE_COMMIT=<exact-main-sha> \
+RUNTIME_DB_SEPARATION_EVIDENCE_PATH=/Users/drewyoung/grainline-rollout-evidence/runtime-db-separation-local-repair.json \
 npm run ops:separate-db-credential
 ```
 
@@ -173,8 +197,8 @@ npm run ops:separate-db-credential
 ```
 
 Every artifact must be mode `0600`, `status=passed`, and `issueCount=0`.
-Preflight/removal and a proven “reset not completed” recovery intentionally have
-`acceptanceEligible=false`. A completed reset or reveal recovery must have
+Preflight/local-repair/removal and a proven “reset not completed” recovery
+intentionally have `acceptanceEligible=false`. A completed reset or reveal recovery must have
 `acceptanceEligible=true`, every named terminal check true, and
 `ownerSessionCount=0`.
 

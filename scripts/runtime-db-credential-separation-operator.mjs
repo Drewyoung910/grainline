@@ -62,6 +62,8 @@ export const EXPECTED_PRODUCTION_DATABASE_UPDATED_AT = 1784476074964;
 export const EXPECTED_PRODUCTION_RUNTIME_ROLE_UPDATED_AT = 1784476081207;
 export const EXPECTED_PRODUCTION_DIRECT_UPDATED_AT = 1784661836916;
 export const EXPECTED_PRODUCTION_MIGRATION_ROLE_UPDATED_AT = 1784476084417;
+export const EXPECTED_CURRENT_NEON_OWNER_UPDATED_AT =
+  "2026-07-21T19:16:14.000Z";
 
 const REVIEWED_GH_PATH = "/opt/homebrew/bin/gh";
 const REVIEWED_GH_VERSION_PREFIX = "gh version 2.91.0 ";
@@ -73,7 +75,13 @@ const PHASE_B_POSTFLIGHT_PATH = path.join(
 const PRIOR_OWNER_STATE_PATH =
   "/Users/drewyoung/grainline/.env.local.runtime-db-separation-prior-owner.json";
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/;
-const MODES = new Set(["preflight-only", "remove-vercel", "reset", "recover"]);
+const MODES = new Set([
+  "preflight-only",
+  "repair-local",
+  "remove-vercel",
+  "reset",
+  "recover",
+]);
 const VERIFY_ATTEMPTS = 16;
 const VERIFY_INTERVAL_MS = 2_000;
 const EVIDENCE_RESERVATION_BYTES = 64 * 1024;
@@ -621,6 +629,62 @@ export async function runSeparationOperator(config, dependencyOverrides = {}) {
     state.githubProtectionVerified = true;
     dependencies.verifyNeonTarget();
     state.neonTargetVerified = true;
+
+    if (config.mode === "repair-local") {
+      assertEmptyGithubCredential(githubBefore);
+      if (dependencies.priorOwnerStateExists()) {
+        throw new Error("local repair is barred while prior-owner recovery state exists");
+      }
+      if (vercel.stage !== "pre-removal") {
+        throw new Error("local repair requires the exact pre-removal Vercel state");
+      }
+      const staleCredential = await inspectOwnerCredential(
+        dependencies.readDatabaseState,
+        config.currentDirectUrl,
+      );
+      if (staleCredential.status !== "rejected") {
+        throw new Error("local owner credential still authenticates and does not need repair");
+      }
+      state.oldCredentialRejected = true;
+      const roleMetadata = dependencies.readNeonRoleMetadata();
+      if (roleMetadata.updatedAt !== EXPECTED_CURRENT_NEON_OWNER_UPDATED_AT) {
+        throw new Error("Neon owner timestamp drifted from the reviewed Phase B credential");
+      }
+      const password = dependencies.revealNeonPassword();
+      const nextDirectUrl = dependencies.buildNeonDirectUrl(
+        config.currentDirectUrl,
+        password,
+      );
+      if (nextDirectUrl === config.currentDirectUrl) {
+        throw new Error("Neon revealed the already rejected local credential");
+      }
+      assertProductionMigrationDatabaseState(
+        await dependencies.readDatabaseState(nextDirectUrl),
+      );
+      state.databaseStateVerified = true;
+      canary = assertExactPostSkewCanary(
+        (await dependencies.readOwnerState(nextDirectUrl)).canary,
+        config.now,
+      );
+      state.canaryVerified = true;
+      dependencies.updateLocalDirectUrl(nextDirectUrl);
+      state.localDirectUrlUpdated = true;
+      return {
+        acceptanceEligible: false,
+        recoveryOutcome: "local-current-owner-reconciled",
+        state,
+        phaseBProof,
+        vercel,
+        canary,
+        neon: {
+          roleUpdatedAtBefore: roleMetadata.updatedAt,
+          roleUpdatedAtAfter: roleMetadata.updatedAt,
+          operations: [],
+        },
+        directUrlSha256: createHash("sha256").update(nextDirectUrl).digest("hex"),
+        ownerSessionCount: null,
+      };
+    }
 
     if (config.mode === "recover") {
       if (vercel.stage !== "runtime-only") {

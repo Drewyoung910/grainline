@@ -87,6 +87,15 @@ deployments. This implementation is under final review, not production-active,
 and does not authorize Notification activation before the separation postflight
 passes.
 
+The first separation preflight on 2026-07-21 correctly failed before mutation
+because the local owner URL had drifted to an already rejected credential while
+Neon's stored current credential and role timestamp remained healthy. The
+reviewed operator now has a separate fail-closed `repair-local` mode that may
+reveal and persist only that pinned current credential after proving old
+`28P01`, current catalog/canary acceptance, exact provider state, and an empty
+protected migration-secret inventory. A read-only preflight must still pass
+after repair; local reconciliation is not rollout acceptance.
+
 ### Homepage discovery hierarchy decision (2026-07-15)
 
 Keep the local-maker map directly beneath the hero and floating marketplace stats. It is Grainline's clearest marketplace differentiator, but it should remain a compact discovery band so inventory appears after a short scroll rather than becoming a second full-screen gate.

@@ -151,7 +151,13 @@ function sensitiveRecord(key, updatedAt) {
 describe("runtime database credential separation operator", () => {
   it("pins the post-Phase-B gate, explicit mode, release commit, and evidence path", () => {
     assert.equal(parseSeparationOperatorConfig(environment(), NOW).releaseCommit, COMMIT);
-    for (const mode of ["preflight-only", "remove-vercel", "reset", "recover"]) {
+    for (const mode of [
+      "preflight-only",
+      "repair-local",
+      "remove-vercel",
+      "reset",
+      "recover",
+    ]) {
       assert.equal(parseSeparationOperatorConfig(environment(mode), NOW).mode, mode);
     }
     assert.throws(
@@ -220,6 +226,31 @@ describe("runtime database credential separation operator", () => {
     }));
     assert.equal(removal.vercel.stage, "runtime-only");
     assert.deepEqual(calls, ["remove:pre-removal"]);
+  });
+
+  it("repairs only a rejected local owner URL from the pinned current Neon credential", async () => {
+    const calls = [];
+    const rejected = new Error("rejected");
+    rejected.code = "28P01";
+    const result = await runSeparationOperator(config("repair-local"), common({
+      readVercelState: () => vercel("pre-removal"),
+      readDatabaseState: async (url) => {
+        if (url === OWNER_URL) throw rejected;
+        return databaseState();
+      },
+      readNeonRoleMetadata: () => ({ updatedAt: "2026-07-21T19:16:14.000Z" }),
+      revealNeonPassword: () => "AbCdEfGhIjKlMn_1",
+      buildNeonDirectUrl: () => NEXT_URL,
+      updateLocalDirectUrl: (url) => calls.push(`local:${url === NEXT_URL}`),
+      updateGithubCredential: () => calls.push("github"),
+      resetNeonPassword: () => calls.push("reset"),
+      removeVercelEnvironment: () => calls.push("vercel-remove"),
+    }));
+    assert.equal(result.recoveryOutcome, "local-current-owner-reconciled");
+    assert.equal(result.acceptanceEligible, false);
+    assert.equal(result.state.oldCredentialRejected, true);
+    assert.equal(result.state.databaseStateVerified, true);
+    assert.deepEqual(calls, ["local:true"]);
   });
 
   it("persists reset output locally and in protected GitHub before waiting, then proves old rejection", async () => {
