@@ -140,13 +140,25 @@ export function runtimeDatabaseIsolationFailureCode(error) {
   return rules.find(([pattern]) => pattern.test(message))?.[1] ?? "UNCLASSIFIED";
 }
 
+export function runtimeDatabaseIsolationFailureDetail(code, env = process.env) {
+  if (code === "PRIVILEGED_DATABASE_KEYS") {
+    return privilegedDatabaseEnvironmentKeys(env).join(",");
+  }
+  if (code === "ALIASED_DATABASE_URL") {
+    return unreviewedPostgresUrlEnvironmentKeys(env).join(",");
+  }
+  return "";
+}
+
 function main() {
   try {
     const result = assertVercelRuntimeDatabaseIsolation(process.env);
     process.stdout.write(`${JSON.stringify(result)}\n`);
   } catch (error) {
+    const code = runtimeDatabaseIsolationFailureCode(error);
+    const detail = runtimeDatabaseIsolationFailureDetail(code, process.env);
     process.stderr.write(
-      `Vercel runtime database isolation guard failed [${runtimeDatabaseIsolationFailureCode(error)}].\n`,
+      `Vercel runtime database isolation guard failed [${code}]${detail ? ` keys=${detail}` : ""}.\n`,
     );
     process.exitCode = 1;
   }

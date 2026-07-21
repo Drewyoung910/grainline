@@ -177,6 +177,13 @@ Read-only inventory reverified on 2026-07-21:
   deployment. The guard previously suppressed the specific assertion, so it
   now emits only a bounded diagnostic code (never a value or raw error) before
   a second staged deployment is attempted.
+- The second unpromoted deployment
+  `dpl_22NLv2sy7DH1ccfHYyhePz3n76mg` failed with the bounded code
+  `PRIVILEGED_DATABASE_KEYS` even though a fresh Vercel API inventory still
+  reported no privileged project records. The guard now prints only the
+  matched key names for the two key-list failure classes; values remain
+  suppressed. A new exact-commit CI run and staged deployment are required to
+  identify and remove the residual injection source.
 
 ## Activation Sequence
 

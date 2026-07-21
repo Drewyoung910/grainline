@@ -4,6 +4,7 @@ import {
   assertVercelRuntimeDatabaseIsolation,
   privilegedDatabaseEnvironmentKeys,
   runtimeDatabaseIsolationFailureCode,
+  runtimeDatabaseIsolationFailureDetail,
   unreviewedPostgresUrlEnvironmentKeys,
 } from "../scripts/guard-runtime-db-env.mjs";
 
@@ -124,5 +125,23 @@ describe("Vercel runtime database environment isolation", () => {
       });
     }
     assert.equal(runtimeDatabaseIsolationFailureCode(new Error("unexpected secret detail")), "UNCLASSIFIED");
+    assert.equal(
+      runtimeDatabaseIsolationFailureDetail("PRIVILEGED_DATABASE_KEYS", {
+        DIRECT_URL: "do-not-print",
+        RLS_PROOF_DIRECT_URL: "do-not-print",
+        SAFE: "do-not-print",
+      }),
+      "DIRECT_URL,RLS_PROOF_DIRECT_URL",
+    );
+    assert.equal(
+      runtimeDatabaseIsolationFailureDetail("ALIASED_DATABASE_URL", {
+        OWNER_CONNECTION: RUNTIME_URL,
+        DATABASE_URL: RUNTIME_URL,
+      }),
+      "OWNER_CONNECTION",
+    );
+    assert.equal(runtimeDatabaseIsolationFailureDetail("DATABASE_URL_PARAMETERS", {
+      DIRECT_URL: "do-not-print",
+    }), "");
   });
 });
