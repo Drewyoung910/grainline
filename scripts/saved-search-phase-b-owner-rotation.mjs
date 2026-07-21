@@ -422,7 +422,7 @@ async function readOwnerState(connectionString) {
   });
 }
 
-function assertOwnerState(state, now) {
+export function assertOwnerState(state, now) {
   if (
     state?.identity?.database_name !== REVIEWED_DATABASE_NAME
     || state.identity.current_user_name !== REVIEWED_OWNER_ROLE

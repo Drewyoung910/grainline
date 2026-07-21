@@ -132,6 +132,35 @@ blindly restore/retry. Test which credential works, then converge Vercel and
 PostgreSQL. Runtime `DATABASE_URL` is separate and is never changed by this
 operation.
 
+### Narrow reconciliation after a split owner-credential result
+
+If and only if the rotation artifact proves that the reviewed Vercel
+`DIRECT_URL` metadata advanced while new database authentication remained
+unproved, do not generate another password and do not rerun the rotation
+operator. Use the dedicated reconciliation operator after independently
+confirming its pinned Vercel metadata timestamps match the failed operation:
+
+```sh
+PHASE_B_OWNER_RECONCILIATION_CONFIRM=converge-vercel-new-database-old-owner-credential \
+PHASE_B_OWNER_RECONCILIATION_RELEASE_COMMIT=17bf93dc8837fd6c5e6988569f993781800b6318 \
+PHASE_B_OWNER_RECONCILIATION_EVIDENCE_PATH=/Users/drewyoung/grainline-rollout-evidence/saved-search-phase-b-owner-reconciliation-20260721.json \
+npm run ops:reconcile-phase-b-owner
+```
+
+The reconciliation helper loads only the already-staged proposed owner secret
+from mode-`0600` local `DIRECT_URL` and the distinct retained legacy owner
+secret from local `DATABASE_URL`. It requires the exact reviewed production
+endpoint, role, database, Vercel project, staged `DIRECT_URL.updatedAt`, and
+unchanged runtime `DATABASE_URL.updatedAt`. It accepts exactly two database
+states: proposed rejected plus legacy accepted (apply the proposed SCRAM
+verifier once), or proposed accepted plus legacy rejected (verification-only
+recovery after an ambiguous prior connection result). Any other combination
+fails closed. Both paths require exact owner/runtime/Phase-A/canary posture,
+proposed authentication, legacy `28P01` rejection, and zero other owner client
+sessions before mode-`0600` evidence can be acceptance-eligible. The helper
+never reads a Vercel Sensitive value, never creates a third password, and never
+changes Vercel or runtime `DATABASE_URL`.
+
 ## 3. Phase B Deployment
 
 Proceed only when the rotation artifact is mode `0600`, `status=passed`,
