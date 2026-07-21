@@ -867,7 +867,7 @@ describe("database grant inventory guardrails", () => {
     await withAuditFixture({ grantUntrackedTableSelect: true }, async ({ auditClient, inventory, migrationRole, runtimeRole, untrackedTableName }) => {
       assert.ok(
         (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory }))
-          .includes(`runtime role or PUBLIC has SELECT on untracked public table ${untrackedTableName}`),
+          .includes(`runtime role has SELECT on untracked public table ${untrackedTableName}`),
       );
     });
 

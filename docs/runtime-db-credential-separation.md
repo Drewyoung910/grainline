@@ -130,6 +130,11 @@ Read-only inventory reverified on 2026-07-21:
   it, and one recovery test omitted the local-writer mock. The audit correctly
   reports the unsafe global scope without inventing a missing scoped grant;
   every operator unit test must mock all credential persistence.
+- Exact-commit CI run `29869954334` confirmed the credential-writer mock fix,
+  then exposed one more stale live-audit test string: the audit deliberately
+  distinguishes runtime-role grants from PUBLIC grants on untracked tables,
+  while the test still expected the old combined wording. The assertion now
+  requires the precise runtime-role finding; audit behavior is unchanged.
 
 ## Activation Sequence
 
