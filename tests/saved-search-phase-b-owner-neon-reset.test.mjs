@@ -10,7 +10,7 @@ import {
 
 const PROPOSED_URL = "postgresql://neondb_owner:prior-proposed-secret@ep-plain-river-aaqg8gj4.westus3.azure.neon.tech:5432/neondb?sslmode=verify-full";
 const LEGACY_URL = "postgresql://neondb_owner:legacy-secret@ep-plain-river-aaqg8gj4.westus3.azure.neon.tech:5432/neondb?sslmode=verify-full";
-const RESET_PASSWORD = "npg_provider_generated_password_0123456789";
+const RESET_PASSWORD = "ResetABC_1234567";
 const RESET_URL = buildNeonResetDirectUrl(PROPOSED_URL, RESET_PASSWORD);
 const NOW = new Date("2026-07-21T19:15:00.000Z");
 
@@ -142,6 +142,10 @@ describe("SavedSearch Phase B Neon owner reset fallback", () => {
     assert.equal(after.port, before.port);
     assert.equal(after.pathname, before.pathname);
     assert.equal(after.search, before.search);
+    assert.throws(
+      () => buildNeonResetDirectUrl(PROPOSED_URL, "only_15_chars__"),
+      /reviewed shape/,
+    );
   });
 
   it("persists locally before Vercel, waits for Neon, and proves both superseded credentials reject", async () => {

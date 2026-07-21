@@ -207,7 +207,9 @@ the pinned post-reset role timestamp, the same control-plane/Vercel targets,
 and then retrieves the current password with Neon’s read-only
 `reveal_password` endpoint. It persists locally before changing only Vercel
 `DIRECT_URL`, then repeats the live owner/RLS/canary, superseded-credential,
-runtime-metadata, and session-drain proofs.
+runtime-metadata, and session-drain proofs. The response validator pins the
+observed Neon-generated 16-character base64url password shape; it does not
+invent a minimum length beyond the provider response.
 
 ## 3. Phase B Deployment
 

@@ -164,9 +164,7 @@ export function validateNeonResetResponse(payload) {
     || role.authentication_method !== "password"
     || typeof role.updated_at !== "string"
     || typeof role.password !== "string"
-    || role.password.length < 20
-    || role.password.length > 256
-    || !/^[\x21-\x7e]+$/.test(role.password)
+    || !/^[A-Za-z0-9_-]{16}$/.test(role.password)
     || !Array.isArray(payload.operations)
     || payload.operations.length === 0
   ) {
@@ -227,9 +225,7 @@ export function revealReviewedNeonOwnerPassword() {
   );
   if (
     typeof payload?.password !== "string"
-    || payload.password.length < 20
-    || payload.password.length > 256
-    || !/^[\x21-\x7e]+$/.test(payload.password)
+    || !/^[A-Za-z0-9_-]{16}$/.test(payload.password)
   ) {
     throw new Error("Neon revealed password did not match the reviewed shape");
   }
@@ -273,9 +269,7 @@ export function verifyReviewedNeonTarget() {
 export function buildNeonResetDirectUrl(currentDirectUrl, password) {
   if (
     typeof password !== "string"
-    || password.length < 20
-    || password.length > 256
-    || !/^[\x21-\x7e]+$/.test(password)
+    || !/^[A-Za-z0-9_-]{16}$/.test(password)
   ) {
     throw new Error("Neon-returned owner password does not match the reviewed shape");
   }

@@ -9,7 +9,7 @@ import { buildNeonResetDirectUrl } from "../scripts/saved-search-phase-b-owner-n
 
 const PROPOSED_URL = "postgresql://neondb_owner:prior-proposed-secret@ep-plain-river-aaqg8gj4.westus3.azure.neon.tech:5432/neondb?sslmode=verify-full";
 const LEGACY_URL = "postgresql://neondb_owner:legacy-secret@ep-plain-river-aaqg8gj4.westus3.azure.neon.tech:5432/neondb?sslmode=verify-full";
-const CURRENT_PASSWORD = "npg_revealed_current_password_0123456789";
+const CURRENT_PASSWORD = "CurrPass_1234567";
 const CURRENT_URL = buildNeonResetDirectUrl(PROPOSED_URL, CURRENT_PASSWORD);
 
 function rejectedPassword() {
@@ -209,7 +209,7 @@ describe("SavedSearch Phase B Neon reveal recovery", () => {
           neonRecoveryState: error.neonRecoveryState,
           neonRecoveryRoleMetadata: error.neonRecoveryRoleMetadata,
         }, "failed");
-        assert.doesNotMatch(JSON.stringify(evidence), /npg_revealed|do not preserve/);
+        assert.doesNotMatch(JSON.stringify(evidence), /CurrPass|do not preserve/);
         assert.equal(evidence.checks.localDirectUrlUpdated, true);
         return true;
       },
