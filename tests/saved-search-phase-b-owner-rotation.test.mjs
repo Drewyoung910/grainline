@@ -3,6 +3,7 @@ import fs from "node:fs";
 import { describe, it } from "node:test";
 import {
   PHASE_B_CANARY_BUCKET,
+  PHASE_B_CANARY_QUERY,
   PHASE_B_RELEASE_COMMIT,
   assertExactPostSkewCanary,
   buildEvidence,
@@ -156,6 +157,21 @@ describe("SavedSearch Phase B owner rotation operator", () => {
     const otherIssue = canary();
     otherIssue.result.deadEmailOutboxCount = 1;
     assert.throws(() => assertExactPostSkewCanary(otherIssue, AFTER_GATE), /actionable count/);
+  });
+
+  it("normalizes timezone-less CronRun timestamps to UTC at the SQL boundary", () => {
+    assert.match(
+      PHASE_B_CANARY_QUERY,
+      /"startedAt" AT TIME ZONE 'UTC' AS started_at/,
+    );
+    assert.match(
+      PHASE_B_CANARY_QUERY,
+      /"completedAt" AT TIME ZONE 'UTC' AS completed_at/,
+    );
+    assert.doesNotMatch(
+      PHASE_B_CANARY_QUERY,
+      /"startedAt" AS started_at|"completedAt" AS completed_at/,
+    );
   });
 
   it("changes only the direct URL password", () => {
