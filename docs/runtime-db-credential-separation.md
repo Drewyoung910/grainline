@@ -135,6 +135,14 @@ Read-only inventory reverified on 2026-07-21:
   distinguishes runtime-role grants from PUBLIC grants on untracked tables,
   while the test still expected the old combined wording. The assertion now
   requires the precise runtime-role finding; audit behavior is unchanged.
+- Exact-commit CI run `29870266091` passed every database, typecheck, lint,
+  and test gate, including all 1,790 tests, then stopped at the independent npm
+  security gate on newly published high-severity transitive advisories. The
+  remediation aligns `prisma`, `@prisma/client`, and `@prisma/adapter-pg` at
+  7.9.0, removes obsolete vulnerable Hono overrides no longer required by
+  Prisma 7.9, and resolves patched `brace-expansion`, `fast-uri`, `js-yaml`,
+  and `linkify-it` versions through the lockfile. Do not suppress or lower the
+  audit gate; a fresh exact-commit CI run must still build successfully.
 
 ## Activation Sequence
 

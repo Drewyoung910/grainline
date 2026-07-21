@@ -3212,7 +3212,7 @@ Focused audit on code paths NOT covered by the prior 44-finding audit. 6 agents 
 - `Notification(read, createdAt)` — cleanup cron and read/unread filtering
 
 ### Known remaining items (not security-critical)
-- Historical Prisma dev-tooling dependency audit path: direct Prisma packages are now aligned at 7.8.0 and `npm audit --audit-level=moderate` reports zero vulnerabilities. Keep the direct Prisma trio (`prisma`, `@prisma/client`, and `@prisma/adapter-pg`) aligned before future Prisma upgrades.
+- Historical Prisma dev-tooling dependency audit path: direct Prisma packages are now aligned at 7.9.0 and `npm audit --audit-level=high` reports zero vulnerabilities after the 2026-07-21 advisory refresh. Keep the direct Prisma trio (`prisma`, `@prisma/client`, and `@prisma/adapter-pg`) aligned before future Prisma upgrades; do not restore the obsolete Hono overrides removed with Prisma 7.9.0.
 - Legacy note superseded: `Conversation`/`Message` retention is now explicit, and account deletion uses anonymization/soft deletion instead of hard-deleting users.
 - `UserReport` missing `resolvedAt`/`resolvedById` fields — audit trail gap
 
@@ -3536,7 +3536,7 @@ Real pagination (PAGE_SIZE + Prev/Next) should be added per page as row counts g
 - **Next.js** 16.2.6 (upgraded from 16.2.1 — CVE-2025-55182 + GHSA-q4gf-8mx6-v5v3, plus later 16.2 patch advisories)
 - **Clerk** v7.3.0 in lockfile (upgraded from 7.0.7 — GHSA-vqx2-fgx2-5wq9 middleware bypass fix; 7.3.0 also fixes GHSA-w24r-5266-9c3c)
 - **Stripe SDK** 19.3 (`src/lib/stripe.ts` explicitly pins API version `2025-10-29.clover`)
-- **Prisma** 7.8.0 (direct `prisma`, `@prisma/client`, and `@prisma/adapter-pg` packages aligned)
+- **Prisma** 7.9.0 (direct `prisma`, `@prisma/client`, and `@prisma/adapter-pg` packages aligned)
 - **React** 19.2.5, **@sentry/nextjs** 10.49, **maplibre-gl** 5.23, **resend** 6.12
 - **All ESLint/build errors fixed** — zero `any` types, all `<a>` → `<Link>`, unescaped entities fixed, unused imports removed
 - **Stripe webhook** fully working in test mode — root cause of prior failure was webhook registered in live mode while app uses test keys (`sk_test_`); fixed by importing the webhook destination into test mode via Stripe Workbench. All notifications confirmed working: NEW_ORDER, NEW_FAVORITE, NEW_MESSAGE, NEW_REVIEW, LOW_STOCK, ORDER_DELIVERED. Webhook handler updated to handle Workbench Snapshot thin-event format (detects thin payload by key count ≤ 3, retrieves full event via `stripe.events.retrieve`).
