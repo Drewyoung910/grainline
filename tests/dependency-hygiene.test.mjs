@@ -47,6 +47,19 @@ describe("dependency hygiene guardrails", () => {
     assert.equal(lock.packages?.["node_modules/prisma"]?.version, expectedLockVersion);
   });
 
+  it("keeps every Sharp install on the reviewed patched line", () => {
+    const pkg = json("package.json");
+    const lock = json("package-lock.json");
+    const sharpInstalls = Object.entries(lock.packages ?? {})
+      .filter(([path]) => path === "node_modules/sharp" || path.endsWith("/node_modules/sharp"))
+      .map(([path, entry]) => [path, entry.version]);
+
+    assert.equal(pkg.devDependencies?.sharp, "^0.35.3");
+    assert.equal(pkg.overrides?.sharp, "$sharp");
+    assert.equal(lock.packages?.[""]?.devDependencies?.sharp, "^0.35.3");
+    assert.deepEqual(sharpInstalls, [["node_modules/sharp", "0.35.3"]]);
+  });
+
   it("does not reintroduce stale marked ambient types", () => {
     const pkg = json("package.json");
     const lock = source("package-lock.json");

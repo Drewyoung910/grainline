@@ -196,6 +196,16 @@ Read-only inventory reverified on 2026-07-21:
   explicitly visible in evidence as a runtime-key source; the deployment guard
   must still prove the effective Production value is the reviewed pooled
   runtime identity.
+- Exact-commit CI run `29874355240` on `1c2ac8b8` passed migration application,
+  production-style grants/RLS audit, typecheck, lint, and all tests, then stopped
+  before the production build when a GitHub-reviewed high-severity Sharp/libvips
+  advisory published on 2026-07-21 made the dependency audit fail. No deployment
+  was attempted from that commit. Grainline directly processes untrusted image
+  uploads, so the remediation advances the direct Sharp pin to `0.35.3` and uses
+  a root `$sharp` override to prevent Next's `^0.34.5` optional range from
+  retaining a vulnerable nested copy. A dependency guard now requires exactly
+  one locked Sharp install at `0.35.3`; a fresh exact-commit CI run remains a
+  release gate.
 
 ## Activation Sequence
 
