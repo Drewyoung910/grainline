@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   assertVercelRuntimeDatabaseIsolation,
   privilegedDatabaseEnvironmentKeys,
+  unreviewedPostgresUrlEnvironmentKeys,
 } from "../scripts/guard-runtime-db-env.mjs";
 
 const RUNTIME_URL = "postgresql://grainline_app_runtime:runtime-password@ep-plain-river-aaqg8gj4-pooler.westus3.azure.neon.tech:5432/neondb?sslmode=verify-full&channel_binding=require";
@@ -49,6 +50,18 @@ describe("Vercel runtime database environment isolation", () => {
         /must not receive privileged database environment keys/,
       );
     }
+  });
+
+  it("rejects a PostgreSQL owner URL hidden under an unrecognized key", () => {
+    const hidden = {
+      OWNER_CONNECTION: ` ${RUNTIME_URL.replace("grainline_app_runtime", "neondb_owner")
+        .replace("-pooler", "")}`,
+    };
+    assert.deepEqual(unreviewedPostgresUrlEnvironmentKeys(hidden), ["OWNER_CONNECTION"]);
+    assert.throws(
+      () => assertVercelRuntimeDatabaseIsolation(productionEnv(hidden)),
+      /PostgreSQL URLs outside DATABASE_URL/,
+    );
   });
 
   it("rejects owner, direct, wrong endpoint, and wrong declared role production URLs", () => {

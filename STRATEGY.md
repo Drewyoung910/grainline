@@ -4,22 +4,27 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
-### SavedSearch Phase-B operating decision (2026-07-19)
+### SavedSearch Phase-B completion (2026-07-21)
 
-Finish Bucket A before starting any Notification/Bucket-B design. The separate
-SavedSearch FORCE release waits through the full Phase-A skew window plus a
-safety margin and a post-skew canary. Before promotion, rotate the migration
-owner credential to invalidate old owner-backed deployments and prove the old
-credential and owner application sessions are gone. Neon’s migration owner is
-the explicit BYPASSRLS service role, while the normal runtime remains constrained.
-Controlled owner maintenance and the separate database-first emergency
-DISABLE/ENABLE/FORCE path must both remain tested; externalize the owner secret
-from production Functions before Bucket B.
+Bucket A is complete in production. Deployment
+`dpl_6nVQx5HBmurzH9iU1vwQLjA6gy2N` promoted exact commit
+`17bf93dc8837fd6c5e6988569f993781800b6318`; migration
+`20260720060000_force_saved_search_rls` is complete, `SavedSearch` has exact
+`ENABLE` plus `FORCE` and three policies, and the accepted private postflight has
+SHA-256
+`768096b53662ec9e8deaf8a3a63e6021ad755464f48b4b01c02fb339f1c78ea4`.
+The temporary Phase-B deployment variable is gone. The normal runtime remains
+the constrained `grainline_app_runtime`; Neon `neondb_owner` remains the
+explicit `NOSUPERUSER BYPASSRLS` migration/service owner. Controlled owner
+maintenance and the separate database-first emergency DISABLE/ENABLE/FORCE
+path remain required. Notification preparation may exist on an isolated branch,
+but its activation remains paused until runtime owner-credential separation has
+its own accepted production postflight.
 
 ### Site-wide RLS expansion decision (2026-07-19)
 
-SavedSearch is the first production RLS pattern, not the final scope. Complete
-its Phase-B FORCE release, then externalize `DIRECT_URL` and
+SavedSearch is the first production RLS pattern, not the final scope. With its
+Phase-B FORCE release complete, externalize `DIRECT_URL` and
 `MIGRATION_DB_ROLE` from production application Functions before beginning
 Notification/Bucket B. Because environment changes do not rewrite earlier
 deployments, that release must also rotate/revoke any owner credential retained
@@ -59,7 +64,7 @@ schema-complete [`docs/rls-coverage-matrix.md`](docs/rls-coverage-matrix.md)
 and never claim that all user data is protected by RLS until every table has an
 evidenced disposition.
 
-### Runtime owner-credential separation decision (2026-07-19)
+### Runtime owner-credential separation decision (updated 2026-07-21)
 
 The post-Phase-B release path is now concrete in
 `docs/runtime-db-credential-separation.md`. Vercel application builds must never
@@ -67,12 +72,20 @@ run owner migrations or receive any owner/admin database variable. Production
 migrations move to a manually approved, main-only GitHub `Production`
 environment, and automatic Vercel production deployment from `main` stays off
 so migrations and application promotion cannot race. After removing the Vercel
-owner variables, rotate the owner again and store the new credential only in
-the protected migration environment and a mode-0600 local operator file. That
-second rotation is mandatory because deleting project variables affects future
-deployments but does not invalidate the valid owner secret embedded in already
-built deployments. This implementation is staged, not production-active, and
-does not authorize Bucket B before Phase B and the separation postflight pass.
+owner variables, reset the exact Neon production owner once through the pinned
+control-plane endpoint and store the returned credential only in the protected
+migration environment and a mode-0600 local operator file. The earlier
+pre-encrypted SQL `ALTER ROLE` design is retired: a production attempt returned
+PostgreSQL `XX000`, while the control-plane reset returns a recoverable password
+plus operations. Because that POST is non-idempotent, an ambiguous result must
+use only the reveal-based `recover` mode; never blindly reset again. The
+operator persists private prior-credential state before reset and
+reserves/fsyncs evidence space before mutation. That second rotation is
+mandatory because deleting project variables affects future deployments but
+does not invalidate the valid owner secret embedded in already built
+deployments. This implementation is under final review, not production-active,
+and does not authorize Notification activation before the separation postflight
+passes.
 
 ### Homepage discovery hierarchy decision (2026-07-15)
 

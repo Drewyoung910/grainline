@@ -1,120 +1,138 @@
 # Production Database Credential Separation
 
-Status: implementation staged on
-`codex/rls-runtime-env-separation-20260719`; not active in production. This
-release is barred until SavedSearch Phase B is live and its retained postflight
-evidence is healthy.
+Status: implementation under final review on
+`codex/rls-runtime-env-separation-20260719`; not active in production.
+SavedSearch Phase B is live and its accepted mode-`0600` postflight is pinned by
+SHA-256 in the separation operator.
 
 ## Security Goal
 
 Production application Functions receive only the pooled
 `grainline_app_runtime` `DATABASE_URL`. They must not receive `DIRECT_URL`,
-`MIGRATION_DB_ROLE`, grant-audit URLs, or any owner/admin database URL under a
+`MIGRATION_DB_ROLE`, grant-audit URLs, or an owner/admin database URL under a
 different name. Owner migrations run from a manually approved GitHub
 `Production` environment against an exact clean `main` commit.
 
-This separation closes the arbitrary-runtime-code gap left by RLS. A query made
-through `grainline_app_runtime` remains subject to grants and RLS; code that can
-read a valid `neondb_owner` credential can bypass all current and future RLS.
+Normal application traffic already uses the restricted runtime role and is
+subject to grants and RLS. This release closes the separate environment-
+exfiltration path: arbitrary runtime code that could read a valid
+`neondb_owner` credential could otherwise open its own BYPASSRLS connection.
 
 ## Implemented Release Contract
 
 - `vercel.json` no longer runs migrations. Its build command runs
   `guard:runtime-db-env` before the ordinary build.
-- The runtime guard rejects any Vercel build containing `DIRECT_URL`,
-  `MIGRATION_DB_ROLE`, `GRANT_AUDIT_DATABASE_URL`, any
-  `*_ADMIN_DATABASE_URL`, or any `*_PROOF_DIRECT_URL`, including empty defined
-  variables. Production must contain the exact reviewed pooled endpoint and
-  `grainline_app_runtime` identity.
+- The runtime guard rejects `DIRECT_URL`, `MIGRATION_DB_ROLE`,
+  `GRANT_AUDIT_DATABASE_URL`, `*_ADMIN_DATABASE_URL`, and
+  `*_PROOF_DIRECT_URL`, including empty defined variables. It also rejects any
+  PostgreSQL URL under a key other than `DATABASE_URL`, closing simple
+  alias-name evasions. Production must contain the exact reviewed pooled
+  endpoint and `grainline_app_runtime` identity.
 - Automatic Vercel deployment from `main` is disabled. Preview deployment
-  remains available, but privileged database variables are forbidden there too.
+  remains available, but the same privileged-key/value guard applies there.
 - `.github/workflows/production-migrations.yml` is manual-only, serializes all
-  production migration runs, has only `contents: read`, and references the
-  GitHub `Production` environment.
-- The workflow uses only the environment-scoped
-  `PRODUCTION_MIGRATION_DIRECT_URL`; it deliberately does not fall back to the
-  existing repository-wide `DIRECT_URL` or `DATABASE_URL` secrets. It also
-  requires the environment variable `PRODUCTION_MIGRATION_DIRECT_URL_SHA256`
-  to match the SHA-256 of the injected URL before any connection; the digest is
-  non-secret and makes later workflow injection an exact secret/value-pair
-  check without making the Sensitive value readable.
-- The preflight requires the typed confirmation, exact 40-character dispatched
-  `main` commit, clean checkout, direct production endpoint, exact live
-  owner/runtime role attributes and PostgreSQL 16 membership options,
+  production migration runs, grants only `contents: read`, and references the
+  protected GitHub `Production` environment.
+- The workflow uses only environment-scoped
+  `PRODUCTION_MIGRATION_DIRECT_URL`. It never falls back to repository-wide
+  `DIRECT_URL` or `DATABASE_URL`. The environment variable
+  `PRODUCTION_MIGRATION_DIRECT_URL_SHA256` must match the injected URL before
+  any connection.
+- The owner secret is step-scoped only to database preflight, migration deploy,
+  migration status, and the final grant audit. Checkout, setup-node, dependency
+  installation, and Prisma client generation do not receive it.
+- The migration preflight requires a typed confirmation, exact 40-character
+  manually dispatched `main` commit, clean checkout, direct production owner
+  endpoint, exact PostgreSQL 16 owner/runtime role and membership posture,
   SavedSearch `ENABLE` plus `FORCE` with three policies, and zero incomplete
-  Prisma migrations. `DATABASE_URL` is prohibited from the owner-only job.
-- After preflight, the workflow runs `prisma migrate deploy`, `prisma migrate
-  status`, and the exact final grant/RLS audit through the same direct owner
-  URL.
+  Prisma migrations. `DATABASE_URL` is forbidden in the owner-only job.
 
-## Verified Provider State Before Activation
+## Verified Starting State
 
-Read-only inventory on 2026-07-19 found:
+Read-only inventory reverified on 2026-07-21:
 
-- Vercel Production still has Sensitive, production-only `DIRECT_URL`,
-  `DATABASE_URL`, `RUNTIME_DB_ROLE`, and `MIGRATION_DB_ROLE`. Sensitive values
-  cannot be read back outside builds/runtime.
-- The public GitHub repository has repository-wide `DIRECT_URL` and
-  `DATABASE_URL` secrets last updated 2026-04-28. They predate the July runtime
-  role rollout and are untrusted/stale; no workflow currently references them.
-- GitHub `Production` initially had no secret, reviewer, wait timer, or branch
-  restriction. On 2026-07-19 it was updated and re-read successfully with one
-  required reviewer, `Drewyoung910` (user id 234014962),
-  `prevent_self_review=false`, and one selected branch policy: branch `main`
-  (policy id 55079962). A fresh environment secret inventory remained empty.
-- `main` itself is not branch-protected. Use an environment selected-branch
-  policy, not “protected branches only,” because GitHub treats every branch as
-  eligible when no branch protection rule exists.
+- Vercel has exactly two privileged database records, both Sensitive and
+  Production-only: `DIRECT_URL.updatedAt=1784661836916` and
+  `MIGRATION_DB_ROLE.updatedAt=1784476084417`. There are no privileged Preview
+  or Development records.
+- Runtime Sensitive Production metadata remains
+  `DATABASE_URL.updatedAt=1784476074964` and
+  `RUNTIME_DB_ROLE.updatedAt=1784476081207`. Sensitive values cannot be read
+  back outside builds/runtime.
+- The public GitHub repository has stale repository-wide `DIRECT_URL` and
+  `DATABASE_URL` secrets last updated 2026-04-28. No workflow in the reviewed
+  release references them.
+- GitHub `Production` has one required reviewer, `Drewyoung910` (user id
+  234014962), `prevent_self_review=false`, and one selected branch policy:
+  `main` (policy id 55079962). Its environment secret and variable inventories
+  are empty before the separation rotation.
+- `main` is not branch-protected. The environment intentionally uses the
+  selected-branch policy rather than “protected branches only.”
+- Accepted Phase B postflight:
+  `/Users/drewyoung/grainline-rollout-evidence/saved-search-phase-b-production-postflight-20260721.json`,
+  SHA-256
+  `768096b53662ec9e8deaf8a3a63e6021ad755464f48b4b01c02fb339f1c78ea4`.
 
 ## Activation Sequence
 
-Perform this as a separate release after Phase B. Never combine these steps
-with Bucket B policy activation.
+Keep this as a separate release; do not combine it with Notification policy
+activation.
 
-1. Require Phase B retained evidence: exact deployment source, `ENABLE` plus
-   `FORCE`, three SavedSearch policies, runtime direct denial, healthy canary,
-   route smokes, old Phase-A owner credential rejection, and zero other owner
-   sessions.
+1. Require the pinned healthy Phase B postflight.
 2. Merge the reviewed separation commit to `main`. Its Vercel Git policy must
-   prevent an automatic production deployment.
-3. Re-verify GitHub `Production` still has only selected branch `main`, required
-   reviewer `Drewyoung910`, and `prevent_self_review=false`. This requires a
-   separate approval click while allowing the sole operator to approve the
-   manually dispatched run. Stop if the protection or empty pre-rotation secret
-   inventory has drifted.
-4. Remove Vercel Production `DIRECT_URL` and `MIGRATION_DB_ROLE`, then verify a
-   fresh metadata inventory contains neither. This changes only future
-   deployments; the current Phase B app remains live on `DATABASE_URL`.
-5. Rotate `neondb_owner` a second time. Persist the new secret only in the
-   mode-`0600` local operator file and the GitHub `Production` environment as
-   `PRODUCTION_MIGRATION_DIRECT_URL`; set its matching non-secret SHA-256 as
-   `PRODUCTION_MIGRATION_DIRECT_URL_SHA256`. Do not update Vercel. Use the same local
-   SCRAM-verifier, new-authentication, old-`28P01`, exact-role, and zero-session
-   proofs as the Phase B operator.
-6. The second rotation invalidates the owner credential embedded in the current
-   Phase B deployment and every other superseded deployment. Do not accept an
-   environment-variable deletion alone as old-deployment invalidation.
-7. Delete the stale repository-wide GitHub `DIRECT_URL` and `DATABASE_URL`
-   secrets only after confirming no workflow references them. Retain the new
-   owner secret only at environment scope.
-8. Manually dispatch `Production Migrations` from `main`. Paste the exact
-   current `main` SHA into `release_commit` and type
-   `run-reviewed-production-migrations-from-main`; approve the `Production`
-   environment job; retain the green run URL and final audit output.
-9. From a clean checkout of that same commit, deploy explicitly with Vercel.
-   The build must pass the runtime isolation guard with only the exact runtime
-   `DATABASE_URL`; retain deployment source metadata and verify the live alias.
-10. Re-run grant/RLS catalog proof, runtime no-context denial, ops-health,
-    cron/webhook health, and live read-only route smokes. A fresh Vercel
-    environment inventory must still omit every privileged database key.
-11. Only after this release is stable may Bucket B Notification staging and
-    production activation begin.
+   suppress an automatic production deployment. Verify no new production
+   deployment was created.
+3. Re-read GitHub `Production` protection and its empty pre-rotation
+   secret/variable inventory.
+4. Run `preflight-only` from the exact clean `main` commit.
+5. Run `remove-vercel`. It removes only Production `DIRECT_URL` and
+   `MIGRATION_DB_ROLE`, can converge an interrupted partial removal, and
+   requires unchanged runtime record timestamps plus a fresh all-environment
+   inventory with no privileged database key. Existing deployments retain
+   their build-time environment until the next step invalidates that password.
+6. Run `reset`. It uses the pinned Neon control-plane reset for the exact
+   project, primary/default production branch, read-write endpoint, and owner
+   role. Before any provider read or mutation it reserves and fsyncs 64 KiB for
+   the private evidence artifact. Before the non-idempotent POST it writes the
+   prior URL and pre-reset role timestamp to a dedicated mode-`0600` recovery
+   file. After a valid response it stores the returned credential locally and
+   in protected GitHub before waiting for provider operations, then proves new
+   authentication, prior `28P01` rejection, unchanged role/RLS posture, zero
+   owner sessions, GitHub digest agreement, and continued Vercel runtime-only
+   state. It stages and fsyncs the sanitized success evidence before deleting
+   recovery state, then atomically publishes the evidence.
+7. If reset or placement is ambiguous, run `recover`. It never calls reset. A
+   still-accepted prior credential plus unchanged role timestamp proves reset
+   did not complete and clears only recovery state. If the role timestamp or
+   partial placement changed while the prior password still accepts, recovery
+   reveals the currently stored password: the old password causes local state
+   to be restored and partial protected GitHub secret/variable placement to be
+   removed; a different current password is converged and both old rejection
+   and new acceptance are retried through Neon's documented overlap window. A
+   rejected prior credential plus advanced role timestamp also uses the
+   idempotent reveal endpoint to converge local/GitHub/database state.
+8. The completed reset invalidates the owner credential embedded in the Phase B
+   deployment and every superseded deployment. Vercel variable deletion alone
+   is not sufficient.
+9. After confirming no workflow references them, delete stale repository-wide
+   GitHub `DIRECT_URL` and `DATABASE_URL`; keep the replacement only in the
+   protected environment.
+10. Manually dispatch `Production Migrations` from `main`, paste the exact
+    `main` SHA, type `run-reviewed-production-migrations-from-main`, approve the
+    environment job, and retain the green run/final audit evidence.
+11. Explicitly deploy that same clean commit with Vercel. The build must pass
+    with only the exact runtime database identity.
+12. Postflight must re-prove deployment source/aliases, Vercel env isolation,
+    migration/grant/RLS catalog state, runtime no-context denial, ops-health,
+    cron/webhook health, and live read-only routes.
+13. Only then resume Notification staging/activation.
 
-## Separation Operator
+## Operator Commands
 
-After steps 1-4 and from the exact clean separation release checkout, run the
-read-only mode first. Replace `<exact-main-sha>` with the checked-out 40-byte
-commit:
+Use the exact clean `main` checkout and a distinct evidence filename for every
+mode. Replace `<exact-main-sha>` below.
+
+Read-only preflight:
 
 ```sh
 RUNTIME_DB_SEPARATION_MODE=preflight-only \
@@ -124,58 +142,80 @@ RUNTIME_DB_SEPARATION_EVIDENCE_PATH=/Users/drewyoung/grainline-rollout-evidence/
 npm run ops:separate-db-credential
 ```
 
-Require exit zero, `status=passed`, `issueCount=0`,
-`acceptanceEligible=false`, and a mode-0600 artifact. The operator requires a
-clean exact checkout, runtime-only Vercel metadata, exact GitHub Production
-reviewer/branch protection with no pre-existing migration secret/digest, exact
-live role membership posture, SavedSearch FORCE with three policies, no
-incomplete migration, and the retained healthy post-skew canary.
-
-Then use the same exact checkout and commit for the one-way rotation:
+Remove only the two reviewed Vercel records:
 
 ```sh
-RUNTIME_DB_SEPARATION_MODE=rotate \
+RUNTIME_DB_SEPARATION_MODE=remove-vercel \
 RUNTIME_DB_SEPARATION_CONFIRM=rotate-owner-into-protected-github-after-vercel-removal \
 RUNTIME_DB_SEPARATION_RELEASE_COMMIT=<exact-main-sha> \
-RUNTIME_DB_SEPARATION_EVIDENCE_PATH=/Users/drewyoung/grainline-rollout-evidence/runtime-db-separation-rotation.json \
+RUNTIME_DB_SEPARATION_EVIDENCE_PATH=/Users/drewyoung/grainline-rollout-evidence/runtime-db-separation-vercel-removal.json \
 npm run ops:separate-db-credential
 ```
 
-The operator rechecks every preflight, generates the replacement, atomically
-updates mode-0600 `.env.local`, writes the URL only to the protected GitHub
-environment secret through stdin, writes and re-reads its exact non-secret
-digest variable, sends only a locally derived SCRAM verifier to PostgreSQL,
-proves new authentication, requires old failure code `28P01`, requires zero
-other owner sessions, and rechecks Vercel remains runtime-only. It emits only
-sanitized evidence. Any failure after local/GitHub update but before new
-authentication is a reconciliation stop, not permission to retry blindly.
+Perform the one reset:
+
+```sh
+RUNTIME_DB_SEPARATION_MODE=reset \
+RUNTIME_DB_SEPARATION_CONFIRM=rotate-owner-into-protected-github-after-vercel-removal \
+RUNTIME_DB_SEPARATION_RELEASE_COMMIT=<exact-main-sha> \
+RUNTIME_DB_SEPARATION_EVIDENCE_PATH=/Users/drewyoung/grainline-rollout-evidence/runtime-db-separation-reset.json \
+npm run ops:separate-db-credential
+```
+
+Recovery only while the private prior-owner file exists:
+
+```sh
+RUNTIME_DB_SEPARATION_MODE=recover \
+RUNTIME_DB_SEPARATION_CONFIRM=rotate-owner-into-protected-github-after-vercel-removal \
+RUNTIME_DB_SEPARATION_RELEASE_COMMIT=<exact-main-sha> \
+RUNTIME_DB_SEPARATION_EVIDENCE_PATH=/Users/drewyoung/grainline-rollout-evidence/runtime-db-separation-recovery.json \
+npm run ops:separate-db-credential
+```
+
+Every artifact must be mode `0600`, `status=passed`, and `issueCount=0`.
+Preflight/removal and a proven “reset not completed” recovery intentionally have
+`acceptanceEligible=false`. A completed reset or reveal recovery must have
+`acceptanceEligible=true`, every named terminal check true, and
+`ownerSessionCount=0`.
+
+The operator reserves `<evidence>.pending` before it begins. A normal run
+atomically renames that private file to the requested evidence path. If a
+process interruption leaves only `.pending`, do not delete it or rerun `reset`.
+When it contains a completed artifact and recovery state is already absent, an
+exact rerun publishes it without provider work. Otherwise retain it and run
+`recover` with a new evidence filename while the private prior-owner file
+exists.
 
 ## Failure And Rollback
 
-- If the GitHub environment cannot be protected, stop before storing the new
-  secret.
-- If Vercel variable removal or its absence proof fails, stop before the second
-  owner rotation and deployment.
-- If GitHub secret update is ambiguous, stop before altering PostgreSQL. A
-  changed timestamp alone does not prove which concurrent secret value won.
-- If owner rotation is ambiguous, test new and prior authentication, converge
-  local/GitHub/PostgreSQL, and do not deploy.
-- If the migration workflow fails, leave the existing app live and reconcile
-  the database before deploying code.
-- If the runtime-only deployment regresses application behavior, the previous
-  deployment can serve normal traffic through unchanged `DATABASE_URL`; its
-  embedded owner credential has already been invalidated. Roll back the app
-  without restoring the owner credential to Vercel.
+- If GitHub environment protection drifts, stop before storing a secret.
+- If Vercel removal is partial, rerun only `remove-vercel`; do not reset until
+  the runtime-only inventory passes.
+- Once `neonPasswordResetAttempted=true`, never run `reset` again while the
+  private prior-owner recovery file or an unfinished `.pending` evidence file
+  exists. Use `recover` with a distinct evidence filename.
+- If GitHub placement is ambiguous after reset, `recover` re-upserts the same
+  revealed current password and digest; it does not rotate again. If Neon still
+  stores and accepts the prior password, recovery restores that local URL and
+  removes any partially placed protected GitHub secret and digest instead.
+- If the migration workflow fails, keep the current app live and reconcile the
+  owner-only migration path before deploying application code.
+- If the runtime-only deployment regresses, the previous deployment still uses
+  unchanged runtime `DATABASE_URL`; its embedded owner credential is already
+  invalid. Roll back application code without restoring any owner variable to
+  Vercel.
 
 ## Primary References
 
-- Vercel project environment variables are available during both build and
-  Function execution:
-  <https://vercel.com/docs/environment-variables>
-- Vercel supports disabling Git deployments by branch:
+- Vercel variables affect builds and Functions, and changes apply only to new
+  deployments: <https://vercel.com/docs/environment-variables>
+- Vercel CLI environment removal:
+  <https://vercel.com/docs/cli/env>
+- Vercel `git.deploymentEnabled`:
   <https://vercel.com/docs/project-configuration/git-configuration>
-- GitHub environment secrets are released only after environment protection
-  rules pass:
+- GitHub protected environments and secrets:
   <https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments>
-- GitHub supports required reviewers and selected-branch deployment policies:
-  <https://docs.github.com/en/rest/deployments/environments>
+- Neon reset and reveal endpoints:
+  <https://api-docs.neon.tech/reference/resetprojectbranchrolepassword>
+  and
+  <https://api-docs.neon.tech/reference/getprojectbranchrolepassword>

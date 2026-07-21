@@ -29,6 +29,17 @@ export function privilegedDatabaseEnvironmentKeys(env) {
     .sort((left, right) => left.localeCompare(right));
 }
 
+export function unreviewedPostgresUrlEnvironmentKeys(env) {
+  return Object.entries(env ?? {})
+    .filter(([key, value]) => (
+      key !== "DATABASE_URL"
+      && typeof value === "string"
+      && /^postgres(?:ql)?:\/\//i.test(value.trim())
+    ))
+    .map(([key]) => key)
+    .sort((left, right) => left.localeCompare(right));
+}
+
 export function parseVercelRuntimeDatabaseIdentity(value, label = "DATABASE_URL") {
   const parsed = parseExactPostgresUrl(value, label);
   const { username } = assertExplicitPostgresConnectionAuthority(parsed, label);
@@ -61,6 +72,12 @@ export function assertVercelRuntimeDatabaseIsolation(env = process.env) {
   if (privilegedKeys.length > 0) {
     throw new Error(
       `Vercel application builds must not receive privileged database environment keys: ${privilegedKeys.join(", ")}`,
+    );
+  }
+  const unreviewedPostgresUrlKeys = unreviewedPostgresUrlEnvironmentKeys(env);
+  if (unreviewedPostgresUrlKeys.length > 0) {
+    throw new Error(
+      `Vercel application builds must not receive PostgreSQL URLs outside DATABASE_URL: ${unreviewedPostgresUrlKeys.join(", ")}`,
     );
   }
 
