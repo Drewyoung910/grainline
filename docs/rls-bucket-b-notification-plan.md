@@ -561,6 +561,47 @@ clearly named disposable live Clerk test user paired only with a fresh child
 database row, followed by exact session revocation, user deletion, cache-key
 deletion, Preview/variable/bypass removal, and child teardown.
 
+### Consolidated Extra High authority review: passed (2026-07-22)
+
+The consolidated SQL/application review at exact branch head
+`ab2d08a65a079a34664ea67ce659f013a12354d4` found no new blocking authority
+defect. The review inspected all seventeen `SECURITY DEFINER` functions, all
+eight `SECURITY INVOKER` recipient functions, their application adapters, and
+the preparation/activation split rather than relying on the disposable proof
+alone.
+
+- Every elevated function pins `search_path`, uses fixed SQL rather than
+  dynamic SQL, and derives security-relevant recipient, payload, canonical
+  link, and replay identity from validated source rows. The generic creation
+  primitive remains private; runtime receives only the sixteen fixed-purpose
+  entry points and `PUBLIC` receives none.
+- Recipient reads and mark-read operations resolve the durable `User.id` on the
+  server and run through the one-statement invoker functions. Direct runtime
+  `INSERT` and `DELETE` stay revoked; runtime retains only recipient-scoped
+  reads and column-only `UPDATE(read)` after activation.
+- The preparation migration adds the compatibility schema/functions while RLS
+  remains disabled and legacy app writes remain valid. The activation migration
+  locks `Notification`, performs the guarded prelaunch-only legacy purge as its
+  first data-changing step, installs the exact policies/grants, and then enables
+  RLS. This preserves old/new deployment compatibility and prevents a purge /
+  notification-recreation race.
+- At this head, the 54/54 source-path gate reports zero uncovered or unresolved
+  paths; the candidate builder reproduces byte-stable preparation and
+  activation SQL; `npm test` passed 1,857 tests with three expected skips and
+  zero failures; TypeScript and lint passed. The branch-only PostgreSQL workflow
+  also passed preparation, compatibility, activation, authority, isolation,
+  concurrency, grant-audit, and database-first rollback checks at source commit
+  `a4ced63b7c23f61366b7632ce2507c822c53241f`.
+
+This closes the final authority-review gate; it does not authorize production
+activation. Remaining release gates are a fresh explicitly authorized
+authenticated route smoke, legacy aggregate/backup inspection, clean release
+PR and full CI, application-deployment rollback proof, production preparation
+and compatible app deployment, activation, and catalog/runtime postflight.
+Application-asserted `app.user_id` and ordinary-runtime authority over many
+upstream source tables remain explicitly bounded residual risks for later
+site-wide groups, not claims Bucket B can eliminate by itself.
+
 ## Isolation Boundary And Hot-Path Decision
 
 - The isolated branch may retain the verified inventory, source-lifecycle
