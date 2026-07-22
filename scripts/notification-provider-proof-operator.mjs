@@ -1241,6 +1241,43 @@ async function configure() {
   console.log(JSON.stringify({ commitSha: state.commitSha, configuredVariables: environmentIds.length }));
 }
 
+async function rebindPredeploymentCommit() {
+  const state = readProviderState();
+  const commitSha = assertExactCleanCommit();
+  if (
+    !state.setupCompletedAt
+    || state.configuredAt
+    || state.deploymentId
+    || state.slot1EvidencePath
+    || state.slot2EvidencePath
+    || state.preparedCommitSha
+    || state.commitSha === commitSha
+  ) {
+    throw new Error("provider state is not eligible for one-time predeployment commit rebinding");
+  }
+  readPrivateJson(state.setupEvidencePath, "provider setup evidence");
+  if ((await branchEnvironmentInventory()).length !== 0) {
+    throw new Error("provider branch environment must remain empty before commit rebinding");
+  }
+  const deployments = (await listDeployments()).filter(
+    (deployment) => deployment.meta?.githubCommitRef === PROVIDER_PROOF_BRANCH,
+  );
+  if (deployments.length !== 0) {
+    throw new Error("provider deployment exists before commit rebinding");
+  }
+  replacePrivateState({
+    ...state,
+    commitSha,
+    preparedCommitSha: state.commitSha,
+    reboundAt: new Date().toISOString(),
+  });
+  console.log(JSON.stringify({
+    commitRebound: true,
+    deploymentCommitSha: commitSha,
+    preparedCommitSha: state.commitSha,
+  }));
+}
+
 async function attest() {
   let state = readProviderState();
   assertExactCleanCommit(state.commitSha);
@@ -1313,6 +1350,7 @@ async function attest() {
       source: deployment.source,
       url: deployment.url,
     },
+    databasePreparationCommitSha: state.preparedCommitSha ?? state.commitSha,
     environment: {
       branch: PROVIDER_PROOF_BRANCH,
       forbiddenKeysPresent: environment
@@ -1484,6 +1522,7 @@ async function cleanup({ requireSuccess }) {
     scope: "disposable-notification-provider-proof-cleanup",
     result: requireSuccess ? "proof-cleanup-complete" : "abort-cleanup-complete",
     commitSha: state.commitSha,
+    databasePreparationCommitSha: state.preparedCommitSha ?? state.commitSha,
     deploymentId: state.deploymentId ?? null,
     deploymentDeleted,
     automationBypassRevoked,
@@ -1606,7 +1645,7 @@ async function databaseStatus() {
 }
 
 function usage() {
-  console.error("Usage: node scripts/notification-provider-proof-operator.mjs <bootstrap-bypass-state|revoke-bypass-state|prepare|configure|attest|slot-1|slot-2|cleanup|cleanup-abort|status|database-status|prisma-status>");
+  console.error("Usage: node scripts/notification-provider-proof-operator.mjs <bootstrap-bypass-state|revoke-bypass-state|prepare|rebind-predeployment-commit|configure|attest|slot-1|slot-2|cleanup|cleanup-abort|status|database-status|prisma-status>");
 }
 
 async function main() {
@@ -1619,6 +1658,9 @@ async function main() {
       break;
     case "prepare":
       await prepare();
+      break;
+    case "rebind-predeployment-commit":
+      await rebindPredeploymentCommit();
       break;
     case "configure":
       await configure();

@@ -98,6 +98,10 @@ describe("disposable Notification provider proof operator", () => {
     assert.match(source, /revokeProviderBypass/);
     assert.match(source, /remainingAutomationBypassSecrets: 0/);
     assert.match(source, /regenerate: false/);
+    assert.match(source, /rebindPredeploymentCommit/);
+    assert.match(source, /preparedCommitSha: state\.commitSha/);
+    assert.match(source, /provider deployment exists before commit rebinding/);
+    assert.match(source, /databasePreparationCommitSha/);
     assert.match(source, /\^v24\\\./);
     assert.match(source, /configuredNodeVersion/);
     assert.match(source, /unlinkSync\(PROVIDER_PROOF_STATE_PATH\)/);
