@@ -2,10 +2,14 @@
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
-import { parseTimestampMsParam } from "@/lib/queryParams";
 import { messageListRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { MESSAGE_POLL_LIMIT } from "@/lib/messagePolling";
+import {
+  messageAfterCursorWhere,
+  messageBeforeCursorWhere,
+  parseMessageCursor,
+} from "@/lib/messageCursor";
 
 export async function GET(
   req: Request,
@@ -29,34 +33,65 @@ export async function GET(
     throw err;
   }
 
-  // Only if I’m in this conversation
+  // Participants may read their thread. Staff get the same bounded read-only
+  // history only while an unresolved report targets this exact thread.
   const belongs = await prisma.conversation.findFirst({
     where: { id, OR: [{ userAId: me.id }, { userBId: me.id }] },
     select: { id: true },
   });
-  if (!belongs) return privateJson({ ok: false }, { status: 403 });
+  const isStaff = me.role === "ADMIN" || me.role === "EMPLOYEE";
+  const reportedThread = !belongs && isStaff
+    ? await prisma.userReport.findFirst({
+        where: { targetType: "MESSAGE_THREAD", targetId: id, resolved: false },
+        select: { id: true },
+      })
+    : null;
+  if (!belongs && !reportedThread) return privateJson({ ok: false }, { status: 403 });
 
   const url = new URL(req.url);
-  const sinceMs = parseTimestampMsParam(url.searchParams.get("since"));
-  const sinceDate = sinceMs == null ? null : new Date(sinceMs);
+  const beforeRaw = url.searchParams.get("before");
+  const beforeIdRaw = url.searchParams.get("beforeId");
+  const historyMode = beforeRaw !== null || beforeIdRaw !== null;
+  const beforeCursor = historyMode
+    ? parseMessageCursor(beforeRaw, beforeIdRaw, { requireId: true })
+    : null;
+  if (historyMode && !beforeCursor) {
+    return privateJson({ error: "Invalid message cursor" }, { status: 400 });
+  }
+  const sinceRaw = url.searchParams.get("since");
+  const sinceIdRaw = url.searchParams.get("sinceId");
+  const sinceMode = !historyMode && (sinceRaw !== null || sinceIdRaw !== null);
+  const sinceCursor = historyMode ? null : parseMessageCursor(sinceRaw, sinceIdRaw);
+  if (sinceMode && !sinceCursor) {
+    return privateJson({ error: "Invalid message cursor" }, { status: 400 });
+  }
 
-  const messages = await prisma.message.findMany({
+  const rows = await prisma.message.findMany({
     where: {
       conversationId: id,
-      ...(sinceDate ? { createdAt: { gt: sinceDate } } : {}),
+      ...(beforeCursor
+        ? messageBeforeCursorWhere(beforeCursor)
+        : messageAfterCursorWhere(sinceCursor)),
     },
-    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-    take: MESSAGE_POLL_LIMIT,
+    orderBy: historyMode
+      ? [{ createdAt: "desc" }, { id: "desc" }]
+      : [{ createdAt: "asc" }, { id: "asc" }],
+    take: historyMode ? MESSAGE_POLL_LIMIT + 1 : MESSAGE_POLL_LIMIT,
     select: {
       id: true,
       senderId: true,
       recipientId: true,
       body: true,
       kind: true,
+      contextListing: { select: { id: true, title: true } },
       createdAt: true,
       readAt: true,
     },
   });
 
-  return privateJson({ ok: true, messages });
+  const hasMoreBefore = historyMode && rows.length > MESSAGE_POLL_LIMIT;
+  const messages = historyMode
+    ? rows.slice(0, MESSAGE_POLL_LIMIT).reverse()
+    : rows;
+  return privateJson({ ok: true, messages, hasMoreBefore });
 }

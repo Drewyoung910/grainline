@@ -267,8 +267,7 @@ describe("request origin guard", () => {
       "await params",
       "await auth()",
       "safeRateLimit(",
-      "prisma.commissionInterest.findUnique",
-      "prisma.$transaction",
+      "createCommissionInterestMessage({",
     ]);
     assertGuardBefore("src/app/api/reviews/[id]/vote/route.ts", [
       "await ctx.params",

@@ -63,6 +63,7 @@ export function canAttachConversationContextListing(
 
   return Boolean(
     listing.reservedForUserId &&
+      listing.reservedForUserId !== sellerUserId &&
       participants.has(listing.reservedForUserId),
   );
 }

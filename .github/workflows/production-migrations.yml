@@ -45,10 +45,10 @@ jobs:
         run: node scripts/guard-production-migration-runner.mjs
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-      - name: Verify exact Notification FORCE release artifact
+      - name: Verify exact Conversation and Message compatibility artifact
         run: npm run verify:rls-release-artifact
         env:
-          SAVED_SEARCH_RLS_DEPLOY_PHASE: notification-force-reviewed
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: conversation-message-compatibility-reviewed
       - name: Verify Notification activation proof equivalence
         run: npm run audit:rls-notification-activation-release
       - name: Verify Notification FORCE release bytes

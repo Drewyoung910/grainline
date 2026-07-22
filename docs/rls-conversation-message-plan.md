@@ -21,8 +21,10 @@ separate from Notification, Order/payment/shipping and Case/CaseMessage.
 
 ## Verified baseline
 
-The machine inventory records 50 direct ORM operations and 5 raw SQL table
-references across 16 runtime files. The surface includes the user inbox and
+The original machine inventory recorded 50 direct ORM operations and 5 raw SQL
+table references. Compatible audit refactors currently leave 44 direct ORM
+operations and 6 raw SQL references across 17 runtime files (50 total protected
+access points). The surface includes the user inbox and
 thread, list and stream polling, unread counts, per-recipient mark-read,
 archive state, first-response metrics, email throttling, account export,
 account-deletion redaction, user-report validation, seller response metrics,
@@ -36,10 +38,9 @@ Important architecture findings at this boundary:
   protected. They must not survive activation.
 - Message foreign keys do not prove that sender and recipient are the opposing
   participants in the referenced Conversation.
-- The custom-order request currently performs conversation create/context
-  attach, Message insert and thread bump as separate commits. Activation work
-  must make that operation atomic rather than preserving its partial-write
-  window.
+- Custom-order request, commission interest and custom-order-ready now commit
+  their Conversation/Message effects in source-validated transactions. The
+  later database functions must preserve those atomic boundaries.
 - The staff thread page is intentionally narrow: an ADMIN or EMPLOYEE may read
   a non-participant thread only while an unresolved `MESSAGE_THREAD` report
   targets that exact conversation. There is no general staff bypass.
@@ -49,6 +50,9 @@ Important architecture findings at this boundary:
 - Seller response metrics query Conversation and Message across a seller's
   history. That path needs an aggregate-only function, not broad service reads
   of message bodies.
+- One Conversation remains canonical per participant pair. Listing context is
+  stored on each Message so entry from multiple listings remains clear without
+  fragmenting the inbox or rewriting old thread context.
 
 ## Target table policies and grants
 
@@ -108,8 +112,8 @@ The direct runtime table query with no context must return zero rows.
    listing visible to both participants and never overwrite existing context.
 2. **Ordinary send**: lock/revalidate the conversation, users and block pair;
    derive the opposing recipient; force ordinary kind/system fields; insert
-   message, set first response when appropriate, bump updated time and unarchive
-   both participants atomically.
+   message, validate and derive any optional Listing context, set first response
+   when appropriate, bump updated time and unarchive both participants atomically.
 3. **Custom-order request**: validate seller custom-order and payment state,
    block state and optional seller-owned public listing; atomically create/get
    the conversation, attach context, insert the fixed kind and bump the thread.
@@ -145,14 +149,15 @@ The direct runtime table query with no context must return zero rows.
 
 ## Compatibility and rollout sequence
 
-1. Inventory and pin every current access path. **Complete: 55 paths.**
+1. Inventory and pin every current access path. **Complete: original 55-path
+   migration baseline; current compatible surface is 50 protected accesses.**
 2. Complete `docs/conversation-message-pre-rls-audit.md` and fix its activation
    blockers before authority SQL. **In progress.**
 3. Read-only legacy/preflight design: exact participant, message-pair, kind,
    orphan, report and archive aggregates; do not export bodies or identifiers.
 4. Preparation migration: functions, predicates, invariant checks/triggers and
    exact ACLs while RLS remains disabled.
-5. Compatible app deployment: all 55 protected accesses move to reviewed
+5. Compatible app deployment: all protected accesses move to reviewed
    helpers; test before and after RLS.
 6. Disposable PostgreSQL proof: policies/grants, every read/write family,
    direct denial, staff report resolution, account/block/archive races,
@@ -165,6 +170,37 @@ The direct runtime table query with no context must return zero rows.
 Background jobs and old/new Vercel coexistence still exist pre-launch, so the
 compatible app and database activation remain separate. A failed Preview with
 `DATABASE_URL_SHAPE` is not authority to weaken the runtime credential guard.
+
+The nullable `Message.contextListingId` preparation migration and compound
+read indexes must land before the compatible application that selects/writes
+them. They do not enable RLS or narrow grants and are compatible with the old
+application. The application checkpoint then precedes invariant/RLS
+preparation, so rollback never requires dropping a column used by a live build.
+The exact additive pair is guarded as
+`conversation-message-compatibility-reviewed`; CI and the manual Production
+migration workflow fail closed on any other later migration or byte drift. This
+phase does not authorize Conversation/Message policies or grants.
+
+## Product and scale decisions
+
+- Retain one ordinary Conversation per unordered participant pair. Per-listing
+  threads create duplicate inbox rows, split history and make blocking/reporting
+  semantics harder. Per-Message Listing context preserves why a message was
+  sent while leaving the relationship thread coherent.
+- `isSystemMessage` is presentation metadata for a server-generated structured
+  card, not an authority bit. Every structured writer still validates its
+  durable source and derives actor, recipient, kind and payload.
+- Staff have no general bypass into ordinary messages. Exact unresolved-report
+  review stays read-only. Grainline-initiated customer/shop outreach, if built,
+  must use a separately labeled support-thread model with its own participants,
+  audit trail, assignment and RLS contract.
+- `Case`/`CaseMessage` remain a separate dispute record and later RLS group.
+  They already provide participant/staff case discussion and should not be
+  merged into ordinary Conversation history.
+- Bounded keyset reads and matching indexes make the storage/query design
+  reasonable for at least 50,000 registered accounts. This is not a claim of
+  50,000 simultaneous live threads: the current per-thread SSE database polling
+  must move to managed realtime/fanout before sustained high concurrency.
 
 ## Extra High gate
 

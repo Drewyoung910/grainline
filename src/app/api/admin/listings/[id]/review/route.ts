@@ -202,11 +202,7 @@ export async function PATCH(
         currentListing.reservedForUserId
       ) {
         await sendCustomOrderReadyLink({
-          conversationId: currentListing.customOrderConversationId,
-          sellerUserId: currentListing.seller.userId,
-          buyerUserId: currentListing.reservedForUserId,
-          sellerName: currentListing.seller.displayName,
-          listing: currentListing,
+          listingId: currentListing.id,
         })
       }
       return privateJson({ ok: true, skipped: true, reason: 'Listing is no longer pending review.' })
@@ -231,11 +227,7 @@ export async function PATCH(
       queueAdminApprovedListingFollowerFanout(listing)
       if (listing.customOrderConversationId && listing.reservedForUserId) {
         await sendCustomOrderReadyLink({
-          conversationId: listing.customOrderConversationId,
-          sellerUserId: listing.seller.userId,
-          buyerUserId: listing.reservedForUserId,
-          sellerName: listing.seller.displayName,
-          listing,
+          listingId: listing.id,
         })
       }
     }

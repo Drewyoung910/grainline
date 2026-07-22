@@ -133,6 +133,7 @@ export async function createCustomOrderRequestMessage(
         conversationId: conversation.conversationId,
         senderId: input.buyerUserId,
         recipientId: input.sellerUserId,
+        contextListingId: listingId,
         body: messageBody,
         kind: "custom_order_request",
       },

@@ -4,6 +4,7 @@ import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { markReadRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
+import { markOwnerMessageNotificationsRead } from "@/lib/notificationOwnerAccess";
 
 export async function POST(
   req: Request,
@@ -42,6 +43,7 @@ export async function POST(
     where: { conversationId: id, recipientId: me.id, readAt: null },
     data: { readAt: new Date() },
   });
+  await markOwnerMessageNotificationsRead(me.id, id);
 
   return privateJson({ ok: true });
 }

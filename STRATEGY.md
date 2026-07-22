@@ -82,6 +82,40 @@ retention/export/deletion, concurrency, indexes and test coverage; fix
 load-bearing defects first so policies do not encode them. For Conversation and
 Message the active record is `docs/conversation-message-pre-rls-audit.md`.
 
+### Messaging architecture decision (2026-07-22)
+
+Keep one ordinary Conversation per unordered participant pair. Do not create a
+new inbox thread for every listing: that fragments the relationship, duplicates
+blocking/reporting state and becomes noisy for active buyers and shops. Preserve
+the listing that prompted a message on the individual Message instead. The
+nullable, source-validated Message Listing context is a pre-RLS compatibility
+requirement, not permission for callers to select arbitrary private listings.
+
+`isSystemMessage` means server-generated structured presentation, not database
+authority. Commission-interest and custom-order-ready cards use it; a
+buyer-authored custom-order request does not. Authorization always comes from
+the durable source relationship and fixed operation.
+
+Do not give staff a general read/write bypass into ordinary buyer-shop threads.
+Exact unresolved-report review remains read-only. `/support` already provides a
+reference-numbered request and staff queue, while Case/CaseMessage provides
+staff-visible dispute discussion. If Grainline later needs Etsy-style in-product
+staff outreach, build visibly branded SupportThread/SupportMessage records with
+assignment, audit, retention and separate RLS rather than impersonating a user
+or reusing ordinary Conversation.
+
+The Conversation/Message relational shape, bounded keyset windows and compound
+indexes are intended to support 50,000-plus registered accounts. That is not a
+50,000-concurrent-stream promise. The current SSE endpoint holds a serverless
+response and polls PostgreSQL every 3–10 seconds per open thread; move delivery
+to managed realtime/fanout before sustained high concurrent messaging while
+retaining the same participant-scoped database read contract.
+
+Deploy the nullable Message listing-context relation and read indexes as an
+additive compatibility release before the application checkpoint. Its exact
+migration phase is `conversation-message-compatibility-reviewed`; it does not
+enable RLS, narrow grants or authorize the later authority migration.
+
 ### Prelaunch RLS rollout proportionality (2026-07-22)
 
 The confirmed prelaunch/no-dependent-users state permits shorter operating

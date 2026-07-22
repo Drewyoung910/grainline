@@ -11,6 +11,7 @@ import MessageTime from "@/components/MessageTime";
 import { Search, X } from "@/components/icons";
 import { Suspense } from "react";
 import type { Metadata } from "next";
+import { parseMessageCursor } from "@/lib/messageCursor";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -43,7 +44,7 @@ function formatSnippet(body?: string | null, kind?: string | null) {
 }
 
 type MessagesPageProps = {
-  searchParams: Promise<{ tab?: string; q?: string }>;
+  searchParams: Promise<{ tab?: string; q?: string; before?: string; beforeId?: string }>;
 };
 
 function MessagesInboxSkeleton() {
@@ -98,8 +99,9 @@ export default function MessagesPage(props: MessagesPageProps) {
 async function MessagesInbox({
   searchParams,
 }: MessagesPageProps) {
-  const { tab = "inbox", q: qParam = "" } = await searchParams;
+  const { tab = "inbox", q: qParam = "", before, beforeId } = await searchParams;
   const q = truncateText(qParam.trim(), 200);
+  const pageCursor = parseMessageCursor(before, beforeId, { requireId: true });
 
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/messages");
@@ -128,7 +130,7 @@ async function MessagesInbox({
       };
 
   // Build dynamic where with optional search
-  const where: Prisma.ConversationWhereInput = {
+  const baseWhere: Prisma.ConversationWhereInput = {
     AND: [
       participationFilter,
       // Hide empty conversations from the inbox. `/messages/new?to=X` creates
@@ -164,12 +166,25 @@ async function MessagesInbox({
         : {},
     ],
   };
+  const where: Prisma.ConversationWhereInput = {
+    AND: [
+      baseWhere,
+      pageCursor
+        ? {
+            OR: [
+              { updatedAt: { lt: pageCursor.createdAt } },
+              { updatedAt: pageCursor.createdAt, id: { lt: pageCursor.id! } },
+            ],
+          }
+        : {},
+    ],
+  };
 
   // Pull conversations newest-first with one latest message + listing context thumb
-  const convos = await prisma.conversation.findMany({
+  const conversationRows = await prisma.conversation.findMany({
     where,
     orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
-    take: 50,
+    take: 51,
     include: {
       userA: { select: { id: true, name: true, imageUrl: true } },
       userB: { select: { id: true, name: true, imageUrl: true } },
@@ -187,11 +202,13 @@ async function MessagesInbox({
       },
     },
   });
+  const hasMoreConversations = conversationRows.length > 50;
+  const convos = conversationRows.slice(0, 50);
 
   // Unread counts in one query
   const unread = await prisma.message.groupBy({
     by: ["conversationId"],
-    where: { recipientId: me.id, readAt: null, conversation: { is: where } },
+    where: { recipientId: me.id, readAt: null, conversation: { is: baseWhere } },
     _count: { _all: true },
   });
   const unreadByConvo = new Map<string, number>(
@@ -243,6 +260,17 @@ async function MessagesInbox({
   // Helper to preserve ?q= across tab links
   const withQ = (base: string) =>
     q ? `${base}${base.includes("?") ? "&" : "?"}q=${encodeURIComponent(q)}` : base;
+  const oldestConversation = convos[convos.length - 1];
+  const olderConversationsHref = oldestConversation
+    ? (() => {
+        const params = new URLSearchParams();
+        if (tab !== "inbox") params.set("tab", tab);
+        if (q) params.set("q", q);
+        params.set("before", String(oldestConversation.updatedAt.getTime()));
+        params.set("beforeId", oldestConversation.id);
+        return `/messages?${params.toString()}`;
+      })()
+    : null;
 
   return (
     <main className="mx-auto max-w-4xl p-8">
@@ -433,6 +461,16 @@ async function MessagesInbox({
             );
           })}
         </ul>
+      )}
+      {hasMoreConversations && olderConversationsHref && (
+        <div className="mt-4 flex justify-center">
+          <Link
+            href={olderConversationsHref}
+            className="inline-flex min-h-[40px] items-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+          >
+            Older conversations
+          </Link>
+        </div>
       )}
     </main>
   );

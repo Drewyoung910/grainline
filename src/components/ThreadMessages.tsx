@@ -23,6 +23,7 @@ type Msg = {
   body: string;
   kind?: string | null;
   isSystemMessage?: boolean | null;
+  contextListing?: { id: string; title: string } | null;
   createdAt: string | Date;
   readAt?: string | Date | null;
 };
@@ -32,6 +33,36 @@ type OtherUser = {
   avatarImageUrl?: string | null;
   name?: string | null;
 };
+
+type ClientMessageCursor = { createdAtMs: number; id: string };
+
+function compareMessages(left: Msg, right: Msg) {
+  const timeDelta = new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime();
+  if (timeDelta !== 0) return timeDelta;
+  return left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
+}
+
+function mergeThreadMessages(current: Msg[], fresh: Msg[]) {
+  const byId = new Map(current.map((message) => [message.id, message]));
+  for (const message of fresh) byId.set(message.id, message);
+  return [...byId.values()].sort(compareMessages);
+}
+
+function cursorForMessage(message: Msg | undefined): ClientMessageCursor | null {
+  if (!message) return null;
+  const createdAtMs = new Date(message.createdAt).getTime();
+  return Number.isFinite(createdAtMs) ? { createdAtMs, id: message.id } : null;
+}
+
+function appendCursorParams(
+  url: URL,
+  cursor: ClientMessageCursor | null,
+  timestampKey: "since" | "before",
+) {
+  if (!cursor) return;
+  url.searchParams.set(timestampKey, String(cursor.createdAtMs));
+  url.searchParams.set(`${timestampKey}Id`, cursor.id);
+}
 
 const hasImageExtension = (s: string) =>
   /^https:\/\/.+\.(png|jpe?g|gif|webp|avif)$/i.test(s.trim());
@@ -68,6 +99,7 @@ export default function ThreadMessages({
   convoId,
   meId,
   initial,
+  initialHasMoreBefore = false,
   otherUser,
   height = "60vh",
   refreshEventFormId,
@@ -77,6 +109,7 @@ export default function ThreadMessages({
   convoId: string;
   meId: string;
   initial: Msg[];
+  initialHasMoreBefore?: boolean;
   otherUser?: OtherUser | null;
   height?: number | string;
   refreshEventFormId?: string;
@@ -85,9 +118,11 @@ export default function ThreadMessages({
 }) {
   const [msgs, setMsgs] = React.useState<Msg[]>(initial || []);
   const [streamError, setStreamError] = React.useState<string | null>(null);
+  const [hasMoreBefore, setHasMoreBefore] = React.useState(initialHasMoreBefore);
+  const [loadingEarlier, setLoadingEarlier] = React.useState(false);
   const boxRef = React.useRef<HTMLDivElement | null>(null);
-  const lastTsRef = React.useRef<number>(
-    initial?.length ? new Date(initial[initial.length - 1].createdAt).getTime() : 0
+  const lastCursorRef = React.useRef<ClientMessageCursor | null>(
+    cursorForMessage(initial?.[initial.length - 1]),
   );
   const atBottomRef = React.useRef(true);
 
@@ -119,11 +154,38 @@ export default function ThreadMessages({
 
   React.useEffect(() => {
     setMsgs(initial || []);
-    lastTsRef.current = initial?.length
-      ? new Date(initial[initial.length - 1].createdAt).getTime()
-      : 0;
+    lastCursorRef.current = cursorForMessage(initial?.[initial.length - 1]);
+    setHasMoreBefore(initialHasMoreBefore);
     requestAnimationFrame(() => scrollToBottom(false));
-  }, [convoId, initial]);
+  }, [convoId, initial, initialHasMoreBefore]);
+
+  const loadEarlier = async () => {
+    if (loadingEarlier || !hasMoreBefore || msgs.length === 0) return;
+    const cursor = cursorForMessage(msgs[0]);
+    if (!cursor) return;
+
+    setLoadingEarlier(true);
+    const box = boxRef.current;
+    const previousHeight = box?.scrollHeight ?? 0;
+    try {
+      const url = new URL(`/api/messages/${convoId}/list`, window.location.origin);
+      appendCursorParams(url, cursor, "before");
+      const response = await fetch(url.toString(), { cache: "no-store" });
+      if (!response.ok) return;
+      const data = await response.json();
+      const earlier: Msg[] = Array.isArray(data?.messages) ? data.messages : [];
+      setHasMoreBefore(data?.hasMoreBefore === true);
+      if (earlier.length) {
+        setMsgs((current) => mergeThreadMessages(current, earlier));
+        requestAnimationFrame(() => {
+          const currentBox = boxRef.current;
+          if (currentBox) currentBox.scrollTop += currentBox.scrollHeight - previousHeight;
+        });
+      }
+    } finally {
+      setLoadingEarlier(false);
+    }
+  };
 
   // Scroll to bottom after a message is sent. Also fire an immediate fetch
   // so the sent message appears within a few hundred ms instead of waiting
@@ -144,7 +206,7 @@ export default function ThreadMessages({
       controller = currentController;
       try {
         const u = new URL(`/api/messages/${convoId}/list`, window.location.origin);
-        if (lastTsRef.current) u.searchParams.set("since", String(lastTsRef.current));
+        appendCursorParams(u, lastCursorRef.current, "since");
         const res = await fetch(u.toString(), { cache: "no-store", signal: currentController.signal });
         if (!active || currentController.signal.aborted) return;
         if (!res.ok) return;
@@ -153,9 +215,8 @@ export default function ThreadMessages({
         const fresh: Msg[] = Array.isArray(data?.messages) ? data.messages : [];
         if (fresh.length) {
           setMsgs((prev) => {
-            const seen = new Set(prev.map((m) => m.id));
-            const merged = [...prev, ...fresh.filter((m) => !seen.has(m.id))];
-            lastTsRef.current = new Date(merged[merged.length - 1].createdAt).getTime();
+            const merged = mergeThreadMessages(prev, fresh);
+            lastCursorRef.current = cursorForMessage(merged[merged.length - 1]);
             return merged;
           });
         }
@@ -191,9 +252,8 @@ export default function ThreadMessages({
     const apply = (fresh: Msg[]) => {
       if (!fresh.length) return;
       setMsgs((prev) => {
-        const seen = new Set(prev.map((m) => m.id));
-        const merged = [...prev, ...fresh.filter((m) => !seen.has(m.id))];
-        lastTsRef.current = new Date(merged[merged.length - 1].createdAt).getTime();
+        const merged = mergeThreadMessages(prev, fresh);
+        lastCursorRef.current = cursorForMessage(merged[merged.length - 1]);
         if (atBottomRef.current) requestAnimationFrame(() => scrollToBottom(true));
         return merged;
       });
@@ -207,7 +267,7 @@ export default function ThreadMessages({
         pollController = controller;
         try {
           const u = new URL(`/api/messages/${convoId}/list`, window.location.origin);
-          if (lastTsRef.current) u.searchParams.set("since", String(lastTsRef.current));
+          appendCursorParams(u, lastCursorRef.current, "since");
           const res = await fetch(u.toString(), { cache: "no-store", signal: controller.signal });
           if (closed) return;
           if (!res.ok) {
@@ -233,7 +293,7 @@ export default function ThreadMessages({
 
     try {
       const u = new URL(`/api/messages/${convoId}/stream`, window.location.origin);
-      if (lastTsRef.current) u.searchParams.set("since", String(lastTsRef.current));
+      appendCursorParams(u, lastCursorRef.current, "since");
       const es = new EventSource(u.toString());
       es.onmessage = (ev) => {
         const messages = parseThreadMessagesEvent(ev.data);
@@ -290,6 +350,18 @@ export default function ThreadMessages({
       {streamError && (
         <div role="status" className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           {streamError}
+        </div>
+      )}
+      {hasMoreBefore && (
+        <div className="mb-3 flex justify-center">
+          <button
+            type="button"
+            onClick={loadEarlier}
+            disabled={loadingEarlier}
+            className="min-h-[36px] rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loadingEarlier ? "Loading earlier messages…" : "Load earlier messages"}
+          </button>
         </div>
       )}
       {msgs.length === 0 && (
@@ -531,6 +603,14 @@ export default function ThreadMessages({
               )}
 
               <div className={`max-w-[75%] sm:max-w-[65%] ${mine ? "text-right" : ""}`}>
+                {m.contextListing ? (
+                  <Link
+                    href={publicListingPath(m.contextListing.id, m.contextListing.title)}
+                    className="mb-1 block truncate text-left text-[11px] font-medium text-amber-700 hover:underline"
+                  >
+                    Regarding {m.contextListing.title}
+                  </Link>
+                ) : null}
                 <div className={`inline-block rounded-2xl px-3 py-2 text-left break-all ${bubbleClass}`}>
                   {bubble}
                 </div>

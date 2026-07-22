@@ -360,6 +360,7 @@ model Listing {
   packagedHeightCm    Float?
 
   contextConversations Conversation[]      @relation("ConversationContextListing")
+  contextMessages      Message[]           @relation("MessageContextListing")
   customOrderConversation Conversation?   @relation("ListingCustomOrderConversation", fields: [customOrderConversationId], references: [id], onDelete: SetNull)
   stockNotifications   StockNotification[]
   viewDailies          ListingViewDaily[]
@@ -493,6 +494,8 @@ model Conversation {
   @@unique([userAId, userBId])
   @@index([userAId])
   @@index([userBId])
+  @@index([userAId, updatedAt(sort: Desc), id(sort: Desc)])
+  @@index([userBId, updatedAt(sort: Desc), id(sort: Desc)])
   @@index([contextListingId])
   @@index([createdAt])
 }
@@ -505,6 +508,8 @@ model Message {
   sender          User         @relation("MessagesFromUser", fields: [senderId], references: [id], onDelete: Restrict)
   recipientId     String
   recipient       User         @relation("MessagesToUser", fields: [recipientId], references: [id], onDelete: Restrict)
+  contextListingId String?
+  contextListing   Listing?     @relation("MessageContextListing", fields: [contextListingId], references: [id], onDelete: SetNull)
   body            String       @db.VarChar(5000)
   kind            String?      @db.VarChar(50)
   isSystemMessage Boolean      @default(false)
@@ -513,6 +518,9 @@ model Message {
 
   @@index([conversationId])
   @@index([conversationId, createdAt])
+  @@index([conversationId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([conversationId, recipientId, readAt])
+  @@index([contextListingId])
   @@index([senderId])
   @@index([recipientId, readAt])
 }

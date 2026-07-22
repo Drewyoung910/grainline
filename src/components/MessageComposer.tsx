@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { SubmitButton } from "@/components/ActionForm";
 import UploadButton from "@/components/R2UploadButton";
 import { emitToast } from "@/components/Toast";
@@ -20,7 +21,14 @@ const ENDPOINT = "messageAny" as const;
 export default function MessageComposer({
   placeholder = "Write a message…",
   successEventFormId,
-}: { placeholder?: string; successEventFormId?: string }) {
+  contextListing,
+  clearContextHref,
+}: {
+  placeholder?: string;
+  successEventFormId?: string;
+  contextListing?: { id: string; title: string } | null;
+  clearContextHref?: string;
+}) {
   const [value, setValue] = React.useState("");
   const [attachments, setAttachments] = React.useState<Attachment[]>([]);
   const taRef = React.useRef<HTMLTextAreaElement | null>(null);
@@ -57,6 +65,18 @@ export default function MessageComposer({
 
   return (
     <div className="sticky bottom-0 sm:bottom-6 bg-[#EFEAE0] border-t border-neutral-200 sm:border sm:border-stone-200/70 sm:rounded-2xl sm:mt-3 px-3 sm:px-4 pt-3 [padding-bottom:calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-2px_8px_-4px_rgba(0,0,0,0.05)] sm:shadow-md">
+      {contextListing ? (
+        <div className="mb-2 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <span className="min-w-0 flex-1 truncate">
+            Regarding <span className="font-medium">{contextListing.title}</span>
+          </span>
+          {clearContextHref ? (
+            <Link href={clearContextHref} className="shrink-0 font-medium underline">
+              Remove
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
       {attachments.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">
           {attachments.map((a) => (
@@ -208,6 +228,11 @@ export default function MessageComposer({
           completed.map(({ name, type, url }) => ({ name, type, url }))
         )}
       />
+      <input
+        type="hidden"
+        name="contextListingId"
+        value={contextListing?.id ?? ""}
+      />
 
       <div className="mt-1 text-xs text-neutral-500">
         Attach images or PDFs. Files show here before you send.
@@ -215,4 +240,3 @@ export default function MessageComposer({
     </div>
   );
 }
-

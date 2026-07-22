@@ -26,6 +26,7 @@ describe("conversation participant pair guardrails", () => {
     const customOrder = source("src/app/api/messages/custom-order-request/route.ts");
     const customOrderAccess = source("src/lib/customOrderRequestAccess.ts");
     const commissionInterest = source("src/app/api/commission/[id]/interest/route.ts");
+    const commissionInterestAccess = source("src/lib/commissionInterestMessageAccess.ts");
 
     assert.doesNotMatch(messagesNew, /conversation\.(?:create|update|updateMany|upsert)/);
     assert.match(messagesNew, /startConversationForUser/);
@@ -38,8 +39,9 @@ describe("conversation participant pair guardrails", () => {
     assert.match(customOrderAccess, /lockConversationParticipantPair\(\s*tx,\s*input\.buyerUserId,\s*input\.sellerUserId/s);
     assert.match(customOrderAccess, /getOrCreateConversationForLockedPair\(\s*tx,\s*pair,/s);
 
-    assert.match(commissionInterest, /const \[a, b\] = \[me\.id, buyerUserId\]\.sort/);
-    assert.match(commissionInterest, /where: \{ userAId_userBId: \{ userAId: a, userBId: b \} \}/);
-    assert.match(commissionInterest, /create: \{ userAId: a, userBId: b \}/);
+    assert.doesNotMatch(commissionInterest, /conversation\.(?:create|update|updateMany|upsert)/);
+    assert.match(commissionInterest, /createCommissionInterestMessage/);
+    assert.match(commissionInterestAccess, /lockConversationParticipantPair\(\s*tx,\s*input\.sellerUserId,/s);
+    assert.match(commissionInterestAccess, /getOrCreateConversationForLockedPair\(tx, pair, null\)/);
   });
 });

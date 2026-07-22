@@ -49,15 +49,6 @@ export default async function NewConversationPage({
   });
   if (!canStartConversationWith(me.id, other, !!blockExists)) redirect("/messages");
 
-  const [userAId, userBId] = [me.id, other.id].sort((left, right) => (
-    left < right ? -1 : 1
-  ));
-  const existing = await prisma.conversation.findUnique({
-    where: { userAId_userBId: { userAId, userBId } },
-    select: { id: true },
-  });
-  if (existing) redirect(`/messages/${existing.id}`);
-
   let validListingId: string | null = null;
   let listingTitle: string | null = null;
   if (listing) {
@@ -84,6 +75,18 @@ export default async function NewConversationPage({
       listingTitle = contextListing.title;
     }
   }
+
+  const [userAId, userBId] = [me.id, other.id].sort((left, right) => (
+    left < right ? -1 : 1
+  ));
+  const existing = await prisma.conversation.findUnique({
+    where: { userAId_userBId: { userAId, userBId } },
+    select: { id: true },
+  });
+  const listingQuery = validListingId
+    ? `?listing=${encodeURIComponent(validListingId)}`
+    : "";
+  if (existing) redirect(`/messages/${existing.id}${listingQuery}`);
 
   async function startConversation(): Promise<{ ok: boolean; error?: string }> {
     "use server";
@@ -112,7 +115,7 @@ export default async function NewConversationPage({
     if (!result.ok) {
       return { ok: false, error: "This conversation is no longer available." };
     }
-    redirect(`/messages/${result.conversationId}`);
+    redirect(`/messages/${result.conversationId}${listingQuery}`);
   }
 
   return (

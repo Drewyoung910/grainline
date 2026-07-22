@@ -58,10 +58,13 @@ describe("verified audit follow-up guardrails", () => {
   it("keeps commission close and interest creation behind atomic open-state predicates", () => {
     const patchRoute = source("src/app/api/commission/[id]/route.ts");
     const interestRoute = source("src/app/api/commission/[id]/interest/route.ts");
+    const interestAccess = source("src/lib/commissionInterestMessageAccess.ts");
     assert.match(patchRoute, /commissionRequest\.updateMany/);
     assert.match(patchRoute, /openCommissionMutationWhere\(id, new Date\(\), \{ buyerId: me\.id \}\)/);
-    assert.match(interestRoute, /commissionRequest\.updateMany/);
-    assert.match(interestRoute, /COMMISSION_CLOSED_DURING_INTEREST/);
+    assert.match(interestRoute, /createCommissionInterestMessage\(\{/);
+    assert.match(interestAccess, /commissionRequest\.updateMany/);
+    assert.match(interestAccess, /openCommissionMutationWhere\(input\.commissionRequestId, new Date\(\), \{/);
+    assert.match(interestAccess, /openGuard\.count === 0/);
   });
 
   it("keeps commission near-me raw SQL inputs parameterized", () => {

@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { canAttachConversationContextListing } from "@/lib/conversationStartState";
 
 const CONVERSATION_START_LOCK_NAMESPACE = 913350;
 
@@ -20,6 +19,51 @@ type ConversationStartResult =
   | { ok: true; conversationId: string; created: boolean }
   | ConversationPairFailure;
 
+export type LockedConversationContextListing = {
+  id: string;
+  title: string;
+};
+
+/**
+ * Locks and validates a listing before it becomes message/conversation
+ * context. The caller supplies only the durable listing id; seller identity,
+ * private reservation, publication, and account state all come from the
+ * database and must match the already-locked participant pair.
+ */
+export async function lockConversationContextListingForPair(
+  tx: Prisma.TransactionClient,
+  pair: LockedConversationParticipantPair,
+  requestedListingId: string,
+): Promise<LockedConversationContextListing | null> {
+  if (!requestedListingId || requestedListingId.length > 191) return null;
+
+  const rows = await tx.$queryRaw<LockedConversationContextListing[]>`
+    SELECT listing.id, listing.title::text AS title
+      FROM "Listing" AS listing
+      JOIN "SellerProfile" AS seller
+        ON seller.id = listing."sellerId"
+      JOIN "User" AS seller_user
+        ON seller_user.id = seller."userId"
+     WHERE listing.id = ${requestedListingId}
+       AND listing.status = 'ACTIVE'
+       AND seller."userId" IN (${pair.userAId}, ${pair.userBId})
+       AND seller."chargesEnabled" = true
+       AND (seller."stripeAccountVersion" IS NULL OR seller."stripeAccountVersion" = 'v2')
+       AND seller."vacationMode" = false
+       AND seller_user.banned = false
+       AND seller_user."deletedAt" IS NULL
+       AND (
+         listing."isPrivate" = false
+         OR (
+           listing."reservedForUserId" IN (${pair.userAId}, ${pair.userBId})
+           AND listing."reservedForUserId" <> seller."userId"
+         )
+       )
+     FOR SHARE OF listing, seller, seller_user
+  `;
+  return rows.length === 1 ? rows[0] : null;
+}
+
 export async function lockConversationParticipantPair(
   tx: Prisma.TransactionClient,
   userId: string,
@@ -32,7 +76,6 @@ export async function lockConversationParticipantPair(
   const [userAId, userBId] = [userId, otherUserId].sort((left, right) => (
     left < right ? -1 : 1
   ));
-  const pairKey = `${userAId}:${userBId}`;
 
   // Block/unblock takes FOR UPDATE on this same sorted pair. The compatible
   // FOR SHARE lock makes whichever operation locks first the explicit
@@ -64,16 +107,6 @@ export async function lockConversationParticipantPair(
   });
   if (block) return { ok: false, error: "blocked" };
 
-  // FOR SHARE locks do not conflict with another start for the same pair.
-  // This narrow advisory lock serializes the find/create path so a unique
-  // violation cannot abort the surrounding transaction.
-  await tx.$executeRaw`
-    SELECT pg_advisory_xact_lock(
-      ${CONVERSATION_START_LOCK_NAMESPACE},
-      hashtext(${pairKey})
-    )
-  `;
-
   return { ok: true, userAId, userBId };
 }
 
@@ -83,28 +116,26 @@ export async function getOrCreateConversationForLockedPair(
   requestedListingId: string | null,
 ) {
   const { userAId, userBId } = pair;
+  const pairKey = `${userAId}:${userBId}`;
+
+  // FOR SHARE locks do not conflict with another start for the same pair.
+  // Only creation needs this advisory lock; ordinary sends reuse the User
+  // lock/block protocol without serializing all messages between the pair.
+  await tx.$executeRaw`
+    SELECT pg_advisory_xact_lock(
+      ${CONVERSATION_START_LOCK_NAMESPACE},
+      hashtext(${pairKey})
+    )
+  `;
+
   let contextListingId: string | null = null;
   if (requestedListingId) {
-    const listing = await tx.listing.findUnique({
-      where: { id: requestedListingId },
-      select: {
-        id: true,
-        status: true,
-        isPrivate: true,
-        reservedForUserId: true,
-        seller: {
-          select: {
-            chargesEnabled: true,
-            stripeAccountVersion: true,
-            vacationMode: true,
-            user: { select: { id: true, banned: true, deletedAt: true } },
-          },
-        },
-      },
-    });
-    if (listing && canAttachConversationContextListing(listing, [userAId, userBId])) {
-      contextListingId = listing.id;
-    }
+    const listing = await lockConversationContextListingForPair(
+      tx,
+      pair,
+      requestedListingId,
+    );
+    contextListingId = listing?.id ?? null;
   }
 
   const existing = await tx.conversation.findUnique({

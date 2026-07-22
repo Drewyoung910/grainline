@@ -1,140 +1,175 @@
 import * as Sentry from "@sentry/nextjs";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { sendCustomOrderReady } from "@/lib/email";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { publicListingPath } from "@/lib/publicPaths";
-import { messagingUnavailableReason } from "@/lib/messageRecipientState";
-
-type CustomOrderReadyListing = {
-  id: string;
-  title: string;
-  priceCents: number;
-  currency: string | null;
-};
+import { lockConversationParticipantPair } from "@/lib/conversationStartAccess";
 
 const CUSTOM_ORDER_READY_LINK_LOCK_NAMESPACE = 913349;
 
-export async function sendCustomOrderReadyLink({
-  conversationId,
-  sellerUserId,
-  buyerUserId,
-  sellerName,
-  listing,
-}: {
+type CustomOrderReadySource = {
+  listingId: string;
+  listingTitle: string;
+  priceCents: number;
+  currency: string | null;
   conversationId: string;
   sellerUserId: string;
   buyerUserId: string;
   sellerName: string | null;
-  listing: CustomOrderReadyListing;
-}) {
-  const listingLink = publicListingPath(listing.id, listing.title);
+  userAId: string;
+  userBId: string;
+};
 
-  const notificationMessageId = await prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`
-      SELECT pg_advisory_xact_lock(${CUSTOM_ORDER_READY_LINK_LOCK_NAMESPACE}, hashtext(${`${conversationId}:${listing.id}`}))
-    `;
+type CustomOrderReadyCommit = {
+  messageId: string;
+  source: CustomOrderReadySource;
+};
 
-    const conversation = await tx.conversation.findUnique({
-      where: { id: conversationId },
+/**
+ * Emits the buyer's ready-to-purchase card from one durable source id.
+ *
+ * Do not add caller-supplied participants, conversation ids, payload fields,
+ * links, or dedup keys. The Listing reservation is the authority and every
+ * security-relevant output is derived from it inside the locked transaction.
+ */
+export async function sendCustomOrderReadyLink({ listingId }: { listingId: string }) {
+  if (!listingId) return { messageCreated: false };
+
+  const committed = await prisma.$transaction<CustomOrderReadyCommit | null>(async (tx) => {
+    const initial = await tx.listing.findUnique({
+      where: { id: listingId },
       select: {
-        userAId: true,
-        userBId: true,
-        userA: { select: { banned: true, deletedAt: true } },
-        userB: { select: { banned: true, deletedAt: true } },
+        reservedForUserId: true,
+        customOrderConversationId: true,
+        seller: { select: { userId: true } },
       },
     });
-    if (!conversation) return null;
-
-    const participants = new Set([conversation.userAId, conversation.userBId]);
     if (
-      sellerUserId === buyerUserId ||
-      !participants.has(sellerUserId) ||
-      !participants.has(buyerUserId)
+      !initial?.reservedForUserId
+      || !initial.customOrderConversationId
+      || initial.seller.userId === initial.reservedForUserId
     ) {
       return null;
     }
 
-    const sellerState = conversation.userAId === sellerUserId ? conversation.userA : conversation.userB;
-    const buyerState = conversation.userAId === buyerUserId ? conversation.userA : conversation.userB;
-    if (messagingUnavailableReason(sellerState) || messagingUnavailableReason(buyerState)) {
+    const pair = await lockConversationParticipantPair(
+      tx,
+      initial.seller.userId,
+      initial.reservedForUserId,
+    );
+    if (!pair.ok) return null;
+
+    await tx.$executeRaw`
+      SELECT pg_advisory_xact_lock(
+        ${CUSTOM_ORDER_READY_LINK_LOCK_NAMESPACE},
+        hashtext(${listingId})
+      )
+    `;
+
+    const sources = await tx.$queryRaw<CustomOrderReadySource[]>`
+      SELECT
+        listing.id AS "listingId",
+        listing.title::text AS "listingTitle",
+        listing."priceCents",
+        listing.currency::text AS currency,
+        listing."customOrderConversationId" AS "conversationId",
+        seller."userId" AS "sellerUserId",
+        listing."reservedForUserId" AS "buyerUserId",
+        seller."displayName" AS "sellerName",
+        conversation."userAId",
+        conversation."userBId"
+      FROM "Listing" AS listing
+      JOIN "SellerProfile" AS seller
+        ON seller.id = listing."sellerId"
+      JOIN "Conversation" AS conversation
+        ON conversation.id = listing."customOrderConversationId"
+      WHERE listing.id = ${listingId}
+        AND listing.status = 'ACTIVE'
+        AND listing."isPrivate" = true
+        AND listing."reservedForUserId" = ${initial.reservedForUserId}
+        AND listing."customOrderConversationId" = ${initial.customOrderConversationId}
+        AND seller."userId" = ${initial.seller.userId}
+      FOR SHARE OF listing, seller, conversation
+    `;
+    const source = sources[0];
+    if (
+      sources.length !== 1
+      || source.userAId !== pair.userAId
+      || source.userBId !== pair.userBId
+      || source.sellerUserId === source.buyerUserId
+    ) {
       return null;
     }
 
-    const blockExists = await tx.block.findFirst({
-      where: {
-        OR: [
-          { blockerId: sellerUserId, blockedId: buyerUserId },
-          { blockerId: buyerUserId, blockedId: sellerUserId },
-        ],
-      },
-      select: { id: true },
-    });
-    if (blockExists) return null;
-
     const existingLinkMessage = await tx.message.findFirst({
       where: {
-        conversationId,
+        conversationId: source.conversationId,
         kind: "custom_order_link",
-        body: { contains: listing.id },
+        body: { contains: source.listingId },
       },
       select: { id: true },
     });
-
     if (existingLinkMessage) return null;
 
     const createdMessage = await tx.message.create({
       data: {
-        conversationId,
-        senderId: sellerUserId,
-        recipientId: buyerUserId,
+        conversationId: source.conversationId,
+        senderId: source.sellerUserId,
+        recipientId: source.buyerUserId,
+        contextListingId: source.listingId,
         kind: "custom_order_link",
+        isSystemMessage: true,
         body: JSON.stringify({
-          listingId: listing.id,
-          title: listing.title,
-          priceCents: listing.priceCents,
-          currency: listing.currency,
+          listingId: source.listingId,
+          title: source.listingTitle,
+          priceCents: source.priceCents,
+          currency: source.currency,
         }),
       },
       select: { id: true },
     });
     await tx.conversation.update({
-      where: { id: conversationId },
+      where: { id: source.conversationId },
       data: { updatedAt: new Date(), archivedAAt: null, archivedBAt: null },
     });
-    return createdMessage.id;
+
+    return { messageId: createdMessage.id, source };
+  }, {
+    isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
   });
 
-  if (!notificationMessageId) {
-    return { messageCreated: false };
-  }
+  if (!committed) return { messageCreated: false };
 
+  const { source, messageId } = committed;
+  const listingLink = publicListingPath(source.listingId, source.listingTitle);
   await createNotification({
-    userId: buyerUserId,
+    userId: source.buyerUserId,
     type: "CUSTOM_ORDER_LINK",
     title: "Your custom piece is ready to review!",
-    body: `${listing.title} - review and purchase`,
+    body: `${source.listingTitle} - review and purchase`,
     link: listingLink,
-    dedupScope: listing.id,
-    relatedUserId: sellerUserId,
+    dedupScope: source.listingId,
+    relatedUserId: source.sellerUserId,
     sourceType: NOTIFICATION_SOURCE_TYPES.MESSAGE,
-    sourceId: notificationMessageId,
+    sourceId: messageId,
   });
 
   try {
-    if (await shouldSendEmail(buyerUserId, "EMAIL_CUSTOM_ORDER")) {
+    if (await shouldSendEmail(source.buyerUserId, "EMAIL_CUSTOM_ORDER")) {
       const buyerUser = await prisma.user.findUnique({
-        where: { id: buyerUserId },
+        where: { id: source.buyerUserId },
         select: { name: true, email: true },
       });
       if (buyerUser?.email) {
         await sendCustomOrderReady({
           buyer: { name: buyerUser.name, email: buyerUser.email },
-          sellerName: sellerName ?? "Grainline maker",
-          listingTitle: listing.title,
-          priceCents: listing.priceCents,
-          currency: listing.currency,
-          listingId: listing.id,
+          sellerName: source.sellerName ?? "Grainline maker",
+          listingTitle: source.listingTitle,
+          priceCents: source.priceCents,
+          currency: source.currency,
+          listingId: source.listingId,
         });
       }
     }
@@ -142,7 +177,12 @@ export async function sendCustomOrderReadyLink({
     Sentry.captureException(error, {
       level: "warning",
       tags: { source: "custom_order_ready_email" },
-      extra: { listingId: listing.id, conversationId, sellerUserId, buyerUserId },
+      extra: {
+        listingId: source.listingId,
+        conversationId: source.conversationId,
+        sellerUserId: source.sellerUserId,
+        buyerUserId: source.buyerUserId,
+      },
     });
     // Non-fatal: the in-app message and notification are the durable buyer path.
   }

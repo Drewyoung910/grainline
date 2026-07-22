@@ -99,7 +99,7 @@ describe("notification email preferences", () => {
     assert.match(accountSettings, /label="Custom order updates"/);
     assert.match(sellerSettings, /type: "EMAIL_CUSTOM_ORDER", label: "Custom order updates"/);
     assert.match(requestRoute, /shouldSendEmail\(sellerUserId, "EMAIL_CUSTOM_ORDER"\)/);
-    assert.match(readyLink, /shouldSendEmail\(buyerUserId, "EMAIL_CUSTOM_ORDER"\)/);
+    assert.match(readyLink, /shouldSendEmail\(source\.buyerUserId, "EMAIL_CUSTOM_ORDER"\)/);
   });
 
   it("honors verification email preferences before admin verification emails", () => {

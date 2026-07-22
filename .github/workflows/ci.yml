@@ -82,9 +82,9 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
-      - name: Verify Notification FORCE production artifact
+      - name: Verify Conversation and Message compatibility artifact
         env:
-          SAVED_SEARCH_RLS_DEPLOY_PHASE: notification-force-reviewed
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: conversation-message-compatibility-reviewed
         run: npm run verify:rls-release-artifact
       - name: Verify Notification activation proof equivalence
         run: npm run audit:rls-notification-activation-release

@@ -37,6 +37,10 @@ is necessary but not sufficient.
   bounded sensitive values in received content and first-party attachments.
 - Message list/stream inputs and result sizes are bounded, private-cache headers
   are present, and staff review does not start those live-update routes.
+- Long threads and inboxes use stable `(createdAt,id)` / `(updatedAt,id)`
+  keysets with bounded 200-message and 50-conversation windows. One participant
+  pair retains one Conversation while each Message can preserve its own
+  validated Listing context.
 
 ## Findings and required disposition
 
@@ -55,6 +59,8 @@ is necessary but not sufficient.
 | CM-A11 | High | Private custom listings are authorized correctly by the page for their seller and reserved buyer, but public-only metadata calls `notFound()` first, so both authorized viewers can receive a false 404. | Return generic no-index metadata for non-public listings without exposing private fields; retain viewer-aware page authorization and pin both boundaries in tests. |
 | CM-A12 | Medium | Threads render only the latest 200 messages and have no older-history control; the inbox similarly caps at 50 conversations. Long-lived users can lose access to valid history even though the rows remain stored. | Add stable keyset pagination for older messages and inbox conversations before freezing the read API/RPC contract. |
 | CM-A13 | Scale | The SSE route holds a serverless request and polls PostgreSQL every 3–10 seconds per open thread. That is acceptable for prelaunch/low concurrency but is not a 50k-concurrent-user transport. | Keep the storage/read contract transport-neutral, record an operational migration threshold, and move high-concurrency delivery to a managed realtime/fanout channel rather than weakening RLS or opening long DB transactions. |
+| CM-A14 | Medium | Rendering or prefetching a thread marks matching `NEW_MESSAGE` Notification rows read before the participant actually opens the client UI; archive/unarchive writes also lacked an explicit rate limit. | Move Notification read state into the existing origin-guarded participant POST fired by the mounted client, and rate-limit archive state changes. |
+| CM-A15 | High | The one-thread-per-pair rule redirects an existing conversation before validating the new `listing` query, so entering from another listing loses that context. Overwriting the Conversation-level listing would make older messages misleading; creating one thread per listing would fragment the inbox. | Keep one Conversation per participant pair, validate listing context before both new/existing redirects, store the validated context on each Message, and derive it again from the locked Listing and participant pair at send time. |
 
 ## Remediation progress
 
@@ -67,9 +73,14 @@ is necessary but not sufficient.
   seller/listing revalidation, structured Message insert and thread bump now
   commit in one `READ COMMITTED` transaction. Failures leave no partial thread
   or message state.
-- **CM-A03 partially fixed:** ordinary start and custom-order request use the
-  sorted User lock protocol. Ordinary send, commission interest and
-  custom-order-ready remain open.
+- **CM-A03 fixed:** ordinary start, ordinary send, custom-order request,
+  commission interest and custom-order-ready all use the sorted User lock
+  protocol. The creation advisory mutex is scoped to
+  create/get only, so normal messages between a pair are not globally serialized.
+- **CM-A05 fixed in the compatible app:** custom-order-ready accepts only a
+  Listing id. Its locked transaction derives and validates the private active
+  listing, reserved buyer, seller, exact Conversation pair, structured payload,
+  link and dedup scope; callers cannot choose cross-user write targets.
 - **CM-A06 fixed:** custom-order request and commission-interest POSTs now run
   the explicit cross-origin guard before authentication, rate-limit consumption,
   parsing or database work; source-order tests pin the boundary.
@@ -77,11 +88,49 @@ is necessary but not sufficient.
   now generic and `noindex,nofollow` rather than throwing a public-only 404.
   The page remains the viewer-aware enforcement point, allowing only the seller,
   reserved buyer or explicit active staff preview while returning 404 to others.
+- **CM-A08 fixed in the compatible app:** account deletion takes `FOR UPDATE`
+  on the deleting User before reading and redacting retained messages. Ordinary
+  sends take the compatible sorted-pair `FOR SHARE` locks, producing an explicit
+  send-first-or-delete-first ordering with no post-scan message race.
+- **CM-A14 fixed in the compatible app:** thread page rendering is read-only for
+  Notification state. The mounted participant client invokes the existing
+  origin-guarded, rate-limited read POST, which marks both Message rows and the
+  exact thread's Message notifications. Archive/unarchive actions share a
+  60-per-hour account limiter.
+- **CM-A07 fixed in the compatible app:** list, stream, client merge and older
+  history requests carry bounded `(createdAt,id)` cursors. Both directions
+  include the id tie-breaker, so equal timestamps cannot skip a row.
+- **CM-A09 decided:** `isSystemMessage` means server-generated structured
+  presentation, not authorization. Commission-interest and custom-order-ready
+  cards set it; a buyer-authored custom-order request does not. No policy or
+  application authorization may trust this flag by itself.
+- **CM-A12 fixed in the compatible app:** initial thread and inbox reads are
+  bounded to the latest 200 messages and 50 conversations, with stable keyset
+  controls for older history. Additive compound indexes match those paths.
+- **CM-A13 disposition recorded:** the relational model, bounded projections,
+  keysets and indexes are suitable for 50,000 registered accounts. The current
+  SSE implementation is explicitly low-concurrency transport: every open
+  thread holds a serverless response and polls PostgreSQL every 3–10 seconds.
+  Before sustained high concurrent messaging, replace it with managed
+  realtime/fanout while keeping the same RLS read contract; do not solve
+  transport scale with broader database grants.
+- **CM-A15 fixed in the compatible app:** listing entry points now validate
+  context before reusing the canonical pair Conversation and preserve the
+  query through the redirect. The composer displays/removes that context, and
+  each created Message stores a Listing relation re-derived under row locks
+  from the listing plus exact participant pair. Custom-request and
+  custom-order-ready messages store the same source-derived relation.
+- **Compatibility release guard extended:** the two additive pre-RLS migrations
+  have a distinct exact-tree phase,
+  `conversation-message-compatibility-reviewed`. Older SavedSearch and
+  Notification phases still reject them as later drift; this phase does not
+  authorize RLS SQL or grant narrowing.
 
 ## Audit completion criteria
 
-1. CM-A01 through CM-A08 are fixed with deterministic tests; CM-A09 has a
-   documented decision.
+1. CM-A01 through CM-A15 are fixed or have the explicit design/scale
+   disposition recorded above. CM-A04 and CM-A10 remain intentionally open
+   until the legacy inspection and reviewed database-authority phase.
 2. Full tests, typecheck, lint and production build pass on the compatible app
    before any RLS activation.
 3. A sanitized read-only legacy inspection proves canonical/non-self

@@ -469,7 +469,7 @@ describe("RLS feasibility plan guardrails", () => {
   it("inventories hidden notification read and update paths before the first policy", () => {
     const plan = source("docs/rls-feasibility-plan.md");
     const defense = source("docs/db-defense-in-depth-plan.md");
-    const messageThread = source("src/app/messages/[id]/page.tsx");
+    const messageReadRoute = source("src/app/api/messages/[id]/read/route.ts");
     const stockRoute = source("src/app/api/listings/[id]/stock/route.ts");
     const ownerAccess = source("src/lib/notificationOwnerAccess.ts");
     const recipientSql = source("docs/rls-drafts/notification-recipient-access.sql");
@@ -483,7 +483,7 @@ describe("RLS feasibility plan guardrails", () => {
     }
     assert.match(stockRoute, /where: \{ id, seller: \{ userId: me\.id \} \}/);
     assert.match(stockRoute, /seller: \{ select: \{ id: true, userId: true \} \}/);
-    assert.match(messageThread, /markOwnerMessageNotificationsRead\(me\.id, id\)/);
+    assert.match(messageReadRoute, /markOwnerMessageNotificationsRead\(me\.id, id\)/);
     assert.match(stockRoute, /findRecentOwnerLowStockNotification\(/);
     assert.match(ownerAccess, /export async function markOwnerMessageNotificationsRead/);
     assert.match(recipientSql, /notification\.type = 'NEW_MESSAGE'::public\."NotificationType"/);

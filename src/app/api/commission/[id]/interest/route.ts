@@ -4,7 +4,6 @@ import { auth } from "@clerk/nextjs/server";
 import { after } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
-import { Prisma } from "@prisma/client";
 import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import {
@@ -13,12 +12,10 @@ import {
   safeRateLimit,
 } from "@/lib/ratelimit";
 import { commissionIsExpired } from "@/lib/commissionExpiry";
-import { openCommissionMutationWhere } from "@/lib/commissionState";
 import { logSecurityEvent } from "@/lib/security";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
-
-const COMMISSION_CLOSED_DURING_INTEREST = "COMMISSION_CLOSED_DURING_INTEREST";
+import { createCommissionInterestMessage } from "@/lib/commissionInterestMessageAccess";
 
 export async function POST(
   req: NextRequest,
@@ -138,130 +135,45 @@ export async function POST(
     );
   }
 
-  // Check if already expressed interest
-  const existing = await prisma.commissionInterest.findUnique({
-    where: {
-      commissionRequestId_sellerProfileId: {
-        commissionRequestId: id,
-        sellerProfileId: sellerProfile.id,
-      },
-    },
+  const result = await createCommissionInterestMessage({
+    commissionRequestId: id,
+    sellerUserId: me.id,
+    sellerProfileId: sellerProfile.id,
   });
-  if (existing) {
-    // Return existing conversation if any
-    return privateJson({
-      conversationId: existing.conversationId,
-      alreadyInterested: true,
-    });
-  }
-
-  // Upsert conversation (canonical sort, race-safe)
-  const buyerUserId = commissionRequest.buyerId;
-  const [a, b] = [me.id, buyerUserId].sort((x, y) => (x < y ? -1 : 1));
-  let conversationId: string | null = null;
-  let commissionInterestId: string | null = null;
-  const sellerDisplayName = sellerProfile.displayName ?? me.name ?? "A maker";
-
-  try {
-    await prisma.$transaction(async (tx) => {
-      const openGuard = await tx.commissionRequest.updateMany({
-        where: openCommissionMutationWhere(id),
-        data: { updatedAt: new Date() },
-      });
-      if (openGuard.count === 0) {
-        throw new Error(COMMISSION_CLOSED_DURING_INTEREST);
-      }
-      const convo = await tx.conversation.upsert({
-        where: { userAId_userBId: { userAId: a, userBId: b } },
-        update: { updatedAt: new Date() },
-        create: { userAId: a, userBId: b },
-        select: { id: true },
-      });
-      conversationId = convo.id;
-      const createdInterest = await tx.commissionInterest.create({
-        data: {
-          commissionRequestId: id,
-          sellerProfileId: sellerProfile.id,
-          conversationId: convo.id,
-        },
-        select: { id: true },
-      });
-      commissionInterestId = createdInterest.id;
-      await tx.message.create({
-        data: {
-          conversationId: convo.id,
-          senderId: me.id,
-          recipientId: commissionRequest.buyerId,
-          body: JSON.stringify({
-            commissionId: id,
-            commissionTitle: commissionRequest.title,
-            sellerName: sellerDisplayName,
-            budgetMinCents: commissionRequest.budgetMinCents,
-            budgetMaxCents: commissionRequest.budgetMaxCents,
-            timeline: commissionRequest.timeline,
-          }),
-          kind: "commission_interest_card",
-          isSystemMessage: true,
-        },
-      });
-      const interestedCount = await tx.commissionInterest.count({
-        where: { commissionRequestId: id },
-      });
-      await tx.commissionRequest.update({
-        where: { id },
-        data: { interestedCount },
-      });
-    });
-  } catch (e) {
-    if (e instanceof Error && e.message === COMMISSION_CLOSED_DURING_INTEREST) {
+  if (!result.ok) {
+    if (result.error === "closed") {
       return privateJson(
         { error: "Commission request is no longer open" },
         { status: 409 },
       );
     }
-    if (
-      e instanceof Prisma.PrismaClientKnownRequestError &&
-      e.code === "P2002"
-    ) {
-      const racedExisting = await prisma.commissionInterest.findUnique({
-        where: {
-          commissionRequestId_sellerProfileId: {
-            commissionRequestId: id,
-            sellerProfileId: sellerProfile.id,
-          },
-        },
-        select: { conversationId: true },
-      });
-      if (racedExisting) {
-        return privateJson({
-          conversationId: racedExisting.conversationId,
-          alreadyInterested: true,
-        });
-      }
-    }
-    throw e;
-  }
-  if (!conversationId || !commissionInterestId)
     return privateJson(
-      { error: "Failed to create conversation" },
-      { status: 500 },
+      { error: "Unable to express interest." },
+      { status: 403 },
     );
-  const finalConversationId = conversationId;
-  const finalCommissionInterestId = commissionInterestId;
+  }
+  if (result.alreadyInterested) {
+    return privateJson({
+      conversationId: result.conversationId,
+      alreadyInterested: true,
+    });
+  }
+  if (!result.commissionInterestId) {
+    throw new Error("Created commission interest is missing its durable id");
+  }
 
-  const sellerName = sellerDisplayName;
   after(async () => {
     try {
       await createNotification({
-        userId: commissionRequest.buyerId,
+        userId: result.buyerUserId,
         type: "COMMISSION_INTEREST",
-        title: `${sellerName} is interested in your commission`,
-        body: `"${commissionRequest.title}" — view the conversation`,
-        link: `/messages/${finalConversationId}`,
+        title: `${result.sellerDisplayName} is interested in your commission`,
+        body: `"${result.commissionTitle}" — view the conversation`,
+        link: `/messages/${result.conversationId}`,
         dedupScope: id,
         relatedUserId: me.id,
         sourceType: NOTIFICATION_SOURCE_TYPES.COMMISSION_INTEREST,
-        sourceId: finalCommissionInterestId,
+        sourceId: result.commissionInterestId,
       });
     } catch (error) {
       Sentry.captureException(error, {
@@ -269,17 +181,17 @@ export async function POST(
         tags: { source: "commission_interest_side_effects" },
         extra: {
           commissionRequestId: id,
-          conversationId: finalConversationId,
+          conversationId: result.conversationId,
           sellerProfileId: sellerProfile.id,
           sellerUserId: me.id,
-          buyerId: commissionRequest.buyerId,
+          buyerId: result.buyerUserId,
         },
       });
     }
   });
 
   return privateJson({
-    conversationId: finalConversationId,
+    conversationId: result.conversationId,
     alreadyInterested: false,
   });
 }

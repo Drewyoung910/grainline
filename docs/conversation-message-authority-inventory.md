@@ -10,9 +10,9 @@ active from this work.
 TypeScript tree. The audited baseline was 50 direct Prisma operations plus 5
 raw SQL references. After the first compatible audit fixes it currently finds:
 
-- 46 direct Prisma Conversation or Message operations;
-- 5 raw SQL table references;
-- 51 total protected-table access points across 17 files.
+- 44 direct Prisma Conversation or Message operations;
+- 6 raw SQL table references;
+- 50 total protected-table access points across 17 files.
 
 The test `tests/conversation-message-rls-inventory.test.mjs` pins the count and
 the exact per-file/model/operation summary. A new access path must therefore be
@@ -66,19 +66,26 @@ will intentionally fall as the design is implemented.
    `isSystemMessage`. User-authored body/attachment content is necessarily
    caller input, but write targets and authority metadata must be derived.
 4. Structured kinds currently observed are `custom_order_request`,
-   `custom_order_link`, and `commission_interest_card`; only commission interest
-   currently sets `isSystemMessage=true`. Legacy values must be inspected before
-   adding a check or trigger.
+   `custom_order_link`, and `commission_interest_card`. Commission interest and
+   custom-order-ready are server-generated and set `isSystemMessage=true`;
+   custom-order request is buyer-authored and remains false. The flag controls
+   presentation only and never confers authority. Legacy values must be
+   inspected before adding a check or trigger.
 5. A send must lock and revalidate participant account state and the sorted
    block pair, then insert, update first-response state, bump the thread and
    clear both archive timestamps in one transaction.
 6. Staff visibility must disappear once the exact report is resolved. A live
    stream must re-evaluate that authority on every poll rather than relying on
    its initial HTTP check.
+7. One Conversation remains canonical per participant pair. A validated
+   optional `Message.contextListingId` records the listing relevant to that
+   individual message; it must reference an active listing whose seller is a
+   participant, and a private listing must be reserved for the other participant.
 
 ## Completion rule
 
-This inventory is complete only when all 55 current accesses have an explicit
+This inventory is complete only when every protected access (55 in the original
+baseline, 50 after current compatible refactors) has an explicit
 destination, direct runtime INSERT/UPDATE/DELETE is removed, the compatible app
 passes before and after RLS, and PostgreSQL proof covers participant isolation,
 reported-staff access, structured write families, block/account races, archive
