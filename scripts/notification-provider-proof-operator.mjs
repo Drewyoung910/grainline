@@ -890,6 +890,16 @@ export function providerEnvironmentEntries(state) {
   return entries;
 }
 
+export function parseLastJsonObject(stdout) {
+  const lines = String(stdout).split(/\r?\n/).filter((line) => line.trim() !== "");
+  if (lines.length === 0) throw new Error("preflight output was empty");
+  const parsed = JSON.parse(lines.at(-1));
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("preflight final output line was not a JSON object");
+  }
+  return { lineCount: lines.length, payload: parsed };
+}
+
 function assertExactEnvironmentInventory(inventory) {
   const expected = [...PROVIDER_ENVIRONMENT_KEYS].sort();
   const actual = inventory.map((entry) => entry?.key).sort();
@@ -1289,8 +1299,20 @@ async function localPreflight() {
   ) {
     throw new Error("provider state is not eligible for local preflight");
   }
-  const outputPath = evidencePath("local-preflight", state.commitSha);
-  if (existsSync(outputPath)) throw new Error("local preflight evidence path already exists");
+  const firstOutputPath = evidencePath("local-preflight", state.commitSha);
+  const retryOutputPath = evidencePath("local-preflight-2", state.commitSha);
+  if (
+    state.priorLocalPreflightCommitSha
+    && !existsSync(evidencePath("local-preflight", state.priorLocalPreflightCommitSha))
+  ) {
+    throw new Error("prior failed local preflight evidence is missing before retry");
+  }
+  const outputPath = state.priorLocalPreflightCommitSha || existsSync(firstOutputPath)
+    ? retryOutputPath
+    : firstOutputPath;
+  if (existsSync(outputPath)) {
+    throw new Error("both bounded local preflight evidence attempts already exist");
+  }
   const tsxArgs = [
     "exec",
     "--yes",
@@ -1322,9 +1344,12 @@ async function localPreflight() {
     maxBuffer: 2 * 1024 * 1024,
     timeout: 5 * 60_000,
   });
+  let outputLineCount = 0;
   let payload;
   try {
-    payload = JSON.parse(result.stdout.trim());
+    const parsed = parseLastJsonObject(result.stdout);
+    outputLineCount = parsed.lineCount;
+    payload = parsed.payload;
   } catch {
     payload = { error: { message: "preflight output was not valid JSON" }, status: "failed" };
   }
@@ -1332,6 +1357,7 @@ async function localPreflight() {
   writePrivateJson(outputPath, {
     capturedAt: new Date().toISOString(),
     exitStatus: result.status,
+    outputLineCount,
     result: payload,
   });
   await teardownNotificationProviderFixtures(state.adminDatabaseUrl);
@@ -1446,6 +1472,72 @@ async function rebindPredeploymentCommit() {
     commitRebound: true,
     deploymentCommitSha: commitSha,
     preparedCommitSha: state.commitSha,
+  }));
+}
+
+async function rebindLocalPreflightRetryCommit() {
+  const state = readProviderState();
+  const bypassState = readBypassState();
+  const commitSha = assertExactCleanCommit();
+  const firstOutputPath = evidencePath("local-preflight", state.commitSha);
+  const retryOutputPath = evidencePath("local-preflight-2", commitSha);
+  if (
+    !state.setupCompletedAt
+    || state.localPreflightAt
+    || state.configuredAt
+    || state.deploymentId
+    || state.slot1EvidencePath
+    || state.slot2EvidencePath
+    || state.commitSha === commitSha
+    || !existsSync(firstOutputPath)
+    || existsSync(retryOutputPath)
+  ) {
+    throw new Error("provider state is not eligible for one bounded local-preflight retry rebind");
+  }
+  const firstEvidence = readPrivateJson(firstOutputPath, "first local preflight evidence");
+  if (firstEvidence.exitStatus === 0 || firstEvidence.result?.status !== "failed") {
+    throw new Error("first local preflight evidence is not a failed attempt");
+  }
+  if ((await branchEnvironmentInventory()).length !== 0) {
+    throw new Error("provider branch environment must remain empty before local-preflight retry");
+  }
+  const deployments = (await listDeployments()).filter(
+    (deployment) => deployment.meta?.githubCommitRef === PROVIDER_PROOF_BRANCH,
+  );
+  if (deployments.length !== 0) {
+    throw new Error("provider deployment exists before local-preflight retry");
+  }
+  await currentBypassIsActive(bypassState);
+  await verifyNeonStagingTarget();
+  assertReviewedMigrationBytes();
+  runReviewedRuntimeGrantAudit(state.adminDatabaseUrl);
+  await teardownNotificationProviderFixtures(state.adminDatabaseUrl);
+  await seedNotificationProviderFixtures(state.adminDatabaseUrl);
+  const rebindEvidencePath = evidencePath("local-preflight-rebind", commitSha);
+  if (existsSync(rebindEvidencePath)) {
+    throw new Error("local-preflight retry rebind evidence already exists");
+  }
+  writePrivateJson(rebindEvidencePath, {
+    capturedAt: new Date().toISOString(),
+    databaseTarget: {
+      branchId: REVIEWED_STAGING_BRANCH_ID,
+      endpointId: REVIEWED_STAGING_ENDPOINT_ID,
+    },
+    fixturesReset: true,
+    newCommitSha: commitSha,
+    priorCommitSha: state.commitSha,
+  });
+  replacePrivateState({
+    ...state,
+    commitSha,
+    localPreflightRetryRebindAt: new Date().toISOString(),
+    localPreflightRetryRebindEvidencePath: rebindEvidencePath,
+    priorLocalPreflightCommitSha: state.commitSha,
+  });
+  console.log(JSON.stringify({
+    commitRebound: true,
+    fixturesReset: true,
+    localPreflightRetry: 2,
   }));
 }
 
@@ -1816,7 +1908,7 @@ async function databaseStatus() {
 }
 
 function usage() {
-  console.error("Usage: node scripts/notification-provider-proof-operator.mjs <create-bypass-state|bootstrap-bypass-state|revoke-bypass-state|prepare|local-preflight|rebind-predeployment-commit|configure|rebind-configured-commit|attest|slot-1|slot-2|cleanup|cleanup-abort|status|database-status|prisma-status>");
+  console.error("Usage: node scripts/notification-provider-proof-operator.mjs <create-bypass-state|bootstrap-bypass-state|revoke-bypass-state|prepare|local-preflight|rebind-local-preflight-retry|rebind-predeployment-commit|configure|rebind-configured-commit|attest|slot-1|slot-2|cleanup|cleanup-abort|status|database-status|prisma-status>");
 }
 
 async function main() {
@@ -1835,6 +1927,9 @@ async function main() {
       break;
     case "local-preflight":
       await localPreflight();
+      break;
+    case "rebind-local-preflight-retry":
+      await rebindLocalPreflightRetryCommit();
       break;
     case "rebind-predeployment-commit":
       await rebindPredeploymentCommit();

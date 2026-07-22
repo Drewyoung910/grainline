@@ -12,6 +12,7 @@ import {
   REVIEWED_PRODUCTION_BRANCH_ID,
   REVIEWED_STAGING_BRANCH_ID,
   buildStagingDatabaseUrl,
+  parseLastJsonObject,
   providerEnvironmentEntries,
   validateDatabaseUrl,
 } from "../scripts/notification-provider-proof-operator.mjs";
@@ -20,6 +21,18 @@ const RUNTIME_PASSWORD = "a".repeat(64);
 const OWNER_PASSWORD = "b".repeat(16);
 
 describe("disposable Notification provider proof operator", () => {
+  it("parses only the final JSON object from noisy local preflight output", () => {
+    assert.deepEqual(
+      parseLastJsonObject('prisma diagnostic\n{"status":"passed","metricErrorCount":0}\n'),
+      {
+        lineCount: 2,
+        payload: { status: "passed", metricErrorCount: 0 },
+      },
+    );
+    assert.throws(() => parseLastJsonObject("diagnostic only\n"));
+    assert.throws(() => parseLastJsonObject('{"status":"passed"}\ntrailing noise\n'));
+  });
+
   it("builds only the exact reviewed staging database identities", () => {
     assert.notEqual(REVIEWED_STAGING_BRANCH_ID, REVIEWED_PRODUCTION_BRANCH_ID);
     const runtime = buildStagingDatabaseUrl("grainline_app_runtime", RUNTIME_PASSWORD, {
@@ -164,5 +177,12 @@ describe("disposable Notification provider proof operator", () => {
     assert.match(source, /teardownNotificationProviderFixtures\(state\.adminDatabaseUrl\)/);
     assert.match(source, /seedNotificationProviderFixtures\(state\.adminDatabaseUrl\)/);
     assert.match(source, /local Notification provider preflight failed after fixture reset/);
+    assert.match(source, /both bounded local preflight evidence attempts already exist/);
+    assert.match(source, /rebindLocalPreflightRetryCommit/);
+    assert.match(source, /one bounded local-preflight retry rebind/);
+    assert.match(source, /provider branch environment must remain empty before local-preflight retry/);
+    assert.match(source, /provider deployment exists before local-preflight retry/);
+    assert.match(source, /priorLocalPreflightCommitSha/);
+    assert.match(source, /localPreflightRetry: 2/);
   });
 });
