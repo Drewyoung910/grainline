@@ -59,6 +59,8 @@ const REVIEWED_NEON_CLI_PATH =
 const REVIEWED_NEON_CLI_VERSION = "2.35.1";
 const REVIEWED_PRISMA_CLI_VERSION = "7.9.0";
 const REVIEWED_TSX_VERSION = "4.21.0";
+const REVIEWED_TSX_CLI_PATH =
+  "/Users/drewyoung/.npm/_npx/69f9afb961c37556/node_modules/tsx/dist/cli.mjs";
 const REVIEWED_NEON_CREDENTIAL_PATH =
   "/Users/drewyoung/.config/neonctl/credentials.json";
 const VERCEL_AUTH_PATH =
@@ -1313,28 +1315,11 @@ async function localPreflight() {
   if (existsSync(outputPath)) {
     throw new Error("both bounded local preflight evidence attempts already exist");
   }
-  const tsxArgs = [
-    "exec",
-    "--yes",
-    `--package=tsx@${REVIEWED_TSX_VERSION}`,
-    "--",
-    "tsx",
+  reviewedCliPackage(REVIEWED_TSX_CLI_PATH, "tsx", REVIEWED_TSX_VERSION);
+  const result = spawnSync(process.execPath, [
+    REVIEWED_TSX_CLI_PATH,
     LOCAL_PREFLIGHT_SCRIPT_PATH,
-  ];
-  const version = spawnSync("npm", [...tsxArgs.slice(0, -1), "--version"], {
-    encoding: "utf8",
-    env: cleanEnvironment(),
-    maxBuffer: 1024 * 1024,
-    timeout: 2 * 60_000,
-  });
-  if (
-    version.error
-    || version.status !== 0
-    || !version.stdout.includes(REVIEWED_TSX_VERSION)
-  ) {
-    throw new Error("exact reviewed tsx preflight runner was unavailable");
-  }
-  const result = spawnSync("npm", tsxArgs, {
+  ], {
     encoding: "utf8",
     env: {
       ...cleanEnvironment(),

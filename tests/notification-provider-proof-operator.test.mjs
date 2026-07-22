@@ -171,6 +171,15 @@ describe("disposable Notification provider proof operator", () => {
     assert.match(source, /--package=prisma@\$\{REVIEWED_PRISMA_CLI_VERSION\}/);
     assert.match(source, /locked Prisma CLI version drifted/);
     assert.match(source, /REVIEWED_TSX_VERSION = "4\.21\.0"/);
+    assert.match(source, /REVIEWED_TSX_CLI_PATH/);
+    assert.match(
+      source,
+      /reviewedCliPackage\(REVIEWED_TSX_CLI_PATH, "tsx", REVIEWED_TSX_VERSION\)/,
+    );
+    assert.match(
+      source,
+      /spawnSync\(process\.execPath, \[\s*REVIEWED_TSX_CLI_PATH,\s*LOCAL_PREFLIGHT_SCRIPT_PATH/,
+    );
     assert.match(source, /localPreflight/);
     assert.match(source, /!state\.localPreflightAt/);
     assert.match(source, /notification-provider-local-preflight\.ts/);
