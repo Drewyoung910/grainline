@@ -112,10 +112,10 @@ runtime role fixture or the Vercel privileged-variable guard.
 
 ### Bucket B Notification design decision (2026-07-19)
 
-Bucket B initial RLS is live in production from merged main commit
-`aa3f2c3640c2cb62200c1d660a08ac217271a037`: Notification has exact
-`ENABLE`, explicit `NO FORCE`, two recipient policies, and narrowed runtime
-grants. The compatible application is live as Vercel deployment
+Bucket B Notification RLS is complete in production from merged main commit
+`213f2f1d036967cacae4ac217307376efbd7c812`: Notification has exact
+`ENABLE` plus `FORCE`, two recipient policies, and narrowed runtime grants.
+The compatible application remains live as Vercel deployment
 `dpl_92rXcp1PqmoMPtgtAswbecAKWEt2`. The full operating record remains in
 `docs/rls-bucket-b-notification-plan.md`. The
 verified surface has simple recipient reads/mark-read operations but asymmetric
@@ -126,10 +126,14 @@ creation and cleanup require separate fixed-purpose owner-backed RPCs; never
 put a second owner/service credential into Vercel. The guarded prelaunch
 Notification inspection, atomic activation-time purge, PostgreSQL proof, and
 two fresh real-table Notification passes under the reviewed candidate-aligned
-provider/route gate block activation. The unchanged transaction-wrapper limits
+provider/route gate were activation requirements and passed. The unchanged
+transaction-wrapper limits
 remain blocking for any later release that actually uses that architecture.
-Activation remains separate ENABLE/NO FORCE and later FORCE releases after
-Phase B and runtime credential separation are live.
+Activation used separate ENABLE/NO FORCE and FORCE releases after SavedSearch
+Phase B and runtime credential separation were live. Preserve that
+compatibility-first release pattern for later sensitive groups; do not treat
+Notification's completion as authority to bundle Conversation, Message,
+Order, payment, or shipping tables into one activation.
 
 The isolated branch contains both recipient candidates. Fixed
 `SECURITY INVOKER` recipient RPCs cover bell, page, unread count, mark-one,
@@ -448,21 +452,39 @@ It proves exact live catalog/grants, zero rows visible without context, own-row
 visibility with transaction-local context, denial of direct insert/delete/title
 update, no context leakage after rollback, authenticated bell/page isolation,
 non-enumerating foreign mark-read behavior, own/read-all mutation, HTTP 401/403
-boundaries, and complete fixture/session/token/cache cleanup. Initial activation
-is now live; a later separately proven FORCE release remains part of finishing
-Bucket B.
+boundaries, and complete fixture/session/token/cache cleanup. That initial
+activation remains the preserved compatibility and rollback baseline for the
+completed FORCE release recorded below.
 
-The separate FORCE candidate is being prepared on
-`codex/rls-notification-force-20260722`. Migration
+Notification FORCE hardening completed on 2026-07-22. PR `#36` merged exact
+FORCE head `b7873218f7929f791b6d5e422e647e1598421c91` to main as
+`213f2f1d036967cacae4ac217307376efbd7c812`. Migration
 `20260722053000_force_notification_rls` changes only the table FORCE flag;
 it does not alter rows, policies, grants, functions, or app code. It fails
 closed unless the live initial catalog, runtime/owner role posture, exact policy
 pair, ownership, and narrow grants match the accepted Phase-A state. Its
 reviewed SHA-256 is
 `f5e0f906671d21ec7d249e05be681753a81700cfe82a265f37bb4754e315f774`.
-Do not call Bucket B complete until the exact committed migration passes the
-disposable FORCE/rollback/authority proof, protected production apply, and a
-fresh production runtime/authenticated postflight.
+PR FORCE proof `29955500231`, PR CI `29955527920`, main FORCE proof
+`29956127053`, and main CI `29956127009` passed. Protected production migration
+run `29956750176` passed the exact source/owner/role preflight, artifact and
+activation-equivalence guards, committed FORCE apply, migration status, and
+live catalog/grant audit.
+
+Fresh FORCE production postflight used operator commit
+`74da7a2099d1289b0735091f52712af3607ad151` against exact release main
+`213f2f1d036967cacae4ac217307376efbd7c812`. It re-proved `rlsEnabled=true`,
+`rlsForced=true`, two policies, narrow runtime grants, no-context zero-row
+visibility, own-row isolation, denial of direct insert/delete/title update,
+transaction-local context cleanup, authenticated bell/page projection,
+cross-origin and unauthenticated boundaries, non-enumerating foreign mutation,
+own/read-all mutation, and complete fixture/session/token/cache cleanup.
+Sanitized mode-0600 evidence
+`notification-production-postflight-213f2f1d0369.json` has SHA-256
+`637d85180b6b78f0e3edd9da911dcf906f8edcd9eaaf3a4888c5ae432b592bad` and
+retains no raw identifier or credential. Bucket B is complete; retain the
+protected preactivation backup through the rollback window and treat
+Conversation plus Message as the next separate sensitive-data group.
 
 Temporary provider mechanics are intentionally absent from the production
 artifact: the internal context-gate route, its runner-only test, branch-scoped
