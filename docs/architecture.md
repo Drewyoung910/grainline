@@ -45,7 +45,7 @@ Grainline does not use database-level Row Level Security today. The current secu
 
 ### Users And Sellers
 
-Clerk owns identity/session. Grainline stores durable user state in `User`, including role, banned/deleted flags, terms acceptance, and age attestation. `SellerProfile` stores seller-facing shop/profile state, Stripe account state, vacation/orderability controls, pickup/ship-from settings, and profile media.
+Clerk owns identity/session. Grainline stores durable user state in `User`, including role, banned/deleted flags, terms acceptance, and age attestation. `SellerProfile` stores seller-facing shop/profile state, Stripe account state, vacation/orderability controls, pickup/ship-from settings, and profile media. Middleware account-state Redis keys are environment-scoped: production deployments share one namespace so invalidation survives deployment skew, while each Preview branch uses a hashed branch identity so cloned or synthetic Preview state cannot contaminate production decisions.
 
 ### Listings
 

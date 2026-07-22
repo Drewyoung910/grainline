@@ -142,10 +142,12 @@ source types, stable replay, the dedicated back-in-stock claim, and both
 block-race orderings. The 59 creation cases cover all 38 successful source/type
 pairs and the security-relevant action/status/recipient-direction variants;
 every case proves valid creation, replay, and forged-recipient rejection. That
-is distinct from the 54/54 callsite result. Final byte-pinned SQL review,
-disposable migration/rollback, authenticated
-real-table route behavior, and provider performance evidence also remain open
-before production activation.
+is distinct from the 54/54 callsite result. At this checkpoint, final
+byte-pinned SQL review, disposable migration/rollback, authenticated real-table
+route behavior, and provider performance evidence remained open before
+production activation. The later accepted provider proof is recorded in
+`docs/rls-bucket-b-notification-plan.md`; authenticated route behavior and the
+final review remain current gates.
 The permanent completeness gate is
 `npm run audit:rls-notification-readiness`: it inventories the real TypeScript
 call graph, requires exactly 54 emission paths, and blocks activation until all

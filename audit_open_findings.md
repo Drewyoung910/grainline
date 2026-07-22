@@ -1,6 +1,11 @@
 # Grainline Open Audit Findings
 
-Last updated: 2026-05-14
+Last updated: 2026-07-22
+
+## 2026-07-22 — Notification RLS route-smoke findings
+
+1. **[MEDIUM FIXED ON NOTIFICATION BRANCH; NOT YET PRODUCTION] Preview account-state cache keys could collide with production.** `src/lib/accountStateCache.ts` used `account-state:clerk:<clerkId>` without an environment namespace. A Preview backed by a cloned or synthetic database but sharing the production Redis credentials could cache different ban/delete/terms state for the same Clerk user and affect production middleware decisions for the 60-second TTL. The aborted Notification authenticated-route smoke did not mutate account state and therefore did not trigger this condition. The candidate fix keeps one shared `vercel-production` namespace across production deployments while deriving a hashed branch namespace for each Preview; local/test/self-hosted modes are separate too. Regression coverage: `tests/middleware-account-state-cache.test.mjs`. Merge and deploy this fix before any authenticated Preview smoke that changes local account state.
+2. **[BLOCKED AUTH TEST IDENTITY; CLEANED] Notification authenticated route smoke found no eligible dedicated account.** The only active account whose email was marked test/canary/codex/e2e had not accepted terms, so the proof failed closed before creating a Clerk session or database fixture. Preview `dpl_GHPfPXu4zPLiDJShUWWcFozZbg7T`, all 28 branch variables, its automation bypass, child branch `br-misty-scene-aazlwc2o`, provider fixtures, and private state were removed; production remained unchanged. Do not impersonate a real account or alter production terms state. The next attempt requires explicit authorization for a disposable live Clerk test user, exact session/user/cache cleanup, and a fresh Preview/child.
 
 ## Active Hardening Progress Counter
 
