@@ -4,33 +4,31 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
-### SavedSearch Phase-B operating result (2026-07-21)
+### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
-SavedSearch Phase B and runtime database credential separation are live with
-accepted production postflights. The final runtime separation release is
-`b4f14beaff06831ed2e8d7a35578226b756c1a61`; the accepted operator and evidence
-record are documented in `docs/runtime-db-credential-separation.md`. This closes
-the sequencing prerequisite for isolated Notification/Bucket-B implementation,
-ephemeral PostgreSQL proof, and isolated provider-candidate comparison.
+Bucket A is complete in production. Deployment
+`dpl_6nVQx5HBmurzH9iU1vwQLjA6gy2N` promoted exact commit
+`17bf93dc8837fd6c5e6988569f993781800b6318`; migration
+`20260720060000_force_saved_search_rls` is complete, `SavedSearch` has exact
+`ENABLE` plus `FORCE` and three policies, and the accepted private postflight has
+SHA-256
+`768096b53662ec9e8deaf8a3a63e6021ad755464f48b4b01c02fb339f1c78ea4`.
 
-It does not authorize a Notification merge, production apply/deployment,
-persistent staging activation, or production RLS activation. Notification must
-still pass its own recipient-architecture, creation-authority, cleanup,
-concurrency, provider-performance, rollback, and pre-activation reviews. Keep
-Neon's explicit BYPASSRLS migration owner outside production Functions; normal
-runtime remains the NOBYPASSRLS `grainline_app_runtime` role. Controlled owner
-maintenance and the separate database-first emergency DISABLE/ENABLE/FORCE
-path remain required controls.
+Runtime database credential separation is also complete. Production source
+`b4f14beaff06831ed2e8d7a35578226b756c1a61` passed exact clean postflight
+operator `8438ece93ff93572a015dd674f152c830cb5a52e`; the canonical record is
+`docs/runtime-db-credential-separation.md`. Production Functions retain only
+the constrained `grainline_app_runtime`; the rotated `NOSUPERUSER BYPASSRLS`
+owner remains outside Vercel. This closes the prerequisite for isolated
+Notification implementation, ephemeral PostgreSQL proof, and isolated
+provider-candidate comparison. It does not authorize a Notification merge,
+production apply/deployment, persistent staging activation, or RLS activation.
 
 ### Site-wide RLS expansion decision (2026-07-19)
 
-SavedSearch is the first production RLS pattern, not the final scope. Complete
-its Phase-B FORCE release, then externalize `DIRECT_URL` and
-`MIGRATION_DB_ROLE` from production application Functions before merging,
-deploying, or activating Notification/Bucket B. Because environment changes do
-not rewrite earlier deployments, that release must also rotate/revoke any owner
-credential retained by superseded callable deployments and prove the old
-credential and owner sessions are gone. Continue expanding RLS across user-owned and sensitive data
+SavedSearch is the first production RLS pattern, not the final scope. Its Phase-B
+FORCE release and runtime credential separation are complete. Continue expanding
+RLS across user-owned and sensitive data
 in the reviewed sequence documented in the RLS feasibility and defense-in-depth
 plans, with priority on notifications, carts, conversations and messages,
 orders and payment/shipping records, and cases. Each table or tightly coupled
@@ -65,20 +63,20 @@ schema-complete [`docs/rls-coverage-matrix.md`](docs/rls-coverage-matrix.md)
 and never claim that all user data is protected by RLS until every table has an
 evidenced disposition.
 
-### Runtime owner-credential separation decision (2026-07-19)
+### Runtime owner-credential separation result (updated 2026-07-21)
 
-The post-Phase-B release path is now concrete in
+The release is complete and accepted in production; retain the exact contract,
+failed-attempt history, evidence hashes, rollback posture, and operator rules in
 `docs/runtime-db-credential-separation.md`. Vercel application builds must never
-run owner migrations or receive any owner/admin database variable. Production
-migrations move to a manually approved, main-only GitHub `Production`
-environment, and automatic Vercel production deployment from `main` stays off
-so migrations and application promotion cannot race. After removing the Vercel
-owner variables, rotate the owner again and store the new credential only in
-the protected migration environment and a mode-0600 local operator file. That
-second rotation is mandatory because deleting project variables affects future
-deployments but does not invalidate the valid owner secret embedded in already
-built deployments. This implementation is staged, not production-active, and
-does not authorize Bucket B before Phase B and the separation postflight pass.
+run owner migrations or receive an owner/admin database variable. Production
+migrations run only from the manually approved, main-only GitHub `Production`
+environment, and automatic Vercel production deployment from `main` remains off
+so migrations and application promotion cannot race. The owner credential lives
+only in that protected environment and ignored mode-0600
+`.env.migration-owner.local`; `.env.local` is runtime-only. Any ambiguous future
+control-plane reset must use reveal-based recovery and must never blindly issue
+a second reset. Do not weaken the production-equivalent `LOGIN NOINHERIT`
+runtime role fixture or the Vercel privileged-variable guard.
 
 ### Bucket B Notification design decision (2026-07-19)
 

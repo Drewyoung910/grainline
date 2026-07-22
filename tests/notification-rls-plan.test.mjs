@@ -75,9 +75,10 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(plan, /missing SQL wrapper\/revoke\/runtime grant/);
     assert.match(plan, /notification-create-authority-inventory\.md/);
     assert.match(plan, /fixed-column insert primitive ungranted to runtime/);
-    assert.match(strategy, /SavedSearch Phase B and runtime database credential separation are live/);
-    assert.match(strategy, /closes\s+the sequencing prerequisite for isolated Notification\/Bucket-B implementation/);
-    assert.match(strategy, /does not authorize a Notification merge, production apply\/deployment/);
+    assert.match(strategy, /Bucket A is complete in production/);
+    assert.match(strategy, /Runtime database credential separation is also complete/);
+    assert.match(strategy, /closes the prerequisite for isolated\s+Notification implementation/);
+    assert.match(strategy, /does not authorize a Notification merge,\s+production apply\/deployment/);
     assert.doesNotMatch(strategy, /before beginning\s+Notification\/Bucket B/);
     assert.match(strategy, /seventeen owner-backed functions/);
     assert.match(strategy, /runtime-ungranted fixed-column core/);

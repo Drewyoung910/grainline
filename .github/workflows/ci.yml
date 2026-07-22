@@ -82,9 +82,9 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
-      - name: Verify SavedSearch Release 0 production artifact
+      - name: Verify SavedSearch Phase B production artifact
         env:
-          SAVED_SEARCH_RLS_DEPLOY_PHASE: release-0
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: phase-b-reviewed
         run: npm run verify:rls-release-artifact
       - name: Prepare CI runtime policy role
         run: psql "$DIRECT_URL" -f scripts/prepare-ci-rls-runtime-role.sql
@@ -95,7 +95,7 @@ jobs:
       - name: Verify migration status
         run: npx prisma migrate status
       - name: Audit final runtime grants and RLS catalog
-        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - run: npx tsc --noEmit
       - name: Lint
         run: npm run lint

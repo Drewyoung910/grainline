@@ -11,6 +11,8 @@
     "guard:runtime-db-env": "node scripts/guard-runtime-db-env.mjs",
     "ops:separate-db-credential": "node scripts/runtime-db-credential-separation-operator.mjs",
     "ops:notification-legacy-inspect": "node scripts/notification-legacy-inspect.mjs",
+    "ops:verify-db-separation": "node scripts/runtime-db-credential-separation-postflight.mjs",
+    "ops:converge-local-runtime-db": "node scripts/converge-local-runtime-db-env.mjs",
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/*.test.mjs",
     "migrate:deploy:guarded": "node scripts/guard-saved-search-rls-deploy.mjs && prisma migrate deploy && npm run audit:db-grants -- --require-direct-url",
     "verify:rls-release-artifact": "node scripts/verify-saved-search-rls-release-artifact.mjs",
@@ -37,8 +39,8 @@
     "@aws-sdk/client-s3": "^3.1032.0",
     "@aws-sdk/s3-request-presigner": "^3.1032.0",
     "@clerk/nextjs": "^7.4.0",
-    "@prisma/adapter-pg": "^7.8.0",
-    "@prisma/client": "^7.8.0",
+    "@prisma/adapter-pg": "^7.9.0",
+    "@prisma/client": "^7.9.0",
     "@sentry/nextjs": "^10.49.0",
     "@stripe/react-stripe-js": "^3.10.0",
     "@stripe/stripe-js": "^4.10.0",
@@ -74,16 +76,15 @@
     "eslint": "^9",
     "eslint-config-next": "^16.2.4",
     "postcss": "8.5.10",
-    "prisma": "^7.8.0",
-    "sharp": "^0.34.5",
+    "prisma": "^7.9.0",
+    "sharp": "^0.35.3",
     "tailwindcss": "^4",
     "typescript": "^5"
   },
   "overrides": {
-    "@hono/node-server": "1.19.13",
-    "hono": "4.12.25",
     "js-cookie": "3.0.7",
     "postcss": "8.5.10",
+    "sharp": "$sharp",
     "svix": "$svix"
   }
 }

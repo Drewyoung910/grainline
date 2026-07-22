@@ -26,7 +26,6 @@ jobs:
     timeout-minutes: 20
     environment: Production
     env:
-      DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
       PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
       RUNTIME_DB_ROLE: grainline_app_runtime
       MIGRATION_DB_ROLE: neondb_owner
@@ -44,11 +43,19 @@ jobs:
       - run: npm ci --ignore-scripts
       - name: Verify exact source, owner connection, role posture, and Phase B
         run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
       - name: Generate Prisma client
         run: npx prisma generate
       - name: Apply production migrations
         run: npx prisma migrate deploy
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
       - name: Verify production migration status
         run: npx prisma migrate status
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
       - name: Audit final runtime grants and RLS catalog
         run: npm run audit:db-grants -- --require-direct-url
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}

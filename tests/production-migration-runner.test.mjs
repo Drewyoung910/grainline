@@ -183,6 +183,12 @@ describe("isolated production migration runner", () => {
     assert.doesNotMatch(workflow, /secrets\.(?:DIRECT_URL|DATABASE_URL)\b/);
     assert.match(workflow, /cancel-in-progress: false/);
     assert.match(workflow, /guard-production-migration-runner\.mjs[\s\S]*prisma migrate deploy[\s\S]*prisma migrate status[\s\S]*audit:db-grants/);
+    const jobEnvironment = workflow.slice(
+      workflow.indexOf("    env:"),
+      workflow.indexOf("    steps:"),
+    );
+    assert.doesNotMatch(jobEnvironment, /DIRECT_URL:\s*\$\{\{\s*secrets\./);
+    assert.match(workflow, /Verify exact source[\s\S]*?env:\s*\n\s+DIRECT_URL: \$\{\{ secrets\.PRODUCTION_MIGRATION_DIRECT_URL \}\}/);
     assert.equal(vercel.buildCommand, "npm run guard:runtime-db-env && npm run build");
     assert.doesNotMatch(vercel.buildCommand, /migrat/i);
     assert.match(runtimeSource, /requiredProductionEnv\("DATABASE_URL"\)/);

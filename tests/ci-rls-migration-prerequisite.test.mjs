@@ -7,20 +7,20 @@ function source(path) {
 }
 
 describe("fresh CI database RLS migration prerequisite", () => {
-  it("creates only an ephemeral membership-free NOLOGIN policy role", () => {
+  it("creates only an ephemeral passwordless membership-free LOGIN policy role", () => {
     const sql = source("scripts/prepare-ci-rls-runtime-role.sql");
     const executableSql = sql.replace(/^\s*--.*$/gm, "");
 
     assert.match(sql, /current_database\(\) <> 'grainline_ci'/);
     assert.match(sql, /current_user <> 'ci'/);
-    assert.match(sql, /CREATE ROLE grainline_app_runtime[\s\S]*?NOLOGIN[\s\S]*?NOSUPERUSER[\s\S]*?NOBYPASSRLS/);
-    assert.match(sql, /ALTER ROLE grainline_app_runtime[\s\S]*?NOLOGIN[\s\S]*?NOSUPERUSER[\s\S]*?NOBYPASSRLS/);
+    assert.match(sql, /CREATE ROLE grainline_app_runtime[\s\S]*?LOGIN[\s\S]*?NOSUPERUSER[\s\S]*?NOBYPASSRLS/);
+    assert.match(sql, /ALTER ROLE grainline_app_runtime[\s\S]*?LOGIN[\s\S]*?NOSUPERUSER[\s\S]*?NOBYPASSRLS/);
     assert.match(sql, /FROM pg_auth_members/);
     assert.match(sql, /REVOKE %I FROM grainline_app_runtime/);
     assert.match(sql, /GRANT USAGE ON SCHEMA public TO grainline_app_runtime/);
     assert.match(sql, /ALTER DEFAULT PRIVILEGES IN SCHEMA public[\s\S]*?GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES[\s\S]*?TO grainline_app_runtime/);
     assert.doesNotMatch(executableSql, /\bPASSWORD\b/i);
-    assert.doesNotMatch(executableSql, /\bLOGIN\b/);
+    assert.doesNotMatch(executableSql, /\bNOLOGIN\b/);
   });
 
   it("runs the CI-only prerequisite before every ephemeral CI database migration", () => {
@@ -36,7 +36,7 @@ describe("fresh CI database RLS migration prerequisite", () => {
         'psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql';
       const migrationStatusCommand = "npx prisma migrate status";
       const auditCommand =
-        'GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants';
+        'GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci';
       const isEphemeralCiDatabase =
         workflow.includes("POSTGRES_DB: grainline_ci")
         && workflow.includes("postgres:16");

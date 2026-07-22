@@ -37,6 +37,16 @@ export const REVIEWED_DATABASE_NAME = "neondb";
 export const REVIEWED_DATABASE_REGION = "westus3.azure";
 export const REVIEWED_OWNER_ROLE = "neondb_owner";
 export const REVIEWED_RUNTIME_ROLE = "grainline_app_runtime";
+export const PHASE_B_CANARY_QUERY = `
+      SELECT bucket, status,
+             "startedAt" AT TIME ZONE 'UTC' AS started_at,
+             "completedAt" AT TIME ZONE 'UTC' AS completed_at,
+             result
+        FROM public."CronRun"
+       WHERE "jobName" = 'ops-health' AND bucket = $1
+       ORDER BY "startedAt" DESC
+       LIMIT 1
+    `;
 export const REVIEWED_VERCEL_CLI_PATH = "/Users/drewyoung/.npm/_npx/69f9afb961c37556/node_modules/vercel/dist/vc.js";
 export const REVIEWED_VERCEL_PROJECT_DIRECTORY = "/Users/drewyoung/grainline";
 export const REVIEWED_VERCEL_PROJECT = Object.freeze({
@@ -61,7 +71,9 @@ const GENERATED_PASSWORD_PATTERN = /^[A-Za-z0-9_-]{40,}$/;
 const SCRAM_PASSWORD_INPUT_PATTERN = /^[\x21-\x7e]+$/;
 const SCRAM_ITERATIONS = 4096;
 const SCRAM_VERIFIER_PATTERN = /^SCRAM-SHA-256\$4096:[A-Za-z0-9+/]+={0,2}\$[A-Za-z0-9+/]+={0,2}:[A-Za-z0-9+/]+={0,2}$/;
-const REVIEWED_VERCEL_CLI_VERSION = "56.3.2";
+const REVIEWED_VERCEL_CLI_VERSION = "56.4.1";
+const REVIEWED_VERCEL_CLI_INTEGRITY =
+  "sha512-+CIEa0qcKm1RNBRhOvpo2l/yz28LMKSDuGeAYGx4/EkYyR5VOrXJZYV52WvqVARcxBAbH3Un2RRin8YGXMlcNg==";
 const REVIEWED_OWNER_MEMBERSHIPS = Object.freeze([
   REVIEWED_RUNTIME_ROLE,
   "neon_superuser",
@@ -321,10 +333,22 @@ export function assertReviewedVercelCli() {
     "package.json",
   );
   const packageMetadata = JSON.parse(readFileSync(packagePath, "utf8"));
+  const cacheLockPath = path.resolve(
+    path.dirname(packagePath),
+    "..",
+    "..",
+    "package-lock.json",
+  );
+  const cacheLock = JSON.parse(readFileSync(cacheLockPath, "utf8"));
+  const lockedPackage = cacheLock?.packages?.["node_modules/vercel"];
   if (
     packageMetadata?.name !== "vercel"
     || packageMetadata.version !== REVIEWED_VERCEL_CLI_VERSION
     || packageMetadata?.bin?.vercel !== "./dist/vc.js"
+    || lockedPackage?.version !== REVIEWED_VERCEL_CLI_VERSION
+    || lockedPackage?.resolved
+      !== `https://registry.npmjs.org/vercel/-/vercel-${REVIEWED_VERCEL_CLI_VERSION}.tgz`
+    || lockedPackage?.integrity !== REVIEWED_VERCEL_CLI_INTEGRITY
   ) {
     throw new Error("Vercel CLI package does not match the reviewed operator version");
   }
@@ -401,14 +425,13 @@ async function readOwnerState(connectionString) {
          AND c.relname = 'SavedSearch'
          AND c.relkind IN ('r', 'p')
     `)).rows[0];
-    const canary = (await client.query(`
-      SELECT bucket, status, "startedAt" AS started_at,
-             "completedAt" AS completed_at, result
-        FROM public."CronRun"
-       WHERE "jobName" = 'ops-health' AND bucket = $1
-       ORDER BY "startedAt" DESC
-       LIMIT 1
-    `, [PHASE_B_CANARY_BUCKET])).rows[0];
+    // Prisma stores DateTime as timestamp without time zone while Grainline's
+    // application convention is UTC. Convert at the SQL boundary so node-pg
+    // cannot reinterpret 06:20 as America/Chicago and emit 11:20Z evidence.
+    const canary = (await client.query(
+      PHASE_B_CANARY_QUERY,
+      [PHASE_B_CANARY_BUCKET],
+    )).rows[0];
     return { identity, ownerRole, runtimeRole, savedSearch, canary };
   });
 }

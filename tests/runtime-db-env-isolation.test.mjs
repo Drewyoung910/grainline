@@ -4,6 +4,9 @@ import {
   assertNoNotificationRlsDraftDeployment,
   assertVercelRuntimeDatabaseIsolation,
   privilegedDatabaseEnvironmentKeys,
+  runtimeDatabaseIsolationFailureCode,
+  runtimeDatabaseIsolationFailureDetail,
+  unreviewedPostgresUrlEnvironmentKeys,
 } from "../scripts/guard-runtime-db-env.mjs";
 
 const RUNTIME_URL = "postgresql://grainline_app_runtime:runtime-password@ep-plain-river-aaqg8gj4-pooler.westus3.azure.neon.tech:5432/neondb?sslmode=verify-full&channel_binding=require";
@@ -61,6 +64,18 @@ describe("Vercel runtime database environment isolation", () => {
     }
   });
 
+  it("rejects a PostgreSQL owner URL hidden under an unrecognized key", () => {
+    const hidden = {
+      OWNER_CONNECTION: ` ${RUNTIME_URL.replace("grainline_app_runtime", "neondb_owner")
+        .replace("-pooler", "")}`,
+    };
+    assert.deepEqual(unreviewedPostgresUrlEnvironmentKeys(hidden), ["OWNER_CONNECTION"]);
+    assert.throws(
+      () => assertVercelRuntimeDatabaseIsolation(productionEnv(hidden)),
+      /PostgreSQL URLs outside DATABASE_URL/,
+    );
+  });
+
   it("rejects owner, direct, wrong endpoint, and wrong declared role production URLs", () => {
     const cases = [
       {
@@ -102,5 +117,41 @@ describe("Vercel runtime database environment isolation", () => {
       provider: null,
       environment: null,
     });
+  });
+
+  it("reports only bounded diagnostic codes for build-time failures", () => {
+    const cases = [
+      [{ DIRECT_URL: "secret" }, "PRIVILEGED_DATABASE_KEYS"],
+      [{ DATABASE_URL: RUNTIME_URL.replace("verify-full", "require") }, "DATABASE_URL_PARAMETERS"],
+      [{ DATABASE_URL: RUNTIME_URL.replace("-pooler", "") }, "DATABASE_URL_NOT_POOLED"],
+      [{ RUNTIME_DB_ROLE: "unexpected-role" }, "PRODUCTION_RUNTIME_IDENTITY"],
+    ];
+    for (const [overrides, expected] of cases) {
+      assert.throws(() => assertVercelRuntimeDatabaseIsolation(productionEnv(overrides)), (error) => {
+        const code = runtimeDatabaseIsolationFailureCode(error);
+        assert.equal(code, expected);
+        assert.doesNotMatch(code, /secret|password|postgresql:/i);
+        return true;
+      });
+    }
+    assert.equal(runtimeDatabaseIsolationFailureCode(new Error("unexpected secret detail")), "UNCLASSIFIED");
+    assert.equal(
+      runtimeDatabaseIsolationFailureDetail("PRIVILEGED_DATABASE_KEYS", {
+        DIRECT_URL: "do-not-print",
+        RLS_PROOF_DIRECT_URL: "do-not-print",
+        SAFE: "do-not-print",
+      }),
+      "DIRECT_URL,RLS_PROOF_DIRECT_URL",
+    );
+    assert.equal(
+      runtimeDatabaseIsolationFailureDetail("ALIASED_DATABASE_URL", {
+        OWNER_CONNECTION: RUNTIME_URL,
+        DATABASE_URL: RUNTIME_URL,
+      }),
+      "OWNER_CONNECTION",
+    );
+    assert.equal(runtimeDatabaseIsolationFailureDetail("DATABASE_URL_PARAMETERS", {
+      DIRECT_URL: "do-not-print",
+    }), "");
   });
 });

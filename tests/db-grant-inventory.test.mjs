@@ -818,8 +818,8 @@ describe("database grant inventory guardrails", () => {
 
     await withAuditFixture({ grantGlobalDefaultTablePrivilege: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
       const issues = (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n");
-      assert.match(issues, /default privileges .* do not grant SELECT on r objects/);
       assert.match(issues, /default table privileges .* must be scoped to schema public/);
+      assert.doesNotMatch(issues, /default privileges .* do not grant SELECT on r objects/);
     });
 
     await withAuditFixture({ createParentRole: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
@@ -867,7 +867,7 @@ describe("database grant inventory guardrails", () => {
     await withAuditFixture({ grantUntrackedTableSelect: true }, async ({ auditClient, inventory, migrationRole, runtimeRole, untrackedTableName }) => {
       assert.ok(
         (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory }))
-          .includes(`runtime role or PUBLIC has SELECT on untracked public table ${untrackedTableName}`),
+          .includes(`runtime role has SELECT on untracked public table ${untrackedTableName}`),
       );
     });
 

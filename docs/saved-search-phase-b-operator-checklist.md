@@ -12,7 +12,14 @@ requires the exact completed `2026-07-20T06` ops-health row to have started at
 or after 06:20 UTC with every actionable count zero and the SavedSearch canary
 healthy.
 
-Run the helper directly. Do not wrap it in `vercel env run`: Vercel CLI 56.3.2
+`CronRun.startedAt` and `completedAt` are PostgreSQL `timestamp without time
+zone` columns written under Grainline's UTC application convention. The
+operator converts both with `AT TIME ZONE 'UTC'` in SQL before node-postgres
+parses them. Do not select those columns directly: on an America/Chicago host,
+direct parsing shifts the evidence five hours forward and can distort time-gate
+comparisons.
+
+Run the helper directly. Do not wrap it in `vercel env run`: Vercel CLI 56.4.1
 merges downloaded values first and then lets local files and the parent process
 override them, while Vercel Sensitive values are deliberately non-readable
 outside builds. The helper loads only the current owner `DIRECT_URL` from the

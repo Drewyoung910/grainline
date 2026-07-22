@@ -803,11 +803,15 @@ RLS staging context proof:
   migrations from `vercel.json`, disables automatic `main` deployment, fails
   every Vercel build containing an owner/admin database key, and moves
   migrations to a manually approved `Production` environment on exact `main`.
-  Removing Vercel variables is not sufficient: rotate the owner again after
-  removal so the credential embedded in the current and superseded deployments
-  is rejected, and store the replacement only in the protected migration
-  environment plus the mode-0600 local operator file. Do not treat this staged
-  code as production-active before its separate post-Phase-B rollout passes.
+  Removing Vercel variables is not sufficient: reset the exact production owner
+  once through the pinned Neon control-plane endpoint after removal so the
+  credential embedded in the current and superseded deployments is rejected,
+  and store the replacement only in the protected migration environment plus
+  the mode-0600 local operator file. The pre-encrypted SQL `ALTER ROLE` path is
+  retired after PostgreSQL `XX000`; an ambiguous non-idempotent reset must use
+  reveal-only recovery and must never be blindly retried. Do not treat this
+  staged code as production-active before its separate post-Phase-B rollout
+  passes.
 - Verify the list function's explicit 16-column SQL projection and the helper's
   matching application projection. SQL columns must remain in PostgreSQL
   physical `attnum` order for the `SETOF public."SavedSearch"` return contract.

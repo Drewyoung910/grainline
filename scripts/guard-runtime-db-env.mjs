@@ -47,6 +47,17 @@ export function privilegedDatabaseEnvironmentKeys(env) {
     .sort((left, right) => left.localeCompare(right));
 }
 
+export function unreviewedPostgresUrlEnvironmentKeys(env) {
+  return Object.entries(env ?? {})
+    .filter(([key, value]) => (
+      key !== "DATABASE_URL"
+      && typeof value === "string"
+      && /^postgres(?:ql)?:\/\//i.test(value.trim())
+    ))
+    .map(([key]) => key)
+    .sort((left, right) => left.localeCompare(right));
+}
+
 export function parseVercelRuntimeDatabaseIdentity(value, label = "DATABASE_URL") {
   const parsed = parseExactPostgresUrl(value, label);
   const { username } = assertExplicitPostgresConnectionAuthority(parsed, label);
@@ -79,6 +90,12 @@ export function assertVercelRuntimeDatabaseIsolation(env = process.env) {
   if (privilegedKeys.length > 0) {
     throw new Error(
       `Vercel application builds must not receive privileged database environment keys: ${privilegedKeys.join(", ")}`,
+    );
+  }
+  const unreviewedPostgresUrlKeys = unreviewedPostgresUrlEnvironmentKeys(env);
+  if (unreviewedPostgresUrlKeys.length > 0) {
+    throw new Error(
+      `Vercel application builds must not receive PostgreSQL URLs outside DATABASE_URL: ${unreviewedPostgresUrlKeys.join(", ")}`,
     );
   }
 
@@ -124,13 +141,44 @@ export function assertVercelRuntimeDatabaseIsolation(env = process.env) {
   });
 }
 
+export function runtimeDatabaseIsolationFailureCode(error) {
+  const message = error instanceof Error ? error.message : "";
+  const rules = [
+    [/NODE_TLS_REJECT_UNAUTHORIZED/, "TLS_OVERRIDE"],
+    [/PGOPTIONS/, "PGOPTIONS"],
+    [/VERCEL_ENV/, "VERCEL_ENV"],
+    [/privileged database environment keys/, "PRIVILEGED_DATABASE_KEYS"],
+    [/PostgreSQL URLs outside DATABASE_URL/, "ALIASED_DATABASE_URL"],
+    [/connection parameters|sslmode=verify-full|channel_binding/, "DATABASE_URL_PARAMETERS"],
+    [/non-empty PostgreSQL URL|valid PostgreSQL URL|postgres\/postgresql protocol|explicit database host|explicit port|database path segment|invalid URL encoding/, "DATABASE_URL_SHAPE"],
+    [/pooled Neon endpoint/, "DATABASE_URL_NOT_POOLED"],
+    [/migration owner/, "DATABASE_URL_OWNER_ROLE"],
+    [/reviewed runtime identity/, "PRODUCTION_RUNTIME_IDENTITY"],
+  ];
+  return rules.find(([pattern]) => pattern.test(message))?.[1] ?? "UNCLASSIFIED";
+}
+
+export function runtimeDatabaseIsolationFailureDetail(code, env = process.env) {
+  if (code === "PRIVILEGED_DATABASE_KEYS") {
+    return privilegedDatabaseEnvironmentKeys(env).join(",");
+  }
+  if (code === "ALIASED_DATABASE_URL") {
+    return unreviewedPostgresUrlEnvironmentKeys(env).join(",");
+  }
+  return "";
+}
+
 function main() {
   try {
     assertNoNotificationRlsDraftDeployment(process.env);
     const result = assertVercelRuntimeDatabaseIsolation(process.env);
     process.stdout.write(`${JSON.stringify(result)}\n`);
-  } catch {
-    process.stderr.write("Vercel runtime database isolation guard failed.\n");
+  } catch (error) {
+    const code = runtimeDatabaseIsolationFailureCode(error);
+    const detail = runtimeDatabaseIsolationFailureDetail(code, process.env);
+    process.stderr.write(
+      `Vercel runtime database isolation guard failed [${code}]${detail ? ` keys=${detail}` : ""}.\n`,
+    );
     process.exitCode = 1;
   }
 }
