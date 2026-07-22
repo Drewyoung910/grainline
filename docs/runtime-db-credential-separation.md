@@ -273,6 +273,18 @@ Read-only inventory reverified on 2026-07-21:
   exact deployment source/ref/aliases, exact green deployment/operator/
   migration runs, and HTTP 200 for `/` plus `/api/health`. No credential or
   connection string is present in the artifact.
+- Exact clean local-parity operator
+  `2553ff13c13dd47633d2d1b5bd9d659817ff0603` passed CI run
+  `29880482950`, then atomically converged `.env.local` from the legacy owner
+  pooler to `grainline_app_runtime` and removed its stale `DIRECT_URL` without
+  changing any unrelated assignment. Sanitized mode-`0600` evidence is
+  `/Users/drewyoung/grainline-rollout-evidence/local-runtime-db-environment-convergence-2553ff13-20260721.json`,
+  SHA-256
+  `740d2ab81009e65df2e6f1b4fdd4d66fb6f4b3dc205671e3f3b9e651f3871e69`.
+  Post-write identity verification found exactly one `DATABASE_URL`, no
+  `DIRECT_URL`, explicit port `5432`, `sslmode=verify-full`,
+  `channel_binding=require`, file mode `0600`, runtime `NOBYPASSRLS`, and zero
+  no-context SavedSearch rows. The earlier local RLS-parity finding is closed.
 
 ## Activation Sequence
 
