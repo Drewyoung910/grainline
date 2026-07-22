@@ -12,7 +12,7 @@ import {
 } from "../scripts/guard-runtime-db-env.mjs";
 
 const RUNTIME_URL = "postgresql://grainline_app_runtime:runtime-password@ep-plain-river-aaqg8gj4-pooler.westus3.azure.neon.tech:5432/neondb?sslmode=verify-full&channel_binding=require";
-const PROVIDER_PROOF_URL = "postgresql://grainline_app_runtime:runtime-password@ep-lingering-moon-aarppiwz-pooler.westus3.azure.neon.tech:5432/neondb?sslmode=verify-full&channel_binding=require";
+const PROVIDER_PROOF_URL = "postgresql://grainline_app_runtime:runtime-password@ep-mute-shape-aahq7xma-pooler.westus3.azure.neon.tech:5432/neondb?sslmode=verify-full&channel_binding=require";
 const PROVIDER_PROOF_SHA = "a".repeat(40);
 
 function productionEnv(overrides = {}) {

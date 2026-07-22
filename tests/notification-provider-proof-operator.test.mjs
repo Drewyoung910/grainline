@@ -31,9 +31,9 @@ describe("disposable Notification provider proof operator", () => {
 
     assert.equal(
       new URL(runtime).hostname,
-      "ep-lingering-moon-aarppiwz-pooler.westus3.azure.neon.tech",
+      "ep-mute-shape-aahq7xma-pooler.westus3.azure.neon.tech",
     );
-    assert.equal(new URL(owner).hostname, "ep-lingering-moon-aarppiwz.westus3.azure.neon.tech");
+    assert.equal(new URL(owner).hostname, "ep-mute-shape-aahq7xma.westus3.azure.neon.tech");
     assert.equal(new URL(runtime).port, "5432");
     assert.equal(new URL(runtime).pathname, "/neondb");
     assert.equal(new URL(runtime).searchParams.get("sslmode"), "verify-full");
@@ -43,7 +43,7 @@ describe("disposable Notification provider proof operator", () => {
       runtime,
     );
     assert.throws(() => validateDatabaseUrl(
-      runtime.replace("ep-lingering-moon-aarppiwz", "ep-plain-river-aaqg8gj4"),
+      runtime.replace("ep-mute-shape-aahq7xma", "ep-plain-river-aaqg8gj4"),
       { pooled: true, role: "grainline_app_runtime" },
     ));
   });
@@ -94,6 +94,10 @@ describe("disposable Notification provider proof operator", () => {
     assert.match(source, /branchEnvironmentVariablesDeleted/);
     assert.match(source, /bootstrapBypassState/);
     assert.match(source, /existing-sole-active-automation-bypass/);
+    assert.match(source, /createBypassState/);
+    assert.match(source, /generated-sole-active-automation-bypass/);
+    assert.match(source, /body: \{ generate: \{\} \}/);
+    assert.match(source, /requires zero automation bypass secrets before generation/);
     assert.match(source, /active\.length !== 1 \|\| active\[0\] !== bypassState\.bypassSecret/);
     assert.match(source, /revokeProviderBypass/);
     assert.match(source, /remainingAutomationBypassSecrets: 0/);

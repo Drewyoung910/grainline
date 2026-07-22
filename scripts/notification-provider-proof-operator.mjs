@@ -20,7 +20,7 @@ import { parseGuardedNeonDatabaseIdentity } from "./guard-saved-search-rls-deplo
 
 const { Client } = pg;
 
-export const PROVIDER_PROOF_BRANCH = "codex/rls-notification-provider-proof-20260722";
+export const PROVIDER_PROOF_BRANCH = "codex/rls-notification-provider-proof-2-20260722";
 export const REVIEWED_GITHUB_REPOSITORY = "Drewyoung910/grainline";
 export const REVIEWED_VERCEL_PROJECT_ID = "prj_O2S8qcYFFWXn6nnrV0DkLyqMprIp";
 export const REVIEWED_VERCEL_TEAM_ID = "team_wvQeQHZGwCSwinC1uB7xbpjr";
@@ -29,9 +29,9 @@ export const REVIEWED_PRODUCTION_DEPLOYMENT_ID = "dpl_6Y6C3NT81zbhLc6eHJAveCH1Av
 export const REVIEWED_NEON_PROJECT_ID = "icy-unit-96812898";
 export const REVIEWED_NEON_ORG_ID = "org-raspy-frost-18952075";
 export const REVIEWED_PRODUCTION_BRANCH_ID = "br-hidden-mouse-aaugn2wr";
-export const REVIEWED_STAGING_BRANCH_ID = "br-wispy-tree-aawgpj9l";
-export const REVIEWED_STAGING_BRANCH_NAME = "notification-provider-proof-20260722-0622";
-export const REVIEWED_STAGING_ENDPOINT_ID = "ep-lingering-moon-aarppiwz";
+export const REVIEWED_STAGING_BRANCH_ID = "br-green-field-aadli194";
+export const REVIEWED_STAGING_BRANCH_NAME = "notification-provider-proof-2-20260722";
+export const REVIEWED_STAGING_ENDPOINT_ID = "ep-mute-shape-aahq7xma";
 export const REVIEWED_DATABASE_NAME = "neondb";
 export const REVIEWED_DATABASE_REGION = "westus3.azure";
 export const REVIEWED_NEON_REGION_ID = "azure-westus3";
@@ -49,9 +49,9 @@ export const REVIEWED_NOTIFICATION_MIGRATIONS = Object.freeze({
   }),
 });
 export const PROVIDER_PROOF_STATE_PATH =
-  "/private/tmp/grainline-notification-provider-proof-state-20260722.json";
+  "/private/tmp/grainline-notification-provider-proof-state-2-20260722.json";
 export const PROVIDER_BYPASS_STATE_PATH =
-  "/private/tmp/grainline-notification-provider-bypass-20260722.json";
+  "/private/tmp/grainline-notification-provider-bypass-2-20260722.json";
 export const EVIDENCE_DIRECTORY = "/Users/drewyoung/grainline-rollout-evidence";
 
 const REVIEWED_NEON_CLI_PATH =
@@ -209,7 +209,10 @@ function readBypassState() {
     || !/^[A-Za-z0-9_-]{24,256}$/.test(state.bypassSecret)
     || !/^[a-f0-9]{64}$/.test(state.bypassSecretSha256)
     || sha256(state.bypassSecret) !== state.bypassSecretSha256
-    || state.source !== "existing-sole-active-automation-bypass"
+    || ![
+      "existing-sole-active-automation-bypass",
+      "generated-sole-active-automation-bypass",
+    ].includes(state.source)
   ) {
     throw new Error("provider bypass state does not match the reviewed project");
   }
@@ -1036,6 +1039,33 @@ async function bootstrapBypassState() {
   console.log(JSON.stringify({ bypassStateReady: true, activeAutomationSecretCount: 1 }));
 }
 
+async function createBypassState() {
+  if (existsSync(PROVIDER_BYPASS_STATE_PATH) || existsSync(PROVIDER_PROOF_STATE_PATH)) {
+    throw new Error("provider proof or bypass state already exists");
+  }
+  if ((await currentAutomationBypassSecrets()).length !== 0) {
+    throw new Error("provider proof requires zero automation bypass secrets before generation");
+  }
+  await vercelApi(
+    `/v1/projects/${REVIEWED_VERCEL_PROJECT_ID}/protection-bypass`,
+    { body: { generate: {} }, method: "PATCH" },
+  );
+  const secrets = await currentAutomationBypassSecrets();
+  if (secrets.length !== 1 || !/^[A-Za-z0-9_-]{24,256}$/.test(secrets[0])) {
+    throw new Error("generated automation bypass inventory did not have the reviewed shape");
+  }
+  const bypassSecret = secrets[0];
+  writePrivateJson(PROVIDER_BYPASS_STATE_PATH, {
+    bootstrapAt: new Date().toISOString(),
+    bypassSecret,
+    bypassSecretSha256: sha256(bypassSecret),
+    projectId: REVIEWED_VERCEL_PROJECT_ID,
+    source: "generated-sole-active-automation-bypass",
+    teamId: REVIEWED_VERCEL_TEAM_ID,
+  });
+  console.log(JSON.stringify({ bypassStateReady: true, activeAutomationSecretCount: 1 }));
+}
+
 async function currentBypassIsActive(bypassState) {
   const active = await currentAutomationBypassSecrets();
   if (active.length !== 1 || active[0] !== bypassState.bypassSecret) {
@@ -1645,11 +1675,14 @@ async function databaseStatus() {
 }
 
 function usage() {
-  console.error("Usage: node scripts/notification-provider-proof-operator.mjs <bootstrap-bypass-state|revoke-bypass-state|prepare|rebind-predeployment-commit|configure|attest|slot-1|slot-2|cleanup|cleanup-abort|status|database-status|prisma-status>");
+  console.error("Usage: node scripts/notification-provider-proof-operator.mjs <create-bypass-state|bootstrap-bypass-state|revoke-bypass-state|prepare|rebind-predeployment-commit|configure|attest|slot-1|slot-2|cleanup|cleanup-abort|status|database-status|prisma-status>");
 }
 
 async function main() {
   switch (process.argv[2]) {
+    case "create-bypass-state":
+      await createBypassState();
+      break;
     case "bootstrap-bypass-state":
       await bootstrapBypassState();
       break;
