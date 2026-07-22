@@ -25,7 +25,7 @@ export const NOTIFICATION_PROVIDER_PROOF = Object.freeze({
   branch: "codex/rls-notification-route-smoke-20260722",
   databaseAliasKey: "RLS_CONTEXT_GATE_DATABASE_URL",
   databaseName: "neondb",
-  endpointId: "ep-withered-silence-aat8o1zf",
+  endpointId: "ep-square-glitter-aandhnpd",
   middlewarePath: "src/middleware.ts",
   publicPath: "/api/internal/rls-context-gate",
   region: "westus3.azure",

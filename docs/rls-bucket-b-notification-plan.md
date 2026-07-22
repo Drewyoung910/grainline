@@ -574,6 +574,13 @@ missing restore, session revoke, fixture deletion, or Redis deletion makes the
 smoke fail even if every HTTP assertion passed. No unmarked account may be
 selected.
 
+The second attempt is pinned to expiring Neon child
+`br-dawn-feather-aa29dcsm` (`notification-route-smoke-2-20260722`) and compute
+`ep-square-glitter-aandhnpd`, cloned from the reviewed production parent and
+scheduled to expire at `2026-07-22T15:30:00Z`. The branch remains
+deployment-disabled while its exact candidate commit, migration proof, and
+environment inventory are prepared.
+
 ### Consolidated Extra High authority review: passed (2026-07-22)
 
 The consolidated SQL/application review at exact branch head
