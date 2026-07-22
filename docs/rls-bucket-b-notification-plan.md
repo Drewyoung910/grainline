@@ -451,12 +451,14 @@ direct Prisma Notification owner reads or updates outside the RPC helper:
   private-core source-validation branches, all 38 successful source/type pairs,
   and their security-relevant action/status/recipient-direction variants with
   valid, replay, and forged-recipient evidence, plus the dedicated back-in-stock
-  claim. Final byte-pinned SQL/authority review and real migration/rollback proof
-  remain required before calling the service-authority layer activation-ready.
-- Role provisioning and the generic grant audit now preserve Notification's
+  claim. The later split candidate completes byte-pinned disposable migration
+  proof; rollback, provider, and authenticated-route proof remain required
+  before calling the service-authority layer activation-ready.
+- Role provisioning and the generic grant audit preserve Notification's
   asymmetric table/column grants, initial `NO FORCE` phase, exact policies, and
-  25-function ACL/mode split. The final migration must still pass those checks
-  against a disposable real database; static guardrails are not a live proof.
+  25-function ACL/mode split. Accepted split-migration run `29894316762` now
+  exercises those migration-derived expectations against disposable PostgreSQL
+  16. Rollback and provider/authenticated-route proof remain separate gates.
 - Recipient bell/page/count/export/mark-read uses the narrow one-statement
   `SECURITY INVOKER` RPC direction. The rejected transaction wrapper is retained
   only in Git and evidence history, not as executable fallback scaffolding.
@@ -480,15 +482,42 @@ Notification RLS activation.
 ## Ephemeral PostgreSQL proof checkpoint (2026-07-22)
 
 The branch-only `Notification RLS Ephemeral Proof` workflow creates a fresh
-PostgreSQL 16 `grainline_ci` database, applies all current migrations and
-production-style runtime grants, then applies the three isolated Notification
-drafts. It reruns role provisioning after those drafts so the activated-table
-`SELECT` + `UPDATE(read)` and 25-function ACL convergence branch is exercised
-before the catalog proof. The proof script refuses non-loopback hosts and any
-database name other than `grainline_ci`. It changes neither production nor
-persistent staging.
+PostgreSQL 16 `grainline_ci` database and applies all current migrations. It
+then stages and applies two byte-pinned real Prisma migration candidates. The
+preparation candidate adds `relatedUserId` and all 25 RPCs while preserving
+disabled RLS, zero policies, and legacy table CRUD. A compatibility proof calls
+both old direct CRUD and new recipient/service RPC paths and deliberately leaves
+one exact legacy row. Only after that proof does the activation candidate take
+the advisory and `ACCESS EXCLUSIVE` locks, prove and purge the exact row count,
+install the two policies, enable initial `NO FORCE`, and narrow table grants.
+Production-style provisioning, Prisma status, the generic grant audit, and the
+68-check Notification authority/concurrency proof run after activation. Every
+helper refuses non-loopback hosts and databases other than `grainline_ci`. The
+workflow changes neither production nor persistent staging.
 
-Latest accepted run `29893071538` (job `88837282837`) completed at
+Latest accepted run `29894316762` (job `88841144497`) completed at
+`2026-07-22T05:38:35Z` against exact source
+`c47acbc79b77dc51c40024e553ee8efceb2e097a`. Preparation candidate
+`20260722051500_prepare_notification_rls` had SHA-256
+`83f49cec2589c359cda5413282a492f68b26cca760f54861cd29a9a3bfb579f9`;
+activation candidate `20260722052000_enable_notification_rls` had SHA-256
+`e40994886a143101141c7114ed8ea2f92917ccdd349fe96a0874a2cb79561329`.
+The intermediate proof confirmed old-application direct CRUD compatibility,
+new recipient/service RPC callability, private-core denial, and retention of the
+legacy row for the locked purge. Both Prisma deploys passed; the final generic
+grant audit covered 58 tables, 20 enums, 28 `grainline_*` functions, two RLS
+policy tables, and zero sequence references; the final authority proof reported
+all 68 checks passed.
+
+Run `29893744367` at `9f42c0917855e10cdd8296cb62f483621629c618`
+is retained as technically green but rejected release topology. Its single
+all-at-once candidate passed PostgreSQL, Prisma, grant, and authority checks,
+but no deployment order was safe: database-first revoked grants before the old
+app stopped using them, while app-first called functions that did not yet
+exist. It is not promotion evidence. The split above is the accepted proof
+direction.
+
+Earlier accepted draft run `29893071538` (job `88837282837`) completed at
 `2026-07-22T05:12:11Z` against exact source
 `187ac2fa5a5b7c08a3889b27ef57c873ee7a79ea`. It passed current migrations,
 baseline provisioning/audit, all three draft applications, post-draft

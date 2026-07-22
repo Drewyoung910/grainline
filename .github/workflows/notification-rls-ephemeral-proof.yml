@@ -13,6 +13,7 @@ on:
       - scripts/audit-runtime-db-grants.mjs
       - scripts/notification-rls-ephemeral-proof.mjs
       - scripts/notification-rls-preparation-proof.mjs
+      - scripts/notification-rls-rollback-proof.mjs
       - scripts/stage-notification-rls-candidate-migration.mjs
       - scripts/prepare-ci-rls-runtime-role.sql
       - scripts/provision-runtime-db-role.sql
@@ -74,5 +75,7 @@ jobs:
         run: npx prisma migrate status
       - name: Audit production-style runtime grants
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove database-first Notification rollback
+        run: npm run audit:rls-notification-rollback
       - name: Prove Notification RLS and service authority
         run: npm run audit:rls-notification-ephemeral

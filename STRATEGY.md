@@ -150,8 +150,12 @@ It also converges all 25 Notification RPC ACLs while keeping the private create
 core runtime-ungranted. The grant audit derives FORCE expectations from ordered
 migration history and checks the exact Notification policies, column grants,
 function owner/mode/search path/overload shape, PUBLIC revokes, and runtime
-execute split. Do not stage an activation migration until these checks pass on
-the final disposable PostgreSQL migration. Keep three evidence layers distinct:
+execute split. The release topology is explicitly split: a preparation
+migration installs the schema/RPC surface while retaining disabled RLS, zero
+policies, and legacy table CRUD; the RPC application deploys and is verified;
+only then may a locked activation migration purge pre-authority rows, install
+the policies, enable initial `NO FORCE`, and narrow table grants. Keep three
+evidence layers distinct:
 the AST gate covers all 54 application emission paths; disposable PostgreSQL
 run `29893071538` at exact source
 `187ac2fa5a5b7c08a3889b27ef57c873ee7a79ea` executes all 26 family-dispatched
@@ -161,19 +165,20 @@ rejection. Its 59 creation cases cover all 38 successful source/type pairs and
 the security-relevant action, status, and recipient-direction variants within
 those source types. The accepted run also proves post-draft role
 provisioning reconvergence and the catalog proof on fresh PostgreSQL 16. The
-generic grant audit's
-Notification migration-inventory branch remains unexercised until the final SQL
-is staged as a real disposable migration; do not count the draft run as that
-later migration proof.
+generic grant audit's Notification migration-inventory branch is now exercised
+by the later split-migration proof described in the Bucket B operating record;
+do not retroactively count the earlier draft run as that proof.
 
-Extra-high review does not yet accept the shared create function as final. The
+Extra-high review accepts the current source-derived shared create function and
+split migration topology for continued proof, not production activation. The
 54/54 callsite result and 59-case live result validate the architecture, the
 granted boundary, every top-level private-core source branch, every successful
 source/type pair, and the security-relevant action/recipient variants.
 The latest isolated PostgreSQL proof is green and also passes catalog/grant,
 direct-denial, recipient context reset, service replay, the one-shot stock
-claim, and both two-session block-race checks. Final byte-pinned SQL/authority
-review and disposable migration/rollback proof remain separate. This narrows the remaining work; it does
+claim, and both two-session block-race checks. The byte-pinned split migration
+has passed disposable migration proof; explicit rollback proof remains
+separate. This narrows the remaining work; it does
 not by itself select the recipient architecture, replace provider/performance
 proof, prove the production authentication path, authorize merge, or activate
 any persistent database. The later 2026-07-22 provider result above selects the
