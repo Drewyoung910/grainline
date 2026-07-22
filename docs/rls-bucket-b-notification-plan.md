@@ -654,6 +654,18 @@ Future authenticated Notification proof must resolve exactly that Clerk
 external id and its matching cloned child row. Email patterns, synthetic
 provider actors, and unmarked real accounts are not eligible.
 
+Execution completed on 2026-07-22 from deployment-disabled commit `f7b4881a`.
+The idempotent status check found exactly one matching Clerk identity and one
+normal webhook-created production row: password disabled, current legal state,
+welcome reserved, zero marketplace activity, and zero welcome-fallback outbox
+rows. The private evidence file
+`notification-operational-canary-20260722.json` is mode `0600`, contains no raw
+identifier/email/credential, and has SHA-256
+`32a7967191997ee899a2f44ce78dfbe9b2e6b7f8a5106926f4ca086e9292fd11`.
+This created only the explicitly authorized durable canary identity; it did not
+change Notification policies, migrations, grants, application production code,
+or deployment state.
+
 ### Consolidated Extra High authority review: passed (2026-07-22)
 
 The consolidated SQL/application review at exact branch head

@@ -218,6 +218,12 @@ those webhooks would leave avoidable production creation/anonymization residue.
 Authenticated smoke must resolve this exact external id, never an email pattern
 or an unmarked account.
 
+The operational canary was created and independently rechecked on 2026-07-22:
+one Clerk identity, one signed-webhook production row, no password, current
+legal state, zero marketplace activity, and no welcome fallback-outbox row.
+Retain it for authenticated preflight/postflight checks; authenticated
+Notification route smoke remains the next gate.
+
 The isolated service-authority draft now uses seventeen owner-backed functions:
 one runtime-ungranted fixed-column core, ten granted creation families, one
 dedicated back-in-stock claim/create/consume operation, three exact cleanup
