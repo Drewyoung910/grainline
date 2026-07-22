@@ -509,6 +509,34 @@ or material validation joins. Ephemeral authority proof, exact grants,
 application/database compatibility, destructive-data review, authenticated
 route smoke, and rollback semantics remain mandatory before activation.
 
+### Authenticated route-smoke setup (2026-07-22)
+
+The one-use smoke is isolated on
+`codex/rls-notification-route-smoke-20260722`, initially pushed with Git
+deployment disabled. It targets expiring Neon child branch
+`br-misty-scene-aazlwc2o` and endpoint `ep-withered-silence-aat8o1zf`, both
+derived from the reviewed production parent. The existing byte-pinned split
+migrations and disposable PostgreSQL proof run before one exact Preview is
+enabled. Production deployment, data, RLS, and credentials are out of scope.
+
+Authentication uses exactly one existing active, terms-accepted account whose
+stored email is marked as a dedicated test/canary identity. The operator never
+retains its local id, Clerk id, email, session id, or token and never creates or
+deletes a Clerk user. It creates one short-lived Clerk session through the
+Backend API, obtains a five-minute token, and revokes that exact session in a
+`finally` cleanup. The database fixtures are four child-only Notification rows:
+three for the authenticated owner and one for a different local user. They are
+also deleted in `finally`.
+
+The accepted route result must prove unauthenticated denial; authenticated bell
+and dashboard-page owner projection; foreign-row exclusion; explicit
+cross-origin mutation denial; no-op foreign mark-read; successful owner
+mark-one and mark-all; exact database postconditions; session revocation; and
+fixture deletion. Sanitized evidence is mode `0600`. A separate
+`cleanup-route-smoke` mode must then remove the Preview, all branch variables,
+the automation bypass, the Neon child, and private state. Until that entire
+sequence passes, authenticated route smoke remains open.
+
 ## Isolation Boundary And Hot-Path Decision
 
 - The isolated branch may retain the verified inventory, source-lifecycle

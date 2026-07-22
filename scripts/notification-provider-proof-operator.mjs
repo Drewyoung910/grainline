@@ -20,7 +20,7 @@ import { parseGuardedNeonDatabaseIdentity } from "./guard-saved-search-rls-deplo
 
 const { Client } = pg;
 
-export const PROVIDER_PROOF_BRANCH = "codex/rls-notification-provider-proof-5-20260722";
+export const PROVIDER_PROOF_BRANCH = "codex/rls-notification-route-smoke-20260722";
 export const REVIEWED_GITHUB_REPOSITORY = "Drewyoung910/grainline";
 export const REVIEWED_VERCEL_PROJECT_ID = "prj_O2S8qcYFFWXn6nnrV0DkLyqMprIp";
 export const REVIEWED_VERCEL_TEAM_ID = "team_wvQeQHZGwCSwinC1uB7xbpjr";
@@ -29,9 +29,9 @@ export const REVIEWED_PRODUCTION_DEPLOYMENT_ID = "dpl_6Y6C3NT81zbhLc6eHJAveCH1Av
 export const REVIEWED_NEON_PROJECT_ID = "icy-unit-96812898";
 export const REVIEWED_NEON_ORG_ID = "org-raspy-frost-18952075";
 export const REVIEWED_PRODUCTION_BRANCH_ID = "br-hidden-mouse-aaugn2wr";
-export const REVIEWED_STAGING_BRANCH_ID = "br-morning-field-aahbqxci";
-export const REVIEWED_STAGING_BRANCH_NAME = "notification-provider-proof-5-20260722";
-export const REVIEWED_STAGING_ENDPOINT_ID = "ep-holy-term-aa43669z";
+export const REVIEWED_STAGING_BRANCH_ID = "br-misty-scene-aazlwc2o";
+export const REVIEWED_STAGING_BRANCH_NAME = "notification-route-smoke-20260722";
+export const REVIEWED_STAGING_ENDPOINT_ID = "ep-withered-silence-aat8o1zf";
 export const REVIEWED_DATABASE_NAME = "neondb";
 export const REVIEWED_DATABASE_REGION = "westus3.azure";
 export const REVIEWED_NEON_REGION_ID = "azure-westus3";
@@ -49,9 +49,9 @@ export const REVIEWED_NOTIFICATION_MIGRATIONS = Object.freeze({
   }),
 });
 export const PROVIDER_PROOF_STATE_PATH =
-  "/private/tmp/grainline-notification-provider-proof-state-5-20260722.json";
+  "/private/tmp/grainline-notification-route-smoke-state-20260722.json";
 export const PROVIDER_BYPASS_STATE_PATH =
-  "/private/tmp/grainline-notification-provider-bypass-5-20260722.json";
+  "/private/tmp/grainline-notification-route-smoke-bypass-20260722.json";
 export const EVIDENCE_DIRECTORY = "/Users/drewyoung/grainline-rollout-evidence";
 
 const REVIEWED_NEON_CLI_PATH =
@@ -73,6 +73,7 @@ const MAX_API_BYTES = 2 * 1024 * 1024;
 const MAX_PROVIDER_RESPONSE_BYTES = 512 * 1024;
 const CLEANUP_CONFIRMATION = "delete-disposable-preview-and-staging";
 const ABORT_CONFIRMATION = "delete-failed-disposable-preview-and-staging";
+const ROUTE_SMOKE_CLEANUP_CONFIRMATION = "delete-auth-route-smoke-preview-and-staging";
 
 export const PROVIDER_ENVIRONMENT_VALUES = Object.freeze({
   RLS_CONTEXT_GATE_CONFIRM: "staging-only",
@@ -1122,7 +1123,7 @@ function evidencePath(kind, commitSha, slot) {
   const suffix = slot ? `-slot-${slot}` : "";
   return path.join(
     EVIDENCE_DIRECTORY,
-    `notification-provider-proof-${kind}${suffix}-${commitSha.slice(0, 12)}.json`,
+    `notification-route-smoke-support-${kind}${suffix}-${commitSha.slice(0, 12)}.json`,
   );
 }
 
@@ -1729,14 +1730,40 @@ function validateRetainedCountedEvidence(state) {
   }
 }
 
-async function cleanup({ requireSuccess }) {
+function validateRetainedRouteSmokeEvidence(state) {
+  if (!state.routeSmokePassedAt || !state.routeSmokeEvidencePath) {
+    throw new Error("passing authenticated route-smoke state is missing");
+  }
+  const artifact = readPrivateJson(state.routeSmokeEvidencePath, "authenticated route-smoke evidence");
+  if (
+    artifact.status !== "passed"
+    || artifact.scope !== "notification-authenticated-route-smoke"
+    || artifact.commitSha !== state.commitSha
+    || artifact.deploymentId !== state.deploymentId
+    || artifact.cleanup?.fixtureRowsDeleted !== true
+    || artifact.cleanup?.clerkSessionRevoked !== true
+    || artifact.secretsRetained !== false
+  ) {
+    throw new Error("authenticated route-smoke evidence did not pass validation");
+  }
+}
+
+async function cleanup({ requireSuccess, routeSmokeSuccess = false }) {
   let state = readProviderState();
   const bypassState = readBypassState();
-  const expectedConfirmation = requireSuccess ? CLEANUP_CONFIRMATION : ABORT_CONFIRMATION;
+  if (requireSuccess && routeSmokeSuccess) {
+    throw new Error("cleanup mode cannot be both counted-provider and route-smoke success");
+  }
+  const expectedConfirmation = routeSmokeSuccess
+    ? ROUTE_SMOKE_CLEANUP_CONFIRMATION
+    : requireSuccess
+      ? CLEANUP_CONFIRMATION
+      : ABORT_CONFIRMATION;
   if (process.env.NOTIFICATION_PROVIDER_PROOF_CLEANUP_CONFIRM !== expectedConfirmation) {
     throw new Error(`NOTIFICATION_PROVIDER_PROOF_CLEANUP_CONFIRM=${expectedConfirmation} is required`);
   }
   if (requireSuccess) validateRetainedCountedEvidence(state);
+  if (routeSmokeSuccess) validateRetainedRouteSmokeEvidence(state);
   if (state.deploymentId) {
     const { payload } = await readDeployment(state.deploymentId);
     if (payload.readyState === "READY") validateProviderDeployment(payload, state);
@@ -1766,13 +1793,19 @@ async function cleanup({ requireSuccess }) {
   const stagingBranchDeleted = await deleteNeonStagingBranch();
   const production = await assertProductionDeploymentUnchanged();
   const cleanupEvidencePath = evidencePath(
-    requireSuccess ? "cleanup" : "abort-cleanup",
+    routeSmokeSuccess ? "route-smoke-cleanup" : requireSuccess ? "cleanup" : "abort-cleanup",
     state.commitSha,
   );
   const cleanupEvidence = {
     generatedAt: new Date().toISOString(),
-    scope: "disposable-notification-provider-proof-cleanup",
-    result: requireSuccess ? "proof-cleanup-complete" : "abort-cleanup-complete",
+    scope: routeSmokeSuccess
+      ? "disposable-notification-authenticated-route-smoke-cleanup"
+      : "disposable-notification-provider-proof-cleanup",
+    result: routeSmokeSuccess
+      ? "route-smoke-cleanup-complete"
+      : requireSuccess
+        ? "proof-cleanup-complete"
+        : "abort-cleanup-complete",
     commitSha: state.commitSha,
     databasePreparationCommitSha: state.preparedCommitSha ?? state.commitSha,
     deploymentId: state.deploymentId ?? null,
@@ -1794,7 +1827,7 @@ async function cleanup({ requireSuccess }) {
   writePrivateJson(cleanupEvidencePath, cleanupEvidence);
   unlinkSync(PROVIDER_PROOF_STATE_PATH);
   unlinkSync(PROVIDER_BYPASS_STATE_PATH);
-  console.log(JSON.stringify({ cleanupComplete: true, requireSuccess }));
+  console.log(JSON.stringify({ cleanupComplete: true, requireSuccess, routeSmokeSuccess }));
 }
 
 async function status() {
@@ -1897,7 +1930,7 @@ async function databaseStatus() {
 }
 
 function usage() {
-  console.error("Usage: node scripts/notification-provider-proof-operator.mjs <create-bypass-state|bootstrap-bypass-state|revoke-bypass-state|prepare|local-preflight|rebind-local-preflight-retry|rebind-predeployment-commit|configure|rebind-configured-commit|attest|slot-1|slot-2|cleanup|cleanup-abort|status|database-status|prisma-status>");
+  console.error("Usage: node scripts/notification-provider-proof-operator.mjs <create-bypass-state|bootstrap-bypass-state|revoke-bypass-state|prepare|local-preflight|rebind-local-preflight-retry|rebind-predeployment-commit|configure|rebind-configured-commit|attest|slot-1|slot-2|cleanup|cleanup-route-smoke|cleanup-abort|status|database-status|prisma-status>");
 }
 
 async function main() {
@@ -1940,6 +1973,9 @@ async function main() {
       break;
     case "cleanup":
       await cleanup({ requireSuccess: true });
+      break;
+    case "cleanup-route-smoke":
+      await cleanup({ requireSuccess: false, routeSmokeSuccess: true });
       break;
     case "cleanup-abort":
       await cleanup({ requireSuccess: false });
