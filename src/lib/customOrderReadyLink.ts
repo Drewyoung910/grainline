@@ -95,7 +95,8 @@ export async function sendCustomOrderReadyLink({ listingId }: { listingId: strin
         AND seller."stripeAccountId" IS NOT NULL
         AND (seller."stripeAccountVersion" IS NULL OR seller."stripeAccountVersion" = 'v2')
         AND seller."vacationMode" = false
-      FOR SHARE OF listing, seller, conversation
+      FOR SHARE OF listing, seller
+      FOR UPDATE OF conversation
     `;
     const source = sources[0];
     if (
@@ -117,6 +118,7 @@ export async function sendCustomOrderReadyLink({ listingId }: { listingId: strin
     });
     if (existingLinkMessage) return null;
 
+    const messageSentAt = new Date();
     const createdMessage = await tx.message.create({
       data: {
         conversationId: source.conversationId,
@@ -125,6 +127,7 @@ export async function sendCustomOrderReadyLink({ listingId }: { listingId: strin
         contextListingId: source.listingId,
         kind: "custom_order_link",
         isSystemMessage: true,
+        createdAt: messageSentAt,
         body: JSON.stringify({
           listingId: source.listingId,
           title: source.listingTitle,
@@ -136,7 +139,7 @@ export async function sendCustomOrderReadyLink({ listingId }: { listingId: strin
     });
     await tx.conversation.update({
       where: { id: source.conversationId },
-      data: { updatedAt: new Date(), archivedAAt: null, archivedBAt: null },
+      data: { updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null },
     });
 
     return { messageId: createdMessage.id, source };

@@ -48,11 +48,54 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
     assert.match(sendTransaction, /FROM "Conversation" AS conversation[\s\S]{0,260}FOR UPDATE/);
     assert.match(access, /ORDER BY start_user\.id\s+FOR SHARE/);
     assert.match(deletion, /FROM "User" AS deletion_user[\s\S]{0,180}FOR UPDATE/);
+    assert.equal(
+      (sendTransaction.match(/createdAt: messageSentAt/g) ?? []).length,
+      2,
+      "text and attachment rows must use the post-lock timestamp instead of transaction-start now()",
+    );
     assert.ok(
       access.indexOf("export async function getOrCreateConversationForLockedPair") <
         access.indexOf("pg_advisory_xact_lock"),
       "only create/get should take the pair advisory lock; ordinary sends serialize on the Conversation row",
     );
+  });
+
+  it("serializes every structured Message writer and keeps thread time monotonic", () => {
+    const access = source("src/lib/conversationStartAccess.ts");
+    const request = source("src/lib/customOrderRequestAccess.ts");
+    const commission = source("src/lib/commissionInterestMessageAccess.ts");
+    const ready = source("src/lib/customOrderReadyLink.ts");
+    const thread = source("src/app/messages/[id]/page.tsx");
+
+    assert.match(access, /export async function lockConversationForMessageWrite/);
+    assert.match(access, /FOR UPDATE/);
+    for (const writer of [request, commission]) {
+      assert.match(writer, /lockConversationForMessageWrite/);
+      assert.match(writer, /const messageSentAt = new Date\(\)/);
+      assert.match(writer, /createdAt: messageSentAt/);
+      assert.match(writer, /updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null/);
+    }
+    assert.match(ready, /FOR UPDATE OF conversation/);
+    assert.match(ready, /createdAt: messageSentAt/);
+    assert.match(ready, /updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null/);
+    assert.match(thread, /kind: "file"/);
+  });
+
+  it("keeps the mobile thread edge-to-edge without horizontal panning", () => {
+    const page = source("src/app/messages/[id]/page.tsx");
+    const thread = source("src/components/ThreadMessages.tsx");
+    const composer = source("src/components/MessageComposer.tsx");
+    const loading = source("src/app/messages/[id]/loading.tsx");
+
+    assert.match(page, /overflow-x-clip bg-\[#F7F5F0\]/);
+    assert.match(page, /min-w-0 space-y-4 px-0 pt-4 sm:px-5/);
+    assert.match(page, /className="w-full min-w-0 max-w-full"/);
+    assert.match(thread, /touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain px-4/);
+    assert.match(thread, /inline-block max-w-full break-all/);
+    assert.match(composer, /flex w-full min-w-0 items-end gap-2/);
+    assert.match(composer, /className="min-w-0 flex-1 resize-none/);
+    assert.doesNotMatch(composer, /className="w-full resize-none/);
+    assert.match(loading, /overflow-x-clip bg-\[#F7F5F0\]/);
   });
 
   it("keeps thread GET rendering read-only and bounds archive state mutations", () => {
@@ -126,10 +169,10 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
 
   it("records every open pre-RLS finding and bars authority SQL until fixes land", () => {
     const audit = source("docs/conversation-message-pre-rls-audit.md");
-    for (let finding = 1; finding <= 16; finding += 1) {
+    for (let finding = 1; finding <= 19; finding += 1) {
       assert.match(audit, new RegExp(`CM-A${String(finding).padStart(2, "0")}`));
     }
-    assert.match(audit, /no Conversation or Message RLS SQL has been drafted, applied or deployed/);
+    assert.match(audit, /No Conversation or Message RLS policy or authority[\s\S]*SQL has been drafted, applied or deployed/);
     assert.match(audit, /Only then may Extra High review accept policy\/function SQL/);
   });
 });

@@ -64,7 +64,7 @@ export default function MessageComposer({
   }
 
   return (
-    <div className="sticky bottom-0 sm:bottom-6 bg-[#EFEAE0] border-t border-neutral-200 sm:border sm:border-stone-200/70 sm:rounded-2xl sm:mt-3 px-3 sm:px-4 pt-3 [padding-bottom:calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-2px_8px_-4px_rgba(0,0,0,0.05)] sm:shadow-md">
+    <div className="sticky bottom-0 w-full min-w-0 max-w-full overflow-x-clip border-t border-neutral-200 bg-[#EFEAE0] px-3 pt-3 [padding-bottom:calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-2px_8px_-4px_rgba(0,0,0,0.05)] sm:bottom-6 sm:mt-3 sm:rounded-2xl sm:border sm:border-stone-200/70 sm:px-4 sm:shadow-md">
       {contextListing ? (
         <div className="mb-2 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
           <span className="min-w-0 flex-1 truncate">
@@ -78,13 +78,13 @@ export default function MessageComposer({
         </div>
       ) : null}
       {attachments.length > 0 && (
-        <div className="mb-2 flex flex-wrap gap-2">
+        <div className="mb-2 flex min-w-0 flex-wrap gap-2">
           {attachments.map((a) => (
             <span
               key={a.id}
-              className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-[#F7F5F0] px-3 py-1 text-xs"
+              className="inline-flex max-w-full min-w-0 items-center gap-2 rounded-full border border-neutral-200 bg-[#F7F5F0] px-3 py-1 text-xs"
             >
-              <span className="truncate max-w-[160px]">{a.name}</span>
+              <span className="min-w-0 max-w-[160px] truncate">{a.name}</span>
               {a.uploading ? (
                 <svg className="h-3.5 w-3.5 animate-spin text-neutral-500" viewBox="0 0 24 24">
                   <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" opacity="0.25" />
@@ -105,7 +105,7 @@ export default function MessageComposer({
         </div>
       )}
 
-      <div className="flex items-end gap-2">
+      <div className="flex w-full min-w-0 items-end gap-2">
         {/* VISIBLE attach circle */}
         <div className="shrink-0">
           <UploadButton
@@ -193,7 +193,7 @@ export default function MessageComposer({
             }
           }}
           placeholder={placeholder}
-          className="w-full resize-none rounded-2xl bg-[#F7F5F0] border-2 border-stone-300 px-4 py-2.5 text-sm max-h-40 overflow-y-auto transition-colors"
+          className="min-w-0 flex-1 resize-none rounded-2xl border-2 border-stone-300 bg-[#F7F5F0] px-4 py-2.5 text-sm max-h-40 overflow-y-auto transition-colors"
         />
 
         {canSend ? (

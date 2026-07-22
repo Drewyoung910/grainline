@@ -24,7 +24,9 @@ describe("message and case policy guardrails", () => {
     assert.match(helper, /seller\."stripeAccountId" IS NOT NULL/);
     assert.match(helper, /seller\."vacationMode" = false/);
     assert.match(helper, /isSystemMessage: true/);
-    assert.match(helper, /data: \{ updatedAt: new Date\(\), archivedAAt: null, archivedBAt: null \}/);
+    assert.match(helper, /FOR UPDATE OF conversation/);
+    assert.match(helper, /createdAt: messageSentAt/);
+    assert.match(helper, /data: \{ updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null \}/);
   });
 
   it("reopens pending-close cases before accepting a new party message", () => {
@@ -66,7 +68,9 @@ describe("message and case policy guardrails", () => {
     assert.match(threadPage, /const hasMoreMessagesBefore = messageRows\.length > 200/);
     assert.match(threadPage, /const messages = messageRows\.slice\(0, 200\)\.reverse\(\)/);
     assert.match(threadPage, /data: \{ updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null \}/);
-    assert.match(customOrderRequest, /data: \{ updatedAt: new Date\(\), archivedAAt: null, archivedBAt: null \}/);
+    assert.match(customOrderRequest, /lockConversationForMessageWrite/);
+    assert.match(customOrderRequest, /createdAt: messageSentAt/);
+    assert.match(customOrderRequest, /data: \{ updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null \}/);
   });
 
   it("revalidates message-thread send policy inside the write transaction", () => {

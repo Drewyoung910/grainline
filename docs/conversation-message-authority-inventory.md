@@ -1,8 +1,8 @@
 # Conversation and Message Authority Inventory
 
-Snapshot: 2026-07-22. Status: design baseline on
-`codex/rls-conversation-message-20260722`; no Conversation or Message RLS is
-active from this work.
+Snapshot: 2026-07-22. Status: compatibility baseline live; invariant work on
+`codex/rls-conversation-message-invariants-20260722`; no Conversation or
+Message RLS is active from this work.
 
 ## Count contract
 
@@ -66,7 +66,8 @@ will intentionally fall as the design is implemented.
    `isSystemMessage`. User-authored body/attachment content is necessarily
    caller input, but write targets and authority metadata must be derived.
 4. Structured kinds currently observed are `custom_order_request`,
-   `custom_order_link`, and `commission_interest_card`. Commission interest and
+   `custom_order_link`, `commission_interest_card`, and the forward-only
+   attachment classification `file`. Commission interest and
    custom-order-ready are server-generated and set `isSystemMessage=true`;
    custom-order request is buyer-authored and remains false. The flag controls
    presentation only and never confers authority. Legacy values must be
@@ -81,6 +82,10 @@ will intentionally fall as the design is implemented.
    optional `Message.contextListingId` records the listing relevant to that
    individual message; it must reference an active listing whose seller is a
    participant, and a private listing must be reserved for the other participant.
+8. Every Message writer locks the exact canonical Conversation after User and
+   source locks, then writes one post-lock timestamp to both Message and thread
+   state. A database insert trigger independently keeps `updatedAt` monotonic
+   and clears archives. PostgreSQL transaction-start `now()` is not sufficient.
 
 ## Completion rule
 

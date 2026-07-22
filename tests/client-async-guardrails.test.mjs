@@ -207,7 +207,7 @@ describe("client async guardrails", () => {
 
     assert.match(actionForm, /detail: \{ formId \}/);
     assert.match(page, /const messageComposerFormId = `message-composer-\$\{convo\.id\}`/);
-    assert.match(page, /<ActionForm id=\{messageComposerFormId\} action=\{sendMessage\}>/);
+    assert.match(page, /<ActionForm[\s\S]{0,180}id=\{messageComposerFormId\}[\s\S]{0,120}action=\{sendMessage\}/);
     assert.match(page, /<MessageComposer[\s\S]{0,180}successEventFormId=\{messageComposerFormId\}/);
     assert.match(page, /refreshEventFormId=\{messageComposerFormId\}/);
 
@@ -239,6 +239,9 @@ describe("client async guardrails", () => {
     assert.match(bell, /if \(!isLoaded \|\| !isSignedIn\) return/);
     assert.match(bell, /if \(!open\) return/);
     assert.match(bell, /closing \? "animate-menu-out pointer-events-none" : "animate-menu-in"/);
+    assert.match(bell, /const syncSourceId = React\.useId\(\)/);
+    assert.match(bell, /message\.sourceId === syncSourceId/);
+    assert.match(bell, /type: "read", id: n\.id, sourceId: syncSourceId/);
     assert.match(route, /ownerNotificationBellData\(me\.id\)/);
     assert.match(ownerAccess, /const NOTIFICATION_BELL_SELECT = \{/);
     assert.match(ownerAccess, /public\.grainline_notification_bell\(\$\{userId\}::text, 20\)/);

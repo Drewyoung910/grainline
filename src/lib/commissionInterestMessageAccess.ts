@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { openCommissionMutationWhere } from "@/lib/commissionState";
 import {
   getOrCreateConversationForLockedPair,
+  lockConversationForMessageWrite,
   lockConversationParticipantPair,
 } from "@/lib/conversationStartAccess";
 
@@ -120,6 +121,10 @@ export async function createCommissionInterestMessage(input: {
     }
 
     const conversation = await getOrCreateConversationForLockedPair(tx, pair, null);
+    if (!await lockConversationForMessageWrite(tx, pair, conversation.conversationId)) {
+      return { ok: false as const, error: "unavailable" as const };
+    }
+    const messageSentAt = new Date();
     const interest = existing
       ? await tx.commissionInterest.update({
           where: { id: existing.id },
@@ -149,7 +154,12 @@ export async function createCommissionInterestMessage(input: {
         }),
         kind: "commission_interest_card",
         isSystemMessage: true,
+        createdAt: messageSentAt,
       },
+    });
+    await tx.conversation.update({
+      where: { id: conversation.conversationId },
+      data: { updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null },
     });
     const interestedCount = await tx.commissionInterest.count({
       where: { commissionRequestId: input.commissionRequestId },

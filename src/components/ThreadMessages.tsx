@@ -76,7 +76,7 @@ function PdfChip({ url, name }: { url: string; name?: string | null }) {
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm hover:bg-neutral-50"
+      className="inline-flex max-w-full min-w-0 items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm hover:bg-neutral-50"
     >
       {/* tiny PDF icon */}
       <svg
@@ -89,8 +89,8 @@ function PdfChip({ url, name }: { url: string; name?: string | null }) {
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" />
         <path d="M14 2v6h6" fill="#fff" opacity="0.6" />
       </svg>
-      <span className="truncate max-w-[220px]">{name ?? "Document.pdf"}</span>
-      <span className="text-xs text-neutral-500">Open<span className="sr-only"> in a new tab</span></span>
+      <span className="min-w-0 max-w-[220px] truncate">{name ?? "Document.pdf"}</span>
+      <span className="shrink-0 text-xs text-neutral-500">Open<span className="sr-only"> in a new tab</span></span>
     </a>
   );
 }
@@ -344,7 +344,7 @@ export default function ThreadMessages({
   return (
     <div
       ref={boxRef}
-      className="md:card-section md:p-4 overflow-y-auto pb-8"
+      className="w-full min-w-0 max-w-full touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-8 md:card-section md:p-4"
       style={{ height: boxHeight }}
     >
       {streamError && (
@@ -377,7 +377,7 @@ export default function ThreadMessages({
           </p>
         </div>
       )}
-      <ul className="space-y-3 pb-4">
+      <ul className="min-w-0 space-y-3 pb-4">
         {msgs.map((m) => {
           const mine = m.senderId === meId;
           const body = (m.body ?? "").toString().trim();
@@ -386,8 +386,8 @@ export default function ThreadMessages({
           if (m.kind === "commission_interest_card") {
             const card = parseCommissionInterestMessageBody(body);
             return (
-              <li key={m.id} className="max-w-[90%]">
-                <div className="space-y-3 rounded-xl border border-teal-200 bg-teal-50/70 p-4 shadow-sm">
+              <li key={m.id} className="min-w-0 max-w-[90%]">
+                <div className="min-w-0 space-y-3 overflow-hidden break-words rounded-xl border border-teal-200 bg-teal-50/70 p-4 shadow-sm">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-xs font-semibold uppercase tracking-wide text-teal-800">Commission Interest</div>
                     <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-medium text-teal-800 ring-1 ring-teal-200">
@@ -430,8 +430,8 @@ export default function ThreadMessages({
             const req = parseCustomOrderRequestMessageBody(body);
             const canCreateCustomListing = canCreateCustomListings && !mine;
             return (
-              <li key={m.id} className="max-w-[90%]">
-                <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <li key={m.id} className="min-w-0 max-w-[90%]">
+                <div className="min-w-0 space-y-2 overflow-hidden break-words rounded-xl border border-amber-200 bg-amber-50 p-4">
                   <div className="text-sm font-semibold text-amber-800">Custom Order Request</div>
                   {req.description && (
                     <p className="text-sm text-amber-900">{req.description}</p>
@@ -472,8 +472,8 @@ export default function ThreadMessages({
           if (m.kind === "custom_order_link") {
             const link = parseCustomOrderLinkMessageBody(body);
             return (
-              <li key={m.id} className={`max-w-[90%] ${mine ? "ml-auto" : ""}`}>
-                <div className="space-y-2 rounded-xl border border-stone-200/60 bg-white p-4 shadow-sm">
+              <li key={m.id} className={`min-w-0 max-w-[90%] ${mine ? "ml-auto" : ""}`}>
+                <div className="min-w-0 space-y-2 overflow-hidden break-words rounded-xl border border-stone-200/60 bg-white p-4 shadow-sm">
                   <div className="flex items-center gap-1.5 text-sm font-semibold text-neutral-900"><Logs size={15} /> Custom Piece Ready</div>
                   {link.title && (
                     <p className="text-sm font-medium text-neutral-700">{link.title}</p>
@@ -546,11 +546,11 @@ export default function ThreadMessages({
                   href={file.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm hover:bg-neutral-50"
+                  className="inline-flex max-w-full min-w-0 items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm hover:bg-neutral-50"
                   aria-label={`Open ${file.name ?? "file attachment"} in a new tab`}
                 >
-                  <span className="truncate max-w-[220px]">{file.name ?? "File attachment"}</span>
-                  <span className="text-xs text-neutral-500">
+                  <span className="min-w-0 max-w-[220px] truncate">{file.name ?? "File attachment"}</span>
+                  <span className="shrink-0 text-xs text-neutral-500">
                     Open<span className="sr-only"> in a new tab</span>
                   </span>
                 </a>
@@ -602,7 +602,7 @@ export default function ThreadMessages({
                 </div>
               )}
 
-              <div className={`max-w-[75%] sm:max-w-[65%] ${mine ? "text-right" : ""}`}>
+              <div className={`min-w-0 max-w-[75%] sm:max-w-[65%] ${mine ? "text-right" : ""}`}>
                 {m.contextListing ? (
                   <Link
                     href={publicListingPath(m.contextListing.id, m.contextListing.title)}
@@ -611,7 +611,7 @@ export default function ThreadMessages({
                     Regarding {m.contextListing.title}
                   </Link>
                 ) : null}
-                <div className={`inline-block rounded-2xl px-3 py-2 text-left break-all ${bubbleClass}`}>
+                <div className={`inline-block max-w-full break-all rounded-2xl px-3 py-2 text-left ${bubbleClass}`}>
                   {bubble}
                 </div>
                 <div className="mt-1 text-[11px] text-neutral-500">

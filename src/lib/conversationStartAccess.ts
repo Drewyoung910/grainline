@@ -25,6 +25,27 @@ export type LockedConversationContextListing = {
 };
 
 /**
+ * Serializes every Message writer on the exact canonical Conversation row.
+ * Callers must lock/revalidate the sorted User pair and any durable source
+ * rows first. Derive Message.createdAt only after this lock succeeds.
+ */
+export async function lockConversationForMessageWrite(
+  tx: Prisma.TransactionClient,
+  pair: LockedConversationParticipantPair,
+  conversationId: string,
+): Promise<boolean> {
+  const rows = await tx.$queryRaw<Array<{ id: string }>>`
+    SELECT conversation.id
+      FROM "Conversation" AS conversation
+     WHERE conversation.id = ${conversationId}
+       AND conversation."userAId" = ${pair.userAId}
+       AND conversation."userBId" = ${pair.userBId}
+     FOR UPDATE
+  `;
+  return rows.length === 1;
+}
+
+/**
  * Locks and validates a listing before it becomes message/conversation
  * context. The caller supplies only the durable listing id; seller identity,
  * private reservation, publication, and account state all come from the

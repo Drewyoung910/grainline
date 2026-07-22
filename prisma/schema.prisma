@@ -489,8 +489,8 @@ model Conversation {
 
   // App code stores participant pairs in canonical order and Prisma needs this
   // visible unique key for `userAId_userBId` upserts. A raw migration also
-  // enforces unordered uniqueness with LEAST/GREATEST so swapped pairs cannot
-  // be inserted by future code or manual SQL.
+  // enforces unordered uniqueness with LEAST/GREATEST, canonical order, and
+  // participant immutability so swapped/self pairs cannot appear later.
   @@unique([userAId, userBId])
   @@index([userAId])
   @@index([userBId])
@@ -515,6 +515,11 @@ model Message {
   isSystemMessage Boolean      @default(false)
   readAt          DateTime?
   createdAt       DateTime     @default(now())
+
+  // Raw-managed triggers require the exact opposing Conversation participants,
+  // make routing immutable, and monotonically bump/unarchive the parent thread.
+  // Message.body also has a raw-managed pg_trgm GIN index for inbox substring
+  // search; do not model it as a Prisma btree index.
 
   @@index([conversationId])
   @@index([conversationId, createdAt])

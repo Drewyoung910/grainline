@@ -14,7 +14,10 @@ import { describe, it } from "node:test";
 
 import {
   CONVERSATION_MESSAGE_COMPATIBILITY_MIGRATION_TREE_SHA256,
+  CONVERSATION_MESSAGE_BODY_SEARCH_INDEX_MIGRATION,
   CONVERSATION_MESSAGE_CONTEXT_MIGRATION,
+  CONVERSATION_MESSAGE_INVARIANTS_MIGRATION,
+  CONVERSATION_MESSAGE_INVARIANTS_MIGRATION_TREE_SHA256,
   CONVERSATION_MESSAGE_SCALE_INDEXES_MIGRATION,
   PHASE_A_MIGRATION_TREE_SHA256,
   PHASE_B_MIGRATION_TREE_SHA256,
@@ -59,6 +62,8 @@ const REVIEWED_NOTIFICATION_ACTIVATION = "notification-activation-reviewed";
 const REVIEWED_NOTIFICATION_FORCE = "notification-force-reviewed";
 const REVIEWED_CONVERSATION_MESSAGE_COMPATIBILITY =
   "conversation-message-compatibility-reviewed";
+const REVIEWED_CONVERSATION_MESSAGE_INVARIANTS =
+  "conversation-message-invariants-reviewed";
 const PREVIEW_MIDDLEWARE_EXEMPTION_LINE =
   `  "${RLS_CONTEXT_GATE_PUBLIC_PATH}",   // Preview-only, token-protected RLS acceptance runner\n`;
 const CURRENT_MIDDLEWARE_SOURCE = readFileSync("src/middleware.ts", "utf8");
@@ -103,6 +108,8 @@ function validate(
         NOTIFICATION_FORCE_MIGRATION_TREE_SHA256,
       [REVIEWED_CONVERSATION_MESSAGE_COMPATIBILITY]:
         CONVERSATION_MESSAGE_COMPATIBILITY_MIGRATION_TREE_SHA256,
+      [REVIEWED_CONVERSATION_MESSAGE_INVARIANTS]:
+        CONVERSATION_MESSAGE_INVARIANTS_MIGRATION_TREE_SHA256,
     }[phase],
     middlewareSource = REVIEWED_PRODUCTION_MIDDLEWARE_SOURCE,
     prismaConfigSha256 = REVIEWED_PRISMA_CONFIG_SHA256,
@@ -133,6 +140,8 @@ const RELEASE_ZERO_MIGRATIONS = CURRENT_MIGRATIONS
     NOTIFICATION_FORCE_MIGRATION,
     CONVERSATION_MESSAGE_CONTEXT_MIGRATION,
     CONVERSATION_MESSAGE_SCALE_INDEXES_MIGRATION,
+    CONVERSATION_MESSAGE_INVARIANTS_MIGRATION,
+    CONVERSATION_MESSAGE_BODY_SEARCH_INDEX_MIGRATION,
   ].includes(name))
   .sort((a, b) => a.localeCompare(b));
 const REVIEWED_PHASE_A_MIGRATIONS = [
@@ -160,6 +169,11 @@ const REVIEWED_CONVERSATION_MESSAGE_COMPATIBILITY_MIGRATIONS = [
   CONVERSATION_MESSAGE_CONTEXT_MIGRATION,
   CONVERSATION_MESSAGE_SCALE_INDEXES_MIGRATION,
 ].sort((a, b) => a.localeCompare(b));
+const REVIEWED_CONVERSATION_MESSAGE_INVARIANTS_MIGRATIONS = [
+  ...REVIEWED_CONVERSATION_MESSAGE_COMPATIBILITY_MIGRATIONS,
+  CONVERSATION_MESSAGE_INVARIANTS_MIGRATION,
+  CONVERSATION_MESSAGE_BODY_SEARCH_INDEX_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
 
 function migrationsFor(phase) {
   return {
@@ -174,6 +188,8 @@ function migrationsFor(phase) {
       REVIEWED_NOTIFICATION_FORCE_MIGRATIONS,
     [REVIEWED_CONVERSATION_MESSAGE_COMPATIBILITY]:
       REVIEWED_CONVERSATION_MESSAGE_COMPATIBILITY_MIGRATIONS,
+    [REVIEWED_CONVERSATION_MESSAGE_INVARIANTS]:
+      REVIEWED_CONVERSATION_MESSAGE_INVARIANTS_MIGRATIONS,
   }[phase];
 }
 
@@ -418,8 +434,8 @@ describe("SavedSearch RLS production deploy guard", () => {
       /remain the latest migration/,
     );
     assert.equal(
-      validate(REVIEWED_CONVERSATION_MESSAGE_COMPATIBILITY, currentMigrations).phase,
-      REVIEWED_CONVERSATION_MESSAGE_COMPATIBILITY,
+      validate(REVIEWED_CONVERSATION_MESSAGE_INVARIANTS, currentMigrations).phase,
+      REVIEWED_CONVERSATION_MESSAGE_INVARIANTS,
     );
   });
 
@@ -625,6 +641,43 @@ describe("SavedSearch RLS production deploy guard", () => {
     }
   });
 
+  it("allows reviewed Conversation and Message invariants only after compatibility", () => {
+    assert.deepEqual(
+      validate(
+        REVIEWED_CONVERSATION_MESSAGE_INVARIANTS,
+        REVIEWED_CONVERSATION_MESSAGE_INVARIANTS_MIGRATIONS,
+      ),
+      {
+        phase: REVIEWED_CONVERSATION_MESSAGE_INVARIANTS,
+        hasRpcMigration: true,
+        hasRpcHardeningMigration: true,
+        hasRlsMigration: true,
+        hasForceRlsMigration: true,
+        hasNotificationPreparationMigration: true,
+        hasNotificationActivationMigration: true,
+        hasNotificationForceMigration: true,
+        hasConversationMessageContextMigration: true,
+        hasConversationMessageScaleIndexesMigration: true,
+        hasConversationMessageInvariantsMigration: true,
+        hasConversationMessageBodySearchIndexMigration: true,
+      },
+    );
+    for (const migration of [
+      CONVERSATION_MESSAGE_INVARIANTS_MIGRATION,
+      CONVERSATION_MESSAGE_BODY_SEARCH_INDEX_MIGRATION,
+    ]) {
+      assert.throws(
+        () => validate(
+          REVIEWED_CONVERSATION_MESSAGE_INVARIANTS,
+          REVIEWED_CONVERSATION_MESSAGE_INVARIANTS_MIGRATIONS.filter(
+            (name) => name !== migration,
+          ),
+        ),
+        /requires completed SavedSearch and Notification RLS plus the exact Conversation\/Message compatibility, invariant, and body-search-index migrations/,
+      );
+    }
+  });
+
   for (const phase of [
     RELEASE_ZERO,
     REVIEWED_PHASE_A,
@@ -633,6 +686,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     REVIEWED_NOTIFICATION_ACTIVATION,
     REVIEWED_NOTIFICATION_FORCE,
     REVIEWED_CONVERSATION_MESSAGE_COMPATIBILITY,
+    REVIEWED_CONVERSATION_MESSAGE_INVARIANTS,
   ]) {
     it(`rejects ${phase} when the internal context-gate route remains`, () => {
       assert.throws(
@@ -726,7 +780,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     );
   });
 
-  it("runs the current Conversation and Message compatibility artifact guards before CI migrations", () => {
+  it("runs the current Conversation and Message invariant artifact guards before CI migrations", () => {
     const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
     const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
 
@@ -736,7 +790,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     );
     assert.match(
       workflow,
-      /Verify Conversation and Message compatibility artifact[\s\S]{0,220}SAVED_SEARCH_RLS_DEPLOY_PHASE: conversation-message-compatibility-reviewed[\s\S]{0,180}npm run verify:rls-release-artifact[\s\S]{0,300}Verify Notification activation proof equivalence[\s\S]{0,180}npm run audit:rls-notification-activation-release[\s\S]{0,300}Verify Notification FORCE release artifact[\s\S]{0,180}npm run audit:rls-notification-force-release[\s\S]{0,400}Apply migrations to CI Postgres/,
+      /Verify Conversation and Message invariant-preparation artifact[\s\S]{0,220}SAVED_SEARCH_RLS_DEPLOY_PHASE: conversation-message-invariants-reviewed[\s\S]{0,180}npm run verify:rls-release-artifact[\s\S]{0,300}Verify Notification activation proof equivalence[\s\S]{0,180}npm run audit:rls-notification-activation-release[\s\S]{0,300}Verify Notification FORCE release artifact[\s\S]{0,180}npm run audit:rls-notification-force-release[\s\S]{0,400}Apply migrations to CI Postgres/,
     );
   });
 
@@ -823,6 +877,13 @@ describe("SavedSearch RLS production deploy guard", () => {
         REVIEWED_CONVERSATION_MESSAGE_COMPATIBILITY_MIGRATIONS,
       ),
       CONVERSATION_MESSAGE_COMPATIBILITY_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_CONVERSATION_MESSAGE_INVARIANTS_MIGRATIONS,
+      ),
+      CONVERSATION_MESSAGE_INVARIANTS_MIGRATION_TREE_SHA256,
     );
 
     assert.throws(

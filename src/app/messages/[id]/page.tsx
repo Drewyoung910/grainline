@@ -377,6 +377,8 @@ export default async function ThreadPage({
               recipientId: freshRecipientId,
               contextListingId: committedContextListingId,
               body: payload,
+              kind: "file",
+              createdAt: messageSentAt,
             },
             select: { id: true },
           });
@@ -399,6 +401,7 @@ export default async function ThreadPage({
               recipientId: freshRecipientId,
               contextListingId: committedContextListingId,
               body,
+              createdAt: messageSentAt,
             },
             select: { id: true },
           });
@@ -572,8 +575,8 @@ export default async function ThreadPage({
   const messageComposerFormId = `message-composer-${convo.id}`;
 
   return (
-    <main className="bg-[#F7F5F0] min-h-[100svh]">
-      <div className="max-w-4xl mx-auto px-0 sm:px-6 py-0 sm:py-6">
+    <main className="min-h-[100svh] w-full max-w-full overflow-x-clip bg-[#F7F5F0]">
+      <div className="mx-auto w-full min-w-0 max-w-4xl px-0 py-0 sm:px-6 sm:py-6">
         {isParticipant && <MarkReadClient id={id} />}
 
         {/* Compact chat header — single row with all actions inline. Edge-to-edge
@@ -691,9 +694,9 @@ export default async function ThreadPage({
           )}
         </header>
 
-        <div className="px-4 sm:px-5 pt-4 space-y-4">
+        <div className="min-w-0 space-y-4 px-0 pt-4 sm:px-5">
           {otherUnavailableReason ? (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <div className="mx-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 sm:mx-0">
               {otherUnavailableReason}
             </div>
           ) : null}
@@ -701,7 +704,7 @@ export default async function ThreadPage({
           {ctx && contextListingHref ? (
             <Link
               href={contextListingHref}
-              className="flex items-center gap-3 p-3 rounded-lg bg-[#EFEAE0] border border-stone-200/60 hover:shadow-md transition-shadow"
+              className="mx-4 flex min-w-0 items-center gap-3 rounded-lg border border-stone-200/60 bg-[#EFEAE0] p-3 transition-shadow hover:shadow-md sm:mx-0"
             >
               <div className="h-14 w-14 rounded-md overflow-hidden bg-[#F7F5F0] shrink-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -716,7 +719,7 @@ export default async function ThreadPage({
               <div className="ml-auto text-sm text-neutral-600 shrink-0">View listing →</div>
             </Link>
           ) : ctx ? (
-            <div className="flex items-center gap-3 rounded-lg border border-stone-200/60 bg-[#EFEAE0] p-3">
+            <div className="mx-4 flex min-w-0 items-center gap-3 rounded-lg border border-stone-200/60 bg-[#EFEAE0] p-3 sm:mx-0">
               <div className="h-14 w-14 rounded-md overflow-hidden bg-[#F7F5F0] shrink-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 {ctxImg ? <img src={ctxImg} alt="" className="h-full w-full object-cover" /> : null}
@@ -745,7 +748,11 @@ export default async function ThreadPage({
 
         {/* Sticky composer at the bottom edge — rounded top on desktop only */}
         {isParticipant && !otherUnavailableReason ? (
-          <ActionForm id={messageComposerFormId} action={sendMessage}>
+          <ActionForm
+            id={messageComposerFormId}
+            action={sendMessage}
+            className="w-full min-w-0 max-w-full"
+          >
             <MessageComposer
               successEventFormId={messageComposerFormId}
               contextListing={composerContextListing}

@@ -39,11 +39,11 @@ describe("message skeleton colors", () => {
 
     assert.match(
       loadedThread,
-      /p-3 rounded-lg bg-\[#EFEAE0\] border border-stone-200\/60/,
+      /rounded-lg border border-stone-200\/60 bg-\[#EFEAE0\] p-3/,
     );
     assert.match(
       fallback,
-      /p-3 rounded-lg bg-\[#EFEAE0\] border border-stone-200\/60/,
+      /rounded-lg border border-stone-200\/60 bg-\[#EFEAE0\] p-3/,
     );
     assert.match(composer, /sticky bottom-0[\s\S]*bg-\[#EFEAE0\]/);
     assert.match(fallback, /sticky bottom-0[\s\S]*bg-\[#EFEAE0\]/);
