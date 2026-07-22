@@ -75,18 +75,21 @@ describe("Notification recipient RLS authority candidate", () => {
     assert.match(runtimeGuard, /notification-recipient-access\.sql/);
   });
 
-  it("retains the transaction candidate for an apples-to-apples provider comparison", () => {
+  it("retains the rejected transaction candidate as a historical comparison", () => {
     assert.match(transactionCandidate, /withDbUserContext\(userId, async \(db\) =>/);
     assert.match(transactionCandidate, /transactionCandidateNotificationBellData/);
     assert.match(transactionCandidate, /transactionCandidateNotificationPageData/);
     assert.doesNotMatch(transactionCandidate, /Promise\.all/);
+    assert.match(plan, /transaction wrapper is a\s+rejected historical control, not a fallback/);
   });
 
-  it("keeps provider proof and live PostgreSQL evidence blocking selection", () => {
+  it("keeps live proof blocking promotion after provider direction selection", () => {
     assert.match(plan, /recipient-access\.sql/);
     assert.match(plan, /one database round trip/);
-    assert.match(plan, /not the selected production architecture/);
+    assert.match(plan, /selects the one-statement `SECURITY INVOKER` recipient\s+RPC direction/);
+    assert.match(plan, /does \*\*not\*\* satisfy the existing two-pass generic provider gate/);
+    assert.match(plan, /prove the\s+real Notification functions/);
     assert.match(plan, /PostgreSQL parse\/apply/);
-    assert.match(plan, /provider performance evidence/);
+    assert.match(plan, /real-table candidate-aligned provider and route evidence/);
   });
 });

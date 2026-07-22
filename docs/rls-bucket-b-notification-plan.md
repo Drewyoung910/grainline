@@ -186,11 +186,69 @@ sets transaction-local `app.user_id` inside that statement, retains explicit
 projections and bounds, and still executes under the runtime role's recipient
 RLS plus `SELECT` and column-only `UPDATE (read)` grants. Conversation marking
 now uses the exact canonical link instead of substring matching. The prior
-interactive-transaction bell/page implementation remains as an apples-to-apples
-comparison baseline in `notificationOwnerAccessTransactionCandidate.ts`.
-Each remains a candidate, not the selected production architecture: the invoker SQL has
-not received PostgreSQL parse/apply or own/foreign/direct-denial proof, and both
-need candidate-aligned provider performance evidence after the sequencing gate.
+interactive-transaction bell/page implementation remains as a historical
+comparison baseline in `notificationOwnerAccessTransactionCandidate.ts`. The
+2026-07-22 result below selects the one-statement `SECURITY INVOKER` recipient
+RPC direction and rejects the transaction candidate for Notification hot
+reads; selection is not promotion. The invoker SQL has not received its final
+authority review, PostgreSQL parse/apply, own/foreign/direct-denial proof, or
+real-table candidate-aligned provider and route evidence.
+
+### Provider candidate result (2026-07-22)
+
+The first current Bucket B provider attempt is retained as failed evidence, not
+retried or reclassified. Disposable commit
+`98b1bfefc4b49e10db84df21ef89c8d88243ada3` ran as Git-integrated Vercel
+Preview `dpl_8PyoHFUXDocojifoBGLp99nshkta` against the reviewed runtime role on
+the disposable Neon branch. Independent attestation matched the exact branch,
+SHA, Preview target, `sfo1` execution region, `westus3.azure` database region,
+24-key branch-only environment manifest, configured Node `22.x`, observed Node
+`v24.18.0`, and unchanged production deployment
+`dpl_6Y6C3NT81zbhLc6eHJAveCH1Ave8`.
+
+Counted slot 1 returned HTTP `422` with `issueCount=7`; the ledger consumed the
+slot and slot 2 was not called. Correctness, recipient isolation, context reset,
+prepared-statement/turnover behavior, and every request completed without an
+error. The one-statement Prisma `SECURITY INVOKER` candidate passed its
+candidate comparisons: target p95 was `24.9ms` versus a `19.8ms` one-statement
+baseline, and burst p95 was `36.2ms` versus `36.4ms`. All seven blocking issues
+were the generic interactive-transaction wrapper versus autocommit adoption
+limits. Representative results were raw target p95 `80.3ms` versus `38.9ms`
+with average hold `75.5ms` versus `37.4ms`, raw burst p95 `78.7ms` versus
+`39.1ms` with average hold `75.7ms` versus `37.6ms`, and Prisma burst p95
+`147.1ms` versus `73.1ms`.
+
+This result rejects the interactive-transaction wrapper for Notification hot
+reads and makes the fixed one-statement recipient RPC the selected direction.
+It does **not** satisfy the existing two-pass generic provider gate, prove the
+real Notification functions, or authorize activation. Do not rerun the same
+shape hoping that measurements cross the exact 2x boundary. Before another
+provider run, Extra High review must define a candidate-aligned promotion gate:
+the unchanged wrapper limits remain blocking for any group that actually uses
+interactive transactions, while Notification must pass two fresh slots on its
+real one-statement recipient operations plus route/data-shape proof. The RPC
+still requires exact SQL authority review and real-table PostgreSQL proof first.
+
+The earlier pre-slot Preview `dpl_FzX4p6B9xzCqKjXdbwR6pEapbArR` failed safely
+at build time because the general Vercel guard rejected the intentionally equal
+`RLS_CONTEXT_GATE_DATABASE_URL` alias. It consumed no ledger slot. The retry
+used a disposable-only exception pinned to Preview environment, exact branch
+and SHA, exact staging endpoint/role, byte-identical URLs, and the runner/test
+markers; that exception was never added to this canonical branch.
+
+Abort cleanup completed after the consumed slot: the exact Preview, all 24
+branch variables, synthetic RPC fixture, disposable Neon branch
+`br-sweet-dawn-aa58p53g`, and both temporary secret files were deleted.
+Production remained READY and unchanged. Sanitized mode-`0600` artifacts are:
+
+- `notification-provider-proof-attestation-98b1bfefc4b4.json` — SHA-256
+  `d4a13a2359988a75d4328f5dd24cd22452c21d57f9ad5a5257d1ab1c85bbea1a`
+- `notification-provider-proof-response-slot-1-98b1bfefc4b4.json` — SHA-256
+  `0c622af75dedecbc37785dd88ef131f7d25d3687b1a7fff9fbd41e6d1c18aa25`
+- `notification-provider-proof-teardown-98b1bfefc4b4.json` — SHA-256
+  `43e8566c96486a01acb384e1352bda33fd514d927f43db9282c0ff27a277c79f`
+- `notification-provider-proof-abort-cleanup-98b1bfefc4b4.json` — SHA-256
+  `39a35ec7a2b46dc2e5615e1f1c3451fb03f734e0e9e8f81f17ab4cfd6c8d09f8`
 
 ## Isolation Boundary And Hot-Path Decision
 
@@ -204,11 +262,12 @@ need candidate-aligned provider performance evidence after the sequencing gate.
 - The statement that the site currently has no users does not waive the sealed
   SavedSearch operator's skew/canary gate or any production evidence gate. It
   only makes parallel isolated Bucket B construction a reasonable use of time.
-- The 2026-07-19 wrapper-versus-autocommit provider result makes interactive
-  transactions on the bell and notification pages a credible performance risk;
-  it does not by itself prove a Notification-specific result.
-- After the production evidence gate lifts, compare the wrapper candidate with narrow
-  one-statement `SECURITY INVOKER` recipient RPCs. Bell/page candidates must
+- The 2026-07-22 provider result rejects interactive transactions for the
+  Notification bell/page hot reads and selects narrow one-statement
+  `SECURITY INVOKER` recipient RPCs as the candidate direction. It is synthetic
+  evidence, not a real Notification-table or route proof, and the consumed run
+  did not satisfy the generic two-pass gate.
+- Bell/page RPCs must
   preserve explicit projections, counts, pagination, owner isolation, context
   reset, and hot-route SLOs. Mark-read and export need the same candidate review.
 - Recipient RPCs are distinct from cross-user creation/cleanup service
@@ -358,9 +417,11 @@ Current direct-access files are deliberately pinned by test:
   two-session block-race checks. Provider behavior, pre-activation review, and
   direct authenticated runtime-credential proof remain separate gates. Direct
   or generic runtime creation remains unacceptable.
-- Recipient bell/page/count/export/mark-read architecture is not selected;
-  compare narrow one-statement `SECURITY INVOKER` RPCs with the experimental
-  transaction wrapper after the production sequencing gate lifts.
+- Recipient bell/page/count/export/mark-read uses the narrow one-statement
+  `SECURITY INVOKER` RPC direction. The experimental transaction wrapper is a
+  rejected historical control, not a fallback. Final promotion still requires
+  SQL authority review, real-table PostgreSQL proof, and two fresh
+  candidate-aligned provider/route passes.
 - The social/message/commission block-race protocol is implemented, statically
   guarded, and passed both transaction orderings under the CI runtime policy
   role. The proof uses CI-superuser `SET ROLE`, not a production runtime

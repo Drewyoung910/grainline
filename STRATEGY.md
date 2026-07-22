@@ -94,17 +94,23 @@ provider transaction performance gate block activation. Activation remains
 separate ENABLE/NO FORCE and later FORCE releases after Phase B and runtime
 credential separation are live.
 
-The isolated branch now contains both recipient candidates. Fixed
+The isolated branch contains both recipient candidates. Fixed
 `SECURITY INVOKER` recipient RPCs cover bell, page, unread count, mark-one,
 mark-many, conversation mark-read, export, and recent low-stock lookup in one
 database round trip per application operation; the prior interactive-transaction
-bell/page wrapper remains as the comparison baseline. Neither is the selected
-hot-read architecture. The invoker draft still needs PostgreSQL parse/apply,
-own/foreign/direct-denial, and context-reset proof, while prior provider evidence
-makes wrapper adoption cost a credible blocker. After the sequencing
-prerequisites are live, compare both under candidate-aligned provider and route
-evidence. Cross-user creation and cleanup use separate service authority and
-must not be conflated with recipient RPCs.
+bell/page wrapper remains only as the rejected comparison baseline. The
+2026-07-22 provider attempt selected the one-statement RPC direction: its
+target/burst candidate comparisons passed with zero request or isolation errors,
+while the generic wrapper crossed seven unchanged 2x adoption/hold thresholds.
+The run consumed slot 1 and failed the existing generic gate, so it is not
+promotion evidence and slot 2 was not called. Do not weaken the thresholds or
+rerun for a favorable boundary sample. Before a fresh provider proof, review a
+candidate-aligned gate that keeps wrapper limits blocking for releases that use
+interactive transactions and requires two fresh real Notification RPC/route
+passes for this release. The invoker draft still needs PostgreSQL parse/apply,
+own/foreign/direct-denial, context-reset, and authority review. Cross-user
+creation and cleanup use separate service authority and must not be conflated
+with recipient RPCs.
 
 The isolated service-authority draft now uses seventeen owner-backed functions:
 one runtime-ungranted fixed-column core, ten granted creation families, one
@@ -132,9 +138,10 @@ The first isolated PostgreSQL proof is now green. GitHub Actions run
 `1b9bd603d53488f18375d369835085e6581fb9b2` applied the three drafts to fresh
 PostgreSQL 16 and passed catalog/grant, direct-denial, recipient, service replay,
 and both two-session block-race checks. This narrows the remaining work; it does
-not select the recipient architecture, replace provider/performance proof, prove
-the production authentication path, authorize merge, or activate any persistent
-database.
+not by itself select the recipient architecture, replace provider/performance
+proof, prove the production authentication path, authorize merge, or activate
+any persistent database. The later 2026-07-22 provider result above selects the
+RPC direction without converting either proof into activation evidence.
 Do not deploy the long-lived Notification branch to obtain the remaining
 generic provider comparison. Its unapplied SQL drafts deliberately make every
 Vercel build fail closed, and automatic deployment is disabled for that exact

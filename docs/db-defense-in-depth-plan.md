@@ -442,6 +442,24 @@ This completes the synthetic transport/performance prerequisite for constructing
 Release 0. It is not real-table SavedSearch policy proof and does not authorize
 Phase A, production RLS activation, or Bucket B.
 
+Historical failed Notification candidate result 2026-07-22: disposable
+Git-integrated Preview commit
+`98b1bfefc4b49e10db84df21ef89c8d88243ada3`, deployment
+`dpl_8PyoHFUXDocojifoBGLp99nshkta`, consumed slot 1 and returned HTTP `422`
+with seven blocking issues; slot 2 was not called. The one-statement Prisma RPC
+candidate passed target and burst comparisons (p95 `24.9/36.2ms` versus
+one-statement baselines `19.8/36.4ms`) with zero request, correctness, or
+isolation errors. Every issue came from the generic interactive wrapper crossing
+the unchanged wrapper-versus-autocommit p95 or average-hold 2x limits, including
+raw target p95 `80.3ms` versus `38.9ms` and Prisma burst p95 `147.1ms` versus
+`73.1ms`. This is failed promotion evidence and must not be replayed or
+retroactively accepted. It rejects the wrapper for Notification hot reads and
+supports a candidate-aligned one-statement RPC design, but a reviewed gate
+change plus two fresh real Notification candidate passes are required before
+Bucket B activation. Abort cleanup deleted the exact Preview, 24 branch
+variables, synthetic fixture, disposable Neon branch, and temporary secrets;
+production deployment `dpl_6Y6C3NT81zbhLc6eHJAveCH1Ave8` remained READY.
+
 Performance-path investigation (2026-07-17): a one-statement CTE that attempted
 to call `set_config` and then read the protected canary failed closed because it
 returned zero rows; PostgreSQL did not provide an execution-order guarantee that

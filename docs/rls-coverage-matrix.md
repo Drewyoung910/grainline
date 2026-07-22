@@ -86,7 +86,7 @@ completed alternative.
 | `SellerMetrics` | `BLOCKED_DESIGN` | Seller analytics | Seller performance and sales totals; seller, staff, guild logic and jobs | Separate seller-private metrics from any public eligibility projection; service-only calculation writes |
 | `SellerRatingSummary` | `ALTERNATIVE_REVIEW` | Public aggregate projections | Derived public rating summary; public readers and calculation jobs | Read-only ordinary runtime plus service-only refresh and integrity proof |
 | `SiteMetricsSnapshot` | `ALTERNATIVE_REVIEW` | Public aggregate projections | Derived site metrics; public readers and calculation jobs | Read-only ordinary runtime plus service-only singleton refresh |
-| `Notification` | `PLANNED_RLS` | Bucket B Notification | Direct user-owned reads and mark-read updates with cross-user and system creation | All 54 emission paths have source-derived payload/family validation drafts and the shared block-race lock protocol is statically guarded; inspect legacy aggregates, keep any purge atomic with activation, prove PostgreSQL concurrency, and select the recipient hot-read design before staging |
+| `Notification` | `PLANNED_RLS` | Bucket B Notification | Direct user-owned reads and mark-read updates with cross-user and system creation | All 54 emission paths have source-derived payload/family validation drafts and the shared block-race lock protocol is statically guarded; the 2026-07-22 synthetic provider result rejects the interactive wrapper and selects one-statement recipient RPCs directionally but failed the generic gate, so inspect legacy aggregates, keep any purge atomic with activation, finish SQL/authority review, prove PostgreSQL concurrency, and pass a fresh candidate-aligned real-table/route gate before staging |
 | `ListingViewDaily` | `BLOCKED_DESIGN` | Seller analytics | Seller-private listing analytics with public event ingestion and aggregation jobs | Seller-through-profile reads plus service-only counter writes and hot-path plan review |
 | `SellerProfileViewDaily` | `BLOCKED_DESIGN` | Seller analytics | Seller-private profile analytics with public event ingestion and aggregation jobs | Seller ownership reads plus service-only counter writes and hot-path plan review |
 | `Follow` | `BLOCKED_DESIGN` | Aggregate and fanout | Owner relationship plus public follower counts and cross-user fanout | Denormalized count and explicit fanout service path before owner-row policies |
@@ -141,7 +141,7 @@ its cross-user create, exact lifecycle cleanup, and retention paths target
 fixed-purpose unapplied service functions. Cart and SavedBlogPost helpers still
 default to ordinary Prisma access. Notification prelaunch inspection and the
 atomic activation purge,
-recipient hot-read architecture, policy/grant activation, and every later group's
+recipient RPC real-table/provider proof, policy/grant activation, and every later group's
 service paths remain explicit work. Centralization and draft wiring are
 preparation, not active RLS or staging proof.
 

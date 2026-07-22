@@ -68,7 +68,7 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(plan, /isolated B0\/B1 implementation in progress/);
     assert.match(plan, /Code, unapplied migration\/RPC\/policy[\s\S]{0,100}drafts, local\/ephemeral PostgreSQL proof, and isolated provider comparison may\s+continue/);
     assert.match(plan, /No Notification change may merge to `main`, apply to\s+production, or activate a persistent staging database/);
-    assert.match(plan, /one-statement `SECURITY INVOKER` recipient RPCs/);
+    assert.match(plan, /one-statement `SECURITY INVOKER` recipient\s+RPC direction/);
     assert.match(plan, /Recipient RPCs are distinct from cross-user creation\/cleanup service\s+authority/);
     assert.match(plan, /All 54 emission paths now carry reviewed creation authority/);
     assert.match(plan, /54 distinct emission paths\. All 54 are currently\s+authority-bound and none are source-less/);
@@ -83,7 +83,7 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(strategy, /seventeen owner-backed functions/);
     assert.match(strategy, /runtime-ungranted fixed-column core/);
     assert.match(strategy, /`SECURITY INVOKER` recipient RPCs/);
-    assert.match(strategy, /must not be conflated with recipient RPCs/);
+    assert.match(strategy, /must not be conflated\s+with recipient RPCs/);
     assert.match(strategy, /54\/54 creation-authority coverage/);
     assert.match(strategy, /does\s+not by itself make Bucket B activation-ready/);
     assert.match(strategy, /no longer accept notification title, body, link, or dedup/);
@@ -94,7 +94,11 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(plan, /genuine draft defect, PostgreSQL error `42804`/);
     assert.match(plan, /does not claim to stop a fully compromised runtime role/);
     assert.match(strategy, /first isolated PostgreSQL proof is now green/);
-    assert.match(strategy, /does\s+not select the recipient architecture/);
+    assert.match(strategy, /selected the one-statement RPC direction/);
+    assert.match(strategy, /consumed slot 1 and failed the existing generic gate/);
+    assert.match(plan, /slot 2 was not called/);
+    assert.match(plan, /Do not rerun the same\s+shape hoping/);
+    assert.match(plan, /all 24\s+branch variables/);
   });
 
   it("pins the complete creation-authority family inventory", () => {
