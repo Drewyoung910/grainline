@@ -7,7 +7,8 @@
       "codex/rls-bucket-b-notification-20260719": false,
       "codex/rls-notification-provider-proof-20260722": false,
       "codex/rls-notification-provider-proof-2-20260722": false,
-      "codex/rls-notification-provider-proof-3-20260722": false
+      "codex/rls-notification-provider-proof-3-20260722": false,
+      "codex/rls-notification-provider-proof-4-20260722": false
     }
   },
   "regions": ["sfo1"],
