@@ -418,8 +418,7 @@ function removeStagedCandidateMigrations() {
   }
 }
 
-function runReviewedPrismaMigrationDeploy(adminDatabaseUrl) {
-  assertReviewedMigrationBytes();
+function reviewedPrismaArgs() {
   const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
   const packageLock = JSON.parse(readFileSync("package-lock.json", "utf8"));
   if (
@@ -452,6 +451,12 @@ function runReviewedPrismaMigrationDeploy(adminDatabaseUrl) {
   ) {
     throw new Error("exact reviewed Prisma CLI was unavailable");
   }
+  return prismaArgs;
+}
+
+function runReviewedPrismaMigrationDeploy(adminDatabaseUrl) {
+  assertReviewedMigrationBytes();
+  const prismaArgs = reviewedPrismaArgs();
   const result = spawnSync(
     "npm",
     [...prismaArgs, "migrate", "deploy"],
@@ -467,7 +472,59 @@ function runReviewedPrismaMigrationDeploy(adminDatabaseUrl) {
     },
   );
   if (result.error || result.status !== 0) {
-    throw new Error("reviewed Prisma provider migration deploy failed");
+    const detail = sanitizedProviderDiagnostic(
+      `${result.stdout ?? ""}\n${result.stderr ?? ""}`,
+      { adminDatabaseUrl, runtimeDatabaseUrl: adminDatabaseUrl },
+    ).replace(/\s+/g, " ").trim().slice(-2_000);
+    throw new Error(
+      `reviewed Prisma provider migration deploy failed${detail ? `: ${detail}` : ""}`,
+    );
+  }
+}
+
+function sanitizedProviderDiagnostic(value, state) {
+  let result = String(value ?? "");
+  for (const sensitive of [
+    state.adminDatabaseUrl,
+    state.runtimeDatabaseUrl,
+    new URL(state.adminDatabaseUrl).password,
+    new URL(state.runtimeDatabaseUrl).password,
+  ]) {
+    if (sensitive) result = result.split(sensitive).join("[REDACTED]");
+  }
+  return result
+    .replace(/postgres(?:ql)?:\/\/[^\s"'`]+/gi, "[REDACTED_DATABASE_URL]")
+    .slice(-16_000);
+}
+
+function prismaStatusDiagnostic() {
+  const state = readProviderState();
+  stageReviewedCandidateMigrations();
+  try {
+    const result = spawnSync(
+      "npm",
+      [...reviewedPrismaArgs(), "migrate", "status"],
+      {
+        encoding: "utf8",
+        env: {
+          ...cleanEnvironment(),
+          DATABASE_URL: state.adminDatabaseUrl,
+          DIRECT_URL: state.adminDatabaseUrl,
+        },
+        maxBuffer: 4 * 1024 * 1024,
+        timeout: 2 * 60_000,
+      },
+    );
+    console.log(JSON.stringify({
+      exitStatus: result.status,
+      output: sanitizedProviderDiagnostic(
+        `${result.stdout ?? ""}\n${result.stderr ?? ""}`,
+        state,
+      ),
+      subprocessError: Boolean(result.error),
+    }, null, 2));
+  } finally {
+    removeStagedCandidateMigrations();
   }
 }
 
@@ -1481,8 +1538,77 @@ async function status() {
   }, null, 2));
 }
 
+async function databaseStatus() {
+  const state = readProviderState();
+  await verifyNeonStagingTarget();
+  const owner = new Client({
+    application_name: "notification-provider-status",
+    connectionString: state.adminDatabaseUrl,
+  });
+  await owner.connect();
+  try {
+    const migrations = await owner.query(
+      `SELECT migration_name,
+              finished_at IS NOT NULL AS finished,
+              rolled_back_at IS NOT NULL AS rolled_back,
+              applied_steps_count
+         FROM public._prisma_migrations
+        WHERE migration_name = ANY($1::text[])
+        ORDER BY migration_name`,
+      [Object.values(REVIEWED_NOTIFICATION_MIGRATIONS).map((migration) => path.basename(path.dirname(migration.path)))],
+    );
+    const unresolvedMigrations = await owner.query(
+      `SELECT migration_name, applied_steps_count
+         FROM public._prisma_migrations
+        WHERE finished_at IS NULL AND rolled_back_at IS NULL
+        ORDER BY started_at, migration_name`,
+    );
+    const catalog = await owner.query(
+      `SELECT class.relrowsecurity AS rls,
+              class.relforcerowsecurity AS force_rls,
+              (SELECT pg_catalog.count(*)::integer
+                 FROM pg_catalog.pg_policy AS policy
+                WHERE policy.polrelid = class.oid) AS policy_count,
+              (SELECT pg_catalog.count(*)::integer
+                 FROM pg_catalog.pg_attribute AS attribute
+                WHERE attribute.attrelid = class.oid
+                  AND attribute.attname = 'relatedUserId'
+                  AND attribute.attnum > 0
+                  AND NOT attribute.attisdropped) AS related_user_column_count
+         FROM pg_catalog.pg_class AS class
+         JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = class.relnamespace
+        WHERE namespace.nspname = 'public' AND class.relname = 'Notification'`,
+    );
+    const functions = await owner.query(
+      `SELECT pg_catalog.count(*)::integer AS count
+         FROM pg_catalog.pg_proc AS procedure
+         JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+        WHERE namespace.nspname = 'public'
+          AND procedure.proname LIKE 'grainline\\_notification\\_%' ESCAPE '\\'`,
+    );
+    const grants = await owner.query(
+      `SELECT privilege_type
+         FROM information_schema.role_table_grants
+        WHERE grantee = $1
+          AND table_schema = 'public'
+          AND table_name = 'Notification'
+        ORDER BY privilege_type`,
+      [REVIEWED_RUNTIME_ROLE],
+    );
+    console.log(JSON.stringify({
+      candidateMigrations: migrations.rows,
+      unresolvedMigrations: unresolvedMigrations.rows,
+      catalog: catalog.rows[0] ?? null,
+      notificationFunctionCount: functions.rows[0]?.count ?? null,
+      runtimeTableGrants: grants.rows.map((row) => row.privilege_type),
+    }, null, 2));
+  } finally {
+    await owner.end();
+  }
+}
+
 function usage() {
-  console.error("Usage: node scripts/notification-provider-proof-operator.mjs <bootstrap-bypass-state|revoke-bypass-state|prepare|configure|attest|slot-1|slot-2|cleanup|cleanup-abort|status>");
+  console.error("Usage: node scripts/notification-provider-proof-operator.mjs <bootstrap-bypass-state|revoke-bypass-state|prepare|configure|attest|slot-1|slot-2|cleanup|cleanup-abort|status|database-status|prisma-status>");
 }
 
 async function main() {
@@ -1516,6 +1642,12 @@ async function main() {
       break;
     case "status":
       await status();
+      break;
+    case "database-status":
+      await databaseStatus();
+      break;
+    case "prisma-status":
+      prismaStatusDiagnostic();
       break;
     default:
       usage();
