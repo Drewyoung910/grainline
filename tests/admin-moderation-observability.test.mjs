@@ -23,7 +23,7 @@ describe("admin moderation hardening follow-ups", () => {
     assert.match(reviewRoute, /source: 'admin_listing_review_notification'/);
     assert.doesNotMatch(reviewRoute, /\.catch\(\(\) => \{\}\)/);
     assert.match(customOrderReadyLink, /source: "custom_order_ready_email"/);
-    assert.match(customOrderReadyLink, /listingId: listing\.id/);
+    assert.match(customOrderReadyLink, /listingId: source\.listingId/);
     assert.doesNotMatch(customOrderReadyLink, /extra:\s*\{[^}]*email/s);
   });
 

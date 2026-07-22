@@ -13,18 +13,22 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     const adminReview = source("src/app/api/admin/listings/[id]/review/route.ts");
 
     assert.match(helper, /kind: "custom_order_link"/);
-    assert.match(helper, /dedupScope: listing\.id/);
+    assert.match(helper, /dedupScope: source\.listingId/);
     assert.match(helper, /sendCustomOrderReady/);
     assert.match(helper, /pg_advisory_xact_lock/);
-    assert.match(helper, /hashtext\(\$\{\`\$\{conversationId\}:\$\{listing\.id\}`\}\)/);
+    assert.match(helper, /hashtext\(\$\{listingId\}\)/);
+    assert.match(helper, /sendCustomOrderReadyLink\(\{ listingId \}: \{ listingId: string \}\)/);
+    assert.doesNotMatch(helper, /conversationId,\s*sellerUserId,\s*buyerUserId,\s*sellerName,\s*listing,/);
+    assert.match(helper, /listing\."reservedForUserId" = \$\{initial\.reservedForUserId\}/);
+    assert.match(helper, /listing\."customOrderConversationId" = \$\{initial\.customOrderConversationId\}/);
     assert.ok(
       helper.indexOf("const existingLinkMessage = await tx.message.findFirst") <
         helper.indexOf("await tx.message.create"),
       "custom order ready link duplicate check must run inside the locked transaction before message create",
     );
-    assert.match(customPage, /sendCustomOrderReadyLink\(\{/);
+    assert.match(customPage, /sendCustomOrderReadyLink\(\{\s*listingId: created\.id,\s*\}\)/);
     assert.match(adminReview, /listing\.customOrderConversationId && listing\.reservedForUserId/);
-    assert.match(adminReview, /sendCustomOrderReadyLink\(\{/);
+    assert.equal((adminReview.match(/sendCustomOrderReadyLink\(\{\s*listingId:/g) ?? []).length, 2);
     assert.match(adminReview, /currentListing\.status === 'ACTIVE' &&[\s\S]*currentListing\.customOrderConversationId &&[\s\S]*currentListing\.reservedForUserId/);
   });
 
@@ -42,6 +46,7 @@ describe("custom-order and staff-thread audit follow-ups", () => {
 
   it("keeps message thread side effects observable and account-state guarded", () => {
     const customOrderRoute = source("src/app/api/messages/custom-order-request/route.ts");
+    const customOrderAccess = source("src/lib/customOrderRequestAccess.ts");
     const threadPage = source("src/app/messages/[id]/page.tsx");
 
     assert.match(customOrderRoute, /Sentry\.captureException\(error, \{/);
@@ -50,9 +55,16 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     assert.doesNotMatch(customOrderRoute, /catch\s*\{\s*\/\* non-fatal \*\/\s*\}/);
 
     assert.ok(
-      customOrderRoute.indexOf("Budget must be a valid dollar amount") < customOrderRoute.indexOf("conversation.create"),
-      "custom order budget validation must run before conversation creation side effects",
+      customOrderRoute.indexOf("Budget must be a valid dollar amount") <
+        customOrderRoute.indexOf("createCustomOrderRequestMessage({"),
+      "custom order budget validation must run before entering the atomic write helper",
     );
+    assert.ok(
+      customOrderAccess.indexOf("!input.description") <
+        customOrderAccess.indexOf("getOrCreateConversationForLockedPair("),
+      "transaction-local payload validation must run before conversation creation side effects",
+    );
+    assert.match(customOrderAccess, /isolationLevel: Prisma\.TransactionIsolationLevel\.ReadCommitted/);
 
     assert.match(threadPage, /select: \{ id: true, banned: true, deletedAt: true \}/);
     assert.match(threadPage, /if \(me\.banned \|\| me\.deletedAt\) return \{ ok: false \};/);
@@ -83,10 +95,10 @@ describe("custom-order and staff-thread audit follow-ups", () => {
 
     assert.match(schema, /lastMessageEmailSentAt\s+DateTime\?/);
     assert.doesNotMatch(threadPage, /const recentReply = await prisma\.message\.findFirst/);
-    assert.match(threadPage, /const emailWindowStart = new Date\(messageSentAt\.getTime\(\) - 5 \* 60 \* 1000\)/);
+    assert.match(threadPage, /const emailWindowStart = new Date\(committedMessageSentAt\.getTime\(\) - 5 \* 60 \* 1000\)/);
     assert.match(threadPage, /const emailClaim = await prisma\.conversation\.updateMany\(\{/);
     assert.match(threadPage, /OR: \[\{ lastMessageEmailSentAt: null \}, \{ lastMessageEmailSentAt: \{ lt: emailWindowStart \} \}\]/);
-    assert.match(threadPage, /data: \{ lastMessageEmailSentAt: messageSentAt \}/);
+    assert.match(threadPage, /data: \{ lastMessageEmailSentAt: committedMessageSentAt \}/);
     assert.match(threadPage, /if \(emailClaim\.count === 1\) \{/);
     assert.ok(
       threadPage.indexOf("const emailClaim = await prisma.conversation.updateMany") <
@@ -103,25 +115,32 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     assert.doesNotMatch(threadPage, /conversationUpdate\.firstResponseAt = new Date\(\)/);
   });
 
-  it("bounds message polling since parameters before Prisma date filters", () => {
+  it("bounds stable message cursors before Prisma keyset filters", () => {
     const listRoute = source("src/app/api/messages/[id]/list/route.ts");
     const streamRoute = source("src/app/api/messages/[id]/stream/route.ts");
+    const cursor = source("src/lib/messageCursor.ts");
     const limits = source("src/lib/messagePolling.ts");
 
     assert.match(limits, /export const MESSAGE_POLL_LIMIT = 200/);
 
-    assert.match(listRoute, /parseTimestampMsParam\(url\.searchParams\.get\("since"\)\)/);
-    assert.match(listRoute, /const sinceDate = sinceMs == null \? null : new Date\(sinceMs\)/);
+    assert.match(listRoute, /const sinceRaw = url\.searchParams\.get\("since"\)/);
+    assert.match(listRoute, /const sinceIdRaw = url\.searchParams\.get\("sinceId"\)/);
+    assert.match(listRoute, /parseMessageCursor\(sinceRaw, sinceIdRaw\)/);
+    assert.match(listRoute, /parseMessageCursor\(beforeRaw, beforeIdRaw, \{ requireId: true \}\)/);
     assert.match(listRoute, /import \{ MESSAGE_POLL_LIMIT \} from "@\/lib\/messagePolling"/);
-    assert.match(listRoute, /orderBy: \[\{ createdAt: "asc" \}, \{ id: "asc" \}\]/);
-    assert.match(listRoute, /take: MESSAGE_POLL_LIMIT/);
+    assert.match(listRoute, /messageAfterCursorWhere\(sinceCursor\)/);
+    assert.match(listRoute, /messageBeforeCursorWhere\(beforeCursor\)/);
+    assert.match(listRoute, /take: historyMode \? MESSAGE_POLL_LIMIT \+ 1 : MESSAGE_POLL_LIMIT/);
     assert.doesNotMatch(listRoute, /new Date\(Number\(since\)\)/);
 
-    assert.match(streamRoute, /parseTimestampMsParam\(url\.searchParams\.get\("since"\)\) \?\? 0/);
+    assert.match(streamRoute, /parseMessageCursor\(/);
+    assert.match(streamRoute, /url\.searchParams\.get\("sinceId"\)/);
     assert.match(streamRoute, /import \{ MESSAGE_POLL_LIMIT \} from "@\/lib\/messagePolling"/);
     assert.match(streamRoute, /orderBy: \[\{ createdAt: "asc" \}, \{ id: "asc" \}\]/);
     assert.match(streamRoute, /take: MESSAGE_POLL_LIMIT/);
     assert.doesNotMatch(streamRoute, /Number\(url\.searchParams\.get\("since"\)/);
+    assert.match(cursor, /createdAt: cursor\.createdAt, id: \{ gt: cursor\.id \}/);
+    assert.match(cursor, /createdAt: cursor\.createdAt, id: \{ lt: cursor\.id \}/);
   });
 
   it("keeps message stream cleanup safe after client aborts", () => {

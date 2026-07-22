@@ -22,7 +22,7 @@ describe("commission route observability follow-ups", () => {
     assert.match(patchRoute, /source: "commission_status_notification"/);
     assert.match(patchRoute, /commissionRequestId: id/);
     assert.match(interestRoute, /source: "commission_interest_side_effects"/);
-    assert.match(interestRoute, /conversationId: finalConversationId/);
+    assert.match(interestRoute, /conversationId: result\.conversationId/);
     assert.doesNotMatch(geoMetro, /catch \{\s*return \{ metroId: null, cityMetroId: null \};\s*\}/);
     assert.doesNotMatch(patchRoute, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
     assert.doesNotMatch(interestRoute, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
@@ -30,13 +30,15 @@ describe("commission route observability follow-ups", () => {
 
   it("creates the commission-interest opening message before returning success", () => {
     const interestRoute = source("src/app/api/commission/[id]/interest/route.ts");
-    const transactionStart = interestRoute.indexOf("await prisma.$transaction");
-    const afterStart = interestRoute.indexOf("after(async () =>", transactionStart);
-    const transactionBlock = interestRoute.slice(transactionStart, afterStart);
+    const access = source("src/lib/commissionInterestMessageAccess.ts");
+    const transactionStart = access.indexOf("return prisma.$transaction");
+    const afterStart = interestRoute.indexOf("after(async () =>");
+    const transactionBlock = access.slice(transactionStart);
     const afterBlock = interestRoute.slice(afterStart);
 
     assert.notEqual(transactionStart, -1);
     assert.notEqual(afterStart, -1);
+    assert.match(interestRoute, /createCommissionInterestMessage\(\{/);
     assert.match(transactionBlock, /await tx\.commissionInterest\.create/);
     assert.match(transactionBlock, /await tx\.message\.create/);
     assert.match(transactionBlock, /kind: "commission_interest_card"/);

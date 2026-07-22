@@ -1408,6 +1408,22 @@ export async function anonymizeUserAccount(
   });
 
   const result = await withDbUserContext(userId, async (tx) => {
+    // This is the account-lifecycle side of the message send protocol. Sends
+    // take FOR SHARE on both participants before their final block check and
+    // insert. Deletion takes FOR UPDATE before scanning/redacting messages, so
+    // either the send commits first and is included in redaction, or it waits
+    // and observes deleted account state. The external Redis lock prevents two
+    // deletion workers; this row lock coordinates with other DB transactions.
+    const lockedUsers = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT deletion_user.id
+        FROM "User" AS deletion_user
+       WHERE deletion_user.id = ${userId}
+       FOR UPDATE
+    `;
+    if (lockedUsers.length === 0) {
+      return { ok: true, alreadyDeleted: true, auditTargetIds: [], accountSensitiveValues: [] };
+    }
+
     const user = await tx.user.findUnique({
       where: { id: userId },
       include: {

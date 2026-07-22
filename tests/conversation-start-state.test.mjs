@@ -43,6 +43,13 @@ describe("conversation start state", () => {
     assert.equal(canAttachConversationContextListing(privateReservedListing, ["seller_user", "buyer_user"]), true);
     assert.equal(canAttachConversationContextListing(privateReservedListing, ["seller_user", "other_user"]), false);
     assert.equal(canAttachConversationContextListing(privateReservedListing, ["buyer_user", "other_user"]), false);
+    assert.equal(
+      canAttachConversationContextListing(
+        { ...privateReservedListing, reservedForUserId: "seller_user" },
+        ["seller_user", "other_user"],
+      ),
+      false,
+    );
   });
 
   it("rejects inactive listings and inactive sellers", () => {

@@ -2,9 +2,9 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { messageStreamRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
-import { parseTimestampMsParam } from "@/lib/queryParams";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { MESSAGE_POLL_LIMIT } from "@/lib/messagePolling";
+import { messageAfterCursorWhere, parseMessageCursor } from "@/lib/messageCursor";
 import * as Sentry from "@sentry/nextjs";
 
 export const runtime = "nodejs";
@@ -38,7 +38,12 @@ export async function GET(
   if (!allowed) return privateJson({ error: "Forbidden" }, { status: 403 });
 
   const url = new URL(req.url);
-  let since = parseTimestampMsParam(url.searchParams.get("since")) ?? 0;
+  const sinceRaw = url.searchParams.get("since");
+  const sinceIdRaw = url.searchParams.get("sinceId");
+  let cursor = parseMessageCursor(sinceRaw, sinceIdRaw);
+  if ((sinceRaw !== null || sinceIdRaw !== null) && !cursor) {
+    return privateJson({ error: "Invalid message cursor" }, { status: 400 });
+  }
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -78,14 +83,24 @@ export async function GET(
           const messages = await prisma.message.findMany({
             where: {
               conversationId: id,
-              ...(since ? { createdAt: { gt: new Date(since) } } : {}),
+              ...messageAfterCursorWhere(cursor),
             },
             orderBy: [{ createdAt: "asc" }, { id: "asc" }],
             take: MESSAGE_POLL_LIMIT,
-            select: { id: true, senderId: true, recipientId: true, body: true, kind: true, createdAt: true, readAt: true },
+            select: {
+              id: true,
+              senderId: true,
+              recipientId: true,
+              body: true,
+              kind: true,
+              contextListing: { select: { id: true, title: true } },
+              createdAt: true,
+              readAt: true,
+            },
           });
           if (messages.length) {
-            since = new Date(messages[messages.length - 1].createdAt).getTime();
+            const lastMessage = messages[messages.length - 1];
+            cursor = { createdAt: new Date(lastMessage.createdAt), id: lastMessage.id };
             if (!send({ type: "messages", messages })) return;
             pollDelayMs = 3000;
           } else {

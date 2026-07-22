@@ -19,10 +19,10 @@ Runtime database credential separation is also complete. Production source
 operator `8438ece93ff93572a015dd674f152c830cb5a52e`; the canonical record is
 `docs/runtime-db-credential-separation.md`. Production Functions retain only
 the constrained `grainline_app_runtime`; the rotated `NOSUPERUSER BYPASSRLS`
-owner remains outside Vercel. This closes the prerequisite for isolated
-Notification implementation, ephemeral PostgreSQL proof, and isolated
-provider-candidate comparison. It does not authorize a Notification merge,
-production apply/deployment, persistent staging activation, or RLS activation.
+owner remains outside Vercel. This prerequisite subsequently enabled the
+separately proven Notification rollout, which is now complete through FORCE.
+It does not authorize bundling later sensitive tables or putting an owner
+credential back into an application environment.
 
 ### Site-wide RLS expansion decision (2026-07-19)
 
@@ -44,13 +44,25 @@ Treat this as one site-wide sensitive-data RLS program for planning and status,
 but not as one migration or production activation. Preserve the established
 meaning of Bucket B as `Notification` so historical rollout evidence stays
 unambiguous. Prepare shared inventories and infrastructure across later tables
-where useful, then activate independently reviewed, tightly coupled groups:
-`Notification`; `Cart` + `CartItem`; `SavedBlogPost`; aggregate/fanout tables;
-`Conversation` + `Message`; the order/payment/shipping group; and `Case` +
+where useful, then activate independently reviewed, tightly coupled groups.
+`Notification` is complete; `Conversation` + `Message` is the next approved
+group. `Cart` + `CartItem`; `SavedBlogPost`; aggregate/fanout tables; the
+order/payment/shipping group; and `Case` +
 `CaseMessage`. Each group must be independently deployable, observable, and
 reversible before the next group begins. Never combine notification fanout,
 messaging, checkout/payment, fulfillment, and dispute policy activation into a
 single release.
+
+Conversation and Message may be designed and activated together because
+Message visibility and write validity depend on its parent Conversation. Pin
+the complete participant, unresolved-report staff, structured system-message,
+custom-order, commission, export, deletion and seller-metrics surface before
+drafting authority SQL. The baseline and rollout contract live in
+`docs/conversation-message-authority-inventory.md` and
+`docs/rls-conversation-message-plan.md`. Direct runtime DML must not survive
+activation; user-authored content may be caller input, but recipient, structured
+kind, system status and thread side effects must be derived from validated
+state.
 
 This program scope is approved, not a menu to narrow silently. Every sensitive
 or user-owned table discovered by the coverage inventory must end in one of
@@ -62,6 +74,47 @@ do not force an owner-policy shape where it is incorrect. Maintain the
 schema-complete [`docs/rls-coverage-matrix.md`](docs/rls-coverage-matrix.md)
 and never claim that all user data is protected by RLS until every table has an
 evidenced disposition.
+
+Before drafting RLS for each sensitive group, complete a table-specific
+behavior and security audit. Confirm current product semantics, actor
+authorization, integrity constraints, provider/background operations,
+retention/export/deletion, concurrency, indexes and test coverage; fix
+load-bearing defects first so policies do not encode them. For Conversation and
+Message the active record is `docs/conversation-message-pre-rls-audit.md`.
+
+### Messaging architecture decision (2026-07-22)
+
+Keep one ordinary Conversation per unordered participant pair. Do not create a
+new inbox thread for every listing: that fragments the relationship, duplicates
+blocking/reporting state and becomes noisy for active buyers and shops. Preserve
+the listing that prompted a message on the individual Message instead. The
+nullable, source-validated Message Listing context is a pre-RLS compatibility
+requirement, not permission for callers to select arbitrary private listings.
+
+`isSystemMessage` means server-generated structured presentation, not database
+authority. Commission-interest and custom-order-ready cards use it; a
+buyer-authored custom-order request does not. Authorization always comes from
+the durable source relationship and fixed operation.
+
+Do not give staff a general read/write bypass into ordinary buyer-shop threads.
+Exact unresolved-report review remains read-only. `/support` already provides a
+reference-numbered request and staff queue, while Case/CaseMessage provides
+staff-visible dispute discussion. If Grainline later needs Etsy-style in-product
+staff outreach, build visibly branded SupportThread/SupportMessage records with
+assignment, audit, retention and separate RLS rather than impersonating a user
+or reusing ordinary Conversation.
+
+The Conversation/Message relational shape, bounded keyset windows and compound
+indexes are intended to support 50,000-plus registered accounts. That is not a
+50,000-concurrent-stream promise. The current SSE endpoint holds a serverless
+response and polls PostgreSQL every 3–10 seconds per open thread; move delivery
+to managed realtime/fanout before sustained high concurrent messaging while
+retaining the same participant-scoped database read contract.
+
+Deploy the nullable Message listing-context relation and read indexes as an
+additive compatibility release before the application checkpoint. Its exact
+migration phase is `conversation-message-compatibility-reviewed`; it does not
+enable RLS, narrow grants or authorize the later authority migration.
 
 ### Prelaunch RLS rollout proportionality (2026-07-22)
 

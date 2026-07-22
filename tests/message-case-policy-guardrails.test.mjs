@@ -9,18 +9,21 @@ function source(path) {
 describe("message and case policy guardrails", () => {
   it("revalidates custom-order ready links against conversation and block policy", () => {
     const helper = source("src/lib/customOrderReadyLink.ts");
-    const policyCheck = helper.indexOf("const conversation = await tx.conversation.findUnique");
+    const policyCheck = helper.indexOf("const sources = await tx.$queryRaw");
     const messageCreate = helper.indexOf("await tx.message.create");
 
-    assert.ok(policyCheck > -1, "ready-link helper must load conversation state inside the lock");
+    assert.ok(policyCheck > -1, "ready-link helper must load the Listing/Conversation source inside the lock");
     assert.ok(messageCreate > policyCheck, "ready-link message must be created after policy checks");
-    assert.match(helper, /import \{ messagingUnavailableReason \} from "@\/lib\/messageRecipientState";/);
-    assert.match(helper, /sellerUserId === buyerUserId/);
-    assert.match(helper, /!participants\.has\(sellerUserId\)/);
-    assert.match(helper, /!participants\.has\(buyerUserId\)/);
-    assert.match(helper, /messagingUnavailableReason\(sellerState\) \|\| messagingUnavailableReason\(buyerState\)/);
-    assert.match(helper, /\{ blockerId: sellerUserId, blockedId: buyerUserId \}/);
-    assert.match(helper, /\{ blockerId: buyerUserId, blockedId: sellerUserId \}/);
+    assert.match(helper, /lockConversationParticipantPair\(/);
+    assert.match(helper, /source\.userAId !== pair\.userAId/);
+    assert.match(helper, /source\.userBId !== pair\.userBId/);
+    assert.match(helper, /source\.sellerUserId === source\.buyerUserId/);
+    assert.match(helper, /listing\.status = 'ACTIVE'/);
+    assert.match(helper, /listing\."isPrivate" = true/);
+    assert.match(helper, /seller\."chargesEnabled" = true/);
+    assert.match(helper, /seller\."stripeAccountId" IS NOT NULL/);
+    assert.match(helper, /seller\."vacationMode" = false/);
+    assert.match(helper, /isSystemMessage: true/);
     assert.match(helper, /data: \{ updatedAt: new Date\(\), archivedAAt: null, archivedBAt: null \}/);
   });
 
@@ -40,11 +43,13 @@ describe("message and case policy guardrails", () => {
 
     assert.match(inbox, /const blockedUserIdList = \[\.\.\.blockedUserIds\]/);
     assert.ok(
-      inbox.indexOf("blockedUserIdList.length > 0") < inbox.indexOf("take: 50"),
+      inbox.indexOf("blockedUserIdList.length > 0") < inbox.indexOf("take: 51"),
       "messages inbox must exclude blocked users before the capped query",
     );
+    assert.match(inbox, /const hasMoreConversations = conversationRows\.length > 50/);
     assert.match(inbox, /orderBy: \[\{ updatedAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(inbox, /where: \{ recipientId: me\.id, readAt: null, conversation: \{ is: where \} \}/);
+    assert.match(inbox, /orderBy: \[\{ updatedAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(inbox, /where: \{ recipientId: me\.id, readAt: null, conversation: \{ is: baseWhere \} \}/);
 
     assert.match(unreadCount, /getBlockedUserIdsFor/);
     assert.match(unreadCount, /archivedAAt: null/);
@@ -55,10 +60,11 @@ describe("message and case policy guardrails", () => {
 
   it("loads the latest message-thread window and reopens archived threads on new content", () => {
     const threadPage = source("src/app/messages/[id]/page.tsx");
-    const customOrderRequest = source("src/app/api/messages/custom-order-request/route.ts");
+    const customOrderRequest = source("src/lib/customOrderRequestAccess.ts");
 
-    assert.match(threadPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\],\s*take: 200/);
-    assert.match(threadPage, /\)\)\.reverse\(\)/);
+    assert.match(threadPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\],\s*take: 201/);
+    assert.match(threadPage, /const hasMoreMessagesBefore = messageRows\.length > 200/);
+    assert.match(threadPage, /const messages = messageRows\.slice\(0, 200\)\.reverse\(\)/);
     assert.match(threadPage, /data: \{ updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null \}/);
     assert.match(customOrderRequest, /data: \{ updatedAt: new Date\(\), archivedAAt: null, archivedBAt: null \}/);
   });
@@ -66,20 +72,23 @@ describe("message and case policy guardrails", () => {
   it("revalidates message-thread send policy inside the write transaction", () => {
     const threadPage = source("src/app/messages/[id]/page.tsx");
     const transactionStart = threadPage.indexOf("const txResult = await prisma.$transaction");
+    const blockCheck = threadPage.indexOf("const lockedPair = await lockConversationParticipantPair", transactionStart);
+    const conversationLock = threadPage.indexOf('FROM "Conversation" AS conversation', blockCheck);
     const policyCheck = threadPage.indexOf("const freshConversation = await tx.conversation.findFirst", transactionStart);
     const senderCheck = threadPage.indexOf("const freshSender = freshConversation", policyCheck);
     const recipientCheck = threadPage.indexOf("const freshUnavailableReason = messagingUnavailableReason(freshRecipient)", senderCheck);
-    const blockCheck = threadPage.indexOf("const freshBlockExists = await tx.block.findFirst", recipientCheck);
     const messageCreate = threadPage.indexOf("await tx.message.create", transactionStart);
 
     assert.ok(transactionStart > -1, "message send must use a write transaction");
-    assert.ok(policyCheck > transactionStart, "message send must re-load conversation state inside the transaction");
+    assert.ok(blockCheck > transactionStart, "message send must lock the participant pair and re-check reciprocal blocks inside the transaction");
+    assert.ok(conversationLock > blockCheck, "message send must lock the exact Conversation after participant/listing locks");
+    assert.ok(policyCheck > conversationLock, "message send must re-load conversation state after the row lock");
     assert.ok(senderCheck > policyCheck, "message send must re-check sender account state inside the transaction");
     assert.ok(recipientCheck > senderCheck, "message send must re-check recipient account state inside the transaction");
-    assert.ok(blockCheck > recipientCheck, "message send must re-check reciprocal block state inside the transaction");
-    assert.ok(messageCreate > blockCheck, "message rows must be created only after transaction-local policy checks");
+    assert.ok(messageCreate > recipientCheck, "message rows must be created only after the locked transaction-local policy checks");
     assert.match(threadPage, /freshSender\.banned \|\| freshSender\.deletedAt/);
     assert.match(threadPage, /messagingUnavailableReason\(freshRecipient\)/);
+    assert.match(threadPage, /lockedPair\.userAId !== freshConversation\.userAId/);
     assert.match(threadPage, /recipientId: freshRecipientId/);
     assert.match(threadPage, /committedRecipientId = txResult\.recipientId/);
     assert.match(threadPage, /userId: committedRecipientId/);

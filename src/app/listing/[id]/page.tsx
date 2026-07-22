@@ -115,7 +115,15 @@ export async function generateMetadata(
   const listing = await getListingForDetailPage(listingId);
   if (!listing) notFound();
   if (!isPublicListingDetail(listing)) {
-    notFound();
+    // The page performs viewer-aware authorization for seller previews and
+    // buyer-reserved private listings. Metadata cannot reject every private
+    // row first or those authorized viewers receive a false 404. Keep this
+    // response generic so an unauthorized request learns no private title,
+    // seller, price, image, or canonical URL; the page still returns 404.
+    return {
+      title: { absolute: "Private listing — Grainline" },
+      robots: { index: false, follow: false },
+    };
   }
   const sellerName = listing.seller.displayName ?? "Maker";
   const title = `${listing.title} by ${sellerName}`;

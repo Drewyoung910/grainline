@@ -208,7 +208,7 @@ describe("client async guardrails", () => {
     assert.match(actionForm, /detail: \{ formId \}/);
     assert.match(page, /const messageComposerFormId = `message-composer-\$\{convo\.id\}`/);
     assert.match(page, /<ActionForm id=\{messageComposerFormId\} action=\{sendMessage\}>/);
-    assert.match(page, /<MessageComposer successEventFormId=\{messageComposerFormId\}/);
+    assert.match(page, /<MessageComposer[\s\S]{0,180}successEventFormId=\{messageComposerFormId\}/);
     assert.match(page, /refreshEventFormId=\{messageComposerFormId\}/);
 
     assert.match(composer, /successEventFormId/);

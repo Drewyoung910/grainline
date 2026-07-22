@@ -465,6 +465,30 @@ Production migration rules:
   values are temporary and deployment-specific: remove/reset them immediately
   after the intended release. The guard also rejects later migrations, so it
   must be reviewed or retired before phase B or any subsequent migration.
+- The current post-Notification extension is
+  `SAVED_SEARCH_RLS_DEPLOY_PHASE=conversation-message-compatibility-reviewed`.
+  Despite the historical environment-variable name, this is a new exact
+  fail-closed phase, not reuse of SavedSearch authorization. It requires the
+  completed SavedSearch and Notification migration chain followed by exactly
+  `20260722184500_add_message_listing_context` and
+  `20260722190000_prepare_conversation_message_scale_indexes`, with migration
+  tree SHA-256
+  `6cf17cc62d54786c30fe9beb8c7166878c9fbf5c7159c00dd52657c9490fe45e`.
+  The first migration adds only nullable per-Message Listing context and its
+  `SET NULL` foreign key; the second adds compatible concurrent read indexes.
+  Neither migration enables Conversation/Message RLS or narrows grants. Apply
+  them before deploying application code that selects or writes the new
+  column. Any later migration fails this phase until separately reviewed and
+  fingerprinted.
+- After that compatibility pair is applied and before adding Message
+  participant/context invariant triggers, manually dispatch
+  `.github/workflows/conversation-message-legacy-inspection.yml` from the exact
+  clean main commit. Supply that same 40-character commit and type
+  `inspect-prelaunch-conversation-message-legacy-state`. The job is serialized
+  with production migrations, uses only the protected direct owner secret, and
+  writes mode-0600 aggregate evidence without ids, bodies, emails or
+  credentials. Do not treat a successful job with nonzero invalid-pair counts
+  as approval to continue; disposition those rows first.
 - If a migration adds RLS policies to a tracked public app table, the grant
   audit must show `ENABLE ROW LEVEL SECURITY` and the table's reviewed rollout
   phase must declare the exact `FORCE ROW LEVEL SECURITY` expectation. During

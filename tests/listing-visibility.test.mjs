@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { ListingStatus } from "@prisma/client";
 import { STRIPE_CONNECT_ACCOUNT_VERSION } from "../src/lib/stripeConnectV2State.ts";
@@ -32,6 +33,18 @@ function listing(overrides = {}) {
 }
 
 describe("listing visibility", () => {
+  it("does not let public-only metadata reject authorized private listing views", () => {
+    const page = readFileSync("src/app/listing/[id]/page.tsx", "utf8");
+    const metadataStart = page.indexOf("export async function generateMetadata");
+    const pageStart = page.indexOf("export default async function ListingPage");
+    const metadata = page.slice(metadataStart, pageStart);
+
+    assert.match(metadata, /if \(!isPublicListingDetail\(listing\)\) \{[\s\S]*Private listing — Grainline/);
+    assert.match(metadata, /robots: \{ index: false, follow: false \}/);
+    assert.doesNotMatch(metadata, /if \(!isPublicListingDetail\(listing\)\) \{\s*notFound\(\)/);
+    assert.match(page.slice(pageStart), /canViewListingDetail\(listing, \{/);
+  });
+
   it("composes public listing safety filters so callers cannot override them", () => {
     assert.deepEqual(publicListingWhere({ sellerId: "seller_1" }), {
       AND: [

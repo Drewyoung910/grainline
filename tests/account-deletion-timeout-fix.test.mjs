@@ -173,6 +173,19 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     assert.match(route, /status: HTTP_STATUS\.CONFLICT/);
   });
 
+  it("locks the deleting User before message redaction so sends cannot race the scan", () => {
+    const accountDeletion = source("src/lib/accountDeletion.ts");
+    const transactionStart = accountDeletion.indexOf("const result = await withDbUserContext");
+    const userLock = accountDeletion.indexOf('FROM "User" AS deletion_user', transactionStart);
+    const messageRedaction = accountDeletion.indexOf("await tx.message.updateMany", transactionStart);
+    const finalUserUpdate = accountDeletion.indexOf("await tx.user.update", transactionStart);
+
+    assert.ok(userLock > transactionStart, "deletion must lock the local User inside its DB transaction");
+    assert.match(accountDeletion.slice(userLock - 180, userLock + 220), /FOR UPDATE/);
+    assert.ok(userLock < messageRedaction, "the User lock must precede all message redaction scans");
+    assert.ok(userLock < finalUserUpdate, "the lifecycle lock must not be deferred to the final User update");
+  });
+
   it("keeps account deletion behind same-origin, fresh-session, and server confirmation checks", () => {
     const route = source("src/app/api/account/delete/route.ts");
     const button = source("src/components/AccountDeletionButton.tsx");

@@ -266,11 +266,7 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
   `;
 
   await sendCustomOrderReadyLink({
-    conversationId,
-    sellerUserId: me.id,
-    buyerUserId: reservedForUserId,
-    sellerName: seller.displayName,
-    listing: created,
+    listingId: created.id,
   });
 
   revalidatePath(`/messages/${conversationId}`);

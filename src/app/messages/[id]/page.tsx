@@ -4,7 +4,6 @@ import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
-import { markOwnerMessageNotificationsRead } from "@/lib/notificationOwnerAccess";
 import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
 import { sendNewMessageEmail } from "@/lib/email";
 import ActionForm, { SubmitButton } from "@/components/ActionForm";
@@ -32,13 +31,20 @@ import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { claimDirectUploadForUrl, DirectUploadClaimError } from "@/lib/directUploadLifecycle";
+import {
+  lockConversationContextListingForPair,
+  lockConversationParticipantPair,
+} from "@/lib/conversationStartAccess";
+import { canAttachConversationContextListing } from "@/lib/conversationStartState";
 
 export default async function ThreadPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ listing?: string }>;
 }) {
-  const { id } = await params;
+  const [{ id }, { listing: requestedListingParam }] = await Promise.all([params, searchParams]);
 
   const { userId } = await auth();
   if (!userId) redirect(`/sign-in?redirect_url=/messages/${id}`);
@@ -86,10 +92,36 @@ export default async function ThreadPage({
   const isParticipant = convo.userAId === me.id || convo.userBId === me.id;
   const isStaffReviewMode = canStaffReviewThread && !isParticipant;
 
-  // Auto-mark any unread NEW_MESSAGE notifications for this conversation as read
-  if (isParticipant) {
-    await markOwnerMessageNotificationsRead(me.id, id);
-  }
+  const requestedListingId = requestedListingParam?.trim();
+  const requestedListing = isParticipant && requestedListingId && requestedListingId.length <= 191
+    ? requestedListingId === convo.contextListing?.id
+      ? convo.contextListing
+      : await prisma.listing.findUnique({
+          where: { id: requestedListingId },
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            isPrivate: true,
+            reservedForUserId: true,
+            seller: {
+              select: {
+                chargesEnabled: true,
+                stripeAccountVersion: true,
+                vacationMode: true,
+                user: { select: { id: true, banned: true, deletedAt: true } },
+              },
+            },
+          },
+        })
+    : null;
+  const composerContextListing = requestedListing
+    && canAttachConversationContextListing(
+      requestedListing,
+      [convo.userAId, convo.userBId],
+    )
+    ? { id: requestedListing.id, title: requestedListing.title }
+    : null;
 
   const other = isParticipant ? (convo.userAId === me.id ? convo.userB : convo.userA) : null;
   const otherUnavailableReason = isParticipant ? messagingUnavailableReason(other) : null;
@@ -130,20 +162,23 @@ export default async function ThreadPage({
     ? publicSellerPath(otherSellerProfile.id, otherSellerProfile.displayName)
     : null;
 
-  const messages = (await prisma.message.findMany({
+  const messageRows = await prisma.message.findMany({
     where: { conversationId: convo.id },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    take: 200,
+    take: 201,
     select: {
       id: true,
       senderId: true,
       recipientId: true,
       body: true,
       kind: true,
+      contextListing: { select: { id: true, title: true } },
       createdAt: true,
       readAt: true,
     },
-  })).reverse();
+  });
+  const hasMoreMessagesBefore = messageRows.length > 200;
+  const messages = messageRows.slice(0, 200).reverse();
 
   // --- Server actions --------------------------------------------------------
   async function sendMessage(_prev: unknown, formData: FormData) {
@@ -162,6 +197,10 @@ export default async function ThreadPage({
     if (!rlOk) return { ok: false, error: "You're sending messages too quickly. Please wait a moment." };
 
     const body = truncateText(sanitizeText(String(formData.get("body") ?? "").trim()), 2000);
+    const submittedContextListingId = String(formData.get("contextListingId") ?? "").trim();
+    if (submittedContextListingId.length > 191) {
+      return { ok: false, error: "The listing context is invalid." };
+    }
     const atts = normalizeMessageAttachments(
       String(formData.get("attachments") ?? "[]"),
       (url) => isFirstPartyMediaUrlForUser(url, userId, ["messageAny"]),
@@ -231,11 +270,50 @@ export default async function ThreadPage({
 
     const hasMessageContent = atts.length > 0 || !!body;
 
-    const messageSentAt = new Date();
     let committedRecipientId = recipientId;
     let committedNotificationMessageId: string | null = null;
+    let committedMessageSentAt: Date | null = null;
     try {
       const txResult = await prisma.$transaction(async (tx) => {
+        const lockedPair = await lockConversationParticipantPair(tx, me.id, recipientId);
+        if (!lockedPair.ok) {
+          return {
+            ok: false as const,
+            error: lockedPair.error === "blocked" ? "blocked" : "Messaging is unavailable.",
+          };
+        }
+
+        let committedContextListingId: string | null = null;
+        if (submittedContextListingId) {
+          const lockedContextListing = await lockConversationContextListingForPair(
+            tx,
+            lockedPair,
+            submittedContextListingId,
+          );
+          if (!lockedContextListing) {
+            return {
+              ok: false as const,
+              error: "That listing is no longer available as message context.",
+            };
+          }
+          committedContextListingId = lockedContextListing.id;
+        }
+
+        // All sends touching a thread serialize here. Take listing locks first
+        // (when present), matching custom-order source paths, then lock the
+        // Conversation before deriving timestamps or inserting Message rows.
+        const lockedConversations = await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT conversation.id
+            FROM "Conversation" AS conversation
+           WHERE conversation.id = ${id}
+             AND conversation."userAId" = ${lockedPair.userAId}
+             AND conversation."userBId" = ${lockedPair.userBId}
+           FOR UPDATE
+        `;
+        if (lockedConversations.length !== 1) {
+          return { ok: false as const, error: "Messaging is unavailable." };
+        }
+
         const freshConversation = await tx.conversation.findFirst({
           where: { id, OR: [{ userAId: me.id }, { userBId: me.id }] },
           select: {
@@ -266,17 +344,15 @@ export default async function ThreadPage({
         if (freshUnavailableReason) {
           return { ok: false as const, error: freshUnavailableReason };
         }
+        if (
+          lockedPair.userAId !== freshConversation.userAId
+          || lockedPair.userBId !== freshConversation.userBId
+          || freshRecipientId !== recipientId
+        ) {
+          return { ok: false as const, error: "Messaging is unavailable." };
+        }
 
-        const freshBlockExists = await tx.block.findFirst({
-          where: {
-            OR: [
-              { blockerId: me.id, blockedId: freshRecipientId },
-              { blockerId: freshRecipientId, blockedId: me.id },
-            ],
-          },
-          select: { id: true },
-        });
-        if (freshBlockExists) return { ok: false as const, error: "blocked" };
+        const messageSentAt = new Date();
 
         let notificationMessageId: string | null = null;
 
@@ -295,7 +371,13 @@ export default async function ThreadPage({
             type: a.type,
           });
           const createdAttachment = await tx.message.create({
-            data: { conversationId: id, senderId: me.id, recipientId: freshRecipientId, body: payload },
+            data: {
+              conversationId: id,
+              senderId: me.id,
+              recipientId: freshRecipientId,
+              contextListingId: committedContextListingId,
+              body: payload,
+            },
             select: { id: true },
           });
           notificationMessageId = createdAttachment.id;
@@ -311,7 +393,13 @@ export default async function ThreadPage({
         // 2) text message if present
         if (body) {
           const createdText = await tx.message.create({
-            data: { conversationId: id, senderId: me.id, recipientId: freshRecipientId, body },
+            data: {
+              conversationId: id,
+              senderId: me.id,
+              recipientId: freshRecipientId,
+              contextListingId: committedContextListingId,
+              body,
+            },
             select: { id: true },
           });
           notificationMessageId = createdText.id;
@@ -339,11 +427,13 @@ export default async function ThreadPage({
           ok: true as const,
           recipientId: freshRecipientId,
           notificationMessageId,
+          messageSentAt,
         };
-      });
+      }, { isolationLevel: "ReadCommitted" });
       if (!txResult.ok) return { ok: false, error: txResult.error };
       committedRecipientId = txResult.recipientId;
       committedNotificationMessageId = txResult.notificationMessageId;
+      committedMessageSentAt = txResult.messageSentAt;
     } catch (error) {
       if (error instanceof DirectUploadClaimError) {
         return { ok: false, error: error.message };
@@ -352,7 +442,7 @@ export default async function ThreadPage({
     }
 
     // Notify recipient
-    if (hasMessageContent && committedNotificationMessageId) {
+    if (hasMessageContent && committedNotificationMessageId && committedMessageSentAt) {
       await createNotification({
         userId: committedRecipientId,
         type: "NEW_MESSAGE",
@@ -373,13 +463,13 @@ export default async function ThreadPage({
           select: { email: true, name: true },
         });
         if (recipientUser?.email) {
-          const emailWindowStart = new Date(messageSentAt.getTime() - 5 * 60 * 1000);
+          const emailWindowStart = new Date(committedMessageSentAt.getTime() - 5 * 60 * 1000);
           const emailClaim = await prisma.conversation.updateMany({
             where: {
               id,
               OR: [{ lastMessageEmailSentAt: null }, { lastMessageEmailSentAt: { lt: emailWindowStart } }],
             },
-            data: { lastMessageEmailSentAt: messageSentAt },
+            data: { lastMessageEmailSentAt: committedMessageSentAt },
           });
           if (emailClaim.count === 1) {
             await sendNewMessageEmail({
@@ -413,6 +503,9 @@ export default async function ThreadPage({
     });
     if (!me) redirect(`/sign-in?redirect_url=/messages/${id}`);
     if (me.banned || me.deletedAt) return { ok: false };
+    const { conversationStateRatelimit, safeRateLimit } = await import("@/lib/ratelimit");
+    const { success } = await safeRateLimit(conversationStateRatelimit, me.id);
+    if (!success) return { ok: false };
 
     const c = await prisma.conversation.findFirst({
       where: { id, OR: [{ userAId: me.id }, { userBId: me.id }] },
@@ -441,6 +534,9 @@ export default async function ThreadPage({
     });
     if (!me) redirect(`/sign-in?redirect_url=/messages/${id}`);
     if (me.banned || me.deletedAt) return { ok: false };
+    const { conversationStateRatelimit, safeRateLimit } = await import("@/lib/ratelimit");
+    const { success } = await safeRateLimit(conversationStateRatelimit, me.id);
+    if (!success) return { ok: false };
 
     const c = await prisma.conversation.findFirst({
       where: { id, OR: [{ userAId: me.id }, { userBId: me.id }] },
@@ -639,6 +735,7 @@ export default async function ThreadPage({
             convoId={convo.id}
             meId={me.id}
             initial={messages}
+            initialHasMoreBefore={hasMoreMessagesBefore}
             otherUser={{ imageUrl: other?.imageUrl, avatarImageUrl: otherSellerProfile?.avatarImageUrl, name: other?.name }}
             refreshEventFormId={messageComposerFormId}
             liveUpdates={!isStaffReviewMode}
@@ -649,7 +746,11 @@ export default async function ThreadPage({
         {/* Sticky composer at the bottom edge — rounded top on desktop only */}
         {isParticipant && !otherUnavailableReason ? (
           <ActionForm id={messageComposerFormId} action={sendMessage}>
-            <MessageComposer successEventFormId={messageComposerFormId} />
+            <MessageComposer
+              successEventFormId={messageComposerFormId}
+              contextListing={composerContextListing}
+              clearContextHref={`/messages/${convo.id}`}
+            />
           </ActionForm>
         ) : null}
       </div>

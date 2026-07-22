@@ -76,8 +76,8 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(plan, /fixed-column insert primitive ungranted to runtime/);
     assert.match(strategy, /Bucket A is complete in production/);
     assert.match(strategy, /Runtime database credential separation is also complete/);
-    assert.match(strategy, /closes the prerequisite for isolated\s+Notification implementation/);
-    assert.match(strategy, /does not authorize a Notification merge,\s+production apply\/deployment/);
+    assert.match(strategy, /prerequisite subsequently enabled the\s+separately proven Notification rollout, which is now complete through FORCE/);
+    assert.match(strategy, /does not authorize bundling later sensitive tables or putting an owner\s+credential back into an application environment/);
     assert.doesNotMatch(strategy, /before beginning\s+Notification\/Bucket B/);
     assert.match(strategy, /seventeen owner-backed functions/);
     assert.match(strategy, /runtime-ungranted fixed-column core/);
@@ -194,8 +194,8 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(follow, /sourceType: NOTIFICATION_SOURCE_TYPES\.FOLLOW,\s*sourceId: sellerProfile\.id/);
     assert.match(review, /sourceType: NOTIFICATION_SOURCE_TYPES\.REVIEW,\s*sourceId: created\.id/);
     assert.match(messagePage, /sourceType: NOTIFICATION_SOURCE_TYPES\.MESSAGE,\s*sourceId: committedNotificationMessageId/);
-    assert.match(customOrderRequest, /sourceType: NOTIFICATION_SOURCE_TYPES\.MESSAGE,\s*sourceId: requestMessage\.id/);
-    assert.match(customOrderReady, /sourceType: NOTIFICATION_SOURCE_TYPES\.MESSAGE,\s*sourceId: notificationMessageId/);
+    assert.match(customOrderRequest, /sourceType: NOTIFICATION_SOURCE_TYPES\.MESSAGE,\s*sourceId: requestMessage\.messageId/);
+    assert.match(customOrderReady, /sourceType: NOTIFICATION_SOURCE_TYPES\.MESSAGE,\s*sourceId: messageId/);
     assert.match(caseOpen, /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE,\s*sourceId: newCase\.id/);
     assert.equal((caseMessages.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.CASE_MESSAGE/g) ?? []).length, 3);
     assert.match(caseMarkResolved, /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE_RESOLUTION_MARK,\s*sourceId: authoritySourceId/);
@@ -205,7 +205,7 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.equal((caseAutoClose.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.CASE_SYSTEM_ACTION/g) ?? []).length, 6);
     assert.equal((caseAutoClose.match(/const auditLogId = await logSystemActionOrThrow/g) ?? []).length, 3);
     assert.equal((caseAutoClose.match(/return auditLogId/g) ?? []).length, 3);
-    assert.match(commissionInterest, /sourceType: NOTIFICATION_SOURCE_TYPES\.COMMISSION_INTEREST,\s*sourceId: finalCommissionInterestId/);
+    assert.match(commissionInterest, /sourceType: NOTIFICATION_SOURCE_TYPES\.COMMISSION_INTEREST,\s*sourceId: result\.commissionInterestId/);
     assert.match(commissionStatus, /sourceType: NOTIFICATION_SOURCE_TYPES\.COMMISSION_REQUEST,\s*sourceId: id/);
     assert.equal((commissionExpire.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.COMMISSION_REQUEST/g) ?? []).length, 2);
     assert.match(stripeWebhook, /sourceType: NOTIFICATION_SOURCE_TYPES\.CHECKOUT_LOW_STOCK,\s*sourceId: sourceItem\.orderItemId/);

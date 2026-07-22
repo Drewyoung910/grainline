@@ -257,6 +257,18 @@ describe("request origin guard", () => {
       "prisma.conversation.findFirst",
       "prisma.message.updateMany",
     ]);
+    assertGuardBefore("src/app/api/messages/custom-order-request/route.ts", [
+      "await auth()",
+      "safeRateLimit(",
+      "readBoundedJson(req",
+      "createCustomOrderRequestMessage({",
+    ]);
+    assertGuardBefore("src/app/api/commission/[id]/interest/route.ts", [
+      "await params",
+      "await auth()",
+      "safeRateLimit(",
+      "createCommissionInterestMessage({",
+    ]);
     assertGuardBefore("src/app/api/reviews/[id]/vote/route.ts", [
       "await ctx.params",
       "await auth()",
