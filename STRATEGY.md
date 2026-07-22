@@ -153,12 +153,12 @@ function owner/mode/search path/overload shape, PUBLIC revokes, and runtime
 execute split. Do not stage an activation migration until these checks pass on
 the final disposable PostgreSQL migration. Keep three evidence layers distinct:
 the AST gate covers all 54 application emission paths; disposable PostgreSQL
-run `29890596734` at exact source
-`d1467b2477e9a11802e12244464f444bc27ef39a` executes all ten granted creation
-families plus the dedicated back-in-stock claim with valid creation, stable
-replay, and forged-recipient or mismatched-evidence rejection; and the remaining
-private-core review must execute all 26 source-validation branches and their
-meaningful action variants. The accepted run also proves post-draft role
+run `29892353264` at exact source
+`32d18261c0d5e6e818103bd0ba97648f36798861` executes all 26 family-dispatched
+private-core source-validation branches plus the dedicated back-in-stock claim
+with valid creation, stable replay, and forged-recipient or mismatched-evidence
+rejection; and the remaining private-core review must execute each meaningful
+action variant within those source types. The accepted run also proves post-draft role
 provisioning reconvergence and the catalog proof on fresh PostgreSQL 16. The
 generic grant audit's
 Notification migration-inventory branch remains unexercised until the final SQL
@@ -166,12 +166,12 @@ is staged as a real disposable migration; do not count the draft run as that
 later migration proof.
 
 Extra-high review does not yet accept the shared create function as final. The
-54/54 callsite result and ten-family live result validate the architecture and
-the granted boundary, but they do not dynamically execute every conditional
-source branch inside the private core. The latest isolated PostgreSQL proof is
-green and also passes catalog/grant, direct-denial, recipient context reset,
-service replay, the one-shot stock claim, and both two-session block-race
-checks. This narrows the remaining work; it does
+54/54 callsite result and 26-source live result validate the architecture, the
+granted boundary, and every top-level private-core source branch, but they do
+not dynamically execute every meaningful action variant within those branches.
+The latest isolated PostgreSQL proof is green and also passes catalog/grant,
+direct-denial, recipient context reset, service replay, the one-shot stock
+claim, and both two-session block-race checks. This narrows the remaining work; it does
 not by itself select the recipient architecture, replace provider/performance
 proof, prove the production authentication path, authorize merge, or activate
 any persistent database. The later 2026-07-22 provider result above selects the

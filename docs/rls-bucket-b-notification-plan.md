@@ -439,18 +439,19 @@ direct Prisma Notification owner reads or updates outside the RPC helper:
   inspection and an atomic activation-transaction purge. The purge must not run
   if real users begin relying on notifications; that change requires a backfill.
 - Creation authority and owner-derived payload callsite coverage are 54/54.
-  PostgreSQL 16 run `29890596734` at exact source
-  `d1467b2477e9a11802e12244464f444bc27ef39a` passed disposable-database
+  PostgreSQL 16 run `29892353264` at exact source
+  `32d18261c0d5e6e818103bd0ba97648f36798861` passed disposable-database
   parse/apply, catalog/grant, own/foreign/direct-denial, every granted creation
   family, stable replay, the one-shot back-in-stock claim, and both two-session
   block-race checks. Each of the ten family fixtures rejects a forged recipient;
   mismatched restock evidence neither creates nor consumes. Provider behavior,
   pre-activation review, and direct authenticated runtime-credential proof
   remain separate gates. Direct or generic runtime creation remains
-  unacceptable. The proof still executes only one representative source branch
-  per granted family. Before calling the service-authority layer activation-ready,
-  execute all 26 private-core source-validation branches and their meaningful
-  action variants with valid and negative relationship evidence.
+  unacceptable. The proof now executes all 26 family-dispatched private-core
+  source-validation branches with valid and forged-recipient evidence, plus the
+  dedicated back-in-stock claim. Before calling the service-authority layer
+  activation-ready, execute the meaningful action variants within those source
+  types with valid and negative relationship evidence.
 - Role provisioning and the generic grant audit now preserve Notification's
   asymmetric table/column grants, initial `NO FORCE` phase, exact policies, and
   25-function ACL/mode split. The final migration must still pass those checks
@@ -486,19 +487,26 @@ before the catalog proof. The proof script refuses non-loopback hosts and any
 database name other than `grainline_ci`. It changes neither production nor
 persistent staging.
 
-Latest accepted run `29890596734` (job `88830103706`) completed at
-`2026-07-22T04:16:35Z` against exact source
-`d1467b2477e9a11802e12244464f444bc27ef39a`. It passed current migrations,
+Latest accepted run `29892353264` (job `88835135659`) completed at
+`2026-07-22T04:56:36Z` against exact source
+`32d18261c0d5e6e818103bd0ba97648f36798861`. It passed current migrations,
 baseline provisioning/audit, all three draft applications, post-draft
 Notification-aware provisioning convergence, and 19 catalog/isolation/service/
 race checks. Those checks include valid creation, stable replay, and
-forged-recipient rejection for all ten granted creation families plus the
-dedicated back-in-stock claim's mismatched-evidence, derived-identity, and
-one-shot-consumption behavior. This proves the provisioning branch and the
-granted family boundary on fresh PostgreSQL 16; it still does not exercise every
-private-core source branch or the generic grant audit's migration-derived
-Notification expectations because the SQL remains in draft files outside
-`prisma/migrations`.
+forged-recipient rejection for all ten granted creation families and all 26
+family-dispatched private-core source types, plus the dedicated back-in-stock
+claim's mismatched-evidence, derived-identity, and one-shot-consumption behavior.
+This proves the provisioning branch, granted family boundary, and every
+top-level source branch on fresh PostgreSQL 16; it still does not exercise every
+meaningful action variant within those source types or the generic grant audit's
+migration-derived Notification expectations because the SQL remains in draft
+files outside `prisma/migrations`.
+
+Accepted run `29890596734` (job `88830103706`) completed at
+`2026-07-22T04:16:35Z` against exact source
+`d1467b2477e9a11802e12244464f444bc27ef39a`. It first proved every granted
+creation-family wrapper, post-draft grant convergence, and the expanded
+forged-recipient boundary before the per-source execution matrix was added.
 
 Accepted run `29883083596` (job `88807905625`) completed at
 `2026-07-22T01:27:06.486Z` against exact source
