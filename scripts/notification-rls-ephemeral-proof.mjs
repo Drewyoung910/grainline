@@ -19,6 +19,9 @@ const fixture = Object.freeze({
   orderId: "notification-proof-order",
   orderItemId: "notification-proof-order-item",
   caseId: "notification-proof-case",
+  caseMessageId: "notification-proof-case-message",
+  caseResolutionAuditId: "notification-proof-case-resolution-audit",
+  caseSystemAuditId: "notification-proof-case-system-audit",
   commissionRequestId: "notification-proof-commission-request",
   commissionInterestId: "notification-proof-commission-interest",
   commissionClosedRequestId: "notification-proof-commission-closed-request",
@@ -33,10 +36,26 @@ const fixture = Object.freeze({
   customListingId: "notification-proof-custom-listing",
   customLinkMessageId: "notification-proof-custom-link-message",
   manualLowStockAuditId: "notification-proof-manual-low-stock-audit",
+  checkoutReservationId: "notification-proof-checkout-reservation",
   makerVerificationId: "notification-proof-maker-verification",
   guildAdminAuditId: "notification-proof-guild-admin-audit",
+  guildSystemUserId: "notification-proof-guild-system-user",
+  guildSystemProfileId: "notification-proof-guild-system-profile",
+  guildSystemVerificationId: "notification-proof-guild-system-verification",
+  guildSystemAuditId: "notification-proof-guild-system-audit",
   listingReportId: "notification-proof-listing-report",
+  listingReviewAuditId: "notification-proof-listing-review-audit",
   accountWarningAuditId: "notification-proof-account-warning-audit",
+  bannedSellerUserId: "notification-proof-banned-seller-user",
+  bannedSellerProfileId: "notification-proof-banned-seller-profile",
+  bannedListingId: "notification-proof-banned-listing",
+  bannedOrderId: "notification-proof-banned-order",
+  bannedOrderItemId: "notification-proof-banned-order-item",
+  banAuditId: "notification-proof-ban-audit",
+  orderCheckoutAuditId: "notification-proof-order-checkout-audit",
+  orderFulfillmentAuditId: "notification-proof-order-fulfillment-audit",
+  orderPaymentEventId: "notification-proof-order-payment-event",
+  orderDisputeAuditId: "notification-proof-order-dispute-audit",
   payoutEventId: "notification-proof-payout-event",
   stockNotificationId: "notification-proof-stock-notification",
   restockAuditId: "notification-proof-restock-audit",
@@ -126,10 +145,13 @@ async function cleanFixtures(owner) {
     fixture.actorUserId,
     fixture.foreignUserId,
     fixture.staffUserId,
+    fixture.guildSystemUserId,
+    fixture.bannedSellerUserId,
   ];
   await owner.query('DELETE FROM public."Block" WHERE "blockerId" = ANY($1::text[]) OR "blockedId" = ANY($1::text[])', [userIds]);
   await owner.query('DELETE FROM public."Notification" WHERE "userId" = ANY($1::text[]) OR "relatedUserId" = ANY($1::text[])', [userIds]);
   await owner.query('DELETE FROM public."StockNotification" WHERE id = $1', [fixture.stockNotificationId]);
+  await owner.query('DELETE FROM public."CheckoutStockReservation" WHERE id = $1', [fixture.checkoutReservationId]);
   await owner.query('DELETE FROM public."UserReport" WHERE id = $1', [fixture.listingReportId]);
   await owner.query('DELETE FROM public."Review" WHERE id = $1', [fixture.reviewId]);
   await owner.query(
@@ -146,16 +168,31 @@ async function cleanFixtures(owner) {
   await owner.query('DELETE FROM public."AdminAuditLog" WHERE id = ANY($1::text[])', [[
     fixture.guildAdminAuditId,
     fixture.accountWarningAuditId,
+    fixture.caseResolutionAuditId,
+    fixture.listingReviewAuditId,
+    fixture.banAuditId,
   ]]);
-  await owner.query('DELETE FROM public."MakerVerification" WHERE id = $1', [fixture.makerVerificationId]);
+  await owner.query('DELETE FROM public."MakerVerification" WHERE id = ANY($1::text[])', [[
+    fixture.makerVerificationId,
+    fixture.guildSystemVerificationId,
+  ]]);
   await owner.query('DELETE FROM public."SellerPayoutEvent" WHERE id = $1', [fixture.payoutEventId]);
   await owner.query('DELETE FROM public."SystemAuditLog" WHERE id = ANY($1::text[])', [[
     fixture.manualLowStockAuditId,
     fixture.restockAuditId,
+    fixture.caseSystemAuditId,
+    fixture.guildSystemAuditId,
+    fixture.orderCheckoutAuditId,
+    fixture.orderFulfillmentAuditId,
+    fixture.orderDisputeAuditId,
   ]]);
+  await owner.query('DELETE FROM public."CaseMessage" WHERE id = $1', [fixture.caseMessageId]);
   await owner.query('DELETE FROM public."Case" WHERE id = $1', [fixture.caseId]);
+  await owner.query('DELETE FROM public."OrderPaymentEvent" WHERE id = $1', [fixture.orderPaymentEventId]);
   await owner.query('DELETE FROM public."OrderItem" WHERE id = $1', [fixture.orderItemId]);
   await owner.query('DELETE FROM public."Order" WHERE id = $1', [fixture.orderId]);
+  await owner.query('DELETE FROM public."OrderItem" WHERE id = $1', [fixture.bannedOrderItemId]);
+  await owner.query('DELETE FROM public."Order" WHERE id = $1', [fixture.bannedOrderId]);
   await owner.query('DELETE FROM public."CommissionInterest" WHERE id = ANY($1::text[])', [[
     fixture.commissionInterestId,
     fixture.commissionClosedInterestId,
@@ -172,8 +209,13 @@ async function cleanFixtures(owner) {
   await owner.query('DELETE FROM public."Listing" WHERE id = $1', [fixture.customListingId]);
   await owner.query('DELETE FROM public."Conversation" WHERE id = $1', [fixture.conversationId]);
   await owner.query('DELETE FROM public."Follow" WHERE id = $1', [fixture.followId]);
+  await owner.query('DELETE FROM public."Listing" WHERE id = $1', [fixture.bannedListingId]);
   await owner.query('DELETE FROM public."Listing" WHERE id = $1', [fixture.listingId]);
-  await owner.query('DELETE FROM public."SellerProfile" WHERE id = $1', [fixture.sellerProfileId]);
+  await owner.query('DELETE FROM public."SellerProfile" WHERE id = ANY($1::text[])', [[
+    fixture.sellerProfileId,
+    fixture.guildSystemProfileId,
+    fixture.bannedSellerProfileId,
+  ]]);
   await owner.query('DELETE FROM public."User" WHERE id = ANY($1::text[])', [userIds]);
 }
 
@@ -185,10 +227,26 @@ async function seedFixtures(owner) {
        ($1, 'clerk_notification_proof_seller', 'notification-proof-seller@example.invalid', 'Proof Seller', pg_catalog.clock_timestamp()),
        ($2, 'clerk_notification_proof_actor', 'notification-proof-actor@example.invalid', 'Proof Actor', pg_catalog.clock_timestamp()),
        ($3, 'clerk_notification_proof_foreign', 'notification-proof-foreign@example.invalid', 'Proof Foreign', pg_catalog.clock_timestamp()),
-       ($4, 'clerk_notification_proof_staff', 'notification-proof-staff@example.invalid', 'Proof Staff', pg_catalog.clock_timestamp())`,
-    [fixture.sellerUserId, fixture.actorUserId, fixture.foreignUserId, fixture.staffUserId],
+       ($4, 'clerk_notification_proof_staff', 'notification-proof-staff@example.invalid', 'Proof Staff', pg_catalog.clock_timestamp()),
+       ($5, 'clerk_notification_proof_guild_system', 'notification-proof-guild-system@example.invalid', 'Proof Guild System', pg_catalog.clock_timestamp()),
+       ($6, 'clerk_notification_proof_banned_seller', 'notification-proof-banned-seller@example.invalid', 'Proof Banned Seller', pg_catalog.clock_timestamp())`,
+    [
+      fixture.sellerUserId,
+      fixture.actorUserId,
+      fixture.foreignUserId,
+      fixture.staffUserId,
+      fixture.guildSystemUserId,
+      fixture.bannedSellerUserId,
+    ],
   );
   await owner.query('UPDATE public."User" SET role = \'ADMIN\' WHERE id = $1', [fixture.staffUserId]);
+  await owner.query(
+    `UPDATE public."User"
+        SET banned = true, "bannedAt" = pg_catalog.clock_timestamp(),
+            "banReason" = 'Notification proof ban', "bannedBy" = $2
+      WHERE id = $1`,
+    [fixture.bannedSellerUserId, fixture.staffUserId],
+  );
   await owner.query(
     `INSERT INTO public."SellerProfile" (
        id, "userId", "displayName", "displayNameNormalized", "chargesEnabled",
@@ -200,6 +258,22 @@ async function seedFixtures(owner) {
     [fixture.sellerProfileId, fixture.sellerUserId],
   );
   await owner.query(
+    `INSERT INTO public."SellerProfile" (
+       id, "userId", "displayName", "displayNameNormalized", "guildLevel",
+       "consecutiveMetricFailures", "metricWarningSentAt", "updatedAt"
+     ) VALUES (
+       $1, $2, 'Proof Guild Master', 'proof guild master', 'GUILD_MASTER',
+       1, pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp()
+     )`,
+    [fixture.guildSystemProfileId, fixture.guildSystemUserId],
+  );
+  await owner.query(
+    `INSERT INTO public."SellerProfile" (
+       id, "userId", "displayName", "displayNameNormalized", "updatedAt"
+     ) VALUES ($1, $2, 'Proof Banned Seller', 'proof banned seller', pg_catalog.clock_timestamp())`,
+    [fixture.bannedSellerProfileId, fixture.bannedSellerUserId],
+  );
+  await owner.query(
     `INSERT INTO public."Listing" (
        id, "sellerId", title, description, "priceCents", status,
        "listingType", "stockQuantity", "updatedAt"
@@ -208,6 +282,15 @@ async function seedFixtures(owner) {
        'ACTIVE', 'IN_STOCK', 2, pg_catalog.clock_timestamp()
      )`,
     [fixture.listingId, fixture.sellerProfileId],
+  );
+  await owner.query(
+    `INSERT INTO public."Listing" (
+       id, "sellerId", title, description, "priceCents", status, "updatedAt"
+     ) VALUES (
+       $1, $2, 'Proof Banned Listing', 'Notification proof banned listing',
+       5000, 'ACTIVE', pg_catalog.clock_timestamp()
+     )`,
+    [fixture.bannedListingId, fixture.bannedSellerProfileId],
   );
   await owner.query(
     `INSERT INTO public."Follow" (id, "followerId", "sellerProfileId") VALUES ($1, $2, $3)`,
@@ -317,6 +400,36 @@ async function seedFixtures(owner) {
     [fixture.orderItemId, fixture.orderId, fixture.listingId],
   );
   await owner.query(
+    `INSERT INTO public."CheckoutStockReservation" (
+       id, "checkoutLockKey", "payloadHash", "buyerId", "sellerId",
+       "stripeSessionId", status, "reservedItems", "expiresAt", "updatedAt"
+     ) VALUES (
+       $1, 'notification-proof-checkout-lock',
+       'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+       $2, $3, 'cs_notification_proof', 'COMPLETED',
+       pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('listingId', $4::text)),
+       pg_catalog.clock_timestamp() + interval '1 hour', pg_catalog.clock_timestamp()
+     )`,
+    [
+      fixture.checkoutReservationId,
+      fixture.actorUserId,
+      fixture.sellerUserId,
+      fixture.listingId,
+    ],
+  );
+  await owner.query(
+    `INSERT INTO public."Order" (
+       id, "buyerId", "paidAt", "stripeSessionId", "reviewNeeded"
+     ) VALUES ($1, $2, pg_catalog.clock_timestamp(), 'cs_notification_proof_banned', true)`,
+    [fixture.bannedOrderId, fixture.actorUserId],
+  );
+  await owner.query(
+    `INSERT INTO public."OrderItem" (
+       id, "orderId", "listingId", quantity, "priceCents"
+     ) VALUES ($1, $2, $3, 1, 5000)`,
+    [fixture.bannedOrderItemId, fixture.bannedOrderId, fixture.bannedListingId],
+  );
+  await owner.query(
     `INSERT INTO public."Case" (
        id, "orderId", "buyerId", "sellerId", reason, description, "sellerRespondBy", "updatedAt"
      ) VALUES (
@@ -324,6 +437,71 @@ async function seedFixtures(owner) {
        pg_catalog.clock_timestamp() + interval '2 days', pg_catalog.clock_timestamp()
      )`,
     [fixture.caseId, fixture.orderId, fixture.actorUserId, fixture.sellerUserId],
+  );
+  await owner.query(
+    `INSERT INTO public."CaseMessage" (id, "caseId", "authorId", body)
+     VALUES ($1, $2, $3, 'Proof buyer case message')`,
+    [fixture.caseMessageId, fixture.caseId, fixture.actorUserId],
+  );
+  await owner.query(
+    `INSERT INTO public."AdminAuditLog" (
+       id, "adminId", action, "targetType", "targetId", metadata
+     ) VALUES (
+       $1, $2, 'MARK_CASE_RESOLVED', 'CASE', $3,
+       pg_catalog.jsonb_build_object(
+         'actorKind', 'user',
+         'orderId', $4::text,
+         'status', 'PENDING_CLOSE'
+       )
+     )`,
+    [fixture.caseResolutionAuditId, fixture.actorUserId, fixture.caseId, fixture.orderId],
+  );
+  await owner.query(
+    `INSERT INTO public."SystemAuditLog" (
+       id, "actorType", "actorId", action, "targetType", "targetId", metadata
+     ) VALUES (
+       $1, 'cron', 'case-auto-close', 'AUTO_ESCALATE_CASE', 'CASE', $2,
+       pg_catalog.jsonb_build_object(
+         'orderId', $3::text,
+         'previousStatus', 'OPEN',
+         'newStatus', 'UNDER_REVIEW'
+       )
+     )`,
+    [fixture.caseSystemAuditId, fixture.caseId, fixture.orderId],
+  );
+  await owner.query(
+    `INSERT INTO public."SystemAuditLog" (
+       id, "actorType", "actorId", action, "targetType", "targetId", metadata
+     ) VALUES
+       ($1, 'webhook', 'evt_notification_proof_checkout',
+        'STRIPE_CHECKOUT_ORDER_CREATED', 'ORDER', $4,
+        pg_catalog.jsonb_build_object('stripeSessionId', 'cs_notification_proof')),
+       ($2, 'user', $5, 'ORDER_FULFILLMENT_TRANSITION', 'ORDER', $4,
+        pg_catalog.jsonb_build_object(
+          'action', 'shipped',
+          'newStatus', 'SHIPPED',
+          'trackingCarrier', 'Proof Carrier'
+        )),
+       ($3, 'webhook', 'evt_notification_proof_dispute',
+        'STRIPE_DISPUTE_RECORDED', 'ORDER', $4,
+        pg_catalog.jsonb_build_object('disputeSideEffectsApplied', true))`,
+    [
+      fixture.orderCheckoutAuditId,
+      fixture.orderFulfillmentAuditId,
+      fixture.orderDisputeAuditId,
+      fixture.orderId,
+      fixture.sellerUserId,
+    ],
+  );
+  await owner.query(
+    `INSERT INTO public."OrderPaymentEvent" (
+       id, "orderId", "stripeEventId", "eventType", metadata, "updatedAt"
+     ) VALUES (
+       $1, $2, 'evt_notification_proof_dispute', 'DISPUTE',
+       pg_catalog.jsonb_build_object('stripeEventType', 'charge.dispute.created'),
+       pg_catalog.clock_timestamp()
+     )`,
+    [fixture.orderPaymentEventId, fixture.orderId],
   );
   await owner.query(
     `INSERT INTO public."CommissionRequest" (
@@ -387,6 +565,15 @@ async function seedFixtures(owner) {
     [fixture.makerVerificationId, fixture.sellerProfileId, fixture.staffUserId],
   );
   await owner.query(
+    `INSERT INTO public."MakerVerification" (
+       id, "sellerProfileId", "craftDescription", "yearsExperience", status, "updatedAt"
+     ) VALUES (
+       $1, $2, 'Proof Guild Master craft', 15, 'GUILD_MASTER_APPROVED',
+       pg_catalog.clock_timestamp()
+     )`,
+    [fixture.guildSystemVerificationId, fixture.guildSystemProfileId],
+  );
+  await owner.query(
     `INSERT INTO public."AdminAuditLog" (
        id, "adminId", action, "targetType", "targetId", reason, metadata
      ) VALUES
@@ -400,6 +587,48 @@ async function seedFixtures(owner) {
       fixture.sellerProfileId,
       fixture.actorUserId,
     ],
+  );
+  await owner.query(
+    `INSERT INTO public."AdminAuditLog" (
+       id, "adminId", action, "targetType", "targetId", reason, metadata
+     ) VALUES
+       ($1, $3, 'APPROVE_LISTING', 'LISTING', $4, NULL,
+        pg_catalog.jsonb_build_object('finalStatus', 'ACTIVE')),
+       ($2, $3, 'BAN_USER', 'USER', $5, 'Notification proof ban',
+        pg_catalog.jsonb_build_object(
+          'flaggedOpenOrders',
+          pg_catalog.jsonb_build_array(
+            pg_catalog.jsonb_build_object('id', $6::text, 'buyerId', $7::text)
+          )
+        ))`,
+    [
+      fixture.listingReviewAuditId,
+      fixture.banAuditId,
+      fixture.staffUserId,
+      fixture.listingId,
+      fixture.bannedSellerUserId,
+      fixture.bannedOrderId,
+      fixture.actorUserId,
+    ],
+  );
+  await owner.query(
+    `UPDATE public."Listing"
+        SET "reviewedByAdmin" = true, "reviewedAt" = pg_catalog.clock_timestamp()
+      WHERE id = $1`,
+    [fixture.listingId],
+  );
+  await owner.query(
+    `INSERT INTO public."SystemAuditLog" (
+       id, "actorType", "actorId", action, "targetType", "targetId", metadata
+     ) VALUES (
+       $1, 'cron', 'guild-metrics', 'WARN_GUILD_MASTER_METRICS',
+       'SELLER_PROFILE', $2,
+       pg_catalog.jsonb_build_object(
+         'jobName', 'guild-metrics',
+         'sellerUserId', $3::text
+       )
+     )`,
+    [fixture.guildSystemAuditId, fixture.guildSystemProfileId, fixture.guildSystemUserId],
   );
   await owner.query(
     `INSERT INTO public."UserReport" (
@@ -795,6 +1024,36 @@ const creationFamilyCases = Object.freeze([
     expectedLink: `/dashboard/sales/${fixture.orderId}`,
   },
   {
+    label: "case_message",
+    functionName: "grainline_notification_create_case_event",
+    userId: fixture.sellerUserId,
+    type: "CASE_MESSAGE",
+    sourceType: "case_message",
+    sourceId: fixture.caseMessageId,
+    relatedUserId: fixture.actorUserId,
+    expectedLink: `/dashboard/sales/${fixture.orderId}`,
+  },
+  {
+    label: "case_resolution_mark",
+    functionName: "grainline_notification_create_case_event",
+    userId: fixture.sellerUserId,
+    type: "CASE_MESSAGE",
+    sourceType: "case_resolution_mark",
+    sourceId: fixture.caseResolutionAuditId,
+    relatedUserId: fixture.actorUserId,
+    expectedLink: `/dashboard/sales/${fixture.orderId}`,
+  },
+  {
+    label: "case_system_action",
+    functionName: "grainline_notification_create_case_event",
+    userId: fixture.actorUserId,
+    type: "CASE_MESSAGE",
+    sourceType: "case_system_action",
+    sourceId: fixture.caseSystemAuditId,
+    relatedUserId: null,
+    expectedLink: `/dashboard/orders/${fixture.orderId}`,
+  },
+  {
     label: "commission",
     functionName: "grainline_notification_create_commission_event",
     userId: fixture.actorUserId,
@@ -825,6 +1084,16 @@ const creationFamilyCases = Object.freeze([
     expectedLink: `/dashboard/listings/${fixture.listingId}/edit`,
   },
   {
+    label: "checkout_low_stock",
+    functionName: "grainline_notification_create_inventory_event",
+    userId: fixture.sellerUserId,
+    type: "LOW_STOCK",
+    sourceType: "checkout_low_stock",
+    sourceId: fixture.orderItemId,
+    relatedUserId: null,
+    expectedLink: "/dashboard/inventory",
+  },
+  {
     label: "verification",
     functionName: "grainline_notification_create_verification_event",
     userId: fixture.sellerUserId,
@@ -833,6 +1102,26 @@ const creationFamilyCases = Object.freeze([
     sourceId: fixture.guildAdminAuditId,
     relatedUserId: null,
     expectedLink: `/seller/${fixture.sellerProfileId}`,
+  },
+  {
+    label: "guild_system_action",
+    functionName: "grainline_notification_create_verification_event",
+    userId: fixture.guildSystemUserId,
+    type: "VERIFICATION_REJECTED",
+    sourceType: "guild_system_action",
+    sourceId: fixture.guildSystemAuditId,
+    relatedUserId: null,
+    expectedLink: "/dashboard/verification",
+  },
+  {
+    label: "listing_admin_review",
+    functionName: "grainline_notification_create_moderation_event",
+    userId: fixture.sellerUserId,
+    type: "LISTING_APPROVED",
+    sourceType: "listing_admin_review",
+    sourceId: fixture.listingReviewAuditId,
+    relatedUserId: null,
+    expectedLink: `/listing/${fixture.listingId}`,
   },
   {
     label: "moderation",
@@ -855,6 +1144,16 @@ const creationFamilyCases = Object.freeze([
     expectedLink: "/account",
   },
   {
+    label: "banned_seller_order",
+    functionName: "grainline_notification_create_account_warning",
+    userId: fixture.actorUserId,
+    type: "ACCOUNT_WARNING",
+    sourceType: "banned_seller_order",
+    sourceId: `${fixture.banAuditId}:${fixture.bannedOrderId}`,
+    relatedUserId: fixture.bannedSellerUserId,
+    expectedLink: `/dashboard/orders/${fixture.bannedOrderId}`,
+  },
+  {
     label: "order",
     functionName: "grainline_notification_create_order_event",
     userId: fixture.sellerUserId,
@@ -863,6 +1162,36 @@ const creationFamilyCases = Object.freeze([
     sourceId: fixture.payoutEventId,
     relatedUserId: null,
     expectedLink: "/dashboard/seller",
+  },
+  {
+    label: "order_checkout",
+    functionName: "grainline_notification_create_order_event",
+    userId: fixture.actorUserId,
+    type: "NEW_ORDER",
+    sourceType: "order_checkout",
+    sourceId: fixture.orderId,
+    relatedUserId: fixture.sellerUserId,
+    expectedLink: `/dashboard/orders/${fixture.orderId}`,
+  },
+  {
+    label: "order_fulfillment",
+    functionName: "grainline_notification_create_order_event",
+    userId: fixture.actorUserId,
+    type: "ORDER_SHIPPED",
+    sourceType: "order_fulfillment",
+    sourceId: fixture.orderFulfillmentAuditId,
+    relatedUserId: fixture.sellerUserId,
+    expectedLink: `/dashboard/orders/${fixture.orderId}`,
+  },
+  {
+    label: "order_payment",
+    functionName: "grainline_notification_create_order_event",
+    userId: fixture.sellerUserId,
+    type: "PAYMENT_DISPUTE",
+    sourceType: "order_payment",
+    sourceId: "evt_notification_proof_dispute",
+    relatedUserId: fixture.actorUserId,
+    expectedLink: `/dashboard/sales/${fixture.orderId}`,
   },
 ]);
 

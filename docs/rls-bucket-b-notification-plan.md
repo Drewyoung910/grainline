@@ -458,9 +458,8 @@ direct Prisma Notification owner reads or updates outside the RPC helper:
 - Recipient bell/page/count/export/mark-read uses the narrow one-statement
   `SECURITY INVOKER` RPC direction. The rejected transaction wrapper is retained
   only in Git and evidence history, not as executable fallback scaffolding.
-  Final promotion still requires
-  SQL authority review, real-table PostgreSQL proof, and two fresh
-  candidate-aligned provider/route passes.
+  Final promotion still requires SQL authority review, disposable real-table
+  PostgreSQL proof, and two fresh passes providing real-table candidate-aligned provider and route evidence.
 - The social/message/commission block-race protocol is implemented, statically
   guarded, and passed both transaction orderings under the CI runtime policy
   role. The proof uses CI-superuser `SET ROLE`, not a production runtime

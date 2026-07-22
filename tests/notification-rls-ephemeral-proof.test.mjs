@@ -36,13 +36,23 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
       "custom_order_request",
       "custom_order_link",
       "case",
+      "case_message",
+      "case_resolution_mark",
+      "case_system_action",
       "commission",
       "commission_request_closed",
       "inventory",
+      "checkout_low_stock",
       "verification",
+      "guild_system_action",
+      "listing_admin_review",
       "moderation",
       "account_warning",
+      "banned_seller_order",
       "order",
+      "order_checkout",
+      "order_fulfillment",
+      "order_payment",
     ]) {
       assert.match(proof, new RegExp(`label: "${family}"`));
     }
@@ -53,6 +63,38 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     assert.match(
       proof,
       /service_back_in_stock_claim_derives_identity_consumes_once_and_rejects_bad_evidence/,
+    );
+    assert.deepEqual(
+      [...new Set([...proof.matchAll(/sourceType: "([a-z_]+)"/g)].map((match) => match[1]))].sort(),
+      [
+        "admin_account_message",
+        "banned_seller_order",
+        "blog_comment",
+        "case",
+        "case_message",
+        "case_resolution_mark",
+        "case_system_action",
+        "checkout_low_stock",
+        "commission_interest",
+        "commission_request",
+        "favorite",
+        "follow",
+        "followed_maker_new_blog",
+        "followed_maker_new_listing",
+        "guild_admin_action",
+        "guild_system_action",
+        "listing_admin_review",
+        "listing_user_report",
+        "manual_low_stock",
+        "manual_restock",
+        "message",
+        "order_checkout",
+        "order_fulfillment",
+        "order_payment",
+        "review",
+        "seller_broadcast",
+        "stripe_payout_failure",
+      ],
     );
     assert.match(proof, /notification-proof-block-second/);
     assert.match(proof, /notification-proof-create-second/);
