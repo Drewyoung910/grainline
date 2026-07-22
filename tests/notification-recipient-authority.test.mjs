@@ -80,13 +80,14 @@ describe("Notification recipient RLS authority candidate", () => {
     assert.match(plan, /not as executable fallback scaffolding/);
   });
 
-  it("keeps live proof blocking promotion after provider direction selection", () => {
+  it("keeps authenticated route proof blocking after the accepted provider selection", () => {
     assert.match(plan, /recipient-access\.sql/);
     assert.match(plan, /one database round trip/);
     assert.match(plan, /select(?:s|ed) the one-statement `SECURITY INVOKER`\s+recipient RPC direction/);
-    assert.match(plan, /does \*\*not\*\* satisfy the existing two-pass generic provider gate/);
-    assert.match(plan, /prove the\s+real Notification functions/);
+    assert.match(plan, /Fifth real Notification provider attempt: accepted/);
+    assert.match(plan, /Notification's provider-performance gate is\s+now complete for the current design/);
     assert.match(plan, /PostgreSQL parse\/apply/);
-    assert.match(plan, /real-table candidate-aligned provider and route evidence/);
+    assert.match(plan, /First authenticated route-smoke attempt: failed closed/);
+    assert.match(plan, /authenticated route smoke and final authority review remain current gates/);
   });
 });
