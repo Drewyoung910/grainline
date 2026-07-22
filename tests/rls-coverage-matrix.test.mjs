@@ -55,7 +55,7 @@ describe("site-wide RLS coverage matrix", () => {
 
   it("does not overstate current production RLS coverage", () => {
     const liveRows = matrixRows().filter((row) => row.status.startsWith("RLS_LIVE"));
-    assert.deepEqual(liveRows.map((row) => row.model), ["SavedSearch"]);
+    assert.deepEqual(liveRows.map((row) => row.model), ["SavedSearch", "Notification"]);
     assert.match(matrix, /Every\s+other row is \*\*not active RLS\*\*/);
     assert.match(matrix, /Application authorization alone is not that\s+alternative\./);
   });

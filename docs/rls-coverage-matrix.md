@@ -7,8 +7,9 @@ Last updated: 2026-07-22
 This is the schema-complete disposition ledger for Grainline's site-wide
 database isolation program. Snapshot scope: 58 Prisma models.
 
-`SavedSearch` is the only table in this snapshot with production RLS. Every
-other row is **not active RLS** and remains work to design, prove, and promote.
+`SavedSearch` and `Notification` are the two tables in this snapshot with
+production RLS. Every other row is **not active RLS** and remains work to
+design, prove, and promote.
 The target column is a planning disposition, not a claim that the control is
 implemented. Re-read the production catalog before making any current-state
 claim because this document is a dated source snapshot.
@@ -88,7 +89,7 @@ completed alternative.
 | `SellerMetrics` | `BLOCKED_DESIGN` | Seller analytics | Seller performance and sales totals; seller, staff, guild logic and jobs | Separate seller-private metrics from any public eligibility projection; service-only calculation writes |
 | `SellerRatingSummary` | `ALTERNATIVE_REVIEW` | Public aggregate projections | Derived public rating summary; public readers and calculation jobs | Read-only ordinary runtime plus service-only refresh and integrity proof |
 | `SiteMetricsSnapshot` | `ALTERNATIVE_REVIEW` | Public aggregate projections | Derived site metrics; public readers and calculation jobs | Read-only ordinary runtime plus service-only singleton refresh |
-| `Notification` | `PLANNED_RLS` | Bucket B Notification | Direct user-owned reads and mark-read updates with cross-user and system creation | Preparation is live with RLS disabled; the compatible app deploy, authenticated route smoke, provider proof, 54/54 source-authority gate, 68-check PostgreSQL proof, legacy aggregate inspection, protected preactivation backup, and app rollback rehearsal are complete. The exact byte-pinned activation package must still pass PR/main CI, committed-migration PostgreSQL proof, protected production migration, catalog/runtime-denial postflight, and authenticated canary postflight. Initial activation is `ENABLE` with explicit `NO FORCE`; FORCE remains a later separate hardening release |
+| `Notification` | `RLS_LIVE_PHASE_A` | Bucket B Notification | Direct user-owned reads and mark-read updates with cross-user and system creation | Initial `ENABLE` with explicit `NO FORCE`, two policies, narrow runtime grants, production catalog/direct-denial proof, and authenticated route postflight are live and retained. Complete the separately gated FORCE hardening release without changing the policy, RPC, or grant contract; retain protected backup `br-hidden-tree-aa337i8v` through the rollback window |
 | `ListingViewDaily` | `BLOCKED_DESIGN` | Seller analytics | Seller-private listing analytics with public event ingestion and aggregation jobs | Seller-through-profile reads plus service-only counter writes and hot-path plan review |
 | `SellerProfileViewDaily` | `BLOCKED_DESIGN` | Seller analytics | Seller-private profile analytics with public event ingestion and aggregation jobs | Seller ownership reads plus service-only counter writes and hot-path plan review |
 | `Follow` | `BLOCKED_DESIGN` | Aggregate and fanout | Owner relationship plus public follower counts and cross-user fanout | Denormalized count and explicit fanout service path before owner-row policies |
