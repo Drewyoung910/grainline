@@ -1509,8 +1509,12 @@ async function rebindLocalPreflightRetryCommit() {
   }
   await currentBypassIsActive(bypassState);
   await verifyNeonStagingTarget();
-  assertReviewedMigrationBytes();
-  runReviewedRuntimeGrantAudit(state.adminDatabaseUrl);
+  stageReviewedCandidateMigrations();
+  try {
+    runReviewedRuntimeGrantAudit(state.adminDatabaseUrl);
+  } finally {
+    removeStagedCandidateMigrations();
+  }
   await teardownNotificationProviderFixtures(state.adminDatabaseUrl);
   await seedNotificationProviderFixtures(state.adminDatabaseUrl);
   const rebindEvidencePath = evidencePath("local-preflight-rebind", commitSha);

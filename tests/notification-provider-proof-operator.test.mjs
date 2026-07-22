@@ -184,5 +184,18 @@ describe("disposable Notification provider proof operator", () => {
     assert.match(source, /provider deployment exists before local-preflight retry/);
     assert.match(source, /priorLocalPreflightCommitSha/);
     assert.match(source, /localPreflightRetry: 2/);
+    const retryRebind = source.slice(
+      source.indexOf("async function rebindLocalPreflightRetryCommit"),
+      source.indexOf("async function attest"),
+    );
+    assert.ok(retryRebind.indexOf("stageReviewedCandidateMigrations()") >= 0);
+    assert.ok(
+      retryRebind.indexOf("runReviewedRuntimeGrantAudit(state.adminDatabaseUrl)")
+        > retryRebind.indexOf("stageReviewedCandidateMigrations()"),
+    );
+    assert.ok(
+      retryRebind.indexOf("removeStagedCandidateMigrations()")
+        > retryRebind.indexOf("runReviewedRuntimeGrantAudit(state.adminDatabaseUrl)"),
+    );
   });
 });
