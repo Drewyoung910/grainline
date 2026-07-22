@@ -16,14 +16,35 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     assert.match(proof, /persistentStagingChanged: false/);
   });
 
-  it("proves catalog, grants, direct denial, service derivation, and both lock orderings", () => {
+  it("proves catalog, grants, direct denial, every service family, and both lock orderings", () => {
     assert.match(proof, /relrowsecurity: true/);
     assert.match(proof, /relforcerowsecurity: false/);
     assert.match(proof, /can_insert: false/);
     assert.match(proof, /can_delete: false/);
     assert.match(proof, /can_update_read: true/);
     assert.match(proof, /private notification core/);
-    assert.match(proof, /service_payload_and_replay_identity_derived_from_source/);
+    for (const family of [
+      "source_fanout",
+      "social",
+      "message",
+      "case",
+      "commission",
+      "inventory",
+      "verification",
+      "moderation",
+      "account_warning",
+      "order",
+    ]) {
+      assert.match(proof, new RegExp(`label: "${family}"`));
+    }
+    assert.match(
+      proof,
+      /service_family_\$\{family\.label\}_valid_replay_and_forged_recipient_rejected/,
+    );
+    assert.match(
+      proof,
+      /service_back_in_stock_claim_derives_identity_consumes_once_and_rejects_bad_evidence/,
+    );
     assert.match(proof, /notification-proof-block-second/);
     assert.match(proof, /notification-proof-create-second/);
     assert.match(proof, /wait_event_type === "Lock"/);
