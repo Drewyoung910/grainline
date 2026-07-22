@@ -415,6 +415,50 @@ production remained unchanged. Sanitized mode-`0600` artifacts are:
 - `notification-provider-proof-abort-cleanup-1fbaacc549a3.json` — SHA-256
   `efe1f7235066110e28786c5e0ae110118a4aead0844d4e5475f709abf8d4c1e1`
 
+### Fourth real Notification provider attempt (2026-07-22)
+
+The mandatory local preflight finally passed before deployment on fresh
+preparation commit `beceee00630c095ba4e0af6a6e53f8a67a580b13`: exact runtime
+identity/RLS catalog, all recipient counts, replay stability, statement-local
+context reset, zero query errors, and zero local performance issues. Fixtures
+were owner-reset and reseeded before the counted run. Enablement commit
+`0e84a432d75812b82a3f1e3f09052a1f951c10c4` produced Git-integrated Preview
+`dpl_F7H3SBuNc8HiiV16tfbBQNZcScfL`; independent attestation passed.
+
+Counted slot 1 passed with exact correctness and zero request errors. Counted
+slot 2 preserved the same correctness and zero-error results but returned HTTP
+`422` for one performance issue: target-concurrency bell candidate p95 was
+`147.2ms` versus the later baseline's `22.9ms`, exceeding the fixed per-slot
+2x ratio. The slot was not replayed and the two-pass proof is not accepted.
+The order-reversed evidence demonstrates a first-measured-workload ramp bias:
+in slot 1, the baseline ran first and had p95 `149.1ms`, while the later
+candidate was `26.8ms`; in slot 2, the candidate ran first and had p95
+`147.2ms`, while the later baseline was `22.9ms`. Burst and service results
+remained within bounds in both slots. This is evidence against the existing
+comparison method, not permission to retroactively pass the failed gate.
+
+The gate now primes each baseline and candidate at the workload's full measured
+concurrency immediately before measuring it, in the same slot-specific order;
+prime request errors fail closed. A fresh two-slot run is required to validate
+that correction. Abort cleanup removed fixtures, all 28 branch variables, the
+Preview, temporary bypass, child branch, and private state; production remained
+unchanged. Sanitized mode-`0600` artifacts are:
+
+- `notification-provider-proof-setup-beceee00630c.json` — SHA-256
+  `37525fe654bb26223961fa0e46d3a59eadcaee2b414255e4cedb8b6a44211da9`
+- `notification-provider-proof-local-preflight-beceee00630c.json` — SHA-256
+  `a2fcc89c79db9e43ca8acc1d49838be995110e5bb9f36c1c00c5db581013be41`
+- `notification-provider-proof-attestation-0e84a432d758.json` — SHA-256
+  `1ee5e6593e1411ce9e1a1e5215414a0db1aa11c5cef7b36b512cc9788c16eeb7`
+- `notification-provider-proof-response-slot-1-0e84a432d758.json` — SHA-256
+  `bfd6edf020d6abdf8ce59ca1ec2fc0f0aaed68daad4fbe571ab4b3898f004d22`
+- `notification-provider-proof-response-slot-2-0e84a432d758.json` — SHA-256
+  `293c1675864d6865557fe75bfb56075b477070c5f1046681e776b4aba96e3540`
+- `notification-provider-proof-teardown-0e84a432d758.json` — SHA-256
+  `13bec3a45ca0378c9d2e405ad4f6c22a0b199e503ed4eea8f65d7e02ca355481`
+- `notification-provider-proof-abort-cleanup-0e84a432d758.json` — SHA-256
+  `0e671c706149bd2d5148bd5084f6e56fdf174ec7f9a951f554195bde602a169c`
+
 The prelaunch/no-dependent-users fact shortens traffic-drain ceremony but does
 not waive this candidate's fresh provider run: this hot one-statement recipient
 RPC and service-source workload has not yet completed in Vercel. For later RLS
