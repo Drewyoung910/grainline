@@ -780,13 +780,42 @@ alone.
   `a4ced63b7c23f61366b7632ce2507c822c53241f`.
 
 This closes the final authority-review gate; it does not authorize production
-activation. Remaining release gates are a fresh explicitly authorized
-authenticated route smoke, legacy aggregate/backup inspection, clean release
-PR and full CI, application-deployment rollback proof, production preparation
-and compatible app deployment, activation, and catalog/runtime postflight.
+activation. The authenticated route smoke has since passed. Remaining release
+gates are clean preparation-release packaging and full CI, production
+preparation, protected legacy aggregate/backup inspection, compatible
+application deployment plus application-deployment rollback proof, activation,
+and catalog/runtime postflight.
 Application-asserted `app.user_id` and ordinary-runtime authority over many
 upstream source tables remain explicitly bounded residual risks for later
 site-wide groups, not claims Bucket B can eliminate by itself.
+
+### Protected production legacy-inspection boundary (2026-07-22)
+
+The authenticated route smoke is now complete. Review of the next operator
+caught another fail-closed harness defect before live use:
+`pg_catalog.current_user` is invalid because `CURRENT_USER` is SQL syntax, not
+a schema-qualified function. The query now uses `CURRENT_USER`, and a regression
+rejects the invalid form.
+
+The inspection is intentionally unavailable from the isolated feature branch.
+The owner URL exists only in GitHub's protected `Production` environment, whose
+deployment policy remains `main`-only. Do not relax that policy or copy the
+credential locally. The clean preparation release must first land the separate
+`Notification Legacy Inspection` workflow and preparation migration on `main`.
+After the compatible preparation migration is applied, dispatch the exact
+clean `main` SHA. The operator requires the protected URL digest, exact
+owner/runtime declarations, current production endpoint, SavedSearch/runtime-
+separation acknowledgement, disabled Notification RLS, zero policies, retained
+legacy runtime CRUD, and the new nullable `relatedUserId` column. It performs
+the posture and count reads in one repeatable-read read-only transaction and
+writes only aggregate counts to a fresh mode-`0600` artifact; raw rows and
+credentials are never retained.
+
+This staging order is security-preserving rather than a delay: preparation is
+old-app compatible and non-destructive, while activation remains separately
+blocked on the aggregate result, backup boundary, compatible application
+deployment/rollback evidence, and explicit production activation review. The
+main-only owner boundary must not be traded away to obtain the count sooner.
 
 ## Isolation Boundary And Hot-Path Decision
 

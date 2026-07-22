@@ -226,6 +226,16 @@ authenticated Notification route smoke passed on 2026-07-22 and all disposable
 provider resources were removed; next is legacy aggregate/backup inspection
 and clean release packaging, not another provider run.
 
+The production legacy inspection must not weaken the owner-credential boundary
+to run early from a feature branch. Package its read-only workflow with the
+preparation release, merge through normal review, apply the compatible
+preparation migration, and then dispatch the exact clean `main` SHA through the
+main-only GitHub `Production` environment. The operator must verify the
+protected credential digest and prepared/no-policy/legacy-CRUD posture, run one
+repeatable-read read-only transaction, and retain aggregate counts only. The
+activation purge remains a later locked transaction; the inspection itself may
+never delete or export rows.
+
 Live Clerk does not permit backend `sessions.createSession` for this production
 instance. Authenticated operational proofs must use a short-lived one-use Clerk
 sign-in token consumed by the production Frontend API `ticket` strategy, then
