@@ -31,9 +31,9 @@ describe("disposable Notification provider proof operator", () => {
 
     assert.equal(
       new URL(runtime).hostname,
-      "ep-mute-shape-aahq7xma-pooler.westus3.azure.neon.tech",
+      "ep-empty-union-aajlf1x0-pooler.westus3.azure.neon.tech",
     );
-    assert.equal(new URL(owner).hostname, "ep-mute-shape-aahq7xma.westus3.azure.neon.tech");
+    assert.equal(new URL(owner).hostname, "ep-empty-union-aajlf1x0.westus3.azure.neon.tech");
     assert.equal(new URL(runtime).port, "5432");
     assert.equal(new URL(runtime).pathname, "/neondb");
     assert.equal(new URL(runtime).searchParams.get("sslmode"), "verify-full");
@@ -43,7 +43,7 @@ describe("disposable Notification provider proof operator", () => {
       runtime,
     );
     assert.throws(() => validateDatabaseUrl(
-      runtime.replace("ep-mute-shape-aahq7xma", "ep-plain-river-aaqg8gj4"),
+      runtime.replace("ep-empty-union-aajlf1x0", "ep-plain-river-aaqg8gj4"),
       { pooled: true, role: "grainline_app_runtime" },
     ));
   });

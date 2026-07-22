@@ -20,7 +20,7 @@ import { parseGuardedNeonDatabaseIdentity } from "./guard-saved-search-rls-deplo
 
 const { Client } = pg;
 
-export const PROVIDER_PROOF_BRANCH = "codex/rls-notification-provider-proof-2-20260722";
+export const PROVIDER_PROOF_BRANCH = "codex/rls-notification-provider-proof-3-20260722";
 export const REVIEWED_GITHUB_REPOSITORY = "Drewyoung910/grainline";
 export const REVIEWED_VERCEL_PROJECT_ID = "prj_O2S8qcYFFWXn6nnrV0DkLyqMprIp";
 export const REVIEWED_VERCEL_TEAM_ID = "team_wvQeQHZGwCSwinC1uB7xbpjr";
@@ -29,9 +29,9 @@ export const REVIEWED_PRODUCTION_DEPLOYMENT_ID = "dpl_6Y6C3NT81zbhLc6eHJAveCH1Av
 export const REVIEWED_NEON_PROJECT_ID = "icy-unit-96812898";
 export const REVIEWED_NEON_ORG_ID = "org-raspy-frost-18952075";
 export const REVIEWED_PRODUCTION_BRANCH_ID = "br-hidden-mouse-aaugn2wr";
-export const REVIEWED_STAGING_BRANCH_ID = "br-green-field-aadli194";
-export const REVIEWED_STAGING_BRANCH_NAME = "notification-provider-proof-2-20260722";
-export const REVIEWED_STAGING_ENDPOINT_ID = "ep-mute-shape-aahq7xma";
+export const REVIEWED_STAGING_BRANCH_ID = "br-noisy-tree-aa7gi1yn";
+export const REVIEWED_STAGING_BRANCH_NAME = "notification-provider-proof-3-20260722";
+export const REVIEWED_STAGING_ENDPOINT_ID = "ep-empty-union-aajlf1x0";
 export const REVIEWED_DATABASE_NAME = "neondb";
 export const REVIEWED_DATABASE_REGION = "westus3.azure";
 export const REVIEWED_NEON_REGION_ID = "azure-westus3";
@@ -49,9 +49,9 @@ export const REVIEWED_NOTIFICATION_MIGRATIONS = Object.freeze({
   }),
 });
 export const PROVIDER_PROOF_STATE_PATH =
-  "/private/tmp/grainline-notification-provider-proof-state-2-20260722.json";
+  "/private/tmp/grainline-notification-provider-proof-state-3-20260722.json";
 export const PROVIDER_BYPASS_STATE_PATH =
-  "/private/tmp/grainline-notification-provider-bypass-2-20260722.json";
+  "/private/tmp/grainline-notification-provider-bypass-3-20260722.json";
 export const EVIDENCE_DIRECTORY = "/Users/drewyoung/grainline-rollout-evidence";
 
 const REVIEWED_NEON_CLI_PATH =
