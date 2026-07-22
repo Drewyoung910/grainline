@@ -9,7 +9,8 @@
       "codex/rls-notification-provider-proof-2-20260722": false,
       "codex/rls-notification-provider-proof-3-20260722": false,
       "codex/rls-notification-provider-proof-4-20260722": false,
-      "codex/rls-notification-provider-proof-5-20260722": false
+      "codex/rls-notification-provider-proof-5-20260722": false,
+      "codex/rls-notification-route-smoke-20260722": false
     }
   },
   "regions": ["sfo1"],
