@@ -221,8 +221,10 @@ or an unmarked account.
 The operational canary was created and independently rechecked on 2026-07-22:
 one Clerk identity, one signed-webhook production row, no password, current
 legal state, zero marketplace activity, and no welcome fallback-outbox row.
-Retain it for authenticated preflight/postflight checks; authenticated
-Notification route smoke remains the next gate.
+Retain it for authenticated preflight/postflight checks. The isolated
+authenticated Notification route smoke passed on 2026-07-22 and all disposable
+provider resources were removed; next is legacy aggregate/backup inspection
+and clean release packaging, not another provider run.
 
 Live Clerk does not permit backend `sessions.createSession` for this production
 instance. Authenticated operational proofs must use a short-lived one-use Clerk

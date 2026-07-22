@@ -666,15 +666,15 @@ This created only the explicitly authorized durable canary identity; it did not
 change Notification policies, migrations, grants, application production code,
 or deployment state.
 
-### Third authenticated route-smoke attempt: active (2026-07-22)
+### Third authenticated route-smoke attempt: passed and cleaned (2026-07-22)
 
 The reusable canary unblocks a third isolated attempt. Fresh expiring Neon child
 `br-sparkling-unit-aa90szxd` (`notification-route-smoke-3-20260722`) and compute
 `ep-empty-breeze-aans7eqe` were cloned from reviewed production parent
 `br-hidden-mouse-aaugn2wr` and set to expire at `2026-07-22T15:00:00Z`. The
-provider operator, runtime guard, and tests are pinned to those exact identities
-and fresh private-state paths. The branch remains deployment-disabled until the
-exact setup/local proof/configuration commits are produced and checked.
+provider operator, runtime guard, and tests were pinned to those exact identities
+and fresh private-state paths. The branch remained deployment-disabled until the
+exact setup/local proof/configuration commits were produced and checked.
 
 The child preparation and real-RPC local preflight passed at `e77048a6`; the
 exact enablement commit `31111844` then produced attested Preview
@@ -709,6 +709,43 @@ retains the prior Preview for exact teardown, and cleanup must delete both
 Previews. Official references reviewed:
 [sign-in tokens](https://clerk.com/docs/reference/backend/sign-in-tokens/create-sign-in-token)
 and [Frontend API](https://clerk.com/docs/reference/frontend-api/2026-05-12/description/introduction).
+
+The one permitted retry passed at exact commit `cd32b40d` and attested Preview
+`dpl_FRwEuCVNHXFZUKKeES5vZFGpeeiF`. It proved HTTP 401 without authentication,
+three canary-owned bell rows with zero foreign leakage, HTTP 200 notification
+page rendering, one exact read mutation, one remaining unread row changed by
+read-all, final unread count zero, preserved unread state on the foreign row,
+and HTTP 403 for the cross-origin mutation. Its mandatory cleanup consumed or
+revoked the sign-in token, revoked the Clerk session, deleted all four fixtures,
+restored the child account fields, and deleted the exact Preview cache key.
+
+Full success teardown then removed both Preview deployments, all 28 branch
+variables, the sole automation bypass, provider fixtures and synthetic canary
+schema, the Neon child, and both mode-`0600` private state files. Independent
+inventory found no remaining Preview, variable, state, or staging branch; the
+reviewed production deployment and Neon branch remained present/ready. The
+permanent canary was rechecked with zero marketplace activity and zero active
+sessions. The route-smoke branch is deployment-disabled again. All retained
+artifacts are mode `0600`:
+
+- `notification-route-smoke-support-setup-e77048a644ed.json` —
+  `ffe8a98378a620dd87331b49535851f6753cd14b049ab9bb5a1202d024c9184b`
+- `notification-route-smoke-support-local-preflight-e77048a644ed.json` —
+  `d92bb104de7fc645a0bc32822e1f6c711760607a49056c864aa215688f57de2c`
+- `notification-route-smoke-support-attestation-311118448219.json` —
+  `e4fa1d7705be8ecd258bbaeb212ca791020ffab959650dad809666454f2ae3c0`
+- `notification-authenticated-route-smoke-311118448219.json` —
+  `4cbab972761f1c86d9185a88fe47408375a38a7530cf39ee57696808f699be17`
+- `notification-route-smoke-support-route-smoke-rebind-cd32b40dfa7f.json` —
+  `50b26566fa24fb2e328cf51fdc51ff6f229991c6c34a47dec9b880a8da2bf2a7`
+- `notification-route-smoke-support-attestation-cd32b40dfa7f.json` —
+  `52e0d15134f50f98bfa0971545fc4b6b633e533e193138c2b20ac3ac9633ce75`
+- `notification-authenticated-route-smoke-cd32b40dfa7f.json` —
+  `bd256adcdc6a7b3eca32e924bfb2019d799a31cfc4db6311a4426ec835c70d3f`
+- `notification-route-smoke-support-teardown-cd32b40dfa7f.json` —
+  `c7379bd0fff7fd779269de7271f218543b29c7388df91a4bc9c7251b18105267`
+- `notification-route-smoke-support-route-smoke-cleanup-cd32b40dfa7f.json` —
+  `aa1d771f4ad2e1ecc11a792e400faedd3b1c247d1443417a7387385a751d5292`
 
 ### Consolidated Extra High authority review: passed (2026-07-22)
 
