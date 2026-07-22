@@ -417,7 +417,7 @@ async function readLiveRoutes() {
   return normalizeLiveRoutes(routes);
 }
 
-export async function runPostflight(config, overrides = {}) {
+export async function runPostflight(config, overrides = {}, reportStage = () => {}) {
   const dependencies = {
     readGitState: readProductionMigrationGitState,
     readResetProof: readAndVerifyResetEvidence,
@@ -456,12 +456,16 @@ export async function runPostflight(config, overrides = {}) {
     ...overrides,
   };
   const directUrlSha256 = createHash("sha256").update(config.ownerDirectUrl).digest("hex");
+  reportStage("git_checkout");
   const git = assertProductionMigrationGitState(
     dependencies.readGitState(),
     config.operatorCommit,
   );
+  reportStage("reset_evidence");
   const resetProof = dependencies.readResetProof(undefined, directUrlSha256);
+  reportStage("phase_b_evidence");
   const phaseBProof = dependencies.readPhaseBProof();
+  reportStage("vercel_environment");
   const vercel = dependencies.readVercelState();
   if (
     vercel.stage !== "runtime-only"
@@ -469,6 +473,7 @@ export async function runPostflight(config, overrides = {}) {
     || vercel.projectPrivilegedKeys.length !== 0
     || vercel.sharedPrivilegedLinks.length !== 0
   ) throw new Error("Vercel runtime database separation postflight failed");
+  reportStage("github_environment");
   const github = dependencies.readGithubState();
   if (
     github.protectionVerified !== true
@@ -476,20 +481,26 @@ export async function runPostflight(config, overrides = {}) {
     || github.digestVariable?.name !== MIGRATION_DIGEST_VARIABLE_NAME
     || github.digestVariable.value !== directUrlSha256
   ) throw new Error("protected GitHub migration credential metadata drifted");
+  reportStage("neon_target");
   dependencies.verifyNeonTarget();
+  reportStage("neon_owner_role");
   const neonRole = dependencies.readNeonRole();
   if (neonRole.updatedAt !== RESET_OWNER_UPDATED_AT) {
     throw new Error("Neon owner role timestamp drifted after reset");
   }
+  reportStage("owner_database_catalog");
   const database = assertProductionMigrationDatabaseState(
     await dependencies.readDatabaseState(config.ownerDirectUrl),
   );
+  reportStage("saved_search_canary");
   const canary = assertExactPostSkewCanary(
     (await dependencies.readOwnerState(config.ownerDirectUrl)).canary,
     config.now,
   );
+  reportStage("owner_session_drain");
   const ownerSessionCount = await dependencies.readOwnerSessionCount(config.ownerDirectUrl);
   if (ownerSessionCount !== 0) throw new Error("postflight owner session count is not zero");
+  reportStage("runtime_credential_reveal");
   const runtimeDatabaseUrl = config.runtimeDatabaseUrl
     ?? dependencies.readRuntimeDatabaseUrl();
   const runtimeIdentity = config.runtimeGuard
@@ -499,12 +510,19 @@ export async function runPostflight(config, overrides = {}) {
       DATABASE_URL: runtimeDatabaseUrl,
       RUNTIME_DB_ROLE: REVIEWED_RUNTIME_ROLE,
     });
+  reportStage("runtime_rls");
   const runtimeProof = await dependencies.readRuntimeProof(runtimeDatabaseUrl);
+  reportStage("production_deployment");
   const deployment = dependencies.readDeploymentState();
+  reportStage("deployment_ci");
   const ciRun = dependencies.readCiRun();
+  reportStage("operator_ci");
   const operatorCiRun = dependencies.readOperatorCiRun();
+  reportStage("production_migrations_run");
   const migrationRun = dependencies.readMigrationRun();
+  reportStage("live_routes");
   const routes = await dependencies.readRoutes();
+  reportStage("complete");
   return Object.freeze({
     git,
     resetProof,
@@ -532,7 +550,12 @@ export async function runPostflight(config, overrides = {}) {
   });
 }
 
-export function buildPostflightEvidence(config, result, status = "passed") {
+export function buildPostflightEvidence(
+  config,
+  result,
+  status = "passed",
+  failureStage = null,
+) {
   const passed = status === "passed";
   return Object.freeze({
     version: 1,
@@ -542,6 +565,7 @@ export function buildPostflightEvidence(config, result, status = "passed") {
     acceptanceEligible: passed,
     issueCount: passed ? 0 : 1,
     issues: passed ? [] : ["Runtime database credential separation postflight failed closed"],
+    failedStage: passed ? null : failureStage,
     operatorCommit: config?.operatorCommit ?? null,
     deploymentSourceCommit: DEPLOYMENT_SOURCE_COMMIT,
     ...(passed ? result : {}),
@@ -568,9 +592,12 @@ export function writePostflightEvidence(filePath, evidence) {
 
 async function main() {
   let config;
+  let stage = "configuration";
   try {
     config = parsePostflightConfig();
-    const result = await runPostflight(config);
+    const result = await runPostflight(config, {}, (nextStage) => {
+      stage = nextStage;
+    });
     const evidence = buildPostflightEvidence(config, result);
     writePostflightEvidence(config.evidencePath, evidence);
     process.stdout.write(`${JSON.stringify({
@@ -584,7 +611,7 @@ async function main() {
       try {
         writePostflightEvidence(
           config.evidencePath,
-          buildPostflightEvidence(config, null, "failed"),
+          buildPostflightEvidence(config, null, "failed", stage),
         );
       } catch {
         // Preserve the first failure and avoid emitting provider or credential details.

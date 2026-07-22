@@ -190,5 +190,19 @@ describe("runtime database credential separation postflight", () => {
         projectPrivilegedKeys: [], sharedPrivilegedLinks: [{ key: "DIRECT_URL" }],
       }),
     }), /Vercel runtime database separation postflight failed/);
+
+    const stages = [];
+    await assert.rejects(() => runPostflight(config(), {
+      ...dependencies(),
+      readVercelState: () => ({
+        stage: "partial-removal", presentPrivilegedKeys: ["DIRECT_URL"],
+        projectPrivilegedKeys: [], sharedPrivilegedLinks: [{ key: "DIRECT_URL" }],
+      }),
+    }, (stage) => stages.push(stage)));
+    assert.equal(stages.at(-1), "vercel_environment");
+    assert.equal(
+      buildPostflightEvidence(config(), null, "failed", stages.at(-1)).failedStage,
+      "vercel_environment",
+    );
   });
 });

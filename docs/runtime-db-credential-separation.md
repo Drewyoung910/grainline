@@ -244,8 +244,20 @@ Read-only inventory reverified on 2026-07-21:
   local owner URL. It instead reads the exact production runtime-role password
   through the pinned Neon control plane, constructs the reviewed pooler URL in
   memory, performs direct RLS proof, and never writes the password or URL to
-  disk/evidence. Local development remains a separate RLS-parity finding until
+  disk/evidence. A second bounded diagnostic established that this older
+  runtime role uses Neon's observed 64-character URL-safe password shape,
+  distinct from the reset owner's 16-character shape; the validator pins those
+  patterns separately. Local development remains a separate RLS-parity finding until
   `.env.local` is safely converged to the restricted runtime role.
+- The first clean `fdbe7657` postflight reached the runtime credential reveal
+  and failed closed because its validator initially reused the owner's
+  16-character password shape. Its sanitized mode-`0600` failed artifact is
+  `runtime-db-separation-production-postflight-fdbe7657-20260721.json`, SHA-256
+  `d3e97c6e094f921138dbeed553f13e685b99c529620eb28019cc277ebd248a79`.
+  After separating the exact observed runtime shape, a dirty-tree diagnostic
+  overrode only the already verified git-state reader and reached `complete`
+  through every live assertion. That diagnostic is not acceptance evidence;
+  the final pass still requires a new exact clean commit and its own green CI.
 
 ## Activation Sequence
 

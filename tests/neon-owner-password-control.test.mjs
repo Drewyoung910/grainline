@@ -10,6 +10,7 @@ import {
 
 const OWNER_URL = "postgresql://neondb_owner:old-password@ep-plain-river-aaqg8gj4.westus3.azure.neon.tech:5432/neondb?sslmode=verify-full&channel_binding=require";
 const PASSWORD = "AbCdEfGhIjKlMn_1";
+const RUNTIME_PASSWORD = "AbCdEfGhIjKlMn_1".repeat(4);
 
 describe("pinned Neon owner password control", () => {
   it("accepts only the observed 16-character reset response on the reviewed target", () => {
@@ -48,11 +49,11 @@ describe("pinned Neon owner password control", () => {
 
   it("builds the exact pooled runtime URL from an in-memory Neon reveal", () => {
     const runtime = buildNeonRuntimePoolerUrl(
-      validateNeonRuntimePasswordResponse({ password: PASSWORD }),
+      validateNeonRuntimePasswordResponse({ password: RUNTIME_PASSWORD }),
     );
     const parsed = new URL(runtime);
     assert.equal(parsed.username, "grainline_app_runtime");
-    assert.equal(parsed.password, PASSWORD);
+    assert.equal(parsed.password, RUNTIME_PASSWORD);
     assert.equal(
       parsed.hostname,
       "ep-plain-river-aaqg8gj4-pooler.westus3.azure.neon.tech",

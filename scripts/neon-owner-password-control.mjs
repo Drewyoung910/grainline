@@ -21,6 +21,7 @@ export const REVIEWED_NEON_CLI_VERSION = "2.35.1";
 export const REVIEWED_NEON_CREDENTIAL_PATH =
   "/Users/drewyoung/.config/neonctl/credentials.json";
 export const NEON_OWNER_PASSWORD_PATTERN = /^[A-Za-z0-9_-]{16}$/;
+export const NEON_RUNTIME_PASSWORD_PATTERN = /^[A-Za-z0-9_-]{64}$/;
 
 const OPERATION_ATTEMPTS = 16;
 const OPERATION_INTERVAL_MS = 2_000;
@@ -198,7 +199,7 @@ export function revealReviewedNeonOwnerPassword() {
 
 export function validateNeonRuntimePasswordResponse(payload) {
   const password = payload?.password;
-  if (!NEON_OWNER_PASSWORD_PATTERN.test(password)) {
+  if (!NEON_RUNTIME_PASSWORD_PATTERN.test(password)) {
     throw new Error("Neon revealed runtime password did not match the reviewed shape");
   }
   return password;
@@ -270,7 +271,7 @@ export function buildNeonOwnerDirectUrl(currentDirectUrl, password) {
 }
 
 export function buildNeonRuntimePoolerUrl(password) {
-  if (!NEON_OWNER_PASSWORD_PATTERN.test(password)) {
+  if (!NEON_RUNTIME_PASSWORD_PATTERN.test(password)) {
     throw new Error("Neon runtime password does not match the reviewed shape");
   }
   const runtimeUrl = new URL(
