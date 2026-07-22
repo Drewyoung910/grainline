@@ -666,6 +666,16 @@ This created only the explicitly authorized durable canary identity; it did not
 change Notification policies, migrations, grants, application production code,
 or deployment state.
 
+### Third authenticated route-smoke attempt: active (2026-07-22)
+
+The reusable canary unblocks a third isolated attempt. Fresh expiring Neon child
+`br-sparkling-unit-aa90szxd` (`notification-route-smoke-3-20260722`) and compute
+`ep-empty-breeze-aans7eqe` were cloned from reviewed production parent
+`br-hidden-mouse-aaugn2wr` and set to expire at `2026-07-22T15:00:00Z`. The
+provider operator, runtime guard, and tests are pinned to those exact identities
+and fresh private-state paths. The branch remains deployment-disabled until the
+exact setup/local proof/configuration commits are produced and checked.
+
 ### Consolidated Extra High authority review: passed (2026-07-22)
 
 The consolidated SQL/application review at exact branch head

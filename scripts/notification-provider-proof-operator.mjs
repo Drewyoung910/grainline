@@ -29,9 +29,9 @@ export const REVIEWED_PRODUCTION_DEPLOYMENT_ID = "dpl_6Y6C3NT81zbhLc6eHJAveCH1Av
 export const REVIEWED_NEON_PROJECT_ID = "icy-unit-96812898";
 export const REVIEWED_NEON_ORG_ID = "org-raspy-frost-18952075";
 export const REVIEWED_PRODUCTION_BRANCH_ID = "br-hidden-mouse-aaugn2wr";
-export const REVIEWED_STAGING_BRANCH_ID = "br-dawn-feather-aa29dcsm";
-export const REVIEWED_STAGING_BRANCH_NAME = "notification-route-smoke-2-20260722";
-export const REVIEWED_STAGING_ENDPOINT_ID = "ep-square-glitter-aandhnpd";
+export const REVIEWED_STAGING_BRANCH_ID = "br-sparkling-unit-aa90szxd";
+export const REVIEWED_STAGING_BRANCH_NAME = "notification-route-smoke-3-20260722";
+export const REVIEWED_STAGING_ENDPOINT_ID = "ep-empty-breeze-aans7eqe";
 export const REVIEWED_DATABASE_NAME = "neondb";
 export const REVIEWED_DATABASE_REGION = "westus3.azure";
 export const REVIEWED_NEON_REGION_ID = "azure-westus3";
@@ -49,9 +49,9 @@ export const REVIEWED_NOTIFICATION_MIGRATIONS = Object.freeze({
   }),
 });
 export const PROVIDER_PROOF_STATE_PATH =
-  "/private/tmp/grainline-notification-route-smoke-2-state-20260722.json";
+  "/private/tmp/grainline-notification-route-smoke-3-state-20260722.json";
 export const PROVIDER_BYPASS_STATE_PATH =
-  "/private/tmp/grainline-notification-route-smoke-2-bypass-20260722.json";
+  "/private/tmp/grainline-notification-route-smoke-3-bypass-20260722.json";
 export const EVIDENCE_DIRECTORY = "/Users/drewyoung/grainline-rollout-evidence";
 
 const REVIEWED_NEON_CLI_PATH =
