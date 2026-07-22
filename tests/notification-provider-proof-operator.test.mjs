@@ -134,5 +134,8 @@ describe("disposable Notification provider proof operator", () => {
     assert.match(source, /fixtureCount\.rows\[0\]\.count !== 10/);
     assert.match(source, /relrowsecurity !== true/);
     assert.match(source, /relforcerowsecurity !== false/);
+    assert.match(source, /REVIEWED_PRISMA_CLI_VERSION = "7\.9\.0"/);
+    assert.match(source, /--package=prisma@\$\{REVIEWED_PRISMA_CLI_VERSION\}/);
+    assert.match(source, /locked Prisma CLI version drifted/);
   });
 });

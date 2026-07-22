@@ -57,6 +57,7 @@ export const EVIDENCE_DIRECTORY = "/Users/drewyoung/grainline-rollout-evidence";
 const REVIEWED_NEON_CLI_PATH =
   "/Users/drewyoung/.npm/_npx/74274893b9fe65d3/node_modules/neonctl/dist/cli.js";
 const REVIEWED_NEON_CLI_VERSION = "2.35.1";
+const REVIEWED_PRISMA_CLI_VERSION = "7.9.0";
 const REVIEWED_NEON_CREDENTIAL_PATH =
   "/Users/drewyoung/.config/neonctl/credentials.json";
 const VERCEL_AUTH_PATH =
@@ -419,13 +420,41 @@ function removeStagedCandidateMigrations() {
 
 function runReviewedPrismaMigrationDeploy(adminDatabaseUrl) {
   assertReviewedMigrationBytes();
-  const prismaPackage = JSON.parse(readFileSync("node_modules/prisma/package.json", "utf8"));
-  if (prismaPackage.version !== "7.6.0") {
-    throw new Error("local Prisma CLI version drifted from the reviewed provider input");
+  const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
+  const packageLock = JSON.parse(readFileSync("package-lock.json", "utf8"));
+  if (
+    packageJson.devDependencies?.prisma !== `^${REVIEWED_PRISMA_CLI_VERSION}`
+    || packageLock.packages?.[""]?.devDependencies?.prisma
+      !== `^${REVIEWED_PRISMA_CLI_VERSION}`
+    || packageLock.packages?.["node_modules/prisma"]?.version
+      !== REVIEWED_PRISMA_CLI_VERSION
+  ) {
+    throw new Error("locked Prisma CLI version drifted from the reviewed provider input");
+  }
+  const prismaArgs = [
+    "exec",
+    "--yes",
+    `--package=prisma@${REVIEWED_PRISMA_CLI_VERSION}`,
+    "--",
+    "prisma",
+  ];
+  const version = spawnSync("npm", [...prismaArgs, "--version"], {
+    encoding: "utf8",
+    env: cleanEnvironment(),
+    maxBuffer: 2 * 1024 * 1024,
+    timeout: 2 * 60_000,
+  });
+  const expectedVersion = REVIEWED_PRISMA_CLI_VERSION.replaceAll(".", "\\.");
+  if (
+    version.error
+    || version.status !== 0
+    || !new RegExp(`prisma\\s*:\\s*${expectedVersion}(?:\\s|$)`).test(version.stdout)
+  ) {
+    throw new Error("exact reviewed Prisma CLI was unavailable");
   }
   const result = spawnSync(
-    process.execPath,
-    [path.resolve("node_modules/prisma/build/index.js"), "migrate", "deploy"],
+    "npm",
+    [...prismaArgs, "migrate", "deploy"],
     {
       encoding: "utf8",
       env: {
