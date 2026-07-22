@@ -1,10 +1,10 @@
 # Production Database Credential Separation
 
-Status: runtime credential separation is live in production from source
-`b4f14beaff06831ed2e8d7a35578226b756c1a61`; the dedicated read-only production
-postflight remains the final acceptance gate. SavedSearch Phase B is live and
-its accepted mode-`0600` postflight is pinned by SHA-256 in both separation
-operators.
+Status: complete and accepted in production. Runtime credential separation is
+live from source `b4f14beaff06831ed2e8d7a35578226b756c1a61`; exact clean
+postflight operator `8438ece93ff93572a015dd674f152c830cb5a52e` passed every
+acceptance gate. SavedSearch Phase B is live and its accepted mode-`0600`
+postflight remains pinned by SHA-256 in both separation operators.
 
 ## Security Goal
 
@@ -258,6 +258,21 @@ Read-only inventory reverified on 2026-07-21:
   overrode only the already verified git-state reader and reached `complete`
   through every live assertion. That diagnostic is not acceptance evidence;
   the final pass still requires a new exact clean commit and its own green CI.
+- Exact clean operator `8438ece93ff93572a015dd674f152c830cb5a52e` passed CI run
+  `29879908169` and the final read-only production postflight. Its mode-`0600`
+  evidence is
+  `/Users/drewyoung/grainline-rollout-evidence/runtime-db-separation-production-postflight-8438ece9-20260721.json`,
+  SHA-256
+  `d405e0b9bf9155529362ec1ffd2070731b922b1ecb2c0dd962cb3af575eb8e79`.
+  It proves Vercel `runtime-only`, no project/shared privileged database link,
+  the linked shared runtime `DATABASE_URL`, protected GitHub credential/digest
+  agreement, exact Neon target and reset timestamp, zero owner sessions,
+  SavedSearch `ENABLE` plus `FORCE` with three policies, zero incomplete
+  migrations, runtime `NOBYPASSRLS`, no-context/nonexistent-context zero rows,
+  transaction-local context cleanup, the exact healthy canary timestamps,
+  exact deployment source/ref/aliases, exact green deployment/operator/
+  migration runs, and HTTP 200 for `/` plus `/api/health`. No credential or
+  connection string is present in the artifact.
 
 ## Activation Sequence
 
@@ -412,6 +427,24 @@ string. A failure after configuration writes only a sanitized fail-closed
 artifact; a configuration failure may occur before a safe destination is
 accepted and therefore produces no artifact. Never weaken a failed assertion
 to obtain a passing artifact.
+
+Local development parity convergence, from its own exact clean commit after
+the production postflight has passed:
+
+```sh
+LOCAL_RUNTIME_DB_CONVERGENCE_CONFIRM=replace-local-owner-db-env-with-reviewed-runtime \
+LOCAL_RUNTIME_DB_CONVERGENCE_COMMIT=<exact-clean-operator-sha> \
+LOCAL_RUNTIME_DB_CONVERGENCE_EVIDENCE_PATH=/Users/drewyoung/grainline-rollout-evidence/local-runtime-db-environment-convergence.json \
+npm run ops:converge-local-runtime-db
+```
+
+This operator accepts only the observed legacy local predecessor, first proves
+the current runtime role authenticates with `NOBYPASSRLS` and zero no-context
+SavedSearch rows, then atomically replaces only `.env.local` `DATABASE_URL` and
+removes its exact stale `DIRECT_URL`. It rejects duplicate/aliased PostgreSQL
+credentials, preserves every unrelated local environment assignment, aborts if
+the source file changes concurrently, and writes sanitized mode-`0600`
+evidence. It does not change Vercel, Neon, GitHub, or production database state.
 
 ## Failure And Rollback
 
