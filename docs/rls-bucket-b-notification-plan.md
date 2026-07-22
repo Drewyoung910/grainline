@@ -439,19 +439,20 @@ direct Prisma Notification owner reads or updates outside the RPC helper:
   inspection and an atomic activation-transaction purge. The purge must not run
   if real users begin relying on notifications; that change requires a backfill.
 - Creation authority and owner-derived payload callsite coverage are 54/54.
-  PostgreSQL 16 run `29892353264` at exact source
-  `32d18261c0d5e6e818103bd0ba97648f36798861` passed disposable-database
+  PostgreSQL 16 run `29893071538` at exact source
+  `187ac2fa5a5b7c08a3889b27ef57c873ee7a79ea` passed disposable-database
   parse/apply, catalog/grant, own/foreign/direct-denial, every granted creation
   family, stable replay, the one-shot back-in-stock claim, and both two-session
   block-race checks. Each of the ten family fixtures rejects a forged recipient;
   mismatched restock evidence neither creates nor consumes. Provider behavior,
   pre-activation review, and direct authenticated runtime-credential proof
   remain separate gates. Direct or generic runtime creation remains
-  unacceptable. The proof now executes all 26 family-dispatched private-core
-  source-validation branches with valid and forged-recipient evidence, plus the
-  dedicated back-in-stock claim. Before calling the service-authority layer
-  activation-ready, execute the meaningful action variants within those source
-  types with valid and negative relationship evidence.
+  unacceptable. Its 59 creation cases execute all 26 family-dispatched
+  private-core source-validation branches, all 38 successful source/type pairs,
+  and their security-relevant action/status/recipient-direction variants with
+  valid, replay, and forged-recipient evidence, plus the dedicated back-in-stock
+  claim. Final byte-pinned SQL/authority review and real migration/rollback proof
+  remain required before calling the service-authority layer activation-ready.
 - Role provisioning and the generic grant audit now preserve Notification's
   asymmetric table/column grants, initial `NO FORCE` phase, exact policies, and
   25-function ACL/mode split. The final migration must still pass those checks
@@ -487,20 +488,26 @@ before the catalog proof. The proof script refuses non-loopback hosts and any
 database name other than `grainline_ci`. It changes neither production nor
 persistent staging.
 
-Latest accepted run `29892353264` (job `88835135659`) completed at
-`2026-07-22T04:56:36Z` against exact source
-`32d18261c0d5e6e818103bd0ba97648f36798861`. It passed current migrations,
+Latest accepted run `29893071538` (job `88837282837`) completed at
+`2026-07-22T05:12:11Z` against exact source
+`187ac2fa5a5b7c08a3889b27ef57c873ee7a79ea`. It passed current migrations,
 baseline provisioning/audit, all three draft applications, post-draft
 Notification-aware provisioning convergence, and 19 catalog/isolation/service/
 race checks. Those checks include valid creation, stable replay, and
 forged-recipient rejection for all ten granted creation families and all 26
-family-dispatched private-core source types, plus the dedicated back-in-stock
-claim's mismatched-evidence, derived-identity, and one-shot-consumption behavior.
-This proves the provisioning branch, granted family boundary, and every
-top-level source branch on fresh PostgreSQL 16; it still does not exercise every
-meaningful action variant within those source types or the generic grant audit's
-migration-derived Notification expectations because the SQL remains in draft
-files outside `prisma/migrations`.
+family-dispatched private-core source types. Its 59 creation cases cover all 38
+successful source/type pairs plus security-relevant action, status, and
+recipient-direction variants. It also proves the dedicated back-in-stock claim's
+mismatched-evidence, derived-identity, and one-shot-consumption behavior. This
+proves the provisioning branch, granted family boundary, and private-core action
+matrix on fresh PostgreSQL 16; it still does not exercise the generic grant
+audit's migration-derived Notification expectations because the SQL remains in
+draft files outside `prisma/migrations`.
+
+Accepted run `29892353264` (job `88835135659`) completed at
+`2026-07-22T04:56:36Z` against exact source
+`32d18261c0d5e6e818103bd0ba97648f36798861`. It first executed every top-level
+private-core source type before the action/status variant matrix was added.
 
 Accepted run `29890596734` (job `88830103706`) completed at
 `2026-07-22T04:16:35Z` against exact source

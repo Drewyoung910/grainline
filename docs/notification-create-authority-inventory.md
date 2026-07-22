@@ -134,15 +134,16 @@ under arbitrary runtime compromise.
    and payout failure binds `SellerPayoutEvent`; the owner wrapper derives the
    exact recipient, counterpart, payload, route, and replay identity.
 
-Fresh PostgreSQL 16 run `29892353264` at exact source
-`32d18261c0d5e6e818103bd0ba97648f36798861` now proves parse/apply,
+Fresh PostgreSQL 16 run `29893071538` at exact source
+`187ac2fa5a5b7c08a3889b27ef57c873ee7a79ea` now proves parse/apply,
 grants/catalog fingerprints, own/foreign/direct denial, all ten granted
 creation-family boundaries, every one of the 26 family-dispatched private-core
 source types, stable replay, the dedicated back-in-stock claim, and both
-block-race orderings. Every source-type fixture has valid creation plus
-forged-recipient rejection. That is distinct from the 54/54 callsite result and
-still leaves the meaningful action variants within those source types to be
-dynamically executed before migration staging. Rollback, authenticated
+block-race orderings. The 59 creation cases cover all 38 successful source/type
+pairs and the security-relevant action/status/recipient-direction variants;
+every case proves valid creation, replay, and forged-recipient rejection. That
+is distinct from the 54/54 callsite result. Final byte-pinned SQL review,
+disposable migration/rollback, authenticated
 real-table route behavior, and provider performance evidence also remain open
 before production activation.
 The permanent completeness gate is

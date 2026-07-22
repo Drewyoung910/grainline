@@ -130,6 +130,52 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
         "stripe_payout_failure",
       ],
     );
+    assert.deepEqual(
+      [...new Set(
+        [...proof.matchAll(/type: "([A-Z_]+)",\n\s+sourceType: "([a-z_]+)"/g)]
+          .map((match) => `${match[2]}:${match[1]}`),
+      )].sort(),
+      [
+        "admin_account_message:ACCOUNT_WARNING",
+        "banned_seller_order:ACCOUNT_WARNING",
+        "blog_comment:BLOG_COMMENT_REPLY",
+        "blog_comment:NEW_BLOG_COMMENT",
+        "case:CASE_OPENED",
+        "case:CASE_RESOLVED",
+        "case:REFUND_ISSUED",
+        "case_message:CASE_MESSAGE",
+        "case_resolution_mark:CASE_MESSAGE",
+        "case_resolution_mark:CASE_RESOLVED",
+        "case_system_action:CASE_MESSAGE",
+        "case_system_action:CASE_RESOLVED",
+        "checkout_low_stock:LOW_STOCK",
+        "commission_interest:COMMISSION_INTEREST",
+        "commission_request:COMMISSION_INTEREST",
+        "favorite:NEW_FAVORITE",
+        "follow:NEW_FOLLOWER",
+        "followed_maker_new_blog:FOLLOWED_MAKER_NEW_BLOG",
+        "followed_maker_new_listing:FOLLOWED_MAKER_NEW_LISTING",
+        "guild_admin_action:VERIFICATION_APPROVED",
+        "guild_admin_action:VERIFICATION_REJECTED",
+        "guild_system_action:VERIFICATION_REJECTED",
+        "listing_admin_review:LISTING_APPROVED",
+        "listing_admin_review:LISTING_REJECTED",
+        "listing_user_report:LISTING_FLAGGED_BY_USER",
+        "manual_low_stock:LOW_STOCK",
+        "message:CUSTOM_ORDER_LINK",
+        "message:CUSTOM_ORDER_REQUEST",
+        "message:NEW_MESSAGE",
+        "order_checkout:NEW_ORDER",
+        "order_fulfillment:ORDER_DELIVERED",
+        "order_fulfillment:ORDER_SHIPPED",
+        "order_payment:NEW_ORDER",
+        "order_payment:PAYMENT_DISPUTE",
+        "order_payment:REFUND_ISSUED",
+        "review:NEW_REVIEW",
+        "seller_broadcast:SELLER_BROADCAST",
+        "stripe_payout_failure:PAYOUT_FAILED",
+      ],
+    );
     assert.match(proof, /notification-proof-block-second/);
     assert.match(proof, /notification-proof-create-second/);
     assert.match(proof, /wait_event_type === "Lock"/);
