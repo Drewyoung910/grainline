@@ -91,6 +91,10 @@ export async function sendCustomOrderReadyLink({ listingId }: { listingId: strin
         AND listing."reservedForUserId" = ${initial.reservedForUserId}
         AND listing."customOrderConversationId" = ${initial.customOrderConversationId}
         AND seller."userId" = ${initial.seller.userId}
+        AND seller."chargesEnabled" = true
+        AND seller."stripeAccountId" IS NOT NULL
+        AND (seller."stripeAccountVersion" IS NULL OR seller."stripeAccountVersion" = 'v2')
+        AND seller."vacationMode" = false
       FOR SHARE OF listing, seller, conversation
     `;
     const source = sources[0];

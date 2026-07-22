@@ -23,7 +23,7 @@ separate from Notification, Order/payment/shipping and Case/CaseMessage.
 
 The original machine inventory recorded 50 direct ORM operations and 5 raw SQL
 table references. Compatible audit refactors currently leave 44 direct ORM
-operations and 6 raw SQL references across 17 runtime files (50 total protected
+operations and 7 raw SQL references across 17 runtime files (51 total protected
 access points). The surface includes the user inbox and
 thread, list and stream polling, unread counts, per-recipient mark-read,
 archive state, first-response metrics, email throttling, account export,
@@ -139,7 +139,9 @@ The direct runtime table query with no context must return zero rows.
   first must prevent send; a send committed first must have one explicit,
   tested linearization point.
 - Lock the Conversation before send/archive/context transitions. A send clears
-  both archive timestamps as part of its commit.
+  both archive timestamps as part of its commit. Ordinary send lock order is
+  sorted Users/block absence, optional Listing source, then exact Conversation
+  `FOR UPDATE`; derive the thread timestamp only after that final lock.
 - Coordinate account deletion with the same user lifecycle locks so a new
   message cannot commit after deletion has decided the account is unavailable.
 - Preserve unordered pair uniqueness and inspect legacy rows before enforcing
@@ -150,7 +152,7 @@ The direct runtime table query with no context must return zero rows.
 ## Compatibility and rollout sequence
 
 1. Inventory and pin every current access path. **Complete: original 55-path
-   migration baseline; current compatible surface is 50 protected accesses.**
+   migration baseline; current compatible surface is 51 protected accesses.**
 2. Complete `docs/conversation-message-pre-rls-audit.md` and fix its activation
    blockers before authority SQL. **In progress.**
 3. Read-only legacy/preflight design: exact participant, message-pair, kind,

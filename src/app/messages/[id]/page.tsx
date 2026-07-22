@@ -270,11 +270,50 @@ export default async function ThreadPage({
 
     const hasMessageContent = atts.length > 0 || !!body;
 
-    const messageSentAt = new Date();
     let committedRecipientId = recipientId;
     let committedNotificationMessageId: string | null = null;
+    let committedMessageSentAt: Date | null = null;
     try {
       const txResult = await prisma.$transaction(async (tx) => {
+        const lockedPair = await lockConversationParticipantPair(tx, me.id, recipientId);
+        if (!lockedPair.ok) {
+          return {
+            ok: false as const,
+            error: lockedPair.error === "blocked" ? "blocked" : "Messaging is unavailable.",
+          };
+        }
+
+        let committedContextListingId: string | null = null;
+        if (submittedContextListingId) {
+          const lockedContextListing = await lockConversationContextListingForPair(
+            tx,
+            lockedPair,
+            submittedContextListingId,
+          );
+          if (!lockedContextListing) {
+            return {
+              ok: false as const,
+              error: "That listing is no longer available as message context.",
+            };
+          }
+          committedContextListingId = lockedContextListing.id;
+        }
+
+        // All sends touching a thread serialize here. Take listing locks first
+        // (when present), matching custom-order source paths, then lock the
+        // Conversation before deriving timestamps or inserting Message rows.
+        const lockedConversations = await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT conversation.id
+            FROM "Conversation" AS conversation
+           WHERE conversation.id = ${id}
+             AND conversation."userAId" = ${lockedPair.userAId}
+             AND conversation."userBId" = ${lockedPair.userBId}
+           FOR UPDATE
+        `;
+        if (lockedConversations.length !== 1) {
+          return { ok: false as const, error: "Messaging is unavailable." };
+        }
+
         const freshConversation = await tx.conversation.findFirst({
           where: { id, OR: [{ userAId: me.id }, { userBId: me.id }] },
           select: {
@@ -305,36 +344,15 @@ export default async function ThreadPage({
         if (freshUnavailableReason) {
           return { ok: false as const, error: freshUnavailableReason };
         }
-
-        const lockedPair = await lockConversationParticipantPair(tx, me.id, freshRecipientId);
-        if (!lockedPair.ok) {
-          return {
-            ok: false as const,
-            error: lockedPair.error === "blocked" ? "blocked" : "Messaging is unavailable.",
-          };
-        }
         if (
           lockedPair.userAId !== freshConversation.userAId
           || lockedPair.userBId !== freshConversation.userBId
+          || freshRecipientId !== recipientId
         ) {
           return { ok: false as const, error: "Messaging is unavailable." };
         }
 
-        let committedContextListingId: string | null = null;
-        if (submittedContextListingId) {
-          const lockedContextListing = await lockConversationContextListingForPair(
-            tx,
-            lockedPair,
-            submittedContextListingId,
-          );
-          if (!lockedContextListing) {
-            return {
-              ok: false as const,
-              error: "That listing is no longer available as message context.",
-            };
-          }
-          committedContextListingId = lockedContextListing.id;
-        }
+        const messageSentAt = new Date();
 
         let notificationMessageId: string | null = null;
 
@@ -409,11 +427,13 @@ export default async function ThreadPage({
           ok: true as const,
           recipientId: freshRecipientId,
           notificationMessageId,
+          messageSentAt,
         };
       }, { isolationLevel: "ReadCommitted" });
       if (!txResult.ok) return { ok: false, error: txResult.error };
       committedRecipientId = txResult.recipientId;
       committedNotificationMessageId = txResult.notificationMessageId;
+      committedMessageSentAt = txResult.messageSentAt;
     } catch (error) {
       if (error instanceof DirectUploadClaimError) {
         return { ok: false, error: error.message };
@@ -422,7 +442,7 @@ export default async function ThreadPage({
     }
 
     // Notify recipient
-    if (hasMessageContent && committedNotificationMessageId) {
+    if (hasMessageContent && committedNotificationMessageId && committedMessageSentAt) {
       await createNotification({
         userId: committedRecipientId,
         type: "NEW_MESSAGE",
@@ -443,13 +463,13 @@ export default async function ThreadPage({
           select: { email: true, name: true },
         });
         if (recipientUser?.email) {
-          const emailWindowStart = new Date(messageSentAt.getTime() - 5 * 60 * 1000);
+          const emailWindowStart = new Date(committedMessageSentAt.getTime() - 5 * 60 * 1000);
           const emailClaim = await prisma.conversation.updateMany({
             where: {
               id,
               OR: [{ lastMessageEmailSentAt: null }, { lastMessageEmailSentAt: { lt: emailWindowStart } }],
             },
-            data: { lastMessageEmailSentAt: messageSentAt },
+            data: { lastMessageEmailSentAt: committedMessageSentAt },
           });
           if (emailClaim.count === 1) {
             await sendNewMessageEmail({

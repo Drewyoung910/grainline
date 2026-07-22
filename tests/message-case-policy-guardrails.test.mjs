@@ -20,6 +20,9 @@ describe("message and case policy guardrails", () => {
     assert.match(helper, /source\.sellerUserId === source\.buyerUserId/);
     assert.match(helper, /listing\.status = 'ACTIVE'/);
     assert.match(helper, /listing\."isPrivate" = true/);
+    assert.match(helper, /seller\."chargesEnabled" = true/);
+    assert.match(helper, /seller\."stripeAccountId" IS NOT NULL/);
+    assert.match(helper, /seller\."vacationMode" = false/);
     assert.match(helper, /isSystemMessage: true/);
     assert.match(helper, /data: \{ updatedAt: new Date\(\), archivedAAt: null, archivedBAt: null \}/);
   });
@@ -69,18 +72,20 @@ describe("message and case policy guardrails", () => {
   it("revalidates message-thread send policy inside the write transaction", () => {
     const threadPage = source("src/app/messages/[id]/page.tsx");
     const transactionStart = threadPage.indexOf("const txResult = await prisma.$transaction");
+    const blockCheck = threadPage.indexOf("const lockedPair = await lockConversationParticipantPair", transactionStart);
+    const conversationLock = threadPage.indexOf('FROM "Conversation" AS conversation', blockCheck);
     const policyCheck = threadPage.indexOf("const freshConversation = await tx.conversation.findFirst", transactionStart);
     const senderCheck = threadPage.indexOf("const freshSender = freshConversation", policyCheck);
     const recipientCheck = threadPage.indexOf("const freshUnavailableReason = messagingUnavailableReason(freshRecipient)", senderCheck);
-    const blockCheck = threadPage.indexOf("const lockedPair = await lockConversationParticipantPair", recipientCheck);
     const messageCreate = threadPage.indexOf("await tx.message.create", transactionStart);
 
     assert.ok(transactionStart > -1, "message send must use a write transaction");
-    assert.ok(policyCheck > transactionStart, "message send must re-load conversation state inside the transaction");
+    assert.ok(blockCheck > transactionStart, "message send must lock the participant pair and re-check reciprocal blocks inside the transaction");
+    assert.ok(conversationLock > blockCheck, "message send must lock the exact Conversation after participant/listing locks");
+    assert.ok(policyCheck > conversationLock, "message send must re-load conversation state after the row lock");
     assert.ok(senderCheck > policyCheck, "message send must re-check sender account state inside the transaction");
     assert.ok(recipientCheck > senderCheck, "message send must re-check recipient account state inside the transaction");
-    assert.ok(blockCheck > recipientCheck, "message send must lock the participant pair and re-check reciprocal blocks inside the transaction");
-    assert.ok(messageCreate > blockCheck, "message rows must be created only after the locked transaction-local policy checks");
+    assert.ok(messageCreate > recipientCheck, "message rows must be created only after the locked transaction-local policy checks");
     assert.match(threadPage, /freshSender\.banned \|\| freshSender\.deletedAt/);
     assert.match(threadPage, /messagingUnavailableReason\(freshRecipient\)/);
     assert.match(threadPage, /lockedPair\.userAId !== freshConversation\.userAId/);

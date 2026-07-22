@@ -11,8 +11,8 @@ TypeScript tree. The audited baseline was 50 direct Prisma operations plus 5
 raw SQL references. After the first compatible audit fixes it currently finds:
 
 - 44 direct Prisma Conversation or Message operations;
-- 6 raw SQL table references;
-- 50 total protected-table access points across 17 files.
+- 7 raw SQL table references;
+- 51 total protected-table access points across 17 files.
 
 The test `tests/conversation-message-rls-inventory.test.mjs` pins the count and
 the exact per-file/model/operation summary. A new access path must therefore be
@@ -85,7 +85,7 @@ will intentionally fall as the design is implemented.
 ## Completion rule
 
 This inventory is complete only when every protected access (55 in the original
-baseline, 50 after current compatible refactors) has an explicit
+baseline, 51 after current compatible refactors) has an explicit
 destination, direct runtime INSERT/UPDATE/DELETE is removed, the compatible app
 passes before and after RLS, and PostgreSQL proof covers participant isolation,
 reported-staff access, structured write families, block/account races, archive

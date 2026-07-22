@@ -95,10 +95,10 @@ describe("custom-order and staff-thread audit follow-ups", () => {
 
     assert.match(schema, /lastMessageEmailSentAt\s+DateTime\?/);
     assert.doesNotMatch(threadPage, /const recentReply = await prisma\.message\.findFirst/);
-    assert.match(threadPage, /const emailWindowStart = new Date\(messageSentAt\.getTime\(\) - 5 \* 60 \* 1000\)/);
+    assert.match(threadPage, /const emailWindowStart = new Date\(committedMessageSentAt\.getTime\(\) - 5 \* 60 \* 1000\)/);
     assert.match(threadPage, /const emailClaim = await prisma\.conversation\.updateMany\(\{/);
     assert.match(threadPage, /OR: \[\{ lastMessageEmailSentAt: null \}, \{ lastMessageEmailSentAt: \{ lt: emailWindowStart \} \}\]/);
-    assert.match(threadPage, /data: \{ lastMessageEmailSentAt: messageSentAt \}/);
+    assert.match(threadPage, /data: \{ lastMessageEmailSentAt: committedMessageSentAt \}/);
     assert.match(threadPage, /if \(emailClaim\.count === 1\) \{/);
     assert.ok(
       threadPage.indexOf("const emailClaim = await prisma.conversation.updateMany") <

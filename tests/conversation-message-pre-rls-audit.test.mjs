@@ -37,16 +37,21 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
     const access = source("src/lib/conversationStartAccess.ts");
     const deletion = source("src/lib/accountDeletion.ts");
     const sendTransaction = page.slice(page.indexOf("const txResult = await prisma.$transaction"));
-    const pairLock = sendTransaction.indexOf("lockConversationParticipantPair(tx, me.id, freshRecipientId)");
+    const pairLock = sendTransaction.indexOf("lockConversationParticipantPair(tx, me.id, recipientId)");
+    const conversationLock = sendTransaction.indexOf('FROM "Conversation" AS conversation');
+    const timestamp = sendTransaction.indexOf("const messageSentAt = new Date()");
     const messageCreate = sendTransaction.indexOf("await tx.message.create");
 
     assert.ok(pairLock > -1 && pairLock < messageCreate);
+    assert.ok(conversationLock > pairLock && conversationLock < timestamp);
+    assert.ok(timestamp < messageCreate);
+    assert.match(sendTransaction, /FROM "Conversation" AS conversation[\s\S]{0,260}FOR UPDATE/);
     assert.match(access, /ORDER BY start_user\.id\s+FOR SHARE/);
     assert.match(deletion, /FROM "User" AS deletion_user[\s\S]{0,180}FOR UPDATE/);
     assert.ok(
       access.indexOf("export async function getOrCreateConversationForLockedPair") <
         access.indexOf("pg_advisory_xact_lock"),
-      "only create/get should take the pair advisory lock; ordinary sends should remain concurrent",
+      "only create/get should take the pair advisory lock; ordinary sends serialize on the Conversation row",
     );
   });
 
@@ -121,7 +126,7 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
 
   it("records every open pre-RLS finding and bars authority SQL until fixes land", () => {
     const audit = source("docs/conversation-message-pre-rls-audit.md");
-    for (let finding = 1; finding <= 15; finding += 1) {
+    for (let finding = 1; finding <= 16; finding += 1) {
       assert.match(audit, new RegExp(`CM-A${String(finding).padStart(2, "0")}`));
     }
     assert.match(audit, /no Conversation or Message RLS SQL has been drafted, applied or deployed/);

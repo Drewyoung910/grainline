@@ -40,6 +40,7 @@ const EXPECTED_BASELINE = {
     "Message.findFirst": 1,
     "Conversation.updateMany": 2,
     "Conversation.update": 3,
+    "Conversation.raw-sql-reference": 1,
   },
   "src/app/messages/new/page.tsx": {
     "Conversation.findUnique": 1,
@@ -80,7 +81,7 @@ describe("Conversation and Message RLS inventory", () => {
 
   it("pins every current direct ORM and raw SQL access path", () => {
     assert.equal(inventory.ormCalls.length, 44);
-    assert.equal(inventory.rawSqlReferences.length, 6);
+    assert.equal(inventory.rawSqlReferences.length, 7);
     assert.deepEqual(summarizeConversationMessageAccess(inventory), EXPECTED_BASELINE);
   });
 

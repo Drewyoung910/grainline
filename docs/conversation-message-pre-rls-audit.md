@@ -61,6 +61,7 @@ is necessary but not sufficient.
 | CM-A13 | Scale | The SSE route holds a serverless request and polls PostgreSQL every 3–10 seconds per open thread. That is acceptable for prelaunch/low concurrency but is not a 50k-concurrent-user transport. | Keep the storage/read contract transport-neutral, record an operational migration threshold, and move high-concurrency delivery to a managed realtime/fanout channel rather than weakening RLS or opening long DB transactions. |
 | CM-A14 | Medium | Rendering or prefetching a thread marks matching `NEW_MESSAGE` Notification rows read before the participant actually opens the client UI; archive/unarchive writes also lacked an explicit rate limit. | Move Notification read state into the existing origin-guarded participant POST fired by the mounted client, and rate-limit archive state changes. |
 | CM-A15 | High | The one-thread-per-pair rule redirects an existing conversation before validating the new `listing` query, so entering from another listing loses that context. Overwriting the Conversation-level listing would make older messages misleading; creating one thread per listing would fragment the inbox. | Keep one Conversation per participant pair, validate listing context before both new/existing redirects, store the validated context on each Message, and derive it again from the locked Listing and participant pair at send time. |
+| CM-A16 | High | Ordinary sends lock users/blocks but do not lock the Conversation before deriving `messageSentAt`. Concurrent sends can commit out of order, regress `Conversation.updatedAt`, and produce inconsistent inbox/archive ordering. | After the sorted participant and optional Listing locks, take `FOR UPDATE` on the exact canonical Conversation, derive the timestamp only after that lock, then insert messages and update thread state in the same transaction. |
 
 ## Remediation progress
 
@@ -120,6 +121,11 @@ is necessary but not sufficient.
   each created Message stores a Listing relation re-derived under row locks
   from the listing plus exact participant pair. Custom-request and
   custom-order-ready messages store the same source-derived relation.
+- **CM-A16 fixed in the compatible app:** ordinary sends take locks in the
+  reviewed order—sorted Users/block absence, optional Listing source, exact
+  canonical Conversation `FOR UPDATE`—and only then derive the send timestamp.
+  Message inserts, first-response state, thread bump and unarchive now share
+  that serialization point, so concurrent sends cannot move inbox time backward.
 - **Compatibility release guard extended:** the two additive pre-RLS migrations
   have a distinct exact-tree phase,
   `conversation-message-compatibility-reviewed`. Older SavedSearch and
@@ -138,7 +144,7 @@ is necessary but not sufficient.
 
 ## Audit completion criteria
 
-1. CM-A01 through CM-A15 are fixed or have the explicit design/scale
+1. CM-A01 through CM-A16 are fixed or have the explicit design/scale
    disposition recorded above. CM-A04 and CM-A10 remain intentionally open
    until the legacy inspection and reviewed database-authority phase.
 2. Full tests, typecheck, lint and production build pass on the compatible app
