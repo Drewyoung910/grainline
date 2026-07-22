@@ -27,14 +27,13 @@ import {
   REVIEWED_VERCEL_PROJECT_ID,
   REVIEWED_VERCEL_TEAM_ID,
 } from "./notification-provider-proof-operator.mjs";
+import { NOTIFICATION_CANARY_EXTERNAL_ID } from "./notification-operational-canary.mjs";
 
 const { Client } = pg;
 const LOCAL_ENV_PATH = "/Users/drewyoung/grainline/.env.local";
 const MAX_JSON_BYTES = 128 * 1024;
 const MAX_PAGE_BYTES = 2 * 1024 * 1024;
 const REVIEWED_TERMS_VERSION = "2026-06-14";
-const TEST_USER_EMAIL_PATTERN =
-  "(^|[+._-])(test|canary|codex|e2e)([+._@-]|$)|@example\\.invalid$";
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -257,16 +256,31 @@ async function main() {
   try {
     await owner.connect();
     stage = "select-test-identity";
+    clerk = createClerkClient({ secretKey: loadLiveClerkSecret() });
+    const clerkCandidates = await clerk.users.getUserList({
+      externalId: [NOTIFICATION_CANARY_EXTERNAL_ID],
+      limit: 2,
+    });
+    if (clerkCandidates.totalCount !== 1 || clerkCandidates.data.length !== 1) {
+      throw new Error("expected exactly one Clerk-backed operational canary");
+    }
+    const clerkUser = clerkCandidates.data[0];
+    if (
+      clerkUser.externalId !== NOTIFICATION_CANARY_EXTERNAL_ID
+      || clerkUser.banned === true
+      || clerkUser.locked === true
+      || clerkUser.publicMetadata?.grainlineOperationalCanary
+        !== "notification-rls-route-and-production-canary"
+    ) {
+      throw new Error("operational canary Clerk identity drifted");
+    }
     const candidates = await owner.query(
       `SELECT id, "clerkId", "termsAcceptedAt", "termsVersion", "ageAttestedAt"
          FROM public."User"
         WHERE "deletedAt" IS NULL
           AND banned = false
-          AND id NOT LIKE 'notification-provider-real-%'
-          AND "clerkId" NOT LIKE 'notification-provider-real-%'
-          AND email ~* $1
-        ORDER BY "createdAt", id`,
-      [TEST_USER_EMAIL_PATTERN],
+          AND "clerkId" = $1`,
+      [clerkUser.id],
     );
     if (candidates.rowCount !== 1) {
       throw new Error("expected exactly one active dedicated test identity");
@@ -286,9 +300,7 @@ async function main() {
     if (foreign.rowCount !== 1) throw new Error("route smoke requires one foreign local user");
 
     stage = "validate-clerk-user";
-    clerk = createClerkClient({ secretKey: loadLiveClerkSecret() });
-    const clerkUser = await clerk.users.getUser(candidate.clerkId);
-    if (clerkUser.id !== candidate.clerkId || clerkUser.banned === true || clerkUser.locked === true) {
+    if (clerkUser.id !== candidate.clerkId) {
       throw new Error("dedicated Clerk test identity is not active");
     }
 

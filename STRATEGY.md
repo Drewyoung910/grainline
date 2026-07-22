@@ -200,6 +200,20 @@ Notification design. The consolidated Extra High SQL/application authority
 review passed at `ab2d08a6` with no new blocker; authenticated route smoke,
 activation packaging, full release CI, and production evidence remain open.
 
+Two authenticated route attempts then failed closed before any ordinary user
+was impersonated. The first exposed a Preview/production Redis cache namespace
+collision; the second proved that email-pattern selection saw only synthetic
+provider actors while every Clerk-backed account was unmarked. All disposable
+resources were removed after each attempt. Drew explicitly authorized Codex to
+create the missing identity. Use one permanent, non-customer, no-email Clerk
+operational canary with external id
+`grainline-notification-rls-operational-canary-v1`, current legal metadata, one
+normal webhook-created production placeholder row, zero marketplace activity,
+and hashed private evidence. Do not create/delete a disposable live Clerk user:
+those webhooks would leave avoidable production creation/anonymization residue.
+Authenticated smoke must resolve this exact external id, never an email pattern
+or an unmarked account.
+
 The isolated service-authority draft now uses seventeen owner-backed functions:
 one runtime-ungranted fixed-column core, ten granted creation families, one
 dedicated back-in-stock claim/create/consume operation, three exact cleanup

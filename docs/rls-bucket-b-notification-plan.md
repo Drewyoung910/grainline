@@ -595,9 +595,9 @@ provider fixtures and had no Clerk identities. All six Clerk-backed active rows
 were unmarked; none could be treated as a test identity. The selector now
 explicitly excludes the `notification-provider-real-*` fixtures so future
 diagnostics cannot confuse database proof actors with authentication canaries.
-No unmarked account was impersonated. Creating a new live Clerk user remains
-rejected because production webhooks would create and later anonymize a
-production row. The remaining safe gate requires an intentionally designated
+No unmarked account was impersonated. Creating and deleting a disposable live
+Clerk user remains rejected because production webhooks would create and later
+anonymize a production row. The remaining safe gate requires an intentionally designated
 Clerk-backed operational canary (or explicit authorization for a specifically
 identified existing account), not looser matching.
 
@@ -619,6 +619,31 @@ artifacts and SHA-256 values are:
   `ab8b8304b5b43a83e64f75ec17951d40654553b1152a2e357cdf2955dd6c3410`
 - `notification-route-smoke-support-abort-cleanup-1a702d860676.json` —
   `620bb48340f8c90bd1438540d4c4eef4a56392658e9a7482dd8f46f899c998f5`
+
+### Operational authentication canary decision (2026-07-22)
+
+Drew explicitly authorized Codex to create the authentication identity and
+preferred not to perform the setup manually. The corrected design creates one
+permanent, non-customer live Clerk operational canary with exact external id
+`grainline-notification-rls-operational-canary-v1`. It intentionally permits
+the normal production Clerk webhook to create one production `User` row; that
+row is part of the durable test architecture rather than disposable data.
+
+The canary has no email address, phone, password, seller profile, orders,
+messages, favorites, saved searches, or notifications. Clerk public/private
+metadata marks its sole purpose, while current terms and age metadata allow the
+normal middleware path. The local row therefore uses the existing
+`@placeholder.invalid` fallback and cannot reserve a welcome email. The
+operator connects only through the reviewed pooled production
+`grainline_app_runtime` identity, waits for the signed Clerk webhook to create
+the row, proves zero marketplace activity, and retains only identifier hashes
+in mode-`0600` evidence. There is intentionally no automated delete command:
+deleting the Clerk user would create production anonymization/audit residue and
+remove the reusable canary needed for later authenticated postflights.
+
+Future authenticated Notification proof must resolve exactly that Clerk
+external id and its matching cloned child row. Email patterns, synthetic
+provider actors, and unmarked real accounts are not eligible.
 
 ### Consolidated Extra High authority review: passed (2026-07-22)
 

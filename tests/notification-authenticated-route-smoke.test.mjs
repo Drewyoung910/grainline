@@ -15,8 +15,8 @@ describe("Notification authenticated route smoke scaffold", () => {
     assert.match(source, /finally \{/);
     assert.doesNotMatch(source, /users\.createUser/);
     assert.doesNotMatch(source, /users\.deleteUser/);
-    assert.match(source, /id NOT LIKE 'notification-provider-real-%'/);
-    assert.match(source, /"clerkId" NOT LIKE 'notification-provider-real-%'/);
+    assert.match(source, /externalId: \[NOTIFICATION_CANARY_EXTERNAL_ID\]/);
+    assert.match(source, /"clerkId" = \$1/);
   });
 
   it("adjusts only the disposable child state and restores it with exact Preview cache cleanup", () => {
