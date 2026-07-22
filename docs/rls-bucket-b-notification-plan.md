@@ -676,36 +676,39 @@ direct Prisma Notification owner reads or updates outside the RPC helper:
   parse/apply, catalog/grant, own/foreign/direct-denial, every granted creation
   family, stable replay, the one-shot back-in-stock claim, and both two-session
   block-race checks. Each of the ten family fixtures rejects a forged recipient;
-  mismatched restock evidence neither creates nor consumes. Provider behavior,
-  pre-activation review, and direct authenticated runtime-credential proof
-  remain separate gates. Direct or generic runtime creation remains
-  unacceptable. Its 59 creation cases execute all 26 family-dispatched
+  mismatched restock evidence neither creates nor consumes. Provider behavior
+  is now accepted for the current design; pre-activation review and direct
+  authenticated runtime-credential route proof remain separate gates. Direct
+  or generic runtime creation remains unacceptable. Its 59 creation cases
+  execute all 26 family-dispatched
   private-core source-validation branches, all 38 successful source/type pairs,
   and their security-relevant action/status/recipient-direction variants with
   valid, replay, and forged-recipient evidence, plus the dedicated back-in-stock
   claim. The later split candidate completes byte-pinned disposable migration
-  proof; rollback, provider, and authenticated-route proof remain required
-  before calling the service-authority layer activation-ready.
+  proof; authenticated-route proof and application-deployment rollback remain
+  required before calling the service-authority layer activation-ready.
 - Role provisioning and the generic grant audit preserve Notification's
   asymmetric table/column grants, initial `NO FORCE` phase, exact policies, and
   25-function ACL/mode split. Accepted split-migration run `29894705025` now
   exercises those migration-derived expectations and database-first rollback
-  against disposable PostgreSQL 16. Provider/authenticated-route proof and the
-  application deployment rollback sequence remain separate gates.
+  against disposable PostgreSQL 16. Provider proof is complete;
+  authenticated-route proof and the application deployment rollback sequence
+  remain separate gates.
 - Recipient bell/page/count/export/mark-read uses the narrow one-statement
   `SECURITY INVOKER` RPC direction. The rejected transaction wrapper is retained
   only in Git and evidence history, not as executable fallback scaffolding.
-  Final promotion still requires SQL authority review, disposable real-table
-  PostgreSQL proof, and two fresh passes providing real-table candidate-aligned provider and route evidence.
+  The disposable PostgreSQL and two-pass provider gates are complete. Final
+  promotion still requires the consolidated SQL/application authority review
+  and direct authenticated route evidence.
 - The social/message/commission block-race protocol is implemented, statically
   guarded, and passed both transaction orderings under the CI runtime policy
   role. The proof uses CI-superuser `SET ROLE`, not a production runtime
   credential, so it proves policy-role permissions and lock behavior without
   claiming production authentication-path equivalence.
 - The generic wrapper findings remain blocking evidence against adopting that
-  architecture. Extra High review must add the real Notification RPC/route
-  workload without deleting or downgrading those findings; two fresh counted
-  passes are still required.
+  architecture. Extra High review must retain rather than downgrade those
+  findings while completing authenticated route smoke and final authority
+  review; the two fresh provider passes are complete.
 
 These blockers permit isolated implementation drafts, ephemeral PostgreSQL
 proof, and candidate-aligned provider comparison. They prohibit merge,
