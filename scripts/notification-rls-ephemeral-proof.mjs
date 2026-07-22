@@ -518,6 +518,7 @@ main().catch((error) => {
     name: error?.name ?? "Error",
     code: error?.code ?? null,
     message: error?.message ?? "notification RLS ephemeral proof failed",
+    detail: error?.detail ?? null,
   };
   process.stderr.write(`${JSON.stringify(safe)}\n`);
   process.exitCode = 1;

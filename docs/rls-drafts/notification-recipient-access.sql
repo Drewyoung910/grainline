@@ -115,9 +115,9 @@ BEGIN
     SELECT
       notification.id,
       notification.type,
-      notification.title,
-      notification.body,
-      notification.link,
+      notification.title::text,
+      notification.body::text,
+      notification.link::text,
       notification.read,
       notification."createdAt"
       FROM public."Notification" AS notification
@@ -207,9 +207,9 @@ BEGIN
     SELECT
       notification.id,
       notification.type,
-      notification.title,
-      notification.body,
-      notification.link,
+      notification.title::text,
+      notification.body::text,
+      notification.link::text,
       notification.read,
       notification."createdAt"
       FROM public."Notification" AS notification
@@ -377,11 +377,11 @@ BEGIN
   SELECT
     notification.id,
     notification.type,
-    notification.title,
-    notification.body,
-    notification.link,
-    notification."sourceType",
-    notification."sourceId",
+    notification.title::text,
+    notification.body::text,
+    notification.link::text,
+    notification."sourceType"::text,
+    notification."sourceId"::text,
     notification.read,
     notification."createdAt"
     FROM public."Notification" AS notification

@@ -3,8 +3,9 @@
 -- SavedSearch Phase B and runtime credential separation have passed their
 -- production postflights, but this remains an isolated Bucket B proof artifact.
 -- Move it into a newly reviewed migration only after every Notification gate
--- in docs/rls-bucket-b-notification-plan.md passes. This is a lifecycle metadata
--- key, not a Prisma ownership relation: the service create path validates it
+-- in docs/rls-bucket-b-notification-plan.md passes.
+-- This is a lifecycle metadata key, not a Prisma ownership relation: the
+-- service create path validates it
 -- and account deletion removes matching rows explicitly.
 ALTER TABLE "Notification"
   ADD COLUMN "relatedUserId" TEXT;

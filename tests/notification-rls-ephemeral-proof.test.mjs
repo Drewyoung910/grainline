@@ -5,6 +5,7 @@ import { describe, it } from "node:test";
 describe("Notification RLS ephemeral PostgreSQL proof", () => {
   const proof = fs.readFileSync("scripts/notification-rls-ephemeral-proof.mjs", "utf8");
   const workflow = fs.readFileSync(".github/workflows/notification-rls-ephemeral-proof.yml", "utf8");
+  const recipientSql = fs.readFileSync("docs/rls-drafts/notification-recipient-access.sql", "utf8");
   const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
 
   it("is hard-limited to the loopback grainline_ci database", () => {
@@ -27,6 +28,18 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     assert.match(proof, /notification-proof-create-second/);
     assert.match(proof, /wait_event_type === "Lock"/);
     assert.match(proof, /recipient RPC p_user_id must come from server-resolved identity/);
+    assert.ok(
+      (recipientSql.match(/notification\.title::text/g) ?? []).length >= 3,
+      "text-returning recipient RPCs must cast varchar title columns",
+    );
+    assert.ok(
+      (recipientSql.match(/notification\.body::text/g) ?? []).length >= 3,
+      "text-returning recipient RPCs must cast varchar body columns",
+    );
+    assert.ok(
+      (recipientSql.match(/notification\.link::text/g) ?? []).length >= 3,
+      "text-returning recipient RPCs must cast varchar link columns",
+    );
   });
 
   it("runs only on the isolated branch or explicit dispatch against PostgreSQL 16", () => {
