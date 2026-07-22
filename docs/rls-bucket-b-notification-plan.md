@@ -217,9 +217,11 @@ recipient RPC direction and rejected the transaction candidate for Notification
 hot reads. Its measurements and source history remain retained; executable
 fallback scaffolding does not. Selection is not promotion. The invoker SQL now
 has disposable PostgreSQL parse/apply, own/foreign/direct-denial, column-grant,
-and context-reset proof. Final authority review, a byte-pinned real migration,
-authenticated runtime-credential proof, and real-table candidate-aligned
-provider/route evidence remain open.
+and context-reset proof. At this checkpoint, final authority review, a
+byte-pinned real migration, authenticated runtime-credential proof, and
+real-table candidate-aligned provider/route evidence remained open. The later
+accepted fifth-attempt section closes the provider-performance part only;
+authenticated route smoke and final authority review remain current gates.
 
 ### Provider candidate result (2026-07-22)
 
@@ -509,33 +511,96 @@ or material validation joins. Ephemeral authority proof, exact grants,
 application/database compatibility, destructive-data review, authenticated
 route smoke, and rollback semantics remain mandatory before activation.
 
-### Authenticated route-smoke setup (2026-07-22)
+### First authenticated route-smoke attempt: failed closed (2026-07-22)
 
-The one-use smoke is isolated on
-`codex/rls-notification-route-smoke-20260722`, initially pushed with Git
-deployment disabled. It targets expiring Neon child branch
-`br-misty-scene-aazlwc2o` and endpoint `ep-withered-silence-aat8o1zf`, both
-derived from the reviewed production parent. The existing byte-pinned split
-migrations and disposable PostgreSQL proof run before one exact Preview is
-enabled. Production deployment, data, RLS, and credentials are out of scope.
+Disposable branch `codex/rls-notification-route-smoke-20260722` was pushed
+deployment-disabled, then targeted expiring Neon child
+`br-misty-scene-aazlwc2o` / `ep-withered-silence-aat8o1zf`. Preparation commit
+`a331f6c06c7d628ba9cac297f53f3a3d4bf681ff` applied the byte-pinned split
+migrations and passed the local runtime-role preflight. Enablement commit
+`61015f9a3f42e1d827d7a49f4d8854bfe8627877` produced and independently
+attested Preview `dpl_GHPfPXu4zPLiDJShUWWcFozZbg7T`.
 
-Authentication uses exactly one existing active, terms-accepted account whose
-stored email is marked as a dedicated test/canary identity. The operator never
-retains its local id, Clerk id, email, session id, or token and never creates or
-deletes a Clerk user. It creates one short-lived Clerk session through the
-Backend API, obtains a five-minute token, and revokes that exact session in a
-`finally` cleanup. The database fixtures are four child-only Notification rows:
-three for the authenticated owner and one for a different local user. They are
-also deleted in `finally`.
+The authenticated proof then stopped at identity selection. The cloned data
+contained one active account marked test/canary/codex/e2e, but zero such
+accounts had both terms and age acceptance. No Clerk session, Clerk user, or
+Notification route fixture was created. The script recorded successful no-op
+session/fixture cleanup and retained no local id, Clerk id, email, token, or
+secret. This is failed evidence, not a route pass.
 
-The accepted route result must prove unauthenticated denial; authenticated bell
-and dashboard-page owner projection; foreign-row exclusion; explicit
-cross-origin mutation denial; no-op foreign mark-read; successful owner
-mark-one and mark-all; exact database postconditions; session revocation; and
-fixture deletion. Sanitized evidence is mode `0600`. A separate
-`cleanup-route-smoke` mode must then remove the Preview, all branch variables,
-the automation bypass, the Neon child, and private state. Until that entire
-sequence passes, authenticated route smoke remains open.
+The failure also exposed a separate environment-isolation defect:
+`accountStateCacheKey()` used the same Redis key for Production and Preview.
+Changing only the child account's terms state could therefore influence
+production middleware for the 60-second cache TTL when both environments use
+the same Redis service. The Notification branch now keeps production on one
+stable namespace but hashes the Preview branch identity into Preview keys;
+`tests/middleware-account-state-cache.test.mjs` pins the separation. Do not
+retry with a child-only terms edit before that fix is reviewed and deployed.
+
+Abort cleanup removed the Preview, all 28 branch variables, the automation
+bypass, provider fixtures, Neon child, and private state; post-cleanup inventory
+showed zero branch variables/deployments, no staging branch, and the reviewed
+production branch still present. Sanitized mode-`0600` artifacts are:
+
+- `notification-route-smoke-support-setup-a331f6c06c7d.json` — SHA-256
+  `28475af0df20f060d58d72fb7a38d124351090966ea566116832b236030ef8f2`
+- `notification-route-smoke-support-local-preflight-a331f6c06c7d.json` —
+  SHA-256 `106d28e694204f86f00069576e8d44915fe72293b675fa34d346e8da260e250c`
+- `notification-route-smoke-support-attestation-61015f9a3f42.json` — SHA-256
+  `a4e2454a2098a1b420f2d76b8e24adf44231401b3de177fedc0523d2adb9f4b6`
+- `notification-authenticated-route-smoke-61015f9a3f42.json` — SHA-256
+  `9a900918b2ce6471d69feca4dda9ccd622719fd4e8c488495dd7b99b0578012c`
+- `notification-route-smoke-support-teardown-61015f9a3f42.json` — SHA-256
+  `9c3036d70222ae6d5576898314e6246521bb7f2ff09e06061fa4ee6402be4bc8`
+- `notification-route-smoke-support-abort-cleanup-61015f9a3f42.json` — SHA-256
+  `649d6147dd5b3af784ebfec542e26cd0c9bed24697f621a278a448ea19343351`
+
+A fresh attempt must not impersonate one of the unmarked real accounts or
+change production terms state. The safe option is an explicitly authorized,
+clearly named disposable live Clerk test user paired only with a fresh child
+database row, followed by exact session revocation, user deletion, cache-key
+deletion, Preview/variable/bypass removal, and child teardown.
+
+### Consolidated Extra High authority review: passed (2026-07-22)
+
+The consolidated SQL/application review at exact branch head
+`ab2d08a65a079a34664ea67ce659f013a12354d4` found no new blocking authority
+defect. The review inspected all seventeen `SECURITY DEFINER` functions, all
+eight `SECURITY INVOKER` recipient functions, their application adapters, and
+the preparation/activation split rather than relying on the disposable proof
+alone.
+
+- Every elevated function pins `search_path`, uses fixed SQL rather than
+  dynamic SQL, and derives security-relevant recipient, payload, canonical
+  link, and replay identity from validated source rows. The generic creation
+  primitive remains private; runtime receives only the sixteen fixed-purpose
+  entry points and `PUBLIC` receives none.
+- Recipient reads and mark-read operations resolve the durable `User.id` on the
+  server and run through the one-statement invoker functions. Direct runtime
+  `INSERT` and `DELETE` stay revoked; runtime retains only recipient-scoped
+  reads and column-only `UPDATE(read)` after activation.
+- The preparation migration adds the compatibility schema/functions while RLS
+  remains disabled and legacy app writes remain valid. The activation migration
+  locks `Notification`, performs the guarded prelaunch-only legacy purge as its
+  first data-changing step, installs the exact policies/grants, and then enables
+  RLS. This preserves old/new deployment compatibility and prevents a purge /
+  notification-recreation race.
+- At this head, the 54/54 source-path gate reports zero uncovered or unresolved
+  paths; the candidate builder reproduces byte-stable preparation and
+  activation SQL; `npm test` passed 1,857 tests with three expected skips and
+  zero failures; TypeScript and lint passed. The branch-only PostgreSQL workflow
+  also passed preparation, compatibility, activation, authority, isolation,
+  concurrency, grant-audit, and database-first rollback checks at source commit
+  `a4ced63b7c23f61366b7632ce2507c822c53241f`.
+
+This closes the final authority-review gate; it does not authorize production
+activation. Remaining release gates are a fresh explicitly authorized
+authenticated route smoke, legacy aggregate/backup inspection, clean release
+PR and full CI, application-deployment rollback proof, production preparation
+and compatible app deployment, activation, and catalog/runtime postflight.
+Application-asserted `app.user_id` and ordinary-runtime authority over many
+upstream source tables remain explicitly bounded residual risks for later
+site-wide groups, not claims Bucket B can eliminate by itself.
 
 ## Isolation Boundary And Hot-Path Decision
 

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import * as Sentry from "@sentry/nextjs";
 import { redis } from "@/lib/ratelimit";
 
@@ -22,8 +23,22 @@ type SerializedAccountState =
 
 const ACCOUNT_STATE_CACHE_TTL_SECONDS = 60;
 
+function accountStateCacheNamespace(env: NodeJS.ProcessEnv = process.env) {
+  if (env.VERCEL_ENV === "production") return "vercel-production";
+  if (env.VERCEL_ENV === "preview") {
+    const previewIdentity = env.VERCEL_GIT_COMMIT_REF || env.VERCEL_URL || "unknown-preview";
+    const digest = createHash("sha256").update(previewIdentity).digest("hex").slice(0, 16);
+    return `vercel-preview-${digest}`;
+  }
+  if (env.VERCEL_ENV === "development" || env.NODE_ENV === "development") {
+    return "development";
+  }
+  if (env.NODE_ENV === "test") return "test";
+  return "self-hosted-production";
+}
+
 function accountStateCacheKey(clerkId: string) {
-  return `account-state:clerk:${clerkId}`;
+  return `account-state:${accountStateCacheNamespace()}:clerk:${clerkId}`;
 }
 
 function serializeAccountState(account: AccountStateForMiddleware | null): SerializedAccountState {

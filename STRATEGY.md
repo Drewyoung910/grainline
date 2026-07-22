@@ -196,8 +196,9 @@ ratio, and the 250ms candidate ceiling without exception. The bell target,
 burst, and service p95s stayed between `21.7ms` and `39.9ms` across both slots.
 Success cleanup removed every disposable resource and production remained
 unchanged. Treat provider performance/locality as complete for this exact
-Notification design; authenticated route smoke, the final Extra High authority
-review, activation packaging, and production evidence remain open.
+Notification design. The consolidated Extra High SQL/application authority
+review passed at `ab2d08a6` with no new blocker; authenticated route smoke,
+activation packaging, full release CI, and production evidence remain open.
 
 The isolated service-authority draft now uses seventeen owner-backed functions:
 one runtime-ungranted fixed-column core, ten granted creation families, one
