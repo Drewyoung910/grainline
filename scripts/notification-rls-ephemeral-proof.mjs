@@ -902,6 +902,98 @@ async function proveServiceAuthority(owner) {
   }
 }
 
+async function configureResolvedCase(owner, resolution, refundAmountCents = null) {
+  await owner.query(
+    `UPDATE public."Case"
+        SET status = 'RESOLVED',
+            resolution = $2::public."CaseResolution",
+            "refundAmountCents" = $3,
+            "resolvedById" = $4,
+            "resolvedAt" = pg_catalog.clock_timestamp(),
+            "updatedAt" = pg_catalog.clock_timestamp()
+      WHERE id = $1`,
+    [fixture.caseId, resolution, refundAmountCents, fixture.staffUserId],
+  );
+}
+
+async function configureCaseMessageAuthor(owner, authorId, body) {
+  await owner.query(
+    `UPDATE public."CaseMessage"
+        SET "authorId" = $2, body = $3
+      WHERE id = $1`,
+    [fixture.caseMessageId, authorId, body],
+  );
+}
+
+async function configureCaseResolutionAudit(owner, actorId, status) {
+  await owner.query(
+    `UPDATE public."AdminAuditLog"
+        SET "adminId" = $2,
+            metadata = pg_catalog.jsonb_build_object(
+              'actorKind', 'user',
+              'orderId', $3::text,
+              'status', $4::text
+            )
+      WHERE id = $1`,
+    [fixture.caseResolutionAuditId, actorId, fixture.orderId, status],
+  );
+}
+
+async function configureCaseSystemAudit(owner, action, previousStatus, newStatus) {
+  await owner.query(
+    `UPDATE public."SystemAuditLog"
+        SET action = $2,
+            metadata = pg_catalog.jsonb_build_object(
+              'orderId', $3::text,
+              'previousStatus', $4::text,
+              'newStatus', $5::text
+            )
+      WHERE id = $1`,
+    [fixture.caseSystemAuditId, action, fixture.orderId, previousStatus, newStatus],
+  );
+}
+
+async function configureCommissionRequestStatus(owner, status) {
+  await owner.query(
+    `UPDATE public."CommissionRequest"
+        SET status = $2::public."CommissionStatus", "updatedAt" = pg_catalog.clock_timestamp()
+      WHERE id = $1`,
+    [fixture.commissionClosedRequestId, status],
+  );
+}
+
+async function configureFulfillmentAudit(owner, action, newStatus, trackingCarrier = null) {
+  await owner.query(
+    `UPDATE public."SystemAuditLog"
+        SET metadata = pg_catalog.jsonb_strip_nulls(
+          pg_catalog.jsonb_build_object(
+            'action', $2::text,
+            'newStatus', $3::text,
+            'trackingCarrier', $4::text
+          )
+        )
+      WHERE id = $1`,
+    [fixture.orderFulfillmentAuditId, action, newStatus, trackingCarrier],
+  );
+}
+
+async function configureOrderPaymentEvent(owner, stripeEventId, localAction, notificationBody = null) {
+  await owner.query(
+    `UPDATE public."OrderPaymentEvent"
+        SET "stripeEventId" = $2,
+            "eventType" = 'REFUND',
+            metadata = pg_catalog.jsonb_strip_nulls(
+              pg_catalog.jsonb_build_object(
+                'localAction', $3::text,
+                'notificationBody', $4::text
+              )
+            ),
+            "updatedAt" = pg_catalog.clock_timestamp()
+      WHERE id = $1`,
+    [fixture.orderPaymentEventId, stripeEventId, localAction, notificationBody],
+  );
+}
+
 const creationFamilyCases = Object.freeze([
   {
     label: "source_fanout",
@@ -1193,6 +1285,267 @@ const creationFamilyCases = Object.freeze([
     relatedUserId: fixture.actorUserId,
     expectedLink: `/dashboard/sales/${fixture.orderId}`,
   },
+  // Meaningful action and recipient-direction variants within the source
+  // types above. Mutated durable fixtures are reset before each invocation;
+  // the runtime still receives only source ids and relationship dimensions.
+  {
+    label: "case_resolved_dismissed",
+    functionName: "grainline_notification_create_case_event",
+    userId: fixture.actorUserId,
+    type: "CASE_RESOLVED",
+    sourceType: "case",
+    sourceId: fixture.caseId,
+    relatedUserId: fixture.staffUserId,
+    expectedLink: `/dashboard/orders/${fixture.orderId}`,
+    expectedTitle: "Case dismissed",
+    expectedBodyIncludes: "reviewed and dismissed",
+    setup: (owner) => configureResolvedCase(owner, "DISMISSED"),
+  },
+  {
+    label: "case_refund_full",
+    functionName: "grainline_notification_create_case_event",
+    userId: fixture.actorUserId,
+    type: "REFUND_ISSUED",
+    sourceType: "case",
+    sourceId: fixture.caseId,
+    relatedUserId: fixture.staffUserId,
+    expectedLink: `/dashboard/orders/${fixture.orderId}`,
+    expectedTitle: "Full refund issued",
+    expectedBodyIncludes: "full refund",
+    setup: (owner) => configureResolvedCase(owner, "REFUND_FULL"),
+  },
+  {
+    label: "case_refund_partial",
+    functionName: "grainline_notification_create_case_event",
+    userId: fixture.actorUserId,
+    type: "REFUND_ISSUED",
+    sourceType: "case",
+    sourceId: fixture.caseId,
+    relatedUserId: fixture.staffUserId,
+    expectedLink: `/dashboard/orders/${fixture.orderId}`,
+    expectedTitle: "Partial refund issued",
+    expectedBodyIncludes: "$43.21",
+    resetSourceNotification: true,
+    setup: (owner) => configureResolvedCase(owner, "REFUND_PARTIAL", 4321),
+  },
+  {
+    label: "case_message_seller_to_buyer",
+    functionName: "grainline_notification_create_case_event",
+    userId: fixture.actorUserId,
+    type: "CASE_MESSAGE",
+    sourceType: "case_message",
+    sourceId: fixture.caseMessageId,
+    relatedUserId: fixture.sellerUserId,
+    expectedLink: `/dashboard/orders/${fixture.orderId}`,
+    expectedBodyIncludes: "Proof seller case message",
+    setup: (owner) => configureCaseMessageAuthor(owner, fixture.sellerUserId, "Proof seller case message"),
+  },
+  {
+    label: "case_message_staff_to_buyer",
+    functionName: "grainline_notification_create_case_event",
+    userId: fixture.actorUserId,
+    type: "CASE_MESSAGE",
+    sourceType: "case_message",
+    sourceId: fixture.caseMessageId,
+    relatedUserId: fixture.staffUserId,
+    expectedLink: `/dashboard/orders/${fixture.orderId}`,
+    expectedTitle: "Grainline Staff sent a message in your case",
+    setup: (owner) => configureCaseMessageAuthor(owner, fixture.staffUserId, "Proof staff case message"),
+  },
+  {
+    label: "case_message_staff_to_seller",
+    functionName: "grainline_notification_create_case_event",
+    userId: fixture.sellerUserId,
+    type: "CASE_MESSAGE",
+    sourceType: "case_message",
+    sourceId: fixture.caseMessageId,
+    relatedUserId: fixture.staffUserId,
+    expectedLink: `/dashboard/sales/${fixture.orderId}`,
+    expectedTitle: "Grainline Staff sent a message in your case",
+  },
+  {
+    label: "case_resolution_mark_resolved_seller_to_buyer",
+    functionName: "grainline_notification_create_case_event",
+    userId: fixture.actorUserId,
+    type: "CASE_RESOLVED",
+    sourceType: "case_resolution_mark",
+    sourceId: fixture.caseResolutionAuditId,
+    relatedUserId: fixture.sellerUserId,
+    expectedLink: `/dashboard/orders/${fixture.orderId}`,
+    expectedTitle: "Case resolved",
+    setup: (owner) => configureCaseResolutionAudit(owner, fixture.sellerUserId, "RESOLVED"),
+  },
+  {
+    label: "case_system_open_seller",
+    functionName: "grainline_notification_create_case_event",
+    userId: fixture.sellerUserId,
+    type: "CASE_MESSAGE",
+    sourceType: "case_system_action",
+    sourceId: fixture.caseSystemAuditId,
+    relatedUserId: null,
+    expectedLink: `/dashboard/sales/${fixture.orderId}`,
+    expectedTitle: "Case escalated",
+    setup: (owner) => configureCaseSystemAudit(owner, "AUTO_ESCALATE_CASE", "OPEN", "UNDER_REVIEW"),
+  },
+  {
+    label: "case_system_discussion_buyer",
+    functionName: "grainline_notification_create_case_event",
+    userId: fixture.actorUserId,
+    type: "CASE_MESSAGE",
+    sourceType: "case_system_action",
+    sourceId: fixture.caseSystemAuditId,
+    relatedUserId: null,
+    expectedLink: `/dashboard/orders/${fixture.orderId}`,
+    expectedTitle: "Case under review",
+    expectedBodyIncludes: "inactive",
+    resetSourceNotification: true,
+    setup: (owner) => configureCaseSystemAudit(owner, "AUTO_ESCALATE_CASE", "IN_DISCUSSION", "UNDER_REVIEW"),
+  },
+  {
+    label: "case_system_discussion_seller",
+    functionName: "grainline_notification_create_case_event",
+    userId: fixture.sellerUserId,
+    type: "CASE_MESSAGE",
+    sourceType: "case_system_action",
+    sourceId: fixture.caseSystemAuditId,
+    relatedUserId: null,
+    expectedLink: `/dashboard/sales/${fixture.orderId}`,
+    expectedTitle: "Case escalated",
+    expectedBodyIncludes: "discussion stalled",
+    resetSourceNotification: true,
+    setup: (owner) => configureCaseSystemAudit(owner, "AUTO_ESCALATE_CASE", "IN_DISCUSSION", "UNDER_REVIEW"),
+  },
+  {
+    label: "case_system_close_buyer",
+    functionName: "grainline_notification_create_case_event",
+    userId: fixture.actorUserId,
+    type: "CASE_RESOLVED",
+    sourceType: "case_system_action",
+    sourceId: fixture.caseSystemAuditId,
+    relatedUserId: null,
+    expectedLink: `/dashboard/orders/${fixture.orderId}`,
+    expectedTitle: "Case closed",
+    setup: (owner) => configureCaseSystemAudit(owner, "AUTO_CLOSE_CASE", "PENDING_CLOSE", "RESOLVED"),
+  },
+  {
+    label: "case_system_close_seller",
+    functionName: "grainline_notification_create_case_event",
+    userId: fixture.sellerUserId,
+    type: "CASE_RESOLVED",
+    sourceType: "case_system_action",
+    sourceId: fixture.caseSystemAuditId,
+    relatedUserId: null,
+    expectedLink: `/dashboard/sales/${fixture.orderId}`,
+    expectedTitle: "Case closed",
+  },
+  {
+    label: "commission_request_fulfilled_seller",
+    functionName: "grainline_notification_create_commission_event",
+    userId: fixture.sellerUserId,
+    type: "COMMISSION_INTEREST",
+    sourceType: "commission_request",
+    sourceId: fixture.commissionClosedRequestId,
+    relatedUserId: fixture.actorUserId,
+    expectedLink: `/commission/${fixture.commissionClosedRequestId}`,
+    expectedTitle: "Commission request fulfilled",
+    resetSourceNotification: true,
+    setup: (owner) => configureCommissionRequestStatus(owner, "FULFILLED"),
+  },
+  {
+    label: "commission_request_expired_seller",
+    functionName: "grainline_notification_create_commission_event",
+    userId: fixture.sellerUserId,
+    type: "COMMISSION_INTEREST",
+    sourceType: "commission_request",
+    sourceId: fixture.commissionClosedRequestId,
+    relatedUserId: fixture.actorUserId,
+    expectedLink: `/commission/${fixture.commissionClosedRequestId}`,
+    expectedTitle: "Commission request expired",
+    resetSourceNotification: true,
+    setup: (owner) => configureCommissionRequestStatus(owner, "EXPIRED"),
+  },
+  {
+    label: "commission_request_expired_buyer",
+    functionName: "grainline_notification_create_commission_event",
+    userId: fixture.actorUserId,
+    type: "COMMISSION_INTEREST",
+    sourceType: "commission_request",
+    sourceId: fixture.commissionClosedRequestId,
+    relatedUserId: null,
+    expectedLink: `/commission/${fixture.commissionClosedRequestId}`,
+    expectedTitle: "Commission request expired",
+  },
+  {
+    label: "order_checkout_seller",
+    functionName: "grainline_notification_create_order_event",
+    userId: fixture.sellerUserId,
+    type: "NEW_ORDER",
+    sourceType: "order_checkout",
+    sourceId: fixture.orderId,
+    relatedUserId: fixture.actorUserId,
+    expectedLink: `/dashboard/sales/${fixture.orderId}`,
+    expectedTitle: "New sale! Congrats!",
+  },
+  {
+    label: "order_fulfillment_picked_up",
+    functionName: "grainline_notification_create_order_event",
+    userId: fixture.actorUserId,
+    type: "ORDER_DELIVERED",
+    sourceType: "order_fulfillment",
+    sourceId: fixture.orderFulfillmentAuditId,
+    relatedUserId: fixture.sellerUserId,
+    expectedLink: `/dashboard/orders/${fixture.orderId}`,
+    expectedTitle: "Order picked up!",
+    setup: (owner) => configureFulfillmentAudit(owner, "picked_up", "PICKED_UP"),
+  },
+  {
+    label: "order_fulfillment_ready_for_pickup",
+    functionName: "grainline_notification_create_order_event",
+    userId: fixture.actorUserId,
+    type: "ORDER_SHIPPED",
+    sourceType: "order_fulfillment",
+    sourceId: fixture.orderFulfillmentAuditId,
+    relatedUserId: fixture.sellerUserId,
+    expectedLink: `/dashboard/orders/${fixture.orderId}`,
+    expectedTitle: "Ready for pickup!",
+    resetSourceNotification: true,
+    setup: (owner) => configureFulfillmentAudit(owner, "ready_for_pickup", "READY_FOR_PICKUP"),
+  },
+  {
+    label: "order_payment_seller_refund",
+    functionName: "grainline_notification_create_order_event",
+    userId: fixture.actorUserId,
+    type: "REFUND_ISSUED",
+    sourceType: "order_payment",
+    sourceId: "evt_notification_proof_seller_refund",
+    relatedUserId: fixture.sellerUserId,
+    expectedLink: `/dashboard/orders/${fixture.orderId}`,
+    expectedTitle: "Refund from maker",
+    expectedBodyIncludes: "Proof seller refund body",
+    setup: (owner) => configureOrderPaymentEvent(
+      owner,
+      "evt_notification_proof_seller_refund",
+      "SELLER_REFUND_RECORDED",
+      "Proof seller refund body",
+    ),
+  },
+  {
+    label: "order_payment_blocked_checkout_refund",
+    functionName: "grainline_notification_create_order_event",
+    userId: fixture.actorUserId,
+    type: "NEW_ORDER",
+    sourceType: "order_payment",
+    sourceId: "evt_notification_proof_blocked_refund",
+    relatedUserId: null,
+    expectedLink: `/dashboard/orders/${fixture.orderId}`,
+    expectedTitle: "Payment refunded",
+    expectedBodyIncludes: "no longer eligible",
+    setup: (owner) => configureOrderPaymentEvent(
+      owner,
+      "evt_notification_proof_blocked_refund",
+      "BLOCKED_CHECKOUT_REFUND_RECORDED",
+    ),
+  },
 ]);
 
 async function invokeCreationFamily(client, family, userId, notificationId = crypto.randomUUID()) {
@@ -1218,6 +1571,19 @@ async function proveCreationFamilyMatrix(owner) {
   try {
     await setRuntimeRole(runtime);
     for (const family of creationFamilyCases) {
+      if (family.setup) {
+        await family.setup(owner);
+      }
+      if (family.resetSourceNotification) {
+        await owner.query(
+          `DELETE FROM public."Notification"
+            WHERE "userId" = $1
+              AND type = $2::public."NotificationType"
+              AND "sourceType" = $3
+              AND "sourceId" = $4`,
+          [family.userId, family.type, family.sourceType, family.sourceId],
+        );
+      }
       const first = await invokeCreationFamily(runtime, family, family.userId);
       const firstId = first.rows[0].notification_id;
       assert.ok(firstId, `${family.label} valid source did not create a notification`);
@@ -1259,6 +1625,15 @@ async function proveCreationFamilyMatrix(owner) {
       assert.ok(stored.rows[0].title, `${family.label} title was not database-derived`);
       assert.notEqual(stored.rows[0].body, null, `${family.label} body was not database-derived`);
       assert.equal(stored.rows[0].dedupKey.length, 64, `${family.label} replay key drifted`);
+      if (family.expectedTitle) {
+        assert.equal(stored.rows[0].title, family.expectedTitle, `${family.label} title branch drifted`);
+      }
+      if (family.expectedBodyIncludes) {
+        assert.ok(
+          stored.rows[0].body.includes(family.expectedBodyIncludes),
+          `${family.label} body branch drifted`,
+        );
+      }
 
       const forged = await invokeCreationFamily(runtime, family, fixture.foreignUserId);
       assert.equal(

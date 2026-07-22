@@ -56,6 +56,30 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     ]) {
       assert.match(proof, new RegExp(`label: "${family}"`));
     }
+    for (const variant of [
+      "case_resolved_dismissed",
+      "case_refund_full",
+      "case_refund_partial",
+      "case_message_seller_to_buyer",
+      "case_message_staff_to_buyer",
+      "case_message_staff_to_seller",
+      "case_resolution_mark_resolved_seller_to_buyer",
+      "case_system_open_seller",
+      "case_system_discussion_buyer",
+      "case_system_discussion_seller",
+      "case_system_close_buyer",
+      "case_system_close_seller",
+      "commission_request_fulfilled_seller",
+      "commission_request_expired_seller",
+      "commission_request_expired_buyer",
+      "order_checkout_seller",
+      "order_fulfillment_picked_up",
+      "order_fulfillment_ready_for_pickup",
+      "order_payment_seller_refund",
+      "order_payment_blocked_checkout_refund",
+    ]) {
+      assert.match(proof, new RegExp(`label: "${variant}"`));
+    }
     assert.match(
       proof,
       /service_family_\$\{family\.label\}_valid_replay_and_forged_recipient_rejected/,
@@ -99,6 +123,9 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     assert.match(proof, /notification-proof-block-second/);
     assert.match(proof, /notification-proof-create-second/);
     assert.match(proof, /wait_event_type === "Lock"/);
+    assert.match(proof, /if \(family\.setup\)/);
+    assert.match(proof, /if \(family\.resetSourceNotification\)/);
+    assert.match(proof, /family\.expectedBodyIncludes/);
     assert.match(proof, /recipient RPC p_user_id must come from server-resolved identity/);
     assert.ok(
       (recipientSql.match(/notification\.title::text/g) ?? []).length >= 3,
