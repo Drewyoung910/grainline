@@ -52,6 +52,9 @@ is necessary but not sufficient.
 | CM-A08 | High | Account deletion obtains its conflicting User row lock only at the final User update, after message redaction. A concurrent send can pass its checks and commit after the deletion scan. | Lock the deleting User at the start of the anonymization transaction and make sends take the compatible sorted-pair share lock. Prove deletion-first and send-first orderings. |
 | CM-A09 | Design | `isSystemMessage` is true for commission-interest cards but false for custom-order-ready cards, and no runtime behavior currently consumes the flag. | Define the semantic contract before adding checks. Do not use this field for authority until existing and intended structured kinds are reconciled. |
 | CM-A10 | Expected gap | Runtime currently has broad Conversation/Message CRUD because this group has not activated RLS. | After compatible helpers are live, revoke all direct DML, keep context-denied SELECT, and expose only reviewed fixed operations. |
+| CM-A11 | High | Private custom listings are authorized correctly by the page for their seller and reserved buyer, but public-only metadata calls `notFound()` first, so both authorized viewers can receive a false 404. | Return generic no-index metadata for non-public listings without exposing private fields; retain viewer-aware page authorization and pin both boundaries in tests. |
+| CM-A12 | Medium | Threads render only the latest 200 messages and have no older-history control; the inbox similarly caps at 50 conversations. Long-lived users can lose access to valid history even though the rows remain stored. | Add stable keyset pagination for older messages and inbox conversations before freezing the read API/RPC contract. |
+| CM-A13 | Scale | The SSE route holds a serverless request and polls PostgreSQL every 3–10 seconds per open thread. That is acceptable for prelaunch/low concurrency but is not a 50k-concurrent-user transport. | Keep the storage/read contract transport-neutral, record an operational migration threshold, and move high-concurrency delivery to a managed realtime/fanout channel rather than weakening RLS or opening long DB transactions. |
 
 ## Remediation progress
 
@@ -70,6 +73,10 @@ is necessary but not sufficient.
 - **CM-A06 fixed:** custom-order request and commission-interest POSTs now run
   the explicit cross-origin guard before authentication, rate-limit consumption,
   parsing or database work; source-order tests pin the boundary.
+- **CM-A11 fixed in the compatible app:** metadata for private/non-public rows is
+  now generic and `noindex,nofollow` rather than throwing a public-only 404.
+  The page remains the viewer-aware enforcement point, allowing only the seller,
+  reserved buyer or explicit active staff preview while returning 404 to others.
 
 ## Audit completion criteria
 
