@@ -206,17 +206,26 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     assert.match(workflow, /scripts\/stage-notification-rls-candidate-migration\.mjs/);
     assert.match(workflow, /scripts\/audit-runtime-db-grants\.mjs/);
     assert.match(workflow, /image: postgres:16/);
-    assert.match(workflow, /Stage byte-pinned Notification candidate migration/);
+    assert.match(workflow, /Stage byte-pinned Notification preparation migration/);
+    assert.match(workflow, /Stage byte-pinned Notification activation migration/);
     assert.match(workflow, /I_ACKNOWLEDGE_DISPOSABLE_LOOPBACK_NOTIFICATION_MIGRATION/);
-    assert.match(workflow, /Converge Notification-aware production-style runtime grants/);
-    assert.ok(
-      workflow.indexOf("Stage byte-pinned Notification candidate migration")
-        < workflow.indexOf("Apply current plus Notification candidate migrations"),
+    assert.match(workflow, /Converge preparation-compatible production-style runtime grants/);
+    assert.match(workflow, /Converge activated production-style runtime grants/);
+    const preparationApply = workflow.indexOf(
+      "Apply current plus Notification preparation migration",
     );
-    assert.ok(
-      workflow.indexOf("Apply current plus Notification candidate migrations")
-        < workflow.indexOf("Audit production-style runtime grants"),
+    const compatibilityProof = workflow.indexOf(
+      "Prove old and new application compatibility before activation",
     );
+    const activationApply = workflow.indexOf("Apply Notification activation migration");
+    const grantAudit = workflow.indexOf("Audit production-style runtime grants");
+    assert.ok(
+      workflow.indexOf("Stage byte-pinned Notification preparation migration")
+        < preparationApply,
+    );
+    assert.ok(preparationApply < compatibilityProof);
+    assert.ok(compatibilityProof < activationApply);
+    assert.ok(activationApply < grantAudit);
     assert.doesNotMatch(workflow, /Apply isolated Notification .* draft/);
     assert.equal(
       packageJson.scripts["audit:rls-notification-ephemeral"],
@@ -225,6 +234,10 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     assert.equal(
       packageJson.scripts["audit:rls-notification-candidate"],
       "node scripts/stage-notification-rls-candidate-migration.mjs --verify",
+    );
+    assert.equal(
+      packageJson.scripts["audit:rls-notification-preparation"],
+      "node scripts/notification-rls-preparation-proof.mjs",
     );
   });
 });

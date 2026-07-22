@@ -12,6 +12,7 @@ on:
       - prisma/**
       - scripts/audit-runtime-db-grants.mjs
       - scripts/notification-rls-ephemeral-proof.mjs
+      - scripts/notification-rls-preparation-proof.mjs
       - scripts/stage-notification-rls-candidate-migration.mjs
       - scripts/prepare-ci-rls-runtime-role.sql
       - scripts/provision-runtime-db-role.sql
@@ -51,13 +52,23 @@ jobs:
       - run: npx prisma generate
       - name: Prepare CI runtime policy role
         run: psql "$DIRECT_URL" -f scripts/prepare-ci-rls-runtime-role.sql
-      - name: Stage byte-pinned Notification candidate migration
+      - name: Stage byte-pinned Notification preparation migration
         env:
           NOTIFICATION_RLS_DISPOSABLE_MIGRATION_ACK: I_ACKNOWLEDGE_DISPOSABLE_LOOPBACK_NOTIFICATION_MIGRATION
-        run: node scripts/stage-notification-rls-candidate-migration.mjs --stage
-      - name: Apply current plus Notification candidate migrations to ephemeral PostgreSQL
+        run: node scripts/stage-notification-rls-candidate-migration.mjs --stage-preparation
+      - name: Apply current plus Notification preparation migration
         run: npx prisma migrate deploy
-      - name: Converge Notification-aware production-style runtime grants
+      - name: Converge preparation-compatible production-style runtime grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Prove old and new application compatibility before activation
+        run: npm run audit:rls-notification-preparation
+      - name: Stage byte-pinned Notification activation migration
+        env:
+          NOTIFICATION_RLS_DISPOSABLE_MIGRATION_ACK: I_ACKNOWLEDGE_DISPOSABLE_LOOPBACK_NOTIFICATION_MIGRATION
+        run: node scripts/stage-notification-rls-candidate-migration.mjs --stage-activation
+      - name: Apply Notification activation migration
+        run: npx prisma migrate deploy
+      - name: Converge activated production-style runtime grants
         run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
       - name: Verify migration status
         run: npx prisma migrate status
