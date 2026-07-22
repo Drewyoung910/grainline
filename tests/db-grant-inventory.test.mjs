@@ -947,14 +947,14 @@ describe("database grant inventory guardrails", () => {
     await withAuditFixture({ grantColumnPrivilege: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
       assert.match(
         (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n"),
-        /has column privileges: id:REFERENCES/,
+        /runtime role has unexpected column privileges: id:REFERENCES/,
       );
     });
 
     await withAuditFixture({ grantPublicColumnPrivilege: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
       assert.match(
         (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n"),
-        /has column privileges: id:REFERENCES/,
+        /PUBLIC has column privileges: id:REFERENCES/,
       );
     });
 
