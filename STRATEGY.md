@@ -98,7 +98,8 @@ The isolated branch contains both recipient candidates. Fixed
 `SECURITY INVOKER` recipient RPCs cover bell, page, unread count, mark-one,
 mark-many, conversation mark-read, export, and recent low-stock lookup in one
 database round trip per application operation; the prior interactive-transaction
-bell/page wrapper remains only as the rejected comparison baseline. The
+bell/page wrapper is retained only in Git/evidence history after its executable
+candidate file was removed. The
 2026-07-22 provider attempt selected the one-statement RPC direction: its
 target/burst candidate comparisons passed with zero request or isolation errors,
 while the generic wrapper crossed seven unchanged 2x adoption/hold thresholds.
@@ -142,11 +143,11 @@ not by itself select the recipient architecture, replace provider/performance
 proof, prove the production authentication path, authorize merge, or activate
 any persistent database. The later 2026-07-22 provider result above selects the
 RPC direction without converting either proof into activation evidence.
-Do not deploy the long-lived Notification branch to obtain the remaining
-generic provider comparison. Its unapplied SQL drafts deliberately make every
+Do not deploy the long-lived Notification branch for the remaining real-table
+provider proof. Its unapplied SQL drafts deliberately make every
 Vercel build fail closed, and automatic deployment is disabled for that exact
-branch. Use a disposable proof branch from the reviewed `main` baseline with
-only the hardened generic gate delta and temporary Preview runner artifacts.
+branch. Use a freshly reviewed disposable proof branch with only the exact
+candidate and temporary Preview runner artifacts needed for the next proof.
 The runner branch and all branch-scoped provider credentials/resources must be
 deleted after sanitized evidence and teardown proof are retained; the generic
 harness, regression tests, and operating record remain durable.

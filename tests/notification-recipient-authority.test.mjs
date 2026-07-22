@@ -8,10 +8,6 @@ describe("Notification recipient RLS authority candidate", () => {
     "utf8",
   );
   const ownerAccess = fs.readFileSync("src/lib/notificationOwnerAccess.ts", "utf8");
-  const transactionCandidate = fs.readFileSync(
-    "src/lib/notificationOwnerAccessTransactionCandidate.ts",
-    "utf8",
-  );
   const runtimeGuard = fs.readFileSync("scripts/guard-runtime-db-env.mjs", "utf8");
   const plan = fs.readFileSync("docs/rls-bucket-b-notification-plan.md", "utf8");
 
@@ -75,18 +71,19 @@ describe("Notification recipient RLS authority candidate", () => {
     assert.match(runtimeGuard, /notification-recipient-access\.sql/);
   });
 
-  it("retains the rejected transaction candidate as a historical comparison", () => {
-    assert.match(transactionCandidate, /withDbUserContext\(userId, async \(db\) =>/);
-    assert.match(transactionCandidate, /transactionCandidateNotificationBellData/);
-    assert.match(transactionCandidate, /transactionCandidateNotificationPageData/);
-    assert.doesNotMatch(transactionCandidate, /Promise\.all/);
-    assert.match(plan, /transaction wrapper is a\s+rejected historical control, not a fallback/);
+  it("removes the rejected transaction candidate from executable source", () => {
+    assert.equal(
+      fs.existsSync("src/lib/notificationOwnerAccessTransactionCandidate.ts"),
+      false,
+    );
+    assert.match(plan, /measurements and source history remain retained/);
+    assert.match(plan, /not as executable fallback scaffolding/);
   });
 
   it("keeps live proof blocking promotion after provider direction selection", () => {
     assert.match(plan, /recipient-access\.sql/);
     assert.match(plan, /one database round trip/);
-    assert.match(plan, /selects the one-statement `SECURITY INVOKER` recipient\s+RPC direction/);
+    assert.match(plan, /select(?:s|ed) the one-statement `SECURITY INVOKER`\s+recipient RPC direction/);
     assert.match(plan, /does \*\*not\*\* satisfy the existing two-pass generic provider gate/);
     assert.match(plan, /prove the\s+real Notification functions/);
     assert.match(plan, /PostgreSQL parse\/apply/);

@@ -530,14 +530,7 @@ describe("RLS feasibility plan guardrails", () => {
   it("blocks new direct owner-style Notification reads and updates outside the owner helper", () => {
     const directNotificationAccessPattern =
       /\b[A-Za-z_$][\w$]*\.notification\.(?:count|findMany|findFirst|findUnique|update|updateMany)\b/g;
-    const allowedDirectCalls = {
-      "src/lib/notificationOwnerAccessTransactionCandidate.ts": [
-        "db.notification.count",
-        "db.notification.findMany",
-        "db.notification.count",
-        "db.notification.findMany",
-      ],
-    };
+    const allowedDirectCalls = {};
     const directCallsByFile = {};
 
     for (const file of sourceFiles("src")) {

@@ -46,9 +46,7 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.equal(backInStockClaimCount, 1);
     assert.equal(objectLiteralCreateCount + fulfillmentPayloadCount + backInStockClaimCount, 54);
     assert.equal(createCallers.length, 29);
-    assert.deepEqual(directAccess.sort(), [
-      "src/lib/notificationOwnerAccessTransactionCandidate.ts",
-    ]);
+    assert.deepEqual(directAccess.sort(), []);
   });
 
   it("keeps asymmetric writes, staged activation, and blockers explicit", () => {
@@ -60,7 +58,8 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(plan, /column-level `UPDATE \(read\)` only/);
     assert.match(plan, /Do not grant direct `INSERT` or `DELETE`/);
     assert.match(plan, /atomic activation-transaction purge/);
-    assert.match(plan, /generic provider wrapper\/performance gate/);
+    assert.match(plan, /rejects the interactive-transaction wrapper for Notification hot\s+reads/);
+    assert.match(plan, /two fresh slots on its\s+real one-statement recipient operations plus route\/data-shape proof/);
     assert.match(plan, /explicit `NO FORCE` plus `ENABLE ROW LEVEL SECURITY`/);
     assert.match(plan, /separate `FORCE ROW LEVEL SECURITY` release/);
     assert.match(plan, /production\s+Notification RLS activation/i);
@@ -68,7 +67,7 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(plan, /isolated B0\/B1 implementation in progress/);
     assert.match(plan, /Code, unapplied migration\/RPC\/policy[\s\S]{0,100}drafts, local\/ephemeral PostgreSQL proof, and isolated provider comparison may\s+continue/);
     assert.match(plan, /No Notification change may merge to `main`, apply to\s+production, or activate a persistent staging database/);
-    assert.match(plan, /one-statement `SECURITY INVOKER` recipient\s+RPC direction/);
+    assert.match(plan, /one-statement `SECURITY INVOKER`\s+recipient RPC direction/);
     assert.match(plan, /Recipient RPCs are distinct from cross-user creation\/cleanup service\s+authority/);
     assert.match(plan, /All 54 emission paths now carry reviewed creation authority/);
     assert.match(plan, /54 distinct emission paths\. All 54 are currently\s+authority-bound and none are source-less/);

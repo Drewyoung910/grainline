@@ -186,11 +186,11 @@ sets transaction-local `app.user_id` inside that statement, retains explicit
 projections and bounds, and still executes under the runtime role's recipient
 RLS plus `SELECT` and column-only `UPDATE (read)` grants. Conversation marking
 now uses the exact canonical link instead of substring matching. The prior
-interactive-transaction bell/page implementation remains as a historical
-comparison baseline in `notificationOwnerAccessTransactionCandidate.ts`. The
-2026-07-22 result below selects the one-statement `SECURITY INVOKER` recipient
-RPC direction and rejects the transaction candidate for Notification hot
-reads; selection is not promotion. The invoker SQL has not received its final
+interactive-transaction bell/page implementation was removed after the
+2026-07-22 provider result selected the one-statement `SECURITY INVOKER`
+recipient RPC direction and rejected the transaction candidate for Notification
+hot reads. Its measurements and source history remain retained; executable
+fallback scaffolding does not. Selection is not promotion. The invoker SQL has not received its final
 authority review, PostgreSQL parse/apply, own/foreign/direct-denial proof, or
 real-table candidate-aligned provider and route evidence.
 
@@ -302,10 +302,9 @@ requirements.
 | Staff blog/broadcast deletion | Delete notifications tied to a deleted comment or broadcast across recipients | Use exact `sourceType`/`sourceId` service cleanup only; no title/body/link matching remains in runtime code |
 | Admin, webhook, cron, order/case/message/social flows | Create recipient notifications through reviewed service access | All 54 emission paths dispatch through ten reviewed family wrappers or the dedicated back-in-stock claim; the gate also requires the corresponding SQL function, revoke, and runtime grant |
 
-Current direct-access files are deliberately pinned by test:
+Current access files are deliberately pinned by test. There are no remaining
+direct Prisma Notification owner reads or updates outside the RPC helper:
 
-- `src/lib/notificationOwnerAccessTransactionCandidate.ts` — retained direct
-  Prisma transaction baseline for owner bell/page reads; not production-selected.
 - `src/lib/notificationOwnerAccess.ts` — one-statement invoker RPC candidate;
   no direct Prisma `Notification` table access.
 - `src/lib/notifications.ts` plus `src/lib/notificationServiceAccess.ts` —
@@ -321,11 +320,11 @@ Current direct-access files are deliberately pinned by test:
 3. Grant the runtime role table `SELECT` and column-level `UPDATE (read)` only.
    Do not grant direct `INSERT` or `DELETE`. RLS cannot by itself prevent an
    owner from changing protected columns, so the column grant is mandatory.
-4. Compare the one-round-trip `SECURITY INVOKER` recipient candidate with the
-   retained `withDbUserContext` transaction baseline. Both must receive only the
-   server-resolved local user id. Keep PostgreSQL isolation/direct-denial proof
-   and the restored provider performance thresholds blocking; select one
-   architecture explicitly before activation.
+4. Use the selected one-round-trip `SECURITY INVOKER` recipient candidate with
+   only the server-resolved local user id. The rejected transaction baseline is
+   evidence history, not executable code. Keep PostgreSQL
+   isolation/direct-denial proof and candidate-aligned provider/route thresholds
+   blocking before activation.
 5. Implement notification creation as a narrowly reviewed owner-backed RPC.
    It must be the sole cross-user insert path and must keep recipient status,
    preferences, payload bounds, source metadata, and durable dedup behavior.
@@ -369,8 +368,10 @@ Current direct-access files are deliberately pinned by test:
 - Serialize reciprocal block absence checks with block/unblock mutations using
   the shared sorted-user-row lock protocol; prove both transaction orderings in
   PostgreSQL before activation.
-- Retain two fresh counted passes for the Notification workload with the
-  restored generic provider transaction performance gate.
+- Retain two fresh counted passes for the real Notification recipient RPC and
+  route workload under a reviewed candidate-aligned gate. The unchanged generic
+  transaction limits remain blocking for later releases that actually adopt
+  interactive transactions.
 
 ### B1 - Staging database prototype
 
@@ -418,8 +419,9 @@ Current direct-access files are deliberately pinned by test:
   direct authenticated runtime-credential proof remain separate gates. Direct
   or generic runtime creation remains unacceptable.
 - Recipient bell/page/count/export/mark-read uses the narrow one-statement
-  `SECURITY INVOKER` RPC direction. The experimental transaction wrapper is a
-  rejected historical control, not a fallback. Final promotion still requires
+  `SECURITY INVOKER` RPC direction. The rejected transaction wrapper is retained
+  only in Git and evidence history, not as executable fallback scaffolding.
+  Final promotion still requires
   SQL authority review, real-table PostgreSQL proof, and two fresh
   candidate-aligned provider/route passes.
 - The social/message/commission block-race protocol is implemented, statically
@@ -427,8 +429,10 @@ Current direct-access files are deliberately pinned by test:
   role. The proof uses CI-superuser `SET ROLE`, not a production runtime
   credential, so it proves policy-role permissions and lock behavior without
   claiming production authentication-path equivalence.
-- The generic provider wrapper/performance gate is restored in code, but two
-  fresh counted provider passes are still required.
+- The generic wrapper findings remain blocking evidence against adopting that
+  architecture. Extra High review must add the real Notification RPC/route
+  workload without deleting or downgrading those findings; two fresh counted
+  passes are still required.
 
 These blockers permit isolated implementation drafts, ephemeral PostgreSQL
 proof, and candidate-aligned provider comparison. They prohibit merge,
@@ -492,11 +496,12 @@ was previously reported as `[UNCLASSIFIED]`. The bounded diagnostic is now
 `[NOTIFICATION_RLS_DRAFT_PRESENT]`.
 
 Automatic Vercel deployment is disabled for the long-lived Notification branch.
-The provider comparison must use a separate disposable proof branch built from
-the reviewed `main` baseline plus only the hardened generic gate delta and the
-temporary Preview route/middleware/test. This avoids weakening the draft guard
-and prevents the full Notification implementation diff from becoming a
-deployable artifact merely to measure the generic transport candidates.
+The completed generic comparison used a separate disposable proof branch, now
+deleted. A future real Notification candidate run must again use a freshly
+reviewed disposable branch and temporary Preview runner rather than making the
+long-lived SQL-draft branch deployable. This avoids weakening the draft guard
+while allowing the exact real-table RPC/route candidate to be measured after
+its authority and PostgreSQL gates pass.
 
 The project also has a linked team-shared `DATABASE_URL` whose metadata targets
 Development, Preview, and Production. Ordinary Previews therefore receive a
