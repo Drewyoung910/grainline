@@ -365,7 +365,7 @@ async function proveServiceAuthority(owner) {
     assert.equal(stored.rows[0].id, first.rows[0].notification_id);
     assert.equal(stored.rows[0].link, "/dashboard/analytics");
     assert.equal(stored.rows[0].relatedUserId, fixture.actorUserId);
-    assert.equal(stored.rows[0].dedupKey.length, 32);
+    assert.equal(stored.rows[0].dedupKey.length, 64);
     record("service_core_private_and_family_source_validation");
     record("service_payload_and_replay_identity_derived_from_source");
   } finally {
