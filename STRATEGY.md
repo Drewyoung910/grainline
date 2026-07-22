@@ -189,6 +189,16 @@ each side at full measured concurrency immediately before measurement and must
 pass a fresh two-slot proof. The failed environment was fully removed and
 production remained unchanged.
 
+The fifth fresh attempt validated the priming correction and completed the
+Notification provider gate. Its local preflight and both non-replayable,
+order-reversed Vercel slots passed exact correctness, zero errors, the fixed 2x
+ratio, and the 250ms candidate ceiling without exception. The bell target,
+burst, and service p95s stayed between `21.7ms` and `39.9ms` across both slots.
+Success cleanup removed every disposable resource and production remained
+unchanged. Treat provider performance/locality as complete for this exact
+Notification design; authenticated route smoke, the final Extra High authority
+review, activation packaging, and production evidence remain open.
+
 The isolated service-authority draft now uses seventeen owner-backed functions:
 one runtime-ungranted fixed-column core, ten granted creation families, one
 dedicated back-in-stock claim/create/consume operation, three exact cleanup

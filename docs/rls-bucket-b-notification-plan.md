@@ -459,10 +459,51 @@ unchanged. Sanitized mode-`0600` artifacts are:
 - `notification-provider-proof-abort-cleanup-0e84a432d758.json` — SHA-256
   `0e671c706149bd2d5148bd5084f6e56fdf174ec7f9a951f554195bde602a169c`
 
+### Fifth real Notification provider attempt: accepted (2026-07-22)
+
+The corrected, fresh attempt passed every predeployment and counted gate.
+Preparation commit `0c5e6721d3964cad329c186fd539968e77bba293` passed the
+full-concurrency-primed local preflight with exact correctness, zero query
+errors, zero local performance issues, and an owner fixture reset/reseed.
+Enablement commit `61a32e62f993347140c6421fb209dfcabeec55da` produced
+Git-integrated Preview `dpl_EWmEkmUpyNZUzoTWqED5HCihM6Ct`; independent
+attestation passed before either slot.
+
+Both non-replayable order-reversed slots returned HTTP `200`, exact
+correctness, stable replay/context reset, and zero request errors. Slot 1 p95s
+were bell target `38.1ms` baseline / `24.6ms` candidate, bell burst `39.5ms` /
+`37.3ms`, and service target `24.9ms` / `28.1ms`. Slot 2 p95s were bell target
+`28.3ms` baseline / `22.1ms` candidate, bell burst `39.6ms` / `39.9ms`, and
+service target `21.7ms` / `26.4ms`. The priming correction therefore removed
+the order-dependent ramp without relaxing either the fixed 2x ratio or 250ms
+candidate ceiling. This is accepted provider-runtime performance/locality
+evidence for the current Notification recipient/service design; it is not
+production activation evidence.
+
+Success cleanup validated both retained slots, then removed fixtures, all 28
+branch variables, the Preview, temporary bypass, child branch, and private
+state. Production remained unchanged. Sanitized mode-`0600` artifacts are:
+
+- `notification-provider-proof-setup-0c5e6721d396.json` — SHA-256
+  `a5e0220c89412a6dcdffde62a202d55c0c813214ca25e322caf0013e8635e8eb`
+- `notification-provider-proof-local-preflight-0c5e6721d396.json` — SHA-256
+  `523dcbebb688e88721c5f180ddcd039c393f5909e79e68cc0ff4c59ee53f6129`
+- `notification-provider-proof-attestation-61a32e62f993.json` — SHA-256
+  `cd541900f314648e66607c520cf1c8f60306cad2a24a82cf1f7145d79f84bb58`
+- `notification-provider-proof-response-slot-1-61a32e62f993.json` — SHA-256
+  `b44c7a81d7521508eca14fc27521a2a8ec74b89ee1d3a59acfa183d919a323cb`
+- `notification-provider-proof-response-slot-2-61a32e62f993.json` — SHA-256
+  `f37ce1070c894fdb70ae7a81090468a751e626a3db8fd07c4b99b3c20ea522c2`
+- `notification-provider-proof-teardown-61a32e62f993.json` — SHA-256
+  `a3d4138f6a3e955c6992c6249b232ba66064f003e31fc9e1b27587d37b25be4a`
+- `notification-provider-proof-cleanup-61a32e62f993.json` — SHA-256
+  `cba1a07c07be290cb8e0b3e37ffed69a1113a12ff003a875d790df03a7de92ca`
+
 The prelaunch/no-dependent-users fact shortens traffic-drain ceremony but does
-not waive this candidate's fresh provider run: this hot one-statement recipient
-RPC and service-source workload has not yet completed in Vercel. For later RLS
-groups, provider performance proof is required only when review finds a new hot
+not waive correctness, compatibility, authenticated route, rollback, or
+pre-activation authority review. Notification's provider-performance gate is
+now complete for the current design. For later RLS groups, provider performance
+proof is required only when review finds a new hot
 path, pooling/transaction design, lock/concurrency risk, cross-region change,
 or material validation joins. Ephemeral authority proof, exact grants,
 application/database compatibility, destructive-data review, authenticated
@@ -480,11 +521,11 @@ route smoke, and rollback semantics remain mandatory before activation.
 - The statement that the site currently has no users does not waive the sealed
   SavedSearch operator's skew/canary gate or any production evidence gate. It
   only makes parallel isolated Bucket B construction a reasonable use of time.
-- The 2026-07-22 provider result rejects interactive transactions for the
-  Notification bell/page hot reads and selects narrow one-statement
-  `SECURITY INVOKER` recipient RPCs as the candidate direction. It is synthetic
-  evidence, not a real Notification-table or route proof, and the consumed run
-  did not satisfy the generic two-pass gate.
+- The accepted 2026-07-22 real-table provider result rejects interactive
+  transactions for the Notification bell/page hot reads and selects narrow one-statement
+  `SECURITY INVOKER` recipient RPCs as the candidate direction. Both
+  order-reversed, full-concurrency-primed slots passed. Authenticated route
+  smoke and production activation evidence remain separate gates.
 - Bell/page RPCs must
   preserve explicit projections, counts, pagination, owner isolation, context
   reset, and hot-route SLOs. Mark-read and export need the same candidate review.
