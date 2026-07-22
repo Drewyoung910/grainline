@@ -27,7 +27,7 @@ describe("Notification authenticated route smoke scaffold", () => {
     assert.match(source, /"clerkId" = \$1/);
   });
 
-  it("adjusts only the disposable child state and restores it with exact Preview cache cleanup", () => {
+  it("adjusts only the canary child state and restores it with exact environment cache cleanup", () => {
     assert.match(source, /REVIEWED_TERMS_VERSION = "2026-06-14"/);
     assert.match(source, /stage = "adjust-child-account-state"/);
     assert.match(source, /candidate\.termsAcceptedAt/);
@@ -35,8 +35,9 @@ describe("Notification authenticated route smoke scaffold", () => {
     assert.match(source, /candidate\.ageAttestedAt/);
     assert.match(source, /childAccountStateRestored/);
     assert.match(source, /vercel-preview-\$\{sha256\(PROVIDER_PROOF_BRANCH\)\.slice\(0, 16\)\}/);
+    assert.match(source, /PRODUCTION_CACHE_NAMESPACE = "vercel-production"/);
     assert.match(source, /await redis\.del\(key\)/);
-    assert.match(source, /previewCacheKeyDeleted/);
+    assert.match(source, /accountStateCacheKeyDeleted/);
   });
 
   it("proves authentication, owner projection, mutation scope, and cross-origin denial", () => {
@@ -53,5 +54,19 @@ describe("Notification authenticated route smoke scaffold", () => {
     assert.match(source, /DELETE FROM public\."Notification"/);
     assert.match(source, /secretsRetained: false/);
     assert.match(source, /retainedIdentifier: false/);
+  });
+
+  it("pins production postflight identity, catalog, and runtime direct-denial proof", () => {
+    assert.match(source, /--production-postflight/);
+    assert.match(source, /PRODUCTION_RELEASE_COMMIT = "aa3f2c3640c2cb62200c1d660a08ac217271a037"/);
+    assert.match(source, /PRODUCTION_DEPLOYMENT_ID = "dpl_92rXcp1PqmoMPtgtAswbecAKWEt2"/);
+    assert.match(source, /PRODUCTION_ENDPOINT_ID = "ep-plain-river-aaqg8gj4"/);
+    assert.match(source, /production Notification catalog or runtime grant posture drifted/);
+    assert.match(source, /runtime without context observed Notification rows/);
+    assert.match(source, /runtime direct Notification insert/);
+    assert.match(source, /runtime direct Notification delete/);
+    assert.match(source, /runtime direct Notification title update/);
+    assert.match(source, /runtime local Notification context leaked after rollback/);
+    assert.match(source, /runtimeDirectDenialProved: productionPostflight/);
   });
 });

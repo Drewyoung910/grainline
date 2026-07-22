@@ -28,6 +28,7 @@
     "audit:rls-notification-rollback": "node scripts/notification-rls-rollback-proof.mjs",
     "audit:rls-notification-ephemeral": "node scripts/notification-rls-ephemeral-proof.mjs",
     "ops:notification-canary": "node scripts/notification-operational-canary.mjs",
+    "ops:notification-production-postflight": "node scripts/notification-authenticated-route-smoke.mjs --production-postflight",
     "seed:rls-saved-search-canary": "node scripts/seed-saved-search-rls-canary.mjs",
     "audit:stripe-webhooks": "node scripts/stripe-webhook-subscriptions-proof.mjs",
     "audit:stripe-money": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/stripe-money-movement-proof.mjs",
