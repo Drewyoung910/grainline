@@ -22,10 +22,10 @@ export const REVIEWED_PRODUCTION_RUNTIME_IDENTITY = Object.freeze({
 // two counted runs. Keep this exception out of the canonical Notification
 // branch and fail closed whenever any pinned condition drifts.
 export const NOTIFICATION_PROVIDER_PROOF = Object.freeze({
-  branch: "codex/rls-notification-provider-proof-4-20260722",
+  branch: "codex/rls-notification-provider-proof-5-20260722",
   databaseAliasKey: "RLS_CONTEXT_GATE_DATABASE_URL",
   databaseName: "neondb",
-  endpointId: "ep-raspy-sea-aayr0tt3",
+  endpointId: "ep-holy-term-aa43669z",
   middlewarePath: "src/middleware.ts",
   publicPath: "/api/internal/rls-context-gate",
   region: "westus3.azure",
