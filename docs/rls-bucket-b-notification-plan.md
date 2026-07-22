@@ -561,6 +561,19 @@ clearly named disposable live Clerk test user paired only with a fresh child
 database row, followed by exact session revocation, user deletion, cache-key
 deletion, Preview/variable/bypass removal, and child teardown.
 
+The follow-up safety review rejected creating that live Clerk user: Clerk may
+emit `user.created` to the production webhook, producing the very production
+row the isolation plan intended to avoid. The authorized second attempt instead
+uses the one already-marked dedicated test identity without changing Clerk or
+production account state. It records the identity's original terms/age fields,
+sets the current acceptance state only in the disposable Neon child, creates
+and revokes one five-minute Clerk session, restores the child fields exactly,
+and deletes the exact Preview-branch Redis account-state key. The candidate
+contains the reviewed Preview namespace fix before any request is made. A
+missing restore, session revoke, fixture deletion, or Redis deletion makes the
+smoke fail even if every HTTP assertion passed. No unmarked account may be
+selected.
+
 ### Consolidated Extra High authority review: passed (2026-07-22)
 
 The consolidated SQL/application review at exact branch head

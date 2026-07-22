@@ -17,6 +17,18 @@ describe("Notification authenticated route smoke scaffold", () => {
     assert.doesNotMatch(source, /users\.deleteUser/);
   });
 
+  it("adjusts only the disposable child state and restores it with exact Preview cache cleanup", () => {
+    assert.match(source, /REVIEWED_TERMS_VERSION = "2026-06-14"/);
+    assert.match(source, /stage = "adjust-child-account-state"/);
+    assert.match(source, /candidate\.termsAcceptedAt/);
+    assert.match(source, /candidate\.termsVersion/);
+    assert.match(source, /candidate\.ageAttestedAt/);
+    assert.match(source, /childAccountStateRestored/);
+    assert.match(source, /vercel-preview-\$\{sha256\(PROVIDER_PROOF_BRANCH\)\.slice\(0, 16\)\}/);
+    assert.match(source, /await redis\.del\(key\)/);
+    assert.match(source, /previewCacheKeyDeleted/);
+  });
+
   it("proves authentication, owner projection, mutation scope, and cross-origin denial", () => {
     assert.match(source, /unauthenticated\.status !== 401/);
     assert.match(source, /bellBefore\.body\.unreadCount !== 2/);

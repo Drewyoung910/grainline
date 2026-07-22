@@ -13,6 +13,7 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { createClerkClient } from "@clerk/backend";
+import { Redis } from "@upstash/redis";
 import { parse as parseDotenv } from "dotenv";
 import pg from "pg";
 import {
@@ -31,6 +32,7 @@ const { Client } = pg;
 const LOCAL_ENV_PATH = "/Users/drewyoung/grainline/.env.local";
 const MAX_JSON_BYTES = 128 * 1024;
 const MAX_PAGE_BYTES = 2 * 1024 * 1024;
+const REVIEWED_TERMS_VERSION = "2026-06-14";
 const TEST_USER_EMAIL_PATTERN =
   "(^|[+._-])(test|canary|codex|e2e)([+._@-]|$)|@example\\.invalid$";
 
@@ -93,9 +95,13 @@ function exactCleanCommit() {
   return head.stdout.trim();
 }
 
-function loadLiveClerkSecret() {
+function loadLocalEnvironment() {
   assertPrivateRegularFile(LOCAL_ENV_PATH, "local environment file");
-  const values = parseDotenv(readFileSync(LOCAL_ENV_PATH));
+  return parseDotenv(readFileSync(LOCAL_ENV_PATH));
+}
+
+function loadLiveClerkSecret() {
+  const values = loadLocalEnvironment();
   const secret = values.CLERK_SECRET_KEY;
   const publishable = values.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
   if (
@@ -107,6 +113,24 @@ function loadLiveClerkSecret() {
     throw new Error("route smoke requires the reviewed live Clerk key pair");
   }
   return secret;
+}
+
+async function deletePreviewAccountStateCache(clerkId) {
+  const values = loadLocalEnvironment();
+  const url = values.UPSTASH_REDIS_REST_URL;
+  const token = values.UPSTASH_REDIS_REST_TOKEN;
+  if (
+    typeof url !== "string"
+    || !url.startsWith("https://")
+    || typeof token !== "string"
+    || token.length < 16
+  ) {
+    throw new Error("route smoke requires the reviewed Redis REST credentials");
+  }
+  const namespace = `vercel-preview-${sha256(PROVIDER_PROOF_BRANCH).slice(0, 16)}`;
+  const key = `account-state:${namespace}:clerk:${clerkId}`;
+  const redis = new Redis({ url, token });
+  await redis.del(key);
 }
 
 function validateState() {
@@ -221,6 +245,9 @@ async function main() {
   let fixturesSeeded = false;
   let sessionRevoked = false;
   let fixturesDeleted = false;
+  let childAccountStateAdjusted = false;
+  let childAccountStateRestored = true;
+  let previewCacheKeyDeleted = true;
   let result = null;
   let primaryFailure = null;
   let candidate;
@@ -231,20 +258,19 @@ async function main() {
     await owner.connect();
     stage = "select-test-identity";
     const candidates = await owner.query(
-      `SELECT id, "clerkId"
+      `SELECT id, "clerkId", "termsAcceptedAt", "termsVersion", "ageAttestedAt"
          FROM public."User"
         WHERE "deletedAt" IS NULL
           AND banned = false
-          AND "termsAcceptedAt" IS NOT NULL
-          AND "ageAttestedAt" IS NOT NULL
           AND email ~* $1
         ORDER BY "createdAt", id`,
       [TEST_USER_EMAIL_PATTERN],
     );
     if (candidates.rowCount !== 1) {
-      throw new Error("expected exactly one active, terms-accepted dedicated test identity");
+      throw new Error("expected exactly one active dedicated test identity");
     }
     candidate = candidates.rows[0];
+    previewCacheKeyDeleted = false;
     const foreign = await owner.query(
       `SELECT id
          FROM public."User"
@@ -263,6 +289,23 @@ async function main() {
     if (clerkUser.id !== candidate.clerkId || clerkUser.banned === true || clerkUser.locked === true) {
       throw new Error("dedicated Clerk test identity is not active");
     }
+
+    stage = "adjust-child-account-state";
+    const acceptedAt = new Date();
+    const adjusted = await owner.query(
+      `UPDATE public."User"
+          SET "termsAcceptedAt" = $2,
+              "termsVersion" = $3,
+              "ageAttestedAt" = $2
+        WHERE id = $1
+        RETURNING id`,
+      [candidate.id, acceptedAt, REVIEWED_TERMS_VERSION],
+    );
+    if (adjusted.rowCount !== 1) {
+      throw new Error("dedicated test identity child-state adjustment failed");
+    }
+    childAccountStateAdjusted = true;
+    childAccountStateRestored = false;
 
     stage = "seed-isolated-fixtures";
     const nonce = randomUUID();
@@ -510,10 +553,45 @@ async function main() {
     } else {
       fixturesDeleted = true;
     }
+    if (childAccountStateAdjusted && candidate) {
+      try {
+        const restored = await owner.query(
+          `UPDATE public."User"
+              SET "termsAcceptedAt" = $2,
+                  "termsVersion" = $3,
+                  "ageAttestedAt" = $4
+            WHERE id = $1
+            RETURNING id`,
+          [
+            candidate.id,
+            candidate.termsAcceptedAt,
+            candidate.termsVersion,
+            candidate.ageAttestedAt,
+          ],
+        );
+        childAccountStateRestored = restored.rowCount === 1;
+      } catch {
+        childAccountStateRestored = false;
+      }
+    }
+    if (candidate) {
+      try {
+        await deletePreviewAccountStateCache(candidate.clerkId);
+        previewCacheKeyDeleted = true;
+      } catch {
+        previewCacheKeyDeleted = false;
+      }
+    }
     await owner.end().catch(() => {});
   }
 
-  const status = !primaryFailure && sessionRevoked && fixturesDeleted ? "passed" : "failed";
+  const status = !primaryFailure
+    && sessionRevoked
+    && fixturesDeleted
+    && childAccountStateRestored
+    && previewCacheKeyDeleted
+    ? "passed"
+    : "failed";
   const evidence = {
     generatedAt: new Date().toISOString(),
     scope: "notification-authenticated-route-smoke",
@@ -535,6 +613,8 @@ async function main() {
       fixtureRowsDeleted: fixturesDeleted,
       clerkSessionRevoked: sessionRevoked,
       clerkUserDeleted: false,
+      childAccountStateRestored,
+      previewCacheKeyDeleted,
     },
     result,
     failureStage: status === "failed" ? stage : null,
@@ -567,8 +647,10 @@ async function main() {
   });
   console.log(JSON.stringify({
     authenticatedRouteSmoke: "passed",
+    childAccountStateRestored: true,
     clerkSessionRevoked: true,
     fixtureRowsDeleted: true,
+    previewCacheKeyDeleted: true,
   }));
 }
 
