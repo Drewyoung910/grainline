@@ -1,0 +1,54 @@
+name: Notification RLS Ephemeral Proof
+
+on:
+  push:
+    branches:
+      - codex/rls-bucket-b-notification-20260719
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: grainline_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d grainline_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
+      DIRECT_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
+      NOTIFICATION_RLS_PROOF_DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx prisma generate
+      - name: Prepare CI runtime policy role
+        run: psql "$DIRECT_URL" -f scripts/prepare-ci-rls-runtime-role.sql
+      - name: Apply current migrations to ephemeral PostgreSQL
+        run: npx prisma migrate deploy
+      - name: Converge production-style runtime grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Apply isolated Notification lifecycle metadata draft
+        run: psql "$DIRECT_URL" --set=ON_ERROR_STOP=1 -f docs/rls-drafts/notification-related-user.sql
+      - name: Apply isolated Notification recipient-access draft
+        run: psql "$DIRECT_URL" --set=ON_ERROR_STOP=1 -f docs/rls-drafts/notification-recipient-access.sql
+      - name: Apply isolated Notification service-authority draft
+        run: psql "$DIRECT_URL" --set=ON_ERROR_STOP=1 -f docs/rls-drafts/notification-service-authority.sql
+      - name: Prove Notification RLS and service authority
+        run: npm run audit:rls-notification-ephemeral

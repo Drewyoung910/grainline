@@ -353,8 +353,12 @@ Current direct-access files are deliberately pinned by test:
   if real users begin relying on notifications; that change requires a backfill.
 - Creation authority and owner-derived payload coverage are 54/54 in the
   isolated draft, but they have not received
-  PostgreSQL parse/apply, own/foreign/direct-denial, concurrency, provider, or
-  pre-activation proof. Direct or generic runtime creation remains unacceptable.
+  accepted PostgreSQL parse/apply, own/foreign/direct-denial, concurrency,
+  provider, or pre-activation proof. The branch-only PostgreSQL 16 harness in
+  `.github/workflows/notification-rls-ephemeral-proof.yml` now exercises the
+  first four of those gates against a disposable loopback `grainline_ci`
+  database; its run must be green and retained as evidence before this blocker
+  can be narrowed. Direct or generic runtime creation remains unacceptable.
 - Recipient bell/page/count/export/mark-read architecture is not selected;
   compare narrow one-statement `SECURITY INVOKER` RPCs with the experimental
   transaction wrapper after the production sequencing gate lifts.

@@ -1,6 +1,7 @@
 -- Preparation-only Bucket B recipient-access draft. Deliberately outside
--- prisma/migrations and barred from deployment until SavedSearch Phase B plus
--- runtime credential separation pass production postflight.
+-- prisma/migrations. SavedSearch Phase B and runtime credential separation
+-- passed production postflight; the remaining Notification gates still bar
+-- this draft from merge, deployment, or persistent-database activation.
 --
 -- These functions are SECURITY INVOKER. They do not bypass Notification RLS;
 -- each call sets the transaction-local recipient context, then the runtime

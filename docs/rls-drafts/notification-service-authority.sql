@@ -1,6 +1,7 @@
 -- Preparation-only Bucket B service-authority draft. Deliberately outside
--- prisma/migrations and barred from Vercel deployment until SavedSearch Phase B
--- plus runtime credential separation pass production postflight.
+-- prisma/migrations. SavedSearch Phase B and runtime credential separation
+-- passed production postflight; the remaining Notification gates still bar
+-- this draft from merge, deployment, or persistent-database activation.
 --
 -- Every function is intentionally narrow. The migration owner remains the
 -- SECURITY DEFINER owner; grainline_app_runtime receives EXECUTE only and must
