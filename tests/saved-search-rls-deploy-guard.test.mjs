@@ -15,6 +15,8 @@ import { describe, it } from "node:test";
 import {
   PHASE_A_MIGRATION_TREE_SHA256,
   PHASE_B_MIGRATION_TREE_SHA256,
+  NOTIFICATION_ACTIVATION_MIGRATION,
+  NOTIFICATION_ACTIVATION_MIGRATION_TREE_SHA256,
   NOTIFICATION_PREPARATION_MIGRATION,
   NOTIFICATION_PREPARATION_MIGRATION_TREE_SHA256,
   PRISMA_CONFIG_PATH,
@@ -48,6 +50,7 @@ const RELEASE_ZERO = "release-0";
 const REVIEWED_PHASE_A = "phase-a-reviewed";
 const REVIEWED_PHASE_B = "phase-b-reviewed";
 const REVIEWED_NOTIFICATION_PREPARATION = "notification-preparation-reviewed";
+const REVIEWED_NOTIFICATION_ACTIVATION = "notification-activation-reviewed";
 const PREVIEW_MIDDLEWARE_EXEMPTION_LINE =
   `  "${RLS_CONTEXT_GATE_PUBLIC_PATH}",   // Preview-only, token-protected RLS acceptance runner\n`;
 const CURRENT_MIDDLEWARE_SOURCE = readFileSync("src/middleware.ts", "utf8");
@@ -86,6 +89,8 @@ function validate(
       [REVIEWED_PHASE_B]: PHASE_B_MIGRATION_TREE_SHA256,
       [REVIEWED_NOTIFICATION_PREPARATION]:
         NOTIFICATION_PREPARATION_MIGRATION_TREE_SHA256,
+      [REVIEWED_NOTIFICATION_ACTIVATION]:
+        NOTIFICATION_ACTIVATION_MIGRATION_TREE_SHA256,
     }[phase],
     middlewareSource = REVIEWED_PRODUCTION_MIDDLEWARE_SOURCE,
     prismaConfigSha256 = REVIEWED_PRISMA_CONFIG_SHA256,
@@ -112,6 +117,7 @@ const RELEASE_ZERO_MIGRATIONS = CURRENT_MIGRATIONS
     SAVED_SEARCH_RLS_MIGRATION,
     SAVED_SEARCH_FORCE_RLS_MIGRATION,
     NOTIFICATION_PREPARATION_MIGRATION,
+    NOTIFICATION_ACTIVATION_MIGRATION,
   ].includes(name))
   .sort((a, b) => a.localeCompare(b));
 const REVIEWED_PHASE_A_MIGRATIONS = [
@@ -126,6 +132,10 @@ const REVIEWED_NOTIFICATION_PREPARATION_MIGRATIONS = [
   ...REVIEWED_PHASE_B_MIGRATIONS,
   NOTIFICATION_PREPARATION_MIGRATION,
 ].sort((a, b) => a.localeCompare(b));
+const REVIEWED_NOTIFICATION_ACTIVATION_MIGRATIONS = [
+  ...REVIEWED_NOTIFICATION_PREPARATION_MIGRATIONS,
+  NOTIFICATION_ACTIVATION_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
 
 function migrationsFor(phase) {
   return {
@@ -134,6 +144,8 @@ function migrationsFor(phase) {
     [REVIEWED_PHASE_B]: REVIEWED_PHASE_B_MIGRATIONS,
     [REVIEWED_NOTIFICATION_PREPARATION]:
       REVIEWED_NOTIFICATION_PREPARATION_MIGRATIONS,
+    [REVIEWED_NOTIFICATION_ACTIVATION]:
+      REVIEWED_NOTIFICATION_ACTIVATION_MIGRATIONS,
   }[phase];
 }
 
@@ -365,9 +377,13 @@ describe("SavedSearch RLS production deploy guard", () => {
       () => validate(REVIEWED_PHASE_B, currentMigrations),
       /remain the latest migration/,
     );
+    assert.throws(
+      () => validate(REVIEWED_NOTIFICATION_PREPARATION, currentMigrations),
+      /remain the latest migration/,
+    );
     assert.equal(
-      validate(REVIEWED_NOTIFICATION_PREPARATION, currentMigrations).phase,
-      REVIEWED_NOTIFICATION_PREPARATION,
+      validate(REVIEWED_NOTIFICATION_ACTIVATION, currentMigrations).phase,
+      REVIEWED_NOTIFICATION_ACTIVATION,
     );
   });
 
@@ -490,11 +506,37 @@ describe("SavedSearch RLS production deploy guard", () => {
     );
   });
 
+  it("allows the reviewed Notification activation only after its exact preparation", () => {
+    assert.deepEqual(
+      validate(
+        REVIEWED_NOTIFICATION_ACTIVATION,
+        REVIEWED_NOTIFICATION_ACTIVATION_MIGRATIONS,
+      ),
+      {
+        phase: REVIEWED_NOTIFICATION_ACTIVATION,
+        hasRpcMigration: true,
+        hasRpcHardeningMigration: true,
+        hasRlsMigration: true,
+        hasForceRlsMigration: true,
+        hasNotificationPreparationMigration: true,
+        hasNotificationActivationMigration: true,
+      },
+    );
+    assert.throws(
+      () => validate(
+        REVIEWED_NOTIFICATION_ACTIVATION,
+        REVIEWED_NOTIFICATION_PREPARATION_MIGRATIONS,
+      ),
+      /requires SavedSearch Phase B plus the exact Notification preparation and activation migrations/,
+    );
+  });
+
   for (const phase of [
     RELEASE_ZERO,
     REVIEWED_PHASE_A,
     REVIEWED_PHASE_B,
     REVIEWED_NOTIFICATION_PREPARATION,
+    REVIEWED_NOTIFICATION_ACTIVATION,
   ]) {
     it(`rejects ${phase} when the internal context-gate route remains`, () => {
       assert.throws(
@@ -588,7 +630,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     );
   });
 
-  it("runs the current Notification preparation artifact guard before CI migrations", () => {
+  it("runs the current Notification activation artifact guards before CI migrations", () => {
     const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
     const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
 
@@ -598,7 +640,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     );
     assert.match(
       workflow,
-      /Verify Notification preparation production artifact[\s\S]{0,180}SAVED_SEARCH_RLS_DEPLOY_PHASE: notification-preparation-reviewed[\s\S]{0,180}npm run verify:rls-release-artifact[\s\S]{0,400}Apply migrations to CI Postgres/,
+      /Verify Notification activation production artifact[\s\S]{0,180}SAVED_SEARCH_RLS_DEPLOY_PHASE: notification-activation-reviewed[\s\S]{0,180}npm run verify:rls-release-artifact[\s\S]{0,300}Verify Notification activation proof equivalence[\s\S]{0,180}npm run audit:rls-notification-activation-release[\s\S]{0,400}Apply migrations to CI Postgres/,
     );
   });
 
@@ -664,6 +706,13 @@ describe("SavedSearch RLS production deploy guard", () => {
         REVIEWED_NOTIFICATION_PREPARATION_MIGRATIONS,
       ),
       NOTIFICATION_PREPARATION_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_NOTIFICATION_ACTIVATION_MIGRATIONS,
+      ),
+      NOTIFICATION_ACTIVATION_MIGRATION_TREE_SHA256,
     );
 
     assert.throws(

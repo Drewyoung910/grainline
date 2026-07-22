@@ -19,7 +19,16 @@ function fixtureRoot() {
 
 describe("Notification preparation release artifact", () => {
   it("pins the committed preparation bytes and requires activation to stay absent", () => {
-    assert.deepEqual(verifyNotificationPreparationRelease(), {
+    const source = readFileSync(
+      `prisma/migrations/${NOTIFICATION_PREPARATION_RELEASE.migrationName}/migration.sql`,
+      "utf8",
+    );
+    const { root, migrations } = fixtureRoot();
+    const directory = path.join(migrations, NOTIFICATION_PREPARATION_RELEASE.migrationName);
+    mkdirSync(directory);
+    writeFileSync(path.join(directory, "migration.sql"), source);
+
+    assert.deepEqual(verifyNotificationPreparationRelease(root), {
       status: "passed",
       preparationMigration: "20260722051500_prepare_notification_rls",
       preparationSha256: "9f7eeaf23e0f334dbb52427d27343674a5d11095b0b7f433d3ca177e3914956e",

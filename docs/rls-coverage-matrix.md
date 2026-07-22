@@ -1,6 +1,6 @@
 # Grainline RLS Coverage Matrix
 
-Last updated: 2026-07-19
+Last updated: 2026-07-22
 
 ## Purpose And Scope
 
@@ -21,6 +21,8 @@ callbacks remain mandatory after a policy is enabled.
 
 - `RLS_LIVE_PHASE_A`: production RLS is enabled with retained proof. A later
   hardening phase can still be pending.
+- `RLS_LIVE_PHASE_B`: production RLS is enabled and FORCE-hardened with retained
+  runtime-role and maintenance proof.
 - `PLANNED_RLS`: RLS is the expected target shape, but the table-specific
   actor and operation inventory, staging proof, rollback, and monitoring are
   not complete.
@@ -66,7 +68,7 @@ completed alternative.
 | `SiteConfig` | `ALTERNATIVE_REVIEW` | Reference and configuration | Singleton operational configuration; public-runtime readers and staff or deployment writers | Make ordinary runtime read-only and choose audited administrative mutation path |
 | `Case` | `BLOCKED_DESIGN` | Case and case message | Dispute narrative, status and refund identifiers; buyer, seller, staff and cron | Participant and staff policies, escalation jobs, resolution and refund transaction proof |
 | `CaseMessage` | `BLOCKED_DESIGN` | Case and case message | Private dispute discussion; buyer, seller and staff | Parent-case participant and staff policy plus closed-state write rules |
-| `SavedSearch` | `RLS_LIVE_PHASE_A` | Bucket A SavedSearch | Direct user-owned search criteria; owner and bounded canary | Complete the separately gated Phase B FORCE release; retain exact policies, grants, canary and rollback proof |
+| `SavedSearch` | `RLS_LIVE_PHASE_B` | Bucket A SavedSearch | Direct user-owned search criteria; owner and bounded canary | Phase B FORCE is live; retain exact policies, grants, canary, rollback, and maintenance proof |
 | `StockNotification` | `PLANNED_RLS` | Stock notification | Direct user subscription with listing-wide notification fanout and cleanup | Owner reads and writes plus explicit service fanout and listing cleanup path; do not fold silently into Bucket B |
 | `MakerVerification` | `BLOCKED_DESIGN` | Verification | Seller application evidence and staff review notes; applicant, employee and admin | Applicant projection, staff review path, decision writes and notification side effects |
 | `BlogPost` | `BLOCKED_DESIGN` | Blog public-private split | Public posts mixed with drafts and staff or seller authoring | Public published view plus author and staff controls for draft, publish and archive states |
@@ -86,7 +88,7 @@ completed alternative.
 | `SellerMetrics` | `BLOCKED_DESIGN` | Seller analytics | Seller performance and sales totals; seller, staff, guild logic and jobs | Separate seller-private metrics from any public eligibility projection; service-only calculation writes |
 | `SellerRatingSummary` | `ALTERNATIVE_REVIEW` | Public aggregate projections | Derived public rating summary; public readers and calculation jobs | Read-only ordinary runtime plus service-only refresh and integrity proof |
 | `SiteMetricsSnapshot` | `ALTERNATIVE_REVIEW` | Public aggregate projections | Derived site metrics; public readers and calculation jobs | Read-only ordinary runtime plus service-only singleton refresh |
-| `Notification` | `PLANNED_RLS` | Bucket B Notification | Direct user-owned reads and mark-read updates with cross-user and system creation | All 54 emission paths have source-derived payload/family validation drafts and the shared block-race lock protocol is statically guarded; provisioning/audit preserve exact `SELECT` + `UPDATE(read)`, initial `NO FORCE`, two policies, and the 25-function public/runtime ACL split. Disposable PostgreSQL proves all ten granted creation families, all 26 family-dispatched private-core source types, all 38 successful source/type pairs and their security-relevant variants, replay, forged-recipient rejection, back-in-stock claims, both block orderings, the byte-pinned compatibility split, migration ordering, generic grant audit, and database-first rollback. The activation purge remains intentionally irreversible. After two consumed SQL-harness slots, one predeployment TSX-bootstrap abort, and one two-slot run that exposed a symmetric first-workload ramp, every disposable environment was removed and each defect gained a regression. The fifth fresh attempt's full-concurrency-primed local preflight and both order-reversed Vercel slots passed exact correctness, zero errors, fixed performance limits, attestation, and success cleanup. Provider performance/locality is complete for this design. The first authenticated route attempt failed closed before session/fixture creation because no dedicated marked account had accepted terms; full teardown passed and revealed a Preview/production Redis account-state namespace collision now fixed on the branch. The consolidated Extra High SQL/application authority review passed at `ab2d08a6` with no new blocker. Inspect legacy aggregates, keep any purge atomic with activation, then pass a fresh authorized authenticated real-table/route smoke, clean release/full CI, and application-deployment rollback gate before production preparation and activation |
+| `Notification` | `PLANNED_RLS` | Bucket B Notification | Direct user-owned reads and mark-read updates with cross-user and system creation | Preparation is live with RLS disabled; the compatible app deploy, authenticated route smoke, provider proof, 54/54 source-authority gate, 68-check PostgreSQL proof, legacy aggregate inspection, protected preactivation backup, and app rollback rehearsal are complete. The exact byte-pinned activation package must still pass PR/main CI, committed-migration PostgreSQL proof, protected production migration, catalog/runtime-denial postflight, and authenticated canary postflight. Initial activation is `ENABLE` with explicit `NO FORCE`; FORCE remains a later separate hardening release |
 | `ListingViewDaily` | `BLOCKED_DESIGN` | Seller analytics | Seller-private listing analytics with public event ingestion and aggregation jobs | Seller-through-profile reads plus service-only counter writes and hot-path plan review |
 | `SellerProfileViewDaily` | `BLOCKED_DESIGN` | Seller analytics | Seller-private profile analytics with public event ingestion and aggregation jobs | Seller ownership reads plus service-only counter writes and hot-path plan review |
 | `Follow` | `BLOCKED_DESIGN` | Aggregate and fanout | Owner relationship plus public follower counts and cross-user fanout | Denormalized count and explicit fanout service path before owner-row policies |

@@ -1221,7 +1221,83 @@ resources, runner route, middleware exemption, and runner-only test are not.
 
 The Node warning in those logs is separate from the guard failures.
 `package.json` currently declares `>=22`, so Vercel selects Node 24 despite the
-project's 22.x setting; the accepted production deployment's Functions are also
+project’s 22.x setting; the accepted production deployment's Functions are also
 `nodejs24.x`. The disposable performance run should preserve that current
 runtime for comparability. Pinning an intended Node major is a separate release
 decision and must not be smuggled into the temporary proof branch.
+
+## Production preparation, rollback rehearsal, and activation package (2026-07-22)
+
+PR `#32` merged the clean Notification-compatible application and preparation
+migration to `main` at exact merge commit
+`3f2ecc43492faf7c72cabc1c3aa57d37dba1a979`. Main CI run `29949821143`
+passed the release artifact guard, migrations, grant audit, typecheck, lint,
+1,890-test suite, dependency audit, and production build. Protected production
+migration run `29950101299` applied only
+`20260722051500_prepare_notification_rls`. Production then retained disabled
+Notification RLS, zero Notification policies, legacy runtime table CRUD, and
+the complete prepared RPC surface.
+
+Read-only production inspection run `29950322433` completed against the owner
+role in one repeatable-read, read-only transaction. It exported no row bodies
+or credentials. Aggregate evidence found 58 total legacy Notification rows, 58
+without source authority, and 58 without `relatedUserId`. The mode-0600
+sanitized artifact is
+`notification-legacy-inspection-3f2ecc43492faf7c72cabc1c3aa57d37dba1a979.json`
+in the off-worktree rollout-evidence directory with SHA-256
+`89664c97252c2ec8528cb0b58da422f6eb003c5d2c37d232f7ae9eefd6372d0b`.
+Because every row predates enforceable source authority, activation must purge
+all 58 under the same `ACCESS EXCLUSIVE` transaction that enables RLS. The
+purge is not reversible through the rollback SQL.
+
+Before that destructive boundary, a protected Neon branch was created from the
+production branch: `br-hidden-tree-aa337i8v`, named
+`notification-preactivation-backup-20260722-1918z`, parent LSN `0/4A7E8628`,
+parent timestamp `2026-07-22T19:21:19Z`. It has no compute endpoint and must be
+retained through the rollback window. Recovery from it is an explicit operator
+action, not part of ordinary database-first rollback.
+
+The exact compatible main build deployed as
+`dpl_92rXcp1PqmoMPtgtAswbecAKWEt2`. Its production runtime guard attested the
+pooled `grainline_app_runtime` identity and Vercel completed a clean production
+build. Before activation, the application rollback rehearsal moved
+`thegrainline.com` to prior Ready deployment
+`dpl_6Y6C3NT81zbhLc6eHJAveCH1Ave8`; homepage and health remained HTTP 200 and
+health returned `ok`. Promotion then restored the new deployment, and exact
+alias, homepage, and health checks passed again. This proves application
+rollback while the database is still preparation-compatible. After activation,
+an old-app rollback must first execute the proven database-first RLS-disable and
+legacy-grant restoration; switching the alias first would be unsafe.
+
+Activation branch `codex/rls-notification-activation-20260722` promotes exact
+migration `20260722052000_enable_notification_rls`. Its 219-line production
+artifact has SHA-256
+`f4b475d5f7c071011e35425b68bc26738bae8696c658457d8ed55ebffc8ddc92`;
+after replacing only the two promotion comments and terminal newline, it
+matches accepted disposable activation SHA-256
+`e40994886a143101141c7114ed8ea2f92917ccdd349fe96a0874a2cb79561329`.
+The activation-specific verifier, migration-tree phase, CI step, and protected
+production workflow step all fail closed on missing, extra, symlinked, or
+byte-drifted artifacts. The dedicated PostgreSQL workflow now applies the
+committed activation release directly, converges production-style grants, runs
+the generic grant audit, proves database-first rollback, restores activation,
+and finishes with the full authority/concurrency proof.
+
+The Vercel Preview failure attached to commit `2aaa12dc` is expected and is not
+a failed production release. The non-production Preview inherited an
+unreviewed team-linked database URL and stopped before Next build with
+`[DATABASE_URL_SHAPE]`. Production deployment is manual, main-only, and passed
+the runtime guard. Do not weaken the Preview guard merely to make Git provider
+checks green.
+
+The large cleanup preceding release did not remove product behavior or unique
+proof knowledge. The 509-line provider measurement moved from
+`src/lib/notificationRlsProviderGate.ts` to the non-runtime
+`scripts/notification-provider-gate.ts`. The 207-line internal Preview-only
+context-gate route and its 60-line runner-only test were deleted after the
+authenticated/provider proofs and complete teardown. Roughly 126 lines of
+temporary branch/database exceptions and their tests were also removed. The
+generic harness, provider operator, authenticated smoke source, 54/54 coverage
+gate, PostgreSQL proof, release verifiers, sanitized evidence, and Git history
+remain. Reintroduce a disposable route only for a newly authorized, isolated
+proof that cannot be achieved with the durable tooling.

@@ -566,7 +566,7 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(inventory.sequenceSqlReferences, []);
     assert.deepEqual(inventory.autoincrementFields, []);
     assert.deepEqual(inventory.fixedIntSingletonIds, ["SiteConfig.id", "SiteMetricsSnapshot.id"]);
-    assert.equal(inventory.publicRevokes.length, 27);
+    assert.equal(inventory.publicRevokes.length, 28);
     assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_delete_one(text, text) FROM PUBLIC",
     ));

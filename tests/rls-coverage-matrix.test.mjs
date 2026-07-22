@@ -38,6 +38,7 @@ describe("site-wide RLS coverage matrix", () => {
   it("uses only explicit incomplete or evidenced disposition states", () => {
     const allowed = new Set([
       "RLS_LIVE_PHASE_A",
+      "RLS_LIVE_PHASE_B",
       "PLANNED_RLS",
       "BLOCKED_DESIGN",
       "ALTERNATIVE_REVIEW",
