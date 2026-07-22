@@ -21,6 +21,17 @@ const fixture = Object.freeze({
   caseId: "notification-proof-case",
   commissionRequestId: "notification-proof-commission-request",
   commissionInterestId: "notification-proof-commission-interest",
+  commissionClosedRequestId: "notification-proof-commission-closed-request",
+  commissionClosedInterestId: "notification-proof-commission-closed-interest",
+  blogPostId: "notification-proof-blog-post",
+  blogParentCommentId: "notification-proof-blog-parent-comment",
+  blogTopCommentId: "notification-proof-blog-top-comment",
+  blogReplyCommentId: "notification-proof-blog-reply-comment",
+  sellerBroadcastId: "notification-proof-seller-broadcast",
+  reviewId: "notification-proof-review",
+  customRequestMessageId: "notification-proof-custom-request-message",
+  customListingId: "notification-proof-custom-listing",
+  customLinkMessageId: "notification-proof-custom-link-message",
   manualLowStockAuditId: "notification-proof-manual-low-stock-audit",
   makerVerificationId: "notification-proof-maker-verification",
   guildAdminAuditId: "notification-proof-guild-admin-audit",
@@ -120,6 +131,18 @@ async function cleanFixtures(owner) {
   await owner.query('DELETE FROM public."Notification" WHERE "userId" = ANY($1::text[]) OR "relatedUserId" = ANY($1::text[])', [userIds]);
   await owner.query('DELETE FROM public."StockNotification" WHERE id = $1', [fixture.stockNotificationId]);
   await owner.query('DELETE FROM public."UserReport" WHERE id = $1', [fixture.listingReportId]);
+  await owner.query('DELETE FROM public."Review" WHERE id = $1', [fixture.reviewId]);
+  await owner.query(
+    'DELETE FROM public."Favorite" WHERE "userId" = $1 AND "listingId" = $2',
+    [fixture.actorUserId, fixture.listingId],
+  );
+  await owner.query('DELETE FROM public."BlogComment" WHERE id = ANY($1::text[])', [[
+    fixture.blogTopCommentId,
+    fixture.blogReplyCommentId,
+    fixture.blogParentCommentId,
+  ]]);
+  await owner.query('DELETE FROM public."BlogPost" WHERE id = $1', [fixture.blogPostId]);
+  await owner.query('DELETE FROM public."SellerBroadcast" WHERE id = $1', [fixture.sellerBroadcastId]);
   await owner.query('DELETE FROM public."AdminAuditLog" WHERE id = ANY($1::text[])', [[
     fixture.guildAdminAuditId,
     fixture.accountWarningAuditId,
@@ -133,9 +156,20 @@ async function cleanFixtures(owner) {
   await owner.query('DELETE FROM public."Case" WHERE id = $1', [fixture.caseId]);
   await owner.query('DELETE FROM public."OrderItem" WHERE id = $1', [fixture.orderItemId]);
   await owner.query('DELETE FROM public."Order" WHERE id = $1', [fixture.orderId]);
-  await owner.query('DELETE FROM public."CommissionInterest" WHERE id = $1', [fixture.commissionInterestId]);
-  await owner.query('DELETE FROM public."CommissionRequest" WHERE id = $1', [fixture.commissionRequestId]);
-  await owner.query('DELETE FROM public."Message" WHERE id = $1', [fixture.messageId]);
+  await owner.query('DELETE FROM public."CommissionInterest" WHERE id = ANY($1::text[])', [[
+    fixture.commissionInterestId,
+    fixture.commissionClosedInterestId,
+  ]]);
+  await owner.query('DELETE FROM public."CommissionRequest" WHERE id = ANY($1::text[])', [[
+    fixture.commissionRequestId,
+    fixture.commissionClosedRequestId,
+  ]]);
+  await owner.query('DELETE FROM public."Message" WHERE id = ANY($1::text[])', [[
+    fixture.messageId,
+    fixture.customRequestMessageId,
+    fixture.customLinkMessageId,
+  ]]);
+  await owner.query('DELETE FROM public."Listing" WHERE id = $1', [fixture.customListingId]);
   await owner.query('DELETE FROM public."Conversation" WHERE id = $1', [fixture.conversationId]);
   await owner.query('DELETE FROM public."Follow" WHERE id = $1', [fixture.followId]);
   await owner.query('DELETE FROM public."Listing" WHERE id = $1', [fixture.listingId]);
@@ -180,6 +214,47 @@ async function seedFixtures(owner) {
     [fixture.followId, fixture.actorUserId, fixture.sellerProfileId],
   );
   await owner.query(
+    `INSERT INTO public."Favorite" ("userId", "listingId") VALUES ($1, $2)`,
+    [fixture.actorUserId, fixture.listingId],
+  );
+  await owner.query(
+    `INSERT INTO public."Review" (
+       id, "listingId", "reviewerId", "ratingX2", comment, "updatedAt"
+     ) VALUES ($1, $2, $3, 9, 'Proof review', pg_catalog.clock_timestamp())`,
+    [fixture.reviewId, fixture.listingId, fixture.actorUserId],
+  );
+  await owner.query(
+    `INSERT INTO public."BlogPost" (
+       id, slug, title, body, "authorId", "authorType", "sellerProfileId",
+       status, "publishedAt", "updatedAt"
+     ) VALUES (
+       $1, 'notification-proof-post', 'Proof post', 'Proof post body', $2,
+       'MAKER', $3, 'PUBLISHED', pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp()
+     )`,
+    [fixture.blogPostId, fixture.sellerUserId, fixture.sellerProfileId],
+  );
+  await owner.query(
+    `INSERT INTO public."BlogComment" (
+       id, "postId", "authorId", body, approved, "parentId"
+     ) VALUES
+       ($1, $4, $5, 'Seller parent comment', true, NULL),
+       ($2, $4, $6, 'Actor top-level comment', true, NULL),
+       ($3, $4, $6, 'Actor reply comment', true, $1)`,
+    [
+      fixture.blogParentCommentId,
+      fixture.blogTopCommentId,
+      fixture.blogReplyCommentId,
+      fixture.blogPostId,
+      fixture.sellerUserId,
+      fixture.actorUserId,
+    ],
+  );
+  await owner.query(
+    `INSERT INTO public."SellerBroadcast" (id, "sellerProfileId", message, "recipientCount")
+     VALUES ($1, $2, 'Proof seller broadcast', 1)`,
+    [fixture.sellerBroadcastId, fixture.sellerProfileId],
+  );
+  await owner.query(
     `INSERT INTO public."Conversation" (id, "userAId", "userBId", "updatedAt")
      VALUES ($1, $2, $3, pg_catalog.clock_timestamp())`,
     [fixture.conversationId, fixture.actorUserId, fixture.sellerUserId],
@@ -189,6 +264,45 @@ async function seedFixtures(owner) {
        id, "conversationId", "senderId", "recipientId", body
      ) VALUES ($1, $2, $3, $4, 'Proof message body')`,
     [fixture.messageId, fixture.conversationId, fixture.actorUserId, fixture.sellerUserId],
+  );
+  await owner.query(
+    `INSERT INTO public."Message" (
+       id, "conversationId", "senderId", "recipientId", body, kind
+     ) VALUES ($1, $2, $3, $4, $5, 'custom_order_request')`,
+    [
+      fixture.customRequestMessageId,
+      fixture.conversationId,
+      fixture.actorUserId,
+      fixture.sellerUserId,
+      JSON.stringify({ description: "Proof custom request" }),
+    ],
+  );
+  await owner.query(
+    `INSERT INTO public."Listing" (
+       id, "sellerId", title, description, "priceCents", status,
+       "reservedForUserId", "customOrderConversationId", "updatedAt"
+     ) VALUES (
+       $1, $2, 'Proof Custom Listing', 'Proof custom listing', 25000, 'ACTIVE',
+       $3, $4, pg_catalog.clock_timestamp()
+     )`,
+    [
+      fixture.customListingId,
+      fixture.sellerProfileId,
+      fixture.actorUserId,
+      fixture.conversationId,
+    ],
+  );
+  await owner.query(
+    `INSERT INTO public."Message" (
+       id, "conversationId", "senderId", "recipientId", body, kind
+     ) VALUES ($1, $2, $3, $4, $5, 'custom_order_link')`,
+    [
+      fixture.customLinkMessageId,
+      fixture.conversationId,
+      fixture.sellerUserId,
+      fixture.actorUserId,
+      JSON.stringify({ listingId: fixture.customListingId }),
+    ],
   );
   await owner.query(
     `INSERT INTO public."Order" (
@@ -224,6 +338,26 @@ async function seedFixtures(owner) {
     [
       fixture.commissionInterestId,
       fixture.commissionRequestId,
+      fixture.sellerProfileId,
+      fixture.conversationId,
+    ],
+  );
+  await owner.query(
+    `INSERT INTO public."CommissionRequest" (
+       id, "buyerId", title, description, status, "updatedAt"
+     ) VALUES (
+       $1, $2, 'Closed proof commission', 'Closed proof commission description',
+       'CLOSED', pg_catalog.clock_timestamp()
+     )`,
+    [fixture.commissionClosedRequestId, fixture.actorUserId],
+  );
+  await owner.query(
+    `INSERT INTO public."CommissionInterest" (
+       id, "commissionRequestId", "sellerProfileId", "conversationId"
+     ) VALUES ($1, $2, $3, $4)`,
+    [
+      fixture.commissionClosedInterestId,
+      fixture.commissionClosedRequestId,
       fixture.sellerProfileId,
       fixture.conversationId,
     ],
@@ -551,6 +685,46 @@ const creationFamilyCases = Object.freeze([
     expectedLink: `/listing/${fixture.listingId}`,
   },
   {
+    label: "followed_maker_new_blog",
+    functionName: "grainline_notification_create_source_fanout",
+    userId: fixture.actorUserId,
+    type: "FOLLOWED_MAKER_NEW_BLOG",
+    sourceType: "followed_maker_new_blog",
+    sourceId: fixture.blogPostId,
+    relatedUserId: fixture.sellerUserId,
+    expectedLink: "/blog/notification-proof-post",
+  },
+  {
+    label: "blog_comment_top_level",
+    functionName: "grainline_notification_create_source_fanout",
+    userId: fixture.sellerUserId,
+    type: "NEW_BLOG_COMMENT",
+    sourceType: "blog_comment",
+    sourceId: fixture.blogTopCommentId,
+    relatedUserId: fixture.actorUserId,
+    expectedLink: `/blog/notification-proof-post#comment-${fixture.blogTopCommentId}`,
+  },
+  {
+    label: "blog_comment_reply",
+    functionName: "grainline_notification_create_source_fanout",
+    userId: fixture.sellerUserId,
+    type: "BLOG_COMMENT_REPLY",
+    sourceType: "blog_comment",
+    sourceId: fixture.blogReplyCommentId,
+    relatedUserId: fixture.actorUserId,
+    expectedLink: `/blog/notification-proof-post#comment-${fixture.blogReplyCommentId}`,
+  },
+  {
+    label: "seller_broadcast",
+    functionName: "grainline_notification_create_source_fanout",
+    userId: fixture.actorUserId,
+    type: "SELLER_BROADCAST",
+    sourceType: "seller_broadcast",
+    sourceId: fixture.sellerBroadcastId,
+    relatedUserId: fixture.sellerUserId,
+    expectedLink: `/account/feed?broadcast=${fixture.sellerBroadcastId}`,
+  },
+  {
     label: "social",
     functionName: "grainline_notification_create_social_event",
     userId: fixture.sellerUserId,
@@ -561,6 +735,26 @@ const creationFamilyCases = Object.freeze([
     expectedLink: "/dashboard/analytics",
   },
   {
+    label: "favorite",
+    functionName: "grainline_notification_create_social_event",
+    userId: fixture.sellerUserId,
+    type: "NEW_FAVORITE",
+    sourceType: "favorite",
+    sourceId: fixture.listingId,
+    relatedUserId: fixture.actorUserId,
+    expectedLink: `/listing/${fixture.listingId}`,
+  },
+  {
+    label: "review",
+    functionName: "grainline_notification_create_social_event",
+    userId: fixture.sellerUserId,
+    type: "NEW_REVIEW",
+    sourceType: "review",
+    sourceId: fixture.reviewId,
+    relatedUserId: fixture.actorUserId,
+    expectedLink: `/listing/${fixture.listingId}#reviews`,
+  },
+  {
     label: "message",
     functionName: "grainline_notification_create_message_event",
     userId: fixture.sellerUserId,
@@ -569,6 +763,26 @@ const creationFamilyCases = Object.freeze([
     sourceId: fixture.messageId,
     relatedUserId: fixture.actorUserId,
     expectedLink: `/messages/${fixture.conversationId}`,
+  },
+  {
+    label: "custom_order_request",
+    functionName: "grainline_notification_create_message_event",
+    userId: fixture.sellerUserId,
+    type: "CUSTOM_ORDER_REQUEST",
+    sourceType: "message",
+    sourceId: fixture.customRequestMessageId,
+    relatedUserId: fixture.actorUserId,
+    expectedLink: `/messages/${fixture.conversationId}`,
+  },
+  {
+    label: "custom_order_link",
+    functionName: "grainline_notification_create_message_event",
+    userId: fixture.actorUserId,
+    type: "CUSTOM_ORDER_LINK",
+    sourceType: "message",
+    sourceId: fixture.customLinkMessageId,
+    relatedUserId: fixture.sellerUserId,
+    expectedLink: `/listing/${fixture.customListingId}`,
   },
   {
     label: "case",
@@ -589,6 +803,16 @@ const creationFamilyCases = Object.freeze([
     sourceId: fixture.commissionInterestId,
     relatedUserId: fixture.sellerUserId,
     expectedLink: `/messages/${fixture.conversationId}`,
+  },
+  {
+    label: "commission_request_closed",
+    functionName: "grainline_notification_create_commission_event",
+    userId: fixture.sellerUserId,
+    type: "COMMISSION_INTEREST",
+    sourceType: "commission_request",
+    sourceId: fixture.commissionClosedRequestId,
+    relatedUserId: fixture.actorUserId,
+    expectedLink: "/commission",
   },
   {
     label: "inventory",
