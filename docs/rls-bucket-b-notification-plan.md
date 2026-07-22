@@ -476,8 +476,21 @@ Notification RLS activation.
 The branch-only `Notification RLS Ephemeral Proof` workflow creates a fresh
 PostgreSQL 16 `grainline_ci` database, applies all current migrations and
 production-style runtime grants, then applies the three isolated Notification
-drafts. The proof script refuses non-loopback hosts and any database name other
-than `grainline_ci`. It changes neither production nor persistent staging.
+drafts. It reruns role provisioning after those drafts so the activated-table
+`SELECT` + `UPDATE(read)` and 25-function ACL convergence branch is exercised
+before the catalog proof. The proof script refuses non-loopback hosts and any
+database name other than `grainline_ci`. It changes neither production nor
+persistent staging.
+
+Latest accepted run `29889639067` (job `88827302133`) completed at
+`2026-07-22T03:55:15Z` against exact source
+`57c9d449d84155762e249c7c88240973e6c7f8d3`. It passed current migrations,
+baseline provisioning/audit, all three draft applications, post-draft
+Notification-aware provisioning convergence, and the nine catalog/isolation/
+service/race checks. This proves the provisioning branch parses and converges
+correctly on fresh PostgreSQL 16; it still does not exercise the generic grant
+audit's migration-derived Notification expectations because the SQL remains in
+draft files outside `prisma/migrations`.
 
 Accepted run `29883083596` (job `88807905625`) completed at
 `2026-07-22T01:27:06.486Z` against exact source

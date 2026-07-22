@@ -151,6 +151,13 @@ execute split. Do not stage an activation migration until these checks pass on
 the final disposable PostgreSQL migration. Static 54/54 coverage and the first
 ephemeral proof remain insufficient because that proof dynamically exercised
 only the social/follow creation family, not every creation-family branch.
+Disposable PostgreSQL 16 run `29889639067` at exact source
+`57c9d449d84155762e249c7c88240973e6c7f8d3` now proves the provisioning script
+also reconverges successfully after all three Notification drafts are applied,
+with the catalog proof passing afterward. The generic grant audit's
+Notification migration-inventory branch remains unexercised until the final SQL
+is staged as a real disposable migration; do not count the draft run as that
+later migration proof.
 
 Extra-high review does not yet accept the shared create function as final. The
 54/54 creation-authority coverage can prove source, type, actor, recipient, and
