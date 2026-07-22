@@ -52,8 +52,8 @@ completed alternative.
 | `Photo` | `BLOCKED_DESIGN` | Catalog public-private split | Listing media; public readers, listing owner and cleanup jobs | Parent listing visibility and seller ownership policy with cleanup path |
 | `Favorite` | `BLOCKED_DESIGN` | Aggregate and fanout | Owner save history plus cross-user ranking and seller analytics | Denormalize or explicitly serve public aggregates before owner-scoped reads |
 | `Review` | `BLOCKED_DESIGN` | Review and UGC | Public review, reviewer content, seller reply and staff moderation | Actor-specific read and write rules that preserve public approved content and moderation |
-| `Conversation` | `BLOCKED_DESIGN` | Conversation and message | Private participant thread state; two participants, staff exceptions and deletion flows | Participant policy, reported-thread staff path, archive semantics and account lifecycle proof |
-| `Message` | `BLOCKED_DESIGN` | Conversation and message | Private message bodies and attachments; sender, recipient, staff exceptions and system messages | Parent-participant policy plus send, mark-read, system-message, export and deletion inventory |
+| `Conversation` | `BLOCKED_DESIGN` | Conversation and message | Private participant thread state; two participants, staff exceptions and deletion flows | The 55-access inventory is pinned; finish one-statement participant/reported-staff projections, fixed create/archive/send-side operations, canonical-pair inspection, account lifecycle and race proof in `docs/rls-conversation-message-plan.md` |
+| `Message` | `BLOCKED_DESIGN` | Conversation and message | Private message bodies and attachments; sender, recipient, staff exceptions and system messages | The 55-access inventory is pinned; finish parent-participant policy, exact sender/recipient invariant, mark-read, ordinary/custom/commission writes, export, deletion and aggregate proof in `docs/rls-conversation-message-plan.md` |
 | `ReviewPhoto` | `BLOCKED_DESIGN` | Review and UGC | Review media; public readers, reviewer and moderation cleanup | Parent review visibility and author-control policy |
 | `ReviewVote` | `BLOCKED_DESIGN` | Review and UGC | User vote history plus public helpful counts | Preserve aggregate counts while restricting per-user rows and writes |
 | `Order` | `BLOCKED_DESIGN` | Order, payment and shipping | Buyer PII, addresses, provider IDs, fulfillment and refunds; buyer, item sellers, staff, Stripe, Shippo and jobs | Full actor-operation inventory, seller-through-item policy, service writes, retention and rollback proof |
@@ -196,13 +196,16 @@ preclude a later reviewed policy or grant migration.
 
 ## Immediate Sequence
 
-1. Complete SavedSearch Phase B after its time and canary gates.
-2. Externalize `DIRECT_URL` and `MIGRATION_DB_ROLE`, invalidate credentials
-   retained by superseded deployments, drain owner sessions, and establish the
-   migration and service release path.
-3. Design and independently activate Bucket B as `Notification` only.
-4. Continue with `Cart` and `CartItem`, then `SavedBlogPost`, while preparing
-   the shared aggregate, participant, service-role, and public/private split
-   infrastructure needed by the more sensitive groups.
-5. Prioritize `Conversation` and `Message`, order/payment/shipping, and cases as
-   the sensitive clusters after their service and rollback designs are proven.
+1. SavedSearch Phase B is complete in production.
+2. Runtime/migration credential separation and superseded owner-credential
+   invalidation are complete.
+3. Bucket B Notification `ENABLE` plus `FORCE` is complete in production.
+4. Design and independently activate `Conversation` plus `Message` next. Keep
+   participant, reported-staff, system-message, export, deletion and aggregate
+   paths in one explicit authority inventory because Message policy depends on
+   its parent Conversation.
+5. Continue the remaining matrix groups separately. Order/payment/shipping and
+   Case/CaseMessage retain high sensitive-data priority; Cart/CartItem,
+   SavedBlogPost, aggregate/fanout, public/private split and service-ledger
+   groups remain required and must not be silently dropped or bundled into the
+   messaging activation.

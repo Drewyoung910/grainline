@@ -76,8 +76,8 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(plan, /fixed-column insert primitive ungranted to runtime/);
     assert.match(strategy, /Bucket A is complete in production/);
     assert.match(strategy, /Runtime database credential separation is also complete/);
-    assert.match(strategy, /closes the prerequisite for isolated\s+Notification implementation/);
-    assert.match(strategy, /does not authorize a Notification merge,\s+production apply\/deployment/);
+    assert.match(strategy, /prerequisite subsequently enabled the\s+separately proven Notification rollout, which is now complete through FORCE/);
+    assert.match(strategy, /does not authorize bundling later sensitive tables or putting an owner\s+credential back into an application environment/);
     assert.doesNotMatch(strategy, /before beginning\s+Notification\/Bucket B/);
     assert.match(strategy, /seventeen owner-backed functions/);
     assert.match(strategy, /runtime-ungranted fixed-column core/);

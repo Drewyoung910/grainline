@@ -19,10 +19,10 @@ Runtime database credential separation is also complete. Production source
 operator `8438ece93ff93572a015dd674f152c830cb5a52e`; the canonical record is
 `docs/runtime-db-credential-separation.md`. Production Functions retain only
 the constrained `grainline_app_runtime`; the rotated `NOSUPERUSER BYPASSRLS`
-owner remains outside Vercel. This closes the prerequisite for isolated
-Notification implementation, ephemeral PostgreSQL proof, and isolated
-provider-candidate comparison. It does not authorize a Notification merge,
-production apply/deployment, persistent staging activation, or RLS activation.
+owner remains outside Vercel. This prerequisite subsequently enabled the
+separately proven Notification rollout, which is now complete through FORCE.
+It does not authorize bundling later sensitive tables or putting an owner
+credential back into an application environment.
 
 ### Site-wide RLS expansion decision (2026-07-19)
 
@@ -44,13 +44,25 @@ Treat this as one site-wide sensitive-data RLS program for planning and status,
 but not as one migration or production activation. Preserve the established
 meaning of Bucket B as `Notification` so historical rollout evidence stays
 unambiguous. Prepare shared inventories and infrastructure across later tables
-where useful, then activate independently reviewed, tightly coupled groups:
-`Notification`; `Cart` + `CartItem`; `SavedBlogPost`; aggregate/fanout tables;
-`Conversation` + `Message`; the order/payment/shipping group; and `Case` +
+where useful, then activate independently reviewed, tightly coupled groups.
+`Notification` is complete; `Conversation` + `Message` is the next approved
+group. `Cart` + `CartItem`; `SavedBlogPost`; aggregate/fanout tables; the
+order/payment/shipping group; and `Case` +
 `CaseMessage`. Each group must be independently deployable, observable, and
 reversible before the next group begins. Never combine notification fanout,
 messaging, checkout/payment, fulfillment, and dispute policy activation into a
 single release.
+
+Conversation and Message may be designed and activated together because
+Message visibility and write validity depend on its parent Conversation. Pin
+the complete participant, unresolved-report staff, structured system-message,
+custom-order, commission, export, deletion and seller-metrics surface before
+drafting authority SQL. The baseline and rollout contract live in
+`docs/conversation-message-authority-inventory.md` and
+`docs/rls-conversation-message-plan.md`. Direct runtime DML must not survive
+activation; user-authored content may be caller input, but recipient, structured
+kind, system status and thread side effects must be derived from validated
+state.
 
 This program scope is approved, not a menu to narrow silently. Every sensitive
 or user-owned table discovered by the coverage inventory must end in one of
