@@ -167,7 +167,10 @@ export async function createNotificationServiceRow({
         ) AS id
       `;
   }
-  const id = rows[0]?.id ?? null;
+  if (rows.length !== 1) {
+    throw new TypeError("notification service returned an invalid result cardinality");
+  }
+  const id = rows[0].id;
   if (id !== null && typeof id !== "string") {
     throw new TypeError("notification service returned an invalid id");
   }
@@ -202,8 +205,11 @@ export async function claimBackInStockNotification({
       ${stockNotificationId}::text
     ) AS result
   `;
+  if (rows.length !== 1) {
+    throw new TypeError("back-in-stock notification service returned an invalid result cardinality");
+  }
   const row = rows[0];
-  if (!row || typeof row.claimed !== "boolean") {
+  if (typeof row.claimed !== "boolean") {
     throw new TypeError("back-in-stock notification service returned an invalid claim");
   }
   if (row.userId !== null && typeof row.userId !== "string") {
@@ -215,6 +221,9 @@ export async function claimBackInStockNotification({
   if (row.claimed && !row.userId) {
     throw new TypeError("back-in-stock notification service claimed a subscription without a user");
   }
+  if (!row.claimed && (row.userId !== null || row.notificationId !== null)) {
+    throw new TypeError("back-in-stock notification service returned data for an unclaimed subscription");
+  }
   return {
     claimed: row.claimed,
     userId: row.userId,
@@ -225,8 +234,11 @@ export async function claimBackInStockNotification({
 async function notificationServiceCount(
   rows: Array<{ count: number | bigint | null }>,
 ): Promise<number> {
-  const count = rows[0]?.count;
-  if (typeof count === "bigint") return Number(count);
+  if (rows.length !== 1) {
+    throw new TypeError("notification service returned an invalid count cardinality");
+  }
+  const rawCount = rows[0].count;
+  const count = typeof rawCount === "bigint" ? Number(rawCount) : rawCount;
   if (typeof count !== "number" || !Number.isSafeInteger(count) || count < 0) {
     throw new TypeError("notification service returned an invalid count");
   }

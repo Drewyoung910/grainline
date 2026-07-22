@@ -83,4 +83,12 @@ describe("Notification reciprocal-block serialization", () => {
       "account deletion must take the notification cleanup User lock before removing blocks",
     );
   });
+
+  it("locks nullable parent and commission-interest evidence before service insert", () => {
+    assert.match(serviceSql, /FOR SHARE OF reply_comment, reply_parent/);
+    assert.match(serviceSql, /IF NOT FOUND THEN\s+RETURN NULL;\s+END IF;[\s\S]*FROM public\."BlogComment" AS source_comment/);
+    assert.match(serviceSql, /FOR SHARE OF locked_request, locked_interest, locked_seller/);
+    assert.match(serviceSql, /locked_request\."buyerId" = p_related_user_id/);
+    assert.match(serviceSql, /locked_seller\."userId" = p_user_id/);
+  });
 });

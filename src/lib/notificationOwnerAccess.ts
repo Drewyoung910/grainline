@@ -61,10 +61,12 @@ function safeRpcCount(value: CountValue, label: string): number {
 function notificationFromRpcRow(row: NotificationBellRpcRow): NotificationBellItem | null {
   if (row.id === null) return null;
   if (
-    row.type === null
-    || row.title === null
-    || row.body === null
-    || row.read === null
+    typeof row.id !== "string"
+    || typeof row.type !== "string"
+    || typeof row.title !== "string"
+    || typeof row.body !== "string"
+    || (row.link !== null && typeof row.link !== "string")
+    || typeof row.read !== "boolean"
     || !(row.createdAt instanceof Date)
   ) {
     throw new TypeError("notification recipient RPC returned an invalid row");
@@ -80,6 +82,30 @@ function notificationFromRpcRow(row: NotificationBellRpcRow): NotificationBellIt
   };
 }
 
+function safeRpcPositiveInteger(value: number, label: string): number {
+  if (!Number.isSafeInteger(value) || value < 1) {
+    throw new TypeError(`${label} returned an invalid positive integer`);
+  }
+  return value;
+}
+
+function notificationExportFromRpcRow(row: NotificationExportItem): NotificationExportItem {
+  if (
+    typeof row.id !== "string"
+    || typeof row.type !== "string"
+    || typeof row.title !== "string"
+    || typeof row.body !== "string"
+    || (row.link !== null && typeof row.link !== "string")
+    || (row.sourceType !== null && typeof row.sourceType !== "string")
+    || (row.sourceId !== null && typeof row.sourceId !== "string")
+    || typeof row.read !== "boolean"
+    || !(row.createdAt instanceof Date)
+  ) {
+    throw new TypeError("notification export RPC returned an invalid row");
+  }
+  return row;
+}
+
 export async function countUnreadOwnerNotifications(userId: string) {
   const rows = await prisma.$queryRaw<Array<{ count: CountValue }>>`
     SELECT public.grainline_notification_unread_count(${userId}::text) AS count
@@ -93,12 +119,18 @@ export async function ownerNotificationBellData(userId: string) {
     SELECT * FROM public.grainline_notification_bell(${userId}::text, 20)
   `;
   if (rows.length === 0) throw new TypeError("notification bell RPC returned no summary row");
+  const unreadCount = safeRpcCount(rows[0].unreadCount, "notification bell RPC");
+  for (const row of rows) {
+    if (safeRpcCount(row.unreadCount, "notification bell RPC") !== unreadCount) {
+      throw new TypeError("notification bell RPC returned inconsistent summary rows");
+    }
+  }
   const notifications = rows
     .map(notificationFromRpcRow)
     .filter((notification): notification is NotificationBellItem => notification !== null);
   return {
     notifications,
-    unreadCount: safeRpcCount(rows[0].unreadCount, "notification bell RPC"),
+    unreadCount,
   };
 }
 
@@ -160,24 +192,45 @@ export async function ownerNotificationPageData(
   `;
   if (rows.length === 0) throw new TypeError("notification page RPC returned no summary row");
   const summary = rows[0];
+  const page = safeRpcPositiveInteger(summary.page, "notification page RPC page");
+  const total = safeRpcCount(summary.total, "notification page RPC total");
+  const totalPages = safeRpcPositiveInteger(
+    summary.totalPages,
+    "notification page RPC total pages",
+  );
+  const unreadCount = safeRpcCount(summary.unreadCount, "notification page RPC unread");
+  if (page > totalPages || unreadCount > total) {
+    throw new TypeError("notification page RPC returned an inconsistent summary");
+  }
+  for (const row of rows) {
+    if (
+      safeRpcPositiveInteger(row.page, "notification page RPC page") !== page
+      || safeRpcCount(row.total, "notification page RPC total") !== total
+      || safeRpcPositiveInteger(row.totalPages, "notification page RPC total pages") !== totalPages
+      || safeRpcCount(row.unreadCount, "notification page RPC unread") !== unreadCount
+    ) {
+      throw new TypeError("notification page RPC returned inconsistent summary rows");
+    }
+  }
   const notifications = rows
     .map(notificationFromRpcRow)
     .filter((notification): notification is NotificationBellItem => notification !== null);
   return {
     notifications,
-    page: summary.page,
-    total: safeRpcCount(summary.total, "notification page RPC total"),
-    totalPages: summary.totalPages,
-    unreadCount: safeRpcCount(summary.unreadCount, "notification page RPC unread"),
+    page,
+    total,
+    totalPages,
+    unreadCount,
   };
 }
 
 export async function ownerNotificationExportRows(
   userId: string,
 ): Promise<NotificationExportItem[]> {
-  return prisma.$queryRaw<NotificationExportItem[]>`
+  const rows = await prisma.$queryRaw<NotificationExportItem[]>`
     SELECT * FROM public.grainline_notification_export(${userId}::text)
   `;
+  return rows.map(notificationExportFromRpcRow);
 }
 
 export async function findRecentOwnerLowStockNotification(
@@ -193,5 +246,9 @@ export async function findRecentOwnerLowStockNotification(
     ) AS id
   `;
   if (rows.length !== 1) throw new TypeError("notification low-stock RPC returned no row");
-  return rows[0].id ? { id: rows[0].id } : null;
+  const id = rows[0].id;
+  if (id !== null && typeof id !== "string") {
+    throw new TypeError("notification low-stock RPC returned an invalid id");
+  }
+  return id ? { id } : null;
 }

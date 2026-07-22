@@ -129,6 +129,28 @@ changes, the purge is
 prohibited and a backfill must be designed. Application-asserted `app.user_id` is
 not database-authenticated identity and a compromised runtime can forge it;
 fixed-purpose constraints limit that residual without eliminating it.
+In addition, most durable source/audit tables remain ordinary runtime-CRUD
+tables until their later independent RLS or database-isolation groups. A fully
+compromised runtime may therefore fabricate upstream evidence before invoking a
+narrow Notification wrapper. Bucket B still removes direct arbitrary
+Notification writes and caller-controlled payload/target identity, but it is
+not a complete arbitrary-runtime-compromise boundary on its own. Close that
+dependency through the site-wide program; do not activate orders, messages,
+cases, and audit ledgers in the same Notification release merely to make a
+broader claim.
+
+The existing site-wide runtime-role tooling is part of the Bucket B security
+boundary, not a later cleanup. It now runs provisioning mutations
+transactionally, aborts on partial Notification RLS state, and converges an
+activated Notification table back to `SELECT` plus column-only `UPDATE(read)`.
+It also converges all 25 Notification RPC ACLs while keeping the private create
+core runtime-ungranted. The grant audit derives FORCE expectations from ordered
+migration history and checks the exact Notification policies, column grants,
+function owner/mode/search path/overload shape, PUBLIC revokes, and runtime
+execute split. Do not stage an activation migration until these checks pass on
+the final disposable PostgreSQL migration. Static 54/54 coverage and the first
+ephemeral proof remain insufficient because that proof dynamically exercised
+only the social/follow creation family, not every creation-family branch.
 
 Extra-high review does not yet accept the shared create function as final. The
 54/54 creation-authority coverage can prove source, type, actor, recipient, and

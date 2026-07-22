@@ -230,6 +230,24 @@ BEGIN
   -- and public/follower relationship in the same owner-backed operation. The
   -- row locks serialize source deletion or visibility changes with creation.
   IF p_source_type = 'blog_comment' THEN
+    -- PostgreSQL cannot lock the nullable side of the LEFT JOIN below. Lock a
+    -- reply and its parent explicitly first so parent deletion/SetNull cannot
+    -- invalidate the recipient relationship between validation and insert.
+    IF p_type = 'BLOG_COMMENT_REPLY' THEN
+      PERFORM 1
+        FROM public."BlogComment" AS reply_comment
+        JOIN public."BlogComment" AS reply_parent
+          ON reply_parent.id = reply_comment."parentId"
+       WHERE reply_comment.id = p_source_id
+         AND reply_comment.approved = true
+         AND reply_comment."authorId" = p_related_user_id
+         AND reply_parent."authorId" = p_user_id
+       FOR SHARE OF reply_comment, reply_parent;
+      IF NOT FOUND THEN
+        RETURN NULL;
+      END IF;
+    END IF;
+
     SELECT
       '/blog/' || source_post.slug || '#comment-' || source_comment.id,
       pg_catalog.left(
@@ -492,6 +510,25 @@ BEGIN
        )
      FOR SHARE OF source_interest, source_request, source_seller, source_conversation;
   ELSIF p_source_type = 'commission_request' THEN
+    -- Seller notifications depend on an exact interest/profile relationship.
+    -- Lock that evidence rather than relying on an unlocked EXISTS check that
+    -- account cleanup could delete concurrently.
+    IF p_related_user_id IS NOT NULL THEN
+      PERFORM 1
+        FROM public."CommissionRequest" AS locked_request
+        JOIN public."CommissionInterest" AS locked_interest
+          ON locked_interest."commissionRequestId" = locked_request.id
+        JOIN public."SellerProfile" AS locked_seller
+          ON locked_seller.id = locked_interest."sellerProfileId"
+       WHERE locked_request.id = p_source_id
+         AND locked_request."buyerId" = p_related_user_id
+         AND locked_seller."userId" = p_user_id
+       FOR SHARE OF locked_request, locked_interest, locked_seller;
+      IF NOT FOUND THEN
+        RETURN NULL;
+      END IF;
+    END IF;
+
     SELECT
       CASE
         WHEN source_request.status = 'CLOSED' THEN '/commission'

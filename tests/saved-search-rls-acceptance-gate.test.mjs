@@ -673,7 +673,7 @@ describe("SavedSearch RLS acceptance gate", () => {
     assert.match(issues, /public\."SavedSearch" runtime role has grant options: DELETE/);
     assert.match(issues, /public\."SavedSearch" grants table privileges to PUBLIC: SELECT/);
     assert.match(issues, /public\."SavedSearch" grants table privileges with grant option to PUBLIC: SELECT/);
-    assert.match(issues, /public\."SavedSearch" runtime role has column privileges: userId:REFERENCES/);
+    assert.match(issues, /public\."SavedSearch" runtime role has unexpected column privileges: userId:REFERENCES/);
     assert.match(issues, /public\."SavedSearch" runtime role has column grant options: userId:REFERENCES/);
     assert.match(issues, /public\."SavedSearch" PUBLIC has column privileges: userId:REFERENCES/);
     assert.match(issues, /public\."SavedSearch" PUBLIC has column grant options: userId:REFERENCES/);

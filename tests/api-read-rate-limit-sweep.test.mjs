@@ -64,7 +64,8 @@ describe("API read route rate-limit sweep", () => {
     assert.match(route, /ownerNotificationBellData\(me\.id\)/);
     assert.match(ownerAccess, /export async function ownerNotificationBellData/);
     assert.match(ownerAccess, /public\.grainline_notification_bell\(\$\{userId\}::text, 20\)/);
-    assert.match(ownerAccess, /unreadCount: safeRpcCount/);
+    assert.match(ownerAccess, /const unreadCount = safeRpcCount/);
+    assert.match(ownerAccess, /notification bell RPC returned inconsistent summary rows/);
     assert.doesNotMatch(bellBlock, /notification_(?:mark|delete|prune)/);
     assert.doesNotMatch(ownerAccess, /prisma\.notification\./);
 

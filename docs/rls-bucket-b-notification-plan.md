@@ -51,6 +51,29 @@ compromised runtime could invoke the granted fixed-purpose functions and could
 forge that context. Input, role, age, and source constraints limit that residual
 capability; runtime credential separation remains the separate control against
 owner-credential exfiltration.
+Most domain/audit source tables also retain ordinary runtime CRUD until their
+own later site-wide RLS or service-isolation groups activate. Consequently an
+arbitrary runtime compromise may be able to fabricate or mutate upstream
+evidence and then invoke a narrow Notification family. Bucket B prevents direct
+arbitrary Notification table writes and caller-chosen payload/recipient/source
+combinations; it must not be described as a complete arbitrary-runtime-
+compromise boundary until the referenced source tables receive their own
+controls. Preserve this dependency in the site-wide coverage matrix rather than
+silently expanding Bucket B to activate those tables together.
+
+The shared role-provisioning and grant-audit path is now Notification-aware.
+Provisioning runs its mutations in one transaction, refuses partial or
+unexpected Notification policy state, and—only after the exact recipient policy
+pair exists—converges the table to `SELECT` plus `UPDATE (read)` and the 25 RPCs
+to their exact runtime/PUBLIC posture. The private create core is the sole RPC
+that remains runtime-ungranted. The grant audit derives per-table FORCE state
+from ordered migration history, accepts the intentional initial Notification
+`NO FORCE` release, requires the exact two policy expressions/roles, rejects
+table-level INSERT/UPDATE/DELETE and unexpected column grants, and pins each
+Notification RPC's owner, SECURITY mode, `search_path`, overload count, and
+direct non-grantable runtime/PUBLIC ACL. These are activation artifacts, not
+evidence that the current drafts are ready to migrate; their live PostgreSQL
+behavior still has to be exercised with the final migration.
 All 54 creation paths, exact account cleanup, exact admin source cleanup, and
 retention cron are wired to these draft functions in the isolated branch. Admin cleanup
 uses only exact source RPCs, and account deletion uses only recipient plus
@@ -418,6 +441,15 @@ direct Prisma Notification owner reads or updates outside the RPC helper:
   two-session block-race checks. Provider behavior, pre-activation review, and
   direct authenticated runtime-credential proof remain separate gates. Direct
   or generic runtime creation remains unacceptable.
+  The disposable proof dynamically exercised the social/follow creation family,
+  not every source branch in the ten creation wrappers. Expand the final
+  PostgreSQL fixture set across every authority family (including negative
+  source/recipient/actor cases) before calling the service-authority layer
+  activation-ready.
+- Role provisioning and the generic grant audit now preserve Notification's
+  asymmetric table/column grants, initial `NO FORCE` phase, exact policies, and
+  25-function ACL/mode split. The final migration must still pass those checks
+  against a disposable real database; static guardrails are not a live proof.
 - Recipient bell/page/count/export/mark-read uses the narrow one-statement
   `SECURITY INVOKER` RPC direction. The rejected transaction wrapper is retained
   only in Git and evidence history, not as executable fallback scaffolding.
