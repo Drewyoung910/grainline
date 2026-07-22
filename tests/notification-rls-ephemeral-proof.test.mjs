@@ -47,8 +47,14 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     assert.match(workflow, /workflow_dispatch:/);
     assert.match(workflow, /paths:[\s\S]*docs\/rls-drafts\/\*\*/);
     assert.match(workflow, /scripts\/notification-rls-ephemeral-proof\.mjs/);
+    assert.match(workflow, /scripts\/audit-runtime-db-grants\.mjs/);
     assert.match(workflow, /image: postgres:16/);
     assert.match(workflow, /notification-related-user\.sql[\s\S]*notification-recipient-access\.sql[\s\S]*notification-service-authority\.sql/);
+    assert.match(workflow, /Re-converge Notification-aware runtime grants/);
+    assert.ok(
+      workflow.indexOf("Apply isolated Notification service-authority draft")
+        < workflow.indexOf("Re-converge Notification-aware runtime grants"),
+    );
     assert.equal(
       packageJson.scripts["audit:rls-notification-ephemeral"],
       "node scripts/notification-rls-ephemeral-proof.mjs",

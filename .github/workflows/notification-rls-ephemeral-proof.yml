@@ -10,6 +10,7 @@ on:
       - package.json
       - package-lock.json
       - prisma/**
+      - scripts/audit-runtime-db-grants.mjs
       - scripts/notification-rls-ephemeral-proof.mjs
       - scripts/prepare-ci-rls-runtime-role.sql
       - scripts/provision-runtime-db-role.sql
@@ -63,5 +64,7 @@ jobs:
         run: psql "$DIRECT_URL" --set=ON_ERROR_STOP=1 -f docs/rls-drafts/notification-recipient-access.sql
       - name: Apply isolated Notification service-authority draft
         run: psql "$DIRECT_URL" --set=ON_ERROR_STOP=1 -f docs/rls-drafts/notification-service-authority.sql
+      - name: Re-converge Notification-aware runtime grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
       - name: Prove Notification RLS and service authority
         run: npm run audit:rls-notification-ephemeral
