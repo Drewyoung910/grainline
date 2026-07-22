@@ -232,7 +232,7 @@ async function seedFixtures(owner) {
     `INSERT INTO public."SystemAuditLog" (
        id, "actorType", "actorId", action, "targetType", "targetId", metadata
      ) VALUES (
-       $1, 'user', $2, 'MANUAL_LISTING_STOCK_LOW', 'LISTING', $3,
+       $1, 'user', $2, 'MANUAL_LISTING_STOCK_LOW', 'LISTING', $3::text,
        pg_catalog.jsonb_build_object(
          'listingId', $3::text,
          'listingTitle', 'Proof Listing',
@@ -292,7 +292,7 @@ async function seedFixtures(owner) {
     `INSERT INTO public."SystemAuditLog" (
        id, "actorType", "actorId", action, "targetType", "targetId", metadata
      ) VALUES (
-       $1, 'user', $2, 'MANUAL_LISTING_RESTOCKED', 'LISTING', $3,
+       $1, 'user', $2, 'MANUAL_LISTING_RESTOCKED', 'LISTING', $3::text,
        pg_catalog.jsonb_build_object(
          'listingId', $3::text,
          'listingTitle', 'Proof Listing',
