@@ -130,6 +130,13 @@ describe("disposable Notification provider proof operator", () => {
     assert.match(source, /preparedCommitSha: state\.preparedCommitSha \?\? state\.commitSha/);
     assert.match(source, /RLS_CONTEXT_GATE_ALLOWED_COMMIT_SHA/);
     assert.match(source, /priorDeploymentCommitSha/);
+    assert.match(source, /rebindRouteSmokeRetryCommit/);
+    assert.match(source, /failed\.failureStage !== "create-short-lived-clerk-session"/);
+    assert.match(source, /failed\.cleanup\?\.previewCacheKeyDeleted !== true/);
+    assert.match(source, /route-smoke retry requires only the exact prior Preview/);
+    assert.match(source, /priorRouteSmokeDeploymentId/);
+    assert.match(source, /deleteProviderDeployments/);
+    assert.match(source, /deploymentDeletedCount/);
     assert.match(source, /databasePreparationCommitSha/);
     assert.match(source, /\^\[A-Za-z0-9_-\]\{8,128\}\$/);
     assert.doesNotMatch(source, /\^env_/);

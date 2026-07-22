@@ -676,6 +676,40 @@ provider operator, runtime guard, and tests are pinned to those exact identities
 and fresh private-state paths. The branch remains deployment-disabled until the
 exact setup/local proof/configuration commits are produced and checked.
 
+The child preparation and real-RPC local preflight passed at `e77048a6`; the
+exact enablement commit `31111844` then produced attested Preview
+`dpl_HLiXVMyfi1RLXu4HCMeoxVfHnANw`. Its first authenticated run failed closed
+at `create-short-lived-clerk-session`, before any Preview HTTP request. Clerk's
+live Backend API returned HTTP 400 `request_invalid_for_environment` for
+`sessions.createSession`, which is not a valid production-session mechanism.
+The failure cleanup deleted all four Notification fixtures, restored the child
+legal fields, deleted the exact Preview cache key, and left no canary session.
+Mode-`0600` evidence
+`notification-authenticated-route-smoke-311118448219.json` has SHA-256
+`4cbab972761f1c86d9185a88fe47408375a38a7530cf39ee57696808f699be17`.
+
+The corrected authentication mechanism follows Clerk's production path:
+create a 60-second one-use sign-in token, create an isolated Frontend API
+client, consume the token through `POST /v1/client/sign_ins` with the `ticket`
+strategy, obtain the resulting active session through the Backend API, and
+mint the five-minute session JWT. Clerk documents sign-in tokens as one-use
+tokens consumed by the Frontend API `ticket` strategy. The smoke never retains
+the token or Clerk client cookies and, in `finally`, revokes every active
+session on the dedicated canary plus any unconsumed sign-in token.
+
+Two bounded diagnostics established the response contract. The first ticket
+exchange succeeded but the probe looked for the session id under a client
+envelope rather than the returned `sign_in_attempt`; the one resulting active
+canary session was immediately inventoried and revoked, with zero remaining.
+The corrected probe then confirmed `complete`, exact-user active session, valid
+JWT shape, consumed token, and session revocation. The operator permits only one
+same-child retry and only when the retained first failure is at the exact
+pre-request stage with every cleanup flag true. It rebinds the allowed commit,
+retains the prior Preview for exact teardown, and cleanup must delete both
+Previews. Official references reviewed:
+[sign-in tokens](https://clerk.com/docs/reference/backend/sign-in-tokens/create-sign-in-token)
+and [Frontend API](https://clerk.com/docs/reference/frontend-api/2026-05-12/description/introduction).
+
 ### Consolidated Extra High authority review: passed (2026-07-22)
 
 The consolidated SQL/application review at exact branch head

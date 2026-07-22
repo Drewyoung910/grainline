@@ -224,6 +224,13 @@ legal state, zero marketplace activity, and no welcome fallback-outbox row.
 Retain it for authenticated preflight/postflight checks; authenticated
 Notification route smoke remains the next gate.
 
+Live Clerk does not permit backend `sessions.createSession` for this production
+instance. Authenticated operational proofs must use a short-lived one-use Clerk
+sign-in token consumed by the production Frontend API `ticket` strategy, then
+revoke every resulting canary session and any unconsumed token in mandatory
+cleanup. Do not loosen this into password login, ordinary-user impersonation,
+or a retained browser session.
+
 The isolated service-authority draft now uses seventeen owner-backed functions:
 one runtime-ungranted fixed-column core, ten granted creation families, one
 dedicated back-in-stock claim/create/consume operation, three exact cleanup

@@ -1423,6 +1423,123 @@ async function rebindConfiguredCommit() {
   }));
 }
 
+async function rebindRouteSmokeRetryCommit() {
+  const state = readProviderState();
+  const bypassState = readBypassState();
+  const commitSha = assertExactCleanCommit();
+  const failedEvidencePath = path.join(
+    EVIDENCE_DIRECTORY,
+    `notification-authenticated-route-smoke-${state.commitSha.slice(0, 12)}.json`,
+  );
+  if (
+    !state.setupCompletedAt
+    || !state.localPreflightAt
+    || !state.configuredAt
+    || !state.attestedAt
+    || !state.deploymentId
+    || state.routeSmokePassedAt
+    || state.routeSmokeRetryReboundAt
+    || state.slot1EvidencePath
+    || state.slot2EvidencePath
+    || state.commitSha === commitSha
+    || !existsSync(failedEvidencePath)
+  ) {
+    throw new Error("provider state is not eligible for one authenticated route-smoke retry");
+  }
+  const failed = readPrivateJson(failedEvidencePath, "failed authenticated route-smoke evidence");
+  if (
+    failed.scope !== "notification-authenticated-route-smoke"
+    || failed.status !== "failed"
+    || failed.commitSha !== state.commitSha
+    || failed.deploymentId !== state.deploymentId
+    || failed.failureStage !== "create-short-lived-clerk-session"
+    || failed.result !== null
+    || failed.cleanup?.fixtureRowsDeleted !== true
+    || failed.cleanup?.clerkSessionRevoked !== true
+    || failed.cleanup?.childAccountStateRestored !== true
+    || failed.cleanup?.previewCacheKeyDeleted !== true
+    || failed.secretsRetained !== false
+  ) {
+    throw new Error("failed route-smoke evidence is not the reviewed pre-request clean failure");
+  }
+  const inventory = assertExactEnvironmentInventory(await branchEnvironmentInventory());
+  const ids = inventory.map((entry) => entry.id).sort();
+  if (JSON.stringify(ids) !== JSON.stringify([...state.environmentIds].sort())) {
+    throw new Error("branch environment IDs drifted before route-smoke retry");
+  }
+  await currentBypassIsActive(bypassState);
+  await verifyNeonStagingTarget();
+  const { payload: priorDeployment } = await readDeployment(state.deploymentId);
+  validateProviderDeployment(priorDeployment, state);
+  const branchDeployments = (await listDeployments()).filter(
+    (deployment) => deployment.meta?.githubCommitRef === PROVIDER_PROOF_BRANCH,
+  );
+  if (
+    branchDeployments.length !== 1
+    || branchDeployments[0].uid !== state.deploymentId
+    || branchDeployments[0].meta?.githubCommitSha !== state.commitSha
+  ) {
+    throw new Error("route-smoke retry requires only the exact prior Preview");
+  }
+  const allowedSha = inventory.find(
+    (entry) => entry.key === "RLS_CONTEXT_GATE_ALLOWED_COMMIT_SHA",
+  );
+  if (!allowedSha) throw new Error("allowed commit environment record is missing");
+  await vercelApi(
+    `/v10/projects/${REVIEWED_VERCEL_PROJECT_ID}/env/${allowedSha.id}`,
+    {
+      body: {
+        gitBranch: PROVIDER_PROOF_BRANCH,
+        target: ["preview"],
+        type: "sensitive",
+        value: commitSha,
+      },
+      method: "PATCH",
+    },
+  );
+  assertExactEnvironmentInventory(await branchEnvironmentInventory());
+  const rebindEvidencePath = evidencePath("route-smoke-rebind", commitSha);
+  if (existsSync(rebindEvidencePath)) {
+    throw new Error("route-smoke retry rebind evidence already exists");
+  }
+  writePrivateJson(rebindEvidencePath, {
+    capturedAt: new Date().toISOString(),
+    databaseTarget: {
+      branchId: REVIEWED_STAGING_BRANCH_ID,
+      endpointId: REVIEWED_STAGING_ENDPOINT_ID,
+    },
+    failedEvidenceSha256: sha256(readFileSync(failedEvidencePath)),
+    newCommitSha: commitSha,
+    priorCommitSha: state.commitSha,
+    priorDeploymentId: state.deploymentId,
+    priorFailureStage: failed.failureStage,
+    priorCleanupPassed: true,
+  });
+  const attestationPath = state.attestationPath;
+  const deploymentId = state.deploymentId;
+  const retainedState = { ...state };
+  delete retainedState.attestationPath;
+  delete retainedState.attestedAt;
+  delete retainedState.deploymentId;
+  delete retainedState.deploymentObservedAt;
+  delete retainedState.deploymentUrl;
+  replacePrivateState({
+    ...retainedState,
+    commitSha,
+    priorRouteSmokeAttestationPath: attestationPath,
+    priorRouteSmokeCommitSha: state.commitSha,
+    priorRouteSmokeDeploymentId: deploymentId,
+    priorRouteSmokeFailureEvidencePath: failedEvidencePath,
+    routeSmokeRetryRebindEvidencePath: rebindEvidencePath,
+    routeSmokeRetryReboundAt: new Date().toISOString(),
+  });
+  console.log(JSON.stringify({
+    commitRebound: true,
+    routeSmokeRetry: 1,
+    priorCleanupPassed: true,
+  }));
+}
+
 async function rebindPredeploymentCommit() {
   const state = readProviderState();
   const commitSha = assertExactCleanCommit();
@@ -1693,14 +1810,28 @@ async function removeProviderEnvironment(state) {
   }
 }
 
-async function deleteProviderDeployment(state) {
-  if (!state.deploymentId) return false;
-  const { payload } = await readDeployment(state.deploymentId);
-  validateProviderDeploymentIdentity(payload, state);
-  await vercelApi(`/v13/deployments/${state.deploymentId}`, { method: "DELETE" });
-  const after = await readDeployment(state.deploymentId, [404]);
-  if (after.status !== 404) throw new Error("provider Preview remained after deletion");
-  return true;
+async function deleteProviderDeployments(state) {
+  const targets = [
+    state.priorRouteSmokeDeploymentId && state.priorRouteSmokeCommitSha
+      ? {
+          commitSha: state.priorRouteSmokeCommitSha,
+          deploymentId: state.priorRouteSmokeDeploymentId,
+        }
+      : null,
+    state.deploymentId ? { commitSha: state.commitSha, deploymentId: state.deploymentId } : null,
+  ].filter(Boolean);
+  if (new Set(targets.map((target) => target.deploymentId)).size !== targets.length) {
+    throw new Error("provider Preview cleanup targets were not unique");
+  }
+  for (const target of targets) {
+    const targetState = { ...state, ...target };
+    const { payload } = await readDeployment(target.deploymentId);
+    validateProviderDeploymentIdentity(payload, targetState);
+    await vercelApi(`/v13/deployments/${target.deploymentId}`, { method: "DELETE" });
+    const after = await readDeployment(target.deploymentId, [404]);
+    if (after.status !== 404) throw new Error("provider Preview remained after deletion");
+  }
+  return targets.length;
 }
 
 async function deleteNeonStagingBranch() {
@@ -1742,6 +1873,7 @@ function validateRetainedRouteSmokeEvidence(state) {
     || artifact.deploymentId !== state.deploymentId
     || artifact.cleanup?.fixtureRowsDeleted !== true
     || artifact.cleanup?.clerkSessionRevoked !== true
+    || artifact.cleanup?.clerkSignInTokenConsumedOrRevoked !== true
     || artifact.secretsRetained !== false
   ) {
     throw new Error("authenticated route-smoke evidence did not pass validation");
@@ -1788,7 +1920,7 @@ async function cleanup({ requireSuccess, routeSmokeSuccess = false }) {
   });
   state = readProviderState();
   if (state.configuredAt) await removeProviderEnvironment(state);
-  const deploymentDeleted = await deleteProviderDeployment(state);
+  const deploymentDeletedCount = await deleteProviderDeployments(state);
   const automationBypassRevoked = await revokeProviderBypass(bypassState);
   const stagingBranchDeleted = await deleteNeonStagingBranch();
   const production = await assertProductionDeploymentUnchanged();
@@ -1809,7 +1941,8 @@ async function cleanup({ requireSuccess, routeSmokeSuccess = false }) {
     commitSha: state.commitSha,
     databasePreparationCommitSha: state.preparedCommitSha ?? state.commitSha,
     deploymentId: state.deploymentId ?? null,
-    deploymentDeleted,
+    deploymentDeleted: deploymentDeletedCount > 0,
+    deploymentDeletedCount,
     automationBypassRevoked,
     remainingAutomationBypassSecrets: 0,
     branchEnvironmentVariablesDeleted: state.configuredAt ? PROVIDER_ENVIRONMENT_KEYS.length : 0,
@@ -1845,6 +1978,7 @@ async function status() {
       commitSha: state.commitSha,
       configured: Boolean(state.configuredAt),
       deploymentId: state.deploymentId ?? null,
+      routeSmokeRetry: Boolean(state.routeSmokeRetryReboundAt),
       failedSlot: state.failedSlot ?? null,
       prepared: Boolean(state.setupCompletedAt),
       slot1Passed: Boolean(state.slot1EvidencePath),
@@ -1930,7 +2064,7 @@ async function databaseStatus() {
 }
 
 function usage() {
-  console.error("Usage: node scripts/notification-provider-proof-operator.mjs <create-bypass-state|bootstrap-bypass-state|revoke-bypass-state|prepare|local-preflight|rebind-local-preflight-retry|rebind-predeployment-commit|configure|rebind-configured-commit|attest|slot-1|slot-2|cleanup|cleanup-route-smoke|cleanup-abort|status|database-status|prisma-status>");
+  console.error("Usage: node scripts/notification-provider-proof-operator.mjs <create-bypass-state|bootstrap-bypass-state|revoke-bypass-state|prepare|local-preflight|rebind-local-preflight-retry|rebind-predeployment-commit|configure|rebind-configured-commit|rebind-route-smoke-retry|attest|slot-1|slot-2|cleanup|cleanup-route-smoke|cleanup-abort|status|database-status|prisma-status>");
 }
 
 async function main() {
@@ -1961,6 +2095,9 @@ async function main() {
       break;
     case "rebind-configured-commit":
       await rebindConfiguredCommit();
+      break;
+    case "rebind-route-smoke-retry":
+      await rebindRouteSmokeRetryCommit();
       break;
     case "attest":
       await attest();

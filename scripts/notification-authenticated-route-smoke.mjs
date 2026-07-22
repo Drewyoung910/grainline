@@ -13,6 +13,7 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { createClerkClient } from "@clerk/backend";
+import { parsePublishableKey } from "@clerk/shared/keys";
 import { Redis } from "@upstash/redis";
 import { parse as parseDotenv } from "dotenv";
 import pg from "pg";
@@ -34,6 +35,8 @@ const LOCAL_ENV_PATH = "/Users/drewyoung/grainline/.env.local";
 const MAX_JSON_BYTES = 128 * 1024;
 const MAX_PAGE_BYTES = 2 * 1024 * 1024;
 const REVIEWED_TERMS_VERSION = "2026-06-14";
+const REVIEWED_CLERK_FRONTEND_API = "clerk.thegrainline.com";
+const REVIEWED_CLERK_ORIGIN = "https://thegrainline.com";
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -99,7 +102,7 @@ function loadLocalEnvironment() {
   return parseDotenv(readFileSync(LOCAL_ENV_PATH));
 }
 
-function loadLiveClerkSecret() {
+function loadLiveClerkCredentials() {
   const values = loadLocalEnvironment();
   const secret = values.CLERK_SECRET_KEY;
   const publishable = values.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
@@ -111,7 +114,44 @@ function loadLiveClerkSecret() {
   ) {
     throw new Error("route smoke requires the reviewed live Clerk key pair");
   }
-  return secret;
+  const parsed = parsePublishableKey(publishable);
+  if (
+    parsed.instanceType !== "production"
+    || parsed.frontendApi !== REVIEWED_CLERK_FRONTEND_API
+  ) {
+    throw new Error("route smoke Clerk Frontend API identity drifted");
+  }
+  return { frontendApi: parsed.frontendApi, secret };
+}
+
+function absorbClerkResponseCookies(response, jar) {
+  const values = response.headers.getSetCookie?.() ?? [];
+  if (values.length < 1 || values.length > 16) {
+    throw new Error("Clerk Frontend API cookie response drifted");
+  }
+  for (const value of values) {
+    const pair = value.split(";", 1)[0];
+    const separator = pair.indexOf("=");
+    const name = pair.slice(0, separator);
+    const content = pair.slice(separator + 1);
+    if (
+      separator <= 0
+      || !/^[A-Za-z0-9_]+$/.test(name)
+      || content.length < 1
+      || content.length > 8_192
+    ) {
+      throw new Error("Clerk Frontend API returned an invalid cookie shape");
+    }
+    jar.set(name, content);
+  }
+}
+
+function clerkCookieHeader(jar) {
+  const value = [...jar].map(([name, content]) => `${name}=${content}`).join("; ");
+  if (!value || value.length > 24_000) {
+    throw new Error("Clerk Frontend API cookie jar exceeded its reviewed bound");
+  }
+  return value;
 }
 
 async function deletePreviewAccountStateCache(clerkId) {
@@ -241,6 +281,9 @@ async function main() {
   const owner = new Client({ connectionString: state.adminDatabaseUrl });
   let stage = "connect-owner";
   let sessionId = null;
+  let signInTokenId = null;
+  let signInTokenConsumed = false;
+  let signInTokenDisposed = false;
   let fixturesSeeded = false;
   let sessionRevoked = false;
   let fixturesDeleted = false;
@@ -256,7 +299,8 @@ async function main() {
   try {
     await owner.connect();
     stage = "select-test-identity";
-    clerk = createClerkClient({ secretKey: loadLiveClerkSecret() });
+    const clerkCredentials = loadLiveClerkCredentials();
+    clerk = createClerkClient({ secretKey: clerkCredentials.secret });
     const clerkCandidates = await clerk.users.getUserList({
       externalId: [NOTIFICATION_CANARY_EXTERNAL_ID],
       limit: 2,
@@ -302,6 +346,14 @@ async function main() {
     stage = "validate-clerk-user";
     if (clerkUser.id !== candidate.clerkId) {
       throw new Error("dedicated Clerk test identity is not active");
+    }
+    const preexistingSessions = await clerk.sessions.getSessionList({
+      limit: 100,
+      status: "active",
+      userId: candidate.clerkId,
+    });
+    if (preexistingSessions.totalCount !== 0 || preexistingSessions.data.length !== 0) {
+      throw new Error("operational canary had a pre-existing active Clerk session");
     }
 
     stage = "adjust-child-account-state";
@@ -383,12 +435,72 @@ async function main() {
       throw error;
     }
 
-    stage = "create-short-lived-clerk-session";
-    const session = await clerk.sessions.createSession({ userId: candidate.clerkId });
-    if (!session?.id || session.userId !== candidate.clerkId || session.status !== "active") {
-      throw new Error("Clerk did not create the expected active test session");
+    stage = "create-short-lived-clerk-ticket-session";
+    const signInToken = await clerk.signInTokens.createSignInToken({
+      expiresInSeconds: 60,
+      userId: candidate.clerkId,
+    });
+    signInTokenId = signInToken?.id ?? null;
+    if (
+      !/^sit_[A-Za-z0-9]+$/.test(String(signInTokenId ?? ""))
+      || signInToken.userId !== candidate.clerkId
+      || typeof signInToken.token !== "string"
+      || signInToken.token.length < 32
+      || signInToken.token.length > 4_096
+    ) {
+      throw new Error("Clerk did not create the expected bounded sign-in token");
     }
-    sessionId = session.id;
+    const clerkCookies = new Map();
+    const clientResponse = await fetch(
+      `https://${clerkCredentials.frontendApi}/v1/client`,
+      {
+        body: "",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          origin: REVIEWED_CLERK_ORIGIN,
+        },
+        method: "POST",
+        redirect: "manual",
+        signal: AbortSignal.timeout(30_000),
+      },
+    );
+    absorbClerkResponseCookies(clientResponse, clerkCookies);
+    const clientPayload = await boundedJson(clientResponse);
+    const client = clientPayload.response ?? clientPayload;
+    if (clientResponse.status !== 200 || client.object !== "client") {
+      throw new Error("Clerk Frontend API client handshake failed");
+    }
+    const exchangeResponse = await fetch(
+      `https://${clerkCredentials.frontendApi}/v1/client/sign_ins`,
+      {
+        body: new URLSearchParams({ strategy: "ticket", ticket: signInToken.token }),
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          cookie: clerkCookieHeader(clerkCookies),
+          origin: REVIEWED_CLERK_ORIGIN,
+        },
+        method: "POST",
+        redirect: "manual",
+        signal: AbortSignal.timeout(30_000),
+      },
+    );
+    absorbClerkResponseCookies(exchangeResponse, clerkCookies);
+    const exchangePayload = await boundedJson(exchangeResponse);
+    const signInAttempt = exchangePayload.response ?? exchangePayload;
+    sessionId = /^sess_[A-Za-z0-9]+$/.test(String(signInAttempt.created_session_id ?? ""))
+      ? signInAttempt.created_session_id
+      : null;
+    signInTokenConsumed = exchangeResponse.status === 200
+      && signInAttempt.object === "sign_in_attempt"
+      && signInAttempt.status === "complete"
+      && Boolean(sessionId);
+    if (!signInTokenConsumed) {
+      throw new Error("Clerk Frontend API did not complete the one-use ticket exchange");
+    }
+    const session = await clerk.sessions.getSession(sessionId);
+    if (session.userId !== candidate.clerkId || session.status !== "active") {
+      throw new Error("Clerk ticket exchange did not create the expected active session");
+    }
     const token = await clerk.sessions.getToken(sessionId, undefined, 300);
     if (typeof token?.jwt !== "string" || token.jwt.split(".").length !== 3) {
       throw new Error("Clerk did not return a bounded session token");
@@ -542,15 +654,40 @@ async function main() {
   } catch (error) {
     primaryFailure = error;
   } finally {
-    if (sessionId && clerk) {
+    if (candidate && clerk) {
       try {
-        const revoked = await clerk.sessions.revokeSession(sessionId);
-        sessionRevoked = revoked?.id === sessionId && revoked?.status === "revoked";
+        const active = await clerk.sessions.getSessionList({
+          limit: 100,
+          status: "active",
+          userId: candidate.clerkId,
+        });
+        for (const session of active.data) {
+          const revoked = await clerk.sessions.revokeSession(session.id);
+          if (revoked?.id !== session.id || revoked?.status !== "revoked") {
+            throw new Error("Clerk canary session revoke did not confirm revocation");
+          }
+        }
+        const after = await clerk.sessions.getSessionList({
+          limit: 100,
+          status: "active",
+          userId: candidate.clerkId,
+        });
+        sessionRevoked = after.totalCount === 0 && after.data.length === 0;
       } catch {
         sessionRevoked = false;
       }
     } else {
       sessionRevoked = true;
+    }
+    if (signInTokenId && clerk && !signInTokenConsumed) {
+      try {
+        const revoked = await clerk.signInTokens.revokeSignInToken(signInTokenId);
+        signInTokenDisposed = revoked?.id === signInTokenId && revoked?.status === "revoked";
+      } catch {
+        signInTokenDisposed = false;
+      }
+    } else {
+      signInTokenDisposed = true;
     }
     if (fixturesSeeded && fixture) {
       try {
@@ -601,6 +738,7 @@ async function main() {
 
   const status = !primaryFailure
     && sessionRevoked
+    && signInTokenDisposed
     && fixturesDeleted
     && childAccountStateRestored
     && previewCacheKeyDeleted
@@ -626,6 +764,7 @@ async function main() {
     cleanup: {
       fixtureRowsDeleted: fixturesDeleted,
       clerkSessionRevoked: sessionRevoked,
+      clerkSignInTokenConsumedOrRevoked: signInTokenDisposed,
       clerkUserDeleted: false,
       childAccountStateRestored,
       previewCacheKeyDeleted,
@@ -663,6 +802,7 @@ async function main() {
     authenticatedRouteSmoke: "passed",
     childAccountStateRestored: true,
     clerkSessionRevoked: true,
+    clerkSignInTokenConsumedOrRevoked: true,
     fixtureRowsDeleted: true,
     previewCacheKeyDeleted: true,
   }));

@@ -8,11 +8,19 @@ const source = readFileSync(
 );
 
 describe("Notification authenticated route smoke scaffold", () => {
-  it("uses an existing dedicated identity and always revokes its short-lived session", () => {
+  it("uses an existing identity and disposes a production-safe one-use ticket session", () => {
     assert.match(source, /newUserCreated: false/);
-    assert.match(source, /clerk\.sessions\.createSession/);
+    assert.match(source, /clerk\.signInTokens\.createSignInToken/);
+    assert.match(source, /expiresInSeconds: 60/);
+    assert.match(source, /\/v1\/client\/sign_ins/);
+    assert.match(source, /strategy: "ticket"/);
+    assert.match(source, /signInAttempt\.status === "complete"/);
+    assert.match(source, /clerk\.sessions\.getToken/);
     assert.match(source, /clerk\.sessions\.revokeSession/);
+    assert.match(source, /clerk\.signInTokens\.revokeSignInToken/);
+    assert.match(source, /clerkSignInTokenConsumedOrRevoked/);
     assert.match(source, /finally \{/);
+    assert.doesNotMatch(source, /clerk\.sessions\.createSession/);
     assert.doesNotMatch(source, /users\.createUser/);
     assert.doesNotMatch(source, /users\.deleteUser/);
     assert.match(source, /externalId: \[NOTIFICATION_CANARY_EXTERNAL_ID\]/);
