@@ -105,6 +105,11 @@ describe("disposable Notification provider proof operator", () => {
     assert.match(source, /rebindPredeploymentCommit/);
     assert.match(source, /preparedCommitSha: state\.commitSha/);
     assert.match(source, /provider deployment exists before commit rebinding/);
+    assert.match(source, /rebindConfiguredCommit/);
+    assert.match(source, /provider deployment exists before configured commit rebinding/);
+    assert.match(source, /branch environment IDs drifted before configured commit rebinding/);
+    assert.match(source, /RLS_CONTEXT_GATE_ALLOWED_COMMIT_SHA/);
+    assert.match(source, /priorDeploymentCommitSha/);
     assert.match(source, /databasePreparationCommitSha/);
     assert.match(source, /\^\[A-Za-z0-9_-\]\{8,128\}\$/);
     assert.doesNotMatch(source, /\^env_/);

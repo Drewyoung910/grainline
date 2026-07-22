@@ -1271,6 +1271,62 @@ async function configure() {
   console.log(JSON.stringify({ commitSha: state.commitSha, configuredVariables: environmentIds.length }));
 }
 
+async function rebindConfiguredCommit() {
+  const state = readProviderState();
+  const commitSha = assertExactCleanCommit();
+  if (
+    !state.setupCompletedAt
+    || !state.configuredAt
+    || state.attestedAt
+    || state.deploymentId
+    || state.slot1EvidencePath
+    || state.slot2EvidencePath
+    || !state.preparedCommitSha
+    || state.commitSha === commitSha
+  ) {
+    throw new Error("provider state is not eligible for configured commit rebinding");
+  }
+  const inventory = assertExactEnvironmentInventory(await branchEnvironmentInventory());
+  const ids = inventory.map((entry) => entry.id).sort();
+  if (JSON.stringify(ids) !== JSON.stringify([...state.environmentIds].sort())) {
+    throw new Error("branch environment IDs drifted before configured commit rebinding");
+  }
+  const deployments = (await listDeployments()).filter(
+    (deployment) => deployment.meta?.githubCommitRef === PROVIDER_PROOF_BRANCH,
+  );
+  if (deployments.length !== 0) {
+    throw new Error("provider deployment exists before configured commit rebinding");
+  }
+  const allowedSha = inventory.find(
+    (entry) => entry.key === "RLS_CONTEXT_GATE_ALLOWED_COMMIT_SHA",
+  );
+  if (!allowedSha) throw new Error("allowed commit environment record is missing");
+  await vercelApi(
+    `/v10/projects/${REVIEWED_VERCEL_PROJECT_ID}/env/${allowedSha.id}`,
+    {
+      body: {
+        gitBranch: PROVIDER_PROOF_BRANCH,
+        target: ["preview"],
+        type: "sensitive",
+        value: commitSha,
+      },
+      method: "PATCH",
+    },
+  );
+  assertExactEnvironmentInventory(await branchEnvironmentInventory());
+  replacePrivateState({
+    ...state,
+    commitSha,
+    configuredCommitReboundAt: new Date().toISOString(),
+    priorDeploymentCommitSha: state.commitSha,
+  });
+  console.log(JSON.stringify({
+    commitRebound: true,
+    deploymentCommitSha: commitSha,
+    priorDeploymentCommitSha: state.commitSha,
+  }));
+}
+
 async function rebindPredeploymentCommit() {
   const state = readProviderState();
   const commitSha = assertExactCleanCommit();
@@ -1675,7 +1731,7 @@ async function databaseStatus() {
 }
 
 function usage() {
-  console.error("Usage: node scripts/notification-provider-proof-operator.mjs <create-bypass-state|bootstrap-bypass-state|revoke-bypass-state|prepare|rebind-predeployment-commit|configure|attest|slot-1|slot-2|cleanup|cleanup-abort|status|database-status|prisma-status>");
+  console.error("Usage: node scripts/notification-provider-proof-operator.mjs <create-bypass-state|bootstrap-bypass-state|revoke-bypass-state|prepare|rebind-predeployment-commit|configure|rebind-configured-commit|attest|slot-1|slot-2|cleanup|cleanup-abort|status|database-status|prisma-status>");
 }
 
 async function main() {
@@ -1697,6 +1753,9 @@ async function main() {
       break;
     case "configure":
       await configure();
+      break;
+    case "rebind-configured-commit":
+      await rebindConfiguredCommit();
       break;
     case "attest":
       await attest();
