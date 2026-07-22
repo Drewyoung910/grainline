@@ -179,6 +179,16 @@ operator directly invokes a package-metadata-verified, pinned local TSX
 `4.21.0` binary instead of relying on `npm exec`; a fresh database/preflight
 remains required.
 
+The fourth attempt passed the mandatory local preflight and provider slot 1,
+then failed slot 2 only on the fixed per-slot 2x bell p95 ratio. Correctness and
+all request error counts remained green. The reversed slots exposed a symmetric
+first-measured-workload ramp (`149.1ms` first baseline in slot 1; `147.2ms`
+first candidate in slot 2) while the later workloads were `26.8ms` and
+`22.9ms`. Do not retroactively accept the failed gate. The harness now primes
+each side at full measured concurrency immediately before measurement and must
+pass a fresh two-slot proof. The failed environment was fully removed and
+production remained unchanged.
+
 The isolated service-authority draft now uses seventeen owner-backed functions:
 one runtime-ungranted fixed-column core, ten granted creation families, one
 dedicated back-in-stock claim/create/consume operation, three exact cleanup

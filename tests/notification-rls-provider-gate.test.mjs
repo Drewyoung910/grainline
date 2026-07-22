@@ -36,6 +36,22 @@ describe("temporary real Notification provider gate", () => {
     assert.match(gate, /candidate\[metric\] > baseline\[metric\] \* 2/);
     assert.match(gate, /candidate\.p95Ms > 250/);
     assert.match(gate, /config\.runSlot === 1/);
+    assert.match(gate, /Math\.max\(config\.warmupRequests, concurrency \* 2\)/);
+    assert.match(gate, /concurrency prime had request errors/);
+    const pair = gate.slice(
+      gate.indexOf("async function measurePair"),
+      gate.indexOf("export function parseNotificationProviderGateConfig"),
+    );
+    assert.ok(pair.indexOf('await prime("baseline", baseline)') >= 0);
+    assert.ok(
+      pair.indexOf("const baselineResult = await baselineWork()")
+        > pair.indexOf('await prime("baseline", baseline)'),
+    );
+    assert.ok(pair.indexOf('await prime("candidate", candidate)') >= 0);
+    assert.ok(
+      pair.indexOf("const candidateResult = await candidateWork()")
+        > pair.indexOf('await prime("candidate", candidate)'),
+    );
   });
 
   it("checks catalog, recipient shape, foreign denial, and context reset", () => {

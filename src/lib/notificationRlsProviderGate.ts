@@ -250,6 +250,18 @@ async function measurePair(
   baseline: () => Promise<void>,
   candidate: () => Promise<void>,
 ) {
+  const primeRequests = Math.max(config.warmupRequests, concurrency * 2);
+  const prime = async (kind: "baseline" | "candidate", operation: () => Promise<void>) => {
+    const result = await measureWorkload(
+      `${label}_${kind}_prime`,
+      primeRequests,
+      concurrency,
+      async () => operation(),
+    );
+    if (result.errorCount > 0) {
+      throw new TypeError(`${label} ${kind} concurrency prime had request errors`);
+    }
+  };
   const baselineWork = () => measureWorkload(
     `${label}_baseline`,
     config.requests,
@@ -262,9 +274,18 @@ async function measurePair(
     concurrency,
     async () => candidate(),
   );
-  return config.runSlot === 1
-    ? { baseline: await baselineWork(), candidate: await candidateWork() }
-    : { candidate: await candidateWork(), baseline: await baselineWork() };
+  if (config.runSlot === 1) {
+    await prime("baseline", baseline);
+    const baselineResult = await baselineWork();
+    await prime("candidate", candidate);
+    const candidateResult = await candidateWork();
+    return { baseline: baselineResult, candidate: candidateResult };
+  }
+  await prime("candidate", candidate);
+  const candidateResult = await candidateWork();
+  await prime("baseline", baseline);
+  const baselineResult = await baselineWork();
+  return { candidate: candidateResult, baseline: baselineResult };
 }
 
 export function parseNotificationProviderGateConfig(
