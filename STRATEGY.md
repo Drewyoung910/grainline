@@ -127,6 +127,14 @@ Extra-high review does not yet accept the shared create function as final. The
 54/54 creation-authority coverage can prove source, type, actor, recipient, and
 relationship constraints inside the database operation, but that result does
 not by itself make Bucket B activation-ready.
+The first isolated PostgreSQL proof is now green. GitHub Actions run
+`29883083596` at exact source
+`1b9bd603d53488f18375d369835085e6581fb9b2` applied the three drafts to fresh
+PostgreSQL 16 and passed catalog/grant, direct-denial, recipient, service replay,
+and both two-session block-race checks. This narrows the remaining work; it does
+not select the recipient architecture, replace provider/performance proof, prove
+the production authentication path, authorize merge, or activate any persistent
+database.
 The granted wrappers no longer accept notification title, body, link, or dedup
 identity. The private core derives all four inside owner authority from the
 validated recipient, type, source row, related actor, and source-specific

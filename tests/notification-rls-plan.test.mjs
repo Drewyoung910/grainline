@@ -89,6 +89,12 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(strategy, /no longer accept notification title, body, link, or dedup/);
     assert.match(strategy, /derives all four inside owner authority/);
     assert.match(strategy, /share a deterministic lock protocol with every\s+ordinary block\/unblock writer/);
+    assert.match(plan, /Accepted run `29883083596`/);
+    assert.match(plan, /exact source\s+`1b9bd603d53488f18375d369835085e6581fb9b2`/);
+    assert.match(plan, /genuine draft defect, PostgreSQL error `42804`/);
+    assert.match(plan, /does not claim to stop a fully compromised runtime role/);
+    assert.match(strategy, /first isolated PostgreSQL proof is now green/);
+    assert.match(strategy, /does\s+not select the recipient architecture/);
   });
 
   it("pins the complete creation-authority family inventory", () => {

@@ -45,6 +45,8 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
   it("runs only on the isolated branch or explicit dispatch against PostgreSQL 16", () => {
     assert.match(workflow, /codex\/rls-bucket-b-notification-20260719/);
     assert.match(workflow, /workflow_dispatch:/);
+    assert.match(workflow, /paths:[\s\S]*docs\/rls-drafts\/\*\*/);
+    assert.match(workflow, /scripts\/notification-rls-ephemeral-proof\.mjs/);
     assert.match(workflow, /image: postgres:16/);
     assert.match(workflow, /notification-related-user\.sql[\s\S]*notification-recipient-access\.sql[\s\S]*notification-service-authority\.sql/);
     assert.equal(

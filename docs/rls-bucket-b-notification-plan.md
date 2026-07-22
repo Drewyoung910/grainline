@@ -351,20 +351,21 @@ Current direct-access files are deliberately pinned by test:
 - Existing pre-authority Notification rows still require the guarded aggregate
   inspection and an atomic activation-transaction purge. The purge must not run
   if real users begin relying on notifications; that change requires a backfill.
-- Creation authority and owner-derived payload coverage are 54/54 in the
-  isolated draft, but they have not received
-  accepted PostgreSQL parse/apply, own/foreign/direct-denial, concurrency,
-  provider, or pre-activation proof. The branch-only PostgreSQL 16 harness in
-  `.github/workflows/notification-rls-ephemeral-proof.yml` now exercises the
-  first four of those gates against a disposable loopback `grainline_ci`
-  database; its run must be green and retained as evidence before this blocker
-  can be narrowed. Direct or generic runtime creation remains unacceptable.
+- Creation authority and owner-derived payload coverage are 54/54. PostgreSQL
+  16 run `29883083596` at exact source
+  `1b9bd603d53488f18375d369835085e6581fb9b2` passed disposable-database
+  parse/apply, catalog/grant, own/foreign/direct-denial, source/replay, and both
+  two-session block-race checks. Provider behavior, pre-activation review, and
+  direct authenticated runtime-credential proof remain separate gates. Direct
+  or generic runtime creation remains unacceptable.
 - Recipient bell/page/count/export/mark-read architecture is not selected;
   compare narrow one-statement `SECURITY INVOKER` RPCs with the experimental
   transaction wrapper after the production sequencing gate lifts.
-- The social/message/commission block-race protocol is implemented and
-  statically guarded, but still needs PostgreSQL two-session proof that both
-  transaction orderings linearize and the pooled runtime role cannot bypass it.
+- The social/message/commission block-race protocol is implemented, statically
+  guarded, and passed both transaction orderings under the CI runtime policy
+  role. The proof uses CI-superuser `SET ROLE`, not a production runtime
+  credential, so it proves policy-role permissions and lock behavior without
+  claiming production authentication-path equivalence.
 - The generic provider wrapper/performance gate is restored in code, but two
   fresh counted provider passes are still required.
 
@@ -372,3 +373,45 @@ These blockers permit isolated implementation drafts, ephemeral PostgreSQL
 proof, and candidate-aligned provider comparison. They prohibit merge,
 production apply/deployment, persistent staging activation, and production
 Notification RLS activation.
+
+## Ephemeral PostgreSQL proof checkpoint (2026-07-22)
+
+The branch-only `Notification RLS Ephemeral Proof` workflow creates a fresh
+PostgreSQL 16 `grainline_ci` database, applies all current migrations and
+production-style runtime grants, then applies the three isolated Notification
+drafts. The proof script refuses non-loopback hosts and any database name other
+than `grainline_ci`. It changes neither production nor persistent staging.
+
+Accepted run `29883083596` (job `88807905625`) completed at
+`2026-07-22T01:27:06.486Z` against exact source
+`1b9bd603d53488f18375d369835085e6581fb9b2`. Its nine passing checks cover:
+
+- runtime role attributes, `ENABLE` plus explicit `NO FORCE`, the exact two
+  recipient policies, table/column grants, function security modes, pinned
+  `search_path`, runtime execute grants, and `PUBLIC` revocation;
+- zero direct rows without context, own-row filtering with transaction-local
+  context, column-only `read` updates, and denial of direct title update,
+  insert, delete, and private-core execution;
+- one-statement recipient RPC results and context reset;
+- family/source rejection, DB-derived payload, and stable DB-derived replay
+  identity; and
+- both lock orderings: creation first makes block creation wait and commits
+  before the block; block first makes creation wait and then return `NULL`
+  after observing the committed reciprocal block.
+
+The proof also records the recipient candidate's honest residual boundary: its
+`p_user_id` is application-asserted. It must be supplied only from the
+server-resolved authenticated identity. This RLS layer limits accidental direct
+ORM/table access; it does not claim to stop a fully compromised runtime role
+from deliberately invoking an RPC with another user's id.
+
+Failed-run ledger retained for diagnosis:
+
+- `29882719410`: harness-only `name[]` decoding mismatch for policy roles;
+- `29882790058`: harness-only catalog scope included the pre-existing
+  `grainline_notification_preferences_valid` function;
+- `29882864893`: genuine draft defect, PostgreSQL error `42804` when executing
+  text-returning recipient RPCs over `varchar` Notification columns; fixed by
+  explicit casts in bell/page/export plus a regression assertion; and
+- `29883002383`: harness-only expectation treated the deliberately doubled-MD5
+  64-character replay key as 32 characters.

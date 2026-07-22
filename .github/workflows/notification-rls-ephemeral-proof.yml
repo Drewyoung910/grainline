@@ -4,6 +4,15 @@ on:
   push:
     branches:
       - codex/rls-bucket-b-notification-20260719
+    paths:
+      - .github/workflows/notification-rls-ephemeral-proof.yml
+      - docs/rls-drafts/**
+      - package.json
+      - package-lock.json
+      - prisma/**
+      - scripts/notification-rls-ephemeral-proof.mjs
+      - scripts/prepare-ci-rls-runtime-role.sql
+      - scripts/provision-runtime-db-role.sql
   workflow_dispatch:
 
 permissions:
