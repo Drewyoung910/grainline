@@ -480,6 +480,15 @@ Production migration rules:
   them before deploying application code that selects or writes the new
   column. Any later migration fails this phase until separately reviewed and
   fingerprinted.
+- After that compatibility pair is applied and before adding Message
+  participant/context invariant triggers, manually dispatch
+  `.github/workflows/conversation-message-legacy-inspection.yml` from the exact
+  clean main commit. Supply that same 40-character commit and type
+  `inspect-prelaunch-conversation-message-legacy-state`. The job is serialized
+  with production migrations, uses only the protected direct owner secret, and
+  writes mode-0600 aggregate evidence without ids, bodies, emails or
+  credentials. Do not treat a successful job with nonzero invalid-pair counts
+  as approval to continue; disposition those rows first.
 - If a migration adds RLS policies to a tracked public app table, the grant
   audit must show `ENABLE ROW LEVEL SECURITY` and the table's reviewed rollout
   phase must declare the exact `FORCE ROW LEVEL SECURITY` expectation. During

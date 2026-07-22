@@ -125,6 +125,16 @@ is necessary but not sufficient.
   `conversation-message-compatibility-reviewed`. Older SavedSearch and
   Notification phases still reject them as later drift; this phase does not
   authorize RLS SQL or grant narrowing.
+- **CM-A04 inspection scaffold complete, execution pending:** the manual
+  Production workflow runs only from an exact clean main commit after the
+  compatibility migrations. Its owner connection is digest/role/endpoint
+  pinned and it uses one `REPEATABLE READ READ ONLY` transaction. Evidence is
+  aggregate-only: it retains no ids, bodies, emails or credentials while
+  counting canonical pairs, exact Message participants, structured/system
+  semantics, listing-context relationships, reports, archive/timestamp state
+  and active private custom-listing pair validity. The invariant trigger remains
+  blocked until this inspection passes and any nonzero invalid counts have an
+  explicit disposition.
 
 ## Audit completion criteria
 

@@ -155,6 +155,8 @@ The direct runtime table query with no context must return zero rows.
    blockers before authority SQL. **In progress.**
 3. Read-only legacy/preflight design: exact participant, message-pair, kind,
    orphan, report and archive aggregates; do not export bodies or identifiers.
+   **Scaffold complete; protected main-only Production execution remains
+   pending after the compatibility migrations.**
 4. Preparation migration: functions, predicates, invariant checks/triggers and
    exact ACLs while RLS remains disabled.
 5. Compatible app deployment: all protected accesses move to reviewed
