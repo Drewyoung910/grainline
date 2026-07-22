@@ -206,9 +206,9 @@ function readBypassState() {
     state.projectId !== REVIEWED_VERCEL_PROJECT_ID
     || state.teamId !== REVIEWED_VERCEL_TEAM_ID
     || !/^[A-Za-z0-9_-]{24,256}$/.test(state.bypassSecret)
-    || !/^[a-f0-9]{64}$/.test(state.oldSecretSha256)
-    || !/^[a-f0-9]{64}$/.test(state.newSecretSha256)
-    || sha256(state.bypassSecret) !== state.newSecretSha256
+    || !/^[a-f0-9]{64}$/.test(state.bypassSecretSha256)
+    || sha256(state.bypassSecret) !== state.bypassSecretSha256
+    || state.source !== "existing-sole-active-automation-bypass"
   ) {
     throw new Error("provider bypass state does not match the reviewed project");
   }
@@ -909,12 +909,83 @@ async function assertProductionDeploymentUnchanged() {
   };
 }
 
-async function currentBypassIsActive(bypassState) {
+function automationBypassSecrets(project) {
+  const protectionBypass = project?.protectionBypass ?? {};
+  if (
+    typeof protectionBypass !== "object"
+    || protectionBypass === null
+    || Array.isArray(protectionBypass)
+  ) {
+    throw new Error("Vercel protection-bypass inventory shape drifted");
+  }
+  return Object.entries(protectionBypass)
+    .filter(([, metadata]) => metadata?.scope === "automation-bypass")
+    .map(([secret]) => secret)
+    .sort();
+}
+
+async function currentAutomationBypassSecrets() {
   const { payload } = await vercelApi(`/v9/projects/${REVIEWED_VERCEL_PROJECT_ID}`);
-  const active = Object.keys(payload.protectionBypass ?? {});
+  return automationBypassSecrets(payload);
+}
+
+async function bootstrapBypassState() {
+  if (existsSync(PROVIDER_BYPASS_STATE_PATH)) {
+    throw new Error("provider bypass state already exists");
+  }
+  const secrets = await currentAutomationBypassSecrets();
+  if (secrets.length !== 1) {
+    throw new Error("provider proof requires exactly one existing automation bypass secret");
+  }
+  const bypassSecret = secrets[0];
+  if (!/^[A-Za-z0-9_-]{24,256}$/.test(bypassSecret)) {
+    throw new Error("existing automation bypass secret did not have the reviewed shape");
+  }
+  writePrivateJson(PROVIDER_BYPASS_STATE_PATH, {
+    bootstrapAt: new Date().toISOString(),
+    bypassSecret,
+    bypassSecretSha256: sha256(bypassSecret),
+    projectId: REVIEWED_VERCEL_PROJECT_ID,
+    source: "existing-sole-active-automation-bypass",
+    teamId: REVIEWED_VERCEL_TEAM_ID,
+  });
+  console.log(JSON.stringify({ bypassStateReady: true, activeAutomationSecretCount: 1 }));
+}
+
+async function currentBypassIsActive(bypassState) {
+  const active = await currentAutomationBypassSecrets();
   if (active.length !== 1 || active[0] !== bypassState.bypassSecret) {
     throw new Error("rotated Vercel automation bypass is no longer the sole active value");
   }
+}
+
+async function revokeProviderBypass(bypassState) {
+  const active = await currentAutomationBypassSecrets();
+  if (active.length === 0) return true;
+  if (active.length !== 1 || active[0] !== bypassState.bypassSecret) {
+    throw new Error("automation bypass inventory drifted before proof cleanup");
+  }
+  await vercelApi(
+    `/v1/projects/${REVIEWED_VERCEL_PROJECT_ID}/protection-bypass`,
+    {
+      body: { revoke: { regenerate: false, secret: bypassState.bypassSecret } },
+      method: "PATCH",
+    },
+  );
+  if ((await currentAutomationBypassSecrets()).length !== 0) {
+    throw new Error("automation bypass remained after proof cleanup revocation");
+  }
+  return true;
+}
+
+async function revokeBypassStateOnly() {
+  if (existsSync(PROVIDER_PROOF_STATE_PATH)) {
+    throw new Error("provider proof state exists; use full cleanup or cleanup-abort");
+  }
+  const bypassState = readBypassState();
+  await revokeProviderBypass(bypassState);
+  unlinkSync(PROVIDER_BYPASS_STATE_PATH);
+  console.log(JSON.stringify({ bypassRevoked: true, activeAutomationSecretCount: 0 }));
 }
 
 function evidencePath(kind, commitSha, slot) {
@@ -1179,9 +1250,9 @@ async function attest() {
     },
     production,
     automationBypass: {
-      exposedValueRevokedBeforeProof: true,
-      replacementActive: true,
-      replacementRetainedInEvidence: false,
+      cleanupRevocationRequired: true,
+      secretRetainedInEvidence: false,
+      soleActiveSecretVerified: true,
     },
   };
   assertNoSensitiveEvidence(attestation, state, bypassState);
@@ -1286,6 +1357,7 @@ function validateRetainedCountedEvidence(state) {
 
 async function cleanup({ requireSuccess }) {
   let state = readProviderState();
+  const bypassState = readBypassState();
   const expectedConfirmation = requireSuccess ? CLEANUP_CONFIRMATION : ABORT_CONFIRMATION;
   if (process.env.NOTIFICATION_PROVIDER_PROOF_CLEANUP_CONFIRM !== expectedConfirmation) {
     throw new Error(`NOTIFICATION_PROVIDER_PROOF_CLEANUP_CONFIRM=${expectedConfirmation} is required`);
@@ -1316,6 +1388,7 @@ async function cleanup({ requireSuccess }) {
   state = readProviderState();
   if (state.configuredAt) await removeProviderEnvironment(state);
   const deploymentDeleted = await deleteProviderDeployment(state);
+  const automationBypassRevoked = await revokeProviderBypass(bypassState);
   const stagingBranchDeleted = await deleteNeonStagingBranch();
   const production = await assertProductionDeploymentUnchanged();
   const cleanupEvidencePath = evidencePath(
@@ -1329,6 +1402,8 @@ async function cleanup({ requireSuccess }) {
     commitSha: state.commitSha,
     deploymentId: state.deploymentId ?? null,
     deploymentDeleted,
+    automationBypassRevoked,
+    remainingAutomationBypassSecrets: 0,
     branchEnvironmentVariablesDeleted: state.configuredAt ? PROVIDER_ENVIRONMENT_KEYS.length : 0,
     ownerOnlyFixtureTeardownPassed,
     ownerOnlyFixtureTeardownNotRequired: !state.setupCompletedAt,
@@ -1340,7 +1415,7 @@ async function cleanup({ requireSuccess }) {
       PROVIDER_BYPASS_STATE_PATH,
     ],
   };
-  assertNoSensitiveEvidence(cleanupEvidence, state, readBypassState());
+  assertNoSensitiveEvidence(cleanupEvidence, state, bypassState);
   writePrivateJson(cleanupEvidencePath, cleanupEvidence);
   unlinkSync(PROVIDER_PROOF_STATE_PATH);
   unlinkSync(PROVIDER_BYPASS_STATE_PATH);
@@ -1378,11 +1453,17 @@ async function status() {
 }
 
 function usage() {
-  console.error("Usage: node scripts/notification-provider-proof-operator.mjs <prepare|configure|attest|slot-1|slot-2|cleanup|cleanup-abort|status>");
+  console.error("Usage: node scripts/notification-provider-proof-operator.mjs <bootstrap-bypass-state|revoke-bypass-state|prepare|configure|attest|slot-1|slot-2|cleanup|cleanup-abort|status>");
 }
 
 async function main() {
   switch (process.argv[2]) {
+    case "bootstrap-bypass-state":
+      await bootstrapBypassState();
+      break;
+    case "revoke-bypass-state":
+      await revokeBypassStateOnly();
+      break;
     case "prepare":
       await prepare();
       break;

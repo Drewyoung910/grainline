@@ -92,6 +92,12 @@ describe("disposable Notification provider proof operator", () => {
     assert.match(source, /teardownNotificationProviderFixtures/);
     assert.match(source, /Notification provider fixtures remained after owner teardown/);
     assert.match(source, /branchEnvironmentVariablesDeleted/);
+    assert.match(source, /bootstrapBypassState/);
+    assert.match(source, /existing-sole-active-automation-bypass/);
+    assert.match(source, /active\.length !== 1 \|\| active\[0\] !== bypassState\.bypassSecret/);
+    assert.match(source, /revokeProviderBypass/);
+    assert.match(source, /remainingAutomationBypassSecrets: 0/);
+    assert.match(source, /regenerate: false/);
     assert.match(source, /\^v24\\\./);
     assert.match(source, /configuredNodeVersion/);
     assert.match(source, /unlinkSync\(PROVIDER_PROOF_STATE_PATH\)/);
