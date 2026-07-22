@@ -41,8 +41,8 @@ const MAX_PAGE_BYTES = 2 * 1024 * 1024;
 const REVIEWED_TERMS_VERSION = "2026-06-14";
 const REVIEWED_CLERK_FRONTEND_API = "clerk.thegrainline.com";
 const REVIEWED_CLERK_ORIGIN = "https://thegrainline.com";
-const PRODUCTION_POSTFLIGHT_BRANCH = "codex/rls-notification-postflight-20260722";
-const PRODUCTION_RELEASE_COMMIT = "aa3f2c3640c2cb62200c1d660a08ac217271a037";
+const PRODUCTION_POSTFLIGHT_BRANCH = "codex/rls-notification-force-postflight-20260722";
+const PRODUCTION_RELEASE_COMMIT = "213f2f1d036967cacae4ac217307376efbd7c812";
 const PRODUCTION_DEPLOYMENT_ID = "dpl_92rXcp1PqmoMPtgtAswbecAKWEt2";
 const PRODUCTION_ENDPOINT_ID = "ep-plain-river-aaqg8gj4";
 const PRODUCTION_CACHE_NAMESPACE = "vercel-production";
@@ -451,7 +451,7 @@ async function main() {
       if (
         catalog.rowCount !== 1
         || row.rlsEnabled !== true
-        || row.rlsForced !== false
+        || row.rlsForced !== true
         || row.tableOwner !== "neondb_owner"
         || row.policyCount !== 2
         || row.canSelect !== true
@@ -472,7 +472,7 @@ async function main() {
         canUpdateTitle: false,
         policyCount: 2,
         rlsEnabled: true,
-        rlsForced: false,
+        rlsForced: true,
       };
     }
     stage = "select-test-identity";

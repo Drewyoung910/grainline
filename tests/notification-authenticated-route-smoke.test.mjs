@@ -58,7 +58,8 @@ describe("Notification authenticated route smoke scaffold", () => {
 
   it("pins production postflight identity, catalog, and runtime direct-denial proof", () => {
     assert.match(source, /--production-postflight/);
-    assert.match(source, /PRODUCTION_RELEASE_COMMIT = "aa3f2c3640c2cb62200c1d660a08ac217271a037"/);
+    assert.match(source, /PRODUCTION_RELEASE_COMMIT = "213f2f1d036967cacae4ac217307376efbd7c812"/);
+    assert.match(source, /row\.rlsForced !== true/);
     assert.match(source, /PRODUCTION_DEPLOYMENT_ID = "dpl_92rXcp1PqmoMPtgtAswbecAKWEt2"/);
     assert.match(source, /PRODUCTION_ENDPOINT_ID = "ep-plain-river-aaqg8gj4"/);
     assert.match(source, /production Notification catalog or runtime grant posture drifted/);

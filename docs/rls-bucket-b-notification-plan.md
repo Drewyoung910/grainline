@@ -1349,12 +1349,11 @@ production account-state cache key. Sanitized mode-0600 evidence is
 `06b635c8249cfdc864a5e133d6edcd2e0805b57537903c4ef13b337057a6463e`;
 it retains no raw identifier or credential.
 
-This completes Notification initial `ENABLE`/`NO FORCE` activation. The next
-Notification release is the separately gated ownership-drift hardening step:
-prove and apply `FORCE ROW LEVEL SECURITY` without changing the two policies or
-runtime/function grants, then repeat catalog, runtime-denial, and authenticated
-route postflight. Do not conflate that hardening migration with the next
-site-wide table group.
+This completed Notification initial `ENABLE`/`NO FORCE` activation. The
+separately gated ownership-drift hardening release then applied
+`FORCE ROW LEVEL SECURITY` without changing the two policies or
+runtime/function grants. It remained separate from the next site-wide table
+group.
 
 The isolated FORCE candidate uses migration
 `20260722053000_force_notification_rls`, SHA-256
@@ -1366,6 +1365,40 @@ exact ENABLE/NO-FORCE table state, table ownership by the current migration
 role, the exact two-policy inventory, and unchanged narrow table/column grants.
 Postflight rechecks FORCE, ownership, policy count, and grants. The release
 verifier pins both the activation baseline and FORCE bytes; the migration-tree
-guard adds a distinct `notification-force-reviewed` phase. Production remains
-at initial NO FORCE until the candidate passes its PR/main PostgreSQL proof and
-the protected production workflow.
+guard adds a distinct `notification-force-reviewed` phase.
+
+## FORCE production completion and postflight (2026-07-22)
+
+PR `#36` merged exact FORCE head
+`b7873218f7929f791b6d5e422e647e1598421c91` to main as
+`213f2f1d036967cacae4ac217307376efbd7c812`. PR FORCE proof
+`29955500231` and PR CI `29955527920` passed; main FORCE proof
+`29956127053` and main CI `29956127009` passed. Protected production migration
+run `29956750176` passed the exact source/owner/role preflight, FORCE artifact
+guard, activation-equivalence verifier, committed migration apply, migration
+status, and final live catalog/grant audit. Production Notification now has
+both `ENABLE` and `FORCE`, exactly two recipient policies, table `SELECT`,
+column-only `UPDATE(read)`, and no runtime insert/delete/table-update authority.
+The FORCE release changed no rows, policies, grants, functions, or app code.
+
+Fresh postflight operator commit
+`74da7a2099d1289b0735091f52712af3607ad151` targeted exact release main
+`213f2f1d036967cacae4ac217307376efbd7c812` and the existing compatible Ready
+deployment `dpl_92rXcp1PqmoMPtgtAswbecAKWEt2`. It proved `rlsEnabled=true`,
+`rlsForced=true`, the exact two-policy and grant contract, no-context zero-row
+visibility, own-row and foreign-row isolation, denial of direct insert/delete
+and title update, context reset after rollback, authenticated bell/page owner
+projection, HTTP 401/403 boundaries, non-enumerating foreign mutation, exact
+own/read-all updates, and final unread count zero. Cleanup deleted all fixtures,
+revoked the Clerk session, consumed or revoked the one-use sign-in token,
+restored the operational canary child state, and deleted the exact production
+account-state cache key.
+
+Sanitized mode-0600 evidence is
+`notification-production-postflight-213f2f1d0369.json`, SHA-256
+`637d85180b6b78f0e3edd9da911dcf906f8edcd9eaaf3a4888c5ae432b592bad`.
+It retains no raw identifier or credential. Notification Bucket B is complete.
+Keep protected backup branch `br-hidden-tree-aa337i8v` through the rollback
+window. The next group is Conversation plus Message, with its own actor and
+operation inventory, proof, compatibility release, activation, and postflight;
+do not bundle it with Notification, Order, payment, shipping, or Case tables.
