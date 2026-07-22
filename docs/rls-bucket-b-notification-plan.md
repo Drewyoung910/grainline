@@ -378,6 +378,42 @@ production remained READY and unchanged. Sanitized mode-`0600` artifacts are:
 - `notification-provider-proof-abort-cleanup-b295116a2740.json` — SHA-256
   `4b269a9692122307fe3395cf7134d813a0c6cb105868b94f341df6c60da4d317`
 
+### Third predeployment-only Notification attempt (2026-07-22)
+
+The third isolated attempt did not create a Vercel environment or deployment
+and consumed no provider slot. Preparation commit
+`0ac183c8ec213b9e3bfca20f6f4c53cf9f9f64e0` successfully applied the pinned
+candidate to fresh expiring Neon child `br-noisy-tree-aa7gi1yn`, passed the
+grant/setup gate, and seeded fresh fixtures. The new local real-query preflight
+then failed before emitting JSON. A bounded retry fixed the operator's
+whole-stdout JSON assumption, re-verified zero Vercel state, the exact Neon
+target, migration bytes, grants, and a fresh owner reset/reseed, but again
+exited with zero stdout. Because the real query runner had not started, this was
+a local tool-bootstrap failure rather than Notification policy evidence.
+
+Raw stderr was intentionally not retained, so the immediate subprocess error
+is not claimed as proven. The remaining pre-main dependency was `npm exec`
+package resolution for TSX, and a separate dummy-URL invocation reproduced an
+npm registry `ENOTFOUND` with zero script output. The operator now pins an
+already-installed TSX `4.21.0` package path, validates its package metadata,
+and invokes it directly with the reviewed Node binary. This keeps the preflight
+independent of npm registry/cache availability. The direct runner plus its IPC
+requirement passed outside the filesystem sandbox.
+The third attempt was abort-cleaned: fixtures, bypass, child branch, and private
+state were removed; branch variables and provider deployments remained zero;
+production remained unchanged. Sanitized mode-`0600` artifacts are:
+
+- `notification-provider-proof-setup-0ac183c8ec21.json` — SHA-256
+  `dfaed6e6e0d289ef2ae64f3d5bee41365b15b0605c9df6e4c7589aceea17b8f1`
+- `notification-provider-proof-local-preflight-0ac183c8ec21.json` — SHA-256
+  `57a09c9c7ffbabc98b8f81a3951753b3bab8c9c58dcfc56a88f88d7728d2aa7a`
+- `notification-provider-proof-local-preflight-rebind-1fbaacc549a3.json` — SHA-256
+  `8693ff189d80640072f71be8f6106ea2b75bb42178f48eccd8a8fbfb7486debd`
+- `notification-provider-proof-local-preflight-2-1fbaacc549a3.json` — SHA-256
+  `f2c9c10e96cbdd27c083a1224a93469143e607d9100bd81be603c84fcbb5273a`
+- `notification-provider-proof-abort-cleanup-1fbaacc549a3.json` — SHA-256
+  `efe1f7235066110e28786c5e0ae110118a4aead0844d4e5475f709abf8d4c1e1`
+
 The prelaunch/no-dependent-users fact shortens traffic-drain ceremony but does
 not waive this candidate's fresh provider run: this hot one-statement recipient
 RPC and service-source workload has not yet completed in Vercel. For later RLS
