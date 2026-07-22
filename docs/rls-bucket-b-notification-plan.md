@@ -456,9 +456,10 @@ direct Prisma Notification owner reads or updates outside the RPC helper:
   before calling the service-authority layer activation-ready.
 - Role provisioning and the generic grant audit preserve Notification's
   asymmetric table/column grants, initial `NO FORCE` phase, exact policies, and
-  25-function ACL/mode split. Accepted split-migration run `29894316762` now
-  exercises those migration-derived expectations against disposable PostgreSQL
-  16. Rollback and provider/authenticated-route proof remain separate gates.
+  25-function ACL/mode split. Accepted split-migration run `29894705025` now
+  exercises those migration-derived expectations and database-first rollback
+  against disposable PostgreSQL 16. Provider/authenticated-route proof and the
+  application deployment rollback sequence remain separate gates.
 - Recipient bell/page/count/export/mark-read uses the narrow one-statement
   `SECURITY INVOKER` RPC direction. The rejected transaction wrapper is retained
   only in Git and evidence history, not as executable fallback scaffolding.
@@ -495,7 +496,19 @@ Production-style provisioning, Prisma status, the generic grant audit, and the
 helper refuses non-loopback hosts and databases other than `grainline_ci`. The
 workflow changes neither production nor persistent staging.
 
-Latest accepted run `29894316762` (job `88841144497`) completed at
+Latest accepted run `29894705025` (job `88842292079`) completed at
+`2026-07-22T05:46:55Z` against exact source
+`a4ced63b065be985965c47a37583ba4c1fdf1e32`. It repeats every accepted
+split-migration, compatibility, grant-audit, and 68-check authority result below,
+then proves database-first rollback: policies/functions remain installed, RLS
+is disabled and legacy CRUD restored, both old direct CRUD and new recipient
+RPCs work, and the exact `ENABLE` + `NO FORCE` + narrow-grant activation state
+is restored before the final 68-check proof. It explicitly records
+`activationPurgeReversible=false`; rollback cannot resurrect legacy rows deleted
+by activation. This closes disposable database rollback semantics only. A
+provider-owned route/deployment rollback proof remains required.
+
+Earlier accepted sequencing run `29894316762` (job `88841144497`) completed at
 `2026-07-22T05:38:35Z` against exact source
 `c47acbc79b77dc51c40024e553ee8efceb2e097a`. Preparation candidate
 `20260722051500_prepare_notification_rls` had SHA-256

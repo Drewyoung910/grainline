@@ -86,7 +86,7 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(strategy, /AST gate covers all 54 application emission paths/);
     assert.match(strategy, /executes all 26 family-dispatched\s+private-core source-validation branches/);
     assert.match(strategy, /59 creation cases cover all 38 successful source\/type pairs/);
-    assert.match(strategy, /byte-pinned split migration\s+has passed disposable migration proof; explicit rollback proof remains\s+separate/);
+    assert.match(strategy, /byte-pinned split migration\s+and database-first rollback have passed disposable PostgreSQL proof/);
     assert.match(strategy, /no longer accept notification title, body, link, or dedup/);
     assert.match(strategy, /derives all four inside owner authority/);
     assert.match(strategy, /share a deterministic lock protocol with every\s+ordinary block\/unblock writer/);
@@ -94,8 +94,11 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(plan, /exact source\s+`1b9bd603d53488f18375d369835085e6581fb9b2`/);
     assert.match(plan, /Earlier accepted draft run `29893071538`/);
     assert.match(plan, /exact source\s+`187ac2fa5a5b7c08a3889b27ef57c873ee7a79ea`/);
-    assert.match(plan, /Latest accepted run `29894316762`/);
+    assert.match(plan, /Earlier accepted sequencing run `29894316762`/);
     assert.match(plan, /exact source\s+`c47acbc79b77dc51c40024e553ee8efceb2e097a`/);
+    assert.match(plan, /Latest accepted run `29894705025`/);
+    assert.match(plan, /exact source\s+`a4ced63b065be985965c47a37583ba4c1fdf1e32`/);
+    assert.match(plan, /`activationPurgeReversible=false`/);
     assert.match(plan, /technically green but rejected release topology/);
     assert.match(plan, /Accepted run `29892353264`/);
     assert.match(plan, /Accepted run `29890596734`/);

@@ -177,7 +177,8 @@ source/type pair, and the security-relevant action/recipient variants.
 The latest isolated PostgreSQL proof is green and also passes catalog/grant,
 direct-denial, recipient context reset, service replay, the one-shot stock
 claim, and both two-session block-race checks. The byte-pinned split migration
-has passed disposable migration proof; explicit rollback proof remains
+and database-first rollback have passed disposable PostgreSQL proof. Provider
+route/authentication and application-deployment rollback evidence remain
 separate. This narrows the remaining work; it does
 not by itself select the recipient architecture, replace provider/performance
 proof, prove the production authentication path, authorize merge, or activate
