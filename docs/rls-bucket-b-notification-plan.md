@@ -415,3 +415,43 @@ Failed-run ledger retained for diagnosis:
   explicit casts in bell/page/export plus a regression assertion; and
 - `29883002383`: harness-only expectation treated the deliberately doubled-MD5
   64-character replay key as 32 characters.
+
+## Preview deployment guard checkpoint (2026-07-22)
+
+Git integration attempted eight Preview deployments for Notification commits
+`4177c53e` through `37d2ced1`. Vercel deployments `dpl_5ruyxHuYr5QeLa8fhRckNz3uAXpt`,
+`dpl_HfGj813HSMLaP9fkJn9dMvZXRXAa`, `dpl_3pLFn1L8haX5vPFKKQsmZHs5yDZ5`,
+`dpl_ACPvp8YcRPJA9LTxFma4sPax5G6m`, `dpl_4GSdxVgNM2bWVH9vySWuSEG6jxrQ`,
+`dpl_3uFW864crt81ZQinHgUD7zSBKxrK`, `dpl_CkpLxB1PD8Qg3Y9JoXttt6D9CTef`,
+and `dpl_3sDbx3esnsst5SuzWS4uFiA3jDJ7` all stopped at
+`guard:runtime-db-env` before `next build`; none produced a runnable Preview or
+changed production. The guard was working as designed because the branch still
+contains unapplied Notification SQL under `docs/rls-drafts`, but the exception
+was previously reported as `[UNCLASSIFIED]`. The bounded diagnostic is now
+`[NOTIFICATION_RLS_DRAFT_PRESENT]`.
+
+Automatic Vercel deployment is disabled for the long-lived Notification branch.
+The provider comparison must use a separate disposable proof branch built from
+the reviewed `main` baseline plus only the hardened generic gate delta and the
+temporary Preview route/middleware/test. This avoids weakening the draft guard
+and prevents the full Notification implementation diff from becoming a
+deployable artifact merely to measure the generic transport candidates.
+
+The project also has a linked team-shared `DATABASE_URL` whose metadata targets
+Development, Preview, and Production. Ordinary Previews therefore receive a
+database value even though `vercel env ls` shows no project-level Preview
+`DATABASE_URL`; recent unrelated Previews correctly rejected its shape as
+`[DATABASE_URL_SHAPE]`. The disposable proof branch must override it with an
+exact branch-scoped, isolated-staging pooled runtime URL. Teardown must remove
+that branch override, every `RLS_CONTEXT_GATE_*` variable, the Preview
+deployment, the synthetic schema/function/ledger, the isolated database branch
+or project, and the disposable Git branch. Sanitized evidence, tests, the
+generic harness, and this failure ledger are durable; credentials, provider
+resources, runner route, middleware exemption, and runner-only test are not.
+
+The Node warning in those logs is separate from the guard failures.
+`package.json` currently declares `>=22`, so Vercel selects Node 24 despite the
+project's 22.x setting; the accepted production deployment's Functions are also
+`nodejs24.x`. The disposable performance run should preserve that current
+runtime for comparability. Pinning an intended Node major is a separate release
+decision and must not be smuggled into the temporary proof branch.

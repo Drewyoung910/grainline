@@ -135,6 +135,14 @@ and both two-session block-race checks. This narrows the remaining work; it does
 not select the recipient architecture, replace provider/performance proof, prove
 the production authentication path, authorize merge, or activate any persistent
 database.
+Do not deploy the long-lived Notification branch to obtain the remaining
+generic provider comparison. Its unapplied SQL drafts deliberately make every
+Vercel build fail closed, and automatic deployment is disabled for that exact
+branch. Use a disposable proof branch from the reviewed `main` baseline with
+only the hardened generic gate delta and temporary Preview runner artifacts.
+The runner branch and all branch-scoped provider credentials/resources must be
+deleted after sanitized evidence and teardown proof are retained; the generic
+harness, regression tests, and operating record remain durable.
 The granted wrappers no longer accept notification title, body, link, or dedup
 identity. The private core derives all four inside owner authority from the
 validated recipient, type, source row, related actor, and source-specific

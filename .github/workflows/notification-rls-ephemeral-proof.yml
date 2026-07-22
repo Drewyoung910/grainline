@@ -53,6 +53,10 @@ jobs:
         run: npx prisma migrate deploy
       - name: Converge production-style runtime grants
         run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Verify migration status
+        run: npx prisma migrate status
+      - name: Audit production-style runtime grants
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Apply isolated Notification lifecycle metadata draft
         run: psql "$DIRECT_URL" --set=ON_ERROR_STOP=1 -f docs/rls-drafts/notification-related-user.sql
       - name: Apply isolated Notification recipient-access draft

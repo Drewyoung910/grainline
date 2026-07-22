@@ -25,7 +25,17 @@ describe("Vercel runtime database environment isolation", () => {
   it("bars Vercel deployment while the unapplied Notification draft is present", () => {
     assert.throws(
       () => assertNoNotificationRlsDraftDeployment({ VERCEL: "1" }, true),
-      /deployment is barred while the unapplied Notification RLS draft is present/,
+      (error) => {
+        assert.match(
+          error.message,
+          /deployment is barred while the unapplied Notification RLS draft is present/,
+        );
+        assert.equal(
+          runtimeDatabaseIsolationFailureCode(error),
+          "NOTIFICATION_RLS_DRAFT_PRESENT",
+        );
+        return true;
+      },
     );
     assert.doesNotThrow(() => assertNoNotificationRlsDraftDeployment({}, true));
     assert.doesNotThrow(() => assertNoNotificationRlsDraftDeployment({ VERCEL: "1" }, false));
@@ -121,13 +131,17 @@ describe("Vercel runtime database environment isolation", () => {
 
   it("reports only bounded diagnostic codes for build-time failures", () => {
     const cases = [
+      [new Error("Vercel deployment is barred while the unapplied Notification RLS draft is present"), "NOTIFICATION_RLS_DRAFT_PRESENT"],
       [{ DIRECT_URL: "secret" }, "PRIVILEGED_DATABASE_KEYS"],
       [{ DATABASE_URL: RUNTIME_URL.replace("verify-full", "require") }, "DATABASE_URL_PARAMETERS"],
       [{ DATABASE_URL: RUNTIME_URL.replace("-pooler", "") }, "DATABASE_URL_NOT_POOLED"],
       [{ RUNTIME_DB_ROLE: "unexpected-role" }, "PRODUCTION_RUNTIME_IDENTITY"],
     ];
-    for (const [overrides, expected] of cases) {
-      assert.throws(() => assertVercelRuntimeDatabaseIsolation(productionEnv(overrides)), (error) => {
+    for (const [input, expected] of cases) {
+      const invoke = input instanceof Error
+        ? () => { throw input; }
+        : () => assertVercelRuntimeDatabaseIsolation(productionEnv(input));
+      assert.throws(invoke, (error) => {
         const code = runtimeDatabaseIsolationFailureCode(error);
         assert.equal(code, expected);
         assert.doesNotMatch(code, /secret|password|postgresql:/i);

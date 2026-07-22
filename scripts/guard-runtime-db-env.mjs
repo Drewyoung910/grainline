@@ -144,6 +144,7 @@ export function assertVercelRuntimeDatabaseIsolation(env = process.env) {
 export function runtimeDatabaseIsolationFailureCode(error) {
   const message = error instanceof Error ? error.message : "";
   const rules = [
+    [/unapplied Notification RLS draft/, "NOTIFICATION_RLS_DRAFT_PRESENT"],
     [/NODE_TLS_REJECT_UNAUTHORIZED/, "TLS_OVERRIDE"],
     [/PGOPTIONS/, "PGOPTIONS"],
     [/VERCEL_ENV/, "VERCEL_ENV"],

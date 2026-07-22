@@ -3,7 +3,8 @@
   "buildCommand": "npm run guard:runtime-db-env && npm run build",
   "git": {
     "deploymentEnabled": {
-      "main": false
+      "main": false,
+      "codex/rls-bucket-b-notification-20260719": false
     }
   },
   "regions": ["sfo1"],

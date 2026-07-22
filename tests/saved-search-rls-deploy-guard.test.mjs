@@ -808,6 +808,10 @@ describe("SavedSearch RLS production deploy guard", () => {
     assert.equal(buildCommand, "npm run guard:runtime-db-env && npm run build");
     assert.doesNotMatch(buildCommand, /migrat|DIRECT_URL|MIGRATION_DB_ROLE/i);
     assert.equal(vercel.git.deploymentEnabled.main, false);
+    assert.equal(
+      vercel.git.deploymentEnabled["codex/rls-bucket-b-notification-20260719"],
+      false,
+    );
     assert.equal(buildCommand.includes(guardedMigrationCommand), false);
   });
 
