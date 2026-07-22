@@ -543,7 +543,11 @@ Failed-run ledger retained for diagnosis:
   64-character replay key as 32 characters; and
 - `29890505007`: expanded-fixture bind parameter was inferred as both `varchar`
   and `text` (`42P08`) in two `SystemAuditLog` inserts; fixed only in the
-  disposable fixture by explicitly casting the reused target id to `text`.
+  disposable fixture by explicitly casting the reused target id to `text`; and
+- `29892949346`: the Guild-system action-variant fixture reused its actor-id
+  parameter as both a `varchar` assignment and JSON `text` (`42P08`); the draft
+  functions had already applied successfully, and the fixture now casts the
+  actor id to `text` at the SQL boundary with a regression assertion.
 
 ## Preview deployment guard checkpoint (2026-07-22)
 

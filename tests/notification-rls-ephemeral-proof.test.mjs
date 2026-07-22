@@ -136,6 +136,7 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     assert.match(proof, /if \(family\.setup\)/);
     assert.match(proof, /if \(family\.resetSourceNotification\)/);
     assert.match(proof, /family\.expectedBodyIncludes/);
+    assert.match(proof, /SET "actorId" = \$2::text/);
     assert.match(proof, /recipient RPC p_user_id must come from server-resolved identity/);
     assert.ok(
       (recipientSql.match(/notification\.title::text/g) ?? []).length >= 3,

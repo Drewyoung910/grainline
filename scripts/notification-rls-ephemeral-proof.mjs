@@ -1022,7 +1022,7 @@ async function configureGuildSystemAction(owner, action, verificationStatus, gui
   const actorId = action === "AUTO_REVOKE_GUILD_MEMBER" ? "guild-member-check" : "guild-metrics";
   await owner.query(
     `UPDATE public."SystemAuditLog"
-        SET "actorId" = $2,
+        SET "actorId" = $2::text,
             action = $3,
             reason = $4,
             metadata = pg_catalog.jsonb_build_object(
