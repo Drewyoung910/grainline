@@ -21,6 +21,7 @@
     "audit:rls-saved-search": "node scripts/saved-search-rls-acceptance-gate.mjs",
     "audit:rls-saved-search-force": "node scripts/saved-search-force-maintenance-proof.mjs",
     "audit:rls-notification-readiness": "node scripts/notification-rls-activation-readiness.mjs",
+    "audit:rls-notification-candidate": "node scripts/stage-notification-rls-candidate-migration.mjs --verify",
     "audit:rls-notification-ephemeral": "node scripts/notification-rls-ephemeral-proof.mjs",
     "seed:rls-saved-search-canary": "node scripts/seed-saved-search-rls-canary.mjs",
     "audit:stripe-webhooks": "node scripts/stripe-webhook-subscriptions-proof.mjs",

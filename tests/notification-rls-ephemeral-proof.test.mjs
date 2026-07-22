@@ -203,17 +203,28 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     assert.match(workflow, /workflow_dispatch:/);
     assert.match(workflow, /paths:[\s\S]*docs\/rls-drafts\/\*\*/);
     assert.match(workflow, /scripts\/notification-rls-ephemeral-proof\.mjs/);
+    assert.match(workflow, /scripts\/stage-notification-rls-candidate-migration\.mjs/);
     assert.match(workflow, /scripts\/audit-runtime-db-grants\.mjs/);
     assert.match(workflow, /image: postgres:16/);
-    assert.match(workflow, /notification-related-user\.sql[\s\S]*notification-recipient-access\.sql[\s\S]*notification-service-authority\.sql/);
-    assert.match(workflow, /Re-converge Notification-aware runtime grants/);
+    assert.match(workflow, /Stage byte-pinned Notification candidate migration/);
+    assert.match(workflow, /I_ACKNOWLEDGE_DISPOSABLE_LOOPBACK_NOTIFICATION_MIGRATION/);
+    assert.match(workflow, /Converge Notification-aware production-style runtime grants/);
     assert.ok(
-      workflow.indexOf("Apply isolated Notification service-authority draft")
-        < workflow.indexOf("Re-converge Notification-aware runtime grants"),
+      workflow.indexOf("Stage byte-pinned Notification candidate migration")
+        < workflow.indexOf("Apply current plus Notification candidate migrations"),
     );
+    assert.ok(
+      workflow.indexOf("Apply current plus Notification candidate migrations")
+        < workflow.indexOf("Audit production-style runtime grants"),
+    );
+    assert.doesNotMatch(workflow, /Apply isolated Notification .* draft/);
     assert.equal(
       packageJson.scripts["audit:rls-notification-ephemeral"],
       "node scripts/notification-rls-ephemeral-proof.mjs",
+    );
+    assert.equal(
+      packageJson.scripts["audit:rls-notification-candidate"],
+      "node scripts/stage-notification-rls-candidate-migration.mjs --verify",
     );
   });
 });

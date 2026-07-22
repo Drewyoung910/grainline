@@ -7,8 +7,8 @@
 -- This is a lifecycle metadata key, not a Prisma ownership relation: the
 -- service create path validates it
 -- and account deletion removes matching rows explicitly.
-ALTER TABLE "Notification"
+ALTER TABLE public."Notification"
   ADD COLUMN "relatedUserId" TEXT;
 
 CREATE INDEX "Notification_relatedUserId_idx"
-  ON "Notification"("relatedUserId");
+  ON public."Notification"("relatedUserId");
