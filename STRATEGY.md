@@ -89,10 +89,11 @@ column-level `UPDATE (read)`, with no direct runtime INSERT/DELETE. Cross-user
 creation and cleanup require separate fixed-purpose owner-backed RPCs; never
 put a second owner/service credential into Vercel. The guarded prelaunch
 Notification inspection, atomic activation-time purge, PostgreSQL proof, and
-two fresh passes under the restored
-provider transaction performance gate block activation. Activation remains
-separate ENABLE/NO FORCE and later FORCE releases after Phase B and runtime
-credential separation are live.
+two fresh real-table Notification passes under the reviewed candidate-aligned
+provider/route gate block activation. The unchanged transaction-wrapper limits
+remain blocking for any later release that actually uses that architecture.
+Activation remains separate ENABLE/NO FORCE and later FORCE releases after
+Phase B and runtime credential separation are live.
 
 The isolated branch contains both recipient candidates. Fixed
 `SECURITY INVOKER` recipient RPCs cover bell, page, unread count, mark-one,
@@ -108,8 +109,10 @@ promotion evidence and slot 2 was not called. Do not weaken the thresholds or
 rerun for a favorable boundary sample. Before a fresh provider proof, review a
 candidate-aligned gate that keeps wrapper limits blocking for releases that use
 interactive transactions and requires two fresh real Notification RPC/route
-passes for this release. The invoker draft still needs PostgreSQL parse/apply,
-own/foreign/direct-denial, context-reset, and authority review. Cross-user
+passes for this release. The invoker draft now has disposable PostgreSQL
+parse/apply, own/foreign/direct-denial, and context-reset proof; final SQL
+authority review, real-table route proof, and authenticated runtime-credential
+evidence remain open. Cross-user
 creation and cleanup use separate service authority and must not be conflated
 with recipient RPCs.
 
@@ -148,26 +151,27 @@ core runtime-ungranted. The grant audit derives FORCE expectations from ordered
 migration history and checks the exact Notification policies, column grants,
 function owner/mode/search path/overload shape, PUBLIC revokes, and runtime
 execute split. Do not stage an activation migration until these checks pass on
-the final disposable PostgreSQL migration. Static 54/54 coverage and the first
-ephemeral proof remain insufficient because that proof dynamically exercised
-only the social/follow creation family, not every creation-family branch.
-Disposable PostgreSQL 16 run `29889639067` at exact source
-`57c9d449d84155762e249c7c88240973e6c7f8d3` now proves the provisioning script
-also reconverges successfully after all three Notification drafts are applied,
-with the catalog proof passing afterward. The generic grant audit's
+the final disposable PostgreSQL migration. Keep three evidence layers distinct:
+the AST gate covers all 54 application emission paths; disposable PostgreSQL
+run `29890596734` at exact source
+`d1467b2477e9a11802e12244464f444bc27ef39a` executes all ten granted creation
+families plus the dedicated back-in-stock claim with valid creation, stable
+replay, and forged-recipient or mismatched-evidence rejection; and the remaining
+private-core review must execute all 26 source-validation branches and their
+meaningful action variants. The accepted run also proves post-draft role
+provisioning reconvergence and the catalog proof on fresh PostgreSQL 16. The
+generic grant audit's
 Notification migration-inventory branch remains unexercised until the final SQL
 is staged as a real disposable migration; do not count the draft run as that
 later migration proof.
 
 Extra-high review does not yet accept the shared create function as final. The
-54/54 creation-authority coverage can prove source, type, actor, recipient, and
-relationship constraints inside the database operation, but that result does
-not by itself make Bucket B activation-ready.
-The first isolated PostgreSQL proof is now green. GitHub Actions run
-`29883083596` at exact source
-`1b9bd603d53488f18375d369835085e6581fb9b2` applied the three drafts to fresh
-PostgreSQL 16 and passed catalog/grant, direct-denial, recipient, service replay,
-and both two-session block-race checks. This narrows the remaining work; it does
+54/54 callsite result and ten-family live result validate the architecture and
+the granted boundary, but they do not dynamically execute every conditional
+source branch inside the private core. The latest isolated PostgreSQL proof is
+green and also passes catalog/grant, direct-denial, recipient context reset,
+service replay, the one-shot stock claim, and both two-session block-race
+checks. This narrows the remaining work; it does
 not by itself select the recipient architecture, replace provider/performance
 proof, prove the production authentication path, authorize merge, or activate
 any persistent database. The later 2026-07-22 provider result above selects the

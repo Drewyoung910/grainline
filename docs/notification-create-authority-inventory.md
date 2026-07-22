@@ -134,9 +134,15 @@ under arbitrary runtime compromise.
    and payout failure binds `SellerPayoutEvent`; the owner wrapper derives the
    exact recipient, counterpart, payload, route, and replay identity.
 
-Every family still needs PostgreSQL parse/apply proof, own/foreign and direct
-denial tests, concurrency tests, grants/catalog fingerprints, rollback, and
-provider performance evidence before production activation.
+Fresh PostgreSQL 16 now proves parse/apply, grants/catalog fingerprints,
+own/foreign/direct denial, all ten granted creation-family boundaries, stable
+replay, the dedicated back-in-stock claim, and both block-race orderings. Each
+family has one valid representative source plus forged-recipient rejection.
+That is distinct from the 54/54 callsite result and still leaves the 26
+private-core source-validation branches and meaningful action variants to be
+dynamically executed before migration staging. Rollback, authenticated
+real-table route behavior, and provider performance evidence also remain open
+before production activation.
 The permanent completeness gate is
 `npm run audit:rls-notification-readiness`: it inventories the real TypeScript
 call graph, requires exactly 54 emission paths, and blocks activation until all
@@ -144,4 +150,5 @@ call graph, requires exactly 54 emission paths, and blocks activation until all
 function, `PUBLIC` execute revoke, and runtime grant are also present. Its current
 54/54 now passes for creation-authority coverage. This is necessary but not
 sufficient for activation: recipient reads, concurrency, legacy cleanup,
-PostgreSQL proof, provider evidence, and the pre-activation review remain open.
+complete source-branch execution, final migration/rollback proof, provider
+evidence, and the pre-activation review remain open.

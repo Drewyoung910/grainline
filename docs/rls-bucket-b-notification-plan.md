@@ -88,7 +88,9 @@ webhook, or request could recreate a legacy row before activation. If real
 users exist by then, the purge is prohibited and this disposition must be
 redesigned.
 The SQL remains outside `prisma/migrations` at
-`docs/rls-drafts/notification-service-authority.sql` and is not live-tested.
+`docs/rls-drafts/notification-service-authority.sql`. It is live-tested only on
+fresh disposable PostgreSQL 16; it is not a migration and is not active in any
+persistent database.
 
 Extra-high static review hardened the draft further: renderer-aligned relative
 link validation rejects backslashes and control characters; recipient, related
@@ -213,9 +215,11 @@ interactive-transaction bell/page implementation was removed after the
 2026-07-22 provider result selected the one-statement `SECURITY INVOKER`
 recipient RPC direction and rejected the transaction candidate for Notification
 hot reads. Its measurements and source history remain retained; executable
-fallback scaffolding does not. Selection is not promotion. The invoker SQL has not received its final
-authority review, PostgreSQL parse/apply, own/foreign/direct-denial proof, or
-real-table candidate-aligned provider and route evidence.
+fallback scaffolding does not. Selection is not promotion. The invoker SQL now
+has disposable PostgreSQL parse/apply, own/foreign/direct-denial, column-grant,
+and context-reset proof. Final authority review, a byte-pinned real migration,
+authenticated runtime-credential proof, and real-table candidate-aligned
+provider/route evidence remain open.
 
 ### Provider candidate result (2026-07-22)
 
@@ -434,18 +438,19 @@ direct Prisma Notification owner reads or updates outside the RPC helper:
 - Existing pre-authority Notification rows still require the guarded aggregate
   inspection and an atomic activation-transaction purge. The purge must not run
   if real users begin relying on notifications; that change requires a backfill.
-- Creation authority and owner-derived payload coverage are 54/54. PostgreSQL
-  16 run `29883083596` at exact source
-  `1b9bd603d53488f18375d369835085e6581fb9b2` passed disposable-database
-  parse/apply, catalog/grant, own/foreign/direct-denial, source/replay, and both
-  two-session block-race checks. Provider behavior, pre-activation review, and
-  direct authenticated runtime-credential proof remain separate gates. Direct
-  or generic runtime creation remains unacceptable.
-  The disposable proof dynamically exercised the social/follow creation family,
-  not every source branch in the ten creation wrappers. Expand the final
-  PostgreSQL fixture set across every authority family (including negative
-  source/recipient/actor cases) before calling the service-authority layer
-  activation-ready.
+- Creation authority and owner-derived payload callsite coverage are 54/54.
+  PostgreSQL 16 run `29890596734` at exact source
+  `d1467b2477e9a11802e12244464f444bc27ef39a` passed disposable-database
+  parse/apply, catalog/grant, own/foreign/direct-denial, every granted creation
+  family, stable replay, the one-shot back-in-stock claim, and both two-session
+  block-race checks. Each of the ten family fixtures rejects a forged recipient;
+  mismatched restock evidence neither creates nor consumes. Provider behavior,
+  pre-activation review, and direct authenticated runtime-credential proof
+  remain separate gates. Direct or generic runtime creation remains
+  unacceptable. The proof still executes only one representative source branch
+  per granted family. Before calling the service-authority layer activation-ready,
+  execute all 26 private-core source-validation branches and their meaningful
+  action variants with valid and negative relationship evidence.
 - Role provisioning and the generic grant audit now preserve Notification's
   asymmetric table/column grants, initial `NO FORCE` phase, exact policies, and
   25-function ACL/mode split. The final migration must still pass those checks
@@ -482,15 +487,19 @@ before the catalog proof. The proof script refuses non-loopback hosts and any
 database name other than `grainline_ci`. It changes neither production nor
 persistent staging.
 
-Latest accepted run `29889639067` (job `88827302133`) completed at
-`2026-07-22T03:55:15Z` against exact source
-`57c9d449d84155762e249c7c88240973e6c7f8d3`. It passed current migrations,
+Latest accepted run `29890596734` (job `88830103706`) completed at
+`2026-07-22T04:16:35Z` against exact source
+`d1467b2477e9a11802e12244464f444bc27ef39a`. It passed current migrations,
 baseline provisioning/audit, all three draft applications, post-draft
-Notification-aware provisioning convergence, and the nine catalog/isolation/
-service/race checks. This proves the provisioning branch parses and converges
-correctly on fresh PostgreSQL 16; it still does not exercise the generic grant
-audit's migration-derived Notification expectations because the SQL remains in
-draft files outside `prisma/migrations`.
+Notification-aware provisioning convergence, and 19 catalog/isolation/service/
+race checks. Those checks include valid creation, stable replay, and
+forged-recipient rejection for all ten granted creation families plus the
+dedicated back-in-stock claim's mismatched-evidence, derived-identity, and
+one-shot-consumption behavior. This proves the provisioning branch and the
+granted family boundary on fresh PostgreSQL 16; it still does not exercise every
+private-core source branch or the generic grant audit's migration-derived
+Notification expectations because the SQL remains in draft files outside
+`prisma/migrations`.
 
 Accepted run `29883083596` (job `88807905625`) completed at
 `2026-07-22T01:27:06.486Z` against exact source
@@ -524,7 +533,10 @@ Failed-run ledger retained for diagnosis:
   text-returning recipient RPCs over `varchar` Notification columns; fixed by
   explicit casts in bell/page/export plus a regression assertion; and
 - `29883002383`: harness-only expectation treated the deliberately doubled-MD5
-  64-character replay key as 32 characters.
+  64-character replay key as 32 characters; and
+- `29890505007`: expanded-fixture bind parameter was inferred as both `varchar`
+  and `text` (`42P08`) in two `SystemAuditLog` inserts; fixed only in the
+  disposable fixture by explicitly casting the reused target id to `text`.
 
 ## Preview deployment guard checkpoint (2026-07-22)
 
