@@ -581,6 +581,45 @@ scheduled to expire at `2026-07-22T15:30:00Z`. The branch remains
 deployment-disabled while its exact candidate commit, migration proof, and
 environment inventory are prepared.
 
+### Second authenticated route-smoke attempt: failed closed (2026-07-22)
+
+The second attempt prepared and locally proved the exact candidate at
+`ea292387ca22b4e92fe84c09b12da2627d05a703`, then independently attested
+Preview `dpl_Ham3dDborXTGyxBRXhScqnADJGCg` at enablement commit
+`1a702d86067646f3962c2c34165783714f53745b`. Production remained unchanged.
+The route smoke stopped at identity selection before creating a Clerk session,
+Notification fixture, or child account-state adjustment.
+
+Aggregate inspection found that the four email-marked rows were the synthetic
+provider fixtures and had no Clerk identities. All six Clerk-backed active rows
+were unmarked; none could be treated as a test identity. The selector now
+explicitly excludes the `notification-provider-real-*` fixtures so future
+diagnostics cannot confuse database proof actors with authentication canaries.
+No unmarked account was impersonated. Creating a new live Clerk user remains
+rejected because production webhooks would create and later anonymize a
+production row. The remaining safe gate requires an intentionally designated
+Clerk-backed operational canary (or explicit authorization for a specifically
+identified existing account), not looser matching.
+
+Abort cleanup removed the exact Preview, all 28 branch variables, automation
+bypass, provider fixtures, child `br-dawn-feather-aa29dcsm`, and private state.
+Post-cleanup inventory showed zero branch variables/deployments, no staging
+branch, and the production branch still present. Sanitized mode-`0600`
+artifacts and SHA-256 values are:
+
+- `notification-route-smoke-support-setup-ea292387ca22.json` —
+  `fab151cef635c2ec92a9299237360672f023910628fe529f4f4879992513a663`
+- `notification-route-smoke-support-local-preflight-ea292387ca22.json` —
+  `5a44a566d6a95c7815347ca83fdb6f4397f84730fe7000de5ea65f38f648568c`
+- `notification-route-smoke-support-attestation-1a702d860676.json` —
+  `31558ef5ce3af195da8d7a570bd61dceeed70ae319f0700fb9bed553d9afdb25`
+- `notification-authenticated-route-smoke-1a702d860676.json` —
+  `2de6c5bdbf9ae1a608dbb412c7043790bf50be846528550b62244634294c2014`
+- `notification-route-smoke-support-teardown-1a702d860676.json` —
+  `ab8b8304b5b43a83e64f75ec17951d40654553b1152a2e357cdf2955dd6c3410`
+- `notification-route-smoke-support-abort-cleanup-1a702d860676.json` —
+  `620bb48340f8c90bd1438540d4c4eef4a56392658e9a7482dd8f46f899c998f5`
+
 ### Consolidated Extra High authority review: passed (2026-07-22)
 
 The consolidated SQL/application review at exact branch head

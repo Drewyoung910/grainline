@@ -262,6 +262,8 @@ async function main() {
          FROM public."User"
         WHERE "deletedAt" IS NULL
           AND banned = false
+          AND id NOT LIKE 'notification-provider-real-%'
+          AND "clerkId" NOT LIKE 'notification-provider-real-%'
           AND email ~* $1
         ORDER BY "createdAt", id`,
       [TEST_USER_EMAIL_PATTERN],
