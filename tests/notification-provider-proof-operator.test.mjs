@@ -134,6 +134,9 @@ describe("disposable Notification provider proof operator", () => {
     assert.match(source, /fixtureCount\.rows\[0\]\.count !== 10/);
     assert.match(source, /\$1::text[\s\S]{0,180}'message', \$1::text/);
     assert.match(source, /\$5::text[\s\S]{0,180}'account_warning', \$5::text/);
+    assert.match(source, /Provider message body', \$8::text/);
+    assert.match(source, /Provider foreign body'[\s\S]{0,180}\$15::text/);
+    assert.doesNotMatch(source, /\$1[67]::text/);
     assert.match(source, /relrowsecurity !== true/);
     assert.match(source, /relforcerowsecurity !== false/);
     assert.match(source, /REVIEWED_PRISMA_CLI_VERSION = "7\.9\.0"/);
