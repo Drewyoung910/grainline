@@ -586,7 +586,7 @@ describe("database grant inventory guardrails", () => {
       );
     }
     assert.deepEqual(inventory.publicDefaultPrivilegeRevokes, []);
-    assert.deepEqual(inventory.rlsForceTables, ["SavedSearch"]);
+    assert.deepEqual(inventory.rlsForceTables, ["Notification", "SavedSearch"]);
   });
 
   it("keeps the manual grant audit focused on least-privilege role evidence", () => {

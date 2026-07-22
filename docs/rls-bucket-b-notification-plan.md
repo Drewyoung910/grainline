@@ -1355,3 +1355,17 @@ prove and apply `FORCE ROW LEVEL SECURITY` without changing the two policies or
 runtime/function grants, then repeat catalog, runtime-denial, and authenticated
 route postflight. Do not conflate that hardening migration with the next
 site-wide table group.
+
+The isolated FORCE candidate uses migration
+`20260722053000_force_notification_rls`, SHA-256
+`f5e0f906671d21ec7d249e05be681753a81700cfe82a265f37bb4754e315f774`.
+Its only mutation is one `ALTER TABLE public."Notification" FORCE ROW LEVEL
+SECURITY` inside an advisory-locked transaction. Preflight requires the
+restricted runtime posture, reviewed production owner or disposable CI owner,
+exact ENABLE/NO-FORCE table state, table ownership by the current migration
+role, the exact two-policy inventory, and unchanged narrow table/column grants.
+Postflight rechecks FORCE, ownership, policy count, and grants. The release
+verifier pins both the activation baseline and FORCE bytes; the migration-tree
+guard adds a distinct `notification-force-reviewed` phase. Production remains
+at initial NO FORCE until the candidate passes its PR/main PostgreSQL proof and
+the protected production workflow.

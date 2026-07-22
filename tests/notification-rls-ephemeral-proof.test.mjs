@@ -18,7 +18,7 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
 
   it("proves catalog, grants, direct denial, every service family, and both lock orderings", () => {
     assert.match(proof, /relrowsecurity: true/);
-    assert.match(proof, /relforcerowsecurity: false/);
+    assert.match(proof, /relforcerowsecurity: true/);
     assert.match(proof, /can_insert: false/);
     assert.match(proof, /can_delete: false/);
     assert.match(proof, /can_update_read: true/);
@@ -198,8 +198,8 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     );
   });
 
-  it("proves the exact activation release on its isolated branch, main, or explicit dispatch", () => {
-    assert.match(workflow, /codex\/rls-notification-activation-20260722/);
+  it("proves the exact FORCE release on its isolated branch, main, or explicit dispatch", () => {
+    assert.match(workflow, /codex\/rls-notification-force-20260722/);
     assert.match(workflow, /^\s+- main$/m);
     assert.match(workflow, /workflow_dispatch:/);
     assert.match(workflow, /paths:[\s\S]*docs\/rls-drafts\/\*\*/);
@@ -209,10 +209,12 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     assert.match(workflow, /image: postgres:16/);
     assert.match(workflow, /Verify committed Notification activation release artifact/);
     assert.match(workflow, /audit:rls-notification-activation-release/);
+    assert.match(workflow, /Verify committed Notification FORCE release artifact/);
+    assert.match(workflow, /audit:rls-notification-force-release/);
     assert.doesNotMatch(workflow, /Stage byte-pinned Notification activation migration/);
     assert.match(workflow, /Converge activated production-style runtime grants/);
     const activationApply = workflow.indexOf(
-      "Apply current migrations including committed Notification activation",
+      "Apply current migrations including committed Notification FORCE",
     );
     const grantAudit = workflow.indexOf("Audit production-style runtime grants");
     assert.ok(
@@ -240,6 +242,10 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     assert.equal(
       packageJson.scripts["audit:rls-notification-activation-release"],
       "node scripts/verify-notification-activation-release.mjs",
+    );
+    assert.equal(
+      packageJson.scripts["audit:rls-notification-force-release"],
+      "node scripts/verify-notification-force-release.mjs",
     );
   });
 });

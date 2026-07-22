@@ -44,7 +44,7 @@ describe("Notification preparation compatibility proof", () => {
 
   it("retains the historical preparation proof without replaying it after promotion", () => {
     assert.match(workflow, /Verify committed Notification activation release artifact/);
-    assert.match(workflow, /Apply current migrations including committed Notification activation/);
+    assert.match(workflow, /Apply current migrations including committed Notification FORCE/);
     assert.doesNotMatch(workflow, /audit:rls-notification-preparation(?:\s|$)/);
     assert.doesNotMatch(workflow, /--stage-(?:preparation|activation)/);
   });

@@ -708,7 +708,7 @@ async function proveCatalog(owner) {
   );
   assert.deepEqual(table.rows[0], {
     relrowsecurity: true,
-    relforcerowsecurity: false,
+    relforcerowsecurity: true,
     owner_name: "ci",
   });
 
