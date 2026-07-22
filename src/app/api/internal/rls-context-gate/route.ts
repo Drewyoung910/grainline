@@ -144,6 +144,7 @@ export async function POST(request: Request) {
     return privateJson({
       ...evidence,
       runner: {
+        nodeVersion: process.version,
         runIdSha256: digest(runId).toString("hex"),
         runSlot: parsed.runSlot,
       },
