@@ -531,7 +531,6 @@ describe("RLS feasibility plan guardrails", () => {
     const directNotificationAccessPattern =
       /\b[A-Za-z_$][\w$]*\.notification\.(?:count|findMany|findFirst|findUnique|update|updateMany)\b/g;
     const allowedDirectCalls = {
-      "src/lib/accountDeletion.ts": ["tx.notification.update"],
       "src/lib/notificationOwnerAccessTransactionCandidate.ts": [
         "db.notification.count",
         "db.notification.findMany",

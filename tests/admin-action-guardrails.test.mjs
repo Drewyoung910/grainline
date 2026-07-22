@@ -176,8 +176,8 @@ describe("admin server action guardrails", () => {
     assert.match(broadcasts, /tx\.sellerBroadcast\.deleteMany\(\{ where: \{ id \} \}\)/);
     assert.match(broadcasts, /if \(deleted\.count !== 1\) return/);
     assert.doesNotMatch(broadcasts, /sellerBroadcast\.delete\(\{/);
-    assert.match(broadcasts, /tx\.notification\.deleteMany\(\{/);
-    assert.match(broadcasts, /link: `\/account\/feed\?broadcast=\$\{broadcast\.id\}`/);
+    assert.match(broadcasts, /deleteSellerBroadcastNotificationServiceRows\(tx, broadcast\.id\)/);
+    assert.doesNotMatch(broadcasts, /tx\.notification\.|sourceType: null|sourceId: null/);
     assert.match(broadcasts, /tx\.emailOutbox\.deleteMany\(\{/);
     assert.match(broadcasts, /preferenceKey: "EMAIL_SELLER_BROADCAST"/);
   });

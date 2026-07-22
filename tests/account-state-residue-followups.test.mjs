@@ -146,7 +146,7 @@ describe("account-state residue hardening", () => {
     assert.match(blogFanout, /sourceId: publicPost\.id/);
   });
 
-  it("removes deleted seller-authored fanout residue from follower notifications and outbox rows", () => {
+  it("removes deleted seller-authored fanout residue through exact notification and outbox authority", () => {
     const deletion = source("src/lib/accountDeletion.ts");
     const helperStart = deletion.indexOf("async function cleanupDeletedSellerFanoutRows");
     const helper = deletion.slice(helperStart, deletion.indexOf("async function collectMessagesBySensitiveText", helperStart));
@@ -160,18 +160,9 @@ describe("account-state residue hardening", () => {
     assert.ok(callIndex < broadcastDeleteIndex, "fanout cleanup should run before broadcast rows are deleted");
     assert.ok(callIndex < listingAnonymizeIndex, "fanout cleanup should collect listing ids before listing anonymization");
     assert.ok(callIndex < blogArchiveIndex, "fanout cleanup should collect blog slugs before blog archive slugs are written");
-
-    for (const sourceType of [
-      "seller_broadcast",
-      "followed_maker_new_listing",
-      "followed_maker_new_blog",
-    ]) {
-      assert.match(helper, new RegExp(`deleteNotificationSourceRows\\(tx, "${sourceType}"`));
-    }
-    assert.match(helper, /link: `\/account\/feed\?broadcast=\$\{id\}`/);
-    assert.match(helper, /link: \{ startsWith: `\/listing\/\$\{id\}--` \}/);
-    assert.match(helper, /link: `\/listing\/\$\{id\}`/);
-    assert.match(helper, /link,\s*\}\)\)/);
+    assert.match(deletion, /await deleteAccountNotificationServiceRows\(tx, user\.id\)/);
+    assert.doesNotMatch(helper, /tx\.notification\.|deleteNotification(?:Source|Link)Rows/);
+    assert.doesNotMatch(deletion, /notificationTextMatchSql|redactNotificationsAboutDeletedAccount/);
     assert.match(helper, /sourceType: "seller_broadcast"/);
     assert.match(helper, /sourceType: "followed_maker_new_listing"/);
     assert.match(helper, /dedupKey: \{ startsWith: `seller-broadcast:\$\{id\}:` \}/);

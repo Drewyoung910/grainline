@@ -63,13 +63,9 @@ describe("blog dashboard action guardrails", () => {
     const serviceSql = source("docs/rls-drafts/notification-service-authority.sql");
 
     assert.match(adminBlog, /deleteBlogCommentNotificationServiceRows\(tx, deleted\.id\)/);
-    assert.match(adminBlog, /tx\.notification\.deleteMany\(\{/);
-    assert.match(adminBlog, /type = deleted\.parentId \? "BLOG_COMMENT_REPLY" : "NEW_BLOG_COMMENT"/);
+    assert.doesNotMatch(adminBlog, /tx\.notification\.|sourceType: null|sourceId: null/);
     assert.match(serviceSql, /notification\."sourceType" = 'blog_comment'/);
     assert.match(serviceSql, /notification\."sourceId" = p_comment_id/);
-    assert.match(adminBlog, /sourceType: null,\s*sourceId: null/);
-    assert.match(adminBlog, /link: `\/blog\/\$\{deleted\.post\.slug\}#comment-\$\{deleted\.id\}`/);
-    assert.match(adminBlog, /link: `\/blog\/\$\{deleted\.post\.slug\}`/);
   });
 
   it("does not treat archive and republish as a brand-new blog post", () => {

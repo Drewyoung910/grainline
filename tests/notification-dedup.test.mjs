@@ -11,14 +11,15 @@ describe("owner-derived notification identity", () => {
   const serviceAccess = source("src/lib/notificationServiceAccess.ts");
   const notifications = source("src/lib/notifications.ts");
 
-  it("does not accept runtime link or dedup identity in creation authority", () => {
-    assert.doesNotMatch(sql, /\bp_link\b|\bp_dedup_key\b/);
+  it("does not accept runtime payload, link, or dedup identity in creation authority", () => {
+    assert.doesNotMatch(sql, /\bp_title\b|\bp_body\b|\bp_link\b|\bp_dedup_key\b/);
     assert.equal((sql.match(/p_related_user_id text\n\)/g) ?? []).length, 11);
     assert.equal(
-      (sql.match(/text, text, public\."NotificationType", text, text, text, text, text/g) ?? []).length,
+      (sql.match(/text, text, public\."NotificationType", text, text, text/g) ?? []).length,
       21,
     );
-    assert.doesNotMatch(serviceAccess, /\$\{link\}|\$\{dedupKey\}|authorityContextId/);
+    assert.doesNotMatch(serviceAccess, /\$\{title\}|\$\{body\}|\$\{link\}|\$\{dedupKey\}|authorityContextId/);
+    assert.doesNotMatch(serviceAccess, /\btitle: string|\bbody: string/);
     assert.doesNotMatch(notifications, /notificationDedupKey|dedupKey,/);
   });
 
@@ -42,14 +43,26 @@ describe("owner-derived notification identity", () => {
   it("derives canonical links from validated source rows", () => {
     assert.equal((sql.match(/INTO notification_link/g) ?? []).length, 27);
     assert.match(sql, /INTO notification_link, notification_title, notification_body/);
-    assert.match(sql, /SELECT '\/blog\/' \|\| source_post\.slug \|\| '#comment-' \|\| source_comment\.id/);
-    assert.match(sql, /SELECT '\/listing\/' \|\| source_listing\.id/);
-    assert.match(sql, /SELECT '\/account\/feed\?broadcast=' \|\| source_broadcast\.id/);
-    assert.match(sql, /SELECT '\/dashboard\/analytics'/);
-    assert.match(sql, /SELECT '\/listing\/' \|\| context_listing\.id/);
-    assert.match(sql, /SELECT '\/messages\/' \|\| source_conversation\.id/);
+    assert.match(sql, /SELECT\s+'\/blog\/' \|\| source_post\.slug \|\| '#comment-' \|\| source_comment\.id/);
+    assert.match(sql, /SELECT\s+'\/listing\/' \|\| source_listing\.id/);
+    assert.match(sql, /SELECT\s+'\/account\/feed\?broadcast=' \|\| source_broadcast\.id/);
+    assert.match(sql, /SELECT\s+'\/dashboard\/analytics'/);
+    assert.match(sql, /SELECT\s+'\/listing\/' \|\| context_listing\.id/);
+    assert.match(sql, /SELECT\s+'\/messages\/' \|\| source_conversation\.id/);
     assert.match(sql, /THEN '\/dashboard\/orders\/' \|\| source_case\."orderId"/);
     assert.match(sql, /ELSE '\/dashboard\/sales\/' \|\| source_case\."orderId"/);
     assert.match(sql, /derived notification link is invalid/);
+  });
+
+  it("derives every source payload inside owner authority", () => {
+    assert.equal((sql.match(/INTO notification_link, notification_title, notification_body/g) ?? []).length, 27);
+    assert.match(sql, /source_comment\.body, 60/);
+    assert.match(sql, /source_case\.description, 60/);
+    assert.match(sql, /source_message\.body::jsonb ->> 'description'/);
+    assert.match(sql, /source_broadcast\.message, 100/);
+    assert.match(sql, /source_review\."ratingX2"/);
+    assert.match(sql, /notification_title := pg_catalog\.left\(notification_title, 200\)/);
+    assert.match(sql, /notification_body := pg_catalog\.left\(notification_body, 1000\)/);
+    assert.match(sql, /derived notification payload is invalid/);
   });
 });

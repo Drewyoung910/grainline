@@ -119,35 +119,9 @@ async function deleteComment(commentId: string) {
         id: true,
         postId: true,
         authorId: true,
-        body: true,
-        parentId: true,
-        createdAt: true,
-        parent: { select: { authorId: true } },
-        post: { select: { slug: true, authorId: true } },
       },
     });
-    const recipientId = deleted.parentId ? deleted.parent?.authorId : deleted.post.authorId;
-    if (recipientId && recipientId !== deleted.authorId) {
-      const type = deleted.parentId ? "BLOG_COMMENT_REPLY" : "NEW_BLOG_COMMENT";
-      const body = truncateText(deleted.body, 60);
-      await deleteBlogCommentNotificationServiceRows(tx, deleted.id);
-      // Temporary legacy fallback: rows created before source metadata existed.
-      // Remove before Notification INSERT/DELETE revocation is activated.
-      await tx.notification.deleteMany({
-        where: {
-          sourceType: null,
-          sourceId: null,
-          userId: recipientId,
-          type,
-          body,
-          createdAt: { gte: deleted.createdAt },
-          OR: [
-            { link: `/blog/${deleted.post.slug}#comment-${deleted.id}` },
-            { link: `/blog/${deleted.post.slug}` },
-          ],
-        },
-      });
-    }
+    await deleteBlogCommentNotificationServiceRows(tx, deleted.id);
     await logAdminActionOrThrow({
       client: tx,
       adminId: me.id,

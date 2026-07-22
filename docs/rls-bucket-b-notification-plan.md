@@ -1,26 +1,27 @@
 # Bucket B: Notification RLS Plan
 
-Status: isolated B0 implementation in progress under explicit user
-authorization. Code, unapplied migration/RPC/policy drafts, tests, and local
-verification may continue on this branch. No Notification branch change may
-merge, deploy, touch a live database, or enter a provider evidence run until
-SavedSearch Phase B and the runtime database credential-separation postflight
-are live and verified.
+Status: isolated B0/B1 implementation in progress under explicit user
+authorization. SavedSearch Phase B and runtime database credential separation
+are now live with accepted postflights. Code, unapplied migration/RPC/policy
+drafts, local/ephemeral PostgreSQL proof, and isolated provider comparison may
+continue on this branch. No Notification change may merge to `main`, apply to
+production, or activate a persistent staging database before its remaining
+Bucket B gates pass.
 
 First B0 slice: source metadata is now a paired typed contract with a canonical
 allowlist. New blog-comment notifications identify `blog_comment` plus the
 comment id. Staff blog-comment and seller-broadcast deletion prefers exact
-source cleanup while retaining a deliberately null-source-only fallback for
-legacy rows. The fallback must be removed after legacy rows are backfilled or
-expired; it is not an acceptable shape for the eventual owner RPC.
+source cleanup through narrow owner RPCs. Broad null-source title/body/link
+fallbacks have been removed from runtime code.
 
 Account-deletion slice: `Notification.relatedUserId` records the other user
 whose identity or authored content is represented in a recipient's row. Twenty-six
 literal creation sites now set it, while back-in-stock derives the seller
 relationship inside its owner operation. Account deletion deletes
-recipient and related-user rows exactly, and limits the legacy sensitive-text
-fallback to null-metadata rows. The fallback remains an activation blocker
-until coverage/backfill or safe expiry is proven complete. The SQL remains at
+recipient and related-user rows exactly; its broad Notification text scan,
+redaction, source deletion, and link deletion fallbacks have been removed. A
+guarded prelaunch inspection plus an activation-transaction purge is the
+explicit legacy disposition. The SQL remains at
 `docs/rls-drafts/notification-related-user.sql`, deliberately outside
 `prisma/migrations` so it cannot contaminate the sealed SavedSearch artifact.
 The Vercel runtime guard fails closed while that draft file exists, preventing
@@ -52,11 +53,17 @@ capability; runtime credential separation remains the separate control against
 owner-credential exfiltration.
 All 54 creation paths, exact account cleanup, exact admin source cleanup, and
 retention cron are wired to these draft functions in the isolated branch. Admin cleanup
-still retains explicitly marked `sourceType/sourceId IS NULL` legacy fallbacks,
-and account deletion retains broader legacy source/link cleanup and text
-redaction. Those direct fallbacks are an activation blocker because the draft
-revokes direct runtime `DELETE`; they must be proven empty, backfilled, expired,
-or replaced by equally narrow service operations before the SQL can go live.
+uses only exact source RPCs, and account deletion uses only recipient plus
+`relatedUserId` cleanup for Notification. Existing pre-authority rows are not
+silently trusted or exposed to a permanent broad runtime function: after the
+sequencing postflights, `ops:notification-legacy-inspect` may retain aggregate
+counts only. Under the explicit prelaunch/no-users acknowledgement, the eventual
+activation migration must take its advisory and exclusive table locks, empty
+Notification, verify exact deleted/zero-row accounting, and activate RLS in the
+same transaction. A standalone committed purge is prohibited because a cron,
+webhook, or request could recreate a legacy row before activation. If real
+users exist by then, the purge is prohibited and this disposition must be
+redesigned.
 The SQL remains outside `prisma/migrations` at
 `docs/rls-drafts/notification-service-authority.sql` and is not live-tested.
 
@@ -67,12 +74,15 @@ validated; account cleanup takes a conflicting user-row lock before deleting;
 and staff source cleanup refuses to run until the comment or broadcast was
 deleted in the same transaction. These changes close create-versus-delete races
 and prevent source metadata from being attached to the wrong notification type,
-actor, or recipient. They do not close every runtime-compromise residual: the
-granted create families still accept bounded caller-supplied title/body.
-Canonical links and stable 64-hex replay identity are now derived inside the
-private core from validated database facts; neither link nor dedup identity is
-present in a granted creation signature. App-level `link` and `dedupScope` are
-telemetry only. Social/message/commission absence-of-block checks do not
+actor, or recipient. All ten granted creation families now omit
+title/body/link/dedup parameters and derive the payload, canonical link, and
+stable 64-hex replay identity inside the private core from validated database
+facts. App-level title/body copies remain non-authoritative compatibility
+evidence, while `link` and `dedupScope` are telemetry only; none crosses the
+service-authority boundary. One central check covers the ten block-sensitive
+blog/social/content/message/commission sources; case, order, payment, inventory,
+moderation, and account-safety notices intentionally bypass user blocks so
+required transactional and safety state remains visible. Those block checks do not
 rely on an unlocked absence check anymore: notification creation takes
 `FOR SHARE` on the recipient/related-user pair in sorted id order, and every
 ordinary block/unblock mutation takes `FOR UPDATE` on the same sorted pair
@@ -82,8 +92,7 @@ defines a deterministic linearization point under the explicitly required
 `READ COMMITTED` isolation level; the core rejects stale-snapshot isolation,
 and block mutations request `ReadCommitted` explicitly. It does so without granting Notification
 authority over `Block`; PostgreSQL race proof is still required before
-activation. Payload derivation/templates remain pre-activation work;
-app-layer authorization and block checks remain required.
+activation. App-layer authorization and block checks remain required.
 The message family proves message kind and conversation participants.
 Custom-order-ready extracts the listing id from the durable structured message
 inside the private core, joins it to the reserved buyer, seller, conversation
@@ -109,7 +118,8 @@ families or the dedicated back-in-stock claim. The 26 family-dispatched source
 types validated by database joins, plus the dedicated back-in-stock operation,
 still require PostgreSQL parse/apply and provider performance evidence before
 promotion. This 54/54 result does not select the recipient read architecture,
-close block races, remove legacy cleanup fallbacks, or prove live isolation.
+complete guarded legacy inspection plus the atomic activation-purge artifact,
+prove block races in PostgreSQL, or prove live isolation.
 
 The inventory family is now complete in the isolated draft. Webhook low-stock uses
 the exact `OrderItem` as its durable source and proves the paid `Order`, completed
@@ -186,10 +196,11 @@ need candidate-aligned provider performance evidence after the sequencing gate.
 
 - The isolated branch may retain the verified inventory, source-lifecycle
   hardening, static guards, restored blocking gate, and experimental wrapper.
-- Isolated runtime, RPC, policy, grant, and migration drafts plus local tests may
-  continue. Do not merge, deploy, apply them to a live database, create staging
-  objects, or collect provider promotion evidence until SavedSearch Phase B and
-  credential separation complete their exact production postflights.
+- SavedSearch Phase B and runtime credential separation completed their exact
+  production postflights on 2026-07-21. That sequencing gate is closed.
+  Ephemeral PostgreSQL and isolated provider-candidate proof may now proceed;
+  this does not authorize production apply, merge, or persistent staging
+  activation.
 - The statement that the site currently has no users does not waive the sealed
   SavedSearch operator's skew/canary gate or any production evidence gate. It
   only makes parallel isolated Bucket B construction a reasonable use of time.
@@ -228,8 +239,8 @@ requirements.
 | Authenticated recipient | Count/list/export own rows; mark own row(s) read; mark own conversation notifications read | Set transaction-local `app.user_id`; `SELECT` and `UPDATE` only where `userId` matches; update only the `read` column and never transfer ownership |
 | Application notification service | Read recipient preference/status, insert for any legitimate recipient, recover the existing row after a dedup collision | Ten reviewed family creation RPCs plus one dedicated back-in-stock operation; no direct runtime `INSERT`; validate active recipient, preference, enum/payload bounds, source metadata, and dedup inside the database operation |
 | Retention cron | Delete old read and unread rows globally in bounded batches | Parameter-free or tightly bounded owner RPC using server time and code-pinned retention windows; no general runtime `DELETE` |
-| Account deletion | Delete the departing user's rows; delete related-user/source residue across other recipients; retire the legacy sensitive-text fallback | Use one narrow account-lifecycle RPC for recipient plus `relatedUserId` deletion and separate exact source cleanup; do not grant direct table `DELETE`. Exact recipient/related-user cleanup is wired to the draft RPC; legacy source/link/text work remains blocking |
-| Staff blog/broadcast deletion | Delete notifications tied to a deleted comment or broadcast across recipients | Use exact `sourceType`/`sourceId` service cleanup; remove legacy title/body/link matching after source coverage/backfill is proven |
+| Account deletion | Delete the departing user's rows and related-user residue across other recipients | Use one narrow account-lifecycle RPC for recipient plus `relatedUserId` deletion; do not grant direct table `DELETE`. The prelaunch activation transaction removes pre-authority rows before this invariant becomes mandatory |
+| Staff blog/broadcast deletion | Delete notifications tied to a deleted comment or broadcast across recipients | Use exact `sourceType`/`sourceId` service cleanup only; no title/body/link matching remains in runtime code |
 | Admin, webhook, cron, order/case/message/social flows | Create recipient notifications through reviewed service access | All 54 emission paths dispatch through ten reviewed family wrappers or the dedicated back-in-stock claim; the gate also requires the corresponding SQL function, revoke, and runtime grant |
 
 Current direct-access files are deliberately pinned by test:
@@ -240,9 +251,6 @@ Current direct-access files are deliberately pinned by test:
   no direct Prisma `Notification` table access.
 - `src/lib/notifications.ts` plus `src/lib/notificationServiceAccess.ts` —
   bounded service-create input and the single raw service RPC call.
-- `src/lib/accountDeletion.ts` — own/cross-user delete, legacy raw reads, and redaction updates.
-- `src/app/admin/blog/page.tsx` and
-  `src/app/admin/broadcasts/page.tsx` — cross-recipient cleanup.
 - `src/app/api/cron/notification-prune/route.ts` — bounded orchestration over
   the two parameter-free draft retention functions.
 
@@ -269,10 +277,13 @@ Current direct-access files are deliberately pinned by test:
    separation control.
 7. Implement separate fixed-purpose cleanup RPCs for retention and exact source
    residue. Do not expose a generic `delete notification where ...` interface.
-8. Eliminate or explicitly gate the legacy account-deletion text scan/redaction
-   before RLS. Prefer complete `sourceType`/`sourceId` coverage plus backfill;
-   any retained redaction RPC must require the deletion context and prove it
-   cannot become a general cross-user content editor.
+8. Keep broad legacy Notification scans/redaction out of runtime authority.
+   Because this is a confirmed prelaunch/no-users system, retain a read-only
+   owner inspection before activation. The destructive purge must be embedded
+   in the activation migration's transaction after the advisory and exclusive
+   table locks and before policy/grant activation, with exact deleted-row and
+   zero-row assertions. A standalone purge is forbidden. If the no-users premise
+   changes, do not purge; design a backfill instead.
 9. Use `relatedUserId` for exact account-deletion cleanup of cross-recipient
    identity or user-authored notification content. Keep it distinct from
    `sourceType`/`sourceId`, which identify the domain object's lifecycle.
@@ -288,12 +299,14 @@ Current direct-access files are deliberately pinned by test:
 - Inventory every owner read/update, create/dedup, prune, staff cleanup, and
   account-deletion path mechanically.
 - Add `sourceType`/`sourceId` to every fanout whose lifecycle can require
-  cross-recipient cleanup; backfill or safely expire legacy rows.
+  cross-recipient cleanup; inspect legacy rows and purge them atomically in the
+  activation transaction.
 - Add `relatedUserId` to every cross-recipient notification containing another
-  user's identity, authored text, or account-owned object reference; backfill
-  or safely expire null-metadata legacy rows.
+  user's identity, authored text, or account-owned object reference.
 - Replace blog/broadcast title/body/link cleanup with exact source cleanup.
-- Choose and test the legacy account-deletion redaction disposition.
+- Run the guarded prelaunch aggregate inspection. Put the destructive purge,
+  exact deleted/zero-row assertions, and RLS activation in one database
+  transaction; never commit a standalone reset.
 - Serialize reciprocal block absence checks with block/unblock mutations using
   the shared sorted-user-row lock protocol; prove both transaction orderings in
   PostgreSQL before activation.
@@ -333,12 +346,13 @@ Current direct-access files are deliberately pinned by test:
 
 ## Current Blockers
 
-- SavedSearch Phase B has not yet passed its time/canary gate and production
-  postflight.
-- Runtime owner-credential separation is implemented but not production-active.
-- Null-metadata legacy account-deletion cleanup still falls back to notification
-  text and requires coverage/backfill or safe expiry plus a narrow service path.
-- Creation authority is 54/54 in the isolated draft, but it has not received
+- SavedSearch Phase B and runtime owner-credential separation are complete with
+  accepted production postflights; they are no longer Bucket B blockers.
+- Existing pre-authority Notification rows still require the guarded aggregate
+  inspection and an atomic activation-transaction purge. The purge must not run
+  if real users begin relying on notifications; that change requires a backfill.
+- Creation authority and owner-derived payload coverage are 54/54 in the
+  isolated draft, but they have not received
   PostgreSQL parse/apply, own/foreign/direct-denial, concurrency, provider, or
   pre-activation proof. Direct or generic runtime creation remains unacceptable.
 - Recipient bell/page/count/export/mark-read architecture is not selected;
@@ -350,6 +364,7 @@ Current direct-access files are deliberately pinned by test:
 - The generic provider wrapper/performance gate is restored in code, but two
   fresh counted provider passes are still required.
 
-These blockers permit isolated implementation drafts and local verification.
-They prohibit merge, deployment, live-database or staging activation, provider
-promotion evidence, and production Notification RLS activation.
+These blockers permit isolated implementation drafts, ephemeral PostgreSQL
+proof, and candidate-aligned provider comparison. They prohibit merge,
+production apply/deployment, persistent staging activation, and production
+Notification RLS activation.

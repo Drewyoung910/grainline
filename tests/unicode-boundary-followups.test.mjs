@@ -38,11 +38,13 @@ describe("unicode boundary follow-ups", () => {
     assert.match(webhook, /sellerName: snapshotSellerName\(listingData\?\.seller\?\.displayName\)/);
   });
 
-  it("uses bounded short-name account deletion redaction instead of ignoring two-character names", () => {
+  it("uses bounded short-name redaction without broad Notification text authority", () => {
     const deletion = source("src/lib/accountDeletion.ts");
     const redaction = source("src/lib/accountDeletionAuditRedaction.ts");
     assert.match(deletion, /Array\.from\(item\)\.length >= 2/);
-    assert.match(deletion, /notificationTextMatchSql\(value\)/);
+    assert.match(deletion, /bodyTextMatchSql\(value\)/);
+    assert.doesNotMatch(deletion, /notificationTextMatchSql|redactNotificationsAboutDeletedAccount/);
+    assert.match(deletion, /deleteAccountNotificationServiceRows\(tx, user\.id\)/);
     assert.match(redaction, /Array\.from\(value\)\.length >= 2/);
     assert.match(redaction, /redactionPatternForNeedle\(needle\)/);
   });

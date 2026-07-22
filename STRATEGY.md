@@ -4,23 +4,23 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
-### SavedSearch Phase-B operating decision (2026-07-19)
+### SavedSearch Phase-B operating result (2026-07-21)
 
-Finish Bucket A and the runtime credential-separation postflight before merging,
-deploying, or provider-testing any Notification/Bucket-B runtime or database
-change. Under explicit user authorization, isolated implementation drafts,
-including unapplied migrations/RPCs/policies, tests, and local verification,
-may continue on an unmerged branch. They are not authorization to touch a live
-database, collect provider promotion evidence, merge, deploy, or promote Bucket
-B. The separate SavedSearch FORCE release waits through the full Phase-A skew window plus a
-safety margin and a post-skew canary. Before promotion, rotate the migration
-owner credential to invalidate old owner-backed deployments and prove the old
-credential and owner application sessions are gone. Neon’s migration owner is
-the explicit BYPASSRLS service role, while the normal runtime remains constrained.
-Controlled owner maintenance and the separate database-first emergency
-DISABLE/ENABLE/FORCE path must both remain tested; externalize the owner secret
-from production Functions before any Bucket B merge, deployment, or
-live-database activation.
+SavedSearch Phase B and runtime database credential separation are live with
+accepted production postflights. The final runtime separation release is
+`b4f14beaff06831ed2e8d7a35578226b756c1a61`; the accepted operator and evidence
+record are documented in `docs/runtime-db-credential-separation.md`. This closes
+the sequencing prerequisite for isolated Notification/Bucket-B implementation,
+ephemeral PostgreSQL proof, and isolated provider-candidate comparison.
+
+It does not authorize a Notification merge, production apply/deployment,
+persistent staging activation, or production RLS activation. Notification must
+still pass its own recipient-architecture, creation-authority, cleanup,
+concurrency, provider-performance, rollback, and pre-activation reviews. Keep
+Neon's explicit BYPASSRLS migration owner outside production Functions; normal
+runtime remains the NOBYPASSRLS `grainline_app_runtime` role. Controlled owner
+maintenance and the separate database-first emergency DISABLE/ENABLE/FORCE
+path remain required controls.
 
 ### Site-wide RLS expansion decision (2026-07-19)
 
@@ -86,11 +86,12 @@ Bucket B preparation has begun on an isolated, unmerged branch in
 `docs/rls-bucket-b-notification-plan.md`; no policy is production-active. The
 verified surface has simple recipient reads/mark-read operations but asymmetric
 cross-user creation, dedup recovery, global retention, staff source cleanup,
-and account-deletion cleanup/redaction. Use recipient SELECT/RLS plus
+and account-deletion cleanup. Use recipient SELECT/RLS plus
 column-level `UPDATE (read)`, with no direct runtime INSERT/DELETE. Cross-user
 creation and cleanup require separate fixed-purpose owner-backed RPCs; never
-put a second owner/service credential into Vercel. Source metadata coverage,
-legacy account-deletion redaction, and two fresh passes under the restored
+put a second owner/service credential into Vercel. The guarded prelaunch
+Notification inspection, atomic activation-time purge, PostgreSQL proof, and
+two fresh passes under the restored
 provider transaction performance gate block activation. Activation remains
 separate ENABLE/NO FORCE and later FORCE releases after Phase B and runtime
 credential separation are live.
@@ -113,11 +114,14 @@ dedicated back-in-stock claim/create/consume operation, three exact cleanup
 operations, and two fixed retention batches. Runtime receives exact execute
 privileges only on the sixteen fixed-purpose entry points;
 direct Notification insert/delete and the default public function privilege
-remain revoked. The application paths are wired to the draft, but legacy
-null-source and account-deletion source/link/text fallbacks still perform direct
-table work. That incompatibility is intentional and fail-closed: it blocks SQL
-activation until legacy rows are backfilled, expired, proven absent, or handled
-by an equally narrow reviewed operation. Application-asserted `app.user_id` is
+remain revoked. The application paths are wired to the draft and broad legacy
+Notification cleanup fallbacks have been removed from runtime code. Because the
+site remains prelaunch with no users relying on notifications, a guarded
+owner-only operator may inspect legacy aggregate counts. The purge must be the
+first locked step inside the same transaction that activates Notification RLS;
+a standalone reset would leave a recreation race. If the no-users premise
+changes, the purge is
+prohibited and a backfill must be designed. Application-asserted `app.user_id` is
 not database-authenticated identity and a compromised runtime can forge it;
 fixed-purpose constraints limit that residual without eliminating it.
 
@@ -125,11 +129,11 @@ Extra-high review does not yet accept the shared create function as final. The
 54/54 creation-authority coverage can prove source, type, actor, recipient, and
 relationship constraints inside the database operation, but that result does
 not by itself make Bucket B activation-ready.
-The granted wrappers also retain bounded caller control of notification text
-but no longer accept link or dedup identity. The private core derives canonical
-links and stable dedup identity inside owner authority from the validated
-recipient, type, source row, related actor, and source-specific route columns.
-App-level link and dedup scope are telemetry only. Social/message/commission
+The granted wrappers no longer accept notification title, body, link, or dedup
+identity. The private core derives all four inside owner authority from the
+validated recipient, type, source row, related actor, and source-specific
+columns. App-level title/body copies are non-authoritative compatibility
+evidence; link and dedup scope are telemetry only. Social/content/message/commission
 absence-of-block checks now share a deterministic lock protocol with every
 ordinary block/unblock writer: notification creation takes sorted-pair
 `FOR SHARE`, while block mutation takes sorted-pair `FOR UPDATE`. Account
@@ -138,8 +142,7 @@ The owner core rejects isolation other than `READ COMMITTED`, and ordinary
 block mutations request it explicitly, so a stale transaction snapshot cannot
 silently weaken the absence check. This is statically guarded but still needs
 two-session PostgreSQL race proof.
-Derive or template the remaining caller-controlled payloads where practical,
-and retain provider performance proof for the source-validation joins.
+Retain provider performance proof for the source-validation joins.
 
 The message family uses `Message.id` as its durable source. For custom-order
 ready links, the private core extracts the listing id from the structured

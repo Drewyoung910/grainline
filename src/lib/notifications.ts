@@ -3,9 +3,7 @@ import { prisma } from "@/lib/db";
 import { NotificationType } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
 import {
-  NOTIFICATION_BODY_MAX_LENGTH,
   NOTIFICATION_LINK_MAX_LENGTH,
-  NOTIFICATION_TITLE_MAX_LENGTH,
   limitNotificationText,
 } from "@/lib/notificationPayload";
 import { isEmailNotificationEnabled } from "@/lib/notificationEmailPreferences";
@@ -70,8 +68,6 @@ type CreateNotificationInput = {
 export async function createNotification({
   userId,
   type,
-  title,
-  body,
   link,
   dedupScope,
   sourceType,
@@ -79,8 +75,6 @@ export async function createNotification({
   relatedUserId,
 }: CreateNotificationInput) {
   try {
-    const notificationTitle = limitNotificationText(title, NOTIFICATION_TITLE_MAX_LENGTH);
-    const notificationBody = limitNotificationText(body, NOTIFICATION_BODY_MAX_LENGTH);
     const notificationSourceType = sourceType
       ? limitNotificationText(sourceType, 80)
       : undefined;
@@ -91,8 +85,6 @@ export async function createNotification({
       notificationId: randomUUID(),
       userId,
       type,
-      title: notificationTitle,
-      body: notificationBody,
       sourceType: notificationSourceType ?? null,
       sourceId: notificationSourceId ?? null,
       relatedUserId: relatedUserId ?? null,

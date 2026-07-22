@@ -12,8 +12,6 @@ CREATE OR REPLACE FUNCTION public.grainline_notification_create_core(
   p_notification_id text,
   p_user_id text,
   p_type public."NotificationType",
-  p_title text,
-  p_body text,
   p_source_type text,
   p_source_id text,
   p_related_user_id text
@@ -28,8 +26,8 @@ AS $grainline_notification_create_core$
 DECLARE
   recipient_preferences jsonb;
   notification_id text;
-  notification_title text := p_title;
-  notification_body text := p_body;
+  notification_title text;
+  notification_body text;
   notification_link text;
   notification_dedup_key text;
   replay_material text;
@@ -198,15 +196,56 @@ BEGIN
     END IF;
   END IF;
 
+  -- Social/content/message/commission notifications honor reciprocal blocks
+  -- inside the owner operation. Case, order, payment, inventory, moderation,
+  -- and account-safety notices are intentionally excluded because blocking
+  -- must not hide transactional, dispute, or safety state.
+  IF p_related_user_id IS NOT NULL
+     AND p_related_user_id <> p_user_id
+     AND p_source_type IN (
+       'blog_comment',
+       'commission_interest',
+       'commission_request',
+       'favorite',
+       'follow',
+       'followed_maker_new_blog',
+       'followed_maker_new_listing',
+       'message',
+       'review',
+       'seller_broadcast'
+     )
+     AND EXISTS (
+       SELECT 1
+         FROM public."Block" AS source_block
+        WHERE (source_block."blockerId" = p_user_id
+               AND source_block."blockedId" = p_related_user_id)
+           OR (source_block."blockerId" = p_related_user_id
+               AND source_block."blockedId" = p_user_id)
+     ) THEN
+    RETURN NULL;
+  END IF;
+
   -- Source-tagged operations must prove the domain object, actor, recipient,
   -- and public/follower relationship in the same owner-backed operation. The
   -- row locks serialize source deletion or visibility changes with creation.
   IF p_source_type = 'blog_comment' THEN
-    SELECT '/blog/' || source_post.slug || '#comment-' || source_comment.id
-      INTO notification_link
+    SELECT
+      '/blog/' || source_post.slug || '#comment-' || source_comment.id,
+      pg_catalog.left(
+        COALESCE(NULLIF(source_author.name, ''), 'Someone')
+        || CASE
+          WHEN p_type = 'BLOG_COMMENT_REPLY' THEN ' replied to your comment'
+          ELSE ' commented on your post'
+        END,
+        200
+      ),
+      pg_catalog.left(source_comment.body, 60)
+      INTO notification_link, notification_title, notification_body
       FROM public."BlogComment" AS source_comment
       JOIN public."BlogPost" AS source_post
         ON source_post.id = source_comment."postId"
+      JOIN public."User" AS source_author
+        ON source_author.id = source_comment."authorId"
       LEFT JOIN public."BlogComment" AS parent_comment
         ON parent_comment.id = source_comment."parentId"
      WHERE source_comment.id = p_source_id
@@ -221,15 +260,50 @@ BEGIN
           AND source_comment."parentId" IS NULL
           AND source_post."authorId" = p_user_id)
        )
-     FOR SHARE OF source_comment, source_post;
+     FOR SHARE OF source_comment, source_post, source_author;
   ELSIF p_source_type = 'case' THEN
-    SELECT CASE
-      WHEN p_user_id = source_case."buyerId"
-        THEN '/dashboard/orders/' || source_case."orderId"
-      ELSE '/dashboard/sales/' || source_case."orderId"
-    END
-      INTO notification_link
+    SELECT
+      CASE
+        WHEN p_user_id = source_case."buyerId"
+          THEN '/dashboard/orders/' || source_case."orderId"
+        ELSE '/dashboard/sales/' || source_case."orderId"
+      END,
+      CASE
+        WHEN p_type = 'CASE_OPENED'
+          THEN pg_catalog.left(
+            COALESCE(NULLIF(source_actor.name, ''), 'A buyer') || ' opened a case',
+            200
+          )
+        WHEN source_case.resolution = 'REFUND_FULL' THEN 'Full refund issued'
+        WHEN source_case.resolution = 'REFUND_PARTIAL' THEN 'Partial refund issued'
+        ELSE 'Case dismissed'
+      END,
+      CASE
+        WHEN p_type = 'CASE_OPENED'
+          THEN pg_catalog.left(source_case.description, 60)
+        WHEN source_case.resolution = 'REFUND_FULL'
+          THEN 'A full refund has been issued to your original payment method.'
+        WHEN source_case.resolution = 'REFUND_PARTIAL'
+             AND source_case."refundAmountCents" IS NOT NULL
+             AND source_case."refundAmountCents" > 0
+          THEN 'A partial refund of '
+            || CASE
+              WHEN pg_catalog.lower(source_order.currency) = 'usd' THEN '$'
+              ELSE pg_catalog.upper(source_order.currency) || ' '
+            END
+            || pg_catalog.to_char(
+              source_case."refundAmountCents"::numeric / 100,
+              'FM999999999990.00'
+            )
+            || ' has been issued to your original payment method.'
+        WHEN source_case.resolution = 'REFUND_PARTIAL'
+          THEN 'A partial refund has been issued to your original payment method.'
+        ELSE 'The case has been reviewed and dismissed.'
+      END
+      INTO notification_link, notification_title, notification_body
       FROM public."Case" AS source_case
+      JOIN public."Order" AS source_order
+        ON source_order.id = source_case."orderId"
       JOIN public."User" AS source_actor
         ON source_actor.id = p_related_user_id
      WHERE source_case.id = p_source_id
@@ -251,14 +325,34 @@ BEGIN
              AND source_case.resolution = 'DISMISSED')
           ))
        )
-     FOR SHARE OF source_case, source_actor;
+     FOR SHARE OF source_case, source_order, source_actor;
   ELSIF p_source_type = 'case_message' THEN
-    SELECT CASE
-      WHEN p_user_id = source_case."buyerId"
-        THEN '/dashboard/orders/' || source_case."orderId"
-      ELSE '/dashboard/sales/' || source_case."orderId"
-    END
-      INTO notification_link
+    SELECT
+      CASE
+        WHEN p_user_id = source_case."buyerId"
+          THEN '/dashboard/orders/' || source_case."orderId"
+        ELSE '/dashboard/sales/' || source_case."orderId"
+      END,
+      pg_catalog.left(
+        CASE
+          WHEN source_author.role IN ('EMPLOYEE', 'ADMIN')
+            AND source_message."authorId" <> source_case."sellerId"
+            AND (source_case."buyerId" IS NULL
+                 OR source_message."authorId" <> source_case."buyerId")
+            THEN 'Grainline Staff sent a message in your case'
+          ELSE COALESCE(
+            NULLIF(source_author.name, ''),
+            CASE
+              WHEN source_message."authorId" = source_case."buyerId" THEN 'A buyer'
+              WHEN source_message."authorId" = source_case."sellerId" THEN 'The seller'
+              ELSE 'Someone'
+            END
+          ) || ' sent a message in your case'
+        END,
+        200
+      ),
+      pg_catalog.left(source_message.body, 60)
+      INTO notification_link, notification_title, notification_body
       FROM public."CaseMessage" AS source_message
       JOIN public."Case" AS source_case
         ON source_case.id = source_message."caseId"
@@ -281,12 +375,22 @@ BEGIN
        )
      FOR SHARE OF source_message, source_case, source_author;
   ELSIF p_source_type = 'case_resolution_mark' THEN
-    SELECT CASE
-      WHEN p_user_id = source_case."buyerId"
-        THEN '/dashboard/orders/' || source_case."orderId"
-      ELSE '/dashboard/sales/' || source_case."orderId"
-    END
-      INTO notification_link
+    SELECT
+      CASE
+        WHEN p_user_id = source_case."buyerId"
+          THEN '/dashboard/orders/' || source_case."orderId"
+        ELSE '/dashboard/sales/' || source_case."orderId"
+      END,
+      CASE
+        WHEN source_audit.metadata ->> 'status' = 'RESOLVED' THEN 'Case resolved'
+        ELSE 'Case marked resolved'
+      END,
+      CASE
+        WHEN source_audit.metadata ->> 'status' = 'RESOLVED'
+          THEN 'The case was resolved after both parties confirmed.'
+        ELSE 'The other party marked this case resolved. Confirm resolution or continue the discussion.'
+      END
+      INTO notification_link, notification_title, notification_body
       FROM public."AdminAuditLog" AS source_audit
       JOIN public."Case" AS source_case
         ON source_case.id = source_audit."targetId"
@@ -312,12 +416,30 @@ BEGIN
        )
      FOR SHARE OF source_audit, source_case;
   ELSIF p_source_type = 'case_system_action' THEN
-    SELECT CASE
-      WHEN p_user_id = source_case."buyerId"
-        THEN '/dashboard/orders/' || source_case."orderId"
-      ELSE '/dashboard/sales/' || source_case."orderId"
-    END
-      INTO notification_link
+    SELECT
+      CASE
+        WHEN p_user_id = source_case."buyerId"
+          THEN '/dashboard/orders/' || source_case."orderId"
+        ELSE '/dashboard/sales/' || source_case."orderId"
+      END,
+      CASE
+        WHEN source_audit.action = 'AUTO_CLOSE_CASE' THEN 'Case closed'
+        WHEN p_user_id = source_case."buyerId" THEN 'Case under review'
+        ELSE 'Case escalated'
+      END,
+      CASE
+        WHEN source_audit.action = 'AUTO_CLOSE_CASE'
+          THEN 'This case was closed automatically after the resolution window expired.'
+        WHEN source_audit.metadata ->> 'previousStatus' = 'OPEN'
+             AND p_user_id = source_case."buyerId"
+          THEN 'The seller did not respond in time, so Grainline staff will review this case.'
+        WHEN source_audit.metadata ->> 'previousStatus' = 'OPEN'
+          THEN 'This case was escalated to Grainline staff because the response window expired.'
+        WHEN p_user_id = source_case."buyerId"
+          THEN 'This case has been inactive, so Grainline staff will review it.'
+        ELSE 'This case was escalated to Grainline staff after the discussion stalled.'
+      END
+      INTO notification_link, notification_title, notification_body
       FROM public."SystemAuditLog" AS source_audit
       JOIN public."Case" AS source_case
         ON source_case.id = source_audit."targetId"
@@ -341,8 +463,15 @@ BEGIN
        )
      FOR SHARE OF source_audit, source_case;
   ELSIF p_source_type = 'commission_interest' THEN
-    SELECT '/messages/' || source_conversation.id
-      INTO notification_link
+    SELECT
+      '/messages/' || source_conversation.id,
+      pg_catalog.left(
+        COALESCE(NULLIF(source_seller."displayName", ''), 'A maker')
+        || ' is interested in your commission',
+        200
+      ),
+      pg_catalog.left('"' || source_request.title || '" — view the conversation', 1000)
+      INTO notification_link, notification_title, notification_body
       FROM public."CommissionInterest" AS source_interest
       JOIN public."CommissionRequest" AS source_request
         ON source_request.id = source_interest."commissionRequestId"
@@ -360,21 +489,28 @@ BEGIN
          (source_conversation."userBId" = p_user_id
           AND source_conversation."userAId" = p_related_user_id)
        )
-       AND NOT EXISTS (
-         SELECT 1
-           FROM public."Block" AS source_block
-          WHERE (source_block."blockerId" = p_user_id
-                 AND source_block."blockedId" = p_related_user_id)
-             OR (source_block."blockerId" = p_related_user_id
-                 AND source_block."blockedId" = p_user_id)
-       )
      FOR SHARE OF source_interest, source_request, source_seller, source_conversation;
   ELSIF p_source_type = 'commission_request' THEN
-    SELECT CASE
-      WHEN source_request.status = 'CLOSED' THEN '/commission'
-      ELSE '/commission/' || source_request.id
-    END
-      INTO notification_link
+    SELECT
+      CASE
+        WHEN source_request.status = 'CLOSED' THEN '/commission'
+        ELSE '/commission/' || source_request.id
+      END,
+      CASE source_request.status
+        WHEN 'FULFILLED' THEN 'Commission request fulfilled'
+        WHEN 'CLOSED' THEN 'Commission request closed'
+        ELSE 'Commission request expired'
+      END,
+      CASE
+        WHEN source_request.status = 'FULFILLED'
+          THEN 'The request "' || source_request.title || '" has been fulfilled. Thanks for your interest!'
+        WHEN source_request.status = 'CLOSED'
+          THEN 'The request "' || source_request.title || '" has been closed by the buyer.'
+        WHEN p_related_user_id IS NULL
+          THEN '"' || pg_catalog.left(source_request.title, 80) || '" is now closed to new maker interest.'
+        ELSE '"' || pg_catalog.left(source_request.title, 80) || '" is no longer accepting interest.'
+      END
+      INTO notification_link, notification_title, notification_body
       FROM public."CommissionRequest" AS source_request
      WHERE source_request.id = p_source_id
        AND (
@@ -953,8 +1089,15 @@ BEGIN
        AND p_type = 'PAYOUT_FAILED'::public."NotificationType"
      FOR SHARE OF source_payout, source_seller;
   ELSIF p_source_type = 'followed_maker_new_listing' THEN
-    SELECT '/listing/' || source_listing.id
-      INTO notification_link
+    SELECT
+      '/listing/' || source_listing.id,
+      pg_catalog.left(
+        'New listing from '
+        || COALESCE(NULLIF(source_seller."displayName", ''), 'A maker you follow'),
+        200
+      ),
+      pg_catalog.left(source_listing.title, 1000)
+      INTO notification_link, notification_title, notification_body
       FROM public."Listing" AS source_listing
       JOIN public."SellerProfile" AS source_seller
         ON source_seller.id = source_listing."sellerId"
@@ -975,8 +1118,15 @@ BEGIN
        AND source_seller_user."deletedAt" IS NULL
      FOR SHARE OF source_listing, source_seller, source_seller_user, source_follow;
   ELSIF p_source_type = 'followed_maker_new_blog' THEN
-    SELECT '/blog/' || source_post.slug
-      INTO notification_link
+    SELECT
+      '/blog/' || source_post.slug,
+      pg_catalog.left(
+        'New post from '
+        || COALESCE(NULLIF(source_seller."displayName", ''), 'A maker you follow'),
+        200
+      ),
+      pg_catalog.left(source_post.title, 1000)
+      INTO notification_link, notification_title, notification_body
       FROM public."BlogPost" AS source_post
       JOIN public."SellerProfile" AS source_seller
         ON source_seller.id = source_post."sellerProfileId"
@@ -998,8 +1148,19 @@ BEGIN
        AND source_seller_user."deletedAt" IS NULL
      FOR SHARE OF source_post, source_seller, source_seller_user, source_follow;
   ELSIF p_source_type = 'seller_broadcast' THEN
-    SELECT '/account/feed?broadcast=' || source_broadcast.id
-      INTO notification_link
+    SELECT
+      '/account/feed?broadcast=' || source_broadcast.id,
+      pg_catalog.left(
+        'Update from '
+        || COALESCE(NULLIF(source_seller."displayName", ''), 'A maker you follow'),
+        200
+      ),
+      CASE
+        WHEN pg_catalog.char_length(source_broadcast.message) > 100
+          THEN pg_catalog.left(source_broadcast.message, 100) || '…'
+        ELSE source_broadcast.message
+      END
+      INTO notification_link, notification_title, notification_body
       FROM public."SellerBroadcast" AS source_broadcast
       JOIN public."SellerProfile" AS source_seller
         ON source_seller.id = source_broadcast."sellerProfileId"
@@ -1018,8 +1179,14 @@ BEGIN
        AND source_seller_user."deletedAt" IS NULL
      FOR SHARE OF source_broadcast, source_seller, source_seller_user, source_follow;
   ELSIF p_source_type = 'favorite' THEN
-    SELECT '/listing/' || source_listing.id
-      INTO notification_link
+    SELECT
+      '/listing/' || source_listing.id,
+      pg_catalog.left(
+        COALESCE(NULLIF(source_actor.name, ''), 'Someone') || ' hearted your listing',
+        200
+      ),
+      pg_catalog.left(source_listing.title, 1000)
+      INTO notification_link, notification_title, notification_body
       FROM public."Favorite" AS source_favorite
       JOIN public."Listing" AS source_listing
         ON source_listing.id = source_favorite."listingId"
@@ -1027,6 +1194,8 @@ BEGIN
         ON source_seller.id = source_listing."sellerId"
       JOIN public."User" AS source_seller_user
         ON source_seller_user.id = source_seller."userId"
+      JOIN public."User" AS source_actor
+        ON source_actor.id = source_favorite."userId"
      WHERE source_favorite."listingId" = p_source_id
        AND source_favorite."userId" = p_related_user_id
        AND source_seller."userId" = p_user_id
@@ -1038,37 +1207,32 @@ BEGIN
             OR source_seller."stripeAccountVersion" = 'v2')
        AND source_seller_user.banned = false
        AND source_seller_user."deletedAt" IS NULL
-       AND NOT EXISTS (
-         SELECT 1
-           FROM public."Block" AS source_block
-          WHERE (source_block."blockerId" = p_user_id
-                 AND source_block."blockedId" = p_related_user_id)
-             OR (source_block."blockerId" = p_related_user_id
-                 AND source_block."blockedId" = p_user_id)
-       )
-     FOR SHARE OF source_favorite, source_listing, source_seller, source_seller_user;
+     FOR SHARE OF source_favorite, source_listing, source_seller, source_seller_user, source_actor;
   ELSIF p_source_type = 'follow' THEN
-    SELECT '/dashboard/analytics'
-      INTO notification_link
+    SELECT
+      '/dashboard/analytics',
+      pg_catalog.left(
+        COALESCE(NULLIF(source_actor.name, ''), 'Someone') || ' started following you',
+        200
+      ),
+      'They can now see your new listings and posts in their feed'
+      INTO notification_link, notification_title, notification_body
       FROM public."Follow" AS source_follow
       JOIN public."SellerProfile" AS source_seller
         ON source_seller.id = source_follow."sellerProfileId"
+      JOIN public."User" AS source_actor
+        ON source_actor.id = source_follow."followerId"
      WHERE source_follow."sellerProfileId" = p_source_id
        AND source_follow."followerId" = p_related_user_id
        AND source_seller."userId" = p_user_id
-       AND NOT EXISTS (
-         SELECT 1
-           FROM public."Block" AS source_block
-          WHERE (source_block."blockerId" = p_user_id
-                 AND source_block."blockedId" = p_related_user_id)
-             OR (source_block."blockerId" = p_related_user_id
-                 AND source_block."blockedId" = p_user_id)
-       )
-     FOR SHARE OF source_follow, source_seller;
+     FOR SHARE OF source_follow, source_seller, source_actor;
   ELSIF p_source_type = 'message' THEN
     IF p_type = 'CUSTOM_ORDER_LINK' THEN
-      SELECT '/listing/' || context_listing.id
-        INTO notification_link
+      SELECT
+        '/listing/' || context_listing.id,
+        'Your custom piece is ready to review!',
+        pg_catalog.left(context_listing.title || ' - review and purchase', 1000)
+        INTO notification_link, notification_title, notification_body
         FROM public."Message" AS source_message
         JOIN public."Conversation" AS source_conversation
           ON source_conversation.id = source_message."conversationId"
@@ -1094,21 +1258,38 @@ BEGIN
            (source_conversation."userBId" = p_related_user_id
             AND source_conversation."userAId" = p_user_id)
          )
-         AND NOT EXISTS (
-           SELECT 1
-             FROM public."Block" AS source_block
-            WHERE (source_block."blockerId" = p_user_id
-                   AND source_block."blockedId" = p_related_user_id)
-               OR (source_block."blockerId" = p_related_user_id
-                   AND source_block."blockedId" = p_user_id)
-         )
        FOR SHARE OF source_message, source_conversation, context_listing, context_seller;
     ELSE
-      SELECT '/messages/' || source_conversation.id
-        INTO notification_link
+      SELECT
+        '/messages/' || source_conversation.id,
+        pg_catalog.left(
+          COALESCE(
+            NULLIF(source_sender.name, ''),
+            CASE
+              WHEN p_type = 'CUSTOM_ORDER_REQUEST' THEN 'A customer'
+              ELSE 'Someone'
+            END
+          )
+          || CASE
+            WHEN p_type = 'CUSTOM_ORDER_REQUEST' THEN ' wants a custom piece!'
+            ELSE ' sent you a message'
+          END,
+          200
+        ),
+        CASE
+          WHEN p_type = 'CUSTOM_ORDER_REQUEST'
+            THEN pg_catalog.left(source_message.body::jsonb ->> 'description', 60)
+          ELSE pg_catalog.left(
+            COALESCE(NULLIF(source_message.body, ''), 'Sent an attachment'),
+            1000
+          )
+        END
+        INTO notification_link, notification_title, notification_body
         FROM public."Message" AS source_message
         JOIN public."Conversation" AS source_conversation
           ON source_conversation.id = source_message."conversationId"
+        JOIN public."User" AS source_sender
+          ON source_sender.id = source_message."senderId"
        WHERE source_message.id = p_source_id
          AND source_message."senderId" = p_related_user_id
          AND source_message."recipientId" = p_user_id
@@ -1127,28 +1308,35 @@ BEGIN
             AND source_message.kind IS DISTINCT FROM 'custom_order_request'
             AND source_message.kind IS DISTINCT FROM 'custom_order_link')
          )
-         AND NOT EXISTS (
-           SELECT 1
-             FROM public."Block" AS source_block
-            WHERE (source_block."blockerId" = p_user_id
-                   AND source_block."blockedId" = p_related_user_id)
-               OR (source_block."blockerId" = p_related_user_id
-                   AND source_block."blockedId" = p_user_id)
-         )
-       FOR SHARE OF source_message, source_conversation;
+       FOR SHARE OF source_message, source_conversation, source_sender;
     END IF;
   ELSIF p_source_type = 'review' THEN
-    SELECT '/listing/' || source_listing.id || '#reviews'
-      INTO notification_link
+    SELECT
+      '/listing/' || source_listing.id || '#reviews',
+      pg_catalog.left(
+        COALESCE(NULLIF(source_reviewer.name, ''), 'A buyer')
+        || ' left you a '
+        || CASE
+          WHEN source_review."ratingX2" % 2 = 0
+            THEN (source_review."ratingX2" / 2)::text
+          ELSE pg_catalog.to_char(source_review."ratingX2"::numeric / 2, 'FM9.0')
+        END
+        || '-star review',
+        200
+      ),
+      pg_catalog.left(source_listing.title, 1000)
+      INTO notification_link, notification_title, notification_body
       FROM public."Review" AS source_review
       JOIN public."Listing" AS source_listing
         ON source_listing.id = source_review."listingId"
       JOIN public."SellerProfile" AS source_seller
         ON source_seller.id = source_listing."sellerId"
+      JOIN public."User" AS source_reviewer
+        ON source_reviewer.id = source_review."reviewerId"
      WHERE source_review.id = p_source_id
        AND source_review."reviewerId" = p_related_user_id
        AND source_seller."userId" = p_user_id
-     FOR SHARE OF source_review, source_listing, source_seller;
+     FOR SHARE OF source_review, source_listing, source_seller, source_reviewer;
   END IF;
   IF p_source_type IS NOT NULL AND NOT FOUND THEN
     RETURN NULL;
@@ -1156,11 +1344,16 @@ BEGIN
 
   IF notification_title IS NULL
      OR notification_title = ''
-     OR pg_catalog.char_length(notification_title) > 200
-     OR notification_body IS NULL
-     OR pg_catalog.char_length(notification_body) > 1000 THEN
+     OR notification_body IS NULL THEN
     RAISE EXCEPTION 'derived notification payload is invalid' USING ERRCODE = '22023';
   END IF;
+
+  -- Match the application payload contract without trusting application text.
+  -- Legitimate source fields such as staff reasons may exceed the display
+  -- bounds, so truncate the database-derived result instead of dropping the
+  -- notification after the state transition has already committed.
+  notification_title := pg_catalog.left(notification_title, 200);
+  notification_body := pg_catalog.left(notification_body, 1000);
 
   IF notification_link IS NULL
      OR notification_link = ''
@@ -1236,8 +1429,6 @@ CREATE OR REPLACE FUNCTION public.grainline_notification_create_source_fanout(
   p_notification_id text,
   p_user_id text,
   p_type public."NotificationType",
-  p_title text,
-  p_body text,
   p_source_type text,
   p_source_id text,
   p_related_user_id text
@@ -1266,8 +1457,6 @@ BEGIN
     p_notification_id,
     p_user_id,
     p_type,
-    p_title,
-    p_body,
     p_source_type,
     p_source_id,
     p_related_user_id
@@ -1280,8 +1469,6 @@ CREATE OR REPLACE FUNCTION public.grainline_notification_create_social_event(
   p_notification_id text,
   p_user_id text,
   p_type public."NotificationType",
-  p_title text,
-  p_body text,
   p_source_type text,
   p_source_id text,
   p_related_user_id text
@@ -1305,8 +1492,6 @@ BEGIN
     p_notification_id,
     p_user_id,
     p_type,
-    p_title,
-    p_body,
     p_source_type,
     p_source_id,
     p_related_user_id
@@ -1319,8 +1504,6 @@ CREATE OR REPLACE FUNCTION public.grainline_notification_create_message_event(
   p_notification_id text,
   p_user_id text,
   p_type public."NotificationType",
-  p_title text,
-  p_body text,
   p_source_type text,
   p_source_id text,
   p_related_user_id text
@@ -1344,8 +1527,6 @@ BEGIN
     p_notification_id,
     p_user_id,
     p_type,
-    p_title,
-    p_body,
     p_source_type,
     p_source_id,
     p_related_user_id
@@ -1358,8 +1539,6 @@ CREATE OR REPLACE FUNCTION public.grainline_notification_create_case_event(
   p_notification_id text,
   p_user_id text,
   p_type public."NotificationType",
-  p_title text,
-  p_body text,
   p_source_type text,
   p_source_id text,
   p_related_user_id text
@@ -1388,8 +1567,6 @@ BEGIN
     p_notification_id,
     p_user_id,
     p_type,
-    p_title,
-    p_body,
     p_source_type,
     p_source_id,
     p_related_user_id
@@ -1402,8 +1579,6 @@ CREATE OR REPLACE FUNCTION public.grainline_notification_create_commission_event
   p_notification_id text,
   p_user_id text,
   p_type public."NotificationType",
-  p_title text,
-  p_body text,
   p_source_type text,
   p_source_id text,
   p_related_user_id text
@@ -1427,8 +1602,6 @@ BEGIN
     p_notification_id,
     p_user_id,
     p_type,
-    p_title,
-    p_body,
     p_source_type,
     p_source_id,
     p_related_user_id
@@ -1441,8 +1614,6 @@ CREATE OR REPLACE FUNCTION public.grainline_notification_create_inventory_event(
   p_notification_id text,
   p_user_id text,
   p_type public."NotificationType",
-  p_title text,
-  p_body text,
   p_source_type text,
   p_source_id text,
   p_related_user_id text
@@ -1466,8 +1637,6 @@ BEGIN
     p_notification_id,
     p_user_id,
     p_type,
-    p_title,
-    p_body,
     p_source_type,
     p_source_id,
     p_related_user_id
@@ -1480,8 +1649,6 @@ CREATE OR REPLACE FUNCTION public.grainline_notification_create_verification_eve
   p_notification_id text,
   p_user_id text,
   p_type public."NotificationType",
-  p_title text,
-  p_body text,
   p_source_type text,
   p_source_id text,
   p_related_user_id text
@@ -1505,8 +1672,6 @@ BEGIN
     p_notification_id,
     p_user_id,
     p_type,
-    p_title,
-    p_body,
     p_source_type,
     p_source_id,
     p_related_user_id
@@ -1519,8 +1684,6 @@ CREATE OR REPLACE FUNCTION public.grainline_notification_create_moderation_event
   p_notification_id text,
   p_user_id text,
   p_type public."NotificationType",
-  p_title text,
-  p_body text,
   p_source_type text,
   p_source_id text,
   p_related_user_id text
@@ -1544,8 +1707,6 @@ BEGIN
     p_notification_id,
     p_user_id,
     p_type,
-    p_title,
-    p_body,
     p_source_type,
     p_source_id,
     p_related_user_id
@@ -1558,8 +1719,6 @@ CREATE OR REPLACE FUNCTION public.grainline_notification_create_account_warning(
   p_notification_id text,
   p_user_id text,
   p_type public."NotificationType",
-  p_title text,
-  p_body text,
   p_source_type text,
   p_source_id text,
   p_related_user_id text
@@ -1583,8 +1742,6 @@ BEGIN
     p_notification_id,
     p_user_id,
     p_type,
-    p_title,
-    p_body,
     p_source_type,
     p_source_id,
     p_related_user_id
@@ -1597,8 +1754,6 @@ CREATE OR REPLACE FUNCTION public.grainline_notification_create_order_event(
   p_notification_id text,
   p_user_id text,
   p_type public."NotificationType",
-  p_title text,
-  p_body text,
   p_source_type text,
   p_source_id text,
   p_related_user_id text
@@ -1627,8 +1782,6 @@ BEGIN
     p_notification_id,
     p_user_id,
     p_type,
-    p_title,
-    p_body,
     p_source_type,
     p_source_id,
     p_related_user_id
@@ -2045,37 +2198,37 @@ END;
 $grainline_notification_prune_unread_batch$;
 
 REVOKE ALL ON FUNCTION public.grainline_notification_create_core(
-  text, text, public."NotificationType", text, text, text, text, text
+  text, text, public."NotificationType", text, text, text
 ) FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_notification_create_source_fanout(
-  text, text, public."NotificationType", text, text, text, text, text
+  text, text, public."NotificationType", text, text, text
 ) FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_notification_create_social_event(
-  text, text, public."NotificationType", text, text, text, text, text
+  text, text, public."NotificationType", text, text, text
 ) FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_notification_create_message_event(
-  text, text, public."NotificationType", text, text, text, text, text
+  text, text, public."NotificationType", text, text, text
 ) FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_notification_create_case_event(
-  text, text, public."NotificationType", text, text, text, text, text
+  text, text, public."NotificationType", text, text, text
 ) FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_notification_create_commission_event(
-  text, text, public."NotificationType", text, text, text, text, text
+  text, text, public."NotificationType", text, text, text
 ) FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_notification_create_inventory_event(
-  text, text, public."NotificationType", text, text, text, text, text
+  text, text, public."NotificationType", text, text, text
 ) FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_notification_create_verification_event(
-  text, text, public."NotificationType", text, text, text, text, text
+  text, text, public."NotificationType", text, text, text
 ) FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_notification_create_moderation_event(
-  text, text, public."NotificationType", text, text, text, text, text
+  text, text, public."NotificationType", text, text, text
 ) FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_notification_create_account_warning(
-  text, text, public."NotificationType", text, text, text, text, text
+  text, text, public."NotificationType", text, text, text
 ) FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_notification_create_order_event(
-  text, text, public."NotificationType", text, text, text, text, text
+  text, text, public."NotificationType", text, text, text
 ) FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_notification_claim_back_in_stock(text, text, text)
   FROM PUBLIC, grainline_app_runtime;
@@ -2091,34 +2244,34 @@ REVOKE ALL ON FUNCTION public.grainline_notification_prune_unread_batch()
   FROM PUBLIC, grainline_app_runtime;
 
 GRANT EXECUTE ON FUNCTION public.grainline_notification_create_source_fanout(
-  text, text, public."NotificationType", text, text, text, text, text
+  text, text, public."NotificationType", text, text, text
 ) TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_notification_create_social_event(
-  text, text, public."NotificationType", text, text, text, text, text
+  text, text, public."NotificationType", text, text, text
 ) TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_notification_create_message_event(
-  text, text, public."NotificationType", text, text, text, text, text
+  text, text, public."NotificationType", text, text, text
 ) TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_notification_create_case_event(
-  text, text, public."NotificationType", text, text, text, text, text
+  text, text, public."NotificationType", text, text, text
 ) TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_notification_create_commission_event(
-  text, text, public."NotificationType", text, text, text, text, text
+  text, text, public."NotificationType", text, text, text
 ) TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_notification_create_inventory_event(
-  text, text, public."NotificationType", text, text, text, text, text
+  text, text, public."NotificationType", text, text, text
 ) TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_notification_create_verification_event(
-  text, text, public."NotificationType", text, text, text, text, text
+  text, text, public."NotificationType", text, text, text
 ) TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_notification_create_moderation_event(
-  text, text, public."NotificationType", text, text, text, text, text
+  text, text, public."NotificationType", text, text, text
 ) TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_notification_create_account_warning(
-  text, text, public."NotificationType", text, text, text, text, text
+  text, text, public."NotificationType", text, text, text
 ) TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_notification_create_order_event(
-  text, text, public."NotificationType", text, text, text, text, text
+  text, text, public."NotificationType", text, text, text
 ) TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_notification_claim_back_in_stock(text, text, text)
   TO grainline_app_runtime;

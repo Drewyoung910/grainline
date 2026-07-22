@@ -10,8 +10,6 @@ export type NotificationServiceCreateInput = {
   notificationId: string;
   userId: string;
   type: NotificationType;
-  title: string;
-  body: string;
   sourceType: string | null;
   sourceId: string | null;
   relatedUserId: string | null;
@@ -21,8 +19,6 @@ export async function createNotificationServiceRow({
   notificationId,
   userId,
   type,
-  title,
-  body,
   sourceType,
   sourceId,
   relatedUserId,
@@ -66,8 +62,6 @@ export async function createNotificationServiceRow({
           ${notificationId}::text,
           ${userId}::text,
           ${type}::public."NotificationType",
-          ${title}::text,
-          ${body}::text,
           ${sourceType}::text,
           ${sourceId}::text,
           ${relatedUserId}::text
@@ -79,8 +73,6 @@ export async function createNotificationServiceRow({
           ${notificationId}::text,
           ${userId}::text,
           ${type}::public."NotificationType",
-          ${title}::text,
-          ${body}::text,
           ${sourceType}::text,
           ${sourceId}::text,
           ${relatedUserId}::text
@@ -92,8 +84,6 @@ export async function createNotificationServiceRow({
           ${notificationId}::text,
           ${userId}::text,
           ${type}::public."NotificationType",
-          ${title}::text,
-          ${body}::text,
           ${sourceType}::text,
           ${sourceId}::text,
           ${relatedUserId}::text
@@ -105,8 +95,6 @@ export async function createNotificationServiceRow({
           ${notificationId}::text,
           ${userId}::text,
           ${type}::public."NotificationType",
-          ${title}::text,
-          ${body}::text,
           ${sourceType}::text,
           ${sourceId}::text,
           ${relatedUserId}::text
@@ -118,8 +106,6 @@ export async function createNotificationServiceRow({
           ${notificationId}::text,
           ${userId}::text,
           ${type}::public."NotificationType",
-          ${title}::text,
-          ${body}::text,
           ${sourceType}::text,
           ${sourceId}::text,
           ${relatedUserId}::text
@@ -131,8 +117,6 @@ export async function createNotificationServiceRow({
           ${notificationId}::text,
           ${userId}::text,
           ${type}::public."NotificationType",
-          ${title}::text,
-          ${body}::text,
           ${sourceType}::text,
           ${sourceId}::text,
           ${relatedUserId}::text
@@ -144,8 +128,6 @@ export async function createNotificationServiceRow({
           ${notificationId}::text,
           ${userId}::text,
           ${type}::public."NotificationType",
-          ${title}::text,
-          ${body}::text,
           ${sourceType}::text,
           ${sourceId}::text,
           ${relatedUserId}::text
@@ -157,8 +139,6 @@ export async function createNotificationServiceRow({
           ${notificationId}::text,
           ${userId}::text,
           ${type}::public."NotificationType",
-          ${title}::text,
-          ${body}::text,
           ${sourceType}::text,
           ${sourceId}::text,
           ${relatedUserId}::text
@@ -170,8 +150,6 @@ export async function createNotificationServiceRow({
           ${notificationId}::text,
           ${userId}::text,
           ${type}::public."NotificationType",
-          ${title}::text,
-          ${body}::text,
           ${sourceType}::text,
           ${sourceId}::text,
           ${relatedUserId}::text
@@ -183,8 +161,6 @@ export async function createNotificationServiceRow({
           ${notificationId}::text,
           ${userId}::text,
           ${type}::public."NotificationType",
-          ${title}::text,
-          ${body}::text,
           ${sourceType}::text,
           ${sourceId}::text,
           ${relatedUserId}::text

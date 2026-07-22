@@ -47,9 +47,6 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.equal(objectLiteralCreateCount + fulfillmentPayloadCount + backInStockClaimCount, 54);
     assert.equal(createCallers.length, 29);
     assert.deepEqual(directAccess.sort(), [
-      "src/app/admin/blog/page.tsx",
-      "src/app/admin/broadcasts/page.tsx",
-      "src/lib/accountDeletion.ts",
       "src/lib/notificationOwnerAccessTransactionCandidate.ts",
     ]);
   });
@@ -62,15 +59,15 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(plan, /54 distinct emission paths/);
     assert.match(plan, /column-level `UPDATE \(read\)` only/);
     assert.match(plan, /Do not grant direct `INSERT` or `DELETE`/);
-    assert.match(plan, /legacy account-deletion text scan\/redaction/);
+    assert.match(plan, /atomic activation-transaction purge/);
     assert.match(plan, /generic provider wrapper\/performance gate/);
     assert.match(plan, /explicit `NO FORCE` plus `ENABLE ROW LEVEL SECURITY`/);
     assert.match(plan, /separate `FORCE ROW LEVEL SECURITY` release/);
-    assert.match(plan, /production Notification RLS activation/i);
-    assert.match(plan, /They prohibit merge, deployment, live-database or staging activation/);
-    assert.match(plan, /isolated B0 implementation in progress/);
-    assert.match(plan, /Code, unapplied migration\/RPC\/policy drafts, tests, and local\s+verification may continue/);
-    assert.match(plan, /No Notification[\s\S]{0,140}merge, deploy, touch a live database/);
+    assert.match(plan, /production\s+Notification RLS activation/i);
+    assert.match(plan, /They prohibit merge,[\s\S]{0,100}production apply\/deployment,[\s\S]{0,100}persistent staging activation/);
+    assert.match(plan, /isolated B0\/B1 implementation in progress/);
+    assert.match(plan, /Code, unapplied migration\/RPC\/policy[\s\S]{0,100}drafts, local\/ephemeral PostgreSQL proof, and isolated provider comparison may\s+continue/);
+    assert.match(plan, /No Notification change may merge to `main`, apply to\s+production, or activate a persistent staging database/);
     assert.match(plan, /one-statement `SECURITY INVOKER` recipient RPCs/);
     assert.match(plan, /Recipient RPCs are distinct from cross-user creation\/cleanup service\s+authority/);
     assert.match(plan, /All 54 emission paths now carry reviewed creation authority/);
@@ -78,9 +75,9 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(plan, /missing SQL wrapper\/revoke\/runtime grant/);
     assert.match(plan, /notification-create-authority-inventory\.md/);
     assert.match(plan, /fixed-column insert primitive ungranted to runtime/);
-    assert.match(strategy, /isolated implementation drafts/);
-    assert.match(strategy, /before any Bucket B merge, deployment, or\s+live-database activation/);
-    assert.match(strategy, /before merging,\s+deploying, or activating Notification\/Bucket B/);
+    assert.match(strategy, /SavedSearch Phase B and runtime database credential separation are live/);
+    assert.match(strategy, /closes\s+the sequencing prerequisite for isolated Notification\/Bucket-B implementation/);
+    assert.match(strategy, /does not authorize a Notification merge, production apply\/deployment/);
     assert.doesNotMatch(strategy, /before beginning\s+Notification\/Bucket B/);
     assert.match(strategy, /seventeen owner-backed functions/);
     assert.match(strategy, /runtime-ungranted fixed-column core/);
@@ -88,8 +85,8 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(strategy, /must not be conflated with recipient RPCs/);
     assert.match(strategy, /54\/54 creation-authority coverage/);
     assert.match(strategy, /does\s+not by itself make Bucket B activation-ready/);
-    assert.match(strategy, /bounded caller control of notification text/);
-    assert.match(strategy, /dedup identity inside owner authority/);
+    assert.match(strategy, /no longer accept notification title, body, link, or dedup/);
+    assert.match(strategy, /derives all four inside owner authority/);
     assert.match(strategy, /share a deterministic lock protocol with every\s+ordinary block\/unblock writer/);
   });
 
@@ -107,7 +104,7 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(inventory, /Grant runtime only reviewed family functions/);
     assert.match(inventory, /provider and cron families[\s\S]{0,220}persisted order\/payment\/payout/);
     assert.match(inventory, /staff-only families[\s\S]{0,220}audit or domain source/);
-    assert.match(inventory, /bounded title\/body parameters/);
+    assert.match(inventory, /omit title\/body\/link\/dedup parameters/);
     assert.match(inventory, /dedup identity[\s\S]{0,180}derived inside owner authority/);
     assert.match(inventory, /shared protocol gives the absence check a deterministic linearization\s+point/);
     assert.match(inventory, /reserved listing,[\s\S]{0,80}seller, buyer, conversation/);
@@ -115,7 +112,7 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.doesNotMatch(inventory, /write-side RLS on Notification is low-value/);
   });
 
-  it("starts B0 with paired source metadata and legacy-only fallbacks", () => {
+  it("starts B0 with paired source metadata and narrow cleanup only", () => {
     const sources = fs.readFileSync("src/lib/notificationSources.ts", "utf8");
     const notifications = fs.readFileSync("src/lib/notifications.ts", "utf8");
     const blog = fs.readFileSync("src/app/admin/blog/page.tsx", "utf8");
@@ -165,9 +162,9 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(notifications, /& NotificationSourceFields/);
     assert.equal((blog.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.BLOG_COMMENT/g) ?? []).length, 2);
     assert.match(blog, /deleteBlogCommentNotificationServiceRows\(tx, deleted\.id\)/);
-    assert.match(blog, /sourceType: null,\s*sourceId: null/);
+    assert.doesNotMatch(blog, /tx\.notification\./);
     assert.match(broadcasts, /deleteSellerBroadcastNotificationServiceRows\(tx, broadcast\.id\)/);
-    assert.match(broadcasts, /sourceType: null,\s*sourceId: null/);
+    assert.doesNotMatch(broadcasts, /tx\.notification\./);
     assert.match(favorite, /sourceType: NOTIFICATION_SOURCE_TYPES\.FAVORITE,\s*sourceId: listingId/);
     assert.match(follow, /sourceType: NOTIFICATION_SOURCE_TYPES\.FOLLOW,\s*sourceId: sellerProfile\.id/);
     assert.match(review, /sourceType: NOTIFICATION_SOURCE_TYPES\.REVIEW,\s*sourceId: created\.id/);
@@ -219,7 +216,7 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.equal(taggedCreationCount, 40);
   });
 
-  it("uses exact related-user lifecycle metadata before legacy text cleanup", () => {
+  it("uses exact related-user lifecycle metadata without broad text cleanup", () => {
     const files = sourceFiles("src");
     const schema = fs.readFileSync("prisma/schema.prisma", "utf8");
     const migration = fs.readFileSync(
@@ -257,7 +254,7 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.equal(relatedUserAssignments, 26);
 
     assert.match(accountDeletion, /deleteAccountNotificationServiceRows\(tx, user\.id\)/);
-    assert.equal((accountDeletion.match(/AND "relatedUserId" IS NULL/g) ?? []).length, 2);
+    assert.doesNotMatch(accountDeletion, /tx\.notification\.|FROM "Notification"/);
   });
 
   it("drafts narrow service authority without direct runtime table writes", () => {

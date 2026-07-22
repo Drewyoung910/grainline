@@ -64,8 +64,7 @@ Keep the ten authority families above distinct:
    runtime role.
 2. Grant runtime only reviewed family functions. Each accepts stable domain ids
    and a small event discriminator, derives or validates recipients and allowed
-   types, and either derives payload text or bounds the few fields that truly
-   must remain caller-supplied.
+   types, and derives payload text from the validated source.
 3. Store `sourceType`/`sourceId` where lifecycle cleanup or account-deletion
    residue needs it. A validation id does not automatically need to become
    durable lifecycle metadata.
@@ -81,17 +80,20 @@ Application authorization remains primary. These functions are database
 defense in depth against overly broad queries and partial compromise; they do
 not claim to defeat arbitrary code execution holding the runtime credential.
 
-This is not yet a complete runtime-compromise boundary. The ten granted creation
-wrappers share bounded title/body parameters, although the verification,
-moderation, account-warning, inventory, and portions of other families replace
-them with source-derived templates. The dedicated back-in-stock claim accepts
-neither. Canonical links
+This is not yet a complete arbitrary-runtime-compromise boundary because a
+compromised runtime can still invoke the narrow functions with legitimate
+source ids and recipient combinations. It no longer controls notification
+content: all ten granted creation wrappers omit title/body/link/dedup parameters
+and derive those fields from the validated source. The dedicated back-in-stock
+claim does the same. Canonical links
 and dedup identity are now derived inside owner authority
 from the validated recipient, type, source kind, source row, related actor, and
 source-specific route columns. Runtime-supplied `link` and `dedupScope` remain
-application telemetry only and never reach the granted SQL signatures. The
-favorite/follow checks now run after the owner function takes sorted-pair
-`User` locks in `FOR SHARE` mode. Every ordinary block/unblock writer takes
+application telemetry only and never reach the granted SQL signatures. One
+central owner check covers the ten block-sensitive source types: blog comments,
+both commission sources, favorites, follows, followed-maker listing/blog
+fanout, messages, reviews, and seller broadcasts. It runs after the owner
+function takes sorted-pair `User` locks in `FOR SHARE` mode. Every ordinary block/unblock writer takes
 `FOR UPDATE` on the same sorted pair before changing `Block`; account deletion
 already takes its conflicting lifecycle lock before removing outgoing blocks.
 That shared protocol gives the absence check a deterministic linearization
@@ -102,8 +104,7 @@ message family proves the source message, its kind, participants,
 and conversation route; custom-order-ready extracts the listing id from the
 durable structured message inside the core, validates the reserved listing,
 seller, buyer, conversation and status, and derives the canonical listing route.
-Family wrappers should still derive or strictly template payload content where
-practical. Application authorization and block checks remain required; the
+Application authorization and block checks remain required; the
 draft must not be described as making forged content or block races impossible
 under arbitrary runtime compromise.
 

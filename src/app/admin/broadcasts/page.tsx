@@ -9,7 +9,7 @@ import { logAdminActionOrThrow } from "@/lib/audit";
 import { publicSellerPath } from "@/lib/publicPaths";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
-import { truncateText, truncateTextWithEllipsis } from "@/lib/sanitize";
+import { truncateText } from "@/lib/sanitize";
 import { sellerBroadcastEmailSubject } from "@/lib/email";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import { withDbUserContext } from "@/lib/dbUserContext";
@@ -35,7 +35,6 @@ async function deleteBroadcast(formData: FormData) {
         select: {
           id: true,
           sellerProfileId: true,
-          message: true,
           sentAt: true,
           recipientCount: true,
           sellerProfile: { select: { displayName: true } },
@@ -47,22 +46,6 @@ async function deleteBroadcast(formData: FormData) {
       const sellerName = broadcast.sellerProfile.displayName ?? "A maker you follow";
       const staleNotificationWindowEnd = new Date(broadcast.sentAt.getTime() + 60 * 60 * 1000);
       await deleteSellerBroadcastNotificationServiceRows(tx, broadcast.id);
-      // Temporary legacy fallback: rows created before source metadata existed.
-      // Remove before Notification INSERT/DELETE revocation is activated.
-      await tx.notification.deleteMany({
-        where: {
-          sourceType: null,
-          sourceId: null,
-          type: "SELLER_BROADCAST",
-          title: `Update from ${sellerName}`,
-          body: truncateTextWithEllipsis(broadcast.message, 100),
-          createdAt: { gte: broadcast.sentAt, lte: staleNotificationWindowEnd },
-          OR: [
-            { link: `/account/feed?broadcast=${broadcast.id}` },
-            { link: "/account/feed" },
-          ],
-        },
-      });
       await tx.emailOutbox.deleteMany({
         where: {
           preferenceKey: "EMAIL_SELLER_BROADCAST",

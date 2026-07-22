@@ -53,11 +53,27 @@ describe("Notification reciprocal-block serialization", () => {
         serviceSql.indexOf('FROM public."Block" AS source_block'),
       "the shared pair lock must precede all reciprocal Block absence checks",
     );
-    assert.equal(
-      (serviceSql.match(/FROM public\."Block" AS source_block/g) ?? []).length,
-      5,
-      "every reviewed block-sensitive source must retain its reciprocal absence check",
+    assert.equal((serviceSql.match(/FROM public\."Block" AS source_block/g) ?? []).length, 1);
+    const blockPolicy = serviceSql.slice(
+      serviceSql.indexOf("Social/content/message/commission notifications honor reciprocal blocks"),
+      serviceSql.indexOf("Source-tagged operations must prove the domain object"),
     );
+    for (const sourceType of [
+      "blog_comment",
+      "commission_interest",
+      "commission_request",
+      "favorite",
+      "follow",
+      "followed_maker_new_blog",
+      "followed_maker_new_listing",
+      "message",
+      "review",
+      "seller_broadcast",
+    ]) {
+      assert.match(blockPolicy, new RegExp(`'${sourceType}'`));
+    }
+    assert.doesNotMatch(blockPolicy, /'case'|'order_checkout'|'order_payment'/);
+    assert.match(blockPolicy, /blocking\s+-- must not hide transactional, dispute, or safety state/);
   });
 
   it("preserves account deletion's earlier conflicting lifecycle lock", () => {
