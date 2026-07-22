@@ -234,6 +234,18 @@ Read-only inventory reverified on 2026-07-21:
   The worktree's ignored `.vercel/project.json` was then pinned to reviewed
   Grainline project `prj_O2S8qcYFFWXn6nnrV0DkLyqMprIp`. Do not use `--yes`
   from an unlinked worktree for a read-only request.
+- The first dedicated postflight invocation from `4a5af403` failed during
+  configuration, before any provider/database request and before an evidence
+  artifact was created. A bounded identity-only diagnostic proved the local
+  `.env.local` `DATABASE_URL` is a pooler URL authenticated as `neondb_owner`
+  and lacks explicit port `5432`; it is not a runtime-role proof credential.
+  This does not describe Vercel Production, whose actual build passed the exact
+  `grainline_app_runtime` guard. The postflight must not use or normalize that
+  local owner URL. It instead reads the exact production runtime-role password
+  through the pinned Neon control plane, constructs the reviewed pooler URL in
+  memory, performs direct RLS proof, and never writes the password or URL to
+  disk/evidence. Local development remains a separate RLS-parity finding until
+  `.env.local` is safely converged to the restricted runtime role.
 
 ## Activation Sequence
 
@@ -375,15 +387,19 @@ source commit, which is separately pinned inside the operator:
 ```sh
 RUNTIME_DB_SEPARATION_POSTFLIGHT_CONFIRM=verify-live-runtime-db-separation \
 RUNTIME_DB_SEPARATION_POSTFLIGHT_OPERATOR_COMMIT=<exact-operator-sha> \
+RUNTIME_DB_SEPARATION_POSTFLIGHT_CI_RUN_ID=<exact-green-operator-ci-run-id> \
 RUNTIME_DB_SEPARATION_POSTFLIGHT_EVIDENCE_PATH=/Users/drewyoung/grainline-rollout-evidence/runtime-db-separation-production-postflight.json \
 npm run ops:verify-db-separation
 ```
 
-The postflight rejects ambient PostgreSQL credentials, loads the owner and
-runtime credentials only from their reviewed private local files, and emits no
-credential, raw provider error, or connection string. A failed run writes only
-a sanitized fail-closed artifact; never weaken a failed assertion to obtain a
-passing artifact.
+The postflight rejects ambient PostgreSQL credentials and loads the owner URL
+only from its reviewed private local file. It obtains the exact runtime-role
+password through the pinned Neon control plane, constructs the reviewed pooled
+URL in memory, and emits no credential, raw provider error, or connection
+string. A failure after configuration writes only a sanitized fail-closed
+artifact; a configuration failure may occur before a safe destination is
+accepted and therefore produces no artifact. Never weaken a failed assertion
+to obtain a passing artifact.
 
 ## Failure And Rollback
 

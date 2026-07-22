@@ -22,12 +22,23 @@ function config() {
   return parsePostflightConfig({
     RUNTIME_DB_SEPARATION_POSTFLIGHT_CONFIRM: POSTFLIGHT_CONFIRMATION,
     RUNTIME_DB_SEPARATION_POSTFLIGHT_OPERATOR_COMMIT: OPERATOR_COMMIT,
+    RUNTIME_DB_SEPARATION_POSTFLIGHT_CI_RUN_ID: "29878852331",
     RUNTIME_DB_SEPARATION_POSTFLIGHT_EVIDENCE_PATH:
       "/Users/drewyoung/grainline-rollout-evidence/test-postflight.json",
   }, new Date("2026-07-21T23:00:00.000Z"), {
     ownerDirectUrl: OWNER_URL,
     runtimeDatabaseUrl: RUNTIME_URL,
   });
+}
+
+function configWithoutRuntimeCredential() {
+  return parsePostflightConfig({
+    RUNTIME_DB_SEPARATION_POSTFLIGHT_CONFIRM: POSTFLIGHT_CONFIRMATION,
+    RUNTIME_DB_SEPARATION_POSTFLIGHT_OPERATOR_COMMIT: OPERATOR_COMMIT,
+    RUNTIME_DB_SEPARATION_POSTFLIGHT_CI_RUN_ID: "29878852331",
+    RUNTIME_DB_SEPARATION_POSTFLIGHT_EVIDENCE_PATH:
+      "/Users/drewyoung/grainline-rollout-evidence/test-postflight.json",
+  }, new Date("2026-07-21T23:00:00.000Z"), { ownerDirectUrl: OWNER_URL });
 }
 
 function databaseState() {
@@ -92,6 +103,7 @@ function dependencies() {
     readRuntimeProof: async () => ({ runtimeRole: "grainline_app_runtime", noContextRowCount: 0 }),
     readDeploymentState: () => ({ id: DEPLOYMENT_ID, sourceCommit: DEPLOYMENT_SOURCE_COMMIT }),
     readCiRun: () => ({ id: 29877480616, conclusion: "success" }),
+    readOperatorCiRun: () => ({ id: 29878852331, conclusion: "success" }),
     readMigrationRun: () => ({ id: 29872336361, conclusion: "success" }),
     readRoutes: async () => [{ path: "/", status: 200 }, { path: "/api/health", status: 200 }],
   };
@@ -100,9 +112,12 @@ function dependencies() {
 describe("runtime database credential separation postflight", () => {
   it("rejects ambient credentials and accepts exact local identities", () => {
     assert.equal(config().runtimeGuard.runtimeDatabaseVerified, true);
+    assert.equal(configWithoutRuntimeCredential().runtimeDatabaseUrl, null);
+    assert.equal(configWithoutRuntimeCredential().runtimeGuard, null);
     assert.throws(() => parsePostflightConfig({
       RUNTIME_DB_SEPARATION_POSTFLIGHT_CONFIRM: POSTFLIGHT_CONFIRMATION,
       RUNTIME_DB_SEPARATION_POSTFLIGHT_OPERATOR_COMMIT: OPERATOR_COMMIT,
+      RUNTIME_DB_SEPARATION_POSTFLIGHT_CI_RUN_ID: "29878852331",
       RUNTIME_DB_SEPARATION_POSTFLIGHT_EVIDENCE_PATH:
         "/Users/drewyoung/grainline-rollout-evidence/test-postflight.json",
       DIRECT_URL: OWNER_URL,
@@ -155,6 +170,18 @@ describe("runtime database credential separation postflight", () => {
     assert.equal(serialized.includes(RUNTIME_URL), false);
     assert.equal(serialized.includes("owner@"), false);
     assert.equal(serialized.includes("runtime@"), false);
+
+    let runtimeCredentialRead = false;
+    const revealedResult = await runPostflight(configWithoutRuntimeCredential(), {
+      ...dependencies(),
+      readRuntimeDatabaseUrl: () => {
+        runtimeCredentialRead = true;
+        return RUNTIME_URL;
+      },
+    });
+    assert.equal(runtimeCredentialRead, true);
+    assert.equal(revealedResult.runtimeIdentity.runtimeDatabaseVerified, true);
+    assert.equal(JSON.stringify(revealedResult).includes("runtime@"), false);
 
     await assert.rejects(() => runPostflight(config(), {
       ...dependencies(),

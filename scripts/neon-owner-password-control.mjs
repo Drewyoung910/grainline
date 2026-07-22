@@ -7,6 +7,7 @@ import {
   REVIEWED_DATABASE_REGION,
   REVIEWED_ENDPOINT_ID,
   REVIEWED_OWNER_ROLE,
+  REVIEWED_RUNTIME_ROLE,
 } from "./saved-search-phase-b-owner-rotation.mjs";
 import { parseGuardedNeonDatabaseIdentity } from "./guard-saved-search-rls-deploy.mjs";
 
@@ -195,6 +196,22 @@ export function revealReviewedNeonOwnerPassword() {
   return password;
 }
 
+export function validateNeonRuntimePasswordResponse(payload) {
+  const password = payload?.password;
+  if (!NEON_OWNER_PASSWORD_PATTERN.test(password)) {
+    throw new Error("Neon revealed runtime password did not match the reviewed shape");
+  }
+  return password;
+}
+
+export function revealReviewedNeonRuntimePassword() {
+  return validateNeonRuntimePasswordResponse(runNeonApi(
+    `/projects/${REVIEWED_NEON_PROJECT_ID}`
+      + `/branches/${REVIEWED_NEON_BRANCH_ID}`
+      + `/roles/${REVIEWED_RUNTIME_ROLE}/reveal_password`,
+  ));
+}
+
 export function verifyReviewedNeonTarget() {
   const project = runNeonApi(`/projects/${REVIEWED_NEON_PROJECT_ID}`)?.project;
   const branch = runNeonApi(
@@ -250,6 +267,32 @@ export function buildNeonOwnerDirectUrl(currentDirectUrl, password) {
     throw new Error("Neon owner DIRECT_URL changed the reviewed database identity");
   }
   return nextUrl;
+}
+
+export function buildNeonRuntimePoolerUrl(password) {
+  if (!NEON_OWNER_PASSWORD_PATTERN.test(password)) {
+    throw new Error("Neon runtime password does not match the reviewed shape");
+  }
+  const runtimeUrl = new URL(
+    `postgresql://${REVIEWED_RUNTIME_ROLE}:placeholder`
+      + `@${REVIEWED_ENDPOINT_ID}-pooler.${REVIEWED_DATABASE_REGION}.neon.tech`
+      + `:5432/${REVIEWED_DATABASE_NAME}`
+      + "?sslmode=verify-full&channel_binding=require",
+  );
+  runtimeUrl.password = password;
+  const value = runtimeUrl.toString();
+  const identity = parseGuardedNeonDatabaseIdentity(value, "Neon runtime DATABASE_URL");
+  if (
+    identity.endpointId !== REVIEWED_ENDPOINT_ID
+    || identity.databaseName !== REVIEWED_DATABASE_NAME
+    || identity.region !== REVIEWED_DATABASE_REGION
+    || identity.username !== REVIEWED_RUNTIME_ROLE
+    || !identity.isPooler
+    || identity.port !== "5432"
+  ) {
+    throw new Error("Neon runtime DATABASE_URL changed the reviewed database identity");
+  }
+  return value;
 }
 
 function defaultWait(milliseconds) {

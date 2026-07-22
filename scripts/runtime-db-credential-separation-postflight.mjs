@@ -48,7 +48,9 @@ import {
   readVercelIsolationState,
 } from "./runtime-db-credential-separation-operator.mjs";
 import {
+  buildNeonRuntimePoolerUrl,
   readReviewedNeonOwnerRoleMetadata,
+  revealReviewedNeonRuntimePassword,
   verifyReviewedNeonTarget,
 } from "./neon-owner-password-control.mjs";
 
@@ -67,7 +69,6 @@ export const RESET_OWNER_UPDATED_AT = "2026-07-21T22:01:31.000Z";
 
 const RESET_EVIDENCE_PATH =
   "/Users/drewyoung/grainline-rollout-evidence/runtime-db-separation-reset-b7c95fd0-20260721.json";
-const LEGACY_LOCAL_ENV_PATH = "/Users/drewyoung/grainline/.env.local";
 const EVIDENCE_DIRECTORY = "/Users/drewyoung/grainline-rollout-evidence";
 const REVIEWED_GH_PATH = "/opt/homebrew/bin/gh";
 const VERCEL_SCOPE = "drew-youngs-projects";
@@ -77,6 +78,7 @@ const CUSTOM_ALIASES = Object.freeze([
   "grainline.vercel.app",
 ]);
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/;
+const RUN_ID_PATTERN = /^[1-9][0-9]{7,19}$/;
 
 function required(env, key) {
   const value = env?.[key];
@@ -98,23 +100,6 @@ function assertPrivateRegularFile(filePath, label) {
   return stat;
 }
 
-function parseExactEnvValue(source, key) {
-  const assignments = source
-    .split(/\r?\n/)
-    .filter((line) => line.startsWith(`${key}=`));
-  if (assignments.length !== 1) throw new Error(`${key} local assignment is not exact`);
-  const raw = assignments[0].slice(key.length + 1);
-  if (raw.startsWith('"') && raw.endsWith('"')) return raw.slice(1, -1);
-  if (raw.startsWith("'") && raw.endsWith("'")) return raw.slice(1, -1);
-  if (raw === "" || /\s/.test(raw)) throw new Error(`${key} local assignment is invalid`);
-  return raw;
-}
-
-export function readLocalRuntimeDatabaseUrl(filePath = LEGACY_LOCAL_ENV_PATH) {
-  assertPrivateRegularFile(filePath, "reviewed local runtime credential file");
-  return parseExactEnvValue(readFileSync(filePath, "utf8"), "DATABASE_URL");
-}
-
 export function parsePostflightConfig(
   env = process.env,
   now = new Date(),
@@ -133,6 +118,17 @@ export function parsePostflightConfig(
   if (!COMMIT_PATTERN.test(operatorCommit)) {
     throw new Error("runtime database separation postflight operator commit is invalid");
   }
+  const operatorCiRunIdText = required(
+    env,
+    "RUNTIME_DB_SEPARATION_POSTFLIGHT_CI_RUN_ID",
+  );
+  if (!RUN_ID_PATTERN.test(operatorCiRunIdText)) {
+    throw new Error("runtime database separation postflight CI run id is invalid");
+  }
+  const operatorCiRunId = Number(operatorCiRunIdText);
+  if (!Number.isSafeInteger(operatorCiRunId)) {
+    throw new Error("runtime database separation postflight CI run id is unsafe");
+  }
   const evidencePath = required(env, "RUNTIME_DB_SEPARATION_POSTFLIGHT_EVIDENCE_PATH");
   if (
     !path.isAbsolute(evidencePath)
@@ -143,14 +139,15 @@ export function parsePostflightConfig(
   }
   const ownerDirectUrl = credentials.ownerDirectUrl
     ?? loadSeparationLocalDatabaseEnvironment(env).DIRECT_URL;
-  const runtimeDatabaseUrl = credentials.runtimeDatabaseUrl
-    ?? readLocalRuntimeDatabaseUrl();
-  const runtimeGuard = assertVercelRuntimeDatabaseIsolation({
-    VERCEL: "1",
-    VERCEL_ENV: "production",
-    DATABASE_URL: runtimeDatabaseUrl,
-    RUNTIME_DB_ROLE: REVIEWED_RUNTIME_ROLE,
-  });
+  const runtimeDatabaseUrl = credentials.runtimeDatabaseUrl ?? null;
+  const runtimeGuard = runtimeDatabaseUrl === null
+    ? null
+    : assertVercelRuntimeDatabaseIsolation({
+      VERCEL: "1",
+      VERCEL_ENV: "production",
+      DATABASE_URL: runtimeDatabaseUrl,
+      RUNTIME_DB_ROLE: REVIEWED_RUNTIME_ROLE,
+    });
   const ownerIdentity = parseVercelRuntimeDatabaseIdentity(ownerDirectUrl, "DIRECT_URL");
   if (
     ownerIdentity.isPooler
@@ -164,6 +161,7 @@ export function parsePostflightConfig(
   return Object.freeze({
     now,
     operatorCommit,
+    operatorCiRunId,
     evidencePath,
     ownerDirectUrl,
     runtimeDatabaseUrl,
@@ -431,6 +429,13 @@ export async function runPostflight(config, overrides = {}) {
       DEPLOYMENT_CI_RUN_ID,
       "CI",
       DEPLOYMENT_SOURCE_COMMIT,
+      "push",
+    ),
+    readOperatorCiRun: () => readGithubRun(
+      config.operatorCiRunId,
+      "CI",
+      config.operatorCommit,
+      "push",
     ),
     readMigrationRun: () => readGithubRun(
       MIGRATION_RUN_ID,
@@ -440,6 +445,9 @@ export async function runPostflight(config, overrides = {}) {
     ),
     verifyNeonTarget: verifyReviewedNeonTarget,
     readNeonRole: readReviewedNeonOwnerRoleMetadata,
+    readRuntimeDatabaseUrl: () => buildNeonRuntimePoolerUrl(
+      revealReviewedNeonRuntimePassword(),
+    ),
     readDatabaseState: readProductionMigrationDatabaseState,
     readOwnerState: realDatabaseOperations.readOwnerState,
     readOwnerSessionCount: realDatabaseOperations.readOtherOwnerSessionCount,
@@ -482,9 +490,19 @@ export async function runPostflight(config, overrides = {}) {
   );
   const ownerSessionCount = await dependencies.readOwnerSessionCount(config.ownerDirectUrl);
   if (ownerSessionCount !== 0) throw new Error("postflight owner session count is not zero");
-  const runtimeProof = await dependencies.readRuntimeProof(config.runtimeDatabaseUrl);
+  const runtimeDatabaseUrl = config.runtimeDatabaseUrl
+    ?? dependencies.readRuntimeDatabaseUrl();
+  const runtimeIdentity = config.runtimeGuard
+    ?? assertVercelRuntimeDatabaseIsolation({
+      VERCEL: "1",
+      VERCEL_ENV: "production",
+      DATABASE_URL: runtimeDatabaseUrl,
+      RUNTIME_DB_ROLE: REVIEWED_RUNTIME_ROLE,
+    });
+  const runtimeProof = await dependencies.readRuntimeProof(runtimeDatabaseUrl);
   const deployment = dependencies.readDeploymentState();
   const ciRun = dependencies.readCiRun();
+  const operatorCiRun = dependencies.readOperatorCiRun();
   const migrationRun = dependencies.readMigrationRun();
   const routes = await dependencies.readRoutes();
   return Object.freeze({
@@ -504,10 +522,11 @@ export async function runPostflight(config, overrides = {}) {
     database,
     canary,
     ownerSessionCount,
-    runtimeIdentity: config.runtimeGuard,
+    runtimeIdentity,
     runtimeProof,
     deployment,
     ciRun,
+    operatorCiRun,
     migrationRun,
     routes,
   });

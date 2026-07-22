@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   buildNeonOwnerDirectUrl,
+  buildNeonRuntimePoolerUrl,
+  validateNeonRuntimePasswordResponse,
   validateNeonOwnerResetResponse,
   waitForReviewedNeonOperations,
 } from "../scripts/neon-owner-password-control.mjs";
@@ -42,6 +44,22 @@ describe("pinned Neon owner password control", () => {
       OWNER_URL.replace("ep-plain-river-aaqg8gj4", "ep-wrong"),
       PASSWORD,
     ));
+  });
+
+  it("builds the exact pooled runtime URL from an in-memory Neon reveal", () => {
+    const runtime = buildNeonRuntimePoolerUrl(
+      validateNeonRuntimePasswordResponse({ password: PASSWORD }),
+    );
+    const parsed = new URL(runtime);
+    assert.equal(parsed.username, "grainline_app_runtime");
+    assert.equal(parsed.password, PASSWORD);
+    assert.equal(
+      parsed.hostname,
+      "ep-plain-river-aaqg8gj4-pooler.westus3.azure.neon.tech",
+    );
+    assert.equal(parsed.port, "5432");
+    assert.equal(parsed.pathname, "/neondb");
+    assert.throws(() => validateNeonRuntimePasswordResponse({ password: "short" }));
   });
 
   it("waits for every returned operation and fails on terminal error", async () => {
