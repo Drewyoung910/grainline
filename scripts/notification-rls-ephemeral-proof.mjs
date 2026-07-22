@@ -167,7 +167,7 @@ async function proveCatalog(owner) {
   });
 
   const policies = await owner.query(
-    `SELECT policyname, cmd, roles, qual, with_check
+    `SELECT policyname, cmd, roles::text[] AS roles, qual, with_check
        FROM pg_catalog.pg_policies
       WHERE schemaname = 'public' AND tablename = 'Notification'
       ORDER BY policyname`,
