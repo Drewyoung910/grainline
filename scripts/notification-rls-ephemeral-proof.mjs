@@ -994,6 +994,78 @@ async function configureOrderPaymentEvent(owner, stripeEventId, localAction, not
   );
 }
 
+async function configureGuildAdminAction(owner, action, verificationStatus, guildLevel, reason = null) {
+  await owner.query(
+    `UPDATE public."AdminAuditLog"
+        SET action = $2, reason = $3
+      WHERE id = $1`,
+    [fixture.guildAdminAuditId, action, reason],
+  );
+  await owner.query(
+    `UPDATE public."MakerVerification"
+        SET status = $2::public."VerificationStatus",
+            "reviewedById" = $3,
+            "reviewedAt" = pg_catalog.clock_timestamp(),
+            "updatedAt" = pg_catalog.clock_timestamp()
+      WHERE id = $1`,
+    [fixture.makerVerificationId, verificationStatus, fixture.staffUserId],
+  );
+  await owner.query(
+    `UPDATE public."SellerProfile"
+        SET "guildLevel" = $2::public."GuildLevel", "updatedAt" = pg_catalog.clock_timestamp()
+      WHERE id = $1`,
+    [fixture.sellerProfileId, guildLevel],
+  );
+}
+
+async function configureGuildSystemAction(owner, action, verificationStatus, guildLevel, reason = null) {
+  const actorId = action === "AUTO_REVOKE_GUILD_MEMBER" ? "guild-member-check" : "guild-metrics";
+  await owner.query(
+    `UPDATE public."SystemAuditLog"
+        SET "actorId" = $2,
+            action = $3,
+            reason = $4,
+            metadata = pg_catalog.jsonb_build_object(
+              'jobName', $2::text,
+              'sellerUserId', $5::text
+            )
+      WHERE id = $1`,
+    [fixture.guildSystemAuditId, actorId, action, reason, fixture.guildSystemUserId],
+  );
+  await owner.query(
+    `UPDATE public."MakerVerification"
+        SET status = $2::public."VerificationStatus", "updatedAt" = pg_catalog.clock_timestamp()
+      WHERE id = $1`,
+    [fixture.guildSystemVerificationId, verificationStatus],
+  );
+  await owner.query(
+    `UPDATE public."SellerProfile"
+        SET "guildLevel" = $2::public."GuildLevel",
+            "consecutiveMetricFailures" = CASE WHEN $3 = 'WARN_GUILD_MASTER_METRICS' THEN 1 ELSE 0 END,
+            "metricWarningSentAt" = CASE
+              WHEN $3 = 'WARN_GUILD_MASTER_METRICS' THEN pg_catalog.clock_timestamp()
+              ELSE NULL
+            END,
+            "updatedAt" = pg_catalog.clock_timestamp()
+      WHERE id = $1`,
+    [fixture.guildSystemProfileId, guildLevel, action],
+  );
+}
+
+async function configureListingReviewAudit(owner, action, finalStatus = null, reason = null) {
+  await owner.query(
+    `UPDATE public."AdminAuditLog"
+        SET action = $2,
+            reason = $3,
+            metadata = CASE
+              WHEN $4::text IS NULL THEN '{}'::jsonb
+              ELSE pg_catalog.jsonb_build_object('finalStatus', $4::text)
+            END
+      WHERE id = $1`,
+    [fixture.listingReviewAuditId, action, reason, finalStatus],
+  );
+}
+
 const creationFamilyCases = Object.freeze([
   {
     label: "source_fanout",
@@ -1544,6 +1616,187 @@ const creationFamilyCases = Object.freeze([
       owner,
       "evt_notification_proof_blocked_refund",
       "BLOCKED_CHECKOUT_REFUND_RECORDED",
+    ),
+  },
+  {
+    label: "listing_admin_review_sold_out",
+    functionName: "grainline_notification_create_moderation_event",
+    userId: fixture.sellerUserId,
+    type: "LISTING_APPROVED",
+    sourceType: "listing_admin_review",
+    sourceId: fixture.listingReviewAuditId,
+    relatedUserId: null,
+    expectedLink: `/listing/${fixture.listingId}`,
+    expectedTitle: "Listing approved",
+    expectedBodyIncludes: "Add stock",
+    resetSourceNotification: true,
+    setup: (owner) => configureListingReviewAudit(owner, "APPROVE_LISTING", "SOLD_OUT"),
+  },
+  {
+    label: "listing_admin_review_rejected",
+    functionName: "grainline_notification_create_moderation_event",
+    userId: fixture.sellerUserId,
+    type: "LISTING_REJECTED",
+    sourceType: "listing_admin_review",
+    sourceId: fixture.listingReviewAuditId,
+    relatedUserId: null,
+    expectedLink: `/dashboard/listings/${fixture.listingId}/edit`,
+    expectedTitle: "Listing needs changes",
+    expectedBodyIncludes: "Proof rejection reason",
+    setup: (owner) => configureListingReviewAudit(
+      owner,
+      "REJECT_LISTING",
+      null,
+      "Proof rejection reason",
+    ),
+  },
+  {
+    label: "guild_admin_reject_member",
+    functionName: "grainline_notification_create_verification_event",
+    userId: fixture.sellerUserId,
+    type: "VERIFICATION_REJECTED",
+    sourceType: "guild_admin_action",
+    sourceId: fixture.guildAdminAuditId,
+    relatedUserId: null,
+    expectedLink: "/dashboard/verification",
+    expectedTitle: "Guild Member application update",
+    expectedBodyIncludes: "Proof member rejection",
+    setup: (owner) => configureGuildAdminAction(
+      owner,
+      "REJECT_GUILD_MEMBER",
+      "REJECTED",
+      "NONE",
+      "Proof member rejection",
+    ),
+  },
+  {
+    label: "guild_admin_revoke_member",
+    functionName: "grainline_notification_create_verification_event",
+    userId: fixture.sellerUserId,
+    type: "VERIFICATION_REJECTED",
+    sourceType: "guild_admin_action",
+    sourceId: fixture.guildAdminAuditId,
+    relatedUserId: null,
+    expectedLink: "/dashboard/verification",
+    expectedTitle: "Guild Member badge revoked",
+    resetSourceNotification: true,
+    setup: (owner) => configureGuildAdminAction(
+      owner,
+      "REVOKE_GUILD_MEMBER",
+      "REJECTED",
+      "NONE",
+    ),
+  },
+  {
+    label: "guild_admin_approve_master",
+    functionName: "grainline_notification_create_verification_event",
+    userId: fixture.sellerUserId,
+    type: "VERIFICATION_APPROVED",
+    sourceType: "guild_admin_action",
+    sourceId: fixture.guildAdminAuditId,
+    relatedUserId: null,
+    expectedLink: `/seller/${fixture.sellerProfileId}`,
+    expectedTitle: "You are now a Guild Master!",
+    resetSourceNotification: true,
+    setup: (owner) => configureGuildAdminAction(
+      owner,
+      "APPROVE_GUILD_MASTER",
+      "GUILD_MASTER_APPROVED",
+      "GUILD_MASTER",
+    ),
+  },
+  {
+    label: "guild_admin_reject_master",
+    functionName: "grainline_notification_create_verification_event",
+    userId: fixture.sellerUserId,
+    type: "VERIFICATION_REJECTED",
+    sourceType: "guild_admin_action",
+    sourceId: fixture.guildAdminAuditId,
+    relatedUserId: null,
+    expectedLink: "/dashboard/verification",
+    expectedTitle: "Guild Master application update",
+    expectedBodyIncludes: "Proof master rejection",
+    resetSourceNotification: true,
+    setup: (owner) => configureGuildAdminAction(
+      owner,
+      "REJECT_GUILD_MASTER",
+      "GUILD_MASTER_REJECTED",
+      "GUILD_MEMBER",
+      "Proof master rejection",
+    ),
+  },
+  {
+    label: "guild_admin_revoke_master",
+    functionName: "grainline_notification_create_verification_event",
+    userId: fixture.sellerUserId,
+    type: "VERIFICATION_REJECTED",
+    sourceType: "guild_admin_action",
+    sourceId: fixture.guildAdminAuditId,
+    relatedUserId: null,
+    expectedLink: "/dashboard/verification",
+    expectedTitle: "Guild Master badge revoked",
+    resetSourceNotification: true,
+    setup: (owner) => configureGuildAdminAction(
+      owner,
+      "REVOKE_GUILD_MASTER",
+      "GUILD_MASTER_REJECTED",
+      "GUILD_MEMBER",
+    ),
+  },
+  {
+    label: "guild_admin_reinstate_member",
+    functionName: "grainline_notification_create_verification_event",
+    userId: fixture.sellerUserId,
+    type: "VERIFICATION_APPROVED",
+    sourceType: "guild_admin_action",
+    sourceId: fixture.guildAdminAuditId,
+    relatedUserId: null,
+    expectedLink: `/seller/${fixture.sellerProfileId}`,
+    expectedTitle: "Guild Member badge reinstated",
+    resetSourceNotification: true,
+    setup: (owner) => configureGuildAdminAction(
+      owner,
+      "REINSTATE_GUILD_MEMBER",
+      "APPROVED",
+      "GUILD_MEMBER",
+    ),
+  },
+  {
+    label: "guild_system_auto_revoke_member",
+    functionName: "grainline_notification_create_verification_event",
+    userId: fixture.guildSystemUserId,
+    type: "VERIFICATION_REJECTED",
+    sourceType: "guild_system_action",
+    sourceId: fixture.guildSystemAuditId,
+    relatedUserId: null,
+    expectedLink: "/dashboard/verification",
+    expectedTitle: "Guild Member badge revoked",
+    expectedBodyIncludes: "Proof automatic member revocation",
+    resetSourceNotification: true,
+    setup: (owner) => configureGuildSystemAction(
+      owner,
+      "AUTO_REVOKE_GUILD_MEMBER",
+      "REJECTED",
+      "NONE",
+      "Proof automatic member revocation",
+    ),
+  },
+  {
+    label: "guild_system_auto_revoke_master",
+    functionName: "grainline_notification_create_verification_event",
+    userId: fixture.guildSystemUserId,
+    type: "VERIFICATION_REJECTED",
+    sourceType: "guild_system_action",
+    sourceId: fixture.guildSystemAuditId,
+    relatedUserId: null,
+    expectedLink: "/dashboard/verification",
+    expectedTitle: "Guild Master badge revoked",
+    resetSourceNotification: true,
+    setup: (owner) => configureGuildSystemAction(
+      owner,
+      "AUTO_REVOKE_GUILD_MASTER",
+      "GUILD_MASTER_REJECTED",
+      "GUILD_MEMBER",
     ),
   },
 ]);

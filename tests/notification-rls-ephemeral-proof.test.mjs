@@ -77,6 +77,16 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
       "order_fulfillment_ready_for_pickup",
       "order_payment_seller_refund",
       "order_payment_blocked_checkout_refund",
+      "listing_admin_review_sold_out",
+      "listing_admin_review_rejected",
+      "guild_admin_reject_member",
+      "guild_admin_revoke_member",
+      "guild_admin_approve_master",
+      "guild_admin_reject_master",
+      "guild_admin_revoke_master",
+      "guild_admin_reinstate_member",
+      "guild_system_auto_revoke_member",
+      "guild_system_auto_revoke_master",
     ]) {
       assert.match(proof, new RegExp(`label: "${variant}"`));
     }
