@@ -171,12 +171,13 @@ blocked until that preflight is recorded. A later successful local diagnostic
 does not retroactively accept either consumed Vercel slot.
 
 A third predeployment-only attempt consumed no Vercel slot: its mandatory local
-preflight exited before JSON while the TSX bootstrap still depended on
-`npm exec` package resolution. Raw stderr was not retained, so that immediate
-cause remains unproven; a separate dummy run reproduced registry `ENOTFOUND`.
-The attempt was fully abort-cleaned with production unchanged. The operator now
-invokes a package-metadata-verified, pinned local TSX `4.21.0` binary directly;
-a fresh database/preflight remains required.
+preflight exited before JSON. A direct invocation later reproduced the exact
+pre-main defect: unsupported top-level `await` in the standalone TSX CommonJS
+output. The attempt was fully abort-cleaned with production unchanged. The
+script now uses a CommonJS-compatible invocation with a regression, and the
+operator directly invokes a package-metadata-verified, pinned local TSX
+`4.21.0` binary instead of relying on `npm exec`; a fresh database/preflight
+remains required.
 
 The isolated service-authority draft now uses seventeen owner-backed functions:
 one runtime-ungranted fixed-column core, ten granted creation families, one

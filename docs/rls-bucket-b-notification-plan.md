@@ -391,14 +391,15 @@ target, migration bytes, grants, and a fresh owner reset/reseed, but again
 exited with zero stdout. Because the real query runner had not started, this was
 a local tool-bootstrap failure rather than Notification policy evidence.
 
-Raw stderr was intentionally not retained, so the immediate subprocess error
-is not claimed as proven. The remaining pre-main dependency was `npm exec`
-package resolution for TSX, and a separate dummy-URL invocation reproduced an
-npm registry `ENOTFOUND` with zero script output. The operator now pins an
+Raw stderr was intentionally not retained in those artifacts. A later direct
+TSX invocation of the exact script reproduced the pre-main cause: top-level
+`await` is unsupported when this standalone TSX entrypoint is emitted as
+CommonJS. The script now calls `void main()` and a regression forbids the
+incompatible top-level form; a dummy loopback run reached the script's
+sanitized JSON error path. Independently, the operator now pins an
 already-installed TSX `4.21.0` package path, validates its package metadata,
-and invokes it directly with the reviewed Node binary. This keeps the preflight
-independent of npm registry/cache availability. The direct runner plus its IPC
-requirement passed outside the filesystem sandbox.
+and invokes it directly with the reviewed Node binary. This removes npm
+registry/cache availability from the preflight path.
 The third attempt was abort-cleaned: fixtures, bypass, child branch, and private
 state were removed; branch variables and provider deployments remained zero;
 production remained unchanged. Sanitized mode-`0600` artifacts are:

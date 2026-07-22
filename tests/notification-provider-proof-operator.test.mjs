@@ -33,6 +33,12 @@ describe("disposable Notification provider proof operator", () => {
     assert.throws(() => parseLastJsonObject('{"status":"passed"}\ntrailing noise\n'));
   });
 
+  it("keeps the standalone local preflight compatible with TSX CommonJS output", () => {
+    const preflight = readFileSync("scripts/notification-provider-local-preflight.ts", "utf8");
+    assert.match(preflight, /void main\(\);/);
+    assert.doesNotMatch(preflight, /^await main\(\);/m);
+  });
+
   it("builds only the exact reviewed staging database identities", () => {
     assert.notEqual(REVIEWED_STAGING_BRANCH_ID, REVIEWED_PRODUCTION_BRANCH_ID);
     const runtime = buildStagingDatabaseUrl("grainline_app_runtime", RUNTIME_PASSWORD, {
