@@ -8,7 +8,10 @@ describe("Notification recipient RLS authority candidate", () => {
     "utf8",
   );
   const ownerAccess = fs.readFileSync("src/lib/notificationOwnerAccess.ts", "utf8");
-  const runtimeGuard = fs.readFileSync("scripts/guard-runtime-db-env.mjs", "utf8");
+  const preparationVerifier = fs.readFileSync(
+    "scripts/verify-notification-preparation-release.mjs",
+    "utf8",
+  );
   const plan = fs.readFileSync("docs/rls-bucket-b-notification-plan.md", "utf8");
 
   const functions = [
@@ -68,7 +71,8 @@ describe("Notification recipient RLS authority candidate", () => {
     assert.doesNotMatch(ownerAccess, /withDbUserContext|prisma\.notification\./);
     assert.match(ownerAccess, /ARRAY\[\$\{Prisma\.join\(notificationIds\)\}\]::text\[\]/);
     assert.match(ownerAccess, /Number\.isSafeInteger\(count\)/);
-    assert.match(runtimeGuard, /notification-recipient-access\.sql/);
+    assert.match(preparationVerifier, /20260722051500_prepare_notification_rls/);
+    assert.match(preparationVerifier, /executable body drifted from disposable proof/);
   });
 
   it("removes the rejected transaction candidate from executable source", () => {
@@ -80,7 +84,7 @@ describe("Notification recipient RLS authority candidate", () => {
     assert.match(plan, /not as executable fallback scaffolding/);
   });
 
-  it("keeps authenticated route proof blocking after the accepted provider selection", () => {
+  it("records the accepted provider selection and completed authority and route gates", () => {
     assert.match(plan, /recipient-access\.sql/);
     assert.match(plan, /one database round trip/);
     assert.match(plan, /select(?:s|ed) the one-statement `SECURITY INVOKER`\s+recipient RPC direction/);
@@ -88,6 +92,7 @@ describe("Notification recipient RLS authority candidate", () => {
     assert.match(plan, /Notification's provider-performance gate is\s+now complete for the current design/);
     assert.match(plan, /PostgreSQL parse\/apply/);
     assert.match(plan, /First authenticated route-smoke attempt: failed closed/);
-    assert.match(plan, /authenticated route smoke and final authority review remain current gates/);
+    assert.match(plan, /Third authenticated route-smoke attempt: passed and cleaned/);
+    assert.match(plan, /This closes the final authority-review gate/);
   });
 });

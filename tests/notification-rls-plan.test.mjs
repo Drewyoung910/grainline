@@ -250,7 +250,10 @@ describe("Bucket B Notification RLS inventory", () => {
     );
     const notifications = fs.readFileSync("src/lib/notifications.ts", "utf8");
     const accountDeletion = fs.readFileSync("src/lib/accountDeletion.ts", "utf8");
-    const runtimeGuard = fs.readFileSync("scripts/guard-runtime-db-env.mjs", "utf8");
+    const preparationVerifier = fs.readFileSync(
+      "scripts/verify-notification-preparation-release.mjs",
+      "utf8",
+    );
 
     assert.match(schema, /relatedUserId String\?/);
     assert.match(schema, /@@index\(\[relatedUserId\]\)/);
@@ -265,9 +268,9 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(migration, /deliberately outside\s+-- prisma\/migrations/);
     assert.match(notifications, /NotificationRelatedUserFields/);
     assert.match(notifications, /relatedUserId: relatedUserId \?\? null,\s*\}\);/);
-    assert.match(runtimeGuard, /assertNoNotificationRlsDraftDeployment/);
-    assert.match(runtimeGuard, /notification-service-authority\.sql/);
-    assert.match(runtimeGuard, /deployment is barred while the unapplied Notification RLS draft is present/);
+    assert.match(preparationVerifier, /20260722051500_prepare_notification_rls/);
+    assert.match(preparationVerifier, /executable body drifted from disposable proof/);
+    assert.match(preparationVerifier, /activation migration must remain absent/);
 
     const relatedUserAssignments = files.reduce((count, file) => {
       const source = fs.readFileSync(file, "utf8");

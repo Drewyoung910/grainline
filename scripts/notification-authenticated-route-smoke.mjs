@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// Retained as a reproducible record of the completed disposable authenticated
+// route smoke. The temporary HTTP route is intentionally absent from releases.
 import { createHash, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import {

@@ -1,3 +1,5 @@
+// Retained non-runtime scaffold from the completed 2026-07-22 disposable
+// Notification provider proof. No application route imports this module.
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";

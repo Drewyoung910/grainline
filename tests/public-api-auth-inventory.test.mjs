@@ -18,8 +18,6 @@ const intentionalNoAuthPublicRoutes = new Set([
   "src/app/api/csp-report/route.ts",
   "src/app/api/email/unsubscribe/route.ts",
   "src/app/api/health/route.ts",
-  // RLS_CONTEXT_GATE_RUNNER_ONLY_TEST: disposable Preview-only, token-protected runner.
-  "src/app/api/internal/rls-context-gate/route.ts",
   "src/app/api/legal/data-request/route.ts",
   "src/app/api/newsletter/confirm/route.ts",
   "src/app/api/newsletter/route.ts",

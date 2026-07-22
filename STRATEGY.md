@@ -245,6 +245,17 @@ compatibility and rollback workflow against that committed preparation file,
 then exclude all endpoint-specific Preview runners and exceptions before clean
 release review.
 
+The clean release derivative keeps the generic/context PostgreSQL harness and
+the Notification provider measurement implementation as non-runtime scripts,
+but ships no `/api/internal/rls-context-gate` route, middleware exemption, or
+runner-only test. The branch-scoped Vercel deployment-disable entries and the
+temporary duplicate-database-URL build exception are also removed; only the
+standing `main: false` deployment interlock remains. Historical authenticated
+smoke/operator sources are retained as reproducibility records without an
+active package command. Production promotion is guarded by the exact
+preparation migration/tree verifier rather than by the former broad
+"draft file exists" Vercel build prohibition.
+
 Live Clerk does not permit backend `sessions.createSession` for this production
 instance. Authenticated operational proofs must use a short-lived one-use Clerk
 sign-in token consumed by the production Frontend API `ticket` strategy, then

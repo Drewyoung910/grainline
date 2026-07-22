@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// Retained as a reproducible record and template for the completed disposable
+// 2026-07-22 provider proof. It is not part of the production release path.
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import {

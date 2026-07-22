@@ -222,7 +222,8 @@ and context-reset proof. At this checkpoint, final authority review, a
 byte-pinned real migration, authenticated runtime-credential proof, and
 real-table candidate-aligned provider/route evidence remained open. The later
 accepted fifth-attempt section closes the provider-performance part only;
-authenticated route smoke and final authority review remain current gates.
+the later authority-review and third route-smoke sections close the two gates
+that remained at this historical checkpoint.
 
 ### Provider candidate result (2026-07-22)
 
@@ -782,7 +783,7 @@ alone.
 
 This closes the final authority-review gate; it does not authorize production
 activation. The authenticated route smoke has since passed. Remaining release
-gates are clean preparation-release packaging and full CI, production
+gates are a fresh promoted-artifact PostgreSQL proof and release CI, production
 preparation, protected legacy aggregate/backup inspection, compatible
 application deployment plus application-deployment rollback proof, activation,
 and catalog/runtime postflight.
@@ -839,6 +840,27 @@ against the promoted preparation hash is required before release packaging can
 be called complete. Endpoint-specific Preview routes, middleware exemptions,
 and provider pins remain explicitly excluded from the production package.
 
+### Production package cleanup (2026-07-22)
+
+The clean release derivative removes the disposable
+`/api/internal/rls-context-gate` route, its exact Clerk middleware exemption,
+the runner-only route test, all completed proof-branch entries from
+`vercel.json`, and the temporary Vercel database-alias/draft exception. Only
+`main: false` remains as the application-deployment interlock. The provider
+measurement implementation moved from `src/lib` to `scripts`, so it remains a
+reviewable and reusable non-runtime proof scaffold without entering a Next.js
+route bundle. The generic context harness, PostgreSQL preparation/authority/
+rollback proofs, 54/54 source gate, authenticated-smoke record, operational
+canary tool, and all permanent security regression tests remain.
+
+The old `[NOTIFICATION_RLS_DRAFT_PRESENT]` build result below is retained only
+as historical evidence from the disposable proof phase. It is no longer the
+release interlock: the exact preparation migration hash, full migration-tree
+hash, absence of the activation migration, and recursive absence of Preview
+runner artifacts now fail closed in CI before database migration tests. The
+cleaned local suite passes 1,890 tests with three expected skips and zero
+failures before the fresh promoted-artifact PostgreSQL workflow.
+
 ## Isolation Boundary And Hot-Path Decision
 
 - The isolated branch may retain the verified inventory, source-lifecycle
@@ -855,7 +877,7 @@ and provider pins remain explicitly excluded from the production package.
   transactions for the Notification bell/page hot reads and selects narrow one-statement
   `SECURITY INVOKER` recipient RPCs as the candidate direction. Both
   order-reversed, full-concurrency-primed slots passed. Authenticated route
-  smoke and production activation evidence remain separate gates.
+  smoke later passed; production activation evidence remains a separate gate.
 - Bell/page RPCs must
   preserve explicit projections, counts, pagination, owner isolation, context
   reset, and hot-route SLOs. Mark-read and export need the same candidate review.
@@ -1007,38 +1029,38 @@ direct Prisma Notification owner reads or updates outside the RPC helper:
   family, stable replay, the one-shot back-in-stock claim, and both two-session
   block-race checks. Each of the ten family fixtures rejects a forged recipient;
   mismatched restock evidence neither creates nor consumes. Provider behavior
-  is now accepted for the current design; pre-activation review and direct
-  authenticated runtime-credential route proof remain separate gates. Direct
+  is now accepted for the current design; the later pre-activation review and
+  direct authenticated runtime-credential route proof passed. Direct
   or generic runtime creation remains unacceptable. Its 59 creation cases
   execute all 26 family-dispatched
   private-core source-validation branches, all 38 successful source/type pairs,
   and their security-relevant action/status/recipient-direction variants with
   valid, replay, and forged-recipient evidence, plus the dedicated back-in-stock
   claim. The later split candidate completes byte-pinned disposable migration
-  proof; authenticated-route proof and application-deployment rollback remain
-  required before calling the service-authority layer activation-ready.
+  proof. The authenticated-route proof later passed; application-deployment
+  rollback remains required before production activation.
 - Role provisioning and the generic grant audit preserve Notification's
   asymmetric table/column grants, initial `NO FORCE` phase, exact policies, and
   25-function ACL/mode split. Accepted split-migration run `29894705025` now
   exercises those migration-derived expectations and database-first rollback
-  against disposable PostgreSQL 16. Provider proof is complete;
-  authenticated-route proof and the application deployment rollback sequence
-  remain separate gates.
+  against disposable PostgreSQL 16. Provider and authenticated-route proof are
+  complete; the application deployment rollback sequence remains a separate
+  gate.
 - Recipient bell/page/count/export/mark-read uses the narrow one-statement
   `SECURITY INVOKER` RPC direction. The rejected transaction wrapper is retained
   only in Git and evidence history, not as executable fallback scaffolding.
-  The disposable PostgreSQL and two-pass provider gates are complete. Final
-  promotion still requires the consolidated SQL/application authority review
-  and direct authenticated route evidence.
+  The disposable PostgreSQL, two-pass provider, consolidated authority, and
+  direct authenticated-route gates are complete. Production promotion still
+  requires the staged release sequence documented above.
 - The social/message/commission block-race protocol is implemented, statically
   guarded, and passed both transaction orderings under the CI runtime policy
   role. The proof uses CI-superuser `SET ROLE`, not a production runtime
   credential, so it proves policy-role permissions and lock behavior without
   claiming production authentication-path equivalence.
 - The generic wrapper findings remain blocking evidence against adopting that
-  architecture. Extra High review must retain rather than downgrade those
-  findings while completing authenticated route smoke and final authority
-  review; the two fresh provider passes are complete.
+  architecture. The completed Extra High review retained rather than
+  downgraded them, selected the one-statement RPC architecture, and closed the
+  authenticated-route and final-authority gates.
 
 These blockers permit isolated implementation drafts, ephemeral PostgreSQL
 proof, and candidate-aligned provider comparison. They prohibit merge,

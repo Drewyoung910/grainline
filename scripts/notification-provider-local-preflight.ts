@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import {
   parseNotificationProviderGateConfig,
   runNotificationProviderGate,
-} from "@/lib/notificationRlsProviderGate";
+} from "./notification-provider-gate";
 
 function isPerformanceThresholdIssue(issue: string) {
   return issue.includes(" exceeded the fixed ");

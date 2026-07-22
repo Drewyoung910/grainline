@@ -3,10 +3,15 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-const gate = readFileSync("src/lib/notificationRlsProviderGate.ts", "utf8");
-const route = readFileSync("src/app/api/internal/rls-context-gate/route.ts", "utf8");
+const gate = readFileSync("scripts/notification-provider-gate.ts", "utf8");
+const preflight = readFileSync("scripts/notification-provider-local-preflight.ts", "utf8");
 
-describe("temporary real Notification provider gate", () => {
+describe("retained non-runtime Notification provider proof scaffold", () => {
+  it("stays outside application runtime source", () => {
+    assert.match(gate, /Retained non-runtime scaffold/);
+    assert.match(preflight, /\.\/notification-provider-gate/);
+  });
+
   it("uses the real recipient application helpers and real service wrapper", () => {
     for (const helper of [
       "countUnreadOwnerNotifications",
@@ -67,17 +72,9 @@ describe("temporary real Notification provider gate", () => {
     assert.match(gate, /provider recipient context leaked beyond one statement/);
   });
 
-  it("takes no caller-controlled fixture identity and emits only sanitized failures", () => {
-    assert.match(route, /runSlot: z\.union/);
-    assert.match(route, /token: z\.string/);
-    assert.doesNotMatch(route, /userId: z\.|notificationId: z\.|sellerProfileId: z\./);
-    assert.match(route, /failed before sanitized evidence was available/);
-    assert.match(route, /stage: failureStage/);
-    assert.match(
-      route,
-      /"configuration" \| "claim" \| "notification_gate" \| "completion"/,
-    );
-    assert.doesNotMatch(route, /error\?\.message|error\.message|detail:/);
-    assert.match(route, /acceptanceEligible: false/);
+  it("takes no caller-controlled fixture identity and emits sanitized local failures", () => {
+    assert.doesNotMatch(gate, /userId: z\.|notificationId: z\.|sellerProfileId: z\./);
+    assert.match(preflight, /redacted connection-bearing error/);
+    assert.doesNotMatch(preflight, /console\.log\(error\)/);
   });
 });
