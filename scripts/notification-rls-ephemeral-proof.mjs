@@ -209,6 +209,7 @@ async function proveCatalog(owner) {
     can_update_user_id: false,
   });
 
+  const expectedFunctions = new Set([...recipientFunctions, ...serviceFunctions]);
   const functions = await owner.query(
     `SELECT proc.proname, proc.prosecdef, proc.proconfig,
             pg_catalog.has_function_privilege($1, proc.oid, 'EXECUTE') AS runtime_execute,
@@ -219,14 +220,14 @@ async function proveCatalog(owner) {
                 ) AS acl
                WHERE acl.grantee = 0 AND acl.privilege_type = 'EXECUTE'
             ) AS public_execute
-       FROM pg_catalog.pg_proc AS proc
-       JOIN pg_catalog.pg_namespace AS ns ON ns.oid = proc.pronamespace
+      FROM pg_catalog.pg_proc AS proc
+      JOIN pg_catalog.pg_namespace AS ns ON ns.oid = proc.pronamespace
       WHERE ns.nspname = 'public'
-        AND proc.proname LIKE 'grainline_notification_%'
+        AND proc.proname = ANY($2::text[])
       ORDER BY proc.proname`,
-    [runtimeRole],
+    [runtimeRole, [...expectedFunctions]],
   );
-  const expectedFunctions = new Set([...recipientFunctions, ...serviceFunctions]);
+  assert.equal(functions.rows.length, expectedFunctions.size, "Notification proof function overload drifted");
   assert.deepEqual(new Set(functions.rows.map((row) => row.proname)), expectedFunctions);
   for (const fn of functions.rows) {
     assert.deepEqual(fn.proconfig, ["search_path=pg_catalog"], `${fn.proname} must pin search_path`);
