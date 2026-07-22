@@ -6,6 +6,7 @@ import { blockRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimi
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
+import { createUserBlock, deleteUserBlock } from "@/lib/blockMutationAccess";
 
 export async function POST(
   req: Request,
@@ -35,17 +36,8 @@ export async function POST(
   const { id: blockedId } = await params;
   if (blockedId === me.id) return privateJson({ error: "Cannot block yourself" }, { status: 400 });
 
-  const target = await prisma.user.findUnique({
-    where: { id: blockedId },
-    select: { id: true, deletedAt: true },
-  });
-  if (!target || target.deletedAt) return privateJson({ error: "User not found" }, { status: 404 });
-
-  await prisma.block.upsert({
-    where: { blockerId_blockedId: { blockerId: me.id, blockedId } },
-    create: { blockerId: me.id, blockedId },
-    update: {},
-  });
+  const blockCreated = await createUserBlock(me.id, blockedId);
+  if (!blockCreated) return privateJson({ error: "User not found" }, { status: 404 });
 
   // Remove reciprocal Follow rows (both directions)
   try {
@@ -97,9 +89,7 @@ export async function DELETE(
 
   const { id: blockedId } = await params;
 
-  await prisma.block.deleteMany({
-    where: { blockerId: me.id, blockedId },
-  });
+  await deleteUserBlock(me.id, blockedId);
 
   return privateJson({ ok: true, blocked: false });
 }

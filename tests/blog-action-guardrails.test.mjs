@@ -53,16 +53,19 @@ describe("blog dashboard action guardrails", () => {
     assert.match(adminBlog, /link: `\/blog\/\$\{comment\.post\.slug\}#comment-\$\{commentId\}`/);
     assert.match(adminBlog, /type: "BLOG_COMMENT_REPLY"[\s\S]*dedupScope: commentId/);
     assert.match(adminBlog, /type: "NEW_BLOG_COMMENT"[\s\S]*dedupScope: commentId/);
+    assert.equal((adminBlog.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.BLOG_COMMENT/g) ?? []).length, 2);
+    assert.equal((adminBlog.match(/sourceId: commentId/g) ?? []).length, 2);
     assert.match(blogPost, /id=\{`comment-\$\{c\.id\}`\}/);
   });
 
   it("removes source-specific blog comment notifications when staff delete a comment", () => {
     const adminBlog = source("src/app/admin/blog/page.tsx");
+    const serviceSql = source("docs/rls-drafts/notification-service-authority.sql");
 
-    assert.match(adminBlog, /tx\.notification\.deleteMany\(\{/);
-    assert.match(adminBlog, /type = deleted\.parentId \? "BLOG_COMMENT_REPLY" : "NEW_BLOG_COMMENT"/);
-    assert.match(adminBlog, /link: `\/blog\/\$\{deleted\.post\.slug\}#comment-\$\{deleted\.id\}`/);
-    assert.match(adminBlog, /link: `\/blog\/\$\{deleted\.post\.slug\}`/);
+    assert.match(adminBlog, /deleteBlogCommentNotificationServiceRows\(tx, deleted\.id\)/);
+    assert.doesNotMatch(adminBlog, /tx\.notification\.|sourceType: null|sourceId: null/);
+    assert.match(serviceSql, /notification\."sourceType" = 'blog_comment'/);
+    assert.match(serviceSql, /notification\."sourceId" = p_comment_id/);
   });
 
   it("does not treat archive and republish as a brand-new blog post", () => {

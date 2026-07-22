@@ -86,7 +86,7 @@ completed alternative.
 | `SellerMetrics` | `BLOCKED_DESIGN` | Seller analytics | Seller performance and sales totals; seller, staff, guild logic and jobs | Separate seller-private metrics from any public eligibility projection; service-only calculation writes |
 | `SellerRatingSummary` | `ALTERNATIVE_REVIEW` | Public aggregate projections | Derived public rating summary; public readers and calculation jobs | Read-only ordinary runtime plus service-only refresh and integrity proof |
 | `SiteMetricsSnapshot` | `ALTERNATIVE_REVIEW` | Public aggregate projections | Derived site metrics; public readers and calculation jobs | Read-only ordinary runtime plus service-only singleton refresh |
-| `Notification` | `PLANNED_RLS` | Bucket B Notification | Direct user-owned reads and mark-read updates with cross-user and system creation | Complete write, cleanup, admin, cron, webhook and fanout design before independently staged activation |
+| `Notification` | `PLANNED_RLS` | Bucket B Notification | Direct user-owned reads and mark-read updates with cross-user and system creation | All 54 emission paths have source-derived payload/family validation drafts and the shared block-race lock protocol is statically guarded; provisioning/audit preserve exact `SELECT` + `UPDATE(read)`, initial `NO FORCE`, two policies, and the 25-function public/runtime ACL split. Disposable PostgreSQL proves all ten granted creation families, all 26 family-dispatched private-core source types, all 38 successful source/type pairs and their security-relevant variants, replay, forged-recipient rejection, back-in-stock claims, both block orderings, the byte-pinned compatibility split, migration ordering, generic grant audit, and database-first rollback. The activation purge remains intentionally irreversible. After two consumed SQL-harness slots, one predeployment TSX-bootstrap abort, and one two-slot run that exposed a symmetric first-workload ramp, every disposable environment was removed and each defect gained a regression. The fifth fresh attempt's full-concurrency-primed local preflight and both order-reversed Vercel slots passed exact correctness, zero errors, fixed performance limits, attestation, and success cleanup. Provider performance/locality is complete for this design. The first authenticated route attempt failed closed before session/fixture creation because no dedicated marked account had accepted terms; full teardown passed and revealed a Preview/production Redis account-state namespace collision now fixed on the branch. The consolidated Extra High SQL/application authority review passed at `ab2d08a6` with no new blocker. Inspect legacy aggregates, keep any purge atomic with activation, then pass a fresh authorized authenticated real-table/route smoke, clean release/full CI, and application-deployment rollback gate before production preparation and activation |
 | `ListingViewDaily` | `BLOCKED_DESIGN` | Seller analytics | Seller-private listing analytics with public event ingestion and aggregation jobs | Seller-through-profile reads plus service-only counter writes and hot-path plan review |
 | `SellerProfileViewDaily` | `BLOCKED_DESIGN` | Seller analytics | Seller-private profile analytics with public event ingestion and aggregation jobs | Seller ownership reads plus service-only counter writes and hot-path plan review |
 | `Follow` | `BLOCKED_DESIGN` | Aggregate and fanout | Owner relationship plus public follower counts and cross-user fanout | Denormalized count and explicit fanout service path before owner-row policies |
@@ -135,11 +135,15 @@ future groups:
   `src/lib/savedBlogPostOwnerAccess.ts`.
 
 `tests/rls-feasibility-plan.test.mjs` rejects new direct owner-style access
-outside those helpers. This reduces later callsite refactoring, but the helpers
-currently default to ordinary Prisma access and do not by themselves establish
-transaction-local RLS context. Cross-user notification creation, cart cleanup,
-webhooks, fanout, account deletion, and cron paths also remain explicit design
-work. Centralization is preparation, not active RLS or staging proof.
+outside those helpers. This reduces later callsite refactoring. The isolated
+Notification helper now requires branded transaction-local user context, and
+its cross-user create, exact lifecycle cleanup, and retention paths target
+fixed-purpose unapplied service functions. Cart and SavedBlogPost helpers still
+default to ordinary Prisma access. Notification prelaunch inspection and the
+atomic activation purge,
+recipient RPC real-table/provider proof, policy/grant activation, and every later group's
+service paths remain explicit work. Centralization and draft wiring are
+preparation, not active RLS or staging proof.
 
 ## Future Saved-Search Match Alerts
 

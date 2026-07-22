@@ -5,10 +5,8 @@ import { revalidatePath } from "next/cache";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import {
-  countOwnerNotifications,
-  countUnreadOwnerNotifications,
   markOwnerNotificationsRead,
-  ownerNotificationPageRows,
+  ownerNotificationPageData,
 } from "@/lib/notificationOwnerAccess";
 import { markReadRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { safeNotificationPath } from "@/lib/notificationLinks";
@@ -106,16 +104,9 @@ export default async function NotificationsPage({
   const { page: pageStr } = await searchParams;
   const requestedPage = parseBoundedPositiveIntParam(pageStr, 1, 1000);
 
-  const [total, unreadCount] = await Promise.all([
-    countOwnerNotifications(me.id),
-    countUnreadOwnerNotifications(me.id),
-  ]);
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const page = Math.min(requestedPage, totalPages);
-
-  const notifications = await ownerNotificationPageRows(me.id, {
-    skip: (page - 1) * PAGE_SIZE,
-    take: PAGE_SIZE,
+  const { notifications, page, totalPages, unreadCount } = await ownerNotificationPageData(me.id, {
+    requestedPage,
+    pageSize: PAGE_SIZE,
   });
 
   return (

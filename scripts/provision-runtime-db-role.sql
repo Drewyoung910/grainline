@@ -130,6 +130,8 @@ SELECT
 -- The production runtime principal must be able to authenticate, while
 -- NOINHERIT ensures any future accidental membership does not become an
 -- implicit privilege path before the membership-free guard catches it.
+BEGIN;
+
 SELECT format('ALTER ROLE %I LOGIN NOINHERIT', :'runtime_role');
 \gexec
 
@@ -334,6 +336,51 @@ TO :"runtime_role";
 -- silently restore UPDATE after the RLS migration removes it.
 REVOKE UPDATE ON TABLE public."SavedSearch" FROM :"runtime_role";
 
+-- Notification keeps ordinary CRUD until its reviewed recipient policies are
+-- installed. Once those exact policies exist, every provisioning rerun must
+-- converge back to SELECT plus column-only UPDATE(read). The surrounding
+-- transaction prevents the broad bulk grant above from becoming visible
+-- between GRANT and this narrowing step.
+WITH notification_activation AS (
+  SELECT
+    c.relrowsecurity
+      AND COUNT(p.oid) = 2
+      AND COUNT(p.oid) FILTER (
+        WHERE p.polname IN (
+          'grainline_notification_recipient_select',
+          'grainline_notification_recipient_update'
+        )
+      ) = 2 AS active,
+    c.relrowsecurity OR c.relforcerowsecurity OR COUNT(p.oid) > 0 AS started
+  FROM pg_class c
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+  LEFT JOIN pg_policy p ON p.polrelid = c.oid
+  WHERE n.nspname = 'public'
+    AND c.relname = 'Notification'
+    AND c.relkind IN ('r', 'p')
+  GROUP BY c.relrowsecurity, c.relforcerowsecurity
+), failure AS (
+  SELECT 'Notification RLS is partially or unexpectedly configured; refusing runtime-role provisioning' AS message
+  FROM notification_activation
+  WHERE started AND NOT active
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '') AS grainline_role_provisioning_failure,
+  COALESCE((SELECT active FROM notification_activation), false) AS notification_rls_active;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+\quit 1
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :notification_rls_active
+REVOKE INSERT, UPDATE, DELETE ON TABLE public."Notification" FROM :"runtime_role";
+GRANT UPDATE (read) ON TABLE public."Notification" TO :"runtime_role";
+\endif
+
 GRANT USAGE ON TYPE
   public."BlogAuthorType",
   public."BlogPostStatus",
@@ -371,6 +418,63 @@ SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
   FROM saved_search_rpc
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
+
+-- Once Notification RLS is active, provisioning also converges the entire
+-- fixed RPC surface. The generic core remains owner-private; every other
+-- recipient/service function gets direct non-grantable runtime EXECUTE only.
+\if :notification_rls_active
+REVOKE ALL ON FUNCTION public.grainline_notification_unread_count(text) FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON FUNCTION public.grainline_notification_bell(text, integer) FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON FUNCTION public.grainline_notification_page(text, integer, integer) FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON FUNCTION public.grainline_notification_mark_one_read(text, text) FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON FUNCTION public.grainline_notification_mark_many_read(text, text[]) FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON FUNCTION public.grainline_notification_mark_conversation_read(text, text) FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON FUNCTION public.grainline_notification_export(text) FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON FUNCTION public.grainline_notification_recent_low_stock(text, text, timestamp) FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON FUNCTION public.grainline_notification_create_core(text, text, public."NotificationType", text, text, text) FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON FUNCTION public.grainline_notification_create_source_fanout(text, text, public."NotificationType", text, text, text) FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON FUNCTION public.grainline_notification_create_social_event(text, text, public."NotificationType", text, text, text) FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON FUNCTION public.grainline_notification_create_message_event(text, text, public."NotificationType", text, text, text) FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON FUNCTION public.grainline_notification_create_case_event(text, text, public."NotificationType", text, text, text) FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON FUNCTION public.grainline_notification_create_commission_event(text, text, public."NotificationType", text, text, text) FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON FUNCTION public.grainline_notification_create_inventory_event(text, text, public."NotificationType", text, text, text) FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON FUNCTION public.grainline_notification_create_verification_event(text, text, public."NotificationType", text, text, text) FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON FUNCTION public.grainline_notification_create_moderation_event(text, text, public."NotificationType", text, text, text) FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON FUNCTION public.grainline_notification_create_account_warning(text, text, public."NotificationType", text, text, text) FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON FUNCTION public.grainline_notification_create_order_event(text, text, public."NotificationType", text, text, text) FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON FUNCTION public.grainline_notification_claim_back_in_stock(text, text, text) FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON FUNCTION public.grainline_notification_delete_for_account(text) FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON FUNCTION public.grainline_notification_delete_blog_comment(text) FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON FUNCTION public.grainline_notification_delete_seller_broadcast(text) FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON FUNCTION public.grainline_notification_prune_read_batch() FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON FUNCTION public.grainline_notification_prune_unread_batch() FROM PUBLIC, :"runtime_role";
+
+GRANT EXECUTE ON FUNCTION public.grainline_notification_unread_count(text) TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.grainline_notification_bell(text, integer) TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.grainline_notification_page(text, integer, integer) TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.grainline_notification_mark_one_read(text, text) TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.grainline_notification_mark_many_read(text, text[]) TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.grainline_notification_mark_conversation_read(text, text) TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.grainline_notification_export(text) TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.grainline_notification_recent_low_stock(text, text, timestamp) TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.grainline_notification_create_source_fanout(text, text, public."NotificationType", text, text, text) TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.grainline_notification_create_social_event(text, text, public."NotificationType", text, text, text) TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.grainline_notification_create_message_event(text, text, public."NotificationType", text, text, text) TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.grainline_notification_create_case_event(text, text, public."NotificationType", text, text, text) TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.grainline_notification_create_commission_event(text, text, public."NotificationType", text, text, text) TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.grainline_notification_create_inventory_event(text, text, public."NotificationType", text, text, text) TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.grainline_notification_create_verification_event(text, text, public."NotificationType", text, text, text) TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.grainline_notification_create_moderation_event(text, text, public."NotificationType", text, text, text) TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.grainline_notification_create_account_warning(text, text, public."NotificationType", text, text, text) TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.grainline_notification_create_order_event(text, text, public."NotificationType", text, text, text) TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.grainline_notification_claim_back_in_stock(text, text, text) TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.grainline_notification_delete_for_account(text) TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.grainline_notification_delete_blog_comment(text) TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.grainline_notification_delete_seller_broadcast(text) TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.grainline_notification_prune_read_batch() TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.grainline_notification_prune_unread_batch() TO :"runtime_role";
+\endif
+\unset notification_rls_active
 
 WITH saved_search_rpc(function_signature) AS (
   VALUES
@@ -573,3 +677,5 @@ ALTER DEFAULT PRIVILEGES FOR ROLE :"migration_role" IN SCHEMA public
 -- dependencies are granted explicitly above. If future migrations revoke PUBLIC
 -- defaults for functions or types, add explicit runtime default privileges here
 -- and update tests/db-grant-inventory.test.mjs.
+
+COMMIT;

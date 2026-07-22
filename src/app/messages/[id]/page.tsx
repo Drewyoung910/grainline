@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { markOwnerMessageNotificationsRead } from "@/lib/notificationOwnerAccess";
 import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
 import { sendNewMessageEmail } from "@/lib/email";
@@ -232,6 +233,7 @@ export default async function ThreadPage({
 
     const messageSentAt = new Date();
     let committedRecipientId = recipientId;
+    let committedNotificationMessageId: string | null = null;
     try {
       const txResult = await prisma.$transaction(async (tx) => {
         const freshConversation = await tx.conversation.findFirst({
@@ -276,6 +278,8 @@ export default async function ThreadPage({
         });
         if (freshBlockExists) return { ok: false as const, error: "blocked" };
 
+        let notificationMessageId: string | null = null;
+
         // 1) attachments -> each as its own message (JSON payload in body)
         for (const a of atts) {
           await claimDirectUploadForUrl({
@@ -294,6 +298,7 @@ export default async function ThreadPage({
             data: { conversationId: id, senderId: me.id, recipientId: freshRecipientId, body: payload },
             select: { id: true },
           });
+          notificationMessageId = createdAttachment.id;
           await claimDirectUploadForUrl({
             client: tx,
             url: a.url,
@@ -305,9 +310,11 @@ export default async function ThreadPage({
 
         // 2) text message if present
         if (body) {
-          await tx.message.create({
+          const createdText = await tx.message.create({
             data: { conversationId: id, senderId: me.id, recipientId: freshRecipientId, body },
+            select: { id: true },
           });
+          notificationMessageId = createdText.id;
         }
 
         // bump thread; set firstResponseAt if this is the first reply from the other side
@@ -328,10 +335,15 @@ export default async function ThreadPage({
           where: { id },
           data: { updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null },
         });
-        return { ok: true as const, recipientId: freshRecipientId };
+        return {
+          ok: true as const,
+          recipientId: freshRecipientId,
+          notificationMessageId,
+        };
       });
       if (!txResult.ok) return { ok: false, error: txResult.error };
       committedRecipientId = txResult.recipientId;
+      committedNotificationMessageId = txResult.notificationMessageId;
     } catch (error) {
       if (error instanceof DirectUploadClaimError) {
         return { ok: false, error: error.message };
@@ -340,13 +352,16 @@ export default async function ThreadPage({
     }
 
     // Notify recipient
-    if (hasMessageContent) {
+    if (hasMessageContent && committedNotificationMessageId) {
       await createNotification({
         userId: committedRecipientId,
         type: "NEW_MESSAGE",
         title: `${me.name ?? "Someone"} sent you a message`,
         body: body || "Sent an attachment",
         link: `/messages/${id}`,
+        relatedUserId: me.id,
+        sourceType: NOTIFICATION_SOURCE_TYPES.MESSAGE,
+        sourceId: committedNotificationMessageId,
       });
     }
 

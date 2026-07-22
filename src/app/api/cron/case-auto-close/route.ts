@@ -3,6 +3,7 @@ import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { verifyCronRequest } from "@/lib/cronAuth";
 import { createNotification } from "@/lib/notifications";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 import { mapWithConcurrency } from "@/lib/concurrency";
@@ -65,7 +66,7 @@ export async function GET(req: Request) {
             data: { status: "RESOLVED", resolution: "DISMISSED", resolvedAt },
           });
           if (result.count === 0) return false;
-          await logSystemActionOrThrow({
+          const auditLogId = await logSystemActionOrThrow({
             client: tx,
             actorType: "cron",
             actorId: "case-auto-close",
@@ -82,7 +83,7 @@ export async function GET(req: Request) {
               resolvedAt: resolvedAt.toISOString(),
             },
           });
-          return true;
+          return auditLogId;
         });
         if (!updated) return;
 
@@ -96,6 +97,8 @@ export async function GET(req: Request) {
             body: "This case was closed automatically after the resolution window expired.",
             link: `/dashboard/orders/${c.orderId}`,
             dedupScope: c.id,
+            sourceType: NOTIFICATION_SOURCE_TYPES.CASE_SYSTEM_ACTION,
+            sourceId: updated,
           }));
         }
         notifications.push(() => createNotification({
@@ -105,6 +108,8 @@ export async function GET(req: Request) {
           body: "This case was closed automatically after the resolution window expired.",
           link: `/dashboard/sales/${c.orderId}`,
           dedupScope: c.id,
+          sourceType: NOTIFICATION_SOURCE_TYPES.CASE_SYSTEM_ACTION,
+          sourceId: updated,
         }));
         await mapWithConcurrency(notifications, 2, (send) => send());
         stalePendingClosed++;
@@ -150,7 +155,7 @@ export async function GET(req: Request) {
             data: { status: "UNDER_REVIEW" },
           });
           if (result.count === 0) return false;
-          await logSystemActionOrThrow({
+          const auditLogId = await logSystemActionOrThrow({
             client: tx,
             actorType: "cron",
             actorId: "case-auto-close",
@@ -166,7 +171,7 @@ export async function GET(req: Request) {
               cutoff: openCutoff.toISOString(),
             },
           });
-          return true;
+          return auditLogId;
         });
         if (!updated) return;
 
@@ -180,6 +185,8 @@ export async function GET(req: Request) {
             body: "The seller did not respond in time, so Grainline staff will review this case.",
             link: `/dashboard/orders/${c.orderId}`,
             dedupScope: c.id,
+            sourceType: NOTIFICATION_SOURCE_TYPES.CASE_SYSTEM_ACTION,
+            sourceId: updated,
           }));
         }
         notifications.push(() => createNotification({
@@ -189,6 +196,8 @@ export async function GET(req: Request) {
           body: "This case was escalated to Grainline staff because the response window expired.",
           link: `/dashboard/sales/${c.orderId}`,
           dedupScope: c.id,
+          sourceType: NOTIFICATION_SOURCE_TYPES.CASE_SYSTEM_ACTION,
+          sourceId: updated,
         }));
         await mapWithConcurrency(notifications, 2, (send) => send());
         abandonedEscalated++;
@@ -236,7 +245,7 @@ export async function GET(req: Request) {
             data: { status: "UNDER_REVIEW" },
           });
           if (result.count === 0) return false;
-          await logSystemActionOrThrow({
+          const auditLogId = await logSystemActionOrThrow({
             client: tx,
             actorType: "cron",
             actorId: "case-auto-close",
@@ -252,7 +261,7 @@ export async function GET(req: Request) {
               cutoff: discussionCutoff.toISOString(),
             },
           });
-          return true;
+          return auditLogId;
         });
         if (!updated) return;
 
@@ -266,6 +275,8 @@ export async function GET(req: Request) {
             body: "This case has been inactive, so Grainline staff will review it.",
             link: `/dashboard/orders/${c.orderId}`,
             dedupScope: c.id,
+            sourceType: NOTIFICATION_SOURCE_TYPES.CASE_SYSTEM_ACTION,
+            sourceId: updated,
           }));
         }
         notifications.push(() => createNotification({
@@ -275,6 +286,8 @@ export async function GET(req: Request) {
           body: "This case was escalated to Grainline staff after the discussion stalled.",
           link: `/dashboard/sales/${c.orderId}`,
           dedupScope: c.id,
+          sourceType: NOTIFICATION_SOURCE_TYPES.CASE_SYSTEM_ACTION,
+          sourceId: updated,
         }));
         await mapWithConcurrency(notifications, 2, (send) => send());
         staleDiscussionEscalated++;

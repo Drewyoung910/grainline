@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { withDbUserContext } from "@/lib/dbUserContext";
+import { deleteAccountNotificationServiceRows } from "@/lib/notificationServiceAccess";
 import { deleteAllOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
 import { accountDeletionMediaUrlsForCleanup } from "@/lib/urlValidation";
 import { redis } from "@/lib/ratelimit";
@@ -66,11 +67,6 @@ type AuditLogRedactionCandidate = {
   metadata: Prisma.JsonValue;
   reason: string | null;
   directAccountReference: boolean;
-};
-
-type NotificationRedactionCandidate = {
-  title: string;
-  body: string;
 };
 
 type BodyRedactionCandidate = {
@@ -211,22 +207,6 @@ function normalizedSensitiveValues(values: Iterable<string | null | undefined>) 
 
 function escapePostgresRegex(value: string) {
   return value.replace(/[\\.^$|?*+()[\]{}]/g, "\\$&");
-}
-
-function notificationTextMatchSql(value: string) {
-  const normalized = value.toLowerCase();
-  if (Array.from(normalized).length >= 3) {
-    return Prisma.sql`(
-      position(${normalized} in lower(title)) > 0 OR
-      position(${normalized} in lower(body)) > 0
-    )`;
-  }
-
-  const pattern = `(^|[^[:alnum:]])${escapePostgresRegex(normalized)}([^[:alnum:]]|$)`;
-  return Prisma.sql`(
-    lower(title) ~ ${pattern} OR
-    lower(body) ~ ${pattern}
-  )`;
 }
 
 function bodyTextMatchSql(value: string) {
@@ -380,98 +360,6 @@ async function collectAdminAuditLogRedactionUpdates({
   return updates;
 }
 
-async function collectNotificationsBySensitiveText(
-  tx: Prisma.TransactionClient,
-  deletedUserId: string,
-  sensitiveValues: string[],
-) {
-  const notifications = new Map<string, NotificationRedactionCandidate>();
-
-  for (const value of sensitiveValues.filter((item) => Array.from(item).length >= 2)) {
-    const textMatchSql = notificationTextMatchSql(value);
-    let cursor: string | null = null;
-
-    for (;;) {
-      const query: Prisma.Sql = cursor
-        ? Prisma.sql`
-          SELECT id, title, body
-          FROM "Notification"
-          WHERE id > ${cursor}
-            AND "userId" <> ${deletedUserId}
-            AND ${textMatchSql}
-          ORDER BY id ASC
-          LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
-        `
-        : Prisma.sql`
-          SELECT id, title, body
-          FROM "Notification"
-          WHERE "userId" <> ${deletedUserId}
-            AND ${textMatchSql}
-          ORDER BY id ASC
-          LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
-        `;
-      const matches: { id: string; title: string; body: string }[] = await tx.$queryRaw(query);
-      matches.forEach((notification) => {
-        if (!notifications.has(notification.id)) {
-          notifications.set(notification.id, {
-            title: notification.title,
-            body: notification.body,
-          });
-        }
-      });
-
-      if (matches.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
-      cursor = matches[matches.length - 1]?.id ?? null;
-      if (!cursor) break;
-    }
-  }
-
-  return notifications;
-}
-
-async function redactNotificationsAboutDeletedAccount(
-  tx: Prisma.TransactionClient,
-  deletedUserId: string,
-  sensitiveValues: string[],
-) {
-  const notifications = await collectNotificationsBySensitiveText(tx, deletedUserId, sensitiveValues);
-
-  for (const [id, notification] of notifications) {
-    const title = redactAccountDeletionText(notification.title, sensitiveValues);
-    const body = redactAccountDeletionText(notification.body, sensitiveValues);
-    if (!title.changed && !body.changed) continue;
-
-    await tx.notification.update({
-      where: { id },
-      data: {
-        title: title.text,
-        body: body.text,
-      },
-    });
-  }
-}
-
-async function deleteNotificationSourceRows(
-  tx: Prisma.TransactionClient,
-  sourceType: string,
-  sourceIds: string[],
-) {
-  for (const sourceIdChunk of chunks(sourceIds)) {
-    await tx.notification.deleteMany({
-      where: { sourceType, sourceId: { in: sourceIdChunk } },
-    });
-  }
-}
-
-async function deleteNotificationLinkRows(
-  tx: Prisma.TransactionClient,
-  whereInputs: Prisma.NotificationWhereInput[],
-) {
-  for (const whereChunk of chunks(whereInputs, 100)) {
-    await tx.notification.deleteMany({ where: { OR: whereChunk } });
-  }
-}
-
 async function redactEmailOutboxRowsForDeletedMaker(
   tx: Prisma.TransactionClient,
   whereInputs: Prisma.EmailOutboxWhereInput[],
@@ -515,39 +403,8 @@ async function cleanupDeletedSellerFanoutRows(
     where: { sellerId: sellerProfileId },
     select: { id: true },
   });
-  const blogPosts = await tx.blogPost.findMany({
-    where: { sellerProfileId },
-    select: { id: true, slug: true },
-  });
-
   const broadcastIds = broadcasts.map((broadcast) => broadcast.id);
   const listingIds = listings.map((listing) => listing.id);
-  const blogPostIds = blogPosts.map((post) => post.id);
-  const blogPostLinks = blogPosts.map((post) => `/blog/${post.slug}`);
-
-  await deleteNotificationSourceRows(tx, "seller_broadcast", broadcastIds);
-  await deleteNotificationSourceRows(tx, "followed_maker_new_listing", listingIds);
-  await deleteNotificationSourceRows(tx, "followed_maker_new_blog", blogPostIds);
-
-  await deleteNotificationLinkRows(tx, [
-    ...broadcastIds.map((id) => ({
-      type: "SELLER_BROADCAST" as const,
-      link: `/account/feed?broadcast=${id}`,
-    })),
-    ...listingIds.map((id) => ({
-      type: "FOLLOWED_MAKER_NEW_LISTING" as const,
-      link: { startsWith: `/listing/${id}--` },
-    })),
-    ...listingIds.map((id) => ({
-      type: "FOLLOWED_MAKER_NEW_LISTING" as const,
-      link: `/listing/${id}`,
-    })),
-    ...blogPostLinks.map((link) => ({
-      type: "FOLLOWED_MAKER_NEW_BLOG" as const,
-      link,
-    })),
-  ]);
-
   await redactEmailOutboxRowsForDeletedMaker(
     tx,
     [
@@ -1656,11 +1513,10 @@ export async function anonymizeUserAccount(
     await deleteAllOwnerSavedSearches(user.id, tx);
     await tx.stockNotification.deleteMany({ where: { userId: user.id } });
     await scrubCheckoutStockReservationsForDeletedAccount(tx, user.id, user.sellerProfile?.id ?? null);
-    await tx.notification.deleteMany({ where: { userId: user.id } });
+    await deleteAccountNotificationServiceRows(tx, user.id);
     await tx.savedBlogPost.deleteMany({ where: { userId: user.id } });
     await tx.reviewVote.deleteMany({ where: { userId: user.id } });
     await tx.block.deleteMany({ where: { blockerId: user.id } });
-    await redactNotificationsAboutDeletedAccount(tx, user.id, accountSensitiveValues);
     await tx.message.updateMany({
       where: { senderId: user.id },
       data: { body: "[Message deleted]" },

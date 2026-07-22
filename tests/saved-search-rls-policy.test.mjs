@@ -268,7 +268,7 @@ describe("SavedSearch exact RLS policy guardrails", () => {
     assert.match(audit, /const expectedRlsPolicyTables = new Set\(inventory\.rlsPolicyTables \?\? \[\]\)/);
     assert.match(
       audit,
-      /row\.table_name === "SavedSearch" && expectedRlsPolicyTables\.has\("SavedSearch"\)/,
+      /if \(expectedRlsPolicyTables\.has\("SavedSearch"\)\)/,
     );
     assert.match(audit, /absent from the reviewed migration inventory/);
     assert.match(audit, /policy_role\.role_oid = 0 THEN 'PUBLIC'/);

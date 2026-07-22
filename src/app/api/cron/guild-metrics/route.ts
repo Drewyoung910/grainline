@@ -13,6 +13,7 @@ import {
   listingViewDailyRetentionCutoff,
 } from "@/lib/metrics";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import {
   sendGuildMasterWarningEmail,
   sendGuildMasterRevokedEmail,
@@ -221,15 +222,33 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
     // First failure — send warning
     const failedLabels = buildFailedLabels(criteria, metrics);
 
-    const warned = await prisma.sellerProfile.updateMany({
-      where: { id: seller.id, guildLevel: "GUILD_MASTER", consecutiveMetricFailures: 0 },
-      data: {
-        consecutiveMetricFailures: 1,
-        metricWarningSentAt: now,
-        lastMetricCheckAt: now,
-      },
+    const warningAuditId = await prisma.$transaction(async (tx) => {
+      const warned = await tx.sellerProfile.updateMany({
+        where: { id: seller.id, guildLevel: "GUILD_MASTER", consecutiveMetricFailures: 0 },
+        data: {
+          consecutiveMetricFailures: 1,
+          metricWarningSentAt: now,
+          lastMetricCheckAt: now,
+        },
+      });
+      if (warned.count === 0) return null;
+      return logSystemActionOrThrow({
+        client: tx,
+        actorType: "cron",
+        actorId: "guild-metrics",
+        action: "WARN_GUILD_MASTER_METRICS",
+        targetType: "SELLER_PROFILE",
+        targetId: seller.id,
+        reason: "Guild Master metrics fell below requirements.",
+        metadata: {
+          jobName: "guild-metrics",
+          sellerUserId: seller.userId,
+          warningSentAt: now.toISOString(),
+          failedCriteria: failedLabels,
+        },
+      });
     });
-    if (warned.count === 0) return { processed: 1, warned: 0, revokedMaster: 0 };
+    if (!warningAuditId) return { processed: 1, warned: 0, revokedMaster: 0 };
 
     await createNotification({
       userId: seller.userId,
@@ -237,6 +256,8 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
       title: "Guild Master status at risk",
       body: "Your metrics have fallen below Guild Master requirements. You have 30 days to improve before your badge is reviewed. Check your dashboard for details.",
       link: "/dashboard/verification",
+      sourceType: NOTIFICATION_SOURCE_TYPES.GUILD_SYSTEM_ACTION,
+      sourceId: warningAuditId,
     });
 
     if (seller.user?.email && await shouldSendEmail(seller.userId, "EMAIL_VERIFICATION_REJECTED")) {
@@ -281,9 +302,9 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
   }
 
   const revocationCutoff = new Date(now.getTime() - GUILD_MASTER_WARNING_GRACE_MS);
-  let revoked = false;
+  let revocationAuditId: string | null = null;
   try {
-    revoked = await prisma.$transaction(async (tx) => {
+    revocationAuditId = await prisma.$transaction(async (tx) => {
       const verificationUpdated = await tx.makerVerification.updateMany({
         where: {
           sellerProfileId: seller.id,
@@ -295,7 +316,7 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
           reviewNotes: "Metrics fell below requirements for two consecutive months.",
         },
       });
-      if (verificationUpdated.count === 0) return false;
+      if (verificationUpdated.count === 0) return null;
 
       const updated = await tx.sellerProfile.updateMany({
         where: {
@@ -317,7 +338,7 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
       });
       assertGuildVerificationTransition(updated.count, "revoke Guild Master");
 
-      await logSystemActionOrThrow({
+      return logSystemActionOrThrow({
         client: tx,
         actorType: "cron",
         actorId: "guild-metrics",
@@ -333,12 +354,11 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
           failedCriteria: buildFailedLabels(revocationCriteria, revocationMetrics),
         },
       });
-      return true;
     });
   } catch (error) {
     if (!isGuildVerificationTransitionConflict(error)) throw error;
   }
-  if (!revoked) return { processed: 1, warned: 0, revokedMaster: 0 };
+  if (!revocationAuditId) return { processed: 1, warned: 0, revokedMaster: 0 };
   revalidateFeaturedMakerCaches();
 
   await createNotification({
@@ -347,6 +367,8 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
     title: "Guild Master badge revoked",
     body: "Your metrics fell below requirements for two consecutive months. Your Guild Member badge remains active.",
     link: "/dashboard/verification",
+    sourceType: NOTIFICATION_SOURCE_TYPES.GUILD_SYSTEM_ACTION,
+    sourceId: revocationAuditId,
   });
 
   if (seller.user?.email && await shouldSendEmail(seller.userId, "EMAIL_VERIFICATION_REJECTED")) {

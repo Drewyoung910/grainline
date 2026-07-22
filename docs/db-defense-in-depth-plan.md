@@ -29,11 +29,15 @@ first production RLS table on the low-blast-radius `SavedSearch` model.
   App-layer ownership and visibility checks remain required.
 - Do not point normal app traffic at the migration owner role once
   least-privilege staging is proven.
-- Do not begin Bucket B in this pass. Bucket A is `SavedSearch` only, through its
-  production activation and explicit phase-B decision. `Notification` and every
-  later-table design remain a separate pass even if their future ordering stays
-  documented below. SavedSearch rollout phase B (`FORCE`) remains Bucket A and
-  must not be confused with Bucket B.
+- Do not promote Bucket B in this pass. Bucket A is `SavedSearch` only, through
+  its production activation and explicit phase-B decision. A later
+  comprehensive-RLS mandate permits isolated inventory, documentation, static
+  guards, isolated implementation and unapplied database drafts, but no
+  Notification change may touch a live database, merge, deploy, or enter
+  provider evidence before Phase B
+  and runtime credential separation pass production postflight. SavedSearch
+  rollout phase B (`FORCE`) remains Bucket A and must not be confused with
+  Bucket B.
 
 ## Phase 0 - Baseline
 
@@ -414,14 +418,15 @@ with zero request/correctness/isolation errors. The sole issue compared the
 legacy multi-statement wrapper with a one-statement autocommit baseline (Prisma
 burst p95 146.5 ms versus 71.0 ms), even though that wrapper is not the
 SavedSearch list/delete Release-0 candidate and the remaining wrapped units were
-already transactions. For Bucket A/Phase A, retain that wrapper-versus-
-autocommit latency as an explicit diagnostic while keeping its errors,
-correctness, isolation, turnover, wrapper-versus-transaction thresholds, and
-the one-statement RPC target/burst thresholds promotion-blocking. Any Bucket B
-work or newly wrapped formerly-autocommit path must restore the generic
-wrapper-versus-autocommit threshold as a blocking gate. This is candidate
-alignment, not retroactive acceptance: the consumed run remains failed and a
-fresh run id, trigger secret, commit, deployment, and two new slots are required.
+already transactions. For Bucket A/Phase A only, that run's wrapper-versus-
+autocommit latency was treated as diagnostic while its errors, correctness,
+isolation, turnover, wrapper-versus-transaction thresholds, and the
+one-statement RPC target/burst thresholds remained promotion-blocking. The
+Bucket B branch has now removed the diagnostic escape hatch: generic raw and
+Prisma wrapper-versus-autocommit thresholds are blocking again. This does not
+retroactively accept the consumed run. Bucket B requires a fresh run id,
+trigger secret, commit, deployment, and two new passing slots with the restored
+gate.
 
 Provider transport proof completed 2026-07-19: Git-integrated Preview commit
 `ef8622b1822bf700d3bc97757a631bdaed503018`, deployment
@@ -436,6 +441,24 @@ temporary secrets were deleted, and the staging runtime password was rotated.
 This completes the synthetic transport/performance prerequisite for constructing
 Release 0. It is not real-table SavedSearch policy proof and does not authorize
 Phase A, production RLS activation, or Bucket B.
+
+Historical failed Notification candidate result 2026-07-22: disposable
+Git-integrated Preview commit
+`98b1bfefc4b49e10db84df21ef89c8d88243ada3`, deployment
+`dpl_8PyoHFUXDocojifoBGLp99nshkta`, consumed slot 1 and returned HTTP `422`
+with seven blocking issues; slot 2 was not called. The one-statement Prisma RPC
+candidate passed target and burst comparisons (p95 `24.9/36.2ms` versus
+one-statement baselines `19.8/36.4ms`) with zero request, correctness, or
+isolation errors. Every issue came from the generic interactive wrapper crossing
+the unchanged wrapper-versus-autocommit p95 or average-hold 2x limits, including
+raw target p95 `80.3ms` versus `38.9ms` and Prisma burst p95 `147.1ms` versus
+`73.1ms`. This is failed promotion evidence and must not be replayed or
+retroactively accepted. It rejects the wrapper for Notification hot reads and
+supports a candidate-aligned one-statement RPC design, but a reviewed gate
+change plus two fresh real Notification candidate passes are required before
+Bucket B activation. Abort cleanup deleted the exact Preview, 24 branch
+variables, synthetic fixture, disposable Neon branch, and temporary secrets;
+production deployment `dpl_6Y6C3NT81zbhLc6eHJAveCH1Ave8` remained READY.
 
 Performance-path investigation (2026-07-17): a one-statement CTE that attempted
 to call `set_config` and then read the protected canary failed closed because it
@@ -1028,10 +1051,14 @@ RLS to Bucket B or claiming protection against arbitrary runtime code.
 
 ## Phase 5 - Notification RLS Prototype
 
-Status: Bucket B, explicitly paused for a separate pass. Owner read/update
-centralization and a direct-access guard exist, but service write/delete model,
-context wiring, policies, and staging validation are not authorized by the
-current SavedSearch rollout.
+Status: Bucket B isolated implementation is active for a separate pass. Owner
+read/update centralization, a direct-access guard, source/related-user metadata
+hardening, and an experimental context-wrapped recipient candidate exist on an
+isolated branch. The wrapper is not the selected production hot path. Unapplied
+service-authority, policy, grant, and migration drafts plus local tests may
+continue. Live-database/staging changes, provider promotion evidence, merge, and
+deployment are not authorized until SavedSearch Phase B and runtime credential
+separation are live and healthy.
 
 Purpose: protect user notification reads and mark-read updates after the first
 direct-owner table proves the context adoption pattern, while preserving
@@ -1061,6 +1088,13 @@ Read/update paths to inventory and wrap before enabling:
 - message-thread auto-mark-read updates
 - seller manual-stock low-stock notification dedupe reads
 - account export notification reads
+
+Before implementing policies, compare the experimental interactive-transaction
+candidate against narrow one-statement `SECURITY INVOKER` recipient RPCs using
+Notification-specific bell/page/mark-read/export route SLOs. The historical
+generic wrapper failure is a credible warning but not a substitute for this
+candidate-aligned result. Keep recipient RPC authority separate from the narrow
+cross-user creation and cleanup service design.
 
 The manual-stock low-stock dedupe read is an authenticated-seller user context
 path because the stock route proves `seller.userId = me.id` before the read.

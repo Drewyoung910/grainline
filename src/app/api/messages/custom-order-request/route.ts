@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { sendCustomOrderRequest } from "@/lib/email";
 import { customOrderRequestRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
@@ -192,7 +193,7 @@ export async function POST(req: Request) {
     listingTitle: contextListingTitle,
   });
 
-  await prisma.message.create({
+  const requestMessage = await prisma.message.create({
     data: {
       conversationId: convo.id,
       senderId: me.id,
@@ -200,6 +201,7 @@ export async function POST(req: Request) {
       body: messageBody,
       kind: "custom_order_request",
     },
+    select: { id: true },
   });
 
   await prisma.conversation.update({
@@ -214,6 +216,9 @@ export async function POST(req: Request) {
       title: `${me.name ?? "A customer"} wants a custom piece!`,
       body: truncateText(cleanedDescription, 60),
       link: `/messages/${convo.id}`,
+      relatedUserId: me.id,
+      sourceType: NOTIFICATION_SOURCE_TYPES.MESSAGE,
+      sourceId: requestMessage.id,
     });
   } catch (error) {
     Sentry.captureException(error, {

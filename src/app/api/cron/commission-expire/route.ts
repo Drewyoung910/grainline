@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { CommissionStatus } from "@prisma/client";
 import { verifyCronRequest } from "@/lib/cronAuth";
 import { createNotification } from "@/lib/notifications";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 import { mapWithConcurrency } from "@/lib/concurrency";
@@ -98,6 +99,8 @@ export async function GET(req: Request) {
             body: `"${title}" is now closed to new maker interest.`,
             link: `/commission/${request.id}`,
             dedupScope: request.id,
+            sourceType: NOTIFICATION_SOURCE_TYPES.COMMISSION_REQUEST,
+            sourceId: request.id,
           });
           await mapWithConcurrency(sellerUserIds, 10, (userId) =>
             createNotification({
@@ -107,6 +110,9 @@ export async function GET(req: Request) {
               body: `"${title}" is no longer accepting interest.`,
               link: `/commission/${request.id}`,
               dedupScope: request.id,
+              relatedUserId: request.buyerId,
+              sourceType: NOTIFICATION_SOURCE_TYPES.COMMISSION_REQUEST,
+              sourceId: request.id,
             }),
           );
         } catch (error) {

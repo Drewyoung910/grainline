@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
 
@@ -54,8 +55,9 @@ export async function fanOutBlogPostToFollowers({
         title: `New post from ${sellerDisplay}`,
         body: publicPost.title,
         link: `/blog/${publicPost.slug}`,
-        sourceType: "followed_maker_new_blog",
+        sourceType: NOTIFICATION_SOURCE_TYPES.FOLLOWED_MAKER_NEW_BLOG,
         sourceId: publicPost.id,
+        relatedUserId: sellerUserId,
       }),
     );
 

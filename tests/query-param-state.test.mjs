@@ -85,6 +85,11 @@ describe("query parameter parsing helpers", () => {
     const adminCases = readFileSync("src/app/admin/cases/page.tsx", "utf8");
     const adminFlagged = readFileSync("src/app/admin/flagged/page.tsx", "utf8");
     const notifications = readFileSync("src/app/dashboard/notifications/page.tsx", "utf8");
+    const notificationOwnerAccess = readFileSync("src/lib/notificationOwnerAccess.ts", "utf8");
+    const notificationRecipientSql = readFileSync(
+      "docs/rls-drafts/notification-recipient-access.sql",
+      "utf8",
+    );
 
     for (const source of [accountOrders, dashboardSales, adminOrders, adminCases, adminFlagged, notifications]) {
       assert.match(source, /import \{[^}]*parseBoundedPositiveIntParam[^}]*\} from "@\/lib\/queryParams";/);
@@ -115,9 +120,11 @@ describe("query parameter parsing helpers", () => {
     assert.match(adminFlagged, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(adminFlagged, /skip: \(safePage - 1\) \* PAGE_SIZE/);
 
-    assert.match(notifications, /const \[total, unreadCount\] = await Promise\.all\(/);
-    assert.match(notifications, /const page = Math\.min\(requestedPage, totalPages\)/);
-    assert.match(notifications, /skip: \(page - 1\) \* PAGE_SIZE/);
+    assert.match(notifications, /ownerNotificationPageData\(me\.id, \{/);
+    assert.match(notifications, /requestedPage,\s*pageSize: PAGE_SIZE/);
+    assert.match(notificationOwnerAccess, /public\.grainline_notification_page\(/);
+    assert.match(notificationRecipientSql, /LEAST\(\s*bounded_requested_page,/);
+    assert.match(notificationRecipientSql, /OFFSET \(\(SELECT bounds\.page FROM bounds\) - 1\) \* bounded_page_size/);
   });
 
   it("keeps admin queues capped and stably ordered", () => {

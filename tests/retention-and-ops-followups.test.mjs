@@ -20,8 +20,10 @@ describe("retention and ops-health follow-ups", () => {
   it("wires unread notification and webhook event pruning into notification-prune", () => {
     const route = readFileSync("src/app/api/cron/notification-prune/route.ts", "utf8");
 
-    assert.match(route, /pruneReadNotifications\(readCutoff\)/);
-    assert.match(route, /pruneUnreadNotifications\(unreadCutoff\)/);
+    assert.match(route, /pruneReadNotifications\(\)/);
+    assert.match(route, /pruneUnreadNotifications\(\)/);
+    assert.match(route, /pruneReadNotificationServiceBatch/);
+    assert.match(route, /pruneUnreadNotificationServiceBatch/);
     assert.match(route, /pruneWebhookEventRetention\(\)/);
     assert.match(route, /unreadPruned/);
     assert.match(route, /webhookEventsPruned/);

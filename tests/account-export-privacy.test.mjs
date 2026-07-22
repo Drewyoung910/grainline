@@ -330,9 +330,9 @@ describe("account export privacy coverage", () => {
     );
 
     assert.ok(notificationStart >= 0, "account export must query Notification");
-    assert.match(notificationAccess, /ownerNotificationExportRows\(\s*userId: string,\s*db: NotificationOwnerAccessClient = prisma,/);
-    assert.match(notificationAccess, /db\.notification\.findMany/);
-    assert.match(notificationAccess, /where: \{ userId \}/);
+    assert.match(notificationAccess, /ownerNotificationExportRows\(\s*userId: string,/);
+    assert.match(notificationAccess, /public\.grainline_notification_export\(\$\{userId\}::text\)/);
+    assert.doesNotMatch(notificationAccess, /prisma\.notification\./);
     assert.match(notificationSelectBlock, /sourceType: true/);
     assert.match(notificationSelectBlock, /sourceId: true/);
 

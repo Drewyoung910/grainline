@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
 import { sendNewReviewEmail } from "@/lib/email";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
@@ -228,6 +229,9 @@ export async function POST(req: NextRequest) {
         body: listing.title,
         link: `${publicListingPath(listingId, listing.title)}#reviews`,
         dedupScope: created.id,
+        relatedUserId: me.id,
+        sourceType: NOTIFICATION_SOURCE_TYPES.REVIEW,
+        sourceId: created.id,
       });
     } catch (e) {
       console.error("Failed to create review notification:", sanitizeEmailOutboxError(e));

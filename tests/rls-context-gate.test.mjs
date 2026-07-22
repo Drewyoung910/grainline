@@ -554,7 +554,7 @@ describe("RLS context acceptance gate guardrails", () => {
     assert.equal(isPreparedStatementError(new Error("ordinary timeout")), false);
   });
 
-  it("keeps only legacy autocommit performance findings diagnostic without hiding failures", () => {
+  it("keeps generic wrapper-versus-autocommit performance findings blocking", () => {
     const workload = (label, latencyP95, { errors = [], issues = [] } = {}) => ({
       errors,
       issues,
@@ -573,23 +573,27 @@ describe("RLS context acceptance gate guardrails", () => {
     const defaultIssues = compareWorkloads("candidate comparison", baseline, wrapped, config);
     assert.match(defaultIssues.join("\n"), /wrapped p95 151\.0ms exceeds baseline p95 50\.0ms threshold/);
 
-    const performanceDiagnostics = [];
-    const diagnosticIssues = compareWorkloads("legacy autocommit adoption cost", baseline, wrapped, config, {
-      performanceDiagnostics,
-    });
-    assert.deepEqual(diagnosticIssues, []);
-    assert.match(performanceDiagnostics.join("\n"), /legacy autocommit adoption cost: wrapped p95/);
+    const adoptionIssues = compareWorkloads("generic autocommit adoption cost", baseline, wrapped, config);
+    assert.match(adoptionIssues.join("\n"), /generic autocommit adoption cost: wrapped p95/);
 
     const erroredWrapped = workload("legacy wrapped path", 151, {
       errors: [{ error: new Error("connection failed") }],
       issues: ["owner isolation failed"],
     });
-    const failClosedIssues = compareWorkloads("legacy autocommit adoption cost", baseline, erroredWrapped, config, {
-      performanceDiagnostics: [],
-    });
+    const failClosedIssues = compareWorkloads("generic autocommit adoption cost", baseline, erroredWrapped, config);
     assert.match(failClosedIssues.join("\n"), /owner isolation failed/);
     assert.match(failClosedIssues.join("\n"), /1 request errors/);
     assert.match(failClosedIssues.join("\n"), /connection failed/);
+  });
+
+  it("does not retain a diagnostic escape hatch in the provider gate", () => {
+    const script = source("scripts/rls-context-acceptance-gate.mjs");
+
+    assert.doesNotMatch(script, /performanceDiagnostics/);
+    assert.doesNotMatch(script, /diagnostic-only: \$\{finding\}/);
+    assert.match(script, /Prisma target autocommit adoption cost/);
+    assert.match(script, /Prisma burst autocommit adoption cost/);
+    assert.match(script, /target repeat autocommit adoption cost/);
   });
 
   it("benchmarks the production wrapper without a redundant context round trip", () => {
@@ -1028,7 +1032,11 @@ describe("RLS context acceptance gate guardrails", () => {
       );
       assertContractMatch(contract, /real(?:-table)? [`']?SavedSearch[`']? (?:proof|gate|staging proof)[\s\S]{0,350}before Phase A/i, `${name} must put real SavedSearch proof before Phase A`);
       assertContractMatch(contract, /Phase B[\s\S]{0,220}separate (?:reviewed )?(?:release|migration|pass)/i, `${name} must keep Phase B separate`);
-      assertContractMatch(contract, /Bucket B[\s\S]{0,200}(?:explicitly )?paused[\s\S]{0,220}separate pass/i, `${name} must keep Bucket B paused for a separate pass`);
+      assertContractMatch(
+        contract,
+        /Bucket B[\s\S]{0,260}(?:(?:explicitly )?paused|isolated implementation)[\s\S]{0,260}separate pass/i,
+        `${name} must keep Bucket B production-separated while allowing isolated work`,
+      );
     }
   });
 
@@ -1048,11 +1056,11 @@ describe("RLS context acceptance gate guardrails", () => {
     ];
     for (const contract of docs) {
       assertContractMatch(contract, /2026-07-19[\s\S]{0,900}(?:failed evidence|failed provider|consumed slot)/i, "each rollout document must retain the failed 2026-07-19 slot");
-      assertContractMatch(contract, /wrapper-versus-\s*autocommit[\s\S]{0,260}diagnostic/i, "each rollout document must label only the legacy autocommit comparison diagnostic");
+      assertContractMatch(contract, /wrapper-versus-\s*autocommit[\s\S]{0,420}(?:restored|blocking)/i, "each rollout document must record the restored generic autocommit gate");
       assertContractMatch(contract, /(?:errors|correctness|isolation)/i, "each rollout document must retain fail-closed findings");
       assertContractMatch(contract, /(?:RPC|one-statement)/i, "each rollout document must retain the candidate path");
       assertContractMatch(contract, /(?:blocking|promotion-blocking|block promotion)/i, "each rollout document must retain promotion gates");
-      assertContractMatch(contract, /(?:restore|hard gate|blocking gate)[\s\S]{0,280}Bucket B|Bucket B[\s\S]{0,280}(?:restore|hard gate|blocking gate)/i, "each rollout document must restore the generic gate before Bucket B");
+      assertContractMatch(contract, /Bucket B[\s\S]{0,420}(?:two new|two fresh|two consecutive)[\s\S]{0,160}(?:passes|slots)/i, "each rollout document must require fresh counted proof for Bucket B");
       assertContractMatch(contract, /ef8622b1822bf700d3bc97757a631bdaed503018[\s\S]{0,500}(?:slots 1 and 2|two consecutive counted passes)[\s\S]{0,320}issueCount=0/i, "each rollout document must retain both passing provider slots");
       assertContractMatch(contract, /(?:not real-table|not real-table SavedSearch|real-table proof remains mandatory)[\s\S]{0,240}(?:Phase A|production RLS|Bucket B)/i, "each rollout document must keep provider proof narrower than RLS activation");
     }

@@ -18,6 +18,8 @@ const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 
 export const REQUIRED_TABLE_PRIVILEGES = ["SELECT", "INSERT", "UPDATE", "DELETE"];
 export const SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES = ["SELECT", "INSERT", "DELETE"];
+export const NOTIFICATION_ACTIVATION_TABLE_PRIVILEGES = ["SELECT"];
+export const NOTIFICATION_ACTIVATION_COLUMN_PRIVILEGES = ["read:UPDATE"];
 export const REQUIRED_SEQUENCE_PRIVILEGES = ["USAGE", "SELECT"];
 export const REQUIRED_FUNCTION_PRIVILEGES = ["EXECUTE"];
 export const REQUIRED_TYPE_PRIVILEGES = ["USAGE"];
@@ -60,6 +62,19 @@ export const SAVED_SEARCH_RLS_POLICIES = Object.freeze({
   }),
 });
 
+export const NOTIFICATION_RLS_POLICIES = Object.freeze({
+  grainline_notification_recipient_select: Object.freeze({
+    command: "r",
+    usingExpression: `"userId" = NULLIF(current_setting('app.user_id', true), '')`,
+    checkExpression: null,
+  }),
+  grainline_notification_recipient_update: Object.freeze({
+    command: "w",
+    usingExpression: `"userId" = NULLIF(current_setting('app.user_id', true), '')`,
+    checkExpression: `"userId" = NULLIF(current_setting('app.user_id', true), '')`,
+  }),
+});
+
 // Phase B is a separate, post-skew release. Its migration forces the already
 // reviewed policies only after owner credentials and sessions have drained.
 export const SAVED_SEARCH_RLS_FORCE_EXPECTED = true;
@@ -74,6 +89,41 @@ export const SAVED_SEARCH_OWNER_RPC_FUNCTIONS = Object.freeze({
     sourceSha256: "d34ee291a4ca9338b341f9e128249902e9d63b4330461e3fbed1dddce4ca3424",
   }),
 });
+
+export const NOTIFICATION_RECIPIENT_RPC_FUNCTIONS = Object.freeze([
+  "grainline_notification_unread_count",
+  "grainline_notification_bell",
+  "grainline_notification_page",
+  "grainline_notification_mark_one_read",
+  "grainline_notification_mark_many_read",
+  "grainline_notification_mark_conversation_read",
+  "grainline_notification_export",
+  "grainline_notification_recent_low_stock",
+]);
+
+export const NOTIFICATION_SERVICE_RPC_FUNCTIONS = Object.freeze([
+  "grainline_notification_create_core",
+  "grainline_notification_create_source_fanout",
+  "grainline_notification_create_social_event",
+  "grainline_notification_create_message_event",
+  "grainline_notification_create_case_event",
+  "grainline_notification_create_commission_event",
+  "grainline_notification_create_inventory_event",
+  "grainline_notification_create_verification_event",
+  "grainline_notification_create_moderation_event",
+  "grainline_notification_create_account_warning",
+  "grainline_notification_create_order_event",
+  "grainline_notification_claim_back_in_stock",
+  "grainline_notification_delete_for_account",
+  "grainline_notification_delete_blog_comment",
+  "grainline_notification_delete_seller_broadcast",
+  "grainline_notification_prune_read_batch",
+  "grainline_notification_prune_unread_batch",
+]);
+
+const NOTIFICATION_PRIVATE_RPC_FUNCTIONS = new Set([
+  "grainline_notification_create_core",
+]);
 
 function sortedUnique(values) {
   return [...new Set(values)].sort((a, b) => a.localeCompare(b));
@@ -385,71 +435,99 @@ function normalizedPolicyRoles(value) {
   return sortedUnique(String(value).replace(/^\{|\}$/g, "").split(",").filter(Boolean));
 }
 
-export function collectSavedSearchPolicyIssues(
+function collectExactRlsPolicyIssues(
   rows,
   runtimeRole,
-  expectedForce = SAVED_SEARCH_RLS_FORCE_EXPECTED,
+  {
+    tableName,
+    expectedPolicies,
+    expectedForce,
+  },
 ) {
   const issues = [];
   if (!Array.isArray(rows) || rows.length === 0) {
-    return ['missing expected table SavedSearch for exact RLS policy audit'];
+    return [`missing expected table ${tableName} for exact RLS policy audit`];
   }
 
   const tableState = rows[0];
   if (!tableState.rls_enabled) {
-    issues.push('table SavedSearch must have ROW LEVEL SECURITY enabled');
+    issues.push(`table ${tableName} must have ROW LEVEL SECURITY enabled`);
   }
   if (Boolean(tableState.rls_forced) !== expectedForce) {
     issues.push(
       expectedForce
-        ? 'table SavedSearch must have FORCE ROW LEVEL SECURITY enabled'
-        : 'table SavedSearch must keep FORCE ROW LEVEL SECURITY disabled during phase A',
+        ? `table ${tableName} must have FORCE ROW LEVEL SECURITY enabled`
+        : `table ${tableName} must keep FORCE ROW LEVEL SECURITY disabled for this release`,
     );
   }
 
   const policies = rows.filter((row) => typeof row.policy_name === "string");
-  const expectedNames = Object.keys(SAVED_SEARCH_RLS_POLICIES).sort();
+  const expectedNames = Object.keys(expectedPolicies).sort();
   const actualNames = policies.map((row) => row.policy_name).sort();
   for (const missingName of missingItems(expectedNames, actualNames)) {
-    issues.push(`SavedSearch is missing policy ${missingName}`);
+    issues.push(`${tableName} is missing policy ${missingName}`);
   }
   for (const extraName of missingItems(actualNames, expectedNames)) {
-    issues.push(`SavedSearch has unexpected policy ${extraName}`);
+    issues.push(`${tableName} has unexpected policy ${extraName}`);
   }
 
   for (const policy of policies) {
-    const expected = SAVED_SEARCH_RLS_POLICIES[policy.policy_name];
+    const expected = expectedPolicies[policy.policy_name];
     if (!expected) continue;
     if (!policy.policy_permissive) {
-      issues.push(`SavedSearch policy ${policy.policy_name} must be PERMISSIVE`);
+      issues.push(`${tableName} policy ${policy.policy_name} must be PERMISSIVE`);
     }
     if (policy.policy_command !== expected.command) {
       issues.push(
-        `SavedSearch policy ${policy.policy_name} has command ${policy.policy_command ?? "unknown"}, expected ${expected.command}`,
+        `${tableName} policy ${policy.policy_name} has command ${policy.policy_command ?? "unknown"}, expected ${expected.command}`,
       );
     }
     const roles = normalizedPolicyRoles(policy.policy_roles);
     if (roles.length !== 1 || roles[0] !== runtimeRole) {
       issues.push(
-        `SavedSearch policy ${policy.policy_name} has roles ${roles.join(", ") || "none"}, expected only ${runtimeRole}`,
+        `${tableName} policy ${policy.policy_name} has roles ${roles.join(", ") || "none"}, expected only ${runtimeRole}`,
       );
     }
     const actualUsing = normalizeRlsPolicyExpression(policy.using_expression);
     const expectedUsing = normalizeRlsPolicyExpression(expected.usingExpression);
     if (actualUsing !== expectedUsing) {
-      issues.push(`SavedSearch policy ${policy.policy_name} has an unexpected USING expression`);
+      issues.push(`${tableName} policy ${policy.policy_name} has an unexpected USING expression`);
     }
     const actualCheck = normalizeRlsPolicyExpression(policy.check_expression);
     const expectedCheck = normalizeRlsPolicyExpression(expected.checkExpression);
     if (actualCheck !== expectedCheck) {
-      issues.push(`SavedSearch policy ${policy.policy_name} has an unexpected WITH CHECK expression`);
+      issues.push(`${tableName} policy ${policy.policy_name} has an unexpected WITH CHECK expression`);
     }
   }
 
   return issues;
 }
 
-export async function readSavedSearchPolicyState(client) {
+export function collectSavedSearchPolicyIssues(
+  rows,
+  runtimeRole,
+  expectedForce = SAVED_SEARCH_RLS_FORCE_EXPECTED,
+) {
+  return collectExactRlsPolicyIssues(rows, runtimeRole, {
+    tableName: "SavedSearch",
+    expectedPolicies: SAVED_SEARCH_RLS_POLICIES,
+    expectedForce,
+  });
+}
+
+export function collectNotificationPolicyIssues(
+  rows,
+  runtimeRole,
+  expectedForce = false,
+) {
+  return collectExactRlsPolicyIssues(rows, runtimeRole, {
+    tableName: "Notification",
+    expectedPolicies: NOTIFICATION_RLS_POLICIES,
+    expectedForce,
+  });
+}
+
+async function readExactRlsPolicyState(client, tableName) {
   const result = await client.query(
     `SELECT
         c.relrowsecurity AS rls_enabled,
@@ -474,11 +552,87 @@ export async function readSavedSearchPolicyState(client) {
        JOIN pg_namespace n ON n.oid = c.relnamespace
        LEFT JOIN pg_policy p ON p.polrelid = c.oid
       WHERE n.nspname = 'public'
-        AND c.relname = 'SavedSearch'
+        AND c.relname = $1
         AND c.relkind IN ('r', 'p')
       ORDER BY p.polname`,
+    [tableName],
   );
   return result.rows;
+}
+
+export async function readSavedSearchPolicyState(client) {
+  return readExactRlsPolicyState(client, "SavedSearch");
+}
+
+export async function readNotificationPolicyState(client) {
+  return readExactRlsPolicyState(client, "Notification");
+}
+
+export function collectNotificationFunctionIssues(rows, runtimeRole, migrationRole) {
+  const issues = [];
+  const functionRows = Array.isArray(rows) ? rows : [];
+  const recipientNames = new Set(NOTIFICATION_RECIPIENT_RPC_FUNCTIONS);
+  const serviceNames = new Set(NOTIFICATION_SERVICE_RPC_FUNCTIONS);
+  const expectedNames = [...recipientNames, ...serviceNames].sort();
+
+  for (const functionName of expectedNames) {
+    const namedRows = functionRows.filter((row) => row.function_name === functionName);
+    if (namedRows.length === 0) {
+      issues.push(`missing expected Notification RPC ${functionName}`);
+      continue;
+    }
+    if (namedRows.length !== 1) {
+      issues.push(`Notification RPC ${functionName} must have exactly one overload`);
+      continue;
+    }
+    const row = namedRows[0];
+    const label = `${functionName}(${row.args ?? "unknown"})`;
+    if (row.owner_name !== migrationRole) {
+      issues.push(`${label} owned by ${row.owner_name ?? "unknown"}, expected ${migrationRole}`);
+    }
+    if (row.owner_name === runtimeRole) {
+      issues.push(`runtime role owns Notification RPC ${label}`);
+    }
+    if (Boolean(row.security_definer) !== serviceNames.has(functionName)) {
+      issues.push(
+        `${label} must be ${serviceNames.has(functionName) ? "SECURITY DEFINER" : "SECURITY INVOKER"}`,
+      );
+    }
+    if (row.leakproof) issues.push(`${label} must not be LEAKPROOF`);
+    if (row.volatility !== "v") issues.push(`${label} must be VOLATILE`);
+    if (row.parallel_safety !== "u") issues.push(`${label} must be PARALLEL UNSAFE`);
+    if (row.function_kind !== "f") issues.push(`${label} must be an ordinary function`);
+    if (row.language_name !== "plpgsql") issues.push(`${label} must use PL/pgSQL`);
+    const functionConfig = Array.isArray(row.function_config)
+      ? row.function_config.map(String).sort()
+      : [];
+    if (functionConfig.length !== 1 || functionConfig[0] !== "search_path=pg_catalog") {
+      issues.push(`${label} must set only search_path=pg_catalog`);
+    }
+    if (row.public_execute) issues.push(`${label} must revoke EXECUTE from PUBLIC`);
+    if (row.runtime_execute_grantable) {
+      issues.push(`${label} runtime EXECUTE must not be grantable`);
+    }
+    if (Array.isArray(row.other_role_execute) && row.other_role_execute.length > 0) {
+      issues.push(`${label} grants EXECUTE to unexpected roles: ${row.other_role_execute.join(", ")}`);
+    }
+
+    const runtimeExecuteExpected = !NOTIFICATION_PRIVATE_RPC_FUNCTIONS.has(functionName);
+    if (Boolean(row.runtime_direct_execute) !== runtimeExecuteExpected) {
+      issues.push(
+        runtimeExecuteExpected
+          ? `${label} runtime role must have direct EXECUTE`
+          : `${label} must remain runtime-ungranted`,
+      );
+    }
+  }
+
+  for (const row of functionRows) {
+    if (!expectedNames.includes(row.function_name)) {
+      issues.push(`unexpected Notification RPC ${row.function_name}(${row.args ?? "unknown"})`);
+    }
+  }
+  return issues;
 }
 
 export function deriveGrantInventory(rootDir = ROOT_DIR) {
@@ -535,6 +689,14 @@ export function deriveGrantInventory(rootDir = ROOT_DIR) {
       /\bCREATE\s+POLICY\s+(?:"[^"]+"|[A-Za-z_][A-Za-z0-9_]*)\s+ON\s+(?:public\.)?(?:"([^"]+)"|([A-Za-z_][A-Za-z0-9_]*))/gi,
     )].map((match) => match[1] ?? match[2]),
   );
+  const rlsForceTables = new Set();
+  for (const match of migrationSql.matchAll(
+    /\bALTER\s+TABLE\s+(?:public\.)?(?:"([^"]+)"|([A-Za-z_][A-Za-z0-9_]*))\s+(NO\s+)?FORCE\s+ROW\s+LEVEL\s+SECURITY\b/gi,
+  )) {
+    const tableName = match[1] ?? match[2];
+    if (match[3]) rlsForceTables.delete(tableName);
+    else rlsForceTables.add(tableName);
+  }
 
   return {
     tables,
@@ -547,6 +709,7 @@ export function deriveGrantInventory(rootDir = ROOT_DIR) {
     publicRevokes,
     publicDefaultPrivilegeRevokes,
     rlsPolicyTables,
+    rlsForceTables: sortedUnique([...rlsForceTables]),
   };
 }
 
@@ -580,10 +743,21 @@ export function defaultPrivilegeRequirements(inventory) {
 }
 
 export function requiredRuntimeTablePrivileges(tableName, inventory) {
-  return tableName === "SavedSearch"
-    && (inventory.rlsPolicyTables ?? []).includes("SavedSearch")
-    ? SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES
-    : REQUIRED_TABLE_PRIVILEGES;
+  const rlsPolicyTables = inventory.rlsPolicyTables ?? [];
+  if (tableName === "Notification" && rlsPolicyTables.includes("Notification")) {
+    return NOTIFICATION_ACTIVATION_TABLE_PRIVILEGES;
+  }
+  if (tableName === "SavedSearch" && rlsPolicyTables.includes("SavedSearch")) {
+    return SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES;
+  }
+  return REQUIRED_TABLE_PRIVILEGES;
+}
+
+export function requiredRuntimeColumnPrivileges(tableName, inventory) {
+  return tableName === "Notification"
+    && (inventory.rlsPolicyTables ?? []).includes("Notification")
+    ? NOTIFICATION_ACTIVATION_COLUMN_PRIVILEGES
+    : [];
 }
 
 function missingItems(expected, actual) {
@@ -791,6 +965,7 @@ export function collectTablePrivilegeAllowlistIssues(
   {
     checkColumnPrivileges = true,
     requiredPrivileges = REQUIRED_TABLE_PRIVILEGES,
+    requiredColumnPrivileges = [],
   } = {},
 ) {
   if (!Array.isArray(row?.runtime_privileges)) {
@@ -818,6 +993,7 @@ export function collectTablePrivilegeAllowlistIssues(
     return [`${label} PUBLIC column grant-option state could not be read`];
   }
   const allowed = new Set(requiredPrivileges);
+  const allowedColumnPrivileges = new Set(requiredColumnPrivileges);
   const runtimePrivileges = normalizedPrivilegeArray(row.runtime_privileges);
   const missing = requiredPrivileges
     .filter((privilege) => !runtimePrivileges.includes(privilege));
@@ -838,6 +1014,12 @@ export function collectTablePrivilegeAllowlistIssues(
   const publicColumnGrantOptions = checkColumnPrivileges
     ? sortedUnique(row.public_column_grant_option_privileges.map(String))
     : [];
+  const missingColumnPrivileges = checkColumnPrivileges
+    ? requiredColumnPrivileges.filter((privilege) => !runtimeColumnPrivileges.includes(privilege))
+    : [];
+  const unexpectedColumnPrivileges = checkColumnPrivileges
+    ? runtimeColumnPrivileges.filter((privilege) => !allowedColumnPrivileges.has(privilege))
+    : [];
   const issues = [];
   if (missing.length > 0) {
     issues.push(`${label} runtime role is missing direct table privileges: ${missing.join(", ")}`);
@@ -854,8 +1036,11 @@ export function collectTablePrivilegeAllowlistIssues(
   if (publicGrantOptions.length > 0) {
     issues.push(`${label} grants table privileges with grant option to PUBLIC: ${publicGrantOptions.join(", ")}`);
   }
-  if (runtimeColumnPrivileges.length > 0) {
-    issues.push(`${label} runtime role has column privileges: ${runtimeColumnPrivileges.join(", ")}`);
+  if (missingColumnPrivileges.length > 0) {
+    issues.push(`${label} runtime role is missing column privileges: ${missingColumnPrivileges.join(", ")}`);
+  }
+  if (unexpectedColumnPrivileges.length > 0) {
+    issues.push(`${label} runtime role has unexpected column privileges: ${unexpectedColumnPrivileges.join(", ")}`);
   }
   if (runtimeColumnGrantOptions.length > 0) {
     issues.push(`${label} runtime role has column grant options: ${runtimeColumnGrantOptions.join(", ")}`);
@@ -872,6 +1057,7 @@ export function collectTablePrivilegeAllowlistIssues(
 export async function auditLiveDatabase({ client, runtimeRole, migrationRole, inventory }) {
   const issues = [];
   const expectedRlsPolicyTables = new Set(inventory.rlsPolicyTables ?? []);
+  const expectedRlsForceTables = new Set(inventory.rlsForceTables ?? []);
 
   const roleResult = await client.query(
     `SELECT
@@ -1070,10 +1256,12 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
   );
   for (const row of tableResult.rows) {
     const requiredPrivileges = requiredRuntimeTablePrivileges(row.table_name, inventory);
+    const requiredColumnPrivileges = requiredRuntimeColumnPrivileges(row.table_name, inventory);
     issues.push(...collectMissingPrivileges([row], "table_name", requiredPrivileges));
     issues.push(
       ...collectTablePrivilegeAllowlistIssues(row, `table ${row.table_name}`, {
         requiredPrivileges,
+        requiredColumnPrivileges,
       }),
     );
     if (
@@ -1082,6 +1270,15 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
       && row.update_priv
     ) {
       issues.push("table SavedSearch must not grant effective UPDATE during phase A");
+    }
+    if (
+      row.table_name === "Notification"
+      && expectedRlsPolicyTables.has("Notification")
+      && (row.insert_priv || row.update_priv || row.delete_priv)
+    ) {
+      issues.push(
+        "table Notification must not grant effective table-level INSERT, UPDATE, or DELETE after activation",
+      );
     }
     if (row.owner_name === runtimeRole) issues.push(`runtime role owns table ${row.table_name}`);
     if (row.owner_name !== migrationRole) {
@@ -1132,11 +1329,12 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
         `table ${row.table_name} has FORCE ROW LEVEL SECURITY enabled but zero policies`,
       );
     }
-    const savedSearchPhaseAExpected =
-      row.table_name === "SavedSearch" && expectedRlsPolicyTables.has("SavedSearch");
-    if (hasPolicies && !row.rls_forced && !savedSearchPhaseAExpected) {
+    const forceExpected = expectedRlsForceTables.has(row.table_name);
+    if (hasPolicies && Boolean(row.rls_forced) !== forceExpected) {
       issues.push(
-        `table ${row.table_name} has RLS policies (${policyList}) but FORCE ROW LEVEL SECURITY is not enabled`,
+        forceExpected
+          ? `table ${row.table_name} has RLS policies (${policyList}) but FORCE ROW LEVEL SECURITY is not enabled`
+          : `table ${row.table_name} has RLS policies (${policyList}) but FORCE ROW LEVEL SECURITY must remain disabled for this release`,
       );
     }
   }
@@ -1146,6 +1344,16 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
       ...collectSavedSearchPolicyIssues(
         await readSavedSearchPolicyState(client),
         runtimeRole,
+      ),
+    );
+  }
+
+  if (expectedRlsPolicyTables.has("Notification")) {
+    issues.push(
+      ...collectNotificationPolicyIssues(
+        await readNotificationPolicyState(client),
+        runtimeRole,
+        expectedRlsForceTables.has("Notification"),
       ),
     );
   }
@@ -1299,9 +1507,45 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
         p.proname AS function_name,
         pg_get_function_identity_arguments(p.oid) AS args,
         pg_get_userbyid(p.proowner) AS owner_name,
-        has_function_privilege($1, p.oid, 'EXECUTE') AS execute_priv
+        has_function_privilege($1, p.oid, 'EXECUTE') AS execute_priv,
+        p.prosecdef AS security_definer,
+        p.proleakproof AS leakproof,
+        p.provolatile AS volatility,
+        p.proparallel AS parallel_safety,
+        p.prokind AS function_kind,
+        l.lanname AS language_name,
+        p.proconfig AS function_config,
+        EXISTS (
+          SELECT 1
+            FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS acl
+           WHERE acl.grantee = (SELECT oid FROM pg_roles WHERE rolname = $1)
+             AND acl.privilege_type = 'EXECUTE'
+        ) AS runtime_direct_execute,
+        EXISTS (
+          SELECT 1
+            FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS acl
+           WHERE acl.grantee = (SELECT oid FROM pg_roles WHERE rolname = $1)
+             AND acl.privilege_type = 'EXECUTE'
+             AND acl.is_grantable
+        ) AS runtime_execute_grantable,
+        EXISTS (
+          SELECT 1
+            FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS acl
+           WHERE acl.grantee = 0
+             AND acl.privilege_type = 'EXECUTE'
+        ) AS public_execute,
+        ARRAY(
+          SELECT DISTINCT privilege_role.rolname
+            FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS acl
+            JOIN pg_roles privilege_role ON privilege_role.oid = acl.grantee
+           WHERE acl.grantee <> p.proowner
+             AND acl.grantee <> (SELECT oid FROM pg_roles WHERE rolname = $1)
+             AND acl.privilege_type = 'EXECUTE'
+           ORDER BY 1
+        ) AS other_role_execute
        FROM pg_proc p
        JOIN pg_namespace n ON n.oid = p.pronamespace
+       JOIN pg_language l ON l.oid = p.prolang
       WHERE n.nspname = 'public'
         AND p.proname LIKE 'grainline\\_%' ESCAPE '\\'
       ORDER BY p.proname, args`,
@@ -1315,7 +1559,13 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
     ...functionNames.filter((fn) => !inventory.functions.includes(fn)).map((fn) => `live DB has untracked grainline_* function ${fn}`),
   );
   for (const row of functionResult.rows) {
-    if (!row.execute_priv) issues.push(`${row.function_name}(${row.args}) lacks EXECUTE`);
+    const runtimeExecuteExpected = row.function_name !== "grainline_notification_create_core";
+    if (runtimeExecuteExpected && !row.execute_priv) {
+      issues.push(`${row.function_name}(${row.args}) lacks EXECUTE`);
+    }
+    if (!runtimeExecuteExpected && row.execute_priv) {
+      issues.push(`${row.function_name}(${row.args}) must remain runtime-ungranted`);
+    }
     if (row.owner_name === runtimeRole) issues.push(`runtime role owns function ${row.function_name}(${row.args})`);
     if (row.owner_name !== migrationRole) {
       issues.push(`function ${row.function_name}(${row.args}) owned by ${row.owner_name}, expected ${migrationRole}`);
@@ -1327,6 +1577,20 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
     issues.push(
       ...collectSavedSearchOwnerRpcIssues(
         await readSavedSearchOwnerRpcState(client, runtimeRole),
+        runtimeRole,
+        migrationRole,
+      ),
+    );
+  }
+
+  if (expectedRlsPolicyTables.has("Notification")) {
+    const notificationFunctionNames = new Set([
+      ...NOTIFICATION_RECIPIENT_RPC_FUNCTIONS,
+      ...NOTIFICATION_SERVICE_RPC_FUNCTIONS,
+    ]);
+    issues.push(
+      ...collectNotificationFunctionIssues(
+        functionResult.rows.filter((row) => notificationFunctionNames.has(row.function_name)),
         runtimeRole,
         migrationRole,
       ),

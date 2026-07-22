@@ -2,6 +2,7 @@ import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { sendCustomOrderReady } from "@/lib/email";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { publicListingPath } from "@/lib/publicPaths";
 import { messagingUnavailableReason } from "@/lib/messageRecipientState";
 
@@ -29,7 +30,7 @@ export async function sendCustomOrderReadyLink({
 }) {
   const listingLink = publicListingPath(listing.id, listing.title);
 
-  const messageCreated = await prisma.$transaction(async (tx) => {
+  const notificationMessageId = await prisma.$transaction(async (tx) => {
     await tx.$executeRaw`
       SELECT pg_advisory_xact_lock(${CUSTOM_ORDER_READY_LINK_LOCK_NAMESPACE}, hashtext(${`${conversationId}:${listing.id}`}))
     `;
@@ -43,7 +44,7 @@ export async function sendCustomOrderReadyLink({
         userB: { select: { banned: true, deletedAt: true } },
       },
     });
-    if (!conversation) return false;
+    if (!conversation) return null;
 
     const participants = new Set([conversation.userAId, conversation.userBId]);
     if (
@@ -51,13 +52,13 @@ export async function sendCustomOrderReadyLink({
       !participants.has(sellerUserId) ||
       !participants.has(buyerUserId)
     ) {
-      return false;
+      return null;
     }
 
     const sellerState = conversation.userAId === sellerUserId ? conversation.userA : conversation.userB;
     const buyerState = conversation.userAId === buyerUserId ? conversation.userA : conversation.userB;
     if (messagingUnavailableReason(sellerState) || messagingUnavailableReason(buyerState)) {
-      return false;
+      return null;
     }
 
     const blockExists = await tx.block.findFirst({
@@ -69,7 +70,7 @@ export async function sendCustomOrderReadyLink({
       },
       select: { id: true },
     });
-    if (blockExists) return false;
+    if (blockExists) return null;
 
     const existingLinkMessage = await tx.message.findFirst({
       where: {
@@ -80,9 +81,9 @@ export async function sendCustomOrderReadyLink({
       select: { id: true },
     });
 
-    if (existingLinkMessage) return false;
+    if (existingLinkMessage) return null;
 
-    await tx.message.create({
+    const createdMessage = await tx.message.create({
       data: {
         conversationId,
         senderId: sellerUserId,
@@ -95,15 +96,16 @@ export async function sendCustomOrderReadyLink({
           currency: listing.currency,
         }),
       },
+      select: { id: true },
     });
     await tx.conversation.update({
       where: { id: conversationId },
       data: { updatedAt: new Date(), archivedAAt: null, archivedBAt: null },
     });
-    return true;
+    return createdMessage.id;
   });
 
-  if (!messageCreated) {
+  if (!notificationMessageId) {
     return { messageCreated: false };
   }
 
@@ -114,6 +116,9 @@ export async function sendCustomOrderReadyLink({
     body: `${listing.title} - review and purchase`,
     link: listingLink,
     dedupScope: listing.id,
+    relatedUserId: sellerUserId,
+    sourceType: NOTIFICATION_SOURCE_TYPES.MESSAGE,
+    sourceId: notificationMessageId,
   });
 
   try {

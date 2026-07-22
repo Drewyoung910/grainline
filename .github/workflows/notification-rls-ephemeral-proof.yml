@@ -1,0 +1,79 @@
+name: Notification RLS Ephemeral Proof
+
+on:
+  push:
+    branches:
+      - codex/rls-bucket-b-notification-20260719
+    paths:
+      - .github/workflows/notification-rls-ephemeral-proof.yml
+      - docs/rls-drafts/**
+      - package.json
+      - package-lock.json
+      - prisma/**
+      - scripts/audit-runtime-db-grants.mjs
+      - scripts/notification-rls-ephemeral-proof.mjs
+      - scripts/notification-rls-preparation-proof.mjs
+      - scripts/notification-rls-rollback-proof.mjs
+      - scripts/stage-notification-rls-candidate-migration.mjs
+      - scripts/prepare-ci-rls-runtime-role.sql
+      - scripts/provision-runtime-db-role.sql
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: grainline_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d grainline_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
+      DIRECT_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
+      NOTIFICATION_RLS_PROOF_DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx prisma generate
+      - name: Prepare CI runtime policy role
+        run: psql "$DIRECT_URL" -f scripts/prepare-ci-rls-runtime-role.sql
+      - name: Verify committed Notification preparation release artifact
+        run: npm run audit:rls-notification-preparation-release
+      - name: Apply current plus committed Notification preparation migration
+        run: npx prisma migrate deploy
+      - name: Converge preparation-compatible production-style runtime grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Prove old and new application compatibility before activation
+        run: npm run audit:rls-notification-preparation
+      - name: Stage byte-pinned Notification activation migration
+        env:
+          NOTIFICATION_RLS_DISPOSABLE_MIGRATION_ACK: I_ACKNOWLEDGE_DISPOSABLE_LOOPBACK_NOTIFICATION_MIGRATION
+        run: node scripts/stage-notification-rls-candidate-migration.mjs --stage-activation
+      - name: Apply Notification activation migration
+        run: npx prisma migrate deploy
+      - name: Converge activated production-style runtime grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Verify migration status
+        run: npx prisma migrate status
+      - name: Audit production-style runtime grants
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove database-first Notification rollback
+        run: npm run audit:rls-notification-rollback
+      - name: Prove Notification RLS and service authority
+        run: npm run audit:rls-notification-ephemeral

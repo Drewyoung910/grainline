@@ -11,8 +11,9 @@ import {
   createMarketplaceRefund,
   refundIdempotencyKeyBase,
 } from "@/lib/marketplaceRefunds";
-import { recordLocalRefundEvidence } from "@/lib/localRefundEvidence";
+import { localRefundEvidenceEventId, recordLocalRefundEvidence } from "@/lib/localRefundEvidence";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { formatCurrencyCents } from "@/lib/money";
 import {
   rateLimitResponse,
@@ -291,6 +292,7 @@ export async function POST(
       refundAmountCents,
       order.currency,
     );
+    const refundNotificationBody = `Your maker issued a refund of ${refundAmountDisplay} for your order.`;
 
     // Atomic lock: claim refund slot to prevent double-refund race after validation passes.
     const lockResult: number = await prisma.$executeRaw`
@@ -408,6 +410,7 @@ export async function POST(
             description: reviewNote,
             metadata: {
               refundType: type,
+              notificationBody: refundNotificationBody,
               refundAccounting: refund.accountingEvidence,
               requiresManualTransferReconciliation: refund.requiresManualTransferReconciliation,
               requiresManualFollowUp: refund.requiresManualFollowUp,
@@ -561,6 +564,14 @@ export async function POST(
       throw err;
     }
 
+    if (!refundId) {
+      throw new Error("Seller refund completed without durable refund authority");
+    }
+    const refundAuthoritySourceId = localRefundEvidenceEventId(
+      "SELLER_REFUND_RECORDED",
+      refundId,
+    );
+
     // In-app notification for the buyer
     if (order.buyerId) {
       try {
@@ -568,8 +579,11 @@ export async function POST(
           userId: order.buyerId,
           type: "REFUND_ISSUED",
           title: "Refund from maker",
-          body: `Your maker issued a refund of ${refundAmountDisplay} for your order.`,
+          body: refundNotificationBody,
           link: `/dashboard/orders/${orderId}`,
+          sourceType: NOTIFICATION_SOURCE_TYPES.ORDER_PAYMENT,
+          sourceId: refundAuthoritySourceId,
+          relatedUserId: me.id,
         });
       } catch (error) {
         Sentry.captureException(error, {

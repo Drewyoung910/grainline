@@ -4,6 +4,7 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { sendCaseResolved } from "@/lib/email";
 import { createMarketplaceRefund, refundIdempotencyKeyBase } from "@/lib/marketplaceRefunds";
 import { recordLocalRefundEvidence } from "@/lib/localRefundEvidence";
@@ -582,6 +583,9 @@ export async function POST(
           title: resolutionCopy.notificationTitle,
           body: resolutionCopy.body,
           link: `/dashboard/orders/${caseRecord.orderId}`,
+          relatedUserId: me.id,
+          sourceType: NOTIFICATION_SOURCE_TYPES.CASE,
+          sourceId: id,
         });
       } catch (notificationError) {
         Sentry.captureException(notificationError, {

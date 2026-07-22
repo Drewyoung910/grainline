@@ -9,9 +9,11 @@ import { logAdminActionOrThrow } from "@/lib/audit";
 import { publicSellerPath } from "@/lib/publicPaths";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
-import { truncateText, truncateTextWithEllipsis } from "@/lib/sanitize";
+import { truncateText } from "@/lib/sanitize";
 import { sellerBroadcastEmailSubject } from "@/lib/email";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
+import { withDbUserContext } from "@/lib/dbUserContext";
+import { deleteSellerBroadcastNotificationServiceRows } from "@/lib/notificationServiceAccess";
 
 async function deleteBroadcast(formData: FormData) {
   "use server";
@@ -27,13 +29,12 @@ async function deleteBroadcast(formData: FormData) {
 
   const id = String(formData.get("id") ?? "");
   if (id) {
-    await prisma.$transaction(async (tx) => {
+    await withDbUserContext(user.id, async (tx) => {
       const broadcast = await tx.sellerBroadcast.findUnique({
         where: { id },
         select: {
           id: true,
           sellerProfileId: true,
-          message: true,
           sentAt: true,
           recipientCount: true,
           sellerProfile: { select: { displayName: true } },
@@ -44,18 +45,7 @@ async function deleteBroadcast(formData: FormData) {
       if (deleted.count !== 1) return;
       const sellerName = broadcast.sellerProfile.displayName ?? "A maker you follow";
       const staleNotificationWindowEnd = new Date(broadcast.sentAt.getTime() + 60 * 60 * 1000);
-      await tx.notification.deleteMany({
-        where: {
-          type: "SELLER_BROADCAST",
-          title: `Update from ${sellerName}`,
-          body: truncateTextWithEllipsis(broadcast.message, 100),
-          createdAt: { gte: broadcast.sentAt, lte: staleNotificationWindowEnd },
-          OR: [
-            { link: `/account/feed?broadcast=${broadcast.id}` },
-            { link: "/account/feed" },
-          ],
-        },
-      });
+      await deleteSellerBroadcastNotificationServiceRows(tx, broadcast.id);
       await tx.emailOutbox.deleteMany({
         where: {
           preferenceKey: "EMAIL_SELLER_BROADCAST",

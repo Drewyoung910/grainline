@@ -1165,7 +1165,7 @@ model SystemAuditLog {
   targetType String   @db.VarChar(100)
   targetId   String   @db.VarChar(255)
   reason     String?  @db.VarChar(1000)
-  // Bounded system/cron/webhook action metadata; keep bulky evidence in
+  // Bounded system/cron/webhook action metadata and user-workflow evidence; keep bulky evidence in
   // purpose-built ledgers such as OrderPaymentEvent or CronRun.
   metadata   Json     @default("{}")
   createdAt  DateTime @default(now())
@@ -1362,6 +1362,7 @@ model Notification {
   id        String           @id @default(cuid())
   userId    String
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  relatedUserId String?
   type      NotificationType
   title     String           @db.VarChar(200)
   body      String           @db.VarChar(1000)
@@ -1378,6 +1379,7 @@ model Notification {
   @@index([userId, createdAt])
   @@index([read, createdAt])
   @@index([sourceType, sourceId])
+  @@index([relatedUserId])
 }
 
 model ListingViewDaily {

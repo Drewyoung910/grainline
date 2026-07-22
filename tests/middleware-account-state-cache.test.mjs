@@ -29,6 +29,17 @@ describe("middleware account-state cache", () => {
     assert.match(cache, /if \(record\.exists !== true\) return undefined/);
   });
 
+  it("isolates Preview account state from production Redis keys", () => {
+    const cache = source("src/lib/accountStateCache.ts");
+
+    assert.match(cache, /env\.VERCEL_ENV === "production"/);
+    assert.match(cache, /env\.VERCEL_ENV === "preview"/);
+    assert.match(cache, /VERCEL_GIT_COMMIT_REF \|\| env\.VERCEL_URL/);
+    assert.match(cache, /createHash\("sha256"\)/);
+    assert.match(cache, /account-state:\$\{accountStateCacheNamespace\(\)\}:clerk:/);
+    assert.doesNotMatch(cache, /return `account-state:clerk:\$\{clerkId\}`/);
+  });
+
   it("invalidates on account-state writes that affect middleware decisions", () => {
     assert.match(
       source("src/app/api/account/accept-terms/route.ts"),

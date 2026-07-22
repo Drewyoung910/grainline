@@ -51,7 +51,8 @@ describe("admin moderation hardening follow-ups", () => {
     assert.match(reviewRoute, /SET status = 'SOLD_OUT'/);
     assert.match(reviewRoute, /"listingType" = 'IN_STOCK'/);
     assert.match(reviewRoute, /COALESCE\("stockQuantity", 0\) <= 0/);
-    assert.match(reviewRoute, /finalStatus: Number\(soldOutCount\) > 0 \? 'SOLD_OUT' : 'ACTIVE'/);
+    assert.match(reviewRoute, /const finalStatus = Number\(soldOutCount\) > 0 \? 'SOLD_OUT' : 'ACTIVE'/);
+    assert.match(reviewRoute, /metadata: \{ finalStatus \}/);
     assert.match(reviewRoute, /return privateJson\(\{ error: unavailableReason \}, \{ status: HTTP_STATUS\.CONFLICT \}\)/);
     assert.match(reviewRoute, /return privateJson\(\{ error: currentUnavailableReason \}, \{ status: HTTP_STATUS\.CONFLICT \}\)/);
     assert.match(reviewRoute, /currentListing\.status === 'ACTIVE' &&\s*!\s*currentUnavailableReason/s);
@@ -99,9 +100,11 @@ describe("admin moderation hardening follow-ups", () => {
     assert.match(emailRoute, /source: "admin_email_send"/);
     assert.match(emailRoute, /source: "admin_email_notification"/);
     assert.match(emailRoute, /source: "admin_email_audit_log"/);
-    assert.match(emailRoute, /const auditTargetId = recipientUserId \?\? `email:\$\{hashEmailForTelemetry\(normalizedRecipientEmail\) \?\? "unknown"\}`/);
-    assert.match(emailRoute, /targetType: recipientUserId \? "USER" : "EMAIL"/);
-    assert.match(emailRoute, /targetId: auditTargetId/);
+    assert.match(emailRoute, /notificationAuditId = await logAdminActionOrThrow\(\{/);
+    assert.match(emailRoute, /targetType: "USER"/);
+    assert.match(emailRoute, /targetId: recipientUserId/);
+    assert.match(emailRoute, /metadata: \{ notificationBody \}/);
+    assert.match(emailRoute, /if \(recipientUserId && notificationAuditId\)/);
     assert.doesNotMatch(emailRoute, /targetId: normalizedRecipientEmail/);
     assert.doesNotMatch(emailRoute, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
     assert.match(verificationPage, /"admin_verification_email"/);

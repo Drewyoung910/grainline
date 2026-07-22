@@ -1855,7 +1855,7 @@ export function compareWorkloads(
   baseline,
   wrapped,
   config,
-  { candidateName = "wrapped", performanceDiagnostics } = {},
+  { candidateName = "wrapped" } = {},
 ) {
   const issues = [];
   const performanceIssues = [];
@@ -1904,11 +1904,7 @@ export function compareWorkloads(
       );
     }
   }
-  if (Array.isArray(performanceDiagnostics)) {
-    performanceDiagnostics.push(...performanceIssues);
-  } else {
-    issues.push(...performanceIssues);
-  }
+  issues.push(...performanceIssues);
   return issues;
 }
 
@@ -2192,14 +2188,12 @@ export async function runAcceptanceGate(config) {
       for (const workload of prismaReports) {
         reports.push(formatSummary(workload));
       }
-      const prismaAutocommitPerformanceDiagnostics = [];
       issues.push(...compareWorkloads("Prisma target concurrency", prismaTargetBaseline, prismaTargetWrapped, config));
       issues.push(...compareWorkloads(
         "Prisma target autocommit adoption cost",
         prismaTargetAutocommitBaseline,
         prismaTargetWrapped,
         config,
-        { performanceDiagnostics: prismaAutocommitPerformanceDiagnostics },
       ));
       issues.push(...compareWorkloads("Prisma burst concurrency", prismaBurstBaseline, prismaBurstWrapped, config));
       issues.push(...compareWorkloads(
@@ -2207,9 +2201,7 @@ export async function runAcceptanceGate(config) {
         prismaBurstAutocommitBaseline,
         prismaBurstWrapped,
         config,
-        { performanceDiagnostics: prismaAutocommitPerformanceDiagnostics },
       ));
-      reports.push(...prismaAutocommitPerformanceDiagnostics.map((finding) => `diagnostic-only: ${finding}`));
     } finally {
       await disconnectPrismaProbe(prismaProbe);
     }
@@ -2268,14 +2260,12 @@ export async function runAcceptanceGate(config) {
     ]) {
       reports.push(formatSummary(workload));
     }
-    const rawAutocommitPerformanceDiagnostics = [];
     issues.push(...compareWorkloads("target concurrency", targetBaseline, targetWrapped, config));
     issues.push(...compareWorkloads(
       "target autocommit adoption cost",
       targetAutocommitBaseline,
       targetWrapped,
       config,
-      { performanceDiagnostics: rawAutocommitPerformanceDiagnostics },
     ));
     issues.push(...compareWorkloads("target repeat", targetBaseline, targetWrappedRepeat, config));
     issues.push(...compareWorkloads(
@@ -2283,7 +2273,6 @@ export async function runAcceptanceGate(config) {
       targetAutocommitBaseline,
       targetWrappedRepeat,
       config,
-      { performanceDiagnostics: rawAutocommitPerformanceDiagnostics },
     ));
     issues.push(...compareWorkloads("burst concurrency", burstBaseline, burstWrapped, config));
     issues.push(...compareWorkloads(
@@ -2291,9 +2280,7 @@ export async function runAcceptanceGate(config) {
       burstAutocommitBaseline,
       burstWrapped,
       config,
-      { performanceDiagnostics: rawAutocommitPerformanceDiagnostics },
     ));
-    reports.push(...rawAutocommitPerformanceDiagnostics.map((finding) => `diagnostic-only: ${finding}`));
   } finally {
     await pool.end();
   }

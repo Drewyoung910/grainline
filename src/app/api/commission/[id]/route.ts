@@ -8,6 +8,7 @@ import { CommissionStatus } from "@prisma/client";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { getBlockedIdsFor } from "@/lib/blocks";
 import { createNotification } from "@/lib/notifications";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { commissionIsExpired, openCommissionWhere } from "@/lib/commissionExpiry";
 import { publicCommissionInterestWhere, resolvedInterestedCount } from "@/lib/commissionInterestCount";
 import { mapWithConcurrency } from "@/lib/concurrency";
@@ -197,6 +198,9 @@ export async function PATCH(
               : `The request "${request.title}" has been closed by the buyer.`,
             link: isFulfilled ? `/commission/${id}` : `/commission`,
             dedupScope: id,
+            relatedUserId: me.id,
+            sourceType: NOTIFICATION_SOURCE_TYPES.COMMISSION_REQUEST,
+            sourceId: id,
           }),
       );
     } catch (error) {

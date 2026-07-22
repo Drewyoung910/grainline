@@ -4,7 +4,7 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
-### SavedSearch Phase-B completion (2026-07-21)
+### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
 Bucket A is complete in production. Deployment
 `dpl_6nVQx5HBmurzH9iU1vwQLjA6gy2N` promoted exact commit
@@ -13,23 +13,22 @@ Bucket A is complete in production. Deployment
 `ENABLE` plus `FORCE` and three policies, and the accepted private postflight has
 SHA-256
 `768096b53662ec9e8deaf8a3a63e6021ad755464f48b4b01c02fb339f1c78ea4`.
-The temporary Phase-B deployment variable is gone. The normal runtime remains
-the constrained `grainline_app_runtime`; Neon `neondb_owner` remains the
-explicit `NOSUPERUSER BYPASSRLS` migration/service owner. Controlled owner
-maintenance and the separate database-first emergency DISABLE/ENABLE/FORCE
-path remain required. Notification preparation may exist on an isolated branch,
-but its activation remains paused until runtime owner-credential separation has
-its own accepted production postflight.
+
+Runtime database credential separation is also complete. Production source
+`b4f14beaff06831ed2e8d7a35578226b756c1a61` passed exact clean postflight
+operator `8438ece93ff93572a015dd674f152c830cb5a52e`; the canonical record is
+`docs/runtime-db-credential-separation.md`. Production Functions retain only
+the constrained `grainline_app_runtime`; the rotated `NOSUPERUSER BYPASSRLS`
+owner remains outside Vercel. This closes the prerequisite for isolated
+Notification implementation, ephemeral PostgreSQL proof, and isolated
+provider-candidate comparison. It does not authorize a Notification merge,
+production apply/deployment, persistent staging activation, or RLS activation.
 
 ### Site-wide RLS expansion decision (2026-07-19)
 
-SavedSearch is the first production RLS pattern, not the final scope. With its
-Phase-B FORCE release complete, externalize `DIRECT_URL` and
-`MIGRATION_DB_ROLE` from production application Functions before beginning
-Notification/Bucket B. Because environment changes do not rewrite earlier
-deployments, that release must also rotate/revoke any owner credential retained
-by superseded callable deployments and prove the old credential and owner
-sessions are gone. Continue expanding RLS across user-owned and sensitive data
+SavedSearch is the first production RLS pattern, not the final scope. Its Phase-B
+FORCE release and runtime credential separation are complete. Continue expanding
+RLS across user-owned and sensitive data
 in the reviewed sequence documented in the RLS feasibility and defense-in-depth
 plans, with priority on notifications, carts, conversations and messages,
 orders and payment/shipping records, and cases. Each table or tightly coupled
@@ -64,47 +63,355 @@ schema-complete [`docs/rls-coverage-matrix.md`](docs/rls-coverage-matrix.md)
 and never claim that all user data is protected by RLS until every table has an
 evidenced disposition.
 
-### Runtime owner-credential separation decision (updated 2026-07-21)
+### Prelaunch RLS rollout proportionality (2026-07-22)
 
-The post-Phase-B release path is now concrete in
+The confirmed prelaunch/no-dependent-users state permits shorter operating
+windows, not weaker policy or compatibility proof. Do not impose a fixed
+12-hour drain or repeat an unrelated provider benchmark solely for ceremony
+when there are no customer requests to drain. Before compressing a wait,
+reconfirm that no customer traffic, webhook, cron, queue, or administrator flow
+can still use the superseded shape. Preserve the evidence explaining why the
+shorter window was safe.
+
+Keep the controls that catch correctness and release-shape defects even before
+launch: ephemeral PostgreSQL authority/direct-denial/race proof; exact grants
+and function ACLs; legacy-data inspection and backup before destructive
+cleanup; atomic purge/backfill decisions; old/new application and database
+compatibility; authenticated route smoke; and database-first rollback
+semantics. Use separate preparation and activation migrations whenever an old
+application build cannot safely coexist with the narrowed grants or new policy
+surface. The absence of users does not stop Vercel build overlap, cron, or
+webhook execution by itself.
+
+Provider performance/locality proof is risk-triggered after Bucket B rather
+than automatic for every table. Require it for a new hot path, interactive
+transaction or pooling design, lock/concurrency behavior, cross-region change,
+or material source-validation joins. Ordinary direct-owner tables may rely on
+ephemeral PostgreSQL plus authenticated application smoke when review shows no
+new provider/runtime performance question. Notification still requires a fresh
+successful provider run because its real one-statement recipient RPC and
+source-validation workload have not yet completed once in Vercel. Continue to
+activate Notification, messaging, orders/payment/shipping, and cases as
+separate tightly coupled groups; prelaunch is not permission to combine their
+authority boundaries into one release.
+
+### Runtime owner-credential separation result (updated 2026-07-21)
+
+The release is complete and accepted in production; retain the exact contract,
+failed-attempt history, evidence hashes, rollback posture, and operator rules in
 `docs/runtime-db-credential-separation.md`. Vercel application builds must never
-run owner migrations or receive any owner/admin database variable. Production
-migrations move to a manually approved, main-only GitHub `Production`
-environment, and automatic Vercel production deployment from `main` stays off
-so migrations and application promotion cannot race. After removing the Vercel
-owner variables, reset the exact Neon production owner once through the pinned
-control-plane endpoint and store the returned credential only in the protected
-migration environment and a mode-0600 local operator file. The earlier
-pre-encrypted SQL `ALTER ROLE` design is retired: a production attempt returned
-PostgreSQL `XX000`, while the control-plane reset returns a recoverable password
-plus operations. Because that POST is non-idempotent, an ambiguous result must
-use only the reveal-based `recover` mode; never blindly reset again. The
-operator persists private prior-credential state before reset and
-reserves/fsyncs evidence space before mutation. That second rotation is
-mandatory because deleting project variables affects future deployments but
-does not invalidate the valid owner secret embedded in already built
-deployments. This implementation is under final review, not production-active,
-and does not authorize Notification activation before the separation postflight
-passes.
+run owner migrations or receive an owner/admin database variable. Production
+migrations run only from the manually approved, main-only GitHub `Production`
+environment, and automatic Vercel production deployment from `main` remains off
+so migrations and application promotion cannot race. The owner credential lives
+only in that protected environment and ignored mode-0600
+`.env.migration-owner.local`; `.env.local` is runtime-only. Any ambiguous future
+control-plane reset must use reveal-based recovery and must never blindly issue
+a second reset. Do not weaken the production-equivalent `LOGIN NOINHERIT`
+runtime role fixture or the Vercel privileged-variable guard.
 
-The first separation preflight on 2026-07-21 correctly failed before mutation
-because the local owner URL had drifted to an already rejected credential while
-Neon's stored current credential and role timestamp remained healthy. The
-reviewed operator now has a separate fail-closed `repair-local` mode that may
-reveal and persist only that pinned current credential after proving old
-`28P01`, current catalog/canary acceptance, exact provider state, and an empty
-protected migration-secret inventory. A read-only preflight must still pass
-after repair; local reconciliation is not rollout acceptance.
+### Bucket B Notification design decision (2026-07-19)
 
-Because legacy `.env.local` was observed reverting to the rejected credential
-twice without a proved writer, it is no longer an acceptable owner-credential
-source after bootstrap. Separation uses the ignored mode-0600
-`.env.migration-owner.local` as its sole local source of truth once present.
-This is an isolation decision, not an attribution of the unexplained writer.
-Fresh-database CI must also create its passwordless runtime policy target with
-the current production `LOGIN NOINHERIT` attributes before replaying the sealed
-Phase-B migration; do not weaken or rewrite the applied migration to preserve a
-stale `NOLOGIN` fixture.
+Bucket B preparation has begun on an isolated, unmerged branch in
+`docs/rls-bucket-b-notification-plan.md`; no policy is production-active. The
+verified surface has simple recipient reads/mark-read operations but asymmetric
+cross-user creation, dedup recovery, global retention, staff source cleanup,
+and account-deletion cleanup. Use recipient SELECT/RLS plus
+column-level `UPDATE (read)`, with no direct runtime INSERT/DELETE. Cross-user
+creation and cleanup require separate fixed-purpose owner-backed RPCs; never
+put a second owner/service credential into Vercel. The guarded prelaunch
+Notification inspection, atomic activation-time purge, PostgreSQL proof, and
+two fresh real-table Notification passes under the reviewed candidate-aligned
+provider/route gate block activation. The unchanged transaction-wrapper limits
+remain blocking for any later release that actually uses that architecture.
+Activation remains separate ENABLE/NO FORCE and later FORCE releases after
+Phase B and runtime credential separation are live.
+
+The isolated branch contains both recipient candidates. Fixed
+`SECURITY INVOKER` recipient RPCs cover bell, page, unread count, mark-one,
+mark-many, conversation mark-read, export, and recent low-stock lookup in one
+database round trip per application operation; the prior interactive-transaction
+bell/page wrapper is retained only in Git/evidence history after its executable
+candidate file was removed. The
+2026-07-22 provider attempt selected the one-statement RPC direction: its
+target/burst candidate comparisons passed with zero request or isolation errors,
+while the generic wrapper crossed seven unchanged 2x adoption/hold thresholds.
+The run consumed slot 1 and failed the existing generic gate, so it is not
+promotion evidence and slot 2 was not called. Do not weaken the thresholds or
+rerun for a favorable boundary sample. Before a fresh provider proof, review a
+candidate-aligned gate that keeps wrapper limits blocking for releases that use
+interactive transactions and requires two fresh real Notification RPC/route
+passes for this release. The invoker draft now has disposable PostgreSQL
+parse/apply, own/foreign/direct-denial, and context-reset proof; final SQL
+authority review, real-table route proof, and authenticated runtime-credential
+evidence remain open. Cross-user
+creation and cleanup use separate service authority and must not be conflated
+with recipient RPCs.
+
+The later real-table provider attempt at commit
+`aef7ef2686a0432529a2d17291e2ca04b2fa0714` is failed, consumed evidence too.
+Its deployment and exact isolated runtime/database attestation passed, but slot
+1 returned HTTP 500 immediately after durable claim because the candidate gate
+used invalid `pg_catalog.current_user` SQL. Slot 2 was not called; all provider
+resources were abort-cleaned; production was unchanged. `CURRENT_USER` and the
+opaque Vercel environment-id validator now have regressions, but no successful
+real Notification workload was produced. A fresh provider run remains required
+before activation; do not reinterpret the infrastructure attestation as a
+runtime pass.
+
+The fresh follow-up at commit
+`b295116a27401433e717e5022238c4006fb871c6` also failed after durable slot-1
+claim and was not replayed. Its independent deployment attestation passed, but
+the real source baseline used invalid `pg_catalog.exists(...)` syntax. The
+correct `EXISTS (...)` expression is now guarded, all disposable resources were
+again removed, and production remained unchanged. Before another provider
+deployment, a reduced real-query local preflight must complete against fresh
+fixtures and owner-reset/reseed them; environment configuration is mechanically
+blocked until that preflight is recorded. A later successful local diagnostic
+does not retroactively accept either consumed Vercel slot.
+
+A third predeployment-only attempt consumed no Vercel slot: its mandatory local
+preflight exited before JSON. A direct invocation later reproduced the exact
+pre-main defect: unsupported top-level `await` in the standalone TSX CommonJS
+output. The attempt was fully abort-cleaned with production unchanged. The
+script now uses a CommonJS-compatible invocation with a regression, and the
+operator directly invokes a package-metadata-verified, pinned local TSX
+`4.21.0` binary instead of relying on `npm exec`; a fresh database/preflight
+remains required.
+
+The fourth attempt passed the mandatory local preflight and provider slot 1,
+then failed slot 2 only on the fixed per-slot 2x bell p95 ratio. Correctness and
+all request error counts remained green. The reversed slots exposed a symmetric
+first-measured-workload ramp (`149.1ms` first baseline in slot 1; `147.2ms`
+first candidate in slot 2) while the later workloads were `26.8ms` and
+`22.9ms`. Do not retroactively accept the failed gate. The harness now primes
+each side at full measured concurrency immediately before measurement and must
+pass a fresh two-slot proof. The failed environment was fully removed and
+production remained unchanged.
+
+The fifth fresh attempt validated the priming correction and completed the
+Notification provider gate. Its local preflight and both non-replayable,
+order-reversed Vercel slots passed exact correctness, zero errors, the fixed 2x
+ratio, and the 250ms candidate ceiling without exception. The bell target,
+burst, and service p95s stayed between `21.7ms` and `39.9ms` across both slots.
+Success cleanup removed every disposable resource and production remained
+unchanged. Treat provider performance/locality as complete for this exact
+Notification design. The consolidated Extra High SQL/application authority
+review passed at `ab2d08a6` with no new blocker; authenticated route smoke,
+activation packaging, full release CI, and production evidence remain open.
+
+Two authenticated route attempts then failed closed before any ordinary user
+was impersonated. The first exposed a Preview/production Redis cache namespace
+collision; the second proved that email-pattern selection saw only synthetic
+provider actors while every Clerk-backed account was unmarked. All disposable
+resources were removed after each attempt. Drew explicitly authorized Codex to
+create the missing identity. Use one permanent, non-customer, no-password Clerk
+operational canary with external id
+`grainline-notification-rls-operational-canary-v1`, current legal metadata, one
+normal webhook-created production row, zero marketplace activity, and hashed
+private evidence. Because live Clerk requires email, derive the canary's
+`+grainline-notification-canary` Gmail alias in memory from the sole active
+production admin, allow the one normal welcome email to that controlled inbox,
+and never print or commit the raw address. Do not create/delete a disposable
+live Clerk user:
+those webhooks would leave avoidable production creation/anonymization residue.
+Authenticated smoke must resolve this exact external id, never an email pattern
+or an unmarked account.
+
+The operational canary was created and independently rechecked on 2026-07-22:
+one Clerk identity, one signed-webhook production row, no password, current
+legal state, zero marketplace activity, and no welcome fallback-outbox row.
+Retain it for authenticated preflight/postflight checks. The isolated
+authenticated Notification route smoke passed on 2026-07-22 and all disposable
+provider resources were removed; next is legacy aggregate/backup inspection
+and clean release packaging, not another provider run.
+
+The production legacy inspection must not weaken the owner-credential boundary
+to run early from a feature branch. Package its read-only workflow with the
+preparation release, merge through normal review, apply the compatible
+preparation migration, and then dispatch the exact clean `main` SHA through the
+main-only GitHub `Production` environment. The operator must verify the
+protected credential digest and prepared/no-policy/legacy-CRUD posture, run one
+repeatable-read read-only transaction, and retain aggregate counts only. The
+activation purge remains a later locked transaction; the inspection itself may
+never delete or export rows.
+
+The first production package carries only the compatible preparation migration;
+the activation migration must remain absent. The promoted preparation artifact
+is byte-pinned separately, with a verifier proving its executable body matches
+the disposable PostgreSQL candidate and that the only differences are
+promotion comments/terminal whitespace. Re-run the disposable PostgreSQL
+compatibility and rollback workflow against that committed preparation file,
+then exclude all endpoint-specific Preview runners and exceptions before clean
+release review.
+
+The clean release derivative keeps the generic/context PostgreSQL harness and
+the Notification provider measurement implementation as non-runtime scripts,
+but ships no `/api/internal/rls-context-gate` route, middleware exemption, or
+runner-only test. The branch-scoped Vercel deployment-disable entries and the
+temporary duplicate-database-URL build exception are also removed; only the
+standing `main: false` deployment interlock remains. Historical authenticated
+smoke/operator sources are retained as reproducibility records without an
+active package command. Production promotion is guarded by the exact
+preparation migration/tree verifier rather than by the former broad
+"draft file exists" Vercel build prohibition.
+
+Live Clerk does not permit backend `sessions.createSession` for this production
+instance. Authenticated operational proofs must use a short-lived one-use Clerk
+sign-in token consumed by the production Frontend API `ticket` strategy, then
+revoke every resulting canary session and any unconsumed token in mandatory
+cleanup. Do not loosen this into password login, ordinary-user impersonation,
+or a retained browser session.
+
+The isolated service-authority draft now uses seventeen owner-backed functions:
+one runtime-ungranted fixed-column core, ten granted creation families, one
+dedicated back-in-stock claim/create/consume operation, three exact cleanup
+operations, and two fixed retention batches. Runtime receives exact execute
+privileges only on the sixteen fixed-purpose entry points;
+direct Notification insert/delete and the default public function privilege
+remain revoked. The application paths are wired to the draft and broad legacy
+Notification cleanup fallbacks have been removed from runtime code. Because the
+site remains prelaunch with no users relying on notifications, a guarded
+owner-only operator may inspect legacy aggregate counts. The purge must be the
+first locked step inside the same transaction that activates Notification RLS;
+a standalone reset would leave a recreation race. If the no-users premise
+changes, the purge is
+prohibited and a backfill must be designed. Application-asserted `app.user_id` is
+not database-authenticated identity and a compromised runtime can forge it;
+fixed-purpose constraints limit that residual without eliminating it.
+In addition, most durable source/audit tables remain ordinary runtime-CRUD
+tables until their later independent RLS or database-isolation groups. A fully
+compromised runtime may therefore fabricate upstream evidence before invoking a
+narrow Notification wrapper. Bucket B still removes direct arbitrary
+Notification writes and caller-controlled payload/target identity, but it is
+not a complete arbitrary-runtime-compromise boundary on its own. Close that
+dependency through the site-wide program; do not activate orders, messages,
+cases, and audit ledgers in the same Notification release merely to make a
+broader claim.
+
+The existing site-wide runtime-role tooling is part of the Bucket B security
+boundary, not a later cleanup. It now runs provisioning mutations
+transactionally, aborts on partial Notification RLS state, and converges an
+activated Notification table back to `SELECT` plus column-only `UPDATE(read)`.
+It also converges all 25 Notification RPC ACLs while keeping the private create
+core runtime-ungranted. The grant audit derives FORCE expectations from ordered
+migration history and checks the exact Notification policies, column grants,
+function owner/mode/search path/overload shape, PUBLIC revokes, and runtime
+execute split. The release topology is explicitly split: a preparation
+migration installs the schema/RPC surface while retaining disabled RLS, zero
+policies, and legacy table CRUD; the RPC application deploys and is verified;
+only then may a locked activation migration purge pre-authority rows, install
+the policies, enable initial `NO FORCE`, and narrow table grants. Keep three
+evidence layers distinct:
+the AST gate covers all 54 application emission paths; disposable PostgreSQL
+run `29893071538` at exact source
+`187ac2fa5a5b7c08a3889b27ef57c873ee7a79ea` executes all 26 family-dispatched
+private-core source-validation branches plus the dedicated back-in-stock claim
+with valid creation, stable replay, and forged-recipient or mismatched-evidence
+rejection. Its 59 creation cases cover all 38 successful source/type pairs and
+the security-relevant action, status, and recipient-direction variants within
+those source types. The accepted run also proves post-draft role
+provisioning reconvergence and the catalog proof on fresh PostgreSQL 16. The
+generic grant audit's Notification migration-inventory branch is now exercised
+by the later split-migration proof described in the Bucket B operating record;
+do not retroactively count the earlier draft run as that proof.
+
+Extra-high review accepts the current source-derived shared create function and
+split migration topology for continued proof, not production activation. The
+54/54 callsite result and 59-case live result validate the architecture, the
+granted boundary, every top-level private-core source branch, every successful
+source/type pair, and the security-relevant action/recipient variants.
+The latest isolated PostgreSQL proof is green and also passes catalog/grant,
+direct-denial, recipient context reset, service replay, the one-shot stock
+claim, and both two-session block-race checks. The byte-pinned split migration
+and database-first rollback have passed disposable PostgreSQL proof. Provider
+route/authentication and application-deployment rollback evidence remain
+separate. This narrows the remaining work; it does
+not by itself select the recipient architecture, replace provider/performance
+proof, prove the production authentication path, authorize merge, or activate
+any persistent database. The later 2026-07-22 provider result above selects the
+RPC direction without converting either proof into activation evidence.
+Do not deploy the long-lived Notification branch for the remaining real-table
+provider proof. Its unapplied SQL drafts deliberately make every
+Vercel build fail closed, and automatic deployment is disabled for that exact
+branch. Use a freshly reviewed disposable proof branch with only the exact
+candidate and temporary Preview runner artifacts needed for the next proof.
+The runner branch and all branch-scoped provider credentials/resources must be
+deleted after sanitized evidence and teardown proof are retained; the generic
+harness, regression tests, and operating record remain durable.
+The granted wrappers no longer accept notification title, body, link, or dedup
+identity. The private core derives all four inside owner authority from the
+validated recipient, type, source row, related actor, and source-specific
+columns. App-level title/body copies are non-authoritative compatibility
+evidence; link and dedup scope are telemetry only. Social/content/message/commission
+absence-of-block checks now share a deterministic lock protocol with every
+ordinary block/unblock writer: notification creation takes sorted-pair
+`FOR SHARE`, while block mutation takes sorted-pair `FOR UPDATE`. Account
+deletion retains its earlier conflicting lifecycle lock before block cleanup.
+The owner core rejects isolation other than `READ COMMITTED`, and ordinary
+block mutations request it explicitly, so a stale transaction snapshot cannot
+silently weaken the absence check. This is statically guarded but still needs
+two-session PostgreSQL race proof.
+Retain provider performance proof for the source-validation joins.
+
+The message family uses `Message.id` as its durable source. For custom-order
+ready links, the private core extracts the listing id from the structured
+message, checks the reserved buyer, seller, conversation and listing status,
+and derives the canonical route. It is not stored as a second
+Notification source field.
+
+The inventory family is complete in the isolated draft. Checkout low-stock binds the
+exact order item to a paid order, completed stock reservation, listing owner and
+current low-stock state, then derives payload, route and replay identity inside
+owner authority. Manual low-stock now writes durable audit evidence atomically
+with the row-locked listing update and derives its payload, route and identity
+from that event. Back-in-stock writes durable restock-transition evidence with
+the stock mutation, then atomically validates that audit and the locked
+subscription, creates the preference-gated Notification, consumes the one-shot
+subscription, and exposes only the winning claim to email fanout.
+
+The verification/Guild family now binds seven staff transitions to the exact
+durable, non-undone AdminAuditLog row co-committed with the state change and binds three
+cron transitions to fixed-job SystemAuditLog evidence. The first metrics warning
+was moved into an audited transaction; the owner wrapper derives payload and
+route only after validating actor, recipient, verification status, and Guild
+level.
+
+The listing-moderation and account-warning families are also complete in the
+isolated draft. Listing approval/rejection returns the exact staff audit written
+with the transition; listing reports use the durable `UserReport`. A successful
+admin email writes bounded notification content into a strict post-send audit
+before attempting the in-app row. Banned-seller buyer warnings use a compound
+ban-audit/order event, validate that the order is listed in the ban snapshot,
+and retain the banned seller as exact related-user lifecycle metadata.
+
+The order/payment/fulfillment family completes creation coverage. Checkout
+buyer/seller notifications bind the atomic checkout-order audit; three seller
+fulfillment transitions co-commit a user-attributed system audit; seller and
+blocked-checkout refunds plus Stripe disputes bind `OrderPaymentEvent`; payout
+failure binds `SellerPayoutEvent`. The owner wrapper derives the recipient,
+counterparty, payload, route, and replay identity from those ledgers and exact
+order relationships.
+
+Production activation also has a permanent completeness gate:
+`npm run audit:rls-notification-readiness`. It inventories the real TypeScript
+emission paths, requires the exact 54-path contract, and fails on dynamic calls,
+missing source pairs, or source constants that do not dispatch through a
+reviewed service family whose draft SQL function, `PUBLIC` execute revoke, and
+runtime grant are present. Its current 54/54 result passes the
+creation-authority gate; ordinary tests retain the exact count and authority
+surface tripwires so new or dynamic paths cannot disappear silently. This green
+gate is only one activation prerequisite.
+
+Use a hybrid rather than either extreme. Do not grant runtime the current
+generic arbitrary-type/arbitrary-recipient creator, and do not collapse the
+completed paths into identical lifecycle metadata. Keep the
+fixed-column insert primitive private to the function owner and expose only
+family-specific operations keyed by stable domain ids and small event
+discriminators. The ten-family inventory and implementation order live in
+`docs/notification-create-authority-inventory.md`. This preserves meaningful
+write-side defense in depth while keeping database validation proportional to
+what each application, staff, cron, or provider flow can actually prove.
 
 ### Homepage discovery hierarchy decision (2026-07-15)
 

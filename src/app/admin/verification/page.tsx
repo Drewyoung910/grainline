@@ -5,6 +5,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import {
   sendGuildMasterRevokedEmail,
   sendGuildMemberRevokedEmail,
@@ -234,9 +235,9 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
   }
 
   const approvedAt = new Date();
-  let approved = false;
+  let approvalAuditId: string | null = null;
   try {
-    approved = await prisma.$transaction(async (tx) => {
+    approvalAuditId = await prisma.$transaction(async (tx) => {
       const updated = await tx.makerVerification.updateMany({
         where: { id: verificationId, status: "PENDING" },
         data: {
@@ -246,7 +247,7 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
           reviewNotes: adminOverride ? "Admin override: $250 sales requirement waived" : null,
         },
       });
-      if (updated.count === 0) return false;
+      if (updated.count === 0) return null;
 
       const sellerUpdated = await tx.sellerProfile.updateMany({
         where: {
@@ -261,19 +262,19 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
         },
       });
       assertGuildVerificationTransition(sellerUpdated.count, "approve Guild Member");
-      await logAdminActionOrThrow({
+      return logAdminActionOrThrow({
         client: tx,
         adminId: me.id,
         action: "APPROVE_GUILD_MEMBER",
         targetType: "SELLER_PROFILE",
-        targetId: verificationId,
+        targetId: verification.sellerProfileId,
+        metadata: { verificationId },
       });
-      return true;
     });
   } catch (error) {
     if (!isGuildVerificationTransitionConflict(error)) throw error;
   }
-  if (!approved) return { ok: false, error: "Application changed while approving. Refresh and try again." };
+  if (!approvalAuditId) return { ok: false, error: "Application changed while approving. Refresh and try again." };
 
   await createNotification({
     userId: verification.sellerProfile.userId,
@@ -282,6 +283,8 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
     body: "Your Guild Member badge is now live on your profile",
     link: publicSellerPath(verification.sellerProfile.id, verification.sellerProfile.displayName),
     dedupScope: `guild-member-approve:${verificationId}`,
+    sourceType: NOTIFICATION_SOURCE_TYPES.GUILD_ADMIN_ACTION,
+    sourceId: approvalAuditId,
   });
 
   if (
@@ -318,6 +321,7 @@ async function rejectGuildMember(formData: FormData) {
     where: { id: verificationId },
     select: {
       status: true,
+      sellerProfileId: true,
       sellerProfile: {
         select: { userId: true, displayName: true, user: { select: { email: true } } },
       },
@@ -325,7 +329,7 @@ async function rejectGuildMember(formData: FormData) {
   });
   if (!verification || verification.status !== "PENDING") return;
 
-  const rejected = await prisma.$transaction(async (tx) => {
+  const rejectionAuditId = await prisma.$transaction(async (tx) => {
     const updated = await tx.makerVerification.updateMany({
       where: { id: verificationId, status: "PENDING" },
       data: {
@@ -335,18 +339,18 @@ async function rejectGuildMember(formData: FormData) {
         reviewNotes,
       },
     });
-    if (updated.count === 0) return updated;
-    await logAdminActionOrThrow({
+    if (updated.count === 0) return null;
+    return logAdminActionOrThrow({
       client: tx,
       adminId: me.id,
       action: "REJECT_GUILD_MEMBER",
       targetType: "SELLER_PROFILE",
-      targetId: verificationId,
+      targetId: verification.sellerProfileId,
       reason: reviewNotes ?? undefined,
+      metadata: { verificationId },
     });
-    return updated;
   });
-  if (rejected.count === 0) return;
+  if (!rejectionAuditId) return;
 
   if (verification?.sellerProfile.userId) {
     await createNotification({
@@ -356,6 +360,8 @@ async function rejectGuildMember(formData: FormData) {
       body: reviewNotes ?? "Please review your application",
       link: "/dashboard/verification",
       dedupScope: `guild-member-reject:${verificationId}`,
+      sourceType: NOTIFICATION_SOURCE_TYPES.GUILD_ADMIN_ACTION,
+      sourceId: rejectionAuditId,
     });
   }
 
@@ -394,9 +400,9 @@ async function revokeMember(_prevState: unknown, formData: FormData): Promise<Ac
   });
 
   const revokedAt = new Date();
-  let revoked = false;
+  let revocationAuditId: string | null = null;
   try {
-    revoked = await prisma.$transaction(async (tx) => {
+    revocationAuditId = await prisma.$transaction(async (tx) => {
       const verificationUpdated = await tx.makerVerification.updateMany({
         where: {
           sellerProfileId,
@@ -409,7 +415,7 @@ async function revokeMember(_prevState: unknown, formData: FormData): Promise<Ac
           reviewNotes: "Guild Member badge revoked by Grainline staff.",
         },
       });
-      if (verificationUpdated.count === 0) return false;
+      if (verificationUpdated.count === 0) return null;
 
       const updated = await tx.sellerProfile.updateMany({
         where: { id: sellerProfileId, guildLevel: "GUILD_MEMBER" },
@@ -424,19 +430,18 @@ async function revokeMember(_prevState: unknown, formData: FormData): Promise<Ac
       });
       assertGuildVerificationTransition(updated.count, "revoke Guild Member");
 
-      await logAdminActionOrThrow({
+      return logAdminActionOrThrow({
         client: tx,
         adminId: me.id,
         action: "REVOKE_GUILD_MEMBER",
         targetType: "SELLER_PROFILE",
         targetId: sellerProfileId,
       });
-      return true;
     });
   } catch (error) {
     if (!isGuildVerificationTransitionConflict(error)) throw error;
   }
-  if (!revoked) return { ok: false, error: "Guild Member badge was already changed. Refresh this page." };
+  if (!revocationAuditId) return { ok: false, error: "Guild Member badge was already changed. Refresh this page." };
 
   if (seller?.userId) {
     await createNotification({
@@ -446,6 +451,8 @@ async function revokeMember(_prevState: unknown, formData: FormData): Promise<Ac
       body: "Your Guild Member badge was revoked by Grainline staff.",
       link: "/dashboard/verification",
       dedupScope: `guild-member-revoke:${sellerProfileId}`,
+      sourceType: NOTIFICATION_SOURCE_TYPES.GUILD_ADMIN_ACTION,
+      sourceId: revocationAuditId,
     });
   }
   if (
@@ -541,14 +548,14 @@ async function approveGuildMaster(_prevState: unknown, formData: FormData): Prom
   }
 
   const approvedAt = new Date();
-  let approved = false;
+  let approvalAuditId: string | null = null;
   try {
-    approved = await prisma.$transaction(async (tx) => {
+    approvalAuditId = await prisma.$transaction(async (tx) => {
       const updated = await tx.makerVerification.updateMany({
         where: { id: verificationId, status: "GUILD_MASTER_PENDING" },
         data: { status: "GUILD_MASTER_APPROVED", reviewedById: me.id, reviewedAt: approvedAt },
       });
-      if (updated.count === 0) return false;
+      if (updated.count === 0) return null;
 
       const sellerUpdated = await tx.sellerProfile.updateMany({
         where: {
@@ -558,19 +565,19 @@ async function approveGuildMaster(_prevState: unknown, formData: FormData): Prom
         data: { guildLevel: "GUILD_MASTER", guildMasterApprovedAt: approvedAt },
       });
       assertGuildVerificationTransition(sellerUpdated.count, "approve Guild Master");
-      await logAdminActionOrThrow({
+      return logAdminActionOrThrow({
         client: tx,
         adminId: me.id,
         action: "APPROVE_GUILD_MASTER",
         targetType: "SELLER_PROFILE",
         targetId: verification.sellerProfileId,
+        metadata: { verificationId },
       });
-      return true;
     });
   } catch (error) {
     if (!isGuildVerificationTransitionConflict(error)) throw error;
   }
-  if (!approved) return { ok: false, error: "Application changed while approving. Refresh and try again." };
+  if (!approvalAuditId) return { ok: false, error: "Application changed while approving. Refresh and try again." };
 
   await createNotification({
     userId: verification.sellerProfile.userId,
@@ -579,6 +586,8 @@ async function approveGuildMaster(_prevState: unknown, formData: FormData): Prom
     body: "Your Guild Master badge is now live on your profile",
     link: publicSellerPath(verification.sellerProfile.id, verification.sellerProfile.displayName),
     dedupScope: `guild-master-approve:${verificationId}`,
+    sourceType: NOTIFICATION_SOURCE_TYPES.GUILD_ADMIN_ACTION,
+    sourceId: approvalAuditId,
   });
 
   if (
@@ -623,28 +632,28 @@ async function rejectGuildMaster(formData: FormData) {
   });
   if (!verification || verification.status !== "GUILD_MASTER_PENDING") return;
 
-  const rejected = await prisma.$transaction(async (tx) => {
+  const rejectionAuditId = await prisma.$transaction(async (tx) => {
     const updated = await tx.makerVerification.updateMany({
       where: { id: verificationId, status: "GUILD_MASTER_PENDING" },
       data: { status: "GUILD_MASTER_REJECTED", reviewedById: me.id, reviewedAt: new Date() },
     });
-    if (updated.count === 0) return false;
+    if (updated.count === 0) return null;
 
     await tx.sellerProfile.update({
       where: { id: verification.sellerProfileId },
       data: { guildMasterReviewNotes: reviewNotes },
     });
-    await logAdminActionOrThrow({
+    return logAdminActionOrThrow({
       client: tx,
       adminId: me.id,
       action: "REJECT_GUILD_MASTER",
       targetType: "SELLER_PROFILE",
       targetId: verification.sellerProfileId,
       reason: reviewNotes ?? undefined,
+      metadata: { verificationId },
     });
-    return true;
   });
-  if (!rejected) return;
+  if (!rejectionAuditId) return;
 
   if (verification?.sellerProfile.userId) {
     await createNotification({
@@ -654,6 +663,8 @@ async function rejectGuildMaster(formData: FormData) {
       body: reviewNotes ?? "Please review your application",
       link: "/dashboard/verification",
       dedupScope: `guild-master-reject:${verificationId}`,
+      sourceType: NOTIFICATION_SOURCE_TYPES.GUILD_ADMIN_ACTION,
+      sourceId: rejectionAuditId,
     });
   }
 
@@ -672,9 +683,9 @@ async function revokeMaster(_prevState: unknown, formData: FormData): Promise<Ac
   });
 
   const revokedAt = new Date();
-  let revoked = false;
+  let revocationAuditId: string | null = null;
   try {
-    revoked = await prisma.$transaction(async (tx) => {
+    revocationAuditId = await prisma.$transaction(async (tx) => {
       const verificationUpdated = await tx.makerVerification.updateMany({
         where: {
           sellerProfileId,
@@ -687,7 +698,7 @@ async function revokeMaster(_prevState: unknown, formData: FormData): Promise<Ac
           reviewNotes: "Guild Master badge revoked by Grainline staff.",
         },
       });
-      if (verificationUpdated.count === 0) return false;
+      if (verificationUpdated.count === 0) return null;
 
       const updated = await tx.sellerProfile.updateMany({
         where: { id: sellerProfileId, guildLevel: "GUILD_MASTER" },
@@ -703,19 +714,18 @@ async function revokeMaster(_prevState: unknown, formData: FormData): Promise<Ac
       });
       assertGuildVerificationTransition(updated.count, "revoke Guild Master");
 
-      await logAdminActionOrThrow({
+      return logAdminActionOrThrow({
         client: tx,
         adminId: me.id,
         action: "REVOKE_GUILD_MASTER",
         targetType: "SELLER_PROFILE",
         targetId: sellerProfileId,
       });
-      return true;
     });
   } catch (error) {
     if (!isGuildVerificationTransitionConflict(error)) throw error;
   }
-  if (!revoked) return { ok: false, error: "Guild Master badge was already changed. Refresh this page." };
+  if (!revocationAuditId) return { ok: false, error: "Guild Master badge was already changed. Refresh this page." };
 
   if (seller?.userId) {
     await createNotification({
@@ -725,6 +735,8 @@ async function revokeMaster(_prevState: unknown, formData: FormData): Promise<Ac
       body: "Your Guild Master badge was revoked. Your Guild Member badge remains active.",
       link: "/dashboard/verification",
       dedupScope: `guild-master-revoke:${sellerProfileId}`,
+      sourceType: NOTIFICATION_SOURCE_TYPES.GUILD_ADMIN_ACTION,
+      sourceId: revocationAuditId,
     });
   }
   if (
@@ -756,7 +768,7 @@ async function reinstateGuildMember(_prevState: unknown, formData: FormData): Pr
 
   const reinstatedAt = new Date();
   const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-  let reinstatedSeller: { userId: string; displayName: string } | null = null;
+  let reinstatedSeller: { userId: string; displayName: string; auditLogId: string } | null = null;
   try {
     reinstatedSeller = await prisma.$transaction(async (tx) => {
       const seller = await tx.sellerProfile.findUnique({
@@ -815,14 +827,14 @@ async function reinstateGuildMember(_prevState: unknown, formData: FormData): Pr
       });
       assertGuildVerificationTransition(updated.count, "reinstate Guild Member");
 
-      await logAdminActionOrThrow({
+      const auditLogId = await logAdminActionOrThrow({
         client: tx,
         adminId: me.id,
         action: "REINSTATE_GUILD_MEMBER",
         targetType: "SELLER_PROFILE",
         targetId: sellerProfileId,
       });
-      return seller;
+      return { ...seller, auditLogId };
     });
   } catch (error) {
     if (!isGuildVerificationTransitionConflict(error)) throw error;
@@ -841,6 +853,8 @@ async function reinstateGuildMember(_prevState: unknown, formData: FormData): Pr
     body: "Your Guild Member badge is live again on your profile.",
     link: publicSellerPath(sellerProfileId, reinstatedSeller.displayName),
     dedupScope: `guild-member-reinstate:${sellerProfileId}`,
+    sourceType: NOTIFICATION_SOURCE_TYPES.GUILD_ADMIN_ACTION,
+    sourceId: reinstatedSeller.auditLogId,
   });
 
   revalidatePath("/admin/verification");

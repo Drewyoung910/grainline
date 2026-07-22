@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { sendCaseMessage } from "@/lib/email";
 import {
   caseMessageRatelimit,
@@ -225,6 +226,9 @@ export async function POST(
               title: "Grainline Staff sent a message in your case",
               body: truncateText(messageBody, 60),
               link: `/dashboard/orders/${caseRecord.orderId}`,
+              relatedUserId: me.id,
+              sourceType: NOTIFICATION_SOURCE_TYPES.CASE_MESSAGE,
+              sourceId: message.id,
             }),
           );
         }
@@ -235,6 +239,9 @@ export async function POST(
             title: "Grainline Staff sent a message in your case",
             body: truncateText(messageBody, 60),
             link: `/dashboard/sales/${caseRecord.orderId}`,
+            relatedUserId: me.id,
+            sourceType: NOTIFICATION_SOURCE_TYPES.CASE_MESSAGE,
+            sourceId: message.id,
           }),
         );
         await Promise.all(notifications);
@@ -314,6 +321,9 @@ export async function POST(
             title: `${senderName} sent a message in your case`,
             body: truncateText(messageBody, 60),
             link: caseLink,
+            relatedUserId: me.id,
+            sourceType: NOTIFICATION_SOURCE_TYPES.CASE_MESSAGE,
+            sourceId: message.id,
           });
         } catch (notificationError) {
           Sentry.captureException(notificationError, {

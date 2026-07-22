@@ -6,6 +6,7 @@ import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import { createNotification } from "@/lib/notifications";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import {
   commissionInterestRatelimit,
   rateLimitResponse,
@@ -152,6 +153,7 @@ export async function POST(
   const buyerUserId = commissionRequest.buyerId;
   const [a, b] = [me.id, buyerUserId].sort((x, y) => (x < y ? -1 : 1));
   let conversationId: string | null = null;
+  let commissionInterestId: string | null = null;
   const sellerDisplayName = sellerProfile.displayName ?? me.name ?? "A maker";
 
   try {
@@ -170,13 +172,15 @@ export async function POST(
         select: { id: true },
       });
       conversationId = convo.id;
-      await tx.commissionInterest.create({
+      const createdInterest = await tx.commissionInterest.create({
         data: {
           commissionRequestId: id,
           sellerProfileId: sellerProfile.id,
           conversationId: convo.id,
         },
+        select: { id: true },
       });
+      commissionInterestId = createdInterest.id;
       await tx.message.create({
         data: {
           conversationId: convo.id,
@@ -231,12 +235,13 @@ export async function POST(
     }
     throw e;
   }
-  if (!conversationId)
+  if (!conversationId || !commissionInterestId)
     return privateJson(
       { error: "Failed to create conversation" },
       { status: 500 },
     );
   const finalConversationId = conversationId;
+  const finalCommissionInterestId = commissionInterestId;
 
   const sellerName = sellerDisplayName;
   after(async () => {
@@ -248,6 +253,9 @@ export async function POST(
         body: `"${commissionRequest.title}" — view the conversation`,
         link: `/messages/${finalConversationId}`,
         dedupScope: id,
+        relatedUserId: me.id,
+        sourceType: NOTIFICATION_SOURCE_TYPES.COMMISSION_INTEREST,
+        sourceId: finalCommissionInterestId,
       });
     } catch (error) {
       Sentry.captureException(error, {

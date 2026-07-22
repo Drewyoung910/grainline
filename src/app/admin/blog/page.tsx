@@ -11,6 +11,9 @@ import { logAdminActionOrThrow } from "@/lib/audit";
 import { truncateText } from "@/lib/sanitize";
 import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
+import { withDbUserContext } from "@/lib/dbUserContext";
+import { deleteBlogCommentNotificationServiceRows } from "@/lib/notificationServiceAccess";
 
 async function requireAdmin() {
   const { userId } = await auth();
@@ -73,6 +76,9 @@ async function approveComment(commentId: string) {
             body: truncateText(comment.body, 60),
             link: `/blog/${comment.post.slug}#comment-${commentId}`,
             dedupScope: commentId,
+            sourceType: NOTIFICATION_SOURCE_TYPES.BLOG_COMMENT,
+            sourceId: commentId,
+            relatedUserId: comment.authorId,
           });
         }
       } else {
@@ -85,6 +91,9 @@ async function approveComment(commentId: string) {
             body: truncateText(comment.body, 60),
             link: `/blog/${comment.post.slug}#comment-${commentId}`,
             dedupScope: commentId,
+            sourceType: NOTIFICATION_SOURCE_TYPES.BLOG_COMMENT,
+            sourceId: commentId,
+            relatedUserId: comment.authorId,
           });
         }
       }
@@ -103,37 +112,16 @@ async function approveComment(commentId: string) {
 async function deleteComment(commentId: string) {
   "use server";
   const me = await requireAdmin();
-  await prisma.$transaction(async (tx) => {
+  await withDbUserContext(me.id, async (tx) => {
     const deleted = await tx.blogComment.delete({
       where: { id: commentId },
       select: {
         id: true,
         postId: true,
         authorId: true,
-        body: true,
-        parentId: true,
-        createdAt: true,
-        parent: { select: { authorId: true } },
-        post: { select: { slug: true, authorId: true } },
       },
     });
-    const recipientId = deleted.parentId ? deleted.parent?.authorId : deleted.post.authorId;
-    if (recipientId && recipientId !== deleted.authorId) {
-      const type = deleted.parentId ? "BLOG_COMMENT_REPLY" : "NEW_BLOG_COMMENT";
-      const body = truncateText(deleted.body, 60);
-      await tx.notification.deleteMany({
-        where: {
-          userId: recipientId,
-          type,
-          body,
-          createdAt: { gte: deleted.createdAt },
-          OR: [
-            { link: `/blog/${deleted.post.slug}#comment-${deleted.id}` },
-            { link: `/blog/${deleted.post.slug}` },
-          ],
-        },
-      });
-    }
+    await deleteBlogCommentNotificationServiceRows(tx, deleted.id);
     await logAdminActionOrThrow({
       client: tx,
       adminId: me.id,

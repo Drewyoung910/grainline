@@ -279,12 +279,12 @@ describe("request origin guard", () => {
     assertHandlerGuardBefore("src/app/api/users/[id]/block/route.ts", "export async function POST(", [
       "await auth()",
       "safeRateLimit(",
-      "prisma.block.upsert",
+      "createUserBlock(me.id, blockedId)",
     ]);
     assertHandlerGuardBefore("src/app/api/users/[id]/block/route.ts", "export async function DELETE(", [
       "await auth()",
       "safeRateLimit(",
-      "prisma.block.deleteMany",
+      "deleteUserBlock(me.id, blockedId)",
     ]);
     assertGuardBefore("src/app/api/users/[id]/report/route.ts", [
       "await auth()",

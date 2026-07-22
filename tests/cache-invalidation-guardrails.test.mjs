@@ -79,8 +79,8 @@ describe("public cache invalidation guardrails", () => {
     assert.match(dashboard, /revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
     assert.match(newListing, /finalListing\?\.status === "ACTIVE"[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
     assert.match(editListing, /revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
-    assert.match(memberCron, /if \(!revoked\) return 0;[\s\S]*revalidateFeaturedMakerCaches\(\)/);
-    assert.match(metricsCron, /if \(!revoked\) return \{ processed: 1, warned: 0, revokedMaster: 0 \};[\s\S]*revalidateFeaturedMakerCaches\(\)/);
+    assert.match(memberCron, /if \(!revocationAuditId\) return 0;[\s\S]*revalidateFeaturedMakerCaches\(\)/);
+    assert.match(metricsCron, /if \(!revocationAuditId\) return \{ processed: 1, warned: 0, revokedMaster: 0 \};[\s\S]*revalidateFeaturedMakerCaches\(\)/);
     assert.match(sellerProfile, /import \{ revalidateFeaturedMakerCaches \} from "@\/lib\/searchCache"/);
     assert.match(sellerProfile, /updateSellerProfile[\s\S]*revalidateFeaturedMakerCaches\(\)[\s\S]*revalidatePath\("\/"\)/);
     assert.match(sellerProfile, /removeSellerAvatar[\s\S]*revalidateFeaturedMakerCaches\(\)[\s\S]*revalidatePath\("\/"\)/);
@@ -141,6 +141,6 @@ describe("public cache invalidation guardrails", () => {
     assert.match(stockRestore, /stockStatusRestoredCount > 0[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
 
     assert.match(stockRoute, /import \{ revalidateFeaturedMakerCaches, revalidateListingSearchCaches \}/);
-    assert.match(stockRoute, /listing\.status !== updated\.status[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
+    assert.match(stockRoute, /updated\.previousStatus !== updated\.status[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
   });
 });

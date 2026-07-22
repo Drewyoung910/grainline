@@ -1,6 +1,6 @@
 # Grainline Architecture
 
-Last updated: 2026-06-02
+Last updated: 2026-07-22
 
 This document is the human onboarding map for Grainline. `CLAUDE.md` remains the detailed implementation memory and behavior-contract log; this file is the shorter architectural overview a new engineer should read first.
 
@@ -33,7 +33,12 @@ Grainline is a US-only woodworking marketplace. It supports public browsing, sel
 
 ## Request Boundaries
 
-Grainline does not use database-level Row Level Security today. The current security model is application-layer authorization:
+Grainline uses database-level Row Level Security for `SavedSearch`; its Phase B
+`FORCE ROW LEVEL SECURITY` rollout is live. The ordinary application runtime
+uses a dedicated `NOBYPASSRLS` role, while owner/migration credentials are kept
+out of the Vercel runtime. The rest of the schema still relies primarily on
+application-layer authorization while independently reviewed RLS or
+least-privilege database groups roll out:
 
 - `src/middleware.ts` enforces signed-out redirects, API 401s, terms acceptance, suspended/deleted account blocks, admin role/PIN checks, cron auth, geo-blocking, and request IDs.
 - Geo-blocking uses Vercel's `x-vercel-ip-country` header and trusts it only behind Vercel managed ingress. A future hosting or proxy migration must replace that header with a trusted geo source or revisit the US-only gate before accepting traffic.
@@ -41,11 +46,18 @@ Grainline does not use database-level Row Level Security today. The current secu
 - Public routes must use shared visibility predicates (`publicListingWhere`, `publicListingDetailWhere`, `visibleSellerProfileWhere`, `activeSellerProfileWhere`, `publicBlogPostWhere`) rather than ad hoc filters.
 - Webhooks and cron routes are middleware-public only because they authenticate with provider signatures or shared secrets inside the route.
 
+`Notification` is the next independent RLS group. Its branch has complete
+54-path write-authority coverage, disposable PostgreSQL and provider proof, and
+a passed consolidated SQL/application authority review, but it is not merged,
+applied, or production-live. Messaging, cases, orders/payment/shipping, and
+service/audit ledgers remain separate later activation groups; do not bundle
+them into the Notification release.
+
 ## Core Lifecycles
 
 ### Users And Sellers
 
-Clerk owns identity/session. Grainline stores durable user state in `User`, including role, banned/deleted flags, terms acceptance, and age attestation. `SellerProfile` stores seller-facing shop/profile state, Stripe account state, vacation/orderability controls, pickup/ship-from settings, and profile media.
+Clerk owns identity/session. Grainline stores durable user state in `User`, including role, banned/deleted flags, terms acceptance, and age attestation. `SellerProfile` stores seller-facing shop/profile state, Stripe account state, vacation/orderability controls, pickup/ship-from settings, and profile media. Middleware account-state Redis keys are environment-scoped: production deployments share one namespace so invalidation survives deployment skew, while each Preview branch uses a hashed branch identity so cloned or synthetic Preview state cannot contaminate production decisions.
 
 ### Listings
 
@@ -80,6 +92,36 @@ Notifications respect preference keys and deduplication helpers. Time-critical t
 - `docs/security-hardening-plan.md`: adversarial security audit process.
 - `docs/maintainability-plan.md`: codebase stabilization and bug-resistance plan.
 - `docs/legal-risk-register.md`: legal/compliance issue tracker for attorney review.
+
+## Current Architecture Health And Deliberate Debt
+
+The foundation is sound for a prelaunch marketplace: authentication and
+visibility boundaries are explicit, provider side effects are generally
+idempotent, runtime and migration database authority are separated, and risky
+behavior is backed by an unusually broad regression/evidence suite. The code is
+not an unstructured mess, but it is a large modular monolith whose complexity is
+now concentrated in several hotspots:
+
+- 112 API route files and 58 Prisma models create a broad authorization and
+  lifecycle surface.
+- The Stripe webhook (2,717 lines) and account-deletion coordinator (2,007
+  lines) are high-change, cross-domain orchestration files that deserve staged
+  extraction after the current RLS release rather than an incidental rewrite
+  during it.
+- Notification creation historically spans 54 emission paths. The Bucket B
+  family wrappers and completeness gate control that distribution, but future
+  notification types must enter through the same source-bound registry.
+- The long-lived Notification branch is a large integration unit (111 files
+  changed from `main` at the 2026-07-22 review). Release it through a clean PR,
+  full CI, explicit migration/app compatibility sequence, and postflight; do
+  not treat green branch-only database proof as a substitute for release CI.
+- `package.json` currently permits automatic Node major upgrades (`>=22`), so
+  Vercel may build on Node 24 while GitHub CI uses Node 22. Align the supported
+  major explicitly before launch in a separate compatibility change.
+
+These are maintainability and integration risks, not evidence that the core
+architecture needs a rewrite. Prefer bounded extractions and independently
+activated data-security groups over a broad refactor.
 
 ## Engineering Rule Of Thumb
 

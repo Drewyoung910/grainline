@@ -111,6 +111,7 @@ describe("account-state residue hardening", () => {
     const schema = source("prisma/schema.prisma");
     const migration = source("prisma/migrations/20260619212000_add_fanout_source_metadata/migration.sql");
     const notifications = source("src/lib/notifications.ts");
+    const notificationSources = source("src/lib/notificationSources.ts");
     const outbox = source("src/lib/emailOutbox.ts");
     const broadcastRoute = source("src/app/api/seller/broadcast/route.ts");
     const listingFanout = source("src/lib/followerListingNotifications.ts");
@@ -127,8 +128,9 @@ describe("account-state residue hardening", () => {
     assert.match(migration, /CREATE INDEX "EmailOutbox_sourceType_sourceId_idx"/);
     assert.match(migration, /CREATE INDEX "Notification_sourceType_sourceId_idx"/);
 
-    assert.match(notifications, /sourceType\?: string/);
-    assert.match(notifications, /sourceId\?: string/);
+    assert.match(notifications, /NotificationSourceFields/);
+    assert.match(notificationSources, /\{ sourceType: NotificationSourceType; sourceId: string \}/);
+    assert.match(notificationSources, /\{ sourceType\?: never; sourceId\?: never \}/);
     assert.match(notifications, /sourceType: notificationSourceType/);
     assert.match(notifications, /sourceId: notificationSourceId/);
     assert.match(outbox, /sourceType\?: string/);
@@ -140,11 +142,11 @@ describe("account-state residue hardening", () => {
     assert.match(broadcastRoute, /sourceId: broadcast\.id/);
     assert.match(listingFanout, /sourceType: "followed_maker_new_listing"/);
     assert.match(listingFanout, /sourceId: publicListing\.id/);
-    assert.match(blogFanout, /sourceType: "followed_maker_new_blog"/);
+    assert.match(blogFanout, /sourceType: NOTIFICATION_SOURCE_TYPES\.FOLLOWED_MAKER_NEW_BLOG/);
     assert.match(blogFanout, /sourceId: publicPost\.id/);
   });
 
-  it("removes deleted seller-authored fanout residue from follower notifications and outbox rows", () => {
+  it("removes deleted seller-authored fanout residue through exact notification and outbox authority", () => {
     const deletion = source("src/lib/accountDeletion.ts");
     const helperStart = deletion.indexOf("async function cleanupDeletedSellerFanoutRows");
     const helper = deletion.slice(helperStart, deletion.indexOf("async function collectMessagesBySensitiveText", helperStart));
@@ -158,18 +160,9 @@ describe("account-state residue hardening", () => {
     assert.ok(callIndex < broadcastDeleteIndex, "fanout cleanup should run before broadcast rows are deleted");
     assert.ok(callIndex < listingAnonymizeIndex, "fanout cleanup should collect listing ids before listing anonymization");
     assert.ok(callIndex < blogArchiveIndex, "fanout cleanup should collect blog slugs before blog archive slugs are written");
-
-    for (const sourceType of [
-      "seller_broadcast",
-      "followed_maker_new_listing",
-      "followed_maker_new_blog",
-    ]) {
-      assert.match(helper, new RegExp(`deleteNotificationSourceRows\\(tx, "${sourceType}"`));
-    }
-    assert.match(helper, /link: `\/account\/feed\?broadcast=\$\{id\}`/);
-    assert.match(helper, /link: \{ startsWith: `\/listing\/\$\{id\}--` \}/);
-    assert.match(helper, /link: `\/listing\/\$\{id\}`/);
-    assert.match(helper, /link,\s*\}\)\)/);
+    assert.match(deletion, /await deleteAccountNotificationServiceRows\(tx, user\.id\)/);
+    assert.doesNotMatch(helper, /tx\.notification\.|deleteNotification(?:Source|Link)Rows/);
+    assert.doesNotMatch(deletion, /notificationTextMatchSql|redactNotificationsAboutDeletedAccount/);
     assert.match(helper, /sourceType: "seller_broadcast"/);
     assert.match(helper, /sourceType: "followed_maker_new_listing"/);
     assert.match(helper, /dedupKey: \{ startsWith: `seller-broadcast:\$\{id\}:` \}/);

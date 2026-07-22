@@ -4,6 +4,7 @@ import { after, NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
 import { logAdminActionOrThrow } from '@/lib/audit'
 import { createNotification } from '@/lib/notifications'
+import { NOTIFICATION_SOURCE_TYPES } from '@/lib/notificationSources'
 import { sendCustomOrderReadyLink } from '@/lib/customOrderReadyLink'
 import { maybeGrantFoundingMaker } from '@/lib/foundingMaker'
 import { syncGuildMemberListingThreshold } from '@/lib/guildListingThreshold'
@@ -146,7 +147,9 @@ export async function PATCH(
         },
         data: { status: 'ACTIVE', reviewedByAdmin: true, reviewedAt: new Date(), rejectionReason: null }
       })
-      if (updated.count === 0) return { count: 0, finalStatus: null as 'ACTIVE' | 'SOLD_OUT' | null }
+      if (updated.count === 0) {
+        return { count: 0, finalStatus: null as 'ACTIVE' | 'SOLD_OUT' | null, auditLogId: null as string | null }
+      }
       const soldOutCount = await tx.$executeRaw`
         UPDATE "Listing"
         SET status = 'SOLD_OUT'
@@ -156,17 +159,20 @@ export async function PATCH(
           AND COALESCE("stockQuantity", 0) <= 0
           AND status = 'ACTIVE'
       `
-      await logAdminActionOrThrow({
+      const finalStatus = Number(soldOutCount) > 0 ? 'SOLD_OUT' : 'ACTIVE'
+      const auditLogId = await logAdminActionOrThrow({
         client: tx,
         adminId: admin.id,
         action: 'APPROVE_LISTING',
         targetType: 'LISTING',
         targetId: id,
         reason: sanitizedReason || 'Approved',
+        metadata: { finalStatus },
       })
       return {
         count: updated.count,
-        finalStatus: Number(soldOutCount) > 0 ? 'SOLD_OUT' : 'ACTIVE',
+        finalStatus,
+        auditLogId,
       }
     })
     if (approved.count === 0) {
@@ -205,6 +211,9 @@ export async function PATCH(
       }
       return privateJson({ ok: true, skipped: true, reason: 'Listing is no longer pending review.' })
     }
+    if (!approved.auditLogId || !approved.finalStatus) {
+      throw new Error('Approved listing transition did not return its audit authority')
+    }
     revalidateListingSearchCaches()
     revalidateFeaturedMakerCaches()
     await syncGuildThresholdAfterAdminReview(id, listing.sellerId, 'admin_listing_approve_guild_threshold')
@@ -239,6 +248,8 @@ export async function PATCH(
       title: 'Listing approved',
       body: notificationBody,
       link: publicListingPath(id, listing.title),
+      sourceType: NOTIFICATION_SOURCE_TYPES.LISTING_ADMIN_REVIEW,
+      sourceId: approved.auditLogId,
     }).catch((error) => {
       Sentry.captureException(error, {
         level: 'warning',
@@ -253,8 +264,8 @@ export async function PATCH(
         where: { id, status: 'PENDING_REVIEW' },
         data: { status: 'REJECTED', reviewedByAdmin: true, reviewedAt: new Date(), rejectionReason: sanitizedReason }
       })
-      if (updated.count === 0) return updated
-      await logAdminActionOrThrow({
+      if (updated.count === 0) return { count: 0, auditLogId: null as string | null }
+      const auditLogId = await logAdminActionOrThrow({
         client: tx,
         adminId: admin.id,
         action: 'REJECT_LISTING',
@@ -262,10 +273,13 @@ export async function PATCH(
         targetId: id,
         reason: sanitizedReason,
       })
-      return updated
+      return { count: updated.count, auditLogId }
     })
     if (rejected.count === 0) {
       return privateJson({ ok: true, skipped: true, reason: 'Listing is no longer pending review.' })
+    }
+    if (!rejected.auditLogId) {
+      throw new Error('Rejected listing transition did not return its audit authority')
     }
     revalidateListingSearchCaches()
     revalidateFeaturedMakerCaches()
@@ -276,6 +290,8 @@ export async function PATCH(
       title: 'Listing needs changes',
       body: `Your listing "${listing.title}" was not approved. Reason: ${sanitizedReason}. Please edit and resubmit.`,
       link: `/dashboard/listings/${id}/edit`,
+      sourceType: NOTIFICATION_SOURCE_TYPES.LISTING_ADMIN_REVIEW,
+      sourceId: rejected.auditLogId,
     }).catch((error) => {
       Sentry.captureException(error, {
         level: 'warning',

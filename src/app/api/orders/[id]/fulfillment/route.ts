@@ -4,6 +4,8 @@ import { auth } from "@clerk/nextjs/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
+import { logSystemActionOrThrow } from "@/lib/systemAudit";
 import { sendOrderShipped, sendReadyForPickup } from "@/lib/email";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { fulfillmentRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
@@ -75,6 +77,11 @@ function captureFulfillmentEmailFailure(error: unknown, orderId: string, action:
   });
 }
 
+function requiredFulfillmentAuditId(value: string | null): string {
+  if (!value) throw new Error("Fulfillment transition did not return its audit authority");
+  return value;
+}
+
 async function ensureSellerOwnsOrder(userId: string, orderId: string) {
   const me = await prisma.user.findUnique({
     where: { clerkId: userId },
@@ -85,7 +92,7 @@ async function ensureSellerOwnsOrder(userId: string, orderId: string) {
 
   const seller = await prisma.sellerProfile.findUnique({
     where: { userId: me.id },
-    select: { id: true },
+    select: { id: true, userId: true },
   });
   if (!seller) return null;
 
@@ -296,6 +303,7 @@ export async function POST(
     }
 
     let updatedCount: number;
+    let fulfillmentAuditId: string | null = null;
     if (action === "update_notes") {
       const updated = await prisma.order.updateMany({
         where: {
@@ -335,25 +343,53 @@ export async function POST(
                 "trackingNumber" = ${data.trackingNumber as string}
               `;
 
-      updatedCount = await prisma.$executeRaw`
-        UPDATE "Order"
-        SET ${mutationSql}
-        WHERE id = ${id}
-          AND "sellerRefundId" IS NULL
-          AND NOT (${blockingRefundLedgerExistsSql(Prisma.sql`"Order".id`)})
-          ${allowedStatusSql}
-          ${labelStatusSql}
-          AND NOT EXISTS (
-            SELECT 1 FROM "Case" c
-            WHERE c."orderId" = "Order".id
-              AND c."status"::text IN (${Prisma.join([...ACTIVE_CASE_STATUSES])})
-          )
-          AND NOT ("reviewNeeded" = true AND COALESCE("reviewNote", '') LIKE ${DEAUTHORIZED_SELLER_REVIEW_NOTE_SQL_PATTERN})
-          AND NOT (${latestOpenDisputeLedgerExistsSql(Prisma.sql`"Order".id`)})
-      `;
+      const transition = await prisma.$transaction(async (tx) => {
+        const count = await tx.$executeRaw`
+          UPDATE "Order"
+          SET ${mutationSql}
+          WHERE id = ${id}
+            AND "sellerRefundId" IS NULL
+            AND NOT (${blockingRefundLedgerExistsSql(Prisma.sql`"Order".id`)})
+            ${allowedStatusSql}
+            ${labelStatusSql}
+            AND NOT EXISTS (
+              SELECT 1 FROM "Case" c
+              WHERE c."orderId" = "Order".id
+                AND c."status"::text IN (${Prisma.join([...ACTIVE_CASE_STATUSES])})
+            )
+            AND NOT ("reviewNeeded" = true AND COALESCE("reviewNote", '') LIKE ${DEAUTHORIZED_SELLER_REVIEW_NOTE_SQL_PATTERN})
+            AND NOT (${latestOpenDisputeLedgerExistsSql(Prisma.sql`"Order".id`)})
+        `;
+        if (Number(count) === 0) return { count: 0, auditLogId: null as string | null };
+        const newStatus = action === "ready_for_pickup"
+          ? "READY_FOR_PICKUP"
+          : action === "picked_up"
+            ? "PICKED_UP"
+            : "SHIPPED";
+        const auditLogId = await logSystemActionOrThrow({
+          client: tx,
+          actorType: "user",
+          actorId: authz.seller.userId,
+          action: "ORDER_FULFILLMENT_TRANSITION",
+          targetType: "ORDER",
+          targetId: id,
+          metadata: {
+            action,
+            previousStatus: authz.order.fulfillmentStatus ?? "PENDING",
+            newStatus,
+            trackingCarrier: action === "shipped" ? data.trackingCarrier as string : null,
+          },
+        });
+        return { count: Number(count), auditLogId };
+      });
+      updatedCount = transition.count;
+      fulfillmentAuditId = transition.auditLogId;
     }
     if (updatedCount === 0) {
       return privateJson({ error: "Order status changed. Refresh and try again." }, { status: 409 });
+    }
+    if (action !== "update_notes" && !fulfillmentAuditId) {
+      throw new Error("Fulfillment transition did not return its audit authority");
     }
 
     const updated = await prisma.order.findUniqueOrThrow({
@@ -381,6 +417,9 @@ export async function POST(
           title: "Your piece is on its way!",
           body: carrier ? `Shipped via ${carrier}` : "Your order has been shipped",
           link: `/dashboard/orders/${id}`,
+          sourceType: NOTIFICATION_SOURCE_TYPES.ORDER_FULFILLMENT,
+          sourceId: requiredFulfillmentAuditId(fulfillmentAuditId),
+          relatedUserId: authz.seller.userId,
         });
       }
       if (buyerEmail) {
@@ -405,6 +444,9 @@ export async function POST(
           title: "Order picked up!",
           body: "Your order has been picked up. Enjoy!",
           link: `/dashboard/orders/${id}`,
+          sourceType: NOTIFICATION_SOURCE_TYPES.ORDER_FULFILLMENT,
+          sourceId: requiredFulfillmentAuditId(fulfillmentAuditId),
+          relatedUserId: authz.seller.userId,
         });
       }
     }
@@ -417,6 +459,9 @@ export async function POST(
           title: "Ready for pickup!",
           body: "Your order is ready for pickup.",
           link: `/dashboard/orders/${id}`,
+          sourceType: NOTIFICATION_SOURCE_TYPES.ORDER_FULFILLMENT,
+          sourceId: requiredFulfillmentAuditId(fulfillmentAuditId),
+          relatedUserId: authz.seller.userId,
         });
       }
       if (buyerEmail) {

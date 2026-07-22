@@ -14,13 +14,20 @@ const {
   REQUIRED_SEQUENCE_PRIVILEGES,
   REQUIRED_TABLE_PRIVILEGES,
   REQUIRED_TYPE_PRIVILEGES,
+  NOTIFICATION_ACTIVATION_COLUMN_PRIVILEGES,
+  NOTIFICATION_ACTIVATION_TABLE_PRIVILEGES,
+  NOTIFICATION_RECIPIENT_RPC_FUNCTIONS,
+  NOTIFICATION_SERVICE_RPC_FUNCTIONS,
   SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES,
   SAVED_SEARCH_CATALOG_EVIDENCE_PREFIX,
   assertGrantAuditConnectionMatches,
   auditLiveDatabase,
+  collectNotificationFunctionIssues,
+  collectNotificationPolicyIssues,
   collectTablePrivilegeAllowlistIssues,
   defaultPrivilegeRequirements,
   deriveGrantInventory,
+  requiredRuntimeColumnPrivileges,
   requiredRuntimeTablePrivileges,
   formatSavedSearchCatalogEvidence,
   normalizeSavedSearchCatalogState,
@@ -136,6 +143,8 @@ async function withAuditFixture(options, fn) {
     publicDefaultPrivilegeRevokes: [],
     rlsPolicyTables:
       options.createRlsPolicy && options.trackRlsPolicy !== false ? [tableName] : [],
+    rlsForceTables:
+      options.createRlsPolicy && options.expectForce !== false ? [tableName] : [],
   };
 
   try {
@@ -312,7 +321,7 @@ describe("database grant inventory guardrails", () => {
         "table SavedSearch runtime role has grant options: SELECT",
         "table SavedSearch grants table privileges to PUBLIC: SELECT",
         "table SavedSearch grants table privileges with grant option to PUBLIC: SELECT",
-        "table SavedSearch runtime role has column privileges: id:REFERENCES",
+        "table SavedSearch runtime role has unexpected column privileges: id:REFERENCES",
         "table SavedSearch runtime role has column grant options: id:REFERENCES",
         "table SavedSearch PUBLIC has column privileges: id:REFERENCES",
         "table SavedSearch PUBLIC has column grant options: id:REFERENCES",
@@ -353,9 +362,10 @@ describe("database grant inventory guardrails", () => {
     );
   });
 
-  it("narrows only Phase-A SavedSearch to SELECT, INSERT, and DELETE", () => {
+  it("derives exact SavedSearch and Notification table/column grants by activation state", () => {
     const releaseZeroInventory = { rlsPolicyTables: [] };
     const phaseAInventory = { rlsPolicyTables: ["SavedSearch"] };
+    const notificationInventory = { rlsPolicyTables: ["SavedSearch", "Notification"] };
     assert.deepEqual(
       requiredRuntimeTablePrivileges("SavedSearch", releaseZeroInventory),
       REQUIRED_TABLE_PRIVILEGES,
@@ -367,6 +377,22 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(
       requiredRuntimeTablePrivileges("User", phaseAInventory),
       REQUIRED_TABLE_PRIVILEGES,
+    );
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges("Notification", releaseZeroInventory),
+      REQUIRED_TABLE_PRIVILEGES,
+    );
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges("Notification", notificationInventory),
+      NOTIFICATION_ACTIVATION_TABLE_PRIVILEGES,
+    );
+    assert.deepEqual(
+      requiredRuntimeColumnPrivileges("Notification", releaseZeroInventory),
+      [],
+    );
+    assert.deepEqual(
+      requiredRuntimeColumnPrivileges("Notification", notificationInventory),
+      NOTIFICATION_ACTIVATION_COLUMN_PRIVILEGES,
     );
 
     const exactPhaseARow = {
@@ -396,6 +422,132 @@ describe("database grant inventory guardrails", () => {
       ).join("\n"),
       /unexpected table privileges: UPDATE/,
     );
+
+    const exactNotificationRow = {
+      ...exactPhaseARow,
+      runtime_privileges: ["SELECT"],
+      runtime_column_privileges: ["read:UPDATE"],
+    };
+    assert.deepEqual(
+      collectTablePrivilegeAllowlistIssues(exactNotificationRow, "table Notification", {
+        requiredPrivileges: NOTIFICATION_ACTIVATION_TABLE_PRIVILEGES,
+        requiredColumnPrivileges: NOTIFICATION_ACTIVATION_COLUMN_PRIVILEGES,
+      }),
+      [],
+    );
+    assert.deepEqual(
+      collectTablePrivilegeAllowlistIssues(
+        {
+          ...exactNotificationRow,
+          runtime_privileges: ["SELECT", "INSERT"],
+          runtime_column_privileges: ["title:UPDATE"],
+        },
+        "table Notification",
+        {
+          requiredPrivileges: NOTIFICATION_ACTIVATION_TABLE_PRIVILEGES,
+          requiredColumnPrivileges: NOTIFICATION_ACTIVATION_COLUMN_PRIVILEGES,
+        },
+      ),
+      [
+        "table Notification runtime role has unexpected table privileges: INSERT",
+        "table Notification runtime role is missing column privileges: read:UPDATE",
+        "table Notification runtime role has unexpected column privileges: title:UPDATE",
+      ],
+    );
+  });
+
+  it("pins the exact initial Notification recipient policy contract without FORCE", () => {
+    const runtimeRole = "grainline_app_runtime";
+    const exactRows = [
+      {
+        rls_enabled: true,
+        rls_forced: false,
+        policy_name: "grainline_notification_recipient_select",
+        policy_command: "r",
+        policy_permissive: true,
+        policy_roles: [runtimeRole],
+        using_expression: `("userId" = NULLIF(current_setting('app.user_id'::text, true), ''::text))`,
+        check_expression: null,
+      },
+      {
+        rls_enabled: true,
+        rls_forced: false,
+        policy_name: "grainline_notification_recipient_update",
+        policy_command: "w",
+        policy_permissive: true,
+        policy_roles: [runtimeRole],
+        using_expression: `("userId" = NULLIF(current_setting('app.user_id'::text, true), ''::text))`,
+        check_expression: `("userId" = NULLIF(current_setting('app.user_id'::text, true), ''::text))`,
+      },
+    ];
+
+    assert.deepEqual(collectNotificationPolicyIssues(exactRows, runtimeRole), []);
+    assert.match(
+      collectNotificationPolicyIssues(
+        exactRows.map((row, index) => index === 1
+          ? { ...row, check_expression: null }
+          : row),
+        runtimeRole,
+      ).join("\n"),
+      /recipient_update has an unexpected WITH CHECK expression/,
+    );
+    assert.match(
+      collectNotificationPolicyIssues(
+        exactRows.map((row) => ({ ...row, rls_forced: true })),
+        runtimeRole,
+      ).join("\n"),
+      /must keep FORCE ROW LEVEL SECURITY disabled/,
+    );
+  });
+
+  it("pins Notification RPC mode, ACL, owner, and overload contracts", () => {
+    const runtimeRole = "grainline_app_runtime";
+    const migrationRole = "grainline_migration_owner";
+    const recipientNames = new Set(NOTIFICATION_RECIPIENT_RPC_FUNCTIONS);
+    const privateNames = new Set(["grainline_notification_create_core"]);
+    const exactRows = [
+      ...NOTIFICATION_RECIPIENT_RPC_FUNCTIONS,
+      ...NOTIFICATION_SERVICE_RPC_FUNCTIONS,
+    ].map((functionName) => ({
+      function_name: functionName,
+      args: functionName.endsWith("prune_read_batch") ? "" : "p_user_id text",
+      owner_name: migrationRole,
+      security_definer: !recipientNames.has(functionName),
+      leakproof: false,
+      volatility: "v",
+      parallel_safety: "u",
+      function_kind: "f",
+      language_name: "plpgsql",
+      function_config: ["search_path=pg_catalog"],
+      public_execute: false,
+      runtime_direct_execute: !privateNames.has(functionName),
+      runtime_execute_grantable: false,
+      other_role_execute: [],
+    }));
+
+    assert.deepEqual(
+      collectNotificationFunctionIssues(exactRows, runtimeRole, migrationRole),
+      [],
+    );
+    const drifted = exactRows.map((row) => row.function_name === "grainline_notification_create_core"
+      ? { ...row, public_execute: true, runtime_direct_execute: true }
+      : row);
+    const issues = collectNotificationFunctionIssues(
+      [
+        ...drifted,
+        { ...exactRows[0] },
+        {
+          ...exactRows[0],
+          function_name: "grainline_notification_unreviewed",
+        },
+      ],
+      runtimeRole,
+      migrationRole,
+    ).join("\n");
+    assert.match(issues, /grainline_notification_create_core.*must revoke EXECUTE from PUBLIC/);
+    assert.match(issues, /grainline_notification_create_core.*must remain runtime-ungranted/);
+    assert.match(issues, /grainline_notification_unread_count must have exactly one overload/);
+    assert.match(issues, /unexpected Notification RPC grainline_notification_unreviewed/);
   });
 
   it("derives the current runtime grant surface from schema and migrations", () => {
@@ -404,19 +556,37 @@ describe("database grant inventory guardrails", () => {
     assert.equal(inventory.tables.length, 58);
     assert.equal(inventory.enums.length, 20);
     assert.deepEqual(inventory.functions, [
+      ...NOTIFICATION_RECIPIENT_RPC_FUNCTIONS,
+      ...NOTIFICATION_SERVICE_RPC_FUNCTIONS,
       "grainline_notification_preferences_valid",
       "grainline_saved_search_delete_one",
       "grainline_saved_search_list",
-    ]);
+    ].sort((left, right) => left.localeCompare(right)));
     assert.deepEqual(inventory.extensions, ["pg_trgm"]);
     assert.deepEqual(inventory.sequenceSqlReferences, []);
     assert.deepEqual(inventory.autoincrementFields, []);
     assert.deepEqual(inventory.fixedIntSingletonIds, ["SiteConfig.id", "SiteMetricsSnapshot.id"]);
-    assert.deepEqual(inventory.publicRevokes, [
+    assert.equal(inventory.publicRevokes.length, 27);
+    assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_delete_one(text, text) FROM PUBLIC",
+    ));
+    assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_list(text, integer, text) FROM PUBLIC",
-    ]);
+    ));
+    for (const functionName of [
+      ...NOTIFICATION_RECIPIENT_RPC_FUNCTIONS,
+      ...NOTIFICATION_SERVICE_RPC_FUNCTIONS,
+    ]) {
+      assert.equal(
+        inventory.publicRevokes.some((statement) => (
+          statement.includes(`public.${functionName}(`)
+        )),
+        true,
+        `${functionName} must revoke PUBLIC execution in the preparation migration`,
+      );
+    }
     assert.deepEqual(inventory.publicDefaultPrivilegeRevokes, []);
+    assert.deepEqual(inventory.rlsForceTables, ["SavedSearch"]);
   });
 
   it("keeps the manual grant audit focused on least-privilege role evidence", () => {
@@ -777,14 +947,14 @@ describe("database grant inventory guardrails", () => {
     await withAuditFixture({ grantColumnPrivilege: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
       assert.match(
         (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n"),
-        /has column privileges: id:REFERENCES/,
+        /runtime role has unexpected column privileges: id:REFERENCES/,
       );
     });
 
     await withAuditFixture({ grantPublicColumnPrivilege: true }, async ({ auditClient, inventory, migrationRole, runtimeRole }) => {
       assert.match(
         (await auditLiveDatabase({ client: auditClient, runtimeRole, migrationRole, inventory })).join("\n"),
-        /has column privileges: id:REFERENCES/,
+        /PUBLIC has column privileges: id:REFERENCES/,
       );
     });
 
@@ -1154,7 +1324,7 @@ describe("database grant inventory guardrails", () => {
     assert.match(provision, /REVOKE %s \(%s\) ON TABLE %I\.%I FROM %I/);
     assert.match(provision, /pg_auth_members/);
     const guardResultCount = (provision.match(/^\\gset$/gm) ?? []).length;
-    assert.equal(guardResultCount, 8);
+    assert.equal(guardResultCount, 9);
     assert.equal(
       (provision.match(/EXISTS \(SELECT 1 FROM failure\) AS grainline_role_provisioning_failed/g) ?? []).length,
       guardResultCount,
@@ -1192,6 +1362,30 @@ describe("database grant inventory guardrails", () => {
     );
     assert.ok(savedSearchGrantIndex > 0);
     assert.ok(savedSearchUpdateRevokeIndex > savedSearchGrantIndex);
+    const beginIndex = provision.indexOf("BEGIN;");
+    const notificationGrantIndex = provision.indexOf('public."Notification",');
+    const notificationNarrowIndex = provision.indexOf(
+      "REVOKE INSERT, UPDATE, DELETE ON TABLE public.\"Notification\"",
+    );
+    const commitIndex = provision.lastIndexOf("COMMIT;");
+    assert.ok(beginIndex > 0);
+    assert.ok(notificationGrantIndex > beginIndex);
+    assert.ok(notificationNarrowIndex > notificationGrantIndex);
+    assert.ok(commitIndex > notificationNarrowIndex);
+    assert.match(provision, /Notification RLS is partially or unexpectedly configured/);
+    assert.match(provision, /GRANT UPDATE \(read\) ON TABLE public\."Notification"/);
+    assert.equal(
+      (provision.match(/^REVOKE ALL ON FUNCTION public\.grainline_notification_(?!preferences_valid)/gm) ?? []).length,
+      25,
+    );
+    assert.equal(
+      (provision.match(/^GRANT EXECUTE ON FUNCTION public\.grainline_notification_(?!preferences_valid)/gm) ?? []).length,
+      24,
+    );
+    assert.doesNotMatch(
+      provision,
+      /GRANT EXECUTE ON FUNCTION public\.grainline_notification_create_core/,
+    );
     assert.match(provision, /REVOKE ALL ON FUNCTION %s FROM PUBLIC/);
     assert.match(provision, /REVOKE ALL ON FUNCTION %s FROM %I/);
     assert.match(provision, /GRANT EXECUTE ON FUNCTION %s TO %I/);
@@ -1203,7 +1397,9 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(provisionedObjects(provision, "TABLE"), inventory.tables);
     assert.deepEqual(provisionedObjects(provision, "TYPE"), inventory.enums);
     for (const fn of inventory.functions) {
-      assert.match(provision, new RegExp(`public\\."${escapeRegExp(fn)}"`));
+      const quoted = `public\\."${escapeRegExp(fn)}"`;
+      const unquoted = `public\\.${escapeRegExp(fn)}`;
+      assert.match(provision, new RegExp(`(?:${quoted}|${unquoted})`));
     }
     for (const extension of inventory.extensions) {
       assert.match(provision, new RegExp(`e\\.extname = '${escapeRegExp(extension)}'`));

@@ -8,6 +8,7 @@ import { saveRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { publicListingDetailWhere } from "@/lib/listingVisibility";
 import { publicListingPath } from "@/lib/publicPaths";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -112,6 +113,9 @@ export async function POST(req: Request) {
         body: listing.title,
         link: publicListingPath(listingId, listing.title),
         dedupScope: me.id,
+        relatedUserId: me.id,
+        sourceType: NOTIFICATION_SOURCE_TYPES.FAVORITE,
+        sourceId: listingId,
       });
     }
   } catch (e) {

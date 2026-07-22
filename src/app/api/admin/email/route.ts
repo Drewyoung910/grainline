@@ -5,11 +5,12 @@ import { z } from "zod";
 import { adminEmailRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { isEmailSuppressed, normalizeEmailAddress } from "@/lib/emailSuppression";
 import { createNotification } from "@/lib/notifications";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { normalizeUserText, stripBidiControls, truncateText } from "@/lib/sanitize";
 import { sendRenderedEmail, UNSUBSCRIBE_HREF_PLACEHOLDER } from "@/lib/email";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import { inactiveAdminEmailRecipientReason } from "@/lib/adminEmailRecipient";
-import { logAdminAction } from "@/lib/audit";
+import { logAdminActionOrThrow } from "@/lib/audit";
 import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
 import {
   isInvalidJsonBodyError,
@@ -165,38 +166,43 @@ export async function POST(request: Request) {
     return privateJson({ error: "Email send failed" }, { status: HTTP_STATUS.INTERNAL_SERVER_ERROR });
   }
 
-  if (recipientUserId) {
+  const notificationBody = truncateText(sanitizedBody.replace(/\s+/g, " ").trim(), 500)
+    || "Message from the Grainline team.";
+  let notificationAuditId: string | null = null;
+  try {
+    if (recipientUserId) {
+      notificationAuditId = await logAdminActionOrThrow({
+        adminId: admin.id,
+        action: "SEND_EMAIL",
+        targetType: "USER",
+        targetId: recipientUserId,
+        reason: sanitizedSubject,
+        metadata: { notificationBody },
+      });
+    }
+  } catch (error) {
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "admin_email_audit_log" },
+      extra: { targetUserId: recipientUserId, emailHash: hashEmailForTelemetry(normalizedRecipientEmail) },
+    });
+  }
+
+  if (recipientUserId && notificationAuditId) {
     await createNotification({
       userId: recipientUserId,
       type: "ACCOUNT_WARNING",
       title: sanitizedSubject,
-      body: truncateText(sanitizedBody.replace(/\s+/g, " ").trim(), 500) || "Message from the Grainline team.",
+      body: notificationBody,
       link: "/account",
+      sourceType: NOTIFICATION_SOURCE_TYPES.ADMIN_ACCOUNT_MESSAGE,
+      sourceId: notificationAuditId,
     }).catch((error) => {
       Sentry.captureException(error, {
         level: "warning",
         tags: { source: "admin_email_notification" },
         extra: { targetUserId: recipientUserId },
       });
-    });
-  }
-
-  // Audit log
-  try {
-    const auditTargetId = recipientUserId ?? `email:${hashEmailForTelemetry(normalizedRecipientEmail) ?? "unknown"}`;
-    await logAdminAction({
-      adminId: admin.id,
-      action: "SEND_EMAIL",
-      targetType: recipientUserId ? "USER" : "EMAIL",
-      targetId: auditTargetId,
-      reason: sanitizedSubject,
-      metadata: {},
-    });
-  } catch (error) {
-    Sentry.captureException(error, {
-      level: "warning",
-      tags: { source: "admin_email_audit_log" },
-      extra: { targetUserId: recipientUserId, emailHash: hashEmailForTelemetry(normalizedRecipientEmail) },
     });
   }
 

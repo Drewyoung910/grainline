@@ -61,7 +61,7 @@ describe("follower listing notification guardrails", () => {
     assert.match(blogFanout, /orderBy: \{ id: "asc" \}/);
     assert.match(blogFanout, /\.\.\.\(cursor \? \{ cursor: \{ id: cursor \}, skip: 1 \} : \{\}\)/);
     assert.match(blogFanout, /take: BLOG_FOLLOWER_FANOUT_PAGE_SIZE/);
-    assert.match(blogFanout, /sourceType: "followed_maker_new_blog"/);
+    assert.match(blogFanout, /sourceType: NOTIFICATION_SOURCE_TYPES\.FOLLOWED_MAKER_NEW_BLOG/);
     assert.match(blogFanout, /sourceId: publicPost\.id/);
     assert.ok(
       blogFanout.indexOf("where: publicBlogPostWhere({ id: postId, sellerProfileId })") <
