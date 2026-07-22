@@ -58,11 +58,15 @@ const REVIEWED_NEON_CLI_PATH =
   "/Users/drewyoung/.npm/_npx/74274893b9fe65d3/node_modules/neonctl/dist/cli.js";
 const REVIEWED_NEON_CLI_VERSION = "2.35.1";
 const REVIEWED_PRISMA_CLI_VERSION = "7.9.0";
+const REVIEWED_TSX_VERSION = "4.21.0";
 const REVIEWED_NEON_CREDENTIAL_PATH =
   "/Users/drewyoung/.config/neonctl/credentials.json";
 const VERCEL_AUTH_PATH =
   "/Users/drewyoung/Library/Application Support/com.vercel.cli/auth.json";
 const GATE_SCRIPT_PATH = path.resolve("scripts/rls-context-acceptance-gate.mjs");
+const LOCAL_PREFLIGHT_SCRIPT_PATH = path.resolve(
+  "scripts/notification-provider-local-preflight.ts",
+);
 const MAX_API_BYTES = 2 * 1024 * 1024;
 const MAX_PROVIDER_RESPONSE_BYTES = 512 * 1024;
 const CLEANUP_CONFIRMATION = "delete-disposable-preview-and-staging";
@@ -1259,7 +1263,7 @@ async function prepare() {
 async function configure() {
   const state = readProviderState();
   assertExactCleanCommit(state.commitSha);
-  if (!state.setupCompletedAt || state.configuredAt) {
+  if (!state.setupCompletedAt || !state.localPreflightAt || state.configuredAt) {
     throw new Error("provider state is not ready for one-time environment configuration");
   }
   const environmentIds = await configureProviderEnvironment(state);
@@ -1269,6 +1273,86 @@ async function configure() {
     environmentIds,
   });
   console.log(JSON.stringify({ commitSha: state.commitSha, configuredVariables: environmentIds.length }));
+}
+
+async function localPreflight() {
+  let state = readProviderState();
+  const bypassState = readBypassState();
+  assertExactCleanCommit(state.commitSha);
+  if (
+    !state.setupCompletedAt
+    || state.configuredAt
+    || state.localPreflightAt
+    || state.deploymentId
+    || state.slot1EvidencePath
+    || state.slot2EvidencePath
+  ) {
+    throw new Error("provider state is not eligible for local preflight");
+  }
+  const outputPath = evidencePath("local-preflight", state.commitSha);
+  if (existsSync(outputPath)) throw new Error("local preflight evidence path already exists");
+  const tsxArgs = [
+    "exec",
+    "--yes",
+    `--package=tsx@${REVIEWED_TSX_VERSION}`,
+    "--",
+    "tsx",
+    LOCAL_PREFLIGHT_SCRIPT_PATH,
+  ];
+  const version = spawnSync("npm", [...tsxArgs.slice(0, -1), "--version"], {
+    encoding: "utf8",
+    env: cleanEnvironment(),
+    maxBuffer: 1024 * 1024,
+    timeout: 2 * 60_000,
+  });
+  if (
+    version.error
+    || version.status !== 0
+    || !version.stdout.includes(REVIEWED_TSX_VERSION)
+  ) {
+    throw new Error("exact reviewed tsx preflight runner was unavailable");
+  }
+  const result = spawnSync("npm", tsxArgs, {
+    encoding: "utf8",
+    env: {
+      ...cleanEnvironment(),
+      DATABASE_URL: state.runtimeDatabaseUrl,
+      NODE_ENV: "production",
+    },
+    maxBuffer: 2 * 1024 * 1024,
+    timeout: 5 * 60_000,
+  });
+  let payload;
+  try {
+    payload = JSON.parse(result.stdout.trim());
+  } catch {
+    payload = { error: { message: "preflight output was not valid JSON" }, status: "failed" };
+  }
+  assertNoSensitiveEvidence(payload, state, bypassState);
+  writePrivateJson(outputPath, {
+    capturedAt: new Date().toISOString(),
+    exitStatus: result.status,
+    result: payload,
+  });
+  await teardownNotificationProviderFixtures(state.adminDatabaseUrl);
+  await seedNotificationProviderFixtures(state.adminDatabaseUrl);
+  if (
+    result.error
+    || result.status !== 0
+    || payload?.status !== "passed"
+    || payload?.metricErrorCount !== 0
+    || !Array.isArray(payload?.nonPerformanceIssues)
+    || payload.nonPerformanceIssues.length !== 0
+  ) {
+    throw new Error("local Notification provider preflight failed after fixture reset");
+  }
+  state = {
+    ...state,
+    localPreflightAt: new Date().toISOString(),
+    localPreflightEvidencePath: outputPath,
+  };
+  replacePrivateState(state);
+  console.log(JSON.stringify({ localPreflightPassed: true, fixturesReset: true }));
 }
 
 async function rebindConfiguredCommit() {
@@ -1332,6 +1416,7 @@ async function rebindPredeploymentCommit() {
   const commitSha = assertExactCleanCommit();
   if (
     !state.setupCompletedAt
+    || !state.localPreflightAt
     || state.configuredAt
     || state.deploymentId
     || state.slot1EvidencePath
@@ -1731,7 +1816,7 @@ async function databaseStatus() {
 }
 
 function usage() {
-  console.error("Usage: node scripts/notification-provider-proof-operator.mjs <create-bypass-state|bootstrap-bypass-state|revoke-bypass-state|prepare|rebind-predeployment-commit|configure|rebind-configured-commit|attest|slot-1|slot-2|cleanup|cleanup-abort|status|database-status|prisma-status>");
+  console.error("Usage: node scripts/notification-provider-proof-operator.mjs <create-bypass-state|bootstrap-bypass-state|revoke-bypass-state|prepare|local-preflight|rebind-predeployment-commit|configure|rebind-configured-commit|attest|slot-1|slot-2|cleanup|cleanup-abort|status|database-status|prisma-status>");
 }
 
 async function main() {
@@ -1747,6 +1832,9 @@ async function main() {
       break;
     case "prepare":
       await prepare();
+      break;
+    case "local-preflight":
+      await localPreflight();
       break;
     case "rebind-predeployment-commit":
       await rebindPredeploymentCommit();

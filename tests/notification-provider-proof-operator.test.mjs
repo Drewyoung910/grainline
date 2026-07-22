@@ -157,5 +157,12 @@ describe("disposable Notification provider proof operator", () => {
     assert.match(source, /REVIEWED_PRISMA_CLI_VERSION = "7\.9\.0"/);
     assert.match(source, /--package=prisma@\$\{REVIEWED_PRISMA_CLI_VERSION\}/);
     assert.match(source, /locked Prisma CLI version drifted/);
+    assert.match(source, /REVIEWED_TSX_VERSION = "4\.21\.0"/);
+    assert.match(source, /localPreflight/);
+    assert.match(source, /!state\.localPreflightAt/);
+    assert.match(source, /notification-provider-local-preflight\.ts/);
+    assert.match(source, /teardownNotificationProviderFixtures\(state\.adminDatabaseUrl\)/);
+    assert.match(source, /seedNotificationProviderFixtures\(state\.adminDatabaseUrl\)/);
+    assert.match(source, /local Notification provider preflight failed after fixture reset/);
   });
 });

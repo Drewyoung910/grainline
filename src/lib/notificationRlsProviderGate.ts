@@ -168,7 +168,7 @@ async function baselineSocialSource(
   actorUserId: string,
 ) {
   const rows = await prisma.$queryRaw<Array<{ valid: boolean }>>(Prisma.sql`
-    SELECT pg_catalog.exists(
+    SELECT EXISTS (
       SELECT 1
         FROM public."SellerProfile" AS seller
         JOIN public."Follow" AS follow

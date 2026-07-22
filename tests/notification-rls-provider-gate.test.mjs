@@ -41,6 +41,8 @@ describe("temporary real Notification provider gate", () => {
   it("checks catalog, recipient shape, foreign denial, and context reset", () => {
     assert.match(gate, /CURRENT_USER AS "currentUser"/);
     assert.doesNotMatch(gate, /pg_catalog\.current_user/);
+    assert.match(gate, /SELECT EXISTS \(/);
+    assert.doesNotMatch(gate, /pg_catalog\.exists/);
     assert.match(gate, /currentUser !== "grainline_app_runtime"/);
     assert.match(gate, /catalog\[0\]\.rls !== true/);
     assert.match(gate, /catalog\[0\]\.forceRls !== false/);
