@@ -38,7 +38,9 @@ describe("Notification database-first rollback proof", () => {
   });
 
   it("runs after activation and before the final authority proof", () => {
-    const activation = workflow.indexOf("Apply Notification activation migration");
+    const activation = workflow.indexOf(
+      "Apply current migrations including committed Notification activation",
+    );
     const rollback = workflow.indexOf("Prove database-first Notification rollback");
     const finalProof = workflow.indexOf("Prove Notification RLS and service authority");
     assert.ok(activation >= 0 && activation < rollback && rollback < finalProof);

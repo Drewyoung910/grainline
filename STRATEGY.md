@@ -112,8 +112,11 @@ runtime role fixture or the Vercel privileged-variable guard.
 
 ### Bucket B Notification design decision (2026-07-19)
 
-Bucket B preparation has begun on an isolated, unmerged branch in
-`docs/rls-bucket-b-notification-plan.md`; no policy is production-active. The
+Bucket B preparation is live in production from merged main commit
+`3f2ecc43492faf7c72cabc1c3aa57d37dba1a979`; no Notification policy is
+production-active yet. The compatible application is live as Vercel deployment
+`dpl_92rXcp1PqmoMPtgtAswbecAKWEt2`. The full operating record remains in
+`docs/rls-bucket-b-notification-plan.md`. The
 verified surface has simple recipient reads/mark-read operations but asymmetric
 cross-user creation, dedup recovery, global retention, staff source cleanup,
 and account-deletion cleanup. Use recipient SELECT/RLS plus
@@ -412,6 +415,44 @@ discriminators. The ten-family inventory and implementation order live in
 `docs/notification-create-authority-inventory.md`. This preserves meaningful
 write-side defense in depth while keeping database validation proportional to
 what each application, staff, cron, or provider flow can actually prove.
+
+Notification production activation reached its final release gate on
+2026-07-22. Protected production inspection found 58 legacy rows; all 58 lack
+the new source and related-user authority fields. The sanitized aggregate-only
+evidence is retained outside the repository with SHA-256
+`89664c97252c2ec8528cb0b58da422f6eb003c5d2c37d232f7ae9eefd6372d0b`.
+Neon branch `br-hidden-tree-aa337i8v` is a protected, no-compute backup of the
+production parent at LSN `0/4A7E8628`; retain it through the activation rollback
+window. The activation purge is deliberate because the pre-authority rows
+cannot be made source-valid, but the backup preserves their exact database
+state if forensic recovery is needed.
+
+The compatible application rollback rehearsal passed before activation:
+`thegrainline.com` moved from new deployment
+`dpl_92rXcp1PqmoMPtgtAswbecAKWEt2` to known-good prior deployment
+`dpl_6Y6C3NT81zbhLc6eHJAveCH1Ave8`, both `/` and `/api/health` stayed HTTP 200
+with health `ok`, and the new deployment was restored and re-attested. The
+activation release branch `codex/rls-notification-activation-20260722` promotes
+only migration `20260722052000_enable_notification_rls`; promoted SHA-256 is
+`f4b475d5f7c071011e35425b68bc26738bae8696c658457d8ed55ebffc8ddc92`,
+and its executable body matches accepted disposable candidate SHA-256
+`e40994886a143101141c7114ed8ea2f92917ccdd349fe96a0874a2cb79561329`.
+Merge and production apply still require the exact-tree guard, activation
+release verifier, normal CI, committed-migration PostgreSQL authority and
+rollback proof, protected main-only migration workflow, production catalog and
+runtime denial postflight, and authenticated canary smoke. Initial activation
+is `ENABLE` plus explicit `NO FORCE`; a later separately proven FORCE release
+remains part of finishing Bucket B.
+
+Temporary provider mechanics are intentionally absent from the production
+artifact: the internal context-gate route, its runner-only test, branch-scoped
+Vercel/database exceptions, disposable secrets, and provider resources were
+removed after sanitized proof and teardown. Their durable value remains in Git
+history, the non-runtime operator/harness scripts, regression tests, evidence,
+and this operating record. The provider measurement implementation was moved
+from a runtime library into `scripts/notification-provider-gate.ts`; it was not
+discarded. Do not reintroduce endpoint-specific proof routes or credentials
+merely to preserve scaffolding.
 
 ### Homepage discovery hierarchy decision (2026-07-15)
 

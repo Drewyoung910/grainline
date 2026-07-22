@@ -11,7 +11,7 @@ const activationDirectory = "prisma/migrations/20260722052000_enable_notificatio
 describe("Notification disposable candidate migration", () => {
   it("byte-pins every reviewed draft without writing in verify mode", () => {
     assert.equal(fs.existsSync(preparationDirectory), true);
-    assert.equal(fs.existsSync(activationDirectory), false);
+    assert.equal(fs.existsSync(activationDirectory), true);
     const result = JSON.parse(execFileSync(process.execPath, [scriptPath, "--verify"], {
       encoding: "utf8",
     }));
@@ -42,7 +42,7 @@ describe("Notification disposable candidate migration", () => {
       },
     ]);
     assert.equal(fs.existsSync(preparationDirectory), true);
-    assert.equal(fs.existsSync(activationDirectory), false);
+    assert.equal(fs.existsSync(activationDirectory), true);
   });
 
   it("requires an exact loopback-only staging acknowledgement", () => {
@@ -57,7 +57,7 @@ describe("Notification disposable candidate migration", () => {
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /disposable Notification migration acknowledgement is missing/);
     assert.equal(fs.existsSync(preparationDirectory), true);
-    assert.equal(fs.existsSync(activationDirectory), false);
+    assert.equal(fs.existsSync(activationDirectory), true);
   });
 
   it("splits compatible preparation from locked activation", () => {

@@ -29,6 +29,8 @@ export const SAVED_SEARCH_FORCE_RLS_MIGRATION =
   "20260720060000_force_saved_search_rls";
 export const NOTIFICATION_PREPARATION_MIGRATION =
   "20260722051500_prepare_notification_rls";
+export const NOTIFICATION_ACTIVATION_MIGRATION =
+  "20260722052000_enable_notification_rls";
 export const RELEASE_ZERO_MIGRATION_TREE_SHA256 =
   "3e9111525735043266cf6f18b790641ad3103126804836f4a7cccd8e5e29ff29";
 export const PHASE_A_MIGRATION_TREE_SHA256 =
@@ -37,6 +39,8 @@ export const PHASE_B_MIGRATION_TREE_SHA256 =
   "c4facdca365cf2217ddfce923edf5c808ad4a81326ed1dad03fd24e588a83510";
 export const NOTIFICATION_PREPARATION_MIGRATION_TREE_SHA256 =
   "b3dff1b6eb6052d0574610e5109b8629de36505543453ddc801c7feded205127";
+export const NOTIFICATION_ACTIVATION_MIGRATION_TREE_SHA256 =
+  "84808c8a6b6471f4b74dbde86f2b009cb0249519313ed6e8a5ef2dba48f61b05";
 export const PRISMA_CONFIG_PATH = "prisma.config.ts";
 export const REVIEWED_PRISMA_CONFIG_SHA256 =
   "946211cec942f725ae24ac239cd648b56f4809cf30cb8fda530346d0f593526e";
@@ -59,6 +63,7 @@ const RELEASE_ZERO_PHASE = "release-0";
 const REVIEWED_PHASE_A = "phase-a-reviewed";
 const REVIEWED_PHASE_B = "phase-b-reviewed";
 const REVIEWED_NOTIFICATION_PREPARATION = "notification-preparation-reviewed";
+const REVIEWED_NOTIFICATION_ACTIVATION = "notification-activation-reviewed";
 const APP_SOURCE_ROOTS = ["src/app", "app", "src/pages", "pages"];
 const TEST_SOURCE_ROOTS = ["tests"];
 const TEST_SOURCE_EXTENSIONS = new Set([
@@ -312,6 +317,8 @@ function assertReviewedMigrationTree(phase, migrationTreeSha256) {
     [REVIEWED_PHASE_B]: PHASE_B_MIGRATION_TREE_SHA256,
     [REVIEWED_NOTIFICATION_PREPARATION]:
       NOTIFICATION_PREPARATION_MIGRATION_TREE_SHA256,
+    [REVIEWED_NOTIFICATION_ACTIVATION]:
+      NOTIFICATION_ACTIVATION_MIGRATION_TREE_SHA256,
   }[phase];
   if (migrationTreeSha256 !== expected) {
     throw new Error(
@@ -520,6 +527,9 @@ export function validateSavedSearchRlsDeployShape({
   const hasNotificationPreparationMigration = migrations.has(
     NOTIFICATION_PREPARATION_MIGRATION,
   );
+  const hasNotificationActivationMigration = migrations.has(
+    NOTIFICATION_ACTIVATION_MIGRATION,
+  );
 
   if (phase === RELEASE_ZERO_PHASE) {
     if (!hasRpcMigration || !hasRpcHardeningMigration || hasRlsMigration) {
@@ -644,9 +654,48 @@ export function validateSavedSearchRlsDeployShape({
     };
   }
 
+  if (phase === REVIEWED_NOTIFICATION_ACTIVATION) {
+    if (
+      !hasRpcMigration
+      || !hasRpcHardeningMigration
+      || !hasRlsMigration
+      || !hasForceRlsMigration
+      || !hasNotificationPreparationMigration
+      || !hasNotificationActivationMigration
+    ) {
+      throw new Error(
+        `${REVIEWED_NOTIFICATION_ACTIVATION} requires SavedSearch Phase B plus the exact Notification preparation and activation migrations`,
+      );
+    }
+
+    assertNoLaterMigration(
+      migrationNames,
+      NOTIFICATION_ACTIVATION_MIGRATION,
+      phase,
+    );
+    assertReviewedMigrationTree(phase, migrationTreeSha256);
+    assertReviewedPrismaMigrationConfig(prismaConfigSha256);
+    assertProductionArtifactExcludesContextGate({
+      phase,
+      contextGateRouteExists,
+      contextGateRunnerTestExists: runnerTestExists,
+      middlewareSource,
+    });
+
+    return {
+      phase,
+      hasRpcMigration,
+      hasRpcHardeningMigration,
+      hasRlsMigration,
+      hasForceRlsMigration,
+      hasNotificationPreparationMigration,
+      hasNotificationActivationMigration,
+    };
+  }
+
   const received = phase === undefined || phase === "" ? "missing" : phase;
   throw new Error(
-    `${SAVED_SEARCH_RLS_DEPLOY_PHASE_ENV} is ${received}; expected ${RELEASE_ZERO_PHASE}, ${REVIEWED_PHASE_A}, ${REVIEWED_PHASE_B}, or ${REVIEWED_NOTIFICATION_PREPARATION}`,
+    `${SAVED_SEARCH_RLS_DEPLOY_PHASE_ENV} is ${received}; expected ${RELEASE_ZERO_PHASE}, ${REVIEWED_PHASE_A}, ${REVIEWED_PHASE_B}, ${REVIEWED_NOTIFICATION_PREPARATION}, or ${REVIEWED_NOTIFICATION_ACTIVATION}`,
   );
 }
 

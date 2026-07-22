@@ -1,9 +1,10 @@
-name: Notification RLS Ephemeral Proof
+name: Notification RLS Activation Proof
 
 on:
   push:
     branches:
-      - codex/rls-bucket-b-notification-20260719
+      - codex/rls-notification-activation-20260722
+      - main
     paths:
       - .github/workflows/notification-rls-ephemeral-proof.yml
       - docs/rls-drafts/**
@@ -12,9 +13,9 @@ on:
       - prisma/**
       - scripts/audit-runtime-db-grants.mjs
       - scripts/notification-rls-ephemeral-proof.mjs
-      - scripts/notification-rls-preparation-proof.mjs
       - scripts/notification-rls-rollback-proof.mjs
       - scripts/stage-notification-rls-candidate-migration.mjs
+      - scripts/verify-notification-activation-release.mjs
       - scripts/prepare-ci-rls-runtime-role.sql
       - scripts/provision-runtime-db-role.sql
   workflow_dispatch:
@@ -53,19 +54,9 @@ jobs:
       - run: npx prisma generate
       - name: Prepare CI runtime policy role
         run: psql "$DIRECT_URL" -f scripts/prepare-ci-rls-runtime-role.sql
-      - name: Verify committed Notification preparation release artifact
-        run: npm run audit:rls-notification-preparation-release
-      - name: Apply current plus committed Notification preparation migration
-        run: npx prisma migrate deploy
-      - name: Converge preparation-compatible production-style runtime grants
-        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
-      - name: Prove old and new application compatibility before activation
-        run: npm run audit:rls-notification-preparation
-      - name: Stage byte-pinned Notification activation migration
-        env:
-          NOTIFICATION_RLS_DISPOSABLE_MIGRATION_ACK: I_ACKNOWLEDGE_DISPOSABLE_LOOPBACK_NOTIFICATION_MIGRATION
-        run: node scripts/stage-notification-rls-candidate-migration.mjs --stage-activation
-      - name: Apply Notification activation migration
+      - name: Verify committed Notification activation release artifact
+        run: npm run audit:rls-notification-activation-release
+      - name: Apply current migrations including committed Notification activation
         run: npx prisma migrate deploy
       - name: Converge activated production-style runtime grants
         run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
