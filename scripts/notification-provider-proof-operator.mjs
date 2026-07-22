@@ -1377,7 +1377,6 @@ async function rebindConfiguredCommit() {
     || state.deploymentId
     || state.slot1EvidencePath
     || state.slot2EvidencePath
-    || !state.preparedCommitSha
     || state.commitSha === commitSha
   ) {
     throw new Error("provider state is not eligible for configured commit rebinding");
@@ -1414,6 +1413,7 @@ async function rebindConfiguredCommit() {
     ...state,
     commitSha,
     configuredCommitReboundAt: new Date().toISOString(),
+    preparedCommitSha: state.preparedCommitSha ?? state.commitSha,
     priorDeploymentCommitSha: state.commitSha,
   });
   console.log(JSON.stringify({
