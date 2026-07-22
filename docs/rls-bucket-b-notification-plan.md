@@ -629,15 +629,24 @@ permanent, non-customer live Clerk operational canary with exact external id
 the normal production Clerk webhook to create one production `User` row; that
 row is part of the durable test architecture rather than disposable data.
 
-The canary has no email address, phone, password, seller profile, orders,
-messages, favorites, saved searches, or notifications. Clerk public/private
-metadata marks its sole purpose, while current terms and age metadata allow the
-normal middleware path. The local row therefore uses the existing
-`@placeholder.invalid` fallback and cannot reserve a welcome email. The
-operator connects only through the reviewed pooled production
+Live Clerk requires an email for every new identity, so the attempted
+identifier-less create failed closed with `form_data_missing` and created no
+partial Clerk or database row. The reviewed operator instead derives a private
+`+grainline-notification-canary` Gmail alias in memory from the sole active
+production administrator. It requires exactly one active admin, the reviewed
+Gmail domain/alias shape, and no conflicting local identity; it never prints or
+commits the raw address. The normal production webhook sends the single
+expected buyer welcome email to that controlled inbox and reserves
+`welcomeEmailSentAt`.
+
+The canary has no phone, password, seller profile, orders, messages, favorites,
+saved searches, or notifications. Clerk public/private metadata marks its sole
+purpose, while current terms and age metadata allow the normal middleware path.
+The operator connects only through the reviewed pooled production
 `grainline_app_runtime` identity, waits for the signed Clerk webhook to create
-the row, proves zero marketplace activity, and retains only identifier hashes
-in mode-`0600` evidence. There is intentionally no automated delete command:
+the row and reserve the welcome send, proves zero marketplace activity, and
+retains only identifier/email hashes in mode-`0600` evidence. There is
+intentionally no automated delete command:
 deleting the Clerk user would create production anonymization/audit residue and
 remove the reusable canary needed for later authenticated postflights.
 

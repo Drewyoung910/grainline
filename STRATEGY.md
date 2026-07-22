@@ -205,11 +205,15 @@ was impersonated. The first exposed a Preview/production Redis cache namespace
 collision; the second proved that email-pattern selection saw only synthetic
 provider actors while every Clerk-backed account was unmarked. All disposable
 resources were removed after each attempt. Drew explicitly authorized Codex to
-create the missing identity. Use one permanent, non-customer, no-email Clerk
+create the missing identity. Use one permanent, non-customer, no-password Clerk
 operational canary with external id
 `grainline-notification-rls-operational-canary-v1`, current legal metadata, one
-normal webhook-created production placeholder row, zero marketplace activity,
-and hashed private evidence. Do not create/delete a disposable live Clerk user:
+normal webhook-created production row, zero marketplace activity, and hashed
+private evidence. Because live Clerk requires email, derive the canary's
+`+grainline-notification-canary` Gmail alias in memory from the sole active
+production admin, allow the one normal welcome email to that controlled inbox,
+and never print or commit the raw address. Do not create/delete a disposable
+live Clerk user:
 those webhooks would leave avoidable production creation/anonymization residue.
 Authenticated smoke must resolve this exact external id, never an email pattern
 or an unmarked account.
