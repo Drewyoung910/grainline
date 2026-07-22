@@ -8,6 +8,7 @@ import {
   PROVIDER_ENVIRONMENT_VALUES,
   PROVIDER_PROOF_BRANCH,
   PROVIDER_PROOF_STATE_PATH,
+  REVIEWED_NOTIFICATION_MIGRATIONS,
   REVIEWED_PRODUCTION_BRANCH_ID,
   REVIEWED_STAGING_BRANCH_ID,
   buildStagingDatabaseUrl,
@@ -47,7 +48,7 @@ describe("disposable Notification provider proof operator", () => {
     ));
   });
 
-  it("pins exactly 24 branch-scoped Preview variables with no owner authority", () => {
+  it("pins the exact branch-scoped Preview variables with no owner authority", () => {
     const runtimeDatabaseUrl = buildStagingDatabaseUrl(
       "grainline_app_runtime",
       RUNTIME_PASSWORD,
@@ -60,9 +61,9 @@ describe("disposable Notification provider proof operator", () => {
       triggerSecret: "d".repeat(64),
     });
 
-    assert.equal(entries.length, 24);
+    assert.equal(entries.length, 28);
     assert.deepEqual(entries.map((entry) => entry.key), PROVIDER_ENVIRONMENT_KEYS);
-    assert.equal(new Set(entries.map((entry) => entry.key)).size, 24);
+    assert.equal(new Set(entries.map((entry) => entry.key)).size, 28);
     assert.equal(entries.every((entry) => entry.gitBranch === PROVIDER_PROOF_BRANCH), true);
     assert.equal(entries.every((entry) => entry.type === "sensitive"), true);
     assert.equal(entries.every((entry) => JSON.stringify(entry.target) === '["preview"]'), true);
@@ -74,7 +75,8 @@ describe("disposable Notification provider proof operator", () => {
       entries.map((entry) => entry.key).filter((key) => FORBIDDEN_PROVIDER_ENVIRONMENT_KEYS.includes(key)),
       [],
     );
-    assert.equal(PROVIDER_ENVIRONMENT_VALUES.RLS_CONTEXT_GATE_REQUESTS, "500");
+    assert.equal(PROVIDER_ENVIRONMENT_VALUES.NOTIFICATION_RLS_PROVIDER_REQUESTS, "120");
+    assert.equal(PROVIDER_ENVIRONMENT_VALUES.NOTIFICATION_RLS_PROVIDER_WARMUP_REQUESTS, "12");
     assert.equal(PROVIDER_ENVIRONMENT_VALUES.RLS_CONTEXT_GATE_POOL_SIZE, "16");
   });
 
@@ -87,6 +89,8 @@ describe("disposable Notification provider proof operator", () => {
     assert.match(source, /delete-disposable-preview-and-staging/);
     assert.match(source, /delete-failed-disposable-preview-and-staging/);
     assert.match(source, /ownerOnlyFixtureTeardownPassed/);
+    assert.match(source, /teardownNotificationProviderFixtures/);
+    assert.match(source, /Notification provider fixtures remained after owner teardown/);
     assert.match(source, /branchEnvironmentVariablesDeleted/);
     assert.match(source, /\^v24\\\./);
     assert.match(source, /configuredNodeVersion/);
@@ -95,5 +99,34 @@ describe("disposable Notification provider proof operator", () => {
     assert.equal(PROVIDER_PROOF_STATE_PATH.startsWith("/private/tmp/"), true);
     assert.equal(PROVIDER_BYPASS_STATE_PATH.startsWith("/private/tmp/"), true);
     assert.doesNotMatch(source, /console\.log\([^\n]*(?:triggerSecret|runtimeDatabaseUrl|adminDatabaseUrl|bypassSecret)/);
+  });
+
+  it("applies only the byte-pinned split migrations before seeding real fixtures", () => {
+    const source = readFileSync("scripts/notification-provider-proof-operator.mjs", "utf8");
+    assert.equal(
+      REVIEWED_NOTIFICATION_MIGRATIONS.preparation.sha256,
+      "83f49cec2589c359cda5413282a492f68b26cca760f54861cd29a9a3bfb579f9",
+    );
+    assert.equal(
+      REVIEWED_NOTIFICATION_MIGRATIONS.activation.sha256,
+      "e40994886a143101141c7114ed8ea2f92917ccdd349fe96a0874a2cb79561329",
+    );
+    const stage = source.indexOf("stageReviewedCandidateMigrations()");
+    const deploy = source.indexOf("runReviewedPrismaMigrationDeploy(adminDatabaseUrl)");
+    const audit = source.indexOf("runReviewedRuntimeGrantAudit(adminDatabaseUrl)");
+    const remove = source.indexOf("removeStagedCandidateMigrations()", audit);
+    const seed = source.indexOf("await seedNotificationProviderFixtures(adminDatabaseUrl)");
+    const ledger = source.indexOf('runOwnerOnlyGate(state, "prepare")');
+    assert.ok(
+      stage >= 0
+      && stage < deploy
+      && deploy < audit
+      && audit < remove
+      && remove < seed
+      && seed < ledger,
+    );
+    assert.match(source, /fixtureCount\.rows\[0\]\.count !== 10/);
+    assert.match(source, /relrowsecurity !== true/);
+    assert.match(source, /relforcerowsecurity !== false/);
   });
 });

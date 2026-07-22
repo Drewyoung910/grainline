@@ -9,12 +9,16 @@ import {
   openSync,
   readFileSync,
   renameSync,
+  rmdirSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import pg from "pg";
 import { parseGuardedNeonDatabaseIdentity } from "./guard-saved-search-rls-deploy.mjs";
+
+const { Client } = pg;
 
 export const PROVIDER_PROOF_BRANCH = "codex/rls-notification-provider-proof-20260722";
 export const REVIEWED_GITHUB_REPOSITORY = "Drewyoung910/grainline";
@@ -34,6 +38,16 @@ export const REVIEWED_NEON_REGION_ID = "azure-westus3";
 export const REVIEWED_OWNER_ROLE = "neondb_owner";
 export const REVIEWED_RUNTIME_ROLE = "grainline_app_runtime";
 export const REVIEWED_EXECUTION_REGION = "sfo1";
+export const REVIEWED_NOTIFICATION_MIGRATIONS = Object.freeze({
+  activation: Object.freeze({
+    path: "prisma/migrations/20260722052000_enable_notification_rls/migration.sql",
+    sha256: "e40994886a143101141c7114ed8ea2f92917ccdd349fe96a0874a2cb79561329",
+  }),
+  preparation: Object.freeze({
+    path: "prisma/migrations/20260722051500_prepare_notification_rls/migration.sql",
+    sha256: "83f49cec2589c359cda5413282a492f68b26cca760f54861cd29a9a3bfb579f9",
+  }),
+});
 export const PROVIDER_PROOF_STATE_PATH =
   "/private/tmp/grainline-notification-provider-proof-state-20260722.json";
 export const PROVIDER_BYPASS_STATE_PATH =
@@ -73,6 +87,10 @@ export const PROVIDER_ENVIRONMENT_VALUES = Object.freeze({
   RLS_CONTEXT_GATE_TX_TIMEOUT_MS: "5000",
   RLS_CONTEXT_GATE_SCHEMA: "grainline_rls_canary",
   RLS_CONTEXT_GATE_TABLE: "context_canary",
+  NOTIFICATION_RLS_PROVIDER_REQUESTS: "120",
+  NOTIFICATION_RLS_PROVIDER_WARMUP_REQUESTS: "12",
+  NOTIFICATION_RLS_PROVIDER_TARGET_CONCURRENCY: "8",
+  NOTIFICATION_RLS_PROVIDER_BURST_CONCURRENCY: "16",
 });
 
 export const PROVIDER_ENVIRONMENT_KEYS = Object.freeze([
@@ -327,6 +345,290 @@ export function buildStagingDatabaseUrl(role, password, { pooled }) {
   return validateDatabaseUrl(target.toString(), { pooled, role });
 }
 
+function providerFixtures() {
+  return [1, 2].map((runSlot) => {
+    const suffix = `slot-${runSlot}`;
+    const prefix = "notification-provider-real";
+    return Object.freeze({
+      actorUserId: `${prefix}-actor-${suffix}`,
+      conversationId: `${prefix}-conversation-${suffix}`,
+      deletedNotificationIds: Object.freeze([
+        `${prefix}-foreign-${suffix}`,
+        `${prefix}-low-stock-${suffix}`,
+        `${prefix}-message-${suffix}`,
+        `${prefix}-order-${suffix}`,
+        `${prefix}-read-${suffix}`,
+      ]),
+      followId: `${prefix}-follow-${suffix}`,
+      foreignNotificationId: `${prefix}-foreign-${suffix}`,
+      lowStockId: `${prefix}-low-stock-${suffix}`,
+      lowStockLink: `/listing/${prefix}-listing-${suffix}`,
+      messageId: `${prefix}-message-${suffix}`,
+      orderId: `${prefix}-order-${suffix}`,
+      readId: `${prefix}-read-${suffix}`,
+      runSlot,
+      sellerProfileId: `${prefix}-seller-profile-${suffix}`,
+      sellerUserId: `${prefix}-seller-${suffix}`,
+    });
+  });
+}
+
+function assertReviewedMigrationBytes() {
+  for (const migration of Object.values(REVIEWED_NOTIFICATION_MIGRATIONS)) {
+    if (!existsSync(migration.path) || sha256(readFileSync(migration.path)) !== migration.sha256) {
+      throw new Error("Notification provider migration bytes drifted from disposable proof");
+    }
+  }
+}
+
+function stageReviewedCandidateMigrations() {
+  if (Object.values(REVIEWED_NOTIFICATION_MIGRATIONS).some((migration) => existsSync(migration.path))) {
+    throw new Error("stale Notification provider migration candidate exists before staging");
+  }
+  const common = {
+    encoding: "utf8",
+    env: {
+      ...cleanEnvironment(),
+      DIRECT_URL: "postgresql://ci:ci@127.0.0.1:5432/grainline_ci",
+      NOTIFICATION_RLS_DISPOSABLE_MIGRATION_ACK:
+        "I_ACKNOWLEDGE_DISPOSABLE_LOOPBACK_NOTIFICATION_MIGRATION",
+    },
+    maxBuffer: 2 * 1024 * 1024,
+    timeout: 30_000,
+  };
+  for (const mode of ["--stage-preparation", "--stage-activation"]) {
+    const result = spawnSync(
+      process.execPath,
+      [path.resolve("scripts/stage-notification-rls-candidate-migration.mjs"), mode],
+      common,
+    );
+    if (result.error || result.status !== 0) {
+      throw new Error("reviewed Notification provider migration staging failed");
+    }
+  }
+  assertReviewedMigrationBytes();
+}
+
+function removeStagedCandidateMigrations() {
+  for (const migration of Object.values(REVIEWED_NOTIFICATION_MIGRATIONS).reverse()) {
+    if (existsSync(migration.path)) unlinkSync(migration.path);
+    const directory = path.dirname(migration.path);
+    if (existsSync(directory)) rmdirSync(directory);
+  }
+}
+
+function runReviewedPrismaMigrationDeploy(adminDatabaseUrl) {
+  assertReviewedMigrationBytes();
+  const prismaPackage = JSON.parse(readFileSync("node_modules/prisma/package.json", "utf8"));
+  if (prismaPackage.version !== "7.6.0") {
+    throw new Error("local Prisma CLI version drifted from the reviewed provider input");
+  }
+  const result = spawnSync(
+    process.execPath,
+    [path.resolve("node_modules/prisma/build/index.js"), "migrate", "deploy"],
+    {
+      encoding: "utf8",
+      env: {
+        ...cleanEnvironment(),
+        DATABASE_URL: adminDatabaseUrl,
+        DIRECT_URL: adminDatabaseUrl,
+      },
+      maxBuffer: 4 * 1024 * 1024,
+      timeout: 10 * 60_000,
+    },
+  );
+  if (result.error || result.status !== 0) {
+    throw new Error("reviewed Prisma provider migration deploy failed");
+  }
+}
+
+function runReviewedRuntimeGrantAudit(adminDatabaseUrl) {
+  const result = spawnSync(
+    process.execPath,
+    [path.resolve("scripts/audit-runtime-db-grants.mjs")],
+    {
+      encoding: "utf8",
+      env: {
+        ...cleanEnvironment(),
+        GRANT_AUDIT_DATABASE_URL: adminDatabaseUrl,
+        MIGRATION_DB_ROLE: REVIEWED_OWNER_ROLE,
+        RUNTIME_DB_ROLE: REVIEWED_RUNTIME_ROLE,
+      },
+      maxBuffer: 4 * 1024 * 1024,
+      timeout: 2 * 60_000,
+    },
+  );
+  if (result.error || result.status !== 0) {
+    throw new Error("reviewed Notification provider grant audit failed");
+  }
+}
+
+async function seedNotificationProviderFixtures(adminDatabaseUrl) {
+  const owner = new Client({
+    application_name: "notification-provider-owner-setup",
+    connectionString: adminDatabaseUrl,
+  });
+  await owner.connect();
+  try {
+    await owner.query("BEGIN");
+    for (const fixture of providerFixtures()) {
+      await owner.query(
+        `INSERT INTO public."User" (id, "clerkId", email, name, "updatedAt") VALUES
+           ($1, $2, $3, $4, pg_catalog.clock_timestamp()),
+           ($5, $6, $7, $8, pg_catalog.clock_timestamp())`,
+        [
+          fixture.sellerUserId,
+          `clerk_${fixture.sellerUserId}`,
+          `${fixture.sellerUserId}@example.invalid`,
+          `Provider Seller ${fixture.runSlot}`,
+          fixture.actorUserId,
+          `clerk_${fixture.actorUserId}`,
+          `${fixture.actorUserId}@example.invalid`,
+          `Provider Actor ${fixture.runSlot}`,
+        ],
+      );
+      await owner.query(
+        `INSERT INTO public."SellerProfile" (
+           id, "userId", "displayName", "displayNameNormalized", "chargesEnabled", "updatedAt"
+         ) VALUES ($1, $2, $3, $4, true, pg_catalog.clock_timestamp())`,
+        [
+          fixture.sellerProfileId,
+          fixture.sellerUserId,
+          `Provider Seller ${fixture.runSlot}`,
+          `provider seller ${fixture.runSlot}`,
+        ],
+      );
+      await owner.query(
+        `INSERT INTO public."Follow" (id, "followerId", "sellerProfileId")
+         VALUES ($1, $2, $3)`,
+        [fixture.followId, fixture.actorUserId, fixture.sellerProfileId],
+      );
+      await owner.query(
+        `INSERT INTO public."Notification" (
+           id, "userId", type, title, body, link, "sourceType", "sourceId",
+           "dedupKey", "relatedUserId", read, "createdAt"
+         ) VALUES
+           ($1, $6, 'NEW_MESSAGE', 'Provider message', 'Provider message body', $11,
+            'message', $1, $12, $7, false, pg_catalog.clock_timestamp() - interval '4 minutes'),
+           ($2, $6, 'LOW_STOCK', 'Provider low stock', 'Provider low stock body', $10,
+            'manual_low_stock', $2, $13, $7, false, pg_catalog.clock_timestamp() - interval '3 minutes'),
+           ($3, $6, 'NEW_ORDER', 'Provider order', 'Provider order body', $14,
+            'order', $3, $15, $7, false, pg_catalog.clock_timestamp() - interval '2 minutes'),
+           ($4, $6, 'NEW_FAVORITE', 'Provider read', 'Provider read body', $10,
+            'favorite', $4, $16, $7, true, pg_catalog.clock_timestamp() - interval '1 minute'),
+           ($5, $7, 'ACCOUNT_WARNING', 'Provider foreign', 'Provider foreign body', NULL,
+            'account_warning', $5, $17, $6, false, pg_catalog.clock_timestamp() - interval '5 minutes')`,
+        [
+          fixture.messageId,
+          fixture.lowStockId,
+          fixture.orderId,
+          fixture.readId,
+          fixture.foreignNotificationId,
+          fixture.sellerUserId,
+          fixture.actorUserId,
+          fixture.conversationId,
+          fixture.sellerProfileId,
+          fixture.lowStockLink,
+          `/messages/${fixture.conversationId}`,
+          `${fixture.messageId}-dedup`,
+          `${fixture.lowStockId}-dedup`,
+          `/dashboard/orders/${fixture.orderId}`,
+          `${fixture.orderId}-dedup`,
+          `${fixture.readId}-dedup`,
+          `${fixture.foreignNotificationId}-dedup`,
+        ],
+      );
+    }
+    const catalog = await owner.query(
+      `SELECT
+         class.relrowsecurity,
+         class.relforcerowsecurity,
+         (SELECT pg_catalog.count(*)::integer
+            FROM pg_catalog.pg_policy AS policy
+           WHERE policy.polrelid = class.oid) AS policy_count
+        FROM pg_catalog.pg_class AS class
+        JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = class.relnamespace
+       WHERE namespace.nspname = 'public' AND class.relname = 'Notification'`,
+    );
+    const fixtureCount = await owner.query(
+      `SELECT pg_catalog.count(*)::integer AS count
+         FROM public."Notification"
+        WHERE "userId" = ANY($1::text[])`,
+      [providerFixtures().flatMap((fixture) => [fixture.sellerUserId, fixture.actorUserId])],
+    );
+    if (
+      catalog.rows.length !== 1
+      || catalog.rows[0].relrowsecurity !== true
+      || catalog.rows[0].relforcerowsecurity !== false
+      || catalog.rows[0].policy_count !== 2
+      || fixtureCount.rows[0].count !== 10
+    ) {
+      throw new Error("Notification provider database did not reach the reviewed active fixture state");
+    }
+    await owner.query("COMMIT");
+  } catch (error) {
+    await owner.query("ROLLBACK");
+    throw error;
+  } finally {
+    await owner.end();
+  }
+}
+
+async function teardownNotificationProviderFixtures(adminDatabaseUrl) {
+  const owner = new Client({
+    application_name: "notification-provider-owner-teardown",
+    connectionString: adminDatabaseUrl,
+  });
+  await owner.connect();
+  try {
+    await owner.query("BEGIN");
+    for (const fixture of [...providerFixtures()].reverse()) {
+      await owner.query(
+        `DELETE FROM public."Notification"
+          WHERE id = ANY($1::text[])
+             OR (
+               "sourceType" = 'follow'
+               AND "sourceId" = $2
+               AND "userId" = $3
+               AND "relatedUserId" = $4
+             )`,
+        [
+          fixture.deletedNotificationIds,
+          fixture.sellerProfileId,
+          fixture.sellerUserId,
+          fixture.actorUserId,
+        ],
+      );
+      await owner.query('DELETE FROM public."Follow" WHERE id = $1', [fixture.followId]);
+      await owner.query('DELETE FROM public."SellerProfile" WHERE id = $1', [
+        fixture.sellerProfileId,
+      ]);
+      await owner.query(
+        `DELETE FROM public."User" WHERE id = ANY($1::text[])`,
+        [[fixture.sellerUserId, fixture.actorUserId]],
+      );
+    }
+    const residue = await owner.query(
+      `SELECT
+         (SELECT pg_catalog.count(*)::integer FROM public."User"
+           WHERE id = ANY($1::text[])) AS users,
+         (SELECT pg_catalog.count(*)::integer FROM public."Notification"
+           WHERE "userId" = ANY($1::text[])
+              OR "relatedUserId" = ANY($1::text[])) AS notifications`,
+      [providerFixtures().flatMap((fixture) => [fixture.sellerUserId, fixture.actorUserId])],
+    );
+    if (residue.rows[0].users !== 0 || residue.rows[0].notifications !== 0) {
+      throw new Error("Notification provider fixtures remained after owner teardown");
+    }
+    await owner.query("COMMIT");
+  } catch (error) {
+    await owner.query("ROLLBACK");
+    throw error;
+  } finally {
+    await owner.end();
+  }
+}
+
 async function verifyNeonStagingTarget() {
   if (REVIEWED_STAGING_BRANCH_ID === REVIEWED_PRODUCTION_BRANCH_ID) {
     throw new Error("staging and production Neon branch ids must differ");
@@ -488,11 +790,11 @@ export function providerEnvironmentEntries(state) {
     value,
   }));
   if (
-    entries.length !== 24
+    entries.length !== PROVIDER_ENVIRONMENT_KEYS.length
     || JSON.stringify(entries.map((entry) => entry.key)) !== JSON.stringify(PROVIDER_ENVIRONMENT_KEYS)
     || entries.some((entry) => FORBIDDEN_PROVIDER_ENVIRONMENT_KEYS.includes(entry.key))
   ) {
-    throw new Error("provider environment manifest drifted from the reviewed 24-variable shape");
+    throw new Error("provider environment manifest drifted from the reviewed exact-variable shape");
   }
   return entries;
 }
@@ -501,7 +803,7 @@ function assertExactEnvironmentInventory(inventory) {
   const expected = [...PROVIDER_ENVIRONMENT_KEYS].sort();
   const actual = inventory.map((entry) => entry?.key).sort();
   if (
-    inventory.length !== 24
+    inventory.length !== PROVIDER_ENVIRONMENT_KEYS.length
     || JSON.stringify(actual) !== JSON.stringify(expected)
     || inventory.some((entry) => (
       !/^env_[A-Za-z0-9]+$/.test(entry?.id)
@@ -643,7 +945,9 @@ function assertNoSensitiveEvidence(payload, state, bypassState) {
 
 function validateProviderEvidence(payload, state, runSlot) {
   if (
-    payload.run?.status !== "runtime_candidate_passed"
+    payload.proofMode !== "provider-runtime-real-notification-candidate"
+    || payload.status !== "passed"
+    || payload.run?.status !== "runtime_candidate_passed"
     || payload.run.commitSha !== state.commitSha
     || payload.run.deploymentId !== state.deploymentId
     || payload.result?.issueCount !== 0
@@ -656,11 +960,15 @@ function validateProviderEvidence(payload, state, runSlot) {
     || payload.database?.expectedDatabaseName !== REVIEWED_DATABASE_NAME
     || payload.database?.runtimeRole !== REVIEWED_RUNTIME_ROLE
     || payload.database?.databaseHost !== `${REVIEWED_STAGING_ENDPOINT_ID}-pooler.${REVIEWED_DATABASE_REGION}.neon.tech`
-    || payload.config?.measuredRequests !== 500
+    || payload.config?.measuredRequests !== 120
     || payload.config?.targetConcurrency !== 8
     || payload.config?.burstConcurrency !== 16
-    || payload.config?.poolSize !== 16
     || payload.config?.prismaPoolSize !== 10
+    || payload.result?.runSlot !== runSlot
+    || payload.result?.correctness?.bellRows !== 4
+    || payload.result?.correctness?.foreignRows !== 1
+    || payload.result?.correctness?.statementLocalContextReset !== true
+    || payload.result?.correctness?.serviceReplayStable !== true
     || payload.runner?.runSlot !== runSlot
     || !/^v24\./.test(payload.runner?.nodeVersion)
     || payload.runner?.runIdSha256 !== sha256(state.runId)
@@ -746,8 +1054,20 @@ async function prepare() {
     triggerSecret,
   };
   writePrivateJson(PROVIDER_PROOF_STATE_PATH, state);
+  stageReviewedCandidateMigrations();
+  try {
+    runReviewedPrismaMigrationDeploy(adminDatabaseUrl);
+    runReviewedRuntimeGrantAudit(adminDatabaseUrl);
+  } finally {
+    removeStagedCandidateMigrations();
+  }
+  await seedNotificationProviderFixtures(adminDatabaseUrl);
   runOwnerOnlyGate(state, "prepare");
-  replacePrivateState({ ...state, setupCompletedAt: new Date().toISOString() });
+  replacePrivateState({
+    ...state,
+    databasePreparedAt: new Date().toISOString(),
+    setupCompletedAt: new Date().toISOString(),
+  });
   console.log(JSON.stringify({ commitSha, prepared: true, setupEvidenceMode: "0600" }));
 }
 
@@ -819,7 +1139,7 @@ async function attest() {
   }
   const attestation = {
     generatedAt: new Date().toISOString(),
-    scope: "synthetic-notification-provider-transport-only",
+    scope: "real-notification-provider-candidate",
     project: {
       id: REVIEWED_VERCEL_PROJECT_ID,
       name: REVIEWED_VERCEL_PROJECT_NAME,
@@ -916,11 +1236,11 @@ async function removeProviderEnvironment(state) {
     { body: { ids }, method: "DELETE" },
   );
   if (
-    Number(payload.deleted) !== 24
+    Number(payload.deleted) !== PROVIDER_ENVIRONMENT_KEYS.length
     || !Array.isArray(payload.ids)
     || JSON.stringify([...payload.ids].sort()) !== JSON.stringify(ids)
   ) {
-    throw new Error("Vercel did not confirm deletion of all 24 branch variables");
+    throw new Error("Vercel did not confirm deletion of every reviewed branch variable");
   }
   if ((await branchEnvironmentInventory()).length !== 0) {
     throw new Error("Vercel branch environment variables remained after cleanup");
@@ -985,6 +1305,7 @@ async function cleanup({ requireSuccess }) {
       replacePrivateState(state);
     }
     if (!existsSync(state.teardownEvidencePath)) runOwnerOnlyGate(state, "teardown");
+    await teardownNotificationProviderFixtures(state.adminDatabaseUrl);
     ownerOnlyFixtureTeardownPassed = true;
   }
   replacePrivateState({
@@ -1008,7 +1329,7 @@ async function cleanup({ requireSuccess }) {
     commitSha: state.commitSha,
     deploymentId: state.deploymentId ?? null,
     deploymentDeleted,
-    branchEnvironmentVariablesDeleted: state.configuredAt ? 24 : 0,
+    branchEnvironmentVariablesDeleted: state.configuredAt ? PROVIDER_ENVIRONMENT_KEYS.length : 0,
     ownerOnlyFixtureTeardownPassed,
     ownerOnlyFixtureTeardownNotRequired: !state.setupCompletedAt,
     neonStagingBranchId: REVIEWED_STAGING_BRANCH_ID,

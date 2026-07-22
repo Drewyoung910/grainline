@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { existsSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   assertDeterministicPostgresEnvironment,
@@ -16,6 +17,25 @@ export const REVIEWED_PRODUCTION_RUNTIME_IDENTITY = Object.freeze({
   role: "grainline_app_runtime",
 });
 
+// Disposable provider-runtime proof only. This exact branch, route, test,
+// database endpoint, and every branch-scoped variable are deleted after the
+// two counted runs. Keep this exception out of the canonical Notification
+// branch and fail closed whenever any pinned condition drifts.
+export const NOTIFICATION_PROVIDER_PROOF = Object.freeze({
+  branch: "codex/rls-notification-provider-proof-20260722",
+  databaseAliasKey: "RLS_CONTEXT_GATE_DATABASE_URL",
+  databaseName: "neondb",
+  endpointId: "ep-bold-recipe-aavx4plv",
+  middlewarePath: "src/middleware.ts",
+  publicPath: "/api/internal/rls-context-gate",
+  region: "westus3.azure",
+  routePath: "src/app/api/internal/rls-context-gate/route.ts",
+  runnerPath: "src/lib/notificationRlsProviderGate.ts",
+  runtimeRole: "grainline_app_runtime",
+  testMarker: "RLS_CONTEXT_GATE_RUNNER_ONLY_TEST",
+  testPath: "tests/rls-context-runner-route.test.mjs",
+});
+
 const OWNER_ENVIRONMENT_KEY_PATTERNS = Object.freeze([
   /(?:^|_)DIRECT_URL$/,
   /(?:^|_)ADMIN_DATABASE_URL$/,
@@ -30,11 +50,87 @@ export const NOTIFICATION_RLS_DRAFT_URLS = Object.freeze([
   new URL("../docs/rls-drafts/notification-service-authority.sql", import.meta.url),
 ]);
 
+function isRegularNonSymlinkFile(filePath) {
+  if (!existsSync(filePath)) return false;
+  const stat = lstatSync(filePath);
+  return stat.isFile() && !stat.isSymbolicLink();
+}
+
+export function notificationProviderProofDeploymentIsReviewed(
+  env,
+  { rootDirectory = process.cwd() } = {},
+) {
+  const proof = NOTIFICATION_PROVIDER_PROOF;
+  const allowedSha = env?.RLS_CONTEXT_GATE_ALLOWED_COMMIT_SHA;
+  const databaseUrl = env?.DATABASE_URL;
+  const aliasUrl = env?.[proof.databaseAliasKey];
+  if (
+    env?.VERCEL !== "1"
+    || env?.VERCEL_ENV !== "preview"
+    || env?.VERCEL_GIT_COMMIT_REF !== proof.branch
+    || typeof allowedSha !== "string"
+    || !/^[0-9a-f]{40}$/.test(allowedSha)
+    || env?.VERCEL_GIT_COMMIT_SHA !== allowedSha
+    || env?.RLS_CONTEXT_GATE_CONFIRM !== "staging-only"
+    || env?.RLS_CONTEXT_GATE_LOCALITY_CONFIRM !== "production-runtime"
+    || env?.RLS_CONTEXT_GATE_RUNTIME_ROLE !== proof.runtimeRole
+    || env?.RLS_CONTEXT_GATE_EXPECTED_DATABASE_ENDPOINT_ID !== proof.endpointId
+    || env?.RLS_CONTEXT_GATE_EXPECTED_DATABASE_NAME !== proof.databaseName
+    || env?.RLS_CONTEXT_GATE_EXPECTED_DATABASE_REGION !== proof.region
+    || typeof databaseUrl !== "string"
+    || aliasUrl !== databaseUrl
+  ) {
+    return false;
+  }
+
+  let identity;
+  try {
+    identity = parseVercelRuntimeDatabaseIdentity(databaseUrl, "DATABASE_URL");
+  } catch {
+    return false;
+  }
+  if (
+    !identity.isPooler
+    || identity.username !== proof.runtimeRole
+    || identity.endpointId !== proof.endpointId
+    || identity.databaseName !== proof.databaseName
+    || identity.region !== proof.region
+  ) {
+    return false;
+  }
+
+  const paths = Object.fromEntries(
+    ["middlewarePath", "routePath", "runnerPath", "testPath"].map((key) => [
+      key,
+      path.join(rootDirectory, proof[key]),
+    ]),
+  );
+  if (Object.values(paths).some((filePath) => !isRegularNonSymlinkFile(filePath))) {
+    return false;
+  }
+  const middleware = readFileSync(paths.middlewarePath, "utf8");
+  const route = readFileSync(paths.routePath, "utf8");
+  const runner = readFileSync(paths.runnerPath, "utf8");
+  const runnerTest = readFileSync(paths.testPath, "utf8");
+  return middleware.includes(`"${proof.publicPath}"`)
+    && route.includes('process.env.VERCEL_ENV !== "preview"')
+    && route.includes("RLS_CONTEXT_GATE_TRIGGER_SECRET")
+    && route.includes("RLS_CONTEXT_GATE_ALLOWED_COMMIT_SHA")
+    && route.includes("runNotificationProviderGate")
+    && runner.includes("export async function runNotificationProviderGate")
+    && runnerTest.startsWith(`// ${proof.testMarker}\n`);
+}
+
 export function assertNoNotificationRlsDraftDeployment(
   env = process.env,
   draftPresent = NOTIFICATION_RLS_DRAFT_URLS.some((draftUrl) => existsSync(draftUrl)),
+  options = {},
 ) {
-  if (env.VERCEL === "1" && draftPresent) {
+  if (
+    env.VERCEL === "1"
+    && draftPresent
+    && !notificationProviderProofDeploymentIsReviewed(env, options)
+  ) {
     throw new Error(
       "Vercel deployment is barred while the unapplied Notification RLS draft is present",
     );
@@ -47,10 +143,14 @@ export function privilegedDatabaseEnvironmentKeys(env) {
     .sort((left, right) => left.localeCompare(right));
 }
 
-export function unreviewedPostgresUrlEnvironmentKeys(env) {
+export function unreviewedPostgresUrlEnvironmentKeys(env, options = {}) {
+  const reviewedProofAlias = notificationProviderProofDeploymentIsReviewed(env, options)
+    ? NOTIFICATION_PROVIDER_PROOF.databaseAliasKey
+    : null;
   return Object.entries(env ?? {})
     .filter(([key, value]) => (
       key !== "DATABASE_URL"
+      && key !== reviewedProofAlias
       && typeof value === "string"
       && /^postgres(?:ql)?:\/\//i.test(value.trim())
     ))
@@ -77,7 +177,7 @@ export function parseVercelRuntimeDatabaseIdentity(value, label = "DATABASE_URL"
   });
 }
 
-export function assertVercelRuntimeDatabaseIsolation(env = process.env) {
+export function assertVercelRuntimeDatabaseIsolation(env = process.env, options = {}) {
   assertDeterministicPostgresEnvironment(env, "Vercel runtime database isolation");
   if (env.VERCEL !== "1") {
     return Object.freeze({ enforced: false, provider: null, environment: null });
@@ -92,7 +192,7 @@ export function assertVercelRuntimeDatabaseIsolation(env = process.env) {
       `Vercel application builds must not receive privileged database environment keys: ${privilegedKeys.join(", ")}`,
     );
   }
-  const unreviewedPostgresUrlKeys = unreviewedPostgresUrlEnvironmentKeys(env);
+  const unreviewedPostgresUrlKeys = unreviewedPostgresUrlEnvironmentKeys(env, options);
   if (unreviewedPostgresUrlKeys.length > 0) {
     throw new Error(
       `Vercel application builds must not receive PostgreSQL URLs outside DATABASE_URL: ${unreviewedPostgresUrlKeys.join(", ")}`,

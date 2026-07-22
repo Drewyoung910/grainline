@@ -5,7 +5,6 @@ import { describe, it } from "node:test";
 import {
   RLS_CONTEXT_GATE_PUBLIC_PATH,
   RLS_CONTEXT_GATE_ROUTE_PATH,
-  RLS_CONTEXT_GATE_RUNNER_TEST_PATH,
   validateCurrentSavedSearchRlsDeployShape,
 } from "../scripts/guard-saved-search-rls-deploy.mjs";
 
@@ -34,7 +33,7 @@ describe("temporary Preview-only RLS context runner", () => {
     assert.match(gateEnv, /RLS_CONTEXT_GATE_DATABASE_URL/);
     assert.doesNotMatch(gateEnv, /ADMIN_DATABASE_URL|EVIDENCE_PATH|PREPARE|ROLLBACK|TEARDOWN/);
     const claim = route.indexOf("await claimProviderRuntimeRunSlot");
-    const run = route.indexOf("await runAcceptanceGate");
+    const run = route.indexOf("await runNotificationProviderGate");
     const complete = route.indexOf("await completeProviderRuntimeRunSlot");
     assert.ok(claim >= 0 && run > claim && complete > run);
     assert.match(route, /runSlot: z\.union\(\[z\.literal\(1\), z\.literal\(2\)\]\)/);
@@ -47,11 +46,15 @@ describe("temporary Preview-only RLS context runner", () => {
     assert.throws(
       () => validateCurrentSavedSearchRlsDeployShape({ phase: "phase-b-reviewed" }),
       (error) => {
-        assert.match(error.message, new RegExp(RLS_CONTEXT_GATE_ROUTE_PATH.replaceAll("/", "\\/")));
-        assert.match(error.message, new RegExp(RLS_CONTEXT_GATE_RUNNER_TEST_PATH.replaceAll("/", "\\/")));
-        assert.match(error.message, new RegExp(RLS_CONTEXT_GATE_PUBLIC_PATH.replaceAll("/", "\\/")));
+        assert.match(
+          error.message,
+          /20260722051500_prepare_notification_rls|temporary context-gate app artifact/,
+        );
         return true;
       },
     );
+    assert.match(route, /provider-runtime-real-notification-candidate/);
+    assert.match(route, /runNotificationProviderGate/);
+    assert.match(middleware, new RegExp(RLS_CONTEXT_GATE_PUBLIC_PATH.replaceAll("/", "\\/")));
   });
 });

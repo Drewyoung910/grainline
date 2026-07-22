@@ -1,12 +1,14 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import {
-  buildEvidencePayload,
   claimProviderRuntimeRunSlot,
   completeProviderRuntimeRunSlot,
   parseGateConfig,
-  runAcceptanceGate,
 } from "../../../../../scripts/rls-context-acceptance-gate.mjs";
+import {
+  parseNotificationProviderGateConfig,
+  runNotificationProviderGate,
+} from "@/lib/notificationRlsProviderGate";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -110,6 +112,13 @@ export async function POST(request: Request) {
     RLS_CONTEXT_GATE_TURNOVER_REQUESTS: process.env.RLS_CONTEXT_GATE_TURNOVER_REQUESTS,
     RLS_CONTEXT_GATE_TX_TIMEOUT_MS: process.env.RLS_CONTEXT_GATE_TX_TIMEOUT_MS,
     RLS_CONTEXT_GATE_WARMUP_REQUESTS: process.env.RLS_CONTEXT_GATE_WARMUP_REQUESTS,
+    NOTIFICATION_RLS_PROVIDER_BURST_CONCURRENCY:
+      process.env.NOTIFICATION_RLS_PROVIDER_BURST_CONCURRENCY,
+    NOTIFICATION_RLS_PROVIDER_REQUESTS: process.env.NOTIFICATION_RLS_PROVIDER_REQUESTS,
+    NOTIFICATION_RLS_PROVIDER_TARGET_CONCURRENCY:
+      process.env.NOTIFICATION_RLS_PROVIDER_TARGET_CONCURRENCY,
+    NOTIFICATION_RLS_PROVIDER_WARMUP_REQUESTS:
+      process.env.NOTIFICATION_RLS_PROVIDER_WARMUP_REQUESTS,
     VERCEL: process.env.VERCEL,
     VERCEL_DEPLOYMENT_ID: process.env.VERCEL_DEPLOYMENT_ID,
     VERCEL_GIT_COMMIT_SHA: process.env.VERCEL_GIT_COMMIT_SHA,
@@ -126,20 +135,55 @@ export async function POST(request: Request) {
       return privateJson({ error: "Run slot already consumed" }, 409);
     }
     const startedAt = new Date().toISOString();
-    const result = await runAcceptanceGate(config);
+    const notificationConfig = parseNotificationProviderGateConfig(parsed.runSlot, gateEnv);
+    const result = await runNotificationProviderGate(notificationConfig);
     const finishedAt = new Date().toISOString();
-    const status = result.issues.length > 0 ? "failed" : "passed";
-    const evidence = buildEvidencePayload(
-      config,
+    const status = result.issueCount > 0 ? "failed" : "passed";
+    const databaseHost = process.env.DATABASE_URL
+      ? new URL(process.env.DATABASE_URL).hostname
+      : null;
+    const evidence = {
+      config: {
+        burstConcurrency: notificationConfig.burstConcurrency,
+        measuredRequests: notificationConfig.requests,
+        prismaPoolSize: 10,
+        targetConcurrency: notificationConfig.targetConcurrency,
+        warmupRequests: notificationConfig.warmupRequests,
+      },
+      database: {
+        databaseHost,
+        expectedDatabaseEndpointId:
+          process.env.RLS_CONTEXT_GATE_EXPECTED_DATABASE_ENDPOINT_ID,
+        expectedDatabaseName: process.env.RLS_CONTEXT_GATE_EXPECTED_DATABASE_NAME,
+        runtimeRole: result.catalog.runtimeRole,
+      },
+      finishedAt,
+      locality: {
+        acceptanceEligible: false,
+        observedDatabaseRegion: process.env.RLS_CONTEXT_GATE_EXPECTED_DATABASE_REGION,
+        observedExecutionRegion: process.env.VERCEL_REGION,
+        providerRuntimeMetadataPresent: Boolean(
+          process.env.VERCEL_DEPLOYMENT_ID
+          && process.env.VERCEL_GIT_COMMIT_SHA
+          && process.env.VERCEL_REGION
+        ),
+        runtimeEvidenceCandidate: true,
+      },
+      proofMode: "provider-runtime-real-notification-candidate",
       result,
-      { finishedAt, startedAt, status },
-      gateEnv,
-    ) as Record<string, unknown>;
+      run: {
+        commitSha: process.env.VERCEL_GIT_COMMIT_SHA,
+        deploymentId: process.env.VERCEL_DEPLOYMENT_ID,
+        status: result.issueCount === 0 ? "runtime_candidate_passed" : "runtime_candidate_failed",
+      },
+      startedAt,
+      status,
+    } satisfies Record<string, unknown>;
     await completeProviderRuntimeRunSlot(config, {
       evidence,
       runId,
       runSlot: parsed.runSlot,
-      succeeded: result.issues.length === 0,
+      succeeded: result.issueCount === 0,
     });
     return privateJson({
       ...evidence,
@@ -148,7 +192,7 @@ export async function POST(request: Request) {
         runIdSha256: digest(runId).toString("hex"),
         runSlot: parsed.runSlot,
       },
-    }, result.issues.length > 0 ? 422 : 200);
+    }, result.issueCount > 0 ? 422 : 200);
   } catch {
     return privateJson({ error: "RLS context gate failed before sanitized evidence was available" }, 500);
   }
