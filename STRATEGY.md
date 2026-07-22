@@ -112,9 +112,10 @@ runtime role fixture or the Vercel privileged-variable guard.
 
 ### Bucket B Notification design decision (2026-07-19)
 
-Bucket B preparation is live in production from merged main commit
-`3f2ecc43492faf7c72cabc1c3aa57d37dba1a979`; no Notification policy is
-production-active yet. The compatible application is live as Vercel deployment
+Bucket B initial RLS is live in production from merged main commit
+`aa3f2c3640c2cb62200c1d660a08ac217271a037`: Notification has exact
+`ENABLE`, explicit `NO FORCE`, two recipient policies, and narrowed runtime
+grants. The compatible application is live as Vercel deployment
 `dpl_92rXcp1PqmoMPtgtAswbecAKWEt2`. The full operating record remains in
 `docs/rls-bucket-b-notification-plan.md`. The
 verified surface has simple recipient reads/mark-read operations but asymmetric
@@ -416,8 +417,8 @@ discriminators. The ten-family inventory and implementation order live in
 write-side defense in depth while keeping database validation proportional to
 what each application, staff, cron, or provider flow can actually prove.
 
-Notification production activation reached its final release gate on
-2026-07-22. Protected production inspection found 58 legacy rows; all 58 lack
+Notification initial production activation completed on 2026-07-22. Protected
+production inspection found 58 legacy rows; all 58 lacked
 the new source and related-user authority fields. The sanitized aggregate-only
 evidence is retained outside the repository with SHA-256
 `89664c97252c2ec8528cb0b58da422f6eb003c5d2c37d232f7ae9eefd6372d0b`.
@@ -437,12 +438,19 @@ only migration `20260722052000_enable_notification_rls`; promoted SHA-256 is
 `f4b475d5f7c071011e35425b68bc26738bae8696c658457d8ed55ebffc8ddc92`,
 and its executable body matches accepted disposable candidate SHA-256
 `e40994886a143101141c7114ed8ea2f92917ccdd349fe96a0874a2cb79561329`.
-Merge and production apply still require the exact-tree guard, activation
-release verifier, normal CI, committed-migration PostgreSQL authority and
-rollback proof, protected main-only migration workflow, production catalog and
-runtime denial postflight, and authenticated canary smoke. Initial activation
-is `ENABLE` plus explicit `NO FORCE`; a later separately proven FORCE release
-remains part of finishing Bucket B.
+PR `#34` merged the activation package at
+`aa3f2c3640c2cb62200c1d660a08ac217271a037`. Main CI `29952665651`, committed
+PostgreSQL proof `29952665786`, and protected production migration
+`29952892477` passed. Mode-0600 production postflight evidence
+`notification-production-postflight-aa3f2c3640c2.json` has SHA-256
+`06b635c8249cfdc864a5e133d6edcd2e0805b57537903c4ef13b337057a6463e`.
+It proves exact live catalog/grants, zero rows visible without context, own-row
+visibility with transaction-local context, denial of direct insert/delete/title
+update, no context leakage after rollback, authenticated bell/page isolation,
+non-enumerating foreign mark-read behavior, own/read-all mutation, HTTP 401/403
+boundaries, and complete fixture/session/token/cache cleanup. Initial activation
+is now live; a later separately proven FORCE release remains part of finishing
+Bucket B.
 
 Temporary provider mechanics are intentionally absent from the production
 artifact: the internal context-gate route, its runner-only test, branch-scoped

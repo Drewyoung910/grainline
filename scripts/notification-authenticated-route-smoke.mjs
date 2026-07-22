@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Retained as a reproducible record of the completed disposable authenticated
-// route smoke. The temporary HTTP route is intentionally absent from releases.
+// Authenticated Notification route proof for the completed disposable Preview
+// gate and the separately pinned production postflight. No temporary HTTP
+// operator route is required in either mode.
 import { createHash, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import {
@@ -34,11 +35,17 @@ import { NOTIFICATION_CANARY_EXTERNAL_ID } from "./notification-operational-cana
 
 const { Client } = pg;
 const LOCAL_ENV_PATH = "/Users/drewyoung/grainline/.env.local";
+const OWNER_ENV_PATH = "/Users/drewyoung/grainline/.env.migration-owner.local";
 const MAX_JSON_BYTES = 128 * 1024;
 const MAX_PAGE_BYTES = 2 * 1024 * 1024;
 const REVIEWED_TERMS_VERSION = "2026-06-14";
 const REVIEWED_CLERK_FRONTEND_API = "clerk.thegrainline.com";
 const REVIEWED_CLERK_ORIGIN = "https://thegrainline.com";
+const PRODUCTION_POSTFLIGHT_BRANCH = "codex/rls-notification-postflight-20260722";
+const PRODUCTION_RELEASE_COMMIT = "aa3f2c3640c2cb62200c1d660a08ac217271a037";
+const PRODUCTION_DEPLOYMENT_ID = "dpl_92rXcp1PqmoMPtgtAswbecAKWEt2";
+const PRODUCTION_ENDPOINT_ID = "ep-plain-river-aaqg8gj4";
+const PRODUCTION_CACHE_NAMESPACE = "vercel-production";
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -80,7 +87,7 @@ function replacePrivateJson(filePath, value) {
   chmodSync(filePath, 0o600);
 }
 
-function exactCleanCommit() {
+function exactCleanCommit(expectedBranch) {
   const status = spawnSync("git", ["status", "--porcelain", "--untracked-files=all"], {
     encoding: "utf8",
   });
@@ -92,9 +99,9 @@ function exactCleanCommit() {
     || head.status !== 0
     || branch.status !== 0
     || !/^[a-f0-9]{40}$/.test(head.stdout.trim())
-    || branch.stdout.trim() !== PROVIDER_PROOF_BRANCH
+    || branch.stdout.trim() !== expectedBranch
   ) {
-    throw new Error("route smoke requires the exact clean disposable branch commit");
+    throw new Error("route smoke requires the exact clean reviewed operator branch commit");
   }
   return head.stdout.trim();
 }
@@ -102,6 +109,28 @@ function exactCleanCommit() {
 function loadLocalEnvironment() {
   assertPrivateRegularFile(LOCAL_ENV_PATH, "local environment file");
   return parseDotenv(readFileSync(LOCAL_ENV_PATH));
+}
+
+function loadProductionOwnerDatabaseUrl() {
+  assertPrivateRegularFile(OWNER_ENV_PATH, "local migration-owner environment file");
+  const values = parseDotenv(readFileSync(OWNER_ENV_PATH));
+  const databaseUrl = values.DIRECT_URL;
+  if (typeof databaseUrl !== "string") {
+    throw new Error("production postflight owner URL is missing");
+  }
+  const parsed = new URL(databaseUrl);
+  if (
+    parsed.protocol !== "postgresql:"
+    || parsed.username !== "neondb_owner"
+    || parsed.hostname !== `${PRODUCTION_ENDPOINT_ID}.westus3.azure.neon.tech`
+    || parsed.pathname !== `/${REVIEWED_DATABASE_NAME}`
+    || !parsed.password
+    || parsed.searchParams.get("sslmode") !== "verify-full"
+    || parsed.searchParams.get("channel_binding") !== "require"
+  ) {
+    throw new Error("production postflight owner URL identity drifted");
+  }
+  return databaseUrl;
 }
 
 function loadLiveClerkCredentials() {
@@ -156,7 +185,7 @@ function clerkCookieHeader(jar) {
   return value;
 }
 
-async function deletePreviewAccountStateCache(clerkId) {
+async function deleteAccountStateCache(clerkId, namespace) {
   const values = loadLocalEnvironment();
   const url = values.UPSTASH_REDIS_REST_URL;
   const token = values.UPSTASH_REDIS_REST_TOKEN;
@@ -168,16 +197,15 @@ async function deletePreviewAccountStateCache(clerkId) {
   ) {
     throw new Error("route smoke requires the reviewed Redis REST credentials");
   }
-  const namespace = `vercel-preview-${sha256(PROVIDER_PROOF_BRANCH).slice(0, 16)}`;
   const key = `account-state:${namespace}:clerk:${clerkId}`;
   const redis = new Redis({ url, token });
   await redis.del(key);
 }
 
-function validateState() {
+function validatePreviewState() {
   const state = readPrivateJson(PROVIDER_PROOF_STATE_PATH, "route smoke state");
   const bypass = readPrivateJson(PROVIDER_BYPASS_STATE_PATH, "route smoke bypass state");
-  const commitSha = exactCleanCommit();
+  const commitSha = exactCleanCommit(PROVIDER_PROOF_BRANCH);
   if (
     state.branch !== PROVIDER_PROOF_BRANCH
     || state.projectId !== REVIEWED_VERCEL_PROJECT_ID
@@ -215,7 +243,55 @@ function validateState() {
   ) {
     throw new Error("route smoke bypass state drifted");
   }
-  return { bypass, commitSha, state };
+  return {
+    bypass,
+    commitSha,
+    state: {
+      ...state,
+      cacheNamespace: `vercel-preview-${sha256(PROVIDER_PROOF_BRANCH).slice(0, 16)}`,
+      databaseName: REVIEWED_DATABASE_NAME,
+      productionPostflight: false,
+      runtimeRole: REVIEWED_RUNTIME_ROLE,
+    },
+  };
+}
+
+function validateProductionState() {
+  const commitSha = exactCleanCommit(PRODUCTION_POSTFLIGHT_BRANCH);
+  const values = loadLocalEnvironment();
+  const runtimeDatabaseUrl = values.DATABASE_URL;
+  if (typeof runtimeDatabaseUrl !== "string") {
+    throw new Error("production postflight runtime URL is missing");
+  }
+  const runtimeUrl = new URL(runtimeDatabaseUrl);
+  if (
+    runtimeUrl.protocol !== "postgresql:"
+    || runtimeUrl.username !== REVIEWED_RUNTIME_ROLE
+    || runtimeUrl.hostname !== `${PRODUCTION_ENDPOINT_ID}-pooler.westus3.azure.neon.tech`
+    || runtimeUrl.pathname !== `/${REVIEWED_DATABASE_NAME}`
+    || !runtimeUrl.password
+    || runtimeUrl.searchParams.get("sslmode") !== "verify-full"
+    || runtimeUrl.searchParams.get("channel_binding") !== "require"
+  ) {
+    throw new Error("production postflight runtime URL identity drifted");
+  }
+  return {
+    bypass: { bypassSecret: undefined },
+    commitSha,
+    state: {
+      adminDatabaseUrl: loadProductionOwnerDatabaseUrl(),
+      branch: PRODUCTION_POSTFLIGHT_BRANCH,
+      cacheNamespace: PRODUCTION_CACHE_NAMESPACE,
+      databaseName: REVIEWED_DATABASE_NAME,
+      deploymentId: PRODUCTION_DEPLOYMENT_ID,
+      deploymentUrl: "thegrainline.com",
+      neonEndpointId: PRODUCTION_ENDPOINT_ID,
+      productionPostflight: true,
+      releaseCommit: PRODUCTION_RELEASE_COMMIT,
+      runtimeDatabaseUrl,
+      runtimeRole: REVIEWED_RUNTIME_ROLE,
+    },
+  };
 }
 
 async function boundedText(response, maxBytes) {
@@ -239,7 +315,7 @@ function baseHeaders(bypassSecret, token) {
   return {
     ...(token ? { authorization: `Bearer ${token}` } : {}),
     "cache-control": "no-store",
-    "x-vercel-protection-bypass": bypassSecret,
+    ...(bypassSecret ? { "x-vercel-protection-bypass": bypassSecret } : {}),
   };
 }
 
@@ -271,16 +347,35 @@ function notificationIds(value) {
   return value.notifications.map((notification) => notification?.id);
 }
 
+async function expectDatabaseError(operation, expectedCode, label) {
+  try {
+    await operation();
+  } catch (error) {
+    if (error?.code === expectedCode) return;
+    throw new Error(`${label} failed with an unexpected database error`);
+  }
+  throw new Error(`${label} unexpectedly succeeded`);
+}
+
 async function main() {
-  const { bypass, commitSha, state } = validateState();
+  const productionPostflight = process.argv[2] === "--production-postflight";
+  if (process.argv[2] && !productionPostflight) {
+    throw new Error("Usage: node scripts/notification-authenticated-route-smoke.mjs [--production-postflight]");
+  }
+  const { bypass, commitSha, state } = productionPostflight
+    ? validateProductionState()
+    : validatePreviewState();
   const evidencePath = path.join(
     EVIDENCE_DIRECTORY,
-    `notification-authenticated-route-smoke-${commitSha.slice(0, 12)}.json`,
+    productionPostflight
+      ? `notification-production-postflight-${state.releaseCommit.slice(0, 12)}.json`
+      : `notification-authenticated-route-smoke-${commitSha.slice(0, 12)}.json`,
   );
   if (existsSync(evidencePath)) throw new Error("route smoke evidence already exists");
 
   const baseUrl = `https://${state.deploymentUrl}`;
   const owner = new Client({ connectionString: state.adminDatabaseUrl });
+  const runtime = new Client({ connectionString: state.runtimeDatabaseUrl });
   let stage = "connect-owner";
   let sessionId = null;
   let signInTokenId = null;
@@ -291,8 +386,10 @@ async function main() {
   let fixturesDeleted = false;
   let childAccountStateAdjusted = false;
   let childAccountStateRestored = true;
-  let previewCacheKeyDeleted = true;
+  let accountStateCacheKeyDeleted = true;
   let result = null;
+  let runtimeProof = null;
+  let catalogProof = null;
   let primaryFailure = null;
   let candidate;
   let fixture;
@@ -300,6 +397,84 @@ async function main() {
 
   try {
     await owner.connect();
+    await runtime.connect();
+    stage = "verify-database-posture";
+    const ownerIdentity = await owner.query(
+      `SELECT current_user AS "currentUser", current_database() AS "databaseName"`,
+    );
+    const runtimeIdentity = await runtime.query(
+      `SELECT current_user AS "currentUser", current_database() AS "databaseName"`,
+    );
+    if (
+      ownerIdentity.rows[0]?.currentUser !== "neondb_owner"
+      || ownerIdentity.rows[0]?.databaseName !== state.databaseName
+      || runtimeIdentity.rows[0]?.currentUser !== state.runtimeRole
+      || runtimeIdentity.rows[0]?.databaseName !== state.databaseName
+    ) {
+      throw new Error("route smoke database session identity drifted");
+    }
+    if (productionPostflight) {
+      const catalog = await owner.query(
+        `SELECT class.relrowsecurity AS "rlsEnabled",
+                class.relforcerowsecurity AS "rlsForced",
+                pg_catalog.pg_get_userbyid(class.relowner) AS "tableOwner",
+                (SELECT pg_catalog.count(*)::integer
+                   FROM pg_catalog.pg_policy AS policy
+                  WHERE policy.polrelid = class.oid) AS "policyCount",
+                pg_catalog.has_table_privilege(
+                  $1, 'public."Notification"', 'SELECT'
+                ) AS "canSelect",
+                pg_catalog.has_table_privilege(
+                  $1, 'public."Notification"', 'INSERT'
+                ) AS "canInsert",
+                pg_catalog.has_table_privilege(
+                  $1, 'public."Notification"', 'DELETE'
+                ) AS "canDelete",
+                pg_catalog.has_table_privilege(
+                  $1, 'public."Notification"', 'UPDATE'
+                ) AS "canUpdateTable",
+                pg_catalog.has_column_privilege(
+                  $1, 'public."Notification"', 'read', 'UPDATE'
+                ) AS "canUpdateRead",
+                pg_catalog.has_column_privilege(
+                  $1, 'public."Notification"', 'title', 'UPDATE'
+                ) AS "canUpdateTitle"
+           FROM pg_catalog.pg_class AS class
+           JOIN pg_catalog.pg_namespace AS namespace
+             ON namespace.oid = class.relnamespace
+          WHERE namespace.nspname = 'public'
+            AND class.relname = 'Notification'
+            AND class.relkind = 'r'`,
+        [state.runtimeRole],
+      );
+      const row = catalog.rows[0];
+      if (
+        catalog.rowCount !== 1
+        || row.rlsEnabled !== true
+        || row.rlsForced !== false
+        || row.tableOwner !== "neondb_owner"
+        || row.policyCount !== 2
+        || row.canSelect !== true
+        || row.canInsert !== false
+        || row.canDelete !== false
+        || row.canUpdateTable !== false
+        || row.canUpdateRead !== true
+        || row.canUpdateTitle !== false
+      ) {
+        throw new Error("production Notification catalog or runtime grant posture drifted");
+      }
+      catalogProof = {
+        canDelete: false,
+        canInsert: false,
+        canSelect: true,
+        canUpdateRead: true,
+        canUpdateTable: false,
+        canUpdateTitle: false,
+        policyCount: 2,
+        rlsEnabled: true,
+        rlsForced: false,
+      };
+    }
     stage = "select-test-identity";
     const clerkCredentials = loadLiveClerkCredentials();
     clerk = createClerkClient({ secretKey: clerkCredentials.secret });
@@ -332,7 +507,7 @@ async function main() {
       throw new Error("expected exactly one active dedicated test identity");
     }
     candidate = candidates.rows[0];
-    previewCacheKeyDeleted = false;
+    accountStateCacheKeyDeleted = false;
     const foreign = await owner.query(
       `SELECT id
          FROM public."User"
@@ -435,6 +610,85 @@ async function main() {
     } catch (error) {
       await owner.query("ROLLBACK");
       throw error;
+    }
+
+    if (productionPostflight) {
+      stage = "runtime-direct-denial";
+      const withoutContext = await runtime.query(
+        `SELECT pg_catalog.count(*)::integer AS count
+           FROM public."Notification"`,
+      );
+      if (withoutContext.rows[0]?.count !== 0) {
+        throw new Error("runtime without context observed Notification rows");
+      }
+      await expectDatabaseError(
+        () => runtime.query(
+          `INSERT INTO public."Notification"
+             (id, "userId", type, title, body, "sourceType", "sourceId", "dedupKey")
+           VALUES ($1, $2, 'ACCOUNT_WARNING'::public."NotificationType",
+                   'forbidden', 'forbidden', 'RLS_ROUTE_SMOKE', $3, $4)`,
+          [randomUUID(), candidate.id, fixture.sourceId, sha256(`${fixture.sourceId}:forbidden`)],
+        ),
+        "42501",
+        "runtime direct Notification insert",
+      );
+      await expectDatabaseError(
+        () => runtime.query(
+          `DELETE FROM public."Notification" WHERE id = $1`,
+          [fixture.ownIds[0]],
+        ),
+        "42501",
+        "runtime direct Notification delete",
+      );
+      await expectDatabaseError(
+        () => runtime.query(
+          `UPDATE public."Notification" SET title = 'forbidden' WHERE id = $1`,
+          [fixture.ownIds[0]],
+        ),
+        "42501",
+        "runtime direct Notification title update",
+      );
+      await runtime.query("BEGIN");
+      try {
+        const context = await runtime.query(
+          `SELECT pg_catalog.set_config('app.user_id', $1, true) AS value`,
+          [candidate.id],
+        );
+        const visible = await runtime.query(
+          `SELECT id
+             FROM public."Notification"
+            WHERE "sourceType" = 'RLS_ROUTE_SMOKE'
+              AND "sourceId" = $1
+            ORDER BY id`,
+          [fixture.sourceId],
+        );
+        if (
+          context.rows[0]?.value !== candidate.id
+          || visible.rowCount !== fixture.ownIds.length
+          || visible.rows.some((row) => !fixture.ownIds.includes(row.id))
+          || visible.rows.some((row) => row.id === fixture.foreignId)
+        ) {
+          throw new Error("runtime context did not isolate the exact recipient rows");
+        }
+      } finally {
+        await runtime.query("ROLLBACK").catch(() => {});
+      }
+      const afterRollback = await runtime.query(
+        `SELECT pg_catalog.count(*)::integer AS count
+           FROM public."Notification"`,
+      );
+      if (afterRollback.rows[0]?.count !== 0) {
+        throw new Error("runtime local Notification context leaked after rollback");
+      }
+      runtimeProof = {
+        contextLeakAfterRollback: false,
+        directDeleteDenied: true,
+        directInsertDenied: true,
+        directTitleUpdateDenied: true,
+        foreignRowHiddenWithRecipientContext: true,
+        noContextVisibleRows: 0,
+        ownRowsVisibleWithRecipientContext: fixture.ownIds.length,
+      };
     }
 
     stage = "create-short-lived-clerk-ticket-session";
@@ -729,13 +983,14 @@ async function main() {
     }
     if (candidate) {
       try {
-        await deletePreviewAccountStateCache(candidate.clerkId);
-        previewCacheKeyDeleted = true;
+        await deleteAccountStateCache(candidate.clerkId, state.cacheNamespace);
+        accountStateCacheKeyDeleted = true;
       } catch {
-        previewCacheKeyDeleted = false;
+        accountStateCacheKeyDeleted = false;
       }
     }
     await owner.end().catch(() => {});
+    await runtime.end().catch(() => {});
   }
 
   const status = !primaryFailure
@@ -743,19 +998,23 @@ async function main() {
     && signInTokenDisposed
     && fixturesDeleted
     && childAccountStateRestored
-    && previewCacheKeyDeleted
+    && accountStateCacheKeyDeleted
+    && (!productionPostflight || (catalogProof && runtimeProof))
     ? "passed"
     : "failed";
   const evidence = {
     generatedAt: new Date().toISOString(),
-    scope: "notification-authenticated-route-smoke",
+    scope: productionPostflight
+      ? "notification-production-postflight"
+      : "notification-authenticated-route-smoke",
     status,
     commitSha,
+    releaseCommit: state.releaseCommit ?? commitSha,
     deploymentId: state.deploymentId,
     database: {
-      endpointId: REVIEWED_STAGING_ENDPOINT_ID,
-      name: REVIEWED_DATABASE_NAME,
-      runtimeRole: REVIEWED_RUNTIME_ROLE,
+      endpointId: state.neonEndpointId,
+      name: state.databaseName,
+      runtimeRole: state.runtimeRole,
     },
     identity: {
       activeDedicatedTestIdentityCount: candidate ? 1 : 0,
@@ -769,8 +1028,10 @@ async function main() {
       clerkSignInTokenConsumedOrRevoked: signInTokenDisposed,
       clerkUserDeleted: false,
       childAccountStateRestored,
-      previewCacheKeyDeleted,
+      accountStateCacheKeyDeleted,
     },
+    catalogProof,
+    runtimeProof,
     result,
     failureStage: status === "failed" ? stage : null,
     secretsRetained: false,
@@ -795,18 +1056,23 @@ async function main() {
   if (status !== "passed") {
     throw new Error(`authenticated route smoke failed closed at ${stage}; cleanup status is retained`);
   }
-  replacePrivateJson(PROVIDER_PROOF_STATE_PATH, {
-    ...state,
-    routeSmokeEvidencePath: evidencePath,
-    routeSmokePassedAt: new Date().toISOString(),
-  });
+  if (!productionPostflight) {
+    replacePrivateJson(PROVIDER_PROOF_STATE_PATH, {
+      ...state,
+      routeSmokeEvidencePath: evidencePath,
+      routeSmokePassedAt: new Date().toISOString(),
+    });
+  }
   console.log(JSON.stringify({
-    authenticatedRouteSmoke: "passed",
+    authenticatedRouteSmoke: productionPostflight
+      ? "production-postflight-passed"
+      : "passed",
+    accountStateCacheKeyDeleted: true,
     childAccountStateRestored: true,
     clerkSessionRevoked: true,
     clerkSignInTokenConsumedOrRevoked: true,
     fixtureRowsDeleted: true,
-    previewCacheKeyDeleted: true,
+    runtimeDirectDenialProved: productionPostflight,
   }));
 }
 

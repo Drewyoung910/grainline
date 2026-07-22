@@ -1301,3 +1301,57 @@ generic harness, provider operator, authenticated smoke source, 54/54 coverage
 gate, PostgreSQL proof, release verifiers, sanitized evidence, and Git history
 remain. Reintroduce a disposable route only for a newly authorized, isolated
 proof that cannot be achieved with the durable tooling.
+
+## Initial production activation and postflight (2026-07-22)
+
+PR `#34` merged exact activation head
+`4b231b5fe822dafc674c41364cbeb18780a20939` to main as merge commit
+`aa3f2c3640c2cb62200c1d660a08ac217271a037`. Normal PR CI
+`29952347350` and committed-migration PostgreSQL proof `29952313132` passed.
+Post-merge main CI `29952665651` passed in 2m36s, including the exact-tree and
+proof-equivalence guards, migration apply, production-style grant audit,
+typecheck, lint, all tests, dependency audit, and production build. Main
+committed-migration proof `29952665786` passed activation, database-first
+rollback, restored activation, and full authority/concurrency proof in 50s.
+
+Protected production migration run `29952892477` was dispatched for that exact
+main SHA and approved only for GitHub environment `Production` id `8881622229`.
+The clean-main/owner-role/Phase-B preflight, activation artifact guard,
+proof-equivalence verifier, migration apply, migration status, and final live
+grant/catalog audit all passed. Production Notification now has `ENABLE`,
+explicit `NO FORCE`, exactly two recipient policies, table `SELECT`, column-only
+`UPDATE(read)`, no runtime insert/delete/table-update authority, and the prepared
+function ACL split. The 58 pre-authority rows were purged atomically under the
+activation lock. Protected backup branch `br-hidden-tree-aa337i8v` remains
+untouched through the rollback window.
+
+The same compatible application deployment remains correct after database
+activation: `thegrainline.com` still resolves to Ready production deployment
+`dpl_92rXcp1PqmoMPtgtAswbecAKWEt2`, and `/api/health` returned HTTP 200 with
+`ok=true`. No second Vercel deployment was required because the activation
+commit changed database migration/release tooling rather than runtime app code.
+The red Vercel status on activation head `4b231b5f` is an ordinary Preview that
+stopped at `[DATABASE_URL_SHAPE]`; it neither built nor changed production.
+
+Production postflight operator commit
+`266b04ec69d962bcb54dd8173b671d0d6ddbd9fd` ran only against the permanent
+operational canary and four temporary owner-seeded Notification fixtures. It
+proved the exact live catalog and runtime grants; zero direct rows without
+context; three own rows and no foreign row with transaction-local recipient
+context; denial of direct runtime insert, delete, and title update; context
+reset after rollback; unauthenticated HTTP 401; authenticated bell/page owner
+projection; cross-origin HTTP 403; foreign mark-read non-enumeration without
+mutation; exact own/read-all updates; and final unread count zero. Cleanup
+deleted all four fixtures, revoked the Clerk session, consumed or revoked the
+one-use sign-in token, restored the canary child state, and deleted the exact
+production account-state cache key. Sanitized mode-0600 evidence is
+`notification-production-postflight-aa3f2c3640c2.json`, SHA-256
+`06b635c8249cfdc864a5e133d6edcd2e0805b57537903c4ef13b337057a6463e`;
+it retains no raw identifier or credential.
+
+This completes Notification initial `ENABLE`/`NO FORCE` activation. The next
+Notification release is the separately gated ownership-drift hardening step:
+prove and apply `FORCE ROW LEVEL SECURITY` without changing the two policies or
+runtime/function grants, then repeat catalog, runtime-denial, and authenticated
+route postflight. Do not conflate that hardening migration with the next
+site-wide table group.
