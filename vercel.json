@@ -4,8 +4,7 @@
   "git": {
     "deploymentEnabled": {
       "main": false,
-      "codex/rls-bucket-b-notification-20260719": false,
-      "codex/rls-notification-provider-proof-20260722": false
+      "codex/rls-bucket-b-notification-20260719": false
     }
   },
   "regions": ["sfo1"],
