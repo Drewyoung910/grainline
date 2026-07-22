@@ -812,6 +812,10 @@ describe("SavedSearch RLS production deploy guard", () => {
       vercel.git.deploymentEnabled["codex/rls-bucket-b-notification-20260719"],
       false,
     );
+    assert.equal(
+      vercel.git.deploymentEnabled["codex/rls-notification-provider-proof-20260722"],
+      false,
+    );
     assert.equal(buildCommand.includes(guardedMigrationCommand), false);
   });
 

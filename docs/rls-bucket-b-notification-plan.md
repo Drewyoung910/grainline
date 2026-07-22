@@ -277,6 +277,68 @@ Production remained READY and unchanged. Sanitized mode-`0600` artifacts are:
 - `notification-provider-proof-abort-cleanup-98b1bfefc4b4.json` — SHA-256
   `39a35ec7a2b46dc2e5615e1f1c3451fb03f734e0e9e8f81f17ab4cfd6c8d09f8`
 
+### Real Notification provider attempt (2026-07-22)
+
+The first provider run against the actual Notification preparation and
+activation candidates is also retained as failed evidence. Database preparation
+commit `a96acb753f33d78f6da7cbc251a53cbdd8d28b00` applied the byte-pinned split
+migrations only to disposable Neon child branch `br-wispy-tree-aawgpj9l`,
+passed the migration-derived grant audit, seeded ten deterministic fixtures,
+and completed owner-only setup proof. Final Git-integrated Preview commit
+`aef7ef2686a0432529a2d17291e2ca04b2fa0714` deployed as
+`dpl_8ikdx65RV1WWgv9sQE61sARTV6ZF`. Independent attestation matched the exact
+branch/SHA/deployment, `sfo1` Vercel region, `westus3.azure` database region,
+pooled `grainline_app_runtime`, 28-key branch-only sensitive environment
+manifest with no owner URL, and unchanged production deployment
+`dpl_6Y6C3NT81zbhLc6eHJAveCH1Ave8`.
+
+Two proof-harness defects were found before any promotion claim. Vercel created
+all 28 environment records successfully, but its current API returned opaque
+16-character record ids rather than the assumed `env_` prefix. Configuration
+therefore failed closed after creation and before a deployment. Exact redacted
+inventory showed the reviewed keys, branch, target and sensitivity; a one-time
+recovery recorded those ids without changing the attested commit. The durable
+validator now treats provider ids as bounded opaque values and has regression
+coverage.
+
+Counted slot 1 was then durably claimed and returned HTTP `500`; slot 2 was not
+called and the claim ledger was not edited or replayed. A reduced, uncounted
+diagnostic against the separate slot-2 disposable fixtures reproduced
+PostgreSQL `42P01`: the gate catalog query used `pg_catalog.current_user`, but
+`CURRENT_USER` is SQL syntax rather than a schema-qualified function. The gate
+now uses `CURRENT_USER AS "currentUser"` and a regression rejects the invalid
+qualified spelling. This was a provider-gate query defect, not evidence that
+the Notification policies or runtime environment failed. It also means this
+attempt contains no successful real Notification provider workload and cannot
+be used as performance, route, or activation evidence. A future run requires a
+fresh child branch, run id, trigger, commit, deployment, and two new slots.
+
+Abort cleanup passed after diagnosis: owner-only fixture/canary teardown
+completed; all 28 branch variables, the exact Preview, sole temporary
+automation bypass, disposable Neon branch, and both private state files were
+removed; production remained READY and unchanged. Sanitized mode-`0600`
+artifacts are:
+
+- `notification-provider-proof-setup-a96acb753f33.json` — SHA-256
+  `5cffef30a9adbd0b737678cdf41aa531d956e6a5f4f13e1c70cc8f6a2dd16381`
+- `notification-provider-proof-attestation-aef7ef2686a0.json` — SHA-256
+  `e052b1510b88722b2ab73ae7e8cc60ee2a0e953679df019e6a38b8c8a12a4145`
+- `notification-provider-proof-response-slot-1-aef7ef2686a0.json` — SHA-256
+  `8ed4d56fca216d9cdfb14049330eb7052d70059226ab3bdda1945946621927e9`
+- `notification-provider-proof-teardown-aef7ef2686a0.json` — SHA-256
+  `c92465d4baf54902e634325b5ba1d63b1d36815d29482c68ebe77516bd8618fb`
+- `notification-provider-proof-abort-cleanup-aef7ef2686a0.json` — SHA-256
+  `0a4e4882dc6e3095a1133ad12fd18c68dff737b2e12e85193429aa99332b83c4`
+
+The prelaunch/no-dependent-users fact shortens traffic-drain ceremony but does
+not waive this candidate's fresh provider run: this hot one-statement recipient
+RPC and service-source workload has not yet completed in Vercel. For later RLS
+groups, provider performance proof is required only when review finds a new hot
+path, pooling/transaction design, lock/concurrency risk, cross-region change,
+or material validation joins. Ephemeral authority proof, exact grants,
+application/database compatibility, destructive-data review, authenticated
+route smoke, and rollback semantics remain mandatory before activation.
+
 ## Isolation Boundary And Hot-Path Decision
 
 - The isolated branch may retain the verified inventory, source-lifecycle

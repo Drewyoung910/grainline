@@ -63,6 +63,38 @@ schema-complete [`docs/rls-coverage-matrix.md`](docs/rls-coverage-matrix.md)
 and never claim that all user data is protected by RLS until every table has an
 evidenced disposition.
 
+### Prelaunch RLS rollout proportionality (2026-07-22)
+
+The confirmed prelaunch/no-dependent-users state permits shorter operating
+windows, not weaker policy or compatibility proof. Do not impose a fixed
+12-hour drain or repeat an unrelated provider benchmark solely for ceremony
+when there are no customer requests to drain. Before compressing a wait,
+reconfirm that no customer traffic, webhook, cron, queue, or administrator flow
+can still use the superseded shape. Preserve the evidence explaining why the
+shorter window was safe.
+
+Keep the controls that catch correctness and release-shape defects even before
+launch: ephemeral PostgreSQL authority/direct-denial/race proof; exact grants
+and function ACLs; legacy-data inspection and backup before destructive
+cleanup; atomic purge/backfill decisions; old/new application and database
+compatibility; authenticated route smoke; and database-first rollback
+semantics. Use separate preparation and activation migrations whenever an old
+application build cannot safely coexist with the narrowed grants or new policy
+surface. The absence of users does not stop Vercel build overlap, cron, or
+webhook execution by itself.
+
+Provider performance/locality proof is risk-triggered after Bucket B rather
+than automatic for every table. Require it for a new hot path, interactive
+transaction or pooling design, lock/concurrency behavior, cross-region change,
+or material source-validation joins. Ordinary direct-owner tables may rely on
+ephemeral PostgreSQL plus authenticated application smoke when review shows no
+new provider/runtime performance question. Notification still requires a fresh
+successful provider run because its real one-statement recipient RPC and
+source-validation workload have not yet completed once in Vercel. Continue to
+activate Notification, messaging, orders/payment/shipping, and cases as
+separate tightly coupled groups; prelaunch is not permission to combine their
+authority boundaries into one release.
+
 ### Runtime owner-credential separation result (updated 2026-07-21)
 
 The release is complete and accepted in production; retain the exact contract,
@@ -115,6 +147,17 @@ authority review, real-table route proof, and authenticated runtime-credential
 evidence remain open. Cross-user
 creation and cleanup use separate service authority and must not be conflated
 with recipient RPCs.
+
+The later real-table provider attempt at commit
+`aef7ef2686a0432529a2d17291e2ca04b2fa0714` is failed, consumed evidence too.
+Its deployment and exact isolated runtime/database attestation passed, but slot
+1 returned HTTP 500 immediately after durable claim because the candidate gate
+used invalid `pg_catalog.current_user` SQL. Slot 2 was not called; all provider
+resources were abort-cleaned; production was unchanged. `CURRENT_USER` and the
+opaque Vercel environment-id validator now have regressions, but no successful
+real Notification workload was produced. A fresh provider run remains required
+before activation; do not reinterpret the infrastructure attestation as a
+runtime pass.
 
 The isolated service-authority draft now uses seventeen owner-backed functions:
 one runtime-ungranted fixed-column core, ten granted creation families, one

@@ -102,6 +102,8 @@ describe("disposable Notification provider proof operator", () => {
     assert.match(source, /preparedCommitSha: state\.commitSha/);
     assert.match(source, /provider deployment exists before commit rebinding/);
     assert.match(source, /databasePreparationCommitSha/);
+    assert.match(source, /\^\[A-Za-z0-9_-\]\{8,128\}\$/);
+    assert.doesNotMatch(source, /\^env_/);
     assert.match(source, /\^v24\\\./);
     assert.match(source, /configuredNodeVersion/);
     assert.match(source, /unlinkSync\(PROVIDER_PROOF_STATE_PATH\)/);

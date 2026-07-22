@@ -307,7 +307,7 @@ export async function runNotificationProviderGate(config: GateConfig) {
   }>>`
     SELECT
       pg_catalog.current_database() AS "currentDatabase",
-      pg_catalog.current_user AS "currentUser",
+      CURRENT_USER AS "currentUser",
       class.relrowsecurity AS rls,
       class.relforcerowsecurity AS "forceRls"
       FROM pg_catalog.pg_class AS class

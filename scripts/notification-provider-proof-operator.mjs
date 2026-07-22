@@ -890,7 +890,7 @@ function assertExactEnvironmentInventory(inventory) {
     inventory.length !== PROVIDER_ENVIRONMENT_KEYS.length
     || JSON.stringify(actual) !== JSON.stringify(expected)
     || inventory.some((entry) => (
-      !/^env_[A-Za-z0-9]+$/.test(entry?.id)
+      !/^[A-Za-z0-9_-]{8,128}$/.test(entry?.id)
       || entry.gitBranch !== PROVIDER_PROOF_BRANCH
       || entry.type !== "sensitive"
       || !Array.isArray(entry.target)
