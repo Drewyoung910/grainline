@@ -22,6 +22,7 @@
     "audit:rls-saved-search-force": "node scripts/saved-search-force-maintenance-proof.mjs",
     "audit:rls-notification-readiness": "node scripts/notification-rls-activation-readiness.mjs",
     "audit:rls-notification-candidate": "node scripts/stage-notification-rls-candidate-migration.mjs --verify",
+    "audit:rls-notification-preparation-release": "node scripts/verify-notification-preparation-release.mjs",
     "audit:rls-notification-preparation": "node scripts/notification-rls-preparation-proof.mjs",
     "audit:rls-notification-rollback": "node scripts/notification-rls-rollback-proof.mjs",
     "audit:rls-notification-ephemeral": "node scripts/notification-rls-ephemeral-proof.mjs",

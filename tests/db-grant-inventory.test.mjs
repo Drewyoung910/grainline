@@ -556,18 +556,35 @@ describe("database grant inventory guardrails", () => {
     assert.equal(inventory.tables.length, 58);
     assert.equal(inventory.enums.length, 20);
     assert.deepEqual(inventory.functions, [
+      ...NOTIFICATION_RECIPIENT_RPC_FUNCTIONS,
+      ...NOTIFICATION_SERVICE_RPC_FUNCTIONS,
       "grainline_notification_preferences_valid",
       "grainline_saved_search_delete_one",
       "grainline_saved_search_list",
-    ]);
+    ].sort((left, right) => left.localeCompare(right)));
     assert.deepEqual(inventory.extensions, ["pg_trgm"]);
     assert.deepEqual(inventory.sequenceSqlReferences, []);
     assert.deepEqual(inventory.autoincrementFields, []);
     assert.deepEqual(inventory.fixedIntSingletonIds, ["SiteConfig.id", "SiteMetricsSnapshot.id"]);
-    assert.deepEqual(inventory.publicRevokes, [
+    assert.equal(inventory.publicRevokes.length, 27);
+    assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_delete_one(text, text) FROM PUBLIC",
+    ));
+    assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_list(text, integer, text) FROM PUBLIC",
-    ]);
+    ));
+    for (const functionName of [
+      ...NOTIFICATION_RECIPIENT_RPC_FUNCTIONS,
+      ...NOTIFICATION_SERVICE_RPC_FUNCTIONS,
+    ]) {
+      assert.equal(
+        inventory.publicRevokes.some((statement) => (
+          statement.includes(`public.${functionName}(`)
+        )),
+        true,
+        `${functionName} must revoke PUBLIC execution in the preparation migration`,
+      );
+    }
     assert.deepEqual(inventory.publicDefaultPrivilegeRevokes, []);
     assert.deepEqual(inventory.rlsForceTables, ["SavedSearch"]);
   });
@@ -1380,7 +1397,9 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(provisionedObjects(provision, "TABLE"), inventory.tables);
     assert.deepEqual(provisionedObjects(provision, "TYPE"), inventory.enums);
     for (const fn of inventory.functions) {
-      assert.match(provision, new RegExp(`public\\."${escapeRegExp(fn)}"`));
+      const quoted = `public\\."${escapeRegExp(fn)}"`;
+      const unquoted = `public\\.${escapeRegExp(fn)}`;
+      assert.match(provision, new RegExp(`(?:${quoted}|${unquoted})`));
     }
     for (const extension of inventory.extensions) {
       assert.match(provision, new RegExp(`e\\.extname = '${escapeRegExp(extension)}'`));

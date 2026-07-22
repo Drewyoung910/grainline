@@ -1,12 +1,12 @@
 # Bucket B: Notification RLS Plan
 
-Status: isolated B0/B1 implementation in progress under explicit user
-authorization. SavedSearch Phase B and runtime database credential separation
-are now live with accepted postflights. Code, unapplied migration/RPC/policy
-drafts, local/ephemeral PostgreSQL proof, and isolated provider comparison may
-continue on this branch. No Notification change may merge to `main`, apply to
-production, or activate a persistent staging database before its remaining
-Bucket B gates pass.
+Status: production preparation-release packaging is in progress under explicit
+user authorization. SavedSearch Phase B and runtime database credential
+separation are live with accepted postflights; Notification provider,
+authority, rollback, and authenticated-route proofs are complete. No package
+may merge until temporary Preview artifacts are excluded and the clean release
+passes full CI. No production migration, application deployment, or RLS
+activation is authorized merely by staging the release artifact.
 
 First B0 slice: source metadata is now a paired typed contract with a canonical
 allowlist. New blog-comment notifications identify `blog_comment` plus the
@@ -87,10 +87,11 @@ same transaction. A standalone committed purge is prohibited because a cron,
 webhook, or request could recreate a legacy row before activation. If real
 users exist by then, the purge is prohibited and this disposition must be
 redesigned.
-The SQL remains outside `prisma/migrations` at
-`docs/rls-drafts/notification-service-authority.sql`. It is live-tested only on
-fresh disposable PostgreSQL 16; it is not a migration and is not active in any
-persistent database.
+The reviewed source SQL remains under `docs/rls-drafts`. Its compatible
+preparation slice is now promoted, without executable-body drift, to
+`prisma/migrations/20260722051500_prepare_notification_rls`; the destructive
+activation migration remains absent. Nothing in this packaging step applies to
+production or any persistent staging database.
 
 Extra-high static review hardened the draft further: renderer-aligned relative
 link validation rejects backslashes and control characters; recipient, related
@@ -816,6 +817,27 @@ old-app compatible and non-destructive, while activation remains separately
 blocked on the aggregate result, backup boundary, compatible application
 deployment/rollback evidence, and explicit production activation review. The
 main-only owner boundary must not be traded away to obtain the count sooner.
+
+### Preparation release artifact staged (2026-07-22)
+
+The compatible preparation migration is now present as a production candidate
+at `prisma/migrations/20260722051500_prepare_notification_rls/migration.sql`,
+SHA-256
+`9f7eeaf23e0f334dbb52427d27343674a5d11095b0b7f433d3ca177e3914956e`.
+The release verifier proves that converting its two historical disposable-only
+header comments back to the proof labels, plus the generator's final blank
+line, reproduces the already-proven preparation candidate hash
+`83f49cec2589c359cda5413282a492f68b26cca760f54861cd29a9a3bfb579f9`.
+Thus the executable SQL body is unchanged; only the promotion header and final
+comment-only newline differ. The verifier also fails closed if the activation
+migration exists, if the preparation bytes drift, or if the file is a symlink.
+
+The disposable PostgreSQL workflow now verifies and applies the committed
+preparation artifact before its compatibility proof, while continuing to stage
+the activation candidate only inside disposable PostgreSQL. A fresh green run
+against the promoted preparation hash is required before release packaging can
+be called complete. Endpoint-specific Preview routes, middleware exemptions,
+and provider pins remain explicitly excluded from the production package.
 
 ## Isolation Boundary And Hot-Path Decision
 

@@ -43,11 +43,12 @@ describe("Notification preparation compatibility proof", () => {
   });
 
   it("runs preparation proof between the two real candidate migrations", () => {
-    const preparation = workflow.indexOf("Apply current plus Notification preparation migration");
+    const preparation = workflow.indexOf("Apply current plus committed Notification preparation migration");
     const compatibility = workflow.indexOf("Prove old and new application compatibility before activation");
     const activation = workflow.indexOf("Apply Notification activation migration");
     assert.ok(preparation >= 0 && preparation < compatibility && compatibility < activation);
-    assert.match(workflow, /--stage-preparation/);
+    assert.match(workflow, /audit:rls-notification-preparation-release/);
+    assert.doesNotMatch(workflow, /--stage-preparation/);
     assert.match(workflow, /--stage-activation/);
   });
 });

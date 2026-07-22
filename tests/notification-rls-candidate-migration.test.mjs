@@ -5,14 +5,13 @@ import { describe, it } from "node:test";
 
 const scriptPath = "scripts/stage-notification-rls-candidate-migration.mjs";
 const source = fs.readFileSync(scriptPath, "utf8");
-const candidateDirectories = [
-  "prisma/migrations/20260722051500_prepare_notification_rls",
-  "prisma/migrations/20260722052000_enable_notification_rls",
-];
+const preparationDirectory = "prisma/migrations/20260722051500_prepare_notification_rls";
+const activationDirectory = "prisma/migrations/20260722052000_enable_notification_rls";
 
 describe("Notification disposable candidate migration", () => {
   it("byte-pins every reviewed draft without writing in verify mode", () => {
-    assert.ok(candidateDirectories.every((candidateDirectory) => !fs.existsSync(candidateDirectory)));
+    assert.equal(fs.existsSync(preparationDirectory), true);
+    assert.equal(fs.existsSync(activationDirectory), false);
     const result = JSON.parse(execFileSync(process.execPath, [scriptPath, "--verify"], {
       encoding: "utf8",
     }));
@@ -42,7 +41,8 @@ describe("Notification disposable candidate migration", () => {
         sha256: "03ec2b5c6b7babc1c67e8e86e9505d23747242b51433e1bf8e49cc62424dbe2f",
       },
     ]);
-    assert.ok(candidateDirectories.every((candidateDirectory) => !fs.existsSync(candidateDirectory)));
+    assert.equal(fs.existsSync(preparationDirectory), true);
+    assert.equal(fs.existsSync(activationDirectory), false);
   });
 
   it("requires an exact loopback-only staging acknowledgement", () => {
@@ -56,7 +56,8 @@ describe("Notification disposable candidate migration", () => {
     });
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /disposable Notification migration acknowledgement is missing/);
-    assert.ok(candidateDirectories.every((candidateDirectory) => !fs.existsSync(candidateDirectory)));
+    assert.equal(fs.existsSync(preparationDirectory), true);
+    assert.equal(fs.existsSync(activationDirectory), false);
   });
 
   it("splits compatible preparation from locked activation", () => {

@@ -206,13 +206,13 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     assert.match(workflow, /scripts\/stage-notification-rls-candidate-migration\.mjs/);
     assert.match(workflow, /scripts\/audit-runtime-db-grants\.mjs/);
     assert.match(workflow, /image: postgres:16/);
-    assert.match(workflow, /Stage byte-pinned Notification preparation migration/);
+    assert.match(workflow, /Verify committed Notification preparation release artifact/);
     assert.match(workflow, /Stage byte-pinned Notification activation migration/);
     assert.match(workflow, /I_ACKNOWLEDGE_DISPOSABLE_LOOPBACK_NOTIFICATION_MIGRATION/);
     assert.match(workflow, /Converge preparation-compatible production-style runtime grants/);
     assert.match(workflow, /Converge activated production-style runtime grants/);
     const preparationApply = workflow.indexOf(
-      "Apply current plus Notification preparation migration",
+      "Apply current plus committed Notification preparation migration",
     );
     const compatibilityProof = workflow.indexOf(
       "Prove old and new application compatibility before activation",
@@ -220,7 +220,7 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     const activationApply = workflow.indexOf("Apply Notification activation migration");
     const grantAudit = workflow.indexOf("Audit production-style runtime grants");
     assert.ok(
-      workflow.indexOf("Stage byte-pinned Notification preparation migration")
+      workflow.indexOf("Verify committed Notification preparation release artifact")
         < preparationApply,
     );
     assert.ok(preparationApply < compatibilityProof);
@@ -234,6 +234,10 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     assert.equal(
       packageJson.scripts["audit:rls-notification-candidate"],
       "node scripts/stage-notification-rls-candidate-migration.mjs --verify",
+    );
+    assert.equal(
+      packageJson.scripts["audit:rls-notification-preparation-release"],
+      "node scripts/verify-notification-preparation-release.mjs",
     );
     assert.equal(
       packageJson.scripts["audit:rls-notification-preparation"],

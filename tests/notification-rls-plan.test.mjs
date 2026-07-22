@@ -63,10 +63,10 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(plan, /explicit `NO FORCE` plus `ENABLE ROW LEVEL SECURITY`/);
     assert.match(plan, /separate `FORCE ROW LEVEL SECURITY` release/);
     assert.match(plan, /production\s+Notification RLS activation/i);
-    assert.match(plan, /They prohibit merge,[\s\S]{0,100}production apply\/deployment,[\s\S]{0,100}persistent staging activation/);
-    assert.match(plan, /isolated B0\/B1 implementation in progress/);
-    assert.match(plan, /Code, unapplied migration\/RPC\/policy[\s\S]{0,100}drafts, local\/ephemeral PostgreSQL proof, and isolated provider comparison may\s+continue/);
-    assert.match(plan, /No Notification change may merge to `main`, apply to\s+production, or activate a persistent staging database/);
+    assert.match(plan, /production preparation-release packaging is in progress/);
+    assert.match(plan, /No package\s+may merge until temporary Preview artifacts are excluded/);
+    assert.match(plan, /No production migration, application deployment, or RLS\s+activation is authorized/);
+    assert.match(plan, /activation migration remains absent/);
     assert.match(plan, /one-statement `SECURITY INVOKER`\s+recipient RPC direction/);
     assert.match(plan, /Recipient RPCs are distinct from cross-user creation\/cleanup service\s+authority/);
     assert.match(plan, /All 54 emission paths now carry reviewed creation authority/);

@@ -53,11 +53,9 @@ jobs:
       - run: npx prisma generate
       - name: Prepare CI runtime policy role
         run: psql "$DIRECT_URL" -f scripts/prepare-ci-rls-runtime-role.sql
-      - name: Stage byte-pinned Notification preparation migration
-        env:
-          NOTIFICATION_RLS_DISPOSABLE_MIGRATION_ACK: I_ACKNOWLEDGE_DISPOSABLE_LOOPBACK_NOTIFICATION_MIGRATION
-        run: node scripts/stage-notification-rls-candidate-migration.mjs --stage-preparation
-      - name: Apply current plus Notification preparation migration
+      - name: Verify committed Notification preparation release artifact
+        run: npm run audit:rls-notification-preparation-release
+      - name: Apply current plus committed Notification preparation migration
         run: npx prisma migrate deploy
       - name: Converge preparation-compatible production-style runtime grants
         run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql

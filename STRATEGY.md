@@ -236,6 +236,15 @@ repeatable-read read-only transaction, and retain aggregate counts only. The
 activation purge remains a later locked transaction; the inspection itself may
 never delete or export rows.
 
+The first production package carries only the compatible preparation migration;
+the activation migration must remain absent. The promoted preparation artifact
+is byte-pinned separately, with a verifier proving its executable body matches
+the disposable PostgreSQL candidate and that the only differences are
+promotion comments/terminal whitespace. Re-run the disposable PostgreSQL
+compatibility and rollback workflow against that committed preparation file,
+then exclude all endpoint-specific Preview runners and exceptions before clean
+release review.
+
 Live Clerk does not permit backend `sessions.createSession` for this production
 instance. Authenticated operational proofs must use a short-lived one-use Clerk
 sign-in token consumed by the production Frontend API `ticket` strategy, then
