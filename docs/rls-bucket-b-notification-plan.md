@@ -330,6 +330,54 @@ artifacts are:
 - `notification-provider-proof-abort-cleanup-aef7ef2686a0.json` — SHA-256
   `0a4e4882dc6e3095a1133ad12fd18c68dff737b2e12e85193429aa99332b83c4`
 
+### Second real Notification provider attempt (2026-07-22)
+
+The fresh follow-up is also failed, consumed evidence and was not replayed.
+Preparation commit `d03d87beccdb1b1c76e70fb6d24c28c204538431`
+applied the same byte-pinned migrations and fresh fixtures only to expiring Neon
+child `br-green-field-aadli194`. The first enable commit
+`a645bd0adba4aefe879b68a0798e1090c87e27a1` produced no Vercel deployment:
+because the new Git branch's first remote commit disabled itself, removing that
+entry did not self-trigger a build. No slot or deployment existed. A reviewed
+configured-commit rebind then proved the same 28 environment ids, zero
+deployments, changed only the sensitive allowed-SHA value, and pinned trigger
+commit `b295116a27401433e717e5022238c4006fb871c6`.
+
+That trigger deployed as Git-integrated Preview
+`dpl_8VBGLye1gMnUiVxA7dHMm1BCjZuv`; independent attestation passed. Counted slot
+1 then returned HTTP `500` after durable claim, so slot 2 was not called. A
+reduced uncounted diagnostic found PostgreSQL `42601`: the service-source
+baseline used `pg_catalog.exists(...)`, but `EXISTS` is SQL syntax rather than a
+schema function. `SELECT EXISTS (...)` now has a regression. After that fix,
+the reduced diagnostic completed the whole gate with zero query errors, stable
+service replay, and context reset. Its row-count findings were expected because
+the earlier diagnostic had already created one replay notification; its local
+latency was diagnostic only. None of this converts the consumed Vercel slot
+into a pass.
+
+The operator now makes a reduced real-query local preflight mandatory after
+fresh disposable database preparation and before Vercel environment
+configuration. It executes the real recipient and source-validation workload,
+ignores only local performance thresholds, requires exact correctness and zero
+query errors, then owner-resets and reseeds every fixture before a counted run.
+This closes the process gap that let two sequential raw-query syntax defects
+consume provider slots.
+
+Abort cleanup again passed: fixtures/canary, all 28 branch variables, exact
+Preview, temporary bypass, child branch, and private state files were removed;
+production remained READY and unchanged. Sanitized mode-`0600` artifacts are:
+
+- `notification-provider-proof-setup-d03d87beccdb.json` — SHA-256
+  `10c8a07c1cee957d6f4fb66fdf88ff11fb314ad564bd1dbc9d485928fdc7711c`
+- `notification-provider-proof-attestation-b295116a2740.json` — SHA-256
+  `a01be557caca72ed3b1cedbb4c487e2ef52bb379ac0c263b7011bdc8cc9fa6a6`
+- `notification-provider-proof-response-slot-1-b295116a2740.json` — SHA-256
+  `39b13c3f160a217d58c3ea6e72f97ac66c34607ed082d2e0b4c00ba3b0385106`
+- `notification-provider-proof-teardown-b295116a2740.json` — SHA-256
+  `630d5bdb0bcbe927dee7d5cee0dc7e66e273cf43e8c3daebdd4aa99904dbf420`
+- `notification-provider-proof-abort-cleanup-b295116a2740.json` — SHA-256
+  `4b269a9692122307fe3395cf7134d813a0c6cb105868b94f341df6c60da4d317`
+
 The prelaunch/no-dependent-users fact shortens traffic-drain ceremony but does
 not waive this candidate's fresh provider run: this hot one-statement recipient
 RPC and service-source workload has not yet completed in Vercel. For later RLS

@@ -159,6 +159,17 @@ real Notification workload was produced. A fresh provider run remains required
 before activation; do not reinterpret the infrastructure attestation as a
 runtime pass.
 
+The fresh follow-up at commit
+`b295116a27401433e717e5022238c4006fb871c6` also failed after durable slot-1
+claim and was not replayed. Its independent deployment attestation passed, but
+the real source baseline used invalid `pg_catalog.exists(...)` syntax. The
+correct `EXISTS (...)` expression is now guarded, all disposable resources were
+again removed, and production remained unchanged. Before another provider
+deployment, a reduced real-query local preflight must complete against fresh
+fixtures and owner-reset/reseed them; environment configuration is mechanically
+blocked until that preflight is recorded. A later successful local diagnostic
+does not retroactively accept either consumed Vercel slot.
+
 The isolated service-authority draft now uses seventeen owner-backed functions:
 one runtime-ungranted fixed-column core, ten granted creation families, one
 dedicated back-in-stock claim/create/consume operation, three exact cleanup
