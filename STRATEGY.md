@@ -75,6 +75,13 @@ schema-complete [`docs/rls-coverage-matrix.md`](docs/rls-coverage-matrix.md)
 and never claim that all user data is protected by RLS until every table has an
 evidenced disposition.
 
+Before drafting RLS for each sensitive group, complete a table-specific
+behavior and security audit. Confirm current product semantics, actor
+authorization, integrity constraints, provider/background operations,
+retention/export/deletion, concurrency, indexes and test coverage; fix
+load-bearing defects first so policies do not encode them. For Conversation and
+Message the active record is `docs/conversation-message-pre-rls-audit.md`.
+
 ### Prelaunch RLS rollout proportionality (2026-07-22)
 
 The confirmed prelaunch/no-dependent-users state permits shorter operating

@@ -22,16 +22,21 @@ describe("conversation participant pair guardrails", () => {
 
   it("keeps normal conversation creation paths on canonical participant order", () => {
     const messagesNew = source("src/app/messages/new/page.tsx");
+    const conversationStart = source("src/lib/conversationStartAccess.ts");
     const customOrder = source("src/app/api/messages/custom-order-request/route.ts");
+    const customOrderAccess = source("src/lib/customOrderRequestAccess.ts");
     const commissionInterest = source("src/app/api/commission/[id]/interest/route.ts");
 
-    assert.match(messagesNew, /const \[a, b\] = \[me\.id, other\.id\]\.sort/);
-    assert.match(messagesNew, /data: \{ userAId: a, userBId: b/);
-    assert.match(messagesNew, /where: \{ userAId_userBId: \{ userAId: a, userBId: b \} \}/);
+    assert.doesNotMatch(messagesNew, /conversation\.(?:create|update|updateMany|upsert)/);
+    assert.match(messagesNew, /startConversationForUser/);
+    assert.match(conversationStart, /const \[userAId, userBId\] = \[userId, otherUserId\]\.sort/);
+    assert.match(conversationStart, /data: \{[\s\S]{0,160}userAId,[\s\S]{0,80}userBId,/);
+    assert.match(conversationStart, /where: \{ userAId_userBId: \{ userAId, userBId \} \}/);
 
-    assert.match(customOrder, /const \[a, b\] = \[me\.id, sellerUserId\]\.sort/);
-    assert.match(customOrder, /userAId: a,\s+userBId: b/s);
-    assert.match(customOrder, /where: \{ userAId_userBId: \{ userAId: a, userBId: b \} \}/);
+    assert.doesNotMatch(customOrder, /conversation\.(?:create|update|updateMany|upsert)/);
+    assert.match(customOrder, /createCustomOrderRequestMessage/);
+    assert.match(customOrderAccess, /lockConversationParticipantPair\(\s*tx,\s*input\.buyerUserId,\s*input\.sellerUserId/s);
+    assert.match(customOrderAccess, /getOrCreateConversationForLockedPair\(\s*tx,\s*pair,/s);
 
     assert.match(commissionInterest, /const \[a, b\] = \[me\.id, buyerUserId\]\.sort/);
     assert.match(commissionInterest, /where: \{ userAId_userBId: \{ userAId: a, userBId: b \} \}/);

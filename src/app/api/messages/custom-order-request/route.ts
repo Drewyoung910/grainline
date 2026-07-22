@@ -1,6 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import { Prisma } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
@@ -16,13 +15,8 @@ import {
 } from "@/lib/requestBody";
 import { z } from "zod";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
-
-const TIMELINE_LABELS: Record<string, string> = {
-  no_rush: "No rush (2+ months)",
-  "2_months": "Within 2 months",
-  "1_month": "Within 1 month",
-  "2_weeks": "Within 2 weeks",
-};
+import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
+import { createCustomOrderRequestMessage } from "@/lib/customOrderRequestAccess";
 
 const BudgetInputSchema = z.union([z.string().max(20), z.number().finite()]);
 
@@ -38,6 +32,11 @@ const CustomOrderRequestSchema = z.object({
 const CUSTOM_ORDER_REQUEST_BODY_MAX_BYTES = 24 * 1024;
 
 export async function POST(req: Request) {
+  const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
+  if (crossOriginRejection) {
+    return privateJson({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
@@ -119,8 +118,6 @@ export async function POST(req: Request) {
     return privateJson({ error: "This seller is not accepting new orders right now." }, { status: 400 });
   }
 
-  let contextListingId: string | null = null;
-  let contextListingTitle: string | null = null;
   if (listingId) {
     const listing = await prisma.listing.findFirst({
       where: {
@@ -134,8 +131,6 @@ export async function POST(req: Request) {
     if (!listing) {
       return privateJson({ error: "Invalid listing context." }, { status: 400 });
     }
-    contextListingId = listing.id;
-    contextListingTitle = listing.title;
   }
 
   const budgetCents = budget != null ? parseMoneyInputToCents(budget) : null;
@@ -145,69 +140,20 @@ export async function POST(req: Request) {
   if (budgetCents !== null && budgetCents > 10_000_000) {
     return privateJson({ error: "Budget cannot exceed $100,000." }, { status: 400 });
   }
-  const budgetNum = budgetCents !== null ? budgetCents / 100 : null;
   const timelineStr = timeline ? truncateText(sanitizeText(timeline), 50) : null;
-  const timelineLabel = timelineStr ? (TIMELINE_LABELS[timelineStr] ?? timelineStr) : null;
-
-  // Upsert conversation (canonical sort, race-safe — same logic as /messages/new)
-  const [a, b] = [me.id, sellerUserId].sort((x, y) => (x < y ? -1 : 1));
-  let convo = await prisma.conversation.findUnique({
-    where: { userAId_userBId: { userAId: a, userBId: b } },
-  });
-  if (!convo) {
-    try {
-      convo = await prisma.conversation.create({
-        data: {
-          userAId: a,
-          userBId: b,
-          contextListingId: contextListingId ?? undefined,
-        },
-      });
-    } catch (e) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-        convo = await prisma.conversation.findUnique({
-          where: { userAId_userBId: { userAId: a, userBId: b } },
-        });
-      } else {
-        throw e;
-      }
-    }
-  }
-  if (!convo) return privateJson({ error: "Failed to create conversation" }, { status: 500 });
-
-  // Attach listing context if not already set
-  if (contextListingId && !convo.contextListingId) {
-    await prisma.conversation.update({
-      where: { id: convo.id },
-      data: { contextListingId },
-    });
-  }
-
-  const messageBody = JSON.stringify({
+  const requestMessage = await createCustomOrderRequestMessage({
+    buyerUserId: me.id,
+    sellerUserId,
     description: cleanedDescription,
     dimensions: cleanedDimensions,
-    budget: budgetNum,
+    budgetCents,
     timeline: timelineStr,
-    timelineLabel,
-    listingId: contextListingId,
-    listingTitle: contextListingTitle,
+    listingId: listingId ?? null,
   });
-
-  const requestMessage = await prisma.message.create({
-    data: {
-      conversationId: convo.id,
-      senderId: me.id,
-      recipientId: sellerUserId,
-      body: messageBody,
-      kind: "custom_order_request",
-    },
-    select: { id: true },
-  });
-
-  await prisma.conversation.update({
-    where: { id: convo.id },
-    data: { updatedAt: new Date(), archivedAAt: null, archivedBAt: null },
-  });
+  if (!requestMessage.ok) {
+    const status = requestMessage.error === "blocked" ? 403 : 409;
+    return privateJson({ error: "Unable to send request." }, { status });
+  }
 
   try {
     await createNotification({
@@ -215,16 +161,16 @@ export async function POST(req: Request) {
       type: "CUSTOM_ORDER_REQUEST",
       title: `${me.name ?? "A customer"} wants a custom piece!`,
       body: truncateText(cleanedDescription, 60),
-      link: `/messages/${convo.id}`,
+      link: `/messages/${requestMessage.conversationId}`,
       relatedUserId: me.id,
       sourceType: NOTIFICATION_SOURCE_TYPES.MESSAGE,
-      sourceId: requestMessage.id,
+      sourceId: requestMessage.messageId,
     });
   } catch (error) {
     Sentry.captureException(error, {
       level: "warning",
       tags: { source: "custom_order_request_notification" },
-      extra: { conversationId: convo.id, buyerId: me.id, sellerUserId },
+      extra: { conversationId: requestMessage.conversationId, buyerId: me.id, sellerUserId },
     });
   }
 
@@ -246,16 +192,16 @@ export async function POST(req: Request) {
           },
           buyerName: buyerUser?.name,
           description: cleanedDescription,
-          conversationId: convo.id,
+          conversationId: requestMessage.conversationId,
         });
       }
     }
   } catch (error) {
     Sentry.captureException(error, {
       tags: { source: "custom_order_request_email" },
-      extra: { conversationId: convo.id, buyerId: me.id, sellerUserId },
+      extra: { conversationId: requestMessage.conversationId, buyerId: me.id, sellerUserId },
     });
   }
 
-  return privateJson({ conversationId: convo.id });
+  return privateJson({ conversationId: requestMessage.conversationId });
 }

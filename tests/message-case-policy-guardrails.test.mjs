@@ -55,7 +55,7 @@ describe("message and case policy guardrails", () => {
 
   it("loads the latest message-thread window and reopens archived threads on new content", () => {
     const threadPage = source("src/app/messages/[id]/page.tsx");
-    const customOrderRequest = source("src/app/api/messages/custom-order-request/route.ts");
+    const customOrderRequest = source("src/lib/customOrderRequestAccess.ts");
 
     assert.match(threadPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\],\s*take: 200/);
     assert.match(threadPage, /\)\)\.reverse\(\)/);

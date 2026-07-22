@@ -16,13 +16,19 @@ import { commissionIsExpired } from "@/lib/commissionExpiry";
 import { openCommissionMutationWhere } from "@/lib/commissionState";
 import { logSecurityEvent } from "@/lib/security";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 
 const COMMISSION_CLOSED_DURING_INTEREST = "COMMISSION_CLOSED_DURING_INTEREST";
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
+  if (crossOriginRejection) {
+    return privateJson({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { id } = await params;
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });

@@ -1,6 +1,6 @@
 # Conversation and Message RLS Plan
 
-Status: inventory and architecture design in progress on
+Status: pre-RLS behavior/security audit in progress on
 `codex/rls-conversation-message-20260722`. Notification Bucket B is complete in
 production. No production SQL or RLS change has been made for Conversation or
 Message.
@@ -145,20 +145,22 @@ The direct runtime table query with no context must return zero rows.
 
 ## Compatibility and rollout sequence
 
-1. Inventory and pin every current access path. **In progress.**
-2. Read-only legacy/preflight design: exact participant, message-pair, kind,
+1. Inventory and pin every current access path. **Complete: 55 paths.**
+2. Complete `docs/conversation-message-pre-rls-audit.md` and fix its activation
+   blockers before authority SQL. **In progress.**
+3. Read-only legacy/preflight design: exact participant, message-pair, kind,
    orphan, report and archive aggregates; do not export bodies or identifiers.
-3. Preparation migration: functions, predicates, invariant checks/triggers and
+4. Preparation migration: functions, predicates, invariant checks/triggers and
    exact ACLs while RLS remains disabled.
-4. Compatible app deployment: all 55 protected accesses move to reviewed
+5. Compatible app deployment: all 55 protected accesses move to reviewed
    helpers; test before and after RLS.
-5. Disposable PostgreSQL proof: policies/grants, every read/write family,
+6. Disposable PostgreSQL proof: policies/grants, every read/write family,
    direct denial, staff report resolution, account/block/archive races,
    deletion/export/metrics, rollback and legacy handling.
-6. Protected backup and sanitized production inspection.
-7. Initial `ENABLE`/explicit `NO FORCE` activation with exact two-table policy
+7. Protected backup and sanitized production inspection.
+8. Initial `ENABLE`/explicit `NO FORCE` activation with exact two-table policy
    and grant guard, followed by runtime and authenticated route postflight.
-8. Separate `FORCE ROW LEVEL SECURITY` hardening and fresh postflight.
+9. Separate `FORCE ROW LEVEL SECURITY` hardening and fresh postflight.
 
 Background jobs and old/new Vercel coexistence still exist pre-launch, so the
 compatible app and database activation remain separate. A failed Preview with

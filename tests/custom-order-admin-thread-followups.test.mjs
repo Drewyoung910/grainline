@@ -42,6 +42,7 @@ describe("custom-order and staff-thread audit follow-ups", () => {
 
   it("keeps message thread side effects observable and account-state guarded", () => {
     const customOrderRoute = source("src/app/api/messages/custom-order-request/route.ts");
+    const customOrderAccess = source("src/lib/customOrderRequestAccess.ts");
     const threadPage = source("src/app/messages/[id]/page.tsx");
 
     assert.match(customOrderRoute, /Sentry\.captureException\(error, \{/);
@@ -50,9 +51,16 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     assert.doesNotMatch(customOrderRoute, /catch\s*\{\s*\/\* non-fatal \*\/\s*\}/);
 
     assert.ok(
-      customOrderRoute.indexOf("Budget must be a valid dollar amount") < customOrderRoute.indexOf("conversation.create"),
-      "custom order budget validation must run before conversation creation side effects",
+      customOrderRoute.indexOf("Budget must be a valid dollar amount") <
+        customOrderRoute.indexOf("createCustomOrderRequestMessage({"),
+      "custom order budget validation must run before entering the atomic write helper",
     );
+    assert.ok(
+      customOrderAccess.indexOf("!input.description") <
+        customOrderAccess.indexOf("getOrCreateConversationForLockedPair("),
+      "transaction-local payload validation must run before conversation creation side effects",
+    );
+    assert.match(customOrderAccess, /isolationLevel: Prisma\.TransactionIsolationLevel\.ReadCommitted/);
 
     assert.match(threadPage, /select: \{ id: true, banned: true, deletedAt: true \}/);
     assert.match(threadPage, /if \(me\.banned \|\| me\.deletedAt\) return \{ ok: false \};/);

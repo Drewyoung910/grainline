@@ -24,12 +24,6 @@ const EXPECTED_BASELINE = {
     "Conversation.findFirst": 1,
     "Message.findMany": 1,
   },
-  "src/app/api/messages/custom-order-request/route.ts": {
-    "Conversation.findUnique": 2,
-    "Conversation.create": 1,
-    "Conversation.update": 2,
-    "Message.create": 1,
-  },
   "src/app/api/messages/unread-count/route.ts": { "Message.count": 1 },
   "src/app/api/users/[id]/report/route.ts": {
     "Message.count": 1,
@@ -49,9 +43,7 @@ const EXPECTED_BASELINE = {
     "Conversation.update": 3,
   },
   "src/app/messages/new/page.tsx": {
-    "Conversation.findUnique": 2,
-    "Conversation.create": 1,
-    "Conversation.update": 1,
+    "Conversation.findUnique": 1,
   },
   "src/app/messages/page.tsx": {
     "Conversation.findMany": 1,
@@ -63,9 +55,18 @@ const EXPECTED_BASELINE = {
     "Message.updateMany": 1,
     "Message.raw-sql-reference": 2,
   },
+  "src/lib/conversationStartAccess.ts": {
+    "Conversation.findUnique": 1,
+    "Conversation.updateMany": 1,
+    "Conversation.create": 1,
+  },
   "src/lib/customOrderReadyLink.ts": {
     "Conversation.findUnique": 1,
     "Message.findFirst": 1,
+    "Message.create": 1,
+    "Conversation.update": 1,
+  },
+  "src/lib/customOrderRequestAccess.ts": {
     "Message.create": 1,
     "Conversation.update": 1,
   },
@@ -79,7 +80,7 @@ describe("Conversation and Message RLS inventory", () => {
   const inventory = collectConversationMessageAccess();
 
   it("pins every current direct ORM and raw SQL access path", () => {
-    assert.equal(inventory.ormCalls.length, 50);
+    assert.equal(inventory.ormCalls.length, 46);
     assert.equal(inventory.rawSqlReferences.length, 5);
     assert.deepEqual(summarizeConversationMessageAccess(inventory), EXPECTED_BASELINE);
   });

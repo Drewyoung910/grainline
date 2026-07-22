@@ -7,16 +7,17 @@ active from this work.
 ## Count contract
 
 `npm run audit:rls-conversation-message-inventory` parses the runtime
-TypeScript tree and currently finds:
+TypeScript tree. The audited baseline was 50 direct Prisma operations plus 5
+raw SQL references. After the first compatible audit fixes it currently finds:
 
-- 50 direct Prisma Conversation or Message operations;
+- 46 direct Prisma Conversation or Message operations;
 - 5 raw SQL table references;
-- 55 total protected-table access points across 16 files.
+- 51 total protected-table access points across 17 files.
 
 The test `tests/conversation-message-rls-inventory.test.mjs` pins the count and
 the exact per-file/model/operation summary. A new access path must therefore be
 classified here instead of silently inheriting broad runtime authority. The
-count is a migration baseline, not an activation target: the compatible app
+original 55-path count is the migration baseline, not an activation target: the compatible app
 should move protected operations behind reviewed helpers, so the direct count
 will intentionally fall as the design is implemented.
 
@@ -43,8 +44,8 @@ will intentionally fall as the design is implemented.
 | `src/app/messages/[id]/page.tsx` | Participant or reported-thread view; user send; first response; thread bump; email throttle; archive state | Thread projection RPC plus fixed send, archive and email-claim operations |
 | `src/app/api/messages/[id]/{list,stream,read}/route.ts` | Poll/stream projection and mark-read | Per-call participant/staff revalidation; bounded incremental read and mark-read RPCs |
 | `src/app/api/messages/unread-count/route.ts` | Participant unread total excluding blocked/archived threads | One-statement unread RPC |
-| `src/app/messages/new/page.tsx` | Canonical conversation create/get and optional context listing | Validated create/get operation with sorted participant locks |
-| `src/app/api/messages/custom-order-request/route.ts` | Custom-request conversation/message creation | Atomic fixed custom-request operation; current multi-statement partial-write window must be removed before activation |
+| `src/app/messages/new/page.tsx` and `src/lib/conversationStartAccess.ts` | Read-only start prompt plus explicit canonical conversation create/get and optional context listing | Implemented compatible operation with rate limit, sorted participant locks, reciprocal block check and pair advisory lock |
+| `src/app/api/messages/custom-order-request/route.ts` and `src/lib/customOrderRequestAccess.ts` | Custom-request conversation/message creation | Implemented atomic compatible operation with locked participant/block/seller/listing revalidation; later replace direct protected-table DML with fixed database authority |
 | `src/app/api/commission/[id]/interest/route.ts` | CommissionInterest, conversation and system-message transaction | Source-bound commission message operation retained inside the business transaction |
 | `src/lib/customOrderReadyLink.ts` and its seller/admin callers | Deduplicated ready-link message | Listing-derived custom-order-ready operation |
 | `src/app/dashboard/listings/custom/page.tsx` and buyer order detail | Participant lookup and latest custom request | Bounded participant lookup/request projection helpers |

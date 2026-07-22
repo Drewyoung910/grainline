@@ -66,6 +66,13 @@ export const messageRatelimit = new Ratelimit({
   prefix: "rl:message",
 });
 
+export const conversationStartRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(20, "60 m"),
+  analytics: true,
+  prefix: "rl:conversation_start",
+});
+
 export const messageStreamRatelimit = new Ratelimit({
   redis,
   limiter: Ratelimit.slidingWindow(120, "60 s"),
