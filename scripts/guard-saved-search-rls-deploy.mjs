@@ -31,6 +31,8 @@ export const NOTIFICATION_PREPARATION_MIGRATION =
   "20260722051500_prepare_notification_rls";
 export const NOTIFICATION_ACTIVATION_MIGRATION =
   "20260722052000_enable_notification_rls";
+export const NOTIFICATION_FORCE_MIGRATION =
+  "20260722053000_force_notification_rls";
 export const RELEASE_ZERO_MIGRATION_TREE_SHA256 =
   "3e9111525735043266cf6f18b790641ad3103126804836f4a7cccd8e5e29ff29";
 export const PHASE_A_MIGRATION_TREE_SHA256 =
@@ -41,6 +43,8 @@ export const NOTIFICATION_PREPARATION_MIGRATION_TREE_SHA256 =
   "b3dff1b6eb6052d0574610e5109b8629de36505543453ddc801c7feded205127";
 export const NOTIFICATION_ACTIVATION_MIGRATION_TREE_SHA256 =
   "84808c8a6b6471f4b74dbde86f2b009cb0249519313ed6e8a5ef2dba48f61b05";
+export const NOTIFICATION_FORCE_MIGRATION_TREE_SHA256 =
+  "304a2d227fc747f43453fc8af9437b0115c5b2e03b21510e56d008a836c63532";
 export const PRISMA_CONFIG_PATH = "prisma.config.ts";
 export const REVIEWED_PRISMA_CONFIG_SHA256 =
   "946211cec942f725ae24ac239cd648b56f4809cf30cb8fda530346d0f593526e";
@@ -64,6 +68,7 @@ const REVIEWED_PHASE_A = "phase-a-reviewed";
 const REVIEWED_PHASE_B = "phase-b-reviewed";
 const REVIEWED_NOTIFICATION_PREPARATION = "notification-preparation-reviewed";
 const REVIEWED_NOTIFICATION_ACTIVATION = "notification-activation-reviewed";
+const REVIEWED_NOTIFICATION_FORCE = "notification-force-reviewed";
 const APP_SOURCE_ROOTS = ["src/app", "app", "src/pages", "pages"];
 const TEST_SOURCE_ROOTS = ["tests"];
 const TEST_SOURCE_EXTENSIONS = new Set([
@@ -319,6 +324,8 @@ function assertReviewedMigrationTree(phase, migrationTreeSha256) {
       NOTIFICATION_PREPARATION_MIGRATION_TREE_SHA256,
     [REVIEWED_NOTIFICATION_ACTIVATION]:
       NOTIFICATION_ACTIVATION_MIGRATION_TREE_SHA256,
+    [REVIEWED_NOTIFICATION_FORCE]:
+      NOTIFICATION_FORCE_MIGRATION_TREE_SHA256,
   }[phase];
   if (migrationTreeSha256 !== expected) {
     throw new Error(
@@ -530,6 +537,9 @@ export function validateSavedSearchRlsDeployShape({
   const hasNotificationActivationMigration = migrations.has(
     NOTIFICATION_ACTIVATION_MIGRATION,
   );
+  const hasNotificationForceMigration = migrations.has(
+    NOTIFICATION_FORCE_MIGRATION,
+  );
 
   if (phase === RELEASE_ZERO_PHASE) {
     if (!hasRpcMigration || !hasRpcHardeningMigration || hasRlsMigration) {
@@ -693,9 +703,50 @@ export function validateSavedSearchRlsDeployShape({
     };
   }
 
+  if (phase === REVIEWED_NOTIFICATION_FORCE) {
+    if (
+      !hasRpcMigration
+      || !hasRpcHardeningMigration
+      || !hasRlsMigration
+      || !hasForceRlsMigration
+      || !hasNotificationPreparationMigration
+      || !hasNotificationActivationMigration
+      || !hasNotificationForceMigration
+    ) {
+      throw new Error(
+        `${REVIEWED_NOTIFICATION_FORCE} requires SavedSearch Phase B plus the exact Notification preparation, activation, and FORCE migrations`,
+      );
+    }
+
+    assertNoLaterMigration(
+      migrationNames,
+      NOTIFICATION_FORCE_MIGRATION,
+      phase,
+    );
+    assertReviewedMigrationTree(phase, migrationTreeSha256);
+    assertReviewedPrismaMigrationConfig(prismaConfigSha256);
+    assertProductionArtifactExcludesContextGate({
+      phase,
+      contextGateRouteExists,
+      contextGateRunnerTestExists: runnerTestExists,
+      middlewareSource,
+    });
+
+    return {
+      phase,
+      hasRpcMigration,
+      hasRpcHardeningMigration,
+      hasRlsMigration,
+      hasForceRlsMigration,
+      hasNotificationPreparationMigration,
+      hasNotificationActivationMigration,
+      hasNotificationForceMigration,
+    };
+  }
+
   const received = phase === undefined || phase === "" ? "missing" : phase;
   throw new Error(
-    `${SAVED_SEARCH_RLS_DEPLOY_PHASE_ENV} is ${received}; expected ${RELEASE_ZERO_PHASE}, ${REVIEWED_PHASE_A}, ${REVIEWED_PHASE_B}, ${REVIEWED_NOTIFICATION_PREPARATION}, or ${REVIEWED_NOTIFICATION_ACTIVATION}`,
+    `${SAVED_SEARCH_RLS_DEPLOY_PHASE_ENV} is ${received}; expected ${RELEASE_ZERO_PHASE}, ${REVIEWED_PHASE_A}, ${REVIEWED_PHASE_B}, ${REVIEWED_NOTIFICATION_PREPARATION}, ${REVIEWED_NOTIFICATION_ACTIVATION}, or ${REVIEWED_NOTIFICATION_FORCE}`,
   );
 }
 

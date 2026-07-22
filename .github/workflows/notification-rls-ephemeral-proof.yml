@@ -1,9 +1,9 @@
-name: Notification RLS Activation Proof
+name: Notification RLS FORCE Proof
 
 on:
   push:
     branches:
-      - codex/rls-notification-activation-20260722
+      - codex/rls-notification-force-20260722
       - main
     paths:
       - .github/workflows/notification-rls-ephemeral-proof.yml
@@ -16,6 +16,7 @@ on:
       - scripts/notification-rls-rollback-proof.mjs
       - scripts/stage-notification-rls-candidate-migration.mjs
       - scripts/verify-notification-activation-release.mjs
+      - scripts/verify-notification-force-release.mjs
       - scripts/prepare-ci-rls-runtime-role.sql
       - scripts/provision-runtime-db-role.sql
   workflow_dispatch:
@@ -56,7 +57,9 @@ jobs:
         run: psql "$DIRECT_URL" -f scripts/prepare-ci-rls-runtime-role.sql
       - name: Verify committed Notification activation release artifact
         run: npm run audit:rls-notification-activation-release
-      - name: Apply current migrations including committed Notification activation
+      - name: Verify committed Notification FORCE release artifact
+        run: npm run audit:rls-notification-force-release
+      - name: Apply current migrations including committed Notification FORCE
         run: npx prisma migrate deploy
       - name: Converge activated production-style runtime grants
         run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql

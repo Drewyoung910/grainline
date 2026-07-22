@@ -28,18 +28,18 @@ describe("Notification database-first rollback proof", () => {
     assert.match(proof, /newApplicationRecipientRpcsCompatible: true/);
   });
 
-  it("restores exact initial activation and says the destructive purge is irreversible", () => {
+  it("restores exact FORCE activation and says the destructive purge is irreversible", () => {
     assert.match(proof, /REVOKE ALL ON TABLE public\."Notification" FROM PUBLIC, grainline_app_runtime/);
     assert.match(proof, /GRANT UPDATE \(read\)/);
     assert.match(proof, /ENABLE ROW LEVEL SECURITY/);
-    assert.match(proof, /NO FORCE ROW LEVEL SECURITY/);
-    assert.match(proof, /exactNoForceActivationRestored: true/);
+    assert.match(proof, /FORCE ROW LEVEL SECURITY/);
+    assert.match(proof, /exactForceActivationRestored: true/);
     assert.match(proof, /activationPurgeReversible: false/);
   });
 
   it("runs after activation and before the final authority proof", () => {
     const activation = workflow.indexOf(
-      "Apply current migrations including committed Notification activation",
+      "Apply current migrations including committed Notification FORCE",
     );
     const rollback = workflow.indexOf("Prove database-first Notification rollback");
     const finalProof = workflow.indexOf("Prove Notification RLS and service authority");

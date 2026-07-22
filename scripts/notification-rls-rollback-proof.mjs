@@ -85,7 +85,7 @@ async function restoreActivation(owner) {
       'GRANT UPDATE (read) ON TABLE public."Notification" TO grainline_app_runtime',
     );
     await owner.query('ALTER TABLE public."Notification" ENABLE ROW LEVEL SECURITY');
-    await owner.query('ALTER TABLE public."Notification" NO FORCE ROW LEVEL SECURITY');
+    await owner.query('ALTER TABLE public."Notification" FORCE ROW LEVEL SECURITY');
     await owner.query("COMMIT");
   } catch (error) {
     await owner.query("ROLLBACK");
@@ -104,7 +104,7 @@ async function main() {
   try {
     assert.deepEqual(await readCatalog(owner), {
       relrowsecurity: true,
-      relforcerowsecurity: false,
+      relforcerowsecurity: true,
       policy_count: 2,
       can_select: true,
       can_insert: false,
@@ -146,7 +146,7 @@ async function main() {
 
     assert.deepEqual(await readCatalog(owner), {
       relrowsecurity: false,
-      relforcerowsecurity: false,
+      relforcerowsecurity: true,
       policy_count: 2,
       can_select: true,
       can_insert: true,
@@ -209,7 +209,7 @@ async function main() {
     activationRestored = true;
     assert.deepEqual(await readCatalog(owner), {
       relrowsecurity: true,
-      relforcerowsecurity: false,
+      relforcerowsecurity: true,
       policy_count: 2,
       can_select: true,
       can_insert: false,
@@ -245,7 +245,7 @@ async function main() {
     rollbackPreservedPoliciesAndFunctions: true,
     oldApplicationDirectCrudCompatible: true,
     newApplicationRecipientRpcsCompatible: true,
-    exactNoForceActivationRestored: true,
+    exactForceActivationRestored: true,
     activationPurgeReversible: false,
     productionChanged: false,
     persistentStagingChanged: false,

@@ -452,6 +452,18 @@ boundaries, and complete fixture/session/token/cache cleanup. Initial activation
 is now live; a later separately proven FORCE release remains part of finishing
 Bucket B.
 
+The separate FORCE candidate is being prepared on
+`codex/rls-notification-force-20260722`. Migration
+`20260722053000_force_notification_rls` changes only the table FORCE flag;
+it does not alter rows, policies, grants, functions, or app code. It fails
+closed unless the live initial catalog, runtime/owner role posture, exact policy
+pair, ownership, and narrow grants match the accepted Phase-A state. Its
+reviewed SHA-256 is
+`f5e0f906671d21ec7d249e05be681753a81700cfe82a265f37bb4754e315f774`.
+Do not call Bucket B complete until the exact committed migration passes the
+disposable FORCE/rollback/authority proof, protected production apply, and a
+fresh production runtime/authenticated postflight.
+
 Temporary provider mechanics are intentionally absent from the production
 artifact: the internal context-gate route, its runner-only test, branch-scoped
 Vercel/database exceptions, disposable secrets, and provider resources were
