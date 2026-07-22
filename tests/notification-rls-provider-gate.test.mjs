@@ -56,6 +56,11 @@ describe("temporary real Notification provider gate", () => {
     assert.match(route, /token: z\.string/);
     assert.doesNotMatch(route, /userId: z\.|notificationId: z\.|sellerProfileId: z\./);
     assert.match(route, /failed before sanitized evidence was available/);
+    assert.match(route, /stage: failureStage/);
+    assert.match(
+      route,
+      /"configuration" \| "claim" \| "notification_gate" \| "completion"/,
+    );
     assert.doesNotMatch(route, /error\?\.message|error\.message|detail:/);
     assert.match(route, /acceptanceEligible: false/);
   });

@@ -125,8 +125,11 @@ export async function POST(request: Request) {
     VERCEL_REGION: process.env.VERCEL_REGION,
   };
 
+  let failureStage: "configuration" | "claim" | "notification_gate" | "completion" =
+    "configuration";
   try {
     const config = parseGateConfig(gateEnv);
+    failureStage = "claim";
     const claimed = await claimProviderRuntimeRunSlot(config, {
       runId,
       runSlot: parsed.runSlot,
@@ -136,6 +139,7 @@ export async function POST(request: Request) {
     }
     const startedAt = new Date().toISOString();
     const notificationConfig = parseNotificationProviderGateConfig(parsed.runSlot, gateEnv);
+    failureStage = "notification_gate";
     const result = await runNotificationProviderGate(notificationConfig);
     const finishedAt = new Date().toISOString();
     const status = result.issueCount > 0 ? "failed" : "passed";
@@ -179,6 +183,7 @@ export async function POST(request: Request) {
       startedAt,
       status,
     } satisfies Record<string, unknown>;
+    failureStage = "completion";
     await completeProviderRuntimeRunSlot(config, {
       evidence,
       runId,
@@ -194,6 +199,9 @@ export async function POST(request: Request) {
       },
     }, result.issueCount > 0 ? 422 : 200);
   } catch {
-    return privateJson({ error: "RLS context gate failed before sanitized evidence was available" }, 500);
+    return privateJson({
+      error: "RLS context gate failed before sanitized evidence was available",
+      stage: failureStage,
+    }, 500);
   }
 }
