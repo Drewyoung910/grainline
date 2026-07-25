@@ -68,5 +68,9 @@ describe("Conversation/Message production invariant postflight", () => {
     assert.match(source, /Message_body_trgm_idx/);
     assert.match(source, /forged Message route/);
     assert.match(source, /direct runtime trigger-function execution/);
+    assert.doesNotMatch(
+      source,
+      /\bAS\s+(?:constraint|current_user|session_user|table|user)\b/i,
+    );
   });
 });

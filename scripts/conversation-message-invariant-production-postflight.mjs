@@ -178,14 +178,14 @@ async function verifyCatalog(client) {
   }
 
   const constraint = await client.query(`
-    SELECT constraint.conname,
-           constraint.convalidated,
-           pg_catalog.pg_get_constraintdef(constraint.oid, true)
+    SELECT constraint_state.conname,
+           constraint_state.convalidated,
+           pg_catalog.pg_get_constraintdef(constraint_state.oid, true)
              AS definition
-      FROM pg_catalog.pg_constraint AS constraint
-     WHERE constraint.conrelid =
+      FROM pg_catalog.pg_constraint AS constraint_state
+     WHERE constraint_state.conrelid =
              'public."Conversation"'::pg_catalog.regclass
-       AND constraint.conname =
+       AND constraint_state.conname =
              'Conversation_canonical_participant_pair_check'
   `);
   assert.equal(constraint.rows.length, 1);
