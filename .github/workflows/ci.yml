@@ -106,6 +106,6 @@ jobs:
       - name: Tests
         run: npm test
       - name: Security audit
-        run: npm audit --audit-level=high
+        run: npm run audit:dependencies
       - name: Production build
         run: npm run build

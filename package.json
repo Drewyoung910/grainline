@@ -35,6 +35,7 @@
     "seed:rls-saved-search-canary": "node scripts/seed-saved-search-rls-canary.mjs",
     "audit:stripe-webhooks": "node scripts/stripe-webhook-subscriptions-proof.mjs",
     "audit:stripe-money": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/stripe-money-movement-proof.mjs",
+    "audit:dependencies": "node scripts/audit-dependencies.mjs",
     "audit:buyer-deletion-replay": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/buyer-deletion-stripe-replay-proof.mjs",
     "audit:r2-upload": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/r2-upload-smoke.mjs",
     "audit:deployed-headers": "node scripts/deployed-security-headers-proof.mjs",
@@ -65,7 +66,7 @@
     "@upstash/redis": "^1.37.0",
     "maplibre-gl": "^5.23.0",
     "marked": "^17.0.6",
-    "next": "^16.2.6",
+    "next": "^16.2.12",
     "pg": "^8.20.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
@@ -85,17 +86,19 @@
     "@types/sanitize-html": "^2.16.1",
     "autoprefixer": "^10.5.0",
     "eslint": "^9",
-    "eslint-config-next": "^16.2.4",
-    "postcss": "8.5.10",
+    "eslint-config-next": "^16.2.12",
+    "postcss": "8.5.23",
     "prisma": "^7.9.0",
     "sharp": "^0.35.3",
     "tailwindcss": "^4",
     "typescript": "^5"
   },
   "overrides": {
+    "@prisma/dev": "0.24.16",
     "js-cookie": "3.0.7",
-    "postcss": "8.5.10",
+    "postcss": "8.5.23",
     "sharp": "$sharp",
-    "svix": "$svix"
+    "svix": "$svix",
+    "valibot": "1.4.2"
   }
 }

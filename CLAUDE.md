@@ -107,7 +107,7 @@ Visual standards for all UI work on this codebase. Do not deviate without explic
 
 ## Tech Stack
 
-- **Framework**: Next.js 16.2.6 (App Router), React 19.2.5, TypeScript
+- **Framework**: Next.js 16.2.12 (App Router), React 19.2.5, TypeScript
 - **Styling**: Tailwind CSS 4
 - **Database**: PostgreSQL via Prisma ORM
 - **Auth**: Clerk (`@clerk/nextjs`)
@@ -3176,6 +3176,8 @@ Focused audit on code paths NOT covered by the prior 44-finding audit. 6 agents 
 - **@clerk/nextjs 7.0.7 → 7.2.3** — fixes middleware route protection bypass (GHSA-vqx2-fgx2-5wq9). Attacker could access `/dashboard`, `/admin`, etc. without auth.
 - **@clerk/nextjs 7.2.3 → 7.3.0** (2026-05-01) — fixes authorization bypass when combining organization/billing/reverification checks (GHSA-w24r-5266-9c3c). Lockfile-only bump via `npm audit fix`; the package.json `^7.2.3` caret range already covered 7.3.0. Affected transitive packages: `@clerk/shared 4.8.2 → 4.9.0`, `@clerk/backend 3.2.13 → 3.4.4`, `@clerk/react 6.4.2 → 6.5.0`. CI's `npm audit --audit-level=high` had been red for ~24h before the patch.
 - **next 16.2.1 → 16.2.6** — fixes Server Components DoS (GHSA-q4gf-8mx6-v5v3) and later Next 16.2 patch advisories. Crafted request crashes Vercel instance.
+- **next 16.2.6 → 16.2.12** (2026-07-25) — fixes the reachable App Router Server Action denial of service (GHSA-m99w-x7hq-7vfj) plus the July 2026 Next 16.2 middleware, SSRF, cache, image, and Server Function advisories. Grainline uses App Router Server Actions, so this is a production security patch rather than CI-only maintenance.
+- **Dependency audit exception (2026-07-25)** — `scripts/audit-dependencies.mjs` keeps high/critical production advisories fully blocking and permits only GHSA-mh99-v99m-4gvg through development-only ESLint paths. `minimatch@3` requires brace-expansion's older callable CommonJS API; forcing patched `brace-expansion@5` makes lint crash. Remove the exact exception when the ESLint dependency graph supports a patched compatible release. Any other high/critical advisory still fails CI.
 - **Dependency audit overrides (2026-05-05)** — `@hono/node-server` is overridden to 1.19.13 to clear Prisma dev-tooling middleware-bypass advisories without downgrading Prisma, and `postcss` is pinned/overridden to 8.5.10 so Next's nested vulnerable 8.4.31 copy is deduped. `npm audit --audit-level=moderate` reports zero vulnerabilities after this override pass.
 
 ### High fixes
@@ -3227,7 +3229,7 @@ Focused audit on code paths NOT covered by the prior 44-finding audit. 6 agents 
 
 ### Infrastructure improvements (2026-04-18)
 - **`.github/dependabot.yml`** — weekly npm security updates; minor/patch grouped into one PR and major version bumps grouped into a separate manual-review PR; 10 open PR limit. Would have caught the Clerk 7.0.7 auth bypass CVE automatically.
-- **`.github/workflows/ci.yml`** — runs `prisma generate` → `npx tsc --noEmit` → lint → tests → `npm audit --audit-level=high` → production build on every PR and push to main. Node 22. `prisma generate` is required before `tsc` because Prisma 7 changed the client generation output. Keep direct Prisma packages (`prisma`, `@prisma/client`, and `@prisma/adapter-pg`) on the same minor version in `package.json` and `package-lock.json`; mismatched CLI/client/adapter minors are dependency hygiene failures. High-severity dependency advisories are blocking; run `npm audit --audit-level=moderate` locally after dependency changes and fix or document any moderate advisory before pushing.
+- **`.github/workflows/ci.yml`** — runs `prisma generate` → `npx tsc --noEmit` → lint → tests → `npm run audit:dependencies` → production build on every PR and push to main. Node 22. `prisma generate` is required before `tsc` because Prisma 7 changed the client generation output. Keep direct Prisma packages (`prisma`, `@prisma/client`, and `@prisma/adapter-pg`) on the same minor version in `package.json` and `package-lock.json`; mismatched CLI/client/adapter minors are dependency hygiene failures. High/critical production advisories and all unreviewed high/critical development advisories are blocking. The only reviewed exception is the exact development-only brace-expansion advisory documented above; do not broaden it.
 
 ### Dependency upgrades (via Dependabot PR #2, 2026-04-18)
 - Prisma 7.6.0 → 7.7.0, Stripe SDK 19.0 → 19.3, React 19.2.4 → 19.2.5
@@ -3528,12 +3530,12 @@ Real pagination (PAGE_SIZE + Prev/Next) should be added per page as row counts g
 2. Deploy in report-only mode first; check Sentry for new violations
 3. Once clean, enforce by changing `Content-Security-Policy-Report-Only` → `Content-Security-Policy`
 
-**npm audit cadence**: Run `npm audit` after every major dependency upgrade. Fix moderate/high vulnerabilities unless they are in transitive deps with no available fix (document the reason in a comment). Prefer targeted version bumps or npm `overrides` for safe transitive patches. Do NOT run `npm audit fix --force`.
+**npm audit cadence**: Run `npm run audit:dependencies` after dependency changes. Fix moderate/high vulnerabilities unless they are in transitive deps with no compatible fix; exceptions must be exact, development-only, documented, and fail closed for every other advisory. Prefer targeted version bumps or npm `overrides` for safe transitive patches. Do NOT run `npm audit fix --force`.
 
 ## Production Deployment
 
 - **Live at**: [thegrainline.com](https://thegrainline.com) — deployed to Vercel, DNS via Cloudflare
-- **Next.js** 16.2.6 (upgraded from 16.2.1 — CVE-2025-55182 + GHSA-q4gf-8mx6-v5v3, plus later 16.2 patch advisories)
+- **Next.js** 16.2.12 (upgraded from 16.2.6 for GHSA-m99w-x7hq-7vfj and the July 2026 Next 16.2 advisory set)
 - **Clerk** v7.3.0 in lockfile (upgraded from 7.0.7 — GHSA-vqx2-fgx2-5wq9 middleware bypass fix; 7.3.0 also fixes GHSA-w24r-5266-9c3c)
 - **Stripe SDK** 19.3 (`src/lib/stripe.ts` explicitly pins API version `2025-10-29.clover`)
 - **Prisma** 7.9.0 (direct `prisma`, `@prisma/client`, and `@prisma/adapter-pg` packages aligned)
