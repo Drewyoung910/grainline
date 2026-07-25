@@ -1,9 +1,10 @@
 # Conversation and Message RLS Plan
 
-Status: compatibility release live; invariant preparation in progress on
+Status: compatibility release live; invariant preparation passed disposable
+PostgreSQL proof and Extra-High review on
 `codex/rls-conversation-message-invariants-20260722`. Notification Bucket B is
 complete in production. Conversation/Message RLS remains disabled; the
-isolated invariant SQL has not been applied.
+reviewed invariant SQL has not been applied to production.
 
 ## Security objective
 
@@ -166,12 +167,17 @@ The direct runtime table query with no context must return zero rows.
    aggregate-only inspection found no authority-invalid rows.**
 4. Preparation migration: canonical/immutable participant pairs, exact Message
    routing, monotonic thread state, metadata normalization and body-search
-   index while RLS remains disabled. **Isolated candidate implemented; ephemeral
-   PostgreSQL proof and release guard pending. The first disposable run
-   `30174296895` is retained failed evidence: PostgreSQL `42883` rejected the
-   invalid `pg_catalog.greatest(...)` qualification on the first valid runtime
-   insert after migrations/grant convergence. Production was untouched; the
-   corrected candidate requires a fresh run.**
+   index while RLS remains disabled. **Reviewed candidate complete. The first
+   disposable run `30174296895` remains failed evidence: PostgreSQL `42883`
+   rejected the invalid `pg_catalog.greatest(...)` qualification on the first
+   valid runtime insert after migrations/grant convergence. Production was
+   untouched. Fresh run `30176662926` passed the exact release guard,
+   PostgreSQL 16 migrations, runtime trigger/route and lock proof, migration
+   status, grant/catalog audit, TypeScript, lint, 1,952 tests, dependency audit
+   and production build at head `a0775e7d2f035e2d3e4a452dbb8b8fdcd1ecc44e`.
+   Extra-High review accepted the invariant SQL after separately correcting a
+   cross-tab Notification source-token regression and making custom-order-ready
+   Listing/Seller-then-Conversation row-lock order explicit.**
 5. Compatible app deployment: all protected accesses move to reviewed
    helpers; test before and after RLS.
 6. Disposable PostgreSQL proof: policies/grants, every read/write family,

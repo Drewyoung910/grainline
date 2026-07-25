@@ -173,7 +173,13 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
     for (let finding = 1; finding <= 19; finding += 1) {
       assert.match(audit, new RegExp(`CM-A${String(finding).padStart(2, "0")}`));
     }
-    assert.match(audit, /No Conversation or Message RLS policy or authority[\s\S]*SQL has been drafted, applied or deployed/);
-    assert.match(audit, /Only then may Extra High review accept policy\/function SQL/);
+    assert.match(
+      audit,
+      /No Conversation or Message RLS policy or authority SQL has been[\s\S]*drafted, applied or deployed/,
+    );
+    assert.match(
+      audit,
+      /Policy\/function SQL, grant narrowing, initial RLS[\s\S]*activation and FORCE remain a separate Extra-High review and release/,
+    );
   });
 });

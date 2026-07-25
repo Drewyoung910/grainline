@@ -3,8 +3,9 @@
 Date: 2026-07-22. Active branch:
 `codex/rls-conversation-message-invariants-20260722`. Status: the compatible
 app and additive schema/index pair are live; invariant/data-normalization work
-is isolated and unapplied. No Conversation or Message RLS policy or authority
-SQL has been drafted, applied or deployed from this branch.
+passed disposable PostgreSQL proof and Extra-High review but remains unapplied
+to production. No Conversation or Message RLS policy or authority SQL has been
+drafted, applied or deployed from this branch.
 
 ## Why this gate exists
 
@@ -186,23 +187,39 @@ is necessary but not sufficient.
   `GREATEST` SQL construct. Production and persistent staging were untouched.
   The candidate now uses bare `GREATEST(...)`, preserves its intended null
   behavior, and adds a source-wide executable-SQL guard against qualifying
-  this class of PostgreSQL special forms. This failed run remains failed and a
-  fresh CI run is required.
+  this class of PostgreSQL special forms. This failed run remains failed; the
+  required fresh CI result is recorded separately below.
+- **Fresh invariant proof and Extra-High preparation review passed:** GitHub
+  Actions run `30176662926` at exact head
+  `a0775e7d2f035e2d3e4a452dbb8b8fdcd1ecc44e` passed the release-byte guard,
+  PostgreSQL 16 migrations, production-style grant convergence, runtime
+  trigger/route and real lock-wait proof, migration status, final grant/catalog
+  audit, TypeScript, lint, 1,952 tests, the fail-closed dependency audit and
+  production build. The SQL review accepted the pinned `search_path`, private
+  trigger ACLs, exact participant routing, immutable identities and monotonic
+  parent-thread update. It also found and fixed two non-SQL issues before
+  promotion: deterministic React `useId()` could suppress legitimate
+  cross-tab Notification sync, and custom-order-ready left multi-relation row
+  lock order to the query planner. The corrected app uses a random per-mounted
+  bell token and locks Listing/Seller source rows before the exact Conversation
+  helper. Conversation/Message RLS is still off and production is unchanged by
+  this proof.
 
 ## Audit completion criteria
 
 1. CM-A01 through CM-A19 are fixed or have the explicit design/scale
-   disposition recorded above. CM-A04 remains open only for disposable-PG
-   invariant proof and protected production application; CM-A10 remains open
-   until the reviewed database-authority phase.
+   disposition recorded above. CM-A04 remains open only for protected
+   production application/postflight; CM-A10 remains open until the reviewed
+   database-authority phase.
 2. Full tests, typecheck, lint and production build pass on the compatible app
    before any RLS activation.
 3. A sanitized read-only legacy inspection proves canonical/non-self
    conversations, exact Message participant pairs, structured kinds, orphan
    state, reported-thread state and archive/timestamp aggregates without
    retaining bodies or identifiers.
-4. Only then may Extra High review accept policy/function SQL and PostgreSQL
-   concurrency claims.
+4. Extra High has accepted the invariant-preparation SQL and its PostgreSQL
+   concurrency claims only. Policy/function SQL, grant narrowing, initial RLS
+   activation and FORCE remain a separate Extra-High review and release.
 
 This audit pattern is required for each later sensitive group, with scope
 adapted to that group's actors and provider/background workflows.
