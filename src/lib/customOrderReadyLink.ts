@@ -5,7 +5,10 @@ import { sendCustomOrderReady } from "@/lib/email";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { publicListingPath } from "@/lib/publicPaths";
-import { lockConversationParticipantPair } from "@/lib/conversationStartAccess";
+import {
+  lockConversationForMessageWrite,
+  lockConversationParticipantPair,
+} from "@/lib/conversationStartAccess";
 
 const CUSTOM_ORDER_READY_LINK_LOCK_NAMESPACE = 913349;
 
@@ -18,8 +21,6 @@ type CustomOrderReadySource = {
   sellerUserId: string;
   buyerUserId: string;
   sellerName: string | null;
-  userAId: string;
-  userBId: string;
 };
 
 type CustomOrderReadyCommit = {
@@ -77,9 +78,7 @@ export async function sendCustomOrderReadyLink({ listingId }: { listingId: strin
         listing."customOrderConversationId" AS "conversationId",
         seller."userId" AS "sellerUserId",
         listing."reservedForUserId" AS "buyerUserId",
-        seller."displayName" AS "sellerName",
-        conversation."userAId",
-        conversation."userBId"
+        seller."displayName" AS "sellerName"
       FROM "Listing" AS listing
       JOIN "SellerProfile" AS seller
         ON seller.id = listing."sellerId"
@@ -95,15 +94,16 @@ export async function sendCustomOrderReadyLink({ listingId }: { listingId: strin
         AND seller."stripeAccountId" IS NOT NULL
         AND (seller."stripeAccountVersion" IS NULL OR seller."stripeAccountVersion" = 'v2')
         AND seller."vacationMode" = false
-      FOR SHARE OF listing, seller, conversation
+      FOR SHARE OF listing, seller
     `;
     const source = sources[0];
     if (
       sources.length !== 1
-      || source.userAId !== pair.userAId
-      || source.userBId !== pair.userBId
       || source.sellerUserId === source.buyerUserId
     ) {
+      return null;
+    }
+    if (!await lockConversationForMessageWrite(tx, pair, source.conversationId)) {
       return null;
     }
 
@@ -117,6 +117,7 @@ export async function sendCustomOrderReadyLink({ listingId }: { listingId: strin
     });
     if (existingLinkMessage) return null;
 
+    const messageSentAt = new Date();
     const createdMessage = await tx.message.create({
       data: {
         conversationId: source.conversationId,
@@ -125,6 +126,7 @@ export async function sendCustomOrderReadyLink({ listingId }: { listingId: strin
         contextListingId: source.listingId,
         kind: "custom_order_link",
         isSystemMessage: true,
+        createdAt: messageSentAt,
         body: JSON.stringify({
           listingId: source.listingId,
           title: source.listingTitle,
@@ -136,7 +138,7 @@ export async function sendCustomOrderReadyLink({ listingId }: { listingId: strin
     });
     await tx.conversation.update({
       where: { id: source.conversationId },
-      data: { updatedAt: new Date(), archivedAAt: null, archivedBAt: null },
+      data: { updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null },
     });
 
     return { messageId: createdMessage.id, source };

@@ -1,9 +1,11 @@
 # Conversation and Message Pre-RLS Audit
 
-Date: 2026-07-22. Branch:
-`codex/rls-conversation-message-20260722`. Status: active prerequisite audit;
-no Conversation or Message RLS SQL has been drafted, applied or deployed from
-this branch.
+Date: 2026-07-22. Active branch:
+`codex/rls-conversation-message-invariants-20260722`. Status: the compatible
+app and additive schema/index pair are live; invariant/data-normalization work
+passed disposable PostgreSQL proof and Extra-High review but remains unapplied
+to production. No Conversation or Message RLS policy or authority SQL has been
+drafted, applied or deployed from this branch.
 
 ## Why this gate exists
 
@@ -62,6 +64,9 @@ is necessary but not sufficient.
 | CM-A14 | Medium | Rendering or prefetching a thread marks matching `NEW_MESSAGE` Notification rows read before the participant actually opens the client UI; archive/unarchive writes also lacked an explicit rate limit. | Move Notification read state into the existing origin-guarded participant POST fired by the mounted client, and rate-limit archive state changes. |
 | CM-A15 | High | The one-thread-per-pair rule redirects an existing conversation before validating the new `listing` query, so entering from another listing loses that context. Overwriting the Conversation-level listing would make older messages misleading; creating one thread per listing would fragment the inbox. | Keep one Conversation per participant pair, validate listing context before both new/existing redirects, store the validated context on each Message, and derive it again from the locked Listing and participant pair at send time. |
 | CM-A16 | High | Ordinary sends lock users/blocks but do not lock the Conversation before deriving `messageSentAt`. Concurrent sends can commit out of order, regress `Conversation.updatedAt`, and produce inconsistent inbox/archive ordering. | After the sorted participant and optional Listing locks, take `FOR UPDATE` on the exact canonical Conversation, derive the timestamp only after that lock, then insert messages and update thread state in the same transaction. |
+| CM-A17 | High | PostgreSQL `now()` is transaction-start time. The compatible app derived `messageSentAt` after the Conversation lock but did not write it to Message rows, so a waiting transaction could still commit an older `createdAt`; commission-interest also inserted without bumping/unarchiving its Conversation. | Serialize every writer on the Conversation, write the same post-lock timestamp to Message and Conversation, and add a database trigger that monotonically bumps/unarchives the parent on every insert. |
+| CM-A18 | Medium | File attachments carry `kind:"file"` only inside JSON while `Message.kind` remains null, and inbox body substring search has no matching trigram index. | Set the dedicated kind on new attachment rows and add a concurrent `pg_trgm` GIN index before freezing the message taxonomy/read contract. Do not guess legacy file kinds from private bodies. |
+| CM-A19 | UI | On narrow mobile viewports the composer textarea requests full width beside two fixed controls, and the nested thread scroller permits horizontal overflow/scroll chaining that can paint the cream page layer behind Safari's normally translucent bottom browser toolbar. | Make the thread edge-to-edge with internal padding, bound every flex/card/attachment child, make the textarea shrinkable, suppress horizontal overflow, and contain touch overscroll within the vertical thread. |
 
 ## Remediation progress
 
@@ -124,37 +129,97 @@ is necessary but not sufficient.
 - **CM-A16 fixed in the compatible app:** ordinary sends take locks in the
   reviewed order—sorted Users/block absence, optional Listing source, exact
   canonical Conversation `FOR UPDATE`—and only then derive the send timestamp.
-  Message inserts, first-response state, thread bump and unarchive now share
-  that serialization point, so concurrent sends cannot move inbox time backward.
+  Custom-order-ready also locks its Listing/Seller source rows first and then
+  calls the same exact Conversation lock helper instead of relying on a joined
+  query's planner-dependent row-lock order. Message inserts, first-response
+  state, thread bump and unarchive now share that serialization point. CM-A17
+  subsequently found and closes the separate transaction-start timestamp hole
+  by explicitly persisting the post-lock time.
+- **CM-A17 remediation implemented, unapplied:** ordinary text/attachment,
+  custom-request, commission-interest and custom-order-ready writers all use
+  the exact post-Conversation-lock timestamp for both Message and thread state.
+  The invariant migration repairs any thread timestamp behind its newest
+  message and installs an owner-private trigger using `GREATEST`, so future
+  writers cannot regress time or forget to unarchive the thread.
+- **CM-A18 remediation implemented, unapplied:** new attachments set
+  `Message.kind="file"`; the scale migration adds the raw-managed concurrent
+  `Message.body` trigram index. Historical nullable kinds and nullable
+  `contextListingId` values remain unknown rather than being inferred by
+  parsing private bodies or projecting one old Conversation context across
+  every historical Message.
+- **CM-A19 fixed in the app candidate:** the mobile thread owns the full width
+  with internal bubble padding; its scroller is explicitly x-locked, long
+  structured/file content is bounded, and the composer textarea uses
+  `min-w-0 flex-1` instead of `w-full` beside fixed controls. `touch-pan-y` and
+  `overscroll-contain` prevent the nested chat scroller from chaining into the
+  cream page behind Safari's translucent bottom toolbar. The in-app browser
+  was unavailable in this session, so deterministic CSS/source checks and the
+  production build remain the verification path until an authenticated visual
+  smoke is available.
 - **Compatibility release guard extended:** the two additive pre-RLS migrations
   have a distinct exact-tree phase,
   `conversation-message-compatibility-reviewed`. Older SavedSearch and
   Notification phases still reject them as later drift; this phase does not
   authorize RLS SQL or grant narrowing.
-- **CM-A04 inspection scaffold complete, execution pending:** the manual
-  Production workflow runs only from an exact clean main commit after the
-  compatibility migrations. Its owner connection is digest/role/endpoint
-  pinned and it uses one `REPEATABLE READ READ ONLY` transaction. Evidence is
-  aggregate-only: it retains no ids, bodies, emails or credentials while
-  counting canonical pairs, exact Message participants, structured/system
-  semantics, listing-context relationships, reports, archive/timestamp state
-  and active private custom-listing pair validity. The invariant trigger remains
-  blocked until this inspection passes and any nonzero invalid counts have an
-  explicit disposition.
+- **Compatibility production checkpoint complete:** protected migration run
+  `29964062818` applied only the nullable listing-context column and five
+  read-scale indexes at exact main `05e236bb15e6400496073e808fe37d740c0e48a8`.
+  Vercel deployment `dpl_6SHrhrLsXReeG7hPhXyuMssCNLqP` is `READY`, aliased to
+  `thegrainline.com`, passed the runtime-role guard and returned `{"ok":true}`
+  from `/api/health`. Conversation/Message RLS remains disabled with legacy
+  runtime CRUD retained at this checkpoint.
+- **CM-A04 production inspection passed:** protected read-only run
+  `29964469109` used one `REPEATABLE READ READ ONLY` transaction at the exact
+  clean main commit. It found 4 Conversations and 17 Messages; zero self or
+  noncanonical Conversations, duplicate pairs, empty Conversations, invalid
+  Message pairs, self Messages, unknown kinds, invalid listing pairs, orphan
+  unresolved reports or invalid private custom-listing pairs. It found one
+  Message newer than its Conversation and one server card missing its
+  presentation flag; both have semantic idempotent repairs in the isolated
+  invariant migration. No ids, bodies, emails, credentials or raw rows were
+  retained. The new participant/route/thread-state triggers still require
+  disposable PostgreSQL proof before production.
+- **First disposable invariant proof retained as failed evidence:** GitHub
+  Actions run `30174296895` at candidate `07812a96` applied the migrations and
+  converged the runtime grants in ephemeral PostgreSQL 16, then failed its
+  first valid runtime Message insert with PostgreSQL `42883`.
+  `pg_catalog.greatest(...)` incorrectly schema-qualified the parser-resolved
+  `GREATEST` SQL construct. Production and persistent staging were untouched.
+  The candidate now uses bare `GREATEST(...)`, preserves its intended null
+  behavior, and adds a source-wide executable-SQL guard against qualifying
+  this class of PostgreSQL special forms. This failed run remains failed; the
+  required fresh CI result is recorded separately below.
+- **Fresh invariant proof and Extra-High preparation review passed:** GitHub
+  Actions run `30176662926` at exact head
+  `a0775e7d2f035e2d3e4a452dbb8b8fdcd1ecc44e` passed the release-byte guard,
+  PostgreSQL 16 migrations, production-style grant convergence, runtime
+  trigger/route and real lock-wait proof, migration status, final grant/catalog
+  audit, TypeScript, lint, 1,952 tests, the fail-closed dependency audit and
+  production build. The SQL review accepted the pinned `search_path`, private
+  trigger ACLs, exact participant routing, immutable identities and monotonic
+  parent-thread update. It also found and fixed two non-SQL issues before
+  promotion: deterministic React `useId()` could suppress legitimate
+  cross-tab Notification sync, and custom-order-ready left multi-relation row
+  lock order to the query planner. The corrected app uses a random per-mounted
+  bell token and locks Listing/Seller source rows before the exact Conversation
+  helper. Conversation/Message RLS is still off and production is unchanged by
+  this proof.
 
 ## Audit completion criteria
 
-1. CM-A01 through CM-A16 are fixed or have the explicit design/scale
-   disposition recorded above. CM-A04 and CM-A10 remain intentionally open
-   until the legacy inspection and reviewed database-authority phase.
+1. CM-A01 through CM-A19 are fixed or have the explicit design/scale
+   disposition recorded above. CM-A04 remains open only for protected
+   production application/postflight; CM-A10 remains open until the reviewed
+   database-authority phase.
 2. Full tests, typecheck, lint and production build pass on the compatible app
    before any RLS activation.
 3. A sanitized read-only legacy inspection proves canonical/non-self
    conversations, exact Message participant pairs, structured kinds, orphan
    state, reported-thread state and archive/timestamp aggregates without
    retaining bodies or identifiers.
-4. Only then may Extra High review accept policy/function SQL and PostgreSQL
-   concurrency claims.
+4. Extra High has accepted the invariant-preparation SQL and its PostgreSQL
+   concurrency claims only. Policy/function SQL, grant narrowing, initial RLS
+   activation and FORCE remain a separate Extra-High review and release.
 
 This audit pattern is required for each later sensitive group, with scope
 adapted to that group's actors and provider/background workflows.

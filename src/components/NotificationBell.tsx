@@ -37,14 +37,22 @@ const MAX_NOTIFICATION_ITEMS = 20;
 const MAX_UNREAD_COUNT = 999;
 
 type NotificationSyncMessage =
-  | { type: "all-read" }
-  | { type: "read"; id: string };
+  | { type: "all-read"; sourceId: string }
+  | { type: "read"; id: string; sourceId: string };
 
 function broadcastNotificationSync(message: NotificationSyncMessage) {
   if (typeof window === "undefined" || !("BroadcastChannel" in window)) return;
   const channel = new BroadcastChannel(NOTIFICATION_CHANNEL);
   channel.postMessage(message);
   channel.close();
+}
+
+function createNotificationSyncSourceId() {
+  // React.useId() is deterministic and can repeat in the same component
+  // position across tabs. This token must instead identify one mounted bell so
+  // other tabs still consume its BroadcastChannel event.
+  return globalThis.crypto?.randomUUID?.()
+    ?? `notification-bell-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function typeIcon(type: NotificationType) {
@@ -176,6 +184,7 @@ export default function NotificationBell({
   const [unreadCount, setUnreadCount] = React.useState(initialUnreadCount);
   const [loaded, setLoaded] = React.useState(false);
   const dropdownId = React.useId();
+  const [syncSourceId] = React.useState(createNotificationSyncSourceId);
   const containerRef = React.useRef<HTMLDivElement>(null);
 
   const fetchNotifications = React.useCallback(async () => {
@@ -216,6 +225,10 @@ export default function NotificationBell({
     const channel = new BroadcastChannel(NOTIFICATION_CHANNEL);
     channel.onmessage = (event: MessageEvent<NotificationSyncMessage>) => {
       const message = event.data;
+      // BroadcastChannel delivers to other channel objects in this same tab as
+      // well as other tabs. The clicking bell already updated optimistically;
+      // ignore its own broadcast so one unread row cannot decrement twice.
+      if (!message || message.sourceId === syncSourceId) return;
       if (message.type === "all-read") {
         setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
         setUnreadCount(0);
@@ -228,7 +241,7 @@ export default function NotificationBell({
     };
 
     return () => channel.close();
-  }, []);
+  }, [syncSourceId]);
 
   // Smart polling: adapts interval based on user activity and tab visibility.
   // Active + recent activity: 60s. Idle > 5min: 5min. Background tab: 15min.
@@ -354,7 +367,7 @@ export default function NotificationBell({
     try {
       const res = await fetch("/api/notifications/read-all", { method: "POST" });
       if (!res.ok) throw new Error("Failed to mark notifications read");
-      broadcastNotificationSync({ type: "all-read" });
+      broadcastNotificationSync({ type: "all-read", sourceId: syncSourceId });
     } catch {
       setNotifications(previousNotifications);
       setUnreadCount(previousUnreadCount);
@@ -373,7 +386,7 @@ export default function NotificationBell({
       try {
         const res = await fetch(`/api/notifications/${n.id}/read`, { method: "POST" });
         if (!res.ok) throw new Error("Failed to mark notification read");
-        broadcastNotificationSync({ type: "read", id: n.id });
+        broadcastNotificationSync({ type: "read", id: n.id, sourceId: syncSourceId });
       } catch {
         setNotifications(previousNotifications);
         setUnreadCount(previousUnreadCount);

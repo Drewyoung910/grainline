@@ -1,9 +1,10 @@
 # Conversation and Message RLS Plan
 
-Status: pre-RLS behavior/security audit in progress on
-`codex/rls-conversation-message-20260722`. Notification Bucket B is complete in
-production. No production SQL or RLS change has been made for Conversation or
-Message.
+Status: compatibility release live; invariant preparation passed disposable
+PostgreSQL proof and Extra-High review on
+`codex/rls-conversation-message-invariants-20260722`. Notification Bucket B is
+complete in production. Conversation/Message RLS remains disabled; the
+reviewed invariant SQL has not been applied to production.
 
 ## Security objective
 
@@ -22,8 +23,8 @@ separate from Notification, Order/payment/shipping and Case/CaseMessage.
 ## Verified baseline
 
 The original machine inventory recorded 50 direct ORM operations and 5 raw SQL
-table references. Compatible audit refactors currently leave 44 direct ORM
-operations and 7 raw SQL references across 17 runtime files (51 total protected
+table references. Compatible audit refactors currently leave 45 direct ORM
+operations and 8 raw SQL references across 17 runtime files (53 total protected
 access points). The surface includes the user inbox and
 thread, list and stream polling, unread counts, per-recipient mark-read,
 archive state, first-response metrics, email throttling, account export,
@@ -141,7 +142,12 @@ The direct runtime table query with no context must return zero rows.
 - Lock the Conversation before send/archive/context transitions. A send clears
   both archive timestamps as part of its commit. Ordinary send lock order is
   sorted Users/block absence, optional Listing source, then exact Conversation
-  `FOR UPDATE`; derive the thread timestamp only after that final lock.
+  `FOR UPDATE`; derive the thread timestamp only after that final lock and
+  explicitly write it to Message.createdAt. Do not rely on the `now()` default,
+  which is the PostgreSQL transaction-start time.
+- Keep a database-level insert trigger that monotonically bumps Conversation
+  time with `GREATEST` and clears both archive timestamps. It is a durable
+  invariant, not a replacement for source validation or fixed RLS writes.
 - Coordinate account deletion with the same user lifecycle locks so a new
   message cannot commit after deletion has decided the account is unavailable.
 - Preserve unordered pair uniqueness and inspect legacy rows before enforcing
@@ -152,15 +158,28 @@ The direct runtime table query with no context must return zero rows.
 ## Compatibility and rollout sequence
 
 1. Inventory and pin every current access path. **Complete: original 55-path
-   migration baseline; current compatible surface is 51 protected accesses.**
+   migration baseline; current compatible surface is 53 protected accesses.**
 2. Complete `docs/conversation-message-pre-rls-audit.md` and fix its activation
-   blockers before authority SQL. **In progress.**
+   blockers before authority SQL. **App findings fixed; invariant proof and
+   Extra-High preparation review complete; protected production application
+   remains pending.**
 3. Read-only legacy/preflight design: exact participant, message-pair, kind,
    orphan, report and archive aggregates; do not export bodies or identifiers.
-   **Scaffold complete; protected main-only Production execution remains
-   pending after the compatibility migrations.**
-4. Preparation migration: functions, predicates, invariant checks/triggers and
-   exact ACLs while RLS remains disabled.
+   **Complete at exact main `05e236bb15e6400496073e808fe37d740c0e48a8`; the
+   aggregate-only inspection found no authority-invalid rows.**
+4. Preparation migration: canonical/immutable participant pairs, exact Message
+   routing, monotonic thread state, metadata normalization and body-search
+   index while RLS remains disabled. **Reviewed candidate complete. The first
+   disposable run `30174296895` remains failed evidence: PostgreSQL `42883`
+   rejected the invalid `pg_catalog.greatest(...)` qualification on the first
+   valid runtime insert after migrations/grant convergence. Production was
+   untouched. Fresh run `30176662926` passed the exact release guard,
+   PostgreSQL 16 migrations, runtime trigger/route and lock proof, migration
+   status, grant/catalog audit, TypeScript, lint, 1,952 tests, dependency audit
+   and production build at head `a0775e7d2f035e2d3e4a452dbb8b8fdcd1ecc44e`.
+   Extra-High review accepted the invariant SQL after separately correcting a
+   cross-tab Notification source-token regression and making custom-order-ready
+   Listing/Seller-then-Conversation row-lock order explicit.**
 5. Compatible app deployment: all protected accesses move to reviewed
    helpers; test before and after RLS.
 6. Disposable PostgreSQL proof: policies/grants, every read/write family,
@@ -184,6 +203,12 @@ The exact additive pair is guarded as
 `conversation-message-compatibility-reviewed`; CI and the manual Production
 migration workflow fail closed on any other later migration or byte drift. This
 phase does not authorize Conversation/Message policies or grants.
+
+The live compatibility checkpoint is protected migration run `29964062818`
+plus Vercel production deployment `dpl_6SHrhrLsXReeG7hPhXyuMssCNLqP`. The
+aggregate legacy inspection is protected run `29964469109`. These identifiers
+are operational evidence, not authority to combine the later invariant,
+policy/ACL, activation or FORCE releases.
 
 ## Product and scale decisions
 

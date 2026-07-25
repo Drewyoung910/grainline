@@ -125,6 +125,20 @@ const NOTIFICATION_PRIVATE_RPC_FUNCTIONS = new Set([
   "grainline_notification_create_core",
 ]);
 
+// Trigger functions run through their owning table triggers; the application
+// role must never be able to invoke them as ordinary functions. Keep this
+// exception explicit instead of treating every grainline_* function as a
+// runtime RPC.
+export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
+  "grainline_conversation_participants_immutable",
+  "grainline_message_participants_match_conversation",
+  "grainline_message_route_immutable",
+  "grainline_message_maintain_thread_state",
+  ...NOTIFICATION_PRIVATE_RPC_FUNCTIONS,
+]);
+
+const RUNTIME_PRIVATE_FUNCTION_NAME_SET = new Set(RUNTIME_PRIVATE_FUNCTIONS);
+
 function sortedUnique(values) {
   return [...new Set(values)].sort((a, b) => a.localeCompare(b));
 }
@@ -1559,7 +1573,7 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
     ...functionNames.filter((fn) => !inventory.functions.includes(fn)).map((fn) => `live DB has untracked grainline_* function ${fn}`),
   );
   for (const row of functionResult.rows) {
-    const runtimeExecuteExpected = row.function_name !== "grainline_notification_create_core";
+    const runtimeExecuteExpected = !RUNTIME_PRIVATE_FUNCTION_NAME_SET.has(row.function_name);
     if (runtimeExecuteExpected && !row.execute_priv) {
       issues.push(`${row.function_name}(${row.args}) lacks EXECUTE`);
     }

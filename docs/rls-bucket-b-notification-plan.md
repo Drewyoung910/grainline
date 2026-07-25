@@ -1402,3 +1402,19 @@ Keep protected backup branch `br-hidden-tree-aa337i8v` through the rollback
 window. The next group is Conversation plus Message, with its own actor and
 operation inventory, proof, compatibility release, activation, and postflight;
 do not bundle it with Notification, Order, payment, shipping, or Case tables.
+
+## Post-activation UI correctness follow-up (2026-07-22)
+
+Notification RLS and its owner RPCs returned the correct authoritative unread
+count, but `NotificationBell` optimistically decremented an opened unread row
+and then consumed its own `BroadcastChannel` synchronization message through a
+second channel object in the same tab. The badge therefore appeared to drop by
+two until the next authoritative poll corrected it. The app fix gives each
+mounted bell a random per-instance source token, includes it in read/all-read
+broadcasts, and ignores only its own broadcast. A deterministic React
+`useId()` is deliberately not used because equivalent component positions can
+repeat across tabs and suppress legitimate cross-tab delivery. Other mounted
+bell instances and other tabs still synchronize once. This is a client-state
+bug fix; it does not change
+Notification policies, functions, grants, database rows, or production RLS
+posture.

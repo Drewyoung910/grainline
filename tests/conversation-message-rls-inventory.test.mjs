@@ -10,6 +10,7 @@ const EXPECTED_BASELINE = {
   "src/app/api/account/export/route.ts": { "Message.findMany": 2 },
   "src/lib/commissionInterestMessageAccess.ts": {
     "Message.create": 1,
+    "Conversation.update": 1,
   },
   "src/app/api/messages/[id]/list/route.ts": {
     "Conversation.findFirst": 1,
@@ -59,6 +60,7 @@ const EXPECTED_BASELINE = {
     "Conversation.findUnique": 1,
     "Conversation.updateMany": 1,
     "Conversation.create": 1,
+    "Conversation.raw-sql-reference": 1,
   },
   "src/lib/customOrderReadyLink.ts": {
     "Message.findFirst": 1,
@@ -80,8 +82,8 @@ describe("Conversation and Message RLS inventory", () => {
   const inventory = collectConversationMessageAccess();
 
   it("pins every current direct ORM and raw SQL access path", () => {
-    assert.equal(inventory.ormCalls.length, 44);
-    assert.equal(inventory.rawSqlReferences.length, 7);
+    assert.equal(inventory.ormCalls.length, 45);
+    assert.equal(inventory.rawSqlReferences.length, 8);
     assert.deepEqual(summarizeConversationMessageAccess(inventory), EXPECTED_BASELINE);
   });
 
@@ -93,6 +95,7 @@ describe("Conversation and Message RLS inventory", () => {
     assert.match(plan, /seller response metrics/);
     assert.match(plan, /commission-interest system message/);
     assert.match(plan, /custom-order-ready/);
-    assert.match(plan, /No production SQL or RLS change has been made/);
+    assert.match(plan, /Conversation\/Message RLS remains disabled/);
+    assert.match(plan, /reviewed invariant SQL has not been applied to production/);
   });
 });

@@ -1,8 +1,8 @@
 # Conversation and Message Authority Inventory
 
-Snapshot: 2026-07-22. Status: design baseline on
-`codex/rls-conversation-message-20260722`; no Conversation or Message RLS is
-active from this work.
+Snapshot: 2026-07-22. Status: compatibility baseline live; invariant work on
+`codex/rls-conversation-message-invariants-20260722`; no Conversation or
+Message RLS is active from this work.
 
 ## Count contract
 
@@ -10,9 +10,9 @@ active from this work.
 TypeScript tree. The audited baseline was 50 direct Prisma operations plus 5
 raw SQL references. After the first compatible audit fixes it currently finds:
 
-- 44 direct Prisma Conversation or Message operations;
-- 7 raw SQL table references;
-- 51 total protected-table access points across 17 files.
+- 45 direct Prisma Conversation or Message operations;
+- 8 raw SQL table references;
+- 53 total protected-table access points across 17 files.
 
 The test `tests/conversation-message-rls-inventory.test.mjs` pins the count and
 the exact per-file/model/operation summary. A new access path must therefore be
@@ -66,7 +66,8 @@ will intentionally fall as the design is implemented.
    `isSystemMessage`. User-authored body/attachment content is necessarily
    caller input, but write targets and authority metadata must be derived.
 4. Structured kinds currently observed are `custom_order_request`,
-   `custom_order_link`, and `commission_interest_card`. Commission interest and
+   `custom_order_link`, `commission_interest_card`, and the forward-only
+   attachment classification `file`. Commission interest and
    custom-order-ready are server-generated and set `isSystemMessage=true`;
    custom-order request is buyer-authored and remains false. The flag controls
    presentation only and never confers authority. Legacy values must be
@@ -81,11 +82,15 @@ will intentionally fall as the design is implemented.
    optional `Message.contextListingId` records the listing relevant to that
    individual message; it must reference an active listing whose seller is a
    participant, and a private listing must be reserved for the other participant.
+8. Every Message writer locks the exact canonical Conversation after User and
+   source locks, then writes one post-lock timestamp to both Message and thread
+   state. A database insert trigger independently keeps `updatedAt` monotonic
+   and clears archives. PostgreSQL transaction-start `now()` is not sufficient.
 
 ## Completion rule
 
 This inventory is complete only when every protected access (55 in the original
-baseline, 51 after current compatible refactors) has an explicit
+baseline, 53 after current compatible refactors) has an explicit
 destination, direct runtime INSERT/UPDATE/DELETE is removed, the compatible app
 passes before and after RLS, and PostgreSQL proof covers participant isolation,
 reported-staff access, structured write families, block/account races, archive

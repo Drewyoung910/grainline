@@ -116,6 +116,32 @@ additive compatibility release before the application checkpoint. Its exact
 migration phase is `conversation-message-compatibility-reviewed`; it does not
 enable RLS, narrow grants or authorize the later authority migration.
 
+The following messaging product work is intentionally after ordinary
+Conversation/Message RLS and is not an activation prerequisite:
+
+- visibly branded `SupportThread`/`SupportMessage` staff outreach, followed by
+  an optional customer-visible history for existing `/support` requests;
+- managed realtime/fanout once sustained concurrent open threads make the
+  current SSE database polling inappropriate;
+- convenience features such as typing indicators, reactions, editing/deleting
+  user messages or richer delivery/read receipts, each with its own retention
+  and abuse semantics;
+- Case/CaseMessage product upgrades such as evidence attachments, staff
+  assignment/SLA tooling and a deliberate appeal/reopen policy. Evaluate these
+  during the separate Case pre-RLS audit rather than coupling them to ordinary
+  messaging activation.
+
+These are named deferrals, not forgotten work. Per-listing ordinary threads are
+not deferred: that alternative was reviewed and rejected in favor of one pair
+thread plus per-Message listing context. Attachment kind normalization,
+message-search indexing, long-history pagination, timestamp correctness and
+mobile horizontal-overflow repair remain in the current pre-RLS scope.
+
+Durable scale review triggers and the reasoning behind these deferrals live in
+`docs/scaling-decisions/`. Update the relevant record when production evidence
+changes a threshold or architecture decision so deferred work is not mistaken
+for forgotten work.
+
 ### Prelaunch RLS rollout proportionality (2026-07-22)
 
 The confirmed prelaunch/no-dependent-users state permits shorter operating

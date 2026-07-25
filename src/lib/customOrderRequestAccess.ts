@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import {
   getOrCreateConversationForLockedPair,
+  lockConversationForMessageWrite,
   lockConversationParticipantPair,
 } from "@/lib/conversationStartAccess";
 
@@ -119,6 +120,10 @@ export async function createCustomOrderRequestMessage(
       pair,
       listingId,
     );
+    if (!await lockConversationForMessageWrite(tx, pair, conversation.conversationId)) {
+      return { ok: false as const, error: "unavailable" as const };
+    }
+    const messageSentAt = new Date();
     const messageBody = JSON.stringify({
       description: input.description,
       dimensions: input.dimensions,
@@ -136,12 +141,13 @@ export async function createCustomOrderRequestMessage(
         contextListingId: listingId,
         body: messageBody,
         kind: "custom_order_request",
+        createdAt: messageSentAt,
       },
       select: { id: true },
     });
     await tx.conversation.update({
       where: { id: conversation.conversationId },
-      data: { updatedAt: new Date(), archivedAAt: null, archivedBAt: null },
+      data: { updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null },
     });
 
     return {

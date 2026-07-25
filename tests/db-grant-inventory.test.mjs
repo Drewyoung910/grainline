@@ -18,6 +18,7 @@ const {
   NOTIFICATION_ACTIVATION_TABLE_PRIVILEGES,
   NOTIFICATION_RECIPIENT_RPC_FUNCTIONS,
   NOTIFICATION_SERVICE_RPC_FUNCTIONS,
+  RUNTIME_PRIVATE_FUNCTIONS,
   SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES,
   SAVED_SEARCH_CATALOG_EVIDENCE_PREFIX,
   assertGrantAuditConnectionMatches,
@@ -556,6 +557,10 @@ describe("database grant inventory guardrails", () => {
     assert.equal(inventory.tables.length, 58);
     assert.equal(inventory.enums.length, 20);
     assert.deepEqual(inventory.functions, [
+      "grainline_conversation_participants_immutable",
+      "grainline_message_maintain_thread_state",
+      "grainline_message_participants_match_conversation",
+      "grainline_message_route_immutable",
       ...NOTIFICATION_RECIPIENT_RPC_FUNCTIONS,
       ...NOTIFICATION_SERVICE_RPC_FUNCTIONS,
       "grainline_notification_preferences_valid",
@@ -566,7 +571,7 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(inventory.sequenceSqlReferences, []);
     assert.deepEqual(inventory.autoincrementFields, []);
     assert.deepEqual(inventory.fixedIntSingletonIds, ["SiteConfig.id", "SiteMetricsSnapshot.id"]);
-    assert.equal(inventory.publicRevokes.length, 28);
+    assert.equal(inventory.publicRevokes.length, 32);
     assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_delete_one(text, text) FROM PUBLIC",
     ));
@@ -1356,6 +1361,11 @@ describe("database grant inventory guardrails", () => {
     assert.match(provision, /public\."grainline_notification_preferences_valid"\(jsonb\)/);
     assert.match(provision, /public\."grainline_saved_search_list"\(text, integer, text\)/);
     assert.match(provision, /public\."grainline_saved_search_delete_one"\(text, text\)/);
+    for (const functionName of RUNTIME_PRIVATE_FUNCTIONS.filter(
+      (name) => name !== "grainline_notification_create_core",
+    )) {
+      assert.match(provision, new RegExp(`public\\."${functionName}"\\(\\)`));
+    }
     const savedSearchGrantIndex = provision.indexOf('public."SavedSearch",');
     const savedSearchUpdateRevokeIndex = provision.indexOf(
       'REVOKE UPDATE ON TABLE public."SavedSearch" FROM :"runtime_role"',

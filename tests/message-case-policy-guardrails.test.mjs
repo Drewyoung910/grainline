@@ -10,13 +10,20 @@ describe("message and case policy guardrails", () => {
   it("revalidates custom-order ready links against conversation and block policy", () => {
     const helper = source("src/lib/customOrderReadyLink.ts");
     const policyCheck = helper.indexOf("const sources = await tx.$queryRaw");
+    const listingSourceLock = helper.indexOf("FOR SHARE OF listing, seller");
+    const conversationLock = helper.indexOf(
+      "lockConversationForMessageWrite(tx, pair, source.conversationId)",
+    );
     const messageCreate = helper.indexOf("await tx.message.create");
 
     assert.ok(policyCheck > -1, "ready-link helper must load the Listing/Conversation source inside the lock");
-    assert.ok(messageCreate > policyCheck, "ready-link message must be created after policy checks");
+    assert.ok(listingSourceLock > policyCheck, "ready-link source rows must lock inside the source query");
+    assert.ok(
+      conversationLock > listingSourceLock,
+      "ready-link Conversation lock must follow Listing/Seller source locks",
+    );
+    assert.ok(messageCreate > conversationLock, "ready-link message must be created after policy locks");
     assert.match(helper, /lockConversationParticipantPair\(/);
-    assert.match(helper, /source\.userAId !== pair\.userAId/);
-    assert.match(helper, /source\.userBId !== pair\.userBId/);
     assert.match(helper, /source\.sellerUserId === source\.buyerUserId/);
     assert.match(helper, /listing\.status = 'ACTIVE'/);
     assert.match(helper, /listing\."isPrivate" = true/);
@@ -24,7 +31,11 @@ describe("message and case policy guardrails", () => {
     assert.match(helper, /seller\."stripeAccountId" IS NOT NULL/);
     assert.match(helper, /seller\."vacationMode" = false/);
     assert.match(helper, /isSystemMessage: true/);
-    assert.match(helper, /data: \{ updatedAt: new Date\(\), archivedAAt: null, archivedBAt: null \}/);
+    assert.match(helper, /FOR SHARE OF listing, seller/);
+    assert.match(helper, /lockConversationForMessageWrite\(tx, pair, source\.conversationId\)/);
+    assert.doesNotMatch(helper, /FOR SHARE OF listing, seller,\s*conversation/);
+    assert.match(helper, /createdAt: messageSentAt/);
+    assert.match(helper, /data: \{ updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null \}/);
   });
 
   it("reopens pending-close cases before accepting a new party message", () => {
@@ -66,7 +77,9 @@ describe("message and case policy guardrails", () => {
     assert.match(threadPage, /const hasMoreMessagesBefore = messageRows\.length > 200/);
     assert.match(threadPage, /const messages = messageRows\.slice\(0, 200\)\.reverse\(\)/);
     assert.match(threadPage, /data: \{ updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null \}/);
-    assert.match(customOrderRequest, /data: \{ updatedAt: new Date\(\), archivedAAt: null, archivedBAt: null \}/);
+    assert.match(customOrderRequest, /lockConversationForMessageWrite/);
+    assert.match(customOrderRequest, /createdAt: messageSentAt/);
+    assert.match(customOrderRequest, /data: \{ updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null \}/);
   });
 
   it("revalidates message-thread send policy inside the write transaction", () => {
