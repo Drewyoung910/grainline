@@ -2,6 +2,10 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import pg from "pg";
+import {
+  CONVERSATION_MESSAGE_LEGACY_COUNTS_SQL,
+  normalizeConversationMessageLegacyCounts,
+} from "./conversation-message-legacy-inspect.mjs";
 
 const { Client } = pg;
 
@@ -1137,6 +1141,50 @@ async function proveRuntimeIsolation(owner) {
   }
 }
 
+async function proveExactLegacyInspectionQuery(owner) {
+  const result = await owner.query(CONVERSATION_MESSAGE_LEGACY_COUNTS_SQL);
+  assert.equal(result.rows.length, 1);
+  const counts = normalizeConversationMessageLegacyCounts(result.rows[0]);
+  assert.deepEqual(counts, {
+    conversationCount: 3,
+    selfConversationCount: 0,
+    noncanonicalConversationCount: 0,
+    duplicatePairGroupCount: 0,
+    emptyConversationCount: 0,
+    contextConversationCount: 0,
+    archivedConversationCount: 0,
+    invalidConversationTimeCount: 0,
+    messageCount: 8,
+    invalidMessagePairCount: 0,
+    selfMessageCount: 0,
+    messageBeforeConversationCount: 0,
+    messageAfterConversationUpdateCount: 0,
+    ordinaryMessageCount: 5,
+    customRequestCount: 1,
+    customLinkCount: 1,
+    commissionInterestCount: 1,
+    fileMessageCount: 0,
+    unknownKindCount: 0,
+    userAuthoredMarkedSystemCount: 0,
+    serverCardNotSystemCount: 0,
+    fileMarkedSystemCount: 0,
+    messageListingContextCount: 2,
+    invalidMessageListingPairCount: 0,
+    customLinkMissingContextCount: 0,
+    duplicateCustomLinkSourceGroupCount: 0,
+    invalidCustomLinkSourceCount: 0,
+    linkedCommissionInterestCount: 1,
+    commissionInterestMissingMessageCount: 0,
+    commissionInterestDuplicateMessageGroupCount: 0,
+    orphanCommissionCardCount: 0,
+    unresolvedThreadReportCount: 1,
+    orphanUnresolvedThreadReportCount: 0,
+    activePrivateCustomListingCount: 1,
+    invalidPrivateCustomListingPairCount: 0,
+  });
+  record("exact_aggregate_only_legacy_inspection_query_compiles_and_matches_sources");
+}
+
 async function proveBlockRaces(owner) {
   await clearPairBlocks(owner, fixture.userAId, fixture.userCId);
   const sendFirst = newClient("cm-authority-block-send-first");
@@ -1573,6 +1621,7 @@ async function main() {
     await applyDraft(owner);
     await proveCatalog(owner);
     await proveRuntimeIsolation(owner);
+    await proveExactLegacyInspectionQuery(owner);
     await proveBlockRaces(owner);
     await proveAccountDeletionRaces(owner);
     await proveMarkReadRaces(owner);

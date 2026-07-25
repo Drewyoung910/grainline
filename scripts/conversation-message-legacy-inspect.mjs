@@ -156,11 +156,20 @@ const COUNT_FIELDS = Object.freeze([
   "custom_request_count",
   "custom_link_count",
   "commission_interest_count",
+  "file_message_count",
   "unknown_kind_count",
   "user_authored_marked_system_count",
   "server_card_not_system_count",
+  "file_marked_system_count",
   "message_listing_context_count",
   "invalid_message_listing_pair_count",
+  "custom_link_missing_context_count",
+  "duplicate_custom_link_source_group_count",
+  "invalid_custom_link_source_count",
+  "linked_commission_interest_count",
+  "commission_interest_missing_message_count",
+  "commission_interest_duplicate_message_group_count",
+  "orphan_commission_card_count",
   "unresolved_thread_report_count",
   "orphan_unresolved_thread_report_count",
   "active_private_custom_listing_count",
@@ -262,8 +271,7 @@ async function readPosture(client) {
   });
 }
 
-async function readCounts(client) {
-  const result = await client.query(`
+export const CONVERSATION_MESSAGE_LEGACY_COUNTS_SQL = `
     SELECT
       (SELECT pg_catalog.count(*) FROM public."Conversation") AS conversation_count,
       (SELECT pg_catalog.count(*) FROM public."Conversation" WHERE "userAId" = "userBId") AS self_conversation_count,
@@ -294,9 +302,11 @@ async function readCounts(client) {
       (SELECT pg_catalog.count(*) FROM public."Message" WHERE kind = 'custom_order_request') AS custom_request_count,
       (SELECT pg_catalog.count(*) FROM public."Message" WHERE kind = 'custom_order_link') AS custom_link_count,
       (SELECT pg_catalog.count(*) FROM public."Message" WHERE kind = 'commission_interest_card') AS commission_interest_count,
-      (SELECT pg_catalog.count(*) FROM public."Message" WHERE kind IS NOT NULL AND kind NOT IN ('custom_order_request', 'custom_order_link', 'commission_interest_card')) AS unknown_kind_count,
+      (SELECT pg_catalog.count(*) FROM public."Message" WHERE kind = 'file') AS file_message_count,
+      (SELECT pg_catalog.count(*) FROM public."Message" WHERE kind IS NOT NULL AND kind NOT IN ('custom_order_request', 'custom_order_link', 'commission_interest_card', 'file')) AS unknown_kind_count,
       (SELECT pg_catalog.count(*) FROM public."Message" WHERE "isSystemMessage" = true AND (kind IS NULL OR kind = 'custom_order_request')) AS user_authored_marked_system_count,
       (SELECT pg_catalog.count(*) FROM public."Message" WHERE "isSystemMessage" = false AND kind IN ('custom_order_link', 'commission_interest_card')) AS server_card_not_system_count,
+      (SELECT pg_catalog.count(*) FROM public."Message" WHERE kind = 'file' AND "isSystemMessage" = true) AS file_marked_system_count,
       (SELECT pg_catalog.count(*) FROM public."Message" WHERE "contextListingId" IS NOT NULL) AS message_listing_context_count,
       (SELECT pg_catalog.count(*)
          FROM public."Message" AS m
@@ -312,6 +322,131 @@ async function readCounts(client) {
               OR listing."reservedForUserId" NOT IN (c."userAId", c."userBId")
             ))
           )) AS invalid_message_listing_pair_count,
+      (SELECT pg_catalog.count(*)
+         FROM public."Message"
+        WHERE kind = 'custom_order_link'
+          AND "contextListingId" IS NULL) AS custom_link_missing_context_count,
+      (SELECT pg_catalog.count(*)
+         FROM (
+           SELECT "contextListingId"
+             FROM public."Message"
+            WHERE kind = 'custom_order_link'
+              AND "contextListingId" IS NOT NULL
+            GROUP BY "contextListingId"
+           HAVING pg_catalog.count(*) > 1
+         ) AS duplicate_custom_link_source) AS duplicate_custom_link_source_group_count,
+      (SELECT pg_catalog.count(*)
+         FROM public."Message" AS message
+         LEFT JOIN public."Listing" AS listing
+           ON listing.id = message."contextListingId"
+         LEFT JOIN public."SellerProfile" AS seller
+           ON seller.id = listing."sellerId"
+         LEFT JOIN public."Conversation" AS conversation
+           ON conversation.id = message."conversationId"
+        WHERE message.kind = 'custom_order_link'
+          AND (
+            listing.id IS NULL
+            OR seller.id IS NULL
+            OR conversation.id IS NULL
+            OR listing."isPrivate" = false
+            OR listing."reservedForUserId" IS NULL
+            OR listing."customOrderConversationId"
+                 IS DISTINCT FROM message."conversationId"
+            OR message."senderId" <> seller."userId"
+            OR message."recipientId" <> listing."reservedForUserId"
+            OR message."isSystemMessage" = false
+            OR (
+              CASE
+                WHEN pg_catalog.pg_input_is_valid(
+                  message.body,
+                  'jsonb'::pg_catalog.regtype
+                )
+                  THEN (message.body::jsonb)->>'listingId'
+                ELSE NULL
+              END
+            ) IS DISTINCT FROM listing.id
+          )) AS invalid_custom_link_source_count,
+      (SELECT pg_catalog.count(*)
+         FROM public."CommissionInterest"
+        WHERE "conversationId" IS NOT NULL) AS linked_commission_interest_count,
+      (SELECT pg_catalog.count(*)
+         FROM public."CommissionInterest" AS interest
+         JOIN public."CommissionRequest" AS commission
+           ON commission.id = interest."commissionRequestId"
+         JOIN public."SellerProfile" AS seller
+           ON seller.id = interest."sellerProfileId"
+        WHERE interest."conversationId" IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1
+              FROM public."Message" AS message
+             WHERE message."conversationId" = interest."conversationId"
+               AND message.kind = 'commission_interest_card'
+               AND message."senderId" = seller."userId"
+               AND message."recipientId" = commission."buyerId"
+               AND message."isSystemMessage" = true
+               AND (
+                 CASE
+                   WHEN pg_catalog.pg_input_is_valid(
+                     message.body,
+                     'jsonb'::pg_catalog.regtype
+                   )
+                     THEN (message.body::jsonb)->>'commissionId'
+                   ELSE NULL
+                 END
+               ) = commission.id
+          )) AS commission_interest_missing_message_count,
+      (SELECT pg_catalog.count(*)
+         FROM (
+           SELECT interest.id
+             FROM public."CommissionInterest" AS interest
+             JOIN public."CommissionRequest" AS commission
+               ON commission.id = interest."commissionRequestId"
+             JOIN public."SellerProfile" AS seller
+               ON seller.id = interest."sellerProfileId"
+             JOIN public."Message" AS message
+               ON message."conversationId" = interest."conversationId"
+              AND message.kind = 'commission_interest_card'
+              AND message."senderId" = seller."userId"
+              AND message."recipientId" = commission."buyerId"
+              AND message."isSystemMessage" = true
+              AND (
+                CASE
+                  WHEN pg_catalog.pg_input_is_valid(
+                    message.body,
+                    'jsonb'::pg_catalog.regtype
+                  )
+                    THEN (message.body::jsonb)->>'commissionId'
+                  ELSE NULL
+                END
+              ) = commission.id
+            WHERE interest."conversationId" IS NOT NULL
+            GROUP BY interest.id
+           HAVING pg_catalog.count(*) > 1
+         ) AS duplicate_commission_message) AS commission_interest_duplicate_message_group_count,
+      (SELECT pg_catalog.count(*)
+         FROM public."Message" AS message
+        WHERE message.kind = 'commission_interest_card'
+          AND NOT EXISTS (
+            SELECT 1
+              FROM public."CommissionInterest" AS interest
+              JOIN public."CommissionRequest" AS commission
+                ON commission.id = interest."commissionRequestId"
+              JOIN public."SellerProfile" AS seller
+                ON seller.id = interest."sellerProfileId"
+             WHERE interest."conversationId" = message."conversationId"
+               AND seller."userId" = message."senderId"
+               AND commission."buyerId" = message."recipientId"
+               AND (
+                 CASE
+                   WHEN pg_catalog.pg_input_is_valid(
+                     message.body,
+                     'jsonb'::pg_catalog.regtype
+                   )
+                     THEN (message.body::jsonb)->>'commissionId'
+                   ELSE NULL
+                 END
+               ) = commission.id
+          )) AS orphan_commission_card_count,
       (SELECT pg_catalog.count(*) FROM public."UserReport" WHERE "targetType" = 'MESSAGE_THREAD' AND resolved = false) AS unresolved_thread_report_count,
       (SELECT pg_catalog.count(*) FROM public."UserReport" AS report WHERE report."targetType" = 'MESSAGE_THREAD' AND report.resolved = false AND NOT EXISTS (
         SELECT 1 FROM public."Conversation" AS c WHERE c.id = report."targetId"
@@ -332,7 +467,10 @@ async function readCounts(client) {
               OR (c."userBId" = seller."userId" AND c."userAId" = listing."reservedForUserId")
             )
           )) AS invalid_private_custom_listing_pair_count
-  `);
+`;
+
+async function readCounts(client) {
+  const result = await client.query(CONVERSATION_MESSAGE_LEGACY_COUNTS_SQL);
   return normalizeConversationMessageLegacyCounts(result.rows[0]);
 }
 

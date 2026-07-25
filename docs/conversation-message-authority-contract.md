@@ -41,7 +41,7 @@ The sole definer read helper,
 `app.user_id` and returns one boolean. It exposes no User, UserReport,
 Conversation or Message row.
 
-## Fixed write catalog still required before activation
+## Fixed write catalog and proof status
 
 The fixed participant/message functions and all three structured creation
 families are now drafted. They remain disposable proof SQL until the complete
@@ -76,9 +76,32 @@ catalog, race suite and application conversion pass:
     buyer-initiated and seller-responded aggregate counts; it exposes no
     Conversation id, Message id or body.
 
-All fixed service families are drafted. The remaining authority work is the
-full race/lifecycle proof, legacy preflight for structured replay anchors,
-application helper conversion, and a fresh review of the catalog as a set.
+All fixed service families are drafted. The disposable PostgreSQL authority
+proof, including both lock orderings for block, deletion, mark-read and archive
+races, passed at `940fcf2c` in GitHub Actions run `30179962784`. The remaining
+authority work is to compile and validate the exact aggregate-only legacy
+inspection query in a fresh disposable proof, run that inspection through its
+protected production workflow, convert the application to the fixed catalog,
+and review the catalog again as a set before activation.
+
+## Cross-group dependencies to retain
+
+- `grainline_message_create_commission_interest` is the atomic writer for both
+  `CommissionInterest`/`CommissionRequest` and its Message. A later commission
+  RLS rollout must preserve and re-review this exact source-bound path instead
+  of granting broad commission-table writes or creating a second message path.
+- Custom-order request and ready-link functions read locked
+  `SellerProfile`/`Listing` sources but write only Conversation/Message. Later
+  SellerProfile or Listing RLS must preserve those definer reads and their
+  seller/reservation predicates.
+- Account-deletion redaction derives its fixed needles from User,
+  UserEmailAddress and SellerProfile. Later RLS or grant narrowing on those
+  tables must keep this deletion-only projection working without widening it
+  into a general body editor.
+- Notification source functions validate Message/Conversation rows through
+  separately reviewed fixed source functions. Conversation/Message activation
+  must re-run Notification FORCE equivalence, but it must not grant Notification
+  or runtime a general message bypass.
 
 The caller may necessarily provide user-authored body/attachment content, but
 may never choose a recipient, structured authority kind, system flag, canonical
