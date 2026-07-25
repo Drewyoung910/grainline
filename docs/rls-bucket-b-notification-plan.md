@@ -1409,9 +1409,12 @@ Notification RLS and its owner RPCs returned the correct authoritative unread
 count, but `NotificationBell` optimistically decremented an opened unread row
 and then consumed its own `BroadcastChannel` synchronization message through a
 second channel object in the same tab. The badge therefore appeared to drop by
-two until the next authoritative poll corrected it. The app fix gives each bell
-instance a stable source id, includes it in read/all-read broadcasts, and
-ignores only its own broadcast. Other mounted bell instances and other tabs
-still synchronize once. This is a client-state bug fix; it does not change
+two until the next authoritative poll corrected it. The app fix gives each
+mounted bell a random per-instance source token, includes it in read/all-read
+broadcasts, and ignores only its own broadcast. A deterministic React
+`useId()` is deliberately not used because equivalent component positions can
+repeat across tabs and suppress legitimate cross-tab delivery. Other mounted
+bell instances and other tabs still synchronize once. This is a client-state
+bug fix; it does not change
 Notification policies, functions, grants, database rows, or production RLS
 posture.

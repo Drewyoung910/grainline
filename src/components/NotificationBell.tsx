@@ -47,6 +47,14 @@ function broadcastNotificationSync(message: NotificationSyncMessage) {
   channel.close();
 }
 
+function createNotificationSyncSourceId() {
+  // React.useId() is deterministic and can repeat in the same component
+  // position across tabs. This token must instead identify one mounted bell so
+  // other tabs still consume its BroadcastChannel event.
+  return globalThis.crypto?.randomUUID?.()
+    ?? `notification-bell-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 function typeIcon(type: NotificationType) {
   switch (type) {
     case "NEW_ORDER":
@@ -176,7 +184,7 @@ export default function NotificationBell({
   const [unreadCount, setUnreadCount] = React.useState(initialUnreadCount);
   const [loaded, setLoaded] = React.useState(false);
   const dropdownId = React.useId();
-  const syncSourceId = React.useId();
+  const [syncSourceId] = React.useState(createNotificationSyncSourceId);
   const containerRef = React.useRef<HTMLDivElement>(null);
 
   const fetchNotifications = React.useCallback(async () => {

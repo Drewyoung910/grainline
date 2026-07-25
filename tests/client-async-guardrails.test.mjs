@@ -239,7 +239,10 @@ describe("client async guardrails", () => {
     assert.match(bell, /if \(!isLoaded \|\| !isSignedIn\) return/);
     assert.match(bell, /if \(!open\) return/);
     assert.match(bell, /closing \? "animate-menu-out pointer-events-none" : "animate-menu-in"/);
-    assert.match(bell, /const syncSourceId = React\.useId\(\)/);
+    assert.match(bell, /function createNotificationSyncSourceId\(\)/);
+    assert.match(bell, /globalThis\.crypto\?\.randomUUID\?\.\(\)/);
+    assert.match(bell, /const \[syncSourceId\] = React\.useState\(createNotificationSyncSourceId\)/);
+    assert.doesNotMatch(bell, /syncSourceId\s*=\s*React\.useId\(\)/);
     assert.match(bell, /message\.sourceId === syncSourceId/);
     assert.match(bell, /type: "read", id: n\.id, sourceId: syncSourceId/);
     assert.match(route, /ownerNotificationBellData\(me\.id\)/);
