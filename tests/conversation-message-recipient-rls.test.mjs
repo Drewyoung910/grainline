@@ -232,6 +232,14 @@ describe("Conversation and Message recipient RLS draft", () => {
     );
     assert.match(
       serviceSql,
+      /commission interest message evidence is invalid/,
+    );
+    assert.match(
+      serviceSql,
+      /custom-order-ready message evidence is invalid/,
+    );
+    assert.match(
+      serviceSql,
       /pg_catalog\.jsonb_build_object\([\s\S]*'commissionId', p_commission_request_id/,
     );
     assert.match(
@@ -245,6 +253,10 @@ describe("Conversation and Message recipient RLS draft", () => {
     assert.match(
       serviceSql,
       /message\."senderId" <> p_actor_id[\s\S]*message\."recipientId" = p_actor_id/,
+    );
+    assert.match(
+      serviceSql,
+      /\(\?<!\[\[:alnum:\]\]\)[\s\S]*\(\?!\[\[:alnum:\]\]\)/,
     );
     assert.match(
       serviceSql,

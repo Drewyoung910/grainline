@@ -237,18 +237,18 @@ async function seedFixtures(owner) {
   await cleanFixtures(owner);
   await owner.query(
     `INSERT INTO public."User" (
-       id, "clerkId", email, name, role, "updatedAt"
+       id, "clerkId", email, name, role, "shippingState", "updatedAt"
      ) VALUES
        ($1, 'clerk_cm_recipient_a', 'cm-recipient-a@example.invalid',
-        'Recipient A', 'USER', pg_catalog.clock_timestamp()),
+        'Recipient A', 'USER', 'CA', pg_catalog.clock_timestamp()),
        ($2, 'clerk_cm_recipient_b', 'cm-recipient-b@example.invalid',
-        'Recipient B', 'USER', pg_catalog.clock_timestamp()),
+        'Recipient B', 'USER', NULL, pg_catalog.clock_timestamp()),
        ($3, 'clerk_cm_recipient_c', 'cm-recipient-c@example.invalid',
-        'Recipient C', 'USER', pg_catalog.clock_timestamp()),
+        'Recipient C', 'USER', NULL, pg_catalog.clock_timestamp()),
        ($4, 'clerk_cm_recipient_staff', 'cm-recipient-staff@example.invalid',
-        'Recipient Staff', 'ADMIN', pg_catalog.clock_timestamp()),
+        'Recipient Staff', 'ADMIN', NULL, pg_catalog.clock_timestamp()),
        ($5, 'clerk_cm_recipient_e', 'cm-recipient-e@example.invalid',
-        'Recipient E', 'USER', pg_catalog.clock_timestamp())`,
+        'Recipient E', 'USER', NULL, pg_catalog.clock_timestamp())`,
     [
       fixture.userAId,
       fixture.userBId,
@@ -329,7 +329,7 @@ async function seedFixtures(owner) {
        id, "conversationId", "senderId", "recipientId", body, "createdAt"
      ) VALUES
        ($1, $4, $5, $6, 'hello from A', '2026-01-02T00:00:00Z'),
-       ($2, $4, $6, $5, 'reply mentions Recipient A', '2026-01-02T00:00:01Z'),
+       ($2, $4, $6, $5, 'reply mentions Recipient A in CA, not CAFE', '2026-01-02T00:00:01Z'),
        ($3, $7, $8, $9, 'foreign thread', '2026-01-02T00:00:00Z')`,
     [
       fixture.messageAB1Id,
@@ -919,7 +919,10 @@ async function proveRuntimeIsolation(owner) {
       [fixture.userCId, fixture.commissionRequestId],
     );
     assert.equal(repeatedCommission.rows[0].created, false);
-    assert.equal(repeatedCommission.rows[0].messageId, null);
+    assert.equal(
+      repeatedCommission.rows[0].messageId,
+      fixture.commissionMessageId,
+    );
     assert.equal(
       repeatedCommission.rows[0].commissionInterestId,
       fixture.commissionInterestId,
@@ -1124,7 +1127,7 @@ async function proveRuntimeIsolation(owner) {
       { id: fixture.messageAB1Id, body: "[Message deleted]" },
       {
         id: fixture.messageAB2Id,
-        body: "reply mentions [deleted account]",
+        body: "reply mentions [deleted account] in [deleted account], not CAFE",
       },
     ]);
     record("aggregate_only_metrics_and_fixed_account_deletion_redaction");

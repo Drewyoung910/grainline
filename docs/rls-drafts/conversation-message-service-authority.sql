@@ -792,6 +792,7 @@ DECLARE
   source_seller record;
   source_commission record;
   source_interest record;
+  existing_message record;
   conversation_result record;
   message_sent_at timestamp(3);
   interest_id text;
@@ -889,8 +890,29 @@ BEGIN
       RAISE EXCEPTION 'commission interest conversation is invalid'
         USING ERRCODE = '23514';
     END IF;
+
+    SELECT
+      pg_catalog.count(*)::integer AS message_count,
+      pg_catalog.min(message.id) AS message_id,
+      pg_catalog.bool_and(
+        message."senderId" = p_seller_user_id
+        AND message."recipientId" = source_commission."buyerId"
+        AND message."isSystemMessage" = true
+      ) AS authority_valid
+      INTO existing_message
+      FROM public."Message" AS message
+     WHERE message."conversationId" = source_interest."conversationId"
+       AND message.kind = 'commission_interest_card'
+       AND (message.body::jsonb)->>'commissionId' =
+           p_commission_request_id;
+    IF existing_message.message_count <> 1
+       OR existing_message.authority_valid IS NOT TRUE THEN
+      RAISE EXCEPTION 'commission interest message evidence is invalid'
+        USING ERRCODE = '23514';
+    END IF;
+
     "conversationId" := source_interest."conversationId";
-    "messageId" := NULL;
+    "messageId" := existing_message.message_id;
     "commissionInterestId" := source_interest.id;
     "buyerUserId" := source_commission."buyerId";
     "commissionTitle" := source_commission.title;
@@ -1022,7 +1044,7 @@ DECLARE
   initial_source record;
   pair record;
   source_listing record;
-  existing_message_id text;
+  existing_message record;
   message_sent_at timestamp(3);
 BEGIN
   IF pg_catalog.current_setting('transaction_isolation') <> 'read committed' THEN
@@ -1111,16 +1133,31 @@ BEGIN
       USING ERRCODE = '23514';
   END IF;
 
-  SELECT message.id
-    INTO existing_message_id
+  SELECT
+    pg_catalog.count(*)::integer AS message_count,
+    pg_catalog.min(message.id) AS message_id,
+    pg_catalog.bool_and(
+      message."senderId" = source_listing.seller_user_id
+      AND message."recipientId" = source_listing.buyer_user_id
+      AND message."isSystemMessage" = true
+      AND (message.body::jsonb)->>'listingId' = source_listing.id
+      AND (message.body::jsonb)->>'title' = source_listing.title
+      AND (message.body::jsonb)->>'priceCents' =
+          source_listing."priceCents"::text
+      AND (message.body::jsonb)->>'currency' = source_listing.currency
+    ) AS authority_valid
+    INTO existing_message
     FROM public."Message" AS message
    WHERE message."conversationId" = source_listing.conversation_id
      AND message."contextListingId" = source_listing.id
-     AND message.kind = 'custom_order_link'
-   ORDER BY message."createdAt", message.id
-   LIMIT 1;
-  IF FOUND THEN
-    "messageId" := existing_message_id;
+     AND message.kind = 'custom_order_link';
+  IF existing_message.message_count > 0 THEN
+    IF existing_message.message_count <> 1
+       OR existing_message.authority_valid IS NOT TRUE THEN
+      RAISE EXCEPTION 'custom-order-ready message evidence is invalid'
+        USING ERRCODE = '23514';
+    END IF;
+    "messageId" := existing_message.message_id;
     "conversationId" := source_listing.conversation_id;
     "sellerUserId" := source_listing.seller_user_id;
     "buyerUserId" := source_listing.buyer_user_id;
@@ -1291,8 +1328,8 @@ BEGIN
     ELSE
       redacted := pg_catalog.regexp_replace(
         redacted,
-        '(^|[^[:alnum:]])' || escaped_value || '([^[:alnum:]]|$)',
-        E'\\1[deleted account]\\2',
+        '(?<![[:alnum:]])' || escaped_value || '(?![[:alnum:]])',
+        '[deleted account]',
         'gi'
       );
     END IF;
