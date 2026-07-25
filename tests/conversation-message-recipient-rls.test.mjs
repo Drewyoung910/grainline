@@ -42,6 +42,9 @@ const publicWriteFunctions = [
   "grainline_conversation_set_archived",
   "grainline_message_mark_read",
   "grainline_conversation_claim_message_email",
+  "grainline_message_send_custom_request",
+  "grainline_message_create_commission_interest",
+  "grainline_message_send_custom_order_ready",
 ];
 
 describe("Conversation and Message recipient RLS draft", () => {
@@ -158,6 +161,7 @@ describe("Conversation and Message recipient RLS draft", () => {
     }
     assert.match(serviceSql, /grainline_conversation_lock_pair_core/);
     assert.match(serviceSql, /grainline_conversation_listing_core/);
+    assert.match(serviceSql, /grainline_conversation_get_or_create_core/);
     assert.match(
       serviceSql,
       /REVOKE ALL ON FUNCTION[\s\S]*grainline_conversation_lock_pair_core[\s\S]*FROM PUBLIC, grainline_app_runtime/,
@@ -166,9 +170,13 @@ describe("Conversation and Message recipient RLS draft", () => {
       serviceSql,
       /REVOKE ALL ON FUNCTION[\s\S]*grainline_conversation_listing_core[\s\S]*FROM PUBLIC, grainline_app_runtime/,
     );
+    assert.match(
+      serviceSql,
+      /REVOKE ALL ON FUNCTION[\s\S]*grainline_conversation_get_or_create_core[\s\S]*FROM PUBLIC, grainline_app_runtime/,
+    );
     assert.doesNotMatch(
       serviceSql,
-      /GRANT EXECUTE ON FUNCTION\s+public\.grainline_conversation_(?:lock_pair|listing)_core\s*\(/,
+      /GRANT EXECUTE ON FUNCTION\s+public\.grainline_conversation_(?:lock_pair|listing|get_or_create)_core\s*\(/,
     );
     assert.match(serviceSql, /p_kind IS NOT NULL AND p_kind <> 'file'/);
     assert.match(serviceSql, /parsed_file->>'kind' <> 'file'/);
@@ -177,6 +185,30 @@ describe("Conversation and Message recipient RLS draft", () => {
     assert.match(serviceSql, /FOR SHARE;[\s\S]*Block/);
     assert.match(serviceSql, /FOR UPDATE;[\s\S]*"sentAt" := pg_catalog\.clock_timestamp\(\)/);
     assert.match(serviceSql, /source_message\."createdAt" - interval '5 minutes'/);
+    assert.match(
+      serviceSql,
+      /'custom_order_request',\s+false,\s+message_sent_at/,
+    );
+    assert.match(
+      serviceSql,
+      /'commission_interest_card',\s+true,\s+message_sent_at/,
+    );
+    assert.match(
+      serviceSql,
+      /message\."contextListingId" = source_listing\.id[\s\S]*message\.kind = 'custom_order_link'/,
+    );
+    assert.match(
+      serviceSql,
+      /'custom_order_link',\s+true,\s+message_sent_at/,
+    );
+    assert.match(
+      serviceSql,
+      /pg_catalog\.jsonb_build_object\([\s\S]*'commissionId', p_commission_request_id/,
+    );
+    assert.match(
+      serviceSql,
+      /listing\."reservedForUserId" = initial_source\.buyer_user_id/,
+    );
     assert.doesNotMatch(serviceSql, /\bEXECUTE\s+FORMAT\b/i);
     assert.doesNotMatch(serviceSql, /\bAS\s+(?:constraint|current_user|session_user|table|user)\b/i);
     assert.doesNotMatch(serviceSql, /pg_catalog\.(?:greatest|least|coalesce|nullif)/i);

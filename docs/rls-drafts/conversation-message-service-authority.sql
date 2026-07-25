@@ -119,6 +119,88 @@ BEGIN
 END;
 $grainline_conversation_listing_core$;
 
+CREATE OR REPLACE FUNCTION public.grainline_conversation_get_or_create_core(
+  p_conversation_id text,
+  p_user_a_id text,
+  p_user_b_id text,
+  p_context_listing_id text
+)
+RETURNS TABLE (
+  "conversationId" text,
+  created boolean,
+  "contextListingId" text
+)
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_conversation_get_or_create_core$
+DECLARE
+  existing record;
+BEGIN
+  IF p_conversation_id IS NULL
+     OR p_conversation_id !~
+       '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+     OR p_user_a_id IS NULL
+     OR p_user_b_id IS NULL
+     OR p_user_a_id >= p_user_b_id THEN
+    RAISE EXCEPTION 'canonical conversation source is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    913350,
+    pg_catalog.hashtext(p_user_a_id || ':' || p_user_b_id)
+  );
+
+  SELECT
+    conversation.id,
+    conversation."contextListingId"
+    INTO existing
+    FROM public."Conversation" AS conversation
+   WHERE conversation."userAId" = p_user_a_id
+     AND conversation."userBId" = p_user_b_id
+   FOR UPDATE;
+
+  IF FOUND THEN
+    IF p_context_listing_id IS NOT NULL
+       AND existing."contextListingId" IS NULL THEN
+      UPDATE public."Conversation" AS conversation
+         SET "contextListingId" = p_context_listing_id
+       WHERE conversation.id = existing.id
+         AND conversation."contextListingId" IS NULL;
+      existing."contextListingId" := p_context_listing_id;
+    END IF;
+    "conversationId" := existing.id;
+    created := false;
+    "contextListingId" := existing."contextListingId";
+    RETURN NEXT;
+    RETURN;
+  END IF;
+
+  INSERT INTO public."Conversation" (
+    id,
+    "userAId",
+    "userBId",
+    "contextListingId",
+    "createdAt",
+    "updatedAt"
+  ) VALUES (
+    p_conversation_id,
+    p_user_a_id,
+    p_user_b_id,
+    p_context_listing_id,
+    pg_catalog.clock_timestamp(),
+    pg_catalog.clock_timestamp()
+  );
+  "conversationId" := p_conversation_id;
+  created := true;
+  "contextListingId" := p_context_listing_id;
+  RETURN NEXT;
+END;
+$grainline_conversation_get_or_create_core$;
+
 CREATE OR REPLACE FUNCTION public.grainline_conversation_start(
   p_conversation_id text,
   p_actor_id text,
@@ -138,30 +220,19 @@ SET search_path = pg_catalog
 AS $grainline_conversation_start$
 DECLARE
   pair record;
-  existing record;
+  conversation_result record;
   valid_listing_id text;
 BEGIN
   IF pg_catalog.current_setting('transaction_isolation') <> 'read committed' THEN
     RAISE EXCEPTION 'conversation start requires read committed isolation'
       USING ERRCODE = '25001';
   END IF;
-  IF p_conversation_id IS NULL
-     OR p_conversation_id !~
-       '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' THEN
-    RAISE EXCEPTION 'conversation id is invalid' USING ERRCODE = '22023';
-  END IF;
-
   SELECT *
     INTO pair
     FROM public.grainline_conversation_lock_pair_core(
       p_actor_id,
       p_other_user_id
     );
-
-  PERFORM pg_catalog.pg_advisory_xact_lock(
-    913350,
-    pg_catalog.hashtext(pair.user_a_id || ':' || pair.user_b_id)
-  );
 
   valid_listing_id := public.grainline_conversation_listing_core(
     pair.user_a_id,
@@ -173,49 +244,17 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
-  SELECT
-    conversation.id,
-    conversation."contextListingId"
-    INTO existing
-    FROM public."Conversation" AS conversation
-   WHERE conversation."userAId" = pair.user_a_id
-     AND conversation."userBId" = pair.user_b_id
-   FOR UPDATE;
-
-  IF FOUND THEN
-    IF valid_listing_id IS NOT NULL
-       AND existing."contextListingId" IS NULL THEN
-      UPDATE public."Conversation" AS conversation
-         SET "contextListingId" = valid_listing_id
-       WHERE conversation.id = existing.id
-         AND conversation."contextListingId" IS NULL;
-      existing."contextListingId" := valid_listing_id;
-    END IF;
-    "conversationId" := existing.id;
-    created := false;
-    "contextListingId" := existing."contextListingId";
-    RETURN NEXT;
-    RETURN;
-  END IF;
-
-  INSERT INTO public."Conversation" (
-    id,
-    "userAId",
-    "userBId",
-    "contextListingId",
-    "createdAt",
-    "updatedAt"
-  ) VALUES (
+  SELECT *
+    INTO conversation_result
+    FROM public.grainline_conversation_get_or_create_core(
     p_conversation_id,
     pair.user_a_id,
     pair.user_b_id,
-    valid_listing_id,
-    pg_catalog.clock_timestamp(),
-    pg_catalog.clock_timestamp()
+    valid_listing_id
   );
-  "conversationId" := p_conversation_id;
-  created := true;
-  "contextListingId" := valid_listing_id;
+  "conversationId" := conversation_result."conversationId";
+  created := conversation_result.created;
+  "contextListingId" := conversation_result."contextListingId";
   RETURN NEXT;
 END;
 $grainline_conversation_start$;
@@ -554,11 +593,594 @@ BEGIN
 END;
 $grainline_conversation_claim_message_email$;
 
+CREATE OR REPLACE FUNCTION public.grainline_message_send_custom_request(
+  p_conversation_id text,
+  p_message_id text,
+  p_buyer_id text,
+  p_seller_id text,
+  p_description text,
+  p_dimensions text,
+  p_budget_cents integer,
+  p_timeline text,
+  p_listing_id text
+)
+RETURNS TABLE (
+  "conversationId" text,
+  "messageId" text,
+  "listingId" text,
+  "listingTitle" text
+)
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_message_send_custom_request$
+DECLARE
+  pair record;
+  seller_profile_id text;
+  valid_listing_id text;
+  listing_title text;
+  conversation_result record;
+  message_sent_at timestamp(3);
+BEGIN
+  IF pg_catalog.current_setting('transaction_isolation') <> 'read committed' THEN
+    RAISE EXCEPTION 'custom request requires read committed isolation'
+      USING ERRCODE = '25001';
+  END IF;
+  IF p_conversation_id IS NULL
+     OR p_conversation_id !~
+       '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+     OR p_message_id IS NULL
+     OR p_message_id !~
+       '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+     OR p_description IS NULL
+     OR p_description = ''
+     OR pg_catalog.char_length(p_description) > 500
+     OR pg_catalog.char_length(COALESCE(p_dimensions, '')) > 200
+     OR (
+       p_budget_cents IS NOT NULL
+       AND (p_budget_cents <= 0 OR p_budget_cents > 10000000)
+     )
+     OR p_timeline IS NOT NULL
+        AND p_timeline NOT IN ('no_rush', '2_months', '1_month', '2_weeks') THEN
+    RAISE EXCEPTION 'custom request input is invalid' USING ERRCODE = '22023';
+  END IF;
+
+  SELECT *
+    INTO pair
+    FROM public.grainline_conversation_lock_pair_core(
+      p_buyer_id,
+      p_seller_id
+    );
+
+  SELECT seller.id
+    INTO seller_profile_id
+    FROM public."SellerProfile" AS seller
+   WHERE seller."userId" = p_seller_id
+     AND seller."acceptsCustomOrders" = true
+     AND seller."acceptingNewOrders" = true
+     AND seller."stripeAccountId" IS NOT NULL
+     AND seller."chargesEnabled" = true
+     AND seller."vacationMode" = false
+     AND (
+       seller."stripeAccountVersion" IS NULL
+       OR seller."stripeAccountVersion" = 'v2'
+     )
+   FOR SHARE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'custom request seller is unavailable'
+      USING ERRCODE = '42501';
+  END IF;
+
+  valid_listing_id := NULL;
+  listing_title := NULL;
+  IF p_listing_id IS NOT NULL THEN
+    IF p_listing_id = '' OR pg_catalog.char_length(p_listing_id) > 191 THEN
+      RAISE EXCEPTION 'custom request listing is invalid'
+        USING ERRCODE = '22023';
+    END IF;
+    SELECT listing.id, listing.title::text
+      INTO valid_listing_id, listing_title
+      FROM public."Listing" AS listing
+     WHERE listing.id = p_listing_id
+       AND listing."sellerId" = seller_profile_id
+       AND listing.status = 'ACTIVE'::public."ListingStatus"
+       AND listing."isPrivate" = false
+     FOR SHARE;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'custom request listing is unavailable'
+        USING ERRCODE = '42501';
+    END IF;
+  END IF;
+
+  SELECT *
+    INTO conversation_result
+    FROM public.grainline_conversation_get_or_create_core(
+      p_conversation_id,
+      pair.user_a_id,
+      pair.user_b_id,
+      valid_listing_id
+    );
+
+  PERFORM conversation.id
+    FROM public."Conversation" AS conversation
+   WHERE conversation.id = conversation_result."conversationId"
+     AND conversation."userAId" = pair.user_a_id
+     AND conversation."userBId" = pair.user_b_id
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'custom request conversation changed'
+      USING ERRCODE = '40001';
+  END IF;
+
+  message_sent_at := pg_catalog.clock_timestamp();
+  INSERT INTO public."Message" (
+    id,
+    "conversationId",
+    "senderId",
+    "recipientId",
+    "contextListingId",
+    body,
+    kind,
+    "isSystemMessage",
+    "createdAt"
+  ) VALUES (
+    p_message_id,
+    conversation_result."conversationId",
+    p_buyer_id,
+    p_seller_id,
+    valid_listing_id,
+    pg_catalog.jsonb_build_object(
+      'description', p_description,
+      'dimensions', p_dimensions,
+      'budget', CASE
+        WHEN p_budget_cents IS NULL THEN NULL
+        ELSE p_budget_cents::numeric / 100
+      END,
+      'timeline', p_timeline,
+      'timelineLabel', CASE p_timeline
+        WHEN 'no_rush' THEN 'No rush (2+ months)'
+        WHEN '2_months' THEN 'Within 2 months'
+        WHEN '1_month' THEN 'Within 1 month'
+        WHEN '2_weeks' THEN 'Within 2 weeks'
+        ELSE NULL
+      END,
+      'listingId', valid_listing_id,
+      'listingTitle', listing_title
+    )::text,
+    'custom_order_request',
+    false,
+    message_sent_at
+  );
+
+  "conversationId" := conversation_result."conversationId";
+  "messageId" := p_message_id;
+  "listingId" := valid_listing_id;
+  "listingTitle" := listing_title;
+  RETURN NEXT;
+END;
+$grainline_message_send_custom_request$;
+
+CREATE OR REPLACE FUNCTION public.grainline_message_create_commission_interest(
+  p_conversation_id text,
+  p_message_id text,
+  p_interest_id text,
+  p_seller_user_id text,
+  p_commission_request_id text
+)
+RETURNS TABLE (
+  "conversationId" text,
+  "messageId" text,
+  "commissionInterestId" text,
+  "buyerUserId" text,
+  "commissionTitle" text,
+  "sellerDisplayName" text,
+  created boolean
+)
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_message_create_commission_interest$
+DECLARE
+  initial_buyer_id text;
+  pair record;
+  source_seller record;
+  source_commission record;
+  source_interest record;
+  conversation_result record;
+  message_sent_at timestamp(3);
+  interest_id text;
+BEGIN
+  IF pg_catalog.current_setting('transaction_isolation') <> 'read committed' THEN
+    RAISE EXCEPTION 'commission interest requires read committed isolation'
+      USING ERRCODE = '25001';
+  END IF;
+  IF p_conversation_id IS NULL
+     OR p_conversation_id !~
+       '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+     OR p_message_id IS NULL
+     OR p_message_id !~
+       '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+     OR p_interest_id IS NULL
+     OR p_interest_id !~
+       '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+     OR p_commission_request_id IS NULL
+     OR p_commission_request_id = ''
+     OR pg_catalog.char_length(p_commission_request_id) > 191 THEN
+    RAISE EXCEPTION 'commission interest input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT commission."buyerId"
+    INTO initial_buyer_id
+    FROM public."CommissionRequest" AS commission
+   WHERE commission.id = p_commission_request_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'commission request is unavailable'
+      USING ERRCODE = '42501';
+  END IF;
+
+  SELECT *
+    INTO pair
+    FROM public.grainline_conversation_lock_pair_core(
+      p_seller_user_id,
+      initial_buyer_id
+    );
+
+  SELECT
+    seller.id,
+    COALESCE(seller."displayName", seller_user.name, 'A maker')::text
+      AS display_name
+    INTO source_seller
+    FROM public."SellerProfile" AS seller
+    JOIN public."User" AS seller_user
+      ON seller_user.id = seller."userId"
+   WHERE seller."userId" = p_seller_user_id
+     AND seller."chargesEnabled" = true
+     AND seller."vacationMode" = false
+   FOR SHARE OF seller;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'commission seller is unavailable'
+      USING ERRCODE = '42501';
+  END IF;
+
+  SELECT
+    commission."buyerId",
+    commission.title::text,
+    commission."budgetMinCents",
+    commission."budgetMaxCents",
+    commission.timeline::text
+    INTO source_commission
+    FROM public."CommissionRequest" AS commission
+   WHERE commission.id = p_commission_request_id
+     AND commission."buyerId" = initial_buyer_id
+     AND commission.status = 'OPEN'::public."CommissionStatus"
+     AND (
+       commission."expiresAt" IS NULL
+       OR commission."expiresAt" > pg_catalog.clock_timestamp()
+     )
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'commission request is closed'
+      USING ERRCODE = '42501';
+  END IF;
+
+  SELECT interest.id, interest."conversationId"
+    INTO source_interest
+    FROM public."CommissionInterest" AS interest
+   WHERE interest."commissionRequestId" = p_commission_request_id
+     AND interest."sellerProfileId" = source_seller.id
+   FOR UPDATE;
+
+  IF FOUND AND source_interest."conversationId" IS NOT NULL THEN
+    PERFORM conversation.id
+      FROM public."Conversation" AS conversation
+     WHERE conversation.id = source_interest."conversationId"
+       AND conversation."userAId" = pair.user_a_id
+       AND conversation."userBId" = pair.user_b_id
+     FOR SHARE;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'commission interest conversation is invalid'
+        USING ERRCODE = '23514';
+    END IF;
+    "conversationId" := source_interest."conversationId";
+    "messageId" := NULL;
+    "commissionInterestId" := source_interest.id;
+    "buyerUserId" := source_commission."buyerId";
+    "commissionTitle" := source_commission.title;
+    "sellerDisplayName" := source_seller.display_name;
+    created := false;
+    RETURN NEXT;
+    RETURN;
+  END IF;
+
+  SELECT *
+    INTO conversation_result
+    FROM public.grainline_conversation_get_or_create_core(
+      p_conversation_id,
+      pair.user_a_id,
+      pair.user_b_id,
+      NULL
+    );
+
+  PERFORM conversation.id
+    FROM public."Conversation" AS conversation
+   WHERE conversation.id = conversation_result."conversationId"
+     AND conversation."userAId" = pair.user_a_id
+     AND conversation."userBId" = pair.user_b_id
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'commission conversation changed'
+      USING ERRCODE = '40001';
+  END IF;
+
+  IF source_interest.id IS NULL THEN
+    INSERT INTO public."CommissionInterest" (
+      id,
+      "commissionRequestId",
+      "sellerProfileId",
+      "conversationId",
+      "createdAt"
+    ) VALUES (
+      p_interest_id,
+      p_commission_request_id,
+      source_seller.id,
+      conversation_result."conversationId",
+      pg_catalog.clock_timestamp()
+    )
+    RETURNING id INTO interest_id;
+  ELSE
+    UPDATE public."CommissionInterest" AS interest
+       SET "conversationId" = conversation_result."conversationId"
+     WHERE interest.id = source_interest.id
+       AND interest."conversationId" IS NULL
+    RETURNING interest.id INTO interest_id;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'commission interest changed'
+        USING ERRCODE = '40001';
+    END IF;
+  END IF;
+
+  message_sent_at := pg_catalog.clock_timestamp();
+  INSERT INTO public."Message" (
+    id,
+    "conversationId",
+    "senderId",
+    "recipientId",
+    body,
+    kind,
+    "isSystemMessage",
+    "createdAt"
+  ) VALUES (
+    p_message_id,
+    conversation_result."conversationId",
+    p_seller_user_id,
+    source_commission."buyerId",
+    pg_catalog.jsonb_build_object(
+      'commissionId', p_commission_request_id,
+      'commissionTitle', source_commission.title,
+      'sellerName', source_seller.display_name,
+      'budgetMinCents', source_commission."budgetMinCents",
+      'budgetMaxCents', source_commission."budgetMaxCents",
+      'timeline', source_commission.timeline
+    )::text,
+    'commission_interest_card',
+    true,
+    message_sent_at
+  );
+
+  UPDATE public."CommissionRequest" AS commission
+     SET "interestedCount" = (
+       SELECT pg_catalog.count(*)::integer
+         FROM public."CommissionInterest" AS interest
+        WHERE interest."commissionRequestId" = p_commission_request_id
+     ),
+         "updatedAt" = message_sent_at
+   WHERE commission.id = p_commission_request_id;
+
+  "conversationId" := conversation_result."conversationId";
+  "messageId" := p_message_id;
+  "commissionInterestId" := interest_id;
+  "buyerUserId" := source_commission."buyerId";
+  "commissionTitle" := source_commission.title;
+  "sellerDisplayName" := source_seller.display_name;
+  created := true;
+  RETURN NEXT;
+END;
+$grainline_message_create_commission_interest$;
+
+CREATE OR REPLACE FUNCTION public.grainline_message_send_custom_order_ready(
+  p_message_id text,
+  p_seller_user_id text,
+  p_listing_id text
+)
+RETURNS TABLE (
+  "messageId" text,
+  "conversationId" text,
+  "sellerUserId" text,
+  "buyerUserId" text,
+  "listingId" text,
+  "listingTitle" text,
+  "priceCents" integer,
+  currency text,
+  "sellerName" text,
+  created boolean
+)
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_message_send_custom_order_ready$
+DECLARE
+  initial_source record;
+  pair record;
+  source_listing record;
+  existing_message_id text;
+  message_sent_at timestamp(3);
+BEGIN
+  IF pg_catalog.current_setting('transaction_isolation') <> 'read committed' THEN
+    RAISE EXCEPTION 'custom-order-ready requires read committed isolation'
+      USING ERRCODE = '25001';
+  END IF;
+  IF p_message_id IS NULL
+     OR p_message_id !~
+       '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+     OR p_listing_id IS NULL
+     OR p_listing_id = ''
+     OR pg_catalog.char_length(p_listing_id) > 191 THEN
+    RAISE EXCEPTION 'custom-order-ready input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT
+    seller."userId" AS seller_user_id,
+    listing."reservedForUserId" AS buyer_user_id,
+    listing."customOrderConversationId" AS conversation_id
+    INTO initial_source
+    FROM public."Listing" AS listing
+    JOIN public."SellerProfile" AS seller
+      ON seller.id = listing."sellerId"
+   WHERE listing.id = p_listing_id;
+  IF NOT FOUND
+     OR initial_source.seller_user_id <> p_seller_user_id
+     OR initial_source.buyer_user_id IS NULL
+     OR initial_source.conversation_id IS NULL THEN
+    RAISE EXCEPTION 'custom-order-ready source is unavailable'
+      USING ERRCODE = '42501';
+  END IF;
+
+  SELECT *
+    INTO pair
+    FROM public.grainline_conversation_lock_pair_core(
+      p_seller_user_id,
+      initial_source.buyer_user_id
+    );
+
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    913349,
+    pg_catalog.hashtext(p_listing_id)
+  );
+
+  SELECT
+    listing.id,
+    listing.title::text,
+    listing."priceCents",
+    listing.currency::text,
+    listing."customOrderConversationId" AS conversation_id,
+    seller."userId" AS seller_user_id,
+    listing."reservedForUserId" AS buyer_user_id,
+    seller."displayName"::text AS seller_name
+    INTO source_listing
+    FROM public."Listing" AS listing
+    JOIN public."SellerProfile" AS seller
+      ON seller.id = listing."sellerId"
+   WHERE listing.id = p_listing_id
+     AND listing.status = 'ACTIVE'::public."ListingStatus"
+     AND listing."isPrivate" = true
+     AND listing."reservedForUserId" = initial_source.buyer_user_id
+     AND listing."customOrderConversationId" = initial_source.conversation_id
+     AND seller."userId" = p_seller_user_id
+     AND seller."chargesEnabled" = true
+     AND seller."stripeAccountId" IS NOT NULL
+     AND (
+       seller."stripeAccountVersion" IS NULL
+       OR seller."stripeAccountVersion" = 'v2'
+     )
+     AND seller."vacationMode" = false
+   FOR SHARE OF listing, seller;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'custom-order-ready source changed'
+      USING ERRCODE = '42501';
+  END IF;
+
+  PERFORM conversation.id
+    FROM public."Conversation" AS conversation
+   WHERE conversation.id = source_listing.conversation_id
+     AND conversation."userAId" = pair.user_a_id
+     AND conversation."userBId" = pair.user_b_id
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'custom-order-ready conversation is invalid'
+      USING ERRCODE = '23514';
+  END IF;
+
+  SELECT message.id
+    INTO existing_message_id
+    FROM public."Message" AS message
+   WHERE message."conversationId" = source_listing.conversation_id
+     AND message."contextListingId" = source_listing.id
+     AND message.kind = 'custom_order_link'
+   ORDER BY message."createdAt", message.id
+   LIMIT 1;
+  IF FOUND THEN
+    "messageId" := existing_message_id;
+    "conversationId" := source_listing.conversation_id;
+    "sellerUserId" := source_listing.seller_user_id;
+    "buyerUserId" := source_listing.buyer_user_id;
+    "listingId" := source_listing.id;
+    "listingTitle" := source_listing.title;
+    "priceCents" := source_listing."priceCents";
+    currency := source_listing.currency;
+    "sellerName" := source_listing.seller_name;
+    created := false;
+    RETURN NEXT;
+    RETURN;
+  END IF;
+
+  message_sent_at := pg_catalog.clock_timestamp();
+  INSERT INTO public."Message" (
+    id,
+    "conversationId",
+    "senderId",
+    "recipientId",
+    "contextListingId",
+    body,
+    kind,
+    "isSystemMessage",
+    "createdAt"
+  ) VALUES (
+    p_message_id,
+    source_listing.conversation_id,
+    source_listing.seller_user_id,
+    source_listing.buyer_user_id,
+    source_listing.id,
+    pg_catalog.jsonb_build_object(
+      'listingId', source_listing.id,
+      'title', source_listing.title,
+      'priceCents', source_listing."priceCents",
+      'currency', source_listing.currency
+    )::text,
+    'custom_order_link',
+    true,
+    message_sent_at
+  );
+
+  "messageId" := p_message_id;
+  "conversationId" := source_listing.conversation_id;
+  "sellerUserId" := source_listing.seller_user_id;
+  "buyerUserId" := source_listing.buyer_user_id;
+  "listingId" := source_listing.id;
+  "listingTitle" := source_listing.title;
+  "priceCents" := source_listing."priceCents";
+  currency := source_listing.currency;
+  "sellerName" := source_listing.seller_name;
+  created := true;
+  RETURN NEXT;
+END;
+$grainline_message_send_custom_order_ready$;
+
 REVOKE ALL ON FUNCTION
   public.grainline_conversation_lock_pair_core(text, text)
   FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION
   public.grainline_conversation_listing_core(text, text, text)
+  FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION
+  public.grainline_conversation_get_or_create_core(text, text, text, text)
   FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION
   public.grainline_conversation_start(text, text, text, text)
@@ -574,6 +1196,19 @@ REVOKE ALL ON FUNCTION
   FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION
   public.grainline_conversation_claim_message_email(text, text)
+  FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION
+  public.grainline_message_send_custom_request(
+    text, text, text, text, text, text, integer, text, text
+  )
+  FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION
+  public.grainline_message_create_commission_interest(
+    text, text, text, text, text
+  )
+  FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION
+  public.grainline_message_send_custom_order_ready(text, text, text)
   FROM PUBLIC, grainline_app_runtime;
 
 GRANT EXECUTE ON FUNCTION
@@ -590,4 +1225,17 @@ GRANT EXECUTE ON FUNCTION
   TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION
   public.grainline_conversation_claim_message_email(text, text)
+  TO grainline_app_runtime;
+GRANT EXECUTE ON FUNCTION
+  public.grainline_message_send_custom_request(
+    text, text, text, text, text, text, integer, text, text
+  )
+  TO grainline_app_runtime;
+GRANT EXECUTE ON FUNCTION
+  public.grainline_message_create_commission_interest(
+    text, text, text, text, text
+  )
+  TO grainline_app_runtime;
+GRANT EXECUTE ON FUNCTION
+  public.grainline_message_send_custom_order_ready(text, text, text)
   TO grainline_app_runtime;

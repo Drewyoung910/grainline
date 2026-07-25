@@ -43,8 +43,9 @@ Conversation or Message row.
 
 ## Fixed write catalog still required before activation
 
-The first five functions are now drafted and must still pass disposable
-PostgreSQL behavior/race proof:
+The fixed participant/message functions and all three structured creation
+families are now drafted. They remain disposable proof SQL until the complete
+catalog, race suite and application conversion pass:
 
 1. `grainline_conversation_start`: canonical create/get Conversation with
    sorted User locks, reciprocal block recheck and optional source-valid
@@ -56,13 +57,17 @@ PostgreSQL behavior/race proof:
 4. `grainline_message_mark_read`: recipient-only mark-read.
 5. `grainline_conversation_claim_message_email`: source-Message-bound email
    throttle claim.
+6. `grainline_message_send_custom_request`: buyer-authored request with locked
+   seller state, optional public seller Listing, fixed kind and derived route.
+7. `grainline_message_create_commission_interest`: atomically creates the
+   CommissionInterest and its fixed system Message from the locked open
+   CommissionRequest and seller profile.
+8. `grainline_message_send_custom_order_ready`: derives its exact
+   seller/buyer/conversation/payload and replay identity from the locked
+   reserved private Listing.
 
-The remaining service families are still required:
+The remaining service families are:
 
-6. Buyer custom-order request with seller/listing source validation.
-7. CommissionInterest/CommissionRequest-bound system Message.
-8. Reserved private Listing-bound custom-order-ready Message with replay
-   prevention.
 9. Account-deletion media projection and fixed redaction bound to the deleting
    actor; no general body editor.
 10. Aggregate-only seller response metrics.

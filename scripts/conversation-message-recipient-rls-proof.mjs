@@ -37,6 +37,16 @@ const fixture = Object.freeze({
   startedConversationId: "11111111-1111-4111-8111-111111111111",
   sentMessageId: "22222222-2222-4222-8222-222222222222",
   replyMessageId: "33333333-3333-4333-8333-333333333333",
+  sellerProfileBId: "cm-recipient-rls-seller-b",
+  sellerProfileCId: "cm-recipient-rls-seller-c",
+  publicListingId: "cm-recipient-rls-listing-public",
+  privateListingId: "cm-recipient-rls-listing-private",
+  commissionRequestId: "cm-recipient-rls-commission",
+  customRequestMessageId: "99999999-9999-4999-8999-999999999999",
+  commissionInterestId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  commissionMessageId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+  commissionConversationCandidateId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+  customReadyMessageId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
 });
 
 const completedChecks = [];
@@ -101,7 +111,22 @@ async function cleanFixtures(owner) {
       fixture.messageCEId,
       fixture.sentMessageId,
       fixture.replyMessageId,
+      fixture.customRequestMessageId,
+      fixture.commissionMessageId,
+      fixture.customReadyMessageId,
     ]],
+  );
+  await owner.query(
+    'DELETE FROM public."CommissionInterest" WHERE id = $1',
+    [fixture.commissionInterestId],
+  );
+  await owner.query(
+    'DELETE FROM public."CommissionRequest" WHERE id = $1',
+    [fixture.commissionRequestId],
+  );
+  await owner.query(
+    'DELETE FROM public."Listing" WHERE id = ANY($1::text[])',
+    [[fixture.publicListingId, fixture.privateListingId]],
   );
   await owner.query(
     'DELETE FROM public."Conversation" WHERE id = ANY($1::text[])',
@@ -110,6 +135,10 @@ async function cleanFixtures(owner) {
       fixture.conversationCEId,
       fixture.startedConversationId,
     ]],
+  );
+  await owner.query(
+    'DELETE FROM public."SellerProfile" WHERE id = ANY($1::text[])',
+    [[fixture.sellerProfileBId, fixture.sellerProfileCId]],
   );
   await owner.query(
     'DELETE FROM public."User" WHERE id = ANY($1::text[])',
@@ -161,6 +190,58 @@ async function seedFixtures(owner) {
       fixture.userCId,
       fixture.userEId,
     ],
+  );
+  await owner.query(
+    `INSERT INTO public."SellerProfile" (
+       id, "userId", "displayName", "displayNameNormalized",
+       "stripeAccountId", "chargesEnabled", "stripeAccountVersion",
+       "acceptsCustomOrders", "acceptingNewOrders", "vacationMode",
+       "updatedAt"
+     ) VALUES
+       ($1, $3, 'Recipient B Workshop', 'recipient b workshop',
+        'acct_cm_recipient_b', true, 'v2', true, true, false,
+        pg_catalog.clock_timestamp()),
+       ($2, $4, 'Recipient C Workshop', 'recipient c workshop',
+        'acct_cm_recipient_c', true, 'v2', true, true, false,
+        pg_catalog.clock_timestamp())`,
+    [
+      fixture.sellerProfileBId,
+      fixture.sellerProfileCId,
+      fixture.userBId,
+      fixture.userCId,
+    ],
+  );
+  await owner.query(
+    `INSERT INTO public."Listing" (
+       id, "sellerId", title, description, "priceCents", currency,
+       status, "isPrivate", "reservedForUserId",
+       "customOrderConversationId", "createdAt", "updatedAt"
+     ) VALUES
+       ($1, $3, 'Public source listing', 'Disposable proof listing',
+        12500, 'usd', 'ACTIVE', false, NULL, NULL,
+        pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp()),
+       ($2, $3, 'Reserved source listing', 'Disposable private proof listing',
+        24500, 'usd', 'ACTIVE', true, $4, $5,
+        pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp())`,
+    [
+      fixture.publicListingId,
+      fixture.privateListingId,
+      fixture.sellerProfileBId,
+      fixture.userAId,
+      fixture.conversationABId,
+    ],
+  );
+  await owner.query(
+    `INSERT INTO public."CommissionRequest" (
+       id, "buyerId", title, description, status,
+       "budgetMinCents", "budgetMaxCents", timeline,
+       "createdAt", "updatedAt"
+     ) VALUES (
+       $1, $2, 'Commission source', 'Disposable commission proof',
+       'OPEN', 10000, 30000, 'Within 2 months',
+       pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp()
+     )`,
+    [fixture.commissionRequestId, fixture.userAId],
   );
   await owner.query(
     `INSERT INTO public."Message" (
@@ -281,11 +362,15 @@ async function proveCatalog(owner) {
          'grainline_conversation_pair',
          'grainline_conversation_lock_pair_core',
          'grainline_conversation_listing_core',
+         'grainline_conversation_get_or_create_core',
          'grainline_conversation_start',
          'grainline_message_send_ordinary',
          'grainline_conversation_set_archived',
          'grainline_message_mark_read',
          'grainline_conversation_claim_message_email',
+         'grainline_message_send_custom_request',
+         'grainline_message_create_commission_interest',
+         'grainline_message_send_custom_order_ready',
          'grainline_message_list',
          'grainline_message_unread_count',
          'grainline_message_latest_custom_request',
@@ -295,10 +380,11 @@ async function proveCatalog(owner) {
        )
      ORDER BY procedure.proname
   `);
-  assert.equal(functions.rows.length, 16);
+  assert.equal(functions.rows.length, 20);
   const privateFunctions = new Set([
     "grainline_conversation_lock_pair_core",
     "grainline_conversation_listing_core",
+    "grainline_conversation_get_or_create_core",
   ]);
   assert.equal(
     functions.rows.every((row) => (
@@ -311,12 +397,16 @@ async function proveCatalog(owner) {
     functions.rows.filter((row) => row.prosecdef).map((row) => row.proname),
     [
       "grainline_conversation_claim_message_email",
+      "grainline_conversation_get_or_create_core",
       "grainline_conversation_listing_core",
       "grainline_conversation_lock_pair_core",
       "grainline_conversation_set_archived",
       "grainline_conversation_staff_report_visible",
       "grainline_conversation_start",
+      "grainline_message_create_commission_interest",
       "grainline_message_mark_read",
+      "grainline_message_send_custom_order_ready",
+      "grainline_message_send_custom_request",
       "grainline_message_send_ordinary",
     ],
   );
@@ -636,6 +726,202 @@ async function proveRuntimeIsolation(owner) {
     );
     record("fixed_start_send_archive_mark_read_email_and_private_core_authority");
 
+    const customRequest = await runtime.query(
+      `SELECT * FROM public.grainline_message_send_custom_request(
+         'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+         $1, $2, $3, $4, $5, $6, $7, $8
+       )`,
+      [
+        fixture.customRequestMessageId,
+        fixture.userAId,
+        fixture.userBId,
+        "A source-bound walnut bench",
+        "48 x 16 x 18 inches",
+        12500,
+        "2_months",
+        fixture.publicListingId,
+      ],
+    );
+    assert.deepEqual(customRequest.rows, [{
+      conversationId: fixture.conversationABId,
+      messageId: fixture.customRequestMessageId,
+      listingId: fixture.publicListingId,
+      listingTitle: "Public source listing",
+    }]);
+    const customRequestRow = await owner.query(
+      `SELECT
+         "senderId", "recipientId", "contextListingId",
+         kind, "isSystemMessage", body::jsonb AS payload
+       FROM public."Message"
+       WHERE id = $1`,
+      [fixture.customRequestMessageId],
+    );
+    assert.equal(customRequestRow.rows[0].senderId, fixture.userAId);
+    assert.equal(customRequestRow.rows[0].recipientId, fixture.userBId);
+    assert.equal(customRequestRow.rows[0].contextListingId, fixture.publicListingId);
+    assert.equal(customRequestRow.rows[0].kind, "custom_order_request");
+    assert.equal(customRequestRow.rows[0].isSystemMessage, false);
+    assert.equal(customRequestRow.rows[0].payload.listingTitle, "Public source listing");
+    assert.equal(customRequestRow.rows[0].payload.timelineLabel, "Within 2 months");
+    assert.equal(Number(customRequestRow.rows[0].payload.budget), 125);
+
+    const commissionInterest = await runtime.query(
+      `SELECT * FROM public.grainline_message_create_commission_interest(
+         $1, $2, $3, $4, $5
+       )`,
+      [
+        fixture.commissionConversationCandidateId,
+        fixture.commissionMessageId,
+        fixture.commissionInterestId,
+        fixture.userCId,
+        fixture.commissionRequestId,
+      ],
+    );
+    assert.equal(commissionInterest.rows.length, 1);
+    assert.equal(
+      commissionInterest.rows[0].conversationId,
+      fixture.startedConversationId,
+    );
+    assert.equal(commissionInterest.rows[0].messageId, fixture.commissionMessageId);
+    assert.equal(
+      commissionInterest.rows[0].commissionInterestId,
+      fixture.commissionInterestId,
+    );
+    assert.equal(commissionInterest.rows[0].buyerUserId, fixture.userAId);
+    assert.equal(commissionInterest.rows[0].created, true);
+    const commissionRow = await owner.query(
+      `SELECT
+         message."senderId",
+         message."recipientId",
+         message.kind,
+         message."isSystemMessage",
+         message.body::jsonb AS payload,
+         interest."conversationId"
+       FROM public."Message" AS message
+       JOIN public."CommissionInterest" AS interest
+         ON interest.id = $2
+      WHERE message.id = $1`,
+      [fixture.commissionMessageId, fixture.commissionInterestId],
+    );
+    assert.equal(commissionRow.rows[0].senderId, fixture.userCId);
+    assert.equal(commissionRow.rows[0].recipientId, fixture.userAId);
+    assert.equal(commissionRow.rows[0].kind, "commission_interest_card");
+    assert.equal(commissionRow.rows[0].isSystemMessage, true);
+    assert.equal(
+      commissionRow.rows[0].payload.commissionId,
+      fixture.commissionRequestId,
+    );
+    assert.equal(
+      commissionRow.rows[0].conversationId,
+      fixture.startedConversationId,
+    );
+    const repeatedCommission = await runtime.query(
+      `SELECT * FROM public.grainline_message_create_commission_interest(
+         'ffffffff-ffff-4fff-8fff-ffffffffffff',
+         '12121212-1212-4121-8121-121212121212',
+         '13131313-1313-4131-8131-131313131313',
+         $1, $2
+       )`,
+      [fixture.userCId, fixture.commissionRequestId],
+    );
+    assert.equal(repeatedCommission.rows[0].created, false);
+    assert.equal(repeatedCommission.rows[0].messageId, null);
+    assert.equal(
+      repeatedCommission.rows[0].commissionInterestId,
+      fixture.commissionInterestId,
+    );
+
+    const customReady = await runtime.query(
+      `SELECT * FROM public.grainline_message_send_custom_order_ready(
+         $1, $2, $3
+       )`,
+      [
+        fixture.customReadyMessageId,
+        fixture.userBId,
+        fixture.privateListingId,
+      ],
+    );
+    assert.equal(customReady.rows.length, 1);
+    assert.equal(customReady.rows[0].messageId, fixture.customReadyMessageId);
+    assert.equal(customReady.rows[0].conversationId, fixture.conversationABId);
+    assert.equal(customReady.rows[0].sellerUserId, fixture.userBId);
+    assert.equal(customReady.rows[0].buyerUserId, fixture.userAId);
+    assert.equal(customReady.rows[0].listingId, fixture.privateListingId);
+    assert.equal(customReady.rows[0].created, true);
+    const customReadyRow = await owner.query(
+      `SELECT
+         "senderId", "recipientId", "contextListingId",
+         kind, "isSystemMessage", body::jsonb AS payload
+       FROM public."Message"
+       WHERE id = $1`,
+      [fixture.customReadyMessageId],
+    );
+    assert.equal(customReadyRow.rows[0].senderId, fixture.userBId);
+    assert.equal(customReadyRow.rows[0].recipientId, fixture.userAId);
+    assert.equal(customReadyRow.rows[0].contextListingId, fixture.privateListingId);
+    assert.equal(customReadyRow.rows[0].kind, "custom_order_link");
+    assert.equal(customReadyRow.rows[0].isSystemMessage, true);
+    assert.equal(customReadyRow.rows[0].payload.listingId, fixture.privateListingId);
+    assert.equal(customReadyRow.rows[0].payload.priceCents, 24500);
+    const repeatedReady = await runtime.query(
+      `SELECT * FROM public.grainline_message_send_custom_order_ready(
+         '14141414-1414-4141-8141-141414141414',
+         $1, $2
+       )`,
+      [fixture.userBId, fixture.privateListingId],
+    );
+    assert.equal(repeatedReady.rows[0].created, false);
+    assert.equal(repeatedReady.rows[0].messageId, fixture.customReadyMessageId);
+
+    await expectPgError(
+      () => runtime.query(
+        `SELECT * FROM public.grainline_message_send_custom_request(
+           '15151515-1515-4151-8151-151515151515',
+           '16161616-1616-4161-8161-161616161616',
+           $1, $2, 'forged source', NULL, NULL, NULL, $3
+         )`,
+        [fixture.userAId, fixture.userCId, fixture.publicListingId],
+      ),
+      ["42501"],
+      "custom request against another seller listing",
+    );
+    await expectPgError(
+      () => runtime.query(
+        `SELECT * FROM public.grainline_message_create_commission_interest(
+           '17171717-1717-4171-8171-171717171717',
+           '18181818-1818-4181-8181-181818181818',
+           '19191919-1919-4191-8191-191919191919',
+           $1, $2
+         )`,
+        [fixture.userEId, fixture.commissionRequestId],
+      ),
+      ["42501"],
+      "commission interest without an eligible seller source",
+    );
+    await expectPgError(
+      () => runtime.query(
+        `SELECT * FROM public.grainline_message_send_custom_order_ready(
+           '20202020-2020-4202-8202-202020202020',
+           $1, $2
+         )`,
+        [fixture.userCId, fixture.privateListingId],
+      ),
+      ["42501"],
+      "custom-order-ready from a forged seller",
+    );
+    await expectPgError(
+      () => runtime.query(
+        `SELECT * FROM public.grainline_conversation_get_or_create_core(
+           '21212121-2121-4212-8212-212121212121',
+           $1, $2, NULL
+         )`,
+        [fixture.userAId, fixture.userBId],
+      ),
+      ["42501"],
+      "direct runtime private conversation core execution",
+    );
+    record("structured_sources_payloads_routes_replays_and_private_core_authority");
+
     const staffVisible = await runtime.query(
       "SELECT * FROM public.grainline_conversation_get($1, $2)",
       [fixture.staffId, fixture.conversationABId],
@@ -647,7 +933,7 @@ async function proveRuntimeIsolation(owner) {
        )`,
       [fixture.staffId, fixture.conversationABId],
     );
-    assert.equal(staffMessages.rows.length, 2);
+    assert.equal(staffMessages.rows.length, 4);
 
     await owner.query(
       'UPDATE public."UserReport" SET resolved = true WHERE id = $1',
@@ -682,7 +968,7 @@ async function proveRuntimeIsolation(owner) {
       "SELECT public.grainline_message_unread_count($1) AS count",
       [fixture.userBId],
     );
-    assert.equal(Number(unreadBeforeBlock.rows[0].count), 1);
+    assert.equal(Number(unreadBeforeBlock.rows[0].count), 2);
     const inboxBeforeBlock = await runtime.query(
       `SELECT * FROM public.grainline_conversation_inbox(
          $1, false, '', NULL, NULL, 51
@@ -690,7 +976,7 @@ async function proveRuntimeIsolation(owner) {
       [fixture.userBId],
     );
     assert.equal(inboxBeforeBlock.rows.length, 1);
-    assert.equal(Number(inboxBeforeBlock.rows[0].unreadCount), 1);
+    assert.equal(Number(inboxBeforeBlock.rows[0].unreadCount), 2);
 
     await owner.query(
       `INSERT INTO public."Block" (id, "blockerId", "blockedId")
