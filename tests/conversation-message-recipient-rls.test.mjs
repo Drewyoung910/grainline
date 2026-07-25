@@ -10,6 +10,10 @@ const policySql = fs.readFileSync(
   "docs/rls-drafts/conversation-message-policies.sql",
   "utf8",
 );
+const serviceSql = fs.readFileSync(
+  "docs/rls-drafts/conversation-message-service-authority.sql",
+  "utf8",
+);
 const contract = fs.readFileSync(
   "docs/conversation-message-authority-contract.md",
   "utf8",
@@ -31,6 +35,13 @@ const recipientFunctions = [
   "grainline_message_report_target_valid",
   "grainline_message_export",
   "grainline_conversation_inbox",
+];
+const publicWriteFunctions = [
+  "grainline_conversation_start",
+  "grainline_message_send_ordinary",
+  "grainline_conversation_set_archived",
+  "grainline_message_mark_read",
+  "grainline_conversation_claim_message_email",
 ];
 
 describe("Conversation and Message recipient RLS draft", () => {
@@ -137,5 +148,37 @@ describe("Conversation and Message recipient RLS draft", () => {
     assert.match(proof, /direct runtime Message insert/);
     assert.match(proof, /direct runtime Conversation update/);
     assert.match(proof, /direct runtime Message delete/);
+  });
+
+  it("keeps ordinary write targets derived and private cores ungranted", () => {
+    for (const functionName of publicWriteFunctions) {
+      assert.match(serviceSql, new RegExp(`CREATE OR REPLACE FUNCTION public\\.${functionName}\\(`));
+      assert.match(serviceSql, new RegExp(`GRANT EXECUTE ON FUNCTION[\\s\\S]*public\\.${functionName}\\(`));
+      assert.match(contract, new RegExp(`\\b${functionName}\\b`));
+    }
+    assert.match(serviceSql, /grainline_conversation_lock_pair_core/);
+    assert.match(serviceSql, /grainline_conversation_listing_core/);
+    assert.match(
+      serviceSql,
+      /REVOKE ALL ON FUNCTION[\s\S]*grainline_conversation_lock_pair_core[\s\S]*FROM PUBLIC, grainline_app_runtime/,
+    );
+    assert.match(
+      serviceSql,
+      /REVOKE ALL ON FUNCTION[\s\S]*grainline_conversation_listing_core[\s\S]*FROM PUBLIC, grainline_app_runtime/,
+    );
+    assert.doesNotMatch(
+      serviceSql,
+      /GRANT EXECUTE ON FUNCTION\s+public\.grainline_conversation_(?:lock_pair|listing)_core\s*\(/,
+    );
+    assert.match(serviceSql, /p_kind IS NOT NULL AND p_kind <> 'file'/);
+    assert.match(serviceSql, /parsed_file->>'kind' <> 'file'/);
+    assert.match(serviceSql, /"recipientId" := CASE/);
+    assert.match(serviceSql, /"isSystemMessage",[\s\S]*false,/);
+    assert.match(serviceSql, /FOR SHARE;[\s\S]*Block/);
+    assert.match(serviceSql, /FOR UPDATE;[\s\S]*"sentAt" := pg_catalog\.clock_timestamp\(\)/);
+    assert.match(serviceSql, /source_message\."createdAt" - interval '5 minutes'/);
+    assert.doesNotMatch(serviceSql, /\bEXECUTE\s+FORMAT\b/i);
+    assert.doesNotMatch(serviceSql, /\bAS\s+(?:constraint|current_user|session_user|table|user)\b/i);
+    assert.doesNotMatch(serviceSql, /pg_catalog\.(?:greatest|least|coalesce|nullif)/i);
   });
 });

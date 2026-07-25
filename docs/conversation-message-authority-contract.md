@@ -43,19 +43,29 @@ Conversation or Message row.
 
 ## Fixed write catalog still required before activation
 
-1. Canonical create/get Conversation with sorted User locks, reciprocal block
-   recheck and optional source-valid Listing context.
-2. Ordinary text/file send deriving recipient, kind/system fields, Message
-   time and thread state after the exact Conversation lock.
-3. Participant-only archive/unarchive and recipient-only mark-read.
-4. Source-Message-bound email throttle claim.
-5. Buyer custom-order request with seller/listing source validation.
-6. CommissionInterest/CommissionRequest-bound system Message.
-7. Reserved private Listing-bound custom-order-ready Message with replay
+The first five functions are now drafted and must still pass disposable
+PostgreSQL behavior/race proof:
+
+1. `grainline_conversation_start`: canonical create/get Conversation with
+   sorted User locks, reciprocal block recheck and optional source-valid
+   Listing context.
+2. `grainline_message_send_ordinary`: ordinary text/file send deriving
+   recipient, kind/system fields, Message time and thread state after the exact
+   Conversation lock.
+3. `grainline_conversation_set_archived`: participant-only archive/unarchive.
+4. `grainline_message_mark_read`: recipient-only mark-read.
+5. `grainline_conversation_claim_message_email`: source-Message-bound email
+   throttle claim.
+
+The remaining service families are still required:
+
+6. Buyer custom-order request with seller/listing source validation.
+7. CommissionInterest/CommissionRequest-bound system Message.
+8. Reserved private Listing-bound custom-order-ready Message with replay
    prevention.
-8. Account-deletion media projection and fixed redaction bound to the deleting
+9. Account-deletion media projection and fixed redaction bound to the deleting
    actor; no general body editor.
-9. Aggregate-only seller response metrics.
+10. Aggregate-only seller response metrics.
 
 The caller may necessarily provide user-authored body/attachment content, but
 may never choose a recipient, structured authority kind, system flag, canonical

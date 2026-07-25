@@ -15,6 +15,10 @@ const policySql = fs.readFileSync(
   "docs/rls-drafts/conversation-message-policies.sql",
   "utf8",
 );
+const serviceSql = fs.readFileSync(
+  "docs/rls-drafts/conversation-message-service-authority.sql",
+  "utf8",
+);
 
 const fixture = Object.freeze({
   userAId: "cm-recipient-rls-a",
@@ -29,6 +33,10 @@ const fixture = Object.freeze({
   messageCEId: "cm-recipient-rls-message-ce",
   reportId: "cm-recipient-rls-report",
   blockId: "cm-recipient-rls-block",
+  serviceBlockId: "cm-recipient-rls-service-block",
+  startedConversationId: "11111111-1111-4111-8111-111111111111",
+  sentMessageId: "22222222-2222-4222-8222-222222222222",
+  replyMessageId: "33333333-3333-4333-8333-333333333333",
 });
 
 const completedChecks = [];
@@ -78,8 +86,8 @@ async function expectPgError(operation, expectedCodes, label) {
 
 async function cleanFixtures(owner) {
   await owner.query(
-    'DELETE FROM public."Block" WHERE id = $1',
-    [fixture.blockId],
+    'DELETE FROM public."Block" WHERE id = ANY($1::text[])',
+    [[fixture.blockId, fixture.serviceBlockId]],
   );
   await owner.query(
     'DELETE FROM public."UserReport" WHERE id = $1',
@@ -87,11 +95,21 @@ async function cleanFixtures(owner) {
   );
   await owner.query(
     'DELETE FROM public."Message" WHERE id = ANY($1::text[])',
-    [[fixture.messageAB1Id, fixture.messageAB2Id, fixture.messageCEId]],
+    [[
+      fixture.messageAB1Id,
+      fixture.messageAB2Id,
+      fixture.messageCEId,
+      fixture.sentMessageId,
+      fixture.replyMessageId,
+    ]],
   );
   await owner.query(
     'DELETE FROM public."Conversation" WHERE id = ANY($1::text[])',
-    [[fixture.conversationABId, fixture.conversationCEId]],
+    [[
+      fixture.conversationABId,
+      fixture.conversationCEId,
+      fixture.startedConversationId,
+    ]],
   );
   await owner.query(
     'DELETE FROM public."User" WHERE id = ANY($1::text[])',
@@ -178,8 +196,9 @@ async function seedFixtures(owner) {
 
 async function applyDraft(owner) {
   await owner.query(recipientSql);
+  await owner.query(serviceSql);
   await owner.query(policySql);
-  record("recipient_functions_and_select_only_policies_applied");
+  record("recipient_and_fixed_write_functions_with_select_only_policies_applied");
 }
 
 async function proveCatalog(owner) {
@@ -260,6 +279,13 @@ async function proveCatalog(owner) {
          'grainline_conversation_staff_report_visible',
          'grainline_conversation_get',
          'grainline_conversation_pair',
+         'grainline_conversation_lock_pair_core',
+         'grainline_conversation_listing_core',
+         'grainline_conversation_start',
+         'grainline_message_send_ordinary',
+         'grainline_conversation_set_archived',
+         'grainline_message_mark_read',
+         'grainline_conversation_claim_message_email',
          'grainline_message_list',
          'grainline_message_unread_count',
          'grainline_message_latest_custom_request',
@@ -269,12 +295,30 @@ async function proveCatalog(owner) {
        )
      ORDER BY procedure.proname
   `);
-  assert.equal(functions.rows.length, 9);
-  assert.equal(functions.rows.every((row) => row.runtime_can_execute), true);
-  assert.equal(functions.rows.every((row) => row.public_execute_revoked), true);
+  assert.equal(functions.rows.length, 16);
+  const privateFunctions = new Set([
+    "grainline_conversation_lock_pair_core",
+    "grainline_conversation_listing_core",
+  ]);
   assert.equal(
-    functions.rows.filter((row) => row.prosecdef).map((row) => row.proname).join(","),
-    "grainline_conversation_staff_report_visible",
+    functions.rows.every((row) => (
+      row.runtime_can_execute === !privateFunctions.has(row.proname)
+    )),
+    true,
+  );
+  assert.equal(functions.rows.every((row) => row.public_execute_revoked), true);
+  assert.deepEqual(
+    functions.rows.filter((row) => row.prosecdef).map((row) => row.proname),
+    [
+      "grainline_conversation_claim_message_email",
+      "grainline_conversation_listing_core",
+      "grainline_conversation_lock_pair_core",
+      "grainline_conversation_set_archived",
+      "grainline_conversation_staff_report_visible",
+      "grainline_conversation_start",
+      "grainline_message_mark_read",
+      "grainline_message_send_ordinary",
+    ],
   );
   assert.equal(
     functions.rows.every((row) => (
@@ -412,6 +456,185 @@ async function proveRuntimeIsolation(owner) {
       "direct runtime Message delete",
     );
     record("participant_isolation_context_reset_and_direct_write_denial");
+
+    const started = await runtime.query(
+      `SELECT * FROM public.grainline_conversation_start(
+         $1, $2, $3, NULL
+       )`,
+      [fixture.startedConversationId, fixture.userAId, fixture.userCId],
+    );
+    assert.deepEqual(started.rows, [{
+      conversationId: fixture.startedConversationId,
+      created: true,
+      contextListingId: null,
+    }]);
+    const startedAgain = await runtime.query(
+      `SELECT * FROM public.grainline_conversation_start(
+         $1, $2, $3, NULL
+       )`,
+      [
+        "44444444-4444-4444-8444-444444444444",
+        fixture.userCId,
+        fixture.userAId,
+      ],
+    );
+    assert.deepEqual(startedAgain.rows, [{
+      conversationId: fixture.startedConversationId,
+      created: false,
+      contextListingId: null,
+    }]);
+
+    const sent = await runtime.query(
+      `SELECT * FROM public.grainline_message_send_ordinary(
+         $1, $2, $3, $4, NULL, NULL
+       )`,
+      [
+        fixture.sentMessageId,
+        fixture.userAId,
+        fixture.startedConversationId,
+        "service-authority hello",
+      ],
+    );
+    assert.equal(sent.rows.length, 1);
+    assert.equal(sent.rows[0].messageId, fixture.sentMessageId);
+    assert.equal(sent.rows[0].recipientId, fixture.userCId);
+    assert.equal(sent.rows[0].firstResponseSet, false);
+
+    const archived = await runtime.query(
+      "SELECT public.grainline_conversation_set_archived($1, $2, true) AS changed",
+      [fixture.userAId, fixture.startedConversationId],
+    );
+    assert.equal(archived.rows[0].changed, true);
+    const archivedState = await owner.query(
+      `SELECT "archivedAAt", "archivedBAt"
+         FROM public."Conversation"
+        WHERE id = $1`,
+      [fixture.startedConversationId],
+    );
+    assert.ok(archivedState.rows[0].archivedAAt instanceof Date);
+    assert.equal(archivedState.rows[0].archivedBAt, null);
+
+    const reply = await runtime.query(
+      `SELECT * FROM public.grainline_message_send_ordinary(
+         $1, $2, $3, $4, NULL, NULL
+       )`,
+      [
+        fixture.replyMessageId,
+        fixture.userCId,
+        fixture.startedConversationId,
+        "service-authority reply",
+      ],
+    );
+    assert.equal(reply.rows.length, 1);
+    assert.equal(reply.rows[0].recipientId, fixture.userAId);
+    assert.equal(reply.rows[0].firstResponseSet, true);
+    const reopenedState = await owner.query(
+      `SELECT "archivedAAt", "archivedBAt", "firstResponseAt"
+         FROM public."Conversation"
+        WHERE id = $1`,
+      [fixture.startedConversationId],
+    );
+    assert.equal(reopenedState.rows[0].archivedAAt, null);
+    assert.equal(reopenedState.rows[0].archivedBAt, null);
+    assert.ok(reopenedState.rows[0].firstResponseAt instanceof Date);
+
+    const markedC = await runtime.query(
+      "SELECT public.grainline_message_mark_read($1, $2) AS count",
+      [fixture.userCId, fixture.startedConversationId],
+    );
+    assert.equal(markedC.rows[0].count, 1);
+    const markedA = await runtime.query(
+      "SELECT public.grainline_message_mark_read($1, $2) AS count",
+      [fixture.userAId, fixture.startedConversationId],
+    );
+    assert.equal(markedA.rows[0].count, 1);
+    const readRows = await owner.query(
+      `SELECT id, "readAt"
+         FROM public."Message"
+        WHERE id = ANY($1::text[])
+        ORDER BY id`,
+      [[fixture.sentMessageId, fixture.replyMessageId]],
+    );
+    assert.equal(readRows.rows.every((row) => row.readAt instanceof Date), true);
+
+    const claimedEmail = await runtime.query(
+      `SELECT public.grainline_conversation_claim_message_email(
+         $1, $2
+       ) AS claimed`,
+      [fixture.userCId, fixture.replyMessageId],
+    );
+    assert.equal(claimedEmail.rows[0].claimed, true);
+    const repeatedEmail = await runtime.query(
+      `SELECT public.grainline_conversation_claim_message_email(
+         $1, $2
+       ) AS claimed`,
+      [fixture.userCId, fixture.replyMessageId],
+    );
+    assert.equal(repeatedEmail.rows[0].claimed, false);
+
+    await expectPgError(
+      () => runtime.query(
+        `SELECT * FROM public.grainline_message_send_ordinary(
+           '55555555-5555-4555-8555-555555555555',
+           $1, $2, 'forged kind', 'custom_order_link', NULL
+         )`,
+        [fixture.userAId, fixture.startedConversationId],
+      ),
+      ["22023"],
+      "caller-selected structured Message kind",
+    );
+    await expectPgError(
+      () => runtime.query(
+        `SELECT * FROM public.grainline_message_send_ordinary(
+           '66666666-6666-4666-8666-666666666666',
+           $1, $2, '{"kind":"file"}', 'file', NULL
+         )`,
+        [fixture.userAId, fixture.startedConversationId],
+      ),
+      ["22023"],
+      "incomplete file Message payload",
+    );
+    await expectPgError(
+      () => runtime.query(
+        "SELECT * FROM public.grainline_conversation_lock_pair_core($1, $2)",
+        [fixture.userAId, fixture.userBId],
+      ),
+      ["42501"],
+      "direct runtime private pair core execution",
+    );
+    await expectPgError(
+      () => runtime.query(
+        `SELECT * FROM public.grainline_message_send_ordinary(
+           '77777777-7777-4777-8777-777777777777',
+           $1, $2, 'not a participant', NULL, NULL
+         )`,
+        [fixture.userBId, fixture.startedConversationId],
+      ),
+      ["42501"],
+      "nonparticipant ordinary send",
+    );
+
+    await owner.query(
+      `INSERT INTO public."Block" (id, "blockerId", "blockedId")
+       VALUES ($1, $2, $3)`,
+      [fixture.serviceBlockId, fixture.userAId, fixture.userCId],
+    );
+    await expectPgError(
+      () => runtime.query(
+        `SELECT * FROM public.grainline_message_send_ordinary(
+           '88888888-8888-4888-8888-888888888888',
+           $1, $2, 'blocked send', NULL, NULL
+         )`,
+        [fixture.userAId, fixture.startedConversationId],
+      ),
+      ["42501"],
+      "blocked ordinary send",
+    );
+    await owner.query(
+      'DELETE FROM public."Block" WHERE id = $1',
+      [fixture.serviceBlockId],
+    );
+    record("fixed_start_send_archive_mark_read_email_and_private_core_authority");
 
     const staffVisible = await runtime.query(
       "SELECT * FROM public.grainline_conversation_get($1, $2)",
