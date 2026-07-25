@@ -358,8 +358,8 @@ export const CONVERSATION_MESSAGE_LEGACY_COUNTS_SQL = `
             OR (
               CASE
                 WHEN pg_catalog.pg_input_is_valid(
-                  message.body,
-                  'jsonb'::pg_catalog.regtype
+                  message.body::text,
+                  'jsonb'
                 )
                   THEN (message.body::jsonb)->>'listingId'
                 ELSE NULL
@@ -387,8 +387,8 @@ export const CONVERSATION_MESSAGE_LEGACY_COUNTS_SQL = `
                AND (
                  CASE
                    WHEN pg_catalog.pg_input_is_valid(
-                     message.body,
-                     'jsonb'::pg_catalog.regtype
+                     message.body::text,
+                     'jsonb'
                    )
                      THEN (message.body::jsonb)->>'commissionId'
                    ELSE NULL
@@ -412,8 +412,8 @@ export const CONVERSATION_MESSAGE_LEGACY_COUNTS_SQL = `
               AND (
                 CASE
                   WHEN pg_catalog.pg_input_is_valid(
-                    message.body,
-                    'jsonb'::pg_catalog.regtype
+                    message.body::text,
+                    'jsonb'
                   )
                     THEN (message.body::jsonb)->>'commissionId'
                   ELSE NULL
@@ -439,8 +439,8 @@ export const CONVERSATION_MESSAGE_LEGACY_COUNTS_SQL = `
                AND (
                  CASE
                    WHEN pg_catalog.pg_input_is_valid(
-                     message.body,
-                     'jsonb'::pg_catalog.regtype
+                     message.body::text,
+                     'jsonb'
                    )
                      THEN (message.body::jsonb)->>'commissionId'
                    ELSE NULL

@@ -131,8 +131,9 @@ describe("Conversation and Message legacy inspection operator", () => {
     assert.match(source, /orphan_unresolved_thread_report_count/);
     assert.match(
       CONVERSATION_MESSAGE_LEGACY_COUNTS_SQL,
-      /pg_catalog\.pg_input_is_valid/,
+      /pg_catalog\.pg_input_is_valid\(\s*message\.body::text,\s*'jsonb'\s*\)/,
     );
+    assert.doesNotMatch(CONVERSATION_MESSAGE_LEGACY_COUNTS_SQL, /pg_catalog\.regtype/);
     assert.doesNotMatch(
       CONVERSATION_MESSAGE_LEGACY_COUNTS_SQL,
       /body::jsonb\)->>'(?:listingId|commissionId)'\s+(?:=|IS DISTINCT FROM)/,

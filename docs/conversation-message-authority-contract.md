@@ -84,6 +84,12 @@ inspection query in a fresh disposable proof, run that inspection through its
 protected production workflow, convert the application to the fixed catalog,
 and review the catalog again as a set before activation.
 
+The first exact-query proof at `fb0e8dcb` is retained as failed GitHub Actions
+run `30180176533`: PostgreSQL 16 rejected an incorrect `regtype` argument to
+`pg_input_is_valid` with `42883`. No persistent database was touched. The
+candidate now passes text arguments to the catalog function and requires a
+fresh full proof; the failed run is not reinterpreted as passing evidence.
+
 ## Cross-group dependencies to retain
 
 - `grainline_message_create_commission_interest` is the atomic writer for both
@@ -102,6 +108,16 @@ and review the catalog again as a set before activation.
   separately reviewed fixed source functions. Conversation/Message activation
   must re-run Notification FORCE equivalence, but it must not grant Notification
   or runtime a general message bypass.
+- Recipient inbox/unread projections currently join User, Block, Listing and
+  Photo under `SECURITY INVOKER`; the exact reported-staff predicate reads User
+  and UserReport under its narrow boolean-only definer boundary. Later RLS or
+  grant narrowing for any of those tables must preserve these projections with
+  a reviewed narrow interface. Do not solve the dependency by giving the
+  runtime broad cross-table read authority.
+- Every send/start family relies on the sorted User-pair lock protocol shared
+  with `blockMutationAccess.ts`. Later User or Block write-authority work must
+  preserve the same lock ordering, including account deletion, or repeat all
+  block/send and deletion/send race proofs.
 
 The caller may necessarily provide user-authored body/attachment content, but
 may never choose a recipient, structured authority kind, system flag, canonical
