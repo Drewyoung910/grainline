@@ -72,5 +72,8 @@ describe("Conversation/Message production invariant postflight", () => {
       source,
       /\bAS\s+(?:constraint|current_user|session_user|table|user)\b/i,
     );
+    assert.doesNotMatch(source, /\.toISOString\(\)/);
+    assert.match(source, /matches_message_created_at/);
+    assert.match(source, /pg_catalog\.to_char\(/);
   });
 });

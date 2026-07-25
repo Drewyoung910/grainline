@@ -337,15 +337,24 @@ async function proveRollbackOnlyRuntimeWrites(client, fixture) {
       ],
     );
     const parent = await client.query(
-      `SELECT "updatedAt", "archivedAAt", "archivedBAt"
-         FROM public."Conversation"
-        WHERE id = $1`,
-      [fixture.conversationId],
+      `SELECT conversation_state."updatedAt" = message_state."createdAt"
+                AS matches_message_created_at,
+              pg_catalog.to_char(
+                conversation_state."updatedAt",
+                'YYYY-MM-DD"T"HH24:MI:SS.MS'
+              ) AS updated_at_text,
+              conversation_state."archivedAAt",
+              conversation_state."archivedBAt"
+         FROM public."Conversation" AS conversation_state
+         JOIN public."Message" AS message_state
+           ON message_state.id = $2
+          AND message_state."conversationId" = conversation_state.id
+        WHERE conversation_state.id = $1`,
+      [fixture.conversationId, fixture.messageId],
     );
-    assert.equal(
-      parent.rows[0].updatedAt.toISOString(),
-      "2026-01-02T00:00:00.000Z",
-    );
+    assert.equal(parent.rows.length, 1);
+    assert.equal(parent.rows[0].matches_message_created_at, true);
+    assert.equal(parent.rows[0].updated_at_text, "2026-01-02T00:00:00.000");
     assert.equal(parent.rows[0].archivedAAt, null);
     assert.equal(parent.rows[0].archivedBAt, null);
 
