@@ -104,9 +104,12 @@ describe("cron and public route hardening", () => {
     assert.match(workflow, /UPLOAD_VERIFICATION_SECRET: ci-upload-verification-secret/);
     assert.match(workflow, /HEALTH_CHECK_TOKEN: ci-health-check-token/);
     assert.match(workflow, /EMAIL_OUTBOX_DAILY_LIMIT: "100"/);
-    assert.match(workflow, /npm audit --audit-level=high/);
+    assert.match(workflow, /npm run audit:dependencies/);
     assert.doesNotMatch(workflow, /continue-on-error:\s*true/);
-    assert.match(docs, /High-severity dependency advisories are blocking/);
+    assert.match(
+      docs,
+      /High\/critical production advisories and all unreviewed high\/critical development advisories are blocking/,
+    );
   });
 
   it("keeps fail-open rate limits limited to telemetry and diagnostics", () => {

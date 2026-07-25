@@ -858,6 +858,16 @@ Follow-up fix from this pass:
 - **Hardened 2026-05-18:** message-thread body media rendering now requires `isTrustedMediaUrl()` before turning bare URLs or parsed file-message URLs into image/PDF/download bubbles. Arbitrary external `https://...jpg/pdf` message text remains plain text, while trusted Grainline/legacy media continues rendering as attachments. Regression coverage lives in `tests/rendering-security.test.mjs`.
 - **Documented 2026-05-18:** security/runtime documentation now reflects the resolved `next@16.2.6` runtime and the actual `Cross-Origin-Opener-Policy: same-origin-allow-popups` header used for Clerk/Stripe popup compatibility. Regression coverage lives in `tests/verified-audit-followups.test.mjs`.
 
+## Dependency security refresh (2026-07-25)
+
+- GitHub Actions run `30174843104` first proved the Conversation/Message PostgreSQL invariants, grant convergence, TypeScript, lint, and tests, then failed at the independent dependency-audit step because advisories published after the last green `main` run affected the unchanged lockfile. This is repository-wide security drift, not an RLS proof failure.
+- `next` moved from `16.2.6` to `16.2.12`. Grainline uses App Router Server Actions, so GHSA-m99w-x7hq-7vfj is reachable; GitHub documents no workaround other than upgrading. Other July 2026 Next advisories are patched by the same update.
+- `postcss` moved from `8.5.10` to `8.5.23` in both the direct development dependency and the npm override. The resolved tree must contain exactly one PostCSS installation.
+- Direct Prisma packages remain aligned at `7.9.0`. The compatible `@prisma/dev@0.24.16` override resolves `find-my-way@9.7.0`, and `valibot@1.4.2` closes the remaining Prisma development-tool advisory without changing Prisma's direct minor.
+- A proposed global `brace-expansion@5.0.8` override was rejected after verification: ESLint's `minimatch@3` expects the older callable CommonJS API and lint failed with `TypeError: expand is not a function`. The override is not retained.
+- `scripts/audit-dependencies.mjs` runs both production-only and full audits. High/critical production vulnerabilities always fail. The full audit permits only GHSA-mh99-v99m-4gvg through development-only ESLint paths; every other high/critical advisory fails. Remove this exact exception once upstream ESLint consumers accept a patched compatible dependency.
+- No dependency fix is merged or deployed merely because this record exists. Full tests, lint, TypeScript, production build, and CI remain required.
+
 Open work:
 
 - Continue with abuse/volume economics and any new Claude-proposed findings added to `audit_open_findings.md`; treat those entries as suspected until locally reproduced.

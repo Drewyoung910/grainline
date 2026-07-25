@@ -47,6 +47,43 @@ describe("dependency hygiene guardrails", () => {
     assert.equal(lock.packages?.["node_modules/prisma"]?.version, expectedLockVersion);
   });
 
+  it("keeps reviewed security patches resolved without splitting core package lines", () => {
+    const pkg = json("package.json");
+    const lock = json("package-lock.json");
+    const postcssInstalls = Object.entries(lock.packages ?? {})
+      .filter(([path]) => path === "node_modules/postcss" || path.endsWith("/node_modules/postcss"))
+      .map(([path, entry]) => [path, entry.version]);
+
+    assert.equal(pkg.dependencies?.next, "^16.2.12");
+    assert.equal(lock.packages?.["node_modules/next"]?.version, "16.2.12");
+    assert.equal(pkg.devDependencies?.["eslint-config-next"], "^16.2.12");
+    assert.equal(lock.packages?.["node_modules/eslint-config-next"]?.version, "16.2.12");
+
+    assert.equal(pkg.devDependencies?.postcss, "8.5.23");
+    assert.equal(pkg.overrides?.postcss, "8.5.23");
+    assert.deepEqual(postcssInstalls, [["node_modules/postcss", "8.5.23"]]);
+
+    assert.equal(pkg.overrides?.["@prisma/dev"], "0.24.16");
+    assert.equal(lock.packages?.["node_modules/@prisma/dev"]?.version, "0.24.16");
+    assert.equal(lock.packages?.["node_modules/find-my-way"]?.version, "9.7.0");
+    assert.equal(pkg.overrides?.valibot, "1.4.2");
+    assert.equal(lock.packages?.["node_modules/valibot"]?.version, "1.4.2");
+  });
+
+  it("keeps the dependency audit exception exact, development-only, and fail-closed", () => {
+    const pkg = json("package.json");
+    const workflow = source(".github/workflows/ci.yml");
+    const auditScript = source("scripts/audit-dependencies.mjs");
+
+    assert.equal(pkg.scripts?.["audit:dependencies"], "node scripts/audit-dependencies.mjs");
+    assert.match(workflow, /npm run audit:dependencies/);
+    assert.match(auditScript, /runAudit\(\["--omit=dev"\]\)/);
+    assert.match(auditScript, /GHSA-mh99-v99m-4gvg/);
+    assert.match(auditScript, /REVIEWED_DEV_ONLY_PACKAGES/);
+    assert.match(auditScript, /Unreviewed high\/critical dependency advisories/);
+    assert.equal(pkg.overrides?.["brace-expansion"], undefined);
+  });
+
   it("keeps every Sharp install on the reviewed patched line", () => {
     const pkg = json("package.json");
     const lock = json("package-lock.json");
