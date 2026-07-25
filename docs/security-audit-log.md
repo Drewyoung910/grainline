@@ -866,7 +866,16 @@ Follow-up fix from this pass:
 - Direct Prisma packages remain aligned at `7.9.0`. The compatible `@prisma/dev@0.24.16` override resolves `find-my-way@9.7.0`, and `valibot@1.4.2` closes the remaining Prisma development-tool advisory without changing Prisma's direct minor.
 - A proposed global `brace-expansion@5.0.8` override was rejected after verification: ESLint's `minimatch@3` expects the older callable CommonJS API and lint failed with `TypeError: expand is not a function`. The override is not retained.
 - `scripts/audit-dependencies.mjs` runs both production-only and full audits. High/critical production vulnerabilities always fail. The full audit permits only GHSA-mh99-v99m-4gvg through development-only ESLint paths; every other high/critical advisory fails. Remove this exact exception once upstream ESLint consumers accept a patched compatible dependency.
-- No dependency fix is merged or deployed merely because this record exists. Full tests, lint, TypeScript, production build, and CI remain required.
+- Production release accepted on 2026-07-25:
+  - Dependency patch commit: `50ef609bbb747070cbb57bc469c2e99831ffc302`.
+  - Exact merged `main` commit: `1a7904852eb751f086eb048a0e83aa3627dfaa1d`.
+  - Pull request: `#40`.
+  - Pull-request CI run `30175735578` and post-merge `main` CI run `30175897573` passed, including migrations, grant audits, the dependency gate, the full test suite, and the production build.
+  - Post-merge Notification FORCE proof run `30175897569` passed rollback, grant, and service-authority checks.
+  - Exact production deployment: `dpl_GvwU3xtgMWyR5E1JwHKPs1yUionq` (`grainline-iwsom87u6-drew-youngs-projects.vercel.app`).
+  - Vercel reported the deployment `READY`, target `production`, and assigned `thegrainline.com`, `www.thegrainline.com`, and the stable Vercel aliases. The deployment build used Next.js `16.2.12`; the production runtime database isolation guard verified `grainline_app_runtime`.
+  - Independent canonical-domain smoke returned HTTP 200 and the response asset URL carried `dpl=dpl_GvwU3xtgMWyR5E1JwHKPs1yUionq`, proving `thegrainline.com` served this exact deployment.
+  - This release changed dependencies and audit tooling only; it applied no database migration and changed no RLS policy.
 
 Open work:
 
