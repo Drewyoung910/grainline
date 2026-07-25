@@ -66,11 +66,19 @@ catalog, race suite and application conversion pass:
    seller/buyer/conversation/payload and replay identity from the locked
    reserved private Listing.
 
-The remaining service families are:
+9. `grainline_message_redact_for_account_deletion`: derives its redaction
+   needles from the locked deleting User, seller profile and non-colliding
+   email history; it can only replace that actor's sent bodies with the fixed
+   deletion marker and redact those derived values from received bodies. Its
+   text/email helpers are owner-private, and there is no message-id or
+   caller-authored replacement input.
+10. `grainline_seller_message_response_metrics`: returns only bounded-window
+    buyer-initiated and seller-responded aggregate counts; it exposes no
+    Conversation id, Message id or body.
 
-9. Account-deletion media projection and fixed redaction bound to the deleting
-   actor; no general body editor.
-10. Aggregate-only seller response metrics.
+All fixed service families are drafted. The remaining authority work is the
+full race/lifecycle proof, legacy preflight for structured replay anchors,
+application helper conversion, and a fresh review of the catalog as a set.
 
 The caller may necessarily provide user-authored body/attachment content, but
 may never choose a recipient, structured authority kind, system flag, canonical

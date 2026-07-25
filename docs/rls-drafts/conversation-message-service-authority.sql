@@ -191,8 +191,8 @@ BEGIN
     p_user_a_id,
     p_user_b_id,
     p_context_listing_id,
-    pg_catalog.clock_timestamp(),
-    pg_catalog.clock_timestamp()
+    pg_catalog.timezone('UTC', pg_catalog.clock_timestamp()),
+    pg_catalog.timezone('UTC', pg_catalog.clock_timestamp())
   );
   "conversationId" := p_conversation_id;
   created := true;
@@ -377,7 +377,7 @@ BEGIN
       THEN locked_conversation."userBId"
     ELSE locked_conversation."userAId"
   END;
-  "sentAt" := pg_catalog.clock_timestamp();
+  "sentAt" := pg_catalog.timezone('UTC', pg_catalog.clock_timestamp());
   "messageId" := p_message_id;
   "firstResponseSet" := false;
 
@@ -470,14 +470,16 @@ BEGIN
   IF actor_is_a THEN
     UPDATE public."Conversation" AS conversation
        SET "archivedAAt" = CASE
-             WHEN p_archived THEN pg_catalog.clock_timestamp()
+             WHEN p_archived
+               THEN pg_catalog.timezone('UTC', pg_catalog.clock_timestamp())
              ELSE NULL
            END
      WHERE conversation.id = p_conversation_id;
   ELSE
     UPDATE public."Conversation" AS conversation
        SET "archivedBAt" = CASE
-             WHEN p_archived THEN pg_catalog.clock_timestamp()
+             WHEN p_archived
+               THEN pg_catalog.timezone('UTC', pg_catalog.clock_timestamp())
              ELSE NULL
            END
      WHERE conversation.id = p_conversation_id;
@@ -530,7 +532,7 @@ BEGIN
   END IF;
 
   UPDATE public."Message" AS message
-     SET "readAt" = pg_catalog.clock_timestamp()
+     SET "readAt" = pg_catalog.timezone('UTC', pg_catalog.clock_timestamp())
    WHERE message."conversationId" = p_conversation_id
      AND message."recipientId" = p_actor_id
      AND message."readAt" IS NULL;
@@ -714,7 +716,7 @@ BEGIN
       USING ERRCODE = '40001';
   END IF;
 
-  message_sent_at := pg_catalog.clock_timestamp();
+  message_sent_at := pg_catalog.timezone('UTC', pg_catalog.clock_timestamp());
   INSERT INTO public."Message" (
     id,
     "conversationId",
@@ -860,7 +862,8 @@ BEGIN
      AND commission.status = 'OPEN'::public."CommissionStatus"
      AND (
        commission."expiresAt" IS NULL
-       OR commission."expiresAt" > pg_catalog.clock_timestamp()
+       OR commission."expiresAt" >
+          pg_catalog.timezone('UTC', pg_catalog.clock_timestamp())
      )
    FOR UPDATE;
   IF NOT FOUND THEN
@@ -929,7 +932,7 @@ BEGIN
       p_commission_request_id,
       source_seller.id,
       conversation_result."conversationId",
-      pg_catalog.clock_timestamp()
+      pg_catalog.timezone('UTC', pg_catalog.clock_timestamp())
     )
     RETURNING id INTO interest_id;
   ELSE
@@ -944,7 +947,7 @@ BEGIN
     END IF;
   END IF;
 
-  message_sent_at := pg_catalog.clock_timestamp();
+  message_sent_at := pg_catalog.timezone('UTC', pg_catalog.clock_timestamp());
   INSERT INTO public."Message" (
     id,
     "conversationId",
@@ -1131,7 +1134,7 @@ BEGIN
     RETURN;
   END IF;
 
-  message_sent_at := pg_catalog.clock_timestamp();
+  message_sent_at := pg_catalog.timezone('UTC', pg_catalog.clock_timestamp());
   INSERT INTO public."Message" (
     id,
     "conversationId",
@@ -1173,6 +1176,360 @@ BEGIN
 END;
 $grainline_message_send_custom_order_ready$;
 
+CREATE OR REPLACE FUNCTION public.grainline_account_deletion_email_key_core(
+  p_email text
+)
+RETURNS text
+LANGUAGE plpgsql
+IMMUTABLE
+PARALLEL SAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_account_deletion_email_key_core$
+DECLARE
+  normalized text;
+  local_part text;
+  domain_part text;
+BEGIN
+  normalized := pg_catalog.lower(pg_catalog.btrim(p_email));
+  IF normalized = '' OR pg_catalog.strpos(normalized, '@') = 0 THEN
+    RETURN NULL;
+  END IF;
+  IF pg_catalog.strpos(
+       pg_catalog.substr(
+         normalized,
+         pg_catalog.strpos(normalized, '@') + 1
+       ),
+       '@'
+     ) > 0 THEN
+    RETURN normalized;
+  END IF;
+
+  local_part := pg_catalog.split_part(normalized, '@', 1);
+  domain_part := pg_catalog.split_part(normalized, '@', 2);
+  IF domain_part = 'googlemail.com' THEN
+    domain_part := 'gmail.com';
+  END IF;
+  IF domain_part <> 'gmail.com' THEN
+    RETURN normalized;
+  END IF;
+
+  local_part := pg_catalog.replace(
+    pg_catalog.split_part(local_part, '+', 1),
+    '.',
+    ''
+  );
+  IF local_part = '' THEN
+    RETURN normalized;
+  END IF;
+  RETURN local_part || '@gmail.com';
+END;
+$grainline_account_deletion_email_key_core$;
+
+CREATE OR REPLACE FUNCTION public.grainline_account_deletion_regex_escape_core(
+  p_value text
+)
+RETURNS text
+LANGUAGE plpgsql
+IMMUTABLE
+PARALLEL SAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_account_deletion_regex_escape_core$
+DECLARE
+  escaped text := '';
+  character text;
+  character_index integer;
+BEGIN
+  IF p_value IS NULL THEN
+    RETURN NULL;
+  END IF;
+  FOR character_index IN 1..pg_catalog.char_length(p_value) LOOP
+    character := pg_catalog.substr(p_value, character_index, 1);
+    IF character = ANY (
+      ARRAY['\', '.', '^', '$', '|', '?', '*', '+', '(', ')', '[', ']', '{', '}']
+    ) THEN
+      escaped := escaped || E'\\' || character;
+    ELSE
+      escaped := escaped || character;
+    END IF;
+  END LOOP;
+  RETURN escaped;
+END;
+$grainline_account_deletion_regex_escape_core$;
+
+CREATE OR REPLACE FUNCTION public.grainline_account_deletion_redact_text_core(
+  p_body text,
+  p_sensitive_values text[]
+)
+RETURNS text
+LANGUAGE plpgsql
+IMMUTABLE
+PARALLEL SAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_account_deletion_redact_text_core$
+DECLARE
+  redacted text := p_body;
+  sensitive_value text;
+  escaped_value text;
+BEGIN
+  IF p_body IS NULL OR p_sensitive_values IS NULL THEN
+    RETURN p_body;
+  END IF;
+
+  FOREACH sensitive_value IN ARRAY p_sensitive_values LOOP
+    escaped_value :=
+      public.grainline_account_deletion_regex_escape_core(sensitive_value);
+    IF pg_catalog.char_length(sensitive_value) >= 3 THEN
+      redacted := pg_catalog.regexp_replace(
+        redacted,
+        escaped_value,
+        '[deleted account]',
+        'gi'
+      );
+    ELSE
+      redacted := pg_catalog.regexp_replace(
+        redacted,
+        '(^|[^[:alnum:]])' || escaped_value || '([^[:alnum:]]|$)',
+        E'\\1[deleted account]\\2',
+        'gi'
+      );
+    END IF;
+  END LOOP;
+  RETURN redacted;
+END;
+$grainline_account_deletion_redact_text_core$;
+
+CREATE OR REPLACE FUNCTION public.grainline_message_redact_for_account_deletion(
+  p_actor_id text
+)
+RETURNS TABLE (
+  "sentRedacted" integer,
+  "receivedRedacted" integer
+)
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_message_redact_for_account_deletion$
+DECLARE
+  sensitive_values text[];
+BEGIN
+  IF pg_catalog.current_setting('transaction_isolation') <> 'read committed' THEN
+    RAISE EXCEPTION 'account deletion redaction requires read committed isolation'
+      USING ERRCODE = '25001';
+  END IF;
+  IF p_actor_id IS NULL
+     OR p_actor_id !~ '^[A-Za-z0-9._:-]{1,128}$' THEN
+    RAISE EXCEPTION 'account deletion actor is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  PERFORM account_user.id
+    FROM public."User" AS account_user
+   WHERE account_user.id = p_actor_id
+     AND account_user."deletedAt" IS NULL
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'account deletion actor is unavailable'
+      USING ERRCODE = '42501';
+  END IF;
+
+  WITH raw_sensitive_value(value) AS (
+    SELECT profile_value.value
+      FROM public."User" AS account_user
+      LEFT JOIN public."SellerProfile" AS seller
+        ON seller."userId" = account_user.id
+      CROSS JOIN LATERAL pg_catalog.unnest(ARRAY[
+        account_user.id,
+        account_user."clerkId",
+        account_user.email,
+        account_user.name,
+        account_user."shippingName",
+        account_user."shippingLine1",
+        account_user."shippingLine2",
+        account_user."shippingCity",
+        account_user."shippingState",
+        account_user."shippingPostalCode",
+        account_user."shippingPhone",
+        seller.id,
+        seller."displayName",
+        seller.city,
+        seller.state,
+        seller."shipFromName",
+        seller."shipFromLine1",
+        seller."shipFromLine2",
+        seller."shipFromCity",
+        seller."shipFromState",
+        seller."shipFromPostal",
+        seller.tagline,
+        seller."bannerImageUrl",
+        seller."avatarImageUrl",
+        seller."workshopImageUrl",
+        seller."instagramUrl",
+        seller."facebookUrl",
+        seller."pinterestUrl",
+        seller."tiktokUrl",
+        seller."websiteUrl"
+      ]::text[]) AS profile_value(value)
+     WHERE account_user.id = p_actor_id
+
+    UNION ALL
+
+    SELECT address.email
+      FROM public."UserEmailAddress" AS address
+     WHERE address."userId" = p_actor_id
+       AND NOT EXISTS (
+         SELECT 1
+           FROM public."User" AS other_user
+          WHERE other_user.id <> p_actor_id
+            AND other_user."deletedAt" IS NULL
+            AND public.grainline_account_deletion_email_key_core(
+                  other_user.email
+                ) = public.grainline_account_deletion_email_key_core(
+                  address.email
+                )
+       )
+  ),
+  normalized_sensitive_value AS (
+    SELECT DISTINCT pg_catalog.lower(pg_catalog.btrim(value)) AS value
+      FROM raw_sensitive_value
+     WHERE value IS NOT NULL
+       AND pg_catalog.char_length(
+             pg_catalog.lower(pg_catalog.btrim(value))
+           ) >= 2
+  )
+  SELECT COALESCE(
+           pg_catalog.array_agg(
+             value
+             ORDER BY pg_catalog.char_length(value) DESC, value
+           ),
+           ARRAY[]::text[]
+         )
+    INTO sensitive_values
+    FROM normalized_sensitive_value;
+
+  UPDATE public."Message" AS message
+     SET body = '[Message deleted]'
+   WHERE message."senderId" = p_actor_id
+     AND message.body IS DISTINCT FROM '[Message deleted]';
+  GET DIAGNOSTICS "sentRedacted" = ROW_COUNT;
+
+  WITH redaction AS (
+    SELECT
+      message.id,
+      public.grainline_account_deletion_redact_text_core(
+        message.body,
+        sensitive_values
+      ) AS redacted_body
+      FROM public."Message" AS message
+     WHERE message."senderId" <> p_actor_id
+       AND message."recipientId" = p_actor_id
+  )
+  UPDATE public."Message" AS message
+     SET body = redaction.redacted_body
+    FROM redaction
+   WHERE message.id = redaction.id
+     AND message.body IS DISTINCT FROM redaction.redacted_body;
+  GET DIAGNOSTICS "receivedRedacted" = ROW_COUNT;
+  RETURN NEXT;
+END;
+$grainline_message_redact_for_account_deletion$;
+
+CREATE OR REPLACE FUNCTION public.grainline_seller_message_response_metrics(
+  p_seller_user_id text,
+  p_period_start timestamp(3)
+)
+RETURNS TABLE (
+  "buyerInitiatedCount" bigint,
+  "sellerRespondedCount" bigint
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_seller_message_response_metrics$
+BEGIN
+  IF p_seller_user_id IS NULL
+     OR p_seller_user_id !~ '^[A-Za-z0-9._:-]{1,128}$'
+     OR p_period_start IS NULL
+     OR p_period_start >
+        pg_catalog.timezone('UTC', pg_catalog.clock_timestamp())
+     OR p_period_start <
+        pg_catalog.timezone('UTC', pg_catalog.clock_timestamp())
+          - interval '400 days' THEN
+    RAISE EXCEPTION 'seller response metric input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+      FROM public."SellerProfile" AS seller
+     WHERE seller."userId" = p_seller_user_id
+  ) THEN
+    RAISE EXCEPTION 'seller response metric source is unavailable'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN QUERY
+  WITH seller_conversation AS (
+    SELECT conversation.id
+      FROM public."Conversation" AS conversation
+     WHERE p_seller_user_id IN (
+             conversation."userAId",
+             conversation."userBId"
+           )
+       AND conversation."createdAt" >= p_period_start
+  ),
+  first_message AS (
+    SELECT DISTINCT ON (message."conversationId")
+      message."conversationId",
+      message.id AS first_message_id,
+      message."senderId" AS first_sender_id,
+      message."createdAt" AS first_message_at
+      FROM public."Message" AS message
+      JOIN seller_conversation
+        ON seller_conversation.id = message."conversationId"
+     ORDER BY
+       message."conversationId",
+       message."createdAt",
+       message.id
+  ),
+  buyer_initiated AS (
+    SELECT
+      first_message."conversationId",
+      first_message.first_message_id,
+      first_message.first_message_at
+      FROM first_message
+     WHERE first_message.first_sender_id <> p_seller_user_id
+  ),
+  seller_response AS (
+    SELECT DISTINCT buyer_initiated."conversationId"
+      FROM buyer_initiated
+      JOIN public."Message" AS response
+        ON response."conversationId" = buyer_initiated."conversationId"
+       AND response."senderId" = p_seller_user_id
+       AND (
+         response."createdAt" > buyer_initiated.first_message_at
+         OR (
+           response."createdAt" = buyer_initiated.first_message_at
+           AND response.id > buyer_initiated.first_message_id
+         )
+       )
+  )
+  SELECT
+    pg_catalog.count(buyer_initiated."conversationId")::bigint,
+    pg_catalog.count(seller_response."conversationId")::bigint
+    FROM buyer_initiated
+    LEFT JOIN seller_response
+      ON seller_response."conversationId" =
+         buyer_initiated."conversationId";
+END;
+$grainline_seller_message_response_metrics$;
+
 REVOKE ALL ON FUNCTION
   public.grainline_conversation_lock_pair_core(text, text)
   FROM PUBLIC, grainline_app_runtime;
@@ -1181,6 +1538,15 @@ REVOKE ALL ON FUNCTION
   FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION
   public.grainline_conversation_get_or_create_core(text, text, text, text)
+  FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION
+  public.grainline_account_deletion_email_key_core(text)
+  FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION
+  public.grainline_account_deletion_regex_escape_core(text)
+  FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION
+  public.grainline_account_deletion_redact_text_core(text, text[])
   FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION
   public.grainline_conversation_start(text, text, text, text)
@@ -1209,6 +1575,12 @@ REVOKE ALL ON FUNCTION
   FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION
   public.grainline_message_send_custom_order_ready(text, text, text)
+  FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION
+  public.grainline_message_redact_for_account_deletion(text)
+  FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION
+  public.grainline_seller_message_response_metrics(text, timestamp)
   FROM PUBLIC, grainline_app_runtime;
 
 GRANT EXECUTE ON FUNCTION
@@ -1238,4 +1610,10 @@ GRANT EXECUTE ON FUNCTION
   TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION
   public.grainline_message_send_custom_order_ready(text, text, text)
+  TO grainline_app_runtime;
+GRANT EXECUTE ON FUNCTION
+  public.grainline_message_redact_for_account_deletion(text)
+  TO grainline_app_runtime;
+GRANT EXECUTE ON FUNCTION
+  public.grainline_seller_message_response_metrics(text, timestamp)
   TO grainline_app_runtime;

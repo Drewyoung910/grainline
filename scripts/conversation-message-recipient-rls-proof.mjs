@@ -248,7 +248,7 @@ async function seedFixtures(owner) {
        id, "conversationId", "senderId", "recipientId", body, "createdAt"
      ) VALUES
        ($1, $4, $5, $6, 'hello from A', '2026-01-02T00:00:00Z'),
-       ($2, $4, $6, $5, 'reply from B', '2026-01-02T00:00:01Z'),
+       ($2, $4, $6, $5, 'reply mentions Recipient A', '2026-01-02T00:00:01Z'),
        ($3, $7, $8, $9, 'foreign thread', '2026-01-02T00:00:00Z')`,
     [
       fixture.messageAB1Id,
@@ -371,6 +371,11 @@ async function proveCatalog(owner) {
          'grainline_message_send_custom_request',
          'grainline_message_create_commission_interest',
          'grainline_message_send_custom_order_ready',
+         'grainline_account_deletion_email_key_core',
+         'grainline_account_deletion_regex_escape_core',
+         'grainline_account_deletion_redact_text_core',
+         'grainline_message_redact_for_account_deletion',
+         'grainline_seller_message_response_metrics',
          'grainline_message_list',
          'grainline_message_unread_count',
          'grainline_message_latest_custom_request',
@@ -380,11 +385,14 @@ async function proveCatalog(owner) {
        )
      ORDER BY procedure.proname
   `);
-  assert.equal(functions.rows.length, 20);
+  assert.equal(functions.rows.length, 25);
   const privateFunctions = new Set([
     "grainline_conversation_lock_pair_core",
     "grainline_conversation_listing_core",
     "grainline_conversation_get_or_create_core",
+    "grainline_account_deletion_email_key_core",
+    "grainline_account_deletion_regex_escape_core",
+    "grainline_account_deletion_redact_text_core",
   ]);
   assert.equal(
     functions.rows.every((row) => (
@@ -396,6 +404,9 @@ async function proveCatalog(owner) {
   assert.deepEqual(
     functions.rows.filter((row) => row.prosecdef).map((row) => row.proname),
     [
+      "grainline_account_deletion_email_key_core",
+      "grainline_account_deletion_redact_text_core",
+      "grainline_account_deletion_regex_escape_core",
       "grainline_conversation_claim_message_email",
       "grainline_conversation_get_or_create_core",
       "grainline_conversation_listing_core",
@@ -405,9 +416,11 @@ async function proveCatalog(owner) {
       "grainline_conversation_start",
       "grainline_message_create_commission_interest",
       "grainline_message_mark_read",
+      "grainline_message_redact_for_account_deletion",
       "grainline_message_send_custom_order_ready",
       "grainline_message_send_custom_request",
       "grainline_message_send_ordinary",
+      "grainline_seller_message_response_metrics",
     ],
   );
   assert.equal(
@@ -996,6 +1009,44 @@ async function proveRuntimeIsolation(owner) {
     );
     assert.equal(inboxAfterBlock.rows.length, 0);
     record("unread_inbox_block_filter_and_summary");
+
+    const sellerMetrics = await runtime.query(
+      `SELECT * FROM public.grainline_seller_message_response_metrics(
+         $1, $2::timestamp
+       )`,
+      [fixture.userBId, "2026-01-01T00:00:00"],
+    );
+    assert.equal(Number(sellerMetrics.rows[0].buyerInitiatedCount), 1);
+    assert.equal(Number(sellerMetrics.rows[0].sellerRespondedCount), 1);
+
+    await expectPgError(
+      () => runtime.query(
+        "SELECT public.grainline_account_deletion_regex_escape_core('forged')",
+      ),
+      ["42501"],
+      "direct runtime private account-deletion helper execution",
+    );
+    const redaction = await runtime.query(
+      "SELECT * FROM public.grainline_message_redact_for_account_deletion($1)",
+      [fixture.userAId],
+    );
+    assert.equal(redaction.rows[0].sentRedacted, 3);
+    assert.equal(redaction.rows[0].receivedRedacted, 1);
+    const redactedRows = await owner.query(
+      `SELECT id, body
+         FROM public."Message"
+        WHERE id = ANY($1::text[])
+        ORDER BY id`,
+      [[fixture.messageAB1Id, fixture.messageAB2Id]],
+    );
+    assert.deepEqual(redactedRows.rows, [
+      { id: fixture.messageAB1Id, body: "[Message deleted]" },
+      {
+        id: fixture.messageAB2Id,
+        body: "reply mentions [deleted account]",
+      },
+    ]);
+    record("aggregate_only_metrics_and_fixed_account_deletion_redaction");
   } finally {
     await runtime.query("RESET ROLE").catch(() => {});
     await runtime.end();

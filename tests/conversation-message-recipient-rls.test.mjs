@@ -45,6 +45,8 @@ const publicWriteFunctions = [
   "grainline_message_send_custom_request",
   "grainline_message_create_commission_interest",
   "grainline_message_send_custom_order_ready",
+  "grainline_message_redact_for_account_deletion",
+  "grainline_seller_message_response_metrics",
 ];
 
 describe("Conversation and Message recipient RLS draft", () => {
@@ -162,6 +164,9 @@ describe("Conversation and Message recipient RLS draft", () => {
     assert.match(serviceSql, /grainline_conversation_lock_pair_core/);
     assert.match(serviceSql, /grainline_conversation_listing_core/);
     assert.match(serviceSql, /grainline_conversation_get_or_create_core/);
+    assert.match(serviceSql, /grainline_account_deletion_email_key_core/);
+    assert.match(serviceSql, /grainline_account_deletion_regex_escape_core/);
+    assert.match(serviceSql, /grainline_account_deletion_redact_text_core/);
     assert.match(
       serviceSql,
       /REVOKE ALL ON FUNCTION[\s\S]*grainline_conversation_lock_pair_core[\s\S]*FROM PUBLIC, grainline_app_runtime/,
@@ -174,16 +179,35 @@ describe("Conversation and Message recipient RLS draft", () => {
       serviceSql,
       /REVOKE ALL ON FUNCTION[\s\S]*grainline_conversation_get_or_create_core[\s\S]*FROM PUBLIC, grainline_app_runtime/,
     );
+    for (const privateDeletionCore of [
+      "grainline_account_deletion_email_key_core",
+      "grainline_account_deletion_regex_escape_core",
+      "grainline_account_deletion_redact_text_core",
+    ]) {
+      assert.match(
+        serviceSql,
+        new RegExp(
+          `REVOKE ALL ON FUNCTION[\\s\\S]*${privateDeletionCore}[\\s\\S]*FROM PUBLIC, grainline_app_runtime`,
+        ),
+      );
+    }
     assert.doesNotMatch(
       serviceSql,
       /GRANT EXECUTE ON FUNCTION\s+public\.grainline_conversation_(?:lock_pair|listing|get_or_create)_core\s*\(/,
+    );
+    assert.doesNotMatch(
+      serviceSql,
+      /GRANT EXECUTE ON FUNCTION\s+public\.grainline_account_deletion_(?:email_key|regex_escape|redact_text)_core\s*\(/,
     );
     assert.match(serviceSql, /p_kind IS NOT NULL AND p_kind <> 'file'/);
     assert.match(serviceSql, /parsed_file->>'kind' <> 'file'/);
     assert.match(serviceSql, /"recipientId" := CASE/);
     assert.match(serviceSql, /"isSystemMessage",[\s\S]*false,/);
     assert.match(serviceSql, /FOR SHARE;[\s\S]*Block/);
-    assert.match(serviceSql, /FOR UPDATE;[\s\S]*"sentAt" := pg_catalog\.clock_timestamp\(\)/);
+    assert.match(
+      serviceSql,
+      /FOR UPDATE;[\s\S]*"sentAt" := pg_catalog\.timezone\('UTC', pg_catalog\.clock_timestamp\(\)\)/,
+    );
     assert.match(serviceSql, /source_message\."createdAt" - interval '5 minutes'/);
     assert.match(
       serviceSql,
@@ -208,6 +232,22 @@ describe("Conversation and Message recipient RLS draft", () => {
     assert.match(
       serviceSql,
       /listing\."reservedForUserId" = initial_source\.buyer_user_id/,
+    );
+    assert.match(
+      serviceSql,
+      /UPDATE public\."Message" AS message[\s\S]*SET body = '\[Message deleted\]'[\s\S]*message\."senderId" = p_actor_id/,
+    );
+    assert.match(
+      serviceSql,
+      /message\."senderId" <> p_actor_id[\s\S]*message\."recipientId" = p_actor_id/,
+    );
+    assert.match(
+      serviceSql,
+      /RETURNS TABLE \(\s*"buyerInitiatedCount" bigint,\s*"sellerRespondedCount" bigint\s*\)/,
+    );
+    assert.doesNotMatch(
+      serviceSql,
+      /(?<!pg_catalog\.timezone\('UTC', )pg_catalog\.clock_timestamp\(\)/,
     );
     assert.doesNotMatch(serviceSql, /\bEXECUTE\s+FORMAT\b/i);
     assert.doesNotMatch(serviceSql, /\bAS\s+(?:constraint|current_user|session_user|table|user)\b/i);
