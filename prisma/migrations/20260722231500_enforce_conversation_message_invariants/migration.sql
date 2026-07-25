@@ -155,7 +155,7 @@ SET search_path = pg_catalog, pg_temp
 AS $grainline_message_maintain_thread_state$
 BEGIN
   UPDATE public."Conversation"
-     SET "updatedAt" = pg_catalog.greatest("updatedAt", NEW."createdAt"),
+     SET "updatedAt" = GREATEST("updatedAt", NEW."createdAt"),
          "archivedAAt" = NULL,
          "archivedBAt" = NULL
    WHERE id = NEW."conversationId";

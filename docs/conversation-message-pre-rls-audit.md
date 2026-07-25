@@ -175,6 +175,16 @@ is necessary but not sufficient.
   invariant migration. No ids, bodies, emails, credentials or raw rows were
   retained. The new participant/route/thread-state triggers still require
   disposable PostgreSQL proof before production.
+- **First disposable invariant proof retained as failed evidence:** GitHub
+  Actions run `30174296895` at candidate `07812a96` applied the migrations and
+  converged the runtime grants in ephemeral PostgreSQL 16, then failed its
+  first valid runtime Message insert with PostgreSQL `42883`.
+  `pg_catalog.greatest(...)` incorrectly schema-qualified the parser-resolved
+  `GREATEST` SQL construct. Production and persistent staging were untouched.
+  The candidate now uses bare `GREATEST(...)`, preserves its intended null
+  behavior, and adds a source-wide executable-SQL guard against qualifying
+  this class of PostgreSQL special forms. This failed run remains failed and a
+  fresh CI run is required.
 
 ## Audit completion criteria
 

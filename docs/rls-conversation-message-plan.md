@@ -167,7 +167,11 @@ The direct runtime table query with no context must return zero rows.
 4. Preparation migration: canonical/immutable participant pairs, exact Message
    routing, monotonic thread state, metadata normalization and body-search
    index while RLS remains disabled. **Isolated candidate implemented; ephemeral
-   PostgreSQL proof and release guard pending.**
+   PostgreSQL proof and release guard pending. The first disposable run
+   `30174296895` is retained failed evidence: PostgreSQL `42883` rejected the
+   invalid `pg_catalog.greatest(...)` qualification on the first valid runtime
+   insert after migrations/grant convergence. Production was untouched; the
+   corrected candidate requires a fresh run.**
 5. Compatible app deployment: all protected accesses move to reviewed
    helpers; test before and after RLS.
 6. Disposable PostgreSQL proof: policies/grants, every read/write family,

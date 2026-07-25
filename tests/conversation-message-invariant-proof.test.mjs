@@ -31,7 +31,8 @@ describe("Conversation and Message invariant PostgreSQL proof", () => {
 
   it("proves monotonic thread time and archive reopening under a real lock wait", () => {
     assert.match(migration, /grainline_message_maintain_thread_state/);
-    assert.match(migration, /pg_catalog\.greatest\("updatedAt", NEW\."createdAt"\)/);
+    assert.match(migration, /GREATEST\("updatedAt", NEW\."createdAt"\)/);
+    assert.doesNotMatch(migration, /pg_catalog\.greatest/i);
     assert.match(migration, /"archivedAAt" = NULL/);
     assert.match(migration, /"archivedBAt" = NULL/);
     assert.match(proof, /wait_event_type === "Lock"/);
