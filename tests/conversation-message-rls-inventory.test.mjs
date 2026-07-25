@@ -87,7 +87,7 @@ describe("Conversation and Message RLS inventory", () => {
     assert.deepEqual(summarizeConversationMessageAccess(inventory), EXPECTED_BASELINE);
   });
 
-  it("documents every non-participant lifecycle before authority code is drafted", () => {
+  it("documents every non-participant lifecycle and the production preparation boundary", () => {
     const plan = fs.readFileSync("docs/rls-conversation-message-plan.md", "utf8");
     assert.match(plan, /unresolved `MESSAGE_THREAD` report/);
     assert.match(plan, /account export/);
@@ -96,6 +96,8 @@ describe("Conversation and Message RLS inventory", () => {
     assert.match(plan, /commission-interest system message/);
     assert.match(plan, /custom-order-ready/);
     assert.match(plan, /Conversation\/Message RLS remains disabled/);
-    assert.match(plan, /reviewed invariant SQL has not been applied to production/);
+    assert.match(plan, /invariant-preparation releases are live/);
+    assert.match(plan, /zero policies/);
+    assert.match(plan, /actual pooled production-runtime rollback-only postflight/);
   });
 });

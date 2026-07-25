@@ -1,11 +1,10 @@
 # Conversation and Message Pre-RLS Audit
 
-Date: 2026-07-22. Active branch:
-`codex/rls-conversation-message-invariants-20260722`. Status: the compatible
-app and additive schema/index pair are live; invariant/data-normalization work
-passed disposable PostgreSQL proof and Extra-High review but remains unapplied
-to production. No Conversation or Message RLS policy or authority SQL has been
-drafted, applied or deployed from this branch.
+Opened 2026-07-22; updated 2026-07-25. Status: the compatible application,
+additive schema/index pair and reviewed invariant/data-normalization migrations
+are live. The actual pooled production runtime role passed a rollback-only
+postflight. Conversation/Message RLS remains disabled with zero policies; no
+Conversation or Message policy or authority SQL has been applied.
 
 ## Why this gate exists
 
@@ -135,19 +134,19 @@ is necessary but not sufficient.
   state, thread bump and unarchive now share that serialization point. CM-A17
   subsequently found and closes the separate transaction-start timestamp hole
   by explicitly persisting the post-lock time.
-- **CM-A17 remediation implemented, unapplied:** ordinary text/attachment,
+- **CM-A17 remediation live:** ordinary text/attachment,
   custom-request, commission-interest and custom-order-ready writers all use
   the exact post-Conversation-lock timestamp for both Message and thread state.
   The invariant migration repairs any thread timestamp behind its newest
   message and installs an owner-private trigger using `GREATEST`, so future
   writers cannot regress time or forget to unarchive the thread.
-- **CM-A18 remediation implemented, unapplied:** new attachments set
+- **CM-A18 remediation live:** new attachments set
   `Message.kind="file"`; the scale migration adds the raw-managed concurrent
   `Message.body` trigram index. Historical nullable kinds and nullable
   `contextListingId` values remain unknown rather than being inferred by
   parsing private bodies or projecting one old Conversation context across
   every historical Message.
-- **CM-A19 fixed in the app candidate:** the mobile thread owns the full width
+- **CM-A19 fixed in production:** the mobile thread owns the full width
   with internal bubble padding; its scroller is explicitly x-locked, long
   structured/file content is bounded, and the composer textarea uses
   `min-w-0 flex-1` instead of `w-full` beside fixed controls. `touch-pan-y` and
@@ -177,8 +176,8 @@ is necessary but not sufficient.
   Message newer than its Conversation and one server card missing its
   presentation flag; both have semantic idempotent repairs in the isolated
   invariant migration. No ids, bodies, emails, credentials or raw rows were
-  retained. The new participant/route/thread-state triggers still require
-  disposable PostgreSQL proof before production.
+  retained. The new participant/route/thread-state triggers subsequently
+  passed disposable and actual pooled-runtime proofs recorded below.
 - **First disposable invariant proof retained as failed evidence:** GitHub
   Actions run `30174296895` at candidate `07812a96` applied the migrations and
   converged the runtime grants in ephemeral PostgreSQL 16, then failed its
@@ -204,13 +203,45 @@ is necessary but not sufficient.
   bell token and locks Listing/Seller source rows before the exact Conversation
   helper. Conversation/Message RLS is still off and production is unchanged by
   this proof.
+- **Invariant preparation production checkpoint complete:** PR 39 merged as
+  exact main `98a1e592b8ae3571186ede5edd3b5b95fcb9dfe1`. GitHub CI run
+  `30177311522` and Notification FORCE-equivalence run `30177311535` passed.
+  Vercel production deployment `dpl_GZiSfXTxXENTfqLk6LqZmJtvC3Ud` is `READY`
+  and aliased to `thegrainline.com`; its build used the reviewed pooled
+  `grainline_app_runtime` identity. Protected Production workflow run
+  `30177568806` then applied only
+  `20260722231500_enforce_conversation_message_invariants` and
+  `20260722232000_add_message_body_trgm_index`. Prisma reported all 155
+  migrations applied, and the final production-style audit passed for 58
+  tables, 20 enums, 32 `grainline_*` functions, one extension, two pre-existing
+  RLS policy tables and zero sequence references. Conversation and Message
+  remained RLS-disabled with their preparation grants.
+- **Actual pooled-runtime postflight passed after two retained diagnostic
+  failures:** the rollback-only operator first passed full CI as
+  `25cc41e7f2c2efe02460a18f691dd18c539f0944` in run `30177872919`, then its
+  live catalog query failed before fixture writes because `constraint` was an
+  unquoted reserved alias. Commit `ea0871b3` renamed the alias, added the
+  reserved-alias guard and passed run `30178035501`; its live write proof then
+  exposed the known node-postgres parsing hazard for Prisma
+  `timestamp without time zone` values. Commit `51757b2d` moved the equality
+  check into PostgreSQL, used timezone-neutral text only for diagnostics,
+  prohibited client-side `toISOString()` in this operator and passed run
+  `30178177519`. The accepted 2026-07-25 production proof connected through the
+  reviewed pooled endpoint as `grainline_app_runtime`, verified it was not the
+  owner and had no `BYPASSRLS`, checked the canonical-pair constraint, four
+  enabled owner-private trigger functions, their ACLs and the valid trigram
+  index, accepted one valid Message/thread update, rejected a forged route,
+  Message route rewrite, Conversation participant rewrite, noncanonical pair
+  and direct trigger-function execution, then rolled back. Its final residue
+  query found zero fixture Users, Conversations and Messages. Sanitized result:
+  RLS disabled, FORCE disabled, policy count zero, `productionChanged=false`.
 
 ## Audit completion criteria
 
 1. CM-A01 through CM-A19 are fixed or have the explicit design/scale
-   disposition recorded above. CM-A04 remains open only for protected
-   production application/postflight; CM-A10 remains open until the reviewed
-   database-authority phase.
+   disposition recorded above. CM-A04's invariant-preparation production
+   application and actual-runtime postflight are complete; CM-A10 remains open
+   until the reviewed database-authority phase.
 2. Full tests, typecheck, lint and production build pass on the compatible app
    before any RLS activation.
 3. A sanitized read-only legacy inspection proves canonical/non-self

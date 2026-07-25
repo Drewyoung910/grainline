@@ -168,14 +168,14 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
     assert.match(indexMigration, /Message_contextListingId_idx/);
   });
 
-  it("records every open pre-RLS finding and bars authority SQL until fixes land", () => {
+  it("records every pre-RLS finding and isolates the authority release", () => {
     const audit = source("docs/conversation-message-pre-rls-audit.md");
     for (let finding = 1; finding <= 19; finding += 1) {
       assert.match(audit, new RegExp(`CM-A${String(finding).padStart(2, "0")}`));
     }
     assert.match(
       audit,
-      /No Conversation or Message RLS policy or authority SQL has been[\s\S]*drafted, applied or deployed/,
+      /Conversation\/Message RLS remains disabled with zero policies; no[\s\S]*Conversation or Message policy or authority SQL has been applied/,
     );
     assert.match(
       audit,
