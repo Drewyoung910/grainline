@@ -1,10 +1,10 @@
 # Conversation and Message RLS Plan
 
-Status: compatibility release live; invariant preparation passed disposable
-PostgreSQL proof and Extra-High review on
-`codex/rls-conversation-message-invariants-20260722`. Notification Bucket B is
-complete in production. Conversation/Message RLS remains disabled; the
-reviewed invariant SQL has not been applied to production.
+Status: compatibility and invariant-preparation releases are live. The
+preparation SQL passed disposable PostgreSQL proof, Extra-High review and an
+actual pooled production-runtime rollback-only postflight. Notification Bucket
+B is complete in production. Conversation/Message RLS remains disabled with
+zero policies; authority-policy design and proof are next.
 
 ## Security objective
 
@@ -160,16 +160,16 @@ The direct runtime table query with no context must return zero rows.
 1. Inventory and pin every current access path. **Complete: original 55-path
    migration baseline; current compatible surface is 53 protected accesses.**
 2. Complete `docs/conversation-message-pre-rls-audit.md` and fix its activation
-   blockers before authority SQL. **App findings fixed; invariant proof and
-   Extra-High preparation review complete; protected production application
-   remains pending.**
+   blockers before authority SQL. **Complete for the preparation boundary:
+   app findings fixed; invariant proof, Extra-High review, protected production
+   application and actual pooled-runtime postflight passed.**
 3. Read-only legacy/preflight design: exact participant, message-pair, kind,
    orphan, report and archive aggregates; do not export bodies or identifiers.
    **Complete at exact main `05e236bb15e6400496073e808fe37d740c0e48a8`; the
    aggregate-only inspection found no authority-invalid rows.**
 4. Preparation migration: canonical/immutable participant pairs, exact Message
    routing, monotonic thread state, metadata normalization and body-search
-   index while RLS remains disabled. **Reviewed candidate complete. The first
+   index while RLS remains disabled. **Complete in production. The first
    disposable run `30174296895` remains failed evidence: PostgreSQL `42883`
    rejected the invalid `pg_catalog.greatest(...)` qualification on the first
    valid runtime insert after migrations/grant convergence. Production was
@@ -179,9 +179,18 @@ The direct runtime table query with no context must return zero rows.
    and production build at head `a0775e7d2f035e2d3e4a452dbb8b8fdcd1ecc44e`.
    Extra-High review accepted the invariant SQL after separately correcting a
    cross-tab Notification source-token regression and making custom-order-ready
-   Listing/Seller-then-Conversation row-lock order explicit.**
+   Listing/Seller-then-Conversation row-lock order explicit. Exact main
+   `98a1e592b8ae3571186ede5edd3b5b95fcb9dfe1` deployed as
+   `dpl_GZiSfXTxXENTfqLk6LqZmJtvC3Ud`; protected workflow `30177568806` applied
+   the two preparation migrations. The accepted operator at `51757b2d`, after
+   retained reserved-alias and timestamp-parser diagnostic failures, passed
+   CI run `30178177519` and the actual pooled `grainline_app_runtime`
+   rollback-only proof with zero fixture rows left behind. RLS and FORCE remain
+   disabled with zero policies.**
 5. Compatible app deployment: all protected accesses move to reviewed
-   helpers; test before and after RLS.
+   helpers; test before and after RLS. **The invariant-compatible application
+   is live. The authority RPC/helper conversion begins in this next phase and
+   must deploy compatibly before database activation.**
 6. Disposable PostgreSQL proof: policies/grants, every read/write family,
    direct denial, staff report resolution, account/block/archive races,
    deletion/export/metrics, rollback and legacy handling.
@@ -206,9 +215,13 @@ phase does not authorize Conversation/Message policies or grants.
 
 The live compatibility checkpoint is protected migration run `29964062818`
 plus Vercel production deployment `dpl_6SHrhrLsXReeG7hPhXyuMssCNLqP`. The
-aggregate legacy inspection is protected run `29964469109`. These identifiers
-are operational evidence, not authority to combine the later invariant,
-policy/ACL, activation or FORCE releases.
+aggregate legacy inspection is protected run `29964469109`. The later live
+invariant checkpoint is exact main
+`98a1e592b8ae3571186ede5edd3b5b95fcb9dfe1`, deployment
+`dpl_GZiSfXTxXENTfqLk6LqZmJtvC3Ud`, protected migration run `30177568806` and
+accepted pooled-runtime operator commit `51757b2d` after CI run `30178177519`.
+These identifiers are operational evidence, not authority to combine policy
+and ACL preparation, initial activation or FORCE releases.
 
 ## Product and scale decisions
 
