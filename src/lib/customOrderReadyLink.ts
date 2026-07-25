@@ -5,7 +5,10 @@ import { sendCustomOrderReady } from "@/lib/email";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { publicListingPath } from "@/lib/publicPaths";
-import { lockConversationParticipantPair } from "@/lib/conversationStartAccess";
+import {
+  lockConversationForMessageWrite,
+  lockConversationParticipantPair,
+} from "@/lib/conversationStartAccess";
 
 const CUSTOM_ORDER_READY_LINK_LOCK_NAMESPACE = 913349;
 
@@ -18,8 +21,6 @@ type CustomOrderReadySource = {
   sellerUserId: string;
   buyerUserId: string;
   sellerName: string | null;
-  userAId: string;
-  userBId: string;
 };
 
 type CustomOrderReadyCommit = {
@@ -77,9 +78,7 @@ export async function sendCustomOrderReadyLink({ listingId }: { listingId: strin
         listing."customOrderConversationId" AS "conversationId",
         seller."userId" AS "sellerUserId",
         listing."reservedForUserId" AS "buyerUserId",
-        seller."displayName" AS "sellerName",
-        conversation."userAId",
-        conversation."userBId"
+        seller."displayName" AS "sellerName"
       FROM "Listing" AS listing
       JOIN "SellerProfile" AS seller
         ON seller.id = listing."sellerId"
@@ -96,15 +95,15 @@ export async function sendCustomOrderReadyLink({ listingId }: { listingId: strin
         AND (seller."stripeAccountVersion" IS NULL OR seller."stripeAccountVersion" = 'v2')
         AND seller."vacationMode" = false
       FOR SHARE OF listing, seller
-      FOR UPDATE OF conversation
     `;
     const source = sources[0];
     if (
       sources.length !== 1
-      || source.userAId !== pair.userAId
-      || source.userBId !== pair.userBId
       || source.sellerUserId === source.buyerUserId
     ) {
+      return null;
+    }
+    if (!await lockConversationForMessageWrite(tx, pair, source.conversationId)) {
       return null;
     }
 

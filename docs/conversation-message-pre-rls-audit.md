@@ -128,9 +128,12 @@ is necessary but not sufficient.
 - **CM-A16 fixed in the compatible app:** ordinary sends take locks in the
   reviewed order—sorted Users/block absence, optional Listing source, exact
   canonical Conversation `FOR UPDATE`—and only then derive the send timestamp.
-  Message inserts, first-response state, thread bump and unarchive now share
-  that serialization point. CM-A17 subsequently found and closes the separate
-  transaction-start timestamp hole by explicitly persisting the post-lock time.
+  Custom-order-ready also locks its Listing/Seller source rows first and then
+  calls the same exact Conversation lock helper instead of relying on a joined
+  query's planner-dependent row-lock order. Message inserts, first-response
+  state, thread bump and unarchive now share that serialization point. CM-A17
+  subsequently found and closes the separate transaction-start timestamp hole
+  by explicitly persisting the post-lock time.
 - **CM-A17 remediation implemented, unapplied:** ordinary text/attachment,
   custom-request, commission-interest and custom-order-ready writers all use
   the exact post-Conversation-lock timestamp for both Message and thread state.

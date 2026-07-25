@@ -75,7 +75,8 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
       assert.match(writer, /createdAt: messageSentAt/);
       assert.match(writer, /updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null/);
     }
-    assert.match(ready, /FOR UPDATE OF conversation/);
+    assert.match(ready, /FOR SHARE OF listing, seller/);
+    assert.match(ready, /lockConversationForMessageWrite\(tx, pair, source\.conversationId\)/);
     assert.match(ready, /createdAt: messageSentAt/);
     assert.match(ready, /updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null/);
     assert.match(thread, /kind: "file"/);
