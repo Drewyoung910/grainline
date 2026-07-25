@@ -47,6 +47,14 @@ const fixture = Object.freeze({
   commissionMessageId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
   commissionConversationCandidateId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
   customReadyMessageId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+  raceBlockSendFirstId: "23232323-2323-4232-8232-232323232323",
+  raceDeletionSendFirstId: "24242424-2424-4242-8242-242424242424",
+  raceMarkSendFirstId: "25252525-2525-4252-8252-252525252525",
+  raceMarkFirstId: "26262626-2626-4262-8262-262626262626",
+  raceArchiveFirstId: "27272727-2727-4272-8272-272727272727",
+  raceArchiveSendFirstId: "28282828-2828-4282-8282-282828282828",
+  raceBlockFirstId: "cm-authority-block-first",
+  raceBlockSecondId: "cm-authority-block-second",
 });
 
 const completedChecks = [];
@@ -94,10 +102,77 @@ async function expectPgError(operation, expectedCodes, label) {
   assert.fail(`${label} unexpectedly succeeded`);
 }
 
+async function waitForLock(observer, applicationName) {
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    const waiting = await observer.query(
+      `SELECT wait_event_type
+         FROM pg_catalog.pg_stat_activity
+        WHERE datname = pg_catalog.current_database()
+          AND application_name = $1
+          AND state = 'active'`,
+      [applicationName],
+    );
+    if (waiting.rows.some((row) => row.wait_event_type === "Lock")) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  assert.fail(`${applicationName} did not enter a PostgreSQL lock wait`);
+}
+
+async function setRuntimeRole(client) {
+  await client.query(`SET ROLE ${runtimeRole}`);
+}
+
+async function lockUserPairForBlock(client, firstUserId, secondUserId) {
+  return client.query(
+    `SELECT account_user.id
+       FROM public."User" AS account_user
+      WHERE account_user.id = ANY($1::text[])
+      ORDER BY account_user.id
+      FOR UPDATE`,
+    [[firstUserId, secondUserId]],
+  );
+}
+
+async function clearPairBlocks(owner, firstUserId, secondUserId) {
+  await owner.query(
+    `DELETE FROM public."Block"
+      WHERE (
+        "blockerId" = $1
+        AND "blockedId" = $2
+      )
+      OR (
+        "blockerId" = $2
+        AND "blockedId" = $1
+      )`,
+    [firstUserId, secondUserId],
+  );
+}
+
+async function invokeOrdinaryMessage(
+  client,
+  messageId,
+  actorId,
+  conversationId,
+  body,
+) {
+  return client.query(
+    `SELECT * FROM public.grainline_message_send_ordinary(
+       $1, $2, $3, $4, NULL, NULL
+     )`,
+    [messageId, actorId, conversationId, body],
+  );
+}
+
 async function cleanFixtures(owner) {
   await owner.query(
     'DELETE FROM public."Block" WHERE id = ANY($1::text[])',
-    [[fixture.blockId, fixture.serviceBlockId]],
+    [[
+      fixture.blockId,
+      fixture.serviceBlockId,
+      fixture.raceBlockFirstId,
+      fixture.raceBlockSecondId,
+    ]],
   );
   await owner.query(
     'DELETE FROM public."UserReport" WHERE id = $1',
@@ -114,6 +189,12 @@ async function cleanFixtures(owner) {
       fixture.customRequestMessageId,
       fixture.commissionMessageId,
       fixture.customReadyMessageId,
+      fixture.raceBlockSendFirstId,
+      fixture.raceDeletionSendFirstId,
+      fixture.raceMarkSendFirstId,
+      fixture.raceMarkFirstId,
+      fixture.raceArchiveFirstId,
+      fixture.raceArchiveSendFirstId,
     ]],
   );
   await owner.query(
@@ -1053,6 +1134,426 @@ async function proveRuntimeIsolation(owner) {
   }
 }
 
+async function proveBlockRaces(owner) {
+  await clearPairBlocks(owner, fixture.userAId, fixture.userCId);
+  const sendFirst = newClient("cm-authority-block-send-first");
+  const blockSecond = newClient("cm-authority-block-second");
+  await Promise.all([sendFirst.connect(), blockSecond.connect()]);
+  try {
+    await Promise.all([setRuntimeRole(sendFirst), setRuntimeRole(blockSecond)]);
+    await sendFirst.query("BEGIN ISOLATION LEVEL READ COMMITTED");
+    await invokeOrdinaryMessage(
+      sendFirst,
+      fixture.raceBlockSendFirstId,
+      fixture.userAId,
+      fixture.startedConversationId,
+      "block race send first",
+    );
+
+    await blockSecond.query("BEGIN ISOLATION LEVEL READ COMMITTED");
+    const blockLock = lockUserPairForBlock(
+      blockSecond,
+      fixture.userAId,
+      fixture.userCId,
+    );
+    await waitForLock(owner, "cm-authority-block-second");
+    await sendFirst.query("COMMIT");
+    await blockLock;
+    await blockSecond.query(
+      `INSERT INTO public."Block" (id, "blockerId", "blockedId")
+       VALUES ($1, $2, $3)`,
+      [
+        fixture.raceBlockSecondId,
+        fixture.userAId,
+        fixture.userCId,
+      ],
+    );
+    await blockSecond.query("COMMIT");
+
+    const sendFirstState = await owner.query(
+      `SELECT
+         (SELECT pg_catalog.count(*)::integer
+            FROM public."Message"
+           WHERE id = $1) AS messages,
+         (SELECT pg_catalog.count(*)::integer
+            FROM public."Block"
+           WHERE "blockerId" = $2
+             AND "blockedId" = $3) AS blocks`,
+      [
+        fixture.raceBlockSendFirstId,
+        fixture.userAId,
+        fixture.userCId,
+      ],
+    );
+    assert.deepEqual(sendFirstState.rows[0], { messages: 1, blocks: 1 });
+  } finally {
+    await Promise.allSettled([
+      sendFirst.query("ROLLBACK"),
+      blockSecond.query("ROLLBACK"),
+    ]);
+    await Promise.all([sendFirst.end(), blockSecond.end()]);
+  }
+
+  await clearPairBlocks(owner, fixture.userAId, fixture.userCId);
+  const blockFirst = newClient("cm-authority-block-first");
+  const sendSecond = newClient("cm-authority-block-send-second");
+  await Promise.all([blockFirst.connect(), sendSecond.connect()]);
+  try {
+    await Promise.all([setRuntimeRole(blockFirst), setRuntimeRole(sendSecond)]);
+    await blockFirst.query("BEGIN ISOLATION LEVEL READ COMMITTED");
+    await lockUserPairForBlock(
+      blockFirst,
+      fixture.userAId,
+      fixture.userCId,
+    );
+    await blockFirst.query(
+      `INSERT INTO public."Block" (id, "blockerId", "blockedId")
+       VALUES ($1, $2, $3)`,
+      [
+        fixture.raceBlockFirstId,
+        fixture.userCId,
+        fixture.userAId,
+      ],
+    );
+
+    await sendSecond.query("BEGIN ISOLATION LEVEL READ COMMITTED");
+    const blockedSend = invokeOrdinaryMessage(
+      sendSecond,
+      "29292929-2929-4292-8292-292929292929",
+      fixture.userAId,
+      fixture.startedConversationId,
+      "block race blocked second",
+    );
+    await waitForLock(owner, "cm-authority-block-send-second");
+    await blockFirst.query("COMMIT");
+    await expectPgError(
+      () => blockedSend,
+      ["42501"],
+      "block-first concurrent ordinary send",
+    );
+    await sendSecond.query("ROLLBACK");
+
+    const blockFirstState = await owner.query(
+      `SELECT pg_catalog.count(*)::integer AS messages
+         FROM public."Message"
+        WHERE id = '29292929-2929-4292-8292-292929292929'`,
+    );
+    assert.equal(blockFirstState.rows[0].messages, 0);
+  } finally {
+    await Promise.allSettled([
+      blockFirst.query("ROLLBACK"),
+      sendSecond.query("ROLLBACK"),
+    ]);
+    await Promise.all([blockFirst.end(), sendSecond.end()]);
+  }
+  await clearPairBlocks(owner, fixture.userAId, fixture.userCId);
+  await owner.query(
+    'DELETE FROM public."Message" WHERE id = $1',
+    [fixture.raceBlockSendFirstId],
+  );
+  record("block_send_first_and_block_first_linearization");
+}
+
+async function proveAccountDeletionRaces(owner) {
+  const deletionFirst = newClient("cm-authority-deletion-first");
+  const sendSecond = newClient("cm-authority-deletion-send-second");
+  await Promise.all([deletionFirst.connect(), sendSecond.connect()]);
+  try {
+    await Promise.all([setRuntimeRole(deletionFirst), setRuntimeRole(sendSecond)]);
+    await deletionFirst.query("BEGIN ISOLATION LEVEL READ COMMITTED");
+    await deletionFirst.query(
+      `SELECT account_user.id
+         FROM public."User" AS account_user
+        WHERE account_user.id = $1
+        FOR UPDATE`,
+      [fixture.userEId],
+    );
+    await deletionFirst.query(
+      `UPDATE public."User"
+          SET "deletedAt" = '2026-07-25T00:00:00'::timestamp
+        WHERE id = $1`,
+      [fixture.userEId],
+    );
+
+    await sendSecond.query("BEGIN ISOLATION LEVEL READ COMMITTED");
+    const blockedSend = invokeOrdinaryMessage(
+      sendSecond,
+      "30303030-3030-4303-8303-303030303030",
+      fixture.userCId,
+      fixture.conversationCEId,
+      "deletion race blocked second",
+    );
+    await waitForLock(owner, "cm-authority-deletion-send-second");
+    await deletionFirst.query("COMMIT");
+    await expectPgError(
+      () => blockedSend,
+      ["42501"],
+      "deletion-first concurrent ordinary send",
+    );
+    await sendSecond.query("ROLLBACK");
+  } finally {
+    await Promise.allSettled([
+      deletionFirst.query("ROLLBACK"),
+      sendSecond.query("ROLLBACK"),
+    ]);
+    await Promise.all([deletionFirst.end(), sendSecond.end()]);
+    await owner.query(
+      'UPDATE public."User" SET "deletedAt" = NULL WHERE id = $1',
+      [fixture.userEId],
+    );
+  }
+
+  const sendFirst = newClient("cm-authority-deletion-send-first");
+  const deletionSecond = newClient("cm-authority-deletion-second");
+  await Promise.all([sendFirst.connect(), deletionSecond.connect()]);
+  try {
+    await Promise.all([setRuntimeRole(sendFirst), setRuntimeRole(deletionSecond)]);
+    await sendFirst.query("BEGIN ISOLATION LEVEL READ COMMITTED");
+    await invokeOrdinaryMessage(
+      sendFirst,
+      fixture.raceDeletionSendFirstId,
+      fixture.userAId,
+      fixture.startedConversationId,
+      "deletion race send first",
+    );
+
+    await deletionSecond.query("BEGIN ISOLATION LEVEL READ COMMITTED");
+    const deletionLock = deletionSecond.query(
+      `SELECT account_user.id
+         FROM public."User" AS account_user
+        WHERE account_user.id = $1
+        FOR UPDATE`,
+      [fixture.userAId],
+    );
+    await waitForLock(owner, "cm-authority-deletion-second");
+    await sendFirst.query("COMMIT");
+    await deletionLock;
+    const redaction = await deletionSecond.query(
+      "SELECT * FROM public.grainline_message_redact_for_account_deletion($1)",
+      [fixture.userAId],
+    );
+    assert.equal(redaction.rows[0].sentRedacted, 1);
+    const redactedMessages = await deletionSecond.query(
+      `SELECT * FROM public.grainline_message_list(
+         $1, $2, 'after', NULL, NULL, 50
+       )`,
+      [fixture.userAId, fixture.startedConversationId],
+    );
+    assert.equal(
+      redactedMessages.rows.find(
+        (row) => row.id === fixture.raceDeletionSendFirstId,
+      )?.body,
+      "[Message deleted]",
+    );
+    await deletionSecond.query("ROLLBACK");
+
+    const rolledBackBody = await owner.query(
+      'SELECT body FROM public."Message" WHERE id = $1',
+      [fixture.raceDeletionSendFirstId],
+    );
+    assert.equal(rolledBackBody.rows[0].body, "deletion race send first");
+  } finally {
+    await Promise.allSettled([
+      sendFirst.query("ROLLBACK"),
+      deletionSecond.query("ROLLBACK"),
+    ]);
+    await Promise.all([sendFirst.end(), deletionSecond.end()]);
+  }
+  await owner.query(
+    'DELETE FROM public."Message" WHERE id = $1',
+    [fixture.raceDeletionSendFirstId],
+  );
+  record("deletion_first_rejects_send_and_send_first_is_included_in_redaction");
+}
+
+async function proveMarkReadRaces(owner) {
+  const sendFirst = newClient("cm-authority-mark-send-first");
+  const markSecond = newClient("cm-authority-mark-second");
+  await Promise.all([sendFirst.connect(), markSecond.connect()]);
+  try {
+    await Promise.all([setRuntimeRole(sendFirst), setRuntimeRole(markSecond)]);
+    await sendFirst.query("BEGIN ISOLATION LEVEL READ COMMITTED");
+    await invokeOrdinaryMessage(
+      sendFirst,
+      fixture.raceMarkSendFirstId,
+      fixture.userAId,
+      fixture.startedConversationId,
+      "mark race send first",
+    );
+
+    await markSecond.query("BEGIN ISOLATION LEVEL READ COMMITTED");
+    const markAttempt = markSecond.query(
+      "SELECT public.grainline_message_mark_read($1, $2) AS count",
+      [fixture.userCId, fixture.startedConversationId],
+    );
+    await waitForLock(owner, "cm-authority-mark-second");
+    await sendFirst.query("COMMIT");
+    const marked = await markAttempt;
+    assert.equal(marked.rows[0].count, 1);
+    await markSecond.query("COMMIT");
+    const readAfterWait = await owner.query(
+      'SELECT "readAt" FROM public."Message" WHERE id = $1',
+      [fixture.raceMarkSendFirstId],
+    );
+    assert.ok(readAfterWait.rows[0].readAt instanceof Date);
+  } finally {
+    await Promise.allSettled([
+      sendFirst.query("ROLLBACK"),
+      markSecond.query("ROLLBACK"),
+    ]);
+    await Promise.all([sendFirst.end(), markSecond.end()]);
+  }
+  await owner.query(
+    'DELETE FROM public."Message" WHERE id = $1',
+    [fixture.raceMarkSendFirstId],
+  );
+
+  const markFirst = newClient("cm-authority-mark-first");
+  const sendSecond = newClient("cm-authority-mark-send-second");
+  await Promise.all([markFirst.connect(), sendSecond.connect()]);
+  try {
+    await Promise.all([setRuntimeRole(markFirst), setRuntimeRole(sendSecond)]);
+    await markFirst.query("BEGIN ISOLATION LEVEL READ COMMITTED");
+    const marked = await markFirst.query(
+      "SELECT public.grainline_message_mark_read($1, $2) AS count",
+      [fixture.userCId, fixture.startedConversationId],
+    );
+    assert.equal(marked.rows[0].count, 0);
+
+    await sendSecond.query("BEGIN ISOLATION LEVEL READ COMMITTED");
+    const sendAttempt = invokeOrdinaryMessage(
+      sendSecond,
+      fixture.raceMarkFirstId,
+      fixture.userAId,
+      fixture.startedConversationId,
+      "mark race mark first",
+    );
+    await waitForLock(owner, "cm-authority-mark-send-second");
+    await markFirst.query("COMMIT");
+    await sendAttempt;
+    await sendSecond.query("COMMIT");
+    const unreadAfterMarkFirst = await owner.query(
+      'SELECT "readAt" FROM public."Message" WHERE id = $1',
+      [fixture.raceMarkFirstId],
+    );
+    assert.equal(unreadAfterMarkFirst.rows[0].readAt, null);
+  } finally {
+    await Promise.allSettled([
+      markFirst.query("ROLLBACK"),
+      sendSecond.query("ROLLBACK"),
+    ]);
+    await Promise.all([markFirst.end(), sendSecond.end()]);
+  }
+  await owner.query(
+    'DELETE FROM public."Message" WHERE id = $1',
+    [fixture.raceMarkFirstId],
+  );
+  record("mark_read_send_both_lock_orderings_linearized");
+}
+
+async function proveArchiveRaces(owner) {
+  await owner.query(
+    `UPDATE public."Conversation"
+        SET "archivedAAt" = NULL, "archivedBAt" = NULL
+      WHERE id = $1`,
+    [fixture.startedConversationId],
+  );
+  const archiveFirst = newClient("cm-authority-archive-first");
+  const sendSecond = newClient("cm-authority-archive-send-second");
+  await Promise.all([archiveFirst.connect(), sendSecond.connect()]);
+  try {
+    await Promise.all([setRuntimeRole(archiveFirst), setRuntimeRole(sendSecond)]);
+    await archiveFirst.query("BEGIN ISOLATION LEVEL READ COMMITTED");
+    await archiveFirst.query(
+      "SELECT public.grainline_conversation_set_archived($1, $2, true)",
+      [fixture.userAId, fixture.startedConversationId],
+    );
+
+    await sendSecond.query("BEGIN ISOLATION LEVEL READ COMMITTED");
+    const sendAttempt = invokeOrdinaryMessage(
+      sendSecond,
+      fixture.raceArchiveFirstId,
+      fixture.userCId,
+      fixture.startedConversationId,
+      "archive race archive first",
+    );
+    await waitForLock(owner, "cm-authority-archive-send-second");
+    await archiveFirst.query("COMMIT");
+    await sendAttempt;
+    await sendSecond.query("COMMIT");
+    const reopened = await owner.query(
+      `SELECT "archivedAAt", "archivedBAt"
+         FROM public."Conversation"
+        WHERE id = $1`,
+      [fixture.startedConversationId],
+    );
+    assert.deepEqual(reopened.rows[0], {
+      archivedAAt: null,
+      archivedBAt: null,
+    });
+  } finally {
+    await Promise.allSettled([
+      archiveFirst.query("ROLLBACK"),
+      sendSecond.query("ROLLBACK"),
+    ]);
+    await Promise.all([archiveFirst.end(), sendSecond.end()]);
+  }
+  await owner.query(
+    'DELETE FROM public."Message" WHERE id = $1',
+    [fixture.raceArchiveFirstId],
+  );
+
+  const sendFirst = newClient("cm-authority-archive-send-first");
+  const archiveSecond = newClient("cm-authority-archive-second");
+  await Promise.all([sendFirst.connect(), archiveSecond.connect()]);
+  try {
+    await Promise.all([setRuntimeRole(sendFirst), setRuntimeRole(archiveSecond)]);
+    await sendFirst.query("BEGIN ISOLATION LEVEL READ COMMITTED");
+    await invokeOrdinaryMessage(
+      sendFirst,
+      fixture.raceArchiveSendFirstId,
+      fixture.userCId,
+      fixture.startedConversationId,
+      "archive race send first",
+    );
+
+    await archiveSecond.query("BEGIN ISOLATION LEVEL READ COMMITTED");
+    const archiveAttempt = archiveSecond.query(
+      "SELECT public.grainline_conversation_set_archived($1, $2, true)",
+      [fixture.userAId, fixture.startedConversationId],
+    );
+    await waitForLock(owner, "cm-authority-archive-second");
+    await sendFirst.query("COMMIT");
+    await archiveAttempt;
+    await archiveSecond.query("COMMIT");
+    const archived = await owner.query(
+      `SELECT "archivedAAt", "archivedBAt"
+         FROM public."Conversation"
+        WHERE id = $1`,
+      [fixture.startedConversationId],
+    );
+    assert.ok(archived.rows[0].archivedAAt instanceof Date);
+    assert.equal(archived.rows[0].archivedBAt, null);
+  } finally {
+    await Promise.allSettled([
+      sendFirst.query("ROLLBACK"),
+      archiveSecond.query("ROLLBACK"),
+    ]);
+    await Promise.all([sendFirst.end(), archiveSecond.end()]);
+  }
+  await owner.query(
+    'DELETE FROM public."Message" WHERE id = $1',
+    [fixture.raceArchiveSendFirstId],
+  );
+  await owner.query(
+    `UPDATE public."Conversation"
+        SET "archivedAAt" = NULL, "archivedBAt" = NULL
+      WHERE id = $1`,
+    [fixture.startedConversationId],
+  );
+  record("archive_send_both_lock_orderings_linearized");
+}
+
 async function main() {
   validateTarget(databaseUrl);
   const owner = newClient("cm-recipient-rls-owner");
@@ -1069,6 +1570,10 @@ async function main() {
     await applyDraft(owner);
     await proveCatalog(owner);
     await proveRuntimeIsolation(owner);
+    await proveBlockRaces(owner);
+    await proveAccountDeletionRaces(owner);
+    await proveMarkReadRaces(owner);
+    await proveArchiveRaces(owner);
   } finally {
     await cleanFixtures(owner).catch(() => {});
     await owner.end();

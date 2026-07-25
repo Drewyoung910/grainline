@@ -153,6 +153,11 @@ describe("Conversation and Message recipient RLS draft", () => {
     assert.match(proof, /direct runtime Message insert/);
     assert.match(proof, /direct runtime Conversation update/);
     assert.match(proof, /direct runtime Message delete/);
+    assert.match(proof, /proveBlockRaces\(owner\)/);
+    assert.match(proof, /proveAccountDeletionRaces\(owner\)/);
+    assert.match(proof, /proveMarkReadRaces\(owner\)/);
+    assert.match(proof, /proveArchiveRaces\(owner\)/);
+    assert.match(proof, /wait_event_type === "Lock"/);
   });
 
   it("keeps ordinary write targets derived and private cores ungranted", () => {
