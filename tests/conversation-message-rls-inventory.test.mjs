@@ -96,6 +96,6 @@ describe("Conversation and Message RLS inventory", () => {
     assert.match(plan, /commission-interest system message/);
     assert.match(plan, /custom-order-ready/);
     assert.match(plan, /Conversation\/Message RLS remains disabled/);
-    assert.match(plan, /isolated invariant SQL has not been applied/);
+    assert.match(plan, /reviewed invariant SQL has not been applied to production/);
   });
 });

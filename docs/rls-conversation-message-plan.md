@@ -160,7 +160,9 @@ The direct runtime table query with no context must return zero rows.
 1. Inventory and pin every current access path. **Complete: original 55-path
    migration baseline; current compatible surface is 53 protected accesses.**
 2. Complete `docs/conversation-message-pre-rls-audit.md` and fix its activation
-   blockers before authority SQL. **App findings fixed; invariant proof in progress.**
+   blockers before authority SQL. **App findings fixed; invariant proof and
+   Extra-High preparation review complete; protected production application
+   remains pending.**
 3. Read-only legacy/preflight design: exact participant, message-pair, kind,
    orphan, report and archive aggregates; do not export bodies or identifiers.
    **Complete at exact main `05e236bb15e6400496073e808fe37d740c0e48a8`; the
