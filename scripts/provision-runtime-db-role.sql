@@ -406,6 +406,37 @@ TO :"runtime_role";
 
 GRANT EXECUTE ON FUNCTION public."grainline_notification_preferences_valid"(jsonb) TO :"runtime_role";
 
+-- Trigger functions are owner-internal invariants, not application RPCs.
+-- They can be absent before their preparation migration; when present,
+-- converge both inherited/public and direct runtime EXECUTE to none.
+WITH private_trigger(function_signature) AS (
+  VALUES
+    ('public."grainline_conversation_participants_immutable"()'),
+    ('public."grainline_message_participants_match_conversation"()'),
+    ('public."grainline_message_route_immutable"()'),
+    ('public."grainline_message_maintain_thread_state"()')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM private_trigger
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH private_trigger(function_signature) AS (
+  VALUES
+    ('public."grainline_conversation_participants_immutable"()'),
+    ('public."grainline_message_participants_match_conversation"()'),
+    ('public."grainline_message_route_immutable"()'),
+    ('public."grainline_message_maintain_thread_state"()')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM private_trigger
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- These RPCs are introduced by a migration that runs after first-time role
 -- provisioning. Skip them when they do not exist yet; their migration applies
 -- the same least-privilege grants, and later provisioning runs converge drift.

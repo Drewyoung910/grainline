@@ -22,8 +22,8 @@ separate from Notification, Order/payment/shipping and Case/CaseMessage.
 ## Verified baseline
 
 The original machine inventory recorded 50 direct ORM operations and 5 raw SQL
-table references. Compatible audit refactors currently leave 44 direct ORM
-operations and 7 raw SQL references across 17 runtime files (51 total protected
+table references. Compatible audit refactors currently leave 45 direct ORM
+operations and 8 raw SQL references across 17 runtime files (53 total protected
 access points). The surface includes the user inbox and
 thread, list and stream polling, unread counts, per-recipient mark-read,
 archive state, first-response metrics, email throttling, account export,
@@ -157,7 +157,7 @@ The direct runtime table query with no context must return zero rows.
 ## Compatibility and rollout sequence
 
 1. Inventory and pin every current access path. **Complete: original 55-path
-   migration baseline; current compatible surface is 51 protected accesses.**
+   migration baseline; current compatible surface is 53 protected accesses.**
 2. Complete `docs/conversation-message-pre-rls-audit.md` and fix its activation
    blockers before authority SQL. **App findings fixed; invariant proof in progress.**
 3. Read-only legacy/preflight design: exact participant, message-pair, kind,

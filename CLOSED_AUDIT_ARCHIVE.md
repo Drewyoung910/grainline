@@ -2,6 +2,9 @@
 
 Completed audit/fix pass sections moved out of `CLOSED_AUDIT_HISTORY.md` after the 60-day operating window. Keep this file historical; current operating rules and recent history stay elsewhere.
 
+The completed 2026-05-24 batch is preserved verbatim in
+`CLOSED_AUDIT_ARCHIVE_2026-05-24.md`.
+
 ## Security + Financial Audit Fixes (2026-04-23)
 
 ### Review fulfillment gate

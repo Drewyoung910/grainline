@@ -137,6 +137,11 @@ thread plus per-Message listing context. Attachment kind normalization,
 message-search indexing, long-history pagination, timestamp correctness and
 mobile horizontal-overflow repair remain in the current pre-RLS scope.
 
+Durable scale review triggers and the reasoning behind these deferrals live in
+`docs/scaling-decisions/`. Update the relevant record when production evidence
+changes a threshold or architecture decision so deferred work is not mistaken
+for forgotten work.
+
 ### Prelaunch RLS rollout proportionality (2026-07-22)
 
 The confirmed prelaunch/no-dependent-users state permits shorter operating
