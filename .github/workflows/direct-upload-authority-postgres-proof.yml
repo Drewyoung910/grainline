@@ -9,10 +9,12 @@ on:
       - package.json
       - package-lock.json
       - prisma/**
+      - scripts/audit-runtime-db-grants.mjs
       - scripts/direct-upload-authority-catalog.mjs
       - scripts/direct-upload-authority-postgres-proof.mjs
       - scripts/prepare-ci-rls-runtime-role.sql
       - scripts/provision-runtime-db-role.sql
+      - tests/db-grant-inventory.test.mjs
       - tests/direct-upload-authority-postgres-proof.test.mjs
   workflow_dispatch:
 
