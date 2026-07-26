@@ -81,6 +81,14 @@ catalog, race suite and application conversion pass:
     buyer-initiated and seller-responded aggregate counts; it exposes no
     Conversation id, Message id or body.
 
+An ordinary composer submission may contain several attachment Messages plus
+one text Message. Application conversion must keep all corresponding function
+calls and `DirectUpload` claims in the existing single `READ COMMITTED`
+transaction, with one generated UUID per Message, and emit Notification/email
+side effects only after that transaction commits. The fixed function protects
+one row per call; it does not authorize weakening batch atomicity or the
+existing first-party upload verification/claim checks.
+
 All fixed service families are drafted. The disposable PostgreSQL authority
 proof, including both lock orderings for block, deletion, mark-read and archive
 races, passed at `940fcf2c` in GitHub Actions run `30179962784`. The remaining

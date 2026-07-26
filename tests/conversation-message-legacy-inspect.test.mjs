@@ -138,6 +138,18 @@ describe("Conversation and Message legacy inspection operator", () => {
       CONVERSATION_MESSAGE_LEGACY_COUNTS_SQL,
       /body::jsonb\)->>'(?:listingId|commissionId)'\s+(?:=|IS DISTINCT FROM)/,
     );
+    const proof = fs.readFileSync(
+      "scripts/conversation-message-recipient-rls-proof.mjs",
+      "utf8",
+    );
+    assert.match(proof, /SET body = 'not-json'/);
+    assert.match(proof, /invalidCustomLinkSourceCount, 1/);
+    assert.match(proof, /commissionInterestMissingMessageCount, 1/);
+    assert.match(proof, /orphanCommissionCardCount, 1/);
+    assert.match(
+      proof,
+      /exact_aggregate_only_legacy_query_matches_sources_and_counts_malformed_payloads/,
+    );
   });
 
   it("requires the exact clean dispatched checkout", () => {

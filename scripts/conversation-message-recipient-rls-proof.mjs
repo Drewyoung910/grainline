@@ -1300,7 +1300,31 @@ async function proveExactLegacyInspectionQuery(owner) {
     activePrivateCustomListingCount: 1,
     invalidPrivateCustomListingPairCount: 0,
   });
-  record("exact_aggregate_only_legacy_inspection_query_compiles_and_matches_sources");
+
+  await owner.query("BEGIN");
+  try {
+    await owner.query(
+      `UPDATE public."Message"
+          SET body = 'not-json'
+        WHERE id = ANY($1::text[])`,
+      [[fixture.customReadyMessageId, fixture.commissionMessageId]],
+    );
+    const malformedResult = await owner.query(
+      CONVERSATION_MESSAGE_LEGACY_COUNTS_SQL,
+    );
+    const malformedCounts = normalizeConversationMessageLegacyCounts(
+      malformedResult.rows[0],
+    );
+    assert.equal(malformedCounts.invalidCustomLinkSourceCount, 1);
+    assert.equal(malformedCounts.commissionInterestMissingMessageCount, 1);
+    assert.equal(malformedCounts.commissionInterestDuplicateMessageGroupCount, 0);
+    assert.equal(malformedCounts.orphanCommissionCardCount, 1);
+  } finally {
+    await owner.query("ROLLBACK");
+  }
+  record(
+    "exact_aggregate_only_legacy_query_matches_sources_and_counts_malformed_payloads",
+  );
 }
 
 async function proveBlockRaces(owner) {
