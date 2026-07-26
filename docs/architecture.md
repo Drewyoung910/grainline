@@ -1,6 +1,6 @@
 # Grainline Architecture
 
-Last updated: 2026-07-22
+Last updated: 2026-07-26
 
 This document is the human onboarding map for Grainline. `CLAUDE.md` remains the detailed implementation memory and behavior-contract log; this file is the shorter architectural overview a new engineer should read first.
 
@@ -33,12 +33,13 @@ Grainline is a US-only woodworking marketplace. It supports public browsing, sel
 
 ## Request Boundaries
 
-Grainline uses database-level Row Level Security for `SavedSearch`; its Phase B
-`FORCE ROW LEVEL SECURITY` rollout is live. The ordinary application runtime
-uses a dedicated `NOBYPASSRLS` role, while owner/migration credentials are kept
-out of the Vercel runtime. The rest of the schema still relies primarily on
-application-layer authorization while independently reviewed RLS or
-least-privilege database groups roll out:
+Grainline uses database-level Row Level Security for `SavedSearch`,
+`Notification`, `Conversation`, and `Message`; all four tables are
+`FORCE ROW LEVEL SECURITY` hardened with retained production proof. The
+ordinary application runtime uses a dedicated `NOBYPASSRLS` role, while
+owner/migration credentials are kept out of the Vercel runtime. The rest of
+the schema still relies primarily on application-layer authorization while
+independently reviewed RLS or least-privilege database groups roll out:
 
 - `src/middleware.ts` enforces signed-out redirects, API 401s, terms acceptance, suspended/deleted account blocks, admin role/PIN checks, cron auth, geo-blocking, and request IDs.
 - Geo-blocking uses Vercel's `x-vercel-ip-country` header and trusts it only behind Vercel managed ingress. A future hosting or proxy migration must replace that header with a trusted geo source or revisit the US-only gate before accepting traffic.
@@ -46,12 +47,12 @@ least-privilege database groups roll out:
 - Public routes must use shared visibility predicates (`publicListingWhere`, `publicListingDetailWhere`, `visibleSellerProfileWhere`, `activeSellerProfileWhere`, `publicBlogPostWhere`) rather than ad hoc filters.
 - Webhooks and cron routes are middleware-public only because they authenticate with provider signatures or shared secrets inside the route.
 
-`Notification` is the next independent RLS group. Its branch has complete
-54-path write-authority coverage, disposable PostgreSQL and provider proof, and
-a passed consolidated SQL/application authority review, but it is not merged,
-applied, or production-live. Messaging, cases, orders/payment/shipping, and
+Notification and Conversation/Message are complete independent production
+groups. Case/CaseMessage is now in its pre-policy behavior/authority audit,
+with its 69-reference baseline and open findings recorded in
+`docs/case-case-message-pre-rls-audit.md`. Cases, orders/payment/shipping, and
 service/audit ledgers remain separate later activation groups; do not bundle
-them into the Notification release.
+their policies or grants.
 
 ## Core Lifecycles
 
@@ -111,10 +112,10 @@ now concentrated in several hotspots:
 - Notification creation historically spans 54 emission paths. The Bucket B
   family wrappers and completeness gate control that distribution, but future
   notification types must enter through the same source-bound registry.
-- The long-lived Notification branch is a large integration unit (111 files
-  changed from `main` at the 2026-07-22 review). Release it through a clean PR,
-  full CI, explicit migration/app compatibility sequence, and postflight; do
-  not treat green branch-only database proof as a substitute for release CI.
+- Notification and Conversation/Message were deliberately released through
+  separate clean PRs, protected migrations, full CI and pooled-runtime
+  postflights. Reuse those operating controls without copying their table
+  authority shapes onto Case or Order.
 - `package.json` currently permits automatic Node major upgrades (`>=22`), so
   Vercel may build on Node 24 while GitHub CI uses Node 22. Align the supported
   major explicitly before launch in a separate compatibility change.

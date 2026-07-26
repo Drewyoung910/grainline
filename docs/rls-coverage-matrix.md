@@ -7,9 +7,9 @@ Last updated: 2026-07-26
 This is the schema-complete disposition ledger for Grainline's site-wide
 database isolation program. Snapshot scope: 58 Prisma models.
 
-`SavedSearch` and `Notification` are the two tables in this snapshot with
-production RLS. Every other row is **not active RLS** and remains work to
-design, prove, and promote.
+`SavedSearch`, `Notification`, `Conversation`, and `Message` are the four
+tables in this snapshot with production RLS. Every other row is **not active
+RLS** and remains work to design, prove, and promote.
 The target column is a planning disposition, not a claim that the control is
 implemented. Re-read the production catalog before making any current-state
 claim because this document is a dated source snapshot.
@@ -24,6 +24,8 @@ callbacks remain mandatory after a policy is enabled.
   hardening phase can still be pending.
 - `RLS_LIVE_PHASE_B`: production RLS is enabled and FORCE-hardened with retained
   runtime-role and maintenance proof.
+- `RLS_LIVE_FORCE`: production RLS is enabled and FORCE-hardened with retained
+  proof outside the historical SavedSearch/Notification A/B labels.
 - `PLANNED_RLS`: RLS is the expected target shape, but the table-specific
   actor and operation inventory, staging proof, rollback, and monitoring are
   not complete.
@@ -52,8 +54,8 @@ completed alternative.
 | `Photo` | `BLOCKED_DESIGN` | Catalog public-private split | Listing media; public readers, listing owner and cleanup jobs | Parent listing visibility and seller ownership policy with cleanup path |
 | `Favorite` | `BLOCKED_DESIGN` | Aggregate and fanout | Owner save history plus cross-user ranking and seller analytics | Denormalize or explicitly serve public aggregates before owner-scoped reads |
 | `Review` | `BLOCKED_DESIGN` | Review and UGC | Public review, reviewer content, seller reply and staff moderation | Actor-specific read and write rules that preserve public approved content and moderation |
-| `Conversation` | `BLOCKED_DESIGN` | Conversation and message | Private participant thread state; two participants, staff exceptions and deletion flows | Invariants and the exactly classified legacy cleanup are live with a zero-anomaly postflight; promote the already-proven authority catalog functions-only and convert the compatible app before activation per `docs/rls-conversation-message-plan.md` |
-| `Message` | `BLOCKED_DESIGN` | Conversation and message | Private message bodies and attachments; sender, recipient, staff exceptions and system messages | Exact routing/scale invariants, recipient/service/race proof and the one-row custom-link cleanup are complete; postflight found zero missing/invalid sources, so functions-only promotion and conversion of all 53 protected accesses are next before policy/grant activation |
+| `Conversation` | `RLS_LIVE_FORCE` | Conversation and message | Private participant thread state; two participants, exact reported-staff exception and deletion flows | ENABLE plus FORCE, one participant/reported-staff SELECT policy, SELECT-only runtime grant and fixed write authority are live. Retain protected run `30207825683`, actual pooled-runtime postflight and `docs/rls-conversation-message-plan.md` |
+| `Message` | `RLS_LIVE_FORCE` | Conversation and message | Private message bodies and attachments; sender, recipient, exact reported-staff exception and structured service messages | ENABLE plus FORCE, one parent-derived SELECT policy, SELECT-only runtime grant and fixed write authority are live with the Conversation release and retained pooled-runtime proof |
 | `ReviewPhoto` | `BLOCKED_DESIGN` | Review and UGC | Review media; public readers, reviewer and moderation cleanup | Parent review visibility and author-control policy |
 | `ReviewVote` | `BLOCKED_DESIGN` | Review and UGC | User vote history plus public helpful counts | Preserve aggregate counts while restricting per-user rows and writes |
 | `Order` | `BLOCKED_DESIGN` | Order, payment and shipping | Buyer PII, addresses, provider IDs, fulfillment and refunds; buyer, item sellers, staff, Stripe, Shippo and jobs | Full actor-operation inventory, seller-through-item policy, service writes, retention and rollback proof |
@@ -67,8 +69,8 @@ completed alternative.
 | `ListingVariantGroup` | `BLOCKED_DESIGN` | Catalog public-private split | Public listing options with seller writes | Parent listing visibility and ownership policy |
 | `ListingVariantOption` | `BLOCKED_DESIGN` | Catalog public-private split | Public option price and stock data with seller writes | Parent group and listing visibility plus ownership policy |
 | `SiteConfig` | `ALTERNATIVE_REVIEW` | Reference and configuration | Singleton operational configuration; public-runtime readers and staff or deployment writers | Make ordinary runtime read-only and choose audited administrative mutation path |
-| `Case` | `BLOCKED_DESIGN` | Case and case message | Dispute narrative, status and refund identifiers; buyer, seller, staff and cron | Participant and staff policies, escalation jobs, resolution and refund transaction proof |
-| `CaseMessage` | `BLOCKED_DESIGN` | Case and case message | Private dispute discussion; buyer, seller and staff | Parent-case participant and staff policy plus closed-state write rules |
+| `Case` | `BLOCKED_DESIGN` | Case and case message | Dispute narrative, status and refund identifiers; buyer, seller, staff, cron and Stripe | Active pre-RLS audit is pinned at 69 protected references in `docs/case-case-message-pre-rls-audit.md`; close party/order invariants, transition races, deadline semantics and service destinations before policy SQL |
+| `CaseMessage` | `BLOCKED_DESIGN` | Case and case message | Private dispute discussion; buyer, seller and staff | Active audit requires durable source-derived author kind, parent authority, bounded keyset history and locked timestamp/state transitions before policy SQL |
 | `SavedSearch` | `RLS_LIVE_PHASE_B` | Bucket A SavedSearch | Direct user-owned search criteria; owner and bounded canary | Phase B FORCE is live; retain exact policies, grants, canary, rollback, and maintenance proof |
 | `StockNotification` | `PLANNED_RLS` | Stock notification | Direct user subscription with listing-wide notification fanout and cleanup | Owner reads and writes plus explicit service fanout and listing cleanup path; do not fold silently into Bucket B |
 | `MakerVerification` | `BLOCKED_DESIGN` | Verification | Seller application evidence and staff review notes; applicant, employee and admin | Applicant projection, staff review path, decision writes and notification side effects |
@@ -200,12 +202,14 @@ preclude a later reviewed policy or grant migration.
 2. Runtime/migration credential separation and superseded owner-credential
    invalidation are complete.
 3. Bucket B Notification `ENABLE` plus `FORCE` is complete in production.
-4. Design and independently activate `Conversation` plus `Message` next. Keep
-   participant, reported-staff, system-message, export, deletion and aggregate
-   paths in one explicit authority inventory because Message policy depends on
-   its parent Conversation.
-5. Continue the remaining matrix groups separately. Order/payment/shipping and
-   Case/CaseMessage retain high sensitive-data priority; Cart/CartItem,
+4. Conversation plus Message ENABLE/FORCE and the actual pooled-runtime
+   postflight are complete in production.
+5. Audit and independently activate Case/CaseMessage next. Keep participant,
+   staff, cron, Stripe, account-lifecycle, refund and aggregate paths in one
+   explicit authority inventory because CaseMessage policy depends on its
+   parent Case, but do not bundle Order/payment/shipping activation.
+6. Continue the remaining matrix groups separately. Order/payment/shipping
+   retains high sensitive-data priority; Cart/CartItem,
    SavedBlogPost, aggregate/fanout, public/private split and service-ledger
    groups remain required and must not be silently dropped or bundled into the
    messaging activation.
