@@ -65,7 +65,9 @@ describe("account deletion media cleanup scoping", () => {
     const enqueueCall = deletion.indexOf("await enqueueAccountDeletionMediaDeleteSideEffects(tx, user.id, mediaUrls)");
     const deleteRows = deletion.indexOf("await tx.directUpload.deleteMany({ where: { userId: user.id } })");
 
-    assert.match(deletion, /"sellerProfile" \| "reviewPhoto" \| "commissionRequest" \| "message" \| "blogPost" \| "directUpload"/);
+    assert.match(deletion, /"sellerProfile" \| "reviewPhoto" \| "commissionRequest" \| "blogPost" \| "directUpload" \| "\$queryRaw"/);
+    assert.match(collect, /listActorSentMessageBodiesForDeletion\(userId, db\)/);
+    assert.doesNotMatch(collect, /db\.message\./);
     assert.match(collect, /db\.directUpload\.findMany\(\{\s*where: \{ userId \},\s*select: \{ publicUrl: true \},\s*\}\)/s);
     assert.match(collect, /directUploads\.forEach\(\(upload\) => urls\.add\(upload\.publicUrl\)\)/);
     assert.ok(collectCall >= 0, "account deletion must collect media URLs");

@@ -16,7 +16,8 @@ describe("PR H account deletion, analytics, and email follow-ups", () => {
     const schema = source("prisma/schema.prisma");
 
     assert.doesNotMatch(accountDeletion, /tx\.conversation\.deleteMany/);
-    assert.match(accountDeletion, /tx\.message\.updateMany\(\{\s*where: \{ senderId: user\.id \}/s);
+    assert.match(accountDeletion, /redactActorMessagesForAccountDeletion\(user\.id, tx\)/);
+    assert.doesNotMatch(accountDeletion, /tx\.message\./);
     assert.match(schema, /userA\s+User\s+@relation\("ConvoA".*onDelete: Restrict\)/);
     assert.match(schema, /userB\s+User\s+@relation\("ConvoB".*onDelete: Restrict\)/);
   });

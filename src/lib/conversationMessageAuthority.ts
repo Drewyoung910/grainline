@@ -48,6 +48,15 @@ export type ActorMessageExport = {
   createdAt: Date;
 };
 
+export type ActorSentMessageBody = {
+  body: string;
+};
+
+export type ActorMessageDeletionRedaction = {
+  sentRedacted: number;
+  receivedRedacted: number;
+};
+
 export type ActorCustomOrderRequest = {
   body: string;
   createdAt: Date;
@@ -327,6 +336,63 @@ export async function exportActorMessages(
       )
   `;
   return rows.map(validateMessageExportRow);
+}
+
+export async function listActorSentMessageBodiesForDeletion(
+  userId: string,
+  db: ConversationMessageAuthorityClient = prisma,
+): Promise<ActorSentMessageBody[]> {
+  const actorId = normalizeDbUserContextUserId(userId);
+  const rows = await db.$queryRaw<ActorSentMessageBody[]>`
+    SELECT message_export.body
+      FROM public.grainline_message_export(
+        ${actorId}::text
+      ) AS message_export
+     WHERE message_export."senderId" = ${actorId}::text
+  `;
+  return rows.map((row) => {
+    if (
+      typeof row !== "object"
+      || row === null
+      || typeof row.body !== "string"
+    ) {
+      throw new TypeError(
+        "account-deletion message media projection returned an invalid row",
+      );
+    }
+    return row;
+  });
+}
+
+export async function redactActorMessagesForAccountDeletion(
+  userId: string,
+  db: ConversationMessageAuthorityClient = prisma,
+): Promise<ActorMessageDeletionRedaction> {
+  const actorId = normalizeDbUserContextUserId(userId);
+  const rows = await db.$queryRaw<Array<{
+    sentRedacted: CountValue;
+    receivedRedacted: CountValue;
+  }>>`
+    SELECT *
+      FROM public.grainline_message_redact_for_account_deletion(
+        ${actorId}::text
+      )
+  `;
+  if (rows.length !== 1) {
+    throw new TypeError(
+      "account-deletion message redaction RPC returned an invalid row",
+    );
+  }
+  return {
+    sentRedacted: requireSafeCount(
+      rows[0].sentRedacted,
+      "account-deletion sent-message redaction RPC",
+    ),
+    receivedRedacted: requireSafeCount(
+      rows[0].receivedRedacted,
+      "account-deletion received-message redaction RPC",
+    ),
+  };
 }
 
 export async function isActorMessageReportTarget(

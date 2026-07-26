@@ -10,9 +10,9 @@ active from this work.
 TypeScript tree. The audited baseline was 50 direct Prisma operations plus 5
 raw SQL references. After the first compatible audit fixes it currently finds:
 
-- 19 direct Prisma Conversation or Message operations;
-- 4 raw SQL table references;
-- 23 remaining protected-table access points across 4 files.
+- 16 direct Prisma Conversation or Message operations;
+- 2 raw SQL table references;
+- 18 remaining protected-table access points across 3 files.
 
 The first application conversion checkpoint removed all seven direct
 Conversation/Message operations from list polling, stream polling, mark-read
@@ -65,6 +65,16 @@ period; Conversation and Message rows or bodies never cross the function
 boundary. The typed wrapper rejects malformed, negative, unsafe or logically
 impossible counts before calculating the cached response rate.
 
+The eighth checkpoint converted account deletion. Attachment discovery still
+runs before any body redaction, but now projects only the deleting actor's sent
+message bodies through the participant export function. The deletion
+transaction then calls one fixed account-deletion function while holding the
+existing User lifecycle lock. PostgreSQL derives the sensitive values, redacts
+all sender bodies and redacts matching values in received bodies; the app has
+no direct Message scan or update. Invalid result counts and database authority
+errors fail the whole deletion transaction instead of permitting partial
+privacy cleanup.
+
 The test `tests/conversation-message-rls-inventory.test.mjs` pins the count and
 the exact per-file/model/operation summary. A new access path must therefore be
 classified here instead of silently inheriting broad runtime authority. The
@@ -102,7 +112,7 @@ will intentionally fall as the design is implemented.
 | `src/app/dashboard/listings/custom/page.tsx` and buyer order detail | Participant lookup and latest custom request | Converted: bounded participant, pair and latest-request projections |
 | `src/app/api/account/export/route.ts` | Sent and received message export | Converted: one participant export RPC, split into stable sent/received payload collections |
 | `src/app/api/users/[id]/report/route.ts` | Message/thread report target validation | Converted: one participant existence RPC |
-| `src/lib/accountDeletion.ts` | Attachment discovery and message redaction | Participant media projection plus account-deletion-only redaction operation |
+| `src/lib/accountDeletion.ts` | Attachment discovery and message redaction | Converted: sent-body media projection runs before one fixed, database-derived account-deletion redaction operation |
 | `src/lib/metrics.ts` | Seller response-rate aggregate | Converted: aggregate-only function returns two validated counts and never thread rows or bodies |
 
 ## Data invariants to inspect before preparation SQL
@@ -143,7 +153,7 @@ will intentionally fall as the design is implemented.
 This inventory is complete only when every protected access (55 in the original
 baseline, 53 after compatible refactors, 37 after the first four authority
 conversion checkpoints, 30 after the first structured writes, 26 after
-custom-order-ready, 23 after seller metrics) has an explicit
+custom-order-ready, 23 after seller metrics, 18 after account deletion) has an explicit
 destination, direct runtime INSERT/UPDATE/DELETE is removed, the compatible app
 passes before and after RLS, and PostgreSQL proof covers participant isolation,
 reported-staff access, structured write families, block/account races, archive

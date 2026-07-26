@@ -48,7 +48,9 @@ app-side conversation get/create helper. The sixth converted
 custom-order-ready, including exact replay evidence and post-commit
 Notification healing. Direct protected-table access is now reduced from 53 to
 26. The seventh converted seller response metrics to the aggregate-only
-function, reducing the surface to 23.
+function, reducing the surface to 23. The eighth moved deletion-time attachment
+discovery and Message redaction behind the participant export projection and
+fixed account-deletion authority function, reducing the surface to 18.
 Policy/table-grant activation and FORCE remain later separate releases.
 
 ## Security objective
@@ -70,9 +72,9 @@ separate from Notification, Order/payment/shipping and Case/CaseMessage.
 The original machine inventory recorded 50 direct ORM operations and 5 raw SQL
 table references. Compatible audit refactors left 45 direct ORM operations and
 8 raw SQL references across 17 runtime files (53 total protected access
-points). The first seven authority checkpoints removed thirty direct
-operations, so 19 ORM operations plus 4 raw references remain across 4 runtime
-files (23 total).
+points). The first eight authority checkpoints removed thirty-five direct
+operations, so 16 ORM operations plus 2 raw references remain across 3 runtime
+files (18 total).
 The surface includes the user inbox and
 thread, list and stream polling, unread counts, per-recipient mark-read,
 archive state, first-response metrics, email throttling, account export,
@@ -206,10 +208,10 @@ The direct runtime table query with no context must return zero rows.
 ## Compatibility and rollout sequence
 
 1. Inventory and pin every current access path. **Complete: original 55-path
-   migration baseline; current authority-conversion surface is 23 protected
+   migration baseline; current authority-conversion surface is 18 protected
    accesses after converting polling/read, privacy, report-target,
    custom-order reads, conversation start and all three structured write
-   families plus aggregate seller response metrics.**
+   families, aggregate seller response metrics and account deletion.**
 2. Complete `docs/conversation-message-pre-rls-audit.md` and fix its activation
    blockers before authority SQL. **Complete for the preparation boundary:
    app findings fixed; invariant proof, Extra-High review, protected production

@@ -20,12 +20,6 @@ const EXPECTED_BASELINE = {
     "Conversation.findMany": 1,
     "Message.groupBy": 1,
   },
-  "src/lib/accountDeletion.ts": {
-    "Message.update": 1,
-    "Message.findMany": 1,
-    "Message.updateMany": 1,
-    "Message.raw-sql-reference": 2,
-  },
   "src/lib/conversationStartAccess.ts": {
     "Conversation.raw-sql-reference": 1,
   },
@@ -35,8 +29,8 @@ describe("Conversation and Message RLS inventory", () => {
   const inventory = collectConversationMessageAccess();
 
   it("pins every current direct ORM and raw SQL access path", () => {
-    assert.equal(inventory.ormCalls.length, 19);
-    assert.equal(inventory.rawSqlReferences.length, 4);
+    assert.equal(inventory.ormCalls.length, 16);
+    assert.equal(inventory.rawSqlReferences.length, 2);
     assert.deepEqual(summarizeConversationMessageAccess(inventory), EXPECTED_BASELINE);
   });
 

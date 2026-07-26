@@ -41,6 +41,10 @@ import {
   runAccountDeletionStripeRejectSideEffect,
 } from "@/lib/accountDeletionSideEffects";
 import { CASE_WINDOW_DAYS } from "@/lib/caseCreateState";
+import {
+  listActorSentMessageBodiesForDeletion,
+  redactActorMessagesForAccountDeletion,
+} from "@/lib/conversationMessageAuthority";
 
 export const ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
 const ACTIVE_CASE_STATUSES = ["OPEN", "IN_DISCUSSION", "PENDING_CLOSE", "UNDER_REVIEW"] as const;
@@ -76,7 +80,7 @@ type BodyRedactionCandidate = {
 type AuditLogRedactionDb = Pick<Prisma.TransactionClient, "$queryRaw" | "adminAuditLog">;
 type AccountDeletionMediaDb = Pick<
   Prisma.TransactionClient,
-  "sellerProfile" | "reviewPhoto" | "commissionRequest" | "message" | "blogPost" | "directUpload"
+  "sellerProfile" | "reviewPhoto" | "commissionRequest" | "blogPost" | "directUpload" | "$queryRaw"
 >;
 
 function accountDeletionCheckoutReservationWhere(
@@ -443,72 +447,6 @@ async function cleanupDeletedSellerFanoutRows(
     ],
     now,
   );
-}
-
-async function collectMessagesBySensitiveText(
-  tx: Prisma.TransactionClient,
-  deletedUserId: string,
-  sensitiveValues: string[],
-) {
-  const messages = new Map<string, BodyRedactionCandidate>();
-
-  for (const value of sensitiveValues.filter((item) => Array.from(item).length >= 2)) {
-    const textMatchSql = bodyTextMatchSql(value);
-    let cursor: string | null = null;
-
-    for (;;) {
-      const query: Prisma.Sql = cursor
-        ? Prisma.sql`
-          SELECT id, body
-          FROM "Message"
-          WHERE id > ${cursor}
-            AND "senderId" <> ${deletedUserId}
-            AND "recipientId" = ${deletedUserId}
-            AND ${textMatchSql}
-          ORDER BY id ASC
-          LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
-        `
-        : Prisma.sql`
-          SELECT id, body
-          FROM "Message"
-          WHERE "senderId" <> ${deletedUserId}
-            AND "recipientId" = ${deletedUserId}
-            AND ${textMatchSql}
-          ORDER BY id ASC
-          LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
-        `;
-      const matches: { id: string; body: string }[] = await tx.$queryRaw(query);
-      matches.forEach((message) => {
-        if (!messages.has(message.id)) {
-          messages.set(message.id, { body: message.body });
-        }
-      });
-
-      if (matches.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
-      cursor = matches[matches.length - 1]?.id ?? null;
-      if (!cursor) break;
-    }
-  }
-
-  return messages;
-}
-
-async function redactMessagesAboutDeletedAccount(
-  tx: Prisma.TransactionClient,
-  deletedUserId: string,
-  sensitiveValues: string[],
-) {
-  const messages = await collectMessagesBySensitiveText(tx, deletedUserId, sensitiveValues);
-
-  for (const [id, message] of messages) {
-    const body = redactAccountDeletionText(message.body, sensitiveValues);
-    if (!body.changed) continue;
-
-    await tx.message.update({
-      where: { id },
-      data: { body: body.text },
-    });
-  }
 }
 
 async function collectCaseMessagesBySensitiveText(
@@ -1008,10 +946,7 @@ async function collectAccountDeletionMediaUrls(
     where: { buyerId: userId },
     select: { referenceImageUrls: true },
   });
-  const messages = await db.message.findMany({
-    where: { senderId: userId },
-    select: { body: true },
-  });
+  const messages = await listActorSentMessageBodiesForDeletion(userId, db);
   const blogPosts = await db.blogPost.findMany({
     where: { OR: [{ authorId: userId }, { sellerProfile: { userId } }] },
     select: { coverImageUrl: true, videoUrl: true, body: true },
@@ -1533,11 +1468,7 @@ export async function anonymizeUserAccount(
     await tx.savedBlogPost.deleteMany({ where: { userId: user.id } });
     await tx.reviewVote.deleteMany({ where: { userId: user.id } });
     await tx.block.deleteMany({ where: { blockerId: user.id } });
-    await tx.message.updateMany({
-      where: { senderId: user.id },
-      data: { body: "[Message deleted]" },
-    });
-    await redactMessagesAboutDeletedAccount(tx, user.id, accountSensitiveValues);
+    await redactActorMessagesForAccountDeletion(user.id, tx);
     await tx.caseMessage.updateMany({
       where: { authorId: user.id },
       data: { body: "[Message deleted]" },

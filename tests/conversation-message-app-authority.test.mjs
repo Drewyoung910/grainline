@@ -81,6 +81,29 @@ describe("Conversation and Message application authority conversion", () => {
     assert.doesNotMatch(report, /prisma\.(?:message|conversation)\./);
   });
 
+  it("preserves deletion media before fixed database-derived message redaction", () => {
+    const helper = source("src/lib/conversationMessageAuthority.ts");
+    const deletion = source("src/lib/accountDeletion.ts");
+    const collectCall = deletion.indexOf(
+      "const mediaUrls = await collectAccountDeletionMediaUrls(tx, user.id, user.clerkId)",
+    );
+    const redactionCall = deletion.indexOf(
+      "await redactActorMessagesForAccountDeletion(user.id, tx)",
+    );
+
+    assert.match(helper, /listActorSentMessageBodiesForDeletion/);
+    assert.match(helper, /FROM public\.grainline_message_export/);
+    assert.match(helper, /WHERE message_export\."senderId" = \$\{actorId\}::text/);
+    assert.match(helper, /account-deletion message media projection returned an invalid row/);
+    assert.match(helper, /public\.grainline_message_redact_for_account_deletion/);
+    assert.match(helper, /requireSafeCount\(\s*rows\[0\]\.sentRedacted/s);
+    assert.match(helper, /requireSafeCount\(\s*rows\[0\]\.receivedRedacted/s);
+    assert.match(deletion, /listActorSentMessageBodiesForDeletion\(userId, db\)/);
+    assert.ok(collectCall >= 0, "deletion must collect attachment URLs");
+    assert.ok(redactionCall > collectCall, "message attachments must be collected before body redaction");
+    assert.doesNotMatch(deletion, /(?:tx|db)\.message\.|FROM "Message"/);
+  });
+
   it("moves custom-order participant context and pair lookups behind exact projections", () => {
     const helper = source("src/lib/conversationMessageAuthority.ts");
     const customListing = source("src/app/dashboard/listings/custom/page.tsx");

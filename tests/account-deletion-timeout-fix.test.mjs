@@ -34,7 +34,7 @@ describe("account deletion timeout and terminal UX guardrails", () => {
   it("keeps Prisma work sequential in account-deletion transaction helpers", () => {
     const accountDeletion = source("src/lib/accountDeletion.ts");
     const sellerFanoutStart = accountDeletion.indexOf("async function cleanupDeletedSellerFanoutRows");
-    const sellerFanoutEnd = accountDeletion.indexOf("async function collectMessagesBySensitiveText", sellerFanoutStart);
+    const sellerFanoutEnd = accountDeletion.indexOf("async function collectCaseMessagesBySensitiveText", sellerFanoutStart);
     const mediaCollectionStart = accountDeletion.indexOf("async function collectAccountDeletionMediaUrls");
     const mediaCollectionEnd = accountDeletion.indexOf("function revalidateDeletedAccountSearchCaches", mediaCollectionStart);
 
@@ -51,7 +51,7 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     assert.doesNotMatch(sellerFanout, /tx\.notification\.|deleteNotification(?:Source|Link)Rows/);
     assert.match(
       mediaCollection,
-      /await db\.sellerProfile\.findUnique[\s\S]*await db\.reviewPhoto\.findMany[\s\S]*await db\.commissionRequest\.findMany[\s\S]*await db\.message\.findMany[\s\S]*await db\.blogPost\.findMany[\s\S]*await db\.directUpload\.findMany/,
+      /await db\.sellerProfile\.findUnique[\s\S]*await db\.reviewPhoto\.findMany[\s\S]*await db\.commissionRequest\.findMany[\s\S]*await listActorSentMessageBodiesForDeletion\(userId, db\)[\s\S]*await db\.blogPost\.findMany[\s\S]*await db\.directUpload\.findMany/,
     );
   });
 
@@ -177,13 +177,17 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     const accountDeletion = source("src/lib/accountDeletion.ts");
     const transactionStart = accountDeletion.indexOf("const result = await withDbUserContext");
     const userLock = accountDeletion.indexOf('FROM "User" AS deletion_user', transactionStart);
-    const messageRedaction = accountDeletion.indexOf("await tx.message.updateMany", transactionStart);
+    const messageRedaction = accountDeletion.indexOf(
+      "await redactActorMessagesForAccountDeletion(user.id, tx)",
+      transactionStart,
+    );
     const finalUserUpdate = accountDeletion.indexOf("await tx.user.update", transactionStart);
 
     assert.ok(userLock > transactionStart, "deletion must lock the local User inside its DB transaction");
     assert.match(accountDeletion.slice(userLock - 180, userLock + 220), /FOR UPDATE/);
     assert.ok(userLock < messageRedaction, "the User lock must precede all message redaction scans");
     assert.ok(userLock < finalUserUpdate, "the lifecycle lock must not be deferred to the final User update");
+    assert.ok(messageRedaction < finalUserUpdate, "message redaction must finish before the User is anonymized");
   });
 
   it("keeps account deletion behind same-origin, fresh-session, and server confirmation checks", () => {
