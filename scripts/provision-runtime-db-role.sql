@@ -517,6 +517,7 @@ GRANT USAGE ON TYPE
   public."BlogPostType",
   public."CaseReason",
   public."CaseResolution",
+  public."CaseMessageAuthorKind",
   public."CaseStatus",
   public."Category",
   public."CommissionStatus",

@@ -878,6 +878,12 @@ enum CaseResolution {
   DISMISSED
 }
 
+enum CaseMessageAuthorKind {
+  BUYER
+  SELLER
+  STAFF
+}
+
 model Case {
   id                   String          @id @default(cuid())
   orderId              String          @unique
@@ -911,16 +917,16 @@ model Case {
 }
 
 model CaseMessage {
-  id        String   @id @default(cuid())
-  caseId    String
-  case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  authorId  String
-  author    User     @relation("CaseMessages", fields: [authorId], references: [id], onDelete: Restrict)
-  body      String   @db.VarChar(5000)
-  createdAt DateTime @default(now())
+  id         String                 @id @default(cuid())
+  caseId     String
+  case       Case                   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  authorId   String
+  author     User                   @relation("CaseMessages", fields: [authorId], references: [id], onDelete: Restrict)
+  authorKind CaseMessageAuthorKind?
+  body       String                 @db.VarChar(5000)
+  createdAt  DateTime               @default(now())
 
-  @@index([caseId])
-  @@index([caseId, createdAt])
+  @@index([caseId, createdAt, id])
   @@index([authorId])
 }
 

@@ -718,7 +718,7 @@ describe("database grant inventory guardrails", () => {
       );
 
     assert.equal(inventory.tables.length, 58);
-    assert.equal(inventory.enums.length, 20);
+    assert.equal(inventory.enums.length, 21);
     assert.deepEqual(inventory.functions, [
       "grainline_conversation_participants_immutable",
       "grainline_message_maintain_thread_state",

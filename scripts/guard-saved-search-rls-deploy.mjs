@@ -49,6 +49,10 @@ export const CONVERSATION_MESSAGE_ACTIVATION_MIGRATION =
   "20260726073000_enable_conversation_message_rls";
 export const CONVERSATION_MESSAGE_FORCE_MIGRATION =
   "20260726140000_force_conversation_message_rls";
+export const CASE_MESSAGE_AUTHOR_KIND_MIGRATION =
+  "20260726183000_prepare_case_message_author_kind";
+export const CASE_MESSAGE_HISTORY_INDEX_MIGRATION =
+  "20260726183500_prepare_case_message_history_index";
 export const RELEASE_ZERO_MIGRATION_TREE_SHA256 =
   "3e9111525735043266cf6f18b790641ad3103126804836f4a7cccd8e5e29ff29";
 export const PHASE_A_MIGRATION_TREE_SHA256 =
@@ -73,6 +77,8 @@ export const CONVERSATION_MESSAGE_ACTIVATION_MIGRATION_TREE_SHA256 =
   "2404192efd95e99c3b14081e945e7dc11e2f0709f35a2431bdfcf2bd3d4dc389";
 export const CONVERSATION_MESSAGE_FORCE_MIGRATION_TREE_SHA256 =
   "0bc28692fd3eef7a72cd1a7207ce977a71482b700ab111b6e807028cee6e9672";
+export const CASE_MESSAGE_COMPATIBILITY_MIGRATION_TREE_SHA256 =
+  "3b22adf4e211a8fa9b7d55d75d5def61d2c9e8b24ee82152b498e3f5b1edbc78";
 export const PRISMA_CONFIG_PATH = "prisma.config.ts";
 export const REVIEWED_PRISMA_CONFIG_SHA256 =
   "946211cec942f725ae24ac239cd648b56f4809cf30cb8fda530346d0f593526e";
@@ -109,6 +115,8 @@ const REVIEWED_CONVERSATION_MESSAGE_ACTIVATION =
   "conversation-message-activation-reviewed";
 const REVIEWED_CONVERSATION_MESSAGE_FORCE =
   "conversation-message-force-reviewed";
+const REVIEWED_CASE_MESSAGE_COMPATIBILITY =
+  "case-message-compatibility-reviewed";
 const APP_SOURCE_ROOTS = ["src/app", "app", "src/pages", "pages"];
 const TEST_SOURCE_ROOTS = ["tests"];
 const TEST_SOURCE_EXTENSIONS = new Set([
@@ -378,6 +386,8 @@ function assertReviewedMigrationTree(phase, migrationTreeSha256) {
       CONVERSATION_MESSAGE_ACTIVATION_MIGRATION_TREE_SHA256,
     [REVIEWED_CONVERSATION_MESSAGE_FORCE]:
       CONVERSATION_MESSAGE_FORCE_MIGRATION_TREE_SHA256,
+    [REVIEWED_CASE_MESSAGE_COMPATIBILITY]:
+      CASE_MESSAGE_COMPATIBILITY_MIGRATION_TREE_SHA256,
   }[phase];
   if (migrationTreeSha256 !== expected) {
     throw new Error(
@@ -615,6 +625,12 @@ export function validateSavedSearchRlsDeployShape({
   );
   const hasConversationMessageForceMigration = migrations.has(
     CONVERSATION_MESSAGE_FORCE_MIGRATION,
+  );
+  const hasCaseMessageAuthorKindMigration = migrations.has(
+    CASE_MESSAGE_AUTHOR_KIND_MIGRATION,
+  );
+  const hasCaseMessageHistoryIndexMigration = migrations.has(
+    CASE_MESSAGE_HISTORY_INDEX_MIGRATION,
   );
 
   if (phase === RELEASE_ZERO_PHASE) {
@@ -1130,9 +1146,56 @@ export function validateSavedSearchRlsDeployShape({
     };
   }
 
+  if (phase === REVIEWED_CASE_MESSAGE_COMPATIBILITY) {
+    if (
+      !hasRpcMigration
+      || !hasRpcHardeningMigration
+      || !hasRlsMigration
+      || !hasForceRlsMigration
+      || !hasNotificationPreparationMigration
+      || !hasNotificationActivationMigration
+      || !hasNotificationForceMigration
+      || !hasConversationMessageContextMigration
+      || !hasConversationMessageScaleIndexesMigration
+      || !hasConversationMessageInvariantsMigration
+      || !hasConversationMessageBodySearchIndexMigration
+      || !hasConversationMessageLegacyCleanupMigration
+      || !hasConversationMessageAuthorityPreparationMigration
+      || !hasConversationMessageActivationMigration
+      || !hasConversationMessageForceMigration
+      || !hasCaseMessageAuthorKindMigration
+      || !hasCaseMessageHistoryIndexMigration
+    ) {
+      throw new Error(
+        `${REVIEWED_CASE_MESSAGE_COMPATIBILITY} requires completed Conversation/Message FORCE plus the exact CaseMessage author-kind and history-index migrations`,
+      );
+    }
+
+    assertNoLaterMigration(
+      migrationNames,
+      CASE_MESSAGE_HISTORY_INDEX_MIGRATION,
+      phase,
+    );
+    assertReviewedMigrationTree(phase, migrationTreeSha256);
+    assertReviewedPrismaMigrationConfig(prismaConfigSha256);
+    assertProductionArtifactExcludesContextGate({
+      phase,
+      contextGateRouteExists,
+      contextGateRunnerTestExists: runnerTestExists,
+      middlewareSource,
+    });
+
+    return {
+      phase,
+      hasConversationMessageForceMigration,
+      hasCaseMessageAuthorKindMigration,
+      hasCaseMessageHistoryIndexMigration,
+    };
+  }
+
   const received = phase === undefined || phase === "" ? "missing" : phase;
   throw new Error(
-    `${SAVED_SEARCH_RLS_DEPLOY_PHASE_ENV} is ${received}; expected ${RELEASE_ZERO_PHASE}, ${REVIEWED_PHASE_A}, ${REVIEWED_PHASE_B}, ${REVIEWED_NOTIFICATION_PREPARATION}, ${REVIEWED_NOTIFICATION_ACTIVATION}, ${REVIEWED_NOTIFICATION_FORCE}, ${REVIEWED_CONVERSATION_MESSAGE_COMPATIBILITY}, ${REVIEWED_CONVERSATION_MESSAGE_INVARIANTS}, ${REVIEWED_CONVERSATION_MESSAGE_LEGACY_CLEANUP}, ${REVIEWED_CONVERSATION_MESSAGE_AUTHORITY_PREPARATION}, ${REVIEWED_CONVERSATION_MESSAGE_ACTIVATION}, or ${REVIEWED_CONVERSATION_MESSAGE_FORCE}`,
+    `${SAVED_SEARCH_RLS_DEPLOY_PHASE_ENV} is ${received}; expected ${RELEASE_ZERO_PHASE}, ${REVIEWED_PHASE_A}, ${REVIEWED_PHASE_B}, ${REVIEWED_NOTIFICATION_PREPARATION}, ${REVIEWED_NOTIFICATION_ACTIVATION}, ${REVIEWED_NOTIFICATION_FORCE}, ${REVIEWED_CONVERSATION_MESSAGE_COMPATIBILITY}, ${REVIEWED_CONVERSATION_MESSAGE_INVARIANTS}, ${REVIEWED_CONVERSATION_MESSAGE_LEGACY_CLEANUP}, ${REVIEWED_CONVERSATION_MESSAGE_AUTHORITY_PREPARATION}, ${REVIEWED_CONVERSATION_MESSAGE_ACTIVATION}, ${REVIEWED_CONVERSATION_MESSAGE_FORCE}, or ${REVIEWED_CASE_MESSAGE_COMPATIBILITY}`,
   );
 }
 
