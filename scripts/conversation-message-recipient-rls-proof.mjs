@@ -1289,6 +1289,8 @@ async function proveExactLegacyInspectionQuery(owner) {
     messageListingContextCount: 2,
     invalidMessageListingPairCount: 0,
     customLinkMissingContextCount: 0,
+    repairableCustomLinkMissingContextCount: 0,
+    unrepairableCustomLinkMissingContextCount: 0,
     duplicateCustomLinkSourceGroupCount: 0,
     invalidCustomLinkSourceCount: 0,
     linkedCommissionInterestCount: 1,
@@ -1305,6 +1307,22 @@ async function proveExactLegacyInspectionQuery(owner) {
   try {
     await owner.query(
       `UPDATE public."Message"
+          SET "contextListingId" = NULL
+        WHERE id = $1`,
+      [fixture.customReadyMessageId],
+    );
+    const repairableResult = await owner.query(
+      CONVERSATION_MESSAGE_LEGACY_COUNTS_SQL,
+    );
+    const repairableCounts = normalizeConversationMessageLegacyCounts(
+      repairableResult.rows[0],
+    );
+    assert.equal(repairableCounts.customLinkMissingContextCount, 1);
+    assert.equal(repairableCounts.repairableCustomLinkMissingContextCount, 1);
+    assert.equal(repairableCounts.unrepairableCustomLinkMissingContextCount, 0);
+
+    await owner.query(
+      `UPDATE public."Message"
           SET body = 'not-json'
         WHERE id = ANY($1::text[])`,
       [[fixture.customReadyMessageId, fixture.commissionMessageId]],
@@ -1315,6 +1333,9 @@ async function proveExactLegacyInspectionQuery(owner) {
     const malformedCounts = normalizeConversationMessageLegacyCounts(
       malformedResult.rows[0],
     );
+    assert.equal(malformedCounts.customLinkMissingContextCount, 1);
+    assert.equal(malformedCounts.repairableCustomLinkMissingContextCount, 0);
+    assert.equal(malformedCounts.unrepairableCustomLinkMissingContextCount, 1);
     assert.equal(malformedCounts.invalidCustomLinkSourceCount, 1);
     assert.equal(malformedCounts.commissionInterestMissingMessageCount, 1);
     assert.equal(malformedCounts.commissionInterestDuplicateMessageGroupCount, 0);

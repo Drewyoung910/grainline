@@ -164,6 +164,8 @@ const COUNT_FIELDS = Object.freeze([
   "message_listing_context_count",
   "invalid_message_listing_pair_count",
   "custom_link_missing_context_count",
+  "repairable_custom_link_missing_context_count",
+  "unrepairable_custom_link_missing_context_count",
   "duplicate_custom_link_source_group_count",
   "invalid_custom_link_source_count",
   "linked_commission_interest_count",
@@ -338,6 +340,82 @@ export const CONVERSATION_MESSAGE_LEGACY_COUNTS_SQL = `
          FROM public."Message"
         WHERE kind = 'custom_order_link'
           AND "contextListingId" IS NULL) AS custom_link_missing_context_count,
+      (SELECT pg_catalog.count(*)
+         FROM public."Message" AS message
+        WHERE message.kind = 'custom_order_link'
+          AND message."contextListingId" IS NULL
+          AND message."isSystemMessage" = true
+          AND message."senderId" <> message."recipientId"
+          AND pg_catalog.pg_input_is_valid(message.body::text, 'jsonb')
+          AND EXISTS (
+            SELECT 1
+              FROM public."Listing" AS listing
+              JOIN public."SellerProfile" AS seller
+                ON seller.id = listing."sellerId"
+              JOIN public."Conversation" AS conversation
+                ON conversation.id = listing."customOrderConversationId"
+             WHERE listing.id = CASE
+                     WHEN pg_catalog.pg_input_is_valid(
+                       message.body::text,
+                       'jsonb'
+                     )
+                       THEN (message.body::jsonb)->>'listingId'
+                     ELSE NULL
+                   END
+               AND listing."isPrivate" = true
+               AND listing."customOrderConversationId" = message."conversationId"
+               AND listing."reservedForUserId" = message."recipientId"
+               AND seller."userId" = message."senderId"
+               AND (
+                 (
+                   conversation."userAId" = message."senderId"
+                   AND conversation."userBId" = message."recipientId"
+                 )
+                 OR (
+                   conversation."userBId" = message."senderId"
+                   AND conversation."userAId" = message."recipientId"
+                 )
+               )
+          )) AS repairable_custom_link_missing_context_count,
+      (SELECT pg_catalog.count(*)
+         FROM public."Message" AS message
+        WHERE message.kind = 'custom_order_link'
+          AND message."contextListingId" IS NULL
+          AND NOT (
+            message."isSystemMessage" = true
+            AND message."senderId" <> message."recipientId"
+            AND pg_catalog.pg_input_is_valid(message.body::text, 'jsonb')
+            AND EXISTS (
+              SELECT 1
+                FROM public."Listing" AS listing
+                JOIN public."SellerProfile" AS seller
+                  ON seller.id = listing."sellerId"
+                JOIN public."Conversation" AS conversation
+                  ON conversation.id = listing."customOrderConversationId"
+               WHERE listing.id = CASE
+                       WHEN pg_catalog.pg_input_is_valid(
+                         message.body::text,
+                         'jsonb'
+                       )
+                         THEN (message.body::jsonb)->>'listingId'
+                       ELSE NULL
+                     END
+                 AND listing."isPrivate" = true
+                 AND listing."customOrderConversationId" = message."conversationId"
+                 AND listing."reservedForUserId" = message."recipientId"
+                 AND seller."userId" = message."senderId"
+                 AND (
+                   (
+                     conversation."userAId" = message."senderId"
+                     AND conversation."userBId" = message."recipientId"
+                   )
+                   OR (
+                     conversation."userBId" = message."senderId"
+                     AND conversation."userAId" = message."recipientId"
+                   )
+                 )
+            )
+          )) AS unrepairable_custom_link_missing_context_count,
       (SELECT pg_catalog.count(*)
          FROM (
            SELECT "contextListingId"

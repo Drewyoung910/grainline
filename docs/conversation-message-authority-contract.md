@@ -127,6 +127,33 @@ evidence without exporting them, and required the exact aggregate result
 schema. TypeScript, lint, the full test suite, dependency audit and production
 build all passed. Production and persistent staging were unchanged.
 
+The first protected production legacy inspection ran from exact merged main
+`aa487bfb` in GitHub Actions run `30181030719`. It used one
+`REPEATABLE READ READ ONLY` transaction and rolled back, then uploaded only
+sanitized aggregate evidence as artifact `8625562386` (zip SHA-256
+`a23e32bbe9b5d27993b5ef28cd259aec5d1fb56e779f60adb9d87c624dae6dd2`).
+It confirmed the reviewed pre-RLS posture: owner-owned tables, runtime
+`NOBYPASSRLS`, RLS and FORCE disabled, zero policies and legacy runtime CRUD
+still present. Across four Conversations and 19 Messages, all participant,
+canonical-pair, time, presentation, commission, report and private-listing
+relationship violation counts were zero except one historical
+`custom_order_link`: the sole link has no `Message.contextListingId`, so both
+`customLinkMissingContextCount` and `invalidCustomLinkSourceCount` are one.
+No ids, bodies, emails, raw rows or credentials were retained.
+
+That row is not authority to infer arbitrary historical message context. Before
+any cleanup or functions-only promotion, a fresh aggregate-only inspection must
+split missing custom-link context into:
+
+- repairable only when a valid JSON `listingId` resolves to one private Listing
+  whose seller, reserved buyer and custom-order Conversation exactly match the
+  Message sender, recipient and Conversation; and
+- unrepairable for every other missing-context link.
+
+Cleanup remains blocked unless the production result is exactly one repairable
+and zero unrepairable. The cleanup must update only the validated row class and
+then prove all custom-link missing/invalid-source counts are zero.
+
 ## Cross-group dependencies to retain
 
 - `grainline_message_create_commission_interest` is the atomic writer for both
