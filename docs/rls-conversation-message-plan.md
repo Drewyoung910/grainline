@@ -67,7 +67,10 @@ tests, dependency audit and production build at `03af5bae`. The subsequent
 set-level Extra-High review found no new database-authority bypass and added a
 fail-closed wrapper hardening checkpoint: actor relationship, bounded
 identifiers, finite timestamps, and generated-identifier equality for new
-rows. Its fresh CI rerun remains required before merge.
+rows. Fresh reviewed-head run `30189982915` passed the same complete gate at
+`a27e99d3`. The application-authority Extra-High gate is complete with no open
+findings; merge and the RLS-off compatibility deployment/postflight remain
+separate boundaries.
 Policy/table-grant activation and FORCE remain later separate releases.
 
 ## Security objective
@@ -263,8 +266,8 @@ The direct runtime table query with no context must return zero rows.
    is live. The authority RPC/helper conversion candidate now has zero direct
    protected-table accesses and passes TypeScript, focused lint and the full
    2,007-test suite (2,004 pass, 3 intentional skips). Checkpoint push, fresh CI
-   PostgreSQL proof, Extra-High authority review and a compatibility
-   deployment/postflight remain before database activation.**
+   PostgreSQL proof and Extra-High authority review are complete. Merge and a
+   compatibility deployment/postflight remain before database activation.**
 6. Disposable PostgreSQL proof: policies/grants, every read/write family,
    direct denial, staff report resolution, account/block/archive races,
    deletion/export/metrics, rollback and legacy handling. **Complete for the
