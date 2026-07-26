@@ -127,6 +127,10 @@ describe("DirectUpload fixed public reference families", () => {
       core.indexOf("FOR locked_upload_id IN") <
         core.indexOf("public.grainline_direct_upload_release_core"),
     );
+    assert.match(
+      core,
+      /INTO untracked[\s\S]*IF untracked = 0 THEN[\s\S]*grainline_direct_upload_release_core/,
+    );
   });
 
   it("releases source references on root deletion and never deletes reused R2 objects inline", () => {

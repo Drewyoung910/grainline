@@ -392,6 +392,10 @@ references rather than rebinding a single `claimedByType`/`claimedById`.
 Create paths fail closed when a submitted first-party URL lacks a matching
 verified lifecycle. Compatible edit paths may retain exact legacy URLs already
 stored on the source, pending the aggregate legacy inspection and backfill.
+When any durable URL is untracked, the database may add references for matched
+lifecycles but releases none; this prevents a permissive legacy edit or a
+direct fixed-function caller from using an ignored untracked count to release
+and clean up an object the source still needs.
 
 The Extra-High static review caught and corrected four defects before live
 PostgreSQL execution:

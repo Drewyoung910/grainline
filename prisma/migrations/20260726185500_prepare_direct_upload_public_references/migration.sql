@@ -195,6 +195,19 @@ BEGIN
      AND upload."publicUrl" = ANY (normalized_urls)
      AND upload.status IN ('VERIFIED', 'CLAIMED');
 
+  SELECT pg_catalog.count(*)::integer
+    INTO untracked
+    FROM pg_catalog.unnest(normalized_urls) AS url(value)
+   WHERE NOT EXISTS (
+     SELECT 1
+       FROM public."DirectUpload" AS upload
+      WHERE upload."userId" = p_user_id
+        AND upload."storageClass" = 'PUBLIC'
+        AND upload.endpoint = ANY (p_allowed_endpoints)
+        AND upload."publicUrl" = url.value
+        AND upload.status IN ('VERIFIED', 'CLAIMED')
+   );
+
   referenced := pg_catalog.cardinality(matched_ids);
   FOR upload_id IN
     SELECT matched.value
@@ -209,42 +222,35 @@ BEGIN
   END LOOP;
 
   released := 0;
-  FOR stale_reference IN
-    SELECT
-      reference."directUploadId",
-      reference."sourceType",
-      reference."sourceId"
-      FROM public."DirectUploadReference" AS reference
-     WHERE reference."sourceType" = p_source_type
-       AND reference."sourceId" = p_source_id
-       AND reference."releasedAt" IS NULL
-       AND NOT (
-         reference."directUploadId" = ANY (matched_ids)
-       )
-     ORDER BY reference."directUploadId"
-  LOOP
-    IF public.grainline_direct_upload_release_core(
-      stale_reference."directUploadId",
-      stale_reference."sourceType",
-      stale_reference."sourceId",
-      'SOURCE_SYNC'
-    ) THEN
-      released := released + 1;
-    END IF;
-  END LOOP;
-
-  SELECT pg_catalog.count(*)::integer
-    INTO untracked
-    FROM pg_catalog.unnest(normalized_urls) AS url(value)
-   WHERE NOT EXISTS (
-     SELECT 1
-       FROM public."DirectUpload" AS upload
-      WHERE upload."userId" = p_user_id
-        AND upload."storageClass" = 'PUBLIC'
-        AND upload.endpoint = ANY (p_allowed_endpoints)
-        AND upload."publicUrl" = url.value
-        AND upload.status IN ('VERIFIED', 'CLAIMED')
-   );
+  -- A partially legacy or foreign URL set may add references for matched
+  -- lifecycles, but it must never release an existing reference. This keeps
+  -- the compatible edit path from turning an ignored untracked count into a
+  -- destructive cleanup capability.
+  IF untracked = 0 THEN
+    FOR stale_reference IN
+      SELECT
+        reference."directUploadId",
+        reference."sourceType",
+        reference."sourceId"
+        FROM public."DirectUploadReference" AS reference
+       WHERE reference."sourceType" = p_source_type
+         AND reference."sourceId" = p_source_id
+         AND reference."releasedAt" IS NULL
+         AND NOT (
+           reference."directUploadId" = ANY (matched_ids)
+         )
+       ORDER BY reference."directUploadId"
+    LOOP
+      IF public.grainline_direct_upload_release_core(
+        stale_reference."directUploadId",
+        stale_reference."sourceType",
+        stale_reference."sourceId",
+        'SOURCE_SYNC'
+      ) THEN
+        released := released + 1;
+      END IF;
+    END LOOP;
+  END IF;
 
   RETURN NEXT;
 END;
