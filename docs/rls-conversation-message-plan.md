@@ -6,8 +6,12 @@ actual pooled production-runtime rollback-only postflight. Notification Bucket
 B is complete in production. Conversation/Message RLS remains disabled with
 zero policies. The complete authority-policy draft passed Extra-High review,
 disposable PostgreSQL 16 proof and full CI at `7a7654c3` in run `30180610380`;
-the protected aggregate-only production inspection is next. No authority
-function or policy has been applied to a persistent database.
+the first protected aggregate-only production inspection passed safely at
+exact main `aa487bfb` in run `30181030719` and found one legacy custom-order
+link without its new durable Listing source column. Exact aggregate
+repairability classification is next; cleanup and functions-only promotion
+remain blocked. No authority function or policy has been applied to a
+persistent database.
 
 ## Security objective
 
@@ -202,9 +206,15 @@ The direct runtime table query with no context must return zero rows.
    payload handling, exact function ACL/search-path catalog and real lock
    waits. The two immediately preceding failed runs remain documented evidence,
    not passing results.**
-7. Protected backup and sanitized production inspection. **Next: run the
-   aggregate-only, exact-schema inspection from a clean reviewed main commit;
-   retain no ids, bodies, emails, raw rows or credentials.**
+7. Protected backup and sanitized production inspection. **The first exact-main
+   run `30181030719` retained only aggregate evidence and found four
+   Conversations, 19 Messages and one custom-order-link row with missing
+   `Message.contextListingId`; all other invalid relationship/source counts
+   were zero. Next, prove through aggregate counts that the row's valid legacy
+   payload resolves to the exact private Listing/seller/reserved
+   buyer/Conversation relationship. Require exactly one repairable and zero
+   unrepairable before a narrow cleanup; then rerun the full inspection and
+   require every custom-link missing/invalid count to be zero.**
 8. Initial `ENABLE`/explicit `NO FORCE` activation with exact two-table policy
    and grant guard, followed by runtime and authenticated route postflight.
 9. Separate `FORCE ROW LEVEL SECURITY` hardening and fresh postflight.

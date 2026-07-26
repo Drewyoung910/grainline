@@ -41,6 +41,8 @@ const COUNT_FIELDS = [
   "message_listing_context_count",
   "invalid_message_listing_pair_count",
   "custom_link_missing_context_count",
+  "repairable_custom_link_missing_context_count",
+  "unrepairable_custom_link_missing_context_count",
   "duplicate_custom_link_source_group_count",
   "invalid_custom_link_source_count",
   "linked_commission_interest_count",
@@ -125,6 +127,8 @@ describe("Conversation and Message legacy inspection operator", () => {
     assert.doesNotMatch(source, /\bINSERT INTO\b|\bUPDATE public\.|\bDELETE FROM\b|\bCOMMIT\b/);
     assert.match(source, /invalid_message_pair_count/);
     assert.match(source, /invalid_message_listing_pair_count/);
+    assert.match(source, /repairable_custom_link_missing_context_count/);
+    assert.match(source, /unrepairable_custom_link_missing_context_count/);
     assert.match(source, /duplicate_custom_link_source_group_count/);
     assert.match(source, /commission_interest_missing_message_count/);
     assert.match(source, /orphan_commission_card_count/);
@@ -143,6 +147,8 @@ describe("Conversation and Message legacy inspection operator", () => {
       "utf8",
     );
     assert.match(proof, /SET body = 'not-json'/);
+    assert.match(proof, /repairableCustomLinkMissingContextCount, 1/);
+    assert.match(proof, /unrepairableCustomLinkMissingContextCount, 1/);
     assert.match(proof, /invalidCustomLinkSourceCount, 1/);
     assert.match(proof, /commissionInterestMissingMessageCount, 1/);
     assert.match(proof, /orphanCommissionCardCount, 1/);
