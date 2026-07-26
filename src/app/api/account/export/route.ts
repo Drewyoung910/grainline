@@ -28,6 +28,7 @@ import { listOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
 import { ownerSavedBlogPostExportRows } from "@/lib/savedBlogPostOwnerAccess";
 import { ownerCartExportRows } from "@/lib/cartOwnerAccess";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { exportOwnedDirectUploads } from "@/lib/directUploadLifecycle";
 
 export const runtime = "nodejs";
 
@@ -676,30 +677,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
           },
         })
       : [],
-    prisma.directUpload.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        key: true,
-        endpoint: true,
-        publicUrl: true,
-        storageClass: true,
-        contentType: true,
-        expectedSize: true,
-        status: true,
-        cleanupAfter: true,
-        verifiedAt: true,
-        claimedAt: true,
-        claimedByType: true,
-        claimedById: true,
-        deletedAt: true,
-        attempts: true,
-        lastError: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    }),
+    exportOwnedDirectUploads(user.id),
     prisma.reviewVote.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: "desc" },

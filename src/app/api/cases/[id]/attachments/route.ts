@@ -263,6 +263,7 @@ export async function POST(
       contentType: output.contentType,
       expectedSize: processed.byteLength,
       storageClass: CASE_EVIDENCE_STORAGE_CLASS,
+      contextId: id,
     });
   } catch (error) {
     logServerError(error, {

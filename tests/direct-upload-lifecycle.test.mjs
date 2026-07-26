@@ -111,9 +111,11 @@ describe("direct upload lifecycle", () => {
     assert.match(claimBlock, /status: DIRECT_UPLOAD_STATUS\.VERIFIED/);
     assert.doesNotMatch(claimBlock, /DIRECT_UPLOAD_STATUS\.PRESIGNED/);
     assert.match(verifier, /accountUserId/);
-    assert.match(verifier, /prisma\.directUpload\.findUnique\(\{/);
-    assert.match(verifier, /lifecycle\.status === DIRECT_UPLOAD_STATUS\.VERIFIED/);
-    assert.match(verifier, /lifecycle\.status === DIRECT_UPLOAD_STATUS\.CLAIMED/);
+    assert.match(verifier, /findOwnedDirectUploadForKey\(\{/);
+    assert.match(verifier, /lifecycle\?\.status === DIRECT_UPLOAD_STATUS\.VERIFIED/);
+    assert.match(verifier, /lifecycle\?\.status === DIRECT_UPLOAD_STATUS\.CLAIMED/);
+    assert.match(verifier, /lifecycle\?\.endpoint === endpoint/);
+    assert.match(verifier, /lifecycle\.storageClass === "PUBLIC"/);
     assert.match(verifier, /lifecycle\.expectedSize === size/);
     assert.match(verifier, /uploadContentTypeMatches\(head\.ContentType, lifecycle\.contentType\)/);
   });
@@ -203,6 +205,10 @@ describe("direct upload lifecycle", () => {
     assert.doesNotMatch(lifecycle, /ListObjects/);
     assert.match(lifecycle, /failures\.push\(/);
     assert.match(lifecycle, /complete: rows\.length < take/);
+    assert.match(lifecycle, /grainline_direct_upload_cleanup_lease/);
+    assert.match(lifecycle, /grainline_direct_upload_cleanup_complete/);
+    assert.match(lifecycle, /grainline_direct_upload_cleanup_fail/);
+    assert.doesNotMatch(lifecycle, /prisma\.directUpload\.findMany/);
 
     assert.match(r2, /export async function deleteR2ObjectByKey/);
     assert.match(r2, /export async function deletePrivateR2ObjectByKey/);

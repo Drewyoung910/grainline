@@ -343,6 +343,38 @@ The private Case object key remains a server-only transient value while an
 attachment is being verified; it is no longer duplicated in the durable child
 row.
 
+### Fixed lifecycle/core authority checkpoint
+
+The next local-only checkpoint adds
+`20260726185000_prepare_direct_upload_authority` without revoking the old
+DirectUpload table grants or enabling DirectUpload RLS. It adds fixed,
+runtime-granted operations for:
+
+- processed-public, presigned-public, private Case and future private Message
+  lifecycle creation;
+- the public verification transition and exact actor/key lookup;
+- source-validated private Case attachment reference and read;
+- bounded cleanup leasing plus exact lease-fenced completion/failure;
+- sanitized account export;
+- account-owned public URL collection; and
+- account-deletion reference release/cleanup scheduling.
+
+Private actor, UTC clock, record, reference and release cores are explicitly
+revoked from both runtime and PUBLIC. Database clocks are normalized to UTC at
+the SQL boundary; IDs and cleanup lease tokens are database-derived.
+
+The compatible application draft now uses those operations for upload
+record/verify, persistence lookup, private Case reference/read, cleanup,
+account export and account deletion. New first-party persistence fails closed
+without a matching lifecycle row; exact unchanged legacy URLs remain accepted
+only through the pre-existing `existingUrls` path.
+
+This checkpoint still has no live PostgreSQL proof and is not release-ready.
+The public Listing/SellerProfile/Review/Blog/Commission/Broadcast/legacy
+Message reference families still use the generic caller-controlled claim
+helper. Those families, source-aware release, exact ACL/catalog proof and the
+activation/rollback split remain open.
+
 ## Exit
 
 High ends when this audit, the matrix/strategy decision and static inventory

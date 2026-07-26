@@ -97,7 +97,10 @@ describe("private CaseMessage evidence", () => {
       uploadRoute,
       /canCreateCaseMessageForStatus\(caseRecord\.status, \{ isStaff: actsAsStaff \}\)/,
     );
-    assert.match(readRoute, /caseMessage: \{ caseId: id \}/);
+    assert.match(
+      readRoute,
+      /readDirectUploadCaseAttachment\(\{[\s\S]*caseId: id,[\s\S]*attachmentId/,
+    );
     assert.match(readRoute, /CASE_EVIDENCE_SIGNED_URL_TTL_SECONDS = 60/);
     assert.match(readRoute, /"Cache-Control": "private, no-store, max-age=0"/);
     assert.match(readRoute, /"Referrer-Policy": "no-referrer"/);
@@ -116,15 +119,13 @@ describe("private CaseMessage evidence", () => {
     assert.match(evidence, /lifecycle\.status !== DIRECT_UPLOAD_STATUS\.VERIFIED/);
     assert.match(evidence, /uploadFileSignatureMatches/);
     assert.match(route, /await prisma\.\$transaction\(async \(tx\) =>/);
-    assert.match(route, /claimDirectUploadForKey\(\{[\s\S]*client: tx/);
+    assert.match(route, /referenceDirectUploadCaseAttachment\(\{[\s\S]*client: tx/);
     assert.match(
       route,
-      /claimedByType: "CASE_MESSAGE_ATTACHMENT"[\s\S]*attachments: \{[\s\S]*create:[\s\S]*directUploadId: attachment\.directUploadId/,
+      /attachments: \{[\s\S]*create:[\s\S]*directUploadId: attachment\.directUploadId[\s\S]*referenceDirectUploadCaseAttachment/,
     );
     assert.match(route, /attachmentKeysMatch/);
-    assert.match(lifecycle, /existing\.storageClass !== storageClass/);
-    assert.match(lifecycle, /existing\.claimedByType !== claimedByType/);
-    assert.match(lifecycle, /existing\.claimedById !== claimedById/);
+    assert.match(lifecycle, /grainline_direct_upload_reference_case_attachment/);
     assert.match(
       lifecycle,
       /deleteR2ObjectByStorageClass\(row\.key, row\.storageClass\)/,
@@ -184,7 +185,7 @@ describe("private CaseMessage evidence", () => {
     );
     assert.match(
       deletion,
-      /directUpload\.deleteMany\(\{\s*where: \{ userId: user\.id, storageClass: "PUBLIC" \}/s,
+      /releaseDirectUploadsForAccount\(\{\s*client: tx,\s*userId: user\.id/s,
     );
     assert.match(plan, /PDFs remain prohibited/);
     assert.match(plan, /future Case retention purge must[\s\S]*private-object deletion/);

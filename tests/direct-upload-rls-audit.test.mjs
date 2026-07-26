@@ -7,24 +7,30 @@ function source(path) {
 }
 
 describe("DirectUpload RLS audit contracts", () => {
-  it("pins every current direct table-access surface", () => {
-    const paths = [
-      ["src/lib/directUploadLifecycle.ts", /directUpload\./],
-      ["src/lib/accountDeletion.ts", /directUpload\./],
-      ["src/lib/uploadPersistenceVerification.ts", /directUpload\./],
-      ["src/lib/caseEvidence.ts", /directUpload\./],
-      ["src/app/api/account/export/route.ts", /directUpload\./],
+  it("pins the remaining legacy direct claims and converted fixed-operation surfaces", () => {
+    const convertedPaths = [
+      ["src/lib/accountDeletion.ts", /releaseDirectUploadsForAccount/],
+      ["src/lib/uploadPersistenceVerification.ts", /findOwnedDirectUploadForKey/],
+      ["src/lib/caseEvidence.ts", /findOwnedDirectUploadForKey/],
+      ["src/app/api/account/export/route.ts", /exportOwnedDirectUploads/],
       [
         "src/app/api/cases/[id]/attachments/[attachmentId]/route.ts",
-        /directUpload:\s*\{/,
+        /readDirectUploadCaseAttachment/,
       ],
-      ["src/app/api/cases/[id]/messages/route.ts", /directUpload\./],
+      [
+        "src/app/api/cases/[id]/messages/route.ts",
+        /referenceDirectUploadCaseAttachment/,
+      ],
     ];
 
-    for (const [path, pattern] of paths) {
+    for (const [path, pattern] of convertedPaths) {
       assert.match(source(path), pattern, path);
+      assert.doesNotMatch(source(path), /prisma\.directUpload|tx\.directUpload/, path);
     }
 
+    const lifecycle = source("src/lib/directUploadLifecycle.ts");
+    assert.match(lifecycle, /export async function claimDirectUploadForKey/);
+    assert.match(lifecycle, /client\.directUpload\./);
     const grants = source("scripts/provision-runtime-db-role.sql");
     assert.match(
       grants,
@@ -46,7 +52,6 @@ describe("DirectUpload RLS audit contracts", () => {
       ["src/app/api/commission/route.ts", "CommissionRequest"],
       ["src/app/api/seller/broadcast/route.ts", "SellerBroadcast"],
       ["src/app/messages/[id]/page.tsx", "Message"],
-      ["src/app/api/cases/[id]/messages/route.ts", "CASE_MESSAGE_ATTACHMENT"],
     ];
 
     for (const [path, claimType] of callSites) {
@@ -58,6 +63,10 @@ describe("DirectUpload RLS audit contracts", () => {
         path,
       );
     }
+    assert.match(
+      source("src/app/api/cases/[id]/messages/route.ts"),
+      /referenceDirectUploadCaseAttachment/,
+    );
   });
 
   it("pins generic caller-controlled claims and public reuse conflicts", () => {
@@ -83,21 +92,19 @@ describe("DirectUpload RLS audit contracts", () => {
     assert.match(audit, /multiple active references for PUBLIC[\s\S]*exactly one for PRIVATE/);
   });
 
-  it("pins export, deletion and cleanup-fence gaps", () => {
+  it("pins the closed export, deletion and cleanup-fence gaps", () => {
     const accountExport = source("src/app/api/account/export/route.ts");
+    const deletion = source("src/lib/accountDeletion.ts");
     const lifecycle = source("src/lib/directUploadLifecycle.ts");
     const review = source("src/app/api/reviews/[id]/route.ts");
     const audit = source("docs/direct-upload-rls-audit.md");
 
-    assert.match(
-      accountExport,
-      /prisma\.directUpload\.findMany\(\{[\s\S]*key: true,[\s\S]*publicUrl: true/,
-    );
+    assert.match(accountExport, /exportOwnedDirectUploads\(user\.id\)/);
+    assert.match(deletion, /releaseDirectUploadsForAccount/);
+    assert.doesNotMatch(deletion, /tx\.directUpload\.deleteMany/);
     assert.match(review, /deleteR2ObjectByUrl\(photo\.url\)/);
-    assert.match(
-      lifecycle,
-      /await prisma\.directUpload\.update\(\{[\s\S]*where: \{ id: row\.id \}/,
-    );
+    assert.match(lifecycle, /grainline_direct_upload_cleanup_complete/);
+    assert.match(lifecycle, /grainline_direct_upload_cleanup_fail/);
     assert.match(audit, /must omit key, URL, internal target ids and raw\s+provider error text/);
     assert.match(audit, /attempt\/lease token/);
   });

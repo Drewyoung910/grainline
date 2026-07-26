@@ -113,11 +113,15 @@ describe("account export privacy coverage", () => {
       "newsletterSubscriber",
       "sellerBroadcast",
       "sellerPayoutEvent",
-      "directUpload",
       "reviewVote",
     ]) {
       assert.match(route, new RegExp(`prisma\\.${model}`), `account export must query ${model}`);
     }
+    assert.match(
+      route,
+      /exportOwnedDirectUploads\(user\.id\)/,
+      "account export must query DirectUpload through its sanitized fixed operation",
+    );
 
     for (const key of [
       "blocks",
@@ -425,35 +429,41 @@ describe("account export privacy coverage", () => {
   it("exports direct upload lifecycle rows owned by the account", () => {
     const schema = source("prisma/schema.prisma");
     const route = source("src/app/api/account/export/route.ts");
+    const lifecycle = source("src/lib/directUploadLifecycle.ts");
     const payload = source("src/lib/accountExportPayload.ts");
-    const uploadStart = route.indexOf("prisma.directUpload.findMany");
-    const uploadEnd = route.indexOf("prisma.reviewVote.findMany", uploadStart);
-    const uploadBlock = route.slice(uploadStart, uploadEnd);
+    const uploadStart = lifecycle.indexOf("export async function exportOwnedDirectUploads");
+    const uploadEnd = lifecycle.indexOf("export async function accountDirectUploadPublicUrls", uploadStart);
+    const uploadBlock = lifecycle.slice(uploadStart, uploadEnd);
 
     assert.match(schema, /model DirectUpload \{/);
     assert.ok(uploadStart >= 0, "account export must query DirectUpload");
-    assert.match(uploadBlock, /where: \{ userId: user\.id \}/);
-    assert.match(uploadBlock, /orderBy: \{ createdAt: "desc" \}/);
+    assert.match(route, /exportOwnedDirectUploads\(user\.id\)/);
+    assert.match(uploadBlock, /grainline_direct_upload_export\(\$\{userId\}\)/);
     for (const field of [
       "id",
-      "key",
       "endpoint",
-      "publicUrl",
+      "storageClass",
       "contentType",
       "expectedSize",
       "status",
       "cleanupAfter",
       "verifiedAt",
       "claimedAt",
-      "claimedByType",
-      "claimedById",
       "deletedAt",
       "attempts",
-      "lastError",
       "createdAt",
       "updatedAt",
     ]) {
-      assert.match(uploadBlock, new RegExp(`${field}: true`), `account export must select ${field}`);
+      assert.match(lifecycle, new RegExp(`${field}:`), `account export type must include ${field}`);
+    }
+    for (const forbidden of [
+      "key",
+      "publicUrl",
+      "claimedByType",
+      "claimedById",
+      "lastError",
+    ]) {
+      assert.doesNotMatch(uploadBlock, new RegExp(`\\b${forbidden}\\b`));
     }
     assert.match(route, /directUploads,/);
     assert.match(payload, /directUploads: unknown\[\]/);

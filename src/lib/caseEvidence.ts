@@ -1,5 +1,5 @@
 import { GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
-import { prisma } from "@/lib/db";
+import { findOwnedDirectUploadForKey } from "@/lib/directUploadLifecycle";
 import { DIRECT_UPLOAD_STATUS } from "@/lib/directUploadLifecycleState";
 import { privateR2BucketName, r2 } from "@/lib/r2";
 import {
@@ -82,23 +82,13 @@ export async function verifyPrivateCaseEvidenceForPersistence({
     return { ok: false, error: "Case evidence upload is not valid for this case." };
   }
 
-  const lifecycle = await prisma.directUpload.findUnique({
-    where: { key },
-    select: {
-      id: true,
-      endpoint: true,
-      userId: true,
-      publicUrl: true,
-      storageClass: true,
-      contentType: true,
-      expectedSize: true,
-      status: true,
-    },
+  const lifecycle = await findOwnedDirectUploadForKey({
+    userId: accountUserId,
+    key,
   });
   if (
     !lifecycle
     || lifecycle.endpoint !== CASE_EVIDENCE_UPLOAD_ENDPOINT
-    || lifecycle.userId !== accountUserId
     || lifecycle.publicUrl !== null
     || lifecycle.storageClass !== CASE_EVIDENCE_STORAGE_CLASS
     || lifecycle.status !== DIRECT_UPLOAD_STATUS.VERIFIED
