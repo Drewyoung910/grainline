@@ -19,6 +19,7 @@ import { z } from "zod";
 import { rateLimitResponse, reportRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
+import { isActorMessageReportTarget } from "@/lib/conversationMessageAuthority";
 
 const Schema = z.object({
   reason: z.enum(["SPAM", "HARASSMENT", "FAKE_LISTING", "INAPPROPRIATE", "OTHER"]),
@@ -142,23 +143,13 @@ export async function POST(
         reporterCanAccess = exists;
         break;
       case "MESSAGE":
-        exists = await prisma.message.count({
-          where: {
-            id: body.targetId,
-            OR: [{ senderId: reportedId }, { recipientId: reportedId }],
-            conversation: { OR: [{ userAId: me.id }, { userBId: me.id }] },
-          },
-        }) > 0;
-        reporterCanAccess = exists;
-        break;
       case "MESSAGE_THREAD":
-        exists = await prisma.conversation.count({
-          where: {
-            id: body.targetId,
-            OR: [{ userAId: reportedId }, { userBId: reportedId }],
-            AND: [{ OR: [{ userAId: me.id }, { userBId: me.id }] }],
-          },
-        }) > 0;
+        exists = await isActorMessageReportTarget(
+          me.id,
+          reportedId,
+          body.targetType,
+          body.targetId,
+        );
         reporterCanAccess = exists;
         break;
       case "BLOG_POST":

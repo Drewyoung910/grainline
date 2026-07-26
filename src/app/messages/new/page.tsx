@@ -9,6 +9,7 @@ import {
   canStartConversationWith,
 } from "@/lib/conversationStartState";
 import { startConversationForUser } from "@/lib/conversationStartAccess";
+import { findActorConversationPair } from "@/lib/conversationMessageAuthority";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -76,13 +77,7 @@ export default async function NewConversationPage({
     }
   }
 
-  const [userAId, userBId] = [me.id, other.id].sort((left, right) => (
-    left < right ? -1 : 1
-  ));
-  const existing = await prisma.conversation.findUnique({
-    where: { userAId_userBId: { userAId, userBId } },
-    select: { id: true },
-  });
+  const existing = await findActorConversationPair(me.id, other.id);
   const listingQuery = validListingId
     ? `?listing=${encodeURIComponent(validListingId)}`
     : "";

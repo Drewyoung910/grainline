@@ -23,6 +23,8 @@ describe("conversation participant pair guardrails", () => {
   it("keeps normal conversation creation paths on canonical participant order", () => {
     const messagesNew = source("src/app/messages/new/page.tsx");
     const conversationStart = source("src/lib/conversationStartAccess.ts");
+    const authority = source("src/lib/conversationMessageAuthority.ts");
+    const serviceSql = source("docs/rls-drafts/conversation-message-service-authority.sql");
     const customOrder = source("src/app/api/messages/custom-order-request/route.ts");
     const customOrderAccess = source("src/lib/customOrderRequestAccess.ts");
     const commissionInterest = source("src/app/api/commission/[id]/interest/route.ts");
@@ -30,18 +32,24 @@ describe("conversation participant pair guardrails", () => {
 
     assert.doesNotMatch(messagesNew, /conversation\.(?:create|update|updateMany|upsert)/);
     assert.match(messagesNew, /startConversationForUser/);
-    assert.match(conversationStart, /const \[userAId, userBId\] = \[userId, otherUserId\]\.sort/);
-    assert.match(conversationStart, /data: \{[\s\S]{0,160}userAId,[\s\S]{0,80}userBId,/);
-    assert.match(conversationStart, /where: \{ userAId_userBId: \{ userAId, userBId \} \}/);
+    assert.match(messagesNew, /findActorConversationPair\(me\.id, other\.id\)/);
+    assert.match(conversationStart, /startActorConversation\(/);
+    assert.match(authority, /public\.grainline_conversation_start/);
+    const startFunction = serviceSql.slice(
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_conversation_start"),
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_send_ordinary"),
+    );
+    assert.match(startFunction, /grainline_conversation_lock_pair_core/);
+    assert.match(startFunction, /grainline_conversation_get_or_create_core/);
 
     assert.doesNotMatch(customOrder, /conversation\.(?:create|update|updateMany|upsert)/);
     assert.match(customOrder, /createCustomOrderRequestMessage/);
-    assert.match(customOrderAccess, /lockConversationParticipantPair\(\s*tx,\s*input\.buyerUserId,\s*input\.sellerUserId/s);
-    assert.match(customOrderAccess, /getOrCreateConversationForLockedPair\(\s*tx,\s*pair,/s);
+    assert.match(customOrderAccess, /sendActorCustomOrderRequest\(input\)/);
+    assert.match(authority, /public\.grainline_message_send_custom_request/);
 
     assert.doesNotMatch(commissionInterest, /conversation\.(?:create|update|updateMany|upsert)/);
     assert.match(commissionInterest, /createCommissionInterestMessage/);
-    assert.match(commissionInterestAccess, /lockConversationParticipantPair\(\s*tx,\s*input\.sellerUserId,/s);
-    assert.match(commissionInterestAccess, /getOrCreateConversationForLockedPair\(tx, pair, null\)/);
+    assert.match(commissionInterestAccess, /createActorCommissionInterest\(input\)/);
+    assert.match(authority, /public\.grainline_message_create_commission_interest/);
   });
 });

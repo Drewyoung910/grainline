@@ -31,11 +31,15 @@ import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { claimDirectUploadForUrl, DirectUploadClaimError } from "@/lib/directUploadLifecycle";
-import {
-  lockConversationContextListingForPair,
-  lockConversationParticipantPair,
-} from "@/lib/conversationStartAccess";
 import { canAttachConversationContextListing } from "@/lib/conversationStartState";
+import {
+  claimActorConversationMessageEmail,
+  getActorConversation,
+  listLatestActorMessages,
+  sendActorOrdinaryMessage,
+  setActorConversationArchived,
+} from "@/lib/conversationMessageAuthority";
+import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
 
 export default async function ThreadPage({
   params,
@@ -60,12 +64,19 @@ export default async function ThreadPage({
     : null;
   const canStaffReviewThread = !!reportedThread;
 
-  const convo = await prisma.conversation.findFirst({
-    where: canStaffReviewThread ? { id } : { id, OR: [{ userAId: me.id }, { userBId: me.id }] },
-    include: {
-      userA: { select: { id: true, name: true, imageUrl: true, banned: true, deletedAt: true } },
-      userB: { select: { id: true, name: true, imageUrl: true, banned: true, deletedAt: true } },
-      contextListing: {
+  const conversation = await getActorConversation(me.id, id);
+  if (!conversation) return notFound();
+  const conversationUsers = await prisma.user.findMany({
+    where: { id: { in: [conversation.userAId, conversation.userBId] } },
+    select: { id: true, name: true, imageUrl: true, banned: true, deletedAt: true },
+  });
+  const userById = new Map(conversationUsers.map((user) => [user.id, user]));
+  const userA = userById.get(conversation.userAId);
+  const userB = userById.get(conversation.userBId);
+  if (!userA || !userB) return notFound();
+  const contextListing = conversation.contextListingId
+    ? await prisma.listing.findUnique({
+        where: { id: conversation.contextListingId },
         select: {
           id: true,
           title: true,
@@ -85,10 +96,14 @@ export default async function ThreadPage({
           },
           photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
         },
-      },
-    },
-  });
-  if (!convo) return notFound();
+      })
+    : null;
+  const convo = {
+    ...conversation,
+    userA,
+    userB,
+    contextListing,
+  };
   const isParticipant = convo.userAId === me.id || convo.userBId === me.id;
   const isStaffReviewMode = canStaffReviewThread && !isParticipant;
 
@@ -162,23 +177,9 @@ export default async function ThreadPage({
     ? publicSellerPath(otherSellerProfile.id, otherSellerProfile.displayName)
     : null;
 
-  const messageRows = await prisma.message.findMany({
-    where: { conversationId: convo.id },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    take: 201,
-    select: {
-      id: true,
-      senderId: true,
-      recipientId: true,
-      body: true,
-      kind: true,
-      contextListing: { select: { id: true, title: true } },
-      createdAt: true,
-      readAt: true,
-    },
-  });
+  const messageRows = await listLatestActorMessages(me.id, conversation, 201);
   const hasMoreMessagesBefore = messageRows.length > 200;
-  const messages = messageRows.slice(0, 200).reverse();
+  const messages = messageRows.slice(-200);
 
   // --- Server actions --------------------------------------------------------
   async function sendMessage(_prev: unknown, formData: FormData) {
@@ -224,11 +225,11 @@ export default async function ThreadPage({
 
     // Validate participation before upload checks, then re-check inside the
     // write transaction so blocks/account-state changes cannot race the send.
-    const c = await prisma.conversation.findFirst({
-      where: { id, OR: [{ userAId: me.id }, { userBId: me.id }] },
-      select: { id: true, userAId: true, userBId: true },
-    });
-    if (!c) return { ok: false };
+    const c = await getActorConversation(me.id, id);
+    if (
+      !c
+      || (c.userAId !== me.id && c.userBId !== me.id)
+    ) return { ok: false };
 
     const recipientId = c.userAId === me.id ? c.userBId : c.userAId;
     const recipient = await prisma.user.findUnique({
@@ -270,90 +271,12 @@ export default async function ThreadPage({
 
     const hasMessageContent = atts.length > 0 || !!body;
 
-    let committedRecipientId = recipientId;
-    let committedNotificationMessageId: string | null = null;
-    let committedMessageSentAt: Date | null = null;
+    let committed: {
+      recipientId: string;
+      notificationMessageId: string;
+    };
     try {
-      const txResult = await prisma.$transaction(async (tx) => {
-        const lockedPair = await lockConversationParticipantPair(tx, me.id, recipientId);
-        if (!lockedPair.ok) {
-          return {
-            ok: false as const,
-            error: lockedPair.error === "blocked" ? "blocked" : "Messaging is unavailable.",
-          };
-        }
-
-        let committedContextListingId: string | null = null;
-        if (submittedContextListingId) {
-          const lockedContextListing = await lockConversationContextListingForPair(
-            tx,
-            lockedPair,
-            submittedContextListingId,
-          );
-          if (!lockedContextListing) {
-            return {
-              ok: false as const,
-              error: "That listing is no longer available as message context.",
-            };
-          }
-          committedContextListingId = lockedContextListing.id;
-        }
-
-        // All sends touching a thread serialize here. Take listing locks first
-        // (when present), matching custom-order source paths, then lock the
-        // Conversation before deriving timestamps or inserting Message rows.
-        const lockedConversations = await tx.$queryRaw<Array<{ id: string }>>`
-          SELECT conversation.id
-            FROM "Conversation" AS conversation
-           WHERE conversation.id = ${id}
-             AND conversation."userAId" = ${lockedPair.userAId}
-             AND conversation."userBId" = ${lockedPair.userBId}
-           FOR UPDATE
-        `;
-        if (lockedConversations.length !== 1) {
-          return { ok: false as const, error: "Messaging is unavailable." };
-        }
-
-        const freshConversation = await tx.conversation.findFirst({
-          where: { id, OR: [{ userAId: me.id }, { userBId: me.id }] },
-          select: {
-            id: true,
-            userAId: true,
-            userBId: true,
-            firstResponseAt: true,
-            userA: { select: { banned: true, deletedAt: true } },
-            userB: { select: { banned: true, deletedAt: true } },
-          },
-        });
-        if (!freshConversation) return { ok: false as const };
-
-        const freshSender = freshConversation.userAId === me.id
-          ? freshConversation.userA
-          : freshConversation.userB;
-        if (freshSender.banned || freshSender.deletedAt) {
-          return { ok: false as const, error: "Your account has been suspended." };
-        }
-
-        const freshRecipientId = freshConversation.userAId === me.id
-          ? freshConversation.userBId
-          : freshConversation.userAId;
-        const freshRecipient = freshConversation.userAId === me.id
-          ? freshConversation.userB
-          : freshConversation.userA;
-        const freshUnavailableReason = messagingUnavailableReason(freshRecipient);
-        if (freshUnavailableReason) {
-          return { ok: false as const, error: freshUnavailableReason };
-        }
-        if (
-          lockedPair.userAId !== freshConversation.userAId
-          || lockedPair.userBId !== freshConversation.userBId
-          || freshRecipientId !== recipientId
-        ) {
-          return { ok: false as const, error: "Messaging is unavailable." };
-        }
-
-        const messageSentAt = new Date();
-
+      committed = await prisma.$transaction(async (tx) => {
         let notificationMessageId: string | null = null;
 
         // 1) attachments -> each as its own message (JSON payload in body)
@@ -370,82 +293,80 @@ export default async function ThreadPage({
             name: a.name,
             type: a.type,
           });
-          const createdAttachment = await tx.message.create({
-            data: {
-              conversationId: id,
-              senderId: me.id,
-              recipientId: freshRecipientId,
-              contextListingId: committedContextListingId,
+          const createdAttachment = await sendActorOrdinaryMessage(
+            me.id,
+            id,
+            {
               body: payload,
               kind: "file",
-              createdAt: messageSentAt,
+              contextListingId: submittedContextListingId || null,
             },
-            select: { id: true },
-          });
-          notificationMessageId = createdAttachment.id;
+            tx,
+          );
+          if (createdAttachment.recipientId !== recipientId) {
+            throw new TypeError(
+              "ordinary-message write RPC changed the validated recipient",
+            );
+          }
+          notificationMessageId = createdAttachment.messageId;
           await claimDirectUploadForUrl({
             client: tx,
             url: a.url,
             userId: me.id,
             claimedByType: "Message",
-            claimedById: createdAttachment.id,
+            claimedById: createdAttachment.messageId,
           });
         }
 
         // 2) text message if present
         if (body) {
-          const createdText = await tx.message.create({
-            data: {
-              conversationId: id,
-              senderId: me.id,
-              recipientId: freshRecipientId,
-              contextListingId: committedContextListingId,
+          const createdText = await sendActorOrdinaryMessage(
+            me.id,
+            id,
+            {
               body,
-              createdAt: messageSentAt,
+              kind: null,
+              contextListingId: submittedContextListingId || null,
             },
-            select: { id: true },
-          });
-          notificationMessageId = createdText.id;
+            tx,
+          );
+          if (createdText.recipientId !== recipientId) {
+            throw new TypeError(
+              "ordinary-message write RPC changed the validated recipient",
+            );
+          }
+          notificationMessageId = createdText.messageId;
         }
 
-        // bump thread; set firstResponseAt if this is the first reply from the other side
-        if (!freshConversation.firstResponseAt && hasMessageContent) {
-          // Check if the other person has sent a prior message (this is a response, not an opener)
-          const priorFromOther = await tx.message.findFirst({
-            where: { conversationId: id, senderId: { not: me.id } },
-            select: { id: true },
-          });
-          if (priorFromOther) {
-            await tx.conversation.updateMany({
-              where: { id, firstResponseAt: null },
-              data: { firstResponseAt: messageSentAt },
-            });
-          }
+        if (notificationMessageId === null) {
+          throw new TypeError("ordinary-message transaction created no message");
         }
-        await tx.conversation.update({
-          where: { id },
-          data: { updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null },
-        });
         return {
-          ok: true as const,
-          recipientId: freshRecipientId,
+          recipientId,
           notificationMessageId,
-          messageSentAt,
         };
       }, { isolationLevel: "ReadCommitted" });
-      if (!txResult.ok) return { ok: false, error: txResult.error };
-      committedRecipientId = txResult.recipientId;
-      committedNotificationMessageId = txResult.notificationMessageId;
-      committedMessageSentAt = txResult.messageSentAt;
     } catch (error) {
       if (error instanceof DirectUploadClaimError) {
         return { ok: false, error: error.message };
       }
+      const sqlState = getPrismaRawSqlState(error);
+      if (
+        sqlState === "22023"
+        || sqlState === "42501"
+        || sqlState === "40001"
+      ) {
+        return { ok: false, error: "Messaging is unavailable." };
+      }
       throw error;
     }
+    const {
+      recipientId: committedRecipientId,
+      notificationMessageId: committedNotificationMessageId,
+    } = committed;
 
     // Notify recipient
-    if (hasMessageContent && committedNotificationMessageId && committedMessageSentAt) {
+    if (hasMessageContent) {
       await createNotification({
         userId: committedRecipientId,
         type: "NEW_MESSAGE",
@@ -466,15 +387,11 @@ export default async function ThreadPage({
           select: { email: true, name: true },
         });
         if (recipientUser?.email) {
-          const emailWindowStart = new Date(committedMessageSentAt.getTime() - 5 * 60 * 1000);
-          const emailClaim = await prisma.conversation.updateMany({
-            where: {
-              id,
-              OR: [{ lastMessageEmailSentAt: null }, { lastMessageEmailSentAt: { lt: emailWindowStart } }],
-            },
-            data: { lastMessageEmailSentAt: committedMessageSentAt },
-          });
-          if (emailClaim.count === 1) {
+          const emailClaim = await claimActorConversationMessageEmail(
+            me.id,
+            committedNotificationMessageId,
+          );
+          if (emailClaim) {
             await sendNewMessageEmail({
               recipientEmail: recipientUser.email,
               recipientName: recipientUser.name ?? "there",
@@ -510,19 +427,17 @@ export default async function ThreadPage({
     const { success } = await safeRateLimit(conversationStateRatelimit, me.id);
     if (!success) return { ok: false };
 
-    const c = await prisma.conversation.findFirst({
-      where: { id, OR: [{ userAId: me.id }, { userBId: me.id }] },
-      select: { id: true, userAId: true, userBId: true },
-    });
-    if (!c) return { ok: false };
-
-    await prisma.conversation.update({
-      where: { id },
-      data:
-        c.userAId === me.id
-          ? { archivedAAt: new Date() }
-          : { archivedBAt: new Date() },
-    });
+    try {
+      if (!(await setActorConversationArchived(me.id, id, true))) {
+        return { ok: false };
+      }
+    } catch (error) {
+      const sqlState = getPrismaRawSqlState(error);
+      if (sqlState === "22023" || sqlState === "42501") {
+        return { ok: false };
+      }
+      throw error;
+    }
 
     redirect("/messages?tab=archived");
   }
@@ -541,19 +456,17 @@ export default async function ThreadPage({
     const { success } = await safeRateLimit(conversationStateRatelimit, me.id);
     if (!success) return { ok: false };
 
-    const c = await prisma.conversation.findFirst({
-      where: { id, OR: [{ userAId: me.id }, { userBId: me.id }] },
-      select: { id: true, userAId: true, userBId: true },
-    });
-    if (!c) return { ok: false };
-
-    await prisma.conversation.update({
-      where: { id },
-      data:
-        c.userAId === me.id
-          ? { archivedAAt: null }
-          : { archivedBAt: null },
-    });
+    try {
+      if (!(await setActorConversationArchived(me.id, id, false))) {
+        return { ok: false };
+      }
+    } catch (error) {
+      const sqlState = getPrismaRawSqlState(error);
+      if (sqlState === "22023" || sqlState === "42501") {
+        return { ok: false };
+      }
+      throw error;
+    }
 
     redirect("/messages");
   }

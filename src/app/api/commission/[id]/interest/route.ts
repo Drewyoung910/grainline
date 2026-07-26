@@ -138,15 +138,8 @@ export async function POST(
   const result = await createCommissionInterestMessage({
     commissionRequestId: id,
     sellerUserId: me.id,
-    sellerProfileId: sellerProfile.id,
   });
   if (!result.ok) {
-    if (result.error === "closed") {
-      return privateJson(
-        { error: "Commission request is no longer open" },
-        { status: 409 },
-      );
-    }
     return privateJson(
       { error: "Unable to express interest." },
       { status: 403 },

@@ -25,14 +25,12 @@ describe("user report target access guardrails", () => {
     );
     assert.match(
       source,
-      /conversation: \{ OR: \[\{ userAId: me\.id \}, \{ userBId: me\.id \}\] \}/,
-      "message reports must require the reporter to be in the conversation",
+      /isActorMessageReportTarget\(\s*me\.id,\s*reportedId,\s*body\.targetType,\s*body\.targetId,\s*\)/,
+      "message and thread reports must use exact participant authority",
     );
-    assert.match(
-      source,
-      /AND: \[\{ OR: \[\{ userAId: me\.id \}, \{ userBId: me\.id \}\] \}\]/,
-      "thread reports must require the reporter to be in the conversation",
-    );
+    const authority = readFileSync("src/lib/conversationMessageAuthority.ts", "utf8");
+    assert.match(authority, /public\.grainline_message_report_target_valid/);
+    assert.doesNotMatch(source, /prisma\.(?:message|conversation)\.count/);
     assert.match(
       source,
       /canViewListingDetail\(listing, \{ dbUserId: me\.id \}\)/,

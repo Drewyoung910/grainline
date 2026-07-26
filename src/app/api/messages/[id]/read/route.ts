@@ -1,5 +1,8 @@
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
+import {
+  getActorConversation,
+  markActorConversationMessagesRead,
+} from "@/lib/conversationMessageAuthority";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { markReadRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
@@ -32,17 +35,13 @@ export async function POST(
   const { success, reset } = await safeRateLimit(markReadRatelimit, `message:${me.id}`);
   if (!success) return privateResponse(rateLimitResponse(reset, "Too many read updates. Try again shortly."));
 
-  // Ensure I’m a participant
-  const convo = await prisma.conversation.findFirst({
-    where: { id, OR: [{ userAId: me.id }, { userBId: me.id }] },
-    select: { id: true },
-  });
-  if (!convo) return privateJson({ ok: false }, { status: 403 });
+  // Staff report review is read-only; marking read remains participant-only.
+  const conversation = await getActorConversation(me.id, id);
+  const isParticipant = conversation
+    && (conversation.userAId === me.id || conversation.userBId === me.id);
+  if (!isParticipant) return privateJson({ ok: false }, { status: 403 });
 
-  await prisma.message.updateMany({
-    where: { conversationId: id, recipientId: me.id, readAt: null },
-    data: { readAt: new Date() },
-  });
+  await markActorConversationMessagesRead(me.id, id);
   await markOwnerMessageNotificationsRead(me.id, id);
 
   return privateJson({ ok: true });

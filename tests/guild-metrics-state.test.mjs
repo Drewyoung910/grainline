@@ -46,13 +46,27 @@ describe("Guild metrics state", () => {
 
   it("derives response rate from message history instead of the cached first-response timestamp", () => {
     const source = readFileSync(new URL("../src/lib/metrics.ts", import.meta.url), "utf8");
+    const authority = readFileSync(
+      new URL("../src/lib/conversationMessageAuthority.ts", import.meta.url),
+      "utf8",
+    );
+    const serviceSql = readFileSync(
+      new URL("../docs/rls-drafts/conversation-message-service-authority.sql", import.meta.url),
+      "utf8",
+    );
+    const metricFunction = serviceSql.slice(
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_seller_message_response_metrics"),
+      serviceSql.indexOf("REVOKE ALL ON FUNCTION"),
+    );
 
     assert.doesNotMatch(source, /firstResponseAt/);
-    assert.match(source, /WITH seller_conversations AS/);
-    assert.match(source, /DISTINCT ON \(m\."conversationId"\)/);
-    assert.match(source, /seller_responses AS/);
-    assert.match(source, /reply\."senderId" = \$\{seller\.userId\}/);
-    assert.match(source, /LEFT JOIN seller_responses sr/);
+    assert.match(source, /getSellerMessageResponseMetrics\(seller\.userId, periodStart, db\)/);
+    assert.match(authority, /public\.grainline_seller_message_response_metrics/);
+    assert.match(metricFunction, /WITH seller_conversation AS/);
+    assert.match(metricFunction, /DISTINCT ON \(message\."conversationId"\)/);
+    assert.match(metricFunction, /seller_response AS/);
+    assert.match(metricFunction, /response\."senderId" = p_seller_user_id/);
+    assert.match(metricFunction, /LEFT JOIN seller_response/);
   });
 
   it("stores cached total sales in a bigint column and normalizes cached reads for UI metrics", () => {

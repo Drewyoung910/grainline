@@ -37,8 +37,41 @@ catalog/ACL, 19 callable functions, six private-core denials, RLS/FORCE off,
 zero policies and legacy table CRUD retained. Sanitized mode-0600 evidence
 SHA-256 is
 `fa11589253cafbd87f16a9442dc2fd57afc136263cc1ac89b93219ebbede295d`.
-Application conversion is next; policy/table-grant activation and FORCE remain
-later separate releases.
+Application conversion is complete in the isolated candidate but is not yet
+deployed; the first bounded checkpoint converted
+list polling, stream polling, mark-read and unread count through four exact
+authority functions, and the second converted account export plus message/thread
+report validation. The third converted custom-order participant, pair and
+latest-request reads. The fourth moved the read-only start-page pair lookup and
+explicit conversation start behind fixed authority. The fifth converted
+custom-order request and commission-interest writes and removed the now-unused
+app-side conversation get/create helper. The sixth converted
+custom-order-ready, including exact replay evidence and post-commit
+Notification healing. Direct protected-table access is now reduced from 53 to
+26. The seventh converted seller response metrics to the aggregate-only
+function, reducing the surface to 23. The eighth moved deletion-time attachment
+discovery and Message redaction behind the participant export projection and
+fixed account-deletion authority function, reducing the surface to 18. The
+ninth moved inbox visibility, search, latest-message selection, unread grouping
+and keyset bounds into one participant projection, reducing the surface to 16.
+The tenth moved initial participant/reported-staff thread metadata and the
+latest 200-message window behind bounded projections, reducing the surface to
+14 without changing long-thread chronology. The eleventh moved ordinary text
+and attachment writes, source-Message email claims and participant-side
+archive state behind the installed fixed functions, preserving upload claims
+inside the read-committed write transaction and reducing the machine inventory
+to zero direct protected-table operations or raw references.
+Pull-request CI run `30189704185` passed the complete PostgreSQL 16
+invariant/legacy/functions-only/recipient-RLS proof, TypeScript, lint, 2,007
+tests, dependency audit and production build at `03af5bae`. The subsequent
+set-level Extra-High review found no new database-authority bypass and added a
+fail-closed wrapper hardening checkpoint: actor relationship, bounded
+identifiers, finite timestamps, and generated-identifier equality for new
+rows. Fresh reviewed-head run `30189982915` passed the same complete gate at
+`a27e99d3`. The application-authority Extra-High gate is complete with no open
+findings; merge and the RLS-off compatibility deployment/postflight remain
+separate boundaries.
+Policy/table-grant activation and FORCE remain later separate releases.
 
 ## Security objective
 
@@ -57,9 +90,12 @@ separate from Notification, Order/payment/shipping and Case/CaseMessage.
 ## Verified baseline
 
 The original machine inventory recorded 50 direct ORM operations and 5 raw SQL
-table references. Compatible audit refactors currently leave 45 direct ORM
-operations and 8 raw SQL references across 17 runtime files (53 total protected
-access points). The surface includes the user inbox and
+table references. Compatible audit refactors left 45 direct ORM operations and
+8 raw SQL references across 17 runtime files (53 total protected access
+points). The eleven authority checkpoints removed every direct protected
+operation: the current candidate has 0 ORM operations and 0 raw references
+across the runtime tree.
+The surface includes the user inbox and
 thread, list and stream polling, unread counts, per-recipient mark-read,
 archive state, first-response metrics, email throttling, account export,
 account-deletion redaction, user-report validation, seller response metrics,
@@ -74,8 +110,8 @@ Important architecture findings at this boundary:
 - Message foreign keys do not prove that sender and recipient are the opposing
   participants in the referenced Conversation.
 - Custom-order request, commission interest and custom-order-ready now commit
-  their Conversation/Message effects in source-validated transactions. The
-  later database functions must preserve those atomic boundaries.
+  their Conversation/Message effects through the installed source-validated
+  database functions, preserving each atomic boundary.
 - The staff thread page is intentionally narrow: an ADMIN or EMPLOYEE may read
   a non-participant thread only while an unresolved `MESSAGE_THREAD` report
   targets that exact conversation. There is no general staff bypass.
@@ -192,7 +228,11 @@ The direct runtime table query with no context must return zero rows.
 ## Compatibility and rollout sequence
 
 1. Inventory and pin every current access path. **Complete: original 55-path
-   migration baseline; current compatible surface is 53 protected accesses.**
+   migration baseline; current authority-conversion surface is zero direct
+   protected accesses after converting polling/read, privacy, report-target,
+   custom-order reads, conversation start and all three structured write
+   families, aggregate seller response metrics, account deletion, inbox and
+   initial thread rendering, ordinary send, archive state and email claims.**
 2. Complete `docs/conversation-message-pre-rls-audit.md` and fix its activation
    blockers before authority SQL. **Complete for the preparation boundary:
    app findings fixed; invariant proof, Extra-High review, protected production
@@ -223,8 +263,11 @@ The direct runtime table query with no context must return zero rows.
    disabled with zero policies.**
 5. Compatible app deployment: all protected accesses move to reviewed
    helpers; test before and after RLS. **The invariant-compatible application
-   is live. The authority RPC/helper conversion begins in this next phase and
-   must deploy compatibly before database activation.**
+   is live. The authority RPC/helper conversion candidate now has zero direct
+   protected-table accesses and passes TypeScript, focused lint and the full
+   2,007-test suite (2,004 pass, 3 intentional skips). Checkpoint push, fresh CI
+   PostgreSQL proof and Extra-High authority review are complete. Merge and a
+   compatibility deployment/postflight remain before database activation.**
 6. Disposable PostgreSQL proof: policies/grants, every read/write family,
    direct denial, staff report resolution, account/block/archive races,
    deletion/export/metrics, rollback and legacy handling. **Complete for the

@@ -254,8 +254,8 @@ describe("request origin guard", () => {
       "await params",
       "await auth()",
       "safeRateLimit(",
-      "prisma.conversation.findFirst",
-      "prisma.message.updateMany",
+      "getActorConversation(me.id, id)",
+      "markActorConversationMessagesRead(me.id, id)",
     ]);
     assertGuardBefore("src/app/api/messages/custom-order-request/route.ts", [
       "await auth()",

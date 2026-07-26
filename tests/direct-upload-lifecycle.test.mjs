@@ -153,11 +153,11 @@ describe("direct upload lifecycle", () => {
     assert.match(threadPage, /await prisma\.\$transaction\(async \(tx\) => \{/);
     assert.ok(
       threadPage.indexOf("await claimDirectUploadForUrl({") <
-        threadPage.indexOf("const createdAttachment = await tx.message.create"),
+        threadPage.indexOf("const createdAttachment = await sendActorOrdinaryMessage"),
       "message send must claim tracked uploads before attachment rows are created",
     );
     assert.match(threadPage, /claimedByType: "Message"/);
-    assert.match(threadPage, /claimedById: createdAttachment\.id/);
+    assert.match(threadPage, /claimedById: createdAttachment\.messageId/);
   });
 
   it("runs cron cleanup without bucket listing and reports partial failures through CronRun result", () => {

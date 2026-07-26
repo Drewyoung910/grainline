@@ -96,19 +96,30 @@ describe("Round 9 account deletion PII guardrails", () => {
 
     assert.match(deletion, /tx\.block\.deleteMany\(\{\s*where: \{ blockerId: user\.id \} \}\)/);
     assert.doesNotMatch(deletion, /blockedId: user\.id/);
-    assert.match(deletion, /db\.message\.findMany\(\{\s*where: \{ senderId: userId \}/s);
+    assert.match(deletion, /listActorSentMessageBodiesForDeletion\(userId, db\)/);
+    assert.doesNotMatch(deletion, /db\.message\./);
     assert.doesNotMatch(deletion, /where: \{ OR: \[\{ senderId: userId \}, \{ recipientId: userId \}\] \}/);
   });
 
   it("redacts other-party message and case-message bodies that quote deleted-account values", () => {
     const deletion = source("src/lib/accountDeletion.ts");
+    const authority = source("src/lib/conversationMessageAuthority.ts");
+    const serviceSql = source("docs/rls-drafts/conversation-message-service-authority.sql");
+    const messageRedactionFunction = serviceSql.slice(
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_redact_for_account_deletion"),
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_seller_message_response_metrics"),
+    );
 
     assert.match(deletion, /function bodyTextMatchSql\(value: string\)/);
     assert.match(deletion, /function caseDescriptionTextMatchSql\(value: string\)/);
-    assert.match(deletion, /FROM "Message"[\s\S]*"senderId" <> \$\{deletedUserId\}[\s\S]*"recipientId" = \$\{deletedUserId\}/);
+    assert.match(authority, /public\.grainline_message_redact_for_account_deletion/);
+    assert.match(messageRedactionFunction, /UPDATE public\."Message" AS message\s*SET body = '\[Message deleted\]'/);
+    assert.match(messageRedactionFunction, /message\."senderId" <> p_actor_id\s*AND message\."recipientId" = p_actor_id/);
+    assert.match(messageRedactionFunction, /grainline_account_deletion_redact_text_core/);
     assert.match(deletion, /FROM "CaseMessage"[\s\S]*"authorId" <> \$\{deletedUserId\}[\s\S]*"caseId" IN \([\s\S]*FROM "Case"[\s\S]*"buyerId" = \$\{deletedUserId\}[\s\S]*OR "sellerId" = \$\{deletedUserId\}/);
     assert.match(deletion, /FROM "Case"[\s\S]*\("buyerId" = \$\{deletedUserId\} OR "sellerId" = \$\{deletedUserId\}\)/);
-    assert.match(deletion, /redactMessagesAboutDeletedAccount\(tx, user\.id, accountSensitiveValues\)/);
+    assert.match(deletion, /redactActorMessagesForAccountDeletion\(user\.id, tx\)/);
+    assert.doesNotMatch(deletion, /FROM "Message"|tx\.message\./);
     assert.match(deletion, /redactCaseMessagesAboutDeletedAccount\(tx, user\.id, accountSensitiveValues\)/);
     assert.match(deletion, /redactCasesAboutDeletedAccount\(tx, user\.id, accountSensitiveValues\)/);
   });
@@ -129,9 +140,9 @@ describe("Round 9 account deletion PII guardrails", () => {
     const deletion = source("src/lib/accountDeletion.ts");
     const threadPage = source("src/app/messages/[id]/page.tsx");
     const inboxPage = source("src/app/messages/page.tsx");
-    const threadRenderQueryStart = threadPage.indexOf("const convo = await prisma.conversation.findFirst");
+    const threadRenderQueryStart = threadPage.indexOf("const conversation = await getActorConversation(me.id, id)");
     const threadRenderQueryEnd = threadPage.indexOf("  // --- Server actions", threadRenderQueryStart);
-    assert.ok(threadRenderQueryStart > -1, "thread page must keep a conversation render query");
+    assert.ok(threadRenderQueryStart > -1, "thread page must keep an actor-scoped conversation render projection");
     assert.ok(threadRenderQueryEnd > threadRenderQueryStart, "thread render query must stay bounded before side effects");
     const threadRenderQuery = threadPage.slice(
       threadRenderQueryStart,
@@ -139,7 +150,7 @@ describe("Round 9 account deletion PII guardrails", () => {
     );
 
     assert.doesNotMatch(deletion, /conversation\.deleteMany/);
-    assert.match(deletion, /tx\.message\.updateMany\(\{\s*where: \{ senderId: user\.id \}/s);
+    assert.match(deletion, /redactActorMessagesForAccountDeletion\(user\.id, tx\)/);
     assert.doesNotMatch(threadRenderQuery, /email: true/);
     assert.doesNotMatch(inboxPage, /select: \{[^}]*email: true/s);
     assert.doesNotMatch(inboxPage, /email:\s*\{\s*contains:\s*q/);

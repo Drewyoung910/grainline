@@ -9,33 +9,31 @@ function source(path) {
 describe("message and case policy guardrails", () => {
   it("revalidates custom-order ready links against conversation and block policy", () => {
     const helper = source("src/lib/customOrderReadyLink.ts");
-    const policyCheck = helper.indexOf("const sources = await tx.$queryRaw");
-    const listingSourceLock = helper.indexOf("FOR SHARE OF listing, seller");
-    const conversationLock = helper.indexOf(
-      "lockConversationForMessageWrite(tx, pair, source.conversationId)",
+    const serviceSql = source("docs/rls-drafts/conversation-message-service-authority.sql");
+    const readyFunction = serviceSql.slice(
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_send_custom_order_ready"),
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_account_deletion_email_key_core"),
     );
-    const messageCreate = helper.indexOf("await tx.message.create");
+    const pairLock = readyFunction.indexOf("grainline_conversation_lock_pair_core");
+    const listingSourceLock = readyFunction.indexOf("FOR SHARE OF listing, seller");
+    const conversationLock = readyFunction.indexOf('FROM public."Conversation" AS conversation');
+    const messageCreate = readyFunction.indexOf('INSERT INTO public."Message"');
 
-    assert.ok(policyCheck > -1, "ready-link helper must load the Listing/Conversation source inside the lock");
-    assert.ok(listingSourceLock > policyCheck, "ready-link source rows must lock inside the source query");
+    assert.ok(pairLock > -1, "ready-link authority must lock and validate the participant pair");
+    assert.ok(listingSourceLock > pairLock, "ready-link source rows must lock after the participant pair");
     assert.ok(
       conversationLock > listingSourceLock,
       "ready-link Conversation lock must follow Listing/Seller source locks",
     );
     assert.ok(messageCreate > conversationLock, "ready-link message must be created after policy locks");
-    assert.match(helper, /lockConversationParticipantPair\(/);
-    assert.match(helper, /source\.sellerUserId === source\.buyerUserId/);
-    assert.match(helper, /listing\.status = 'ACTIVE'/);
-    assert.match(helper, /listing\."isPrivate" = true/);
-    assert.match(helper, /seller\."chargesEnabled" = true/);
-    assert.match(helper, /seller\."stripeAccountId" IS NOT NULL/);
-    assert.match(helper, /seller\."vacationMode" = false/);
-    assert.match(helper, /isSystemMessage: true/);
-    assert.match(helper, /FOR SHARE OF listing, seller/);
-    assert.match(helper, /lockConversationForMessageWrite\(tx, pair, source\.conversationId\)/);
-    assert.doesNotMatch(helper, /FOR SHARE OF listing, seller,\s*conversation/);
-    assert.match(helper, /createdAt: messageSentAt/);
-    assert.match(helper, /data: \{ updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null \}/);
+    assert.match(helper, /sendActorCustomOrderReady\(/);
+    assert.match(readyFunction, /listing\.status = 'ACTIVE'/);
+    assert.match(readyFunction, /listing\."isPrivate" = true/);
+    assert.match(readyFunction, /seller\."chargesEnabled" = true/);
+    assert.match(readyFunction, /seller\."stripeAccountId" IS NOT NULL/);
+    assert.match(readyFunction, /seller\."vacationMode" = false/);
+    assert.match(readyFunction, /"contextListingId"/);
+    assert.match(readyFunction, /'custom_order_link',\s*true,\s*message_sent_at/);
   });
 
   it("reopens pending-close cases before accepting a new party message", () => {
@@ -51,59 +49,88 @@ describe("message and case policy guardrails", () => {
   it("keeps blocked and archived conversations out of visible unread counts before caps", () => {
     const inbox = source("src/app/messages/page.tsx");
     const unreadCount = source("src/app/api/messages/unread-count/route.ts");
-
-    assert.match(inbox, /const blockedUserIdList = \[\.\.\.blockedUserIds\]/);
-    assert.ok(
-      inbox.indexOf("blockedUserIdList.length > 0") < inbox.indexOf("take: 51"),
-      "messages inbox must exclude blocked users before the capped query",
+    const recipientSql = source("docs/rls-drafts/conversation-message-recipient-access.sql");
+    const inboxFunction = recipientSql.slice(
+      recipientSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_conversation_inbox"),
+      recipientSql.indexOf("REVOKE ALL ON FUNCTION", recipientSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_conversation_inbox")),
     );
-    assert.match(inbox, /const hasMoreConversations = conversationRows\.length > 50/);
-    assert.match(inbox, /orderBy: \[\{ updatedAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(inbox, /orderBy: \[\{ updatedAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(inbox, /where: \{ recipientId: me\.id, readAt: null, conversation: \{ is: baseWhere \} \}/);
 
-    assert.match(unreadCount, /getBlockedUserIdsFor/);
-    assert.match(unreadCount, /archivedAAt: null/);
-    assert.match(unreadCount, /archivedBAt: null/);
-    assert.match(unreadCount, /userAId: \{ notIn: blockedUserIds \}/);
-    assert.match(unreadCount, /userBId: \{ notIn: blockedUserIds \}/);
+    assert.match(inbox, /listActorConversationInbox\(me\.id/);
+    assert.match(inbox, /limit: 51/);
+    assert.match(inbox, /const hasMoreConversations = conversationRows\.length > 50/);
+    assert.doesNotMatch(inbox, /getBlockedUserIdsFor|prisma\.(?:conversation|message)\./);
+    assert.match(inboxFunction, /NOT EXISTS \(\s*SELECT 1\s*FROM public\."Block"/s);
+    assert.match(inboxFunction, /JOIN LATERAL \(\s*SELECT[\s\S]*FROM public\."Message"/);
+    assert.match(inboxFunction, /ORDER BY conversation\."updatedAt" DESC, conversation\.id DESC\s*LIMIT bounded_limit/);
+    assert.match(inboxFunction, /unread_message\."recipientId" = p_user_id/);
+    assert.match(inboxFunction, /unread_message\."readAt" IS NULL/);
+
+    assert.match(unreadCount, /countActorUnreadMessages\(me\.id\)/);
+    const unreadFunction = recipientSql.slice(
+      recipientSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_unread_count"),
+      recipientSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_latest_custom_request"),
+    );
+    assert.match(unreadFunction, /conversation\."archivedAAt" IS NULL/);
+    assert.match(unreadFunction, /conversation\."archivedBAt" IS NULL/);
+    assert.match(unreadFunction, /NOT EXISTS \(\s*SELECT 1\s*FROM public\."Block"/s);
+    assert.match(unreadFunction, /block\."blockerId" = conversation\."userAId"/);
+    assert.match(unreadFunction, /block\."blockedId" = conversation\."userBId"/);
   });
 
   it("loads the latest message-thread window and reopens archived threads on new content", () => {
     const threadPage = source("src/app/messages/[id]/page.tsx");
     const customOrderRequest = source("src/lib/customOrderRequestAccess.ts");
+    const serviceSql = source("docs/rls-drafts/conversation-message-service-authority.sql");
+    const invariantMigration = source(
+      "prisma/migrations/20260722231500_enforce_conversation_message_invariants/migration.sql",
+    );
+    const customFunction = serviceSql.slice(
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_send_custom_request"),
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_create_commission_interest"),
+    );
 
-    assert.match(threadPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\],\s*take: 201/);
+    assert.match(threadPage, /listLatestActorMessages\(me\.id, conversation, 201\)/);
     assert.match(threadPage, /const hasMoreMessagesBefore = messageRows\.length > 200/);
-    assert.match(threadPage, /const messages = messageRows\.slice\(0, 200\)\.reverse\(\)/);
-    assert.match(threadPage, /data: \{ updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null \}/);
-    assert.match(customOrderRequest, /lockConversationForMessageWrite/);
-    assert.match(customOrderRequest, /createdAt: messageSentAt/);
-    assert.match(customOrderRequest, /data: \{ updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null \}/);
+    assert.match(threadPage, /const messages = messageRows\.slice\(-200\)/);
+    assert.match(threadPage, /sendActorOrdinaryMessage\(/);
+    const ordinaryFunction = serviceSql.slice(
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_send_ordinary"),
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_conversation_set_archived"),
+    );
+    assert.match(ordinaryFunction, /INSERT INTO public\."Message"/);
+    assert.match(customOrderRequest, /sendActorCustomOrderRequest\(input\)/);
+    assert.match(customFunction, /message_sent_at := pg_catalog\.timezone\('UTC', pg_catalog\.clock_timestamp\(\)\)/);
+    assert.match(customFunction, /INSERT INTO public\."Message"/);
+    assert.match(invariantMigration, /CREATE TRIGGER grainline_message_maintain_thread_state/);
+    assert.match(invariantMigration, /"archivedAAt" = NULL,\s*"archivedBAt" = NULL/);
   });
 
   it("revalidates message-thread send policy inside the write transaction", () => {
     const threadPage = source("src/app/messages/[id]/page.tsx");
-    const transactionStart = threadPage.indexOf("const txResult = await prisma.$transaction");
-    const blockCheck = threadPage.indexOf("const lockedPair = await lockConversationParticipantPair", transactionStart);
-    const conversationLock = threadPage.indexOf('FROM "Conversation" AS conversation', blockCheck);
-    const policyCheck = threadPage.indexOf("const freshConversation = await tx.conversation.findFirst", transactionStart);
-    const senderCheck = threadPage.indexOf("const freshSender = freshConversation", policyCheck);
-    const recipientCheck = threadPage.indexOf("const freshUnavailableReason = messagingUnavailableReason(freshRecipient)", senderCheck);
-    const messageCreate = threadPage.indexOf("await tx.message.create", transactionStart);
+    const serviceSql = source("docs/rls-drafts/conversation-message-service-authority.sql");
+    const ordinaryFunction = serviceSql.slice(
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_send_ordinary"),
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_conversation_set_archived"),
+    );
+    const pairCore = serviceSql.slice(
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_conversation_lock_pair_core"),
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_conversation_listing_core"),
+    );
+    const pairLock = ordinaryFunction.indexOf("grainline_conversation_lock_pair_core");
+    const listingLock = ordinaryFunction.indexOf("grainline_conversation_listing_core");
+    const conversationLock = ordinaryFunction.indexOf('FROM public."Conversation" AS conversation', listingLock);
+    const messageCreate = ordinaryFunction.indexOf('INSERT INTO public."Message"');
 
-    assert.ok(transactionStart > -1, "message send must use a write transaction");
-    assert.ok(blockCheck > transactionStart, "message send must lock the participant pair and re-check reciprocal blocks inside the transaction");
-    assert.ok(conversationLock > blockCheck, "message send must lock the exact Conversation after participant/listing locks");
-    assert.ok(policyCheck > conversationLock, "message send must re-load conversation state after the row lock");
-    assert.ok(senderCheck > policyCheck, "message send must re-check sender account state inside the transaction");
-    assert.ok(recipientCheck > senderCheck, "message send must re-check recipient account state inside the transaction");
-    assert.ok(messageCreate > recipientCheck, "message rows must be created only after the locked transaction-local policy checks");
-    assert.match(threadPage, /freshSender\.banned \|\| freshSender\.deletedAt/);
-    assert.match(threadPage, /messagingUnavailableReason\(freshRecipient\)/);
-    assert.match(threadPage, /lockedPair\.userAId !== freshConversation\.userAId/);
-    assert.match(threadPage, /recipientId: freshRecipientId/);
-    assert.match(threadPage, /committedRecipientId = txResult\.recipientId/);
+    assert.match(threadPage, /await prisma\.\$transaction\(async \(tx\) => \{/);
+    assert.match(threadPage, /isolationLevel: "ReadCommitted"/);
+    assert.match(threadPage, /c\.userAId !== me\.id && c\.userBId !== me\.id/);
+    assert.ok(pairLock > -1 && pairLock < listingLock);
+    assert.ok(listingLock < conversationLock && conversationLock < messageCreate);
+    assert.match(pairCore, /account_user\.banned = false/);
+    assert.match(pairCore, /FROM public\."Block" AS block/);
+    assert.match(ordinaryFunction, /"recipientId" := CASE/);
+    assert.match(threadPage, /createdAttachment\.recipientId !== recipientId/);
+    assert.match(threadPage, /createdText\.recipientId !== recipientId/);
     assert.match(threadPage, /userId: committedRecipientId/);
     assert.match(threadPage, /shouldSendEmail\(committedRecipientId, "EMAIL_NEW_MESSAGE"\)/);
   });
@@ -118,12 +145,12 @@ describe("message and case policy guardrails", () => {
     assert.match(threadPage, /endpoint: "messageAny"/);
     assert.ok(
       threadPage.indexOf("verifyFirstPartyUploadForPersistence") <
-        threadPage.indexOf("await tx.message.create"),
+        threadPage.indexOf("const createdAttachment = await sendActorOrdinaryMessage"),
       "message attachments must be verified before message rows are created",
     );
     assert.ok(
-      threadPage.indexOf("claimDirectUploadForUrl") <
-        threadPage.indexOf("await tx.message.create"),
+      threadPage.indexOf("await claimDirectUploadForUrl({") <
+        threadPage.indexOf("const createdAttachment = await sendActorOrdinaryMessage"),
       "tracked direct uploads must be claimed before attachment rows are created",
     );
     assert.match(helper, /export const MESSAGE_ATTACHMENT_CONTENT_TYPES/);
