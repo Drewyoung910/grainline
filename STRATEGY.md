@@ -94,6 +94,17 @@ attachment path, accept arbitrary external URLs, or activate the attachment
 table separately from its parent Case boundary. PDF evidence remains prohibited
 until a reviewed malware-scan/quarantine pipeline exists.
 
+The Case evidence review exposed a separate pre-launch privacy requirement:
+ordinary Message attachment bytes currently use public R2 bearer URLs even
+though their Message rows and attachment references are protected by FORCE
+RLS. Complete the current Case lifecycle proof checkpoint first, then run a
+separately reviewed Message private-object compatibility and legacy
+classification pass before Case policy activation. Reuse private-bucket
+primitives where appropriate, but do not bundle ordinary Message attachment
+authority, legacy object mutation or proof claims into the Case activation.
+Keep new private direct-message uploads image-only unless malware scanning and
+quarantine for PDFs are explicitly designed and proven.
+
 ### Messaging architecture decision (2026-07-22)
 
 Keep one ordinary Conversation per unordered participant pair. Do not create a

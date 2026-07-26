@@ -141,6 +141,7 @@ is necessary but not sufficient.
 | CM-A17 | High | PostgreSQL `now()` is transaction-start time. The compatible app derived `messageSentAt` after the Conversation lock but did not write it to Message rows, so a waiting transaction could still commit an older `createdAt`; commission-interest also inserted without bumping/unarchiving its Conversation. | Serialize every writer on the Conversation, write the same post-lock timestamp to Message and Conversation, and add a database trigger that monotonically bumps/unarchives the parent on every insert. |
 | CM-A18 | Medium | File attachments carry `kind:"file"` only inside JSON while `Message.kind` remains null, and inbox body substring search has no matching trigram index. | Set the dedicated kind on new attachment rows and add a concurrent `pg_trgm` GIN index before freezing the message taxonomy/read contract. Do not guess legacy file kinds from private bodies. |
 | CM-A19 | UI | On narrow mobile viewports the composer textarea requests full width beside two fixed controls, and the nested thread scroller permits horizontal overflow/scroll chaining that can paint the cream page layer behind Safari's normally translucent bottom browser toolbar. | Make the thread edge-to-edge with internal padding, bound every flex/card/attachment child, make the textarea shrinkable, suppress horizontal overflow, and contain touch overscroll within the vertical thread. |
+| CM-A20 | High, post-activation | Conversation/Message FORCE RLS protects Message rows and their stored attachment references, but ordinary message uploads persist public R2 bearer URLs. Anyone who obtains one of those URLs can fetch the bytes without participant authentication; PostgreSQL RLS does not mediate object storage. The current uploader permits images and PDFs. | Treat attachment-byte confidentiality as an explicit pre-launch remediation, not as proof that Message RLS failed. Keep new private objects in a non-public bucket, derive signed reads from exact Conversation participant authority, inspect legacy public attachment counts without exporting bodies or URLs, and separately approve any object copy or row rewrite. Do not keep accepting PDFs unless a reviewed malware-scan/quarantine design exists or the residual risk is explicitly accepted. |
 
 ## Remediation progress
 
@@ -230,6 +231,14 @@ is necessary but not sufficient.
   was unavailable in this session, so deterministic CSS/source checks and the
   production build remain the verification path until an authenticated visual
   smoke is available.
+- **CM-A20 newly recorded after activation:** the database posture remains
+  correct for Message rows, but it does not make public R2 attachment bytes
+  private. The Case private-evidence work exposed this separate storage-layer
+  boundary. Remediation must be compatible with already-live Message RLS,
+  preserve account export/deletion behavior, classify legacy public objects
+  before mutation and use its own authenticated proof. The Case branch may
+  supply reusable private-bucket primitives, but Case activation must not
+  silently claim or bundle an unreviewed ordinary-message migration.
 - **Compatibility release guard extended:** the two additive pre-RLS migrations
   have a distinct exact-tree phase,
   `conversation-message-compatibility-reviewed`. Older SavedSearch and
@@ -317,6 +326,9 @@ is necessary but not sufficient.
    disposition recorded above. CM-A04's invariant-preparation production
    application and actual-runtime postflight are complete; CM-A10 is complete
    through the initial RLS/grant activation and live pooled-runtime proof.
+   CM-A20 is a later storage-confidentiality finding: it does not reopen the
+   accepted database-row proof, but it remains a pre-launch privacy
+   remediation and blocks any claim that attachment bytes are participant-only.
 2. Full tests, typecheck, lint and production build pass on the compatible app
    before any RLS activation.
 3. A sanitized read-only legacy inspection proves canonical/non-self

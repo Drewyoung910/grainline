@@ -26,6 +26,17 @@ dispute boundary, Conversation/Message is complete, and owner-backed fixed
 Case functions can validate an unprotected Order without requiring Order RLS.
 Order/payment/shipping still receives its own later audit and release.
 
+The Case private-object review exposed a separate, already-live messaging
+storage boundary: ordinary Message rows and attachment references are protected
+by FORCE RLS, but their current R2 objects use public bearer URLs. This is
+recorded as CM-A20 in `docs/conversation-message-pre-rls-audit.md`. It does not
+change the accepted Conversation/Message database catalog or move ordinary
+Message into the Case activation. Finish the current Case lifecycle proof
+checkpoint, then give ordinary-message private-object compatibility and legacy
+classification their own reviewed pass before Case policy activation. Shared
+private-bucket primitives may be reused, but authority routes, object prefixes,
+legacy handling and proof evidence remain separately scoped.
+
 ## Phase 0: audit checkpoint at High
 
 - Pin all direct Prisma, nested relation and raw SQL references.
