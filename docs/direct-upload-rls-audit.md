@@ -336,12 +336,15 @@ This is schema preparation only. The fixed operation catalog, reference/status
 maintenance, app call-site conversion, activation migration, aggregate legacy
 inspection and live PostgreSQL proof remain open.
 
-Changing `20260726184000_prepare_private_case_message_attachments` invalidates
-the earlier exact-tree Case PostgreSQL proof by design. That proof must be
-rerun against the final stacked migration tree before Case packaging resumes.
-The private Case object key remains a server-only transient value while an
-attachment is being verified; it is no longer duplicated in the durable child
-row.
+The exact reviewed bytes of
+`20260726184000_prepare_private_case_message_attachments` remain immutable.
+`20260726184500_prepare_direct_upload_reference_ledger` performs the durable
+`objectKey` to `directUploadId` shape transition and fails closed unless
+`CaseMessageAttachment` is empty. Production has not received the earlier
+Case compatibility migration; its absence and the empty-table prerequisite
+must still be re-proven before applying this stack. The private Case object key
+remains a server-only transient value while an attachment is being verified;
+it is not duplicated in the final durable child row.
 
 ### Fixed lifecycle/core authority checkpoint
 

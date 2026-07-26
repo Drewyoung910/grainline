@@ -78,16 +78,20 @@ describe("admin moderation hardening follow-ups", () => {
     assert.match(route, /where: \{ id, resolved: false \}/);
   });
 
-  it("keeps admin review rating summaries transactional and cleanup telemetry bounded", () => {
+  it("keeps admin review rating summaries transactional and delegates media release to the database lifecycle", () => {
     const route = source("src/app/api/admin/reviews/[id]/route.ts");
+    const migration = source(
+      "prisma/migrations/20260726185500_prepare_direct_upload_public_references/migration.sql",
+    );
 
     assert.match(route, /await prisma\.\$transaction\(async \(tx\) => \{/);
     assert.match(route, /await refreshSellerRatingSummary\(review\.listing\.sellerId, tx\)/);
     assert.doesNotMatch(route, /source: "admin_review_rating_summary_refresh"/);
-    assert.match(route, /source: "admin_review_photo_cleanup"/);
-    assert.match(route, /captureAdminReviewPhotoCleanupFailures/);
-    assert.match(route, /const host = mediaUrlHost/);
-    assert.doesNotMatch(route, /extra:\s*\{[^}]*url/s);
+    assert.doesNotMatch(route, /deletePublicObjectsBestEffort|deleteObject\(|directUpload\./);
+    assert.match(
+      migration,
+      /CREATE TRIGGER grainline_direct_upload_release_review_delete\s+BEFORE DELETE ON public\."Review"/,
+    );
   });
 
   it("captures admin email and verification email failures with safe telemetry", () => {

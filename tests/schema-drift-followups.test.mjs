@@ -30,12 +30,12 @@ function finalMigrationForeignKeys() {
   for (const { name, sql } of migrationFiles()) {
     for (const statement of sql.split(";")) {
       const drop = statement.match(
-        /ALTER TABLE\s+(?:"public"\.)?"([^"]+)"[\s\S]*?DROP CONSTRAINT(?: IF EXISTS)?\s+"([^"]+)"/i,
+        /ALTER TABLE\s+(?:(?:"public"|public)\.)?"([^"]+)"[\s\S]*?DROP CONSTRAINT(?: IF EXISTS)?\s+"([^"]+)"/i,
       );
       if (drop) constraints.delete(drop[2]);
 
       const add = statement.match(
-        /ALTER TABLE\s+(?:"public"\.)?"([^"]+)"[\s\S]*?ADD CONSTRAINT\s+"([^"]+)"\s+FOREIGN KEY\s*\("([^"]+)"\)\s+REFERENCES\s+(?:"public"\.)?"([^"]+)"\("([^"]+)"\)\s+ON DELETE\s+(CASCADE|RESTRICT|SET NULL|NO ACTION)/i,
+        /ALTER TABLE\s+(?:(?:"public"|public)\.)?"([^"]+)"[\s\S]*?ADD CONSTRAINT\s+"([^"]+)"\s+FOREIGN KEY\s*\("([^"]+)"\)\s+REFERENCES\s+(?:(?:"public"|public)\.)?"([^"]+)"\("?([A-Za-z_][A-Za-z0-9_]*)"?\)\s+ON DELETE\s+(CASCADE|RESTRICT|SET NULL|NO ACTION)/i,
       );
       if (add) {
         constraints.set(add[2], {
@@ -46,11 +46,11 @@ function finalMigrationForeignKeys() {
         });
       }
 
-      const createTable = statement.match(/CREATE TABLE\s+(?:"public"\.)?"([^"]+)"/i);
+      const createTable = statement.match(/CREATE TABLE\s+(?:(?:"public"|public)\.)?"([^"]+)"/i);
       if (!createTable) continue;
 
       const inlineConstraintPattern =
-        /CONSTRAINT\s+"([^"]+)"\s+FOREIGN KEY\s*\("([^"]+)"\)\s+REFERENCES\s+(?:"public"\.)?"([^"]+)"\("([^"]+)"\)\s+ON DELETE\s+(CASCADE|RESTRICT|SET NULL|NO ACTION)/gi;
+        /CONSTRAINT\s+"([^"]+)"\s+FOREIGN KEY\s*\("([^"]+)"\)\s+REFERENCES\s+(?:(?:"public"|public)\.)?"([^"]+)"\("?([A-Za-z_][A-Za-z0-9_]*)"?\)\s+ON DELETE\s+(CASCADE|RESTRICT|SET NULL|NO ACTION)/gi;
       for (const inline of statement.matchAll(inlineConstraintPattern)) {
         constraints.set(inline[1], {
           table: createTable[1],

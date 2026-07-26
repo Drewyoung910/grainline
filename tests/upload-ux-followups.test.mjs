@@ -159,7 +159,8 @@ describe("upload UX follow-ups", () => {
     assert.match(persistenceHelper, /new GetObjectCommand/);
     assert.match(persistenceHelper, /uploadKeyBelongsToUser\(key, endpoint, clerkUserId\)/);
     assert.match(persistenceHelper, /uploadFileSignatureMatches\(prefixBytes, matchedContentType\)/);
-    assert.match(persistenceHelper, /prisma\.directUpload\.findUnique/);
+    assert.match(persistenceHelper, /findOwnedDirectUploadForKey\(\{\s*userId: accountUserId,\s*key,\s*\}\)/s);
+    assert.doesNotMatch(persistenceHelper, /prisma\.directUpload\./);
     assert.match(persistenceHelper, /accountUserId/);
     assert.match(persistenceHelper, /verifyFirstPartyMediaUrlForPersistence/);
     assert.match(persistenceHelper, /filterVerifiedFirstPartyMediaUrlsForUser/);

@@ -51,8 +51,9 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     assert.doesNotMatch(sellerFanout, /tx\.notification\.|deleteNotification(?:Source|Link)Rows/);
     assert.match(
       mediaCollection,
-      /await db\.sellerProfile\.findUnique[\s\S]*await db\.reviewPhoto\.findMany[\s\S]*await db\.commissionRequest\.findMany[\s\S]*await listActorSentMessageBodiesForDeletion\(userId, db\)[\s\S]*await db\.blogPost\.findMany[\s\S]*await db\.directUpload\.findMany/,
+      /await db\.sellerProfile\.findUnique[\s\S]*await db\.reviewPhoto\.findMany[\s\S]*await db\.commissionRequest\.findMany[\s\S]*await listActorSentMessageBodiesForDeletion\(userId, db\)[\s\S]*await db\.blogPost\.findMany[\s\S]*await accountDirectUploadPublicUrls\(\{\s*client: db,\s*userId,\s*\}\)/,
     );
+    assert.doesNotMatch(mediaCollection, /db\.directUpload\./);
   });
 
   it("defensively disables seller orderability inside the deletion transaction", () => {

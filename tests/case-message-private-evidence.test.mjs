@@ -9,8 +9,11 @@ function source(path) {
 describe("private CaseMessage evidence", () => {
   it("adds only opaque parent-scoped image metadata and private upload lifecycle state", () => {
     const schema = source("prisma/schema.prisma");
-    const migration = source(
+    const compatibilityMigration = source(
       "prisma/migrations/20260726184000_prepare_private_case_message_attachments/migration.sql",
+    );
+    const lifecycleMigration = source(
+      "prisma/migrations/20260726184500_prepare_direct_upload_reference_ledger/migration.sql",
     );
 
     assert.match(schema, /model CaseMessageAttachment \{/);
@@ -29,24 +32,32 @@ describe("private CaseMessage evidence", () => {
     assert.match(schema, /publicUrl\s+String\?\s+@db\.VarChar\(2048\)/);
     assert.match(schema, /storageClass\s+String\s+@default\("PUBLIC"\)/);
 
-    assert.match(migration, /\bBEGIN;/);
-    assert.match(migration, /\bCOMMIT;/);
-    assert.match(migration, /ALTER COLUMN "publicUrl" DROP NOT NULL/);
-    assert.match(migration, /CHECK \("storageClass" IN \('PUBLIC', 'PRIVATE'\)\)/);
+    assert.match(compatibilityMigration, /\bBEGIN;/);
+    assert.match(compatibilityMigration, /\bCOMMIT;/);
+    assert.match(compatibilityMigration, /ALTER COLUMN "publicUrl" DROP NOT NULL/);
+    assert.match(compatibilityMigration, /CHECK \("storageClass" IN \('PUBLIC', 'PRIVATE'\)\)/);
     assert.match(
-      migration,
+      compatibilityMigration,
       /"storageClass" = 'PUBLIC' AND "publicUrl" IS NOT NULL[\s\S]*"storageClass" = 'PRIVATE' AND "publicUrl" IS NULL/,
     );
     assert.match(
-      migration,
+      compatibilityMigration,
       /CHECK \("contentType" IN \('image\/jpeg', 'image\/png', 'image\/webp'\)\)/,
     );
-    assert.match(migration, /CHECK \("byteSize" > 0 AND "byteSize" <= 8388608\)/);
+    assert.match(compatibilityMigration, /CHECK \("byteSize" > 0 AND "byteSize" <= 8388608\)/);
+    assert.match(compatibilityMigration, /"objectKey" VARCHAR\(500\) NOT NULL/);
     assert.match(
-      migration,
-      /"CaseMessageAttachment_directUploadId_fkey"[\s\S]*REFERENCES "DirectUpload"\("id"\)/,
+      lifecycleMigration,
+      /requires an empty CaseMessageAttachment table/,
     );
-    assert.doesNotMatch(migration, /"objectKey"/);
+    assert.match(
+      lifecycleMigration,
+      /DROP COLUMN "objectKey"[\s\S]*ADD COLUMN "directUploadId" TEXT NOT NULL/,
+    );
+    assert.match(
+      lifecycleMigration,
+      /"CaseMessageAttachment_directUploadId_fkey"[\s\S]*REFERENCES public\."DirectUpload"\(id\)/,
+    );
   });
 
   it("keeps Case evidence out of every public upload path", () => {

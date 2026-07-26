@@ -103,6 +103,36 @@ ALTER TABLE public."DirectUpload"
     OR ("cleanupLeaseId" IS NOT NULL AND "cleanupLeaseAt" IS NOT NULL)
   ) NOT VALID;
 
+-- The reviewed Case evidence migration originally stored an opaque object key.
+-- It has not been activated in production. Preserve those sealed bytes and
+-- fail closed if any environment unexpectedly contains evidence rows rather
+-- than silently rewriting or discarding them during the lifecycle binding.
+DO $grainline_case_attachment_empty$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+      FROM public."CaseMessageAttachment"
+     LIMIT 1
+  ) THEN
+    RAISE EXCEPTION
+      'DirectUpload reference preparation requires an empty CaseMessageAttachment table';
+  END IF;
+END
+$grainline_case_attachment_empty$;
+
+ALTER TABLE public."CaseMessageAttachment"
+  DROP CONSTRAINT "CaseMessageAttachment_objectKey_key",
+  DROP CONSTRAINT "CaseMessageAttachment_objectKey_check",
+  DROP COLUMN "objectKey",
+  ADD COLUMN "directUploadId" TEXT NOT NULL;
+
+ALTER TABLE public."CaseMessageAttachment"
+  ADD CONSTRAINT "CaseMessageAttachment_directUploadId_key"
+    UNIQUE ("directUploadId"),
+  ADD CONSTRAINT "CaseMessageAttachment_directUploadId_fkey"
+    FOREIGN KEY ("directUploadId") REFERENCES public."DirectUpload"(id)
+    ON DELETE RESTRICT ON UPDATE CASCADE;
+
 CREATE TABLE public."DirectUploadReference" (
   id TEXT NOT NULL,
   "directUploadId" TEXT NOT NULL,
