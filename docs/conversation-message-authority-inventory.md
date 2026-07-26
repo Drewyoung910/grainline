@@ -10,9 +10,9 @@ active from this work.
 TypeScript tree. The audited baseline was 50 direct Prisma operations plus 5
 raw SQL references. After the first compatible audit fixes it currently finds:
 
-- 38 direct Prisma Conversation or Message operations;
+- 34 direct Prisma Conversation or Message operations;
 - 8 raw SQL table references;
-- 46 remaining protected-table access points across 13 files.
+- 42 remaining protected-table access points across 11 files.
 
 The first application conversion checkpoint removed all seven direct
 Conversation/Message operations from list polling, stream polling, mark-read
@@ -22,6 +22,12 @@ and unread-count routes. Those routes now call the exact
 through `src/lib/conversationMessageAuthority.ts`. The list route retains the
 reported-staff exception; stream and mark-read explicitly remain
 participant-only.
+
+The second checkpoint removed both direct account-export Message queries and
+both report-target Message/Conversation counts. Account export now loads one
+actor-scoped projection and preserves the separate sent/received payload
+collections in application code. Message and thread reports use one boolean
+participant-relationship function.
 
 The test `tests/conversation-message-rls-inventory.test.mjs` pins the count and
 the exact per-file/model/operation summary. A new access path must therefore be
@@ -58,8 +64,8 @@ will intentionally fall as the design is implemented.
 | `src/app/api/commission/[id]/interest/route.ts` | CommissionInterest, conversation and system-message transaction | Source-bound commission message operation retained inside the business transaction |
 | `src/lib/customOrderReadyLink.ts` and its seller/admin callers | Deduplicated ready-link message | Listing-derived custom-order-ready operation |
 | `src/app/dashboard/listings/custom/page.tsx` and buyer order detail | Participant lookup and latest custom request | Bounded participant lookup/request projection helpers |
-| `src/app/api/account/export/route.ts` | Sent and received message export | Participant export RPC |
-| `src/app/api/users/[id]/report/route.ts` | Message/thread report target validation | Participant existence RPC |
+| `src/app/api/account/export/route.ts` | Sent and received message export | Converted: one participant export RPC, split into stable sent/received payload collections |
+| `src/app/api/users/[id]/report/route.ts` | Message/thread report target validation | Converted: one participant existence RPC |
 | `src/lib/accountDeletion.ts` | Attachment discovery and message redaction | Participant media projection plus account-deletion-only redaction operation |
 | `src/lib/metrics.ts` | Seller response-rate aggregate | Aggregate-only service function |
 
@@ -99,8 +105,8 @@ will intentionally fall as the design is implemented.
 ## Completion rule
 
 This inventory is complete only when every protected access (55 in the original
-baseline, 53 after compatible refactors, 46 after the first authority
-conversion checkpoint) has an explicit
+baseline, 53 after compatible refactors, 42 after the first two authority
+conversion checkpoints) has an explicit
 destination, direct runtime INSERT/UPDATE/DELETE is removed, the compatible app
 passes before and after RLS, and PostgreSQL proof covers participant isolation,
 reported-staff access, structured write families, block/account races, archive

@@ -15,6 +15,8 @@ describe("Conversation and Message application authority conversion", () => {
       "grainline_message_list",
       "grainline_message_unread_count",
       "grainline_message_mark_read",
+      "grainline_message_export",
+      "grainline_message_report_target_valid",
     ]) {
       assert.match(helper, new RegExp(`public\\.${functionName}`));
     }
@@ -61,5 +63,19 @@ describe("Conversation and Message application authority conversion", () => {
     assert.match(route, /countActorUnreadMessages\(me\.id\)/);
     assert.match(helper, /grainline_message_unread_count/);
     assert.doesNotMatch(route, /prisma\.message\.count|getBlockedUserIdsFor/);
+  });
+
+  it("keeps account export and report validation on actor-scoped projections", () => {
+    const helper = source("src/lib/conversationMessageAuthority.ts");
+    const accountExport = source("src/app/api/account/export/route.ts");
+    const report = source("src/app/api/users/[id]/report/route.ts");
+
+    assert.match(accountExport, /exportActorMessages\(user\.id\)/);
+    assert.match(accountExport, /message\.senderId === user\.id/);
+    assert.match(accountExport, /message\.recipientId === user\.id/);
+    assert.match(report, /isActorMessageReportTarget\(/);
+    assert.match(helper, /message report-target RPC returned an invalid result/);
+    assert.doesNotMatch(accountExport, /prisma\.message\./);
+    assert.doesNotMatch(report, /prisma\.(?:message|conversation)\./);
   });
 });

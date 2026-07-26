@@ -7,14 +7,9 @@ import {
 } from "../scripts/conversation-message-rls-inventory.mjs";
 
 const EXPECTED_BASELINE = {
-  "src/app/api/account/export/route.ts": { "Message.findMany": 2 },
   "src/lib/commissionInterestMessageAccess.ts": {
     "Message.create": 1,
     "Conversation.update": 1,
-  },
-  "src/app/api/users/[id]/report/route.ts": {
-    "Message.count": 1,
-    "Conversation.count": 1,
   },
   "src/app/dashboard/listings/custom/page.tsx": {
     "Conversation.findFirst": 2,
@@ -69,7 +64,7 @@ describe("Conversation and Message RLS inventory", () => {
   const inventory = collectConversationMessageAccess();
 
   it("pins every current direct ORM and raw SQL access path", () => {
-    assert.equal(inventory.ormCalls.length, 38);
+    assert.equal(inventory.ormCalls.length, 34);
     assert.equal(inventory.rawSqlReferences.length, 8);
     assert.deepEqual(summarizeConversationMessageAccess(inventory), EXPECTED_BASELINE);
   });

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { accountExportRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { accountExportJsonResponse } from "@/lib/accountExportFormat";
 import { buildAccountExportPayload } from "@/lib/accountExportPayload";
+import { exportActorMessages } from "@/lib/conversationMessageAuthority";
 import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
 import { logUserAuditAction } from "@/lib/audit";
 import { normalizeEmailAddress } from "@/lib/emailSuppression";
@@ -132,8 +133,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
     listings,
     buyerOrders,
     sellerOrders,
-    messagesSent,
-    messagesReceived,
+    messageRows,
     caseRows,
     reviews,
     blogPosts,
@@ -355,16 +355,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
           },
         })
       : [],
-    prisma.message.findMany({
-      where: { senderId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: { id: true, conversationId: true, recipientId: true, body: true, kind: true, isSystemMessage: true, readAt: true, createdAt: true },
-    }),
-    prisma.message.findMany({
-      where: { recipientId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: { id: true, conversationId: true, senderId: true, body: true, kind: true, isSystemMessage: true, readAt: true, createdAt: true },
-    }),
+    exportActorMessages(user.id),
     prisma.case.findMany({
       where: { OR: [{ buyerId: user.id }, { sellerId: user.id }] },
       orderBy: { createdAt: "desc" },
@@ -696,6 +687,12 @@ async function buildExport(user: NonNullable<ExportableUser>) {
       select: { reviewId: true, value: true, createdAt: true, review: { select: { listingId: true } } },
     }),
   ]);
+  const messagesSent = messageRows
+    .filter((message) => message.senderId === user.id)
+    .map(({ senderId: _senderId, ...message }) => message);
+  const messagesReceived = messageRows
+    .filter((message) => message.recipientId === user.id)
+    .map(({ recipientId: _recipientId, ...message }) => message);
   const commissionRequests = commissionRequestRows.map(({ _count, ...request }) => ({
     ...request,
     interestedCount: resolvedInterestedCount({

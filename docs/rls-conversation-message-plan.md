@@ -39,7 +39,8 @@ SHA-256 is
 `fa11589253cafbd87f16a9442dc2fd57afc136263cc1ac89b93219ebbede295d`.
 Application conversion is in progress; the first bounded checkpoint converted
 list polling, stream polling, mark-read and unread count through four exact
-authority functions, reducing direct protected-table access from 53 to 46.
+authority functions, and the second converted account export plus message/thread
+report validation. Direct protected-table access is now reduced from 53 to 42.
 Policy/table-grant activation and FORCE remain later separate releases.
 
 ## Security objective
@@ -61,8 +62,9 @@ separate from Notification, Order/payment/shipping and Case/CaseMessage.
 The original machine inventory recorded 50 direct ORM operations and 5 raw SQL
 table references. Compatible audit refactors left 45 direct ORM operations and
 8 raw SQL references across 17 runtime files (53 total protected access
-points). The first authority checkpoint removed seven direct operations, so 38
-ORM operations plus 8 raw references remain across 13 runtime files (46 total).
+points). The first two authority checkpoints removed eleven direct operations,
+so 34 ORM operations plus 8 raw references remain across 11 runtime files (42
+total).
 The surface includes the user inbox and
 thread, list and stream polling, unread counts, per-recipient mark-read,
 archive state, first-response metrics, email throttling, account export,
@@ -196,8 +198,9 @@ The direct runtime table query with no context must return zero rows.
 ## Compatibility and rollout sequence
 
 1. Inventory and pin every current access path. **Complete: original 55-path
-   migration baseline; current authority-conversion surface is 46 protected
-   accesses after converting the four polling/read operations.**
+   migration baseline; current authority-conversion surface is 42 protected
+   accesses after converting polling/read, account-export and report-target
+   operations.**
 2. Complete `docs/conversation-message-pre-rls-audit.md` and fix its activation
    blockers before authority SQL. **Complete for the preparation boundary:
    app findings fixed; invariant proof, Extra-High review, protected production

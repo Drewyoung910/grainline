@@ -35,6 +35,18 @@ export type ActorMessage = {
   readAt: Date | null;
 };
 
+export type ActorMessageExport = {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  recipientId: string;
+  body: string;
+  kind: string | null;
+  isSystemMessage: boolean;
+  readAt: Date | null;
+  createdAt: Date;
+};
+
 type ConversationRpcRow = ActorConversation;
 
 type MessageRpcRow = {
@@ -51,6 +63,7 @@ type MessageRpcRow = {
 };
 
 type CountValue = number | bigint;
+type MessageReportTargetType = "MESSAGE" | "MESSAGE_THREAD";
 
 function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === "string";
@@ -137,6 +150,26 @@ function validateMessageRow(
     createdAt: row.createdAt,
     readAt: row.readAt,
   };
+}
+
+function validateMessageExportRow(row: ActorMessageExport): ActorMessageExport {
+  if (
+    typeof row !== "object"
+    || row === null
+    || typeof row.id !== "string"
+    || typeof row.conversationId !== "string"
+    || typeof row.senderId !== "string"
+    || typeof row.recipientId !== "string"
+    || row.senderId === row.recipientId
+    || typeof row.body !== "string"
+    || !isNullableString(row.kind)
+    || typeof row.isSystemMessage !== "boolean"
+    || !isNullableDate(row.readAt)
+    || !(row.createdAt instanceof Date)
+  ) {
+    throw new TypeError("message export RPC returned an invalid row");
+  }
+  return row;
 }
 
 export async function getActorConversation(
@@ -238,4 +271,40 @@ export async function markActorConversationMessagesRead(
   return {
     count: requireSafeCount(rows[0].count, "message mark-read RPC"),
   };
+}
+
+export async function exportActorMessages(
+  userId: string,
+  db: ConversationMessageAuthorityClient = prisma,
+): Promise<ActorMessageExport[]> {
+  const actorId = normalizeDbUserContextUserId(userId);
+  const rows = await db.$queryRaw<ActorMessageExport[]>`
+    SELECT *
+      FROM public.grainline_message_export(
+        ${actorId}::text
+      )
+  `;
+  return rows.map(validateMessageExportRow);
+}
+
+export async function isActorMessageReportTarget(
+  userId: string,
+  reportedUserId: string,
+  targetType: MessageReportTargetType,
+  targetId: string,
+  db: ConversationMessageAuthorityClient = prisma,
+): Promise<boolean> {
+  const actorId = normalizeDbUserContextUserId(userId);
+  const rows = await db.$queryRaw<Array<{ valid: boolean }>>`
+    SELECT public.grainline_message_report_target_valid(
+      ${actorId}::text,
+      ${reportedUserId}::text,
+      ${targetType}::text,
+      ${targetId}::text
+    ) AS valid
+  `;
+  if (rows.length !== 1 || typeof rows[0].valid !== "boolean") {
+    throw new TypeError("message report-target RPC returned an invalid result");
+  }
+  return rows[0].valid;
 }

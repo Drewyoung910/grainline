@@ -14,11 +14,22 @@ function orderExportBlocks(route) {
 
   return [
     route.slice(buyerStart, sellerStart),
-    route.slice(sellerStart, route.indexOf("prisma.message.findMany", sellerStart)),
+    route.slice(sellerStart, route.indexOf("exportActorMessages(user.id)", sellerStart)),
   ];
 }
 
 describe("account export privacy coverage", () => {
+  it("exports only actor-related messages through the fixed recipient projection", () => {
+    const route = source("src/app/api/account/export/route.ts");
+    const authority = source("src/lib/conversationMessageAuthority.ts");
+
+    assert.match(route, /exportActorMessages\(user\.id\)/);
+    assert.match(route, /message\.senderId === user\.id/);
+    assert.match(route, /message\.recipientId === user\.id/);
+    assert.match(authority, /public\.grainline_message_export/);
+    assert.doesNotMatch(route, /prisma\.message\.(?:find|count|create|update|delete)/);
+  });
+
   it("exports owned listing photo originals and full order event ledgers", () => {
     const route = source("src/app/api/account/export/route.ts");
 
