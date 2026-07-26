@@ -182,9 +182,15 @@ fidelity-complete. The candidate harness now has 21 orderings, adding
 mark-resolved versus refund reservation, mark-resolved versus staff dismissal,
 reply versus staff dismissal and an eligible discussion reply versus bulk
 cron. Each check must observe the second connection in a PostgreSQL `Lock`
-wait; all fixtures are synthetic and deleted in `finally`. Static contracts
-are green. CC-A03/CC-A04/CC-A15 remain open until the exact expanded branch
-workflow is green and its bounded output is retained.
+wait; all fixtures are synthetic and deleted in `finally`. Exact code head
+`9f4079fe2f6667f14e63943f9a9eee22f350f46b` passed GitHub Actions run
+`30217588001` against PostgreSQL 16.14 after the complete 163-migration tree,
+production-style runtime grants and final grant/RLS catalog audit. All 21
+checks observed a `transactionid` wait; the bounded result reported
+`status=passed`, `persistentStagingChanged=false` and
+`productionChanged=false`, then the service container and network were
+destroyed. This closes the compatible CC-A03/CC-A04/CC-A15 proof checkpoint;
+the later invariant and fixed-function gates remain separate.
 
 ## Preliminary RLS shape, not approved SQL
 

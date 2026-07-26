@@ -109,9 +109,12 @@ For the active Case lifecycle checkpoint, proof fidelity is part of the gate:
 the first accepted 14-ordering PostgreSQL run remains valid only for its modeled
 subset because its mark-resolved/cron helpers used stronger post-lock time
 semantics than the corresponding application routes and did not contend staff
-resolution against replies. Do not advance from compatible integrity work
-until the corrected exact branch passes all 21 two-session orderings with the
-real refund sentinel, Order-then-Case locks and post-wait PostgreSQL timestamps.
+resolution against replies. Exact code head `9f4079fe` passed all 21 corrected
+two-session orderings in disposable PostgreSQL 16.14 run `30217588001`, using
+the real refund sentinel, Order-then-Case locks and post-wait PostgreSQL
+timestamps. Preserve that expanded proof as the compatible-integrity baseline;
+later database invariants and fixed RLS authority still require their own
+review and proof.
 
 ### Messaging architecture decision (2026-07-22)
 

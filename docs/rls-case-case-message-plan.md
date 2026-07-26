@@ -118,8 +118,7 @@ label/fulfillment/delivery-confirmation/refund, different-body and seller-first
 replies, pending-close reply versus resolution mark, seller/discussion reply
 versus cron, reply versus staff dismissal, resolution mark versus staff
 dismissal, and resolution mark versus refund reservation. The expanded harness
-and its static contracts are green locally; exact-head PostgreSQL execution is
-still required.
+and its static contracts are green locally.
 
 Accepted disposable database proof: exact branch head
 `00c175fbae1421f69f39d78fb9a22fec071916f5`, GitHub Actions run
@@ -131,8 +130,15 @@ harness reported `status=passed`, `persistentStagingChanged=false` and
 `productionChanged=false`, and the service container was destroyed. The first
 accepted run remains valid evidence for its 14 modeled orderings, but it is not
 the acceptance gate for the expanded 21-ordering candidate after the CC-A15
-fidelity finding. A fresh exact-head disposable PostgreSQL run must supersede
-it before this checkpoint closes. The earlier failed run, `30215504361`, is
+fidelity finding. Exact code head
+`9f4079fe2f6667f14e63943f9a9eee22f350f46b` superseded it in successful
+GitHub Actions run `30217588001`: PostgreSQL 16.14 applied the full 163-migration
+tree, converged production-style runtime grants, passed migration status and
+the final grant/RLS catalog audit, then passed all 21 orderings with a real
+`transactionid` wait observed for each. The bounded result reported
+`status=passed`, `persistentStagingChanged=false` and
+`productionChanged=false`; the service container and network were destroyed.
+The earlier failed run, `30215504361`, is
 retained evidence: Prisma rejected the mixed
 three-statement concurrent-index migration with PostgreSQL `25001` before the
 race harness ran. Commit `4ede31b7` repaired the unapplied branch-only tree by
