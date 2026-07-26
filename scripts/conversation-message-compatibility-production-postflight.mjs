@@ -44,10 +44,6 @@ const RECOVERY_PATH = path.join(
   PRIVATE_STATE_DIRECTORY,
   `conversation-message-compatibility-postflight-${RELEASE_COMMIT.slice(0, 12)}.json`,
 );
-const EVIDENCE_PATH = path.join(
-  EVIDENCE_DIRECTORY,
-  `conversation-message-compatibility-postflight-${RELEASE_COMMIT.slice(0, 12)}.json`,
-);
 const MAX_JSON_BYTES = 256 * 1024;
 const MAX_PAGE_BYTES = 2 * 1024 * 1024;
 
@@ -453,7 +449,8 @@ async function assertCanaryIsEmpty(owner, canaryId) {
   }
 }
 
-async function seedFixture(owner, runtime, canaryId, fixture) {
+async function seedFixture(owner, runtime, canaryId, fixture, setStage) {
+  setStage("seed-synthetic-users");
   await owner.query("BEGIN");
   try {
     const inserted = await owner.query(
@@ -468,7 +465,7 @@ async function seedFixture(owner, runtime, canaryId, fixture) {
               pg_catalog.timezone('UTC', pg_catalog.clock_timestamp()),
               pg_catalog.timezone('UTC', pg_catalog.clock_timestamp()),
               pg_catalog.timezone('UTC', pg_catalog.clock_timestamp())
-         FROM pg_catalog.unnest(
+         FROM unnest(
            $1::text[], $2::text[], $3::text[], $4::text[]
          ) AS source(id, "clerkId", email, name)
        RETURNING id`,
@@ -486,10 +483,12 @@ async function seedFixture(owner, runtime, canaryId, fixture) {
     throw error;
   }
 
+  setStage("seed-own-conversation");
   const startOwn = await runtime.query(
     `SELECT * FROM public.grainline_conversation_start($1, $2, $3, NULL)`,
     [fixture.conversationIds[0], canaryId, fixture.userIds[0]],
   );
+  setStage("seed-foreign-conversation");
   const startForeign = await runtime.query(
     `SELECT * FROM public.grainline_conversation_start($1, $2, $3, NULL)`,
     [fixture.conversationIds[1], fixture.userIds[1], fixture.userIds[2]],
@@ -505,6 +504,7 @@ async function seedFixture(owner, runtime, canaryId, fixture) {
     throw new Error("synthetic conversation seed drifted");
   }
 
+  setStage("seed-messages");
   const sends = [
     [fixture.messageIds[0], canaryId, fixture.conversationIds[0], fixture.markers.outgoing],
     [fixture.messageIds[1], fixture.userIds[0], fixture.conversationIds[0], fixture.markers.incoming],
@@ -922,11 +922,15 @@ async function main() {
   if (existsSync(RECOVERY_PATH)) {
     throw new Error("recovery state exists; run the exact --cleanup command first");
   }
-  if (existsSync(EVIDENCE_PATH)) {
-    throw new Error("compatibility-postflight evidence already exists");
-  }
 
   const operatorCommit = exactCleanOperatorHead();
+  const evidencePath = path.join(
+    EVIDENCE_DIRECTORY,
+    `conversation-message-compatibility-postflight-${RELEASE_COMMIT.slice(0, 12)}-${operatorCommit.slice(0, 12)}.json`,
+  );
+  if (existsSync(evidencePath)) {
+    throw new Error("compatibility-postflight evidence already exists for this operator commit");
+  }
   verifyProductionDeployment();
   const environment = loadEnvironment();
   const owner = new Client({ connectionString: environment.ownerDatabaseUrl });
@@ -962,8 +966,9 @@ async function main() {
     await assertCanaryIsEmpty(owner, canary.localUser.id);
     await clearOperationalCacheAndRateLimits(environment, canary);
 
-    stage = "seed-bounded-fixture";
-    await seedFixture(owner, runtime, canary.localUser.id, fixture);
+    await seedFixture(owner, runtime, canary.localUser.id, fixture, (nextStage) => {
+      stage = nextStage;
+    });
     fixtureSeeded = true;
 
     stage = "create-clerk-session";
@@ -1077,6 +1082,10 @@ async function main() {
       notificationsCreated: 0,
     },
     failureStage: status === "failed" ? stage : null,
+    failureSqlstate: status === "failed"
+      && /^[0-9A-Z]{5}$/.test(String(primaryFailure?.code ?? ""))
+      ? primaryFailure.code
+      : null,
     secretsRetained: false,
   };
   const serialized = JSON.stringify(evidence);
@@ -1099,7 +1108,7 @@ async function main() {
       throw new Error("postflight evidence retained a secret or synthetic identifier");
     }
   }
-  writePrivateJson(EVIDENCE_PATH, evidence);
+  writePrivateJson(evidencePath, evidence);
   if (status === "passed") {
     unlinkSync(RECOVERY_PATH);
   }

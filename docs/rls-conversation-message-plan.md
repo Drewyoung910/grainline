@@ -273,7 +273,14 @@ The direct runtime table query with no context must return zero rows.
    aliased to `thegrainline.com`, and returned `{"ok":true}` from
    `/api/health` after the runtime-role build guard passed. RLS and grants
    remain at the preparation posture. The authenticated RLS-off compatibility
-   postflight remains before database activation.**
+   postflight remains before database activation. The first operator run at
+   `16bddf5a` is retained failed evidence: PostgreSQL `42883` rejected
+   schema-qualified multi-array `pg_catalog.unnest(...)` while seeding the
+   synthetic users. The operator revoked/removed every token, session, cache,
+   rate-limit counter and exact fixture row, and the idempotent cleanup rerun
+   passed. Production application, RLS and grants were unchanged. The corrected
+   candidate uses bare multi-array `unnest(...)`, extends the source-wide
+   special-form guard, and requires a fresh CI plus live pass.**
 6. Disposable PostgreSQL proof: policies/grants, every read/write family,
    direct denial, staff report resolution, account/block/archive races,
    deletion/export/metrics, rollback and legacy handling. **Complete for the

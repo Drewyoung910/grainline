@@ -27,6 +27,44 @@ const EXECUTABLE_SQL_ROOTS = Object.freeze([
 ]);
 
 const POSTGRES_SPECIAL_FORM = /\bpg_catalog\s*\.\s*(?:greatest|least|coalesce|nullif|exists|case|current_user|session_user|current_date|current_time|current_timestamp|localtime|localtimestamp)\b/gi;
+const QUALIFIED_UNNEST = /\bpg_catalog\s*\.\s*unnest\s*\(/gi;
+
+function qualifiedMultiArrayUnnest(source) {
+  const violations = [];
+  for (const match of source.matchAll(QUALIFIED_UNNEST)) {
+    const open = source.indexOf("(", match.index);
+    let parentheses = 1;
+    let brackets = 0;
+    let quote = null;
+    for (let index = open + 1; index < source.length && parentheses > 0; index += 1) {
+      const character = source[index];
+      const next = source[index + 1];
+      if (quote) {
+        if (character === quote && next === quote) {
+          index += 1;
+        } else if (character === quote) {
+          quote = null;
+        }
+        continue;
+      }
+      if (character === "'" || character === '"') {
+        quote = character;
+      } else if (character === "(") {
+        parentheses += 1;
+      } else if (character === ")") {
+        parentheses -= 1;
+      } else if (character === "[") {
+        brackets += 1;
+      } else if (character === "]") {
+        brackets -= 1;
+      } else if (character === "," && parentheses === 1 && brackets === 0) {
+        violations.push(match.index);
+        break;
+      }
+    }
+  }
+  return violations;
+}
 
 function sourceFiles(root, extensions) {
   if (!existsSync(root)) return [];
@@ -47,6 +85,10 @@ describe("PostgreSQL special-form qualification guardrails", () => {
         for (const match of source.matchAll(POSTGRES_SPECIAL_FORM)) {
           const line = source.slice(0, match.index).split("\n").length;
           violations.push(`${file}:${line}:${match[0]}`);
+        }
+        for (const index of qualifiedMultiArrayUnnest(source)) {
+          const line = source.slice(0, index).split("\n").length;
+          violations.push(`${file}:${line}:qualified multi-array unnest`);
         }
       }
     }

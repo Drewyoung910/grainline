@@ -74,7 +74,8 @@ test("compatibility postflight evidence excludes secrets and row identifiers", (
   assert.match(script, /environment\.clerkSecretKey/);
   assert.match(script, /\.\.\.fixture\.conversationIds/);
   assert.match(script, /\.\.\.fixture\.messageIds/);
-  assert.match(script, /writePrivateJson\(EVIDENCE_PATH, evidence\)/);
+  assert.match(script, /writePrivateJson\(evidencePath, evidence\)/);
+  assert.match(script, /operatorCommit\.slice\(0, 12\)/);
 });
 
 test("compatibility postflight suppresses app side effects and clears operational state", () => {
@@ -110,4 +111,9 @@ test("compatibility postflight revokes unpersisted active canary sessions", () =
   assert.ok(revoke > activeList);
   assert.ok(afterList > revoke);
   assert.ok(zeroProof > afterList);
+});
+
+test("compatibility postflight keeps multi-array unnest unqualified", () => {
+  assert.match(script, /FROM unnest\(/);
+  assert.doesNotMatch(script, /pg_catalog\.unnest\(\s*\n\s*\$1::text\[\]/);
 });
