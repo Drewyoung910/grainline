@@ -310,7 +310,18 @@ The direct runtime table query with no context must return zero rows.
    route-local `{ok:false}` body that middleware never reaches. Pin that exact
    middleware response shape before retrying. RLS, grants and ordinary
    production rows remain unchanged; a fresh exact-head CI and authenticated
-   live pass are still required before activation.**
+   live pass are still required before activation. Exact denial-contract head
+   `1f8c39e6` passed fresh CI `30192170855`; its live attempt advanced through
+   unauthenticated denial, unread count, own and foreign API isolation, cursor
+   validation, inbox rendering and the owner thread page, then failed closed
+   at `route-foreign-thread-page`. Cleanup and the idempotent cleanup rerun
+   again removed every exact side effect. The page calls `notFound()` when the
+   fixed recipient projection returns no conversation. Next App Router
+   intentionally returns 200 for streamed not-found responses and 404 for
+   non-streamed responses, so the operator must accept only those two transport
+   statuses while requiring Grainline's exact not-found UI and absence of every
+   own/foreign synthetic message marker. This is a semantic isolation proof,
+   not a relaxed access check, and requires a fresh exact-head CI and live pass.**
 6. Disposable PostgreSQL proof: policies/grants, every read/write family,
    direct denial, staff report resolution, account/block/archive races,
    deletion/export/metrics, rollback and legacy handling. **Complete for the

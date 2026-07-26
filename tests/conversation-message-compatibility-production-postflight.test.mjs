@@ -64,6 +64,15 @@ test("compatibility postflight pins the middleware-owned unauthenticated API sha
   assert.doesNotMatch(script, /unauthenticated\.body\.ok !== false/);
 });
 
+test("compatibility postflight treats streamed and non-streamed not-found pages equivalently", () => {
+  assert.match(script, /!\[200, 404\]\.includes\(foreignThread\.status\)/);
+  assert.match(script, /Looks like this page got sanded down\./);
+  assert.match(script, /foreignThread\.body\.includes\(fixture\.markers\.incoming\)/);
+  assert.match(script, /foreignThread\.body\.includes\(fixture\.markers\.outgoing\)/);
+  assert.match(script, /foreignThread\.body\.includes\(fixture\.markers\.foreign\)/);
+  assert.doesNotMatch(script, /foreignThread\.status !== 404/);
+});
+
 test("compatibility postflight records a sanitized stage before every route assertion", () => {
   const routeStages = [
     "route-unauthenticated-list",

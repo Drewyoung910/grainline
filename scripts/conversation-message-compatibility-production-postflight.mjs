@@ -840,8 +840,14 @@ async function exerciseRoutes(token, fixture, setStage) {
 
   setStage("route-foreign-thread-page");
   const foreignThread = await fetchPage(`/messages/${foreignConversationId}`, token);
-  if (foreignThread.status !== 404) {
-    throw new Error("foreign thread page did not return not found");
+  if (
+    ![200, 404].includes(foreignThread.status)
+    || !foreignThread.body.includes("Looks like this page got sanded down.")
+    || foreignThread.body.includes(fixture.markers.incoming)
+    || foreignThread.body.includes(fixture.markers.outgoing)
+    || foreignThread.body.includes(fixture.markers.foreign)
+  ) {
+    throw new Error("foreign thread page did not render an isolated not-found result");
   }
 
   setStage("route-cross-origin-read");
