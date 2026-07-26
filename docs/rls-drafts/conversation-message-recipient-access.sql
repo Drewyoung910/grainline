@@ -1,6 +1,6 @@
--- DRAFT ONLY. Do not copy into prisma/migrations until the Conversation and
--- Message authority proof, app compatibility review, and Extra-High SQL review
--- all pass.
+-- REVIEWED SOURCE FOR FUNCTIONS-ONLY PREPARATION. Promotion requires an exact
+-- byte-pinned migration, disposable compatibility proof, and Extra-High SQL
+-- review. This file does not authorize RLS, policies, or table-grant changes.
 --
 -- These are one-statement, SECURITY INVOKER recipient projections. Each public
 -- projection accepts only the server-resolved local User.id, validates it

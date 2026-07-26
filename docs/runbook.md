@@ -508,6 +508,19 @@ Production migration rules:
   migration run `30183709885`. The required read-only postflight
   `30183765803` returned zero missing, repairable, unrepairable, invalid and
   duplicate custom-link counts, with every other authority-invalid count zero.
+- The proposed functions-only authority release is guarded as
+  `SAVED_SEARCH_RLS_DEPLOY_PHASE=conversation-message-authority-preparation-reviewed`.
+  It adds only
+  `20260726022500_prepare_conversation_message_authority` after the completed
+  cleanup, with migration-tree SHA-256
+  `3482d16e93f1d33366ccf44ab39b599585f4b9543963a38efdc1171ce98782e4`.
+  The release verifier pins promoted SHA-256
+  `eba8daf4228efd0d13c35a8a99b68167fa879b11791f3059efbaa7599c793b98`
+  and reconstructs the accepted disposable SHA-256
+  `9b56eb4c0e25e5de5266998f29a19fb0c7173c49f2b83266f3223542c7feeb07`.
+  This migration adds only 25 functions and their exact ACLs. It keeps
+  Conversation/Message RLS disabled, installs zero policies, and retains old
+  runtime table CRUD for the compatible application-conversion window.
   Its sanitized artifact is `8626401695` with zip SHA-256
   `e0b4a321c0c5e3c82c14127983eb9d059b2087c3867acc307a08f10b9f57a569`.
   Conversation/Message RLS and FORCE remained disabled with zero policies.

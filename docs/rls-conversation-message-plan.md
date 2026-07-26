@@ -16,7 +16,20 @@ in production: protected migration `30183709885` applied exact main
 `ac1f519e`, and read-only postflight `30183765803` returned zero missing,
 repairable, unrepairable, invalid and duplicate custom-link sources with every
 other anomaly count zero. Functions-only promotion is next. No authority
-function or policy has been applied to a persistent database.
+function or policy has been applied to a persistent database. The exact
+functions-only disposable candidate is
+`20260726022500_prepare_conversation_message_authority` at SHA-256
+`9b56eb4c0e25e5de5266998f29a19fb0c7173c49f2b83266f3223542c7feeb07`.
+It contains 25 functions/function ACLs, no RLS, policies or table-grant
+changes. Run `30184548860` at `037f654c` passed every candidate-aligned
+PostgreSQL step but remains failed evidence overall because the disposable
+migration was not removed before static migration-tree guards ran. Teardown is
+now exact-hash and fail-closed. Fresh run `30184742417` at `3c488bac` passed
+the complete candidate-aligned PostgreSQL, static, dependency-audit and build
+gates. The executable body is proposed for promotion at SHA-256
+`eba8daf4228efd0d13c35a8a99b68167fa879b11791f3059efbaa7599c793b98`;
+that exact promoted release passed separate fresh run `30185303311` at
+`825b218c` and remains unapplied to every persistent database.
 
 ## Security objective
 

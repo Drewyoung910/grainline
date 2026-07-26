@@ -14,6 +14,10 @@ const serviceSql = fs.readFileSync(
   "docs/rls-drafts/conversation-message-service-authority.sql",
   "utf8",
 );
+const authorityPreparationSql = fs.readFileSync(
+  "prisma/migrations/20260726022500_prepare_conversation_message_authority/migration.sql",
+  "utf8",
+);
 const contract = fs.readFileSync(
   "docs/conversation-message-authority-contract.md",
   "utf8",
@@ -59,7 +63,7 @@ function sqlFunctionDefinition(source, functionName) {
 }
 
 describe("Conversation and Message recipient RLS draft", () => {
-  it("keeps the draft outside migrations and pins the recipient catalog", () => {
+  it("promotes the recipient catalog while keeping policies outside migrations", () => {
     const migrationSql = fs
       .readdirSync("prisma/migrations", { withFileTypes: true })
       .filter((entry) => entry.isDirectory())
@@ -72,11 +76,15 @@ describe("Conversation and Message recipient RLS draft", () => {
     for (const functionName of recipientFunctions) {
       assert.match(recipientSql, new RegExp(`CREATE OR REPLACE FUNCTION public\\.${functionName}\\(`));
       assert.match(recipientSql, new RegExp(`GRANT EXECUTE ON FUNCTION[\\s\\S]*public\\.${functionName}\\(`));
-      assert.doesNotMatch(migrationSql, new RegExp(`public\\.${functionName}\\(`));
+      assert.match(authorityPreparationSql, new RegExp(`public\\.${functionName}\\(`));
       assert.match(contract, new RegExp(`\\b${functionName}\\b`));
     }
+    assert.doesNotMatch(
+      migrationSql,
+      /CREATE POLICY grainline_(?:conversation|message)_participant_or_reported_select/,
+    );
     assert.match(contract, /RLS disabled with zero[\s\S]*policies/);
-    assert.match(contract, /not applied to any\s+persistent database/);
+    assert.match(contract, /not\s+applied to any\s+persistent database/);
   });
 
   it("limits definer reads to one boolean exact-report predicate", () => {

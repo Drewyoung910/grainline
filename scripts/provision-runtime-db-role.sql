@@ -507,6 +507,115 @@ GRANT EXECUTE ON FUNCTION public.grainline_notification_prune_unread_batch() TO 
 \endif
 \unset notification_rls_active
 
+-- Conversation/Message authority preparation is additive and may be absent
+-- before its reviewed migration. When present, converge all function ACLs:
+-- six generic helper cores stay owner-only and the 19 fixed projections /
+-- operations are runtime-callable. No table privilege or RLS change belongs
+-- to this block.
+WITH conversation_message_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_conversation_staff_report_visible"(text)'),
+    ('public."grainline_conversation_get"(text, text)'),
+    ('public."grainline_conversation_pair"(text, text)'),
+    ('public."grainline_message_list"(text, text, text, timestamp, text, integer)'),
+    ('public."grainline_message_unread_count"(text)'),
+    ('public."grainline_message_latest_custom_request"(text, text, text)'),
+    ('public."grainline_message_report_target_valid"(text, text, text, text)'),
+    ('public."grainline_message_export"(text)'),
+    ('public."grainline_conversation_inbox"(text, boolean, text, timestamp, text, integer)'),
+    ('public."grainline_conversation_lock_pair_core"(text, text)'),
+    ('public."grainline_conversation_listing_core"(text, text, text)'),
+    ('public."grainline_conversation_get_or_create_core"(text, text, text, text)'),
+    ('public."grainline_conversation_start"(text, text, text, text)'),
+    ('public."grainline_message_send_ordinary"(text, text, text, text, text, text)'),
+    ('public."grainline_conversation_set_archived"(text, text, boolean)'),
+    ('public."grainline_message_mark_read"(text, text)'),
+    ('public."grainline_conversation_claim_message_email"(text, text)'),
+    ('public."grainline_message_send_custom_request"(text, text, text, text, text, text, integer, text, text)'),
+    ('public."grainline_message_create_commission_interest"(text, text, text, text, text)'),
+    ('public."grainline_message_send_custom_order_ready"(text, text, text)'),
+    ('public."grainline_account_deletion_email_key_core"(text)'),
+    ('public."grainline_account_deletion_regex_escape_core"(text)'),
+    ('public."grainline_account_deletion_redact_text_core"(text, text[])'),
+    ('public."grainline_message_redact_for_account_deletion"(text)'),
+    ('public."grainline_seller_message_response_metrics"(text, timestamp)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC',
+  function_signature
+)
+  FROM conversation_message_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH conversation_message_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_conversation_staff_report_visible"(text)'),
+    ('public."grainline_conversation_get"(text, text)'),
+    ('public."grainline_conversation_pair"(text, text)'),
+    ('public."grainline_message_list"(text, text, text, timestamp, text, integer)'),
+    ('public."grainline_message_unread_count"(text)'),
+    ('public."grainline_message_latest_custom_request"(text, text, text)'),
+    ('public."grainline_message_report_target_valid"(text, text, text, text)'),
+    ('public."grainline_message_export"(text)'),
+    ('public."grainline_conversation_inbox"(text, boolean, text, timestamp, text, integer)'),
+    ('public."grainline_conversation_lock_pair_core"(text, text)'),
+    ('public."grainline_conversation_listing_core"(text, text, text)'),
+    ('public."grainline_conversation_get_or_create_core"(text, text, text, text)'),
+    ('public."grainline_conversation_start"(text, text, text, text)'),
+    ('public."grainline_message_send_ordinary"(text, text, text, text, text, text)'),
+    ('public."grainline_conversation_set_archived"(text, text, boolean)'),
+    ('public."grainline_message_mark_read"(text, text)'),
+    ('public."grainline_conversation_claim_message_email"(text, text)'),
+    ('public."grainline_message_send_custom_request"(text, text, text, text, text, text, integer, text, text)'),
+    ('public."grainline_message_create_commission_interest"(text, text, text, text, text)'),
+    ('public."grainline_message_send_custom_order_ready"(text, text, text)'),
+    ('public."grainline_account_deletion_email_key_core"(text)'),
+    ('public."grainline_account_deletion_regex_escape_core"(text)'),
+    ('public."grainline_account_deletion_redact_text_core"(text, text[])'),
+    ('public."grainline_message_redact_for_account_deletion"(text)'),
+    ('public."grainline_seller_message_response_metrics"(text, timestamp)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM conversation_message_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH conversation_message_public_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_conversation_staff_report_visible"(text)'),
+    ('public."grainline_conversation_get"(text, text)'),
+    ('public."grainline_conversation_pair"(text, text)'),
+    ('public."grainline_message_list"(text, text, text, timestamp, text, integer)'),
+    ('public."grainline_message_unread_count"(text)'),
+    ('public."grainline_message_latest_custom_request"(text, text, text)'),
+    ('public."grainline_message_report_target_valid"(text, text, text, text)'),
+    ('public."grainline_message_export"(text)'),
+    ('public."grainline_conversation_inbox"(text, boolean, text, timestamp, text, integer)'),
+    ('public."grainline_conversation_start"(text, text, text, text)'),
+    ('public."grainline_message_send_ordinary"(text, text, text, text, text, text)'),
+    ('public."grainline_conversation_set_archived"(text, text, boolean)'),
+    ('public."grainline_message_mark_read"(text, text)'),
+    ('public."grainline_conversation_claim_message_email"(text, text)'),
+    ('public."grainline_message_send_custom_request"(text, text, text, text, text, text, integer, text, text)'),
+    ('public."grainline_message_create_commission_interest"(text, text, text, text, text)'),
+    ('public."grainline_message_send_custom_order_ready"(text, text, text)'),
+    ('public."grainline_message_redact_for_account_deletion"(text)'),
+    ('public."grainline_seller_message_response_metrics"(text, timestamp)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM conversation_message_public_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 WITH saved_search_rpc(function_signature) AS (
   VALUES
     ('public."grainline_saved_search_list"(text, integer, text)'),
