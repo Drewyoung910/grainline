@@ -21,6 +21,14 @@ test("post-FORCE mode pins the exact release, migration run, and operator branch
   assert.match(script, /const POST_FORCE_MIGRATION_RUN_ID = 30207825683/);
   assert.match(
     script,
+    /const POST_FORCE_MIGRATION_NAME =\s+"20260726140000_force_conversation_message_rls"/,
+  );
+  assert.match(
+    script,
+    /const POST_FORCE_MIGRATION_SHA256 =\s+"c7f6bbb65c1b0b05c43c2ad450235523587de16f4c8b5ca3289bbff28df33a35"/,
+  );
+  assert.match(
+    script,
     /const POST_FORCE_OPERATOR_BRANCH =\s+"agent\/conversation-message-force-postflight-20260726"/,
   );
   assert.equal(
@@ -39,6 +47,11 @@ test("post-FORCE mode is distinct, mutually exclusive, and preserves prior modes
 });
 
 test("post-FORCE mode proves exact forced catalog and pooled-runtime authority", () => {
+  assert.match(script, /FROM public\._prisma_migrations/);
+  assert.match(script, /migration\.rowCount !== 1/);
+  assert.match(script, /migration\.rows\[0\]\?\.checksum !== POST_FORCE_MIGRATION_SHA256/);
+  assert.match(script, /migration\.rows\[0\]\?\.appliedSteps !== 1/);
+  assert.match(script, /FORCE migration identity or completion drifted/);
   assert.match(script, /row\.rlsEnabled !== true/);
   assert.match(script, /row\.rlsForced !== POST_FORCE/);
   assert.match(script, /row\.policyCount !== 1/);
@@ -48,6 +61,8 @@ test("post-FORCE mode proves exact forced catalog and pooled-runtime authority",
   assert.match(script, /current_setting\('app\.user_id', true\)/);
   assert.match(script, /caught\?\.code !== "42501"/);
   assert.match(script, /scope: POST_FORCE/);
+  assert.match(script, /migrationName: POST_FORCE \? POST_FORCE_MIGRATION_NAME : null/);
+  assert.match(script, /migrationSha256: POST_FORCE \? POST_FORCE_MIGRATION_SHA256 : null/);
   assert.match(script, /rlsForced: POST_FORCE/);
 });
 

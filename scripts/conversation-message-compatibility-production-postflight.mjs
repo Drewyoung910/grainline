@@ -54,6 +54,10 @@ const POST_FORCE_RELEASE_COMMIT =
   "f23ac2da6843671d1353bbbbeada65530b575cc8";
 const POST_ACTIVATION_MIGRATION_RUN_ID = 30194195844;
 const POST_FORCE_MIGRATION_RUN_ID = 30207825683;
+const POST_FORCE_MIGRATION_NAME =
+  "20260726140000_force_conversation_message_rls";
+const POST_FORCE_MIGRATION_SHA256 =
+  "c7f6bbb65c1b0b05c43c2ad450235523587de16f4c8b5ca3289bbff28df33a35";
 const MODE_FLAG = POST_FORCE
   ? POST_FORCE_FLAG
   : POST_ACTIVATION
@@ -462,6 +466,28 @@ async function assertDatabasePosture(owner, runtime) {
     || runtimeIdentity.rows[0]?.memberOfOwner !== false
   ) {
     throw new Error("database session identity drifted");
+  }
+  if (POST_FORCE) {
+    const migration = await owner.query(
+      `SELECT migration_name AS "migrationName",
+              checksum,
+              finished_at IS NOT NULL AS "completed",
+              rolled_back_at IS NULL AS "notRolledBack",
+              applied_steps_count AS "appliedSteps"
+         FROM public._prisma_migrations
+        WHERE migration_name = $1`,
+      [POST_FORCE_MIGRATION_NAME],
+    );
+    if (
+      migration.rowCount !== 1
+      || migration.rows[0]?.migrationName !== POST_FORCE_MIGRATION_NAME
+      || migration.rows[0]?.checksum !== POST_FORCE_MIGRATION_SHA256
+      || migration.rows[0]?.completed !== true
+      || migration.rows[0]?.notRolledBack !== true
+      || migration.rows[0]?.appliedSteps !== 1
+    ) {
+      throw new Error("FORCE migration identity or completion drifted");
+    }
   }
   const catalog = await owner.query(
     `SELECT class.relname AS "tableName",
@@ -1325,6 +1351,8 @@ async function main() {
       endpointId: DATABASE_ENDPOINT_ID,
       name: DATABASE_NAME,
       runtimeRole: RUNTIME_ROLE,
+      migrationName: POST_FORCE ? POST_FORCE_MIGRATION_NAME : null,
+      migrationSha256: POST_FORCE ? POST_FORCE_MIGRATION_SHA256 : null,
       rlsEnabled: ACTIVATED,
       rlsForced: POST_FORCE,
       policyCount: ACTIVATED ? 2 : 0,
