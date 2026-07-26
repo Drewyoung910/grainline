@@ -11,10 +11,12 @@ exact main `aa487bfb` in run `30181030719` and found one legacy custom-order
 link without its new durable Listing source column. The second protected
 aggregate-only inspection at exact main `09222adb` in run `30182892742`
 classified exactly one repairable and zero unrepairable rows, with every other
-relationship/source count zero. A narrow fail-closed cleanup is now the next
-candidate; functions-only promotion remains blocked until the cleanup and fresh
-zero-count postflight pass. No authority function or policy has been applied to
-a persistent database.
+relationship/source count zero. The narrow fail-closed cleanup is now complete
+in production: protected migration `30183709885` applied exact main
+`ac1f519e`, and read-only postflight `30183765803` returned zero missing,
+repairable, unrepairable, invalid and duplicate custom-link sources with every
+other anomaly count zero. Functions-only promotion is next. No authority
+function or policy has been applied to a persistent database.
 
 ## Security objective
 
@@ -220,7 +222,10 @@ The direct runtime table query with no context must return zero rows.
    is capped at one fully validated update, locks the source/target tables,
    rejects malformed or expanded scope, and asserts zero missing, invalid or
    duplicate custom-link sources. After its protected migration, rerun the full
-   inspection and require every custom-link missing/invalid count to be zero.**
+   inspection and require every custom-link missing/invalid count to be zero.
+   **Complete:** protected migration `30183709885` applied the exact one-row
+   repair and postflight `30183765803` returned all required custom-link and
+   other authority-invalid counts as zero.**
 8. Initial `ENABLE`/explicit `NO FORCE` activation with exact two-table policy
    and grant guard, followed by runtime and authenticated route postflight.
 9. Separate `FORCE ROW LEVEL SECURITY` hardening and fresh postflight.
