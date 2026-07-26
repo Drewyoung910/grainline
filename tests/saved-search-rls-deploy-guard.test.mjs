@@ -16,6 +16,7 @@ import {
   CASE_MESSAGE_AUTHOR_KIND_MIGRATION,
   CASE_MESSAGE_COMPATIBILITY_MIGRATION_TREE_SHA256,
   CASE_MESSAGE_HISTORY_INDEX_MIGRATION,
+  CASE_MESSAGE_HISTORY_INDEX_CLEANUP_MIGRATION,
   CASE_MESSAGE_PRIVATE_ATTACHMENTS_MIGRATION,
   CONVERSATION_MESSAGE_AUTHORITY_PREPARATION_MIGRATION,
   CONVERSATION_MESSAGE_AUTHORITY_PREPARATION_MIGRATION_TREE_SHA256,
@@ -180,6 +181,7 @@ const RELEASE_ZERO_MIGRATIONS = CURRENT_MIGRATIONS
     CONVERSATION_MESSAGE_FORCE_MIGRATION,
     CASE_MESSAGE_AUTHOR_KIND_MIGRATION,
     CASE_MESSAGE_HISTORY_INDEX_MIGRATION,
+    CASE_MESSAGE_HISTORY_INDEX_CLEANUP_MIGRATION,
     CASE_MESSAGE_PRIVATE_ATTACHMENTS_MIGRATION,
   ].includes(name))
   .sort((a, b) => a.localeCompare(b));
@@ -233,6 +235,7 @@ const REVIEWED_CASE_MESSAGE_COMPATIBILITY_MIGRATIONS = [
   ...REVIEWED_CONVERSATION_MESSAGE_FORCE_MIGRATIONS,
   CASE_MESSAGE_AUTHOR_KIND_MIGRATION,
   CASE_MESSAGE_HISTORY_INDEX_MIGRATION,
+  CASE_MESSAGE_HISTORY_INDEX_CLEANUP_MIGRATION,
   CASE_MESSAGE_PRIVATE_ATTACHMENTS_MIGRATION,
 ].sort((a, b) => a.localeCompare(b));
 
@@ -481,6 +484,9 @@ describe("SavedSearch RLS production deploy guard", () => {
     assert.ok(currentMigrations.includes(SAVED_SEARCH_FORCE_RLS_MIGRATION));
     assert.ok(currentMigrations.includes(CASE_MESSAGE_AUTHOR_KIND_MIGRATION));
     assert.ok(currentMigrations.includes(CASE_MESSAGE_HISTORY_INDEX_MIGRATION));
+    assert.ok(
+      currentMigrations.includes(CASE_MESSAGE_HISTORY_INDEX_CLEANUP_MIGRATION),
+    );
     assert.ok(
       currentMigrations.includes(CASE_MESSAGE_PRIVATE_ATTACHMENTS_MIGRATION),
     );
@@ -927,6 +933,7 @@ describe("SavedSearch RLS production deploy guard", () => {
         hasConversationMessageForceMigration: true,
         hasCaseMessageAuthorKindMigration: true,
         hasCaseMessageHistoryIndexMigration: true,
+        hasCaseMessageHistoryIndexCleanupMigration: true,
         hasCaseMessagePrivateAttachmentsMigration: true,
       },
     );
@@ -936,7 +943,7 @@ describe("SavedSearch RLS production deploy guard", () => {
           REVIEWED_CASE_MESSAGE_COMPATIBILITY,
           REVIEWED_CONVERSATION_MESSAGE_FORCE_MIGRATIONS,
         ),
-      /requires completed Conversation\/Message FORCE plus the exact CaseMessage author-kind, history-index and private-attachment migrations/,
+      /requires completed Conversation\/Message FORCE plus the exact CaseMessage author-kind, history-index, legacy-index-cleanup and private-attachment migrations/,
     );
   });
 

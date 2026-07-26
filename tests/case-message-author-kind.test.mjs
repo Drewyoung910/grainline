@@ -93,6 +93,9 @@ describe("CaseMessage durable author kind", () => {
     const indexMigration = source(
       "prisma/migrations/20260726183500_prepare_case_message_history_index/migration.sql",
     );
+    const indexCleanupMigration = source(
+      "prisma/migrations/20260726183600_drop_legacy_case_message_history_indexes/migration.sql",
+    );
     assert.match(schema, /enum CaseMessageAuthorKind \{\s*BUYER\s*SELLER\s*STAFF\s*\}/s);
     assert.match(schema, /authorKind CaseMessageAuthorKind\?/);
     assert.match(schema, /@@index\(\[caseId, createdAt, id\]\)/);
@@ -104,7 +107,16 @@ describe("CaseMessage durable author kind", () => {
       indexMigration,
       /CREATE INDEX CONCURRENTLY IF NOT EXISTS "CaseMessage_caseId_createdAt_id_idx"/,
     );
-    assert.match(indexMigration, /Every statement is rerunnable/);
+    assert.doesNotMatch(indexMigration, /DROP INDEX/);
+    assert.match(
+      indexCleanupMigration,
+      /DROP INDEX IF EXISTS "CaseMessage_caseId_createdAt_idx"/,
+    );
+    assert.match(
+      indexCleanupMigration,
+      /DROP INDEX IF EXISTS "CaseMessage_caseId_idx"/,
+    );
+    assert.doesNotMatch(indexCleanupMigration, /CONCURRENTLY/);
   });
 
   it("sets the kind on every current CaseMessage creation path", () => {
