@@ -29,8 +29,8 @@ and invariant/search-index migrations are live. Their actual pooled-runtime
 postflight passed. Conversation/Message RLS is still disabled with zero
 policies; the exactly classified one-row legacy custom-link cleanup and its
 zero-count aggregate postflight are complete in production. Functions-only
-authority promotion is merged at exact main `70770bed` but is not applied to
-any persistent database. Its disposable candidate is byte-pinned as
+authority promotion is live at exact main `70770bed` via protected migration
+run `30186315784`. Its disposable candidate is byte-pinned as
 `20260726022500_prepare_conversation_message_authority` with SHA-256
 `9b56eb4c0e25e5de5266998f29a19fb0c7173c49f2b83266f3223542c7feeb07`;
 fresh candidate run `30184742417` passed the loopback functions-only
@@ -38,8 +38,13 @@ compatibility/catalog proof. The proposed promoted artifact is
 `eba8daf4228efd0d13c35a8a99b68167fa879b11791f3059efbaa7599c793b98`
 and passed its own release CI in run `30185303311` at `825b218c`, evidence-only
 run `30185481070` at `0a98ed1c`, and post-merge main run `30185597811` at
-`70770bed`. None of those proofs applied production migrations or authorized
-RLS/table-grant activation. Reverify live state before repeating these claims.
+`70770bed`. The owner-side final audit and actual pooled-runtime read-only
+postflight passed: 25 exact functions, 19 runtime-callable, six private cores
+denied, legacy Conversation/Message CRUD retained, and RLS/FORCE off with zero
+policies. Sanitized mode-0600 evidence SHA-256 is
+`fa11589253cafbd87f16a9442dc2fd57afc136263cc1ac89b93219ebbede295d`.
+This does not authorize application conversion, RLS/table-grant activation or
+FORCE. Reverify live state before repeating these claims.
 
 ## Tool map
 
