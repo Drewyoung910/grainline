@@ -29,6 +29,10 @@ import {
   blockingRefundOrLatestOpenDisputeLedgerExistsSql,
   latestOpenDisputeLedgerExistsSql,
 } from "@/lib/refundLedgerSql";
+import {
+  databaseClockTimestamp,
+  lockOrderForCaseLifecycle,
+} from "@/lib/caseLifecycleLocks";
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import {
   blockingRefundLedgerWhere,
@@ -295,15 +299,20 @@ export async function POST(
     const refundNotificationBody = `Your maker issued a refund of ${refundAmountDisplay} for your order.`;
 
     // Atomic lock: claim refund slot to prevent double-refund race after validation passes.
-    const lockResult: number = await prisma.$executeRaw`
-      UPDATE "Order"
-      SET "sellerRefundId" = ${REFUND_LOCK_SENTINEL},
-          "sellerRefundLockedAt" = ${new Date()}
-      WHERE id = ${orderId}
-        AND "sellerRefundId" IS NULL
-        AND ("labelStatus" IS NULL OR "labelStatus" != 'PURCHASED'::"LabelStatus")
-        AND NOT (${blockingRefundOrLatestOpenDisputeLedgerExistsSql(Prisma.sql`"Order".id`)})
-    `;
+    const lockResult = await prisma.$transaction(async (tx) => {
+      const orderExists = await lockOrderForCaseLifecycle(tx, orderId);
+      if (!orderExists) return 0;
+      const lockedAt = await databaseClockTimestamp(tx);
+      return tx.$executeRaw`
+        UPDATE "Order"
+        SET "sellerRefundId" = ${REFUND_LOCK_SENTINEL},
+            "sellerRefundLockedAt" = ${lockedAt}
+        WHERE id = ${orderId}
+          AND "sellerRefundId" IS NULL
+          AND ("labelStatus" IS NULL OR "labelStatus" != 'PURCHASED'::"LabelStatus")
+          AND NOT (${blockingRefundOrLatestOpenDisputeLedgerExistsSql(Prisma.sql`"Order".id`)})
+      `;
+    });
     if (lockResult === 0) {
       const freshOrder = await prisma.order.findUnique({
         where: { id: orderId },

@@ -79,10 +79,22 @@ authority catalog and PostgreSQL proof.
    The permanent Notification callsite gate intentionally moved from 54/54 to
    55/55.
 4. Make Case creation, participant escalation and staff resolution audit
-   evidence atomic with the database state transition.
+   evidence atomic with the database state transition. Implemented on the
+   isolated branch with strict transactional human-audit writes; a failed audit
+   rolls the local transition back, while existing Stripe orphan handling still
+   records provider-side refunds that crossed the database boundary.
 5. Establish the shared Order-lock protocol for Case creation and conflicting
-   label/fulfillment/refund transitions.
+   label/fulfillment/refund transitions. Implemented compatibly: Case creation
+   locks and re-reads the exact Order; label, fulfillment, buyer delivery
+   confirmation and seller-refund reservations take that same Order lock before
+   their fresh conflict checks. Two-session PostgreSQL proof for both winner
+   orderings remains required.
 6. Serialize replies on the Case row and use a post-lock timestamp.
+   Implemented compatibly: different-body replies now take the same parent
+   Case lock, re-read Case/actor authority, and use one PostgreSQL
+   `clock_timestamp()` for Case `updatedAt`, discussion clocks, upload claims
+   and CaseMessage `createdAt`. The duplicate advisory lock remains a separate
+   replay guard. Two-session reply/cron proof remains required.
 
 Private evidence contract:
 
@@ -177,7 +189,7 @@ orderings, account deletion, cron/webhook/refund behavior and rollback.
 ## Phase 4: compatible application conversion
 
 - Deploy fixed functions while retaining old direct grants.
-- Convert every current protected reference to its explicit destination (82 in
+- Convert every current protected reference to its explicit destination (81 in
   the Phase 1B snapshot; the exact scanner gate controls later drift).
 - Keep an exact zero-direct-access inventory gate.
 - Prove buyer, seller, staff, cron, Stripe, refund, fulfillment, export,

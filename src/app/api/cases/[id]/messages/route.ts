@@ -42,6 +42,10 @@ import {
   DirectUploadClaimError,
 } from "@/lib/directUploadLifecycle";
 import { DIRECT_UPLOAD_STATUS } from "@/lib/directUploadLifecycleState";
+import {
+  databaseClockTimestamp,
+  lockCaseForLifecycle,
+} from "@/lib/caseLifecycleLocks";
 import { z } from "zod";
 
 const CaseMessageSchema = z.object({
@@ -55,6 +59,16 @@ const CASE_MESSAGE_BODY_MAX_BYTES = 32 * 1024;
 const CASE_MESSAGE_DEDUP_WINDOW_MS = 30_000;
 
 export const runtime = "nodejs";
+
+class CaseMessageRouteError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "CaseMessageRouteError";
+  }
+}
 
 function attachmentKeysMatch(
   attachments: readonly { objectKey: string }[],
@@ -139,16 +153,17 @@ export async function POST(
     const isParty =
       me.id === caseRecord.buyerId || me.id === caseRecord.sellerId;
     const isStaff = me.role === "EMPLOYEE" || me.role === "ADMIN";
+    const isNonPartyStaff = isStaff && !isParty;
     if (!isParty && !isStaff)
       return privateJson({ error: "Forbidden." }, { status: 403 });
-    if (!isParty && isStaff) {
+    if (isNonPartyStaff) {
       const pinResponse = await requireStaffAdminPinForApi(req, userId, sessionId);
       if (pinResponse) return pinResponse;
     }
+    const nonPartyStaffPinVerified = isNonPartyStaff;
 
-    const now = new Date();
-    const duplicateCutoff = new Date(
-      now.getTime() - CASE_MESSAGE_DEDUP_WINDOW_MS,
+    const retryCutoff = new Date(
+      Date.now() - CASE_MESSAGE_DEDUP_WINDOW_MS,
     );
     if (attachmentKeys.length > 0) {
       const claimedRetryCandidates = await prisma.caseMessage.findMany({
@@ -156,7 +171,7 @@ export async function POST(
           caseId: id,
           authorId: me.id,
           body: messageBody,
-          createdAt: { gte: duplicateCutoff },
+          createdAt: { gte: retryCutoff },
           attachments: {
             some: { objectKey: { in: attachmentKeys } },
           },
@@ -177,7 +192,11 @@ export async function POST(
       }
     }
 
-    if (!canCreateCaseMessageForStatus(caseRecord.status, { isStaff })) {
+    if (
+      !canCreateCaseMessageForStatus(caseRecord.status, {
+        isStaff: isNonPartyStaff,
+      })
+    ) {
       return privateJson({ error: "This case is closed." }, { status: 400 });
     }
 
@@ -185,7 +204,7 @@ export async function POST(
       senderId: me.id,
       buyer: caseRecord.buyer,
       seller: caseRecord.seller,
-      isStaff,
+      isStaff: isNonPartyStaff,
     });
     if (unavailableRecipientReason) {
       return privateJson(
@@ -194,12 +213,6 @@ export async function POST(
       );
     }
 
-    const authorKind = caseMessageAuthorKindForActor({
-      actorId: me.id,
-      buyerId: caseRecord.buyerId,
-      sellerId: caseRecord.sellerId,
-      isStaff,
-    });
     const verifiedAttachments: Array<{
       objectKey: string;
       contentType: string;
@@ -218,41 +231,80 @@ export async function POST(
       verifiedAttachments.push(verification.attachment);
     }
 
-    const caseUpdates: Record<string, unknown> = { updatedAt: now };
-    const statusTransition = caseMessageStatusTransition({
-      status: caseRecord.status,
-      actorId: me.id,
-      buyerId: caseRecord.buyerId,
-      sellerId: caseRecord.sellerId,
-      isStaff,
-    });
-
-    // When seller responds to an OPEN case for the first time, transition to IN_DISCUSSION.
-    // If a party continues a pending-close case, clear prior resolution flags so
-    // the case cannot close on stale consent.
-    if (statusTransition === "seller_started_discussion") {
-      caseUpdates.status = "IN_DISCUSSION";
-      caseUpdates.discussionStartedAt = now;
-      caseUpdates.escalateUnlocksAt = new Date(
-        now.getTime() + 48 * 60 * 60 * 1000,
-      );
-    } else if (statusTransition === "party_reopened_pending_close") {
-      caseUpdates.status = "IN_DISCUSSION";
-      caseUpdates.buyerMarkedResolved = false;
-      caseUpdates.sellerMarkedResolved = false;
-    }
-
     const duplicateKey = createHash("sha256")
       .update(`${id}:${me.id}:${messageBody}:${[...attachmentKeys].sort().join(",")}`)
       .digest("hex");
 
     const messageResult = await prisma.$transaction(async (tx) => {
+      const caseExists = await lockCaseForLifecycle(tx, id);
+      if (!caseExists) {
+        throw new CaseMessageRouteError("Case not found.", 404);
+      }
+      const [lockedCase, lockedActor] = await Promise.all([
+        tx.case.findUnique({
+          where: { id },
+          include: {
+            buyer: { select: { id: true, banned: true, deletedAt: true } },
+            seller: { select: { id: true, banned: true, deletedAt: true } },
+          },
+        }),
+        tx.user.findUnique({
+          where: { id: me.id },
+          select: { id: true, role: true, banned: true, deletedAt: true },
+        }),
+      ]);
+      if (!lockedCase) {
+        throw new CaseMessageRouteError("Case not found.", 404);
+      }
+      if (!lockedActor || lockedActor.banned || lockedActor.deletedAt) {
+        throw new CaseMessageRouteError(
+          "Your account cannot send case messages.",
+          403,
+        );
+      }
+
+      const lockedIsParty =
+        lockedActor.id === lockedCase.buyerId ||
+        lockedActor.id === lockedCase.sellerId;
+      const lockedIsStaff =
+        lockedActor.role === "EMPLOYEE" || lockedActor.role === "ADMIN";
+      const lockedActsAsStaff = lockedIsStaff && !lockedIsParty;
+      if (!lockedIsParty && !lockedIsStaff) {
+        throw new CaseMessageRouteError("Forbidden.", 403);
+      }
+      if (lockedActsAsStaff && !nonPartyStaffPinVerified) {
+        throw new CaseMessageRouteError("Admin PIN required.", 403);
+      }
+      if (
+        !canCreateCaseMessageForStatus(lockedCase.status, {
+          isStaff: lockedActsAsStaff,
+        })
+      ) {
+        throw new CaseMessageRouteError("This case is closed.", 400);
+      }
+      const lockedUnavailableReason = unavailableCaseMessageRecipientReason({
+        senderId: lockedActor.id,
+        buyer: lockedCase.buyer,
+        seller: lockedCase.seller,
+        isStaff: lockedActsAsStaff,
+      });
+      if (lockedUnavailableReason) {
+        throw new CaseMessageRouteError(
+          unavailableCaseRecipientMessage(lockedUnavailableReason),
+          409,
+        );
+      }
+
+      const transitionAt = await databaseClockTimestamp(tx);
+      const duplicateCutoff = new Date(
+        transitionAt.getTime() - CASE_MESSAGE_DEDUP_WINDOW_MS,
+      );
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`case-message:${duplicateKey}`})::bigint)`;
 
       const duplicateCandidates = await tx.caseMessage.findMany({
         where: {
           caseId: id,
-          authorId: me.id,
+          authorId: lockedActor.id,
           body: messageBody,
           createdAt: { gte: duplicateCutoff },
         },
@@ -267,60 +319,76 @@ export async function POST(
       const duplicate = duplicateCandidates.find((candidate) =>
         attachmentKeysMatch(candidate.attachments, attachmentKeys),
       );
-      if (duplicate) return { message: duplicate, duplicate: true as const };
+      if (duplicate) {
+        return {
+          caseRecord: lockedCase,
+          isStaff: lockedActsAsStaff,
+          message: duplicate,
+          duplicate: true as const,
+        };
+      }
 
-      const updated = await tx.case.updateMany({
-        where: { id, status: caseRecord.status },
+      const statusTransition = caseMessageStatusTransition({
+        status: lockedCase.status,
+        actorId: lockedActor.id,
+        buyerId: lockedCase.buyerId,
+        sellerId: lockedCase.sellerId,
+        isStaff: lockedActsAsStaff,
+      });
+      const caseUpdates =
+        statusTransition === "seller_started_discussion"
+          ? {
+              status: "IN_DISCUSSION" as const,
+              discussionStartedAt: transitionAt,
+              escalateUnlocksAt: new Date(
+                transitionAt.getTime() + 48 * 60 * 60 * 1000,
+              ),
+              updatedAt: transitionAt,
+            }
+          : statusTransition === "party_reopened_pending_close"
+            ? {
+                status: "IN_DISCUSSION" as const,
+                buyerMarkedResolved: false,
+                sellerMarkedResolved: false,
+                updatedAt: transitionAt,
+              }
+            : { updatedAt: transitionAt };
+      await tx.case.update({
+        where: { id },
         data: caseUpdates,
       });
-      if (updated.count === 0) {
-        const statusRaceCandidates = await tx.caseMessage.findMany({
-          where: {
-            caseId: id,
-            authorId: me.id,
-            body: messageBody,
-            createdAt: { gte: duplicateCutoff },
-          },
-          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-          take: 5,
-          include: {
-            attachments: {
-              select: { objectKey: true },
-            },
-          },
-        });
-        const statusRaceDuplicate = statusRaceCandidates.find((candidate) =>
-          attachmentKeysMatch(candidate.attachments, attachmentKeys),
-        );
-        if (statusRaceDuplicate)
-          return { message: statusRaceDuplicate, duplicate: true as const };
-        throw new Error("CASE_STATUS_CHANGED");
-      }
 
       for (const attachment of verifiedAttachments) {
         const claimed = await claimDirectUploadForKey({
           client: tx,
           key: attachment.objectKey,
-          userId: me.id,
+          userId: lockedActor.id,
           endpoint: CASE_EVIDENCE_UPLOAD_ENDPOINT,
           storageClass: CASE_EVIDENCE_STORAGE_CLASS,
           claimedByType: "CASE_MESSAGE_ATTACHMENT",
-          now,
+          now: transitionAt,
         });
         if (!claimed.tracked || !claimed.claimed) {
           throw new DirectUploadClaimError();
         }
       }
 
+      const authorKind = caseMessageAuthorKindForActor({
+        actorId: lockedActor.id,
+        buyerId: lockedCase.buyerId,
+        sellerId: lockedCase.sellerId,
+        isStaff: lockedIsStaff,
+      });
       const message = await tx.caseMessage.create({
         data: {
           caseId: id,
-          authorId: me.id,
+          authorId: lockedActor.id,
           authorKind,
           body: messageBody,
+          createdAt: transitionAt,
           attachments: {
             create: verifiedAttachments.map((attachment) => ({
-              uploaderId: me.id,
+              uploaderId: lockedActor.id,
               objectKey: attachment.objectKey,
               contentType: attachment.contentType,
               byteSize: attachment.byteSize,
@@ -354,35 +422,42 @@ export async function POST(
           throw new DirectUploadClaimError();
         }
       }
-      return { message, duplicate: false as const };
+      return {
+        caseRecord: lockedCase,
+        isStaff: lockedActsAsStaff,
+        message,
+        duplicate: false as const,
+      };
     });
     if (messageResult.duplicate) {
       return privateJson(messageResult.message, { status: 200 });
     }
     const message = messageResult.message;
+    const committedCaseRecord = messageResult.caseRecord;
+    const committedActsAsStaff = messageResult.isStaff;
 
     // Notify the appropriate party/parties
     const senderName =
       me.name ??
-      (me.id === caseRecord.buyerId
+      (me.id === committedCaseRecord.buyerId
         ? "A buyer"
-        : me.id === caseRecord.sellerId
+        : me.id === committedCaseRecord.sellerId
           ? "The seller"
           : "Someone");
     const appUrl = EMAIL_APP_URL;
 
-    if (isStaff && !isParty) {
+    if (committedActsAsStaff) {
       // Staff message — notify both buyer and seller
       try {
         const notifications: Promise<unknown>[] = [];
-        if (caseRecord.buyerId) {
+        if (committedCaseRecord.buyerId) {
           notifications.push(
             createNotification({
-              userId: caseRecord.buyerId,
+              userId: committedCaseRecord.buyerId,
               type: "CASE_MESSAGE",
               title: "Grainline Staff sent a message in your case",
               body: truncateText(messageBody, 60),
-              link: `/dashboard/orders/${caseRecord.orderId}`,
+              link: `/dashboard/orders/${committedCaseRecord.orderId}`,
               relatedUserId: me.id,
               sourceType: NOTIFICATION_SOURCE_TYPES.CASE_MESSAGE,
               sourceId: message.id,
@@ -391,11 +466,11 @@ export async function POST(
         }
         notifications.push(
           createNotification({
-            userId: caseRecord.sellerId,
+            userId: committedCaseRecord.sellerId,
             type: "CASE_MESSAGE",
             title: "Grainline Staff sent a message in your case",
             body: truncateText(messageBody, 60),
-            link: `/dashboard/sales/${caseRecord.orderId}`,
+            link: `/dashboard/sales/${committedCaseRecord.orderId}`,
             relatedUserId: me.id,
             sourceType: NOTIFICATION_SOURCE_TYPES.CASE_MESSAGE,
             sourceId: message.id,
@@ -408,9 +483,9 @@ export async function POST(
           tags: { source: "case_staff_message_notification" },
           extra: {
             caseId: id,
-            orderId: caseRecord.orderId,
-            buyerId: caseRecord.buyerId,
-            sellerId: caseRecord.sellerId,
+            orderId: committedCaseRecord.orderId,
+            buyerId: committedCaseRecord.buyerId,
+            sellerId: committedCaseRecord.sellerId,
           },
         });
       }
@@ -418,39 +493,45 @@ export async function POST(
       // Send emails to both parties
       try {
         const [buyer, seller] = await Promise.all([
-          caseRecord.buyerId
+          committedCaseRecord.buyerId
             ? prisma.user.findUnique({
-                where: { id: caseRecord.buyerId },
+                where: { id: committedCaseRecord.buyerId },
                 select: { name: true, email: true },
               })
             : Promise.resolve(null),
           prisma.user.findUnique({
-            where: { id: caseRecord.sellerId },
+            where: { id: committedCaseRecord.sellerId },
             select: { name: true, email: true },
           }),
         ]);
         if (
-          caseRecord.buyerId &&
+          committedCaseRecord.buyerId &&
           buyer?.email &&
-          (await shouldSendEmail(caseRecord.buyerId, "EMAIL_CASE_MESSAGE"))
+          (await shouldSendEmail(
+            committedCaseRecord.buyerId,
+            "EMAIL_CASE_MESSAGE",
+          ))
         ) {
           await sendCaseMessage({
             recipientName: buyer.name,
             recipientEmail: buyer.email,
             senderName: "Grainline Staff",
-            caseLink: `${appUrl}/dashboard/orders/${caseRecord.orderId}`,
+            caseLink: `${appUrl}/dashboard/orders/${committedCaseRecord.orderId}`,
             messageSnippet: messageBody,
           });
         }
         if (
           seller?.email &&
-          (await shouldSendEmail(caseRecord.sellerId, "EMAIL_CASE_MESSAGE"))
+          (await shouldSendEmail(
+            committedCaseRecord.sellerId,
+            "EMAIL_CASE_MESSAGE",
+          ))
         ) {
           await sendCaseMessage({
             recipientName: seller.name,
             recipientEmail: seller.email,
             senderName: "Grainline Staff",
-            caseLink: `${appUrl}/dashboard/sales/${caseRecord.orderId}`,
+            caseLink: `${appUrl}/dashboard/sales/${committedCaseRecord.orderId}`,
             messageSnippet: messageBody,
           });
         }
@@ -458,17 +539,19 @@ export async function POST(
         Sentry.captureException(emailError, {
           level: "warning",
           tags: { source: "case_staff_message_email" },
-          extra: { caseId: id, orderId: caseRecord.orderId },
+          extra: { caseId: id, orderId: committedCaseRecord.orderId },
         });
       }
     } else {
       // Buyer or seller message — notify the other party
       const recipientId =
-        me.id === caseRecord.buyerId ? caseRecord.sellerId : caseRecord.buyerId;
+        me.id === committedCaseRecord.buyerId
+          ? committedCaseRecord.sellerId
+          : committedCaseRecord.buyerId;
       const caseLink =
-        me.id === caseRecord.buyerId
-          ? `/dashboard/sales/${caseRecord.orderId}`
-          : `/dashboard/orders/${caseRecord.orderId}`;
+        me.id === committedCaseRecord.buyerId
+          ? `/dashboard/sales/${committedCaseRecord.orderId}`
+          : `/dashboard/orders/${committedCaseRecord.orderId}`;
 
       if (recipientId) {
         try {
@@ -486,7 +569,11 @@ export async function POST(
           Sentry.captureException(notificationError, {
             level: "warning",
             tags: { source: "case_party_message_notification" },
-            extra: { caseId: id, orderId: caseRecord.orderId, recipientId },
+            extra: {
+              caseId: id,
+              orderId: committedCaseRecord.orderId,
+              recipientId,
+            },
           });
         }
 
@@ -510,7 +597,11 @@ export async function POST(
           Sentry.captureException(emailError, {
             level: "warning",
             tags: { source: "case_party_message_email" },
-            extra: { caseId: id, orderId: caseRecord.orderId, recipientId },
+            extra: {
+              caseId: id,
+              orderId: committedCaseRecord.orderId,
+              recipientId,
+            },
           });
         }
       }
@@ -518,19 +609,13 @@ export async function POST(
 
     return privateJson(message, { status: 201 });
   } catch (err) {
+    if (err instanceof CaseMessageRouteError) {
+      return privateJson({ error: err.message }, { status: err.status });
+    }
     const accountResponse = accountAccessErrorResponse(err);
     if (accountResponse) return accountResponse;
     if (err instanceof DirectUploadClaimError) {
       return privateJson({ error: err.message }, { status: 409 });
-    }
-    if (err instanceof Error && err.message === "CASE_STATUS_CHANGED") {
-      return privateJson(
-        {
-          error:
-            "Case status changed before your message could be saved. Refresh and try again.",
-        },
-        { status: 409 },
-      );
     }
 
     logServerError(err, { source: "case_message_route" });

@@ -24,7 +24,7 @@ describe("case route observability follow-ups", () => {
     assert.match(route, /pg_advisory_xact_lock\(hashtext/);
     assert.match(
       route,
-      /caseMessage\.findMany\(\{\s*where: \{\s*caseId: id,\s*authorId: me\.id,\s*body: messageBody,\s*createdAt: \{ gte: duplicateCutoff \}/s,
+      /caseMessage\.findMany\(\{\s*where: \{\s*caseId: id,\s*authorId: lockedActor\.id,\s*body: messageBody,\s*createdAt: \{ gte: duplicateCutoff \}/s,
     );
     assert.match(
       route,
@@ -37,7 +37,14 @@ describe("case route observability follow-ups", () => {
   it("keeps under-review case messages staff-only at the API boundary", () => {
     const route = source("src/app/api/cases/[id]/messages/route.ts");
 
-    assert.match(route, /canCreateCaseMessageForStatus\(caseRecord\.status, \{ isStaff \}\)/);
+    assert.match(
+      route,
+      /lockedActsAsStaff = lockedIsStaff && !lockedIsParty/,
+    );
+    assert.match(
+      route,
+      /canCreateCaseMessageForStatus\(lockedCase\.status, \{\s*isStaff: lockedActsAsStaff/s,
+    );
   });
 
   it("renders admin case deadlines with client-local dates", () => {

@@ -11,14 +11,32 @@ import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { caseActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { verifyCronRequest } from "@/lib/cronAuth";
-import { isEscalatableCaseStatus } from "@/lib/caseActionState";
+import {
+  caseEscalationAvailable,
+  isEscalatableCaseStatus,
+} from "@/lib/caseActionState";
 import { unavailableCaseMessageRecipientReason } from "@/lib/caseMessagingState";
 import { logSystemActionOrThrow } from "@/lib/systemAudit";
+import { logUserAuditActionOrThrow } from "@/lib/audit";
+import {
+  databaseClockTimestamp,
+  lockCaseForLifecycle,
+} from "@/lib/caseLifecycleLocks";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { requireStaffAdminPinForApi } from "@/lib/adminPinApi";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 
 export const runtime = "nodejs";
+
+class CaseEscalationRouteError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "CaseEscalationRouteError";
+  }
+}
 
 export async function POST(
   req: Request,
@@ -92,79 +110,98 @@ export async function POST(
       escalated = result.count;
     } else {
       // Single case escalation
-      const caseRecord = await prisma.case.findUnique({
-        where: { id },
-        select: {
-          id: true,
-          status: true,
-          escalateUnlocksAt: true,
-          buyerId: true,
-          sellerId: true,
-          buyer: { select: { id: true, banned: true, deletedAt: true } },
-          seller: { select: { id: true, banned: true, deletedAt: true } },
-        },
-      });
-      if (!caseRecord) return privateJson({ error: "Case not found." }, { status: 404 });
-
-      if (!isEscalatableCaseStatus(caseRecord.status)) {
-        return privateJson(
-          { error: "Only OPEN or IN_DISCUSSION cases can be escalated." },
-          { status: 400 }
-        );
-      }
-
-      if (!validCron && !isStaff) {
-        // User-triggered: must be a party to the case
-        const isParty = me!.id === caseRecord.buyerId || me!.id === caseRecord.sellerId;
-        if (!isParty) return privateJson({ error: "Forbidden." }, { status: 403 });
-
-        const counterpartyUnavailable = unavailableCaseMessageRecipientReason({
-          senderId: me!.id,
-          buyer: caseRecord.buyer,
-          seller: caseRecord.seller,
-          isStaff: false,
-        }) != null;
-
-        // Escalation is available after 48 hours, or immediately if the other
-        // party cannot participate because their account is unavailable.
-        if (!counterpartyUnavailable && (!caseRecord.escalateUnlocksAt || caseRecord.escalateUnlocksAt > now)) {
-          return privateJson(
-            { error: "Escalation not yet available. You can escalate after 48 hours of discussion." },
-            { status: 400 }
+      const result = await prisma.$transaction(async (tx) => {
+        const caseExists = await lockCaseForLifecycle(tx, id);
+        if (!caseExists) {
+          throw new CaseEscalationRouteError("Case not found.", 404);
+        }
+        const caseRecord = await tx.case.findUnique({
+          where: { id },
+          select: {
+            id: true,
+            orderId: true,
+            status: true,
+            escalateUnlocksAt: true,
+            buyerId: true,
+            sellerId: true,
+            buyer: { select: { id: true, banned: true, deletedAt: true } },
+            seller: { select: { id: true, banned: true, deletedAt: true } },
+          },
+        });
+        if (!caseRecord) {
+          throw new CaseEscalationRouteError("Case not found.", 404);
+        }
+        if (!isEscalatableCaseStatus(caseRecord.status)) {
+          throw new CaseEscalationRouteError(
+            "Only OPEN or IN_DISCUSSION cases can be escalated.",
+            400,
           );
         }
-      }
 
-      const result =
-        validCron || isStaff
-          ? await prisma.$transaction(async (tx) => {
-              const update = await tx.case.updateMany({
-                where: { id, status: { in: ["OPEN", "IN_DISCUSSION"] } },
-                data: { status: "UNDER_REVIEW" },
-              });
-              if (update.count > 0) {
-                await logSystemActionOrThrow({
-                  client: tx,
-                  actorType: validCron ? "cron" : "staff",
-                  actorId: validCron ? "case-escalate" : me!.id,
-                  action: "ESCALATE_CASE",
-                  targetType: "CASE",
-                  targetId: id,
-                  reason: "Case manually escalated for review",
-                  metadata: {
-                    route: "/api/cases/[id]/escalate",
-                    previousStatus: caseRecord.status,
-                    newStatus: "UNDER_REVIEW",
-                    at: now.toISOString(),
-                  },
-                });
-              }
-              return update;
-            })
-          : await prisma.case.updateMany({
-              where: { id, status: { in: ["OPEN", "IN_DISCUSSION"] } },
-              data: { status: "UNDER_REVIEW" },
-            });
+        const transitionAt = await databaseClockTimestamp(tx);
+        if (!validCron && !isStaff) {
+          const isParty =
+            me!.id === caseRecord.buyerId || me!.id === caseRecord.sellerId;
+          if (!isParty) {
+            throw new CaseEscalationRouteError("Forbidden.", 403);
+          }
+          const counterpartyUnavailable =
+            unavailableCaseMessageRecipientReason({
+              senderId: me!.id,
+              buyer: caseRecord.buyer,
+              seller: caseRecord.seller,
+              isStaff: false,
+            }) != null;
+          if (
+            !caseEscalationAvailable(
+              caseRecord.status,
+              caseRecord.escalateUnlocksAt,
+              transitionAt,
+              counterpartyUnavailable,
+            )
+          ) {
+            throw new CaseEscalationRouteError(
+              "Escalation not yet available. You can escalate after 48 hours of discussion.",
+              400,
+            );
+          }
+        }
+
+        const update = await tx.case.updateMany({
+          where: { id, status: caseRecord.status },
+          data: { status: "UNDER_REVIEW", updatedAt: transitionAt },
+        });
+        if (update.count === 0) return update;
+
+        const auditInput = {
+          action: "ESCALATE_CASE",
+          targetType: "CASE",
+          targetId: id,
+          reason: "Case manually escalated for review",
+          metadata: {
+            orderId: caseRecord.orderId,
+            route: "/api/cases/[id]/escalate",
+            previousStatus: caseRecord.status,
+            newStatus: "UNDER_REVIEW",
+            at: transitionAt.toISOString(),
+          },
+        };
+        if (!validCron && !isStaff) {
+          await logUserAuditActionOrThrow({
+            client: tx,
+            actorId: me!.id,
+            ...auditInput,
+          });
+        } else {
+          await logSystemActionOrThrow({
+            client: tx,
+            actorType: validCron ? "cron" : "staff",
+            actorId: validCron ? "case-escalate" : me!.id,
+            ...auditInput,
+          });
+        }
+        return update;
+      });
       if (result.count === 0) {
         return privateJson(
           { error: "Case status changed before escalation could be saved. Refresh and try again." },
@@ -176,6 +213,9 @@ export async function POST(
 
     return privateJson({ ok: true, escalated });
   } catch (err) {
+    if (err instanceof CaseEscalationRouteError) {
+      return privateJson({ error: err.message }, { status: err.status });
+    }
     const accountResponse = accountAccessErrorResponse(err);
     if (accountResponse) return accountResponse;
 

@@ -9,6 +9,10 @@ import { blockingRefundLedgerWhere, orderHasRefundLedger } from "@/lib/refundRou
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { APP_BASE_URL } from "@/lib/appBaseUrl";
+import {
+  databaseClockTimestamp,
+  lockOrderForCaseLifecycle,
+} from "@/lib/caseLifecycleLocks";
 
 export const runtime = "nodejs";
 
@@ -81,36 +85,42 @@ export async function POST(
       return privateJson({ error: "Only shipped orders can be confirmed delivered." }, { status: 400 });
     }
 
-    const updated = await prisma.order.updateMany({
-      where: {
-        id,
-        buyerId: me.id,
-        fulfillmentStatus: "SHIPPED",
-        sellerRefundId: null,
-        paymentEvents: { none: blockingRefundLedgerWhere() },
-        AND: [
-          {
-            OR: [
-              { fulfillmentMethod: "SHIPPING" },
-              { fulfillmentMethod: null },
-            ],
-          },
-          {
-            OR: [
-              { case: { is: null } },
-              { case: { is: { status: { notIn: [...ACTIVE_CASE_STATUSES] } } } },
-            ],
-          },
-        ],
-      },
-      data: {
-        fulfillmentMethod: "SHIPPING",
-        fulfillmentStatus: "DELIVERED",
-        deliveredAt: new Date(),
-      },
+    const updatedCount = await prisma.$transaction(async (tx) => {
+      const orderExists = await lockOrderForCaseLifecycle(tx, id);
+      if (!orderExists) return 0;
+      const deliveredAt = await databaseClockTimestamp(tx);
+      const updated = await tx.order.updateMany({
+        where: {
+          id,
+          buyerId: me.id,
+          fulfillmentStatus: "SHIPPED",
+          sellerRefundId: null,
+          paymentEvents: { none: blockingRefundLedgerWhere() },
+          AND: [
+            {
+              OR: [
+                { fulfillmentMethod: "SHIPPING" },
+                { fulfillmentMethod: null },
+              ],
+            },
+            {
+              OR: [
+                { case: { is: null } },
+                { case: { is: { status: { notIn: [...ACTIVE_CASE_STATUSES] } } } },
+              ],
+            },
+          ],
+        },
+        data: {
+          fulfillmentMethod: "SHIPPING",
+          fulfillmentStatus: "DELIVERED",
+          deliveredAt,
+        },
+      });
+      return updated.count;
     });
 
-    if (updated.count === 0) {
+    if (updatedCount === 0) {
       return privateJson({ error: "Order status changed. Refresh and try again." }, { status: 409 });
     }
 

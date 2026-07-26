@@ -24,7 +24,8 @@ describe("Round 8 fulfillment fraud-chain guardrails", () => {
     assert.match(buyerConfirm, /buyerId: me\.id/);
     assert.match(buyerConfirm, /fulfillmentStatus: "SHIPPED"/);
     assert.match(buyerConfirm, /fulfillmentStatus: "DELIVERED"/);
-    assert.match(buyerConfirm, /deliveredAt: new Date\(\)/);
+    assert.match(buyerConfirm, /const deliveredAt = await databaseClockTimestamp\(tx\)/);
+    assert.match(buyerConfirm, /deliveredAt,/);
 
     assert.doesNotMatch(salesPage, /name="action" value="delivered"/);
     assert.doesNotMatch(salesPage, /Mark delivered/);

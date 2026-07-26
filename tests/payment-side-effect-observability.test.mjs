@@ -211,7 +211,7 @@ describe("payment and fulfillment side-effect observability", () => {
       assert.match(route, /orderHasRefundLedger/);
       assert.match(
         route,
-        /await prisma\.\$executeRaw`[\s\S]*"sellerRefundId" IS NULL[\s\S]*blockingRefundOrLatestOpenDisputeLedgerExistsSql/,
+        /(?:await prisma|return tx)\.\$executeRaw`[\s\S]*"sellerRefundId" IS NULL[\s\S]*blockingRefundOrLatestOpenDisputeLedgerExistsSql/,
       );
     }
 
