@@ -59,8 +59,15 @@ export async function GET(
       caseMessage: { caseId: id },
     },
     select: {
-      objectKey: true,
       contentType: true,
+      directUpload: {
+        select: {
+          key: true,
+          endpoint: true,
+          storageClass: true,
+          status: true,
+        },
+      },
       caseMessage: {
         select: {
           case: {
@@ -89,14 +96,7 @@ export async function GET(
     if (pinResponse) return pinResponse;
   }
 
-  const lifecycle = await prisma.directUpload.findUnique({
-    where: { key: attachment.objectKey },
-    select: {
-      endpoint: true,
-      storageClass: true,
-      status: true,
-    },
-  });
+  const lifecycle = attachment.directUpload;
   if (
     !lifecycle
     || lifecycle.endpoint !== CASE_EVIDENCE_UPLOAD_ENDPOINT
@@ -113,7 +113,7 @@ export async function GET(
     r2,
     new GetObjectCommand({
       Bucket: privateR2BucketName(),
-      Key: attachment.objectKey,
+      Key: lifecycle.key,
       ResponseContentType: attachment.contentType,
       ResponseContentDisposition: "inline",
       ResponseCacheControl: "private, no-store",

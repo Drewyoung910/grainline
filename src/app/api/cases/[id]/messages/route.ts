@@ -71,27 +71,27 @@ class CaseMessageRouteError extends Error {
 }
 
 function attachmentKeysMatch(
-  attachments: readonly { objectKey: string }[],
+  attachments: readonly { directUpload: { key: string } }[],
   expectedKeys: readonly string[],
 ) {
   if (attachments.length !== expectedKeys.length) return false;
-  const actual = attachments.map(({ objectKey }) => objectKey).sort();
+  const actual = attachments.map(({ directUpload }) => directUpload.key).sort();
   const expected = [...expectedKeys].sort();
   return actual.every((key, index) => key === expected[index]);
 }
 
 type CaseMessageResponseAttachment = {
   id: string;
-  objectKey: string;
   contentType: string;
   byteSize: number;
   createdAt: Date;
+  directUpload: { key: string };
 };
 
 function caseMessageResponse<
   T extends { attachments: readonly CaseMessageResponseAttachment[] },
 >(message: T): Omit<T, "attachments"> & {
-  attachments: Array<Omit<CaseMessageResponseAttachment, "objectKey">>;
+  attachments: Array<Omit<CaseMessageResponseAttachment, "directUpload">>;
 } {
   const { attachments, ...messageFields } = message;
   return {
@@ -198,7 +198,7 @@ export async function POST(
           body: messageBody,
           createdAt: { gte: retryCutoff },
           attachments: {
-            some: { objectKey: { in: attachmentKeys } },
+            some: { directUpload: { key: { in: attachmentKeys } } },
           },
         },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -207,10 +207,10 @@ export async function POST(
           attachments: {
             select: {
               id: true,
-              objectKey: true,
               contentType: true,
               byteSize: true,
               createdAt: true,
+              directUpload: { select: { key: true } },
             },
           },
         },
@@ -245,6 +245,7 @@ export async function POST(
     }
 
     const verifiedAttachments: Array<{
+      directUploadId: string;
       objectKey: string;
       contentType: string;
       byteSize: number;
@@ -343,10 +344,10 @@ export async function POST(
           attachments: {
             select: {
               id: true,
-              objectKey: true,
               contentType: true,
               byteSize: true,
               createdAt: true,
+              directUpload: { select: { key: true } },
             },
           },
         },
@@ -424,7 +425,7 @@ export async function POST(
           attachments: {
             create: verifiedAttachments.map((attachment) => ({
               uploaderId: lockedActor.id,
-              objectKey: attachment.objectKey,
+              directUploadId: attachment.directUploadId,
               contentType: attachment.contentType,
               byteSize: attachment.byteSize,
             })),
@@ -434,10 +435,11 @@ export async function POST(
           attachments: {
             select: {
               id: true,
-              objectKey: true,
+              directUploadId: true,
               contentType: true,
               byteSize: true,
               createdAt: true,
+              directUpload: { select: { key: true } },
             },
           },
         },
@@ -446,7 +448,7 @@ export async function POST(
       for (const attachment of message.attachments) {
         const linked = await tx.directUpload.updateMany({
           where: {
-            key: attachment.objectKey,
+            id: attachment.directUploadId,
             status: DIRECT_UPLOAD_STATUS.CLAIMED,
             claimedByType: "CASE_MESSAGE_ATTACHMENT",
             claimedById: null,

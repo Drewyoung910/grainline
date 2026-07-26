@@ -1,8 +1,9 @@
 # DirectUpload RLS and Lifecycle Authority Audit
 
-Opened 2026-07-26 as CM-A21. Current phase: read-only/static audit at High.
-No database, provider, bucket, object, deployment, grant or production state
-has changed.
+Opened 2026-07-26 as CM-A21. High audit completed on
+`agent/direct-upload-rls-audit-20260726`; Extra-High preparation is active on
+`agent/direct-upload-rls-preparation-20260726`. No database, provider, bucket,
+object, deployment, grant or production state has changed.
 
 `DirectUpload` is a shared upload-control ledger, not an ordinary user-owned
 content table. It spans public listing/profile/review/blog/broadcast/commission
@@ -306,6 +307,41 @@ Disposable PostgreSQL must prove:
   cleanup correctly;
 - function ACL/search-path/source hashes match the reviewed catalog; and
 - rollback restores the accepted compatible schema/grants without residue.
+
+## Extra-High preparation checkpoints
+
+### Reference-ledger schema checkpoint
+
+The first local-only checkpoint adds
+`20260726184500_prepare_direct_upload_reference_ledger` and refactors the
+unapplied Case compatibility schema to reference `DirectUpload.id` rather than
+duplicating its private object key.
+
+The preparation migration deliberately leaves `DirectUpload` RLS disabled and
+keeps its old runtime grants for old-application compatibility. It creates
+`DirectUploadReference` with ENABLE plus FORCE RLS, zero policies and no
+runtime/PUBLIC table privileges from birth. It also adds:
+
+- a NOT VALID DirectUpload owner foreign key so new rows are checked without
+  pretending unknown legacy rows have been inspected;
+- compatible endpoint/storage/content/size and key/public-URL constraints;
+- cleanup lease columns for later attempt fencing;
+- immutable lifecycle identity and bounded status-transition triggers;
+- active reference identity and private-exclusivity partial unique indexes;
+  and
+- a trigger that derives reference exclusivity from the locked lifecycle row
+  instead of accepting the caller's value.
+
+This is schema preparation only. The fixed operation catalog, reference/status
+maintenance, app call-site conversion, activation migration, aggregate legacy
+inspection and live PostgreSQL proof remain open.
+
+Changing `20260726184000_prepare_private_case_message_attachments` invalidates
+the earlier exact-tree Case PostgreSQL proof by design. That proof must be
+rerun against the final stacked migration tree before Case packaging resumes.
+The private Case object key remains a server-only transient value while an
+attachment is being verified; it is no longer duplicated in the durable child
+row.
 
 ## Exit
 

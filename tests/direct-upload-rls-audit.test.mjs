@@ -9,17 +9,20 @@ function source(path) {
 describe("DirectUpload RLS audit contracts", () => {
   it("pins every current direct table-access surface", () => {
     const paths = [
-      "src/lib/directUploadLifecycle.ts",
-      "src/lib/accountDeletion.ts",
-      "src/lib/uploadPersistenceVerification.ts",
-      "src/lib/caseEvidence.ts",
-      "src/app/api/account/export/route.ts",
-      "src/app/api/cases/[id]/attachments/[attachmentId]/route.ts",
-      "src/app/api/cases/[id]/messages/route.ts",
+      ["src/lib/directUploadLifecycle.ts", /directUpload\./],
+      ["src/lib/accountDeletion.ts", /directUpload\./],
+      ["src/lib/uploadPersistenceVerification.ts", /directUpload\./],
+      ["src/lib/caseEvidence.ts", /directUpload\./],
+      ["src/app/api/account/export/route.ts", /directUpload\./],
+      [
+        "src/app/api/cases/[id]/attachments/[attachmentId]/route.ts",
+        /directUpload:\s*\{/,
+      ],
+      ["src/app/api/cases/[id]/messages/route.ts", /directUpload\./],
     ];
 
-    for (const path of paths) {
-      assert.match(source(path), /directUpload\./, path);
+    for (const [path, pattern] of paths) {
+      assert.match(source(path), pattern, path);
     }
 
     const grants = source("scripts/provision-runtime-db-role.sql");

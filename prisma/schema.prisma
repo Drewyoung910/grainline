@@ -99,6 +99,7 @@ model User {
   casesResolved Case[]        @relation("CasesResolvedBy")
   caseMessages  CaseMessage[] @relation("CaseMessages")
   caseMessageAttachments CaseMessageAttachment[] @relation("CaseMessageAttachments")
+  directUploads DirectUpload[]
 
   savedSearches      SavedSearch[]
   stockNotifications StockNotification[]
@@ -933,17 +934,18 @@ model CaseMessage {
 }
 
 model CaseMessageAttachment {
-  id            String      @id @default(cuid())
-  caseMessageId String
-  caseMessage   CaseMessage @relation(fields: [caseMessageId], references: [id], onDelete: Cascade)
-  uploaderId    String
-  uploader      User        @relation("CaseMessageAttachments", fields: [uploaderId], references: [id], onDelete: Restrict)
-  // Opaque key in the non-public Case evidence bucket. Never persist a public
-  // URL for dispute evidence.
-  objectKey     String      @unique @db.VarChar(500)
-  contentType   String      @db.VarChar(100)
-  byteSize      Int
-  createdAt     DateTime    @default(now())
+  id             String       @id @default(cuid())
+  caseMessageId  String
+  caseMessage    CaseMessage  @relation(fields: [caseMessageId], references: [id], onDelete: Cascade)
+  uploaderId     String
+  uploader       User         @relation("CaseMessageAttachments", fields: [uploaderId], references: [id], onDelete: Restrict)
+  // The opaque object key remains only on DirectUpload. Case evidence stores
+  // one exclusive lifecycle reference and never duplicates a key or URL.
+  directUploadId String       @unique
+  directUpload   DirectUpload @relation(fields: [directUploadId], references: [id], onDelete: Restrict)
+  contentType    String       @db.VarChar(100)
+  byteSize       Int
+  createdAt      DateTime     @default(now())
 
   @@index([caseMessageId, createdAt, id])
   @@index([uploaderId])
@@ -1171,29 +1173,52 @@ model CronRun {
 }
 
 model DirectUpload {
-  id            String    @id @default(cuid())
-  key           String    @unique @db.VarChar(500)
-  endpoint      String    @db.VarChar(40)
-  userId        String    @db.VarChar(191)
-  publicUrl     String?   @db.VarChar(2048)
-  storageClass  String    @default("PUBLIC") @db.VarChar(20)
-  contentType   String    @db.VarChar(100)
-  expectedSize  Int
-  status        String    @default("PRESIGNED") @db.VarChar(20)
-  cleanupAfter  DateTime?
-  verifiedAt    DateTime?
-  claimedAt     DateTime?
-  claimedByType String?   @db.VarChar(80)
-  claimedById   String?   @db.VarChar(191)
-  deletedAt     DateTime?
-  attempts      Int       @default(0)
-  lastError     String?   @db.VarChar(1000)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                    String                  @id @default(cuid())
+  key                   String                  @unique @db.VarChar(500)
+  endpoint              String                  @db.VarChar(40)
+  userId                String                  @db.VarChar(191)
+  user                  User                    @relation(fields: [userId], references: [id], onDelete: Restrict)
+  publicUrl             String?                 @db.VarChar(2048)
+  storageClass          String                  @default("PUBLIC") @db.VarChar(20)
+  contentType           String                  @db.VarChar(100)
+  expectedSize          Int
+  status                String                  @default("PRESIGNED") @db.VarChar(20)
+  cleanupAfter          DateTime?
+  verifiedAt            DateTime?
+  claimedAt             DateTime?
+  claimedByType         String?                 @db.VarChar(80)
+  claimedById           String?                 @db.VarChar(191)
+  deletedAt             DateTime?
+  attempts              Int                     @default(0)
+  cleanupLeaseId        String?                 @db.VarChar(64)
+  cleanupLeaseAt        DateTime?
+  lastError             String?                 @db.VarChar(1000)
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  references            DirectUploadReference[]
+  caseMessageAttachment CaseMessageAttachment?
 
   @@index([status, cleanupAfter])
   @@index([userId, endpoint])
   @@index([claimedByType, claimedById])
+}
+
+model DirectUploadReference {
+  id             String       @id @default(cuid())
+  directUploadId String
+  directUpload   DirectUpload @relation(fields: [directUploadId], references: [id], onDelete: Restrict)
+  sourceType     String       @db.VarChar(50)
+  sourceId       String       @db.VarChar(191)
+  // Raw trigger-managed from DirectUpload.storageClass. Callers cannot choose
+  // whether a lifecycle reference is exclusive.
+  exclusive      Boolean
+  createdAt      DateTime     @default(now())
+  releasedAt     DateTime?
+  releaseReason  String?      @db.VarChar(200)
+
+  @@index([directUploadId, releasedAt])
+  @@index([sourceType, sourceId, releasedAt])
+  @@index([releasedAt, createdAt])
 }
 
 model SystemAuditLog {

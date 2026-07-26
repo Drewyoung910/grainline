@@ -44,6 +44,7 @@ type VerifiedCaseEvidence =
   | {
       ok: true;
       attachment: {
+        directUploadId: string;
         objectKey: string;
         contentType: string;
         byteSize: number;
@@ -84,6 +85,7 @@ export async function verifyPrivateCaseEvidenceForPersistence({
   const lifecycle = await prisma.directUpload.findUnique({
     where: { key },
     select: {
+      id: true,
       endpoint: true,
       userId: true,
       publicUrl: true,
@@ -156,6 +158,7 @@ export async function verifyPrivateCaseEvidenceForPersistence({
   return {
     ok: true,
     attachment: {
+      directUploadId: lifecycle.id,
       objectKey: key,
       contentType: lifecycle.contentType,
       byteSize,
