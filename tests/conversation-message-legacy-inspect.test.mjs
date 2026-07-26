@@ -176,6 +176,18 @@ describe("Conversation and Message legacy inspection operator", () => {
       () => normalizeConversationMessageLegacyCounts({ ...row, message_count: "NaN" }),
       /invalid aggregate counts/,
     );
+    assert.throws(
+      () => normalizeConversationMessageLegacyCounts({
+        ...row,
+        accidental_raw_body: "private",
+      }),
+      /unexpected aggregate schema/,
+    );
+    const { message_count: _messageCount, ...missingField } = row;
+    assert.throws(
+      () => normalizeConversationMessageLegacyCounts(missingField),
+      /unexpected aggregate schema/,
+    );
   });
 
   it("writes only sanitized mode-0600 evidence", () => {

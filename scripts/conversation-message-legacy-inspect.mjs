@@ -177,6 +177,18 @@ const COUNT_FIELDS = Object.freeze([
 ]);
 
 export function normalizeConversationMessageLegacyCounts(row) {
+  const rowFields = row && typeof row === "object"
+    ? Object.keys(row).sort()
+    : [];
+  const expectedFields = [...COUNT_FIELDS].sort();
+  if (
+    rowFields.length !== expectedFields.length
+    || rowFields.some((field, index) => field !== expectedFields[index])
+  ) {
+    throw new TypeError(
+      "Conversation/Message legacy inspection returned an unexpected aggregate schema",
+    );
+  }
   const normalized = {};
   for (const field of COUNT_FIELDS) {
     const value = Number(row?.[field]);
