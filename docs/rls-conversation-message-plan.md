@@ -280,7 +280,19 @@ The direct runtime table query with no context must return zero rows.
    rate-limit counter and exact fixture row, and the idempotent cleanup rerun
    passed. Production application, RLS and grants were unchanged. The corrected
    candidate uses bare multi-array `unnest(...)`, extends the source-wide
-   special-form guard, and requires a fresh CI plus live pass.**
+   special-form guard, and passed fresh CI run `30191084346`. A second live
+   attempt at corrected operator `bb0cafa2` passed fixture seeding and Clerk
+   session creation, then failed closed inside the authenticated-route group.
+   Its sanitized mode-`0600` evidence records no SQLSTATE, zero direct
+   email/notification side effects, and successful removal of every fixture
+   row, session, token, cache key and rate-limit counter; the exact idempotent
+   cleanup rerun also passed and removed recovery state. The broad route-stage
+   label was insufficient to identify the assertion, and bounded historical
+   Vercel log retrieval did not return a usable aggregate. The next operator
+   revision therefore records one sanitized stage per route assertion before
+   any further live attempt. RLS, grants and production rows remain unchanged;
+   a fresh exact-head CI and authenticated live pass are still required before
+   activation.**
 6. Disposable PostgreSQL proof: policies/grants, every read/write family,
    direct denial, staff report resolution, account/block/archive races,
    deletion/export/metrics, rollback and legacy handling. **Complete for the

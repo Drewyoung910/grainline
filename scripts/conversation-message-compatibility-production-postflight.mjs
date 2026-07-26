@@ -733,19 +733,22 @@ async function revokeCanarySession(clerk, canary, state) {
   return { sessionRevoked, signInTokenDisposed };
 }
 
-async function exerciseRoutes(token, fixture) {
+async function exerciseRoutes(token, fixture, setStage) {
   const ownConversationId = encodeURIComponent(fixture.conversationIds[0]);
   const foreignConversationId = encodeURIComponent(fixture.conversationIds[1]);
+  setStage("route-unauthenticated-list");
   const unauthenticated = await fetchJson(`/api/messages/${ownConversationId}/list`);
   if (unauthenticated.status !== 401 || unauthenticated.body.ok !== false) {
     throw new Error("unauthenticated message list did not deny access");
   }
 
+  setStage("route-unread-before");
   const unreadBefore = await fetchJson("/api/messages/unread-count", { token });
   if (unreadBefore.status !== 200 || unreadBefore.body.count !== 1) {
     throw new Error("authenticated unread count drifted");
   }
 
+  setStage("route-own-list");
   const ownList = await fetchJson(`/api/messages/${ownConversationId}/list`, { token });
   const ownIds = Array.isArray(ownList.body.messages)
     ? ownList.body.messages.map((message) => message?.id)
@@ -764,11 +767,13 @@ async function exerciseRoutes(token, fixture) {
     throw new Error("authenticated message list failed participant isolation");
   }
 
+  setStage("route-foreign-list");
   const foreignList = await fetchJson(`/api/messages/${foreignConversationId}/list`, { token });
   if (foreignList.status !== 403 || foreignList.body.ok !== false) {
     throw new Error("foreign message list did not deny access");
   }
 
+  setStage("route-invalid-cursor");
   const invalidCursor = await fetchJson(
     `/api/messages/${ownConversationId}/list?before=bad&beforeId=bad`,
     { token },
@@ -777,6 +782,7 @@ async function exerciseRoutes(token, fixture) {
     throw new Error("message cursor validation drifted");
   }
 
+  setStage("route-inbox-page");
   const inbox = await fetchPage("/messages", token);
   if (
     inbox.status !== 200
@@ -786,6 +792,7 @@ async function exerciseRoutes(token, fixture) {
     throw new Error("authenticated inbox failed participant isolation");
   }
 
+  setStage("route-own-thread-page");
   const thread = await fetchPage(`/messages/${ownConversationId}`, token);
   if (
     thread.status !== 200
@@ -796,11 +803,13 @@ async function exerciseRoutes(token, fixture) {
     throw new Error("authenticated thread page failed participant isolation");
   }
 
+  setStage("route-foreign-thread-page");
   const foreignThread = await fetchPage(`/messages/${foreignConversationId}`, token);
   if (foreignThread.status !== 404) {
     throw new Error("foreign thread page did not return not found");
   }
 
+  setStage("route-cross-origin-read");
   const crossOriginRead = await fetchJson(`/api/messages/${ownConversationId}/read`, {
     method: "POST",
     origin: "https://example.invalid",
@@ -810,6 +819,7 @@ async function exerciseRoutes(token, fixture) {
     throw new Error("message read mutation did not reject cross-origin POST");
   }
 
+  setStage("route-own-read");
   const ownRead = await fetchJson(`/api/messages/${ownConversationId}/read`, {
     method: "POST",
     origin: DEPLOYMENT_URL,
@@ -819,6 +829,7 @@ async function exerciseRoutes(token, fixture) {
     throw new Error("own message read mutation failed");
   }
 
+  setStage("route-unread-after");
   const unreadAfter = await fetchJson("/api/messages/unread-count", { token });
   if (unreadAfter.status !== 200 || unreadAfter.body.count !== 0) {
     throw new Error("post-read unread count drifted");
@@ -978,7 +989,9 @@ async function main() {
     });
 
     stage = "exercise-authenticated-routes";
-    result = await exerciseRoutes(session.jwt, fixture);
+    result = await exerciseRoutes(session.jwt, fixture, (nextStage) => {
+      stage = nextStage;
+    });
 
     stage = "verify-database-postcondition";
     await verifyDatabasePostcondition(owner, canary.localUser.id, fixture);

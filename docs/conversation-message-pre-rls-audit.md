@@ -6,6 +6,15 @@ are live. The actual pooled production runtime role passed a rollback-only
 postflight. Conversation/Message RLS remains disabled with zero policies; no
 Conversation or Message policy or authority SQL has been applied.
 
+The authenticated RLS-off compatibility proof remains open. Two live operator
+attempts failed closed and cleaned up completely: the first found PostgreSQL's
+multi-array `unnest` parser-special-form boundary, and the corrected second
+attempt reached the route assertions but retained only the overly broad
+`exercise-authenticated-routes` stage. The operator now records a sanitized
+stage before each request/assertion; no third live attempt is permitted until
+that exact revision passes fresh CI. Neither failure changed RLS, grants, or
+ordinary production data.
+
 ## Why this gate exists
 
 RLS must enforce the intended product contract, not freeze accidental current

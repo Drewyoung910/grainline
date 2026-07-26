@@ -44,6 +44,30 @@ test("compatibility postflight covers authenticated owner and foreign routes", (
   assert.match(script, /Invalid message cursor/);
 });
 
+test("compatibility postflight records a sanitized stage before every route assertion", () => {
+  const routeStages = [
+    "route-unauthenticated-list",
+    "route-unread-before",
+    "route-own-list",
+    "route-foreign-list",
+    "route-invalid-cursor",
+    "route-inbox-page",
+    "route-own-thread-page",
+    "route-foreign-thread-page",
+    "route-cross-origin-read",
+    "route-own-read",
+    "route-unread-after",
+  ];
+  let previous = script.indexOf("async function exerciseRoutes");
+  for (const stage of routeStages) {
+    const current = script.indexOf(`setStage("${stage}")`, previous);
+    assert.ok(current > previous, `${stage} must be recorded in route order`);
+    previous = current;
+  }
+  assert.match(script, /exerciseRoutes\(session\.jwt, fixture, \(nextStage\) => \{/);
+  assert.match(script, /stage = nextStage/);
+});
+
 test("compatibility postflight fixture authority uses the installed functions", () => {
   assert.match(script, /public\.grainline_conversation_start\(\$1, \$2, \$3, NULL\)/);
   assert.match(script, /public\.grainline_message_send_ordinary/);
