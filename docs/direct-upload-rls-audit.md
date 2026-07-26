@@ -139,8 +139,9 @@ The unapplied Case-compatible schema duplicates the private key in
 `CaseMessageAttachment`. The CM-A20 draft initially proposed the same shape.
 Both private children should instead hold a unique foreign key to the exact
 `DirectUpload` row. Only a fixed authenticated read operation may resolve the
-object key. Changing the unapplied Case migration invalidates its exact-tree
-PostgreSQL evidence and requires a fresh proof before release.
+object key. The already reviewed Case migration must remain byte-immutable;
+the next reviewed DirectUpload migration performs the shape transition and
+must fail closed rather than rewrite any unexpected Case evidence row.
 
 ### DU-A07: incomplete database invariants
 
@@ -428,12 +429,13 @@ reference in the same transaction.
 
 This remains preparation only: DirectUpload RLS is still off, old runtime table
 grants remain for deployment coexistence, no SQL has been applied, and no
-provider or production state changed. Live PostgreSQL syntax, ACL, authority,
-reuse, release/cleanup and concurrency proof; aggregate legacy inspection and
-backfill; the activation/rollback split; and the final Extra-High authority
-review remain required.
+provider or production state changed. Exact disposable PostgreSQL syntax, ACL,
+authority, reuse, release/cleanup and concurrency proof has passed. Aggregate
+legacy inspection and backfill, the production preparation preflight,
+activation/rollback split and final Extra-High authority review remain
+required.
 
-### Disposable PostgreSQL proof scaffold
+### Disposable PostgreSQL proof record
 
 `scripts/direct-upload-authority-postgres-proof.mjs` and its branch-scoped
 PostgreSQL 16 workflow are the next evidence gate. The harness refuses every
@@ -494,6 +496,28 @@ this intentionally policyless service ledger may not suppress verification of
 its posture. The audit now independently requires DirectUploadReference to
 retain ENABLE plus FORCE, zero policies and zero runtime table privileges; a
 missing catalog row or loss of either RLS flag fails closed.
+
+That audit correction passed again in run `30224946994` at commit `69ecd95a`.
+During final release-guard packaging, the guard then correctly exposed that the
+previously sealed Case migration had been amended by the first reference-ledger
+checkpoint. Commit `6697a0f3` restored
+`20260726184000_prepare_private_case_message_attachments` byte-for-byte to its
+reviewed `b3e3d18f...` tree and moved the `objectKey` to `directUploadId`
+transition into `20260726184500_prepare_direct_upload_reference_ledger`. The
+transition refuses any nonempty `CaseMessageAttachment` table instead of
+silently rewriting or dropping evidence. The current reviewed full-tree
+fingerprint is
+`8eb9896ac024b73daf368593e57fc485bd2b651b8e4b4b37a8cb66b31c1fe7bc`.
+
+The fresh exact-tree execution, GitHub Actions run `30225445722` (job
+`89854768934`) at commit `6697a0f3`, passed on PostgreSQL 16.14. It applied all
+166 migrations, converged the production-style runtime role, verified
+migration status, passed the global grant/RLS audit and static contracts, then
+passed all five live authority/concurrency checks listed above. It recorded
+`persistentStagingChanged=false` and `productionChanged=false`. This is the
+accepted disposable-engine evidence for the current preparation tree; the
+earlier green runs remain useful failure-history and audit-hardening evidence
+but are not substitutes for this final tree.
 
 ## Exit
 
