@@ -27,6 +27,7 @@ export async function findCaseMessageHistoryPage(
     select: {
       id: true,
       authorId: true,
+      authorKind: true,
       body: true,
       createdAt: true,
       author: {

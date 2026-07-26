@@ -188,7 +188,9 @@ The reader is correct with the existing `(caseId, createdAt)` index and uses
 is grouped with Phase 1B's reviewed compatible schema migration so the
 protected migration-tree guard is updated once rather than bypassed.
 
-CC-A05's interactive-read portion and CC-A06's 48-hour query correction are
-implemented on `agent/case-compatible-product-20260726`; they are not production
-claims until that branch merges and its release is verified. CC-A05's exact
-index remains in the immediately following Phase 1B compatible migration.
+CC-A05's interactive-read portion and CC-A06's 48-hour query correction merged
+to main at `8fcd6949`. Exact-head CI run `30211089240` passed. The Phase 1B
+compatible migration adds the exact index and a nullable durable author-kind
+column. Nullable is deliberate until the protected aggregate-only inspection
+classifies every legacy message; every new application creation path must set
+the source-derived kind meanwhile.

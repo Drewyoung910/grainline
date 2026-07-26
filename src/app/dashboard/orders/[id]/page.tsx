@@ -34,6 +34,7 @@ import type { CaseStatus } from "@prisma/client";
 import type { Metadata } from "next";
 import { findActorConversationPair } from "@/lib/conversationMessageAuthority";
 import { findCaseMessageHistoryPage } from "@/lib/caseMessageHistory";
+import { caseMessageAuthorLabel } from "@/lib/caseMessageAuthor";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -521,7 +522,14 @@ export default async function BuyerOrderDetailPage({
                 <li key={msg.id} className="px-4 py-3 space-y-1">
                   <div className="flex items-center gap-2 text-xs text-neutral-500">
                     <span className="font-medium text-neutral-700">
-                      {msg.author.role === "EMPLOYEE" || msg.author.role === "ADMIN" ? "Grainline Staff" : msg.author.name ?? "Participant"}
+                      {caseMessageAuthorLabel({
+                        authorKind: msg.authorKind,
+                        authorId: msg.author.id,
+                        buyerId: activeCase.buyerId,
+                        sellerId: activeCase.sellerId,
+                        viewerId: me.id,
+                        legacyAuthorRole: msg.author.role,
+                      })}
                     </span>
                     <span>·</span>
                     <span><LocalDate date={msg.createdAt} /></span>

@@ -1,6 +1,6 @@
 # Case and CaseMessage RLS Plan
 
-Opened 2026-07-26. Current phase: Phase 1A compatible product work.
+Opened 2026-07-26. Current phase: Phase 1B compatible integrity work.
 Production Case/CaseMessage RLS remains off.
 
 The behavior findings and 69-reference source baseline live in
@@ -78,6 +78,20 @@ authority catalog and PostgreSQL proof.
 5. Establish the shared Order-lock protocol for Case creation and conflicting
    label/fulfillment/refund transitions.
 6. Serialize replies on the Case row and use a post-lock timestamp.
+
+The fixed-operation pattern does not authenticate a human caller by itself.
+`grainline_app_runtime` can supply transaction context or function actor
+arguments, so possession of that credential must be treated as authority to
+impersonate a valid application actor within each granted function. Clerk
+authentication, server-side actor resolution and route authorization remain
+load-bearing. Case functions still derive targets, roles, timestamps, links and
+event identity from locked rows so a normal application caller cannot choose
+them independently.
+
+Test contracts should be behavior-oriented for replaceable application
+implementation details, but exact for security artifacts: function signatures,
+security mode, pinned `search_path`, ACLs, table grants, policies, source-derived
+authority fields and lock ordering remain strict structural tripwires.
 
 Exit: focused product/security tests, TypeScript, lint and the full unit suite
 are green. No RLS behavior has changed.

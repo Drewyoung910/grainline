@@ -207,7 +207,11 @@ export async function POST(req: Request) {
         description,
         sellerRespondBy,
         messages: {
-          create: { authorId: me.id, body: description },
+          create: {
+            authorId: me.id,
+            authorKind: "BUYER",
+            body: description,
+          },
         },
       },
       include: { messages: true },

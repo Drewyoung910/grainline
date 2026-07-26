@@ -33,6 +33,7 @@ import {
 import { sellerFacingOrderBuyerLabel } from "@/lib/sellerFacingUser";
 import type { Metadata } from "next";
 import { findCaseMessageHistoryPage } from "@/lib/caseMessageHistory";
+import { caseMessageAuthorLabel } from "@/lib/caseMessageAuthor";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -204,13 +205,6 @@ export default async function SellerOrderDetailPage({
     ? unavailableCaseRecipientMessage(caseReplyUnavailableReason)
     : null;
 
-  // Per-message label helper (runs server-side)
-  function msgLabel(authorId: string): string {
-    if (authorId === buyerId) return "Buyer";
-    if (authorId === meId) return "You (Seller)";
-    return "Grainline Staff";
-  }
-
   return (
     <main className="mx-auto max-w-4xl p-8 space-y-6">
       <Link href="/dashboard/sales" className="text-sm text-neutral-500 hover:text-neutral-700 mb-4 inline-flex items-center gap-1">
@@ -374,7 +368,14 @@ export default async function SellerOrderDetailPage({
           ) : (
             <ul className="divide-y divide-neutral-100 bg-white">
               {caseMessageHistory.messages.map((msg) => {
-                const label = msgLabel(msg.author.id);
+                const label = caseMessageAuthorLabel({
+                  authorKind: msg.authorKind,
+                  authorId: msg.author.id,
+                  buyerId,
+                  sellerId: activeCase.sellerId,
+                  viewerId: meId,
+                  legacyAuthorRole: msg.author.role,
+                });
                 const isMe = label === "You (Seller)";
                 return (
                   <li key={msg.id} className="px-4 py-3 space-y-1">

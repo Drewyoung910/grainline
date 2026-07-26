@@ -30,6 +30,7 @@ import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { requireStaffAdminPinForApi } from "@/lib/adminPinApi";
+import { caseMessageAuthorKindForActor } from "@/lib/caseMessageAuthor";
 import { z } from "zod";
 
 const CaseMessageSchema = z.object({
@@ -130,6 +131,12 @@ export async function POST(
       );
     }
 
+    const authorKind = caseMessageAuthorKindForActor({
+      actorId: me.id,
+      buyerId: caseRecord.buyerId,
+      sellerId: caseRecord.sellerId,
+      isStaff,
+    });
     const now = new Date();
     const caseUpdates: Record<string, unknown> = { updatedAt: now };
     const statusTransition = caseMessageStatusTransition({
@@ -195,7 +202,12 @@ export async function POST(
         throw new Error("CASE_STATUS_CHANGED");
       }
       const message = await tx.caseMessage.create({
-        data: { caseId: id, authorId: me.id, body: messageBody },
+        data: {
+          caseId: id,
+          authorId: me.id,
+          authorKind,
+          body: messageBody,
+        },
       });
       return { message, duplicate: false as const };
     });

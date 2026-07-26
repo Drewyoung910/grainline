@@ -14,6 +14,7 @@ import { refundMayRestoreStock } from "@/lib/refundRouteState";
 import { caseStatusLabel } from "@/lib/caseLabels";
 import type { CaseStatus } from "@prisma/client";
 import { findCaseMessageHistoryPage } from "@/lib/caseMessageHistory";
+import { caseMessageAuthorLabel } from "@/lib/caseMessageAuthor";
 
 function fmtMoney(cents: number | null | undefined, currency = DEFAULT_CURRENCY) {
   if (cents == null) return "—";
@@ -149,12 +150,6 @@ export default async function AdminCaseDetailPage({
 
   const deadline = fmtDeadline(caseRecord.sellerRespondBy);
 
-  function msgLabel(authorId: string, role: string): string {
-    if (role === "EMPLOYEE" || role === "ADMIN") return "Grainline Staff";
-    if (authorId === caseRecord!.buyerId) return "Buyer";
-    return "Seller";
-  }
-
   return (
     <div className="max-w-4xl space-y-6">
       {/* Header */}
@@ -263,7 +258,13 @@ export default async function AdminCaseDetailPage({
         ) : (
           <ul className="divide-y divide-neutral-100 -my-1">
             {caseMessageHistory.messages.map((msg) => {
-              const label = msgLabel(msg.author.id, msg.author.role);
+              const label = caseMessageAuthorLabel({
+                authorKind: msg.authorKind,
+                authorId: msg.author.id,
+                buyerId: caseRecord.buyerId,
+                sellerId: caseRecord.sellerId,
+                legacyAuthorRole: msg.author.role,
+              });
               return (
                 <li key={msg.id} className="py-3 space-y-1">
                   <div className="flex items-center gap-2 text-xs text-neutral-500">
