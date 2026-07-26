@@ -109,12 +109,26 @@ For the active Case lifecycle checkpoint, proof fidelity is part of the gate:
 the first accepted 14-ordering PostgreSQL run remains valid only for its modeled
 subset because its mark-resolved/cron helpers used stronger post-lock time
 semantics than the corresponding application routes and did not contend staff
-resolution against replies. Exact code head `9f4079fe` passed all 21 corrected
-two-session orderings in disposable PostgreSQL 16.14 run `30217588001`, using
-the real refund sentinel, Order-then-Case locks and post-wait PostgreSQL
-timestamps. Preserve that expanded proof as the compatible-integrity baseline;
-later database invariants and fixed RLS authority still require their own
-review and proof.
+resolution against replies. Exact hardening head `4dc57266` passed all 21
+corrected two-session orderings in disposable PostgreSQL run `30218521286`
+after the final private-lifecycle review changed the migration bytes; exact
+general CI `30218522907` also passed. The run used the real refund sentinel,
+Order-then-Case locks and post-wait PostgreSQL timestamps. Preserve that
+expanded proof as the compatible-integrity baseline; later database invariants
+and fixed RLS authority still require their own review and proof.
+
+The ordinary Message private-object pass has its own execution contract in
+`docs/message-private-object-remediation-plan.md`. Preserve one Message per
+attachment for the first release, store new object identity in a private
+one-to-one child that references rather than duplicates the `DirectUpload`
+key, keep new sends image-only, and classify legacy public URLs before
+separately approved copy/rewrite/deletion. Fixed database operations constrain
+behavior but do not authenticate their asserted participant ids; Clerk,
+server-side actor resolution and exact call-site guards remain load-bearing.
+`DirectUpload` remains a separate shared lifecycle RLS group (CM-A21); do not
+silently bundle its cross-product authority into Message or Case. Complete
+that separate rollout before production promotion of either private-object
+path.
 
 ### Messaging architecture decision (2026-07-22)
 
