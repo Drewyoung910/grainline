@@ -181,8 +181,12 @@ function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === "string";
 }
 
+function isFiniteDate(value: unknown): value is Date {
+  return value instanceof Date && Number.isFinite(value.getTime());
+}
+
 function isNullableDate(value: unknown): value is Date | null {
-  return value === null || value instanceof Date;
+  return value === null || isFiniteDate(value);
 }
 
 function isBoundedAuthorityId(value: string): boolean {
@@ -200,17 +204,25 @@ function requireSafeCount(value: CountValue, label: string): number {
 function validateConversationRow(
   row: ConversationRpcRow,
   expectedConversationId: string,
+  actorId: string,
 ): ActorConversation {
   if (
     typeof row !== "object"
     || row === null
     || row.id !== expectedConversationId
     || typeof row.userAId !== "string"
+    || !isBoundedAuthorityId(row.userAId)
     || typeof row.userBId !== "string"
+    || !isBoundedAuthorityId(row.userBId)
     || row.userAId === row.userBId
     || !isNullableString(row.contextListingId)
-    || !(row.createdAt instanceof Date)
-    || !(row.updatedAt instanceof Date)
+    || (
+      row.contextListingId !== null
+      && !isBoundedAuthorityId(row.contextListingId)
+    )
+    || !isBoundedAuthorityId(actorId)
+    || !isFiniteDate(row.createdAt)
+    || !isFiniteDate(row.updatedAt)
     || !isNullableDate(row.archivedAAt)
     || !isNullableDate(row.archivedBAt)
     || !isNullableDate(row.firstResponseAt)
@@ -229,15 +241,22 @@ function validateMessageRow(
     typeof row !== "object"
     || row === null
     || typeof row.id !== "string"
+    || !isBoundedAuthorityId(row.id)
     || row.conversationId !== expectedConversationId
     || typeof row.senderId !== "string"
+    || !isBoundedAuthorityId(row.senderId)
     || typeof row.recipientId !== "string"
+    || !isBoundedAuthorityId(row.recipientId)
     || row.senderId === row.recipientId
     || typeof row.body !== "string"
     || !isNullableString(row.kind)
     || !isNullableString(row.contextListingId)
     || !isNullableString(row.contextListingTitle)
-    || !(row.createdAt instanceof Date)
+    || (
+      row.contextListingId !== null
+      && !isBoundedAuthorityId(row.contextListingId)
+    )
+    || !isFiniteDate(row.createdAt)
     || !isNullableDate(row.readAt)
     || (
       (row.contextListingId === null)
@@ -264,20 +283,28 @@ function validateMessageRow(
   };
 }
 
-function validateMessageExportRow(row: ActorMessageExport): ActorMessageExport {
+function validateMessageExportRow(
+  row: ActorMessageExport,
+  actorId: string,
+): ActorMessageExport {
   if (
     typeof row !== "object"
     || row === null
     || typeof row.id !== "string"
+    || !isBoundedAuthorityId(row.id)
     || typeof row.conversationId !== "string"
+    || !isBoundedAuthorityId(row.conversationId)
     || typeof row.senderId !== "string"
+    || !isBoundedAuthorityId(row.senderId)
     || typeof row.recipientId !== "string"
+    || !isBoundedAuthorityId(row.recipientId)
     || row.senderId === row.recipientId
+    || (row.senderId !== actorId && row.recipientId !== actorId)
     || typeof row.body !== "string"
     || !isNullableString(row.kind)
     || typeof row.isSystemMessage !== "boolean"
     || !isNullableDate(row.readAt)
-    || !(row.createdAt instanceof Date)
+    || !isFiniteDate(row.createdAt)
   ) {
     throw new TypeError("message export RPC returned an invalid row");
   }
@@ -304,7 +331,7 @@ function validateConversationInboxRow(
     || !isNullableString(row.userAImageUrl)
     || !isNullableString(row.userBName)
     || !isNullableString(row.userBImageUrl)
-    || !(row.updatedAt instanceof Date)
+    || !isFiniteDate(row.updatedAt)
     || !isNullableDate(row.archivedAAt)
     || !isNullableDate(row.archivedBAt)
     || !isNullableString(row.contextListingId)
@@ -323,7 +350,7 @@ function validateConversationInboxRow(
     || !isBoundedAuthorityId(row.latestMessageId)
     || typeof row.latestMessageBody !== "string"
     || !isNullableString(row.latestMessageKind)
-    || !(row.latestMessageCreatedAt instanceof Date)
+    || !isFiniteDate(row.latestMessageCreatedAt)
     || typeof row.latestMessageSenderId !== "string"
     || !isBoundedAuthorityId(row.latestMessageSenderId)
     || ![row.userAId, row.userBId].includes(row.latestMessageSenderId)
@@ -399,7 +426,7 @@ export async function getActorConversation(
   }
   return rows.length === 0
     ? null
-    : validateConversationRow(rows[0], conversationId);
+    : validateConversationRow(rows[0], conversationId, actorId);
 }
 
 export async function listActorMessages(
@@ -419,9 +446,18 @@ export async function listActorMessages(
   const actorId = normalizeDbUserContextUserId(userId);
   if (
     !isBoundedAuthorityId(conversationId)
+    || (direction !== "before" && direction !== "after")
     || !Number.isSafeInteger(limit)
     || limit < 1
     || limit > 201
+    || (
+      cursor !== null
+      && (
+        !isFiniteDate(cursor.createdAt)
+        || cursor.id === null
+        || !isBoundedAuthorityId(cursor.id)
+      )
+    )
   ) {
     throw new TypeError("message recipient RPC input is invalid");
   }
@@ -449,8 +485,7 @@ export async function listLatestActorMessages(
     !Number.isSafeInteger(limit)
     || limit < 1
     || limit > 201
-    || !(conversation.updatedAt instanceof Date)
-    || !Number.isFinite(conversation.updatedAt.getTime())
+    || !isFiniteDate(conversation.updatedAt)
     || conversation.updatedAt.getTime() >= 8_640_000_000_000_000
   ) {
     throw new TypeError("latest message recipient RPC input is invalid");
@@ -617,8 +652,7 @@ export async function sendActorOrdinaryMessage(
     || typeof row.recipientId !== "string"
     || !isBoundedAuthorityId(row.recipientId)
     || row.recipientId === actorId
-    || !(row.sentAt instanceof Date)
-    || !Number.isFinite(row.sentAt.getTime())
+    || !isFiniteDate(row.sentAt)
     || typeof row.firstResponseSet !== "boolean"
   ) {
     throw new TypeError("ordinary-message write RPC returned an invalid row");
@@ -684,7 +718,7 @@ export async function exportActorMessages(
         ${actorId}::text
       )
   `;
-  return rows.map(validateMessageExportRow);
+  return rows.map((row) => validateMessageExportRow(row, actorId));
 }
 
 export async function listActorSentMessageBodiesForDeletion(
@@ -752,6 +786,14 @@ export async function isActorMessageReportTarget(
   db: ConversationMessageAuthorityClient = prisma,
 ): Promise<boolean> {
   const actorId = normalizeDbUserContextUserId(userId);
+  if (
+    !isBoundedAuthorityId(reportedUserId)
+    || !isBoundedAuthorityId(targetId)
+    || actorId === reportedUserId
+    || (targetType !== "MESSAGE" && targetType !== "MESSAGE_THREAD")
+  ) {
+    return false;
+  }
   const rows = await db.$queryRaw<Array<{ valid: boolean }>>`
     SELECT public.grainline_message_report_target_valid(
       ${actorId}::text,
@@ -822,7 +864,7 @@ export async function findLatestActorCustomOrderRequest(
     row !== undefined
     && (
       typeof row.body !== "string"
-      || !(row.createdAt instanceof Date)
+      || !isFiniteDate(row.createdAt)
     )
   ) {
     throw new TypeError("custom-request RPC returned an invalid row");
@@ -837,10 +879,11 @@ export async function startActorConversation(
   db: ConversationMessageAuthorityClient = prisma,
 ): Promise<StartedActorConversation> {
   const actorId = normalizeDbUserContextUserId(userId);
+  const proposedConversationId = randomUUID();
   const rows = await db.$queryRaw<StartedActorConversation[]>`
     SELECT *
       FROM public.grainline_conversation_start(
-        ${randomUUID()}::text,
+        ${proposedConversationId}::text,
         ${actorId}::text,
         ${otherUserId}::text,
         ${requestedListingId}::text
@@ -853,6 +896,11 @@ export async function startActorConversation(
     || !isBoundedAuthorityId(row.conversationId)
     || typeof row.created !== "boolean"
     || !isNullableString(row.contextListingId)
+    || (
+      row.contextListingId !== null
+      && !isBoundedAuthorityId(row.contextListingId)
+    )
+    || (row.created && row.conversationId !== proposedConversationId)
   ) {
     throw new TypeError("conversation start RPC returned an invalid row");
   }
@@ -873,11 +921,12 @@ export async function sendActorCustomOrderRequest(
 ): Promise<SentActorCustomOrderRequest> {
   const buyerUserId = normalizeDbUserContextUserId(input.buyerUserId);
   const sellerUserId = normalizeDbUserContextUserId(input.sellerUserId);
+  const proposedMessageId = randomUUID();
   const rows = await db.$queryRaw<SentActorCustomOrderRequest[]>`
     SELECT *
       FROM public.grainline_message_send_custom_request(
         ${randomUUID()}::text,
-        ${randomUUID()}::text,
+        ${proposedMessageId}::text,
         ${buyerUserId}::text,
         ${sellerUserId}::text,
         ${input.description}::text,
@@ -894,9 +943,11 @@ export async function sendActorCustomOrderRequest(
     || !isBoundedAuthorityId(row.conversationId)
     || typeof row.messageId !== "string"
     || !isBoundedAuthorityId(row.messageId)
+    || row.messageId !== proposedMessageId
     || !isNullableString(row.listingId)
     || !isNullableString(row.listingTitle)
     || ((row.listingId === null) !== (row.listingTitle === null))
+    || row.listingId !== input.listingId
   ) {
     throw new TypeError("custom-request write RPC returned an invalid row");
   }
@@ -914,12 +965,15 @@ export async function createActorCommissionInterest(
   if (!isBoundedAuthorityId(input.commissionRequestId)) {
     throw new TypeError("commission-interest write RPC input is invalid");
   }
+  const proposedConversationId = randomUUID();
+  const proposedMessageId = randomUUID();
+  const proposedInterestId = randomUUID();
   const rows = await db.$queryRaw<CreatedActorCommissionInterest[]>`
     SELECT *
       FROM public.grainline_message_create_commission_interest(
-        ${randomUUID()}::text,
-        ${randomUUID()}::text,
-        ${randomUUID()}::text,
+        ${proposedConversationId}::text,
+        ${proposedMessageId}::text,
+        ${proposedInterestId}::text,
         ${sellerUserId}::text,
         ${input.commissionRequestId}::text
       )
@@ -935,9 +989,18 @@ export async function createActorCommissionInterest(
     || !isBoundedAuthorityId(row.commissionInterestId)
     || typeof row.buyerUserId !== "string"
     || !isBoundedAuthorityId(row.buyerUserId)
+    || row.buyerUserId === sellerUserId
     || typeof row.commissionTitle !== "string"
     || typeof row.sellerDisplayName !== "string"
     || typeof row.created !== "boolean"
+    || (
+      row.created
+      && (
+        row.conversationId !== proposedConversationId
+        || row.messageId !== proposedMessageId
+        || row.commissionInterestId !== proposedInterestId
+      )
+    )
   ) {
     throw new TypeError("commission-interest write RPC returned an invalid row");
   }
@@ -953,10 +1016,11 @@ export async function sendActorCustomOrderReady(
   if (!isBoundedAuthorityId(listingId)) {
     throw new TypeError("custom-order-ready write RPC input is invalid");
   }
+  const proposedMessageId = randomUUID();
   const rows = await db.$queryRaw<SentActorCustomOrderReady[]>`
     SELECT *
       FROM public.grainline_message_send_custom_order_ready(
-        ${randomUUID()}::text,
+        ${proposedMessageId}::text,
         ${actorId}::text,
         ${listingId}::text
       )
@@ -980,6 +1044,7 @@ export async function sendActorCustomOrderReady(
     || row.currency.length !== 3
     || !isNullableString(row.sellerName)
     || typeof row.created !== "boolean"
+    || (row.created && row.messageId !== proposedMessageId)
   ) {
     throw new TypeError("custom-order-ready write RPC returned an invalid row");
   }
@@ -996,8 +1061,7 @@ export async function getSellerMessageResponseMetrics(
 }> {
   const actorId = normalizeDbUserContextUserId(sellerUserId);
   if (
-    !(periodStart instanceof Date)
-    || !Number.isFinite(periodStart.getTime())
+    !isFiniteDate(periodStart)
   ) {
     throw new TypeError("seller response metric RPC input is invalid");
   }

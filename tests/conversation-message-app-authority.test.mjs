@@ -28,6 +28,8 @@ describe("Conversation and Message application authority conversion", () => {
     assert.match(helper, /normalizeDbUserContextUserId\(userId\)/);
     assert.match(helper, /conversation recipient RPC returned multiple rows/);
     assert.match(helper, /message recipient RPC returned an invalid row/);
+    assert.match(helper, /function isFiniteDate/);
+    assert.match(helper, /row\.senderId !== actorId && row\.recipientId !== actorId/);
     assert.match(helper, /requireSafeCount\(rows\[0\]\.count, "message unread RPC"\)/);
     assert.match(helper, /\$\{label\} returned an invalid count/);
     assert.match(helper, /if \(!isBoundedAuthorityId\(conversationId\)\) return null/);
@@ -233,6 +235,11 @@ describe("Conversation and Message application authority conversion", () => {
     assert.doesNotMatch(customAccess, /prisma\.(?:conversation|message)\./);
     assert.doesNotMatch(commissionAccess, /prisma\.(?:conversation|message)\./);
     assert.doesNotMatch(readyAccess, /prisma\.(?:conversation|message)\./);
+    assert.match(helper, /row\.messageId !== proposedMessageId/);
+    assert.match(helper, /row\.listingId !== input\.listingId/);
+    assert.match(helper, /row\.buyerUserId === sellerUserId/);
+    assert.match(helper, /row\.created && row\.messageId !== proposedMessageId/);
+    assert.match(helper, /row\.created && row\.conversationId !== proposedConversationId/);
 
     for (const sql of [customFunction, commissionFunction, readyFunction]) {
       assert.match(sql, /transaction_isolation'\) <> 'read committed'/);

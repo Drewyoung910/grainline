@@ -61,6 +61,13 @@ and attachment writes, source-Message email claims and participant-side
 archive state behind the installed fixed functions, preserving upload claims
 inside the read-committed write transaction and reducing the machine inventory
 to zero direct protected-table operations or raw references.
+Pull-request CI run `30189704185` passed the complete PostgreSQL 16
+invariant/legacy/functions-only/recipient-RLS proof, TypeScript, lint, 2,007
+tests, dependency audit and production build at `03af5bae`. The subsequent
+set-level Extra-High review found no new database-authority bypass and added a
+fail-closed wrapper hardening checkpoint: actor relationship, bounded
+identifiers, finite timestamps, and generated-identifier equality for new
+rows. Its fresh CI rerun remains required before merge.
 Policy/table-grant activation and FORCE remain later separate releases.
 
 ## Security objective

@@ -108,7 +108,12 @@ commit. Archive/unarchive mutates only the actor's side through its fixed
 function, and the email throttle derives Conversation and claim time from the
 committed source Message rather than caller-supplied timestamps. Removing the
 last consumers also removed the obsolete app-side Conversation/User/Listing
-lock helpers.
+lock helpers. The set-level Extra-High review then tightened the typed boundary
+itself: actor-scoped exports must return only rows involving the actor; all
+identifiers and timestamps must be bounded/finite; and newly created
+Conversation, Message and CommissionInterest rows must return the exact
+application-generated identifiers. This is drift detection around the proven
+database functions, not additional caller authority.
 
 The test `tests/conversation-message-rls-inventory.test.mjs` pins the count and
 the exact per-file/model/operation summary. A new access path must therefore be
