@@ -47,6 +47,8 @@ export const CONVERSATION_MESSAGE_AUTHORITY_PREPARATION_MIGRATION =
   "20260726022500_prepare_conversation_message_authority";
 export const CONVERSATION_MESSAGE_ACTIVATION_MIGRATION =
   "20260726073000_enable_conversation_message_rls";
+export const CONVERSATION_MESSAGE_FORCE_MIGRATION =
+  "20260726140000_force_conversation_message_rls";
 export const RELEASE_ZERO_MIGRATION_TREE_SHA256 =
   "3e9111525735043266cf6f18b790641ad3103126804836f4a7cccd8e5e29ff29";
 export const PHASE_A_MIGRATION_TREE_SHA256 =
@@ -69,6 +71,8 @@ export const CONVERSATION_MESSAGE_AUTHORITY_PREPARATION_MIGRATION_TREE_SHA256 =
   "3482d16e93f1d33366ccf44ab39b599585f4b9543963a38efdc1171ce98782e4";
 export const CONVERSATION_MESSAGE_ACTIVATION_MIGRATION_TREE_SHA256 =
   "2404192efd95e99c3b14081e945e7dc11e2f0709f35a2431bdfcf2bd3d4dc389";
+export const CONVERSATION_MESSAGE_FORCE_MIGRATION_TREE_SHA256 =
+  "0bc28692fd3eef7a72cd1a7207ce977a71482b700ab111b6e807028cee6e9672";
 export const PRISMA_CONFIG_PATH = "prisma.config.ts";
 export const REVIEWED_PRISMA_CONFIG_SHA256 =
   "946211cec942f725ae24ac239cd648b56f4809cf30cb8fda530346d0f593526e";
@@ -103,6 +107,8 @@ const REVIEWED_CONVERSATION_MESSAGE_AUTHORITY_PREPARATION =
   "conversation-message-authority-preparation-reviewed";
 const REVIEWED_CONVERSATION_MESSAGE_ACTIVATION =
   "conversation-message-activation-reviewed";
+const REVIEWED_CONVERSATION_MESSAGE_FORCE =
+  "conversation-message-force-reviewed";
 const APP_SOURCE_ROOTS = ["src/app", "app", "src/pages", "pages"];
 const TEST_SOURCE_ROOTS = ["tests"];
 const TEST_SOURCE_EXTENSIONS = new Set([
@@ -370,6 +376,8 @@ function assertReviewedMigrationTree(phase, migrationTreeSha256) {
       CONVERSATION_MESSAGE_AUTHORITY_PREPARATION_MIGRATION_TREE_SHA256,
     [REVIEWED_CONVERSATION_MESSAGE_ACTIVATION]:
       CONVERSATION_MESSAGE_ACTIVATION_MIGRATION_TREE_SHA256,
+    [REVIEWED_CONVERSATION_MESSAGE_FORCE]:
+      CONVERSATION_MESSAGE_FORCE_MIGRATION_TREE_SHA256,
   }[phase];
   if (migrationTreeSha256 !== expected) {
     throw new Error(
@@ -604,6 +612,9 @@ export function validateSavedSearchRlsDeployShape({
   );
   const hasConversationMessageActivationMigration = migrations.has(
     CONVERSATION_MESSAGE_ACTIVATION_MIGRATION,
+  );
+  const hasConversationMessageForceMigration = migrations.has(
+    CONVERSATION_MESSAGE_FORCE_MIGRATION,
   );
 
   if (phase === RELEASE_ZERO_PHASE) {
@@ -1062,9 +1073,66 @@ export function validateSavedSearchRlsDeployShape({
     };
   }
 
+  if (phase === REVIEWED_CONVERSATION_MESSAGE_FORCE) {
+    if (
+      !hasRpcMigration
+      || !hasRpcHardeningMigration
+      || !hasRlsMigration
+      || !hasForceRlsMigration
+      || !hasNotificationPreparationMigration
+      || !hasNotificationActivationMigration
+      || !hasNotificationForceMigration
+      || !hasConversationMessageContextMigration
+      || !hasConversationMessageScaleIndexesMigration
+      || !hasConversationMessageInvariantsMigration
+      || !hasConversationMessageBodySearchIndexMigration
+      || !hasConversationMessageLegacyCleanupMigration
+      || !hasConversationMessageAuthorityPreparationMigration
+      || !hasConversationMessageActivationMigration
+      || !hasConversationMessageForceMigration
+    ) {
+      throw new Error(
+        `${REVIEWED_CONVERSATION_MESSAGE_FORCE} requires completed SavedSearch and Notification RLS plus the exact Conversation/Message compatibility, invariants, body-search-index, legacy-cleanup, authority-preparation, initial activation, and FORCE migrations`,
+      );
+    }
+
+    assertNoLaterMigration(
+      migrationNames,
+      CONVERSATION_MESSAGE_FORCE_MIGRATION,
+      phase,
+    );
+    assertReviewedMigrationTree(phase, migrationTreeSha256);
+    assertReviewedPrismaMigrationConfig(prismaConfigSha256);
+    assertProductionArtifactExcludesContextGate({
+      phase,
+      contextGateRouteExists,
+      contextGateRunnerTestExists: runnerTestExists,
+      middlewareSource,
+    });
+
+    return {
+      phase,
+      hasRpcMigration,
+      hasRpcHardeningMigration,
+      hasRlsMigration,
+      hasForceRlsMigration,
+      hasNotificationPreparationMigration,
+      hasNotificationActivationMigration,
+      hasNotificationForceMigration,
+      hasConversationMessageContextMigration,
+      hasConversationMessageScaleIndexesMigration,
+      hasConversationMessageInvariantsMigration,
+      hasConversationMessageBodySearchIndexMigration,
+      hasConversationMessageLegacyCleanupMigration,
+      hasConversationMessageAuthorityPreparationMigration,
+      hasConversationMessageActivationMigration,
+      hasConversationMessageForceMigration,
+    };
+  }
+
   const received = phase === undefined || phase === "" ? "missing" : phase;
   throw new Error(
-    `${SAVED_SEARCH_RLS_DEPLOY_PHASE_ENV} is ${received}; expected ${RELEASE_ZERO_PHASE}, ${REVIEWED_PHASE_A}, ${REVIEWED_PHASE_B}, ${REVIEWED_NOTIFICATION_PREPARATION}, ${REVIEWED_NOTIFICATION_ACTIVATION}, ${REVIEWED_NOTIFICATION_FORCE}, ${REVIEWED_CONVERSATION_MESSAGE_COMPATIBILITY}, ${REVIEWED_CONVERSATION_MESSAGE_INVARIANTS}, ${REVIEWED_CONVERSATION_MESSAGE_LEGACY_CLEANUP}, ${REVIEWED_CONVERSATION_MESSAGE_AUTHORITY_PREPARATION}, or ${REVIEWED_CONVERSATION_MESSAGE_ACTIVATION}`,
+    `${SAVED_SEARCH_RLS_DEPLOY_PHASE_ENV} is ${received}; expected ${RELEASE_ZERO_PHASE}, ${REVIEWED_PHASE_A}, ${REVIEWED_PHASE_B}, ${REVIEWED_NOTIFICATION_PREPARATION}, ${REVIEWED_NOTIFICATION_ACTIVATION}, ${REVIEWED_NOTIFICATION_FORCE}, ${REVIEWED_CONVERSATION_MESSAGE_COMPATIBILITY}, ${REVIEWED_CONVERSATION_MESSAGE_INVARIANTS}, ${REVIEWED_CONVERSATION_MESSAGE_LEGACY_CLEANUP}, ${REVIEWED_CONVERSATION_MESSAGE_AUTHORITY_PREPARATION}, ${REVIEWED_CONVERSATION_MESSAGE_ACTIVATION}, or ${REVIEWED_CONVERSATION_MESSAGE_FORCE}`,
   );
 }
 

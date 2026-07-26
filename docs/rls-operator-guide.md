@@ -1,6 +1,6 @@
 # Operating Grainline RLS Without Codex
 
-Last reviewed: 2026-07-25
+Last reviewed: 2026-07-26
 
 This is the plain-English map for safely operating the RLS rollout without
 relying on an agent's memory. It explains what the machinery does, what a
@@ -24,40 +24,28 @@ shipping/fulfillment; and the remaining user-owned groups. Passing one group
 does not authorize another.
 
 At this review date SavedSearch and Notification have production `ENABLE` plus
-`FORCE ROW LEVEL SECURITY`, and the Conversation/Message compatibility schema
-and invariant/search-index migrations are live. Their actual pooled-runtime
-postflight passed. Conversation/Message RLS is still disabled with zero
-policies; the exactly classified one-row legacy custom-link cleanup and its
-zero-count aggregate postflight are complete in production. Functions-only
-authority promotion is live at exact main `70770bed` via protected migration
-run `30186315784`. Its disposable candidate is byte-pinned as
-`20260726022500_prepare_conversation_message_authority` with SHA-256
-`9b56eb4c0e25e5de5266998f29a19fb0c7173c49f2b83266f3223542c7feeb07`;
-fresh candidate run `30184742417` passed the loopback functions-only
-compatibility/catalog proof. The proposed promoted artifact is
-`eba8daf4228efd0d13c35a8a99b68167fa879b11791f3059efbaa7599c793b98`
-and passed its own release CI in run `30185303311` at `825b218c`, evidence-only
-run `30185481070` at `0a98ed1c`, and post-merge main run `30185597811` at
-`70770bed`. The owner-side final audit and actual pooled-runtime read-only
-postflight passed: 25 exact functions, 19 runtime-callable, six private cores
-denied, legacy Conversation/Message CRUD retained, and RLS/FORCE off with zero
-policies. Sanitized mode-0600 evidence SHA-256 is
-`fa11589253cafbd87f16a9442dc2fd57afc136263cc1ac89b93219ebbede295d`.
-The functions-only application conversion is live at exact main `650d1dd8` on
-Production deployment `dpl_C1rXvRMMJetR25Na4X5yHSa91HpM`. Its authenticated
-RLS-off compatibility postflight passed at operator `11adbeda` after fresh CI
-`30192400811`; sanitized mode-`0600` evidence SHA-256 is
-`f3ad7589ca0e8069c3093199235aa1a3cb45a2a684caf0a077ba1974d3f2bde7`.
-It left zero fixture/session/token/cache/rate-limit residue and zero direct
-email/notification side effects. This does not authorize RLS/table-grant
-activation or FORCE. Reverify live state before repeating these claims.
-Initial Conversation/Message activation is live and accepted. Exact main
+`FORCE ROW LEVEL SECURITY`. Conversation/Message compatibility, invariants,
+legacy cleanup, fixed-function authority, application conversion and initial
+RLS activation are also live and accepted. Exact main
 `448d5233`, protected migration run `30194195844`, and authenticated pooled-
 runtime operator `f474e761` prove ENABLE plus NO FORCE, exactly two SELECT
 policies, direct runtime SELECT only, direct DML denial, route isolation and
 exact cleanup. Sanitized mode-`0600` evidence SHA-256 is
 `1f38671673e8040b222fcb620f8875c94cd47684969d423e6f260fc7a520e141`.
-FORCE is not yet live and requires its own release.
+FORCE is not yet live. Its isolated candidate is
+`20260726140000_force_conversation_message_rls`, SHA-256
+`c7f6bbb65c1b0b05c43c2ad450235523587de16f4c8b5ca3289bbff28df33a35`,
+under phase `conversation-message-force-reviewed`. Fresh PostgreSQL CI,
+Extra-High acceptance, exact-main protected migration and pooled-runtime
+postflight are still required. Reverify live state before repeating these
+claims.
+
+Role provisioning must fail through a SQL exception under `ON_ERROR_STOP`.
+Do not use `\quit 1`: the current GitHub psql client warns that the argument is
+ignored and can return success after a failed guard. The Conversation/Message
+convergence predicate accepts only a consistent pair of activated NO-FORCE
+tables or a consistent pair of activated FORCE tables; mixed FORCE state is a
+hard failure.
 
 ## Tool map
 
@@ -77,6 +65,8 @@ FORCE is not yet live and requires its own release.
 | `scripts/stage-conversation-message-activation-migration.mjs` | Byte-pins the accepted two-policy source and builds the exact disposable initial-activation candidate with predecessor and postflight catalog guards. | Production is authorized or changed. |
 | `scripts/verify-conversation-message-activation-release.mjs` | Pins the promoted activation bytes and proves the executable body equals the generated disposable candidate. | PostgreSQL behavior, runtime authentication, or production activation is proven. |
 | `scripts/conversation-message-activation-rollback-proof.mjs` | Loopback-only proof that initial activation can be disabled, old CRUD restored, fixed functions retained, and the exact initial activation restored with zero fixture residue. | A production rollback was performed or FORCE is safe. |
+| `scripts/verify-conversation-message-force-release.mjs` | Pins the accepted activation baseline and exact FORCE-only migration bytes and rejects policy, grant or row-DML drift. | The migration has run in PostgreSQL, merged, or changed production. |
+| `scripts/conversation-message-force-rollback-proof.mjs` | Loopback-only proof that committed `NO FORCE` preserves RLS, policies, SELECT-only grants and context-empty denial, then restores exact FORCE. | A production rollback occurred or the live pooled runtime was tested. |
 
 ## Deploy-phase lifecycle
 
@@ -100,6 +90,7 @@ Current values:
 | `conversation-message-legacy-cleanup-reviewed` | At most one fully source-bound legacy custom-order-link context repair, with RLS still off |
 | `conversation-message-authority-preparation-reviewed` | Promoted fixed authority functions and exact ACLs while old runtime table CRUD and RLS-off compatibility remain |
 | `conversation-message-activation-reviewed` | Initial paired Conversation/Message ENABLE plus explicit NO FORCE, exact SELECT policies, and runtime SELECT-only table grants |
+| `conversation-message-force-reviewed` | FORCE-only hardening for the already activated Conversation and Message tables; policies, grants, functions and rows must remain unchanged |
 
 The phase is not a feature flag. It is exact-artifact human authorization and
 must fail when migration bytes or order change.

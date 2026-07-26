@@ -36,6 +36,35 @@ remains. Sanitized mode-`0600` evidence SHA-256 is
 `1f38671673e8040b222fcb620f8875c94cd47684969d423e6f260fc7a520e141`.
 FORCE is intentionally still pending as a separate release.
 
+The separate FORCE-only candidate is now durably specified on
+`agent/conversation-message-force-20260726` as migration
+`20260726140000_force_conversation_message_rls`, SHA-256
+`c7f6bbb65c1b0b05c43c2ad450235523587de16f4c8b5ca3289bbff28df33a35`.
+It changes no policy, grant, function or row and fails closed unless the exact
+accepted activation catalog, owner/runtime role posture and owner-session drain
+are present. Its exact reviewed migration-tree SHA-256 is
+`0bc28692fd3eef7a72cd1a7207ce977a71482b700ab111b6e807028cee6e9672`.
+The local static release and rollback contracts pass; fresh disposable
+PostgreSQL 16 proof, Extra-High set-level review, merge, protected production
+migration and actual pooled-runtime postflight remain required. FORCE is still
+off in production at this checkpoint.
+
+Dedicated PostgreSQL run `30206869755` is retained failed evidence. The exact
+policy-deparse preflight rejected both otherwise matching policies because its
+expected expression omitted PostgreSQL's outermost parenthesis pair. A
+read-only pooled-production catalog comparison exposed the precise shape; the
+candidate now pins that full shape and does not weaken expression validation.
+The failure occurred before FORCE and changed no production state.
+
+Corrected-head runs `30207052942` and `30207054327` applied the full migration
+tree, then the grant audit exposed that role provisioning did not yet recognize
+the paired FORCE state. Its refusal used unsupported `\quit 1`; psql warned,
+ignored the argument and returned success before `_prisma_migrations` and
+sequence-default convergence. The correction requires a consistent paired
+FORCE state and replaces all twelve soft exits, including missing-variable
+guards, with SQL exceptions governed by `ON_ERROR_STOP`. The later grant audit
+was the layer that failed closed; neither run touched production.
+
 ## Why this gate exists
 
 RLS must enforce the intended product contract, not freeze accidental current
@@ -281,7 +310,9 @@ is necessary but not sufficient.
 4. Extra High accepted the invariant-preparation SQL, fixed authority
    functions, initial policy SQL and grant narrowing in their separate
    releases. Initial activation is live and accepted; FORCE remains its own
-   later Extra-High review and release boundary.
+   later Extra-High review and release boundary. The FORCE-only artifact is
+   packaged but remains unapplied pending fresh PostgreSQL proof and the
+   production gates above.
 
 This audit pattern is required for each later sensitive group, with scope
 adapted to that group's actors and provider/background workflows.

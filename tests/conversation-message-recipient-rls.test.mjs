@@ -191,7 +191,7 @@ describe("Conversation and Message recipient RLS draft", () => {
     );
     assert.match(
       ci,
-      /Prove activated Conversation and Message authority in ephemeral PostgreSQL/,
+      /Prove FORCE-hardened Conversation and Message authority in ephemeral PostgreSQL/,
     );
     assert.match(ci, /CONVERSATION_MESSAGE_RECIPIENT_RLS_PROOF_DATABASE_URL/);
     assert.match(proof, /refuses a non-loopback database/);
@@ -200,6 +200,19 @@ describe("Conversation and Message recipient RLS draft", () => {
     assert.match(proof, /proofMode: "ephemeral_owner_session_set_role"/);
     assert.match(proof, /productionChanged: false/);
     assert.match(proof, /persistentStagingChanged: false/);
+    assert.match(proof, /predecessor FORCE state must not be mixed/);
+    assert.match(
+      proof,
+      /recipient_and_fixed_write_functions_with_select_only_policies_reapplied_and_force_restored/,
+    );
+    assert.equal(
+      (
+        proof.match(
+          /relforcerowsecurity: true/g,
+        ) ?? []
+      ).length,
+      2,
+    );
     assert.match(proof, /directWithoutContext/);
     assert.match(proof, /contextCleared/);
     assert.match(proof, /resolvedStaff/);

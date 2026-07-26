@@ -361,10 +361,44 @@ async function seedFixtures(owner) {
 }
 
 async function applyDraft(owner) {
+  const predecessor = await owner.query(
+    `SELECT
+       relation.relname,
+       relation.relforcerowsecurity
+      FROM pg_catalog.pg_class AS relation
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = relation.relnamespace
+     WHERE namespace.nspname = 'public'
+       AND relation.relname IN ('Conversation', 'Message')
+       AND relation.relkind = 'r'
+     ORDER BY relation.relname`,
+  );
+  assert.equal(predecessor.rows.length, 2);
+  const forcedBeforeDraft = predecessor.rows.every(
+    (row) => row.relforcerowsecurity === true,
+  );
+  assert.ok(
+    forcedBeforeDraft
+      || predecessor.rows.every((row) => row.relforcerowsecurity === false),
+    "Conversation and Message predecessor FORCE state must not be mixed",
+  );
+
   await owner.query(recipientSql);
   await owner.query(serviceSql);
   await owner.query(policySql);
-  record("recipient_and_fixed_write_functions_with_select_only_policies_applied");
+  if (forcedBeforeDraft) {
+    await owner.query(
+      'ALTER TABLE public."Conversation" FORCE ROW LEVEL SECURITY',
+    );
+    await owner.query(
+      'ALTER TABLE public."Message" FORCE ROW LEVEL SECURITY',
+    );
+  }
+  record(
+    forcedBeforeDraft
+      ? "recipient_and_fixed_write_functions_with_select_only_policies_reapplied_and_force_restored"
+      : "recipient_and_fixed_write_functions_with_select_only_policies_applied",
+  );
 }
 
 async function proveCompatibilityReadScopeBeforeRls(owner) {
@@ -518,7 +552,7 @@ async function proveCatalog(owner) {
     {
       relname: "Conversation",
       relrowsecurity: true,
-      relforcerowsecurity: false,
+      relforcerowsecurity: true,
       policy_count: 1,
       can_select: true,
       can_insert: false,
@@ -528,7 +562,7 @@ async function proveCatalog(owner) {
     {
       relname: "Message",
       relrowsecurity: true,
-      relforcerowsecurity: false,
+      relforcerowsecurity: true,
       policy_count: 1,
       can_select: true,
       can_insert: false,

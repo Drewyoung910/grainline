@@ -775,7 +775,10 @@ describe("database grant inventory guardrails", () => {
       inventory.rlsPolicyTables,
       ["Conversation", "Message", "Notification", "SavedSearch"],
     );
-    assert.deepEqual(inventory.rlsForceTables, ["Notification", "SavedSearch"]);
+    assert.deepEqual(
+      inventory.rlsForceTables,
+      ["Conversation", "Message", "Notification", "SavedSearch"],
+    );
   });
 
   it("keeps the manual grant audit focused on least-privilege role evidence", () => {
@@ -1522,6 +1525,15 @@ describe("database grant inventory guardrails", () => {
       (provision.match(/^\\if :grainline_role_provisioning_failed$/gm) ?? []).length,
       guardResultCount,
     );
+    assert.doesNotMatch(provision, /^\\quit(?:\s|$)/m);
+    assert.equal(
+      (
+        provision.match(
+          /RAISE EXCEPTION 'runtime-role provisioning refused'/g,
+        ) ?? []
+      ).length,
+      guardResultCount + 2,
+    );
     assert.doesNotMatch(provision, /^\\if :\{\?grainline_role_provisioning_failure\}$/m);
     assert.match(provision, /GRANT USAGE ON SCHEMA public TO :"runtime_role"/);
     assert.match(provision, /REVOKE CREATE ON SCHEMA public FROM :"runtime_role"/);
@@ -1545,6 +1557,10 @@ describe("database grant inventory guardrails", () => {
     assert.match(provision, /public\."grainline_notification_preferences_valid"\(jsonb\)/);
     assert.match(provision, /public\."grainline_saved_search_list"\(text, integer, text\)/);
     assert.match(provision, /public\."grainline_saved_search_delete_one"\(text, text\)/);
+    assert.match(
+      provision,
+      /COUNT\(DISTINCT relforcerowsecurity\) = 1[\s\S]*relrowsecurity[\s\S]*policy_count = 1[\s\S]*expected_policy_count = 1/,
+    );
     for (const functionName of RUNTIME_PRIVATE_FUNCTIONS.filter(
       (name) => name !== "grainline_notification_create_core",
     )) {

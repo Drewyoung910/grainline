@@ -1,7 +1,7 @@
 # Conversation and Message RLS Plan
 
 Status: initial Conversation/Message RLS activation is live and accepted in
-production; FORCE remains a later separate release. Both tables have RLS
+production; FORCE is packaged as a separate candidate and is not live. Both tables have RLS
 enabled without FORCE, exactly one reviewed SELECT policy each, direct runtime
 SELECT only, and all writes behind the fixed authority functions. Notification
 Bucket B is complete in production. The earlier preparation SQL passed
@@ -88,6 +88,43 @@ Notification and left no fixture, session, recovery, cache or rate-limit
 residue. Sanitized mode-`0600` evidence SHA-256 is
 `1f38671673e8040b222fcb620f8875c94cd47684969d423e6f260fc7a520e141`.
 FORCE remains a later separate release.
+
+The FORCE-only candidate is isolated on
+`agent/conversation-message-force-20260726`. It adds only
+`20260726140000_force_conversation_message_rls` at SHA-256
+`c7f6bbb65c1b0b05c43c2ad450235523587de16f4c8b5ca3289bbff28df33a35`
+after the accepted activation baseline, and the exact reviewed migration-tree
+SHA-256 is
+`0bc28692fd3eef7a72cd1a7207ce977a71482b700ab111b6e807028cee6e9672`.
+The migration changes only the two `relforcerowsecurity` flags. It requires the
+exact owner/runtime posture, zero other owner sessions, owner-held
+`ENABLE`/`NO FORCE`, one exact SELECT policy per table, SELECT-only runtime
+grants and no PUBLIC or column ACLs before taking bounded table locks. It
+rechecks the two forced tables, two policies and unchanged grants afterward.
+The package also includes a loopback-only committed `NO FORCE` rollback and
+exact FORCE restoration proof plus a dedicated PostgreSQL 16 workflow. This
+candidate does not change production and remains blocked on fresh CI,
+Extra-High SQL/authority acceptance, an exact-main protected migration and a
+pooled-runtime postflight.
+
+The first dedicated PostgreSQL run `30206869755` is retained failed evidence.
+It stopped inside the FORCE preflight before either `ALTER TABLE` because the
+exact policy deparse expectation omitted PostgreSQL's outermost parenthesis
+pair; Prisma surfaced only the resulting aborted transaction. A read-only live
+catalog comparison confirmed the same exact deparse shape on both tables. The
+correction pins the full server-deparsed expression instead of relaxing the
+comparison. Production was unchanged.
+
+Corrected-head dedicated run `30207052942` and full run `30207054327` then
+applied all 159 migrations successfully and exposed a separate provisioning
+guard defect. The existing convergence predicate treated paired FORCE as
+partial state, while psql ignored every unsupported `\quit 1` argument and
+returned success before ACL/default-privilege convergence. The downstream
+grant audit caught `_prisma_migrations` CRUD and missing sequence defaults.
+The class-wide correction accepts only consistent paired NO-FORCE or paired
+FORCE activation and replaces all twelve soft quits with real SQL exceptions
+under `ON_ERROR_STOP`. Both runs remain failed evidence; production was
+unchanged.
 
 ## Security objective
 
