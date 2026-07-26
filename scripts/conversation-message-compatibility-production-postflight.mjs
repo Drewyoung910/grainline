@@ -40,6 +40,9 @@ const LOCAL_ENV_PATH = "/Users/drewyoung/grainline/.env.local";
 const OWNER_ENV_PATH = "/Users/drewyoung/grainline/.env.migration-owner.local";
 const PRIVATE_STATE_DIRECTORY = "/Users/drewyoung/grainline/.codex/private-state";
 const EVIDENCE_DIRECTORY = "/Users/drewyoung/grainline-rollout-evidence";
+const VERCEL_AUTH_PATH =
+  "/Users/drewyoung/Library/Application Support/com.vercel.cli/auth.json";
+const VERCEL_PROJECT_PATH = path.join(process.cwd(), ".vercel/project.json");
 const RECOVERY_PATH = path.join(
   PRIVATE_STATE_DIRECTORY,
   `conversation-message-compatibility-postflight-${RELEASE_COMMIT.slice(0, 12)}.json`,
@@ -118,18 +121,46 @@ function exactCleanOperatorHead() {
   return head.stdout.trim();
 }
 
-function verifyProductionDeployment() {
-  const inspected = spawnSync(
-    "npx",
-    ["vercel", "inspect", DEPLOYMENT_URL],
-    { encoding: "utf8", timeout: 30_000 },
-  );
-  const output = `${inspected.stdout ?? ""}\n${inspected.stderr ?? ""}`;
+async function verifyProductionDeployment() {
+  assertPrivateRegularFile(VERCEL_AUTH_PATH, "Vercel CLI authentication");
+  const projectStat = lstatSync(VERCEL_PROJECT_PATH);
+  if (!projectStat.isFile() || projectStat.isSymbolicLink()) {
+    throw new Error("Vercel project binding must be a regular file");
+  }
+  const auth = JSON.parse(readFileSync(VERCEL_AUTH_PATH, "utf8"));
+  const project = JSON.parse(readFileSync(VERCEL_PROJECT_PATH, "utf8"));
   if (
-    inspected.status !== 0
-    || !output.includes(DEPLOYMENT_ID)
-    || !output.includes("Ready")
-    || !output.includes(DEPLOYMENT_URL)
+    typeof auth?.token !== "string"
+    || auth.token.length < 16
+    || !/^team_[A-Za-z0-9]+$/.test(String(project?.orgId ?? ""))
+    || !/^prj_[A-Za-z0-9]+$/.test(String(project?.projectId ?? ""))
+  ) {
+    throw new Error("Vercel CLI authentication or project binding drifted");
+  }
+  const headers = { authorization: `Bearer ${auth.token}` };
+  const teamQuery = new URLSearchParams({ teamId: project.orgId });
+  const deploymentResponse = await fetch(
+    `https://api.vercel.com/v13/deployments/${DEPLOYMENT_ID}?${teamQuery}`,
+    { headers, signal: AbortSignal.timeout(15_000) },
+  );
+  const deployment = await boundedJson(deploymentResponse);
+  const aliasResponse = await fetch(
+    `https://api.vercel.com/v4/aliases/${DEPLOYMENT_HOST}?${teamQuery}`,
+    { headers, signal: AbortSignal.timeout(15_000) },
+  );
+  const alias = await boundedJson(aliasResponse);
+  if (
+    deploymentResponse.status !== 200
+    || deployment.id !== DEPLOYMENT_ID
+    || deployment.projectId !== project.projectId
+    || deployment.readyState !== "READY"
+    || deployment.target !== "production"
+    || !Array.isArray(deployment.alias)
+    || !deployment.alias.includes(DEPLOYMENT_HOST)
+    || aliasResponse.status !== 200
+    || alias.alias !== DEPLOYMENT_HOST
+    || alias.deploymentId !== DEPLOYMENT_ID
+    || alias.projectId !== project.projectId
   ) {
     throw new Error("production deployment identity, readiness, or alias drifted");
   }
@@ -942,7 +973,7 @@ async function main() {
   if (existsSync(evidencePath)) {
     throw new Error("compatibility-postflight evidence already exists for this operator commit");
   }
-  verifyProductionDeployment();
+  await verifyProductionDeployment();
   const environment = loadEnvironment();
   const owner = new Client({ connectionString: environment.ownerDatabaseUrl });
   const runtime = new Client({ connectionString: environment.runtimeDatabaseUrl });

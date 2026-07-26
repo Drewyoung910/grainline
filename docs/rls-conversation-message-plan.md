@@ -290,9 +290,17 @@ The direct runtime table query with no context must return zero rows.
    label was insufficient to identify the assertion, and bounded historical
    Vercel log retrieval did not return a usable aggregate. The next operator
    revision therefore records one sanitized stage per route assertion before
-   any further live attempt. RLS, grants and production rows remain unchanged;
-   a fresh exact-head CI and authenticated live pass are still required before
-   activation.**
+   any further live attempt. Fresh CI run `30191537681` passed at diagnostic
+   head `ee716ae1`. Two subsequent preflight-only launches then stopped before
+   recovery state, fixture creation or Clerk session creation because Vercel
+   CLI 57's `inspect` process timed out when its output was captured by the
+   operator, even though direct inspection and the read-only Vercel API both
+   confirmed the exact deployment was READY, Production, project-bound and
+   held the production alias. The operator must use the bounded authenticated
+   Vercel deployment and alias APIs instead of a captured CLI subprocess, and
+   that revision requires its own fresh CI before the next live route attempt.
+   RLS, grants and production rows remain unchanged; a fresh exact-head CI and
+   authenticated live pass are still required before activation.**
 6. Disposable PostgreSQL proof: policies/grants, every read/write family,
    direct denial, staff report resolution, account/block/archive races,
    deletion/export/metrics, rollback and legacy handling. **Complete for the

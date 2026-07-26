@@ -17,8 +17,21 @@ test("compatibility postflight is pinned to the reviewed release and deployment"
     script,
     /const DEPLOYMENT_ID = "dpl_C1rXvRMMJetR25Na4X5yHSa91HpM"/,
   );
-  assert.match(script, /verifyProductionDeployment\(\)/);
+  assert.match(script, /await verifyProductionDeployment\(\)/);
   assert.match(script, /merge-base", "--is-ancestor", RELEASE_COMMIT, "HEAD"/);
+});
+
+test("compatibility postflight verifies deployment identity through bounded Vercel APIs", () => {
+  const start = script.indexOf("async function verifyProductionDeployment");
+  const end = script.indexOf("\nfunction loadEnvironment", start);
+  const verifier = script.slice(start, end);
+  assert.match(verifier, /api\.vercel\.com\/v13\/deployments\/\$\{DEPLOYMENT_ID\}/);
+  assert.match(verifier, /api\.vercel\.com\/v4\/aliases\/\$\{DEPLOYMENT_HOST\}/);
+  assert.match(verifier, /AbortSignal\.timeout\(15_000\)/);
+  assert.match(verifier, /deployment\.readyState !== "READY"/);
+  assert.match(verifier, /deployment\.target !== "production"/);
+  assert.match(verifier, /alias\.deploymentId !== DEPLOYMENT_ID/);
+  assert.doesNotMatch(verifier, /spawnSync|vercel", "inspect/);
 });
 
 test("compatibility postflight proves the explicit RLS-off boundary", () => {
