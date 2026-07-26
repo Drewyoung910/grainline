@@ -122,7 +122,9 @@ The ordinary Message private-object pass has its own execution contract in
 attachment for the first release, store new object identity in a private
 one-to-one child that references rather than duplicates the `DirectUpload`
 key, keep new sends image-only, and classify legacy public URLs before
-separately approved copy/rewrite/deletion. Fixed database operations constrain
+separately approved copy/rewrite/deletion. Legacy UploadThing/UTFS URLs are a
+separate allowlisted provider class, not R2 keys; copy and retirement need
+their own bounded fetch/delete evidence. Fixed database operations constrain
 behavior but do not authenticate their asserted participant ids; Clerk,
 server-side actor resolution and exact call-site guards remain load-bearing.
 `DirectUpload` remains a separate shared lifecycle RLS group (CM-A21); do not

@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
+    "guard:local-disk-space": "node scripts/guard-local-disk-headroom.mjs",
     "guard:runtime-db-env": "node scripts/guard-runtime-db-env.mjs",
     "ops:separate-db-credential": "node scripts/runtime-db-credential-separation-operator.mjs",
     "ops:notification-legacy-inspect": "node scripts/notification-legacy-inspect.mjs",

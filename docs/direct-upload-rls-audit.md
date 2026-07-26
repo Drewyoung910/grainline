@@ -254,6 +254,7 @@ The separately approved, repeatable-read owner inspection must count:
 - claims whose source exists but has the wrong owner, endpoint or URL/key;
 - lifecycle rows referenced by zero, one or multiple durable sources;
 - durable first-party URLs by source family with no lifecycle row;
+- allowlisted legacy UploadThing/UTFS durable URLs by source family and origin;
 - private Case child/lifecycle mismatches;
 - expired cleanup-eligible rows and stale `DELETING` leases;
 - `listingVideo`, `messageFile` and `messageAny` legacy populations; and

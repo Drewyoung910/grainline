@@ -68,13 +68,19 @@ describe("ordinary Message private-object remediation plan", () => {
 
   it("keeps PDFs fail-closed and legacy mutation separately approved", () => {
     const plan = source("docs/message-private-object-remediation-plan.md");
+    const validation = source("src/lib/urlValidation.ts");
 
     assert.match(plan, /JPEG, PNG or WebP only/);
     assert.match(plan, /PDFs are disabled for new sends until malware scanning/);
+    assert.match(validation, /const LEGACY_MEDIA_ORIGINS = \["https:\/\/utfs\.io"/);
+    assert.match(plan, /allowlists legacy UploadThing\/UTFS origins/);
+    assert.match(plan, /UTFS is a legacy\s+read\/migration class rather than a permitted new-write source/);
     assert.match(plan, /aggregate counts only/);
     assert.match(plan, /must not export[\s\S]*message bodies, object URLs, object keys/);
     assert.match(plan, /Legacy copy\/rewrite:[\s\S]*separately approved/);
     assert.match(plan, /never delete the public source in\s+the same release/);
+    assert.match(plan, /bounded allowlisted fetch with redirect,[\s\S]*file-signature enforcement/);
+    assert.match(plan, /R2 and\s+UploadThing\/UTFS retirement are separate provider operations/);
   });
 
   it("keeps DirectUpload and Case activation as explicit separate boundaries", () => {

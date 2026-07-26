@@ -68,15 +68,24 @@ At least two historical shapes are renderable:
    `{kind:"file",url,name,type}`.
 2. Older raw image/PDF URL bodies whose kind may be null.
 
+The renderer's `isR2PublicUrl()` compatibility name is broader than R2: it
+also allowlists legacy UploadThing/UTFS origins (`utfs.io`, `ufs.sh` and the
+historical Grainline subdomain). New attachment persistence is already limited
+to the current user-scoped R2 `messageAny` endpoint, so UTFS is a legacy
+read/migration class rather than a permitted new-write source.
+
 Do not infer or rewrite a row merely because private body text resembles a URL.
 The owner-only inspector must return aggregate counts only and must not export
 message bodies, object URLs, object keys, participant ids or Message ids.
 Required classes:
 
-- structured file rows with a valid first-party public URL;
+- structured file rows with a valid Grainline R2 public URL;
+- structured file rows with an allowlisted legacy UploadThing/UTFS URL, grouped
+  by provider origin without exposing the URL;
 - structured file rows with an invalid, external or unparseable URL;
-- raw first-party image URLs;
-- raw first-party PDF URLs;
+- raw Grainline R2 image URLs;
+- raw Grainline R2 PDF URLs;
+- raw allowlisted legacy UploadThing/UTFS image/PDF URLs by provider origin;
 - raw external URL-like bodies;
 - `kind='file'` rows missing a usable structured body;
 - matches to `DirectUpload.publicUrl`, grouped by endpoint, lifecycle status
@@ -217,10 +226,16 @@ scope and rotation remain required.
 7. **Legacy copy/rewrite:** separately approved only after exact counts,
    backup and rollback proof. Copy validated first-party bytes to private
    objects before inserting attachment rows; never delete the public source in
-   the same release.
+   the same release. R2 sources use exact allowlisted keys. Legacy
+   UploadThing/UTFS sources require a bounded allowlisted fetch with redirect,
+   size, timeout, content-type and file-signature enforcement before image
+   re-encoding; they are never treated as R2 keys. Legacy PDFs remain
+   read-only until the malware-scan/quarantine decision is implemented.
 8. **Public-object retirement:** after authenticated production proof and a
    defined rollback window, separately delete only the exact migrated public
-   objects and prove zero dangling private rows/keys.
+   objects and prove zero dangling private rows/keys. R2 and
+   UploadThing/UTFS retirement are separate provider operations with separate
+   evidence; failure to delete one provider must not falsify the other.
 9. **DirectUpload rollout:** this separate release is a hard production
    promotion gate, not part of the Message migration. Complete its reviewed
    shared-lifecycle authority before either private-object application release.
@@ -256,6 +271,8 @@ Provider/authenticated proof must verify:
 - 60-second signed-read/header contract;
 - account export contains metadata but no key/URL;
 - deletion removes ordinary private bytes but preserves the redacted Message;
+- R2 and legacy UploadThing/UTFS copy/retirement use their exact provider path
+  without accepting redirects or origins outside the reviewed allowlist;
 - exact cleanup of users, sessions, cache keys, database rows and objects.
 
 The current 200-message/50-conversation keyset bounds remain adequate for

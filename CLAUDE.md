@@ -30,6 +30,12 @@ These rules exist to survive context compaction and multi-agent handoffs. Read t
   one cohesive deferred section before broadening to a new audit area unless CI
   is red, Drew redirects, or external evidence is blocking.
 - If another worktree such as `.claude/worktrees/sleepy-hypatia-*` appears, compare it to main only when needed; do not assume it is current.
+- Before a local dependency install, disposable PostgreSQL proof, full test/build
+  pass, or Next production build, run `npm run guard:local-disk-space`. It
+  requires at least 10 GiB free and does not delete anything. If it fails,
+  inspect exact targets and remove only reproducible caches/build output; never
+  prune a worktree, evidence directory, untracked file, or dependency tree
+  still used by another worktree merely to satisfy the guard.
 
 ### Agent use
 
