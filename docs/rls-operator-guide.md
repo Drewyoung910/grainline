@@ -35,8 +35,9 @@ authority promotion is next. Its disposable candidate is byte-pinned as
 fresh candidate run `30184742417` passed the loopback functions-only
 compatibility/catalog proof. The proposed promoted artifact is
 `eba8daf4228efd0d13c35a8a99b68167fa879b11791f3059efbaa7599c793b98`
-and must pass its own release CI before merge. Neither proof authorizes RLS or
-table-grant activation. Reverify live state before repeating these claims.
+and passed its own release CI in run `30185303311` at `825b218c`. Neither
+proof authorizes RLS or table-grant activation. Reverify live state before
+repeating these claims.
 
 ## Tool map
 

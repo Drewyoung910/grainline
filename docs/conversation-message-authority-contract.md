@@ -9,8 +9,8 @@ byte-pinned sources as
 passed fresh candidate-aligned run `30184742417` at `3c488bac`. Its executable
 body is proposed for promotion at release SHA-256
 `eba8daf4228efd0d13c35a8a99b68167fa879b11791f3059efbaa7599c793b98`.
-The promoted release still requires its own fresh full CI pass and is not
-applied to any persistent database.
+The promoted release passed fresh full run `30185303311` at exact head
+`825b218c`. It is not applied to any persistent database.
 The first exact generated-candidate run, `30184548860` at `037f654c`, proved
 the migration, functions-only compatibility, exact catalog/grants and complete
 recipient/RLS race suite in PostgreSQL 16. It remains failed evidence overall:
@@ -24,10 +24,11 @@ ACL/catalog state, RLS disabled with zero policies, complete recipient/RLS
 proof, all static gates, dependency audit and production build. That accepted
 the disposable evidence but did not change production. The live production
 boundary remains RLS disabled with zero Conversation/Message policies.
-The same head's Vercel Preview `dpl_3UrTXTQrLn4e1n71f8adsP7aJRyC`
-failed at the intentional pre-build runtime credential guard with exact code
-`DATABASE_URL_SHAPE`; it is not a failed application compilation, and the
-GitHub production build on that head passed.
+The candidate head's Vercel Preview `dpl_3UrTXTQrLn4e1n71f8adsP7aJRyC` and
+the promoted head's Preview `dpl_3QJv5cgP5qj3hjUTV1MvSrBWMnN6` both failed
+at the intentional pre-build runtime credential guard with exact code
+`DATABASE_URL_SHAPE`; neither is a failed application compilation, and the
+GitHub production build passed on both heads.
 
 ## Invariants shared by every public database operation
 

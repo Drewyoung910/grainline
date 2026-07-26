@@ -28,8 +28,8 @@ now exact-hash and fail-closed. Fresh run `30184742417` at `3c488bac` passed
 the complete candidate-aligned PostgreSQL, static, dependency-audit and build
 gates. The executable body is proposed for promotion at SHA-256
 `eba8daf4228efd0d13c35a8a99b68167fa879b11791f3059efbaa7599c793b98`;
-that release still requires a separate fresh green run and remains unapplied
-to every persistent database.
+that exact promoted release passed separate fresh run `30185303311` at
+`825b218c` and remains unapplied to every persistent database.
 
 ## Security objective
 
