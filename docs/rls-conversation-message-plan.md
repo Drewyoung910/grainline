@@ -62,7 +62,16 @@ owner/foreign API and page behavior, mutation/origin boundaries, database
 postconditions and exact cleanup with zero direct email/notification side
 effects. Sanitized mode-`0600` evidence SHA-256 is
 `f3ad7589ca0e8069c3093199235aa1a3cb45a2a684caf0a077ba1974d3f2bde7`.
-Policy/table-grant activation and FORCE remain later separate releases.
+The initial `ENABLE` plus explicit `NO FORCE` activation is now packaged but
+not merged, applied or live. Candidate migration
+`20260726073000_enable_conversation_message_rls` is byte-pinned to the accepted
+policy source and installs exactly one SELECT policy on each table, revokes
+direct runtime writes, and retains direct SELECT. It has a separate
+candidate-to-release equivalence verifier, exact migration-tree phase,
+provisioning convergence, exact live grant/policy audit, and a loopback
+rollback proof that restores old-application CRUD without dropping policies or
+functions. Fresh PostgreSQL 16 CI and the final Extra-High activation review
+remain required before merge. FORCE remains a later separate release.
 
 ## Security objective
 
@@ -346,6 +355,16 @@ The direct runtime table query with no context must return zero rows.
    other authority-invalid counts as zero.**
 8. Initial `ENABLE`/explicit `NO FORCE` activation with exact two-table policy
    and grant guard, followed by runtime and authenticated route postflight.
+   Packaged, not live: migration
+   `20260726073000_enable_conversation_message_rls` has exactly two
+   participant-or-reported-staff SELECT policies, direct runtime SELECT only,
+   no write policies, an exact 25-function predecessor/ACL preflight,
+   transaction/advisory/table locks, exact postflight catalog checks, a new
+   `conversation-message-activation-reviewed` tree phase, provisioning
+   convergence, release byte-equivalence verification, and a reversible
+   loopback rollback proof. Fresh CI, Extra-High set review, protected
+   production migration and authenticated post-activation evidence remain
+   gates.
 9. Separate `FORCE ROW LEVEL SECURITY` hardening and fresh postflight.
 
 Background jobs and old/new Vercel coexistence still exist pre-launch, so the

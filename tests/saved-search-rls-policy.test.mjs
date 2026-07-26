@@ -16,6 +16,8 @@ const FORCE_RLS_MIGRATION_PATH =
   "prisma/migrations/20260720060000_force_saved_search_rls/migration.sql";
 const NOTIFICATION_RLS_MIGRATION_PATH =
   "prisma/migrations/20260722052000_enable_notification_rls/migration.sql";
+const CONVERSATION_MESSAGE_RLS_MIGRATION_PATH =
+  "prisma/migrations/20260726073000_enable_conversation_message_rls/migration.sql";
 const phaseAIt = existsSync(RLS_MIGRATION_PATH) ? it : it.skip;
 const phaseBIt = existsSync(FORCE_RLS_MIGRATION_PATH) ? it : it.skip;
 
@@ -174,6 +176,9 @@ describe("SavedSearch exact RLS policy guardrails", () => {
     assert.deepEqual(
       deriveGrantInventory().rlsPolicyTables,
       [
+        ...(existsSync(CONVERSATION_MESSAGE_RLS_MIGRATION_PATH)
+          ? ["Conversation", "Message"]
+          : []),
         ...(existsSync(NOTIFICATION_RLS_MIGRATION_PATH) ? ["Notification"] : []),
         ...(existsSync(RLS_MIGRATION_PATH) ? ["SavedSearch"] : []),
       ],

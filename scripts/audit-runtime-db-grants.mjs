@@ -24,6 +24,7 @@ export const REQUIRED_TABLE_PRIVILEGES = ["SELECT", "INSERT", "UPDATE", "DELETE"
 export const SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES = ["SELECT", "INSERT", "DELETE"];
 export const NOTIFICATION_ACTIVATION_TABLE_PRIVILEGES = ["SELECT"];
 export const NOTIFICATION_ACTIVATION_COLUMN_PRIVILEGES = ["read:UPDATE"];
+export const CONVERSATION_MESSAGE_ACTIVATION_TABLE_PRIVILEGES = ["SELECT"];
 export const REQUIRED_SEQUENCE_PRIVILEGES = ["USAGE", "SELECT"];
 export const REQUIRED_FUNCTION_PRIVILEGES = ["EXECUTE"];
 export const REQUIRED_TYPE_PRIVILEGES = ["USAGE"];
@@ -76,6 +77,24 @@ export const NOTIFICATION_RLS_POLICIES = Object.freeze({
     command: "w",
     usingExpression: `"userId" = NULLIF(current_setting('app.user_id', true), '')`,
     checkExpression: `"userId" = NULLIF(current_setting('app.user_id', true), '')`,
+  }),
+});
+
+export const CONVERSATION_RLS_POLICIES = Object.freeze({
+  grainline_conversation_participant_or_reported_select: Object.freeze({
+    command: "r",
+    usingExpression:
+      `((NULLIF(current_setting('app.user_id', true), '') = "userAId") OR (NULLIF(current_setting('app.user_id', true), '') = "userBId")) OR grainline_conversation_staff_report_visible(id)`,
+    checkExpression: null,
+  }),
+});
+
+export const MESSAGE_RLS_POLICIES = Object.freeze({
+  grainline_message_participant_or_reported_select: Object.freeze({
+    command: "r",
+    usingExpression:
+      `((NULLIF(current_setting('app.user_id', true), '') = "senderId") OR (NULLIF(current_setting('app.user_id', true), '') = "recipientId")) OR grainline_conversation_staff_report_visible("conversationId")`,
+    checkExpression: null,
   }),
 });
 
@@ -510,12 +529,16 @@ function collectExactRlsPolicyIssues(
     const actualUsing = normalizeRlsPolicyExpression(policy.using_expression);
     const expectedUsing = normalizeRlsPolicyExpression(expected.usingExpression);
     if (actualUsing !== expectedUsing) {
-      issues.push(`${tableName} policy ${policy.policy_name} has an unexpected USING expression`);
+      issues.push(
+        `${tableName} policy ${policy.policy_name} has an unexpected USING expression: actual=${JSON.stringify(actualUsing)} expected=${JSON.stringify(expectedUsing)}`,
+      );
     }
     const actualCheck = normalizeRlsPolicyExpression(policy.check_expression);
     const expectedCheck = normalizeRlsPolicyExpression(expected.checkExpression);
     if (actualCheck !== expectedCheck) {
-      issues.push(`${tableName} policy ${policy.policy_name} has an unexpected WITH CHECK expression`);
+      issues.push(
+        `${tableName} policy ${policy.policy_name} has an unexpected WITH CHECK expression: actual=${JSON.stringify(actualCheck)} expected=${JSON.stringify(expectedCheck)}`,
+      );
     }
   }
 
@@ -542,6 +565,30 @@ export function collectNotificationPolicyIssues(
   return collectExactRlsPolicyIssues(rows, runtimeRole, {
     tableName: "Notification",
     expectedPolicies: NOTIFICATION_RLS_POLICIES,
+    expectedForce,
+  });
+}
+
+export function collectConversationPolicyIssues(
+  rows,
+  runtimeRole,
+  expectedForce = false,
+) {
+  return collectExactRlsPolicyIssues(rows, runtimeRole, {
+    tableName: "Conversation",
+    expectedPolicies: CONVERSATION_RLS_POLICIES,
+    expectedForce,
+  });
+}
+
+export function collectMessagePolicyIssues(
+  rows,
+  runtimeRole,
+  expectedForce = false,
+) {
+  return collectExactRlsPolicyIssues(rows, runtimeRole, {
+    tableName: "Message",
+    expectedPolicies: MESSAGE_RLS_POLICIES,
     expectedForce,
   });
 }
@@ -585,6 +632,14 @@ export async function readSavedSearchPolicyState(client) {
 
 export async function readNotificationPolicyState(client) {
   return readExactRlsPolicyState(client, "Notification");
+}
+
+export async function readConversationPolicyState(client) {
+  return readExactRlsPolicyState(client, "Conversation");
+}
+
+export async function readMessagePolicyState(client) {
+  return readExactRlsPolicyState(client, "Message");
 }
 
 export function collectNotificationFunctionIssues(rows, runtimeRole, migrationRole) {
@@ -887,6 +942,12 @@ export function defaultPrivilegeRequirements(inventory) {
 
 export function requiredRuntimeTablePrivileges(tableName, inventory) {
   const rlsPolicyTables = inventory.rlsPolicyTables ?? [];
+  if (
+    (tableName === "Conversation" || tableName === "Message")
+    && rlsPolicyTables.includes(tableName)
+  ) {
+    return CONVERSATION_MESSAGE_ACTIVATION_TABLE_PRIVILEGES;
+  }
   if (tableName === "Notification" && rlsPolicyTables.includes("Notification")) {
     return NOTIFICATION_ACTIVATION_TABLE_PRIVILEGES;
   }
@@ -1423,6 +1484,15 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
         "table Notification must not grant effective table-level INSERT, UPDATE, or DELETE after activation",
       );
     }
+    if (
+      (row.table_name === "Conversation" || row.table_name === "Message")
+      && expectedRlsPolicyTables.has(row.table_name)
+      && (row.insert_priv || row.update_priv || row.delete_priv)
+    ) {
+      issues.push(
+        `table ${row.table_name} must not grant effective INSERT, UPDATE, or DELETE after Conversation/Message activation`,
+      );
+    }
     if (row.owner_name === runtimeRole) issues.push(`runtime role owns table ${row.table_name}`);
     if (row.owner_name !== migrationRole) {
       issues.push(`table ${row.table_name} owned by ${row.owner_name}, expected ${migrationRole}`);
@@ -1497,6 +1567,26 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
         await readNotificationPolicyState(client),
         runtimeRole,
         expectedRlsForceTables.has("Notification"),
+      ),
+    );
+  }
+
+  if (expectedRlsPolicyTables.has("Conversation")) {
+    issues.push(
+      ...collectConversationPolicyIssues(
+        await readConversationPolicyState(client),
+        runtimeRole,
+        expectedRlsForceTables.has("Conversation"),
+      ),
+    );
+  }
+
+  if (expectedRlsPolicyTables.has("Message")) {
+    issues.push(
+      ...collectMessagePolicyIssues(
+        await readMessagePolicyState(client),
+        runtimeRole,
+        expectedRlsForceTables.has("Message"),
       ),
     );
   }

@@ -196,12 +196,15 @@ describe("Conversation and Message functions-only authority candidate", () => {
     assert.match(proof, /persistentStagingChanged: false/);
   });
 
-  it("orders promoted verification before migration and both proofs afterward", () => {
+  it("orders promoted activation verification before migration and activation proofs afterward", () => {
     const migrationTree = ci.indexOf(
-      "- name: Verify Conversation and Message authority-preparation migration tree",
+      "- name: Verify Conversation and Message initial RLS activation migration tree",
     );
     const releaseProof = ci.indexOf(
       "- name: Verify Conversation and Message authority proof equivalence",
+    );
+    const activationProof = ci.indexOf(
+      "- name: Verify Conversation and Message activation proof equivalence",
     );
     const apply = ci.indexOf(
       "- name: Apply migrations to CI Postgres",
@@ -209,19 +212,20 @@ describe("Conversation and Message functions-only authority candidate", () => {
     const authorityAudit = ci.indexOf(
       "- name: Audit final runtime grants and RLS catalog",
     );
-    const preparationProof = ci.indexOf(
-      "- name: Prove functions-only Conversation and Message compatibility",
+    const rollbackProof = ci.indexOf(
+      "- name: Prove Conversation and Message initial activation rollback in ephemeral PostgreSQL",
     );
     const fullProof = ci.indexOf(
-      "- name: Prove Conversation and Message recipient RLS draft in ephemeral PostgreSQL",
+      "- name: Prove activated Conversation and Message authority in ephemeral PostgreSQL",
     );
     const staticTests = ci.indexOf("- name: Tests");
     assert.ok(migrationTree >= 0);
     assert.ok(releaseProof > migrationTree);
-    assert.ok(apply > releaseProof);
+    assert.ok(activationProof > releaseProof);
+    assert.ok(apply > activationProof);
     assert.ok(authorityAudit > apply);
-    assert.ok(preparationProof > authorityAudit);
-    assert.ok(fullProof > preparationProof);
+    assert.ok(rollbackProof > authorityAudit);
+    assert.ok(fullProof > rollbackProof);
     assert.ok(staticTests > fullProof);
   });
 

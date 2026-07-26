@@ -526,6 +526,21 @@ Production migration rules:
   Conversation/Message RLS and FORCE remained disabled with zero policies.
   Do not reuse the cleanup phase for functions-only promotion or activation;
   each requires a new exact phase and review.
+- The initial Conversation/Message activation candidate is guarded as
+  `SAVED_SEARCH_RLS_DEPLOY_PHASE=conversation-message-activation-reviewed`.
+  It adds only
+  `20260726073000_enable_conversation_message_rls` after authority preparation,
+  with migration-tree SHA-256
+  `2404192efd95e99c3b14081e945e7dc11e2f0709f35a2431bdfcf2bd3d4dc389`.
+  The promoted migration SHA-256 is
+  `d4ba421be0f66c5acbc331f9c70939846b0f9675ff5ae026c09735760d92811a`
+  and reconstructs disposable candidate SHA-256
+  `d8604106813da825d18352095be38755ba2baa0ce73d363ce3957bf4b53500c4`.
+  It enables RLS with explicit NO FORCE, installs exactly one SELECT policy per
+  table, and narrows direct runtime table grants to SELECT. It does not add
+  write policies, alter function ACLs, purge rows or authorize FORCE. This
+  package is not live until fresh CI, Extra-High review, protected migration
+  and post-activation proof pass.
 - Before cleanup, and again afterward as the required zero-count postflight,
   manually dispatch
   `.github/workflows/conversation-message-legacy-inspection.yml` from the exact
