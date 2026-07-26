@@ -10,7 +10,23 @@ passed fresh candidate-aligned run `30184742417` at `3c488bac`. Its executable
 body is proposed for promotion at release SHA-256
 `eba8daf4228efd0d13c35a8a99b68167fa879b11791f3059efbaa7599c793b98`.
 The promoted release passed fresh full run `30185303311` at exact head
-`825b218c`. It is not applied to any persistent database.
+`825b218c`, evidence-only run `30185481070` at `0a98ed1c`, and post-merge
+main run `30185597811` at exact merge `70770bed`. PR #48 is merged. The
+protected production migration run `30186315784` applied the functions-only
+artifact at exact main `70770bed`, and its final owner-side grant/RLS audit
+passed. The actual pooled-runtime, read-only postflight then passed all
+boundaries: 25 exact functions, 19 runtime-callable functions, six denied
+private cores, legacy table CRUD retained, RLS/FORCE disabled and zero
+policies. Sanitized mode-0600 evidence is
+`conversation-message-authority-production-postflight-70770bed92db778bb2a6c61b592433cb7508578f.json`
+with SHA-256
+`fa11589253cafbd87f16a9442dc2fd57afc136263cc1ac89b93219ebbede295d`.
+The first evidence-head run `30186399393` at `b534d083` remains failed
+evidence: its static recipient contract still required the authority migration
+to be unapplied after production had correctly advanced. Commit `a78f7c02`
+replaced that obsolete assertion with exact production-run, function-count,
+private-denial and RLS-off boundary assertions; fresh run `30186511914` passed
+all gates.
 The first exact generated-candidate run, `30184548860` at `037f654c`, proved
 the migration, functions-only compatibility, exact catalog/grants and complete
 recipient/RLS race suite in PostgreSQL 16. It remains failed evidence overall:
@@ -203,8 +219,9 @@ disabled with zero policies and legacy runtime CRUD retained. The read-only
 repeatable-read run retained no ids, bodies, emails, rows or credentials and
 uploaded artifact `8626401695` with zip SHA-256
 `e0b4a321c0c5e3c82c14127983eb9d059b2087c3867acc307a08f10b9f57a569`.
-Functions-only authority promotion is now the next gate; this evidence does not
-authorize policy/grant activation.
+Functions-only authority promotion and its pooled-runtime postflight are
+complete. This evidence does not authorize application-path conversion,
+policy/table-grant activation or FORCE.
 
 The candidate builder refuses source-byte drift and extracts only the function
 definitions and function ACLs from
@@ -255,8 +272,15 @@ link, durable source relationship, or replay identity.
 1. Prove recipient draft syntax, RLS isolation, reported-staff revocation,
    direct no-context denial and plan shape in disposable PostgreSQL.
 2. Design and prove every fixed write family, race, cleanup and metric.
-3. Promote functions only in an RLS-off preparation migration.
-4. Apply preparation through the protected production workflow.
+3. Promote functions only in an RLS-off preparation migration. Complete on
+   main and production at `70770bed` via run `30186315784`.
+4. Apply preparation through the protected production workflow, then run
+   `ops:conversation-message-authority-postflight` against the actual pooled
+   production runtime. The postflight must verify the exact 25-function
+   catalog/ACL, deny all six private cores, retain old table CRUD, retain RLS
+   off with zero policies, and write only sanitized mode-0600 evidence.
+   Complete with evidence SHA-256
+   `fa11589253cafbd87f16a9442dc2fd57afc136263cc1ac89b93219ebbede295d`.
 5. Deploy the compatible app using only the prepared functions.
 6. Re-run authenticated behavior smoke while RLS is still off.
 7. Activate both tables together with `ENABLE`/explicit `NO FORCE`, two exact

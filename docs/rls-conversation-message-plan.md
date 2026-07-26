@@ -15,8 +15,9 @@ relationship/source count zero. The narrow fail-closed cleanup is now complete
 in production: protected migration `30183709885` applied exact main
 `ac1f519e`, and read-only postflight `30183765803` returned zero missing,
 repairable, unrepairable, invalid and duplicate custom-link sources with every
-other anomaly count zero. Functions-only promotion is next. No authority
-function or policy has been applied to a persistent database. The exact
+other anomaly count zero. Functions-only promotion is complete in production:
+protected run `30186315784` applied exact main `70770bed`, and the final
+owner-side grant/RLS audit passed. The exact
 functions-only disposable candidate is
 `20260726022500_prepare_conversation_message_authority` at SHA-256
 `9b56eb4c0e25e5de5266998f29a19fb0c7173c49f2b83266f3223542c7feeb07`.
@@ -29,7 +30,15 @@ the complete candidate-aligned PostgreSQL, static, dependency-audit and build
 gates. The executable body is proposed for promotion at SHA-256
 `eba8daf4228efd0d13c35a8a99b68167fa879b11791f3059efbaa7599c793b98`;
 that exact promoted release passed separate fresh run `30185303311` at
-`825b218c` and remains unapplied to every persistent database.
+`825b218c`, evidence-only run `30185481070` at `0a98ed1c`, and post-merge
+main run `30185597811` at `70770bed`. Its separately prepared pooled-runtime,
+read-only postflight passed with the exact release binding, 25-function
+catalog/ACL, 19 callable functions, six private-core denials, RLS/FORCE off,
+zero policies and legacy table CRUD retained. Sanitized mode-0600 evidence
+SHA-256 is
+`fa11589253cafbd87f16a9442dc2fd57afc136263cc1ac89b93219ebbede295d`.
+Application conversion is next; policy/table-grant activation and FORCE remain
+later separate releases.
 
 ## Security objective
 

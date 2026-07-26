@@ -84,7 +84,14 @@ describe("Conversation and Message recipient RLS draft", () => {
       /CREATE POLICY grainline_(?:conversation|message)_participant_or_reported_select/,
     );
     assert.match(contract, /RLS disabled with zero[\s\S]*policies/);
-    assert.match(contract, /not\s+applied to any\s+persistent database/);
+    assert.match(
+      contract,
+      /protected production migration run `30186315784` applied the functions-only[\s\S]*artifact at exact main `70770bed`/,
+    );
+    assert.match(
+      contract,
+      /25 exact functions[\s\S]*six denied[\s\S]*RLS\/FORCE disabled and zero[\s\S]*policies/,
+    );
   });
 
   it("limits definer reads to one boolean exact-report predicate", () => {
