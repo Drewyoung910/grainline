@@ -26,19 +26,18 @@ does not authorize another.
 At this review date SavedSearch and Notification have production `ENABLE` plus
 `FORCE ROW LEVEL SECURITY`. Conversation/Message compatibility, invariants,
 legacy cleanup, fixed-function authority, application conversion and initial
-RLS activation are also live and accepted. Exact main
-`448d5233`, protected migration run `30194195844`, and authenticated pooled-
-runtime operator `f474e761` prove ENABLE plus NO FORCE, exactly two SELECT
-policies, direct runtime SELECT only, direct DML denial, route isolation and
-exact cleanup. Sanitized mode-`0600` evidence SHA-256 is
-`1f38671673e8040b222fcb620f8875c94cd47684969d423e6f260fc7a520e141`.
-FORCE is not yet live. Its isolated candidate is
+RLS activation are also live and accepted. Its FORCE-only hardening is live
+but remains acceptance-pending until the actual pooled-runtime postflight
+passes. PR 54 merged reviewed head `774b90bd` as exact main `f23ac2da`;
+post-merge CI `30207676377`, dedicated Conversation/Message proof
+`30207676399`, and Notification FORCE regression `30207676375` passed.
+Protected migration run `30207825683` applied
 `20260726140000_force_conversation_message_rls`, SHA-256
 `c7f6bbb65c1b0b05c43c2ad450235523587de16f4c8b5ca3289bbff28df33a35`,
-under phase `conversation-message-force-reviewed`. Fresh PostgreSQL CI,
-Extra-High acceptance, exact-main protected migration and pooled-runtime
-postflight are still required. Reverify live state before repeating these
-claims.
+under phase `conversation-message-force-reviewed`; migration status and the
+final owner-side exact grant/RLS audit passed. Reverify live state and complete
+the pinned `--post-force` pooled-runtime operator before calling this group
+fully accepted.
 
 Role provisioning must fail through a SQL exception under `ON_ERROR_STOP`.
 Do not use `\quit 1`: the current GitHub psql client warns that the argument is
@@ -61,7 +60,7 @@ hard failure.
 | `scripts/conversation-message-invariant-proof.mjs` | Loopback PostgreSQL 16 proof for constraints, private trigger ACLs, valid runtime writes, forged-route denial, and lock races. | Production was touched, production is proven, or RLS is active. |
 | `scripts/verify-conversation-message-authority-release.mjs` | Pins the promoted 25-function migration and proves its executable body matches the accepted disposable candidate. | The migration is merged, applied, or RLS is active. |
 | `scripts/conversation-message-authority-production-postflight.mjs` | Read-only proof through the exact pooled production runtime after functions-only migration: release binding, 25 function ACLs, six private-core denials, old CRUD retained, and RLS/policies still off. | Application conversion, table-grant activation, RLS, or FORCE is complete. |
-| `scripts/conversation-message-compatibility-production-postflight.mjs` | Preserves the authenticated RLS-off compatibility proof and adds `--post-activation` mode for the exact live release. The latter proves pooled-runtime posture, exact policies/grants, context-empty isolation, direct DML denial, authenticated inbox/thread/list/unread/read behavior, foreign denial, cleanup, and zero notification/email side effects. | FORCE is complete or arbitrary runtime code execution cannot choose a custom PostgreSQL setting. |
+| `scripts/conversation-message-compatibility-production-postflight.mjs` | Preserves the authenticated RLS-off compatibility and initial-activation proofs and adds a separately pinned `--post-force` mode. Activated modes prove pooled-runtime posture, exact policies/grants/FORCE state, context-empty isolation, direct DML denial, authenticated inbox/thread/list/unread/read behavior, foreign denial, cleanup, and zero notification/email side effects. | Arbitrary runtime code execution cannot choose a custom PostgreSQL setting or invoke granted fixed functions. |
 | `scripts/stage-conversation-message-activation-migration.mjs` | Byte-pins the accepted two-policy source and builds the exact disposable initial-activation candidate with predecessor and postflight catalog guards. | Production is authorized or changed. |
 | `scripts/verify-conversation-message-activation-release.mjs` | Pins the promoted activation bytes and proves the executable body equals the generated disposable candidate. | PostgreSQL behavior, runtime authentication, or production activation is proven. |
 | `scripts/conversation-message-activation-rollback-proof.mjs` | Loopback-only proof that initial activation can be disabled, old CRUD restored, fixed functions retained, and the exact initial activation restored with zero fixture residue. | A production rollback was performed or FORCE is safe. |

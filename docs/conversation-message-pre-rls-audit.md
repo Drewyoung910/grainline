@@ -5,8 +5,10 @@ additive schema/index pair, reviewed invariant/data-normalization migrations,
 25-function authority preparation, application conversion and initial
 Conversation/Message RLS activation are live. The actual pooled production
 runtime passed both the earlier rollback-only preparation postflight and the
-authenticated post-activation proof. Both tables now have RLS enabled without
-FORCE, exactly one reviewed SELECT policy each and direct runtime SELECT only.
+authenticated post-activation proof. Both tables now have RLS enabled and
+forced, exactly one reviewed SELECT policy each and direct runtime SELECT only.
+The FORCE migration and owner-side audit are green; acceptance remains pending
+only on the separately pinned actual pooled-runtime postflight.
 
 The authenticated RLS-off compatibility proof passed at exact deployed release
 `650d1dd8`, operator `11adbeda`, and CI run `30192400811`. It proved
@@ -34,9 +36,9 @@ every exact fixture, Clerk session/token, cache key and rate-limit counter; no
 new Clerk user, Notification or email was created and no recovery state
 remains. Sanitized mode-`0600` evidence SHA-256 is
 `1f38671673e8040b222fcb620f8875c94cd47684969d423e6f260fc7a520e141`.
-FORCE is intentionally still pending as a separate release.
+That evidence remains the accepted initial NO-FORCE baseline.
 
-The separate FORCE-only candidate is now durably specified on
+The separate FORCE-only release was durably specified on
 `agent/conversation-message-force-20260726` as migration
 `20260726140000_force_conversation_message_rls`, SHA-256
 `c7f6bbb65c1b0b05c43c2ad450235523587de16f4c8b5ca3289bbff28df33a35`.
@@ -44,10 +46,15 @@ It changes no policy, grant, function or row and fails closed unless the exact
 accepted activation catalog, owner/runtime role posture and owner-session drain
 are present. Its exact reviewed migration-tree SHA-256 is
 `0bc28692fd3eef7a72cd1a7207ce977a71482b700ab111b6e807028cee6e9672`.
-The local static release and rollback contracts pass; fresh disposable
-PostgreSQL 16 proof, Extra-High set-level review, merge, protected production
-migration and actual pooled-runtime postflight remain required. FORCE is still
-off in production at this checkpoint.
+Fresh disposable PostgreSQL 16 proof and Extra-High set-level review passed.
+PR 54 merged reviewed head `774b90bd` as exact main `f23ac2da`;
+post-merge CI `30207676377`, dedicated Conversation/Message FORCE proof
+`30207676399`, and Notification FORCE regression `30207676375` passed.
+Protected run `30207825683` applied
+`20260726140000_force_conversation_message_rls`; migration status and the
+final owner-side exact grant/RLS audit passed. FORCE is live in production.
+The rollout remains acceptance-pending until the pinned actual pooled-runtime
+`--post-force` operator passes with exact cleanup and sanitized evidence.
 
 Dedicated PostgreSQL run `30206869755` is retained failed evidence. The exact
 policy-deparse preflight rejected both otherwise matching policies because its
@@ -309,10 +316,9 @@ is necessary but not sufficient.
    retaining bodies or identifiers.
 4. Extra High accepted the invariant-preparation SQL, fixed authority
    functions, initial policy SQL and grant narrowing in their separate
-   releases. Initial activation is live and accepted; FORCE remains its own
-   later Extra-High review and release boundary. The FORCE-only artifact is
-   packaged but remains unapplied pending fresh PostgreSQL proof and the
-   production gates above.
+   releases. Initial activation is live and accepted. The separate FORCE
+   artifact passed its later Extra-High review and production migration gate;
+   its actual pooled-runtime postflight remains the final acceptance item.
 
 This audit pattern is required for each later sensitive group, with scope
 adapted to that group's actors and provider/background workflows.

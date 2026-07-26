@@ -42,7 +42,7 @@ test("compatibility postflight proves the explicit RLS-off boundary", () => {
   assert.match(script, /row\.canInsert !== true/);
   assert.match(script, /row\.canUpdate !== true/);
   assert.match(script, /row\.canDelete !== true/);
-  assert.match(script, /legacyTableCrudRetained: !POST_ACTIVATION/);
+  assert.match(script, /legacyTableCrudRetained: !ACTIVATED/);
 });
 
 test("compatibility postflight covers authenticated owner and foreign routes", () => {
