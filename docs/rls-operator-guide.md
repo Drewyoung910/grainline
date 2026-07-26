@@ -27,8 +27,9 @@ At this review date SavedSearch and Notification have production `ENABLE` plus
 `FORCE ROW LEVEL SECURITY`, and the Conversation/Message compatibility schema
 and invariant/search-index migrations are live. Their actual pooled-runtime
 postflight passed. Conversation/Message RLS is still disabled with zero
-policies; the one-row legacy custom-link cleanup is a reviewed candidate, not
-production state. Reverify live state before repeating these claims.
+policies; the exactly classified one-row legacy custom-link cleanup and its
+zero-count aggregate postflight are complete in production. Functions-only
+authority promotion is next. Reverify live state before repeating these claims.
 
 ## Tool map
 

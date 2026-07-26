@@ -160,8 +160,28 @@ The separately approved cleanup candidate
 `20260726013500_repair_legacy_custom_order_link_context` therefore updates only
 that fully source-bound row class, fails closed for more than one candidate or
 any unrepairable candidate, and asserts zero missing, invalid or duplicate
-custom-link sources before commit. It is not live until its exact release proof,
-merge, protected migration and zero-count postflight pass.
+custom-link sources before commit.
+
+That cleanup is complete in production. Exact branch head `a4422716` passed
+PostgreSQL 16 and all CI gates in run `30183476773`; PR `#46` merged as exact
+main `ac1f519e5eba3839640f366e13dc4486f3a0d3d5`, whose full main CI run
+`30183620261` also passed. Protected production migration run `30183709885`
+applied only
+`20260726013500_repair_legacy_custom_order_link_context`, reported the migration
+ledger up to date and passed the final runtime grant/RLS catalog audit.
+
+The required protected aggregate-only postflight ran from that same exact main
+in `30183765803`. Four Conversations and 19 Messages remained; the single
+custom-order link now has its exact validated Listing context. Missing,
+repairable, unrepairable, invalid and duplicate custom-link source counts are
+all zero, and every other participant, relationship, source, report and private
+listing anomaly count remains zero. Conversation/Message RLS and FORCE remain
+disabled with zero policies and legacy runtime CRUD retained. The read-only
+repeatable-read run retained no ids, bodies, emails, rows or credentials and
+uploaded artifact `8626401695` with zip SHA-256
+`e0b4a321c0c5e3c82c14127983eb9d059b2087c3867acc307a08f10b9f57a569`.
+Functions-only authority promotion is now the next gate; this evidence does not
+authorize policy/grant activation.
 
 ## Cross-group dependencies to retain
 

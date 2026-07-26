@@ -503,6 +503,16 @@ Production migration rules:
   private Listing/seller/reserved-buyer/Conversation relationship, and requires
   zero missing, invalid or duplicate custom-link sources before commit. It does
   not enable RLS or change grants.
+- That cleanup completed from exact main
+  `ac1f519e5eba3839640f366e13dc4486f3a0d3d5` in protected production
+  migration run `30183709885`. The required read-only postflight
+  `30183765803` returned zero missing, repairable, unrepairable, invalid and
+  duplicate custom-link counts, with every other authority-invalid count zero.
+  Its sanitized artifact is `8626401695` with zip SHA-256
+  `e0b4a321c0c5e3c82c14127983eb9d059b2087c3867acc307a08f10b9f57a569`.
+  Conversation/Message RLS and FORCE remained disabled with zero policies.
+  Do not reuse the cleanup phase for functions-only promotion or activation;
+  each requires a new exact phase and review.
 - Before cleanup, and again afterward as the required zero-count postflight,
   manually dispatch
   `.github/workflows/conversation-message-legacy-inspection.yml` from the exact
