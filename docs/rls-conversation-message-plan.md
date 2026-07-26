@@ -24,8 +24,12 @@ It contains 25 functions/function ACLs, no RLS, policies or table-grant
 changes. Run `30184548860` at `037f654c` passed every candidate-aligned
 PostgreSQL step but remains failed evidence overall because the disposable
 migration was not removed before static migration-tree guards ran. Teardown is
-now exact-hash and fail-closed; a fresh complete candidate-aligned CI run is
-still required before promotion.
+now exact-hash and fail-closed. Fresh run `30184742417` at `3c488bac` passed
+the complete candidate-aligned PostgreSQL, static, dependency-audit and build
+gates. The executable body is proposed for promotion at SHA-256
+`eba8daf4228efd0d13c35a8a99b68167fa879b11791f3059efbaa7599c793b98`;
+that release still requires a separate fresh green run and remains unapplied
+to every persistent database.
 
 ## Security objective
 

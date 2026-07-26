@@ -9,6 +9,11 @@ import {
 import {
   collectConversationMessageFunctionIssues,
 } from "./audit-runtime-db-grants.mjs";
+import {
+  CONVERSATION_MESSAGE_AUTHORITY_RELEASE,
+  DISPOSABLE_CONVERSATION_MESSAGE_AUTHORITY_SHA256,
+  verifyConversationMessageAuthorityRelease,
+} from "./verify-conversation-message-authority-release.mjs";
 
 const { Client } = pg;
 const databaseUrl =
@@ -17,8 +22,6 @@ const runtimeRole = "grainline_app_runtime";
 const migrationRole = "ci";
 const migrationPath =
   "prisma/migrations/20260726022500_prepare_conversation_message_authority/migration.sql";
-const expectedDisposableMigrationSha256 =
-  "9b56eb4c0e25e5de5266998f29a19fb0c7173c49f2b83266f3223542c7feeb07";
 const fixture = Object.freeze({
   userAId: "cm-authority-preparation-a",
   userBId: "cm-authority-preparation-b",
@@ -168,10 +171,11 @@ async function cleanFixtures(owner) {
 
 async function main() {
   validateTarget(databaseUrl);
+  const release = verifyConversationMessageAuthorityRelease();
   assert.equal(
     migrationSha256(),
-    expectedDisposableMigrationSha256,
-    "exact disposable Conversation/Message authority migration bytes drifted",
+    CONVERSATION_MESSAGE_AUTHORITY_RELEASE.sha256,
+    "exact promoted Conversation/Message authority migration bytes drifted",
   );
 
   const owner = newClient("cm-authority-preparation-proof-owner");
@@ -377,7 +381,11 @@ async function main() {
     generatedAt: new Date().toISOString(),
     status: "passed",
     proofMode: "ephemeral-loopback-functions-only-compatibility",
-    migrationSha256: expectedDisposableMigrationSha256,
+    migrationSha256: CONVERSATION_MESSAGE_AUTHORITY_RELEASE.sha256,
+    disposableProofSha256:
+      DISPOSABLE_CONVERSATION_MESSAGE_AUTHORITY_SHA256,
+    executableBodyMatchesDisposableProof:
+      release.executableBodyMatchesDisposableProof,
     functionCount: CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.length,
     rlsEnabled: false,
     policyCount: 0,

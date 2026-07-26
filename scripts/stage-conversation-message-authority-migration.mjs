@@ -2,6 +2,7 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import {
   CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS,
 } from "./conversation-message-authority-catalog.mjs";
@@ -398,7 +399,7 @@ END
 $grainline_conversation_message_authority_postflight$;`;
 }
 
-function buildCandidate() {
+export function buildConversationMessageAuthorityCandidate() {
   const pinned = sources.map(readPinnedSource);
   const sourceManifest = pinned
     .map((source) => `-- ${source.path} sha256=${source.sha256}`)
@@ -509,36 +510,42 @@ function unstageCandidate(migration) {
   fs.rmdirSync(destinationDirectory);
 }
 
-const mode = process.argv[2] ?? "--verify";
-if (!new Set(["--verify", "--stage", "--unstage"]).has(mode)) {
-  throw new Error(
-    "usage: stage-conversation-message-authority-migration.mjs [--verify|--stage|--unstage]",
-  );
+function main() {
+  const mode = process.argv[2] ?? "--verify";
+  if (!new Set(["--verify", "--stage", "--unstage"]).has(mode)) {
+    throw new Error(
+      "usage: stage-conversation-message-authority-migration.mjs [--verify|--stage|--unstage]",
+    );
+  }
+
+  const candidate = buildConversationMessageAuthorityCandidate();
+  if (mode !== "--verify") {
+    assertDisposableTarget();
+  }
+  if (mode === "--stage") {
+    stageCandidate(candidate.migration);
+  } else if (mode === "--unstage") {
+    unstageCandidate(candidate.migration);
+  }
+
+  process.stdout.write(`${JSON.stringify({
+    mode,
+    staged: mode === "--stage",
+    unstaged: mode === "--unstage",
+    migrationName,
+    migrationSha256: sha256(candidate.migration),
+    functionCount: CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.length,
+    sources: candidate.pinned.map((source) => ({
+      path: source.path,
+      sha256: source.sha256,
+    })),
+    rlsChanged: false,
+    tableGrantsChanged: false,
+    productionChanged: false,
+    persistentStagingChanged: false,
+  }, null, 2)}\n`);
 }
 
-const candidate = buildCandidate();
-if (mode !== "--verify") {
-  assertDisposableTarget();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main();
 }
-if (mode === "--stage") {
-  stageCandidate(candidate.migration);
-} else if (mode === "--unstage") {
-  unstageCandidate(candidate.migration);
-}
-
-process.stdout.write(`${JSON.stringify({
-  mode,
-  staged: mode === "--stage",
-  unstaged: mode === "--unstage",
-  migrationName,
-  migrationSha256: sha256(candidate.migration),
-  functionCount: CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.length,
-  sources: candidate.pinned.map((source) => ({
-    path: source.path,
-    sha256: source.sha256,
-  })),
-  rlsChanged: false,
-  tableGrantsChanged: false,
-  productionChanged: false,
-  persistentStagingChanged: false,
-}, null, 2)}\n`);

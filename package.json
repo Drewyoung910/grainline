@@ -28,6 +28,7 @@
     "audit:rls-conversation-message-legacy-cleanup": "node scripts/conversation-message-legacy-cleanup-proof.mjs",
     "audit:rls-conversation-message-recipient": "node scripts/conversation-message-recipient-rls-proof.mjs",
     "audit:rls-conversation-message-authority-candidate": "node scripts/stage-conversation-message-authority-migration.mjs",
+    "audit:rls-conversation-message-authority-release": "node scripts/verify-conversation-message-authority-release.mjs",
     "audit:rls-conversation-message-authority-preparation": "node scripts/conversation-message-authority-preparation-proof.mjs",
     "audit:rls-notification-candidate": "node scripts/stage-notification-rls-candidate-migration.mjs --verify",
     "audit:rls-notification-preparation-release": "node scripts/verify-notification-preparation-release.mjs",

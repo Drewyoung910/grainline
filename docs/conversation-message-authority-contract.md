@@ -2,11 +2,15 @@
 
 Opened 2026-07-25. Status: the complete recipient/fixed-service authority
 catalog passed disposable PostgreSQL and full CI at `7a7654c3` in run
-`30180610380`. The exact 25-function, functions-only candidate is now generated
-from byte-pinned sources as
+`30180610380`. The exact 25-function, functions-only candidate generated from
+byte-pinned sources as
 `20260726022500_prepare_conversation_message_authority`, disposable SHA-256
-`9b56eb4c0e25e5de5266998f29a19fb0c7173c49f2b83266f3223542c7feeb07`.
-It is not yet a promoted release and is not applied to any persistent database.
+`9b56eb4c0e25e5de5266998f29a19fb0c7173c49f2b83266f3223542c7feeb07`,
+passed fresh candidate-aligned run `30184742417` at `3c488bac`. Its executable
+body is proposed for promotion at release SHA-256
+`eba8daf4228efd0d13c35a8a99b68167fa879b11791f3059efbaa7599c793b98`.
+The promoted release still requires its own fresh full CI pass and is not
+applied to any persistent database.
 The first exact generated-candidate run, `30184548860` at `037f654c`, proved
 the migration, functions-only compatibility, exact catalog/grants and complete
 recipient/RLS race suite in PostgreSQL 16. It remains failed evidence overall:
@@ -14,12 +18,16 @@ CI left the disposable migration directory in the checkout, so the later
 static suite correctly rejected the now-dirty committed migration inventory.
 The candidate builder now removes only the exact byte-pinned disposable
 artifact after its database proofs and refuses drifted or expanded targets.
-A fresh complete run is required; the PostgreSQL success inside the failed run
-does not authorize promotion.
-Candidate CI must prove old direct CRUD, new fixed calls, exact ACL/catalog
-state, RLS disabled and zero policies before the executable bytes may be
-promoted. The live production boundary remains RLS disabled with zero
-Conversation/Message policies.
+The PostgreSQL success inside that failed run did not authorize promotion.
+Fresh run `30184742417` then passed old direct CRUD, new fixed calls, exact
+ACL/catalog state, RLS disabled with zero policies, complete recipient/RLS
+proof, all static gates, dependency audit and production build. That accepted
+the disposable evidence but did not change production. The live production
+boundary remains RLS disabled with zero Conversation/Message policies.
+The same head's Vercel Preview `dpl_3UrTXTQrLn4e1n71f8adsP7aJRyC`
+failed at the intentional pre-build runtime credential guard with exact code
+`DATABASE_URL_SHAPE`; it is not a failed application compilation, and the
+GitHub production build on that head passed.
 
 ## Invariants shared by every public database operation
 

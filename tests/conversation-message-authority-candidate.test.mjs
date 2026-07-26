@@ -133,10 +133,23 @@ describe("Conversation and Message functions-only authority candidate", () => {
     assert.match(stageScript, /destination contains unexpected entries/);
   });
 
-  it("pins the generated disposable migration when CI or promotion stages it", () => {
+  it("keeps the promoted migration executable-equivalent to the generated candidate", () => {
     if (!existsSync(migrationPath)) return;
     const migration = readFileSync(migrationPath, "utf8");
-    assert.equal(sha256(migration), disposableMigrationSha256);
+    assert.equal(
+      sha256(migration),
+      "eba8daf4228efd0d13c35a8a99b68167fa879b11791f3059efbaa7599c793b98",
+    );
+    const disposableEquivalent = `${migration
+      .replace(
+        "-- Promoted reviewed Conversation/Message functions-only authority migration.",
+        "-- Generated disposable Conversation/Message functions-only authority candidate.",
+      )
+      .replace(
+        "-- Apply only through the guarded main-only production migration workflow.",
+        "-- Do not apply outside the loopback grainline_ci proof workflow.",
+      )}\n`;
+    assert.equal(sha256(disposableEquivalent), disposableMigrationSha256);
     assert.equal(
       (migration.match(/CREATE OR REPLACE FUNCTION public\./g) ?? []).length,
       25,
@@ -168,7 +181,11 @@ describe("Conversation and Message functions-only authority candidate", () => {
     );
     assert.match(proof, /refuses a non-loopback database/);
     assert.match(proof, /requires grainline_ci/);
-    assert.match(proof, new RegExp(disposableMigrationSha256));
+    assert.match(
+      proof,
+      /verifyConversationMessageAuthorityRelease/,
+    );
+    assert.match(proof, /DISPOSABLE_CONVERSATION_MESSAGE_AUTHORITY_SHA256/);
     assert.match(proof, /old application direct insert/);
     assert.match(proof, /old application direct update/);
     assert.match(proof, /grainline_conversation_get/);
@@ -179,37 +196,33 @@ describe("Conversation and Message functions-only authority candidate", () => {
     assert.match(proof, /persistentStagingChanged: false/);
   });
 
-  it("orders disposable staging after baseline audit and before the full RLS proof", () => {
-    const baselineAudit = ci.indexOf(
-      "- name: Audit final runtime grants and RLS catalog",
+  it("orders promoted verification before migration and both proofs afterward", () => {
+    const migrationTree = ci.indexOf(
+      "- name: Verify Conversation and Message authority-preparation migration tree",
     );
-    const stage = ci.indexOf(
-      "- name: Stage exact disposable Conversation and Message authority migration",
+    const releaseProof = ci.indexOf(
+      "- name: Verify Conversation and Message authority proof equivalence",
     );
     const apply = ci.indexOf(
-      "- name: Apply exact disposable Conversation and Message authority migration",
+      "- name: Apply migrations to CI Postgres",
+    );
+    const authorityAudit = ci.indexOf(
+      "- name: Audit final runtime grants and RLS catalog",
     );
     const preparationProof = ci.indexOf(
       "- name: Prove functions-only Conversation and Message compatibility",
     );
-    const authorityAudit = ci.indexOf(
-      "- name: Audit functions-only Conversation and Message grants",
-    );
     const fullProof = ci.indexOf(
       "- name: Prove Conversation and Message recipient RLS draft in ephemeral PostgreSQL",
     );
-    const unstage = ci.indexOf(
-      "- name: Remove exact disposable Conversation and Message authority migration",
-    );
     const staticTests = ci.indexOf("- name: Tests");
-    assert.ok(baselineAudit >= 0);
-    assert.ok(stage > baselineAudit);
-    assert.ok(apply > stage);
-    assert.ok(preparationProof > apply);
-    assert.ok(authorityAudit > preparationProof);
-    assert.ok(fullProof > authorityAudit);
-    assert.ok(unstage > fullProof);
-    assert.ok(staticTests > unstage);
+    assert.ok(migrationTree >= 0);
+    assert.ok(releaseProof > migrationTree);
+    assert.ok(apply > releaseProof);
+    assert.ok(authorityAudit > apply);
+    assert.ok(preparationProof > authorityAudit);
+    assert.ok(fullProof > preparationProof);
+    assert.ok(staticTests > fullProof);
   });
 
   it("keeps future role convergence aligned with 19 public and six private functions", () => {

@@ -32,9 +32,11 @@ zero-count aggregate postflight are complete in production. Functions-only
 authority promotion is next. Its disposable candidate is byte-pinned as
 `20260726022500_prepare_conversation_message_authority` with SHA-256
 `9b56eb4c0e25e5de5266998f29a19fb0c7173c49f2b83266f3223542c7feeb07`;
-it must pass the loopback functions-only compatibility/catalog proof before
-promotion and does not authorize RLS or table-grant activation. Reverify live
-state before repeating these claims.
+fresh candidate run `30184742417` passed the loopback functions-only
+compatibility/catalog proof. The proposed promoted artifact is
+`eba8daf4228efd0d13c35a8a99b68167fa879b11791f3059efbaa7599c793b98`
+and must pass its own release CI before merge. Neither proof authorizes RLS or
+table-grant activation. Reverify live state before repeating these claims.
 
 ## Tool map
 
@@ -48,6 +50,7 @@ state before repeating these claims.
 | `scripts/provision-runtime-db-role.sql` | Converges runtime least privilege; private trigger/core functions stay runtime-ungranted. | It is safe to paste into an unverified database. |
 | `scripts/conversation-message-rls-inventory.mjs` | Pins every direct Conversation/Message ORM and raw SQL path. | A stable count makes each path safe. |
 | `scripts/conversation-message-invariant-proof.mjs` | Loopback PostgreSQL 16 proof for constraints, private trigger ACLs, valid runtime writes, forged-route denial, and lock races. | Production was touched, production is proven, or RLS is active. |
+| `scripts/verify-conversation-message-authority-release.mjs` | Pins the promoted 25-function migration and proves its executable body matches the accepted disposable candidate. | The migration is merged, applied, or RLS is active. |
 
 ## Deploy-phase lifecycle
 
@@ -69,6 +72,7 @@ Current values:
 | `conversation-message-compatibility-reviewed` | Nullable listing context and compatible read indexes |
 | `conversation-message-invariants-reviewed` | Conversation/Message invariants and body-search index, with RLS still off |
 | `conversation-message-legacy-cleanup-reviewed` | At most one fully source-bound legacy custom-order-link context repair, with RLS still off |
+| `conversation-message-authority-preparation-reviewed` | Promoted fixed authority functions and exact ACLs while old runtime table CRUD and RLS-off compatibility remain |
 
 The phase is not a feature flag. It is exact-artifact human authorization and
 must fail when migration bytes or order change.
