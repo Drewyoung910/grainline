@@ -43,8 +43,14 @@ postflight passed: 25 exact functions, 19 runtime-callable, six private cores
 denied, legacy Conversation/Message CRUD retained, and RLS/FORCE off with zero
 policies. Sanitized mode-0600 evidence SHA-256 is
 `fa11589253cafbd87f16a9442dc2fd57afc136263cc1ac89b93219ebbede295d`.
-This does not authorize application conversion, RLS/table-grant activation or
-FORCE. Reverify live state before repeating these claims.
+The functions-only application conversion is live at exact main `650d1dd8` on
+Production deployment `dpl_C1rXvRMMJetR25Na4X5yHSa91HpM`. Its authenticated
+RLS-off compatibility postflight passed at operator `11adbeda` after fresh CI
+`30192400811`; sanitized mode-`0600` evidence SHA-256 is
+`f3ad7589ca0e8069c3093199235aa1a3cb45a2a684caf0a077ba1974d3f2bde7`.
+It left zero fixture/session/token/cache/rate-limit residue and zero direct
+email/notification side effects. This does not authorize RLS/table-grant
+activation or FORCE. Reverify live state before repeating these claims.
 
 ## Tool map
 
