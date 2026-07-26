@@ -51,6 +51,7 @@ describe("message and case policy guardrails", () => {
   it("keeps blocked and archived conversations out of visible unread counts before caps", () => {
     const inbox = source("src/app/messages/page.tsx");
     const unreadCount = source("src/app/api/messages/unread-count/route.ts");
+    const recipientSql = source("docs/rls-drafts/conversation-message-recipient-access.sql");
 
     assert.match(inbox, /const blockedUserIdList = \[\.\.\.blockedUserIds\]/);
     assert.ok(
@@ -62,11 +63,16 @@ describe("message and case policy guardrails", () => {
     assert.match(inbox, /orderBy: \[\{ updatedAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(inbox, /where: \{ recipientId: me\.id, readAt: null, conversation: \{ is: baseWhere \} \}/);
 
-    assert.match(unreadCount, /getBlockedUserIdsFor/);
-    assert.match(unreadCount, /archivedAAt: null/);
-    assert.match(unreadCount, /archivedBAt: null/);
-    assert.match(unreadCount, /userAId: \{ notIn: blockedUserIds \}/);
-    assert.match(unreadCount, /userBId: \{ notIn: blockedUserIds \}/);
+    assert.match(unreadCount, /countActorUnreadMessages\(me\.id\)/);
+    const unreadFunction = recipientSql.slice(
+      recipientSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_unread_count"),
+      recipientSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_latest_custom_request"),
+    );
+    assert.match(unreadFunction, /conversation\."archivedAAt" IS NULL/);
+    assert.match(unreadFunction, /conversation\."archivedBAt" IS NULL/);
+    assert.match(unreadFunction, /NOT EXISTS \(\s*SELECT 1\s*FROM public\."Block"/s);
+    assert.match(unreadFunction, /block\."blockerId" = conversation\."userAId"/);
+    assert.match(unreadFunction, /block\."blockedId" = conversation\."userBId"/);
   });
 
   it("loads the latest message-thread window and reopens archived threads on new content", () => {

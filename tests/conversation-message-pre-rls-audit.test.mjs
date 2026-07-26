@@ -102,10 +102,16 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
   it("keeps thread GET rendering read-only and bounds archive state mutations", () => {
     const page = source("src/app/messages/[id]/page.tsx");
     const readRoute = source("src/app/api/messages/[id]/read/route.ts");
+    const authority = source("src/lib/conversationMessageAuthority.ts");
     const rateLimits = source("src/lib/ratelimit.ts");
 
     assert.doesNotMatch(page, /markOwnerMessageNotificationsRead/);
-    assert.match(readRoute, /await prisma\.message\.updateMany\([\s\S]*await markOwnerMessageNotificationsRead\(me\.id, id\)/);
+    assert.match(
+      readRoute,
+      /await markActorConversationMessagesRead\(me\.id, id\);[\s\S]*await markOwnerMessageNotificationsRead\(me\.id, id\)/,
+    );
+    assert.match(authority, /public\.grainline_message_mark_read/);
+    assert.doesNotMatch(readRoute, /prisma\.message\.(?:find|update|create|delete)/);
     assert.match(readRoute, /getExplicitCrossOriginPostRejection\(req\)/);
     assert.match(readRoute, /safeRateLimit\(markReadRatelimit/);
     assert.match(rateLimits, /conversationStateRatelimit[\s\S]{0,180}slidingWindow\(60, "60 m"\)/);

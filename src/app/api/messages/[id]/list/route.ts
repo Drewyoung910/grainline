@@ -1,15 +1,14 @@
 // src/app/api/messages/[id]/list/route.ts
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
+import {
+  getActorConversation,
+  listActorMessages,
+} from "@/lib/conversationMessageAuthority";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { messageListRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { MESSAGE_POLL_LIMIT } from "@/lib/messagePolling";
-import {
-  messageAfterCursorWhere,
-  messageBeforeCursorWhere,
-  parseMessageCursor,
-} from "@/lib/messageCursor";
+import { parseMessageCursor } from "@/lib/messageCursor";
 
 export async function GET(
   req: Request,
@@ -33,20 +32,10 @@ export async function GET(
     throw err;
   }
 
-  // Participants may read their thread. Staff get the same bounded read-only
-  // history only while an unresolved report targets this exact thread.
-  const belongs = await prisma.conversation.findFirst({
-    where: { id, OR: [{ userAId: me.id }, { userBId: me.id }] },
-    select: { id: true },
-  });
-  const isStaff = me.role === "ADMIN" || me.role === "EMPLOYEE";
-  const reportedThread = !belongs && isStaff
-    ? await prisma.userReport.findFirst({
-        where: { targetType: "MESSAGE_THREAD", targetId: id, resolved: false },
-        select: { id: true },
-      })
-    : null;
-  if (!belongs && !reportedThread) return privateJson({ ok: false }, { status: 403 });
+  // The recipient projection preserves participant access plus the exact
+  // unresolved-report staff review exception without exposing either table.
+  const conversation = await getActorConversation(me.id, id);
+  if (!conversation) return privateJson({ ok: false }, { status: 403 });
 
   const url = new URL(req.url);
   const beforeRaw = url.searchParams.get("before");
@@ -66,27 +55,10 @@ export async function GET(
     return privateJson({ error: "Invalid message cursor" }, { status: 400 });
   }
 
-  const rows = await prisma.message.findMany({
-    where: {
-      conversationId: id,
-      ...(beforeCursor
-        ? messageBeforeCursorWhere(beforeCursor)
-        : messageAfterCursorWhere(sinceCursor)),
-    },
-    orderBy: historyMode
-      ? [{ createdAt: "desc" }, { id: "desc" }]
-      : [{ createdAt: "asc" }, { id: "asc" }],
-    take: historyMode ? MESSAGE_POLL_LIMIT + 1 : MESSAGE_POLL_LIMIT,
-    select: {
-      id: true,
-      senderId: true,
-      recipientId: true,
-      body: true,
-      kind: true,
-      contextListing: { select: { id: true, title: true } },
-      createdAt: true,
-      readAt: true,
-    },
+  const rows = await listActorMessages(me.id, id, {
+    direction: historyMode ? "before" : "after",
+    cursor: beforeCursor ?? sinceCursor,
+    limit: historyMode ? MESSAGE_POLL_LIMIT + 1 : MESSAGE_POLL_LIMIT,
   });
 
   const hasMoreBefore = historyMode && rows.length > MESSAGE_POLL_LIMIT;

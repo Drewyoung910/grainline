@@ -115,9 +115,11 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     assert.doesNotMatch(threadPage, /conversationUpdate\.firstResponseAt = new Date\(\)/);
   });
 
-  it("bounds stable message cursors before Prisma keyset filters", () => {
+  it("bounds stable message cursors before recipient-RPC keyset filters", () => {
     const listRoute = source("src/app/api/messages/[id]/list/route.ts");
     const streamRoute = source("src/app/api/messages/[id]/stream/route.ts");
+    const authority = source("src/lib/conversationMessageAuthority.ts");
+    const recipientSql = source("docs/rls-drafts/conversation-message-recipient-access.sql");
     const cursor = source("src/lib/messageCursor.ts");
     const limits = source("src/lib/messagePolling.ts");
 
@@ -128,17 +130,26 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     assert.match(listRoute, /parseMessageCursor\(sinceRaw, sinceIdRaw\)/);
     assert.match(listRoute, /parseMessageCursor\(beforeRaw, beforeIdRaw, \{ requireId: true \}\)/);
     assert.match(listRoute, /import \{ MESSAGE_POLL_LIMIT \} from "@\/lib\/messagePolling"/);
-    assert.match(listRoute, /messageAfterCursorWhere\(sinceCursor\)/);
-    assert.match(listRoute, /messageBeforeCursorWhere\(beforeCursor\)/);
-    assert.match(listRoute, /take: historyMode \? MESSAGE_POLL_LIMIT \+ 1 : MESSAGE_POLL_LIMIT/);
+    assert.match(listRoute, /direction: historyMode \? "before" : "after"/);
+    assert.match(listRoute, /cursor: beforeCursor \?\? sinceCursor/);
+    assert.match(listRoute, /limit: historyMode \? MESSAGE_POLL_LIMIT \+ 1 : MESSAGE_POLL_LIMIT/);
     assert.doesNotMatch(listRoute, /new Date\(Number\(since\)\)/);
 
     assert.match(streamRoute, /parseMessageCursor\(/);
     assert.match(streamRoute, /url\.searchParams\.get\("sinceId"\)/);
     assert.match(streamRoute, /import \{ MESSAGE_POLL_LIMIT \} from "@\/lib\/messagePolling"/);
-    assert.match(streamRoute, /orderBy: \[\{ createdAt: "asc" \}, \{ id: "asc" \}\]/);
-    assert.match(streamRoute, /take: MESSAGE_POLL_LIMIT/);
+    assert.match(streamRoute, /direction: "after"/);
+    assert.match(streamRoute, /limit: MESSAGE_POLL_LIMIT/);
     assert.doesNotMatch(streamRoute, /Number\(url\.searchParams\.get\("since"\)/);
+    assert.match(authority, /public\.grainline_message_list/);
+    const messageListSql = recipientSql.slice(
+      recipientSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_list"),
+      recipientSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_unread_count"),
+    );
+    assert.match(messageListSql, /p_direction NOT IN \('before', 'after'\)/);
+    assert.match(messageListSql, /ORDER BY message\."createdAt" DESC, message\.id DESC/);
+    assert.match(messageListSql, /ORDER BY message\."createdAt" ASC, message\.id ASC/);
+    assert.match(messageListSql, /bounded_limit := GREATEST\(1, LEAST\(COALESCE\(p_limit, 50\), 201\)\)/);
     assert.match(cursor, /createdAt: cursor\.createdAt, id: \{ gt: cursor\.id \}/);
     assert.match(cursor, /createdAt: cursor\.createdAt, id: \{ lt: cursor\.id \}/);
   });

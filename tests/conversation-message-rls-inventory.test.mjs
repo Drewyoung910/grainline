@@ -12,19 +12,6 @@ const EXPECTED_BASELINE = {
     "Message.create": 1,
     "Conversation.update": 1,
   },
-  "src/app/api/messages/[id]/list/route.ts": {
-    "Conversation.findFirst": 1,
-    "Message.findMany": 1,
-  },
-  "src/app/api/messages/[id]/read/route.ts": {
-    "Conversation.findFirst": 1,
-    "Message.updateMany": 1,
-  },
-  "src/app/api/messages/[id]/stream/route.ts": {
-    "Conversation.findFirst": 1,
-    "Message.findMany": 1,
-  },
-  "src/app/api/messages/unread-count/route.ts": { "Message.count": 1 },
   "src/app/api/users/[id]/report/route.ts": {
     "Message.count": 1,
     "Conversation.count": 1,
@@ -82,7 +69,7 @@ describe("Conversation and Message RLS inventory", () => {
   const inventory = collectConversationMessageAccess();
 
   it("pins every current direct ORM and raw SQL access path", () => {
-    assert.equal(inventory.ormCalls.length, 45);
+    assert.equal(inventory.ormCalls.length, 38);
     assert.equal(inventory.rawSqlReferences.length, 8);
     assert.deepEqual(summarizeConversationMessageAccess(inventory), EXPECTED_BASELINE);
   });

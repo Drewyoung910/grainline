@@ -1,8 +1,8 @@
 # Conversation and Message Authority Inventory
 
-Snapshot: 2026-07-22. Status: compatibility baseline live; invariant work on
-`codex/rls-conversation-message-invariants-20260722`; no Conversation or
-Message RLS is active from this work.
+Snapshot: 2026-07-25. Status: functions-only database authority is live and
+application-path conversion is in progress; no Conversation or Message RLS is
+active from this work.
 
 ## Count contract
 
@@ -10,9 +10,18 @@ Message RLS is active from this work.
 TypeScript tree. The audited baseline was 50 direct Prisma operations plus 5
 raw SQL references. After the first compatible audit fixes it currently finds:
 
-- 45 direct Prisma Conversation or Message operations;
+- 38 direct Prisma Conversation or Message operations;
 - 8 raw SQL table references;
-- 53 total protected-table access points across 17 files.
+- 46 remaining protected-table access points across 13 files.
+
+The first application conversion checkpoint removed all seven direct
+Conversation/Message operations from list polling, stream polling, mark-read
+and unread-count routes. Those routes now call the exact
+`grainline_conversation_get`, `grainline_message_list`,
+`grainline_message_mark_read` and `grainline_message_unread_count` functions
+through `src/lib/conversationMessageAuthority.ts`. The list route retains the
+reported-staff exception; stream and mark-read explicitly remain
+participant-only.
 
 The test `tests/conversation-message-rls-inventory.test.mjs` pins the count and
 the exact per-file/model/operation summary. A new access path must therefore be
@@ -42,8 +51,8 @@ will intentionally fall as the design is implemented.
 |---|---|---|
 | `src/app/messages/page.tsx` | Inbox, search, latest-message projection and unread grouping | One-statement participant inbox RPC |
 | `src/app/messages/[id]/page.tsx` | Participant or reported-thread view; user send; first response; thread bump; email throttle; archive state | Thread projection RPC plus fixed send, archive and email-claim operations |
-| `src/app/api/messages/[id]/{list,stream,read}/route.ts` | Poll/stream projection and mark-read | Per-call participant/staff revalidation; bounded incremental read and mark-read RPCs |
-| `src/app/api/messages/unread-count/route.ts` | Participant unread total excluding blocked/archived threads | One-statement unread RPC |
+| `src/app/api/messages/[id]/{list,stream,read}/route.ts` | Poll/stream projection and mark-read | Converted: exact recipient projections with per-call authority; staff list review remains bounded while stream/mark-read remain participant-only |
+| `src/app/api/messages/unread-count/route.ts` | Participant unread total excluding blocked/archived threads | Converted: one-statement unread RPC |
 | `src/app/messages/new/page.tsx` and `src/lib/conversationStartAccess.ts` | Read-only start prompt plus explicit canonical conversation create/get and optional context listing | Implemented compatible operation with rate limit, sorted participant locks, reciprocal block check and pair advisory lock |
 | `src/app/api/messages/custom-order-request/route.ts` and `src/lib/customOrderRequestAccess.ts` | Custom-request conversation/message creation | Implemented atomic compatible operation with locked participant/block/seller/listing revalidation; later replace direct protected-table DML with fixed database authority |
 | `src/app/api/commission/[id]/interest/route.ts` | CommissionInterest, conversation and system-message transaction | Source-bound commission message operation retained inside the business transaction |
@@ -90,7 +99,8 @@ will intentionally fall as the design is implemented.
 ## Completion rule
 
 This inventory is complete only when every protected access (55 in the original
-baseline, 53 after current compatible refactors) has an explicit
+baseline, 53 after compatible refactors, 46 after the first authority
+conversion checkpoint) has an explicit
 destination, direct runtime INSERT/UPDATE/DELETE is removed, the compatible app
 passes before and after RLS, and PostgreSQL proof covers participant isolation,
 reported-staff access, structured write families, block/account races, archive

@@ -1,10 +1,13 @@
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
+import {
+  getActorConversation,
+  listActorMessages,
+} from "@/lib/conversationMessageAuthority";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { messageStreamRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { MESSAGE_POLL_LIMIT } from "@/lib/messagePolling";
-import { messageAfterCursorWhere, parseMessageCursor } from "@/lib/messageCursor";
+import { parseMessageCursor } from "@/lib/messageCursor";
 import * as Sentry from "@sentry/nextjs";
 
 export const runtime = "nodejs";
@@ -31,11 +34,10 @@ export async function GET(
     throw err;
   }
 
-  const allowed = await prisma.conversation.findFirst({
-    where: { id, OR: [{ userAId: me.id }, { userBId: me.id }] },
-    select: { id: true },
-  });
-  if (!allowed) return privateJson({ error: "Forbidden" }, { status: 403 });
+  const conversation = await getActorConversation(me.id, id);
+  const isParticipant = conversation
+    && (conversation.userAId === me.id || conversation.userBId === me.id);
+  if (!isParticipant) return privateJson({ error: "Forbidden" }, { status: 403 });
 
   const url = new URL(req.url);
   const sinceRaw = url.searchParams.get("since");
@@ -80,23 +82,10 @@ export async function GET(
       const poll = async () => {
         if (closed) return;
         try {
-          const messages = await prisma.message.findMany({
-            where: {
-              conversationId: id,
-              ...messageAfterCursorWhere(cursor),
-            },
-            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-            take: MESSAGE_POLL_LIMIT,
-            select: {
-              id: true,
-              senderId: true,
-              recipientId: true,
-              body: true,
-              kind: true,
-              contextListing: { select: { id: true, title: true } },
-              createdAt: true,
-              readAt: true,
-            },
+          const messages = await listActorMessages(me.id, id, {
+            direction: "after",
+            cursor,
+            limit: MESSAGE_POLL_LIMIT,
           });
           if (messages.length) {
             const lastMessage = messages[messages.length - 1];
