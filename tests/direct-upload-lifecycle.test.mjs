@@ -100,16 +100,16 @@ describe("direct upload lifecycle", () => {
     );
   });
 
-  it("requires tracked uploads to pass verification before persistence can claim them", () => {
+  it("requires tracked uploads to pass verification before fixed-family persistence", () => {
     const lifecycle = source("src/lib/directUploadLifecycle.ts");
     const verifier = source("src/lib/uploadPersistenceVerification.ts");
-    const claimStart = lifecycle.indexOf("export async function claimDirectUploadForUrl");
-    const batchClaimStart = lifecycle.indexOf("export async function claimDirectUploadsForUrls", claimStart);
-    const claimBlock = lifecycle.slice(claimStart, batchClaimStart);
+    const publicReferences = source(
+      "prisma/migrations/20260726185500_prepare_direct_upload_public_references/migration.sql",
+    );
 
-    assert.match(lifecycle, /directUploadStatusIsClaimable\(existing\.status\)/);
-    assert.match(claimBlock, /status: DIRECT_UPLOAD_STATUS\.VERIFIED/);
-    assert.doesNotMatch(claimBlock, /DIRECT_UPLOAD_STATUS\.PRESIGNED/);
+    assert.doesNotMatch(lifecycle, /claimDirectUploadFor(?:Url|Key)|claimDirectUploadsForUrls/);
+    assert.match(publicReferences, /upload\.status IN \('VERIFIED', 'CLAIMED'\)/);
+    assert.doesNotMatch(publicReferences, /upload\.status IN \([^)]*'PRESIGNED'/);
     assert.match(verifier, /accountUserId/);
     assert.match(verifier, /findOwnedDirectUploadForKey\(\{/);
     assert.match(verifier, /lifecycle\?\.status === DIRECT_UPLOAD_STATUS\.VERIFIED/);
@@ -120,75 +120,67 @@ describe("direct upload lifecycle", () => {
     assert.match(verifier, /uploadContentTypeMatches\(head\.ContentType, lifecycle\.contentType\)/);
   });
 
-  it("never rebinds a claimed upload to a different record type or record id", () => {
+  it("derives public reference identity from fixed durable-source families", () => {
     const lifecycle = source("src/lib/directUploadLifecycle.ts");
-    const claimStart = lifecycle.indexOf("export async function claimDirectUploadForKey");
-    const batchClaimStart = lifecycle.indexOf(
-      "export async function claimDirectUploadsForUrls",
-      claimStart,
+    const migration = source(
+      "prisma/migrations/20260726185500_prepare_direct_upload_public_references/migration.sql",
     );
-    const claimBlock = lifecycle.slice(claimStart, batchClaimStart);
 
-    assert.match(claimBlock, /claimedByType: true/);
     assert.match(
-      claimBlock,
-      /existing\.claimedByType !== claimedByType[\s\S]*throw new DirectUploadClaimError/,
+      migration,
+      /CREATE OR REPLACE FUNCTION public\.grainline_direct_upload_sync_listing[\s\S]*FROM public\."Listing"[\s\S]*owner_id IS DISTINCT FROM p_user_id/,
     );
     assert.match(
-      claimBlock,
-      /existing\.claimedById !== claimedById[\s\S]*throw new DirectUploadClaimError/,
+      migration,
+      /'LISTING_PHOTO',\s*p_listing_id[\s\S]*'LISTING_VIDEO',\s*p_listing_id/,
     );
     assert.match(
-      claimBlock,
-      /status: DIRECT_UPLOAD_STATUS\.CLAIMED,[\s\S]*claimedByType,[\s\S]*claimedById: null/,
+      migration,
+      /REVOKE ALL ON FUNCTION\s+public\.grainline_direct_upload_sync_public_core[\s\S]*FROM PUBLIC, grainline_app_runtime/,
     );
-    assert.match(claimBlock, /if \(linked\.count !== 1\)/);
-    assert.match(
-      claimBlock,
-      /current\.claimedByType !== claimedByType[\s\S]*current\.claimedById !== claimedById/,
-    );
+    assert.doesNotMatch(lifecycle, /claimedByType|claimedById/);
   });
 
-  it("claims newly persisted uploaded media so cleanup only deletes abandoned rows", () => {
+  it("synchronizes every persisted public-media family through its fixed wrapper", () => {
     const checked = [
-      ["src/app/dashboard/listings/new/page.tsx", /claimedByType: "Listing"/],
-      ["src/app/dashboard/listings/custom/page.tsx", /claimedByType: "Listing"/],
-      ["src/app/dashboard/listings/[id]/edit/page.tsx", /claimedByType: "Listing"/],
-      ["src/app/api/reviews/route.ts", /claimedByType: "Review"/],
-      ["src/app/api/reviews/[id]/route.ts", /claimedByType: "Review"/],
-      ["src/app/api/commission/route.ts", /claimedByType: "CommissionRequest"/],
-      ["src/app/dashboard/profile/page.tsx", /claimedByType: "SellerProfile"/],
-      ["src/app/dashboard/onboarding/actions.ts", /claimedByType: "SellerProfile"/],
-      ["src/app/api/seller/broadcast/route.ts", /claimedByType: "SellerBroadcast"/],
-      ["src/app/dashboard/blog/new/page.tsx", /claimedByType: "BlogPost"/],
-      ["src/app/dashboard/blog/[id]/edit/page.tsx", /claimedByType: "BlogPost"/],
+      ["src/app/dashboard/listings/new/page.tsx", /syncListingDirectUploadReferences/],
+      ["src/app/dashboard/listings/custom/page.tsx", /syncListingDirectUploadReferences/],
+      ["src/app/dashboard/listings/[id]/edit/page.tsx", /syncListingDirectUploadReferences/],
+      ["src/app/api/reviews/route.ts", /syncReviewDirectUploadReferences/],
+      ["src/app/api/reviews/[id]/route.ts", /syncReviewDirectUploadReferences/],
+      ["src/app/api/commission/route.ts", /syncCommissionRequestDirectUploadReferences/],
+      ["src/app/dashboard/profile/page.tsx", /syncSellerProfileDirectUploadReferences/],
+      ["src/app/dashboard/onboarding/actions.ts", /syncSellerProfileDirectUploadReferences/],
+      ["src/app/api/seller/broadcast/route.ts", /syncSellerBroadcastDirectUploadReferences/],
+      ["src/app/dashboard/blog/new/page.tsx", /syncBlogPostDirectUploadReferences/],
+      ["src/app/dashboard/blog/[id]/edit/page.tsx", /syncBlogPostDirectUploadReferences/],
     ];
 
-    for (const [path, claimedByTypePattern] of checked) {
+    for (const [path, syncPattern] of checked) {
       const text = source(path);
-      assert.match(text, /claimDirectUploadsForUrls/, path);
+      assert.match(text, syncPattern, path);
       if (path.startsWith("src/app/dashboard/blog/")) {
         assert.match(text, /normalizeBlogCoverImageUrl\([\s\S]*author\.id/, path);
       } else {
         assert.match(text, /accountUserId:/, path);
       }
-      assert.match(text, claimedByTypePattern, path);
+      assert.doesNotMatch(text, /claimedByType|claimedById/, path);
     }
   });
 
-  it("claims tracked direct uploads in the same transaction that persists message attachments", () => {
+  it("references tracked message uploads from the durable message in the same transaction", () => {
     const threadPage = source("src/app/messages/[id]/page.tsx");
 
-    assert.match(threadPage, /claimDirectUploadForUrl/);
+    assert.match(threadPage, /syncLegacyMessageDirectUploadReference/);
     assert.match(threadPage, /DirectUploadClaimError/);
     assert.match(threadPage, /await prisma\.\$transaction\(async \(tx\) => \{/);
     assert.ok(
-      threadPage.indexOf("await claimDirectUploadForUrl({") <
-        threadPage.indexOf("const createdAttachment = await sendActorOrdinaryMessage"),
-      "message send must claim tracked uploads before attachment rows are created",
+      threadPage.indexOf("const createdAttachment = await sendActorOrdinaryMessage") <
+        threadPage.indexOf("await syncLegacyMessageDirectUploadReference({"),
+      "message reference identity must be derived after the durable message exists",
     );
-    assert.match(threadPage, /claimedByType: "Message"/);
-    assert.match(threadPage, /claimedById: createdAttachment\.messageId/);
+    assert.match(threadPage, /messageId: createdAttachment\.messageId/);
+    assert.match(threadPage, /requireAllTracked: true/);
   });
 
   it("runs cron cleanup without bucket listing and reports partial failures through CronRun result", () => {

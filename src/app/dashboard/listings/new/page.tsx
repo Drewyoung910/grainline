@@ -11,7 +11,7 @@ import { enqueueEmailOutbox } from "@/lib/emailOutbox";
 import { listingCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText, sanitizeRichText, truncateText } from "@/lib/sanitize";
 import { filterVerifiedFirstPartyMediaUrlsForUser } from "@/lib/uploadPersistenceVerification";
-import { claimDirectUploadsForUrls } from "@/lib/directUploadLifecycle";
+import { syncListingDirectUploadReferences } from "@/lib/directUploadLifecycle";
 import { fanOutListingToFollowers } from "@/lib/followerListingNotifications";
 import { maybeGrantFoundingMaker } from "@/lib/foundingMaker";
 import PhotoManager from "@/components/PhotoManager";
@@ -289,12 +289,11 @@ async function createListing(_prevState: unknown, formData: FormData) {
         } : undefined,
       },
     });
-    await claimDirectUploadsForUrls({
+    await syncListingDirectUploadReferences({
       client: tx,
-      urls: [...imageUrls, ...imageOriginalUrls],
       userId: seller.userId,
-      claimedByType: "Listing",
-      claimedById: listing.id,
+      listingId: listing.id,
+      requireAllTracked: true,
     });
     return listing;
   });

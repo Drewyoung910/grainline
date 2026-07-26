@@ -21,7 +21,7 @@ import { commissionExpiresAt, openCommissionWhere } from "@/lib/commissionExpiry
 import { publicCommissionInterestWhere, resolvedInterestedCount } from "@/lib/commissionInterestCount";
 import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
 import { filterVerifiedFirstPartyMediaUrlsForUser } from "@/lib/uploadPersistenceVerification";
-import { claimDirectUploadsForUrls } from "@/lib/directUploadLifecycle";
+import { syncCommissionRequestDirectUploadReferences } from "@/lib/directUploadLifecycle";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import {
@@ -218,12 +218,11 @@ export async function POST(req: NextRequest) {
         lng: reqLng,
       },
     });
-    await claimDirectUploadsForUrls({
+    await syncCommissionRequestDirectUploadReferences({
       client: tx,
-      urls: images,
       userId: me.id,
-      claimedByType: "CommissionRequest",
-      claimedById: created.id,
+      commissionRequestId: created.id,
+      requireAllTracked: true,
     });
     return created;
   });

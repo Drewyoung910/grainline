@@ -98,6 +98,18 @@ describe("DirectUpload fixed-authority preparation", () => {
       migration,
       /seller upload requires a seller profile/,
     );
+    assert.match(
+      migration,
+      /regexp_replace\(\s*actor\."clerkId",\s*'\[\^A-Za-z0-9_-\]',\s*'_',\s*'g'/,
+    );
+    assert.match(
+      migration,
+      /split_part\(p_key, '\/', 2\) IS DISTINCT FROM actor_key_segment/,
+    );
+    assert.match(
+      migration,
+      /split_part\(p_key, '\/', 1\) IS DISTINCT FROM p_endpoint/,
+    );
   });
 
   it("keeps caller-selected reference identity behind an ungranted core", () => {
@@ -114,11 +126,25 @@ describe("DirectUpload fixed-authority preparation", () => {
     );
     assert.match(
       migration,
-      /candidate\.upload_user_id <> p_user_id/,
+      /candidate\.upload_user_id IS DISTINCT FROM p_user_id/,
     );
     assert.match(
       migration,
-      /candidate\.endpoint <> 'caseEvidenceImage'/,
+      /candidate\.endpoint IS DISTINCT FROM 'caseEvidenceImage'/,
+    );
+    assert.match(
+      migration,
+      /FOR UPDATE OF attachment, message, case_row, upload/,
+    );
+    assert.match(
+      migration,
+      /p_user_id IS DISTINCT FROM candidate\."buyerId"[\s\S]*p_user_id IS DISTINCT FROM candidate\."sellerId"/,
+    );
+    assert.match(migration, /p_storage_class IS NULL/);
+    assert.match(migration, /p_status IS NULL/);
+    assert.doesNotMatch(
+      migration,
+      /candidate\.(?:"uploaderId"|"authorId"|upload_user_id|endpoint|"storageClass"|upload_content_type|"expectedSize")\s*<>/,
     );
     assert.match(
       migration,

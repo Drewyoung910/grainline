@@ -30,7 +30,10 @@ import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { logServerError } from "@/lib/serverErrorLogger";
-import { claimDirectUploadForUrl, DirectUploadClaimError } from "@/lib/directUploadLifecycle";
+import {
+  DirectUploadClaimError,
+  syncLegacyMessageDirectUploadReference,
+} from "@/lib/directUploadLifecycle";
 import { canAttachConversationContextListing } from "@/lib/conversationStartState";
 import {
   claimActorConversationMessageEmail,
@@ -281,12 +284,6 @@ export default async function ThreadPage({
 
         // 1) attachments -> each as its own message (JSON payload in body)
         for (const a of atts) {
-          await claimDirectUploadForUrl({
-            client: tx,
-            url: a.url,
-            userId: me.id,
-            claimedByType: "Message",
-          });
           const payload = JSON.stringify({
             kind: "file",
             url: a.url,
@@ -309,12 +306,11 @@ export default async function ThreadPage({
             );
           }
           notificationMessageId = createdAttachment.messageId;
-          await claimDirectUploadForUrl({
+          await syncLegacyMessageDirectUploadReference({
             client: tx,
-            url: a.url,
             userId: me.id,
-            claimedByType: "Message",
-            claimedById: createdAttachment.messageId,
+            messageId: createdAttachment.messageId,
+            requireAllTracked: true,
           });
         }
 

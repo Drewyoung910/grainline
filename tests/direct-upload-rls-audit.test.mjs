@@ -7,7 +7,7 @@ function source(path) {
 }
 
 describe("DirectUpload RLS audit contracts", () => {
-  it("pins the remaining legacy direct claims and converted fixed-operation surfaces", () => {
+  it("pins converted fixed-operation surfaces while compatible table grants remain", () => {
     const convertedPaths = [
       ["src/lib/accountDeletion.ts", /releaseDirectUploadsForAccount/],
       ["src/lib/uploadPersistenceVerification.ts", /findOwnedDirectUploadForKey/],
@@ -29,8 +29,8 @@ describe("DirectUpload RLS audit contracts", () => {
     }
 
     const lifecycle = source("src/lib/directUploadLifecycle.ts");
-    assert.match(lifecycle, /export async function claimDirectUploadForKey/);
-    assert.match(lifecycle, /client\.directUpload\./);
+    assert.doesNotMatch(lifecycle, /claimDirectUploadFor(?:Url|Key)|claimDirectUploadsForUrls/);
+    assert.doesNotMatch(lifecycle, /client\.directUpload\./);
     const grants = source("scripts/provision-runtime-db-role.sql");
     assert.match(
       grants,
@@ -40,28 +40,24 @@ describe("DirectUpload RLS audit contracts", () => {
 
   it("pins every current durable-reference claim family", () => {
     const callSites = [
-      ["src/app/dashboard/listings/new/page.tsx", "Listing"],
-      ["src/app/dashboard/listings/custom/page.tsx", "Listing"],
-      ["src/app/dashboard/listings/[id]/edit/page.tsx", "Listing"],
-      ["src/app/dashboard/onboarding/actions.ts", "SellerProfile"],
-      ["src/app/dashboard/profile/page.tsx", "SellerProfile"],
-      ["src/app/api/reviews/route.ts", "Review"],
-      ["src/app/api/reviews/[id]/route.ts", "Review"],
-      ["src/app/dashboard/blog/new/page.tsx", "BlogPost"],
-      ["src/app/dashboard/blog/[id]/edit/page.tsx", "BlogPost"],
-      ["src/app/api/commission/route.ts", "CommissionRequest"],
-      ["src/app/api/seller/broadcast/route.ts", "SellerBroadcast"],
-      ["src/app/messages/[id]/page.tsx", "Message"],
+      ["src/app/dashboard/listings/new/page.tsx", "syncListingDirectUploadReferences"],
+      ["src/app/dashboard/listings/custom/page.tsx", "syncListingDirectUploadReferences"],
+      ["src/app/dashboard/listings/[id]/edit/page.tsx", "syncListingDirectUploadReferences"],
+      ["src/app/dashboard/onboarding/actions.ts", "syncSellerProfileDirectUploadReferences"],
+      ["src/app/dashboard/profile/page.tsx", "syncSellerProfileDirectUploadReferences"],
+      ["src/app/api/reviews/route.ts", "syncReviewDirectUploadReferences"],
+      ["src/app/api/reviews/[id]/route.ts", "syncReviewDirectUploadReferences"],
+      ["src/app/dashboard/blog/new/page.tsx", "syncBlogPostDirectUploadReferences"],
+      ["src/app/dashboard/blog/[id]/edit/page.tsx", "syncBlogPostDirectUploadReferences"],
+      ["src/app/api/commission/route.ts", "syncCommissionRequestDirectUploadReferences"],
+      ["src/app/api/seller/broadcast/route.ts", "syncSellerBroadcastDirectUploadReferences"],
+      ["src/app/messages/[id]/page.tsx", "syncLegacyMessageDirectUploadReference"],
     ];
 
-    for (const [path, claimType] of callSites) {
+    for (const [path, syncHelper] of callSites) {
       const text = source(path);
-      assert.match(text, /claimDirectUpload(?:sForUrls|ForUrl|ForKey)/, path);
-      assert.match(
-        text,
-        new RegExp(`claimedByType: "${claimType}"`),
-        path,
-      );
+      assert.match(text, new RegExp(syncHelper), path);
+      assert.doesNotMatch(text, /claimedByType|claimedById/, path);
     }
     assert.match(
       source("src/app/api/cases/[id]/messages/route.ts"),
@@ -69,25 +65,33 @@ describe("DirectUpload RLS audit contracts", () => {
     );
   });
 
-  it("pins generic caller-controlled claims and public reuse conflicts", () => {
+  it("removes generic caller-controlled claims and supports validated public reuse", () => {
     const lifecycle = source("src/lib/directUploadLifecycle.ts");
     const broadcast = source("src/app/api/seller/broadcast/route.ts");
     const blogInput = source("src/lib/blogInput.ts");
+    const migration = source(
+      "prisma/migrations/20260726185500_prepare_direct_upload_public_references/migration.sql",
+    );
     const audit = source("docs/direct-upload-rls-audit.md");
 
-    assert.match(
-      lifecycle,
-      /claimDirectUploadForKey\(\{[\s\S]*claimedByType,[\s\S]*claimedById/,
-    );
-    assert.match(
-      lifecycle,
-      /existing\.claimedByType !== claimedByType[\s\S]*existing\.claimedById !== claimedById/,
-    );
+    assert.doesNotMatch(lifecycle, /claimedByType|claimedById/);
     assert.match(
       broadcast,
       /allowedEndpoints: \[[\s\S]*"listingImage"[\s\S]*"bannerImage"[\s\S]*"galleryImage"/,
     );
     assert.match(blogInput, /allowedEndpoints: \["galleryImage", "blogImage"\]/);
+    assert.match(
+      migration,
+      /grainline_direct_upload_sync_seller_broadcast[\s\S]*ARRAY\['listingImage', 'bannerImage', 'galleryImage'\]/,
+    );
+    assert.match(
+      migration,
+      /grainline_direct_upload_sync_blog_post[\s\S]*ARRAY\['galleryImage', 'blogImage'\]/,
+    );
+    assert.match(
+      migration,
+      /grainline_direct_upload_sync_public_core[\s\S]*FROM PUBLIC, grainline_app_runtime/,
+    );
     assert.match(audit, /one claim conflicts with valid public reuse/i);
     assert.match(audit, /multiple active references for PUBLIC[\s\S]*exactly one for PRIVATE/);
   });
@@ -97,12 +101,21 @@ describe("DirectUpload RLS audit contracts", () => {
     const deletion = source("src/lib/accountDeletion.ts");
     const lifecycle = source("src/lib/directUploadLifecycle.ts");
     const review = source("src/app/api/reviews/[id]/route.ts");
+    const listingEdit = source("src/app/dashboard/listings/[id]/edit/page.tsx");
+    const migration = source(
+      "prisma/migrations/20260726185500_prepare_direct_upload_public_references/migration.sql",
+    );
     const audit = source("docs/direct-upload-rls-audit.md");
 
     assert.match(accountExport, /exportOwnedDirectUploads\(user\.id\)/);
     assert.match(deletion, /releaseDirectUploadsForAccount/);
     assert.doesNotMatch(deletion, /tx\.directUpload\.deleteMany/);
-    assert.match(review, /deleteR2ObjectByUrl\(photo\.url\)/);
+    assert.doesNotMatch(review, /deleteR2ObjectByUrl/);
+    assert.doesNotMatch(listingEdit, /deleteR2ObjectByUrl/);
+    assert.match(migration, /grainline_direct_upload_release_source_core/);
+    assert.match(migration, /grainline_direct_upload_source_delete_trigger/);
+    assert.match(migration, /grainline_direct_upload_release_review_delete/);
+    assert.match(migration, /grainline_direct_upload_release_listing_delete/);
     assert.match(lifecycle, /grainline_direct_upload_cleanup_complete/);
     assert.match(lifecycle, /grainline_direct_upload_cleanup_fail/);
     assert.match(audit, /must omit key, URL, internal target ids and raw\s+provider error text/);

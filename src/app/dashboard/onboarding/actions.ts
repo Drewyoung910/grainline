@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { normalizeDisplayNameForLookup, sanitizeText, sanitizeUserName, truncateText } from "@/lib/sanitize";
 import { verifyFirstPartyMediaUrlForPersistence } from "@/lib/uploadPersistenceVerification";
-import { claimDirectUploadsForUrls } from "@/lib/directUploadLifecycle";
+import { syncSellerProfileDirectUploadReferences } from "@/lib/directUploadLifecycle";
 import { IMAGE_UPLOAD_TYPES } from "@/lib/uploadRules";
 import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/sellerProfileText";
 import { safeRateLimit, sellerProfileRatelimit } from "@/lib/ratelimit";
@@ -94,12 +94,11 @@ export async function saveStep1(formData: FormData): Promise<ActionResult> {
         },
       });
       if (avatarImageUrl) {
-        await claimDirectUploadsForUrls({
+        await syncSellerProfileDirectUploadReferences({
           client: tx,
-          urls: [avatarImageUrl],
           userId: seller.userId,
-          claimedByType: "SellerProfile",
-          claimedById: seller.id,
+          sellerProfileId: seller.id,
+          requireAllTracked: true,
         });
       }
     });

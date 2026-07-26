@@ -182,6 +182,7 @@ DECLARE
   lifecycle_id text;
   existing public."DirectUpload"%ROWTYPE;
   actor_role public."Role";
+  actor_key_segment text;
   case_record record;
 BEGIN
   IF NOT public.grainline_direct_upload_actor_valid(p_user_id) THEN
@@ -198,22 +199,45 @@ BEGIN
      OR pg_catalog.char_length(p_content_type) > 100
      OR p_expected_size IS NULL
      OR p_expected_size <= 0
+     OR p_storage_class IS NULL
      OR p_storage_class NOT IN ('PUBLIC', 'PRIVATE')
+     OR p_status IS NULL
      OR p_status NOT IN ('PRESIGNED', 'VERIFIED') THEN
     RAISE EXCEPTION 'DirectUpload record input is invalid'
       USING ERRCODE = '22023';
   END IF;
 
-  SELECT actor.role
-    INTO actor_role
+  SELECT
+    actor.role,
+    pg_catalog.left(
+      pg_catalog.regexp_replace(
+        actor."clerkId",
+        '[^A-Za-z0-9_-]',
+        '_',
+        'g'
+      ),
+      128
+    )
+    INTO actor_role, actor_key_segment
     FROM public."User" AS actor
    WHERE actor.id = p_user_id;
+  IF actor_key_segment IS NULL
+     OR actor_key_segment = ''
+     OR pg_catalog.split_part(p_key, '/', 1) IS DISTINCT FROM p_endpoint
+     OR pg_catalog.split_part(p_key, '/', 2) IS DISTINCT FROM actor_key_segment
+     OR p_key ~ '[[:cntrl:]]'
+     OR position('..' IN p_key) > 0 THEN
+    RAISE EXCEPTION 'DirectUpload key is not scoped to the actor and endpoint'
+      USING ERRCODE = '42501';
+  END IF;
 
   IF p_storage_class = 'PUBLIC' THEN
     IF p_context_id IS NOT NULL
        OR p_public_url IS NULL
        OR p_public_url = ''
-       OR pg_catalog.char_length(p_public_url) > 2048 THEN
+       OR pg_catalog.char_length(p_public_url) > 2048
+       OR pg_catalog.split_part(p_key, '/', 3) = ''
+       OR pg_catalog.split_part(p_key, '/', 4) <> '' THEN
       RAISE EXCEPTION 'public DirectUpload metadata is invalid'
         USING ERRCODE = '22023';
     END IF;
@@ -251,7 +275,7 @@ BEGIN
     END IF;
   ELSE
     IF p_public_url IS NOT NULL
-       OR p_status <> 'VERIFIED'
+       OR p_status IS DISTINCT FROM 'VERIFIED'
        OR p_context_id IS NULL
        OR p_context_id = ''
        OR pg_catalog.char_length(p_context_id) > 191 THEN
@@ -377,12 +401,12 @@ BEGIN
    WHERE upload.key = p_key
    FOR UPDATE;
   IF NOT FOUND
-     OR existing."userId" <> p_user_id
-     OR existing.endpoint <> p_endpoint
+     OR existing."userId" IS DISTINCT FROM p_user_id
+     OR existing.endpoint IS DISTINCT FROM p_endpoint
      OR existing."publicUrl" IS DISTINCT FROM p_public_url
-     OR existing."storageClass" <> p_storage_class
-     OR existing."contentType" <> p_content_type
-     OR existing."expectedSize" <> p_expected_size
+     OR existing."storageClass" IS DISTINCT FROM p_storage_class
+     OR existing."contentType" IS DISTINCT FROM p_content_type
+     OR existing."expectedSize" IS DISTINCT FROM p_expected_size
      OR existing.status IN ('DELETING', 'DELETED', 'DELETE_FAILED') THEN
     RAISE EXCEPTION 'DirectUpload key is already bound to different metadata'
       USING ERRCODE = '23505';
@@ -790,22 +814,23 @@ BEGIN
     JOIN public."DirectUpload" AS upload
       ON upload.id = attachment."directUploadId"
    WHERE attachment.id = p_attachment_id
-   FOR UPDATE OF upload;
+   FOR UPDATE OF attachment, message, case_row, upload;
   IF NOT FOUND
-     OR candidate."uploaderId" <> p_user_id
-     OR candidate."authorId" <> p_user_id
+     OR candidate."uploaderId" IS DISTINCT FROM p_user_id
+     OR candidate."authorId" IS DISTINCT FROM p_user_id
      OR (
-       p_user_id NOT IN (candidate."buyerId", candidate."sellerId")
+       p_user_id IS DISTINCT FROM candidate."buyerId"
+       AND p_user_id IS DISTINCT FROM candidate."sellerId"
        AND candidate.role NOT IN (
          'EMPLOYEE'::public."Role",
          'ADMIN'::public."Role"
        )
      )
-     OR candidate.upload_user_id <> p_user_id
-     OR candidate.endpoint <> 'caseEvidenceImage'
-     OR candidate."storageClass" <> 'PRIVATE'
-     OR candidate.upload_content_type <> candidate."contentType"
-     OR candidate."expectedSize" <> candidate."byteSize"
+     OR candidate.upload_user_id IS DISTINCT FROM p_user_id
+     OR candidate.endpoint IS DISTINCT FROM 'caseEvidenceImage'
+     OR candidate."storageClass" IS DISTINCT FROM 'PRIVATE'
+     OR candidate.upload_content_type IS DISTINCT FROM candidate."contentType"
+     OR candidate."expectedSize" IS DISTINCT FROM candidate."byteSize"
      OR candidate.status NOT IN ('VERIFIED', 'CLAIMED') THEN
     RETURN false;
   END IF;

@@ -142,6 +142,17 @@ attachment children to reference the lifecycle row rather than duplicate its
 key. Production promotion waits for aggregate legacy inspection, reference
 backfill, exact PostgreSQL proof and pooled-runtime postflight.
 
+CM-A21 preparation now uses a service-only reference ledger plus
+source-derived public family operations; the generic application claim API is
+removed in the draft. Public reuse is reference-counted, source deletion
+releases references through database triggers, and Listing/Review mutation
+paths defer object deletion to the fenced cleanup worker after the last
+reference. This is still compatible preparation only: DirectUpload RLS remains
+off and its old table grants remain until the reviewed activation/drain split.
+Do not promote this checkpoint until the live PostgreSQL authority/concurrency
+proof, aggregate legacy classification/backfill, rollback and pooled-runtime
+postflight gates are complete.
+
 ### Messaging architecture decision (2026-07-22)
 
 Keep one ordinary Conversation per unordered participant pair. Do not create a

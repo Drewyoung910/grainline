@@ -361,7 +361,10 @@ runtime-granted operations for:
 
 Private actor, UTC clock, record, reference and release cores are explicitly
 revoked from both runtime and PUBLIC. Database clocks are normalized to UTC at
-the SQL boundary; IDs and cleanup lease tokens are database-derived.
+the SQL boundary; IDs and cleanup lease tokens are database-derived. The record
+core independently derives the key owner segment from the actor's durable
+Clerk id and rejects a key whose endpoint or user segment does not match,
+rather than relying only on application-side key construction.
 
 The compatible application draft now uses those operations for upload
 record/verify, persistence lookup, private Case reference/read, cleanup,
@@ -370,10 +373,58 @@ without a matching lifecycle row; exact unchanged legacy URLs remain accepted
 only through the pre-existing `existingUrls` path.
 
 This checkpoint still has no live PostgreSQL proof and is not release-ready.
-The public Listing/SellerProfile/Review/Blog/Commission/Broadcast/legacy
-Message reference families still use the generic caller-controlled claim
-helper. Those families, source-aware release, exact ACL/catalog proof and the
-activation/rollback split remain open.
+The public source families, source-aware release, exact ACL/catalog proof and
+the activation/rollback split remain open at this checkpoint.
+
+### Fixed public-reference family checkpoint
+
+The next compatible draft adds
+`20260726185500_prepare_direct_upload_public_references` and removes the
+generic application claim API. Runtime receives only seven source-specific
+operations for Listing, SellerProfile, Review, BlogPost, CommissionRequest,
+SellerBroadcast and the drain-only legacy Message representation. Each
+operation locks and reads its durable source, proves the actor/source
+relationship, derives URLs, endpoints, source type and source id in the
+database, and calls a runtime-inaccessible reference core.
+
+The family conversion preserves valid public object reuse through normalized
+references rather than rebinding a single `claimedByType`/`claimedById`.
+Create paths fail closed when a submitted first-party URL lacks a matching
+verified lifecycle. Compatible edit paths may retain exact legacy URLs already
+stored on the source, pending the aggregate legacy inspection and backfill.
+
+The Extra-High static review caught and corrected four defects before live
+PostgreSQL execution:
+
+1. nullable BlogPost ownership originally used `NOT IN`, and six other
+   families used `<>`; SQL UNKNOWN could fail to reject a null actor. All
+   ownership checks now use `IS DISTINCT FROM`, the core rejects null
+   actor/source inputs explicitly, and Blog recognizes only durable
+   `authorId`, matching the application edit authority;
+2. SellerProfile invoked four mutating families through `UNION ALL`, which did
+   not provide an explicit execution sequence;
+3. desired references and stale references originally acquired lifecycle
+   locks in separate orders, allowing a cross-source public-object swap to
+   deadlock; and
+4. Listing/Review application cleanup still deleted R2 objects directly after
+   release, which could destroy an object that another valid public source
+   continued to reference.
+
+The corrected core locks the union of desired and currently referenced
+lifecycle rows by id before any reference mutation. SellerProfile families run
+sequentially. Source-root BEFORE DELETE triggers release references for
+Listing, SellerProfile, Review, BlogPost, CommissionRequest, SellerBroadcast
+and legacy Message rows. Application mutation paths no longer directly delete
+Listing or Review media; the fenced lifecycle worker deletes only after the
+last reference is released. Removing a seller avatar also synchronizes its
+reference in the same transaction.
+
+This remains preparation only: DirectUpload RLS is still off, old runtime table
+grants remain for deployment coexistence, no SQL has been applied, and no
+provider or production state changed. Live PostgreSQL syntax, ACL, authority,
+reuse, release/cleanup and concurrency proof; aggregate legacy inspection and
+backfill; the activation/rollback split; and the final Extra-High authority
+review remain required.
 
 ## Exit
 

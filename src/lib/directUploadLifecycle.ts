@@ -2,13 +2,10 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { deleteR2ObjectByStorageClass } from "@/lib/r2";
 import { uploadTelemetryKeyHash } from "@/lib/uploadTelemetry";
-import { firstPartyMediaKey } from "@/lib/urlValidation";
 import { logServerError } from "@/lib/serverErrorLogger";
 import {
   DIRECT_UPLOAD_CLEANUP_BATCH_SIZE,
-  DIRECT_UPLOAD_STATUS,
   directUploadErrorMessage,
-  directUploadStatusIsClaimable,
 } from "@/lib/directUploadLifecycleState";
 
 type DirectUploadClient = Prisma.TransactionClient | typeof prisma;
@@ -241,173 +238,173 @@ export async function releaseDirectUploadsForAccount({
   return rows[0]?.released ?? 0;
 }
 
-export async function claimDirectUploadForUrl({
-  client = prisma,
-  url,
-  userId,
-  claimedByType,
-  claimedById = null,
-  now = new Date(),
-}: {
-  client?: DirectUploadClient;
-  url: string;
-  userId: string;
-  claimedByType: string;
-  claimedById?: string | null;
-  now?: Date;
-}) {
-  const key = firstPartyMediaKey(url);
-  if (!key) return { tracked: false, claimed: false };
+export type DirectUploadReferenceSyncResult = {
+  referenced: number;
+  released: number;
+  untracked: number;
+};
 
-  return claimDirectUploadForKey({
-    client,
-    key,
-    userId,
-    storageClass: "PUBLIC",
-    claimedByType,
-    claimedById,
-    now,
-  });
+function checkedReferenceSync(
+  rows: DirectUploadReferenceSyncResult[],
+  requireAllTracked: boolean,
+) {
+  const result = rows[0];
+  if (!result) {
+    throw new DirectUploadClaimError("Upload references could not be synchronized.");
+  }
+  if (requireAllTracked && result.untracked > 0) {
+    throw new DirectUploadClaimError(
+      "An upload is missing lifecycle verification. Re-upload it and try again.",
+    );
+  }
+  return result;
 }
 
-export async function claimDirectUploadForKey({
+export async function syncListingDirectUploadReferences({
   client = prisma,
-  key,
   userId,
-  endpoint,
-  storageClass,
-  claimedByType,
-  claimedById = null,
-  now = new Date(),
+  listingId,
+  requireAllTracked = false,
 }: {
   client?: DirectUploadClient;
-  key: string;
   userId: string;
-  endpoint?: string;
-  storageClass: "PUBLIC" | "PRIVATE";
-  claimedByType: string;
-  claimedById?: string | null;
-  now?: Date;
+  listingId: string;
+  requireAllTracked?: boolean;
 }) {
-  const existing = await client.directUpload.findUnique({
-    where: { key },
-    select: {
-      id: true,
-      userId: true,
-      endpoint: true,
-      storageClass: true,
-      status: true,
-      claimedByType: true,
-      claimedById: true,
-    },
-  });
-  if (!existing) return { tracked: false, claimed: false };
-  if (
-    existing.userId !== userId
-    || existing.storageClass !== storageClass
-    || (endpoint && existing.endpoint !== endpoint)
-  ) {
-    throw new DirectUploadClaimError("Attachment upload is not valid for this account.");
-  }
-
-  if (existing.status === DIRECT_UPLOAD_STATUS.CLAIMED) {
-    if (existing.claimedByType !== claimedByType) {
-      throw new DirectUploadClaimError(
-        "Attachment upload has already been claimed by another record.",
-      );
-    }
-    if (existing.claimedById) {
-      if (existing.claimedById !== claimedById) {
-        throw new DirectUploadClaimError(
-          "Attachment upload has already been claimed by another record.",
-        );
-      }
-      return { tracked: true, claimed: true };
-    }
-    if (claimedById) {
-      const linked = await client.directUpload.updateMany({
-        where: {
-          id: existing.id,
-          status: DIRECT_UPLOAD_STATUS.CLAIMED,
-          claimedByType,
-          claimedById: null,
-        },
-        data: { claimedById },
-      });
-      if (linked.count !== 1) {
-        const current = await client.directUpload.findUnique({
-          where: { key },
-          select: {
-            status: true,
-            claimedByType: true,
-            claimedById: true,
-          },
-        });
-        if (
-          current?.status !== DIRECT_UPLOAD_STATUS.CLAIMED
-          || current.claimedByType !== claimedByType
-          || current.claimedById !== claimedById
-        ) {
-          throw new DirectUploadClaimError(
-            "Attachment upload has already been claimed by another record.",
-          );
-        }
-      }
-    }
-    return { tracked: true, claimed: true };
-  }
-
-  if (!directUploadStatusIsClaimable(existing.status)) {
-    throw new DirectUploadClaimError();
-  }
-
-  const claimed = await client.directUpload.updateMany({
-    where: {
-      id: existing.id,
-      status: DIRECT_UPLOAD_STATUS.VERIFIED,
-    },
-    data: {
-      status: DIRECT_UPLOAD_STATUS.CLAIMED,
-      claimedAt: now,
-      claimedByType,
-      claimedById,
-      cleanupAfter: null,
-      lastError: null,
-    },
-  });
-  if (claimed.count !== 1) {
-    throw new DirectUploadClaimError();
-  }
-
-  return { tracked: true, claimed: true };
+  const rows = await client.$queryRaw<DirectUploadReferenceSyncResult[]>`
+    SELECT *
+      FROM public.grainline_direct_upload_sync_listing(
+        ${userId},
+        ${listingId}
+      )
+  `;
+  return checkedReferenceSync(rows, requireAllTracked);
 }
 
-export async function claimDirectUploadsForUrls({
+export async function syncSellerProfileDirectUploadReferences({
   client = prisma,
-  urls,
   userId,
-  claimedByType,
-  claimedById = null,
-  now = new Date(),
+  sellerProfileId,
+  requireAllTracked = false,
 }: {
   client?: DirectUploadClient;
-  urls: readonly string[];
   userId: string;
-  claimedByType: string;
-  claimedById?: string | null;
-  now?: Date;
+  sellerProfileId: string;
+  requireAllTracked?: boolean;
 }) {
-  const uniqueUrls = [...new Set(urls.filter(Boolean))];
-  for (const url of uniqueUrls) {
-    await claimDirectUploadForUrl({
-      client,
-      url,
-      userId,
-      claimedByType,
-      claimedById,
-      now,
-    });
-  }
+  const rows = await client.$queryRaw<DirectUploadReferenceSyncResult[]>`
+    SELECT *
+      FROM public.grainline_direct_upload_sync_seller_profile(
+        ${userId},
+        ${sellerProfileId}
+      )
+  `;
+  return checkedReferenceSync(rows, requireAllTracked);
+}
+
+export async function syncReviewDirectUploadReferences({
+  client = prisma,
+  userId,
+  reviewId,
+  requireAllTracked = false,
+}: {
+  client?: DirectUploadClient;
+  userId: string;
+  reviewId: string;
+  requireAllTracked?: boolean;
+}) {
+  const rows = await client.$queryRaw<DirectUploadReferenceSyncResult[]>`
+    SELECT *
+      FROM public.grainline_direct_upload_sync_review(
+        ${userId},
+        ${reviewId}
+      )
+  `;
+  return checkedReferenceSync(rows, requireAllTracked);
+}
+
+export async function syncBlogPostDirectUploadReferences({
+  client = prisma,
+  userId,
+  blogPostId,
+  requireAllTracked = false,
+}: {
+  client?: DirectUploadClient;
+  userId: string;
+  blogPostId: string;
+  requireAllTracked?: boolean;
+}) {
+  const rows = await client.$queryRaw<DirectUploadReferenceSyncResult[]>`
+    SELECT *
+      FROM public.grainline_direct_upload_sync_blog_post(
+        ${userId},
+        ${blogPostId}
+      )
+  `;
+  return checkedReferenceSync(rows, requireAllTracked);
+}
+
+export async function syncCommissionRequestDirectUploadReferences({
+  client = prisma,
+  userId,
+  commissionRequestId,
+  requireAllTracked = false,
+}: {
+  client?: DirectUploadClient;
+  userId: string;
+  commissionRequestId: string;
+  requireAllTracked?: boolean;
+}) {
+  const rows = await client.$queryRaw<DirectUploadReferenceSyncResult[]>`
+    SELECT *
+      FROM public.grainline_direct_upload_sync_commission_request(
+        ${userId},
+        ${commissionRequestId}
+      )
+  `;
+  return checkedReferenceSync(rows, requireAllTracked);
+}
+
+export async function syncSellerBroadcastDirectUploadReferences({
+  client = prisma,
+  userId,
+  sellerBroadcastId,
+  requireAllTracked = false,
+}: {
+  client?: DirectUploadClient;
+  userId: string;
+  sellerBroadcastId: string;
+  requireAllTracked?: boolean;
+}) {
+  const rows = await client.$queryRaw<DirectUploadReferenceSyncResult[]>`
+    SELECT *
+      FROM public.grainline_direct_upload_sync_seller_broadcast(
+        ${userId},
+        ${sellerBroadcastId}
+      )
+  `;
+  return checkedReferenceSync(rows, requireAllTracked);
+}
+
+export async function syncLegacyMessageDirectUploadReference({
+  client = prisma,
+  userId,
+  messageId,
+  requireAllTracked = false,
+}: {
+  client?: DirectUploadClient;
+  userId: string;
+  messageId: string;
+  requireAllTracked?: boolean;
+}) {
+  const rows = await client.$queryRaw<DirectUploadReferenceSyncResult[]>`
+    SELECT *
+      FROM public.grainline_direct_upload_sync_legacy_message(
+        ${userId},
+        ${messageId}
+      )
+  `;
+  return checkedReferenceSync(rows, requireAllTracked);
 }
 
 export async function processExpiredDirectUploadBatch({

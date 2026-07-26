@@ -17,7 +17,7 @@ import { containsProfanity } from "@/lib/profanity";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
 import { filterVerifiedFirstPartyMediaUrlsForUser } from "@/lib/uploadPersistenceVerification";
-import { claimDirectUploadsForUrls } from "@/lib/directUploadLifecycle";
+import { syncReviewDirectUploadReferences } from "@/lib/directUploadLifecycle";
 import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 import { publicListingPath } from "@/lib/publicPaths";
 import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
@@ -183,12 +183,11 @@ export async function POST(req: NextRequest) {
             sortOrder: i,
           })),
         });
-        await claimDirectUploadsForUrls({
+        await syncReviewDirectUploadReferences({
           client: tx,
-          urls,
           userId: me.id,
-          claimedByType: "Review",
-          claimedById: r.id,
+          reviewId: r.id,
+          requireAllTracked: true,
         });
       }
 
