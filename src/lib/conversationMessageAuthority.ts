@@ -59,6 +59,23 @@ export type StartedActorConversation = {
   contextListingId: string | null;
 };
 
+export type SentActorCustomOrderRequest = {
+  conversationId: string;
+  messageId: string;
+  listingId: string | null;
+  listingTitle: string | null;
+};
+
+export type CreatedActorCommissionInterest = {
+  conversationId: string;
+  messageId: string;
+  commissionInterestId: string;
+  buyerUserId: string;
+  commissionTitle: string;
+  sellerDisplayName: string;
+  created: boolean;
+};
+
 type ConversationRpcRow = ActorConversation;
 
 type MessageRpcRow = {
@@ -410,6 +427,91 @@ export async function startActorConversation(
     || !isNullableString(row.contextListingId)
   ) {
     throw new TypeError("conversation start RPC returned an invalid row");
+  }
+  return row;
+}
+
+export async function sendActorCustomOrderRequest(
+  input: {
+    buyerUserId: string;
+    sellerUserId: string;
+    description: string;
+    dimensions: string | null;
+    budgetCents: number | null;
+    timeline: string | null;
+    listingId: string | null;
+  },
+  db: ConversationMessageAuthorityClient = prisma,
+): Promise<SentActorCustomOrderRequest> {
+  const buyerUserId = normalizeDbUserContextUserId(input.buyerUserId);
+  const sellerUserId = normalizeDbUserContextUserId(input.sellerUserId);
+  const rows = await db.$queryRaw<SentActorCustomOrderRequest[]>`
+    SELECT *
+      FROM public.grainline_message_send_custom_request(
+        ${randomUUID()}::text,
+        ${randomUUID()}::text,
+        ${buyerUserId}::text,
+        ${sellerUserId}::text,
+        ${input.description}::text,
+        ${input.dimensions}::text,
+        ${input.budgetCents}::integer,
+        ${input.timeline}::text,
+        ${input.listingId}::text
+      )
+  `;
+  const row = rows[0];
+  if (
+    rows.length !== 1
+    || typeof row.conversationId !== "string"
+    || !isBoundedAuthorityId(row.conversationId)
+    || typeof row.messageId !== "string"
+    || !isBoundedAuthorityId(row.messageId)
+    || !isNullableString(row.listingId)
+    || !isNullableString(row.listingTitle)
+    || ((row.listingId === null) !== (row.listingTitle === null))
+  ) {
+    throw new TypeError("custom-request write RPC returned an invalid row");
+  }
+  return row;
+}
+
+export async function createActorCommissionInterest(
+  input: {
+    commissionRequestId: string;
+    sellerUserId: string;
+  },
+  db: ConversationMessageAuthorityClient = prisma,
+): Promise<CreatedActorCommissionInterest> {
+  const sellerUserId = normalizeDbUserContextUserId(input.sellerUserId);
+  if (!isBoundedAuthorityId(input.commissionRequestId)) {
+    throw new TypeError("commission-interest write RPC input is invalid");
+  }
+  const rows = await db.$queryRaw<CreatedActorCommissionInterest[]>`
+    SELECT *
+      FROM public.grainline_message_create_commission_interest(
+        ${randomUUID()}::text,
+        ${randomUUID()}::text,
+        ${randomUUID()}::text,
+        ${sellerUserId}::text,
+        ${input.commissionRequestId}::text
+      )
+  `;
+  const row = rows[0];
+  if (
+    rows.length !== 1
+    || typeof row.conversationId !== "string"
+    || !isBoundedAuthorityId(row.conversationId)
+    || typeof row.messageId !== "string"
+    || !isBoundedAuthorityId(row.messageId)
+    || typeof row.commissionInterestId !== "string"
+    || !isBoundedAuthorityId(row.commissionInterestId)
+    || typeof row.buyerUserId !== "string"
+    || !isBoundedAuthorityId(row.buyerUserId)
+    || typeof row.commissionTitle !== "string"
+    || typeof row.sellerDisplayName !== "string"
+    || typeof row.created !== "boolean"
+  ) {
+    throw new TypeError("commission-interest write RPC returned an invalid row");
   }
   return row;
 }

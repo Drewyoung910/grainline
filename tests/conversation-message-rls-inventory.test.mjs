@@ -7,10 +7,6 @@ import {
 } from "../scripts/conversation-message-rls-inventory.mjs";
 
 const EXPECTED_BASELINE = {
-  "src/lib/commissionInterestMessageAccess.ts": {
-    "Message.create": 1,
-    "Conversation.update": 1,
-  },
   "src/app/messages/[id]/page.tsx": {
     "Conversation.findFirst": 5,
     "Message.findMany": 1,
@@ -31,9 +27,6 @@ const EXPECTED_BASELINE = {
     "Message.raw-sql-reference": 2,
   },
   "src/lib/conversationStartAccess.ts": {
-    "Conversation.findUnique": 1,
-    "Conversation.updateMany": 1,
-    "Conversation.create": 1,
     "Conversation.raw-sql-reference": 1,
   },
   "src/lib/customOrderReadyLink.ts": {
@@ -41,10 +34,6 @@ const EXPECTED_BASELINE = {
     "Message.create": 1,
     "Conversation.update": 1,
     "Conversation.raw-sql-reference": 1,
-  },
-  "src/lib/customOrderRequestAccess.ts": {
-    "Message.create": 1,
-    "Conversation.update": 1,
   },
   "src/lib/metrics.ts": {
     "Conversation.raw-sql-reference": 1,
@@ -56,7 +45,7 @@ describe("Conversation and Message RLS inventory", () => {
   const inventory = collectConversationMessageAccess();
 
   it("pins every current direct ORM and raw SQL access path", () => {
-    assert.equal(inventory.ormCalls.length, 29);
+    assert.equal(inventory.ormCalls.length, 22);
     assert.equal(inventory.rawSqlReferences.length, 8);
     assert.deepEqual(summarizeConversationMessageAccess(inventory), EXPECTED_BASELINE);
   });

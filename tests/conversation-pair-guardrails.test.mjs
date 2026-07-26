@@ -44,12 +44,12 @@ describe("conversation participant pair guardrails", () => {
 
     assert.doesNotMatch(customOrder, /conversation\.(?:create|update|updateMany|upsert)/);
     assert.match(customOrder, /createCustomOrderRequestMessage/);
-    assert.match(customOrderAccess, /lockConversationParticipantPair\(\s*tx,\s*input\.buyerUserId,\s*input\.sellerUserId/s);
-    assert.match(customOrderAccess, /getOrCreateConversationForLockedPair\(\s*tx,\s*pair,/s);
+    assert.match(customOrderAccess, /sendActorCustomOrderRequest\(input\)/);
+    assert.match(authority, /public\.grainline_message_send_custom_request/);
 
     assert.doesNotMatch(commissionInterest, /conversation\.(?:create|update|updateMany|upsert)/);
     assert.match(commissionInterest, /createCommissionInterestMessage/);
-    assert.match(commissionInterestAccess, /lockConversationParticipantPair\(\s*tx,\s*input\.sellerUserId,/s);
-    assert.match(commissionInterestAccess, /getOrCreateConversationForLockedPair\(tx, pair, null\)/);
+    assert.match(commissionInterestAccess, /createActorCommissionInterest\(input\)/);
+    assert.match(authority, /public\.grainline_message_create_commission_interest/);
   });
 });

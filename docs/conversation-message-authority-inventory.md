@@ -10,9 +10,9 @@ active from this work.
 TypeScript tree. The audited baseline was 50 direct Prisma operations plus 5
 raw SQL references. After the first compatible audit fixes it currently finds:
 
-- 29 direct Prisma Conversation or Message operations;
+- 22 direct Prisma Conversation or Message operations;
 - 8 raw SQL table references;
-- 37 remaining protected-table access points across 8 files.
+- 30 remaining protected-table access points across 6 files.
 
 The first application conversion checkpoint removed all seven direct
 Conversation/Message operations from list polling, stream polling, mark-read
@@ -40,6 +40,16 @@ explicit start action. The page remains read-only until the user submits; the
 submit now invokes the fixed database function that derives canonical order,
 locks users, checks reciprocal blocks, validates optional listing context and
 creates or reuses the conversation atomically.
+
+The fifth checkpoint converted custom-order request and commission-interest
+writes. Each app helper now invokes one installed, fixed-purpose database
+function. The database derives the participants, source relationship, message
+kind, system flag, payload fields and thread side effects while holding the
+reviewed source locks. Commission interest creation, its durable source row,
+opening message and interested-count update remain one statement and one
+transaction. Removing the last consumers also removed the obsolete app-side
+conversation get/create helper rather than retaining dead migration
+scaffolding.
 
 The test `tests/conversation-message-rls-inventory.test.mjs` pins the count and
 the exact per-file/model/operation summary. A new access path must therefore be
@@ -71,9 +81,9 @@ will intentionally fall as the design is implemented.
 | `src/app/messages/[id]/page.tsx` | Participant or reported-thread view; user send; first response; thread bump; email throttle; archive state | Thread projection RPC plus fixed send, archive and email-claim operations |
 | `src/app/api/messages/[id]/{list,stream,read}/route.ts` | Poll/stream projection and mark-read | Converted: exact recipient projections with per-call authority; staff list review remains bounded while stream/mark-read remain participant-only |
 | `src/app/api/messages/unread-count/route.ts` | Participant unread total excluding blocked/archived threads | Converted: one-statement unread RPC |
-| `src/app/messages/new/page.tsx` and `src/lib/conversationStartAccess.ts` | Read-only start prompt plus explicit canonical conversation create/get and optional context listing | Start page/action converted; shared legacy lock helpers remain temporarily for structured writers until their dedicated functions are wired |
-| `src/app/api/messages/custom-order-request/route.ts` and `src/lib/customOrderRequestAccess.ts` | Custom-request conversation/message creation | Implemented atomic compatible operation with locked participant/block/seller/listing revalidation; later replace direct protected-table DML with fixed database authority |
-| `src/app/api/commission/[id]/interest/route.ts` | CommissionInterest, conversation and system-message transaction | Source-bound commission message operation retained inside the business transaction |
+| `src/app/messages/new/page.tsx` and `src/lib/conversationStartAccess.ts` | Read-only start prompt plus explicit canonical conversation create/get and optional context listing | Start page/action converted; only the ordinary-send participant/listing/Conversation locks remain temporarily |
+| `src/app/api/messages/custom-order-request/route.ts` and `src/lib/customOrderRequestAccess.ts` | Custom-request conversation/message creation | Converted: one fixed database operation revalidates the participant/block/seller/listing sources and derives the structured message |
+| `src/app/api/commission/[id]/interest/route.ts` and `src/lib/commissionInterestMessageAccess.ts` | CommissionInterest, conversation and system-message transaction | Converted: one source-bound statement co-commits CommissionInterest, conversation, structured message and interested count |
 | `src/lib/customOrderReadyLink.ts` and its seller/admin callers | Deduplicated ready-link message | Listing-derived custom-order-ready operation |
 | `src/app/dashboard/listings/custom/page.tsx` and buyer order detail | Participant lookup and latest custom request | Converted: bounded participant, pair and latest-request projections |
 | `src/app/api/account/export/route.ts` | Sent and received message export | Converted: one participant export RPC, split into stable sent/received payload collections |
@@ -118,7 +128,7 @@ will intentionally fall as the design is implemented.
 
 This inventory is complete only when every protected access (55 in the original
 baseline, 53 after compatible refactors, 37 after the first four authority
-conversion checkpoints) has an explicit
+conversion checkpoints, 30 after structured writes) has an explicit
 destination, direct runtime INSERT/UPDATE/DELETE is removed, the compatible app
 passes before and after RLS, and PostgreSQL proof covers participant isolation,
 reported-staff access, structured write families, block/account races, archive

@@ -56,10 +56,10 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
       2,
       "text and attachment rows must use the post-lock timestamp instead of transaction-start now()",
     );
-    assert.ok(
-      access.indexOf("export async function getOrCreateConversationForLockedPair") <
-        access.indexOf("pg_advisory_xact_lock"),
-      "only create/get should take the pair advisory lock; ordinary sends serialize on the Conversation row",
+    assert.doesNotMatch(access, /pg_advisory_xact_lock/);
+    assert.match(
+      source("docs/rls-drafts/conversation-message-service-authority.sql"),
+      /grainline_conversation_get_or_create_core[\s\S]*pg_catalog\.pg_advisory_xact_lock/,
     );
   });
 
@@ -69,14 +69,27 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
     const commission = source("src/lib/commissionInterestMessageAccess.ts");
     const ready = source("src/lib/customOrderReadyLink.ts");
     const thread = source("src/app/messages/[id]/page.tsx");
+    const authority = source("src/lib/conversationMessageAuthority.ts");
+    const serviceSql = source("docs/rls-drafts/conversation-message-service-authority.sql");
+    const customFunction = serviceSql.slice(
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_send_custom_request"),
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_create_commission_interest"),
+    );
+    const commissionFunction = serviceSql.slice(
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_create_commission_interest"),
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_send_custom_order_ready"),
+    );
 
     assert.match(access, /export async function lockConversationForMessageWrite/);
     assert.match(access, /FOR UPDATE/);
-    for (const writer of [request, commission]) {
-      assert.match(writer, /lockConversationForMessageWrite/);
-      assert.match(writer, /const messageSentAt = new Date\(\)/);
-      assert.match(writer, /createdAt: messageSentAt/);
-      assert.match(writer, /updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null/);
+    assert.match(request, /sendActorCustomOrderRequest\(input\)/);
+    assert.match(commission, /createActorCommissionInterest\(input\)/);
+    assert.match(authority, /public\.grainline_message_send_custom_request/);
+    assert.match(authority, /public\.grainline_message_create_commission_interest/);
+    for (const writer of [customFunction, commissionFunction]) {
+      assert.match(writer, /FOR UPDATE/);
+      assert.match(writer, /message_sent_at := pg_catalog\.timezone\('UTC', pg_catalog\.clock_timestamp\(\)\)/);
+      assert.match(writer, /INSERT INTO public\."Message"/);
     }
     assert.match(ready, /FOR SHARE OF listing, seller/);
     assert.match(ready, /lockConversationForMessageWrite\(tx, pair, source\.conversationId\)/);
@@ -169,7 +182,11 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
     assert.equal((threadPage.match(/contextListingId: committedContextListingId/g) ?? []).length, 2);
     assert.match(composer, /name="contextListingId"/);
     assert.match(thread, /Regarding \{m\.contextListing\.title\}/);
-    assert.match(requestAccess, /contextListingId: listingId/);
+    assert.match(requestAccess, /sendActorCustomOrderRequest\(input\)/);
+    assert.match(
+      source("src/lib/conversationMessageAuthority.ts"),
+      /\$\{input\.listingId\}::text/,
+    );
     assert.match(readyAccess, /contextListingId: source\.listingId/);
     assert.match(schema, /contextListing\s+Listing\?\s+@relation\("MessageContextListing"/);
     assert.match(contextMigration, /ADD COLUMN "contextListingId" TEXT/);

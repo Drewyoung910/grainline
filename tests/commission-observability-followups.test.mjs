@@ -31,23 +31,29 @@ describe("commission route observability follow-ups", () => {
   it("creates the commission-interest opening message before returning success", () => {
     const interestRoute = source("src/app/api/commission/[id]/interest/route.ts");
     const access = source("src/lib/commissionInterestMessageAccess.ts");
-    const transactionStart = access.indexOf("return prisma.$transaction");
+    const authority = source("src/lib/conversationMessageAuthority.ts");
+    const serviceSql = source("docs/rls-drafts/conversation-message-service-authority.sql");
+    const commissionFunction = serviceSql.slice(
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_create_commission_interest"),
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_send_custom_order_ready"),
+    );
     const afterStart = interestRoute.indexOf("after(async () =>");
-    const transactionBlock = access.slice(transactionStart);
     const afterBlock = interestRoute.slice(afterStart);
 
-    assert.notEqual(transactionStart, -1);
     assert.notEqual(afterStart, -1);
     assert.match(interestRoute, /createCommissionInterestMessage\(\{/);
-    assert.match(transactionBlock, /await tx\.commissionInterest\.create/);
-    assert.match(transactionBlock, /await tx\.message\.create/);
-    assert.match(transactionBlock, /kind: "commission_interest_card"/);
-    assert.match(transactionBlock, /isSystemMessage: true/);
+    assert.match(access, /createActorCommissionInterest\(input\)/);
+    assert.match(authority, /public\.grainline_message_create_commission_interest/);
+    assert.match(commissionFunction, /INSERT INTO public\."CommissionInterest"/);
+    assert.match(commissionFunction, /INSERT INTO public\."Message"/);
+    assert.match(commissionFunction, /'commission_interest_card',\s*true/);
     assert.ok(
-      transactionBlock.indexOf("await tx.commissionInterest.create") <
-        transactionBlock.indexOf("await tx.message.create"),
+      commissionFunction.indexOf('INSERT INTO public."CommissionInterest"') <
+        commissionFunction.indexOf('INSERT INTO public."Message"'),
       "opening message should be committed with the interest row",
     );
+    assert.match(commissionFunction, /UPDATE public\."CommissionRequest"/);
+    assert.doesNotMatch(access, /prisma\.\$transaction|tx\.message\.create/);
     assert.doesNotMatch(afterBlock, /prisma\.message\.create|tx\.message\.create/);
     assert.match(afterBlock, /createNotification\(/);
   });

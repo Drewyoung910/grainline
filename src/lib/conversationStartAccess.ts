@@ -1,8 +1,5 @@
-import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { startActorConversation } from "@/lib/conversationMessageAuthority";
-
-const CONVERSATION_START_LOCK_NAMESPACE = 913350;
 
 export type LockedConversationParticipantPair = {
   ok: true;
@@ -129,60 +126,6 @@ export async function lockConversationParticipantPair(
   if (block) return { ok: false, error: "blocked" };
 
   return { ok: true, userAId, userBId };
-}
-
-export async function getOrCreateConversationForLockedPair(
-  tx: Prisma.TransactionClient,
-  pair: LockedConversationParticipantPair,
-  requestedListingId: string | null,
-) {
-  const { userAId, userBId } = pair;
-  const pairKey = `${userAId}:${userBId}`;
-
-  // FOR SHARE locks do not conflict with another start for the same pair.
-  // Only creation needs this advisory lock; ordinary sends reuse the User
-  // lock/block protocol without serializing all messages between the pair.
-  await tx.$executeRaw`
-    SELECT pg_advisory_xact_lock(
-      ${CONVERSATION_START_LOCK_NAMESPACE},
-      hashtext(${pairKey})
-    )
-  `;
-
-  let contextListingId: string | null = null;
-  if (requestedListingId) {
-    const listing = await lockConversationContextListingForPair(
-      tx,
-      pair,
-      requestedListingId,
-    );
-    contextListingId = listing?.id ?? null;
-  }
-
-  const existing = await tx.conversation.findUnique({
-    where: { userAId_userBId: { userAId, userBId } },
-    select: { id: true, contextListingId: true },
-  });
-  if (existing) {
-    if (contextListingId && !existing.contextListingId) {
-      await tx.conversation.updateMany({
-        where: { id: existing.id, contextListingId: null },
-        data: { contextListingId },
-      });
-    }
-    return { conversationId: existing.id, created: false };
-  }
-
-  const created = await tx.conversation.create({
-    data: {
-      id: randomUUID(),
-      userAId,
-      userBId,
-      contextListingId: contextListingId ?? undefined,
-    },
-    select: { id: true },
-  });
-  return { conversationId: created.id, created: true };
 }
 
 export async function startConversationForUser(

@@ -47,6 +47,11 @@ describe("custom-order and staff-thread audit follow-ups", () => {
   it("keeps message thread side effects observable and account-state guarded", () => {
     const customOrderRoute = source("src/app/api/messages/custom-order-request/route.ts");
     const customOrderAccess = source("src/lib/customOrderRequestAccess.ts");
+    const serviceSql = source("docs/rls-drafts/conversation-message-service-authority.sql");
+    const customRequestFunction = serviceSql.slice(
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_send_custom_request"),
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_create_commission_interest"),
+    );
     const threadPage = source("src/app/messages/[id]/page.tsx");
 
     assert.match(customOrderRoute, /Sentry\.captureException\(error, \{/);
@@ -59,12 +64,16 @@ describe("custom-order and staff-thread audit follow-ups", () => {
         customOrderRoute.indexOf("createCustomOrderRequestMessage({"),
       "custom order budget validation must run before entering the atomic write helper",
     );
+    assert.match(customOrderRoute, /z\.enum\(\["no_rush", "2_months", "1_month", "2_weeks"\]\)/);
+    assert.match(customOrderAccess, /sendActorCustomOrderRequest\(input\)/);
+    assert.match(customRequestFunction, /p_description IS NULL/);
+    assert.match(customRequestFunction, /pg_catalog\.char_length\(p_description\) > 500/);
     assert.ok(
-      customOrderAccess.indexOf("!input.description") <
-        customOrderAccess.indexOf("getOrCreateConversationForLockedPair("),
-      "transaction-local payload validation must run before conversation creation side effects",
+      customRequestFunction.indexOf("p_description IS NULL") <
+        customRequestFunction.indexOf("grainline_conversation_get_or_create_core"),
+      "database payload validation must precede conversation creation side effects",
     );
-    assert.match(customOrderAccess, /isolationLevel: Prisma\.TransactionIsolationLevel\.ReadCommitted/);
+    assert.match(customRequestFunction, /transaction_isolation'\) <> 'read committed'/);
 
     assert.match(threadPage, /select: \{ id: true, banned: true, deletedAt: true \}/);
     assert.match(threadPage, /if \(me\.banned \|\| me\.deletedAt\) return \{ ok: false \};/);

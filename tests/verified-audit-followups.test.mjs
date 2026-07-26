@@ -59,12 +59,19 @@ describe("verified audit follow-up guardrails", () => {
     const patchRoute = source("src/app/api/commission/[id]/route.ts");
     const interestRoute = source("src/app/api/commission/[id]/interest/route.ts");
     const interestAccess = source("src/lib/commissionInterestMessageAccess.ts");
+    const serviceSql = source("docs/rls-drafts/conversation-message-service-authority.sql");
+    const commissionFunction = serviceSql.slice(
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_create_commission_interest"),
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_send_custom_order_ready"),
+    );
     assert.match(patchRoute, /commissionRequest\.updateMany/);
     assert.match(patchRoute, /openCommissionMutationWhere\(id, new Date\(\), \{ buyerId: me\.id \}\)/);
     assert.match(interestRoute, /createCommissionInterestMessage\(\{/);
-    assert.match(interestAccess, /commissionRequest\.updateMany/);
-    assert.match(interestAccess, /openCommissionMutationWhere\(input\.commissionRequestId, new Date\(\), \{/);
-    assert.match(interestAccess, /openGuard\.count === 0/);
+    assert.match(interestAccess, /createActorCommissionInterest\(input\)/);
+    assert.match(commissionFunction, /commission\.status = 'OPEN'/);
+    assert.match(commissionFunction, /commission\."expiresAt" IS NULL/);
+    assert.match(commissionFunction, /FROM public\."CommissionRequest"[\s\S]*FOR UPDATE/);
+    assert.match(commissionFunction, /UPDATE public\."CommissionRequest"/);
   });
 
   it("keeps commission near-me raw SQL inputs parameterized", () => {

@@ -25,7 +25,7 @@ const CustomOrderRequestSchema = z.object({
   description: z.string().min(1).max(500),
   dimensions: z.string().max(200).optional().nullable(),
   budget: BudgetInputSchema.optional().nullable(),
-  timeline: z.string().max(50).optional().nullable(),
+  timeline: z.enum(["no_rush", "2_months", "1_month", "2_weeks"]).optional().nullable(),
   listingId: z.string().min(1).optional().nullable(),
   listingTitle: z.string().max(200).optional().nullable(),
 });
@@ -140,7 +140,7 @@ export async function POST(req: Request) {
   if (budgetCents !== null && budgetCents > 10_000_000) {
     return privateJson({ error: "Budget cannot exceed $100,000." }, { status: 400 });
   }
-  const timelineStr = timeline ? truncateText(sanitizeText(timeline), 50) : null;
+  const timelineStr = timeline ?? null;
   const requestMessage = await createCustomOrderRequestMessage({
     buyerUserId: me.id,
     sellerUserId,
@@ -151,8 +151,7 @@ export async function POST(req: Request) {
     listingId: listingId ?? null,
   });
   if (!requestMessage.ok) {
-    const status = requestMessage.error === "blocked" ? 403 : 409;
-    return privateJson({ error: "Unable to send request." }, { status });
+    return privateJson({ error: "Unable to send request." }, { status: 409 });
   }
 
   try {

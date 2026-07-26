@@ -78,14 +78,24 @@ describe("message and case policy guardrails", () => {
   it("loads the latest message-thread window and reopens archived threads on new content", () => {
     const threadPage = source("src/app/messages/[id]/page.tsx");
     const customOrderRequest = source("src/lib/customOrderRequestAccess.ts");
+    const serviceSql = source("docs/rls-drafts/conversation-message-service-authority.sql");
+    const invariantMigration = source(
+      "prisma/migrations/20260722231500_enforce_conversation_message_invariants/migration.sql",
+    );
+    const customFunction = serviceSql.slice(
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_send_custom_request"),
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_create_commission_interest"),
+    );
 
     assert.match(threadPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\],\s*take: 201/);
     assert.match(threadPage, /const hasMoreMessagesBefore = messageRows\.length > 200/);
     assert.match(threadPage, /const messages = messageRows\.slice\(0, 200\)\.reverse\(\)/);
     assert.match(threadPage, /data: \{ updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null \}/);
-    assert.match(customOrderRequest, /lockConversationForMessageWrite/);
-    assert.match(customOrderRequest, /createdAt: messageSentAt/);
-    assert.match(customOrderRequest, /data: \{ updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null \}/);
+    assert.match(customOrderRequest, /sendActorCustomOrderRequest\(input\)/);
+    assert.match(customFunction, /message_sent_at := pg_catalog\.timezone\('UTC', pg_catalog\.clock_timestamp\(\)\)/);
+    assert.match(customFunction, /INSERT INTO public\."Message"/);
+    assert.match(invariantMigration, /CREATE TRIGGER grainline_message_maintain_thread_state/);
+    assert.match(invariantMigration, /"archivedAAt" = NULL,\s*"archivedBAt" = NULL/);
   });
 
   it("revalidates message-thread send policy inside the write transaction", () => {
