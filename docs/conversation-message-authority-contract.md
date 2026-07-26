@@ -1,10 +1,11 @@
 # Conversation and Message Authority Contract
 
-Opened 2026-07-25. Status: recipient-read SQL is a disposable draft on
-`codex/rls-conversation-message-authority-20260725`. It is not a Prisma
-migration, is not applied to any persistent database and does not authorize
-activation. The live production boundary remains RLS disabled with zero
-Conversation/Message policies.
+Opened 2026-07-25. Status: the complete recipient/fixed-service authority
+catalog passed disposable PostgreSQL and full CI at `7a7654c3` in run
+`30180610380` on `codex/rls-conversation-message-authority-20260725`. The SQL
+remains a disposable draft: it is not a Prisma migration, is not applied to any
+persistent database and does not authorize activation. The live production
+boundary remains RLS disabled with zero Conversation/Message policies.
 
 ## Invariants shared by every public database operation
 
@@ -49,8 +50,10 @@ Conversation or Message row.
 ## Fixed write catalog and proof status
 
 The fixed participant/message functions and all three structured creation
-families are now drafted. They remain disposable proof SQL until the complete
-catalog, race suite and application conversion pass:
+families are now drafted and have passed the complete disposable catalog and
+race proof. They remain disposable SQL until the protected legacy inspection,
+functions-only promotion, compatible application conversion and final
+activation review pass:
 
 1. `grainline_conversation_start`: canonical create/get Conversation with
    sorted User locks, reciprocal block recheck and optional source-valid
@@ -89,13 +92,13 @@ side effects only after that transaction commits. The fixed function protects
 one row per call; it does not authorize weakening batch atomicity or the
 existing first-party upload verification/claim checks.
 
-All fixed service families are drafted. The disposable PostgreSQL authority
-proof, including both lock orderings for block, deletion, mark-read and archive
-races, passed at `940fcf2c` in GitHub Actions run `30179962784`. The remaining
-authority work is to compile and validate the exact aggregate-only legacy
-inspection query in a fresh disposable proof, run that inspection through its
-protected production workflow, convert the application to the fixed catalog,
-and review the catalog again as a set before activation.
+All fixed service families and both lock orderings for block, deletion,
+mark-read and archive races first passed at `940fcf2c` in GitHub Actions run
+`30179962784`. The later accepted proof below adds the exact aggregate-only
+legacy query, compatibility-window scope and malformed-payload handling. The
+remaining release work is the protected production inspection, functions-only
+promotion, application conversion and a fresh activation review of the
+promoted catalog as a set.
 
 The first exact-query proof at `fb0e8dcb` is retained as failed GitHub Actions
 run `30180176533`: PostgreSQL 16 rejected an incorrect `regtype` argument to
@@ -110,6 +113,19 @@ had correctly attached one validated Listing to its existing Conversation, so
 `contextConversationCount` was one rather than zero. That expectation is
 corrected only in a fresh candidate; this second failed run also remains failed
 evidence and touched no persistent database.
+
+The accepted fresh proof at `7a7654c3` applied all 25 exact public/private
+functions, two policies and SELECT-only table grants to disposable PostgreSQL
+16. It proved direct no-context denial, participant isolation, exact
+reported-staff access and revocation, all fixed write/source/replay families,
+owner-private cores, account redaction, aggregate-only metrics, and both real
+lock-wait orderings for block/send, deletion/send, mark-read/send and
+archive/send. It also disabled RLS and proved that the three id-addressed
+compatibility projections still reject foreign rows, compiled the exact
+production aggregate query, treated malformed structured payloads as invalid
+evidence without exporting them, and required the exact aggregate result
+schema. TypeScript, lint, the full test suite, dependency audit and production
+build all passed. Production and persistent staging were unchanged.
 
 ## Cross-group dependencies to retain
 

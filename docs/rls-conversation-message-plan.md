@@ -4,7 +4,10 @@ Status: compatibility and invariant-preparation releases are live. The
 preparation SQL passed disposable PostgreSQL proof, Extra-High review and an
 actual pooled production-runtime rollback-only postflight. Notification Bucket
 B is complete in production. Conversation/Message RLS remains disabled with
-zero policies; authority-policy design and proof are next.
+zero policies. The complete authority-policy draft passed Extra-High review,
+disposable PostgreSQL 16 proof and full CI at `7a7654c3` in run `30180610380`;
+the protected aggregate-only production inspection is next. No authority
+function or policy has been applied to a persistent database.
 
 ## Security objective
 
@@ -193,8 +196,15 @@ The direct runtime table query with no context must return zero rows.
    must deploy compatibly before database activation.**
 6. Disposable PostgreSQL proof: policies/grants, every read/write family,
    direct denial, staff report resolution, account/block/archive races,
-   deletion/export/metrics, rollback and legacy handling.
-7. Protected backup and sanitized production inspection.
+   deletion/export/metrics, rollback and legacy handling. **Complete for the
+   disposable draft at exact head `7a7654c3` in run `30180610380`, including
+   RLS-off compatibility scoping, structured replay validation, malformed
+   payload handling, exact function ACL/search-path catalog and real lock
+   waits. The two immediately preceding failed runs remain documented evidence,
+   not passing results.**
+7. Protected backup and sanitized production inspection. **Next: run the
+   aggregate-only, exact-schema inspection from a clean reviewed main commit;
+   retain no ids, bodies, emails, raw rows or credentials.**
 8. Initial `ENABLE`/explicit `NO FORCE` activation with exact two-table policy
    and grant guard, followed by runtime and authenticated route postflight.
 9. Separate `FORCE ROW LEVEL SECURITY` hardening and fresh postflight.

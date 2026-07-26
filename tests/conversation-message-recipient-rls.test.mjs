@@ -76,7 +76,7 @@ describe("Conversation and Message recipient RLS draft", () => {
       assert.match(contract, new RegExp(`\\b${functionName}\\b`));
     }
     assert.match(contract, /RLS disabled with zero[\s\S]*policies/);
-    assert.match(contract, /not applied to any persistent database/);
+    assert.match(contract, /not applied to any\s+persistent database/);
   });
 
   it("limits definer reads to one boolean exact-report predicate", () => {
