@@ -37,34 +37,35 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
 
   it("serializes ordinary sends with blocks and account deletion without a per-pair send mutex", () => {
     const page = source("src/app/messages/[id]/page.tsx");
-    const access = source("src/lib/conversationStartAccess.ts");
     const deletion = source("src/lib/accountDeletion.ts");
-    const sendTransaction = page.slice(page.indexOf("const txResult = await prisma.$transaction"));
-    const pairLock = sendTransaction.indexOf("lockConversationParticipantPair(tx, me.id, recipientId)");
-    const conversationLock = sendTransaction.indexOf('FROM "Conversation" AS conversation');
-    const timestamp = sendTransaction.indexOf("const messageSentAt = new Date()");
-    const messageCreate = sendTransaction.indexOf("await tx.message.create");
-
-    assert.ok(pairLock > -1 && pairLock < messageCreate);
-    assert.ok(conversationLock > pairLock && conversationLock < timestamp);
-    assert.ok(timestamp < messageCreate);
-    assert.match(sendTransaction, /FROM "Conversation" AS conversation[\s\S]{0,260}FOR UPDATE/);
-    assert.match(access, /ORDER BY start_user\.id\s+FOR SHARE/);
-    assert.match(deletion, /FROM "User" AS deletion_user[\s\S]{0,180}FOR UPDATE/);
-    assert.equal(
-      (sendTransaction.match(/createdAt: messageSentAt/g) ?? []).length,
-      2,
-      "text and attachment rows must use the post-lock timestamp instead of transaction-start now()",
+    const serviceSql = source("docs/rls-drafts/conversation-message-service-authority.sql");
+    const ordinaryFunction = serviceSql.slice(
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_send_ordinary"),
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_conversation_set_archived"),
     );
-    assert.doesNotMatch(access, /pg_advisory_xact_lock/);
+    const pairLock = ordinaryFunction.indexOf("grainline_conversation_lock_pair_core");
+    const listingLock = ordinaryFunction.indexOf("grainline_conversation_listing_core");
+    const conversationLock = ordinaryFunction.indexOf('FROM public."Conversation" AS conversation', listingLock);
+    const timestamp = ordinaryFunction.indexOf('"sentAt" := pg_catalog.timezone');
+    const messageCreate = ordinaryFunction.indexOf('INSERT INTO public."Message"');
+
+    assert.ok(pairLock > -1 && pairLock < listingLock);
+    assert.ok(listingLock < conversationLock);
+    assert.ok(conversationLock < timestamp);
+    assert.ok(timestamp < messageCreate);
+    assert.match(ordinaryFunction, /FROM public\."Conversation" AS conversation[\s\S]{0,320}FOR UPDATE/);
+    assert.match(serviceSql, /ORDER BY account_user\.id\s+FOR SHARE/);
+    assert.match(deletion, /FROM "User" AS deletion_user[\s\S]{0,180}FOR UPDATE/);
+    assert.match(page, /sendActorOrdinaryMessage\(/);
+    assert.doesNotMatch(page, /prisma\.(?:conversation|message)\./);
+    assert.doesNotMatch(ordinaryFunction, /pg_advisory_xact_lock/);
     assert.match(
-      source("docs/rls-drafts/conversation-message-service-authority.sql"),
+      serviceSql,
       /grainline_conversation_get_or_create_core[\s\S]*pg_catalog\.pg_advisory_xact_lock/,
     );
   });
 
   it("serializes every structured Message writer and keeps thread time monotonic", () => {
-    const access = source("src/lib/conversationStartAccess.ts");
     const request = source("src/lib/customOrderRequestAccess.ts");
     const commission = source("src/lib/commissionInterestMessageAccess.ts");
     const ready = source("src/lib/customOrderReadyLink.ts");
@@ -84,8 +85,6 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
       serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_account_deletion_email_key_core"),
     );
 
-    assert.match(access, /export async function lockConversationForMessageWrite/);
-    assert.match(access, /FOR UPDATE/);
     assert.match(request, /sendActorCustomOrderRequest\(input\)/);
     assert.match(commission, /createActorCommissionInterest\(input\)/);
     assert.match(authority, /public\.grainline_message_send_custom_request/);
@@ -98,6 +97,7 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
     }
     assert.match(ready, /sendActorCustomOrderReady\(/);
     assert.doesNotMatch(ready, /prisma\.(?:conversation|message)\./);
+    assert.match(thread, /sendActorOrdinaryMessage\(/);
     assert.match(thread, /kind: "file"/);
   });
 
@@ -173,7 +173,6 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
     const threadPage = source("src/app/messages/[id]/page.tsx");
     const composer = source("src/components/MessageComposer.tsx");
     const thread = source("src/components/ThreadMessages.tsx");
-    const access = source("src/lib/conversationStartAccess.ts");
     const requestAccess = source("src/lib/customOrderRequestAccess.ts");
     const readyAccess = source("src/lib/customOrderReadyLink.ts");
     const schema = source("prisma/schema.prisma");
@@ -187,11 +186,17 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
     );
     assert.match(newPage, /redirect\(`\/messages\/\$\{existing\.id\}\$\{listingQuery\}`\)/);
     assert.match(newPage, /redirect\(`\/messages\/\$\{result\.conversationId\}\$\{listingQuery\}`\)/);
-    assert.match(access, /lockConversationContextListingForPair/);
-    assert.match(access, /listing\."reservedForUserId" IN \(\$\{pair\.userAId\}, \$\{pair\.userBId\}\)/);
-    assert.match(access, /listing\."reservedForUserId" <> seller\."userId"/);
-    assert.match(threadPage, /lockConversationContextListingForPair\([\s\S]*submittedContextListingId/);
-    assert.equal((threadPage.match(/contextListingId: committedContextListingId/g) ?? []).length, 2);
+    const serviceSql = source("docs/rls-drafts/conversation-message-service-authority.sql");
+    const listingCore = serviceSql.slice(
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_conversation_listing_core"),
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_conversation_get_or_create_core"),
+    );
+    assert.match(listingCore, /listing\."reservedForUserId" IN \(p_user_a_id, p_user_b_id\)/);
+    assert.match(listingCore, /listing\."reservedForUserId" <> seller\."userId"/);
+    assert.equal(
+      (threadPage.match(/contextListingId: submittedContextListingId \|\| null/g) ?? []).length,
+      2,
+    );
     assert.match(composer, /name="contextListingId"/);
     assert.match(thread, /Regarding \{m\.contextListing\.title\}/);
     assert.match(requestAccess, /sendActorCustomOrderRequest\(input\)/);
@@ -201,7 +206,7 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
     );
     assert.match(readyAccess, /sendActorCustomOrderReady\(/);
     assert.match(
-      source("docs/rls-drafts/conversation-message-service-authority.sql"),
+      serviceSql,
       /"contextListingId"[\s\S]*source_listing\.id/,
     );
     assert.match(schema, /contextListing\s+Listing\?\s+@relation\("MessageContextListing"/);

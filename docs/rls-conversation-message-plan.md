@@ -37,7 +37,8 @@ catalog/ACL, 19 callable functions, six private-core denials, RLS/FORCE off,
 zero policies and legacy table CRUD retained. Sanitized mode-0600 evidence
 SHA-256 is
 `fa11589253cafbd87f16a9442dc2fd57afc136263cc1ac89b93219ebbede295d`.
-Application conversion is in progress; the first bounded checkpoint converted
+Application conversion is complete in the isolated candidate but is not yet
+deployed; the first bounded checkpoint converted
 list polling, stream polling, mark-read and unread count through four exact
 authority functions, and the second converted account export plus message/thread
 report validation. The third converted custom-order participant, pair and
@@ -55,7 +56,11 @@ ninth moved inbox visibility, search, latest-message selection, unread grouping
 and keyset bounds into one participant projection, reducing the surface to 16.
 The tenth moved initial participant/reported-staff thread metadata and the
 latest 200-message window behind bounded projections, reducing the surface to
-14 without changing long-thread chronology.
+14 without changing long-thread chronology. The eleventh moved ordinary text
+and attachment writes, source-Message email claims and participant-side
+archive state behind the installed fixed functions, preserving upload claims
+inside the read-committed write transaction and reducing the machine inventory
+to zero direct protected-table operations or raw references.
 Policy/table-grant activation and FORCE remain later separate releases.
 
 ## Security objective
@@ -77,9 +82,9 @@ separate from Notification, Order/payment/shipping and Case/CaseMessage.
 The original machine inventory recorded 50 direct ORM operations and 5 raw SQL
 table references. Compatible audit refactors left 45 direct ORM operations and
 8 raw SQL references across 17 runtime files (53 total protected access
-points). The first ten authority checkpoints removed thirty-nine direct
-operations, so 12 ORM operations plus 2 raw references remain across 2 runtime
-files (14 total).
+points). The eleven authority checkpoints removed every direct protected
+operation: the current candidate has 0 ORM operations and 0 raw references
+across the runtime tree.
 The surface includes the user inbox and
 thread, list and stream polling, unread counts, per-recipient mark-read,
 archive state, first-response metrics, email throttling, account export,
@@ -213,11 +218,11 @@ The direct runtime table query with no context must return zero rows.
 ## Compatibility and rollout sequence
 
 1. Inventory and pin every current access path. **Complete: original 55-path
-   migration baseline; current authority-conversion surface is 14 protected
-   accesses after converting polling/read, privacy, report-target,
+   migration baseline; current authority-conversion surface is zero direct
+   protected accesses after converting polling/read, privacy, report-target,
    custom-order reads, conversation start and all three structured write
    families, aggregate seller response metrics, account deletion, inbox and
-   initial thread rendering.**
+   initial thread rendering, ordinary send, archive state and email claims.**
 2. Complete `docs/conversation-message-pre-rls-audit.md` and fix its activation
    blockers before authority SQL. **Complete for the preparation boundary:
    app findings fixed; invariant proof, Extra-High review, protected production
@@ -248,8 +253,11 @@ The direct runtime table query with no context must return zero rows.
    disabled with zero policies.**
 5. Compatible app deployment: all protected accesses move to reviewed
    helpers; test before and after RLS. **The invariant-compatible application
-   is live. The authority RPC/helper conversion begins in this next phase and
-   must deploy compatibly before database activation.**
+   is live. The authority RPC/helper conversion candidate now has zero direct
+   protected-table accesses and passes TypeScript, focused lint and the full
+   2,007-test suite (2,004 pass, 3 intentional skips). Checkpoint push, fresh CI
+   PostgreSQL proof, Extra-High authority review and a compatibility
+   deployment/postflight remain before database activation.**
 6. Disposable PostgreSQL proof: policies/grants, every read/write family,
    direct denial, staff report resolution, account/block/archive races,
    deletion/export/metrics, rollback and legacy handling. **Complete for the

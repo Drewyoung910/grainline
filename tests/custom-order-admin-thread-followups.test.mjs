@@ -93,13 +93,13 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     assert.match(threadPage, /Write a message or attach a file\./);
     assert.ok(
       threadPage.indexOf("if (!body && atts.length === 0)") <
-        threadPage.indexOf("const c = await prisma.conversation.findFirst"),
+        threadPage.indexOf("const c = await getActorConversation(me.id, id)"),
       "empty message guard should run before conversation lookup/update work",
     );
     assert.ok(
       threadPage.indexOf("if (!body && atts.length === 0)") <
-        threadPage.indexOf("await prisma.conversation.update"),
-      "empty message guard should run before bumping updatedAt",
+        threadPage.indexOf("const createdAttachment = await sendActorOrdinaryMessage"),
+      "empty message guard should run before fixed message/thread writes",
     );
     assert.match(threadPage, /source: "message_thread_email"/);
     assert.match(threadPage, /extra: \{ conversationId: id, recipientId: committedRecipientId \}/);
@@ -108,27 +108,38 @@ describe("custom-order and staff-thread audit follow-ups", () => {
   it("atomically throttles new-message email notifications per conversation", () => {
     const schema = source("prisma/schema.prisma");
     const threadPage = source("src/app/messages/[id]/page.tsx");
+    const authority = source("src/lib/conversationMessageAuthority.ts");
+    const serviceSql = source("docs/rls-drafts/conversation-message-service-authority.sql");
+    const emailFunction = serviceSql.slice(
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_conversation_claim_message_email"),
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_send_custom_request"),
+    );
 
     assert.match(schema, /lastMessageEmailSentAt\s+DateTime\?/);
     assert.doesNotMatch(threadPage, /const recentReply = await prisma\.message\.findFirst/);
-    assert.match(threadPage, /const emailWindowStart = new Date\(committedMessageSentAt\.getTime\(\) - 5 \* 60 \* 1000\)/);
-    assert.match(threadPage, /const emailClaim = await prisma\.conversation\.updateMany\(\{/);
-    assert.match(threadPage, /OR: \[\{ lastMessageEmailSentAt: null \}, \{ lastMessageEmailSentAt: \{ lt: emailWindowStart \} \}\]/);
-    assert.match(threadPage, /data: \{ lastMessageEmailSentAt: committedMessageSentAt \}/);
-    assert.match(threadPage, /if \(emailClaim\.count === 1\) \{/);
+    assert.match(threadPage, /claimActorConversationMessageEmail\(\s*me\.id,\s*committedNotificationMessageId/s);
+    assert.match(threadPage, /if \(emailClaim\) \{/);
+    assert.match(authority, /public\.grainline_conversation_claim_message_email/);
+    assert.match(emailFunction, /message\."senderId" = p_actor_id/);
+    assert.match(emailFunction, /source_message\."createdAt" - interval '5 minutes'/);
     assert.ok(
-      threadPage.indexOf("const emailClaim = await prisma.conversation.updateMany") <
+      threadPage.indexOf("const emailClaim = await claimActorConversationMessageEmail") <
         threadPage.indexOf("await sendNewMessageEmail"),
       "email send should only happen after the atomic throttle claim succeeds",
     );
   });
 
   it("sets firstResponseAt through a null-preconditioned update", () => {
-    const threadPage = source("src/app/messages/[id]/page.tsx");
+    const serviceSql = source("docs/rls-drafts/conversation-message-service-authority.sql");
+    const ordinaryFunction = serviceSql.slice(
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_send_ordinary"),
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_conversation_set_archived"),
+    );
 
-    assert.match(threadPage, /conversation\.updateMany\(\{\s*where: \{ id, firstResponseAt: null \}/s);
-    assert.match(threadPage, /data: \{ firstResponseAt: messageSentAt \}/);
-    assert.doesNotMatch(threadPage, /conversationUpdate\.firstResponseAt = new Date\(\)/);
+    assert.match(ordinaryFunction, /locked_conversation\."firstResponseAt" IS NULL/);
+    assert.match(ordinaryFunction, /prior_message\."senderId" <> p_actor_id/);
+    assert.match(ordinaryFunction, /SET "firstResponseAt" = "sentAt"/);
+    assert.match(ordinaryFunction, /conversation\."firstResponseAt" IS NULL/);
   });
 
   it("bounds stable message cursors before recipient-RPC keyset filters", () => {

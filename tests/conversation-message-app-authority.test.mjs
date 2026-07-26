@@ -19,6 +19,9 @@ describe("Conversation and Message application authority conversion", () => {
       "grainline_message_report_target_valid",
       "grainline_conversation_pair",
       "grainline_message_latest_custom_request",
+      "grainline_message_send_ordinary",
+      "grainline_conversation_set_archived",
+      "grainline_conversation_claim_message_email",
     ]) {
       assert.match(helper, new RegExp(`public\\.${functionName}`));
     }
@@ -72,6 +75,37 @@ describe("Conversation and Message application authority conversion", () => {
     assert.match(helper, /new Date\(conversation\.updatedAt\.getTime\(\) \+ 1\)/);
     assert.match(helper, /direction: "before"/);
     assert.match(helper, /return rows\.reverse\(\)/);
+  });
+
+  it("routes ordinary sends, archive state, and email claims through fixed actor-bound operations", () => {
+    const helper = source("src/lib/conversationMessageAuthority.ts");
+    const page = source("src/app/messages/[id]/page.tsx");
+
+    assert.match(page, /const c = await getActorConversation\(me\.id, id\)/);
+    assert.match(page, /c\.userAId !== me\.id && c\.userBId !== me\.id/);
+    assert.equal(
+      (page.match(/await sendActorOrdinaryMessage\(/g) ?? []).length,
+      2,
+    );
+    assert.match(page, /contextListingId: submittedContextListingId \|\| null/);
+    assert.match(page, /createdAttachment\.recipientId !== recipientId/);
+    assert.match(page, /createdText\.recipientId !== recipientId/);
+    assert.match(page, /isolationLevel: "ReadCommitted"/);
+    assert.match(page, /getPrismaRawSqlState\(error\)/);
+    assert.match(page, /sqlState === "40001"/);
+    assert.match(page, /claimActorConversationMessageEmail\(\s*me\.id,\s*committedNotificationMessageId/s);
+    assert.equal(
+      (page.match(/setActorConversationArchived\(me\.id, id, (?:true|false)\)/g) ?? []).length,
+      2,
+    );
+    assert.doesNotMatch(page, /prisma\.(?:conversation|message)\./);
+
+    assert.match(helper, /public\.grainline_message_send_ordinary/);
+    assert.match(helper, /row\.messageId !== messageId/);
+    assert.match(helper, /row\.recipientId === actorId/);
+    assert.match(page, /ordinary-message write RPC changed the validated recipient/);
+    assert.match(helper, /public\.grainline_conversation_set_archived/);
+    assert.match(helper, /public\.grainline_conversation_claim_message_email/);
   });
 
   it("moves unread counting behind the visible-thread recipient projection", () => {

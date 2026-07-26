@@ -1,18 +1,20 @@
 # Conversation and Message Authority Inventory
 
-Snapshot: 2026-07-25. Status: functions-only database authority is live and
-application-path conversion is in progress; no Conversation or Message RLS is
-active from this work.
+Snapshot: 2026-07-25. Status: functions-only database authority is live. The
+application-path conversion candidate has removed every direct protected-table
+access and is not yet deployed; no Conversation or Message RLS is active from
+this work.
 
 ## Count contract
 
 `npm run audit:rls-conversation-message-inventory` parses the runtime
 TypeScript tree. The audited baseline was 50 direct Prisma operations plus 5
-raw SQL references. After the first compatible audit fixes it currently finds:
+raw SQL references. After the compatible audit fixes and eleven authority
+conversion checkpoints it currently finds:
 
-- 12 direct Prisma Conversation or Message operations;
-- 2 raw SQL table references;
-- 14 remaining protected-table access points across 2 files.
+- 0 direct Prisma Conversation or Message operations;
+- 0 raw SQL table references;
+- 0 remaining direct protected-table access points.
 
 The first application conversion checkpoint removed all seven direct
 Conversation/Message operations from list polling, stream polling, mark-read
@@ -92,6 +94,22 @@ the bounded result for chronological display and drops only the oldest overflow
 row. This preserves the latest-200 long-thread behavior rather than accidentally
 rendering the oldest 200 through the projection's no-cursor mode.
 
+The eleventh checkpoint converted the remaining ordinary send, archive and
+email-throttle paths. The page performs a cheap participant, recipient-state
+and reciprocal-block preflight before attachment verification, but the
+transactional write authority is the fixed database operation: it re-locks the
+participant pair, rechecks blocks and account state, validates optional Listing
+context, locks the exact Conversation, derives recipient and timestamp, inserts
+the ordinary Message, sets first-response state and relies on the installed
+thread-state trigger to monotonically bump and unarchive the Conversation.
+Tracked upload claims remain in the same read-committed transaction as their
+attachment Message. The app verifies the database-derived recipient before
+commit. Archive/unarchive mutates only the actor's side through its fixed
+function, and the email throttle derives Conversation and claim time from the
+committed source Message rather than caller-supplied timestamps. Removing the
+last consumers also removed the obsolete app-side Conversation/User/Listing
+lock helpers.
+
 The test `tests/conversation-message-rls-inventory.test.mjs` pins the count and
 the exact per-file/model/operation summary. A new access path must therefore be
 classified here instead of silently inheriting broad runtime authority. The
@@ -119,10 +137,10 @@ will intentionally fall as the design is implemented.
 | Files | Current responsibility | Migration destination |
 |---|---|---|
 | `src/app/messages/page.tsx` | Inbox, search, latest-message projection and unread grouping | Converted: one-statement participant inbox projection applies visibility, search, latest-message, unread and keyset bounds |
-| `src/app/messages/[id]/page.tsx` | Participant or reported-thread view; user send; first response; thread bump; email throttle; archive state | Thread projection RPC plus fixed send, archive and email-claim operations |
+| `src/app/messages/[id]/page.tsx` | Participant or reported-thread view; user send; first response; thread bump; email throttle; archive state | Converted: thread projections plus fixed ordinary-send, archive and source-Message email-claim operations; upload claims share the send transaction |
 | `src/app/api/messages/[id]/{list,stream,read}/route.ts` | Poll/stream projection and mark-read | Converted: exact recipient projections with per-call authority; staff list review remains bounded while stream/mark-read remain participant-only |
 | `src/app/api/messages/unread-count/route.ts` | Participant unread total excluding blocked/archived threads | Converted: one-statement unread RPC |
-| `src/app/messages/new/page.tsx` and `src/lib/conversationStartAccess.ts` | Read-only start prompt plus explicit canonical conversation create/get and optional context listing | Start page/action converted; only the ordinary-send participant/listing/Conversation locks remain temporarily |
+| `src/app/messages/new/page.tsx` and `src/lib/conversationStartAccess.ts` | Read-only start prompt plus explicit canonical conversation create/get and optional context listing | Converted: the start action calls fixed database authority; obsolete app-side send locks are removed |
 | `src/app/api/messages/custom-order-request/route.ts` and `src/lib/customOrderRequestAccess.ts` | Custom-request conversation/message creation | Converted: one fixed database operation revalidates the participant/block/seller/listing sources and derives the structured message |
 | `src/app/api/commission/[id]/interest/route.ts` and `src/lib/commissionInterestMessageAccess.ts` | CommissionInterest, conversation and system-message transaction | Converted: one source-bound statement co-commits CommissionInterest, conversation, structured message and interested count |
 | `src/lib/customOrderReadyLink.ts` and its seller/admin callers | Deduplicated ready-link message | Converted: Listing-derived operation owns participant/source validation, exact replay evidence and message creation |
@@ -171,9 +189,10 @@ This inventory is complete only when every protected access (55 in the original
 baseline, 53 after compatible refactors, 37 after the first four authority
 conversion checkpoints, 30 after the first structured writes, 26 after
 custom-order-ready, 23 after seller metrics, 18 after account deletion, 16
-after inbox conversion, 14 after initial thread rendering) has an explicit
-destination, direct runtime INSERT/UPDATE/DELETE is removed, the compatible app
-passes before and after RLS, and PostgreSQL proof covers participant isolation,
+after inbox conversion, 14 after initial thread rendering, and 0 after ordinary
+send/archive/email conversion) has an explicit destination. The direct runtime
+surface is now zero; completion still requires the compatible app to pass
+before and after RLS and PostgreSQL proof to cover participant isolation,
 reported-staff access, structured write families, block/account races, archive
 semantics, export/deletion, metrics, rollback and FORCE. Conversation and
 Message may activate together because each Message policy depends on its parent

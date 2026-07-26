@@ -130,6 +130,13 @@ export type SentActorCustomOrderReady = {
   created: boolean;
 };
 
+export type SentActorOrdinaryMessage = {
+  messageId: string;
+  recipientId: string;
+  sentAt: Date;
+  firstResponseSet: boolean;
+};
+
 type ConversationRpcRow = ActorConversation;
 
 type MessageRpcRow = {
@@ -559,6 +566,111 @@ export async function markActorConversationMessagesRead(
   return {
     count: requireSafeCount(rows[0].count, "message mark-read RPC"),
   };
+}
+
+export async function sendActorOrdinaryMessage(
+  userId: string,
+  conversationId: string,
+  {
+    body,
+    kind,
+    contextListingId,
+  }: {
+    body: string;
+    kind: "file" | null;
+    contextListingId: string | null;
+  },
+  db: ConversationMessageAuthorityClient = prisma,
+): Promise<SentActorOrdinaryMessage> {
+  const actorId = normalizeDbUserContextUserId(userId);
+  if (
+    !isBoundedAuthorityId(conversationId)
+    || typeof body !== "string"
+    || body.length < 1
+    || body.length > 5000
+    || (kind !== null && kind !== "file")
+    || (
+      contextListingId !== null
+      && !isBoundedAuthorityId(contextListingId)
+    )
+  ) {
+    throw new TypeError("ordinary-message write RPC input is invalid");
+  }
+
+  const messageId = randomUUID();
+  const rows = await db.$queryRaw<SentActorOrdinaryMessage[]>`
+    SELECT *
+      FROM public.grainline_message_send_ordinary(
+        ${messageId}::text,
+        ${actorId}::text,
+        ${conversationId}::text,
+        ${body}::text,
+        ${kind}::text,
+        ${contextListingId}::text
+      )
+  `;
+  const row = rows[0];
+  if (
+    rows.length !== 1
+    || row.messageId !== messageId
+    || !isBoundedAuthorityId(row.messageId)
+    || typeof row.recipientId !== "string"
+    || !isBoundedAuthorityId(row.recipientId)
+    || row.recipientId === actorId
+    || !(row.sentAt instanceof Date)
+    || !Number.isFinite(row.sentAt.getTime())
+    || typeof row.firstResponseSet !== "boolean"
+  ) {
+    throw new TypeError("ordinary-message write RPC returned an invalid row");
+  }
+  return row;
+}
+
+export async function setActorConversationArchived(
+  userId: string,
+  conversationId: string,
+  archived: boolean,
+  db: ConversationMessageAuthorityClient = prisma,
+): Promise<boolean> {
+  const actorId = normalizeDbUserContextUserId(userId);
+  if (
+    !isBoundedAuthorityId(conversationId)
+    || typeof archived !== "boolean"
+  ) {
+    throw new TypeError("conversation archive RPC input is invalid");
+  }
+  const rows = await db.$queryRaw<Array<{ changed: boolean }>>`
+    SELECT public.grainline_conversation_set_archived(
+      ${actorId}::text,
+      ${conversationId}::text,
+      ${archived}::boolean
+    ) AS changed
+  `;
+  if (rows.length !== 1 || typeof rows[0].changed !== "boolean") {
+    throw new TypeError("conversation archive RPC returned an invalid result");
+  }
+  return rows[0].changed;
+}
+
+export async function claimActorConversationMessageEmail(
+  userId: string,
+  messageId: string,
+  db: ConversationMessageAuthorityClient = prisma,
+): Promise<boolean> {
+  const actorId = normalizeDbUserContextUserId(userId);
+  if (!isBoundedAuthorityId(messageId)) {
+    throw new TypeError("message email-claim RPC input is invalid");
+  }
+  const rows = await db.$queryRaw<Array<{ claimed: boolean }>>`
+    SELECT public.grainline_conversation_claim_message_email(
+      ${actorId}::text,
+      ${messageId}::text
+    ) AS claimed
+  `;
+  if (rows.length !== 1 || typeof rows[0].claimed !== "boolean") {
+    throw new TypeError("message email-claim RPC returned an invalid result");
+  }
+  return rows[0].claimed;
 }
 
 export async function exportActorMessages(
