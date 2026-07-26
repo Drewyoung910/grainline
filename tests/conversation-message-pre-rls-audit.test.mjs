@@ -18,17 +18,20 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
 
   it("serializes conversation creation with block and account lifecycle changes", () => {
     const access = source("src/lib/conversationStartAccess.ts");
-    assert.match(access, /TransactionIsolationLevel\.ReadCommitted/);
-    assert.match(access, /ORDER BY start_user\.id\s+FOR SHARE/);
-    assert.match(access, /block\.findFirst/);
-    assert.match(access, /pg_advisory_xact_lock/);
-    assert.ok(
-      access.indexOf("FOR SHARE") < access.indexOf("block.findFirst"),
-      "pair locks must precede the reciprocal block absence check",
+    const authority = source("src/lib/conversationMessageAuthority.ts");
+    const serviceSql = source("docs/rls-drafts/conversation-message-service-authority.sql");
+    const startFunction = serviceSql.slice(
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_conversation_start"),
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_send_ordinary"),
     );
+    assert.match(authority, /public\.grainline_conversation_start/);
+    assert.match(access, /startActorConversation\(/);
+    assert.match(startFunction, /transaction_isolation'\) <> 'read committed'/);
+    assert.match(startFunction, /grainline_conversation_lock_pair_core/);
+    assert.match(startFunction, /grainline_conversation_get_or_create_core/);
     assert.ok(
-      access.indexOf("block.findFirst") < access.indexOf("conversation.create"),
-      "conversation creation must follow the locked block check",
+      serviceSql.indexOf("FOR SHARE") < serviceSql.indexOf('FROM public."Block" AS block'),
+      "pair locks must precede the reciprocal block absence check in database authority",
     );
   });
 
@@ -154,7 +157,7 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
 
     assert.ok(
       newPage.indexOf("canAttachConversationContextListing(contextListing") <
-        newPage.indexOf("const existing = await prisma.conversation.findUnique"),
+        newPage.indexOf("const existing = await findActorConversationPair"),
       "listing context must be validated before redirecting into an existing pair thread",
     );
     assert.match(newPage, /redirect\(`\/messages\/\$\{existing\.id\}\$\{listingQuery\}`\)/);

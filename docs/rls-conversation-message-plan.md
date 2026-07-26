@@ -41,8 +41,9 @@ Application conversion is in progress; the first bounded checkpoint converted
 list polling, stream polling, mark-read and unread count through four exact
 authority functions, and the second converted account export plus message/thread
 report validation. The third converted custom-order participant, pair and
-latest-request reads. Direct protected-table access is now reduced from 53 to
-38.
+latest-request reads. The fourth moved the read-only start-page pair lookup and
+explicit conversation start behind fixed authority. Direct protected-table
+access is now reduced from 53 to 37.
 Policy/table-grant activation and FORCE remain later separate releases.
 
 ## Security objective
@@ -64,9 +65,9 @@ separate from Notification, Order/payment/shipping and Case/CaseMessage.
 The original machine inventory recorded 50 direct ORM operations and 5 raw SQL
 table references. Compatible audit refactors left 45 direct ORM operations and
 8 raw SQL references across 17 runtime files (53 total protected access
-points). The first three authority checkpoints removed fifteen direct
-operations, so 30 ORM operations plus 8 raw references remain across 9 runtime
-files (38 total).
+points). The first four authority checkpoints removed sixteen direct
+operations, so 29 ORM operations plus 8 raw references remain across 8 runtime
+files (37 total).
 The surface includes the user inbox and
 thread, list and stream polling, unread counts, per-recipient mark-read,
 archive state, first-response metrics, email throttling, account export,
@@ -200,7 +201,7 @@ The direct runtime table query with no context must return zero rows.
 ## Compatibility and rollout sequence
 
 1. Inventory and pin every current access path. **Complete: original 55-path
-   migration baseline; current authority-conversion surface is 38 protected
+   migration baseline; current authority-conversion surface is 37 protected
    accesses after converting polling/read, privacy, report-target and
    custom-order read operations.**
 2. Complete `docs/conversation-message-pre-rls-audit.md` and fix its activation

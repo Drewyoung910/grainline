@@ -94,9 +94,16 @@ describe("Conversation and Message application authority conversion", () => {
     assert.match(customListing, /convo\.userAId === me\.id/);
     assert.match(customListing, /convo\.userBId === me\.id/);
     assert.match(order, /findActorConversationPair\(me\.id, sellerUserId\)/);
+    const newMessage = source("src/app/messages/new/page.tsx");
+    const startAccess = source("src/lib/conversationStartAccess.ts");
+    assert.match(newMessage, /findActorConversationPair\(me\.id, other\.id\)/);
+    assert.match(startAccess, /startActorConversation\(/);
+    assert.match(helper, /public\.grainline_conversation_start/);
+    assert.match(helper, /conversation start RPC returned an invalid row/);
     assert.match(helper, /custom-request RPC returned an invalid row/);
     assert.match(helper, /conversation pair RPC returned an invalid result/);
     assert.doesNotMatch(customListing, /prisma\.(?:conversation|message)\./);
     assert.doesNotMatch(order, /prisma\.conversation\./);
+    assert.doesNotMatch(newMessage, /prisma\.conversation\./);
   });
 });

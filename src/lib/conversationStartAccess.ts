@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/db";
+import { startActorConversation } from "@/lib/conversationMessageAuthority";
 
 const CONVERSATION_START_LOCK_NAMESPACE = 913350;
 
@@ -190,16 +190,26 @@ export async function startConversationForUser(
   otherUserId: string,
   requestedListingId: string | null,
 ): Promise<ConversationStartResult> {
-  return prisma.$transaction(async (tx) => {
-    const pair = await lockConversationParticipantPair(tx, userId, otherUserId);
-    if (!pair.ok) return pair;
-    const conversation = await getOrCreateConversationForLockedPair(
-      tx,
-      pair,
+  try {
+    const conversation = await startActorConversation(
+      userId,
+      otherUserId,
       requestedListingId,
     );
-    return { ok: true as const, ...conversation };
-  }, {
-    isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
-  });
+    return { ok: true, ...conversation };
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError
+      && error.code === "P2010"
+    ) {
+      const sqlState = error.meta?.code;
+      if (sqlState === "22023") {
+        return { ok: false, error: "invalid_participants" };
+      }
+      if (sqlState === "42501") {
+        return { ok: false, error: "unavailable" };
+      }
+    }
+    throw error;
+  }
 }

@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/db";
 import type { MessageCursor } from "@/lib/messageCursor";
 import { normalizeDbUserContextUserId } from "@/lib/dbUserContextState";
@@ -50,6 +51,12 @@ export type ActorMessageExport = {
 export type ActorCustomOrderRequest = {
   body: string;
   createdAt: Date;
+};
+
+export type StartedActorConversation = {
+  conversationId: string;
+  created: boolean;
+  contextListingId: string | null;
 };
 
 type ConversationRpcRow = ActorConversation;
@@ -376,4 +383,33 @@ export async function findLatestActorCustomOrderRequest(
     throw new TypeError("custom-request RPC returned an invalid row");
   }
   return row ?? null;
+}
+
+export async function startActorConversation(
+  userId: string,
+  otherUserId: string,
+  requestedListingId: string | null,
+  db: ConversationMessageAuthorityClient = prisma,
+): Promise<StartedActorConversation> {
+  const actorId = normalizeDbUserContextUserId(userId);
+  const rows = await db.$queryRaw<StartedActorConversation[]>`
+    SELECT *
+      FROM public.grainline_conversation_start(
+        ${randomUUID()}::text,
+        ${actorId}::text,
+        ${otherUserId}::text,
+        ${requestedListingId}::text
+      )
+  `;
+  const row = rows[0];
+  if (
+    rows.length !== 1
+    || typeof row.conversationId !== "string"
+    || !isBoundedAuthorityId(row.conversationId)
+    || typeof row.created !== "boolean"
+    || !isNullableString(row.contextListingId)
+  ) {
+    throw new TypeError("conversation start RPC returned an invalid row");
+  }
+  return row;
 }
