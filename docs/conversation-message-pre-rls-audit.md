@@ -36,6 +36,19 @@ remains. Sanitized mode-`0600` evidence SHA-256 is
 `1f38671673e8040b222fcb620f8875c94cd47684969d423e6f260fc7a520e141`.
 FORCE is intentionally still pending as a separate release.
 
+The separate FORCE-only candidate is now durably specified on
+`agent/conversation-message-force-20260726` as migration
+`20260726140000_force_conversation_message_rls`, SHA-256
+`ba7408ede5a63f9cc10531f2598cb0b1187441d7157dc600d5518cd327dcf42f`.
+It changes no policy, grant, function or row and fails closed unless the exact
+accepted activation catalog, owner/runtime role posture and owner-session drain
+are present. Its exact reviewed migration-tree SHA-256 is
+`89befe7599c71f734f45b29c964ebc037119ca5def04d95c22687fc92e1ce716`.
+The local static release and rollback contracts pass; fresh disposable
+PostgreSQL 16 proof, Extra-High set-level review, merge, protected production
+migration and actual pooled-runtime postflight remain required. FORCE is still
+off in production at this checkpoint.
+
 ## Why this gate exists
 
 RLS must enforce the intended product contract, not freeze accidental current
@@ -281,7 +294,9 @@ is necessary but not sufficient.
 4. Extra High accepted the invariant-preparation SQL, fixed authority
    functions, initial policy SQL and grant narrowing in their separate
    releases. Initial activation is live and accepted; FORCE remains its own
-   later Extra-High review and release boundary.
+   later Extra-High review and release boundary. The FORCE-only artifact is
+   packaged but remains unapplied pending fresh PostgreSQL proof and the
+   production gates above.
 
 This audit pattern is required for each later sensitive group, with scope
 adapted to that group's actors and provider/background workflows.

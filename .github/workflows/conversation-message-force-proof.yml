@@ -1,0 +1,73 @@
+name: Conversation and Message RLS FORCE Proof
+
+on:
+  push:
+    branches:
+      - agent/conversation-message-force-20260726
+      - main
+    paths:
+      - .github/workflows/conversation-message-force-proof.yml
+      - package.json
+      - package-lock.json
+      - prisma/**
+      - scripts/audit-runtime-db-grants.mjs
+      - scripts/conversation-message-force-rollback-proof.mjs
+      - scripts/conversation-message-recipient-rls-proof.mjs
+      - scripts/guard-saved-search-rls-deploy.mjs
+      - scripts/prepare-ci-rls-runtime-role.sql
+      - scripts/provision-runtime-db-role.sql
+      - scripts/verify-conversation-message-activation-release.mjs
+      - scripts/verify-conversation-message-force-release.mjs
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: grainline_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d grainline_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
+      DIRECT_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
+      CONVERSATION_MESSAGE_FORCE_ROLLBACK_PROOF_DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
+      CONVERSATION_MESSAGE_RECIPIENT_RLS_PROOF_DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx prisma generate
+      - name: Verify committed Conversation and Message activation release
+        run: npm run audit:rls-conversation-message-activation-release
+      - name: Verify committed Conversation and Message FORCE release
+        run: npm run audit:rls-conversation-message-force-release
+      - name: Prepare CI runtime policy role
+        run: psql "$DIRECT_URL" -f scripts/prepare-ci-rls-runtime-role.sql
+      - name: Apply current migrations including Conversation and Message FORCE
+        run: npx prisma migrate deploy
+      - name: Converge production-style runtime grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Verify migration status
+        run: npx prisma migrate status
+      - name: Audit exact FORCE-hardened grants and policy catalog
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove database-first Conversation and Message FORCE rollback
+        run: npm run audit:rls-conversation-message-force-rollback
+      - name: Prove FORCE-hardened Conversation and Message authority
+        run: npm run audit:rls-conversation-message-recipient

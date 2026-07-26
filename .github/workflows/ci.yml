@@ -82,14 +82,16 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
-      - name: Verify Conversation and Message initial RLS activation migration tree
+      - name: Verify Conversation and Message FORCE migration tree
         env:
-          SAVED_SEARCH_RLS_DEPLOY_PHASE: conversation-message-activation-reviewed
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: conversation-message-force-reviewed
         run: npm run verify:rls-release-artifact
       - name: Verify Conversation and Message authority proof equivalence
         run: npm run audit:rls-conversation-message-authority-release
       - name: Verify Conversation and Message activation proof equivalence
         run: npm run audit:rls-conversation-message-activation-release
+      - name: Verify Conversation and Message FORCE release artifact
+        run: npm run audit:rls-conversation-message-force-release
       - name: Verify Notification activation proof equivalence
         run: npm run audit:rls-notification-activation-release
       - name: Verify Notification FORCE release artifact
@@ -108,11 +110,11 @@ jobs:
         run: npx prisma migrate status
       - name: Audit final runtime grants and RLS catalog
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
-      - name: Prove Conversation and Message initial activation rollback in ephemeral PostgreSQL
-        run: npm run audit:rls-conversation-message-activation-rollback
+      - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
+        run: npm run audit:rls-conversation-message-force-rollback
         env:
-          CONVERSATION_MESSAGE_ACTIVATION_ROLLBACK_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
-      - name: Prove activated Conversation and Message authority in ephemeral PostgreSQL
+          CONVERSATION_MESSAGE_FORCE_ROLLBACK_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove FORCE-hardened Conversation and Message authority in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-recipient
         env:
           CONVERSATION_MESSAGE_RECIPIENT_RLS_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}

@@ -1,7 +1,7 @@
 # Conversation and Message RLS Plan
 
 Status: initial Conversation/Message RLS activation is live and accepted in
-production; FORCE remains a later separate release. Both tables have RLS
+production; FORCE is packaged as a separate candidate and is not live. Both tables have RLS
 enabled without FORCE, exactly one reviewed SELECT policy each, direct runtime
 SELECT only, and all writes behind the fixed authority functions. Notification
 Bucket B is complete in production. The earlier preparation SQL passed
@@ -88,6 +88,24 @@ Notification and left no fixture, session, recovery, cache or rate-limit
 residue. Sanitized mode-`0600` evidence SHA-256 is
 `1f38671673e8040b222fcb620f8875c94cd47684969d423e6f260fc7a520e141`.
 FORCE remains a later separate release.
+
+The FORCE-only candidate is isolated on
+`agent/conversation-message-force-20260726`. It adds only
+`20260726140000_force_conversation_message_rls` at SHA-256
+`ba7408ede5a63f9cc10531f2598cb0b1187441d7157dc600d5518cd327dcf42f`
+after the accepted activation baseline, and the exact reviewed migration-tree
+SHA-256 is
+`89befe7599c71f734f45b29c964ebc037119ca5def04d95c22687fc92e1ce716`.
+The migration changes only the two `relforcerowsecurity` flags. It requires the
+exact owner/runtime posture, zero other owner sessions, owner-held
+`ENABLE`/`NO FORCE`, one exact SELECT policy per table, SELECT-only runtime
+grants and no PUBLIC or column ACLs before taking bounded table locks. It
+rechecks the two forced tables, two policies and unchanged grants afterward.
+The package also includes a loopback-only committed `NO FORCE` rollback and
+exact FORCE restoration proof plus a dedicated PostgreSQL 16 workflow. This
+candidate does not change production and remains blocked on fresh CI,
+Extra-High SQL/authority acceptance, an exact-main protected migration and a
+pooled-runtime postflight.
 
 ## Security objective
 

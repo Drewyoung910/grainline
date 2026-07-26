@@ -775,7 +775,10 @@ describe("database grant inventory guardrails", () => {
       inventory.rlsPolicyTables,
       ["Conversation", "Message", "Notification", "SavedSearch"],
     );
-    assert.deepEqual(inventory.rlsForceTables, ["Notification", "SavedSearch"]);
+    assert.deepEqual(
+      inventory.rlsForceTables,
+      ["Conversation", "Message", "Notification", "SavedSearch"],
+    );
   });
 
   it("keeps the manual grant audit focused on least-privilege role evidence", () => {

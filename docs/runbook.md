@@ -23,6 +23,14 @@ Current Conversation/Message production boundary:
   A rerun creates bounded synthetic rows and a short Clerk session, then
   requires exact cleanup; if it fails, use its retained private recovery state
   and exact `--cleanup --post-activation` mode before any new attempt.
+- A separate FORCE-only candidate exists on
+  `agent/conversation-message-force-20260726`, but is not live. Its migration is
+  `20260726140000_force_conversation_message_rls` at SHA-256
+  `ba7408ede5a63f9cc10531f2598cb0b1187441d7157dc600d5518cd327dcf42f`,
+  guarded by `conversation-message-force-reviewed` and migration-tree SHA-256
+  `89befe7599c71f734f45b29c964ebc037119ca5def04d95c22687fc92e1ce716`.
+  Do not call FORCE complete before fresh PostgreSQL CI, Extra-High review,
+  exact-main protected migration and a pooled-runtime postflight.
 
 ## Incident Triage
 
@@ -542,7 +550,7 @@ Production migration rules:
   Conversation/Message RLS and FORCE remained disabled with zero policies.
   Do not reuse the cleanup phase for functions-only promotion or activation;
   each requires a new exact phase and review.
-- The initial Conversation/Message activation candidate is guarded as
+- The initial Conversation/Message activation release is guarded as
   `SAVED_SEARCH_RLS_DEPLOY_PHASE=conversation-message-activation-reviewed`.
   It adds only
   `20260726073000_enable_conversation_message_rls` after authority preparation,
@@ -554,9 +562,23 @@ Production migration rules:
   `d8604106813da825d18352095be38755ba2baa0ce73d363ce3957bf4b53500c4`.
   It enables RLS with explicit NO FORCE, installs exactly one SELECT policy per
   table, and narrows direct runtime table grants to SELECT. It does not add
-  write policies, alter function ACLs, purge rows or authorize FORCE. This
-  package is not live until fresh CI, Extra-High review, protected migration
-  and post-activation proof pass.
+  write policies, alter function ACLs, purge rows or authorize FORCE. It is live
+  and accepted at exact main `448d5233` through protected run `30194195844`;
+  pooled-runtime post-activation evidence SHA-256 is
+  `1f38671673e8040b222fcb620f8875c94cd47684969d423e6f260fc7a520e141`.
+- The separate FORCE candidate is guarded as
+  `SAVED_SEARCH_RLS_DEPLOY_PHASE=conversation-message-force-reviewed`. It adds
+  only `20260726140000_force_conversation_message_rls`, with migration SHA-256
+  `ba7408ede5a63f9cc10531f2598cb0b1187441d7157dc600d5518cd327dcf42f`
+  and exact migration-tree SHA-256
+  `89befe7599c71f734f45b29c964ebc037119ca5def04d95c22687fc92e1ce716`.
+  The SQL takes bounded locks, requires the exact live policy/grant/role
+  predecessor and zero other owner sessions, changes only the two FORCE flags,
+  then rechecks the catalog. Use
+  `npm run audit:rls-conversation-message-force-release` for byte/shape proof
+  and `npm run audit:rls-conversation-message-force-rollback` only against the
+  disposable loopback `grainline_ci` database. It is not live or production-
+  authorized at this checkpoint.
 - Before cleanup, and again afterward as the required zero-count postflight,
   manually dispatch
   `.github/workflows/conversation-message-legacy-inspection.yml` from the exact
