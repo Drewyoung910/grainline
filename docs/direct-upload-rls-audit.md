@@ -430,6 +430,32 @@ reuse, release/cleanup and concurrency proof; aggregate legacy inspection and
 backfill; the activation/rollback split; and the final Extra-High authority
 review remain required.
 
+### Disposable PostgreSQL proof scaffold
+
+`scripts/direct-upload-authority-postgres-proof.mjs` and its branch-scoped
+PostgreSQL 16 workflow are the next evidence gate. The harness refuses every
+non-loopback target and every database name except `grainline_ci`; it never
+reads the ordinary runtime or migration URL variables. It is designed to
+apply the exact stacked migration tree, converge the production-style runtime
+role, and prove:
+
+- exact runtime/PUBLIC function ACLs, pinned `pg_catalog` search paths, the
+  compatible pre-activation DirectUpload posture, and the zero-table-authority
+  FORCE posture of DirectUploadReference;
+- runtime denial of generic reference operations, null/foreign actor denial,
+  and database-derived key ownership;
+- fail-closed partial-source behavior even when a direct database caller
+  ignores the returned untracked count;
+- public-object reuse plus last-reference release through source-delete
+  triggers;
+- stable lifecycle lock ordering during a two-source object swap; and
+- both cleanup/reference winner orders, including `SKIP LOCKED` behavior and
+  exact cleanup-lease fencing.
+
+The scaffold is not evidence of a pass until the workflow runs successfully.
+It uses only disposable `example.invalid` fixtures, removes them in `finally`,
+and records that neither persistent staging nor production changed.
+
 ## Exit
 
 High ends when this audit, the matrix/strategy decision and static inventory
