@@ -529,12 +529,16 @@ function collectExactRlsPolicyIssues(
     const actualUsing = normalizeRlsPolicyExpression(policy.using_expression);
     const expectedUsing = normalizeRlsPolicyExpression(expected.usingExpression);
     if (actualUsing !== expectedUsing) {
-      issues.push(`${tableName} policy ${policy.policy_name} has an unexpected USING expression`);
+      issues.push(
+        `${tableName} policy ${policy.policy_name} has an unexpected USING expression: actual=${JSON.stringify(actualUsing)} expected=${JSON.stringify(expectedUsing)}`,
+      );
     }
     const actualCheck = normalizeRlsPolicyExpression(policy.check_expression);
     const expectedCheck = normalizeRlsPolicyExpression(expected.checkExpression);
     if (actualCheck !== expectedCheck) {
-      issues.push(`${tableName} policy ${policy.policy_name} has an unexpected WITH CHECK expression`);
+      issues.push(
+        `${tableName} policy ${policy.policy_name} has an unexpected WITH CHECK expression: actual=${JSON.stringify(actualCheck)} expected=${JSON.stringify(expectedCheck)}`,
+      );
     }
   }
 
