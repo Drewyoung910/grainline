@@ -126,6 +126,10 @@ jobs:
         run: npm run audit:rls-conversation-message-recipient
         env:
           CONVERSATION_MESSAGE_RECIPIENT_RLS_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Remove exact disposable Conversation and Message authority migration
+        run: npm run audit:rls-conversation-message-authority-candidate -- --unstage
+        env:
+          CONVERSATION_MESSAGE_AUTHORITY_STAGING_ACK: I_ACKNOWLEDGE_LOOPBACK_CONVERSATION_MESSAGE_AUTHORITY_STAGING
       - run: npx tsc --noEmit
       - name: Lint
         run: npm run lint

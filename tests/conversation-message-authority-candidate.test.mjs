@@ -118,6 +118,7 @@ describe("Conversation and Message functions-only authority candidate", () => {
     ));
     assert.equal(output.mode, "--verify");
     assert.equal(output.staged, false);
+    assert.equal(output.unstaged, false);
     assert.equal(output.migrationSha256, disposableMigrationSha256);
     assert.equal(output.functionCount, 25);
     assert.equal(output.rlsChanged, false);
@@ -128,6 +129,8 @@ describe("Conversation and Message functions-only authority candidate", () => {
     assert.match(stageScript, /contains table or policy activation SQL/);
     assert.match(stageScript, /functions-only boundary/);
     assert.match(stageScript, /may be staged only for loopback grainline_ci/);
+    assert.match(stageScript, /refusing to remove drifted authority migration/);
+    assert.match(stageScript, /destination contains unexpected entries/);
   });
 
   it("pins the generated disposable migration when CI or promotion stages it", () => {
@@ -195,12 +198,18 @@ describe("Conversation and Message functions-only authority candidate", () => {
     const fullProof = ci.indexOf(
       "- name: Prove Conversation and Message recipient RLS draft in ephemeral PostgreSQL",
     );
+    const unstage = ci.indexOf(
+      "- name: Remove exact disposable Conversation and Message authority migration",
+    );
+    const staticTests = ci.indexOf("- name: Tests");
     assert.ok(baselineAudit >= 0);
     assert.ok(stage > baselineAudit);
     assert.ok(apply > stage);
     assert.ok(preparationProof > apply);
     assert.ok(authorityAudit > preparationProof);
     assert.ok(fullProof > authorityAudit);
+    assert.ok(unstage > fullProof);
+    assert.ok(staticTests > unstage);
   });
 
   it("keeps future role convergence aligned with 19 public and six private functions", () => {

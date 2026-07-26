@@ -474,22 +474,62 @@ function stageCandidate(migration) {
   });
 }
 
+function unstageCandidate(migration) {
+  const destinationDirectory = path.join(
+    root,
+    "prisma",
+    "migrations",
+    migrationName,
+  );
+  const destinationPath = path.join(destinationDirectory, "migration.sql");
+  if (!fs.existsSync(destinationDirectory)) {
+    throw new Error(
+      `authority migration destination does not exist: ${destinationDirectory}`,
+    );
+  }
+  const entries = fs.readdirSync(destinationDirectory);
+  if (
+    entries.length !== 1
+    || entries[0] !== "migration.sql"
+    || !fs.statSync(destinationPath).isFile()
+  ) {
+    throw new Error(
+      `authority migration destination contains unexpected entries: ${destinationDirectory}`,
+    );
+  }
+  const stagedMigration = fs.readFileSync(destinationPath, "utf8");
+  const expectedSha256 = sha256(migration);
+  const actualSha256 = sha256(stagedMigration);
+  if (actualSha256 !== expectedSha256) {
+    throw new Error(
+      `refusing to remove drifted authority migration: expected ${expectedSha256}, got ${actualSha256}`,
+    );
+  }
+  fs.unlinkSync(destinationPath);
+  fs.rmdirSync(destinationDirectory);
+}
+
 const mode = process.argv[2] ?? "--verify";
-if (!new Set(["--verify", "--stage"]).has(mode)) {
+if (!new Set(["--verify", "--stage", "--unstage"]).has(mode)) {
   throw new Error(
-    "usage: stage-conversation-message-authority-migration.mjs [--verify|--stage]",
+    "usage: stage-conversation-message-authority-migration.mjs [--verify|--stage|--unstage]",
   );
 }
 
 const candidate = buildCandidate();
-if (mode === "--stage") {
+if (mode !== "--verify") {
   assertDisposableTarget();
+}
+if (mode === "--stage") {
   stageCandidate(candidate.migration);
+} else if (mode === "--unstage") {
+  unstageCandidate(candidate.migration);
 }
 
 process.stdout.write(`${JSON.stringify({
   mode,
   staged: mode === "--stage",
+  unstaged: mode === "--unstage",
   migrationName,
   migrationSha256: sha256(candidate.migration),
   functionCount: CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.length,

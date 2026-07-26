@@ -7,6 +7,15 @@ from byte-pinned sources as
 `20260726022500_prepare_conversation_message_authority`, disposable SHA-256
 `9b56eb4c0e25e5de5266998f29a19fb0c7173c49f2b83266f3223542c7feeb07`.
 It is not yet a promoted release and is not applied to any persistent database.
+The first exact generated-candidate run, `30184548860` at `037f654c`, proved
+the migration, functions-only compatibility, exact catalog/grants and complete
+recipient/RLS race suite in PostgreSQL 16. It remains failed evidence overall:
+CI left the disposable migration directory in the checkout, so the later
+static suite correctly rejected the now-dirty committed migration inventory.
+The candidate builder now removes only the exact byte-pinned disposable
+artifact after its database proofs and refuses drifted or expanded targets.
+A fresh complete run is required; the PostgreSQL success inside the failed run
+does not authorize promotion.
 Candidate CI must prove old direct CRUD, new fixed calls, exact ACL/catalog
 state, RLS disabled and zero policies before the executable bytes may be
 promoted. The live production boundary remains RLS disabled with zero

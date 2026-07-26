@@ -21,8 +21,11 @@ functions-only disposable candidate is
 `20260726022500_prepare_conversation_message_authority` at SHA-256
 `9b56eb4c0e25e5de5266998f29a19fb0c7173c49f2b83266f3223542c7feeb07`.
 It contains 25 functions/function ACLs, no RLS, policies or table-grant
-changes, and still awaits its fresh candidate-aligned CI proof before
-promotion.
+changes. Run `30184548860` at `037f654c` passed every candidate-aligned
+PostgreSQL step but remains failed evidence overall because the disposable
+migration was not removed before static migration-tree guards ran. Teardown is
+now exact-hash and fail-closed; a fresh complete candidate-aligned CI run is
+still required before promotion.
 
 ## Security objective
 
