@@ -79,6 +79,27 @@ authority catalog and PostgreSQL proof.
    label/fulfillment/refund transitions.
 6. Serialize replies on the Case row and use a post-lock timestamp.
 
+Private evidence contract:
+
+- Only processed JPEG, PNG and WebP images are accepted, with metadata stripped
+  and a four-image/8 MiB-per-image message bound. PDFs remain prohibited.
+- Objects live in `CLOUDFLARE_R2_PRIVATE_BUCKET_NAME`, which must have no
+  public/custom domain. Database rows retain only an opaque key and verified
+  content metadata; no public URL is persisted.
+- Upload ownership is recorded in `DirectUpload`, then claimed atomically with
+  the parent `CaseMessage`. Unclaimed objects use the existing retryable
+  lifecycle cleanup, selecting the private bucket by stored storage class.
+- Buyer, seller and PIN-verified staff retrieve evidence only through the exact
+  parent Case route, which returns a 60-second signed read with no-store and
+  no-referrer headers. Foreign users receive no object URL.
+- Interactive history and account export include bounded attachment metadata.
+  Binary evidence remains available through the authenticated Case route and
+  is retained with the dispute/order record; it is not erased merely because a
+  participant account is anonymized. Any future Case retention purge must
+  enqueue private-object deletion before deleting attachment rows.
+- The private bucket/env/grant/signed-read/foreign-denial smoke is a deployment
+  prerequisite. Code presence is not evidence that the bucket is private.
+
 The fixed-operation pattern does not authenticate a human caller by itself.
 `grainline_app_runtime` can supply transaction context or function actor
 arguments, so possession of that credential must be treated as authority to
@@ -95,6 +116,12 @@ authority fields and lock ordering remain strict structural tripwires.
 
 Exit: focused product/security tests, TypeScript, lint and the full unit suite
 are green. No RLS behavior has changed.
+
+Release order remains migration first, application second. Automatic Vercel
+production deployment from `main` is disabled; verify that invariant, apply the
+guarded nullable/additive compatibility migrations, run the production
+postflight, then deliberately promote the application that selects/writes the
+new fields. Never deploy the application ahead of its schema.
 
 ## Phase 2: legacy inspection and invariant preparation
 
@@ -145,7 +172,8 @@ orderings, account deletion, cron/webhook/refund behavior and rollback.
 ## Phase 4: compatible application conversion
 
 - Deploy fixed functions while retaining old direct grants.
-- Convert all 69 protected references to their explicit destination.
+- Convert every current protected reference to its explicit destination (81 in
+  the Phase 1B snapshot; the exact scanner gate controls later drift).
 - Keep an exact zero-direct-access inventory gate.
 - Prove buyer, seller, staff, cron, Stripe, refund, fulfillment, export,
   deletion, retention and metrics paths on the compatible database.

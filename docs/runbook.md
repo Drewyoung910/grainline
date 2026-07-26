@@ -67,6 +67,7 @@ Pre-launch Cloudflare R2 upload smoke:
   - `CLOUDFLARE_R2_ACCESS_KEY_ID`
   - `CLOUDFLARE_R2_SECRET_ACCESS_KEY`
   - `CLOUDFLARE_R2_BUCKET_NAME`
+  - `CLOUDFLARE_R2_PRIVATE_BUCKET_NAME` (must have no public/custom domain)
   - `CLOUDFLARE_R2_PUBLIC_URL`
   - `R2_UPLOAD_SMOKE_CONFIRM=write-delete`
   - `R2_UPLOAD_SMOKE_EVIDENCE_PATH=r2-upload-smoke-evidence.json`
@@ -76,6 +77,11 @@ Pre-launch Cloudflare R2 upload smoke:
   bucket/key hashes, public origin, HTTP status for the public listing probe,
   metadata checks, byte-signature checks, public-availability checks, and
   cleanup evidence.
+- Case evidence uses `CLOUDFLARE_R2_PRIVATE_BUCKET_NAME`, never the public
+  upload bucket. Before enabling evidence uploads, prove the bucket has no
+  public/custom domain, the application credential has only required object
+  access, an authenticated Case participant/staff request can obtain a
+  60-second signed read, and an unrelated user receives no object URL.
 - This smoke test does not replace Cloudflare dashboard or CLI evidence for
   CORS settings, bucket policy, bucket-level object-size defenses, or public
   ListBucket posture. Keep those provider records with the launch evidence.

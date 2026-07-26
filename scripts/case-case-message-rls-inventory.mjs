@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
-const MODELS = new Set(["case", "caseMessage"]);
+const MODELS = new Set(["case", "caseMessage", "caseMessageAttachment"]);
 const OPERATIONS = new Set([
   "aggregate",
   "count",
@@ -35,7 +35,9 @@ function normalizePath(file) {
 }
 
 function modelName(name) {
-  return name === "case" ? "Case" : "CaseMessage";
+  if (name === "case") return "Case";
+  if (name === "caseMessage") return "CaseMessage";
+  return "CaseMessageAttachment";
 }
 
 function collectOrmCalls(file, sourceFile) {
@@ -89,7 +91,11 @@ function collectRelationReferences(file, sourceFile) {
     ) {
       const rootModel = node.expression.expression.name.text;
       const seenNodes = new Set();
-      const inspectArgument = (child, insideCaseRelation = false) => {
+      const inspectArgument = (
+        child,
+        insideCaseRelation = false,
+        insideCaseMessageRelation = false,
+      ) => {
         if (seenNodes.has(child)) return;
         seenNodes.add(child);
 
@@ -100,17 +106,35 @@ function collectRelationReferences(file, sourceFile) {
           || name === "casesAsSeller"
           || name === "casesResolved";
         const caseMessageRelation =
-          name === "caseMessages"
+          name === "caseMessage"
+          || name === "caseMessages"
           || (name === "messages" && (rootModel === "case" || insideCaseRelation));
+        const caseMessageAttachmentRelation =
+          name === "caseMessageAttachments"
+          || (
+            name === "attachments"
+            && (
+              rootModel === "caseMessage"
+              || insideCaseMessageRelation
+            )
+          );
 
-        if (caseRelation || caseMessageRelation) {
+        if (
+          caseRelation
+          || caseMessageRelation
+          || caseMessageAttachmentRelation
+        ) {
           const position = sourceFile.getLineAndCharacterOfPosition(
             child.getStart(sourceFile),
           );
           references.push({
             file,
             line: position.line + 1,
-            model: caseRelation ? "Case" : "CaseMessage",
+            model: caseRelation
+              ? "Case"
+              : caseMessageRelation
+                ? "CaseMessage"
+                : "CaseMessageAttachment",
             operation: "relation-reference",
           });
         }
@@ -119,6 +143,7 @@ function collectRelationReferences(file, sourceFile) {
           inspectArgument(
             grandchild,
             insideCaseRelation || name === "case",
+            insideCaseMessageRelation || caseMessageRelation,
           );
         });
       };
@@ -138,7 +163,7 @@ function collectRawSqlReferences(file, sourceFile) {
       const tag = node.tag.getText(sourceFile);
       if (/(?:\$queryRaw|\$executeRaw|Prisma\.sql)$/.test(tag)) {
         const sql = node.getText(sourceFile);
-        for (const model of ["Case", "CaseMessage"]) {
+        for (const model of ["Case", "CaseMessage", "CaseMessageAttachment"]) {
           const pattern = new RegExp(`"${model}"`, "g");
           let match;
           while ((match = pattern.exec(sql)) !== null) {

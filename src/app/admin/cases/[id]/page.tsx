@@ -15,6 +15,7 @@ import { caseStatusLabel } from "@/lib/caseLabels";
 import type { CaseStatus } from "@prisma/client";
 import { findCaseMessageHistoryPage } from "@/lib/caseMessageHistory";
 import { caseMessageAuthorLabel } from "@/lib/caseMessageAuthor";
+import CaseMessageAttachments from "@/components/CaseMessageAttachments";
 
 function fmtMoney(cents: number | null | undefined, currency = DEFAULT_CURRENCY) {
   if (cents == null) return "—";
@@ -285,6 +286,10 @@ export default async function AdminCaseDetailPage({
                     <span>{msg.createdAt.toLocaleString("en-US")}</span>
                   </div>
                   <p className="text-sm text-neutral-800 whitespace-pre-wrap">{msg.body}</p>
+                  <CaseMessageAttachments
+                    caseId={caseRecord.id}
+                    attachments={msg.attachments}
+                  />
                 </li>
               );
             })}

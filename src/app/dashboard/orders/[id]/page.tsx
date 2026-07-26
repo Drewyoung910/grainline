@@ -35,6 +35,7 @@ import type { Metadata } from "next";
 import { findActorConversationPair } from "@/lib/conversationMessageAuthority";
 import { findCaseMessageHistoryPage } from "@/lib/caseMessageHistory";
 import { caseMessageAuthorLabel } from "@/lib/caseMessageAuthor";
+import CaseMessageAttachments from "@/components/CaseMessageAttachments";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -535,6 +536,10 @@ export default async function BuyerOrderDetailPage({
                     <span><LocalDate date={msg.createdAt} /></span>
                   </div>
                   <p className="text-sm text-neutral-800 whitespace-pre-wrap">{msg.body}</p>
+                  <CaseMessageAttachments
+                    caseId={activeCase.id}
+                    attachments={msg.attachments}
+                  />
                 </li>
               ))}
             </ul>

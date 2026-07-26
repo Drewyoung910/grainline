@@ -34,6 +34,7 @@ Confirm production and preview values in Vercel:
 - `CLOUDFLARE_R2_ACCESS_KEY_ID`
 - `CLOUDFLARE_R2_SECRET_ACCESS_KEY`
 - `CLOUDFLARE_R2_BUCKET_NAME`
+- `CLOUDFLARE_R2_PRIVATE_BUCKET_NAME` (private Case evidence; no public/custom domain)
 - `CLOUDFLARE_R2_PUBLIC_URL`
 - `SHIPPO_API_KEY`
 - `SHIPPING_RATE_SECRET`

@@ -161,8 +161,8 @@ Staging implementation checklist:
   Release-0 artifact and its audit still expect CRUD while RLS is off; do not
   substitute the combined Phase-A provisioning artifact into that release.
 - Source-derived grant inventory as of this plan update:
-  - 58 Prisma model tables need runtime table DML grants;
-  - 20 Prisma enum types need runtime `USAGE`, currently covered only if live
+  - 59 Prisma model tables need runtime table DML grants;
+  - 21 Prisma enum types need runtime `USAGE`, currently covered only if live
     DB type privileges still match Postgres defaults or explicit grants exist;
   - 3 custom `grainline_*` functions are source-tracked: the `User`
     notification preference check constraint

@@ -31,15 +31,40 @@ import { logServerError } from "@/lib/serverErrorLogger";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { requireStaffAdminPinForApi } from "@/lib/adminPinApi";
 import { caseMessageAuthorKindForActor } from "@/lib/caseMessageAuthor";
+import {
+  CASE_EVIDENCE_STORAGE_CLASS,
+  CASE_EVIDENCE_UPLOAD_ENDPOINT,
+  MAX_CASE_MESSAGE_ATTACHMENTS,
+  verifyPrivateCaseEvidenceForPersistence,
+} from "@/lib/caseEvidence";
+import {
+  claimDirectUploadForKey,
+  DirectUploadClaimError,
+} from "@/lib/directUploadLifecycle";
+import { DIRECT_UPLOAD_STATUS } from "@/lib/directUploadLifecycleState";
 import { z } from "zod";
 
 const CaseMessageSchema = z.object({
   body: z.string().min(1).max(5000),
+  attachmentKeys: z
+    .array(z.string().min(1).max(500))
+    .max(MAX_CASE_MESSAGE_ATTACHMENTS)
+    .default([]),
 });
-const CASE_MESSAGE_BODY_MAX_BYTES = 24 * 1024;
+const CASE_MESSAGE_BODY_MAX_BYTES = 32 * 1024;
 const CASE_MESSAGE_DEDUP_WINDOW_MS = 30_000;
 
 export const runtime = "nodejs";
+
+function attachmentKeysMatch(
+  attachments: readonly { objectKey: string }[],
+  expectedKeys: readonly string[],
+) {
+  if (attachments.length !== expectedKeys.length) return false;
+  const actual = attachments.map(({ objectKey }) => objectKey).sort();
+  const expected = [...expectedKeys].sort();
+  return actual.every((key, index) => key === expected[index]);
+}
 
 export async function POST(
   req: Request,
@@ -91,6 +116,13 @@ export async function POST(
       throw e;
     }
     const messageBody = sanitizeRichText(parsed.body.trim());
+    const attachmentKeys = [...new Set(parsed.attachmentKeys)];
+    if (attachmentKeys.length !== parsed.attachmentKeys.length) {
+      return privateJson(
+        { error: "Duplicate case evidence uploads are not allowed." },
+        { status: 400 },
+      );
+    }
     if (!messageBody)
       return privateJson({ error: "body is required." }, { status: 400 });
 
@@ -112,6 +144,37 @@ export async function POST(
     if (!isParty && isStaff) {
       const pinResponse = await requireStaffAdminPinForApi(req, userId, sessionId);
       if (pinResponse) return pinResponse;
+    }
+
+    const now = new Date();
+    const duplicateCutoff = new Date(
+      now.getTime() - CASE_MESSAGE_DEDUP_WINDOW_MS,
+    );
+    if (attachmentKeys.length > 0) {
+      const claimedRetryCandidates = await prisma.caseMessage.findMany({
+        where: {
+          caseId: id,
+          authorId: me.id,
+          body: messageBody,
+          createdAt: { gte: duplicateCutoff },
+          attachments: {
+            some: { objectKey: { in: attachmentKeys } },
+          },
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 5,
+        include: {
+          attachments: {
+            select: { objectKey: true },
+          },
+        },
+      });
+      const claimedRetry = claimedRetryCandidates.find((candidate) =>
+        attachmentKeysMatch(candidate.attachments, attachmentKeys),
+      );
+      if (claimedRetry) {
+        return privateJson(claimedRetry, { status: 200 });
+      }
     }
 
     if (!canCreateCaseMessageForStatus(caseRecord.status, { isStaff })) {
@@ -137,7 +200,24 @@ export async function POST(
       sellerId: caseRecord.sellerId,
       isStaff,
     });
-    const now = new Date();
+    const verifiedAttachments: Array<{
+      objectKey: string;
+      contentType: string;
+      byteSize: number;
+    }> = [];
+    for (const key of attachmentKeys) {
+      const verification = await verifyPrivateCaseEvidenceForPersistence({
+        key,
+        clerkUserId: userId,
+        accountUserId: me.id,
+        caseId: id,
+      });
+      if (!verification.ok) {
+        return privateJson({ error: verification.error }, { status: 400 });
+      }
+      verifiedAttachments.push(verification.attachment);
+    }
+
     const caseUpdates: Record<string, unknown> = { updatedAt: now };
     const statusTransition = caseMessageStatusTransition({
       status: caseRecord.status,
@@ -162,25 +242,31 @@ export async function POST(
       caseUpdates.sellerMarkedResolved = false;
     }
 
-    const duplicateCutoff = new Date(
-      now.getTime() - CASE_MESSAGE_DEDUP_WINDOW_MS,
-    );
     const duplicateKey = createHash("sha256")
-      .update(`${id}:${me.id}:${messageBody}`)
+      .update(`${id}:${me.id}:${messageBody}:${[...attachmentKeys].sort().join(",")}`)
       .digest("hex");
 
     const messageResult = await prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`case-message:${duplicateKey}`})::bigint)`;
 
-      const duplicate = await tx.caseMessage.findFirst({
+      const duplicateCandidates = await tx.caseMessage.findMany({
         where: {
           caseId: id,
           authorId: me.id,
           body: messageBody,
           createdAt: { gte: duplicateCutoff },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 5,
+        include: {
+          attachments: {
+            select: { objectKey: true },
+          },
+        },
       });
+      const duplicate = duplicateCandidates.find((candidate) =>
+        attachmentKeysMatch(candidate.attachments, attachmentKeys),
+      );
       if (duplicate) return { message: duplicate, duplicate: true as const };
 
       const updated = await tx.case.updateMany({
@@ -188,27 +274,86 @@ export async function POST(
         data: caseUpdates,
       });
       if (updated.count === 0) {
-        const statusRaceDuplicate = await tx.caseMessage.findFirst({
+        const statusRaceCandidates = await tx.caseMessage.findMany({
           where: {
             caseId: id,
             authorId: me.id,
             body: messageBody,
             createdAt: { gte: duplicateCutoff },
           },
-          orderBy: { createdAt: "desc" },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          take: 5,
+          include: {
+            attachments: {
+              select: { objectKey: true },
+            },
+          },
         });
+        const statusRaceDuplicate = statusRaceCandidates.find((candidate) =>
+          attachmentKeysMatch(candidate.attachments, attachmentKeys),
+        );
         if (statusRaceDuplicate)
           return { message: statusRaceDuplicate, duplicate: true as const };
         throw new Error("CASE_STATUS_CHANGED");
       }
+
+      for (const attachment of verifiedAttachments) {
+        const claimed = await claimDirectUploadForKey({
+          client: tx,
+          key: attachment.objectKey,
+          userId: me.id,
+          endpoint: CASE_EVIDENCE_UPLOAD_ENDPOINT,
+          storageClass: CASE_EVIDENCE_STORAGE_CLASS,
+          claimedByType: "CASE_MESSAGE_ATTACHMENT",
+          now,
+        });
+        if (!claimed.tracked || !claimed.claimed) {
+          throw new DirectUploadClaimError();
+        }
+      }
+
       const message = await tx.caseMessage.create({
         data: {
           caseId: id,
           authorId: me.id,
           authorKind,
           body: messageBody,
+          attachments: {
+            create: verifiedAttachments.map((attachment) => ({
+              uploaderId: me.id,
+              objectKey: attachment.objectKey,
+              contentType: attachment.contentType,
+              byteSize: attachment.byteSize,
+            })),
+          },
+        },
+        include: {
+          attachments: {
+            select: {
+              id: true,
+              objectKey: true,
+              contentType: true,
+              byteSize: true,
+              createdAt: true,
+            },
+          },
         },
       });
+
+      for (const attachment of message.attachments) {
+        const linked = await tx.directUpload.updateMany({
+          where: {
+            key: attachment.objectKey,
+            status: DIRECT_UPLOAD_STATUS.CLAIMED,
+            claimedByType: "CASE_MESSAGE_ATTACHMENT",
+            claimedById: null,
+          },
+          data: { claimedById: attachment.id },
+        });
+        if (linked.count !== 1) {
+          throw new DirectUploadClaimError();
+        }
+      }
       return { message, duplicate: false as const };
     });
     if (messageResult.duplicate) {
@@ -375,6 +520,9 @@ export async function POST(
   } catch (err) {
     const accountResponse = accountAccessErrorResponse(err);
     if (accountResponse) return accountResponse;
+    if (err instanceof DirectUploadClaimError) {
+      return privateJson({ error: err.message }, { status: 409 });
+    }
     if (err instanceof Error && err.message === "CASE_STATUS_CHANGED") {
       return privateJson(
         {

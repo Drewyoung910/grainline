@@ -53,6 +53,8 @@ export const CASE_MESSAGE_AUTHOR_KIND_MIGRATION =
   "20260726183000_prepare_case_message_author_kind";
 export const CASE_MESSAGE_HISTORY_INDEX_MIGRATION =
   "20260726183500_prepare_case_message_history_index";
+export const CASE_MESSAGE_PRIVATE_ATTACHMENTS_MIGRATION =
+  "20260726184000_prepare_private_case_message_attachments";
 export const RELEASE_ZERO_MIGRATION_TREE_SHA256 =
   "3e9111525735043266cf6f18b790641ad3103126804836f4a7cccd8e5e29ff29";
 export const PHASE_A_MIGRATION_TREE_SHA256 =
@@ -78,7 +80,7 @@ export const CONVERSATION_MESSAGE_ACTIVATION_MIGRATION_TREE_SHA256 =
 export const CONVERSATION_MESSAGE_FORCE_MIGRATION_TREE_SHA256 =
   "0bc28692fd3eef7a72cd1a7207ce977a71482b700ab111b6e807028cee6e9672";
 export const CASE_MESSAGE_COMPATIBILITY_MIGRATION_TREE_SHA256 =
-  "3b22adf4e211a8fa9b7d55d75d5def61d2c9e8b24ee82152b498e3f5b1edbc78";
+  "c6b6aa4757df6056d58c9e5ce31c297d0c98b9438bb182e5b57167c4146ce673";
 export const PRISMA_CONFIG_PATH = "prisma.config.ts";
 export const REVIEWED_PRISMA_CONFIG_SHA256 =
   "946211cec942f725ae24ac239cd648b56f4809cf30cb8fda530346d0f593526e";
@@ -632,6 +634,9 @@ export function validateSavedSearchRlsDeployShape({
   const hasCaseMessageHistoryIndexMigration = migrations.has(
     CASE_MESSAGE_HISTORY_INDEX_MIGRATION,
   );
+  const hasCaseMessagePrivateAttachmentsMigration = migrations.has(
+    CASE_MESSAGE_PRIVATE_ATTACHMENTS_MIGRATION,
+  );
 
   if (phase === RELEASE_ZERO_PHASE) {
     if (!hasRpcMigration || !hasRpcHardeningMigration || hasRlsMigration) {
@@ -1165,15 +1170,16 @@ export function validateSavedSearchRlsDeployShape({
       || !hasConversationMessageForceMigration
       || !hasCaseMessageAuthorKindMigration
       || !hasCaseMessageHistoryIndexMigration
+      || !hasCaseMessagePrivateAttachmentsMigration
     ) {
       throw new Error(
-        `${REVIEWED_CASE_MESSAGE_COMPATIBILITY} requires completed Conversation/Message FORCE plus the exact CaseMessage author-kind and history-index migrations`,
+        `${REVIEWED_CASE_MESSAGE_COMPATIBILITY} requires completed Conversation/Message FORCE plus the exact CaseMessage author-kind, history-index and private-attachment migrations`,
       );
     }
 
     assertNoLaterMigration(
       migrationNames,
-      CASE_MESSAGE_HISTORY_INDEX_MIGRATION,
+      CASE_MESSAGE_PRIVATE_ATTACHMENTS_MIGRATION,
       phase,
     );
     assertReviewedMigrationTree(phase, migrationTreeSha256);
@@ -1190,6 +1196,7 @@ export function validateSavedSearchRlsDeployShape({
       hasConversationMessageForceMigration,
       hasCaseMessageAuthorKindMigration,
       hasCaseMessageHistoryIndexMigration,
+      hasCaseMessagePrivateAttachmentsMigration,
     };
   }
 

@@ -30,6 +30,15 @@ export async function findCaseMessageHistoryPage(
       authorKind: true,
       body: true,
       createdAt: true,
+      attachments: {
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: {
+          id: true,
+          contentType: true,
+          byteSize: true,
+          createdAt: true,
+        },
+      },
       author: {
         select: {
           id: true,

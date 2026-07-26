@@ -17,6 +17,19 @@ export const r2 = new S3Client({
 export const R2_BUCKET = requiredProductionEnv("CLOUDFLARE_R2_BUCKET_NAME");
 export const R2_PUBLIC_URL = requiredProductionEnv("CLOUDFLARE_R2_PUBLIC_URL");
 
+export function privateR2BucketName() {
+  const bucket = requiredProductionEnv("CLOUDFLARE_R2_PRIVATE_BUCKET_NAME");
+  if (!bucket) {
+    throw new Error("CLOUDFLARE_R2_PRIVATE_BUCKET_NAME env var is required.");
+  }
+  if (bucket === R2_BUCKET) {
+    throw new Error(
+      "CLOUDFLARE_R2_PRIVATE_BUCKET_NAME must differ from the public R2 bucket.",
+    );
+  }
+  return bucket;
+}
+
 function configuredR2PublicBases(): URL[] {
   return [
     process.env.CLOUDFLARE_R2_PUBLIC_URL,
@@ -59,6 +72,26 @@ export function extractR2KeyFromUrl(url: string): string | null {
 
 export async function deleteR2ObjectByKey(key: string) {
   await r2.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: key }));
+}
+
+export async function deletePrivateR2ObjectByKey(key: string) {
+  await r2.send(
+    new DeleteObjectCommand({ Bucket: privateR2BucketName(), Key: key }),
+  );
+}
+
+export async function deleteR2ObjectByStorageClass(
+  key: string,
+  storageClass: string,
+) {
+  if (storageClass === "PRIVATE") {
+    await deletePrivateR2ObjectByKey(key);
+    return;
+  }
+  if (storageClass !== "PUBLIC") {
+    throw new Error("Unsupported direct-upload storage class.");
+  }
+  await deleteR2ObjectByKey(key);
 }
 
 export async function deleteR2ObjectByUrl(url: string) {

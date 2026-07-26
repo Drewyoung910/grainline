@@ -27,6 +27,13 @@ surface with the TypeScript AST. The initial baseline is:
 - 10 raw SQL references;
 - 69 total protected references across 25 source files.
 
+The Phase 1B private-evidence draft expands the scanner to
+`CaseMessageAttachment` and currently records 45 direct operations, 26 nested
+relation references and 10 raw SQL references: 81 total protected references
+across 28 source files. The original 69-reference baseline remains above as
+historical evidence; the generated current inventory, not either prose count,
+is the activation completeness gate.
+
 The scanner records direct calls, nested relation projections/filters and raw
 SQL separately. It does not treat this count as authority approval. Every
 reference still needs an actor, purpose and migration destination.
@@ -121,6 +128,16 @@ the table is ready.
 | CC-A12 | Deliberate later product work | The queue has no staff assignment/SLA ownership and the contractual one-time re-review is handled by email, not an in-product appeal state. These do not need broader participant table authority. | Keep them outside initial Case RLS unless the product decision changes. Record the trigger: add assignment/SLA when multiple staff share the queue; add an appeal record only with a reviewed legal/retention workflow. |
 | CC-A13 | High/Product | Staff resolution notifies/emails the buyer only. The seller receives no Case decision notice even when a staff refund changes seller financial state. The live Notification Case-source function also permits staff-resolution recipients only when the recipient is the buyer. | Add source-derived seller decision copy and delivery, with a narrowly reviewed extension to the existing Notification function. Prove both participants receive the correct non-buyer-centric result and no foreign recipient is possible. |
 | CC-A14 | High/Audit | Transition audit atomicity is inconsistent. Participant mark-resolved and cron actions write audit evidence in the same transaction, but Case creation writes its user audit after Case commit, staff resolution writes a best-effort admin audit after commit, and participant escalation writes no durable actor event. | Make every authority-changing transition write durable actor/source evidence atomically with the Case mutation. Preserve Stripe orphan reconciliation when a refund has already left the database boundary. |
+
+CC-A11 implementation boundary (2026-07-26): the isolated Phase 1B branch uses
+a separate non-public R2 bucket, never the generic public message uploader.
+It records opaque keys in `CaseMessageAttachment`, atomically claims verified
+upload ownership with the message, retrieves only through a participant/staff
+authorization route and includes attachment metadata in interactive history
+and account export. The private Cloudflare bucket and application environment
+do not exist merely because this code exists; production evidence upload stays
+blocked until bucket privacy, least-privilege object access, authenticated
+signed read, foreign denial and cleanup are proven.
 
 ## Preliminary RLS shape, not approved SQL
 

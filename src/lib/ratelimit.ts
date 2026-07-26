@@ -298,6 +298,13 @@ export const caseMessageRatelimit = new Ratelimit({
   prefix: "rl:case_message",
 });
 
+export const caseEvidenceReadRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(120, "10 m"),
+  analytics: true,
+  prefix: "rl:case_evidence_read",
+});
+
 export const caseActionRatelimit = new Ratelimit({
   redis,
   limiter: Ratelimit.slidingWindow(20, "60 m"),

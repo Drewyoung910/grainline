@@ -90,6 +90,12 @@ export async function POST(req: NextRequest) {
 
   const { filename, contentType, size, endpoint, fileIndex } = body;
   const uploadEndpoint = endpoint as UploadEndpoint;
+  if (endpoint === "caseEvidenceImage") {
+    return privateJson(
+      { error: "Case evidence must use the private Case attachment endpoint." },
+      { status: 400 },
+    );
+  }
   if (SELLER_ONLY_ENDPOINTS.has(endpoint)) {
     const seller = await prisma.sellerProfile.findUnique({
       where: { userId: me.id },

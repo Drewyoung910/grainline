@@ -373,7 +373,25 @@ async function buildExport(user: NonNullable<ExportableUser>) {
         resolvedAt: true,
         createdAt: true,
         updatedAt: true,
-        messages: { orderBy: { createdAt: "asc" }, select: { id: true, authorId: true, body: true, createdAt: true } },
+        messages: {
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          select: {
+            id: true,
+            authorId: true,
+            authorKind: true,
+            body: true,
+            createdAt: true,
+            attachments: {
+              orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+              select: {
+                id: true,
+                contentType: true,
+                byteSize: true,
+                createdAt: true,
+              },
+            },
+          },
+        },
       },
     }),
     prisma.review.findMany({
@@ -666,6 +684,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
         key: true,
         endpoint: true,
         publicUrl: true,
+        storageClass: true,
         contentType: true,
         expectedSize: true,
         status: true,

@@ -16,6 +16,7 @@ import {
   CASE_MESSAGE_AUTHOR_KIND_MIGRATION,
   CASE_MESSAGE_COMPATIBILITY_MIGRATION_TREE_SHA256,
   CASE_MESSAGE_HISTORY_INDEX_MIGRATION,
+  CASE_MESSAGE_PRIVATE_ATTACHMENTS_MIGRATION,
   CONVERSATION_MESSAGE_AUTHORITY_PREPARATION_MIGRATION,
   CONVERSATION_MESSAGE_AUTHORITY_PREPARATION_MIGRATION_TREE_SHA256,
   CONVERSATION_MESSAGE_ACTIVATION_MIGRATION,
@@ -179,6 +180,7 @@ const RELEASE_ZERO_MIGRATIONS = CURRENT_MIGRATIONS
     CONVERSATION_MESSAGE_FORCE_MIGRATION,
     CASE_MESSAGE_AUTHOR_KIND_MIGRATION,
     CASE_MESSAGE_HISTORY_INDEX_MIGRATION,
+    CASE_MESSAGE_PRIVATE_ATTACHMENTS_MIGRATION,
   ].includes(name))
   .sort((a, b) => a.localeCompare(b));
 const REVIEWED_PHASE_A_MIGRATIONS = [
@@ -231,6 +233,7 @@ const REVIEWED_CASE_MESSAGE_COMPATIBILITY_MIGRATIONS = [
   ...REVIEWED_CONVERSATION_MESSAGE_FORCE_MIGRATIONS,
   CASE_MESSAGE_AUTHOR_KIND_MIGRATION,
   CASE_MESSAGE_HISTORY_INDEX_MIGRATION,
+  CASE_MESSAGE_PRIVATE_ATTACHMENTS_MIGRATION,
 ].sort((a, b) => a.localeCompare(b));
 
 function migrationsFor(phase) {
@@ -478,6 +481,9 @@ describe("SavedSearch RLS production deploy guard", () => {
     assert.ok(currentMigrations.includes(SAVED_SEARCH_FORCE_RLS_MIGRATION));
     assert.ok(currentMigrations.includes(CASE_MESSAGE_AUTHOR_KIND_MIGRATION));
     assert.ok(currentMigrations.includes(CASE_MESSAGE_HISTORY_INDEX_MIGRATION));
+    assert.ok(
+      currentMigrations.includes(CASE_MESSAGE_PRIVATE_ATTACHMENTS_MIGRATION),
+    );
     assert.throws(() => validate(undefined, currentMigrations), /is missing/);
     assert.throws(
       () => validate(RELEASE_ZERO, currentMigrations),
@@ -921,6 +927,7 @@ describe("SavedSearch RLS production deploy guard", () => {
         hasConversationMessageForceMigration: true,
         hasCaseMessageAuthorKindMigration: true,
         hasCaseMessageHistoryIndexMigration: true,
+        hasCaseMessagePrivateAttachmentsMigration: true,
       },
     );
     assert.throws(
@@ -929,7 +936,7 @@ describe("SavedSearch RLS production deploy guard", () => {
           REVIEWED_CASE_MESSAGE_COMPATIBILITY,
           REVIEWED_CONVERSATION_MESSAGE_FORCE_MIGRATIONS,
         ),
-      /requires completed Conversation\/Message FORCE plus the exact CaseMessage author-kind and history-index migrations/,
+      /requires completed Conversation\/Message FORCE plus the exact CaseMessage author-kind, history-index and private-attachment migrations/,
     );
   });
 

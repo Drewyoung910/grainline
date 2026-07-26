@@ -985,7 +985,11 @@ async function collectAccountDeletionMediaUrls(
     if (post.videoUrl) urls.add(post.videoUrl);
     markdownImageUrls(post.body).forEach((url) => urls.add(url));
   });
-  directUploads.forEach((upload) => urls.add(upload.publicUrl));
+  // Private Case evidence is retained with the dispute/order record and has no
+  // public URL. Only account-owned public media enters this deletion queue.
+  directUploads.forEach((upload) => {
+    if (upload.publicUrl) urls.add(upload.publicUrl);
+  });
 
   return accountDeletionMediaUrlsForCleanup(urls, clerkUserId);
 }

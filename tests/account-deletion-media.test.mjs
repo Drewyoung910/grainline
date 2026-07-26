@@ -69,7 +69,15 @@ describe("account deletion media cleanup scoping", () => {
     assert.match(collect, /listActorSentMessageBodiesForDeletion\(userId, db\)/);
     assert.doesNotMatch(collect, /db\.message\./);
     assert.match(collect, /db\.directUpload\.findMany\(\{\s*where: \{ userId \},\s*select: \{ publicUrl: true \},\s*\}\)/s);
-    assert.match(collect, /directUploads\.forEach\(\(upload\) => urls\.add\(upload\.publicUrl\)\)/);
+    assert.match(
+      collect,
+      /directUploads\.forEach\(\(upload\) => \{\s*if \(upload\.publicUrl\) urls\.add\(upload\.publicUrl\);\s*\}\)/s,
+    );
+    assert.doesNotMatch(
+      collect,
+      /deletePrivateR2ObjectByKey|deleteR2ObjectByStorageClass/,
+      "private dispute evidence must be retained with the order/case record",
+    );
     assert.ok(collectCall >= 0, "account deletion must collect media URLs");
     assert.ok(enqueueCall > collectCall, "media deletion side effects must be enqueued after collection");
     assert.ok(deleteRows > enqueueCall, "DirectUpload rows should be deleted only after durable media cleanup side effects are queued");

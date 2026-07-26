@@ -167,12 +167,17 @@ describe("direct upload lifecycle", () => {
     const vercel = source("vercel.json");
 
     assert.match(lifecycle, /processExpiredDirectUploadBatch/);
-    assert.match(lifecycle, /deleteR2ObjectByKey\(row\.key\)/);
+    assert.match(
+      lifecycle,
+      /deleteR2ObjectByStorageClass\(row\.key, row\.storageClass\)/,
+    );
     assert.doesNotMatch(lifecycle, /ListObjects/);
     assert.match(lifecycle, /failures\.push\(/);
     assert.match(lifecycle, /complete: rows\.length < take/);
 
     assert.match(r2, /export async function deleteR2ObjectByKey/);
+    assert.match(r2, /export async function deletePrivateR2ObjectByKey/);
+    assert.match(r2, /storageClass === "PRIVATE"/);
     assert.match(route, /verifyCronRequest/);
     assert.match(route, /withSentryCronMonitor\("direct-upload-cleanup", \{ value: "50 \* \* \* \*"/);
     assert.match(route, /processExpiredDirectUploadBatch/);

@@ -312,6 +312,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
   public."CartItem",
   public."Case",
   public."CaseMessage",
+  public."CaseMessageAttachment",
   public."CheckoutStockReservation",
   public."ClerkWebhookEvent",
   public."CommissionInterest",
