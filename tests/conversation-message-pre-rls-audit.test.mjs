@@ -222,11 +222,11 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
     }
     assert.match(
       audit,
-      /25-function authority preparation[\s\S]*initial[\s\S]*Conversation\/Message RLS activation are live[\s\S]*RLS enabled without[\s\S]*FORCE[\s\S]*direct runtime SELECT only/,
+      /25-function authority preparation[\s\S]*initial[\s\S]*Conversation\/Message RLS activation are live[\s\S]*RLS enabled and[\s\S]*forced[\s\S]*direct runtime SELECT only/,
     );
     assert.match(
       audit,
-      /Initial activation is live and accepted[\s\S]*FORCE remains its own[\s\S]*later Extra-High review and release boundary/,
+      /FORCE is live in production\.[\s\S]*actual\s+pooled-runtime\s+`--post-force`[\s\S]*72aa2e27cb121e1cb5e30736f4a6fecca4b80db3e7f30ba6a8f20c9b889a6a5e/,
     );
   });
 });

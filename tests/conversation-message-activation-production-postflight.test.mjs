@@ -38,7 +38,7 @@ test("post-activation mode pins the exact live release, migration, branch, and d
 
 test("post-activation mode proves the exact initial RLS policy and grant boundary", () => {
   assert.match(script, /row\.rlsEnabled !== true/);
-  assert.match(script, /row\.rlsForced !== false/);
+  assert.match(script, /row\.rlsForced !== POST_FORCE/);
   assert.match(script, /row\.policyCount !== 1/);
   assert.match(script, /row\.canSelect !== true/);
   assert.match(script, /row\.canInsert !== false/);
@@ -65,13 +65,13 @@ test("post-activation mode uses the actual pooled non-owner runtime and proves d
 });
 
 test("post-activation mode retains authenticated isolation and exact cleanup", () => {
-  assert.match(script, /await assertPostActivationRuntimeBoundary/);
+  assert.match(script, /await assertActivatedRuntimeBoundary/);
   assert.match(script, /result = await exerciseRoutes/);
   assert.match(script, /fixtureRowsDeleted/);
   assert.match(script, /sessionRevoked/);
   assert.match(script, /rateLimitCountersReset/);
   assert.match(script, /notificationsCreated: 0/);
   assert.match(script, /emailsSent: 0/);
-  assert.match(script, /scope: POST_ACTIVATION/);
-  assert.match(script, /pooledRuntimeDirectWritesDenied: POST_ACTIVATION/);
+  assert.match(script, /scope: POST_FORCE/);
+  assert.match(script, /pooledRuntimeDirectWritesDenied: ACTIVATED/);
 });

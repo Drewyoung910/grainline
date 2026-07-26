@@ -1,10 +1,10 @@
 # Conversation and Message RLS Plan
 
-Status: initial Conversation/Message RLS activation is live and accepted in
-production; FORCE is packaged as a separate candidate and is not live. Both tables have RLS
-enabled without FORCE, exactly one reviewed SELECT policy each, direct runtime
-SELECT only, and all writes behind the fixed authority functions. Notification
-Bucket B is complete in production. The earlier preparation SQL passed
+Status: Conversation/Message RLS and its separate FORCE-only hardening are live
+and accepted in production. Both tables have RLS enabled and forced, exactly
+one reviewed SELECT policy each, direct runtime SELECT only, and all writes
+behind the fixed authority functions. Notification Bucket B is complete in
+production. The earlier preparation SQL passed
 disposable PostgreSQL proof, Extra-High review and an actual pooled
 production-runtime rollback-only postflight. The complete authority-policy
 draft passed Extra-High review,
@@ -87,9 +87,9 @@ transition `1 -> 0`, and exact cleanup. It created no Clerk user, email or
 Notification and left no fixture, session, recovery, cache or rate-limit
 residue. Sanitized mode-`0600` evidence SHA-256 is
 `1f38671673e8040b222fcb620f8875c94cd47684969d423e6f260fc7a520e141`.
-FORCE remains a later separate release.
+That initial postflight remains the accepted NO-FORCE baseline.
 
-The FORCE-only candidate is isolated on
+The FORCE-only release was prepared on
 `agent/conversation-message-force-20260726`. It adds only
 `20260726140000_force_conversation_message_rls` at SHA-256
 `c7f6bbb65c1b0b05c43c2ad450235523587de16f4c8b5ca3289bbff28df33a35`
@@ -102,10 +102,24 @@ exact owner/runtime posture, zero other owner sessions, owner-held
 grants and no PUBLIC or column ACLs before taking bounded table locks. It
 rechecks the two forced tables, two policies and unchanged grants afterward.
 The package also includes a loopback-only committed `NO FORCE` rollback and
-exact FORCE restoration proof plus a dedicated PostgreSQL 16 workflow. This
-candidate does not change production and remains blocked on fresh CI,
-Extra-High SQL/authority acceptance, an exact-main protected migration and a
-pooled-runtime postflight.
+exact FORCE restoration proof plus a dedicated PostgreSQL 16 workflow. PR 54
+merged reviewed head `774b90bd` as exact main `f23ac2da`. Post-merge CI
+`30207676377`, dedicated Conversation/Message FORCE proof `30207676399`, and
+Notification FORCE regression `30207676375` passed. Protected run
+`30207825683` then applied
+`20260726140000_force_conversation_message_rls`; migration status and the
+final owner-side exact policy/grant audit passed. Exact operator `16550228`
+passed CI `30208409732`, then the separately pinned actual pooled-runtime
+`--post-force` run proved the exact migration checksum/completion, forced
+catalog, policies/grants, non-owner NOBYPASS identity, zero rows without
+context, direct DML denial, participant/foreign route isolation and unread
+transition `1 -> 0`. It removed every exact fixture, Clerk session/token,
+cache key and rate-limit counter, created no Clerk user, Notification or email,
+and left no recovery state. Sanitized mode-`0600` evidence SHA-256 is
+`72aa2e27cb121e1cb5e30736f4a6fecca4b80db3e7f30ba6a8f20c9b889a6a5e`.
+The first invocation at the same operator head stopped before loading
+credentials or touching provider/database state because the isolated worktree
+lacked `.vercel/project.json`; it produced no evidence or recovery state.
 
 The first dedicated PostgreSQL run `30206869755` is retained failed evidence.
 It stopped inside the FORCE preflight before either `ALTER TABLE` because the
@@ -419,6 +433,11 @@ The direct runtime table query with no context must return zero rows.
    production run `30194195844`, owner audit and pooled/authenticated operator
    `f474e761` all passed with exact cleanup and zero direct side effects.
 9. Separate `FORCE ROW LEVEL SECURITY` hardening and fresh postflight.
+   **Complete:** exact main `f23ac2da` and protected run `30207825683` forced
+   both tables with unchanged policies, grants, functions and rows. Operator
+   `16550228` and CI `30208409732` then passed the exact pooled-runtime,
+   authenticated-route and cleanup proof; evidence SHA-256 is
+   `72aa2e27cb121e1cb5e30736f4a6fecca4b80db3e7f30ba6a8f20c9b889a6a5e`.
 
 Background jobs and old/new Vercel coexistence still exist pre-launch, so the
 compatible app and database activation remain separate. A failed Preview with

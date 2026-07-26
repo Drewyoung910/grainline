@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// Authenticated compatibility and post-activation proof for the
-// Conversation/Message authority conversion. This operator creates a bounded
-// synthetic fixture, exercises the deployed recipient routes with the retained
-// operational Clerk canary, and removes every exact fixture before success.
+// Authenticated compatibility, initial-activation, and post-FORCE proof for
+// the Conversation/Message authority conversion. This operator creates a
+// bounded synthetic fixture, exercises the deployed recipient routes with the
+// retained operational Clerk canary, and removes every exact fixture before
+// success.
 import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import {
@@ -34,26 +35,54 @@ import { NOTIFICATION_CANARY_EXTERNAL_ID } from "./notification-operational-cana
 
 const { Client } = pg;
 const POST_ACTIVATION_FLAG = "--post-activation";
+const POST_FORCE_FLAG = "--post-force";
 const CLEANUP_FLAG = "--cleanup";
 const POST_ACTIVATION = process.argv.includes(POST_ACTIVATION_FLAG);
+const POST_FORCE = process.argv.includes(POST_FORCE_FLAG);
+const ACTIVATED = POST_ACTIVATION || POST_FORCE;
 const COMPATIBILITY_OPERATOR_BRANCH =
   "agent/conversation-message-compatibility-postflight-20260726";
 const POST_ACTIVATION_OPERATOR_BRANCH =
   "agent/conversation-message-postactivation-20260726";
+const POST_FORCE_OPERATOR_BRANCH =
+  "agent/conversation-message-force-postflight-20260726";
 const COMPATIBILITY_RELEASE_COMMIT =
   "650d1dd818ac3694f7fd6da9954aaf053786cc40";
 const POST_ACTIVATION_RELEASE_COMMIT =
   "448d5233ed3aad4fc3d88812e98d8ae299a62a42";
+const POST_FORCE_RELEASE_COMMIT =
+  "f23ac2da6843671d1353bbbbeada65530b575cc8";
 const POST_ACTIVATION_MIGRATION_RUN_ID = 30194195844;
-const OPERATOR_BRANCH = POST_ACTIVATION
-  ? POST_ACTIVATION_OPERATOR_BRANCH
-  : COMPATIBILITY_OPERATOR_BRANCH;
-const RELEASE_COMMIT = POST_ACTIVATION
-  ? POST_ACTIVATION_RELEASE_COMMIT
-  : COMPATIBILITY_RELEASE_COMMIT;
-const POSTFLIGHT_SLUG = POST_ACTIVATION
-  ? "activation"
-  : "compatibility";
+const POST_FORCE_MIGRATION_RUN_ID = 30207825683;
+const POST_FORCE_MIGRATION_NAME =
+  "20260726140000_force_conversation_message_rls";
+const POST_FORCE_MIGRATION_SHA256 =
+  "c7f6bbb65c1b0b05c43c2ad450235523587de16f4c8b5ca3289bbff28df33a35";
+const MODE_FLAG = POST_FORCE
+  ? POST_FORCE_FLAG
+  : POST_ACTIVATION
+    ? POST_ACTIVATION_FLAG
+    : null;
+const OPERATOR_BRANCH = POST_FORCE
+  ? POST_FORCE_OPERATOR_BRANCH
+  : POST_ACTIVATION
+    ? POST_ACTIVATION_OPERATOR_BRANCH
+    : COMPATIBILITY_OPERATOR_BRANCH;
+const RELEASE_COMMIT = POST_FORCE
+  ? POST_FORCE_RELEASE_COMMIT
+  : POST_ACTIVATION
+    ? POST_ACTIVATION_RELEASE_COMMIT
+    : COMPATIBILITY_RELEASE_COMMIT;
+const MIGRATION_RUN_ID = POST_FORCE
+  ? POST_FORCE_MIGRATION_RUN_ID
+  : POST_ACTIVATION
+    ? POST_ACTIVATION_MIGRATION_RUN_ID
+    : null;
+const POSTFLIGHT_SLUG = POST_FORCE
+  ? "force"
+  : POST_ACTIVATION
+    ? "activation"
+    : "compatibility";
 const DEPLOYMENT_ID = "dpl_C1rXvRMMJetR25Na4X5yHSa91HpM";
 const DEPLOYMENT_HOST = "thegrainline.com";
 const DEPLOYMENT_URL = `https://${DEPLOYMENT_HOST}`;
@@ -438,6 +467,28 @@ async function assertDatabasePosture(owner, runtime) {
   ) {
     throw new Error("database session identity drifted");
   }
+  if (POST_FORCE) {
+    const migration = await owner.query(
+      `SELECT migration_name AS "migrationName",
+              checksum,
+              finished_at IS NOT NULL AS "completed",
+              rolled_back_at IS NULL AS "notRolledBack",
+              applied_steps_count AS "appliedSteps"
+         FROM public._prisma_migrations
+        WHERE migration_name = $1`,
+      [POST_FORCE_MIGRATION_NAME],
+    );
+    if (
+      migration.rowCount !== 1
+      || migration.rows[0]?.migrationName !== POST_FORCE_MIGRATION_NAME
+      || migration.rows[0]?.checksum !== POST_FORCE_MIGRATION_SHA256
+      || migration.rows[0]?.completed !== true
+      || migration.rows[0]?.notRolledBack !== true
+      || migration.rows[0]?.appliedSteps !== 1
+    ) {
+      throw new Error("FORCE migration identity or completion drifted");
+    }
+  }
   const catalog = await owner.query(
     `SELECT class.relname AS "tableName",
             class.relrowsecurity AS "rlsEnabled",
@@ -460,10 +511,10 @@ async function assertDatabasePosture(owner, runtime) {
   if (
     catalog.rowCount !== 2
     || (
-      POST_ACTIVATION
+      ACTIVATED
       && catalog.rows.some((row) => (
         row.rlsEnabled !== true
-        || row.rlsForced !== false
+        || row.rlsForced !== POST_FORCE
         || row.policyCount !== 1
         || row.canSelect !== true
         || row.canInsert !== false
@@ -472,7 +523,7 @@ async function assertDatabasePosture(owner, runtime) {
       ))
     )
     || (
-      !POST_ACTIVATION
+      !ACTIVATED
       && catalog.rows.some((row) => (
         row.rlsEnabled !== false
         || row.rlsForced !== false
@@ -485,27 +536,29 @@ async function assertDatabasePosture(owner, runtime) {
     )
   ) {
     throw new Error(
-      POST_ACTIVATION
-        ? "initial RLS activation catalog posture drifted"
-        : "RLS-off compatibility catalog posture drifted",
+      POST_FORCE
+        ? "FORCE RLS catalog posture drifted"
+        : POST_ACTIVATION
+          ? "initial RLS activation catalog posture drifted"
+          : "RLS-off compatibility catalog posture drifted",
     );
   }
-  if (POST_ACTIVATION) {
+  if (ACTIVATED) {
     const policyIssues = [
       ...collectConversationPolicyIssues(
         await readConversationPolicyState(owner),
         RUNTIME_ROLE,
-        false,
+        POST_FORCE,
       ),
       ...collectMessagePolicyIssues(
         await readMessagePolicyState(owner),
         RUNTIME_ROLE,
-        false,
+        POST_FORCE,
       ),
     ];
     if (policyIssues.length > 0) {
       throw new Error(
-        `initial RLS activation policy catalog drifted: ${policyIssues.join("; ")}`,
+        `${POST_FORCE ? "FORCE" : "initial"} RLS activation policy catalog drifted: ${policyIssues.join("; ")}`,
       );
     }
   }
@@ -635,8 +688,8 @@ async function seedFixture(owner, runtime, canaryId, fixture, setStage) {
   }
 }
 
-async function assertPostActivationRuntimeBoundary(runtime, canaryId, fixture) {
-  if (!POST_ACTIVATION) return;
+async function assertActivatedRuntimeBoundary(runtime, canaryId, fixture) {
+  if (!ACTIVATED) return;
 
   const context = await runtime.query(
     `SELECT pg_catalog.current_setting('app.user_id', true) AS "userId"`,
@@ -1119,17 +1172,20 @@ async function cleanupOnly() {
 
 async function main() {
   const args = process.argv.slice(2);
+  if (POST_ACTIVATION && POST_FORCE) {
+    throw new Error("--post-activation and --post-force are mutually exclusive");
+  }
   const cleanupRequested = args.includes(CLEANUP_FLAG);
   const expectedArgs = [
     ...(cleanupRequested ? [CLEANUP_FLAG] : []),
-    ...(POST_ACTIVATION ? [POST_ACTIVATION_FLAG] : []),
+    ...(MODE_FLAG ? [MODE_FLAG] : []),
   ].sort();
   if (
     args.length !== expectedArgs.length
     || [...args].sort().some((argument, index) => argument !== expectedArgs[index])
   ) {
     throw new Error(
-      "Usage: node scripts/conversation-message-compatibility-production-postflight.mjs [--cleanup] [--post-activation]",
+      "Usage: node scripts/conversation-message-compatibility-production-postflight.mjs [--cleanup] [--post-activation|--post-force]",
     );
   }
   if (cleanupRequested) {
@@ -1139,7 +1195,7 @@ async function main() {
   if (existsSync(RECOVERY_PATH)) {
     throw new Error(
       `recovery state exists; run the exact --cleanup${
-        POST_ACTIVATION ? " --post-activation" : ""
+        MODE_FLAG ? ` ${MODE_FLAG}` : ""
       } command first`,
     );
   }
@@ -1194,8 +1250,10 @@ async function main() {
     });
     fixtureSeeded = true;
 
-    stage = "verify-post-activation-runtime-boundary";
-    await assertPostActivationRuntimeBoundary(
+    stage = POST_FORCE
+      ? "verify-post-force-runtime-boundary"
+      : "verify-post-activation-runtime-boundary";
+    await assertActivatedRuntimeBoundary(
       runtime,
       canary.localUser.id,
       fixture,
@@ -1279,27 +1337,29 @@ async function main() {
     : "failed";
   const evidence = {
     generatedAt: new Date().toISOString(),
-    scope: POST_ACTIVATION
-      ? "conversation-message-initial-rls-activation-postflight"
-      : "conversation-message-rls-off-compatibility-postflight",
+    scope: POST_FORCE
+      ? "conversation-message-force-rls-postflight"
+      : POST_ACTIVATION
+        ? "conversation-message-initial-rls-activation-postflight"
+        : "conversation-message-rls-off-compatibility-postflight",
     status,
     operatorCommit,
     releaseCommit: RELEASE_COMMIT,
-    migrationRunId: POST_ACTIVATION
-      ? POST_ACTIVATION_MIGRATION_RUN_ID
-      : null,
+    migrationRunId: MIGRATION_RUN_ID,
     deploymentId: DEPLOYMENT_ID,
     database: {
       endpointId: DATABASE_ENDPOINT_ID,
       name: DATABASE_NAME,
       runtimeRole: RUNTIME_ROLE,
-      rlsEnabled: POST_ACTIVATION,
-      rlsForced: false,
-      policyCount: POST_ACTIVATION ? 2 : 0,
-      directTablePrivileges: POST_ACTIVATION
+      migrationName: POST_FORCE ? POST_FORCE_MIGRATION_NAME : null,
+      migrationSha256: POST_FORCE ? POST_FORCE_MIGRATION_SHA256 : null,
+      rlsEnabled: ACTIVATED,
+      rlsForced: POST_FORCE,
+      policyCount: ACTIVATED ? 2 : 0,
+      directTablePrivileges: ACTIVATED
         ? ["SELECT"]
         : ["SELECT", "INSERT", "UPDATE", "DELETE"],
-      legacyTableCrudRetained: !POST_ACTIVATION,
+      legacyTableCrudRetained: !ACTIVATED,
     },
     identity: {
       operationalCanaryReused: Boolean(canary),
@@ -1359,15 +1419,20 @@ async function main() {
     );
   }
   console.log(JSON.stringify({
-    postflight: POST_ACTIVATION ? "activation-passed" : "compatibility-passed",
+    postflight: POST_FORCE
+      ? "force-passed"
+      : POST_ACTIVATION
+        ? "activation-passed"
+        : "compatibility-passed",
     authenticatedRoutesProved: true,
-    pooledRuntimeDirectWritesDenied: POST_ACTIVATION,
-    pooledRuntimeNoContextRows: POST_ACTIVATION ? 0 : null,
+    pooledRuntimeDirectWritesDenied: ACTIVATED,
+    pooledRuntimeNoContextRows: ACTIVATED ? 0 : null,
     fixtureRowsDeleted: true,
     clerkSessionRevoked: true,
     notificationsCreated: 0,
     emailsSent: 0,
-    rlsEnabled: POST_ACTIVATION,
+    rlsEnabled: ACTIVATED,
+    rlsForced: POST_FORCE,
   }));
 }
 

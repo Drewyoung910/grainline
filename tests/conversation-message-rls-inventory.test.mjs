@@ -27,13 +27,19 @@ describe("Conversation and Message RLS inventory", () => {
     assert.match(plan, /custom-order-ready/);
     assert.match(
       plan,
-      /initial Conversation\/Message RLS activation is live and accepted in\s+production/,
+      /Conversation\/Message RLS and its separate FORCE-only hardening are live\s+and accepted in production/,
     );
-    assert.match(plan, /enabled without FORCE/);
-    assert.match(plan, /exactly one reviewed SELECT policy each/);
+    assert.match(plan, /FORCE-only hardening are live\s+and accepted in production/);
+    assert.match(plan, /enabled\s+and forced/);
+    assert.match(plan, /exactly\s+one reviewed SELECT policy each/);
     assert.match(plan, /direct runtime\s+SELECT only/);
-    assert.match(plan, /all writes behind the fixed authority functions/);
-    assert.match(plan, /FORCE remains a later separate release/);
+    assert.match(plan, /all writes\s+behind the fixed authority functions/);
+    assert.match(plan, /Protected run\s+`30207825683`/);
+    assert.match(plan, /actual pooled-runtime\s+`--post-force` run proved/);
+    assert.match(
+      plan,
+      /72aa2e27cb121e1cb5e30736f4a6fecca4b80db3e7f30ba6a8f20c9b889a6a5e/,
+    );
     assert.match(
       plan,
       /actual pooled `grainline_app_runtime`\s+rollback-only proof/,
