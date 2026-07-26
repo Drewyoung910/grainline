@@ -6,6 +6,7 @@ import path from "node:path";
 import { describe, it } from "node:test";
 import {
   assertConversationMessageLegacyInspectionGitState,
+  CONVERSATION_MESSAGE_LEGACY_COUNTS_SQL,
   normalizeConversationMessageLegacyCounts,
   parseConversationMessageLegacyInspectionConfig,
   writeConversationMessageLegacyInspectionEvidence,
@@ -32,11 +33,20 @@ const COUNT_FIELDS = [
   "custom_request_count",
   "custom_link_count",
   "commission_interest_count",
+  "file_message_count",
   "unknown_kind_count",
   "user_authored_marked_system_count",
   "server_card_not_system_count",
+  "file_marked_system_count",
   "message_listing_context_count",
   "invalid_message_listing_pair_count",
+  "custom_link_missing_context_count",
+  "duplicate_custom_link_source_group_count",
+  "invalid_custom_link_source_count",
+  "linked_commission_interest_count",
+  "commission_interest_missing_message_count",
+  "commission_interest_duplicate_message_group_count",
+  "orphan_commission_card_count",
   "unresolved_thread_report_count",
   "orphan_unresolved_thread_report_count",
   "active_private_custom_listing_count",
@@ -108,11 +118,38 @@ describe("Conversation and Message legacy inspection operator", () => {
     assert.match(source, /BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY/);
     assert.match(source, /CURRENT_USER AS current_user/);
     assert.doesNotMatch(source, /pg_catalog\.current_user/);
-    assert.doesNotMatch(source, /SELECT[\s\S]{0,80}\b(?:body|email)\b/i);
+    assert.doesNotMatch(
+      source,
+      /SELECT\s+(?:[a-z_]+\.)?"?(?:body|email)"?\s*(?:,|FROM)/i,
+    );
     assert.doesNotMatch(source, /\bINSERT INTO\b|\bUPDATE public\.|\bDELETE FROM\b|\bCOMMIT\b/);
     assert.match(source, /invalid_message_pair_count/);
     assert.match(source, /invalid_message_listing_pair_count/);
+    assert.match(source, /duplicate_custom_link_source_group_count/);
+    assert.match(source, /commission_interest_missing_message_count/);
+    assert.match(source, /orphan_commission_card_count/);
     assert.match(source, /orphan_unresolved_thread_report_count/);
+    assert.match(
+      CONVERSATION_MESSAGE_LEGACY_COUNTS_SQL,
+      /pg_catalog\.pg_input_is_valid\(\s*message\.body::text,\s*'jsonb'\s*\)/,
+    );
+    assert.doesNotMatch(CONVERSATION_MESSAGE_LEGACY_COUNTS_SQL, /pg_catalog\.regtype/);
+    assert.doesNotMatch(
+      CONVERSATION_MESSAGE_LEGACY_COUNTS_SQL,
+      /body::jsonb\)->>'(?:listingId|commissionId)'\s+(?:=|IS DISTINCT FROM)/,
+    );
+    const proof = fs.readFileSync(
+      "scripts/conversation-message-recipient-rls-proof.mjs",
+      "utf8",
+    );
+    assert.match(proof, /SET body = 'not-json'/);
+    assert.match(proof, /invalidCustomLinkSourceCount, 1/);
+    assert.match(proof, /commissionInterestMissingMessageCount, 1/);
+    assert.match(proof, /orphanCommissionCardCount, 1/);
+    assert.match(
+      proof,
+      /exact_aggregate_only_legacy_query_matches_sources_and_counts_malformed_payloads/,
+    );
   });
 
   it("requires the exact clean dispatched checkout", () => {
@@ -138,6 +175,18 @@ describe("Conversation and Message legacy inspection operator", () => {
     assert.throws(
       () => normalizeConversationMessageLegacyCounts({ ...row, message_count: "NaN" }),
       /invalid aggregate counts/,
+    );
+    assert.throws(
+      () => normalizeConversationMessageLegacyCounts({
+        ...row,
+        accidental_raw_body: "private",
+      }),
+      /unexpected aggregate schema/,
+    );
+    const { message_count: _messageCount, ...missingField } = row;
+    assert.throws(
+      () => normalizeConversationMessageLegacyCounts(missingField),
+      /unexpected aggregate schema/,
     );
   });
 
