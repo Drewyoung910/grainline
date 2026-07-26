@@ -98,3 +98,16 @@ test("compatibility postflight persists Clerk token and session recovery immedia
   assert.ok(sessionPersist > exchange);
   assert.ok(sessionLookup > sessionPersist);
 });
+
+test("compatibility postflight revokes unpersisted active canary sessions", () => {
+  const cleanupStart = script.indexOf("async function revokeCanarySession");
+  const activeList = script.indexOf("getSessionList", cleanupStart);
+  const revoke = script.indexOf("revokeSession(session.id)", activeList);
+  const afterList = script.indexOf("getSessionList", revoke);
+  const zeroProof = script.indexOf("after.totalCount === 0", afterList);
+  assert.ok(cleanupStart >= 0);
+  assert.ok(activeList > cleanupStart);
+  assert.ok(revoke > activeList);
+  assert.ok(afterList > revoke);
+  assert.ok(zeroProof > afterList);
+});

@@ -693,16 +693,30 @@ async function createCanarySession(clerk, canary, persistRecoveryState) {
   };
 }
 
-async function revokeCanarySession(clerk, state) {
+async function revokeCanarySession(clerk, canary, state) {
   let sessionRevoked = true;
   let signInTokenDisposed = true;
-  if (state.sessionId) {
+  if (canary) {
     try {
-      const session = await clerk.sessions.getSession(state.sessionId);
-      if (session.status === "active") {
-        const revoked = await clerk.sessions.revokeSession(state.sessionId);
-        sessionRevoked = revoked?.id === state.sessionId && revoked?.status === "revoked";
+      const active = await clerk.sessions.getSessionList({
+        limit: 100,
+        status: "active",
+        userId: canary.clerkUser.id,
+      });
+      for (const session of active.data) {
+        const revoked = await clerk.sessions.revokeSession(session.id);
+        if (revoked?.id !== session.id || revoked?.status !== "revoked") {
+          sessionRevoked = false;
+        }
       }
+      const after = await clerk.sessions.getSessionList({
+        limit: 100,
+        status: "active",
+        userId: canary.clerkUser.id,
+      });
+      sessionRevoked = sessionRevoked
+        && after.totalCount === 0
+        && after.data.length === 0;
     } catch {
       sessionRevoked = false;
     }
@@ -878,7 +892,7 @@ async function cleanupOnly() {
     await owner.connect();
     await cleanupFixture(owner, state, { allowPartial: true });
     const canary = await exactCanary(clerk, owner);
-    const sessionCleanup = await revokeCanarySession(clerk, state);
+    const sessionCleanup = await revokeCanarySession(clerk, canary, state);
     await clearOperationalCacheAndRateLimits(environment, canary);
     if (!sessionCleanup.sessionRevoked || !sessionCleanup.signInTokenDisposed) {
       throw new Error("Clerk cleanup did not confirm disposal");
@@ -967,7 +981,7 @@ async function main() {
     primaryFailure = error;
   } finally {
     if (canary) {
-      const sessionCleanup = await revokeCanarySession(clerk, state);
+      const sessionCleanup = await revokeCanarySession(clerk, canary, state);
       sessionRevoked = sessionCleanup.sessionRevoked;
       signInTokenDisposed = sessionCleanup.signInTokenDisposed;
     } else {
