@@ -158,4 +158,23 @@ describe("Conversation and Message application authority conversion", () => {
     assert.match(readyFunction, /existing_message\.message_count <> 1/);
     assert.match(readyFunction, /created := false/);
   });
+
+  it("routes seller response metrics through an aggregate-only authority function", () => {
+    const helper = source("src/lib/conversationMessageAuthority.ts");
+    const metrics = source("src/lib/metrics.ts");
+    const serviceSql = source("docs/rls-drafts/conversation-message-service-authority.sql");
+    const metricFunction = serviceSql.slice(
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_seller_message_response_metrics"),
+      serviceSql.indexOf("REVOKE ALL ON FUNCTION"),
+    );
+
+    assert.match(metrics, /getSellerMessageResponseMetrics\(seller\.userId, periodStart, db\)/);
+    assert.match(helper, /public\.grainline_seller_message_response_metrics/);
+    assert.match(helper, /sellerRespondedCount > buyerInitiatedCount/);
+    assert.doesNotMatch(metrics, /FROM "(?:Conversation|Message)"/);
+    assert.match(metricFunction, /RETURNS TABLE \(\s*"buyerInitiatedCount" bigint,\s*"sellerRespondedCount" bigint\s*\)/);
+    assert.match(metricFunction, /DISTINCT ON \(message\."conversationId"\)/);
+    assert.match(metricFunction, /response\."senderId" = p_seller_user_id/);
+    assert.match(metricFunction, /LEFT JOIN seller_response/);
+  });
 });

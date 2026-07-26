@@ -8,6 +8,7 @@ import {
 import { isSellerMetricsFresh } from "@/lib/metricsFreshness";
 import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
 import { PAID_STRIPE_ORDER_SQL } from "@/lib/orderTrust";
+import { getSellerMessageResponseMetrics } from "@/lib/conversationMessageAuthority";
 
 const SELLER_METRICS_LOCK_NAMESPACE = 913344;
 
@@ -206,50 +207,7 @@ async function calculateSellerMetricsWithoutLock(
         },
       }),
 
-      db.$queryRaw<Array<{ buyerInitiatedCount: bigint; sellerRespondedCount: bigint }>>`
-        WITH seller_conversations AS (
-          SELECT c.id
-          FROM "Conversation" c
-          WHERE (c."userAId" = ${seller.userId} OR c."userBId" = ${seller.userId})
-            AND c."createdAt" >= ${periodStart}
-        ),
-        first_messages AS (
-          SELECT DISTINCT ON (m."conversationId")
-            m."conversationId",
-            m.id AS "firstMessageId",
-            m."senderId" AS "firstSenderId",
-            m."createdAt" AS "firstMessageAt"
-          FROM "Message" m
-          JOIN seller_conversations sc ON sc.id = m."conversationId"
-          ORDER BY m."conversationId", m."createdAt" ASC, m.id ASC
-        ),
-        buyer_initiated AS (
-          SELECT
-            fm."conversationId",
-            fm."firstMessageId",
-            fm."firstMessageAt"
-          FROM first_messages fm
-          WHERE fm."firstSenderId" <> ${seller.userId}
-        ),
-        seller_responses AS (
-          SELECT DISTINCT bi."conversationId"
-          FROM buyer_initiated bi
-          JOIN "Message" reply ON reply."conversationId" = bi."conversationId"
-            AND reply."senderId" = ${seller.userId}
-            AND (
-              reply."createdAt" > bi."firstMessageAt"
-              OR (
-                reply."createdAt" = bi."firstMessageAt"
-                AND reply.id > bi."firstMessageId"
-              )
-            )
-        )
-        SELECT
-          COUNT(bi."conversationId")::bigint AS "buyerInitiatedCount",
-          COUNT(sr."conversationId")::bigint AS "sellerRespondedCount"
-        FROM buyer_initiated bi
-        LEFT JOIN seller_responses sr ON sr."conversationId" = bi."conversationId"
-      `,
+      getSellerMessageResponseMetrics(seller.userId, periodStart, db),
     ]);
 
   // Average rating (all-time)
@@ -274,9 +232,9 @@ async function calculateSellerMetricsWithoutLock(
 
   // Response rate (period)
   // Buyer-initiated = first message NOT from seller
-  const responseStats = responseRows[0];
-  const buyerInitiatedCount = Number(responseStats?.buyerInitiatedCount ?? 0);
-  const sellerRespondedCount = Number(responseStats?.sellerRespondedCount ?? 0);
+  const responseStats = responseRows;
+  const buyerInitiatedCount = responseStats?.buyerInitiatedCount ?? 0;
+  const sellerRespondedCount = responseStats?.sellerRespondedCount ?? 0;
   const responseRate =
     buyerInitiatedCount > 0 ? sellerRespondedCount / buyerInitiatedCount : 0;
 

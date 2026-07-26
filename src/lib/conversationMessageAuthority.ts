@@ -570,3 +570,45 @@ export async function sendActorCustomOrderReady(
   }
   return row;
 }
+
+export async function getSellerMessageResponseMetrics(
+  sellerUserId: string,
+  periodStart: Date,
+  db: ConversationMessageAuthorityClient = prisma,
+): Promise<{
+  buyerInitiatedCount: number;
+  sellerRespondedCount: number;
+}> {
+  const actorId = normalizeDbUserContextUserId(sellerUserId);
+  if (
+    !(periodStart instanceof Date)
+    || !Number.isFinite(periodStart.getTime())
+  ) {
+    throw new TypeError("seller response metric RPC input is invalid");
+  }
+  const rows = await db.$queryRaw<Array<{
+    buyerInitiatedCount: CountValue;
+    sellerRespondedCount: CountValue;
+  }>>`
+    SELECT *
+      FROM public.grainline_seller_message_response_metrics(
+        ${actorId}::text,
+        ${periodStart}::timestamp
+      )
+  `;
+  if (rows.length !== 1) {
+    throw new TypeError("seller response metric RPC returned an invalid row");
+  }
+  const buyerInitiatedCount = requireSafeCount(
+    rows[0].buyerInitiatedCount,
+    "seller response metric buyer count",
+  );
+  const sellerRespondedCount = requireSafeCount(
+    rows[0].sellerRespondedCount,
+    "seller response metric response count",
+  );
+  if (sellerRespondedCount > buyerInitiatedCount) {
+    throw new TypeError("seller response metric RPC returned impossible counts");
+  }
+  return { buyerInitiatedCount, sellerRespondedCount };
+}
