@@ -49,8 +49,9 @@ tables.
    truncating legal export data.
 2. Align the scheduled non-response transition with the chosen 48-hour public
    contract.
-3. Carry the accepted first-party Case evidence attachment requirement into
-   the reviewed compatible schema design.
+3. Carry the accepted private processed-photo Case evidence requirement into
+   the reviewed compatible schema design. Keep PDFs out until malware scanning
+   and quarantine are designed.
 
 Exit: focused product tests, TypeScript, lint and the full unit suite are green.
 No RLS behavior has changed.
@@ -66,9 +67,10 @@ authority catalog and PostgreSQL proof.
 
 1. Add durable CaseMessage author kind and render it instead of mutable current
    User role.
-2. Add the exact `(caseId, createdAt, id)` history index and the first-party
-   `CaseMessageAttachment` model with parent visibility, verified upload
-   ownership, export, deletion and retention behavior.
+2. Add the exact `(caseId, createdAt, id)` history index and the private-object
+   `CaseMessageAttachment` image model with parent visibility, verified upload
+   ownership, authenticated retrieval, export, deletion and retention
+   behavior. Do not persist a public evidence URL.
 3. Deliver staff Case decisions to the seller with source-derived seller copy
    through the existing fixed Notification boundary.
 4. Make Case creation, participant escalation and staff resolution audit

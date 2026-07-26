@@ -132,8 +132,9 @@ describe("Case and CaseMessage RLS inventory", () => {
     assert.match(audit, /shared by Case creation and conflicting Order transitions/);
     assert.match(audit, /bounded `\(createdAt,id\)` keyset history/);
     assert.match(audit, /scheduled transition must use the expired `sellerRespondBy` boundary/);
-    assert.match(audit, /Include a first-party-upload-backed `CaseMessageAttachment`/);
-    assert.match(audit, /Do not accept arbitrary caller URLs/);
+    assert.match(audit, /Include a private-object-backed `CaseMessageAttachment` image model/);
+    assert.match(audit, /persist an opaque object key rather than a public URL/);
+    assert.match(audit, /PDF evidence remains prohibited/);
     assert.match(audit, /no policy\/grant SQL is drafted until an Extra-High authority review starts/);
     assert.match(plan, /Switch back to Extra High before Phase 1B/);
     assert.match(plan, /Convert all 69 protected references/);
