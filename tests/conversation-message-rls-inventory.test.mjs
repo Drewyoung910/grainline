@@ -17,7 +17,7 @@ describe("Conversation and Message RLS inventory", () => {
     assert.deepEqual(summarizeConversationMessageAccess(inventory), EXPECTED_BASELINE);
   });
 
-  it("documents every non-participant lifecycle and the production preparation boundary", () => {
+  it("documents every non-participant lifecycle and the current production boundary", () => {
     const plan = fs.readFileSync("docs/rls-conversation-message-plan.md", "utf8");
     assert.match(plan, /unresolved `MESSAGE_THREAD` report/);
     assert.match(plan, /account export/);
@@ -25,9 +25,18 @@ describe("Conversation and Message RLS inventory", () => {
     assert.match(plan, /seller response metrics/);
     assert.match(plan, /commission-interest system message/);
     assert.match(plan, /custom-order-ready/);
-    assert.match(plan, /Conversation\/Message RLS remains disabled/);
-    assert.match(plan, /invariant-preparation releases are live/);
-    assert.match(plan, /zero policies/);
-    assert.match(plan, /actual pooled production-runtime rollback-only postflight/);
+    assert.match(
+      plan,
+      /initial Conversation\/Message RLS activation is live and accepted in\s+production/,
+    );
+    assert.match(plan, /enabled without FORCE/);
+    assert.match(plan, /exactly one reviewed SELECT policy each/);
+    assert.match(plan, /direct runtime\s+SELECT only/);
+    assert.match(plan, /all writes behind the fixed authority functions/);
+    assert.match(plan, /FORCE remains a later separate release/);
+    assert.match(
+      plan,
+      /actual pooled `grainline_app_runtime`\s+rollback-only proof/,
+    );
   });
 });

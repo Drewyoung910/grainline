@@ -1,12 +1,12 @@
 # Conversation and Message Pre-RLS Audit
 
 Opened 2026-07-22; updated 2026-07-26. Status: the compatible application,
-additive schema/index pair and reviewed invariant/data-normalization migrations
-are live. The actual pooled production runtime role passed a rollback-only
-postflight. The reviewed 25-function authority preparation and compatible
-application conversion are live. Conversation/Message RLS remains disabled
-with zero policies and old table CRUD; no Conversation or Message policy or
-table-grant activation has been applied.
+additive schema/index pair, reviewed invariant/data-normalization migrations,
+25-function authority preparation, application conversion and initial
+Conversation/Message RLS activation are live. The actual pooled production
+runtime passed both the earlier rollback-only preparation postflight and the
+authenticated post-activation proof. Both tables now have RLS enabled without
+FORCE, exactly one reviewed SELECT policy each and direct runtime SELECT only.
 
 The authenticated RLS-off compatibility proof passed at exact deployed release
 `650d1dd8`, operator `11adbeda`, and CI run `30192400811`. It proved
@@ -22,14 +22,19 @@ side effects were zero. Earlier failed attempts remain retained evidence and
 all also cleaned up fully; none changed RLS, grants or ordinary production
 data.
 
-The initial activation is now packaged locally but is not merged, applied or
-live. Migration `20260726073000_enable_conversation_message_rls` is an
-explicit `ENABLE` plus `NO FORCE` release with one participant-or-reported-
-staff SELECT policy per table and direct runtime SELECT only. Its exact
-candidate/release bytes, migration tree, grant audit, provisioning convergence
-and rollback proof are guarded. Fresh PostgreSQL 16 CI, Extra-High review,
-protected production migration and authenticated post-activation proof remain
-required.
+The initial activation passed exact PR CI `30193830373`, post-merge main CI
+`30194063246` and Extra-High review. Protected run `30194195844` applied exact
+main `448d5233` and migration
+`20260726073000_enable_conversation_message_rls`; migration status and the
+owner-side exact grant/policy audit passed. Authenticated operator `f474e761`
+then proved the actual pooled runtime identity, exact policy expressions,
+SELECT-only direct grants, context-empty isolation, direct DML denial,
+participant/foreign route behavior and unread transition. Cleanup removed
+every exact fixture, Clerk session/token, cache key and rate-limit counter; no
+new Clerk user, Notification or email was created and no recovery state
+remains. Sanitized mode-`0600` evidence SHA-256 is
+`1f38671673e8040b222fcb620f8875c94cd47684969d423e6f260fc7a520e141`.
+FORCE is intentionally still pending as a separate release.
 
 ## Why this gate exists
 
@@ -265,18 +270,18 @@ is necessary but not sufficient.
 
 1. CM-A01 through CM-A19 are fixed or have the explicit design/scale
    disposition recorded above. CM-A04's invariant-preparation production
-   application and actual-runtime postflight are complete; CM-A10 remains open
-   until the reviewed database-authority phase.
+   application and actual-runtime postflight are complete; CM-A10 is complete
+   through the initial RLS/grant activation and live pooled-runtime proof.
 2. Full tests, typecheck, lint and production build pass on the compatible app
    before any RLS activation.
 3. A sanitized read-only legacy inspection proves canonical/non-self
    conversations, exact Message participant pairs, structured kinds, orphan
    state, reported-thread state and archive/timestamp aggregates without
    retaining bodies or identifiers.
-4. Extra High has accepted the invariant-preparation SQL and its PostgreSQL
-   concurrency claims only. Fixed authority functions are now live after their
-   separate review. Initial policy SQL, grant narrowing and FORCE remain
-   separate Extra-High review and release boundaries.
+4. Extra High accepted the invariant-preparation SQL, fixed authority
+   functions, initial policy SQL and grant narrowing in their separate
+   releases. Initial activation is live and accepted; FORCE remains its own
+   later Extra-High review and release boundary.
 
 This audit pattern is required for each later sensitive group, with scope
 adapted to that group's actors and provider/background workflows.

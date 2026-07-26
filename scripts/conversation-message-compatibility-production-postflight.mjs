@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// Authenticated RLS-off compatibility proof for the Conversation/Message
-// authority conversion. This operator creates a bounded synthetic fixture,
-// exercises the deployed recipient routes with the retained operational Clerk
-// canary, and removes every exact fixture before reporting success.
+// Authenticated compatibility and post-activation proof for the
+// Conversation/Message authority conversion. This operator creates a bounded
+// synthetic fixture, exercises the deployed recipient routes with the retained
+// operational Clerk canary, and removes every exact fixture before success.
 import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import {
@@ -24,11 +24,36 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { parse as parseDotenv } from "dotenv";
 import pg from "pg";
+import {
+  collectConversationPolicyIssues,
+  collectMessagePolicyIssues,
+  readConversationPolicyState,
+  readMessagePolicyState,
+} from "./audit-runtime-db-grants.mjs";
 import { NOTIFICATION_CANARY_EXTERNAL_ID } from "./notification-operational-canary.mjs";
 
 const { Client } = pg;
-const OPERATOR_BRANCH = "agent/conversation-message-compatibility-postflight-20260726";
-const RELEASE_COMMIT = "650d1dd818ac3694f7fd6da9954aaf053786cc40";
+const POST_ACTIVATION_FLAG = "--post-activation";
+const CLEANUP_FLAG = "--cleanup";
+const POST_ACTIVATION = process.argv.includes(POST_ACTIVATION_FLAG);
+const COMPATIBILITY_OPERATOR_BRANCH =
+  "agent/conversation-message-compatibility-postflight-20260726";
+const POST_ACTIVATION_OPERATOR_BRANCH =
+  "agent/conversation-message-postactivation-20260726";
+const COMPATIBILITY_RELEASE_COMMIT =
+  "650d1dd818ac3694f7fd6da9954aaf053786cc40";
+const POST_ACTIVATION_RELEASE_COMMIT =
+  "448d5233ed3aad4fc3d88812e98d8ae299a62a42";
+const POST_ACTIVATION_MIGRATION_RUN_ID = 30194195844;
+const OPERATOR_BRANCH = POST_ACTIVATION
+  ? POST_ACTIVATION_OPERATOR_BRANCH
+  : COMPATIBILITY_OPERATOR_BRANCH;
+const RELEASE_COMMIT = POST_ACTIVATION
+  ? POST_ACTIVATION_RELEASE_COMMIT
+  : COMPATIBILITY_RELEASE_COMMIT;
+const POSTFLIGHT_SLUG = POST_ACTIVATION
+  ? "activation"
+  : "compatibility";
 const DEPLOYMENT_ID = "dpl_C1rXvRMMJetR25Na4X5yHSa91HpM";
 const DEPLOYMENT_HOST = "thegrainline.com";
 const DEPLOYMENT_URL = `https://${DEPLOYMENT_HOST}`;
@@ -45,7 +70,7 @@ const VERCEL_AUTH_PATH =
 const VERCEL_PROJECT_PATH = path.join(process.cwd(), ".vercel/project.json");
 const RECOVERY_PATH = path.join(
   PRIVATE_STATE_DIRECTORY,
-  `conversation-message-compatibility-postflight-${RELEASE_COMMIT.slice(0, 12)}.json`,
+  `conversation-message-${POSTFLIGHT_SLUG}-postflight-${RELEASE_COMMIT.slice(0, 12)}.json`,
 );
 const MAX_JSON_BYTES = 256 * 1024;
 const MAX_PAGE_BYTES = 2 * 1024 * 1024;
@@ -385,13 +410,31 @@ async function assertDatabasePosture(owner, runtime) {
     `SELECT current_user AS "currentUser", current_database() AS "databaseName"`,
   );
   const runtimeIdentity = await runtime.query(
-    `SELECT current_user AS "currentUser", current_database() AS "databaseName"`,
+    `SELECT
+       current_user AS "currentUser",
+       session_user AS "sessionUser",
+       current_database() AS "databaseName",
+       role.rolsuper AS "superuser",
+       role.rolbypassrls AS "bypassRls",
+       role.rolinherit AS "inheritsRoles",
+       pg_catalog.pg_has_role(
+         current_user,
+         'neondb_owner',
+         'MEMBER'
+       ) AS "memberOfOwner"
+       FROM pg_catalog.pg_roles AS role
+      WHERE role.rolname = current_user`,
   );
   if (
     ownerIdentity.rows[0]?.currentUser !== "neondb_owner"
     || ownerIdentity.rows[0]?.databaseName !== DATABASE_NAME
     || runtimeIdentity.rows[0]?.currentUser !== RUNTIME_ROLE
+    || runtimeIdentity.rows[0]?.sessionUser !== RUNTIME_ROLE
     || runtimeIdentity.rows[0]?.databaseName !== DATABASE_NAME
+    || runtimeIdentity.rows[0]?.superuser !== false
+    || runtimeIdentity.rows[0]?.bypassRls !== false
+    || runtimeIdentity.rows[0]?.inheritsRoles !== false
+    || runtimeIdentity.rows[0]?.memberOfOwner !== false
   ) {
     throw new Error("database session identity drifted");
   }
@@ -416,17 +459,55 @@ async function assertDatabasePosture(owner, runtime) {
   );
   if (
     catalog.rowCount !== 2
-    || catalog.rows.some((row) => (
-      row.rlsEnabled !== false
-      || row.rlsForced !== false
-      || row.policyCount !== 0
-      || row.canSelect !== true
-      || row.canInsert !== true
-      || row.canUpdate !== true
-      || row.canDelete !== true
-    ))
+    || (
+      POST_ACTIVATION
+      && catalog.rows.some((row) => (
+        row.rlsEnabled !== true
+        || row.rlsForced !== false
+        || row.policyCount !== 1
+        || row.canSelect !== true
+        || row.canInsert !== false
+        || row.canUpdate !== false
+        || row.canDelete !== false
+      ))
+    )
+    || (
+      !POST_ACTIVATION
+      && catalog.rows.some((row) => (
+        row.rlsEnabled !== false
+        || row.rlsForced !== false
+        || row.policyCount !== 0
+        || row.canSelect !== true
+        || row.canInsert !== true
+        || row.canUpdate !== true
+        || row.canDelete !== true
+      ))
+    )
   ) {
-    throw new Error("RLS-off compatibility catalog posture drifted");
+    throw new Error(
+      POST_ACTIVATION
+        ? "initial RLS activation catalog posture drifted"
+        : "RLS-off compatibility catalog posture drifted",
+    );
+  }
+  if (POST_ACTIVATION) {
+    const policyIssues = [
+      ...collectConversationPolicyIssues(
+        await readConversationPolicyState(owner),
+        RUNTIME_ROLE,
+        false,
+      ),
+      ...collectMessagePolicyIssues(
+        await readMessagePolicyState(owner),
+        RUNTIME_ROLE,
+        false,
+      ),
+    ];
+    if (policyIssues.length > 0) {
+      throw new Error(
+        `initial RLS activation policy catalog drifted: ${policyIssues.join("; ")}`,
+      );
+    }
   }
   const callable = await runtime.query(
     `SELECT
@@ -550,6 +631,78 @@ async function seedFixture(owner, runtime, canaryId, fixture, setStage) {
     );
     if (sent.rowCount !== 1 || sent.rows[0]?.messageId !== messageId) {
       throw new Error("synthetic message seed drifted");
+    }
+  }
+}
+
+async function assertPostActivationRuntimeBoundary(runtime, canaryId, fixture) {
+  if (!POST_ACTIVATION) return;
+
+  const context = await runtime.query(
+    `SELECT pg_catalog.current_setting('app.user_id', true) AS "userId"`,
+  );
+  if (![null, ""].includes(context.rows[0]?.userId ?? null)) {
+    throw new Error("pooled runtime retained unexpected app.user_id context");
+  }
+
+  const directRows = await runtime.query(
+    `SELECT
+       (SELECT pg_catalog.count(*)::integer
+          FROM public."Conversation"
+         WHERE id = ANY($1::text[])) AS conversations,
+       (SELECT pg_catalog.count(*)::integer
+          FROM public."Message"
+         WHERE id = ANY($2::text[])) AS messages`,
+    [fixture.conversationIds, fixture.messageIds],
+  );
+  if (
+    directRows.rows[0]?.conversations !== 0
+    || directRows.rows[0]?.messages !== 0
+  ) {
+    throw new Error("pooled runtime without user context crossed participant RLS");
+  }
+
+  const deniedConversationId = `${fixture.conversationIds[0]}-direct-denial`;
+  const probes = [
+    {
+      label: "insert",
+      sql: `INSERT INTO public."Conversation" (
+              id, "userAId", "userBId", "createdAt", "updatedAt"
+            ) VALUES (
+              $1, $2, $3,
+              pg_catalog.timezone('UTC', pg_catalog.clock_timestamp()),
+              pg_catalog.timezone('UTC', pg_catalog.clock_timestamp())
+            )`,
+      values: [deniedConversationId, canaryId, fixture.userIds[0]],
+    },
+    {
+      label: "update",
+      sql: `UPDATE public."Conversation"
+               SET "updatedAt" =
+                 pg_catalog.timezone('UTC', pg_catalog.clock_timestamp())
+             WHERE id = $1`,
+      values: [fixture.conversationIds[0]],
+    },
+    {
+      label: "delete",
+      sql: `DELETE FROM public."Message" WHERE id = $1`,
+      values: [fixture.messageIds[0]],
+    },
+  ];
+  for (const probe of probes) {
+    await runtime.query("BEGIN");
+    let caught;
+    try {
+      await runtime.query(probe.sql, probe.values);
+    } catch (error) {
+      caught = error;
+    } finally {
+      await runtime.query("ROLLBACK").catch(() => {});
+    }
+    if (caught?.code !== "42501") {
+      throw new Error(
+        `pooled runtime direct ${probe.label} did not fail with insufficient_privilege`,
+      );
     }
   }
 }
@@ -916,16 +1069,19 @@ async function verifyDatabasePostcondition(owner, canaryId, fixture) {
     [fixture.messageIds],
   );
   if (notificationCount.rows[0]?.count !== 0) {
-    throw new Error("direct compatibility fixture unexpectedly created notifications");
+    throw new Error("direct postflight fixture unexpectedly created notifications");
   }
 }
 
 async function cleanupOnly() {
   if (!existsSync(RECOVERY_PATH)) {
-    throw new Error("no compatibility-postflight recovery state exists");
+    throw new Error(`no ${POSTFLIGHT_SLUG}-postflight recovery state exists`);
   }
   const environment = loadEnvironment();
-  const state = readPrivateJson(RECOVERY_PATH, "compatibility-postflight recovery state");
+  const state = readPrivateJson(
+    RECOVERY_PATH,
+    `${POSTFLIGHT_SLUG}-postflight recovery state`,
+  );
   if (
     state.releaseCommit !== RELEASE_COMMIT
     || state.deploymentId !== DEPLOYMENT_ID
@@ -936,7 +1092,7 @@ async function cleanupOnly() {
     || !Array.isArray(state.fixture?.messageIds)
     || state.fixture.messageIds.length !== 3
   ) {
-    throw new Error("compatibility-postflight recovery state drifted");
+    throw new Error(`${POSTFLIGHT_SLUG}-postflight recovery state drifted`);
   }
   const owner = new Client({ connectionString: environment.ownerDatabaseUrl });
   const clerk = createClerkClient({ secretKey: environment.clerkSecretKey });
@@ -962,26 +1118,41 @@ async function cleanupOnly() {
 }
 
 async function main() {
-  if (process.argv[2] === "--cleanup" && process.argv.length === 3) {
+  const args = process.argv.slice(2);
+  const cleanupRequested = args.includes(CLEANUP_FLAG);
+  const expectedArgs = [
+    ...(cleanupRequested ? [CLEANUP_FLAG] : []),
+    ...(POST_ACTIVATION ? [POST_ACTIVATION_FLAG] : []),
+  ].sort();
+  if (
+    args.length !== expectedArgs.length
+    || [...args].sort().some((argument, index) => argument !== expectedArgs[index])
+  ) {
+    throw new Error(
+      "Usage: node scripts/conversation-message-compatibility-production-postflight.mjs [--cleanup] [--post-activation]",
+    );
+  }
+  if (cleanupRequested) {
     await cleanupOnly();
     return;
   }
-  if (process.argv.length !== 2) {
-    throw new Error(
-      "Usage: node scripts/conversation-message-compatibility-production-postflight.mjs [--cleanup]",
-    );
-  }
   if (existsSync(RECOVERY_PATH)) {
-    throw new Error("recovery state exists; run the exact --cleanup command first");
+    throw new Error(
+      `recovery state exists; run the exact --cleanup${
+        POST_ACTIVATION ? " --post-activation" : ""
+      } command first`,
+    );
   }
 
   const operatorCommit = exactCleanOperatorHead();
   const evidencePath = path.join(
     EVIDENCE_DIRECTORY,
-    `conversation-message-compatibility-postflight-${RELEASE_COMMIT.slice(0, 12)}-${operatorCommit.slice(0, 12)}.json`,
+    `conversation-message-${POSTFLIGHT_SLUG}-postflight-${RELEASE_COMMIT.slice(0, 12)}-${operatorCommit.slice(0, 12)}.json`,
   );
   if (existsSync(evidencePath)) {
-    throw new Error("compatibility-postflight evidence already exists for this operator commit");
+    throw new Error(
+      `${POSTFLIGHT_SLUG}-postflight evidence already exists for this operator commit`,
+    );
   }
   await verifyProductionDeployment();
   const environment = loadEnvironment();
@@ -1022,6 +1193,13 @@ async function main() {
       stage = nextStage;
     });
     fixtureSeeded = true;
+
+    stage = "verify-post-activation-runtime-boundary";
+    await assertPostActivationRuntimeBoundary(
+      runtime,
+      canary.localUser.id,
+      fixture,
+    );
 
     stage = "create-clerk-session";
     const session = await createCanarySession(clerk, canary, (patch) => {
@@ -1101,19 +1279,27 @@ async function main() {
     : "failed";
   const evidence = {
     generatedAt: new Date().toISOString(),
-    scope: "conversation-message-rls-off-compatibility-postflight",
+    scope: POST_ACTIVATION
+      ? "conversation-message-initial-rls-activation-postflight"
+      : "conversation-message-rls-off-compatibility-postflight",
     status,
     operatorCommit,
     releaseCommit: RELEASE_COMMIT,
+    migrationRunId: POST_ACTIVATION
+      ? POST_ACTIVATION_MIGRATION_RUN_ID
+      : null,
     deploymentId: DEPLOYMENT_ID,
     database: {
       endpointId: DATABASE_ENDPOINT_ID,
       name: DATABASE_NAME,
       runtimeRole: RUNTIME_ROLE,
-      rlsEnabled: false,
+      rlsEnabled: POST_ACTIVATION,
       rlsForced: false,
-      policyCount: 0,
-      legacyTableCrudRetained: true,
+      policyCount: POST_ACTIVATION ? 2 : 0,
+      directTablePrivileges: POST_ACTIVATION
+        ? ["SELECT"]
+        : ["SELECT", "INSERT", "UPDATE", "DELETE"],
+      legacyTableCrudRetained: !POST_ACTIVATION,
     },
     identity: {
       operationalCanaryReused: Boolean(canary),
@@ -1168,22 +1354,24 @@ async function main() {
   }
   if (status !== "passed") {
     throw new Error(
-      `compatibility postflight failed closed at ${stage}; private recovery state is retained`,
+      `${POSTFLIGHT_SLUG} postflight failed closed at ${stage}; private recovery state is retained`,
       { cause: primaryFailure },
     );
   }
   console.log(JSON.stringify({
-    compatibilityPostflight: "passed",
+    postflight: POST_ACTIVATION ? "activation-passed" : "compatibility-passed",
     authenticatedRoutesProved: true,
+    pooledRuntimeDirectWritesDenied: POST_ACTIVATION,
+    pooledRuntimeNoContextRows: POST_ACTIVATION ? 0 : null,
     fixtureRowsDeleted: true,
     clerkSessionRevoked: true,
     notificationsCreated: 0,
     emailsSent: 0,
-    rlsEnabled: false,
+    rlsEnabled: POST_ACTIVATION,
   }));
 }
 
 main().catch((error) => {
-  console.error(error instanceof Error ? error.message : "compatibility postflight failed");
+  console.error(error instanceof Error ? error.message : "message postflight failed");
   process.exitCode = 1;
 });

@@ -11,7 +11,7 @@ const script = await readFile(scriptPath, "utf8");
 test("compatibility postflight is pinned to the reviewed release and deployment", () => {
   assert.match(
     script,
-    /const RELEASE_COMMIT = "650d1dd818ac3694f7fd6da9954aaf053786cc40"/,
+    /const COMPATIBILITY_RELEASE_COMMIT =\s+"650d1dd818ac3694f7fd6da9954aaf053786cc40"/,
   );
   assert.match(
     script,
@@ -42,7 +42,7 @@ test("compatibility postflight proves the explicit RLS-off boundary", () => {
   assert.match(script, /row\.canInsert !== true/);
   assert.match(script, /row\.canUpdate !== true/);
   assert.match(script, /row\.canDelete !== true/);
-  assert.match(script, /legacyTableCrudRetained: true/);
+  assert.match(script, /legacyTableCrudRetained: !POST_ACTIVATION/);
 });
 
 test("compatibility postflight covers authenticated owner and foreign routes", () => {
@@ -107,7 +107,7 @@ test("compatibility postflight fixture authority uses the installed functions", 
 });
 
 test("compatibility postflight cleanup is exact and recoverable", () => {
-  assert.match(script, /recovery state exists; run the exact --cleanup command first/);
+  assert.match(script, /recovery state exists; run the exact --cleanup/);
   assert.match(script, /DELETE FROM public\."Message"\s+WHERE id = ANY\(\$1::text\[\]\)/);
   assert.match(script, /DELETE FROM public\."Conversation"\s+WHERE id = ANY\(\$1::text\[\]\)/);
   assert.match(script, /DELETE FROM public\."User"\s+WHERE id = ANY\(\$1::text\[\]\)/);
