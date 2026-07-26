@@ -10,9 +10,9 @@ active from this work.
 TypeScript tree. The audited baseline was 50 direct Prisma operations plus 5
 raw SQL references. After the first compatible audit fixes it currently finds:
 
-- 34 direct Prisma Conversation or Message operations;
+- 30 direct Prisma Conversation or Message operations;
 - 8 raw SQL table references;
-- 42 remaining protected-table access points across 11 files.
+- 38 remaining protected-table access points across 9 files.
 
 The first application conversion checkpoint removed all seven direct
 Conversation/Message operations from list polling, stream polling, mark-read
@@ -28,6 +28,12 @@ both report-target Message/Conversation counts. Account export now loads one
 actor-scoped projection and preserves the separate sent/received payload
 collections in application code. Message and thread reports use one boolean
 participant-relationship function.
+
+The third checkpoint converted the two custom-listing Conversation checks, its
+latest custom-request lookup, and the buyer-order participant-pair lookup.
+Custom listing creation and rendering explicitly require the seller to be a
+participant even though reported staff have a separate read-only review
+exception elsewhere.
 
 The test `tests/conversation-message-rls-inventory.test.mjs` pins the count and
 the exact per-file/model/operation summary. A new access path must therefore be
@@ -63,7 +69,7 @@ will intentionally fall as the design is implemented.
 | `src/app/api/messages/custom-order-request/route.ts` and `src/lib/customOrderRequestAccess.ts` | Custom-request conversation/message creation | Implemented atomic compatible operation with locked participant/block/seller/listing revalidation; later replace direct protected-table DML with fixed database authority |
 | `src/app/api/commission/[id]/interest/route.ts` | CommissionInterest, conversation and system-message transaction | Source-bound commission message operation retained inside the business transaction |
 | `src/lib/customOrderReadyLink.ts` and its seller/admin callers | Deduplicated ready-link message | Listing-derived custom-order-ready operation |
-| `src/app/dashboard/listings/custom/page.tsx` and buyer order detail | Participant lookup and latest custom request | Bounded participant lookup/request projection helpers |
+| `src/app/dashboard/listings/custom/page.tsx` and buyer order detail | Participant lookup and latest custom request | Converted: bounded participant, pair and latest-request projections |
 | `src/app/api/account/export/route.ts` | Sent and received message export | Converted: one participant export RPC, split into stable sent/received payload collections |
 | `src/app/api/users/[id]/report/route.ts` | Message/thread report target validation | Converted: one participant existence RPC |
 | `src/lib/accountDeletion.ts` | Attachment discovery and message redaction | Participant media projection plus account-deletion-only redaction operation |
@@ -105,7 +111,7 @@ will intentionally fall as the design is implemented.
 ## Completion rule
 
 This inventory is complete only when every protected access (55 in the original
-baseline, 53 after compatible refactors, 42 after the first two authority
+baseline, 53 after compatible refactors, 38 after the first three authority
 conversion checkpoints) has an explicit
 destination, direct runtime INSERT/UPDATE/DELETE is removed, the compatible app
 passes before and after RLS, and PostgreSQL proof covers participant isolation,

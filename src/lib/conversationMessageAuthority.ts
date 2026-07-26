@@ -47,6 +47,11 @@ export type ActorMessageExport = {
   createdAt: Date;
 };
 
+export type ActorCustomOrderRequest = {
+  body: string;
+  createdAt: Date;
+};
+
 type ConversationRpcRow = ActorConversation;
 
 type MessageRpcRow = {
@@ -307,4 +312,68 @@ export async function isActorMessageReportTarget(
     throw new TypeError("message report-target RPC returned an invalid result");
   }
   return rows[0].valid;
+}
+
+export async function findActorConversationPair(
+  userId: string,
+  otherUserId: string,
+  db: ConversationMessageAuthorityClient = prisma,
+): Promise<{ id: string } | null> {
+  const actorId = normalizeDbUserContextUserId(userId);
+  if (
+    !isBoundedAuthorityId(otherUserId)
+    || actorId === otherUserId
+  ) {
+    return null;
+  }
+  const rows = await db.$queryRaw<Array<{ id: string | null }>>`
+    SELECT public.grainline_conversation_pair(
+      ${actorId}::text,
+      ${otherUserId}::text
+    ) AS id
+  `;
+  if (
+    rows.length !== 1
+    || (rows[0].id !== null && !isBoundedAuthorityId(rows[0].id))
+  ) {
+    throw new TypeError("conversation pair RPC returned an invalid result");
+  }
+  return rows[0].id === null ? null : { id: rows[0].id };
+}
+
+export async function findLatestActorCustomOrderRequest(
+  userId: string,
+  conversationId: string,
+  buyerUserId: string,
+  db: ConversationMessageAuthorityClient = prisma,
+): Promise<ActorCustomOrderRequest | null> {
+  const actorId = normalizeDbUserContextUserId(userId);
+  if (
+    !isBoundedAuthorityId(conversationId)
+    || !isBoundedAuthorityId(buyerUserId)
+  ) {
+    return null;
+  }
+  const rows = await db.$queryRaw<ActorCustomOrderRequest[]>`
+    SELECT *
+      FROM public.grainline_message_latest_custom_request(
+        ${actorId}::text,
+        ${conversationId}::text,
+        ${buyerUserId}::text
+      )
+  `;
+  if (rows.length > 1) {
+    throw new TypeError("custom-request RPC returned multiple rows");
+  }
+  const row = rows[0];
+  if (
+    row !== undefined
+    && (
+      typeof row.body !== "string"
+      || !(row.createdAt instanceof Date)
+    )
+  ) {
+    throw new TypeError("custom-request RPC returned an invalid row");
+  }
+  return row ?? null;
 }

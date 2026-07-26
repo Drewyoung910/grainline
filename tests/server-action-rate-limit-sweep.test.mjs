@@ -56,7 +56,7 @@ describe("server-action rate-limit sweep", () => {
     );
     assert.ok(
       page.indexOf("safeRateLimit(listingCreateRatelimit, userId)") <
-        page.indexOf("prisma.conversation.findFirst"),
+        page.indexOf("getActorConversation(me.id, conversationId)"),
       "custom listing creation should rate-limit before conversation lookup",
     );
   });

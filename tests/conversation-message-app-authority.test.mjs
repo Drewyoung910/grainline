@@ -17,6 +17,8 @@ describe("Conversation and Message application authority conversion", () => {
       "grainline_message_mark_read",
       "grainline_message_export",
       "grainline_message_report_target_valid",
+      "grainline_conversation_pair",
+      "grainline_message_latest_custom_request",
     ]) {
       assert.match(helper, new RegExp(`public\\.${functionName}`));
     }
@@ -77,5 +79,24 @@ describe("Conversation and Message application authority conversion", () => {
     assert.match(helper, /message report-target RPC returned an invalid result/);
     assert.doesNotMatch(accountExport, /prisma\.message\./);
     assert.doesNotMatch(report, /prisma\.(?:message|conversation)\./);
+  });
+
+  it("moves custom-order participant context and pair lookups behind exact projections", () => {
+    const helper = source("src/lib/conversationMessageAuthority.ts");
+    const customListing = source("src/app/dashboard/listings/custom/page.tsx");
+    const order = source("src/app/dashboard/orders/[id]/page.tsx");
+
+    assert.equal(
+      (customListing.match(/getActorConversation\(me\.id, conversationId\)/g) ?? []).length,
+      2,
+    );
+    assert.match(customListing, /findLatestActorCustomOrderRequest\(/);
+    assert.match(customListing, /convo\.userAId === me\.id/);
+    assert.match(customListing, /convo\.userBId === me\.id/);
+    assert.match(order, /findActorConversationPair\(me\.id, sellerUserId\)/);
+    assert.match(helper, /custom-request RPC returned an invalid row/);
+    assert.match(helper, /conversation pair RPC returned an invalid result/);
+    assert.doesNotMatch(customListing, /prisma\.(?:conversation|message)\./);
+    assert.doesNotMatch(order, /prisma\.conversation\./);
   });
 });

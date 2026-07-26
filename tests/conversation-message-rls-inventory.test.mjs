@@ -11,11 +11,6 @@ const EXPECTED_BASELINE = {
     "Message.create": 1,
     "Conversation.update": 1,
   },
-  "src/app/dashboard/listings/custom/page.tsx": {
-    "Conversation.findFirst": 2,
-    "Message.findFirst": 1,
-  },
-  "src/app/dashboard/orders/[id]/page.tsx": { "Conversation.findFirst": 1 },
   "src/app/messages/[id]/page.tsx": {
     "Conversation.findFirst": 5,
     "Message.findMany": 1,
@@ -64,7 +59,7 @@ describe("Conversation and Message RLS inventory", () => {
   const inventory = collectConversationMessageAccess();
 
   it("pins every current direct ORM and raw SQL access path", () => {
-    assert.equal(inventory.ormCalls.length, 34);
+    assert.equal(inventory.ormCalls.length, 30);
     assert.equal(inventory.rawSqlReferences.length, 8);
     assert.deepEqual(summarizeConversationMessageAccess(inventory), EXPECTED_BASELINE);
   });

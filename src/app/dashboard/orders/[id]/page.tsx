@@ -31,6 +31,7 @@ import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { isRecordedRefundId } from "@/lib/refundLockState";
 import type { CaseStatus } from "@prisma/client";
 import type { Metadata } from "next";
+import { findActorConversationPair } from "@/lib/conversationMessageAuthority";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -217,15 +218,7 @@ export default async function BuyerOrderDetailPage({
   const sellerUserId = order.items[0]?.listing.seller.userId ?? null;
   let messageHref = "/messages";
   if (sellerUserId) {
-    const convo = await prisma.conversation.findFirst({
-      where: {
-        OR: [
-          { userAId: me.id, userBId: sellerUserId },
-          { userAId: sellerUserId, userBId: me.id },
-        ],
-      },
-      select: { id: true },
-    });
+    const convo = await findActorConversationPair(me.id, sellerUserId);
     messageHref = convo
       ? `/messages/${convo.id}`
       : `/messages/new?to=${sellerUserId}`;

@@ -25,6 +25,10 @@ import { listingPriceMaxError } from "@/lib/listingPrice";
 import { listingCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { backfillEmptyAltTexts } from "@/lib/photoAltTextBackfill";
 import { MAX_MANUAL_STOCK_QUANTITY } from "@/lib/stockMutationState";
+import {
+  findLatestActorCustomOrderRequest,
+  getActorConversation,
+} from "@/lib/conversationMessageAuthority";
 
 // unit converters
 const inToCm = (v: number) => Math.round((v * 2.54 + Number.EPSILON) * 100) / 100;
@@ -56,11 +60,10 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
   }
 
   // Verify seller is a participant in this conversation
-  const convo = await prisma.conversation.findFirst({
-    where: { id: conversationId, OR: [{ userAId: me.id }, { userBId: me.id }] },
-    select: { id: true, userAId: true, userBId: true },
-  });
-  if (!convo) return { ok: false, error: "Conversation not found." };
+  const convo = await getActorConversation(me.id, conversationId);
+  const isParticipant = convo
+    && (convo.userAId === me.id || convo.userBId === me.id);
+  if (!isParticipant) return { ok: false, error: "Conversation not found." };
 
   // Validate reservedForUserId is the OTHER participant in this conversation
   const otherUserId = convo.userAId === me.id ? convo.userBId : convo.userAId;
@@ -287,14 +290,10 @@ export default async function CustomListingPage({
   if (!conversationId || !buyerId) redirect("/messages");
 
   // Fetch conversation + find the custom order request message
-  const convo = await prisma.conversation.findFirst({
-    where: {
-      id: conversationId,
-      OR: [{ userAId: me.id }, { userBId: me.id }],
-    },
-    select: { id: true, userAId: true, userBId: true },
-  });
-  if (!convo) redirect("/messages");
+  const convo = await getActorConversation(me.id, conversationId);
+  const isParticipant = convo
+    && (convo.userAId === me.id || convo.userBId === me.id);
+  if (!isParticipant) redirect("/messages");
 
   // Verify reservedForUserId matches the other conversation participant
   const otherParticipant = convo.userAId === me.id ? convo.userBId : convo.userAId;
@@ -303,15 +302,11 @@ export default async function CustomListingPage({
   }
 
   // Find the most recent custom_order_request message from the buyer
-  const requestMsg = await prisma.message.findFirst({
-    where: {
-      conversationId,
-      senderId: buyerId,
-      kind: "custom_order_request",
-    },
-    orderBy: { createdAt: "desc" },
-    select: { body: true, createdAt: true },
-  });
+  const requestMsg = await findLatestActorCustomOrderRequest(
+    me.id,
+    conversationId,
+    buyerId,
+  );
 
   let requestData: {
     description?: string;
