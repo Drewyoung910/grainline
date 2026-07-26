@@ -13,6 +13,11 @@ Conversation/Message policies.
 - Recipient projections are one-statement `SECURITY INVOKER` functions. They
   validate the same bounded user-id grammar as `dbUserContextState.ts`, set
   transaction-local `app.user_id`, and rely on RLS for row isolation.
+- The three id-addressed read projections also repeat the participant or exact
+  reported-staff predicate inside their query. This preserves authorization
+  during the compatible-app window before RLS is enabled; disposable proof
+  must disable RLS and still reject a foreign Conversation, Message list and
+  latest custom-order request through those functions.
 - A direct runtime table query without context must return zero rows.
 - A participant may read only a Conversation they belong to and Messages whose
   immutable sender/recipient pair proves the same membership.
@@ -89,6 +94,14 @@ run `30180176533`: PostgreSQL 16 rejected an incorrect `regtype` argument to
 `pg_input_is_valid` with `42883`. No persistent database was touched. The
 candidate now passes text arguments to the catalog function and requires a
 fresh full proof; the failed run is not reinterpreted as passing evidence.
+
+The corrected query compiled at `359ac058` in failed run `30180295405` and
+returned zero invalid, duplicate, missing and orphan structured-source counts.
+The proof then caught an incorrect fixture expectation: custom-request creation
+had correctly attached one validated Listing to its existing Conversation, so
+`contextConversationCount` was one rather than zero. That expectation is
+corrected only in a fresh candidate; this second failed run also remains failed
+evidence and touched no persistent database.
 
 ## Cross-group dependencies to retain
 

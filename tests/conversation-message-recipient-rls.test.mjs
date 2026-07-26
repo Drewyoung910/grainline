@@ -49,6 +49,15 @@ const publicWriteFunctions = [
   "grainline_seller_message_response_metrics",
 ];
 
+function sqlFunctionDefinition(source, functionName) {
+  const start = source.indexOf(
+    `CREATE OR REPLACE FUNCTION public.${functionName}(`,
+  );
+  assert.notEqual(start, -1, `${functionName} definition is missing`);
+  const next = source.indexOf("\nCREATE OR REPLACE FUNCTION public.", start + 1);
+  return source.slice(start, next === -1 ? source.length : next);
+}
+
 describe("Conversation and Message recipient RLS draft", () => {
   it("keeps the draft outside migrations and pins the recipient catalog", () => {
     const migrationSql = fs
@@ -103,6 +112,33 @@ describe("Conversation and Message recipient RLS draft", () => {
       recipientFunctions.length - 1,
     );
     assert.doesNotMatch(recipientSql, /set_config\('app\.user_id'[\s\S]*false\)/);
+  });
+
+  it("keeps compatibility-window recipient reads scoped before RLS activation", () => {
+    for (const functionName of [
+      "grainline_conversation_get",
+      "grainline_message_list",
+      "grainline_message_latest_custom_request",
+    ]) {
+      const body = sqlFunctionDefinition(recipientSql, functionName);
+      assert.match(body, /p_user_id IN \(/);
+      assert.match(body, /grainline_conversation_staff_report_visible/);
+    }
+    assert.match(recipientSql, /\(p_cursor_at IS NULL\) <> \(p_cursor_id IS NULL\)/);
+    assert.match(recipientSql, /p_target_type IS NULL/);
+    assert.match(recipientSql, /p_archived IS NULL/);
+    assert.match(
+      proof,
+      /ALTER TABLE public\."Conversation" DISABLE ROW LEVEL SECURITY/,
+    );
+    assert.match(
+      proof,
+      /ALTER TABLE public\."Message" DISABLE ROW LEVEL SECURITY/,
+    );
+    assert.match(
+      proof,
+      /rls_off_compatibility_projections_remain_explicitly_scoped/,
+    );
   });
 
   it("uses two SELECT-only policies and removes direct runtime writes", () => {

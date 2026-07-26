@@ -367,6 +367,124 @@ async function applyDraft(owner) {
   record("recipient_and_fixed_write_functions_with_select_only_policies_applied");
 }
 
+async function proveCompatibilityReadScopeBeforeRls(owner) {
+  const runtime = newClient("cm-recipient-rls-off-compatibility");
+  await runtime.connect();
+  await owner.query(
+    'UPDATE public."Message" SET kind = $2 WHERE id = $1',
+    [fixture.messageAB1Id, "custom_order_request"],
+  );
+  await owner.query('ALTER TABLE public."Conversation" DISABLE ROW LEVEL SECURITY');
+  await owner.query('ALTER TABLE public."Message" DISABLE ROW LEVEL SECURITY');
+  try {
+    await setRuntimeRole(runtime);
+
+    const directVisible = await runtime.query(`
+      SELECT
+        (SELECT pg_catalog.count(*)::integer
+           FROM public."Conversation") AS conversations,
+        (SELECT pg_catalog.count(*)::integer
+           FROM public."Message") AS messages
+    `);
+    assert.deepEqual(directVisible.rows, [{
+      conversations: 2,
+      messages: 3,
+    }]);
+
+    const foreignConversation = await runtime.query(
+      "SELECT * FROM public.grainline_conversation_get($1, $2)",
+      [fixture.userCId, fixture.conversationABId],
+    );
+    assert.equal(foreignConversation.rows.length, 0);
+    const foreignMessages = await runtime.query(
+      `SELECT * FROM public.grainline_message_list(
+         $1, $2, 'after', NULL, NULL, 50
+       )`,
+      [fixture.userCId, fixture.conversationABId],
+    );
+    assert.equal(foreignMessages.rows.length, 0);
+    const foreignCustomRequest = await runtime.query(
+      `SELECT * FROM public.grainline_message_latest_custom_request(
+         $1, $2, $3
+       )`,
+      [fixture.userCId, fixture.conversationABId, fixture.userAId],
+    );
+    assert.equal(foreignCustomRequest.rows.length, 0);
+
+    const participantConversation = await runtime.query(
+      "SELECT * FROM public.grainline_conversation_get($1, $2)",
+      [fixture.userAId, fixture.conversationABId],
+    );
+    assert.equal(participantConversation.rows.length, 1);
+    const participantMessages = await runtime.query(
+      `SELECT * FROM public.grainline_message_list(
+         $1, $2, 'after', NULL, NULL, 50
+       )`,
+      [fixture.userAId, fixture.conversationABId],
+    );
+    assert.equal(participantMessages.rows.length, 2);
+    const participantCustomRequest = await runtime.query(
+      `SELECT * FROM public.grainline_message_latest_custom_request(
+         $1, $2, $3
+       )`,
+      [fixture.userAId, fixture.conversationABId, fixture.userAId],
+    );
+    assert.equal(participantCustomRequest.rows.length, 1);
+
+    const reportedStaffConversation = await runtime.query(
+      "SELECT * FROM public.grainline_conversation_get($1, $2)",
+      [fixture.staffId, fixture.conversationABId],
+    );
+    assert.equal(reportedStaffConversation.rows.length, 1);
+    const reportedStaffMessages = await runtime.query(
+      `SELECT * FROM public.grainline_message_list(
+         $1, $2, 'after', NULL, NULL, 50
+       )`,
+      [fixture.staffId, fixture.conversationABId],
+    );
+    assert.equal(reportedStaffMessages.rows.length, 2);
+
+    await expectPgError(
+      () => runtime.query(
+        `SELECT * FROM public.grainline_message_list(
+           $1, $2, 'after', '2026-01-02T00:00:00', NULL, 50
+         )`,
+        [fixture.userAId, fixture.conversationABId],
+      ),
+      ["22023"],
+      "one-sided after cursor",
+    );
+    await expectPgError(
+      () => runtime.query(
+        "SELECT public.grainline_message_report_target_valid($1, $2, NULL, $3)",
+        [fixture.userAId, fixture.userBId, fixture.messageAB1Id],
+      ),
+      ["22023"],
+      "null report target type",
+    );
+    await expectPgError(
+      () => runtime.query(
+        `SELECT * FROM public.grainline_conversation_inbox(
+           $1, NULL, '', NULL, NULL, 51
+         )`,
+        [fixture.userAId],
+      ),
+      ["22023"],
+      "null inbox archive state",
+    );
+    record("rls_off_compatibility_projections_remain_explicitly_scoped");
+  } finally {
+    await runtime.query("RESET ROLE").catch(() => {});
+    await runtime.end();
+    await owner.query('ALTER TABLE public."Conversation" ENABLE ROW LEVEL SECURITY');
+    await owner.query('ALTER TABLE public."Message" ENABLE ROW LEVEL SECURITY');
+    await owner.query(
+      'UPDATE public."Message" SET kind = NULL WHERE id = $1',
+      [fixture.messageAB1Id],
+    );
+  }
+}
+
 async function proveCatalog(owner) {
   const tables = await owner.query(`
     SELECT relation.relname,
@@ -1151,7 +1269,7 @@ async function proveExactLegacyInspectionQuery(owner) {
     noncanonicalConversationCount: 0,
     duplicatePairGroupCount: 0,
     emptyConversationCount: 0,
-    contextConversationCount: 0,
+    contextConversationCount: 1,
     archivedConversationCount: 0,
     invalidConversationTimeCount: 0,
     messageCount: 8,
@@ -1619,6 +1737,7 @@ async function main() {
     }]);
     await seedFixtures(owner);
     await applyDraft(owner);
+    await proveCompatibilityReadScopeBeforeRls(owner);
     await proveCatalog(owner);
     await proveRuntimeIsolation(owner);
     await proveExactLegacyInspectionQuery(owner);

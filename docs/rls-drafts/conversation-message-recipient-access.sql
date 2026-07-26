@@ -98,7 +98,11 @@ BEGIN
     conversation."firstResponseAt",
     conversation."lastMessageEmailSentAt"
     FROM public."Conversation" AS conversation
-   WHERE conversation.id = p_conversation_id;
+   WHERE conversation.id = p_conversation_id
+     AND (
+       p_user_id IN (conversation."userAId", conversation."userBId")
+       OR public.grainline_conversation_staff_report_visible(conversation.id)
+     );
 END;
 $grainline_conversation_get$;
 
@@ -176,14 +180,17 @@ BEGIN
      OR pg_catalog.char_length(p_conversation_id) > 191 THEN
     RAISE EXCEPTION 'message conversation is invalid' USING ERRCODE = '22023';
   END IF;
-  IF p_direction NOT IN ('before', 'after') THEN
+  IF p_direction IS NULL OR p_direction NOT IN ('before', 'after') THEN
     RAISE EXCEPTION 'message page direction is invalid' USING ERRCODE = '22023';
   END IF;
-  IF p_cursor_id IS NOT NULL AND (
-    p_cursor_at IS NULL
-    OR p_cursor_id = ''
-    OR pg_catalog.char_length(p_cursor_id) > 191
-  ) THEN
+  IF (p_cursor_at IS NULL) <> (p_cursor_id IS NULL)
+     OR (
+       p_cursor_id IS NOT NULL
+       AND (
+         p_cursor_id = ''
+         OR pg_catalog.char_length(p_cursor_id) > 191
+       )
+     ) THEN
     RAISE EXCEPTION 'message cursor is invalid' USING ERRCODE = '22023';
   END IF;
   IF p_direction = 'before'
@@ -214,6 +221,12 @@ BEGIN
         ON listing.id = message."contextListingId"
      WHERE message."conversationId" = p_conversation_id
        AND (
+         p_user_id IN (message."senderId", message."recipientId")
+         OR public.grainline_conversation_staff_report_visible(
+              message."conversationId"
+            )
+       )
+       AND (
          message."createdAt" < p_cursor_at
          OR (
            message."createdAt" = p_cursor_at
@@ -239,6 +252,12 @@ BEGIN
       LEFT JOIN public."Listing" AS listing
         ON listing.id = message."contextListingId"
      WHERE message."conversationId" = p_conversation_id
+       AND (
+         p_user_id IN (message."senderId", message."recipientId")
+         OR public.grainline_conversation_staff_report_visible(
+              message."conversationId"
+            )
+       )
        AND (
          p_cursor_at IS NULL
          OR message."createdAt" > p_cursor_at
@@ -345,6 +364,12 @@ BEGIN
    WHERE message."conversationId" = p_conversation_id
      AND message."senderId" = p_buyer_user_id
      AND message.kind = 'custom_order_request'
+     AND (
+       p_user_id IN (message."senderId", message."recipientId")
+       OR public.grainline_conversation_staff_report_visible(
+            message."conversationId"
+          )
+     )
    ORDER BY message."createdAt" DESC, message.id DESC
    LIMIT 1;
 END;
@@ -373,6 +398,7 @@ BEGIN
   IF p_reported_user_id IS NULL
      OR p_reported_user_id = ''
      OR pg_catalog.char_length(p_reported_user_id) > 191
+     OR p_target_type IS NULL
      OR p_target_type NOT IN ('MESSAGE', 'MESSAGE_THREAD')
      OR p_target_id IS NULL
      OR p_target_id = ''
@@ -501,6 +527,10 @@ BEGIN
   IF p_user_id IS NULL
      OR p_user_id !~ '^[A-Za-z0-9._:-]{1,128}$' THEN
     RAISE EXCEPTION 'conversation inbox actor is invalid' USING ERRCODE = '22023';
+  END IF;
+  IF p_archived IS NULL THEN
+    RAISE EXCEPTION 'conversation inbox archive state is invalid'
+      USING ERRCODE = '22023';
   END IF;
   IF p_query IS NOT NULL AND pg_catalog.char_length(p_query) > 200 THEN
     RAISE EXCEPTION 'conversation inbox query is too long' USING ERRCODE = '22023';
