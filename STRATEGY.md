@@ -130,6 +130,16 @@ silently bundle its cross-product authority into Message or Case. Complete
 that separate rollout before production promotion of either private-object
 path.
 
+The CM-A21 execution contract lives in `docs/direct-upload-rls-audit.md`.
+Public media needs a normalized multi-reference ledger because seller-owned
+images may validly appear in more than one Listing/Profile/Blog/Broadcast
+source; private Case/Message objects stay single-reference. The target posture
+is FORCE RLS with no direct runtime table access and only fixed
+record/verify/reference/release/cleanup/export operations. Refactor private
+attachment children to reference the lifecycle row rather than duplicate its
+key. Production promotion waits for aggregate legacy inspection, reference
+backfill, exact PostgreSQL proof and pooled-runtime postflight.
+
 ### Messaging architecture decision (2026-07-22)
 
 Keep one ordinary Conversation per unordered participant pair. Do not create a

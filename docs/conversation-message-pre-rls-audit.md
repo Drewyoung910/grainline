@@ -242,10 +242,11 @@ is necessary but not sufficient.
   silently claim or bundle an unreviewed ordinary-message migration.
 - **CM-A21 newly recorded during CM-A20 design:** `DirectUpload` is a shared
   public/private lifecycle ledger and remains a separate planned-RLS group.
-  The ordinary Message plan records why child-table RLS is not a substitute,
-  why the cross-product lifecycle conversion must not be hidden inside either
-  parent release, and why even that future RLS does not replace private R2
-  credential containment.
+  `docs/direct-upload-rls-audit.md` records why child-table RLS is not a
+  substitute, why public references must be shared while private references
+  remain exclusive, why the conversion must not be hidden inside either parent
+  release, and why even that future RLS does not replace private R2 credential
+  containment.
 - **Compatibility release guard extended:** the two additive pre-RLS migrations
   have a distinct exact-tree phase,
   `conversation-message-compatibility-reviewed`. Older SavedSearch and
