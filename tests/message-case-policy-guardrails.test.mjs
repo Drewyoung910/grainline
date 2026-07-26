@@ -50,16 +50,20 @@ describe("message and case policy guardrails", () => {
     const inbox = source("src/app/messages/page.tsx");
     const unreadCount = source("src/app/api/messages/unread-count/route.ts");
     const recipientSql = source("docs/rls-drafts/conversation-message-recipient-access.sql");
-
-    assert.match(inbox, /const blockedUserIdList = \[\.\.\.blockedUserIds\]/);
-    assert.ok(
-      inbox.indexOf("blockedUserIdList.length > 0") < inbox.indexOf("take: 51"),
-      "messages inbox must exclude blocked users before the capped query",
+    const inboxFunction = recipientSql.slice(
+      recipientSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_conversation_inbox"),
+      recipientSql.indexOf("REVOKE ALL ON FUNCTION", recipientSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_conversation_inbox")),
     );
+
+    assert.match(inbox, /listActorConversationInbox\(me\.id/);
+    assert.match(inbox, /limit: 51/);
     assert.match(inbox, /const hasMoreConversations = conversationRows\.length > 50/);
-    assert.match(inbox, /orderBy: \[\{ updatedAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(inbox, /orderBy: \[\{ updatedAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(inbox, /where: \{ recipientId: me\.id, readAt: null, conversation: \{ is: baseWhere \} \}/);
+    assert.doesNotMatch(inbox, /getBlockedUserIdsFor|prisma\.(?:conversation|message)\./);
+    assert.match(inboxFunction, /NOT EXISTS \(\s*SELECT 1\s*FROM public\."Block"/s);
+    assert.match(inboxFunction, /JOIN LATERAL \(\s*SELECT[\s\S]*FROM public\."Message"/);
+    assert.match(inboxFunction, /ORDER BY conversation\."updatedAt" DESC, conversation\.id DESC\s*LIMIT bounded_limit/);
+    assert.match(inboxFunction, /unread_message\."recipientId" = p_user_id/);
+    assert.match(inboxFunction, /unread_message\."readAt" IS NULL/);
 
     assert.match(unreadCount, /countActorUnreadMessages\(me\.id\)/);
     const unreadFunction = recipientSql.slice(

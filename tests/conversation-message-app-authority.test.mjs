@@ -67,6 +67,31 @@ describe("Conversation and Message application authority conversion", () => {
     assert.doesNotMatch(route, /prisma\.message\.count|getBlockedUserIdsFor/);
   });
 
+  it("moves the inbox, search, latest message, block filter, and unread grouping into one projection", () => {
+    const helper = source("src/lib/conversationMessageAuthority.ts");
+    const inbox = source("src/app/messages/page.tsx");
+    const recipientSql = source("docs/rls-drafts/conversation-message-recipient-access.sql");
+    const inboxFunction = recipientSql.slice(
+      recipientSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_conversation_inbox"),
+      recipientSql.indexOf("REVOKE ALL ON FUNCTION", recipientSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_conversation_inbox")),
+    );
+
+    assert.match(inbox, /listActorConversationInbox\(me\.id/);
+    assert.match(inbox, /archived: isArchivedTab/);
+    assert.match(inbox, /query: q/);
+    assert.match(inbox, /cursor: pageCursor/);
+    assert.match(inbox, /limit: 51/);
+    assert.doesNotMatch(inbox, /prisma\.(?:conversation|message)\.|getBlockedUserIdsFor/);
+    assert.match(helper, /public\.grainline_conversation_inbox/);
+    assert.match(helper, /conversation inbox RPC returned an invalid row/);
+    assert.match(helper, /conversation inbox unread count/);
+    assert.match(helper, /limit > 51/);
+    assert.match(inboxFunction, /p_user_id IN \(conversation\."userAId", conversation\."userBId"\)/);
+    assert.match(inboxFunction, /NOT EXISTS \(\s*SELECT 1\s*FROM public\."Block"/s);
+    assert.match(inboxFunction, /JOIN LATERAL \(\s*SELECT[\s\S]*FROM public\."Message"/);
+    assert.match(inboxFunction, /searched_message\.body ILIKE search_pattern ESCAPE/);
+  });
+
   it("keeps account export and report validation on actor-scoped projections", () => {
     const helper = source("src/lib/conversationMessageAuthority.ts");
     const accountExport = source("src/app/api/account/export/route.ts");

@@ -3,8 +3,6 @@ import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { Prisma } from "@prisma/client";
-import { getBlockedUserIdsFor } from "@/lib/blocks";
 import { parseFileMessageBody } from "@/lib/messageBodies";
 import { truncateText } from "@/lib/sanitize";
 import MessageTime from "@/components/MessageTime";
@@ -12,6 +10,7 @@ import { Search, X } from "@/components/icons";
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { parseMessageCursor } from "@/lib/messageCursor";
+import { listActorConversationInbox } from "@/lib/conversationMessageAuthority";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -109,111 +108,17 @@ async function MessagesInbox({
   const me = await prisma.user.findUnique({ where: { clerkId: userId } });
   if (!me) redirect("/sign-in?redirect_url=/messages");
 
-  const blockedUserIds = await getBlockedUserIdsFor(me.id);
-  const blockedUserIdList = [...blockedUserIds];
-
   const isArchivedTab = tab === "archived";
-
-  // Participation + archived filter depending on tab
-  const participationFilter = isArchivedTab
-    ? {
-        OR: [
-          { AND: [{ userAId: me.id }, { NOT: { archivedAAt: null } }] },
-          { AND: [{ userBId: me.id }, { NOT: { archivedBAt: null } }] },
-        ],
-      }
-    : {
-        OR: [
-          { AND: [{ userAId: me.id }, { archivedAAt: null }] },
-          { AND: [{ userBId: me.id }, { archivedBAt: null }] },
-        ],
-      };
-
-  // Build dynamic where with optional search
-  const baseWhere: Prisma.ConversationWhereInput = {
-    AND: [
-      participationFilter,
-      // Hide empty conversations from the inbox. `/messages/new?to=X` creates
-      // a conversation row up-front (so context/listing attaches atomically),
-      // but if the buyer never sends a message the thread shouldn't appear in
-      // either party's inbox. The thread becomes visible automatically once
-      // someone sends the first message.
-      { messages: { some: {} } },
-      blockedUserIdList.length > 0
-        ? {
-            userAId: { notIn: blockedUserIdList },
-            userBId: { notIn: blockedUserIdList },
-          }
-        : {},
-      q
-        ? {
-            OR: [
-              {
-                userA: {
-                  name: { contains: q, mode: "insensitive" },
-                },
-              },
-              {
-                userB: {
-                  name: { contains: q, mode: "insensitive" },
-                },
-              },
-              { contextListing: { title: { contains: q, mode: "insensitive" } } },
-              // any message in the conversation
-              { messages: { some: { body: { contains: q, mode: "insensitive" } } } },
-            ],
-          }
-        : {},
-    ],
-  };
-  const where: Prisma.ConversationWhereInput = {
-    AND: [
-      baseWhere,
-      pageCursor
-        ? {
-            OR: [
-              { updatedAt: { lt: pageCursor.createdAt } },
-              { updatedAt: pageCursor.createdAt, id: { lt: pageCursor.id! } },
-            ],
-          }
-        : {},
-    ],
-  };
-
-  // Pull conversations newest-first with one latest message + listing context thumb
-  const conversationRows = await prisma.conversation.findMany({
-    where,
-    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
-    take: 51,
-    include: {
-      userA: { select: { id: true, name: true, imageUrl: true } },
-      userB: { select: { id: true, name: true, imageUrl: true } },
-      messages: {
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        take: 1,
-        select: { id: true, body: true, kind: true, createdAt: true, senderId: true },
-      },
-      contextListing: {
-        select: {
-          id: true,
-          title: true,
-          photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
-        },
-      },
-    },
+  // The fixed projection applies participant, archive, reciprocal-block,
+  // non-empty-thread, search and stable keyset bounds in one statement.
+  const conversationRows = await listActorConversationInbox(me.id, {
+    archived: isArchivedTab,
+    query: q,
+    cursor: pageCursor,
+    limit: 51,
   });
   const hasMoreConversations = conversationRows.length > 50;
   const convos = conversationRows.slice(0, 50);
-
-  // Unread counts in one query
-  const unread = await prisma.message.groupBy({
-    by: ["conversationId"],
-    where: { recipientId: me.id, readAt: null, conversation: { is: baseWhere } },
-    _count: { _all: true },
-  });
-  const unreadByConvo = new Map<string, number>(
-    unread.map((u) => [u.conversationId, u._count._all]),
-  );
 
   // Prefer the seller's shop display name + custom avatar over Clerk's
   // imageUrl + legal name whenever the other party is a seller. Fetch all
@@ -221,7 +126,7 @@ async function MessagesInbox({
   const otherUserIds = Array.from(
     new Set(
       convos
-        .map((c) => (c.userAId === me.id ? c.userB?.id : c.userA?.id))
+        .map((c) => (c.userAId === me.id ? c.userB.id : c.userA.id))
         .filter((id): id is string => Boolean(id)),
     ),
   );
@@ -233,16 +138,12 @@ async function MessagesInbox({
     : [];
   const sellerByUserId = new Map(sellerProfiles.map((s) => [s.userId, s]));
 
-  // Enrich for rendering — exclude conversations with blocked users
-  const enrich = convos.filter((c) => {
+  const enrich = convos.map((c) => {
     const other = c.userAId === me.id ? c.userB : c.userA;
-    return !blockedUserIds.has(other.id);
-  }).map((c) => {
-    const other = c.userAId === me.id ? c.userB : c.userA;
-    const latest = c.messages[0] || null;
-    const unreadCount = unreadByConvo.get(c.id) || 0;
+    const latest = c.latestMessage;
+    const unreadCount = c.unreadCount;
     const latestFromMe = latest?.senderId === me.id;
-    const ctxThumb = c.contextListing?.photos?.[0]?.url ?? null;
+    const ctxThumb = c.contextListing?.photoUrl ?? null;
     const seller = sellerByUserId.get(other.id) ?? null;
     return { c, other, latest, unreadCount, latestFromMe, ctxThumb, seller };
   });

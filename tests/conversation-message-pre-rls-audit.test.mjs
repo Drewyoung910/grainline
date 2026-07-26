@@ -142,6 +142,8 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
     const inbox = source("src/app/messages/page.tsx");
     const thread = source("src/components/ThreadMessages.tsx");
     const list = source("src/app/api/messages/[id]/list/route.ts");
+    const authority = source("src/lib/conversationMessageAuthority.ts");
+    const recipientSql = source("docs/rls-drafts/conversation-message-recipient-access.sql");
     const schema = source("prisma/schema.prisma");
     const migration = source("prisma/migrations/20260722190000_prepare_conversation_message_scale_indexes/migration.sql");
 
@@ -150,9 +152,13 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
     assert.match(thread, /Load earlier messages/);
     assert.match(thread, /appendCursorParams\(url, cursor, "before"\)/);
     assert.match(list, /MESSAGE_POLL_LIMIT \+ 1/);
-    assert.match(inbox, /take: 51/);
+    assert.match(inbox, /listActorConversationInbox\(me\.id/);
+    assert.match(inbox, /cursor: pageCursor/);
+    assert.match(inbox, /limit: 51/);
+    assert.match(authority, /limit > 51/);
+    assert.match(recipientSql, /conversation\."updatedAt" < p_before_at/);
+    assert.match(recipientSql, /conversation\."updatedAt" = p_before_at\s*AND conversation\.id < p_before_id/);
     assert.match(inbox, /Older conversations/);
-    assert.match(inbox, /updatedAt: pageCursor\.createdAt, id: \{ lt: pageCursor\.id! \}/);
     assert.match(schema, /@@index\(\[conversationId, createdAt\(sort: Desc\), id\(sort: Desc\)\]\)/);
     assert.match(migration, /Message_conversationId_createdAt_id_idx/);
     assert.match(migration, /Conversation_userAId_updatedAt_id_idx/);

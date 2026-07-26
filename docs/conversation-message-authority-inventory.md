@@ -10,9 +10,9 @@ active from this work.
 TypeScript tree. The audited baseline was 50 direct Prisma operations plus 5
 raw SQL references. After the first compatible audit fixes it currently finds:
 
-- 16 direct Prisma Conversation or Message operations;
+- 14 direct Prisma Conversation or Message operations;
 - 2 raw SQL table references;
-- 18 remaining protected-table access points across 3 files.
+- 16 remaining protected-table access points across 2 files.
 
 The first application conversion checkpoint removed all seven direct
 Conversation/Message operations from list polling, stream polling, mark-read
@@ -75,6 +75,14 @@ no direct Message scan or update. Invalid result counts and database authority
 errors fail the whole deletion transaction instead of permitting partial
 privacy cleanup.
 
+The ninth checkpoint converted the inbox. One participant-scoped statement now
+applies archive state, reciprocal blocks, non-empty-thread visibility, bounded
+search, stable `(updatedAt, id)` keyset pagination, latest-message selection
+and per-thread unread counts before the 51-row cap. The typed wrapper validates
+participants, actor-specific archive state, listing/message projection shape,
+timestamps and non-negative safe unread counts. Seller profile display-name
+and avatar enrichment remains a separate unprotected-table query.
+
 The test `tests/conversation-message-rls-inventory.test.mjs` pins the count and
 the exact per-file/model/operation summary. A new access path must therefore be
 classified here instead of silently inheriting broad runtime authority. The
@@ -101,7 +109,7 @@ will intentionally fall as the design is implemented.
 
 | Files | Current responsibility | Migration destination |
 |---|---|---|
-| `src/app/messages/page.tsx` | Inbox, search, latest-message projection and unread grouping | One-statement participant inbox RPC |
+| `src/app/messages/page.tsx` | Inbox, search, latest-message projection and unread grouping | Converted: one-statement participant inbox projection applies visibility, search, latest-message, unread and keyset bounds |
 | `src/app/messages/[id]/page.tsx` | Participant or reported-thread view; user send; first response; thread bump; email throttle; archive state | Thread projection RPC plus fixed send, archive and email-claim operations |
 | `src/app/api/messages/[id]/{list,stream,read}/route.ts` | Poll/stream projection and mark-read | Converted: exact recipient projections with per-call authority; staff list review remains bounded while stream/mark-read remain participant-only |
 | `src/app/api/messages/unread-count/route.ts` | Participant unread total excluding blocked/archived threads | Converted: one-statement unread RPC |
@@ -153,7 +161,8 @@ will intentionally fall as the design is implemented.
 This inventory is complete only when every protected access (55 in the original
 baseline, 53 after compatible refactors, 37 after the first four authority
 conversion checkpoints, 30 after the first structured writes, 26 after
-custom-order-ready, 23 after seller metrics, 18 after account deletion) has an explicit
+custom-order-ready, 23 after seller metrics, 18 after account deletion, 16
+after inbox conversion) has an explicit
 destination, direct runtime INSERT/UPDATE/DELETE is removed, the compatible app
 passes before and after RLS, and PostgreSQL proof covers participant isolation,
 reported-staff access, structured write families, block/account races, archive

@@ -57,6 +57,38 @@ export type ActorMessageDeletionRedaction = {
   receivedRedacted: number;
 };
 
+export type ActorInboxConversation = {
+  id: string;
+  userAId: string;
+  userBId: string;
+  userA: {
+    id: string;
+    name: string | null;
+    imageUrl: string | null;
+  };
+  userB: {
+    id: string;
+    name: string | null;
+    imageUrl: string | null;
+  };
+  updatedAt: Date;
+  archivedAAt: Date | null;
+  archivedBAt: Date | null;
+  contextListing: {
+    id: string;
+    title: string;
+    photoUrl: string | null;
+  } | null;
+  latestMessage: {
+    id: string;
+    body: string;
+    kind: string | null;
+    createdAt: Date;
+    senderId: string;
+  };
+  unreadCount: number;
+};
+
 export type ActorCustomOrderRequest = {
   body: string;
   createdAt: Date;
@@ -111,6 +143,28 @@ type MessageRpcRow = {
   contextListingTitle: string | null;
   createdAt: Date;
   readAt: Date | null;
+};
+
+type ConversationInboxRpcRow = {
+  id: string;
+  userAId: string;
+  userBId: string;
+  userAName: string | null;
+  userAImageUrl: string | null;
+  userBName: string | null;
+  userBImageUrl: string | null;
+  updatedAt: Date;
+  archivedAAt: Date | null;
+  archivedBAt: Date | null;
+  contextListingId: string | null;
+  contextListingTitle: string | null;
+  contextListingPhotoUrl: string | null;
+  latestMessageId: string;
+  latestMessageBody: string;
+  latestMessageKind: string | null;
+  latestMessageCreatedAt: Date;
+  latestMessageSenderId: string;
+  unreadCount: CountValue;
 };
 
 type CountValue = number | bigint;
@@ -223,6 +277,99 @@ function validateMessageExportRow(row: ActorMessageExport): ActorMessageExport {
   return row;
 }
 
+function validateConversationInboxRow(
+  row: ConversationInboxRpcRow,
+  actorId: string,
+  archived: boolean,
+): ActorInboxConversation {
+  if (
+    typeof row !== "object"
+    || row === null
+    || typeof row.id !== "string"
+    || !isBoundedAuthorityId(row.id)
+    || typeof row.userAId !== "string"
+    || !isBoundedAuthorityId(row.userAId)
+    || typeof row.userBId !== "string"
+    || !isBoundedAuthorityId(row.userBId)
+    || row.userAId === row.userBId
+    || ![row.userAId, row.userBId].includes(actorId)
+    || !isNullableString(row.userAName)
+    || !isNullableString(row.userAImageUrl)
+    || !isNullableString(row.userBName)
+    || !isNullableString(row.userBImageUrl)
+    || !(row.updatedAt instanceof Date)
+    || !isNullableDate(row.archivedAAt)
+    || !isNullableDate(row.archivedBAt)
+    || !isNullableString(row.contextListingId)
+    || !isNullableString(row.contextListingTitle)
+    || !isNullableString(row.contextListingPhotoUrl)
+    || (
+      (row.contextListingId === null)
+      !== (row.contextListingTitle === null)
+    )
+    || (
+      row.contextListingId !== null
+      && !isBoundedAuthorityId(row.contextListingId)
+    )
+    || (row.contextListingId === null && row.contextListingPhotoUrl !== null)
+    || typeof row.latestMessageId !== "string"
+    || !isBoundedAuthorityId(row.latestMessageId)
+    || typeof row.latestMessageBody !== "string"
+    || !isNullableString(row.latestMessageKind)
+    || !(row.latestMessageCreatedAt instanceof Date)
+    || typeof row.latestMessageSenderId !== "string"
+    || !isBoundedAuthorityId(row.latestMessageSenderId)
+    || ![row.userAId, row.userBId].includes(row.latestMessageSenderId)
+    || (
+      archived
+      !== (
+        row.userAId === actorId
+          ? row.archivedAAt !== null
+          : row.archivedBAt !== null
+      )
+    )
+  ) {
+    throw new TypeError("conversation inbox RPC returned an invalid row");
+  }
+
+  return {
+    id: row.id,
+    userAId: row.userAId,
+    userBId: row.userBId,
+    userA: {
+      id: row.userAId,
+      name: row.userAName,
+      imageUrl: row.userAImageUrl,
+    },
+    userB: {
+      id: row.userBId,
+      name: row.userBName,
+      imageUrl: row.userBImageUrl,
+    },
+    updatedAt: row.updatedAt,
+    archivedAAt: row.archivedAAt,
+    archivedBAt: row.archivedBAt,
+    contextListing: row.contextListingId === null
+      ? null
+      : {
+          id: row.contextListingId,
+          title: row.contextListingTitle as string,
+          photoUrl: row.contextListingPhotoUrl,
+        },
+    latestMessage: {
+      id: row.latestMessageId,
+      body: row.latestMessageBody,
+      kind: row.latestMessageKind,
+      createdAt: row.latestMessageCreatedAt,
+      senderId: row.latestMessageSenderId,
+    },
+    unreadCount: requireSafeCount(
+      row.unreadCount,
+      "conversation inbox unread count",
+    ),
+  };
+}
+
 export async function getActorConversation(
   userId: string,
   conversationId: string,
@@ -299,6 +446,57 @@ export async function countActorUnreadMessages(
     throw new TypeError("message unread RPC returned no row");
   }
   return requireSafeCount(rows[0].count, "message unread RPC");
+}
+
+export async function listActorConversationInbox(
+  userId: string,
+  {
+    archived,
+    query,
+    cursor,
+    limit,
+  }: {
+    archived: boolean;
+    query: string;
+    cursor: MessageCursor | null;
+    limit: number;
+  },
+  db: ConversationMessageAuthorityClient = prisma,
+): Promise<ActorInboxConversation[]> {
+  const actorId = normalizeDbUserContextUserId(userId);
+  if (
+    typeof archived !== "boolean"
+    || typeof query !== "string"
+    || query.length > 200
+    || !Number.isSafeInteger(limit)
+    || limit < 1
+    || limit > 51
+    || (
+      cursor !== null
+      && (
+        !(cursor.createdAt instanceof Date)
+        || !Number.isFinite(cursor.createdAt.getTime())
+        || cursor.id === null
+        || !isBoundedAuthorityId(cursor.id)
+      )
+    )
+  ) {
+    throw new TypeError("conversation inbox RPC input is invalid");
+  }
+  const rows = await db.$queryRaw<ConversationInboxRpcRow[]>`
+    SELECT *
+      FROM public.grainline_conversation_inbox(
+        ${actorId}::text,
+        ${archived}::boolean,
+        ${query}::text,
+        ${cursor?.createdAt ?? null}::timestamp,
+        ${cursor?.id ?? null}::text,
+        ${limit}::integer
+      )
+  `;
+  return rows.map((row) =>
+    validateConversationInboxRow(row, actorId, archived)
+  );
 }
 
 export async function markActorConversationMessagesRead(
