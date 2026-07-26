@@ -105,6 +105,14 @@ authority, legacy object mutation or proof claims into the Case activation.
 Keep new private direct-message uploads image-only unless malware scanning and
 quarantine for PDFs are explicitly designed and proven.
 
+For the active Case lifecycle checkpoint, proof fidelity is part of the gate:
+the first accepted 14-ordering PostgreSQL run remains valid only for its modeled
+subset because its mark-resolved/cron helpers used stronger post-lock time
+semantics than the corresponding application routes and did not contend staff
+resolution against replies. Do not advance from compatible integrity work
+until the corrected exact branch passes all 21 two-session orderings with the
+real refund sentinel, Order-then-Case locks and post-wait PostgreSQL timestamps.
+
 ### Messaging architecture decision (2026-07-22)
 
 Keep one ordinary Conversation per unordered participant pair. Do not create a

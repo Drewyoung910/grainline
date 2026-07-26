@@ -13,6 +13,7 @@ import {
   canCreateCaseMessageForStatus,
   caseMessageStatusTransition,
 } from "../src/lib/caseMessagingState.ts";
+import { REFUND_LOCK_SENTINEL } from "../src/lib/refundLockState.ts";
 
 const DATABASE_NAME = "grainline_ci";
 const PROOF_ENV = "CASE_LIFECYCLE_PROOF_DATABASE_URL";
@@ -20,6 +21,7 @@ const TRANSACTION_OPTIONS = Object.freeze({ maxWait: 5_000, timeout: 15_000 });
 const ids = Object.freeze({
   buyer: "case-lifecycle-proof-buyer",
   seller: "case-lifecycle-proof-seller",
+  staff: "case-lifecycle-proof-staff",
   sellerProfile: "case-lifecycle-proof-seller-profile",
   listing: "case-lifecycle-proof-listing",
   order: "case-lifecycle-proof-order",
@@ -89,7 +91,7 @@ async function cleanupFixtures(client) {
   await client.adminAuditLog.deleteMany({
     where: {
       OR: [
-        { adminId: { in: [ids.buyer, ids.seller] } },
+        { adminId: { in: [ids.buyer, ids.seller, ids.staff] } },
         { targetId: { startsWith: "case-lifecycle-proof-case-" } },
       ],
     },
@@ -99,7 +101,9 @@ async function cleanupFixtures(client) {
   await client.order.deleteMany({ where: { id: ids.order } });
   await client.listing.deleteMany({ where: { id: ids.listing } });
   await client.sellerProfile.deleteMany({ where: { id: ids.sellerProfile } });
-  await client.user.deleteMany({ where: { id: { in: [ids.buyer, ids.seller] } } });
+  await client.user.deleteMany({
+    where: { id: { in: [ids.buyer, ids.seller, ids.staff] } },
+  });
 }
 
 async function seedFixtures(client) {
@@ -117,6 +121,13 @@ async function seedFixtures(client) {
         clerkId: "clerk-case-lifecycle-proof-seller",
         email: "case-lifecycle-proof-seller@example.invalid",
         name: "Case Lifecycle Proof Seller",
+      },
+      {
+        id: ids.staff,
+        clerkId: "clerk-case-lifecycle-proof-staff",
+        email: "case-lifecycle-proof-staff@example.invalid",
+        name: "Case Lifecycle Proof Staff",
+        role: "ADMIN",
       },
     ],
   });
@@ -406,7 +417,7 @@ async function attemptRefundReservation(tx) {
   const lockedAt = await databaseClockTimestamp(tx);
   const count = await tx.$executeRaw`
     UPDATE "Order"
-    SET "sellerRefundId" = '__refund_in_progress__',
+    SET "sellerRefundId" = ${REFUND_LOCK_SENTINEL},
         "sellerRefundLockedAt" = ${lockedAt}
     WHERE id = ${ids.order}
       AND "sellerRefundId" IS NULL
@@ -475,16 +486,40 @@ async function attemptReply(tx, { actorId, body, suffix }) {
 }
 
 async function attemptBuyerMarkResolved(tx, caseId) {
+  assert.equal(await lockOrderForCaseLifecycle(tx, ids.order), true);
+  const order = await tx.order.findUnique({
+    where: { id: ids.order },
+    select: { sellerRefundId: true },
+  });
+  assert.ok(order, "locked proof Order disappeared");
+  if (order.sellerRefundId) {
+    return { at: null, count: 0, outcome: "rejected_refund" };
+  }
+  assert.equal(await lockCaseForLifecycle(tx, caseId), true);
+  const caseRecord = await tx.case.findUnique({ where: { id: caseId } });
+  assert.ok(caseRecord, "locked proof Case disappeared");
+  if (
+    caseRecord.status !== "OPEN"
+    && caseRecord.status !== "IN_DISCUSSION"
+    && caseRecord.status !== "PENDING_CLOSE"
+  ) {
+    return { at: null, count: 0, outcome: "rejected_status" };
+  }
+  const transitionAt = await databaseClockTimestamp(tx);
   const rows = await tx.$queryRaw`
     UPDATE "Case"
     SET "buyerMarkedResolved" = true,
         status = 'PENDING_CLOSE'::"CaseStatus",
-        "updatedAt" = pg_catalog.clock_timestamp()
+        "updatedAt" = ${transitionAt}
     WHERE id = ${caseId}
       AND status::text IN ('OPEN', 'IN_DISCUSSION', 'PENDING_CLOSE')
     RETURNING id
   `;
-  return rows.length;
+  return {
+    at: rows.length === 1 ? transitionAt : null,
+    count: rows.length,
+    outcome: rows.length === 1 ? "updated" : "rejected_status",
+  };
 }
 
 async function attemptCronEscalation(tx, caseId) {
@@ -500,9 +535,71 @@ async function attemptCronEscalation(tx, caseId) {
           AND "escalateUnlocksAt" < pg_catalog.clock_timestamp()
         )
       )
-    RETURNING id
+    RETURNING id, "updatedAt"
   `;
-  return rows.length;
+  return {
+    at: rows[0]?.updatedAt ?? null,
+    count: rows.length,
+  };
+}
+
+async function attemptStaffDismissal(tx, caseId) {
+  assert.equal(await lockOrderForCaseLifecycle(tx, ids.order), true);
+  assert.equal(await lockCaseForLifecycle(tx, caseId), true);
+  const caseRecord = await tx.case.findUnique({ where: { id: caseId } });
+  const staff = await tx.user.findUnique({ where: { id: ids.staff } });
+  assert.ok(caseRecord, "locked proof Case disappeared");
+  assert.equal(staff?.role, "ADMIN");
+  if (
+    caseRecord.resolvedAt
+    || caseRecord.status === "RESOLVED"
+    || caseRecord.status === "CLOSED"
+  ) {
+    return { at: null, outcome: "rejected_status" };
+  }
+  const transitionAt = await databaseClockTimestamp(tx);
+  await tx.order.update({
+    where: { id: ids.order },
+    data: {
+      reviewNeeded: true,
+      reviewNote: "Disposable Case lifecycle staff dismissal.",
+    },
+  });
+  await tx.case.update({
+    where: { id: caseId },
+    data: {
+      status: "RESOLVED",
+      resolution: "DISMISSED",
+      resolvedAt: transitionAt,
+      resolvedById: ids.staff,
+      updatedAt: transitionAt,
+    },
+  });
+  await tx.caseMessage.create({
+    data: {
+      id: `case-lifecycle-proof-message-${caseId.split("-").at(-1)}-dismissed`,
+      caseId,
+      authorId: ids.staff,
+      authorKind: "STAFF",
+      body: "Grainline reviewed this case and dismissed it.",
+      createdAt: transitionAt,
+    },
+  });
+  await tx.adminAuditLog.create({
+    data: {
+      adminId: ids.staff,
+      action: "RESOLVE_CASE",
+      targetType: "CASE",
+      targetId: caseId,
+      reason: "DISMISSED",
+      metadata: {
+        orderId: ids.order,
+        resolution: "DISMISSED",
+        at: transitionAt.toISOString(),
+      },
+    },
+  });
+  return { at: transitionAt, outcome: "resolved" };
 }
 
 function recordCheck(checks, name, result) {
@@ -718,7 +815,10 @@ async function runProof({ databaseUrl }) {
       secondWork: (tx) => attemptBuyerMarkResolved(tx, caseRecord.id),
     });
     assert.equal(result.firstResult.transition, "party_reopened_pending_close");
-    assert.equal(result.secondResult, 1);
+    assert.equal(result.secondResult.count, 1);
+    assert.ok(
+      result.secondResult.at.getTime() >= result.firstResult.at.getTime(),
+    );
     caseRecord = await observer.case.findUniqueOrThrow({
       where: { id: caseRecord.id },
     });
@@ -744,8 +844,11 @@ async function runProof({ databaseUrl }) {
           suffix: "pendingmarkfirst-second",
         }),
     });
-    assert.equal(result.firstResult, 1);
+    assert.equal(result.firstResult.count, 1);
     assert.equal(result.secondResult.transition, "party_reopened_pending_close");
+    assert.ok(
+      result.secondResult.at.getTime() >= result.firstResult.at.getTime(),
+    );
     caseRecord = await observer.case.findUniqueOrThrow({
       where: { id: caseRecord.id },
     });
@@ -753,6 +856,40 @@ async function runProof({ databaseUrl }) {
     assert.equal(caseRecord.buyerMarkedResolved, false);
     assert.equal(caseRecord.sellerMarkedResolved, false);
     recordCheck(checks, "resolution_mark_before_pending_close_reply", result);
+
+    caseRecord = await resetCase(observer, "refundmarkfirst", {
+      status: "IN_DISCUSSION",
+      discussionStartedAt: new Date(Date.now() - 60_000),
+      escalateUnlocksAt: new Date(Date.now() + 60_000),
+    });
+    result = await runContendedOrdering({
+      observer,
+      firstClient: first,
+      secondClient: second,
+      secondApplicationName: "case-lifecycle-proof-second",
+      firstWork: attemptRefundReservation,
+      secondWork: (tx) => attemptBuyerMarkResolved(tx, caseRecord.id),
+    });
+    assert.equal(result.firstResult, 1);
+    assert.equal(result.secondResult.outcome, "rejected_refund");
+    recordCheck(checks, "refund_reservation_before_resolution_mark", result);
+
+    caseRecord = await resetCase(observer, "markrefundfirst", {
+      status: "IN_DISCUSSION",
+      discussionStartedAt: new Date(Date.now() - 60_000),
+      escalateUnlocksAt: new Date(Date.now() + 60_000),
+    });
+    result = await runContendedOrdering({
+      observer,
+      firstClient: first,
+      secondClient: second,
+      secondApplicationName: "case-lifecycle-proof-second",
+      firstWork: (tx) => attemptBuyerMarkResolved(tx, caseRecord.id),
+      secondWork: attemptRefundReservation,
+    });
+    assert.equal(result.firstResult.outcome, "updated");
+    assert.equal(result.secondResult, 1);
+    recordCheck(checks, "resolution_mark_before_refund_reservation", result);
 
     caseRecord = await resetCase(observer, "replycronfirst", {
       status: "OPEN",
@@ -772,7 +909,7 @@ async function runProof({ databaseUrl }) {
       secondWork: (tx) => attemptCronEscalation(tx, caseRecord.id),
     });
     assert.equal(result.firstResult.transition, "seller_started_discussion");
-    assert.equal(result.secondResult, 0);
+    assert.equal(result.secondResult.count, 0);
     recordCheck(checks, "seller_reply_before_cron", result);
 
     caseRecord = await resetCase(observer, "cronreplyfirst", {
@@ -792,11 +929,134 @@ async function runProof({ databaseUrl }) {
           suffix: "cronreplyfirst-second",
         }),
     });
-    assert.equal(result.firstResult, 1);
+    assert.equal(result.firstResult.count, 1);
     assert.equal(result.secondResult.outcome, "rejected_status");
     recordCheck(checks, "cron_before_seller_reply", result);
 
-    assert.equal(checks.length, 14);
+    caseRecord = await resetCase(observer, "discussioncron", {
+      status: "IN_DISCUSSION",
+      discussionStartedAt: new Date(Date.now() - 120_000),
+      escalateUnlocksAt: new Date(Date.now() - 60_000),
+    });
+    result = await runContendedOrdering({
+      observer,
+      firstClient: first,
+      secondClient: second,
+      secondApplicationName: "case-lifecycle-proof-second",
+      firstWork: (tx) =>
+        attemptReply(tx, {
+          actorId: ids.buyer,
+          body: "Discussion reply commits before eligible cron escalation.",
+          suffix: "discussioncron-first",
+        }),
+      secondWork: (tx) => attemptCronEscalation(tx, caseRecord.id),
+    });
+    assert.equal(result.firstResult.outcome, "created");
+    assert.equal(result.secondResult.count, 1);
+    assert.ok(
+      result.secondResult.at.getTime() >= result.firstResult.at.getTime(),
+    );
+    recordCheck(
+      checks,
+      "discussion_reply_before_cron_keeps_time_monotonic",
+      result,
+    );
+
+    caseRecord = await resetCase(observer, "replydismissfirst", {
+      status: "IN_DISCUSSION",
+      discussionStartedAt: new Date(Date.now() - 60_000),
+      escalateUnlocksAt: new Date(Date.now() + 60_000),
+    });
+    result = await runContendedOrdering({
+      observer,
+      firstClient: first,
+      secondClient: second,
+      secondApplicationName: "case-lifecycle-proof-second",
+      firstWork: (tx) =>
+        attemptReply(tx, {
+          actorId: ids.buyer,
+          body: "Reply commits before staff dismissal.",
+          suffix: "replydismissfirst-first",
+        }),
+      secondWork: (tx) => attemptStaffDismissal(tx, caseRecord.id),
+    });
+    assert.equal(result.firstResult.outcome, "created");
+    assert.equal(result.secondResult.outcome, "resolved");
+    assert.ok(
+      result.secondResult.at.getTime() >= result.firstResult.at.getTime(),
+    );
+    const dismissedMessages = await observer.caseMessage.findMany({
+      where: { caseId: caseRecord.id },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      select: { authorKind: true, createdAt: true },
+    });
+    assert.equal(dismissedMessages.at(-1)?.authorKind, "STAFF");
+    assert.equal(
+      dismissedMessages.at(-1)?.createdAt.getTime(),
+      result.secondResult.at.getTime(),
+    );
+    recordCheck(checks, "reply_before_staff_dismissal", result);
+
+    caseRecord = await resetCase(observer, "markdismissfirst", {
+      status: "IN_DISCUSSION",
+      discussionStartedAt: new Date(Date.now() - 60_000),
+      escalateUnlocksAt: new Date(Date.now() + 60_000),
+    });
+    result = await runContendedOrdering({
+      observer,
+      firstClient: first,
+      secondClient: second,
+      secondApplicationName: "case-lifecycle-proof-second",
+      firstWork: (tx) => attemptBuyerMarkResolved(tx, caseRecord.id),
+      secondWork: (tx) => attemptStaffDismissal(tx, caseRecord.id),
+    });
+    assert.equal(result.firstResult.outcome, "updated");
+    assert.equal(result.secondResult.outcome, "resolved");
+    assert.ok(
+      result.secondResult.at.getTime() >= result.firstResult.at.getTime(),
+    );
+    recordCheck(checks, "resolution_mark_before_staff_dismissal", result);
+
+    caseRecord = await resetCase(observer, "dismissmarkfirst", {
+      status: "IN_DISCUSSION",
+      discussionStartedAt: new Date(Date.now() - 60_000),
+      escalateUnlocksAt: new Date(Date.now() + 60_000),
+    });
+    result = await runContendedOrdering({
+      observer,
+      firstClient: first,
+      secondClient: second,
+      secondApplicationName: "case-lifecycle-proof-second",
+      firstWork: (tx) => attemptStaffDismissal(tx, caseRecord.id),
+      secondWork: (tx) => attemptBuyerMarkResolved(tx, caseRecord.id),
+    });
+    assert.equal(result.firstResult.outcome, "resolved");
+    assert.equal(result.secondResult.outcome, "rejected_status");
+    recordCheck(checks, "staff_dismissal_before_resolution_mark", result);
+
+    caseRecord = await resetCase(observer, "dismissreplyfirst", {
+      status: "IN_DISCUSSION",
+      discussionStartedAt: new Date(Date.now() - 60_000),
+      escalateUnlocksAt: new Date(Date.now() + 60_000),
+    });
+    result = await runContendedOrdering({
+      observer,
+      firstClient: first,
+      secondClient: second,
+      secondApplicationName: "case-lifecycle-proof-second",
+      firstWork: (tx) => attemptStaffDismissal(tx, caseRecord.id),
+      secondWork: (tx) =>
+        attemptReply(tx, {
+          actorId: ids.seller,
+          body: "Reply loses after staff dismissal.",
+          suffix: "dismissreplyfirst-second",
+        }),
+    });
+    assert.equal(result.firstResult.outcome, "resolved");
+    assert.equal(result.secondResult.outcome, "rejected_status");
+    recordCheck(checks, "staff_dismissal_before_reply", result);
+
+    assert.equal(checks.length, 21);
     assert.ok(checks.every((check) => check.lockWaitObserved));
     return {
       checks,

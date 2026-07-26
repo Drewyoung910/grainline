@@ -149,7 +149,10 @@ describe("Round 10 state-machine guardrails", () => {
     assert.doesNotMatch(autoClose, /14\+ days past sellerRespondBy/);
     assert.match(autoClose, /status: "IN_DISCUSSION", updatedAt: \{ lt: discussionCutoff \}/);
     assert.match(autoClose, /staleDiscussionEscalated\+\+/);
-    assert.match(escalate, /status: "IN_DISCUSSION", escalateUnlocksAt: \{ lt: now \}/);
+    assert.match(
+      escalate,
+      /status = 'IN_DISCUSSION'::"CaseStatus"[\s\S]*"escalateUnlocksAt" < pg_catalog\.clock_timestamp\(\)/,
+    );
     assert.match(refund, /tx\.case\.updateMany\(\{\s*where: \{\s*id: existingCase\.id,\s*status: \{ notIn: \["RESOLVED", "CLOSED"\] \},\s*\}/s);
     assert.match(webhook, /tx\.case\.updateMany\(\{\s*where: \{ id: caseAction\.caseId, status: caseAction\.expectedStatus \}/s);
     assert.match(webhook, /resolvedAt: null/);

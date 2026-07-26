@@ -111,11 +111,15 @@ Disposable proof boundary (2026-07-26): the isolated branch includes
 `scripts/case-lifecycle-postgres-proof.mjs` and a branch-scoped PostgreSQL 16
 workflow. It refuses non-loopback targets and any database other than
 `grainline_ci`, uses separate named clients, requires an observed PostgreSQL
-`Lock` wait, cleans every synthetic row, and exercises 14 winner orderings:
-Case versus label/fulfillment/delivery-confirmation/refund, different-body and
-seller-first replies, pending-close reply versus a resolution mark, and seller
-reply versus cron escalation. The harness and its static contracts are green
-locally.
+`Lock` wait and cleans every synthetic row. After review found that the real
+mark-resolved, cron and staff-resolution routes were not fully represented by
+the first proof, the candidate now exercises 21 winner orderings: Case versus
+label/fulfillment/delivery-confirmation/refund, different-body and seller-first
+replies, pending-close reply versus resolution mark, seller/discussion reply
+versus cron, reply versus staff dismissal, resolution mark versus staff
+dismissal, and resolution mark versus refund reservation. The expanded harness
+and its static contracts are green locally; exact-head PostgreSQL execution is
+still required.
 
 Accepted disposable database proof: exact branch head
 `00c175fbae1421f69f39d78fb9a22fec071916f5`, GitHub Actions run
@@ -125,7 +129,11 @@ and the final grant/RLS catalog audit, then completed all 14 two-session
 orderings. Every check observed a PostgreSQL `transactionid` lock wait; the
 harness reported `status=passed`, `persistentStagingChanged=false` and
 `productionChanged=false`, and the service container was destroyed. The first
-run, `30215504361`, is retained failed evidence: Prisma rejected the mixed
+accepted run remains valid evidence for its 14 modeled orderings, but it is not
+the acceptance gate for the expanded 21-ordering candidate after the CC-A15
+fidelity finding. A fresh exact-head disposable PostgreSQL run must supersede
+it before this checkpoint closes. The earlier failed run, `30215504361`, is
+retained evidence: Prisma rejected the mixed
 three-statement concurrent-index migration with PostgreSQL `25001` before the
 race harness ran. Commit `4ede31b7` repaired the unapplied branch-only tree by
 keeping `CREATE INDEX CONCURRENTLY` alone and moving the two ordinary drops to
@@ -225,7 +233,7 @@ orderings, account deletion, cron/webhook/refund behavior and rollback.
 ## Phase 4: compatible application conversion
 
 - Deploy fixed functions while retaining old direct grants.
-- Convert every current protected reference to its explicit destination (81 in
+- Convert every current protected reference to its explicit destination (83 in
   the Phase 1B snapshot; the exact scanner gate controls later drift).
 - Keep an exact zero-direct-access inventory gate.
 - Prove buyer, seller, staff, cron, Stripe, refund, fulfillment, export,

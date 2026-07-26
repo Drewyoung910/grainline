@@ -155,4 +155,74 @@ describe("Case and Order lifecycle lock protocol", () => {
     );
     assert.doesNotMatch(write, /CASE_STATUS_CHANGED|tx\.case\.updateMany/);
   });
+
+  it("locks Order then Case for participant resolution marks and staff resolution", () => {
+    const markResolved = source(
+      "src/app/api/cases/[id]/mark-resolved/route.ts",
+    );
+    const staffResolve = source("src/app/api/cases/[id]/resolve/route.ts");
+    const markWrite = markResolved.slice(
+      markResolved.indexOf("const result = await prisma.$transaction"),
+    );
+    const staffWrite = staffResolve.slice(
+      staffResolve.indexOf("const caseWrite = await prisma.$transaction"),
+    );
+
+    assertOrdered(markWrite, [
+      ["mark transaction", "const result = await prisma.$transaction"],
+      ["mark Order lock", "await lockOrderForCaseLifecycle"],
+      ["mark Case lock", "await lockCaseForLifecycle"],
+      ["mark fresh Case read", "await tx.case.findUnique"],
+      [
+        "mark post-lock timestamp",
+        "const transitionAt = await databaseClockTimestamp(tx)",
+      ],
+      ["mark transition", 'UPDATE "Case"'],
+      ["mark audit", "await logAdminActionOrThrow"],
+    ]);
+    assert.match(markWrite, /if \(lockedOrder\.sellerRefundId\)/);
+    assert.match(markWrite, /"updatedAt" = \$\{transitionAt\}/);
+
+    assertOrdered(staffWrite, [
+      ["staff transaction", "const caseWrite = await prisma.$transaction"],
+      ["staff Order lock", "await lockOrderForCaseLifecycle"],
+      ["staff Case lock", "await lockCaseForLifecycle"],
+      ["staff fresh Case read", "await tx.case.findUnique"],
+      ["staff fresh actor read", "await tx.user.findUnique"],
+      [
+        "staff post-lock timestamp",
+        "const transitionAt = await databaseClockTimestamp(tx)",
+      ],
+      ["staff Case transition", "const caseUpdate = await tx.case.updateMany"],
+      [
+        "staff resolution message",
+        "const resolutionMessage = await tx.caseMessage.create",
+      ],
+      ["staff audit", "await logAdminActionOrThrow"],
+    ]);
+    assert.match(staffWrite, /createdAt: transitionAt/);
+    assert.match(staffWrite, /resolvedAt: transitionAt/);
+    assert.match(staffWrite, /updatedAt: transitionAt/);
+    assert.match(staffWrite, /CASE_RESOLUTION_AUTHORITY_CHANGED/);
+  });
+
+  it("uses per-row PostgreSQL clock time for bulk cron escalation", () => {
+    const route = source("src/app/api/cases/[id]/escalate/route.ts");
+    const bulk = route.slice(
+      route.indexOf("// Bulk escalation: staff/cron only"),
+      route.indexOf("// Single case escalation"),
+    );
+
+    assert.match(bulk, /UPDATE "Case"/);
+    assert.match(bulk, /"updatedAt" = pg_catalog\.clock_timestamp\(\)/);
+    assert.match(
+      bulk,
+      /"sellerRespondBy" < pg_catalog\.clock_timestamp\(\)/,
+    );
+    assert.match(
+      bulk,
+      /"escalateUnlocksAt" < pg_catalog\.clock_timestamp\(\)/,
+    );
+    assert.doesNotMatch(bulk, /const now = new Date\(\)/);
+  });
 });

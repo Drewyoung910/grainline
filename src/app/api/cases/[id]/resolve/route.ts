@@ -45,6 +45,11 @@ import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { requireStaffAdminPinForApi } from "@/lib/adminPinApi";
+import {
+  databaseClockTimestamp,
+  lockCaseForLifecycle,
+  lockOrderForCaseLifecycle,
+} from "@/lib/caseLifecycleLocks";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
@@ -271,6 +276,30 @@ export async function POST(
           { status: HTTP_STATUS.CONFLICT },
         );
       }
+      const currentStaff = await prisma.user.findUnique({
+        where: { id: me.id },
+        select: { role: true, banned: true, deletedAt: true },
+      });
+      if (
+        !currentStaff
+        || currentStaff.banned
+        || currentStaff.deletedAt
+        || (
+          currentStaff.role !== "EMPLOYEE"
+          && currentStaff.role !== "ADMIN"
+        )
+      ) {
+        await releaseCaseRefundLock().catch((dbError) => {
+          Sentry.captureException(dbError, {
+            tags: { source: "case_refund_lock_release_failed" },
+            extra: { caseId: id, orderId: caseRecord.orderId },
+          });
+        });
+        return privateJson(
+          { error: "Your staff authority changed. Refresh and try again." },
+          { status: HTTP_STATUS.FORBIDDEN },
+        );
+      }
 
       try {
         const refund = await createMarketplaceRefund({
@@ -325,18 +354,9 @@ export async function POST(
       }
     }
 
-    const now = new Date();
     const persistedRefundAmountDisplay = persistedRefundAmountCents
       ? formatCurrencyCents(persistedRefundAmountCents, caseRecord.order.currency)
       : null;
-    const resolutionNote = [
-      `Case resolved: ${resolution}`,
-      persistedRefundAmountDisplay ? `(refund: ${persistedRefundAmountDisplay})` : null,
-      refundNote,
-      `by ${me.name ?? me.email} at ${now.toISOString()}`,
-    ]
-      .filter(Boolean)
-      .join(" ");
     const sellerResolutionMessage = caseResolutionSellerMessage(
       resolution,
       persistedRefundAmountCents,
@@ -356,6 +376,65 @@ export async function POST(
     let stockStatusRestoredCount = 0;
     try {
       const caseWrite = await prisma.$transaction(async (tx) => {
+        const orderExists = await lockOrderForCaseLifecycle(
+          tx,
+          caseRecord.orderId,
+        );
+        if (!orderExists) {
+          throw new Error("CASE_RESOLUTION_CONFLICT");
+        }
+        const caseExists = await lockCaseForLifecycle(tx, id);
+        if (!caseExists) {
+          throw new Error("CASE_RESOLUTION_CONFLICT");
+        }
+        const lockedCase = await tx.case.findUnique({
+          where: { id },
+          select: {
+            orderId: true,
+            buyerId: true,
+            sellerId: true,
+            status: true,
+            resolvedAt: true,
+          },
+        });
+        const lockedActor = await tx.user.findUnique({
+          where: { id: me.id },
+          select: { role: true, banned: true, deletedAt: true },
+        });
+        if (
+          !lockedCase
+          || lockedCase.orderId !== caseRecord.orderId
+          || lockedCase.buyerId !== caseRecord.buyerId
+          || lockedCase.sellerId !== caseRecord.sellerId
+          || lockedCase.resolvedAt
+          || lockedCase.status === "RESOLVED"
+          || lockedCase.status === "CLOSED"
+        ) {
+          throw new Error("CASE_RESOLUTION_CONFLICT");
+        }
+        if (
+          !lockedActor
+          || lockedActor.banned
+          || lockedActor.deletedAt
+          || (
+            lockedActor.role !== "EMPLOYEE"
+            && lockedActor.role !== "ADMIN"
+          )
+        ) {
+          throw new Error("CASE_RESOLUTION_AUTHORITY_CHANGED");
+        }
+        const transitionAt = await databaseClockTimestamp(tx);
+        const resolutionNote = [
+          `Case resolved: ${resolution}`,
+          persistedRefundAmountDisplay
+            ? `(refund: ${persistedRefundAmountDisplay})`
+            : null,
+          refundNote,
+          `by ${me.name ?? me.email} at ${transitionAt.toISOString()}`,
+        ]
+          .filter(Boolean)
+          .join(" ");
+
         if (!refunding) {
           const orderResolutionGuard = await tx.order.updateMany({
             where: {
@@ -386,8 +465,9 @@ export async function POST(
             resolution,
             refundAmountCents: persistedRefundAmountCents,
             stripeRefundId,
-            resolvedAt: now,
+            resolvedAt: transitionAt,
             resolvedById: me.id,
+            updatedAt: transitionAt,
           },
         });
         if (caseUpdate.count === 0) {
@@ -400,6 +480,7 @@ export async function POST(
             authorId: me.id,
             authorKind: "STAFF",
             body: sellerResolutionMessage,
+            createdAt: transitionAt,
           },
           select: { id: true },
         });
@@ -417,6 +498,7 @@ export async function POST(
             refundAmountCents: persistedRefundAmountCents,
             stripeRefundId,
             resolutionMessageId: resolutionMessage.id,
+            at: transitionAt.toISOString(),
           },
         });
 
@@ -589,6 +671,23 @@ export async function POST(
         return privateJson(
           { error: "Case status changed before this resolution could be saved. Refresh and try again." },
           { status: HTTP_STATUS.CONFLICT },
+        );
+      }
+      if (
+        txErr instanceof Error
+        && txErr.message === "CASE_RESOLUTION_AUTHORITY_CHANGED"
+      ) {
+        return privateJson(
+          {
+            error: stripeRefundId
+              ? "Stripe accepted the refund, but staff authority changed before the case transition. Staff must reconcile this order."
+              : "Your staff authority changed. Refresh and try again.",
+          },
+          {
+            status: stripeRefundId
+              ? HTTP_STATUS.CONFLICT
+              : HTTP_STATUS.FORBIDDEN,
+          },
         );
       }
       if (txErr instanceof Error && txErr.message === "CASE_RESOLUTION_REFUND_IN_PROGRESS") {

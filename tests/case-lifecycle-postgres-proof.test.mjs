@@ -69,14 +69,24 @@ describe("Case lifecycle PostgreSQL proof harness", () => {
       "seller_first_reply_sets_one_discussion_clock",
       "pending_close_reply_before_resolution_mark",
       "resolution_mark_before_pending_close_reply",
+      "refund_reservation_before_resolution_mark",
+      "resolution_mark_before_refund_reservation",
       "seller_reply_before_cron",
       "cron_before_seller_reply",
+      "discussion_reply_before_cron_keeps_time_monotonic",
+      "reply_before_staff_dismissal",
+      "resolution_mark_before_staff_dismissal",
+      "staff_dismissal_before_resolution_mark",
+      "staff_dismissal_before_reply",
     ]) {
       assert.match(proof, new RegExp(`"${check}"`));
     }
     assert.match(proof, /caseMessageStatusTransition/);
     assert.match(proof, /canCreateCaseMessageForStatus/);
-    assert.match(proof, /checks\.length, 14/);
+    assert.match(proof, /import \{ REFUND_LOCK_SENTINEL \}/);
+    assert.match(proof, /"sellerRefundId" = \$\{REFUND_LOCK_SENTINEL\}/);
+    assert.doesNotMatch(proof, /__refund_in_progress__/);
+    assert.match(proof, /checks\.length, 21/);
   });
 
   it("cleans every fixture and records that no persistent environment changed", () => {
