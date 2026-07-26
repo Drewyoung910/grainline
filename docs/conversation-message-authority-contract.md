@@ -96,9 +96,9 @@ All fixed service families and both lock orderings for block, deletion,
 mark-read and archive races first passed at `940fcf2c` in GitHub Actions run
 `30179962784`. The later accepted proof below adds the exact aggregate-only
 legacy query, compatibility-window scope and malformed-payload handling. The
-remaining release work is the protected production inspection, functions-only
-promotion, application conversion and a fresh activation review of the
-promoted catalog as a set.
+remaining release work is the narrowly classified legacy cleanup and zero-count
+postflight, functions-only promotion, application conversion and a fresh
+activation review of the promoted catalog as a set.
 
 The first exact-query proof at `fb0e8dcb` is retained as failed GitHub Actions
 run `30180176533`: PostgreSQL 16 rejected an incorrect `regtype` argument to
@@ -141,18 +141,27 @@ relationship violation counts were zero except one historical
 `customLinkMissingContextCount` and `invalidCustomLinkSourceCount` are one.
 No ids, bodies, emails, raw rows or credentials were retained.
 
-That row is not authority to infer arbitrary historical message context. Before
-any cleanup or functions-only promotion, a fresh aggregate-only inspection must
-split missing custom-link context into:
+That row was not authority to infer arbitrary historical message context. A
+second protected aggregate-only inspection from exact merged main
+`09222adb3f693d6845d939a6b91766eb91b50444` ran in GitHub Actions
+`30182892742`, retained sanitized artifact `8626117408` (zip SHA-256
+`c2df2a5d4e01c7c75333171875a6a4071508ca095a18726a06f1dad545b2c157`),
+and split missing custom-link context into:
 
 - repairable only when a valid JSON `listingId` resolves to one private Listing
   whose seller, reserved buyer and custom-order Conversation exactly match the
   Message sender, recipient and Conversation; and
 - unrepairable for every other missing-context link.
 
-Cleanup remains blocked unless the production result is exactly one repairable
-and zero unrepairable. The cleanup must update only the validated row class and
-then prove all custom-link missing/invalid-source counts are zero.
+The result was exactly one repairable, zero unrepairable, one total missing and
+zero duplicate custom-link source groups; every other relationship/source count
+remained zero. No ids, bodies, emails, raw rows or credentials were retained.
+The separately approved cleanup candidate
+`20260726013500_repair_legacy_custom_order_link_context` therefore updates only
+that fully source-bound row class, fails closed for more than one candidate or
+any unrepairable candidate, and asserts zero missing, invalid or duplicate
+custom-link sources before commit. It is not live until its exact release proof,
+merge, protected migration and zero-count postflight pass.
 
 ## Cross-group dependencies to retain
 

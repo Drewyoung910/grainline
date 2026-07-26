@@ -8,10 +8,13 @@ zero policies. The complete authority-policy draft passed Extra-High review,
 disposable PostgreSQL 16 proof and full CI at `7a7654c3` in run `30180610380`;
 the first protected aggregate-only production inspection passed safely at
 exact main `aa487bfb` in run `30181030719` and found one legacy custom-order
-link without its new durable Listing source column. Exact aggregate
-repairability classification is next; cleanup and functions-only promotion
-remain blocked. No authority function or policy has been applied to a
-persistent database.
+link without its new durable Listing source column. The second protected
+aggregate-only inspection at exact main `09222adb` in run `30182892742`
+classified exactly one repairable and zero unrepairable rows, with every other
+relationship/source count zero. A narrow fail-closed cleanup is now the next
+candidate; functions-only promotion remains blocked until the cleanup and fresh
+zero-count postflight pass. No authority function or policy has been applied to
+a persistent database.
 
 ## Security objective
 
@@ -210,11 +213,14 @@ The direct runtime table query with no context must return zero rows.
    run `30181030719` retained only aggregate evidence and found four
    Conversations, 19 Messages and one custom-order-link row with missing
    `Message.contextListingId`; all other invalid relationship/source counts
-   were zero. Next, prove through aggregate counts that the row's valid legacy
-   payload resolves to the exact private Listing/seller/reserved
-   buyer/Conversation relationship. Require exactly one repairable and zero
-   unrepairable before a narrow cleanup; then rerun the full inspection and
-   require every custom-link missing/invalid count to be zero.**
+   were zero. The second exact-main run `30182892742` proved through aggregate
+   counts that exactly one row's valid legacy payload resolves to the exact
+   private Listing/seller/reserved buyer/Conversation relationship, with zero
+   unrepairable rows and zero duplicate sources. The approved cleanup candidate
+   is capped at one fully validated update, locks the source/target tables,
+   rejects malformed or expanded scope, and asserts zero missing, invalid or
+   duplicate custom-link sources. After its protected migration, rerun the full
+   inspection and require every custom-link missing/invalid count to be zero.**
 8. Initial `ENABLE`/explicit `NO FORCE` activation with exact two-table policy
    and grant guard, followed by runtime and authenticated route postflight.
 9. Separate `FORCE ROW LEVEL SECURITY` hardening and fresh postflight.

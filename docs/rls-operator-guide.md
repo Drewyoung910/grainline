@@ -25,9 +25,10 @@ does not authorize another.
 
 At this review date SavedSearch and Notification have production `ENABLE` plus
 `FORCE ROW LEVEL SECURITY`, and the Conversation/Message compatibility schema
-is live. Conversation/Message RLS is still disabled. The invariant and search
-index migrations are isolated candidates, not production state. Reverify live
-state before repeating these claims.
+and invariant/search-index migrations are live. Their actual pooled-runtime
+postflight passed. Conversation/Message RLS is still disabled with zero
+policies; the one-row legacy custom-link cleanup is a reviewed candidate, not
+production state. Reverify live state before repeating these claims.
 
 ## Tool map
 
@@ -61,6 +62,7 @@ Current values:
 | `notification-force-reviewed` | Notification FORCE |
 | `conversation-message-compatibility-reviewed` | Nullable listing context and compatible read indexes |
 | `conversation-message-invariants-reviewed` | Conversation/Message invariants and body-search index, with RLS still off |
+| `conversation-message-legacy-cleanup-reviewed` | At most one fully source-bound legacy custom-order-link context repair, with RLS still off |
 
 The phase is not a feature flag. It is exact-artifact human authorization and
 must fail when migration bytes or order change.

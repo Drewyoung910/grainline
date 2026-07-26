@@ -484,15 +484,38 @@ Production migration rules:
   them before deploying application code that selects or writes the new
   column. Any later migration fails this phase until separately reviewed and
   fingerprinted.
-- After that compatibility pair is applied and before adding Message
-  participant/context invariant triggers, manually dispatch
+- The live invariant checkpoint is guarded separately as
+  `SAVED_SEARCH_RLS_DEPLOY_PHASE=conversation-message-invariants-reviewed`.
+  It adds exactly
+  `20260722231500_enforce_conversation_message_invariants` and
+  `20260722232000_add_message_body_trgm_index` after compatibility, while
+  Conversation/Message RLS remains disabled. Do not reuse that phase for the
+  later cleanup or authority releases.
+- The next approved data-repair candidate is
+  `SAVED_SEARCH_RLS_DEPLOY_PHASE=conversation-message-legacy-cleanup-reviewed`.
+  It adds only
+  `20260726013500_repair_legacy_custom_order_link_context` after the live
+  invariant checkpoint, with migration-tree SHA-256
+  `4a0a3b620f7a2c36c7581dd2a1f75203d68232b0c913403b6d870d6140d0b1ff`.
+  The migration locks Listing, SellerProfile, Conversation and Message against
+  concurrent writes, permits zero rows on fresh/clean databases, refuses more
+  than one missing source or any unrepairable source, updates only the exact
+  private Listing/seller/reserved-buyer/Conversation relationship, and requires
+  zero missing, invalid or duplicate custom-link sources before commit. It does
+  not enable RLS or change grants.
+- Before cleanup, and again afterward as the required zero-count postflight,
+  manually dispatch
   `.github/workflows/conversation-message-legacy-inspection.yml` from the exact
   clean main commit. Supply that same 40-character commit and type
   `inspect-prelaunch-conversation-message-legacy-state`. The job is serialized
   with production migrations, uses only the protected direct owner secret, and
   writes mode-0600 aggregate evidence without ids, bodies, emails or
-  credentials. Do not treat a successful job with nonzero invalid-pair counts
-  as approval to continue; disposition those rows first.
+  credentials. The pre-cleanup classifier passed only because it returned
+  exactly one repairable and zero unrepairable missing custom-link source. The
+  post-cleanup run must return zero missing, repairable, unrepairable, invalid
+  and duplicate custom-link counts, with every other authority-invalid count
+  still zero. A successful job with unexpected nonzero counts is not approval
+  to continue.
 - If a migration adds RLS policies to a tracked public app table, the grant
   audit must show `ENABLE ROW LEVEL SECURITY` and the table's reviewed rollout
   phase must declare the exact `FORCE ROW LEVEL SECURITY` expectation. During

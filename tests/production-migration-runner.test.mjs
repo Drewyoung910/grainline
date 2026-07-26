@@ -191,7 +191,7 @@ describe("isolated production migration runner", () => {
     assert.match(workflow, /Verify exact source[\s\S]*?env:\s*\n\s+DIRECT_URL: \$\{\{ secrets\.PRODUCTION_MIGRATION_DIRECT_URL \}\}/);
     assert.match(
       workflow,
-      /Verify exact Conversation and Message invariant-preparation artifact[\s\S]{0,260}SAVED_SEARCH_RLS_DEPLOY_PHASE: conversation-message-invariants-reviewed[\s\S]{0,220}Verify Notification activation proof equivalence[\s\S]{0,180}audit:rls-notification-activation-release[\s\S]{0,220}Verify Notification FORCE release bytes[\s\S]{0,180}audit:rls-notification-force-release[\s\S]{0,300}Generate Prisma client/,
+      /Verify exact Conversation and Message legacy-cleanup artifact[\s\S]{0,260}SAVED_SEARCH_RLS_DEPLOY_PHASE: conversation-message-legacy-cleanup-reviewed[\s\S]{0,220}Verify Notification activation proof equivalence[\s\S]{0,180}audit:rls-notification-activation-release[\s\S]{0,220}Verify Notification FORCE release bytes[\s\S]{0,180}audit:rls-notification-force-release[\s\S]{0,300}Generate Prisma client/,
     );
     assert.equal(vercel.buildCommand, "npm run guard:runtime-db-env && npm run build");
     assert.doesNotMatch(vercel.buildCommand, /migrat/i);
