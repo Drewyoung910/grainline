@@ -115,6 +115,17 @@ catalog comparison confirmed the same exact deparse shape on both tables. The
 correction pins the full server-deparsed expression instead of relaxing the
 comparison. Production was unchanged.
 
+Corrected-head dedicated run `30207052942` and full run `30207054327` then
+applied all 159 migrations successfully and exposed a separate provisioning
+guard defect. The existing convergence predicate treated paired FORCE as
+partial state, while psql ignored every unsupported `\quit 1` argument and
+returned success before ACL/default-privilege convergence. The downstream
+grant audit caught `_prisma_migrations` CRUD and missing sequence defaults.
+The class-wide correction accepts only consistent paired NO-FORCE or paired
+FORCE activation and replaces all twelve soft quits with real SQL exceptions
+under `ON_ERROR_STOP`. Both runs remain failed evidence; production was
+unchanged.
+
 ## Security objective
 
 Protect private conversation metadata, message bodies and attachments from

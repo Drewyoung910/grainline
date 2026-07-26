@@ -31,6 +31,11 @@ Current Conversation/Message production boundary:
   `0bc28692fd3eef7a72cd1a7207ce977a71482b700ab111b6e807028cee6e9672`.
   Do not call FORCE complete before fresh PostgreSQL CI, Extra-High review,
   exact-main protected migration and a pooled-runtime postflight.
+- `scripts/provision-runtime-db-role.sql` must use SQL exceptions under
+  `ON_ERROR_STOP` for every refusal; `\quit 1` is not a reliable nonzero exit
+  with the current GitHub psql client. Its Conversation/Message predicate may
+  accept paired NO-FORCE or paired FORCE activation, but must reject a mixed
+  FORCE pair before converging grants.
 
 ## Incident Triage
 

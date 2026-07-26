@@ -40,6 +40,13 @@ Extra-High acceptance, exact-main protected migration and pooled-runtime
 postflight are still required. Reverify live state before repeating these
 claims.
 
+Role provisioning must fail through a SQL exception under `ON_ERROR_STOP`.
+Do not use `\quit 1`: the current GitHub psql client warns that the argument is
+ignored and can return success after a failed guard. The Conversation/Message
+convergence predicate accepts only a consistent pair of activated NO-FORCE
+tables or a consistent pair of activated FORCE tables; mixed FORCE state is a
+hard failure.
+
 ## Tool map
 
 | Tool | Purpose | A pass does not mean |

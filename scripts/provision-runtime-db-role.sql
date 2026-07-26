@@ -24,13 +24,21 @@
 \if :{?runtime_role}
 \else
 \echo 'missing required psql variable: -v runtime_role=grainline_app_runtime'
-\quit 1
+DO $grainline_role_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_role_provisioning_abort$;
 \endif
 
 \if :{?migration_role}
 \else
 \echo 'missing required psql variable: -v migration_role=grainline_migration_owner'
-\quit 1
+DO $grainline_role_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_role_provisioning_abort$;
 \endif
 
 WITH failure AS (
@@ -48,7 +56,11 @@ SELECT
 \gset
 \if :grainline_role_provisioning_failed
 \echo :grainline_role_provisioning_failure
-\quit 1
+DO $grainline_role_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_role_provisioning_abort$;
 \endif
 \unset grainline_role_provisioning_failed
 \unset grainline_role_provisioning_failure
@@ -63,7 +75,11 @@ SELECT
 \gset
 \if :grainline_role_provisioning_failed
 \echo :grainline_role_provisioning_failure
-\quit 1
+DO $grainline_role_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_role_provisioning_abort$;
 \endif
 \unset grainline_role_provisioning_failed
 \unset grainline_role_provisioning_failure
@@ -78,7 +94,11 @@ SELECT
 \gset
 \if :grainline_role_provisioning_failed
 \echo :grainline_role_provisioning_failure
-\quit 1
+DO $grainline_role_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_role_provisioning_abort$;
 \endif
 \unset grainline_role_provisioning_failed
 \unset grainline_role_provisioning_failure
@@ -94,7 +114,11 @@ SELECT
 \gset
 \if :grainline_role_provisioning_failed
 \echo :grainline_role_provisioning_failure
-\quit 1
+DO $grainline_role_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_role_provisioning_abort$;
 \endif
 \unset grainline_role_provisioning_failed
 \unset grainline_role_provisioning_failure
@@ -122,7 +146,11 @@ SELECT
 \gset
 \if :grainline_role_provisioning_failed
 \echo :grainline_role_provisioning_failure
-\quit 1
+DO $grainline_role_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_role_provisioning_abort$;
 \endif
 \unset grainline_role_provisioning_failed
 \unset grainline_role_provisioning_failure
@@ -158,7 +186,11 @@ SELECT
 \gset
 \if :grainline_role_provisioning_failed
 \echo :grainline_role_provisioning_failure
-\quit 1
+DO $grainline_role_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_role_provisioning_abort$;
 \endif
 \unset grainline_role_provisioning_failed
 \unset grainline_role_provisioning_failure
@@ -371,7 +403,11 @@ SELECT
 \gset
 \if :grainline_role_provisioning_failed
 \echo :grainline_role_provisioning_failure
-\quit 1
+DO $grainline_role_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_role_provisioning_abort$;
 \endif
 \unset grainline_role_provisioning_failed
 \unset grainline_role_provisioning_failure
@@ -424,9 +460,9 @@ WITH table_state AS (
   SELECT
     COUNT(*) = 2 AS table_catalog_complete,
     COUNT(*) = 2
+      AND COUNT(DISTINCT relforcerowsecurity) = 1
       AND bool_and(
         relrowsecurity
-        AND NOT relforcerowsecurity
         AND policy_count = 1
         AND expected_policy_count = 1
       ) AS active,
@@ -459,7 +495,11 @@ SELECT
 \gset
 \if :grainline_role_provisioning_failed
 \echo :grainline_role_provisioning_failure
-\quit 1
+DO $grainline_role_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_role_provisioning_abort$;
 \endif
 \unset grainline_role_provisioning_failed
 \unset grainline_role_provisioning_failure
@@ -745,7 +785,11 @@ SELECT
 \gset
 \if :grainline_role_provisioning_failed
 \echo :grainline_role_provisioning_failure
-\quit 1
+DO $grainline_role_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_role_provisioning_abort$;
 \endif
 \unset grainline_role_provisioning_failed
 \unset grainline_role_provisioning_failure
@@ -782,7 +826,11 @@ SELECT
 \gset
 \if :grainline_role_provisioning_failed
 \echo :grainline_role_provisioning_failure
-\quit 1
+DO $grainline_role_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_role_provisioning_abort$;
 \endif
 \unset grainline_role_provisioning_failed
 \unset grainline_role_provisioning_failure

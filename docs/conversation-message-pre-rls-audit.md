@@ -56,6 +56,15 @@ read-only pooled-production catalog comparison exposed the precise shape; the
 candidate now pins that full shape and does not weaken expression validation.
 The failure occurred before FORCE and changed no production state.
 
+Corrected-head runs `30207052942` and `30207054327` applied the full migration
+tree, then the grant audit exposed that role provisioning did not yet recognize
+the paired FORCE state. Its refusal used unsupported `\quit 1`; psql warned,
+ignored the argument and returned success before `_prisma_migrations` and
+sequence-default convergence. The correction requires a consistent paired
+FORCE state and replaces all twelve soft exits, including missing-variable
+guards, with SQL exceptions governed by `ON_ERROR_STOP`. The later grant audit
+was the layer that failed closed; neither run touched production.
+
 ## Why this gate exists
 
 RLS must enforce the intended product contract, not freeze accidental current
